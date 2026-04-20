@@ -1,44 +1,43 @@
 # Tide Commander Dockerfile
-# Multi-stage build for optimized production image
+# Runs via bunx tide-commander@latest — no local build needed
 
-# Stage 1: Build
-FROM node:20-alpine AS builder
+FROM node:20-alpine
 
-WORKDIR /app
+# System tools: native addon compilation, agent workflows, and installer scripts
+RUN apk add --no-cache python3 make g++ git bash curl unzip
 
-# Install dependencies
-COPY package*.json ./
-RUN npm ci
+# Install codex globally via npm (accessible to all users)
+RUN npm install -g @openai/codex
 
-# Copy source and build
-COPY . .
-RUN npm run build
+# Create non-root user (Claude refuses --dangerously-skip-permissions as root)
+RUN addgroup -S commander && \
+    adduser -S -G commander -h /home/commander -s /bin/bash commander && \
+    mkdir -p /home/projects && \
+    chown commander:commander /home/projects
 
-# Stage 2: Production
-FROM node:20-alpine AS production
+# Switch to commander for all user-space CLI installs
+USER commander
+WORKDIR /home/commander
 
-WORKDIR /app
+# Install bun into /home/commander/.bun
+RUN curl -fsSL https://bun.sh/install | bash
 
-# Install production dependencies only
-COPY package*.json ./
-RUN npm ci --omit=dev
+# Install claude into /home/commander/.local/bin
+RUN curl -fsSL https://claude.ai/install.sh | bash
 
-# Copy built assets from builder
-COPY --from=builder /app/dist ./dist
+# Install opencode into /home/commander/.opencode
+RUN curl -fsSL https://opencode.ai/install | bash
 
-# Copy server files (TypeScript compiled to JS)
-COPY --from=builder /app/src/packages/server ./src/packages/server
-COPY --from=builder /app/src/packages/shared ./src/packages/shared
+ENV PATH="/home/commander/.bun/bin:/home/commander/.local/bin:/home/commander/.opencode/bin:${PATH}"
 
-# Create directories for runtime data
-RUN mkdir -p /root/.tide-commander
+VOLUME ["/home/commander/.local/share/tide-commander"]
+VOLUME ["/home/commander/.claude"]
+VOLUME ["/home/projects"]
 
-# Expose port
-EXPOSE 5174
+EXPOSE 9059
 
-# Environment variables
-ENV NODE_ENV=production
-ENV PORT=5174
+ENV PORT=9059
+ENV HOST=0.0.0.0
 
-# Start the server
-CMD ["node", "--experimental-specifier-resolution=node", "src/packages/server/index.js"]
+ENTRYPOINT []
+CMD ["/home/commander/.bun/bin/bun", "x", "tide-commander@latest", "--foreground"]

@@ -281,8 +281,18 @@
   }
 
   &.selected {
-    border-color: $dracula-cyan;
-    background: rgba($dracula-cyan, 0.15);
+    border-color: $accent-blue;
+    background: rgba($accent-blue, 0.15);
+  }
+}
+
+// Model chips row — wraps when chips are too wide to fit in a single line
+.spawn-select-row--wrap {
+  flex-wrap: wrap;
+
+  .spawn-select-btn {
+    flex: 1 1 auto;
+    min-width: 100px;
   }
 }
 
@@ -312,9 +322,9 @@
 // OpenCode provider button styling
 .spawn-select-btn--opencode {
   &.selected {
-    border-color: #10b981 !important;
-    background: rgba(16, 185, 129, 0.15) !important;
-    color: #10b981 !important;
+    border-color: $accent-blue !important;
+    background: rgba($accent-blue, 0.15) !important;
+    color: $text-primary !important;
   }
 }
 
@@ -349,8 +359,6 @@
 .spawn-options-row {
   align-items: center;
   flex-wrap: wrap;
-  padding-top: 14px;
-  border-top: 1px solid rgba($border-color, 0.5);
 }
 
 .spawn-checkbox {

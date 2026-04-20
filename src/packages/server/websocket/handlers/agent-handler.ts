@@ -815,6 +815,7 @@ export async function handleUpdateAgentProperties(
       skillIds?: string[];
       cwd?: string;
       shortcut?: string;
+      customInstructions?: string;
     };
   }
 ): Promise<void> {
@@ -936,6 +937,10 @@ export async function handleUpdateAgentProperties(
 
   if (updates.shortcut !== undefined) {
     agentUpdates.shortcut = updates.shortcut;
+  }
+
+  if (updates.customInstructions !== undefined) {
+    agentUpdates.customInstructions = updates.customInstructions || undefined;
   }
 
   // Apply agent property updates if any

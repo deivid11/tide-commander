@@ -120,6 +120,7 @@ export interface AgentActions {
       skillIds?: string[];
       cwd?: string;
       shortcut?: string;
+      customInstructions?: string;
     }
   ): void;
 
@@ -674,6 +675,7 @@ export function createAgentActions(
         skillIds?: string[];
         cwd?: string;
         shortcut?: string;
+        customInstructions?: string;
       }
     ): void {
       const state = getState();
@@ -714,6 +716,9 @@ export function createAgentActions(
           if (updates.shortcut !== undefined) {
             updatedAgent.shortcut = updates.shortcut;
           }
+          if (updates.customInstructions !== undefined) {
+            updatedAgent.customInstructions = updates.customInstructions || undefined;
+          }
           const newAgents = new Map(s.agents);
           newAgents.set(agentId, updatedAgent);
           s.agents = newAgents;
@@ -733,6 +738,16 @@ export function createAgentActions(
           body: JSON.stringify({ shortcut: updates.shortcut }),
         }).catch((error) => {
           console.error('[Store] Failed to persist agent shortcut', error);
+        });
+      }
+
+      if (updates.customInstructions !== undefined) {
+        authFetch(apiUrl(`/api/agents/${agentId}`), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customInstructions: updates.customInstructions || null }),
+        }).catch((error) => {
+          console.error('[Store] Failed to persist agent customInstructions', error);
         });
       }
     },

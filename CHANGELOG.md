@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.57.0] - 2026-04-20
+
+### Added
+- **Custom Instructions per agent** — new textarea field in AgentEditModal lets you append custom instructions to any agent's system prompt; persisted via store and API
+- **Docker support** — added `docker-compose.yml`, `.dockerignore`, and updated `Dockerfile` for containerized deployment
+- **OpenCode SVG icon** — replaced generic icon with proper OpenCode logo in SpawnModal and AgentEditModal provider selector
+
+### Changed
+- **SpawnModal layout** — model selection and effort/browser controls split into separate rows; model select buttons now wrap instead of overflow
+- **Jira client** — removed redundant `startAt` field from JQL query body
+
 ## [1.56.0] - 2026-04-20
 
 ### Added

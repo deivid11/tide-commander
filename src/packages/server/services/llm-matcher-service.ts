@@ -131,7 +131,7 @@ Respond ONLY with valid JSON (no markdown, no explanation outside JSON):
       return { match: false, reason: `LLM call timed out (${TIMEOUT_MS}ms)`, confidence: 0, durationMs, model, tokensUsed: 0 };
     }
 
-    log.error('LLM match error:', err);
+    log.error(`LLM match error: ${err instanceof Error ? err.message : String(err)}`);
     return { match: false, reason: `LLM error: ${reason}`, confidence: 0, durationMs, model, tokensUsed: 0 };
   }
 }

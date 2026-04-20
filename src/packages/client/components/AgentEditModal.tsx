@@ -51,6 +51,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
   const [classSearch, setClassSearch] = useState('');
   const [skillSearch, setSkillSearch] = useState('');
+  const [customInstructions, setCustomInstructions] = useState<string>(agent.customInstructions || '');
   const [editingInstructions, setEditingInstructions] = useState(false);
   const [instructionsText, setInstructionsText] = useState('');
 
@@ -110,6 +111,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       setWorkdir(agent.cwd);
       setShortcut((((agent as AgentWithShortcut).shortcut) || '').trim());
       setClassSearch('');
+      setCustomInstructions(agent.customInstructions || '');
       const directlyAssigned = allSkills
         .filter(s => s.assignedAgentIds.includes(agent.id))
         .map(s => s.id);
@@ -208,6 +210,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (useChrome !== (agent.useChrome || false)) return true;
     if (workdir !== agent.cwd) return true;
     if (shortcut !== (((agent as AgentWithShortcut).shortcut || '').trim())) return true;
+    if (customInstructions !== (agent.customInstructions || '')) return true;
 
     // Check skill changes
     const currentDirectSkills = allSkills
@@ -219,7 +222,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (currentDirectSkills !== newSkills) return true;
 
     return false;
-  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedEffort, selectedCodexModel, codexConfig, opencodeModel, useChrome, workdir, shortcut, selectedSkillIds, agent, allSkills]);
+  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedEffort, selectedCodexModel, codexConfig, opencodeModel, useChrome, workdir, shortcut, customInstructions, selectedSkillIds, agent, allSkills]);
 
   // Handle save
   const handleSave = () => {
@@ -237,6 +240,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       skillIds?: string[];
       cwd?: string;
       shortcut?: string;
+      customInstructions?: string;
     } = {};
 
     if (trimmedName && trimmedName !== agent.name) {
@@ -285,6 +289,10 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
 
     if (shortcut !== (((agent as AgentWithShortcut).shortcut || '').trim())) {
       updates.shortcut = shortcut;
+    }
+
+    if (customInstructions !== (agent.customInstructions || '')) {
+      updates.customInstructions = customInstructions;
     }
 
     // Always send skill IDs if changed
@@ -470,7 +478,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     className={`spawn-select-btn spawn-select-btn--opencode ${selectedProvider === 'opencode' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('opencode')}
                   >
-                    <span><Icon name="status-pending" size={14} weight="fill" color="#4ade80" /></span>
+                    <img src={`${import.meta.env.BASE_URL}assets/opencode.svg`} alt="OpenCode" className="spawn-provider-icon" />
                     <span>OpenCode</span>
                   </button>
                 </div>
@@ -679,6 +687,21 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                 {t('terminal:spawn.newSessionWarning')}
               </div>
             )}
+
+            {/* Custom Instructions */}
+            <div className="spawn-form-row">
+              <div className="spawn-field">
+                <label className="spawn-label">Custom Instructions</label>
+                <textarea
+                  className="spawn-input"
+                  value={customInstructions}
+                  onChange={(e) => setCustomInstructions(e.target.value)}
+                  placeholder="Additional instructions appended to this agent's system prompt..."
+                  rows={7}
+                  style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
+                />
+              </div>
+            </div>
 
             {/* Skills section */}
             <div className="spawn-skills-section">

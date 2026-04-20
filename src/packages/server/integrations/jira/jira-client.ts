@@ -207,7 +207,6 @@ export class JiraClient {
     const body: Record<string, unknown> = {
       jql,
       maxResults: opts?.maxResults ?? 25,
-      startAt: opts?.startAt ?? 0,
       fields: opts?.fields ?? [
         'summary', 'status', 'priority', 'assignee', 'issuetype',
         'project', 'created', 'updated', 'labels',

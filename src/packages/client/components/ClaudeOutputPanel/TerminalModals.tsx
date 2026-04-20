@@ -204,8 +204,12 @@ function JsonViewer({ data }: JsonViewerProps) {
   );
 }
 
+function stripAnsi(text: string): string {
+  return text.replace(/\x1b\[[0-9;]*[mGKHFJA-Za-z]/g, '');
+}
+
 function tryParseJson(text: string): { ok: true; data: unknown } | { ok: false } {
-  const trimmed = text.trim();
+  const trimmed = stripAnsi(text.trim());
   if (!trimmed || (trimmed[0] !== '{' && trimmed[0] !== '[')) return { ok: false };
   try {
     return { ok: true, data: JSON.parse(trimmed) };

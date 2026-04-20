@@ -1,0 +1,12 @@
+node_modules
+dist
+dist-app
+dist-landing
+dist-stable
+.git
+.claude
+logs
+android
+.env
+.env.*
+*.log

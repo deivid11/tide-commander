@@ -661,7 +661,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     onClick={() => setSelectedProvider('opencode')}
                     title="Use OpenCode CLI (multi-provider)"
                   >
-                    <span><Icon name="status-pending" size={12} weight="fill" color="#4ade80" /></span>
+                    <img src={`${import.meta.env.BASE_URL}assets/opencode.svg`} alt="OpenCode" className="spawn-provider-icon" />
                     <span>OpenCode</span>
                   </button>
                 </div>
@@ -692,7 +692,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
               </div>
             </div>
 
-            {/* Row 3: Model (Claude only) + Chrome */}
+            {/* Row 3: Model */}
             <div className="spawn-form-row">
               <div className="spawn-field">
                 <label className="spawn-label">
@@ -705,7 +705,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                   />
                 </label>
                 {selectedProvider === 'claude' ? (
-                  <div className="spawn-select-row">
+                  <div className="spawn-select-row spawn-select-row--wrap">
                     {(Object.keys(CLAUDE_MODELS) as ClaudeModel[])
                       .filter((model) => !CLAUDE_MODELS[model].deprecated)
                       .map((model) => (
@@ -746,6 +746,10 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                   <div className="spawn-inline-hint">{t('terminal:spawn.chooseCodexModel')}</div>
                 )}
               </div>
+            </div>
+
+            {/* Row 4: Effort + Browser */}
+            <div className="spawn-form-row">
               {selectedProvider === 'claude' && (
                 <div className="spawn-field">
                   <label className="spawn-label">Effort</label>
@@ -772,26 +776,24 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
               )}
               <div className="spawn-field">
                 <label className="spawn-label">{t('terminal:spawn.browser')}</label>
-                <div className="spawn-form-row spawn-options-row">
-                  <label className="spawn-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={useChrome}
-                      onChange={(e) => setUseChrome(e.target.checked)}
-                      disabled={selectedProvider !== 'claude'}
-                    />
-                    <span><Icon name="globe" size={12} /> {t('terminal:spawn.chromeBrowser')}</span>
-                    <HelpTooltip
-                      text={selectedProvider === 'claude'
-                        ? t('terminal:spawn.helpChrome')
-                        : t('terminal:spawn.helpChromeDisabled')
-                      }
-                      title={t('terminal:spawn.chromeBrowser')}
-                      position="top"
-                      size="sm"
-                    />
-                  </label>
-                </div>
+                <label className="spawn-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={useChrome}
+                    onChange={(e) => setUseChrome(e.target.checked)}
+                    disabled={selectedProvider !== 'claude'}
+                  />
+                  <span><Icon name="globe" size={12} /> {t('terminal:spawn.chromeBrowser')}</span>
+                  <HelpTooltip
+                    text={selectedProvider === 'claude'
+                      ? t('terminal:spawn.helpChrome')
+                      : t('terminal:spawn.helpChromeDisabled')
+                    }
+                    title={t('terminal:spawn.chromeBrowser')}
+                    position="top"
+                    size="sm"
+                  />
+                </label>
               </div>
             </div>
 
