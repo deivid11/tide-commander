@@ -29,7 +29,6 @@ export const EXTENSION_TO_LANGUAGE: Record<string, string> = {
   '.gql': 'graphql',
 
   // JVM languages
-  '.java': 'java',
   '.kt': 'kotlin',
   '.kts': 'kotlin',
   '.scala': 'scala',
@@ -51,7 +50,6 @@ export const EXTENSION_TO_LANGUAGE: Record<string, string> = {
   // Scripting languages
   '.py': 'python',
   '.rb': 'ruby',
-  '.php': 'php',
   '.lua': 'lua',
   '.pl': 'perl',
   '.pm': 'perl',
@@ -178,7 +176,6 @@ export const FILE_ICONS: Record<string, string> = {
   '.html': `${ICON_BASE}file_type_html.svg`,
   '.ico': `${ICON_BASE}file_type_image.svg`,
   '.ini': `${ICON_BASE}file_type_ini.svg`,
-  '.java': `${ICON_BASE}file_type_java.svg`,
   '.jl': `${ICON_BASE}file_type_julia.svg`,
   '.jpeg': `${ICON_BASE}file_type_image.svg`,
   '.jpg': `${ICON_BASE}file_type_image.svg`,
@@ -208,7 +205,6 @@ export const FILE_ICONS: Record<string, string> = {
   '.nims': `${ICON_BASE}file_type_nim.svg`,
   '.patch': `${ICON_BASE}file_type_diff.svg`,
   '.pdf': `${ICON_BASE}file_type_pdf.svg`,
-  '.php': `${ICON_BASE}file_type_php.svg`,
   '.pl': `${ICON_BASE}file_type_perl.svg`,
   '.pm': `${ICON_BASE}file_type_perl.svg`,
   '.png': `${ICON_BASE}file_type_image.svg`,

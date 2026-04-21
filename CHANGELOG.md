@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.61.0] - 2026-04-20
+
+### Added
+- **Copy Markdown source** — DiffViewer now shows a "Copy Markdown" button when viewing markdown files in modified-only mode, copying the raw source text to clipboard
+
+### Changed
+- **Keyboard shortcut meta key** — `meta` modifier is now handled independently from `ctrl`; shortcuts can require Meta/Cmd alone without triggering on Ctrl, enabling proper Mac-only bindings
+- **Language support cleanup** — removed Java and PHP CodeMirror/Prism language packages; JVM files (`.kt`, `.groovy`, `.scala`) now use C++ highlighting as a lighter-weight fallback
+
 ## [1.60.0] - 2026-04-20
 
 ### Added

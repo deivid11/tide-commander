@@ -97,19 +97,24 @@ export function matchesShortcut(event: KeyboardEvent, shortcut: ShortcutConfig |
   if (!shortcut || !shortcut.enabled) return false;
 
   // Check modifiers first
-  const { ctrl, alt, shift } = shortcut.modifiers;
+  const { ctrl, alt, shift, meta } = shortcut.modifiers;
 
-  // For ctrl, also accept meta on Mac (Cmd key)
-  const ctrlMatch = ctrl ? (event.ctrlKey || event.metaKey) : (!event.ctrlKey && !event.metaKey);
   const altMatch = alt ? event.altKey : !event.altKey;
   const shiftMatch = shift ? event.shiftKey : !event.shiftKey;
 
-  // Special case: if ctrl is required, we accept either ctrl or meta
   let modifiersMatch: boolean;
-  if (ctrl) {
+  if (ctrl && meta) {
+    // Both ctrl and meta required
+    modifiersMatch = event.ctrlKey && event.metaKey && altMatch && shiftMatch;
+  } else if (ctrl) {
+    // ctrl accepts either Ctrl or Meta on Mac for cross-platform compatibility
     modifiersMatch = (event.ctrlKey || event.metaKey) && altMatch && shiftMatch;
+  } else if (meta) {
+    // meta only — require Meta/Cmd, must not have ctrl
+    modifiersMatch = event.metaKey && !event.ctrlKey && altMatch && shiftMatch;
   } else {
-    modifiersMatch = ctrlMatch && altMatch && shiftMatch;
+    // No ctrl or meta required — both must be absent
+    modifiersMatch = !event.ctrlKey && !event.metaKey && altMatch && shiftMatch;
   }
 
   if (!modifiersMatch) return false;

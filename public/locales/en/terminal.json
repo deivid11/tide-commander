@@ -942,6 +942,7 @@
     "errorCopy": "Error",
     "copyRichText": "Copy Rich Text",
     "copyHtml": "Copy HTML",
+    "copyMarkdown": "Copy Markdown",
     "originalHead": "Original (HEAD)",
     "modifiedContent": "Modified Content",
     "modifiedWorking": "Modified (Working)"

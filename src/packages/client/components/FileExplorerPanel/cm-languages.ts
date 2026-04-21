@@ -14,11 +14,9 @@ import { json } from '@codemirror/lang-json';
 import { markdown } from '@codemirror/lang-markdown';
 import { sql } from '@codemirror/lang-sql';
 import { rust } from '@codemirror/lang-rust';
-import { java } from '@codemirror/lang-java';
 import { cpp } from '@codemirror/lang-cpp';
 import { xml } from '@codemirror/lang-xml';
 import { yaml } from '@codemirror/lang-yaml';
-import { php } from '@codemirror/lang-php';
 
 /**
  * Map file extension to CodeMirror language extension.
@@ -104,14 +102,13 @@ export function getLanguageExtension(ext: string): Extension | null {
     case '.rs':
       return rust();
 
-    // JVM languages (Java syntax highlighting)
-    case '.java':
+    // JVM languages
     case '.kt':
     case '.kts':
     case '.groovy':
     case '.gradle':
     case '.scala':
-      return java();
+      return cpp();
 
     // C / C++ / C-family
     case '.c':
@@ -149,14 +146,6 @@ export function getLanguageExtension(ext: string): Extension | null {
     case '.yaml':
     case '.yml':
       return yaml();
-
-    // PHP
-    case '.php':
-    case '.phtml':
-    case '.php3':
-    case '.php4':
-    case '.php5':
-      return php();
 
     default:
       return null;
