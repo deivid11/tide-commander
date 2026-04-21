@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.61.1] - 2026-04-21
+
+### Fixed
+- **File viewer markdown padding** — rendered markdown in the code viewer now has breathing room with consistent padding on all sides for easier reading
+
 ## [1.61.0] - 2026-04-20
 
 ### Added
