@@ -15,6 +15,7 @@ import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
 import { renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
+import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { useTTS } from '../../hooks/useTTS';
 import { Icon, type IconName } from '../Icon';
@@ -332,6 +333,21 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   const [sessionExpanded, setSessionExpanded] = useState(false);
   const [subagentResultExpanded, setSubagentResultExpanded] = useState(false);
   const { toggle: toggleTTS, speaking } = useTTS();
+  const markdownContentRef = useRef<HTMLDivElement>(null);
+  const [copyRichStatus, setCopyRichStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const handleCopyRichText = useCallback(async () => {
+    if (!markdownContentRef.current) return;
+    try {
+      const html = inlineStylesForRichCopy(markdownContentRef.current.innerHTML);
+      const plainText = markdownContentRef.current.innerText;
+      await copyRichContentToClipboard(html, plainText);
+      setCopyRichStatus('copied');
+      setTimeout(() => setCopyRichStatus('idle'), 2000);
+    } catch {
+      setCopyRichStatus('error');
+      setTimeout(() => setCopyRichStatus('idle'), 2000);
+    }
+  }, []);
 
   // Format timestamp for display
   const timeStr = formatTimestamp(timestamp || Date.now());
@@ -1176,7 +1192,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             )}
             {assistantRoleLabel}
           </span>
-          <div className="markdown-content">
+          <div ref={markdownContentRef} className="markdown-content">
             {renderContentWithImages(workPlanParsed.contentWithoutBlock, onImageClick, onFileClick)}
           </div>
           {workPlanParsed.hasWorkPlan && workPlanParsed.workPlan && (
@@ -1210,6 +1226,13 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 <Icon name="file-text" size={14} />
               </button>
             )}
+            <button
+              className="history-view-md-btn"
+              onClick={(e) => { e.stopPropagation(); handleCopyRichText(); }}
+              title="Copy as rich text"
+            >
+              <Icon name={copyRichStatus === 'copied' ? 'check' : copyRichStatus === 'error' ? 'cross' : 'copy'} size={14} />
+            </button>
           </div>
         </div>
       );
@@ -1235,7 +1258,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         </span>
       )}
       {useMarkdown ? (
-        <div className="markdown-content">
+        <div ref={markdownContentRef} className="markdown-content">
           {isSubagentCompletion ? (
             <>
               <Icon name={subagentSuccess ? 'status-success' : 'status-error'} size={14} weight="fill" color={subagentSuccess ? '#4ade80' : '#f87171'} />
@@ -1301,6 +1324,13 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               <Icon name="file-text" size={14} />
             </button>
           )}
+          <button
+            className="history-view-md-btn"
+            onClick={(e) => { e.stopPropagation(); handleCopyRichText(); }}
+            title="Copy as rich text"
+          >
+            <Icon name={copyRichStatus === 'copied' ? 'check' : copyRichStatus === 'error' ? 'cross' : 'copy'} size={14} />
+          </button>
         </div>
       )}
     </div>
