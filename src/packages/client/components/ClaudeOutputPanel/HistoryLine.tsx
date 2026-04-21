@@ -2,7 +2,7 @@
  * HistoryLine component for rendering conversation history messages
  */
 
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -23,6 +23,7 @@ import { highlightText, renderContentWithImages, renderUserPromptContent } from 
 import { useTTS } from '../../hooks/useTTS';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { Icon } from '../Icon';
+import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
 import type { EnrichedHistoryMessage, EditData } from './types';
 
 /** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
@@ -81,6 +82,21 @@ export const HistoryLine = memo(function HistoryLine({
   const content = filterCostText(rawContent, hideCost);
   const { toggle: toggleTTS, speaking } = useTTS();
   const markdownComponents = createMarkdownComponents({ onFileClick: onFileClick ? (path) => onFileClick(path) : undefined });
+  const markdownContentRef = useRef<HTMLSpanElement>(null);
+  const [copyRichStatus, setCopyRichStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const handleCopyRichText = useCallback(async () => {
+    if (!markdownContentRef.current) return;
+    try {
+      const html = inlineStylesForRichCopy(markdownContentRef.current.innerHTML);
+      const plainText = markdownContentRef.current.innerText;
+      await copyRichContentToClipboard(html, plainText);
+      setCopyRichStatus('copied');
+      setTimeout(() => setCopyRichStatus('idle'), 2000);
+    } catch {
+      setCopyRichStatus('error');
+      setTimeout(() => setCopyRichStatus('idle'), 2000);
+    }
+  }, []);
 
   // Resolve agent name for tool attribution badge
   // For Task tool_use messages, show the subagent name instead of parent agent
@@ -904,7 +920,7 @@ export const HistoryLine = memo(function HistoryLine({
           )}
           {assistantOrSystemRoleLabel}
         </span>
-        <span className="history-content markdown-content">
+        <span ref={markdownContentRef} className="history-content markdown-content">
           {highlight ? (
             <div>{highlightText(workPlanParsed.contentWithoutBlock, highlight)}</div>
           ) : (
@@ -942,6 +958,13 @@ export const HistoryLine = memo(function HistoryLine({
               <Icon name="file-text" size={14} />
             </button>
           )}
+          <button
+            className="history-view-md-btn"
+            onClick={(e) => { e.stopPropagation(); handleCopyRichText(); }}
+            title="Copy as rich text"
+          >
+            <Icon name={copyRichStatus === 'copied' ? 'check' : copyRichStatus === 'error' ? 'cross' : 'copy'} size={14} />
+          </button>
         </div>
       </div>
     );
@@ -961,7 +984,7 @@ export const HistoryLine = memo(function HistoryLine({
         )}
         {isUser ? t('common:labels.you') : assistantOrSystemRoleLabel}
       </span>
-      <span className={`history-content ${isUser ? 'user-prompt-text' : 'markdown-content'}`}>
+      <span ref={markdownContentRef} className={`history-content ${isUser ? 'user-prompt-text' : 'markdown-content'}`}>
         {highlight ? <div>{highlightText(content, highlight)}</div> : (
           isUser ? renderUserPromptContent(content, onImageClick, onFileClick) : renderContentWithImages(content, onImageClick, onFileClick)
         )}
@@ -986,6 +1009,13 @@ export const HistoryLine = memo(function HistoryLine({
               <Icon name="file-text" size={14} />
             </button>
           )}
+          <button
+            className="history-view-md-btn"
+            onClick={(e) => { e.stopPropagation(); handleCopyRichText(); }}
+            title="Copy as rich text"
+          >
+            <Icon name={copyRichStatus === 'copied' ? 'check' : copyRichStatus === 'error' ? 'cross' : 'copy'} size={14} />
+          </button>
         </div>
       )}
     </div>

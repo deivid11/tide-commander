@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.60.0] - 2026-04-20
+
+### Added
+- **Copy as rich text** — new button on conversation output and history lines copies formatted markdown content (with inline styles) to clipboard, with visual feedback on success or error
+
+### Changed
+- **Landing site** — Astro docs now served under `/docs` base path; Vite landing build now uses the legacy static layout as its root
+
 ## [1.59.0] - 2026-04-20
 
 ### Added
