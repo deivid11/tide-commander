@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.65.0] - 2026-04-22
+
+### Added
+- **Opencode provider integration** — new `OpencodeModelSelect` UI component, opencode API client, and `GET /api/agents/opencode/models` endpoint (1h cached, with `?refresh=1` bypass) that shells out to the `opencode models` CLI to populate the picker
+- **Boss spawn enhancements** — boss agents can now spawn subordinates with `model`, `codexModel`, `opencodeModel`, `effort`, `provider`, `initialSkillIds`, `customInstructions`, `codexConfig`, and `permissionMode`; class default skills are auto-assigned alongside any explicit ones
+- **Runtime stop `clearQueue` flag** — `RuntimeRunner.stop` / `stopAll` now accept an optional `clearQueue` argument so callers can choose whether queued work is dropped on stop
+
+### Changed
+- **Tracking status renamed `writing` → `thinking`** — the "agent is forming a plan" tracking status is now called `thinking` across shared types, client selectors/tracking board, and the built-in `task-label`, `agent-tracking`, and boss-instructions skills
+- **Store fallback for `send_command`** — when the store's cached `sendMessage` is unavailable, agent command dispatch now dynamically imports the websocket send module so commands queue correctly while disconnected
+
 ## [1.64.1] - 2026-04-21
 
 ### Changed
