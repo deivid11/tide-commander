@@ -141,6 +141,38 @@ curl -s -X POST http://localhost:5174/api/jira/issues/SD-1234/transitions \\
   -d '{"transitionId": "31", "comment": "Transition reason"}'
 \`\`\`
 
+## Attachments
+
+**List attachments on an issue:**
+\`\`\`bash
+curl -s http://localhost:5174/api/jira/issues/SD-1234/attachments
+\`\`\`
+Returns \`{ "attachments": [ { "id", "filename", "mimeType", "size", "contentUrl", "authorDisplayName?", "created?" } ] }\`.
+
+**List attachments referenced by comments (optionally a single comment):**
+\`\`\`bash
+# All comment attachments on the issue
+curl -s http://localhost:5174/api/jira/issues/SD-1234/comments/attachments
+
+# Only attachments referenced by a single comment
+curl -s "http://localhost:5174/api/jira/issues/SD-1234/comments/attachments?commentId=10050"
+\`\`\`
+
+**Download a single attachment to disk (proxy streams binary, auth handled server-side):**
+\`\`\`bash
+curl -s http://localhost:5174/api/jira/attachments/10042/content -o /tmp/myfile.pdf
+\`\`\`
+The response preserves \`Content-Type\` and \`Content-Disposition\` from Jira.
+
+**Server-side bulk download of every attachment into a directory:**
+\`\`\`bash
+curl -s -X POST http://localhost:5174/api/jira/issues/SD-1234/attachments/download-all \\
+  -H "Content-Type: application/json" \\
+  -d '{"outputDir": "/tmp/jira/SD-1234", "includeComments": true}'
+\`\`\`
+The server writes files into \`outputDir\` (created if missing), overwriting on filename collision.
+Returns \`{ "outputDir", "count", "attachments": [ { "id", "filename", "mimeType", "size" } ] }\`.
+
 ## Service Desk Requests
 
 \`\`\`bash

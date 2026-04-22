@@ -59,17 +59,25 @@ export const slackTriggerHandler: TriggerHandler = {
   extractVariables(trigger: TriggerDefinition, event: ExternalEvent): Record<string, string> {
     const msg = event.data as SlackMessage;
     void trigger; // trigger config not needed for basic extraction
+    const files = msg.files ?? [];
     return {
       'slack.user': msg.userName,
       'slack.userId': msg.userId,
       'slack.message': msg.text,
       'slack.channel': msg.channel,
       'slack.threadTs': msg.threadTs || msg.ts,
+      'slack.fileCount': String(files.length),
+      'slack.fileIds': files.map((f) => f.id).join(','),
+      'slack.fileNames': files.map((f) => f.name ?? '').filter(Boolean).join(','),
     };
   },
 
   formatEventForLLM(event: ExternalEvent): string {
     const msg = event.data as SlackMessage;
-    return `Slack message from @${msg.userName} (${msg.userId}) in #${msg.channel}:\n"${msg.text}"`;
+    const files = msg.files ?? [];
+    const filesLine = files.length
+      ? `\nAttachments (${files.length}): ${files.map((f) => `${f.name ?? f.id} [${f.mimetype ?? 'unknown'}]`).join(', ')}`
+      : '';
+    return `Slack message from @${msg.userName} (${msg.userId}) in #${msg.channel}:\n"${msg.text}"${filesLine}`;
   },
 };
