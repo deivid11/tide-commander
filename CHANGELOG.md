@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.66.1] - 2026-04-22
+
+### Changed
+- **Simpler agent-switch path in terminal pane** — drop the `pendingSelectionScrollRef` indirection and the cold-switch `requestAnimationFrame`; remove `key={agentId}` from the virtualized output list so the same instance is reused across switches instead of being unmounted and rebuilt
+- **Larger virtualizer overscan** — bump `VirtualizedOutputList` overscan from 10 to 25 items so more rows are pre-rendered above/below the viewport, reducing flashes of blank space during fast scrolling
+- **Tracking-board card detail is now single-line ellipsis** — replace the 2-line `-webkit-line-clamp` clamp with `white-space: nowrap` + `text-overflow: ellipsis` for tighter, more predictable card sizing in both the sidebar and guake-terminal tracking boards
+
 ## [1.66.0] - 2026-04-22
 
 ### Added

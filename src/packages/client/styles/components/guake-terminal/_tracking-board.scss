@@ -531,10 +531,12 @@
   color: var(--text-secondary);
   font-size: 10.5px;
   line-height: 1.3;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tracking-board-typing {

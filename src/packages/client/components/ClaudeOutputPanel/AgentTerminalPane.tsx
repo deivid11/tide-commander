@@ -478,7 +478,6 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // ── Scroll management ──
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const isUserScrolledUpRef = useRef(false);
-  const pendingSelectionScrollRef = useRef(false);
   const agentSwitchGraceRef = useRef(false);
 
   const handleUserScrollUp = useCallback(() => {
@@ -499,7 +498,6 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   useEffect(() => {
     setShouldAutoScroll(true);
     isUserScrolledUpRef.current = false;
-    pendingSelectionScrollRef.current = true;
     agentSwitchGraceRef.current = true;
     const timeout = setTimeout(() => {
       agentSwitchGraceRef.current = false;
@@ -544,19 +542,18 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   const [historyFadeIn, setHistoryFadeIn] = useState(false);
   const [isAgentSwitching, setIsAgentSwitching] = useState(false);
 
-  // Hide content immediately on agent change (skip if cached for instant visual)
+  // Hide content immediately on agent change, then fade in after scroll settles
   const prevSelectedAgentIdRef = useRef<string | null>(null);
   useLayoutEffect(() => {
     const prev = prevSelectedAgentIdRef.current;
     const changed = prev !== null && prev !== agentId;
 
     if (changed) {
+      setHistoryFadeIn(false);
       const hasCached = historyLoader.hasCachedHistory(agentId);
       if (!hasCached) {
-        setHistoryFadeIn(false);
         setIsAgentSwitching(true);
       }
-      // If cached, keep historyFadeIn true so content appears instantly
     } else if (!agentId) {
       setHistoryFadeIn(false);
     }
@@ -568,34 +565,8 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   useEffect(() => {
     if (!isAgentSwitching) return;
     if (historyLoader.fetchingHistory) return;
-    const raf = requestAnimationFrame(() => {
-      if (outputScrollRef.current) {
-        outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
-      }
-      setIsAgentSwitching(false);
-    });
-    return () => cancelAnimationFrame(raf);
+    setIsAgentSwitching(false);
   }, [isAgentSwitching, historyLoader.fetchingHistory, historyLoader.historyLoadVersion]);
-
-  // Scroll-to-bottom after agent change
-  useEffect(() => {
-    if (!pendingSelectionScrollRef.current) return;
-    if (!agentId) return;
-    if (isAgentSwitching) return;
-    if (historyLoader.fetchingHistory) return;
-
-    let rafId = 0;
-    rafId = requestAnimationFrame(() => {
-      if (outputScrollRef.current) {
-        outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
-      }
-      pendingSelectionScrollRef.current = false;
-    });
-
-    return () => {
-      cancelAnimationFrame(rafId);
-    };
-  }, [agentId, isAgentSwitching, historyLoader.fetchingHistory, historyLoader.historyLoadVersion]);
 
   // ── Pin to bottom (stabilization loop) ──
   const pendingFadeInRef = useRef(false);
