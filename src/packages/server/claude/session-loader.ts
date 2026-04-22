@@ -568,6 +568,22 @@ function parseClaudeEntryMessages(
   messages: SessionMessage[],
   toolUseIdToName: Map<string, string>
 ): void {
+  // Messages typed while a turn is in flight are persisted as
+  // attachment.queued_command rather than a top-level user entry, so emit
+  // them as user messages to keep history chronologically intact.
+  if (entry.type === 'attachment' && entry.attachment?.type === 'queued_command') {
+    const prompt = entry.attachment.prompt;
+    if (typeof prompt === 'string' && prompt.trim()) {
+      messages.push({
+        type: 'user',
+        content: prompt,
+        timestamp: entry.timestamp,
+        uuid: entry.uuid ?? `${entry.timestamp}-queued-user`,
+      });
+    }
+    return;
+  }
+
   if (entry.type === 'user' && entry.message?.content) {
     if (Array.isArray(entry.message.content)) {
       for (const block of entry.message.content) {

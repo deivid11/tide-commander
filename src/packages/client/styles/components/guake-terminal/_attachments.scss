@@ -534,3 +534,88 @@
     border-radius: $radius-sm;
   }
 }
+
+// =============================================================================
+// Pending (Queued) Messages
+// =============================================================================
+
+.guake-pending-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgba($dracula-bg-darker, 0.95);
+  border-top: 1px solid rgba($dracula-comment, 0.15);
+}
+
+.guake-pending-messages-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-yellow;
+  font-weight: 500;
+
+  svg,
+  img {
+    flex-shrink: 0;
+  }
+}
+
+.guake-pending-messages-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.guake-pending-message-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba($dracula-yellow, 0.12);
+  border: 1px solid rgba($dracula-yellow, 0.35);
+  border-radius: $radius-md;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-yellow;
+  transition: all $transition-fast;
+  max-width: 100%;
+
+  &:hover {
+    background: rgba($dracula-yellow, 0.2);
+    border-color: rgba($dracula-yellow, 0.6);
+  }
+}
+
+.guake-pending-message-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.guake-pending-message-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: rgba($dracula-yellow, 0.6);
+  font-size: 12px;
+  line-height: 1;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+
+  &:hover {
+    color: $dracula-red;
+    background: rgba($dracula-red, 0.15);
+  }
+}

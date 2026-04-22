@@ -89,6 +89,44 @@ export function hasPendingMessages(): boolean {
   return loadPendingMessages().length > 0;
 }
 
+/**
+ * Get pending send_command messages for a specific agent.
+ */
+export function getPendingMessagesForAgent(agentId: string): Array<{ command: string; queuedAt: number }> {
+  const pending = loadPendingMessages();
+  return pending
+    .filter((entry) => {
+      if (entry.message.type !== 'send_command') return false;
+      const payload = entry.message.payload as { agentId?: string } | undefined;
+      return payload?.agentId === agentId;
+    })
+    .map((entry) => ({
+      command: (entry.message.payload as { command?: string } | undefined)?.command || '',
+      queuedAt: entry.queuedAt,
+    }));
+}
+
+/**
+ * Remove a pending send_command message for a specific agent by index.
+ */
+export function removePendingMessageForAgent(agentId: string, index: number): void {
+  const pending = loadPendingMessages();
+  let agentIndex = 0;
+  const filtered = pending.filter((entry) => {
+    if (entry.message.type !== 'send_command') return true;
+    const payload = entry.message.payload as { agentId?: string } | undefined;
+    if (payload?.agentId === agentId) {
+      if (agentIndex === index) {
+        agentIndex++;
+        return false;
+      }
+      agentIndex++;
+    }
+    return true;
+  });
+  savePendingMessages(filtered);
+}
+
 /* ------------------------------------------------------------------ */
 /*  Core send helpers                                                 */
 /* ------------------------------------------------------------------ */

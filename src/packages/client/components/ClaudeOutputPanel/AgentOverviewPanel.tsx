@@ -313,7 +313,9 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     });
   }, [availableAreas]);
 
-  const setAllAreasVisible = useCallback(() => setVisibleAreaIds(null), []);
+  const toggleAllAreas = useCallback(() => {
+    setVisibleAreaIds(prev => (prev === null ? new Set<string>() : null));
+  }, []);
 
   // Map agent -> area info (color + name) for badge display
   const agentAreaInfo = useMemo(() => {
@@ -832,7 +834,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
                     <>
                       {!search && (
                         <>
-                          <label className="aop-area-filter-option" onClick={setAllAreasVisible}>
+                          <label className="aop-area-filter-option" onClick={(e) => { e.preventDefault(); toggleAllAreas(); }}>
                             <input type="checkbox" checked={isAllAreasVisible} readOnly />
                             <span className="aop-area-filter-color" style={{ background: '#6272a4' }} />
                             <span>All</span>

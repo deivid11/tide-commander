@@ -9,6 +9,7 @@ import { store, useSkillsArray, useCustomAgentClassesArray } from '../store';
 import { KeyCaptureInput } from './KeyCaptureInput';
 import { ModelPreview } from './ModelPreview';
 import { FolderInput } from './shared/FolderInput';
+import { OpencodeModelSelect } from './OpencodeModelSelect';
 import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig } from '../../shared/types';
 import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../shared/types';
 import { ShortcutConfig, formatShortcutString, parseShortcutString, shortcutValueToString } from '../store/shortcuts';
@@ -539,12 +540,10 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     ))}
                   </div>
                 ) : selectedProvider === 'opencode' ? (
-                  <input
-                    type="text"
-                    className="spawn-input"
+                  <OpencodeModelSelect
                     value={opencodeModel}
-                    onChange={(e) => setOpencodeModel(e.target.value)}
-                    placeholder="provider/model (e.g., minimax/MiniMax-M1-80k)"
+                    onChange={setOpencodeModel}
+                    inputId="edit-opencode-model"
                   />
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.codex.configuration')}</div>

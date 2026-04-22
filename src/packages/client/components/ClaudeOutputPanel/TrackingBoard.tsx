@@ -29,7 +29,7 @@ type AgentWithArea = {
 };
 
 const TRACKING_COLUMNS: TrackingColumn[] = [
-  { key: 'writing', title: 'Writing', emptyLabel: 'No agents', toneClass: 'writing' },
+  { key: 'thinking', title: 'Thinking', emptyLabel: 'No agents', toneClass: 'thinking' },
   { key: 'working', title: 'Working', emptyLabel: 'No agents', toneClass: 'working' },
   { key: 'waiting-subordinates', title: 'Waiting Subordinates', emptyLabel: 'No agents', toneClass: 'waiting-subordinates' },
   { key: 'need-review', title: 'Need Review', emptyLabel: 'No agents', toneClass: 'need-review' },
@@ -384,8 +384,8 @@ const TrackingBoardCard = memo(function TrackingBoardCard({
         )}
 
         <div className="tracking-board-card-detail">
-          {agent.trackingStatus === 'writing' && (
-            <span className="tracking-board-typing" aria-label="Writing">
+          {agent.trackingStatus === 'thinking' && (
+            <span className="tracking-board-typing" aria-label="Thinking">
               <span className="tracking-board-typing-dot" />
               <span className="tracking-board-typing-dot" />
               <span className="tracking-board-typing-dot" />

@@ -470,10 +470,11 @@ export class ClaudeRunner {
     return this.activeProcesses.size;
   }
 
-  async stop(agentId: string): Promise<void> {
-    // Clear any queued messages — an explicit stop means the user wants the agent to halt,
-    // so delivering buffered messages to a new process would be unexpected.
-    if (this.messageQueue.has(agentId)) {
+  async stop(agentId: string, clearQueue: boolean = true): Promise<void> {
+    // Only clear queued messages on explicit user-initiated stops.
+    // Respawns (watchdog, auto-restart) should preserve the queue so
+    // messages sent while the agent was processing are not lost.
+    if (clearQueue && this.messageQueue.has(agentId)) {
       const count = this.messageQueue.get(agentId)!.length;
       this.messageQueue.delete(agentId);
       if (count > 0) {
@@ -483,7 +484,7 @@ export class ClaudeRunner {
     await this.lifecycle.stop(agentId);
   }
 
-  async stopAll(killProcesses: boolean = true): Promise<void> {
+  async stopAll(killProcesses: boolean = true, clearQueue: boolean = true): Promise<void> {
     if (this.persistTimer) {
       clearInterval(this.persistTimer);
       this.persistTimer = null;
@@ -494,7 +495,9 @@ export class ClaudeRunner {
       this.watchdogTimer = null;
     }
 
-    this.messageQueue.clear();
+    if (clearQueue) {
+      this.messageQueue.clear();
+    }
     await this.lifecycle.stopAll(killProcesses);
   }
 

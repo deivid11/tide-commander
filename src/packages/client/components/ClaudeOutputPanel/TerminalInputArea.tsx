@@ -14,6 +14,7 @@ import { useSTT } from '../../hooks/useSTT';
 import type { Agent, PermissionRequest } from '../../../shared/types';
 import type { AttachedFile } from './types';
 import { Icon } from '../Icon';
+import { getPendingMessagesForAgent, removePendingMessageForAgent } from '../../websocket/send';
 
 /**
  * Isolated elapsed timer component — owns its own 1-second setInterval so the
@@ -249,6 +250,17 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   const [swipeClosePhase, setSwipeClosePhase] = useState<'idle' | 'dragging' | 'returning'>('idle');
   const [isInputExpanded, setIsInputExpanded] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState<Array<{ id: string; name: string }>>([]);
+  const [pendingMessages, setPendingMessages] = useState<Array<{ command: string; queuedAt: number }>>([]);
+
+  // Poll pending messages so the queue UI stays in sync across tabs / reconnects
+  useEffect(() => {
+    const refresh = () => {
+      setPendingMessages(getPendingMessagesForAgent(selectedAgentId));
+    };
+    refresh();
+    const id = setInterval(refresh, 2000);
+    return () => clearInterval(id);
+  }, [selectedAgentId]);
 
   // Get settings to check if TTS feature is enabled
   const settings = useSettings();
@@ -838,6 +850,39 @@ export const TerminalInputArea = memo(function TerminalInputArea({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Queued messages display */}
+      {pendingMessages.length > 0 && (
+        <div className="guake-pending-messages">
+          <div className="guake-pending-messages-header">
+            <Icon name="status-pending" size={12} />
+            <span>
+              {pendingMessages.length === 1
+                ? t('terminal:input.pendingMessage', '1 message queued – will send when connected')
+                : t('terminal:input.pendingMessages', '{{count}} messages queued – will send when connected', { count: pendingMessages.length })}
+            </span>
+          </div>
+          <div className="guake-pending-messages-list">
+            {pendingMessages.map((msg, idx) => (
+              <div key={idx} className="guake-pending-message-chip">
+                <span className="guake-pending-message-text" title={msg.command}>
+                  {msg.command.length > 60 ? msg.command.slice(0, 60) + '...' : msg.command}
+                </span>
+                <button
+                  className="guake-pending-message-remove"
+                  onClick={() => {
+                    removePendingMessageForAgent(selectedAgentId, idx);
+                    setPendingMessages(getPendingMessagesForAgent(selectedAgentId));
+                  }}
+                  title={t('terminal:input.removeQueuedMessage', 'Remove queued message')}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

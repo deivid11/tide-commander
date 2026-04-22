@@ -9,6 +9,7 @@ import { BUILT_IN_AGENT_CLASSES } from '../../shared/agent-types';
 import { ModelPreview } from './ModelPreview';
 import { HelpTooltip } from './shared/Tooltip';
 import { FolderInput } from './shared/FolderInput';
+import { OpencodeModelSelect } from './OpencodeModelSelect';
 import { useModalClose } from '../hooks';
 import { AgentIcon } from './AgentIcon';
 import { Icon } from './Icon';
@@ -749,12 +750,10 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     ))}
                   </div>
                 ) : selectedProvider === 'opencode' ? (
-                  <input
-                    type="text"
-                    className="spawn-input"
+                  <OpencodeModelSelect
                     value={opencodeModel}
-                    onChange={(e) => setOpencodeModel(e.target.value)}
-                    placeholder="provider/model (e.g., minimax/MiniMax-M1-80k)"
+                    onChange={setOpencodeModel}
+                    inputId="spawn-opencode-model"
                   />
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.chooseCodexModel')}</div>

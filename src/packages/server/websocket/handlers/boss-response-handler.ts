@@ -3,10 +3,10 @@
  * Parses delegation, spawn, work-plan, and analysis-request blocks from boss agent responses
  */
 
-import type { AgentClass, DelegationDecision, ServerMessage } from '../../../shared/types.js';
+import type { AgentClass, AgentProvider, ClaudeEffort, ClaudeModel, CodexConfig, CodexModel, DelegationDecision, OpencodeModel, PermissionMode, ServerMessage } from '../../../shared/types.js';
 import { BUILT_IN_AGENT_CLASSES } from '../../../shared/agent-types.js';
-import { agentService, runtimeService, bossService, workPlanService } from '../../services/index.js';
-import { getAllCustomClasses } from '../../services/custom-class-service.js';
+import { agentService, runtimeService, bossService, workPlanService, skillService } from '../../services/index.js';
+import { getAllCustomClasses, getClassDefaultSkillIds } from '../../services/custom-class-service.js';
 import { logger, getCommanderBaseUrl } from '../../utils/index.js';
 import { getLastBossCommand, buildCustomAgentConfig } from './command-handler.js';
 
@@ -377,7 +377,20 @@ export async function parseBossSpawn(
     const validClasses = [...builtInClassIds, ...customClassIds];
 
     for (const spawnRequest of spawns) {
-      const { name, class: agentClass, cwd } = spawnRequest;
+      const {
+        name,
+        class: agentClass,
+        cwd,
+        model,
+        codexModel,
+        opencodeModel,
+        effort,
+        initialSkillIds,
+        provider,
+        customInstructions,
+        codexConfig,
+        permissionMode,
+      } = spawnRequest;
 
       if (!name || !agentClass) {
         log.error(` Spawn request missing required fields (name, class):`, spawnRequest);
@@ -389,11 +402,69 @@ export async function parseBossSpawn(
         continue;
       }
 
+      let safeProvider: AgentProvider | undefined;
+      if (provider !== undefined) {
+        if (provider === 'claude' || provider === 'codex' || provider === 'opencode') {
+          safeProvider = provider;
+        } else {
+          log.warn(` Spawn: invalid provider "${provider}" — falling back to default. Allowed: claude, codex, opencode.`);
+        }
+      }
+
+      let safeEffort: ClaudeEffort | undefined;
+      if (effort !== undefined) {
+        if (effort === 'low' || effort === 'medium' || effort === 'high' || effort === 'xHigh' || effort === 'max') {
+          safeEffort = effort;
+        } else {
+          log.warn(` Spawn: invalid effort "${effort}" — ignoring. Allowed: low, medium, high, xHigh, max.`);
+        }
+      }
+
+      let safeSkillIds: string[] | undefined;
+      if (initialSkillIds !== undefined) {
+        if (Array.isArray(initialSkillIds) && initialSkillIds.every(s => typeof s === 'string')) {
+          safeSkillIds = initialSkillIds;
+        } else {
+          log.warn(` Spawn: initialSkillIds must be an array of strings — ignoring.`);
+        }
+      }
+
       const agentCwd = cwd || bossCwd;
       log.log(` Boss ${bossName} spawning new ${agentClass} agent: "${name}" in ${agentCwd}`);
 
       try {
-        const newAgent = await agentService.createAgent(name, agentClass as AgentClass, agentCwd);
+        const newAgent = await agentService.createAgent(
+          name,
+          agentClass as AgentClass,
+          agentCwd,
+          undefined, // position
+          undefined, // sessionId
+          undefined, // useChrome
+          (permissionMode as PermissionMode | undefined) ?? 'bypass',
+          safeSkillIds,
+          undefined, // isBoss
+          model as ClaudeModel | undefined,
+          codexModel as CodexModel | undefined,
+          typeof customInstructions === 'string' ? customInstructions : undefined,
+          safeProvider,
+          codexConfig as CodexConfig | undefined,
+          safeEffort,
+          opencodeModel as OpencodeModel | undefined
+        );
+
+        // Assign initial skills (mirrors agent-handler behavior). Combine
+        // explicitly requested skills with the class's default skills.
+        const requestedSkills = safeSkillIds ?? [];
+        const classDefaultSkills = getClassDefaultSkillIds(newAgent.class);
+        const allSkillIds = [...new Set([...requestedSkills, ...classDefaultSkills])];
+        for (const skillId of allSkillIds) {
+          try {
+            skillService.assignSkillToAgent(skillId, newAgent.id);
+          } catch (skillErr) {
+            log.warn(` Failed to assign skill "${skillId}" to ${newAgent.name}: ${skillErr}`);
+          }
+        }
+
         const currentSubordinates = bossService.getSubordinates(bossId).map(a => a.id);
         const newSubordinates = [...currentSubordinates, newAgent.id];
         bossService.assignSubordinates(bossId, newSubordinates);
