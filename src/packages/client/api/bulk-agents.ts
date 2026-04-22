@@ -4,6 +4,7 @@
  */
 
 import { getAuthToken, getApiBaseUrl } from '../utils/storage';
+import type { ClaudeEffort } from '../../shared/agent-types';
 
 export interface BulkActionResult {
   succeeded: string[];
@@ -63,11 +64,18 @@ export async function bulkMoveToArea(agentIds: string[], areaId: string | null):
 
 /**
  * Change model for multiple agents. Clears session/context so the new model takes effect.
+ * For Claude provider, optionally sets reasoning effort level too (pass `null` to clear
+ * an existing effort back to default; omit/undefined leaves it unchanged).
  */
 export async function bulkChangeModel(
   agentIds: string[],
   provider: 'claude' | 'codex' | 'opencode',
-  model: string
+  model: string,
+  effort?: ClaudeEffort | null
 ): Promise<BulkActionResult> {
-  return postBulkAction('/api/agents/bulk/change-model', { agentIds, provider, model });
+  const body: Record<string, unknown> = { agentIds, provider, model };
+  if (provider === 'claude' && effort !== undefined) {
+    body.effort = effort;
+  }
+  return postBulkAction('/api/agents/bulk/change-model', body);
 }

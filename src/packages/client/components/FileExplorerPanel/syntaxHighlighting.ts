@@ -32,31 +32,88 @@ import { EXTENSION_TO_LANGUAGE } from './constants';
 
 // On-demand language loaders — imported only when first needed
 const LAZY_LANGUAGE_LOADERS: Record<string, () => Promise<unknown>> = {
+  // C / C++ / C#
   c: () => import('prismjs/components/prism-c'),
   cpp: () => import('prismjs/components/prism-c').then(() => import('prismjs/components/prism-cpp')),
-  scala: () => import('prismjs/components/prism-scala'),
   csharp: () => import('prismjs/components/prism-csharp'),
+  objectivec: () => import('prismjs/components/prism-objectivec'),
+  d: () => import('prismjs/components/prism-d'),
+  zig: () => import('prismjs/components/prism-zig'),
+
+  // JVM
+  java: () => import('prismjs/components/prism-java'),
   kotlin: () => import('prismjs/components/prism-kotlin'),
+  scala: () => import('prismjs/components/prism-scala'),
   groovy: () => import('prismjs/components/prism-groovy'),
+  clojure: () => import('prismjs/components/prism-clojure'),
+
+  // Scripting
   ruby: () => import('prismjs/components/prism-ruby'),
-  scss: () => import('prismjs/components/prism-scss'),
-  toml: () => import('prismjs/components/prism-toml'),
-  docker: () => import('prismjs/components/prism-docker'),
-  swift: () => import('prismjs/components/prism-swift'),
+  php: () => import('prismjs/components/prism-markup-templating').then(() => import('prismjs/components/prism-php')),
   lua: () => import('prismjs/components/prism-lua'),
   perl: () => import('prismjs/components/prism-perl'),
   r: () => import('prismjs/components/prism-r'),
+  julia: () => import('prismjs/components/prism-julia'),
+  dart: () => import('prismjs/components/prism-dart'),
+
+  // Functional
   haskell: () => import('prismjs/components/prism-haskell'),
   elixir: () => import('prismjs/components/prism-elixir'),
   erlang: () => import('prismjs/components/prism-erlang'),
-  clojure: () => import('prismjs/components/prism-clojure'),
+  fsharp: () => import('prismjs/components/prism-fsharp'),
+  ocaml: () => import('prismjs/components/prism-ocaml'),
+  rescript: () => import('prismjs/components/prism-rescript'),
+  elm: () => import('prismjs/components/prism-elm'),
+
+  // CSS preprocessors
+  scss: () => import('prismjs/components/prism-scss'),
+  sass: () => import('prismjs/components/prism-sass'),
+  less: () => import('prismjs/components/prism-less'),
+  stylus: () => import('prismjs/components/prism-stylus'),
+
+  // Shell / batch / PowerShell
+  powershell: () => import('prismjs/components/prism-powershell'),
+  batch: () => import('prismjs/components/prism-batch'),
+
+  // .NET
+  'visual-basic': () => import('prismjs/components/prism-visual-basic'),
+
+  // Data / config
+  toml: () => import('prismjs/components/prism-toml'),
+  ini: () => import('prismjs/components/prism-ini'),
+  properties: () => import('prismjs/components/prism-properties'),
+  hcl: () => import('prismjs/components/prism-hcl'),
+  cmake: () => import('prismjs/components/prism-cmake'),
+
+  // Docs / markup
+  rest: () => import('prismjs/components/prism-rest'),
+  asciidoc: () => import('prismjs/components/prism-asciidoc'),
+  latex: () => import('prismjs/components/prism-latex'),
+
+  // IDL / protocol
   graphql: () => import('prismjs/components/prism-graphql'),
+  protobuf: () => import('prismjs/components/prism-protobuf'),
+
+  // Systems / low-level
+  nasm: () => import('prismjs/components/prism-nasm'),
+  wasm: () => import('prismjs/components/prism-wasm'),
+  fortran: () => import('prismjs/components/prism-fortran'),
+  cobol: () => import('prismjs/components/prism-cobol'),
+  pascal: () => import('prismjs/components/prism-pascal'),
+
+  // Build tools / infra
+  docker: () => import('prismjs/components/prism-docker'),
   nginx: () => import('prismjs/components/prism-nginx'),
+  makefile: () => import('prismjs/components/prism-makefile'),
+
+  // Misc
+  swift: () => import('prismjs/components/prism-swift'),
+  solidity: () => import('prismjs/components/prism-solidity'),
+  nix: () => import('prismjs/components/prism-nix'),
+  tcl: () => import('prismjs/components/prism-tcl'),
+  awk: () => import('prismjs/components/prism-awk'),
   vim: () => import('prismjs/components/prism-vim'),
   diff: () => import('prismjs/components/prism-diff'),
-  ini: () => import('prismjs/components/prism-ini'),
-  powershell: () => import('prismjs/components/prism-powershell'),
-  makefile: () => import('prismjs/components/prism-makefile'),
 };
 
 // Track in-flight loads to avoid duplicate imports

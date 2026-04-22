@@ -247,6 +247,8 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   });
   const [swipeCloseOffset, setSwipeCloseOffset] = useState(0);
   const [swipeClosePhase, setSwipeClosePhase] = useState<'idle' | 'dragging' | 'returning'>('idle');
+  const [isInputExpanded, setIsInputExpanded] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState<Array<{ id: string; name: string }>>([]);
 
   // Get settings to check if TTS feature is enabled
   const settings = useSettings();
@@ -383,19 +385,20 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     if (!textarea || !useTextarea) return;
 
     const isMobile = window.innerWidth <= 768;
-    const maxHeight = isMobile ? 200 : 180;
+    const minHeight = isInputExpanded ? 300 : 46;
+    const maxHeight = isInputExpanded ? 500 : (isMobile ? 200 : 180);
 
     requestAnimationFrame(() => {
       textarea.style.height = '0px';
       textarea.style.overflow = 'hidden';
 
       const scrollHeight = textarea.scrollHeight;
-      const newHeight = Math.max(46, Math.min(scrollHeight, maxHeight));
+      const newHeight = Math.max(minHeight, Math.min(scrollHeight, maxHeight));
 
       textarea.style.height = `${newHeight}px`;
       textarea.style.overflow = newHeight >= maxHeight ? 'auto' : 'hidden';
     });
-  }, [command, useTextarea]);
+  }, [command, useTextarea, isInputExpanded]);
 
   // Restore focus and cursor position when switching between input and textarea
   useEffect(() => {
@@ -448,6 +451,26 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     });
   };
 
+  // Wrap uploadFile with a loading indicator entry
+  const uploadFileWithProgress = async (file: File | Blob, filename?: string): Promise<AttachedFile | null> => {
+    const tempId = `${Date.now()}-${Math.random()}`;
+    const displayName = filename || (file instanceof File ? file.name : t('terminal:input.uploadingFile'));
+    setUploadingFiles((prev) => [...prev, { id: tempId, name: displayName }]);
+    try {
+      return await uploadFile(file, filename);
+    } finally {
+      setUploadingFiles((prev) => prev.filter((f) => f.id !== tempId));
+    }
+  };
+
+  // Update pasted text content and refresh the line count in the command placeholder
+  const updatePastedText = (id: number, newText: string) => {
+    const newLineCount = (newText.match(/\n/g) || []).length + 1;
+    const oldPattern = new RegExp(`\\[Pasted text #${id} \\+\\d+ lines\\]`, 'g');
+    setCommand(command.replace(oldPattern, `[Pasted text #${id} +${newLineCount} lines]`));
+    setPastedTexts((prev) => new Map(prev).set(id, newText));
+  };
+
   // Extract pasted text info from command for display
   const getPastedTextInfo = (): Array<{ id: number; lineCount: number }> => {
     const pattern = /\[Pasted text #(\d+) \+(\d+) lines\]/g;
@@ -460,6 +483,41 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   };
 
   const pastedTextInfos = getPastedTextInfo();
+
+  const handleToggleExpand = () => {
+    const next = !isInputExpanded;
+
+    if (next) {
+      // Expanding: inline each chip's full text so the user can view/edit the
+      // pasted content directly in the textarea. pastedTexts is kept intact
+      // so we can re-chip on collapse.
+      let nextCommand = command;
+      for (const [id, fullText] of pastedTexts) {
+        const placeholder = new RegExp(`\\[Pasted text #${id} \\+\\d+ lines\\]`, 'g');
+        nextCommand = nextCommand.replace(placeholder, fullText);
+      }
+      if (nextCommand !== command) setCommand(nextCommand);
+    } else {
+      // Collapsing: re-chip each pasted text that still appears verbatim in
+      // the command. Entries the user edited inline lose their chip identity
+      // and stay inline.
+      let nextCommand = command;
+      const preserved = new Map<number, string>();
+      for (const [id, fullText] of pastedTexts) {
+        if (nextCommand.includes(fullText)) {
+          const lineCount = (fullText.match(/\n/g) || []).length + 1;
+          const placeholder = `[Pasted text #${id} +${lineCount} lines]`;
+          nextCommand = nextCommand.replaceAll(fullText, placeholder);
+          preserved.set(id, fullText);
+        }
+      }
+      if (nextCommand !== command) setCommand(nextCommand);
+      if (preserved.size !== pastedTexts.size) setPastedTexts(preserved);
+    }
+
+    setIsInputExpanded(next);
+    if (next && !useTextarea) setForceTextarea(true);
+  };
 
   const handleSendCommand = () => {
     if ((!command.trim() && attachedFiles.length === 0) || !selectedAgentId) return;
@@ -563,7 +621,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
         e.preventDefault();
         const blob = item.getAsFile();
         if (blob) {
-          const attached = await uploadFile(blob);
+          const attached = await uploadFileWithProgress(blob);
           if (attached) {
             setAttachedFiles((prev) => [...prev, attached]);
           }
@@ -576,7 +634,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
         e.preventDefault();
         const file = item.getAsFile();
         if (file) {
-          const attached = await uploadFile(file);
+          const attached = await uploadFileWithProgress(file);
           if (attached) {
             setAttachedFiles((prev) => [...prev, attached]);
           }
@@ -589,7 +647,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     if (files.length > 0) {
       e.preventDefault();
       for (const file of files) {
-        const attached = await uploadFile(file);
+        const attached = await uploadFileWithProgress(file);
         if (attached) {
           setAttachedFiles((prev) => [...prev, attached]);
         }
@@ -617,7 +675,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
         if (response.ok) {
           const blob = await response.blob();
           const filename = pastedText.trim().split(/[/\\]/).pop() || 'file';
-          const attached = await uploadFile(blob, filename);
+          const attached = await uploadFileWithProgress(blob, filename);
           if (attached) {
             setAttachedFiles((prev) => [...prev, attached]);
           }
@@ -633,7 +691,9 @@ export const TerminalInputArea = memo(function TerminalInputArea({
 
     const lineCount = (pastedText.match(/\n/g) || []).length + 1;
 
-    if (lineCount > 5) {
+    // In expanded mode, let large pastes flow in inline so the user sees
+    // everything they're editing without fabricating new chips to re-expand.
+    if (lineCount > 5 && !isInputExpanded) {
       e.preventDefault();
       const pasteId = incrementPastedCount();
 
@@ -666,7 +726,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     if (!files) return;
 
     for (const file of files) {
-      const attached = await uploadFile(file);
+      const attached = await uploadFileWithProgress(file);
       if (attached) {
         setAttachedFiles((prev) => [...prev, attached]);
       }
@@ -705,6 +765,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
                 lineCount={lineCount}
                 fullText={fullText}
                 onRemove={() => removePastedText(id)}
+                onUpdate={(newText) => updatePastedText(id, newText)}
               />
             );
           })}
@@ -712,8 +773,19 @@ export const TerminalInputArea = memo(function TerminalInputArea({
       )}
 
       {/* Attached files display */}
-      {attachedFiles.length > 0 && (
+      {(attachedFiles.length > 0 || uploadingFiles.length > 0) && (
         <div className="guake-attachments">
+          {uploadingFiles.map(({ id, name }) => (
+            <div key={id} className="guake-attachment guake-attachment-uploading">
+              <span className="guake-attachment-spinner" />
+              <div className="guake-attachment-info">
+                <div className="guake-attachment-name-row">
+                  <span className="guake-attachment-name">{name}</span>
+                </div>
+                <span className="guake-attachment-size">{t('terminal:input.uploading')}</span>
+              </div>
+            </div>
+          ))}
           {attachedFiles.map((file) => {
             const imageUrl = file.isImage ? getImageWebUrl(file.path) : null;
             const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
@@ -870,6 +942,14 @@ export const TerminalInputArea = memo(function TerminalInputArea({
                   onBlur={handleInputBlur}
                 />
               )}
+              <button
+                className={`guake-expand-btn ${isInputExpanded ? 'active' : ''}`}
+                onClick={handleToggleExpand}
+                title={isInputExpanded ? t('terminal:input.collapseInput') : t('terminal:input.expandInput')}
+                type="button"
+              >
+                <Icon name={isInputExpanded ? 'caret-down' : 'caret-up'} size={12} />
+              </button>
               <button onClick={handleSendCommand} disabled={!command.trim() && attachedFiles.length === 0} title={t('terminal:input.send')}>
                 <Icon name="send" size={14} />
               </button>

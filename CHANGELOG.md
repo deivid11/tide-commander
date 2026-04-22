@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.62.0] - 2026-04-21
+
+### Added
+- **Bulk reasoning effort** — bulk change-model endpoint now accepts an optional `effort` field for Claude agents, letting you set low/medium/high/xHigh/max (or clear it) across many agents at once
+- **Expandable terminal input** — new expand/collapse control on the terminal input area, plus upload-in-progress indicator with translated labels
+- **File explorer language coverage** — syntax highlighting and file-type constants expanded with many additional languages and extensions
+
+### Changed
+- **Pasted text chip** — refined attachment chip rendering with updated layout and styling in the terminal input
+- **Overview panel styling** — polished guake-terminal overview panel visuals
+
 ## [1.61.1] - 2026-04-21
 
 ### Fixed

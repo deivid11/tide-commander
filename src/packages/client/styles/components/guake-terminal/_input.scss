@@ -313,7 +313,8 @@
   }
 
   .guake-attach-btn,
-  .guake-send-btn {
+  .guake-send-btn,
+  .guake-expand-btn {
     align-self: flex-end;
     margin-bottom: 2px;
   }
@@ -443,6 +444,21 @@
     opacity: 0.25;
     cursor: not-allowed;
     color: $dracula-comment;
+  }
+}
+
+// Expand/collapse input button
+.guake-expand-btn {
+  width: 28px !important;
+  color: rgba($dracula-comment, 0.7) !important;
+
+  &:hover:not(:disabled) {
+    color: $dracula-cyan !important;
+  }
+
+  &.active {
+    color: $dracula-cyan !important;
+    background: rgba($dracula-cyan, 0.08) !important;
   }
 }
 

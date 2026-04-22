@@ -17,7 +17,7 @@ import {
   type BulkActionResult,
 } from '../api/bulk-agents';
 import type { Agent, DrawingArea } from '../../shared/types';
-import { CLAUDE_MODELS, CODEX_MODELS, isDeprecatedClaudeModel, type ClaudeModel, type CodexModel } from '../../shared/agent-types';
+import { CLAUDE_MODELS, CODEX_MODELS, CLAUDE_EFFORTS, isDeprecatedClaudeModel, type ClaudeModel, type ClaudeEffort, type CodexModel } from '../../shared/agent-types';
 import '../styles/components/bulk-manage-modal.scss';
 
 type ModelProvider = 'claude' | 'codex';
@@ -85,6 +85,8 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
   const [modelProvider, setModelProvider] = useState<ModelProvider>('claude');
   const [newClaudeModel, setNewClaudeModel] = useState<ClaudeModel>('sonnet');
   const [newCodexModel, setNewCodexModel] = useState<CodexModel>('gpt-5.3-codex');
+  // 'default' represents "leave unchanged / use default"; other values are ClaudeEffort levels
+  const [newEffort, setNewEffort] = useState<ClaudeEffort | 'default'>('default');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState(false);
@@ -203,7 +205,10 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
           return;
         }
         const model = modelProvider === 'claude' ? newClaudeModel : newCodexModel;
-        result = await bulkChangeModel(ids, modelProvider, model);
+        const effort = modelProvider === 'claude'
+          ? (newEffort === 'default' ? null : newEffort)
+          : undefined;
+        result = await bulkChangeModel(ids, modelProvider, model, effort);
         verb = 'Changed model for';
       } else {
         const ids = Array.from(selectedIds);
@@ -246,7 +251,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
       setActionInProgress(false);
       setConfirmAction(null);
     }
-  }, [selectedIds, moveAreaId, modelProviderSelectedIds, modelProvider, newClaudeModel, newCodexModel]);
+  }, [selectedIds, moveAreaId, modelProviderSelectedIds, modelProvider, newClaudeModel, newCodexModel, newEffort]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -447,7 +452,15 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                         {modelProvider === 'claude'
                           ? CLAUDE_MODELS[newClaudeModel].label
                           : CODEX_MODELS[newCodexModel].label}
-                      </strong> for <strong>{modelProviderSelectedIds.length}</strong> {modelProvider} agent(s)?
+                      </strong>
+                      {modelProvider === 'claude' && (
+                        <>
+                          {' '}at <strong>
+                            {newEffort === 'default' ? 'default effort' : `${CLAUDE_EFFORTS[newEffort].label} effort`}
+                          </strong>
+                        </>
+                      )}
+                      {' '}for <strong>{modelProviderSelectedIds.length}</strong> {modelProvider} agent(s)?
                     </p>
                     {selectedIds.size > modelProviderSelectedIds.length && (
                       <p style={{ fontSize: 12, color: 'var(--text-muted, #888)' }}>
@@ -575,6 +588,23 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                   {(Object.keys(CODEX_MODELS) as CodexModel[]).map(m => (
                     <option key={m} value={m}>
                       {CODEX_MODELS[m].icon} {CODEX_MODELS[m].label}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {modelProvider === 'claude' && (
+                <select
+                  value={newEffort}
+                  onChange={e => setNewEffort(e.target.value as ClaudeEffort | 'default')}
+                  className="bulk-filter-select"
+                  disabled={actionInProgress}
+                  title="Reasoning effort level"
+                >
+                  <option value="default">Default effort</option>
+                  {(Object.keys(CLAUDE_EFFORTS) as ClaudeEffort[]).map(level => (
+                    <option key={level} value={level}>
+                      {CLAUDE_EFFORTS[level].icon} {CLAUDE_EFFORTS[level].label}
                     </option>
                   ))}
                 </select>

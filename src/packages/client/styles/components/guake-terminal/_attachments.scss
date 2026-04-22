@@ -113,6 +113,28 @@
   font-size: 9px;
 }
 
+.guake-attachment-uploading {
+  opacity: 0.75;
+  border-color: rgba($dracula-purple, 0.4) !important;
+  background: rgba($dracula-purple, 0.12) !important;
+  pointer-events: none;
+
+  .guake-attachment-size {
+    color: $dracula-purple;
+  }
+}
+
+.guake-attachment-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba($dracula-purple, 0.3);
+  border-top-color: $dracula-purple;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: mic-spin 0.8s linear infinite;
+}
+
 .guake-attachment-remove {
   display: flex;
   align-items: center;
@@ -206,6 +228,19 @@
   &:hover {
     color: $dracula-red;
     background: rgba($dracula-red, 0.15);
+  }
+}
+
+.pasted-text-chip-edit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity $transition-fast;
+  color: rgba($dracula-cyan, 0.7);
+
+  .pasted-text-chip:hover & {
+    opacity: 1;
   }
 }
 
@@ -310,6 +345,28 @@
   margin: 0;
   max-height: calc(85vh - 120px);
   overflow: auto;
+}
+
+.pasted-text-edit-textarea {
+  width: 100%;
+  min-height: 300px;
+  max-height: calc(85vh - 120px);
+  font-family: $font-mono;
+  font-size: 12px;
+  line-height: 1.5;
+  color: $dracula-fg;
+  background: rgba($dracula-current, 0.4);
+  border: 1px solid $dracula-cyan;
+  border-radius: $radius-md;
+  padding: 12px 16px;
+  resize: vertical;
+  box-sizing: border-box;
+  outline: none;
+
+  &:focus {
+    border-color: $dracula-cyan;
+    box-shadow: 0 0 0 2px rgba($dracula-cyan, 0.2);
+  }
 }
 
 // Clickable image reference in history/output

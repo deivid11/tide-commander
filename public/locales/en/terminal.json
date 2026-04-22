@@ -50,7 +50,11 @@
     "stop": "Stop",
     "voiceInput": "Voice input (Whisper)",
     "stopRecording": "Stop recording",
-    "transcribing": "Transcribing..."
+    "transcribing": "Transcribing...",
+    "expandInput": "Expand input area",
+    "collapseInput": "Collapse input area",
+    "uploading": "Uploading...",
+    "uploadingFile": "file"
   },
   "modals": {
     "context": "Context",

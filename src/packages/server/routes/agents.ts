@@ -468,10 +468,11 @@ router.post('/bulk/clear-context', async (req: Request, res: Response) => {
 // POST /api/agents/bulk/change-model - Change model for multiple agents (clears sessions)
 router.post('/bulk/change-model', async (req: Request, res: Response) => {
   try {
-    const { agentIds, provider, model } = req.body as {
+    const { agentIds, provider, model, effort } = req.body as {
       agentIds?: string[];
       provider?: 'claude' | 'codex' | 'opencode';
       model?: string;
+      effort?: string | null;
     };
 
     if (!Array.isArray(agentIds) || agentIds.length === 0) {
@@ -495,6 +496,20 @@ router.post('/bulk/change-model', async (req: Request, res: Response) => {
     if (!sanitized) {
       res.status(400).json({ error: `Invalid model "${model}" for provider "${provider}"` });
       return;
+    }
+
+    // Effort is Claude-only. `null` means "clear back to default"; undefined means "leave unchanged".
+    const VALID_EFFORTS = new Set(['low', 'medium', 'high', 'xHigh', 'max']);
+    let effortUpdate: { set: true; value: string | undefined } | { set: false } = { set: false };
+    if (effort !== undefined && provider === 'claude') {
+      if (effort === null) {
+        effortUpdate = { set: true, value: undefined };
+      } else if (typeof effort === 'string' && VALID_EFFORTS.has(effort)) {
+        effortUpdate = { set: true, value: effort };
+      } else {
+        res.status(400).json({ error: `Invalid effort "${effort}" — expected one of: low, medium, high, xHigh, max, or null` });
+        return;
+      }
     }
 
     const changed: string[] = [];
@@ -523,6 +538,8 @@ router.post('/bulk/change-model', async (req: Request, res: Response) => {
         else if (provider === 'codex') modelUpdates.codexModel = sanitized;
         else if (provider === 'opencode') modelUpdates.opencodeModel = sanitized;
 
+        if (effortUpdate.set) modelUpdates.effort = effortUpdate.value;
+
         agentService.updateAgent(agentId, modelUpdates);
         changed.push(agentId);
       } catch (err) {
@@ -531,7 +548,8 @@ router.post('/bulk/change-model', async (req: Request, res: Response) => {
       }
     }
 
-    log.log(`Bulk change-model: ${changed.length} changed to ${provider}:${sanitized}, ${failed.length} failed`);
+    const effortLabel = effortUpdate.set ? ` effort=${effortUpdate.value ?? 'default'}` : '';
+    log.log(`Bulk change-model: ${changed.length} changed to ${provider}:${sanitized}${effortLabel}, ${failed.length} failed`);
     res.json({ changed, failed });
   } catch (err: any) {
     log.error(' Bulk change-model failed:', err);
