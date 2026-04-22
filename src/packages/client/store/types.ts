@@ -271,12 +271,14 @@ export interface StoreState {
   lastSelectionViaDirectClickAt: number | null;
   // Virtual subagents (Task tool spawned by Claude Code)
   subagents: Map<string, Subagent>;  // subagent.id -> Subagent
-  // View mode for main viewport (3d, 2d, dashboard)
-  viewMode: '2d' | '3d' | 'dashboard';
+  // View mode for main viewport (3d, 2d, dashboard, 2d-experimental)
+  viewMode: '2d' | '3d' | 'dashboard' | '2d-experimental';
   // Agent overview panel open state (persists across agent switches)
   overviewPanelOpen: boolean;
   // Agent overview tracking board visible state
   trackingBoardVisible: boolean;
+  // Whether the bottom AgentBar is hidden (toggleable via header button)
+  agentBarHidden: boolean;
   // Split terminal pane agent IDs (empty = single pane mode)
   splitPaneAgentIds: string[];
   // Split terminal orientation

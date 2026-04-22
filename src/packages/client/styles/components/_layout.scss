@@ -34,6 +34,29 @@
       z-index: 999;
     }
   }
+
+  // Flat-view variant: span the full width with controls aligned to the right,
+  // so they don't sit on top of the flat-UI sidebar/columns.
+  &--flat {
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 44px;
+    padding: 0 16px 0 16px;
+    gap: 10px;
+    background: linear-gradient(180deg, rgba($dracula-bg, 0.95) 0%, rgba($dracula-bg-darker, 0.95) 100%);
+    border-bottom: 1px solid $dracula-current;
+    backdrop-filter: blur(6px);
+    justify-content: flex-end;
+    z-index: 151;
+
+    @media (max-width: 768px) {
+      .app.mobile-view-3d & {
+        left: 0;
+        top: 0;
+      }
+    }
+  }
 }
 
 .app-view-mode-toggle {
