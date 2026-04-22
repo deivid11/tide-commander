@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.65.1] - 2026-04-22
+
+### Changed
+- **Faster agent switching in terminal pane** — when switching to an agent whose history is already cached, skip the fade-out so content appears instantly; on cold switches, drop one redundant `requestAnimationFrame` so the scroll-to-bottom happens a frame earlier; tighten the auto-pin-to-bottom watchdog (1 stable frame instead of 3, 1.5s timeout instead of 8s); shorten history fade-in to 50ms / 0.1s slide
+
 ## [1.65.0] - 2026-04-22
 
 ### Added
