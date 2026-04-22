@@ -48,6 +48,7 @@ import { BranchComparison } from './BranchComparison';
 import { GitHistory } from './GitHistory';
 import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
+import { Icon } from '../Icon';
 
 // Constants
 import { EXTENSION_TO_LANGUAGE } from './constants';
@@ -933,19 +934,19 @@ export function FileExplorerPanel({
       {
         id: 'rename',
         label: node.isDirectory ? 'Rename Folder' : 'Rename File',
-        icon: '✏️',
+        icon: <Icon name="edit" size={14} />,
         onClick: () => handleOpenRenameDialog(node),
       },
       {
         id: 'copy',
         label: node.isDirectory ? 'Copy Folder' : 'Copy File',
-        icon: '📄',
+        icon: <Icon name="file-text" size={14} />,
         onClick: () => handleCopyNode(node),
       },
       {
         id: 'paste',
         label: node.isDirectory ? 'Paste Into Folder' : 'Paste Here',
-        icon: '📋',
+        icon: <Icon name="clipboard" size={14} />,
         disabled: !fileClipboard,
         onClick: () => { void handlePasteNode(node); },
       },
@@ -953,7 +954,7 @@ export function FileExplorerPanel({
       {
         id: 'copy-full-path',
         label: 'Copy Full Path',
-        icon: '🧷',
+        icon: <Icon name="pin" size={14} />,
         onClick: () => { void handleCopyPath(node); },
       },
     ];
@@ -1325,7 +1326,7 @@ export function FileExplorerPanel({
               </span>
               <span className="file-explorer-folder-path-hint">{currentFolder}</span>
               {!isDirectFolderMode && allFolders.length > 1 && (
-                <span className="file-explorer-folder-dropdown-icon">▼</span>
+                <span className="file-explorer-folder-dropdown-icon"><Icon name="caret-down" size={10} /></span>
               )}
             </div>
           )}
@@ -1394,7 +1395,7 @@ export function FileExplorerPanel({
             onClick={() => setGitHistoryOpen(!gitHistoryOpen)}
             title={t('terminal:fileExplorer.gitHistory.title')}
           >
-            ⏱
+            <Icon name="status-waiting-input" size={14} />
           </button>
         )}
         <button className="file-explorer-panel-close" onClick={onClose}>
@@ -1419,20 +1420,20 @@ export function FileExplorerPanel({
               onClick={() => setTreePanelCollapsed(!treePanelCollapsed)}
               title={treePanelCollapsed ? t('terminal:fileExplorer.expandTree') : t('terminal:fileExplorer.collapseTree')}
             >
-              {treePanelCollapsed ? '▼' : '▲'}
+              <Icon name={treePanelCollapsed ? 'caret-down' : 'caret-up'} size={12} />
             </button>
             <button
               className={`file-explorer-tab ${viewMode === 'files' ? 'active' : ''}`}
               onClick={() => setViewMode('files')}
             >
-              <span className="tab-icon">📁</span>
+              <span className="tab-icon"><Icon name="folder" size={14} /></span>
               {t('terminal:spotlight.files')}
             </button>
             <button
               className={`file-explorer-tab ${viewMode === 'git' ? 'active' : ''}`}
               onClick={() => setViewMode('git')}
             >
-              <span className="tab-icon">⎇</span>
+              <span className="tab-icon"><Icon name="git-branch" size={14} /></span>
               {t('terminal:fileExplorer.gitChanges')}
               {gitChangeCount > 0 && <span className="tab-badge">{gitChangeCount}</span>}
             </button>
@@ -1441,7 +1442,7 @@ export function FileExplorerPanel({
                 className={`file-explorer-tab ${viewMode === 'compare' ? 'active' : ''}`}
                 onClick={() => setViewMode('compare')}
               >
-                <span className="tab-icon">⇄</span>
+                <span className="tab-icon"><Icon name="arrows-horizontal" size={14} /></span>
                 {t('terminal:fileExplorer.diffView')}
                 {compareResult && <span className="tab-badge">{compareResult.files.length}</span>}
                 <span
@@ -1458,7 +1459,7 @@ export function FileExplorerPanel({
           {viewMode === 'files' && (
             <div className="file-explorer-toolbar">
               <div className="file-explorer-search">
-                <span className="file-explorer-search-icon">🔍</span>
+                <span className="file-explorer-search-icon"><Icon name="search" size={14} /></span>
                 <input
                   ref={searchInputRef}
                   type="text"
@@ -1490,7 +1491,7 @@ export function FileExplorerPanel({
                     onClick={() => handleRevealInTree(activeTabPath)}
                     title={t('terminal:fileExplorer.revealInTree')}
                   >
-                    ◎
+                    <Icon name="target" size={14} />
                   </button>
                 )}
               </div>

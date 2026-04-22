@@ -26,7 +26,6 @@ import {
   store,
   useFileViewerPath,
   useContextModalAgentId,
-  useCurrentSnapshot,
   useOverviewPanelOpen,
   useTrackingBoardVisible,
   useAreas,
@@ -53,6 +52,7 @@ import {
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
+import { Icon } from '../Icon';
 import { ModalPortal } from '../shared/ModalPortal';
 import { DatabasePanelInline } from '../database/DatabasePanelInline';
 
@@ -90,7 +90,6 @@ import { useTwoFingerSelector } from '../../hooks/useTwoFingerSelector';
 import { agentDebugger } from '../../services/agentDebugger';
 import { ThemeSelector } from './ThemeSelector';
 import { Tooltip } from '../shared/Tooltip';
-import type { Agent } from '../../../shared/types';
 import TerminalEmbed from '../TerminalEmbed';
 import { TrackingBoard } from './TrackingBoard';
 
@@ -323,12 +322,7 @@ const _BottomTerminalIframe = memo(function BottomTerminalIframe({
   );
 });
 
-export interface GuakeOutputPanelProps {
-  /** Callback when user clicks star button to save snapshot */
-  onSaveSnapshot?: () => void;
-}
-
-export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot }: GuakeOutputPanelProps = {}) {
+export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   const { t } = useTranslation(['terminal', 'common']);
   // Store selectors
   const agents = useAgents();
@@ -338,40 +332,23 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
   const fileViewerPath = useFileViewerPath();
   const contextModalAgentId = useContextModalAgentId();
 
-  // Get current snapshot from store
-  const currentSnapshot = useCurrentSnapshot();
-  const isSnapshotView = !!currentSnapshot;
-
-  // Snapshots should be viewable even when no agent is selected/running.
-  const snapshotAgent = useMemo<Agent | null>(() => {
-    if (!currentSnapshot) return null;
-      return {
-        id: currentSnapshot.agentId,
-        name: currentSnapshot.agentName,
-        class: currentSnapshot.agentClass as Agent['class'],
-        status: 'idle',
-        provider: 'claude',
-      position: { x: 0, y: 0, z: 0 },
-      cwd: currentSnapshot.cwd,
-      permissionMode: 'interactive',
-      tokensUsed: 0,
-      contextUsed: 0,
-      contextLimit: 200000,
-      taskCount: 0,
-      createdAt: currentSnapshot.createdAt,
-      lastActivity: currentSnapshot.createdAt,
-    };
-  }, [currentSnapshot]);
-
   // Get selected agent
   const selectedAgentIdsArray = Array.from(selectedAgentIds);
   const isSingleSelection = selectedAgentIdsArray.length === 1;
   const selectedAgentId = isSingleSelection ? selectedAgentIdsArray[0] : null;
   const selectedAgent = useAgent(selectedAgentId) || null;
 
-  const activeAgent = selectedAgent ?? (isSnapshotView ? snapshotAgent : null);
-  const activeAgentId = selectedAgentId ?? (isSnapshotView ? currentSnapshot?.agentId ?? null : null);
+  const activeAgent = selectedAgent;
+  const activeAgentId = selectedAgentId;
   const trackingBoardVisible = useTrackingBoardVisible();
+
+  const handleTrackingBoardSelectAgent = useCallback((agentId: string) => {
+    store.setLastSelectionViaDirectClick(true);
+    store.selectAgent(agentId);
+    if (window.innerWidth <= 768) {
+      store.setTrackingBoardVisible(false);
+    }
+  }, []);
 
   // Get area folders for the active agent
   const areas = useAreas();
@@ -1254,17 +1231,6 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
     }
   }, [isOpen, selectedAgentId]);
 
-  // Clear snapshot when agent changes
-  const prevSelectedAgentIdRef = useRef<string | null>(null);
-  useLayoutEffect(() => {
-    const prev = prevSelectedAgentIdRef.current;
-    const changed = prev !== null && prev !== selectedAgentId;
-    if (changed && store.getState().currentSnapshot) {
-      store.setCurrentSnapshot(null);
-    }
-    prevSelectedAgentIdRef.current = selectedAgentId;
-  }, [selectedAgentId]);
-
   // Keyboard shortcut to toggle terminal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1358,7 +1324,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       // Modals are rendered through portals under document.body.
       // Any modal interaction should never count as an outside click for Guake.
       const isInModal = !!target.closest(
-        '.modal-overlay, .modal, .image-modal-overlay, .image-modal, .bash-modal-overlay, .bash-modal, .agent-info-modal-overlay, .agent-info-modal, .agent-response-modal, .pasted-text-modal-overlay, .pasted-text-modal, .file-viewer-overlay, .file-viewer-modal, .context-view-modal, .guake-context-confirm-overlay, .guake-context-confirm-modal, .pm2-logs-modal-overlay, .pm2-logs-modal, .database-panel-modal, .context-menu, .guake-git-diff-modal-overlay, .guake-git-delete-confirm'
+        '.modal-overlay, .modal, .image-modal-overlay, .image-modal, .bash-modal-overlay, .bash-modal, .agent-info-modal-overlay, .agent-info-modal, .agent-response-modal, .pasted-text-modal-overlay, .pasted-text-modal, .file-viewer-overlay, .file-viewer-modal, .context-view-modal, .guake-context-confirm-overlay, .guake-context-confirm-modal, .pm2-logs-modal-overlay, .pm2-logs-modal, .database-panel-modal, .context-menu, .guake-git-diff-modal-overlay, .guake-git-delete-confirm, .theme-selector-dropdown'
       );
 
       return !!isInTerminal || !!isAgentBar || !!isSidebar || isInModal;
@@ -1428,7 +1394,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           <div className="guake-content">
             <div className="guake-output" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6272a4' }}>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>👆</div>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}><Icon name="hand-point" size={48} /></div>
                 <div style={{ fontSize: '16px' }}>{t('terminal:empty.tapAgent')}</div>
                 <div style={{ fontSize: '14px', marginTop: '8px', opacity: 0.7 }}>{t('terminal:empty.switchTo3D')}</div>
               </div>
@@ -1507,35 +1473,35 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       {/* Drop overlay */}
       <div className="guake-drop-overlay">
         <div className="drop-border" />
-        <span className="drop-icon">📎</span>
+        <span className="drop-icon"><Icon name="paperclip" size={16} /></span>
         <span className="drop-label">{t('terminal:input.dropToAttach')}</span>
       </div>
 
       {/* Debug Panel */}
-      {!isSnapshotView && debugPanelOpen && isOpen && activeAgentId && (
+      {debugPanelOpen && isOpen && activeAgentId && (
         <AgentDebugPanel agentId={activeAgentId} onClose={() => setDebugPanelOpen(false)} />
       )}
 
       {/* Git Panel */}
-      {!isSnapshotView && gitPanelOpen && isOpen && activeAgentId && (
+      {gitPanelOpen && isOpen && activeAgentId && (
         <GuakeGitPanel agentId={activeAgentId} agents={agents} onClose={() => setGitPanelOpen(false)} branchInfoMap={areaBranches} fetchRemote={fetchGitRemote} fetchingDirs={gitFetchingDirs} />
       )}
 
       {/* Area Buildings Panel */}
-      {!isSnapshotView && buildingsPanelOpen && isOpen && activeAgentId && (
+      {buildingsPanelOpen && isOpen && activeAgentId && (
         <AreaBuildingsPanel agentId={activeAgentId} onClose={() => setBuildingsPanelOpen(false)} />
       )}
 
       {/* Workflow Panel */}
-      {!isSnapshotView && workflowPanelOpen && isOpen && activeAgentId && (
+      {workflowPanelOpen && isOpen && activeAgentId && (
         <WorkflowPanel agentId={activeAgentId} onClose={() => setWorkflowPanelOpen(false)} />
       )}
 
-      {!isSnapshotView && trackingBoardVisible && isOpen && activeAgentId && (
+      {trackingBoardVisible && isOpen && activeAgentId && (
         <div className="guake-tracking-board-panel">
           <div className="guake-tracking-board-header">
             <div className="guake-tracking-board-title">
-              <span className="guake-tracking-board-icon">▥</span>
+              <span className="guake-tracking-board-icon"><Icon name="list" size={14} /></span>
               <span>Tracking Board</span>
             </div>
             <button
@@ -1544,28 +1510,25 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
               onClick={() => store.setTrackingBoardVisible(false)}
               title="Close tracking board"
             >
-              ✕
+              <Icon name="close" size={14} />
             </button>
           </div>
           <div className="guake-tracking-board-body">
             <TrackingBoard
               activeAgentId={activeAgentId}
-              onSelectAgent={(agentId) => {
-                store.setLastSelectionViaDirectClick(true);
-                store.selectAgent(agentId);
-              }}
+              onSelectAgent={handleTrackingBoardSelectAgent}
             />
           </div>
         </div>
       )}
 
       {/* Right-side panel resize handle */}
-      {!isSnapshotView && (debugPanelOpen || gitPanelOpen || buildingsPanelOpen || workflowPanelOpen || trackingBoardVisible) && isOpen && (
+      {(debugPanelOpen || gitPanelOpen || buildingsPanelOpen || workflowPanelOpen || trackingBoardVisible) && isOpen && (
         <div className="guake-side-panel-resize right" onMouseDown={(e) => handleSidePanelResizeStart(e, 'right')} />
       )}
 
       {/* Agent Overview Panel */}
-      {!isSnapshotView && overviewPanelOpen && isOpen && activeAgentId && (
+      {overviewPanelOpen && isOpen && activeAgentId && (
         <AgentOverviewPanel
           activeAgentId={activeAgentId}
           onClose={() => setOverviewPanelOpen(false)}
@@ -1579,12 +1542,12 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       )}
 
       {/* Overview panel resize handle (left side) */}
-      {!isSnapshotView && overviewPanelOpen && isOpen && activeAgentId && (
+      {overviewPanelOpen && isOpen && activeAgentId && (
         <div className="guake-side-panel-resize left" onMouseDown={(e) => handleSidePanelResizeStart(e, 'left')} />
       )}
 
       {/* Mobile resize handle between overview and terminal */}
-      {!isSnapshotView && overviewPanelOpen && isOpen && activeAgentId && (
+      {overviewPanelOpen && isOpen && activeAgentId && (
         <div
           className="aop-resize-handle"
           onMouseDown={handleOverviewResizeMouseDown}
@@ -1597,7 +1560,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           selectedAgent={activeAgent}
           selectedAgentId={activeAgentId}
           sortedAgents={swipe.sortedAgents}
-          swipeOffset={swipe.swipeOffset}
+          isSwipingLeft={swipe.indicatorDirection === 'left'}
+          isSwipingRight={swipe.indicatorDirection === 'right'}
           viewMode={viewMode}
           setViewMode={setViewMode}
           searchMode={paneRef.current?.search.searchMode ?? false}
@@ -1633,32 +1597,30 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
             paneRef.current?.historyLoader.clearHistory();
           }}
           headerRef={swipe.headerRef}
-          onSaveSnapshot={isSnapshotView ? undefined : onSaveSnapshot}
-          isSnapshotView={isSnapshotView}
         />
 
-        {/* Swipe container */}
+        {/* Swipe container — gesture hook applies transform directly via containerRef */}
         <div
+          ref={swipe.containerRef}
           className={`guake-swipe-container ${swipe.swipeAnimationClass}`}
-          style={swipe.swipeOffset !== 0 ? { transform: `translateX(${swipe.swipeOffset * 40}%)` } : undefined}
         >
-          {/* Swipe indicators */}
-          {swipe.sortedAgents.length > 1 && swipe.swipeOffset !== 0 && (
+          {/* Swipe indicators — only mounted during drag, visible class controls opacity */}
+          {swipe.sortedAgents.length > 1 && swipe.isDragging && (
             <>
-              <div className={`swipe-indicator left ${swipe.swipeOffset > 0.3 ? 'visible' : ''}`}>
-                <span className="indicator-icon">←</span>
-                <span className="indicator-name">{swipe.nextAgent?.name}</span>
-              </div>
-              <div className={`swipe-indicator right ${swipe.swipeOffset < -0.3 ? 'visible' : ''}`}>
+              <div className={`swipe-indicator left ${swipe.indicatorDirection === 'right' ? 'visible' : ''}`}>
+                <span className="indicator-icon"><Icon name="arrow-left" size={14} /></span>
                 <span className="indicator-name">{swipe.prevAgent?.name}</span>
-                <span className="indicator-icon">→</span>
+              </div>
+              <div className={`swipe-indicator right ${swipe.indicatorDirection === 'left' ? 'visible' : ''}`}>
+                <span className="indicator-name">{swipe.nextAgent?.name}</span>
+                <span className="indicator-icon"><Icon name="arrow-right" size={14} /></span>
               </div>
             </>
           )}
 
           {/* Swipe dots */}
-          {swipe.sortedAgents.length > 1 && swipe.sortedAgents.length <= 8 && swipe.swipeOffset !== 0 && (
-            <div className={`swipe-dots ${Math.abs(swipe.swipeOffset) > 0.1 ? 'visible' : ''}`}>
+          {swipe.sortedAgents.length > 1 && swipe.sortedAgents.length <= 8 && swipe.isDragging && (
+            <div className="swipe-dots visible">
               {swipe.sortedAgents.map((agent, index) => (
                 <div key={agent.id} className={`swipe-dot ${index === swipe.currentAgentIndex ? 'active' : ''}`} />
               ))}
@@ -1671,14 +1633,11 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
             paneRef={paneRef}
             viewMode={viewMode}
             isOpen={isOpen}
-            isSnapshotView={isSnapshotView}
-            currentSnapshot={currentSnapshot}
             onImageClick={handleImageClick}
             onFileClick={handleFileClick}
             onBashClick={handleBashClick}
             onViewMarkdown={handleViewMarkdown}
             keyboard={keyboard}
-            onSaveSnapshot={isSnapshotView ? undefined : onSaveSnapshot}
             canSwipeClose={
               isMobileWidth
               && mobileView === 'terminal'
@@ -1693,11 +1652,11 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
 
         {/* Agent Status Bar (CWD + Context) */}
         <div className="guake-agent-status-bar">
-          {!isSnapshotView && activeAgent?.isDetached && (
+          {activeAgent?.isDetached && (
             <Tooltip
               content={
                 <>
-                  <div className="tide-tooltip__title">🔄 {t('terminal:empty.reattachingSessionTitle')}</div>
+                  <div className="tide-tooltip__title"><Icon name="refresh" size={14} /> {t('terminal:empty.reattachingSessionTitle')}</div>
                   <div className="tide-tooltip__text">
                     {t('terminal:empty.reattachingSessionDesc')}
                     <br /><br />
@@ -1709,13 +1668,13 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
               className="tide-tooltip--detached"
             >
               <span className="guake-detached-badge" title={t('terminal:empty.reattachingBadge')}>
-                <span className="guake-detached-spinner">🔄</span> {t('terminal:empty.reattaching')}
+                <span className="guake-detached-spinner"><Icon name="refresh" size={12} /></span> {t('terminal:empty.reattaching')}
               </span>
             </Tooltip>
           )}
           {activeAgent?.cwd && (
             <span className="guake-agent-cwd" title={activeAgent.cwd}>
-              📁 {activeAgent.cwd.split('/').filter(Boolean).slice(-2).join('/') || activeAgent.cwd}
+              <Icon name="folder" size={12} /> {activeAgent.cwd.split('/').filter(Boolean).slice(-2).join('/') || activeAgent.cwd}
             </span>
           )}
           {agentAreaDirectories && agentAreaDirectories.map(({ areaId, areaName, dir }) => {
@@ -1728,25 +1687,25 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                 title={`${areaName}: ${dir}${branchInfo ? ` (${branchInfo.branch}${branchInfo.ahead ? ` ↑${branchInfo.ahead}` : ''}${branchInfo.behind ? ` ↓${branchInfo.behind}` : ''})` : ''}`}
                 onClick={() => store.openFileExplorerForAreaFolder(areaId, dir)}
               >
-                📂 {dir.split('/').filter(Boolean).pop() || dir}
+                <Icon name="folder-open" size={12} /> {dir.split('/').filter(Boolean).pop() || dir}
                 {branchInfo && (
                   <>
-                    <span className="guake-agent-area-branch"> ⎇ {branchInfo.branch}</span>
-                    {branchInfo.ahead > 0 && <span className="guake-branch-ahead" title={`${branchInfo.ahead} ahead`}>↑{branchInfo.ahead}</span>}
-                    {branchInfo.behind > 0 && <span className="guake-branch-behind" title={`${branchInfo.behind} behind`}>↓{branchInfo.behind}</span>}
+                    <span className="guake-agent-area-branch"> <Icon name="git-branch" size={10} /> {branchInfo.branch}</span>
+                    {branchInfo.ahead > 0 && <span className="guake-branch-ahead" title={`${branchInfo.ahead} ahead`}><Icon name="arrow-up" size={9} />{branchInfo.ahead}</span>}
+                    {branchInfo.behind > 0 && <span className="guake-branch-behind" title={`${branchInfo.behind} behind`}><Icon name="arrow-down" size={9} />{branchInfo.behind}</span>}
                     <span
                       className={`guake-area-fetch-btn ${isFetching ? 'fetching' : ''}`}
                       title="Git fetch"
                       onClick={(e) => { e.stopPropagation(); fetchGitRemote(dir); }}
                     >
-                      {isFetching ? '⏳' : '⇣'}
+                      <Icon name={isFetching ? 'hourglass' : 'download'} size={12} />
                     </span>
                   </>
                 )}
               </span>
             );
           })}
-          {!isSnapshotView && activeAgent && (() => {
+          {activeAgent && (() => {
             // Use contextStats if available (from /context command), otherwise fallback to basic
             const stats = activeAgent.contextStats;
             const hasData = !!stats;
@@ -1764,7 +1723,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                 onClick={() => store.setContextModalAgentId(activeAgentId)}
                 title={hasData ? t('terminal:context.clickToViewStats') : t('terminal:context.clickToFetchStats')}
               >
-                <span className="context-icon">📊</span>
+                <span className="context-icon"><Icon name="dashboard" size={12} /></span>
                 <span className="context-label">{t('terminal:agentInfo.context')}:</span>
                 <span className="context-bar-mini">
                   <span
@@ -1780,7 +1739,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                 </span>
                 <span className="context-free">({t('terminal:context.percentFree', { percent: freePercent })})</span>
                 {!hasData && (
-                  <span className="context-warning" title={t('terminal:context.clickToFetchStats')}>⚠️</span>
+                  <span className="context-warning" title={t('terminal:context.clickToFetchStats')}><Icon name="warn" size={12} /></span>
                 )}
               </span>
             );
@@ -1816,7 +1775,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                         }
                       }}
                     >
-                      💻
+                      <Icon name="terminal" size={14} />
                     </button>
                   );
                 })}
@@ -1848,7 +1807,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                         }
                       }}
                     >
-                      📜
+                      <Icon name="scroll" size={14} />
                     </button>
                   );
                 })}
@@ -1880,7 +1839,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                         }
                       }}
                     >
-                      🗄️
+                      <Icon name="hard-drives" size={14} />
                     </button>
                   );
                 })}
@@ -1897,20 +1856,20 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
             splitActions.push({
               id: 'open',
               label: 'Open',
-              icon: '⬇',
+              icon: <Icon name="arrow-down" size={14} />,
               onClick: () => openBottomPanel(splitContextMenu.buildingId, splitContextMenu.type),
             });
             if (activeAreaPanels.length > 0) {
               splitActions.push({
                 id: 'split-right',
                 label: 'Split Right',
-                icon: '↔',
+                icon: <Icon name="arrows-horizontal" size={14} />,
                 onClick: () => splitBottomPanel(splitContextMenu.buildingId, splitContextMenu.type, 'horizontal'),
               });
               splitActions.push({
                 id: 'split-below',
                 label: 'Split Below',
-                icon: '↕',
+                icon: <Icon name="arrows-vertical" size={14} />,
                 onClick: () => splitBottomPanel(splitContextMenu.buildingId, splitContextMenu.type, 'vertical'),
               });
             }
@@ -1952,7 +1911,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                       return (
                         <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
                           <div className="guake-bottom-terminal-header">
-                            <span className="guake-bottom-terminal-title">💻 {building.name} (starting...)</span>
+                            <span className="guake-bottom-terminal-title"><Icon name="terminal" size={12} /> {building.name} (starting...)</span>
                             <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -1966,7 +1925,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                     return (
                       <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
                         <div className="guake-bottom-terminal-header">
-                          <span className="guake-bottom-terminal-title">💻 {building.name}</span>
+                          <span className="guake-bottom-terminal-title"><Icon name="terminal" size={12} /> {building.name}</span>
                           <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -1986,7 +1945,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                     return (
                       <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
                         <div className="guake-bottom-terminal-header">
-                          <span className="guake-bottom-terminal-title">📜 {building.name}</span>
+                          <span className="guake-bottom-terminal-title"><Icon name="scroll" size={12} /> {building.name}</span>
                           <div className="guake-bottom-terminal-controls">
                             <input
                               type="text"
@@ -2062,7 +2021,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
                   return (
                     <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
                       <div className="guake-bottom-terminal-header">
-                        <span className="guake-bottom-terminal-title">🗄️ {building.name}</span>
+                        <span className="guake-bottom-terminal-title"><Icon name="hard-drives" size={12} /> {building.name}</span>
                         <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -2118,7 +2077,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
           onDoubleClick={() => { if (!isOpen) store.toggleTerminal(); }}
           style={{ top: isOpen ? `min(${terminalHeight}%, calc(100vh - 72px))` : '0' }}
         >
-          <span className="guake-handle-icon">{isOpen ? '▲' : '▼'}</span>
+          <span className="guake-handle-icon"><Icon name={isOpen ? 'caret-up' : 'caret-down'} size={12} /></span>
           <span className="guake-handle-text">{activeAgent.name}</span>
         </div>
       )}
@@ -2138,7 +2097,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel({ onSaveSnapshot 
       <ContextModalFromGuake />
       <FileViewerFromGuake />
       <AgentInfoModal agent={activeAgent} isOpen={agentInfoOpen} onClose={() => setAgentInfoOpen(false)} />
-      {!isSnapshotView && (
+      {(
         <AgentResponseModalWrapper agent={activeAgent} content={responseModalContent} onClose={() => setResponseModalContent(null)} />
       )}
     </div>

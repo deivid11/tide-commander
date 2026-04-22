@@ -21,6 +21,13 @@ export interface RuntimeStatusSyncApi {
 export function createRuntimeStatusSync(deps: RuntimeStatusSyncDeps): RuntimeStatusSyncApi {
   const { log, getRunnerForAgent, isProviderProcessRunningInCwd, onSessionUpdate } = deps;
 
+  // Safety fallback: when activity can't be determined from a session file,
+  // flip an untracked 'working' agent to 'idle' after this many seconds past
+  // its last assigned task. Prevents agents from being stuck 'working' forever
+  // on providers without session-file activity integration, or when the
+  // session file lookup fails for any reason.
+  const NULL_ACTIVITY_STALE_SECONDS = 30;
+
   async function pollOrphanedAgents(): Promise<void> {
     const agents = agentService.getAllAgents();
 
@@ -33,13 +40,15 @@ export function createRuntimeStatusSync(deps: RuntimeStatusSyncDeps): RuntimeSta
 
       try {
         const activity = await getSessionActivityStatus(agent.cwd, agent.sessionId, 60);
+        const provider = agent.provider ?? 'claude';
 
         if (activity && activity.isActive) {
           onSessionUpdate(agent.id);
-        } else if (activity && !activity.isActive) {
-          const provider = agent.provider ?? 'claude';
-          const hasOrphanedProcess = await isProviderProcessRunningInCwd(provider, agent.cwd);
+          continue;
+        }
 
+        if (activity && !activity.isActive) {
+          const hasOrphanedProcess = await isProviderProcessRunningInCwd(provider, agent.cwd);
           if (!hasOrphanedProcess) {
             log.log(`Orphaned agent ${agent.id} has no activity - marking as idle`);
             agentService.updateAgent(agent.id, {
@@ -49,7 +58,26 @@ export function createRuntimeStatusSync(deps: RuntimeStatusSyncDeps): RuntimeSta
               isDetached: false,
             });
           }
+          continue;
         }
+
+        // activity === null: session file couldn't be resolved. Fall back to
+        // wall-clock staleness + absence of an orphaned provider process so
+        // agents don't get stuck in 'working' indefinitely.
+        const lastTaskMs = agent.lastAssignedTaskTime ?? agent.lastActivity ?? 0;
+        const ageSeconds = lastTaskMs > 0 ? (Date.now() - lastTaskMs) / 1000 : Infinity;
+        if (ageSeconds < NULL_ACTIVITY_STALE_SECONDS) continue;
+
+        const hasOrphanedProcess = await isProviderProcessRunningInCwd(provider, agent.cwd);
+        if (hasOrphanedProcess) continue;
+
+        log.log(`Orphaned agent ${agent.id} (${provider}) has null session activity and no live process after ${ageSeconds.toFixed(0)}s - marking as idle`);
+        agentService.updateAgent(agent.id, {
+          status: 'idle',
+          currentTask: undefined,
+          currentTool: undefined,
+          isDetached: false,
+        });
       } catch (err) {
         log.error(`Failed to poll orphaned agent ${agent.id}:`, err);
       }

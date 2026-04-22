@@ -17,12 +17,15 @@ const log = createLogger('LLMMatcher');
 const TIMEOUT_MS = 15_000;
 
 // Model mapping — use latest available model IDs
+// 'opus[1m]' is a Tide Commander label for Opus 4.7 run with the 1M-token
+// context beta; the backing model ID is the same as claude-opus-4-7.
 const MODEL_MAP: Record<string, string> = {
   haiku: 'claude-haiku-4-5-20251001',
   sonnet: 'claude-sonnet-4-6-20250514',
   opus: 'claude-opus-4-7',
   'claude-opus-4-7': 'claude-opus-4-7',
   'claude-opus-4-6': 'claude-opus-4-6-20250514',
+  'opus[1m]': 'claude-opus-4-7',
 };
 
 function resolveModel(model?: string): string {
@@ -128,7 +131,7 @@ Respond ONLY with valid JSON (no markdown, no explanation outside JSON):
       return { match: false, reason: `LLM call timed out (${TIMEOUT_MS}ms)`, confidence: 0, durationMs, model, tokensUsed: 0 };
     }
 
-    log.error('LLM match error:', err);
+    log.error(`LLM match error: ${err instanceof Error ? err.message : String(err)}`);
     return { match: false, reason: `LLM error: ${reason}`, confidence: 0, durationMs, model, tokensUsed: 0 };
   }
 }

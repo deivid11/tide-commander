@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettings } from '../store';
 import { VoiceAssistant } from './VoiceAssistant';
+import { Icon } from './Icon';
 
 interface MobileFabMenuProps {
   isOpen: boolean;
@@ -9,13 +10,10 @@ interface MobileFabMenuProps {
   onShowTerminal: () => void;
   onOpenSidebar: () => void;
   onOpenToolbox: () => void;
+  onOpenSpotlight: () => void;
   onOpenCommander: () => void;
-  onOpenSupervisor: () => void;
   onOpenControls: () => void;
   onOpenSkills: () => void;
-  onOpenSnapshots: () => void;
-  onTakeSnapshot: () => void;
-  canTakeSnapshot: boolean; // Whether there's an active agent with outputs to snapshot
   mobileView: '3d' | 'terminal';
 }
 
@@ -25,13 +23,10 @@ export const MobileFabMenu = memo(function MobileFabMenu({
   onShowTerminal,
   onOpenSidebar,
   onOpenToolbox,
+  onOpenSpotlight,
   onOpenCommander,
-  onOpenSupervisor,
   onOpenControls,
   onOpenSkills,
-  onOpenSnapshots,
-  onTakeSnapshot,
-  canTakeSnapshot,
   mobileView,
 }: MobileFabMenuProps) {
   const { t } = useTranslation(['terminal', 'common']);
@@ -57,7 +52,7 @@ export const MobileFabMenu = memo(function MobileFabMenu({
           onTouchStart={(e) => e.stopPropagation()}
           title={isOpen ? t('terminal:mobileFab.closeMenu') : t('terminal:mobileFab.openMenu')}
         >
-          {isOpen ? '✕' : '☰'}
+          <Icon name={isOpen ? 'close' : 'list'} size={18} />
         </button>
       )}
 
@@ -73,7 +68,7 @@ export const MobileFabMenu = memo(function MobileFabMenu({
             }}
             title={t('terminal:mobileFab.showTerminal')}
           >
-            💬
+            <Icon name="chat" size={18} />
           </button>
           <button
             className="mobile-fab-option"
@@ -84,22 +79,8 @@ export const MobileFabMenu = memo(function MobileFabMenu({
             }}
             title={t('terminal:header.openSidebar')}
           >
-            📋
+            <Icon name="clipboard" size={18} />
           </button>
-          {/* Take Snapshot - prominent action when available */}
-          {canTakeSnapshot && (
-            <button
-              className="mobile-fab-option mobile-fab-option--highlight"
-              onClick={() => handleAction(onTakeSnapshot)}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                handleAction(onTakeSnapshot);
-              }}
-              title={t('terminal:mobileFab.takeSnapshot')}
-            >
-              ⭐
-            </button>
-          )}
           <button
             className="mobile-fab-option"
             onClick={() => handleAction(onOpenToolbox)}
@@ -109,7 +90,18 @@ export const MobileFabMenu = memo(function MobileFabMenu({
             }}
             title={t('common:floatingButtons.settingsAndTools')}
           >
-            ⚙️
+            <Icon name="gear" size={18} />
+          </button>
+          <button
+            className="mobile-fab-option"
+            onClick={() => handleAction(onOpenSpotlight)}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              handleAction(onOpenSpotlight);
+            }}
+            title={t('common:floatingButtons.globalSearch')}
+          >
+            <Icon name="search" size={18} />
           </button>
           <button
             className="mobile-fab-option"
@@ -120,18 +112,7 @@ export const MobileFabMenu = memo(function MobileFabMenu({
             }}
             title={t('common:floatingButtons.commanderView')}
           >
-            📊
-          </button>
-          <button
-            className="mobile-fab-option"
-            onClick={() => handleAction(onOpenSupervisor)}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              handleAction(onOpenSupervisor);
-            }}
-            title={t('common:floatingButtons.supervisorOverview')}
-          >
-            🎖️
+            <Icon name="dashboard" size={18} />
           </button>
           <button
             className="mobile-fab-option"
@@ -142,7 +123,7 @@ export const MobileFabMenu = memo(function MobileFabMenu({
             }}
             title={t('common:floatingButtons.controls')}
           >
-            ⌨️
+            <Icon name="keyboard" size={18} />
           </button>
           <button
             className="mobile-fab-option"
@@ -153,18 +134,7 @@ export const MobileFabMenu = memo(function MobileFabMenu({
             }}
             title={t('common:floatingButtons.manageSkills')}
           >
-            ⭐
-          </button>
-          <button
-            className="mobile-fab-option"
-            onClick={() => handleAction(onOpenSnapshots)}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              handleAction(onOpenSnapshots);
-            }}
-            title={t('common:floatingButtons.viewSnapshots')}
-          >
-            📸
+            <Icon name="star" size={18} />
           </button>
         </div>
       )}

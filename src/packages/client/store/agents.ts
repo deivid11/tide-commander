@@ -120,6 +120,7 @@ export interface AgentActions {
       skillIds?: string[];
       cwd?: string;
       shortcut?: string;
+      customInstructions?: string;
     }
   ): void;
 
@@ -299,10 +300,6 @@ export function createAgentActions(
         state.delegationHistories.delete(agentId);
         state.lastDelegationReceived.delete(agentId);
         state.agentTaskProgress.delete(agentId);
-        // Clean up supervisor data
-        state.supervisor.narratives.delete(agentId);
-        state.supervisor.agentHistories.delete(agentId);
-        state.supervisor.historyFetchedForAgents.delete(agentId);
         // Clean up subagents
         state.subagents.delete(agentId);
       });
@@ -330,8 +327,6 @@ export function createAgentActions(
             unseenChanged = true;
           }
         }
-        // Clear snapshot view when selecting a different agent
-        state.currentSnapshot = null;
       });
       if (unseenChanged && saveUnseenAgents) {
         saveUnseenAgents();
@@ -462,10 +457,23 @@ export function createAgentActions(
       });
       notify();
 
-      getSendMessage()?.({
+      const msg: ClientMessage = {
         type: 'send_command',
         payload: { agentId, command },
-      });
+      };
+
+      const sendMessage = getSendMessage();
+      if (sendMessage) {
+        sendMessage(msg);
+      } else {
+        // Fallback: websocket send module handles queuing when disconnected.
+        // Dynamic import avoids pulling in browser-only code during tests.
+        import('../websocket/send').then(({ sendMessage: wsSend }) => {
+          wsSend(msg);
+        }).catch(() => {
+          console.error('[Store] Failed to send command - no WebSocket connection available');
+        });
+      }
     },
 
     refreshAgentContext(agentId: string): void {
@@ -680,6 +688,7 @@ export function createAgentActions(
         skillIds?: string[];
         cwd?: string;
         shortcut?: string;
+        customInstructions?: string;
       }
     ): void {
       const state = getState();
@@ -720,6 +729,9 @@ export function createAgentActions(
           if (updates.shortcut !== undefined) {
             updatedAgent.shortcut = updates.shortcut;
           }
+          if (updates.customInstructions !== undefined) {
+            updatedAgent.customInstructions = updates.customInstructions || undefined;
+          }
           const newAgents = new Map(s.agents);
           newAgents.set(agentId, updatedAgent);
           s.agents = newAgents;
@@ -739,6 +751,16 @@ export function createAgentActions(
           body: JSON.stringify({ shortcut: updates.shortcut }),
         }).catch((error) => {
           console.error('[Store] Failed to persist agent shortcut', error);
+        });
+      }
+
+      if (updates.customInstructions !== undefined) {
+        authFetch(apiUrl(`/api/agents/${agentId}`), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customInstructions: updates.customInstructions || null }),
+        }).catch((error) => {
+          console.error('[Store] Failed to persist agent customInstructions', error);
         });
       }
     },

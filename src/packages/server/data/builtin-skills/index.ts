@@ -25,6 +25,7 @@ import { bossInstructions } from './boss-instructions.js';
 import { workflowDesigner } from './workflow-designer.js';
 import { triggerDesigner } from './trigger-designer.js';
 import { workflowBuilder } from './workflow-builder.js';
+import { backupRestore } from './backup-restore.js';
 
 // Re-export types
 export type { BuiltinSkillDefinition } from './types.js';
@@ -49,6 +50,7 @@ export const BUILTIN_SKILLS: BuiltinSkillDefinition[] = [
   workflowDesigner,
   triggerDesigner,
   workflowBuilder,
+  backupRestore,
 ];
 
 /**

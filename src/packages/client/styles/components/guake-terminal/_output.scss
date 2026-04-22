@@ -238,8 +238,8 @@
 
   &.fade-in {
     opacity: 1;
-    transition: opacity 100ms ease-out;
-    animation: history-slide-in 0.2s ease-out;
+    transition: opacity 50ms ease-out;
+    animation: history-slide-in 0.1s ease-out;
   }
 }
 
@@ -469,6 +469,13 @@
   font-family: $font-mono;
   font-size: 9px;
   color: var(--text-muted);
+
+  // Hide inline debug-hash spans (no class, inline style only).
+  // They remain visible in the timestamp's title tooltip for debugging.
+  > span:not([class]) {
+    display: none;
+  }
+
   background: linear-gradient(
     135deg,
     color-mix(in srgb, var(--bg-primary) 75%, var(--bg-secondary) 25%),
@@ -1210,19 +1217,20 @@
   gap: 10px;
   padding: 8px 16px;
   margin: 4px 0;
+  width: 100%;
+  box-sizing: border-box;
   animation: compacting-fade-in 0.3s ease-out;
 
   .compacting-bar {
-    flex: 1;
+    flex: 1 1 auto;
     height: 3px;
     background: rgba(255, 255, 255, 0.08);
     border-radius: 2px;
     overflow: hidden;
-    max-width: 200px;
 
     .compacting-bar-fill {
       height: 100%;
-      width: 40%;
+      width: 100%;
       background: linear-gradient(90deg, transparent, #6366f1, #818cf8, #6366f1, transparent);
       border-radius: 2px;
       animation: compacting-sweep 1.5s ease-in-out infinite;
@@ -1238,8 +1246,8 @@
 }
 
 @keyframes compacting-sweep {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(600%); }
+  0% { width: 0%; }
+  100% { width: 100%; }
 }
 
 @keyframes compacting-fade-in {

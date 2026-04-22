@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeTideFileHref, extractExecWrappedCommand, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand } from './outputRendering';
+import { decodeTideFileHref, extractExecWrappedCommand, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon } from './outputRendering';
 
 describe('parseBashSearchCommand', () => {
   it('parses zsh -lc rg search command', () => {
@@ -92,6 +92,54 @@ describe('decodeTideFileHref', () => {
 
   it('returns null for non file hrefs', () => {
     expect(decodeTideFileHref('https://example.com')).toBeNull();
+  });
+});
+
+describe('parseBashTrackingStatusCommand', () => {
+  it('parses zsh -lc PATCH tracking-status command', () => {
+    const parsed = parseBashTrackingStatusCommand(
+      '/usr/bin/zsh -lc "curl -s -X PATCH -H \\"X-Auth-Token: abcd\\" http://localhost:5174/api/agents/zhpciecy -H \\"Content-Type: application/json\\" -d \'{\\"trackingStatus\\":\\"need-review\\",\\"trackingStatusDetail\\":\\"Shipped tracking chip\\"}\'"'
+    );
+    expect(parsed).toMatchObject({
+      shellPrefix: '/usr/bin/zsh -lc',
+      trackingStatus: 'need-review',
+      trackingStatusDetail: 'Shipped tracking chip',
+    });
+  });
+
+  it('parses command without detail', () => {
+    const parsed = parseBashTrackingStatusCommand(
+      'curl -s -X PATCH http://localhost:5174/api/agents/abc -H "Content-Type: application/json" -d \'{"trackingStatus":"blocked"}\''
+    );
+    expect(parsed?.trackingStatus).toBe('blocked');
+    expect(parsed?.trackingStatusDetail).toBeUndefined();
+  });
+
+  it('returns null for PATCH without trackingStatus field', () => {
+    const parsed = parseBashTrackingStatusCommand(
+      'curl -s -X PATCH http://localhost:5174/api/agents/abc -d \'{"taskLabel":"foo"}\''
+    );
+    expect(parsed).toBeNull();
+  });
+
+  it('returns null for non-PATCH command', () => {
+    const parsed = parseBashTrackingStatusCommand(
+      'curl -s -X POST http://localhost:5174/api/notify -d \'{"trackingStatus":"need-review"}\''
+    );
+    expect(parsed).toBeNull();
+  });
+});
+
+describe('getTrackingStatusIcon', () => {
+  it('returns specific icons for known statuses', () => {
+    expect(getTrackingStatusIcon('need-review')).toBe('✅');
+    expect(getTrackingStatusIcon('blocked')).toBe('🚫');
+    expect(getTrackingStatusIcon('can-clear-context')).toBe('🧹');
+    expect(getTrackingStatusIcon('waiting-subordinates')).toBe('⏳');
+  });
+
+  it('returns fallback icon for unknown statuses', () => {
+    expect(getTrackingStatusIcon('mystery-state')).toBe('📍');
   });
 });
 

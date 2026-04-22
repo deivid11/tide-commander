@@ -8,9 +8,29 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { BOSS_CONTEXT_START, BOSS_CONTEXT_END } from '../../../shared/types';
 import { store } from '../../store';
-import { createMarkdownComponents } from './MarkdownComponents';
-import type { ParsedBossContent, ParsedDelegation, ParsedBossResponse, ParsedInjectedInstructions, ParsedWorkPlanResponse, WorkPlan, WorkPlanPhase, WorkPlanTask } from './types';
+import { createMarkdownComponents, markdownComponents as defaultMarkdownComponents } from './MarkdownComponents';
+import type { ParsedBossContent, ParsedDelegation, ParsedBossResponse, ParsedInjectedInstructions, ParsedWorkPlanResponse, WorkPlan, WorkPlanPhase, WorkPlanTask, EditData } from './types';
 import { AgentIcon } from '../AgentIcon';
+import { Icon, type IconName } from '../Icon';
+import { useAgent, useAgentTaskProgress } from '../../store/selectors';
+import { AgentProgressIndicator } from './AgentProgressIndicator';
+
+const PREVIEW_CHAR_LIMIT = 400;
+
+/**
+ * Trim a markdown source string to ~N chars on a word boundary and append an ellipsis.
+ * If the source is already within the limit, returns it unchanged and `truncated = false`.
+ */
+function truncateMarkdownPreview(source: string, limit: number): { text: string; truncated: boolean } {
+  if (source.length <= limit) return { text: source, truncated: false };
+  const hardSlice = source.slice(0, limit);
+  const lastBoundary = Math.max(
+    hardSlice.lastIndexOf(' '),
+    hardSlice.lastIndexOf('\n'),
+  );
+  const cut = lastBoundary > limit * 0.7 ? hardSlice.slice(0, lastBoundary) : hardSlice;
+  return { text: `${cut.trimEnd()}…`, truncated: true };
+}
 
 // ============================================================================
 // Boss Context Parsing
@@ -324,21 +344,17 @@ export function BossContext({ context, defaultCollapsed = true, onFileClick }: B
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const markdownComponents = createMarkdownComponents({ onFileClick });
 
-  // Extract agent count from the "# YOUR TEAM (N agents)" header
-  const teamMatch = context.match(/# YOUR TEAM \((\d+) agents?\)/);
-  const agentCount = teamMatch ? parseInt(teamMatch[1], 10) : 0;
-
   return (
     <div className={`boss-context ${collapsed ? 'collapsed' : 'expanded'}`}>
       <div className="boss-context-header" onClick={() => setCollapsed(!collapsed)}>
-        <span className="boss-context-icon">👑</span>
+        <span className="boss-context-icon"><Icon name="crown" size={14} /></span>
         <span className="boss-context-label">
-          {t('tools:bossContext.teamContext', { count: agentCount })}
+          {t('tools:bossContext.teamContext')}
         </span>
-        <span className="boss-context-toggle">{collapsed ? '▶' : '▼'}</span>
+        <span className="boss-context-toggle"><Icon name={collapsed ? 'caret-right' : 'caret-down'} size={10} /></span>
       </div>
       {!collapsed && (
-        <div className="boss-context-content">
+        <div className="boss-context-content markdown-content">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
             {context}
           </ReactMarkdown>
@@ -362,12 +378,12 @@ export function InjectedInstructionsBlock({ content, defaultCollapsed = true, on
   return (
     <div className={`injected-instructions ${collapsed ? 'collapsed' : 'expanded'}`}>
       <div className="injected-instructions-header" onClick={() => setCollapsed(!collapsed)}>
-        <span className="injected-instructions-icon">⚙️</span>
+        <span className="injected-instructions-icon"><Icon name="gear" size={14} /></span>
         <span className="injected-instructions-label">{t('tools:bossContext.injectedInstructions')}</span>
-        <span className="injected-instructions-toggle">{collapsed ? '▶' : '▼'}</span>
+        <span className="injected-instructions-toggle"><Icon name={collapsed ? 'caret-right' : 'caret-down'} size={10} /></span>
       </div>
       {!collapsed && (
-        <div className="injected-instructions-content">
+        <div className="injected-instructions-content markdown-content">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
             {content}
           </ReactMarkdown>
@@ -383,37 +399,82 @@ export function InjectedInstructionsBlock({ content, defaultCollapsed = true, on
 
 interface DelegationBlockProps {
   delegation: ParsedDelegation;
+  bossId?: string | null;
+  onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
+  onBashClick?: (command: string, output: string) => void;
 }
 
-export function DelegationBlock({ delegation }: DelegationBlockProps) {
+export function DelegationBlock({ delegation, bossId, onFileClick, onBashClick }: DelegationBlockProps) {
   const { t } = useTranslation(['tools']);
+  const targetAgent = useAgent(delegation.selectedAgentId);
+  const taskProgressMap = useAgentTaskProgress(bossId ?? null);
+  const matchingProgress = taskProgressMap.get(delegation.selectedAgentId);
   const confidenceColors: Record<string, string> = {
     high: '#22c55e', // green
     medium: '#f59e0b', // amber
     low: '#ef4444', // red
   };
 
-  const confidenceEmoji: Record<string, string> = {
-    high: '✅',
-    medium: '⚠️',
-    low: '❓',
+  const confidenceIcon: Record<string, IconName> = {
+    high: 'success',
+    medium: 'warn',
+    low: 'question',
   };
 
+  const taskPreview = delegation.taskCommand
+    ? truncateMarkdownPreview(delegation.taskCommand, PREVIEW_CHAR_LIMIT)
+    : null;
+  const taskTruncated = taskPreview?.truncated ?? false;
+  const hasReasoning = Boolean(delegation.reasoning && delegation.reasoning.trim());
+  const hasAlternatives = delegation.alternativeAgents.length > 0;
+  const canExpand = taskTruncated || hasReasoning || hasAlternatives;
+
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const toggle = (e: React.MouseEvent) => {
+    if (!canExpand) return;
+    e.stopPropagation();
+    setIsExpanded(v => !v);
+  };
+
+  const taskBody = taskPreview && taskTruncated && !isExpanded
+    ? taskPreview.text
+    : delegation.taskCommand;
+  const stateClass = !canExpand ? 'no-toggle' : isExpanded ? 'expanded' : 'compact';
+
   return (
-    <div className="delegation-block">
+    <div
+      className={`delegation-block ${stateClass}`}
+      onClick={canExpand ? toggle : undefined}
+      role={canExpand ? 'button' : undefined}
+      tabIndex={canExpand ? 0 : undefined}
+    >
       <div className="delegation-header">
-        <span className="delegation-icon">📨</span>
+        <span className="delegation-icon"><Icon name="envelope" size={14} /></span>
         <span className="delegation-title">{t('tools:delegation.taskDelegated')}</span>
         <span className="delegation-confidence" style={{ color: confidenceColors[delegation.confidence] }}>
-          {confidenceEmoji[delegation.confidence]} {delegation.confidence}
+          <Icon name={confidenceIcon[delegation.confidence]} size={12} /> {delegation.confidence}
         </span>
+        {canExpand && (
+          <span className="delegation-toggle" aria-label={isExpanded ? 'Collapse' : 'Expand'}>
+            <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} />
+          </span>
+        )}
       </div>
       <div className="delegation-details">
         <div className="delegation-target">
           <span className="delegation-label">{t('tools:delegation.to')}</span>
+          {targetAgent && (
+            <AgentIcon
+              agent={targetAgent}
+              size={20}
+              className="delegation-agent-icon"
+            />
+          )}
           <span
             className="delegation-agent-name clickable-agent-name"
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               store.selectAgent(delegation.selectedAgentId);
               store.setTerminalOpen(true);
             }}
@@ -422,16 +483,24 @@ export function DelegationBlock({ delegation }: DelegationBlockProps) {
         {delegation.taskCommand && (
           <div className="delegation-task-command">
             <span className="delegation-label">{t('tools:delegation.task')}</span>
-            <span className="delegation-command-text">{delegation.taskCommand}</span>
+            <div className={`delegated-task-message-command markdown-content${isExpanded ? ' is-expanded' : ''}`}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={defaultMarkdownComponents}>
+                {taskBody}
+              </ReactMarkdown>
+            </div>
           </div>
         )}
-        {delegation.reasoning && (
+        {isExpanded && hasReasoning && (
           <div className="delegation-reasoning">
             <span className="delegation-label">{t('tools:delegation.why')}</span>
-            <span className="delegation-reason-text">{delegation.reasoning}</span>
+            <div className="delegated-task-message-command markdown-content is-expanded">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={defaultMarkdownComponents}>
+                {delegation.reasoning}
+              </ReactMarkdown>
+            </div>
           </div>
         )}
-        {delegation.alternativeAgents.length > 0 && (
+        {isExpanded && hasAlternatives && (
           <div className="delegation-alternatives">
             <span className="delegation-label">{t('tools:delegation.alternatives')}</span>
             <span className="delegation-alt-list">
@@ -445,8 +514,26 @@ export function DelegationBlock({ delegation }: DelegationBlockProps) {
           </div>
         )}
       </div>
+      {matchingProgress && (
+        <div
+          className="delegation-subordinate-progress"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <AgentProgressIndicator
+            progress={matchingProgress}
+            defaultExpanded={matchingProgress.status === 'working'}
+            onAgentClick={(clickedAgentId) => {
+              store.selectAgent(clickedAgentId);
+              store.setTerminalOpen(true);
+            }}
+            onDismiss={bossId ? (subordinateId) => store.clearAgentTaskProgress(bossId, subordinateId) : undefined}
+            onFileClick={onFileClick}
+            onBashClick={onBashClick}
+          />
+        </div>
+      )}
       <div className="delegation-footer">
-        <span className="delegation-auto-forward">↗️ {t('tools:delegation.autoForwarding', { name: delegation.selectedAgentName })}</span>
+        <span className="delegation-auto-forward"><Icon name="send" size={12} /> {t('tools:delegation.autoForwarding', { name: delegation.selectedAgentName })}</span>
       </div>
     </div>
   );
@@ -471,13 +558,19 @@ export function DelegatedTaskHeader({ bossName, taskCommand }: DelegatedTaskHead
   return (
     <div className={`delegated-task-header ${isExpanded ? 'expanded' : 'compact'}`}>
       <div className="delegated-task-badge" onClick={() => setIsExpanded(!isExpanded)}>
-        <span className="delegated-task-icon">👑</span>
+        <span className="delegated-task-icon"><Icon name="crown" size={14} /></span>
         <span className="delegated-task-label">
           {t('tools:delegation.via')} <strong>{bossName}</strong>
         </span>
-        <span className="delegated-task-toggle">{isExpanded ? '▼' : '▶'}</span>
+        <span className="delegated-task-toggle"><Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
       </div>
-      {isExpanded && <div className="delegated-task-command">{taskCommand}</div>}
+      {isExpanded && (
+        <div className="delegated-task-command markdown-content">
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={defaultMarkdownComponents}>
+            {taskCommand}
+          </ReactMarkdown>
+        </div>
+      )}
       {!isExpanded && <div className="delegated-task-preview">{truncatedCommand}</div>}
     </div>
   );
@@ -494,15 +587,44 @@ interface DelegatedTaskMessageProps {
 }
 
 export function DelegatedTaskMessage({ bossName, bossId, taskCommand }: DelegatedTaskMessageProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
-  const truncatedCommand = taskCommand.length > 80 ? taskCommand.slice(0, 80) + '...' : taskCommand;
+  const bossAgent = useAgent(bossId);
+  const preview = truncateMarkdownPreview(taskCommand, PREVIEW_CHAR_LIMIT);
+  const isTruncated = preview.truncated;
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const toggle = (e: React.MouseEvent) => {
+    if (!isTruncated) return;
+    e.stopPropagation();
+    setIsExpanded(v => !v);
+  };
+
+  const bodyText = isTruncated && !isExpanded ? preview.text : taskCommand;
+  const stateClass = !isTruncated
+    ? 'no-toggle'
+    : isExpanded
+      ? 'expanded'
+      : 'compact';
 
   return (
-    <div className={`delegated-task-message ${isExpanded ? 'expanded' : 'compact'}`}>
-      <div className="delegated-task-message-badge" onClick={() => setIsExpanded(!isExpanded)}>
-        <span className="delegated-task-message-icon">📋</span>
+    <div
+      className={`delegated-task-message ${stateClass}`}
+      onClick={isTruncated ? toggle : undefined}
+      role={isTruncated ? 'button' : undefined}
+      tabIndex={isTruncated ? 0 : undefined}
+    >
+      <div className="delegated-task-message-badge">
+        <span className="delegated-task-message-icon" aria-hidden="true"><Icon name="envelope" size={14} /></span>
+        <span className="delegated-task-message-chip">Task Delegated</span>
         <span className="delegated-task-message-label">
-          Delegated by <strong
+          <span className="delegated-task-message-from">from</span>
+          {bossAgent && (
+            <AgentIcon
+              agent={bossAgent}
+              size={14}
+              className="delegated-task-message-agent-icon"
+            />
+          )}
+          <strong
             className="clickable-agent-name"
             onClick={(e) => {
               e.stopPropagation();
@@ -511,14 +633,18 @@ export function DelegatedTaskMessage({ bossName, bossId, taskCommand }: Delegate
             }}
           >{bossName}</strong>
         </span>
-        <span className="delegated-task-message-id">{bossId.slice(0, 8)}</span>
-        <span className="delegated-task-message-toggle">{isExpanded ? '▼' : '▶'}</span>
+        <span className="delegated-task-message-id" title={bossId}>{bossId.slice(0, 8)}</span>
+        {isTruncated && (
+          <span className="delegated-task-message-toggle" aria-label={isExpanded ? 'Collapse' : 'Expand'}>
+            <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} />
+          </span>
+        )}
       </div>
-      {isExpanded ? (
-        <div className="delegated-task-message-command">{taskCommand}</div>
-      ) : (
-        <div className="delegated-task-message-preview">{truncatedCommand}</div>
-      )}
+      <div className={`delegated-task-message-command markdown-content${isExpanded ? ' is-expanded' : ''}`}>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={defaultMarkdownComponents}>
+          {bodyText}
+        </ReactMarkdown>
+      </div>
     </div>
   );
 }
@@ -531,19 +657,50 @@ interface TaskReportHeaderProps {
   agentName: string;
   agentId: string;
   status: string;
-  originalTask: string;
   summary: string;
 }
 
-export function TaskReportHeader({ agentName, agentId, status, originalTask, summary }: TaskReportHeaderProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+export function TaskReportHeader({ agentName, agentId, status, summary }: TaskReportHeaderProps) {
   const isCompleted = status === 'COMPLETED';
+  const reporterAgent = useAgent(agentId);
+
+  const summaryPreview = summary ? truncateMarkdownPreview(summary, PREVIEW_CHAR_LIMIT) : null;
+  const summaryTruncated = summaryPreview?.truncated ?? false;
+  const canExpand = summaryTruncated;
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const toggle = (e: React.MouseEvent) => {
+    if (!canExpand) return;
+    e.stopPropagation();
+    setIsExpanded(v => !v);
+  };
+
+  const summaryBody = summaryPreview && summaryTruncated && !isExpanded
+    ? summaryPreview.text
+    : summary;
+  const stateClass = !canExpand
+    ? 'no-toggle'
+    : isExpanded
+      ? 'expanded'
+      : 'compact';
 
   return (
-    <div className={`task-report-header ${isExpanded ? 'expanded' : 'compact'} status-${isCompleted ? 'completed' : 'failed'}`}>
-      <div className="task-report-badge" onClick={() => setIsExpanded(!isExpanded)}>
-        <span className="task-report-icon">{isCompleted ? '✅' : '❌'}</span>
+    <div
+      className={`task-report-header ${stateClass} status-${isCompleted ? 'completed' : 'failed'}`}
+      onClick={canExpand ? toggle : undefined}
+      role={canExpand ? 'button' : undefined}
+      tabIndex={canExpand ? 0 : undefined}
+    >
+      <div className="task-report-badge">
+        <span className="task-report-icon"><Icon name={isCompleted ? 'success' : 'failure'} size={14} /></span>
         <span className="task-report-label">
+          {reporterAgent && (
+            <AgentIcon
+              agent={reporterAgent}
+              size={14}
+              className="task-report-agent-icon"
+            />
+          )}
           <strong
             className="clickable-agent-name"
             onClick={(e) => {
@@ -554,17 +711,17 @@ export function TaskReportHeader({ agentName, agentId, status, originalTask, sum
           >{agentName}</strong> — Task {isCompleted ? 'Completed' : 'Failed'}
         </span>
         <span className="task-report-id">{agentId.slice(0, 8)}</span>
-        <span className="task-report-toggle">{isExpanded ? '▼' : '▶'}</span>
+        {canExpand && (
+          <span className="task-report-toggle" aria-label={isExpanded ? 'Collapse' : 'Expand'}>
+            <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} />
+          </span>
+        )}
       </div>
       {summary && (
-        <div className="task-report-summary">{summary}</div>
-      )}
-      {isExpanded && (
-        <div className="task-report-details">
-          <div className="task-report-original-task">
-            <span className="task-report-detail-label">Original task:</span>
-            <span className="task-report-detail-value">{originalTask}</span>
-          </div>
+        <div className={`task-report-summary markdown-content${isExpanded ? ' is-expanded' : ''}`}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={defaultMarkdownComponents}>
+            {summaryBody}
+          </ReactMarkdown>
         </div>
       )}
     </div>
@@ -596,7 +753,7 @@ export function SubagentNotificationDisplay({ agentId, status }: SubagentNotific
   return (
     <div className={`subagent-notification ${isError ? 'subagent-notification--error' : isCompleted ? 'subagent-notification--completed' : 'subagent-notification--info'}`}>
       <span className="subagent-notification__icon">
-        {isError ? '⚠' : isCompleted ? '✓' : '🧬'}
+        <Icon name={isError ? 'warn' : isCompleted ? 'check' : 'dna'} size={12} />
       </span>
       <span className="subagent-notification__label">Subagent</span>
       <span className="subagent-notification__id">{shortAgentId}</span>
@@ -624,10 +781,10 @@ const _priorityColors: Record<string, string> = {
   low: '#22c55e',
 };
 
-const priorityEmoji: Record<string, string> = {
-  high: '🔴',
-  medium: '🟡',
-  low: '🟢',
+const priorityColor: Record<string, string> = {
+  high: '#ef4444',
+  medium: '#f59e0b',
+  low: '#22c55e',
 };
 
 export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
@@ -651,7 +808,7 @@ export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
   return (
     <div className="work-plan-block">
       <div className="work-plan-header">
-        <span className="work-plan-icon">📋</span>
+        <span className="work-plan-icon"><Icon name="task" size={14} /></span>
         <span className="work-plan-title">{workPlan.name}</span>
         <span className="work-plan-stats">
           {t('tools:workPlan.phases', { count: workPlan.phases.length })} · {t('tools:workPlan.tasks', { count: totalTasks })}
@@ -669,7 +826,7 @@ export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
               <span className="work-plan-phase-number">{phaseIndex + 1}</span>
               <span className="work-plan-phase-name">{phase.name}</span>
               <span className={`work-plan-phase-execution ${phase.execution}`}>
-                {phase.execution === 'parallel' ? `⚡ ${t('tools:workPlan.parallel')}` : `→ ${t('tools:workPlan.sequential')}`}
+                {phase.execution === 'parallel' ? <><Icon name="bolt" size={12} /> {t('tools:workPlan.parallel')}</> : <><Icon name="subitem" size={12} /> {t('tools:workPlan.sequential')}</>}
               </span>
               {phase.dependsOn.length > 0 && (
                 <span className="work-plan-phase-depends">
@@ -677,7 +834,7 @@ export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
                 </span>
               )}
               <span className="work-plan-phase-toggle">
-                {expandedPhases.has(phase.id) ? '▼' : '▶'}
+                <Icon name={expandedPhases.has(phase.id) ? 'caret-down' : 'caret-right'} size={10} />
               </span>
             </div>
 
@@ -688,7 +845,7 @@ export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
                     <div className="work-plan-task-header">
                       <span className="work-plan-task-id">{task.id}</span>
                       <span className="work-plan-task-priority" title={`Priority: ${task.priority}`}>
-                        {priorityEmoji[task.priority]}
+                        <Icon name="status-pending" size={10} weight="fill" color={priorityColor[task.priority]} />
                       </span>
                       <span className="work-plan-task-class" title={`Suggested: ${task.suggestedClass}`}>
                         <AgentIcon classId={task.suggestedClass} size={14} /> {task.suggestedClass}
@@ -703,7 +860,7 @@ export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
                     </div>
                     {task.blockedBy.length > 0 && (
                       <div className="work-plan-task-blocked">
-                        ⏳ {t('tools:workPlan.blockedBy')} {task.blockedBy.join(', ')}
+                        <Icon name="status-starting" size={12} /> {t('tools:workPlan.blockedBy')} {task.blockedBy.join(', ')}
                       </div>
                     )}
                   </div>
@@ -716,7 +873,7 @@ export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
 
       <div className="work-plan-footer">
         <span className="work-plan-approval-hint">
-          💡 {t('tools:workPlan.reviewHint')}
+          <Icon name="idea" size={12} /> {t('tools:workPlan.reviewHint')}
         </span>
       </div>
     </div>

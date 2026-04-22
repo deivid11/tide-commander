@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { store, useStore } from '../store';
 import type { Building } from '../../shared/types';
 import { BUILDING_STATUS_COLORS } from '../utils/colors';
+import { Icon } from './Icon';
 
 interface BossBuildingActionPopupProps {
   building: Building;
@@ -164,7 +165,7 @@ export const BossBuildingActionPopup = memo(function BossBuildingActionPopup({ b
         className={`building-popup-header boss-header ${isDragging ? 'dragging' : ''}`}
         onMouseDown={handleDragStart}
       >
-        <span className="boss-icon">👑</span>
+        <span className="boss-icon"><Icon name="crown" size={16} /></span>
         <span className="building-popup-name">{building.name}</span>
         <span className="subordinate-count">{t('terminal:building.unitsCount', { count: subordinates.length })}</span>
         <button className="building-popup-close" onClick={onClose}>x</button>

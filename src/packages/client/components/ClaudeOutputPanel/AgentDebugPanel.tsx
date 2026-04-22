@@ -13,6 +13,7 @@ import {
   type DebugLog,
 } from '../../services/agentDebugger';
 import { apiUrl, authFetch } from '../../utils/storage';
+import { Icon, type IconName } from '../Icon';
 
 /**
  * Syntax highlight JSON string with Dracula colors
@@ -464,12 +465,12 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
   };
 
   // Get log level icon and color class
-  const getLogLevelInfo = (level: DebugLog['level']) => {
+  const getLogLevelInfo = (level: DebugLog['level']): { icon: IconName; className: string; color: string } => {
     switch (level) {
-      case 'debug': return { icon: '🔍', className: 'log-debug' };
-      case 'info': return { icon: 'ℹ️', className: 'log-info' };
-      case 'warn': return { icon: '⚠️', className: 'log-warn' };
-      case 'error': return { icon: '❌', className: 'log-error' };
+      case 'debug': return { icon: 'search', className: 'log-debug', color: '#9ca3af' };
+      case 'info': return { icon: 'info', className: 'log-info', color: '#60a5fa' };
+      case 'warn': return { icon: 'warn', className: 'log-warn', color: '#fbbf24' };
+      case 'error': return { icon: 'failure', className: 'log-error', color: '#ef4444' };
     }
   };
 
@@ -497,11 +498,11 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
       {/* Header */}
       <div className="agent-debug-header">
         <div className="agent-debug-title">
-          <span className="icon">🐛</span>
+          <span className="icon"><Icon name="bug" size={16} /></span>
           {t('terminal:debug.title')}
         </div>
         <button className="close-btn" onClick={onClose} title={t('common:buttons.close')}>
-          ✕
+          <Icon name="close" size={14} />
         </button>
       </div>
 
@@ -511,19 +512,19 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
           className={`tab ${activeTab === 'messages' ? 'active' : ''}`}
           onClick={() => setActiveTab('messages')}
         >
-          📨 {t('terminal:debug.messages')} ({stats.total})
+          <Icon name="envelope" size={14} /> {t('terminal:debug.messages')} ({stats.total})
         </button>
         <button
           className={`tab ${activeTab === 'logs' ? 'active' : ''}`}
           onClick={() => setActiveTab('logs')}
         >
-          📋 {t('terminal:debug.logs')} ({logs.length})
+          <Icon name="list" size={14} /> {t('terminal:debug.logs')} ({logs.length})
         </button>
         <button
           className={`tab ${activeTab === 'process' ? 'active' : ''}`}
           onClick={() => setActiveTab('process')}
         >
-          🧪 {t('terminal:debug.processOutput')}
+          <Icon name="flask" size={14} /> {t('terminal:debug.processOutput')}
         </button>
       </div>
 
@@ -531,15 +532,15 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
         <>
           {/* Stats Bar */}
           <div className="agent-debug-stats">
-            <span className="stat stat-sent">↑ {stats.sent}</span>
-            <span className="stat stat-received">↓ {stats.received}</span>
+            <span className="stat stat-sent"><Icon name="arrow-up" size={10} /> {stats.sent}</span>
+            <span className="stat stat-received"><Icon name="arrow-down" size={10} /> {stats.received}</span>
             <span className="stat">Types: {stats.messageTypes.length}</span>
             <button
               className={`text-only-toggle ${textOnlyMode ? 'active' : ''}`}
               onClick={() => setTextOnlyMode(!textOnlyMode)}
               title={textOnlyMode ? t('terminal:debug.allMessages') : t('terminal:debug.textOnly')}
             >
-              💬 {textOnlyMode ? t('terminal:debug.textOnly') : t('terminal:debug.allMessages')}
+              <Icon name="chat" size={14} /> {textOnlyMode ? t('terminal:debug.textOnly') : t('terminal:debug.allMessages')}
             </button>
           </div>
 
@@ -738,14 +739,14 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
                   className="message-header"
                   onClick={() => toggleExpanded(msg.id)}
                 >
-                  <span className="expand-icon">{isExpanded ? '▼' : '▶'}</span>
+                  <span className="expand-icon"><Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
                   <span className={`direction direction-${msg.direction}`}>
-                    {msg.direction === 'sent' ? '↑ SENT' : '↓ RECEIVED'}
+                    {msg.direction === 'sent' ? <><Icon name="arrow-up" size={10} /> SENT</> : <><Icon name="arrow-down" size={10} /> RECEIVED</>}
                   </span>
                   <span className="message-type">
                     {isTool ? (
                       <>
-                        <span className="tool-icon">{isToolStart ? '🔧' : '✅'}</span>
+                        <span className="tool-icon"><Icon name={isToolStart ? 'wrench' : 'success'} size={12} color={isToolStart ? undefined : '#4ade80'} /></span>
                         {isToolStart ? 'tool_start' : 'tool_result'}
                       </>
                     ) : eventSubtype ? (
@@ -775,7 +776,7 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
                     }}
                     title="Copy message"
                   >
-                    📋
+                    <Icon name="copy" size={12} />
                   </button>
                 </div>
 
@@ -909,8 +910,8 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
                       className="message-header"
                       onClick={() => toggleLogExpanded(log.id)}
                     >
-                      <span className="expand-icon">{isExpanded ? '▼' : '▶'}</span>
-                      <span className="log-level-icon">{levelInfo.icon}</span>
+                      <span className="expand-icon"><Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
+                      <span className="log-level-icon"><Icon name={levelInfo.icon} size={12} color={levelInfo.color} /></span>
                       <span className="log-level">{log.level.toUpperCase()}</span>
                       {log.source && <span className="log-source">[{log.source}]</span>}
                       <span className="log-message">{log.message}</span>

@@ -98,6 +98,9 @@
 }
 
 .bash-notify-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
@@ -108,6 +111,15 @@
   border-radius: 4px;
   padding: 1px 6px;
   flex-shrink: 0;
+}
+
+.bash-notify-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.bash-notify-label {
+  letter-spacing: 0.4px;
 }
 
 .bash-notify-title {
@@ -192,6 +204,88 @@
 
 .bash-report-task-summary {
   color: var(--text-primary);
+  font-style: italic;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Tracking status chip (curl PATCH /api/agents/<id> with trackingStatus)
+.output-tool-param.bash-tracking-param {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.bash-tracking-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+
+  // Default (unknown status) — neutral slate
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--text-secondary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-secondary) 32%, transparent);
+
+  &.status-need-review {
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-green) 40%, transparent);
+  }
+
+  &.status-blocked {
+    color: var(--accent-red, #ef4444);
+    background: color-mix(in srgb, var(--accent-red, #ef4444) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-red, #ef4444) 40%, transparent);
+  }
+
+  &.status-can-clear-context {
+    color: var(--accent-blue);
+    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-blue) 40%, transparent);
+  }
+
+  &.status-waiting-subordinates {
+    color: var(--accent-orange, #f59e0b);
+    background: color-mix(in srgb, var(--accent-orange, #f59e0b) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-orange, #f59e0b) 40%, transparent);
+  }
+
+  &.status-working {
+    color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+  }
+
+  &.status-thinking {
+    color: #ff9edb;
+    background: color-mix(in srgb, #ff9edb 15%, transparent);
+    border: 1px solid color-mix(in srgb, #ff9edb 40%, transparent);
+  }
+}
+
+.bash-tracking-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.bash-tracking-status {
+  letter-spacing: 0.4px;
+}
+
+.bash-tracking-detail {
+  color: var(--text-secondary);
   font-style: italic;
   min-width: 0;
   overflow: hidden;
@@ -1528,11 +1622,33 @@
   margin-left: auto;
   font-size: 12px;
   opacity: 0.7;
+
+  &--running {
+    opacity: 1;
+    display: flex;
+    align-items: center;
+  }
+}
+
+@keyframes bash-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.bash-spinner {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border: 2px solid rgba($accent-yellow, 0.25);
+  border-top-color: $accent-yellow;
+  border-radius: 50%;
+  animation: bash-spin 0.7s linear infinite;
+  flex-shrink: 0;
 }
 
 .exec-task-output-container {
-  margin: 8px 0 8px 40px;
-  width: calc(100% - 40px);
+  margin: 8px 0;
+  width: 100%;
 }
 
 .exec-task-inline {
@@ -2041,6 +2157,113 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+// Bash modal ansi output (uses exec-task-inline-output renderer)
+.bash-modal-ansi-output {
+  padding: 0;
+  margin: 0;
+  font-family: $font-mono;
+  font-size: 12px;
+  line-height: 1.6;
+  color: $text-primary;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+// JSON badge in bash modal header
+.bash-modal-json-badge {
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: $accent-green;
+  background: rgba($accent-green, 0.15);
+  border: 1px solid rgba($accent-green, 0.4);
+  border-radius: 4px;
+  padding: 1px 7px;
+}
+
+// JSON viewer in bash modal
+.bash-modal-content.is-json {
+  padding: 12px 16px;
+}
+
+.json-viewer {
+  font-family: $font-mono;
+  font-size: 12px;
+  line-height: 1.7;
+  color: $text-primary;
+}
+
+.json-node {
+  display: flex;
+  flex-direction: column;
+}
+
+.json-line {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 1.7em;
+}
+
+.json-collapsible {
+  cursor: pointer;
+  border-radius: 3px;
+  user-select: none;
+
+  &:hover {
+    background: rgba($text-muted, 0.08);
+  }
+}
+
+.json-toggle {
+  font-size: 8px;
+  color: $text-muted;
+  margin-right: 5px;
+  flex-shrink: 0;
+  width: 10px;
+  display: inline-block;
+  text-align: center;
+}
+
+.json-collapsed-hint {
+  font-size: 10px;
+  color: $text-muted;
+  font-style: italic;
+  margin: 0 4px;
+}
+
+.json-key {
+  color: var(--accent-cyan, #00b4dc);
+  font-weight: 500;
+}
+
+.json-string {
+  color: $accent-green;
+}
+
+.json-number {
+  color: $accent-orange;
+}
+
+.json-boolean {
+  color: $accent-purple;
+  font-weight: 600;
+}
+
+.json-null {
+  color: $text-muted;
+  font-style: italic;
+}
+
+.json-punctuation {
+  color: $text-secondary;
 }
 
 // =============================================================================

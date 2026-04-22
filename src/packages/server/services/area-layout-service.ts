@@ -11,8 +11,10 @@ import { createLogger } from '../utils/logger.js';
 const log = createLogger('AreaLayout');
 
 const PADDING = 1.5;
+const BUILDING_EDGE_PADDING = 0.4;
 const PREFERRED_SPACING = 2.5;
 const MIN_SPACING = 1.0;
+const AGENT_MIN_SPACING = 0.6;
 
 export interface OrganizedAgent {
   agentId: string;
@@ -122,10 +124,10 @@ function getRowSpan(area: DrawingArea, bounds: Bounds, z: number): RowSpan {
   };
 }
 
-function getRowCapacity(area: DrawingArea, bounds: Bounds, z: number): number {
+function getRowCapacity(area: DrawingArea, bounds: Bounds, z: number, minSpacing: number = MIN_SPACING): number {
   const span = getRowSpan(area, bounds, z);
   const width = Math.max(0, span.maxX - span.minX);
-  return width <= 0 ? 1 : Math.max(1, Math.floor(width / MIN_SPACING) + 1);
+  return width <= 0 ? 1 : Math.max(1, Math.floor(width / minSpacing) + 1);
 }
 
 function getRowZPositions(bounds: Bounds, rowCount: number): number[] {
@@ -148,7 +150,8 @@ function placeItemsInSpan<T extends string>(
   area: DrawingArea,
   bounds: Bounds,
   z: number,
-  align: 'center' | 'end' = 'center',
+  align: 'center' | 'end' | 'start' = 'center',
+  maxSpacing: number = PREFERRED_SPACING,
 ): Array<{ id: T; position: { x: number; z: number } }> {
   if (ids.length === 0) return [];
 
@@ -159,13 +162,18 @@ function placeItemsInSpan<T extends string>(
   if (ids.length === 1) {
     spacing = 0;
   } else {
-    spacing = width <= 0 ? 0 : Math.min(PREFERRED_SPACING, width / (ids.length - 1));
+    spacing = width <= 0 ? 0 : Math.min(maxSpacing, width / (ids.length - 1));
   }
 
   const totalWidth = spacing * Math.max(0, ids.length - 1);
-  const startX = align === 'end'
-    ? span.maxX - totalWidth
-    : (span.minX + span.maxX) / 2 - totalWidth / 2;
+  let startX: number;
+  if (align === 'end') {
+    startX = span.maxX - totalWidth;
+  } else if (align === 'start') {
+    startX = span.minX;
+  } else {
+    startX = (span.minX + span.maxX) / 2 - totalWidth / 2;
+  }
 
   return ids.map((id, index) => ({
     id,
@@ -180,6 +188,7 @@ function tryPackGroupsIntoRows<T>(
   area: DrawingArea,
   bounds: Bounds,
   groups: T[][],
+  minSpacing: number = MIN_SPACING,
 ): Array<{ items: T[]; z: number }> | null {
   const nonEmptyGroups = groups.filter(group => group.length > 0);
   if (nonEmptyGroups.length === 0) return [];
@@ -202,7 +211,7 @@ function tryPackGroupsIntoRows<T>(
         }
 
         const z = rowZPositions[rowIndex];
-        const capacity = getRowCapacity(area, bounds, z);
+        const capacity = getRowCapacity(area, bounds, z, minSpacing);
         const take = Math.min(capacity, group.length - cursor);
         packed.push({ items: group.slice(cursor, cursor + take), z });
         cursor += take;
@@ -227,7 +236,8 @@ function getBuildingsInArea(area: DrawingArea): Building[] {
 }
 
 /**
- * Place buildings along the top-right edge of the bounds.
+ * Place buildings starting from the top-right of the bounds, filling each row
+ * right-to-left before wrapping to the next row below.
  * Returns the building positions and the remaining agent bounds (with building space excluded).
  */
 function placeBuildingsAndShrinkBounds(
@@ -239,15 +249,21 @@ function placeBuildingsAndShrinkBounds(
     return { buildingLayout: [], agentBounds: bounds };
   }
 
-  const fullHeight = Math.max(0, bounds.maxZ - bounds.minZ);
+  // Buildings can sit closer to the actual top edge than agents do — only rectangles
+  // benefit from this (circles curve inward, so their span at the very top would be 0).
+  const tighterMinZ = area.type === 'rectangle' && area.height
+    ? area.center.z - area.height / 2 + BUILDING_EDGE_PADDING
+    : bounds.minZ;
+  const buildingTopBounds: Bounds = { ...bounds, minZ: Math.min(tighterMinZ, bounds.minZ) };
+  const fullHeight = Math.max(0, buildingTopBounds.maxZ - buildingTopBounds.minZ);
 
   for (let buildingRows = 1; buildingRows <= buildings.length; buildingRows++) {
     const reservedHeight = fullHeight <= 0
       ? 0
       : Math.min(fullHeight, Math.max(MIN_SPACING, (buildingRows - 1) * PREFERRED_SPACING + MIN_SPACING));
     const buildingBounds: Bounds = {
-      ...bounds,
-      maxZ: Math.min(bounds.maxZ, bounds.minZ + reservedHeight),
+      ...buildingTopBounds,
+      maxZ: Math.min(buildingTopBounds.maxZ, buildingTopBounds.minZ + reservedHeight),
     };
     const packedRows = tryPackGroupsIntoRows(area, buildingBounds, [buildings]);
     if (!packedRows) continue;
@@ -268,18 +284,18 @@ function placeBuildingsAndShrinkBounds(
     const nextMinZ = Math.min(bounds.maxZ, buildingBounds.maxZ + MIN_SPACING);
     const agentBounds: Bounds = {
       ...bounds,
-      minZ: nextMinZ,
+      minZ: Math.max(bounds.minZ, nextMinZ),
     };
 
     return { buildingLayout, agentBounds };
   }
 
   // Fall back to keeping agents centered while pinning buildings as tightly as possible inside the area.
-  const fallbackZ = bounds.minZ;
+  const fallbackZ = buildingTopBounds.minZ;
   const buildingLayout = placeItemsInSpan(
     buildings.map(building => building.id),
     area,
-    bounds,
+    buildingTopBounds,
     fallbackZ,
     'end',
   ).map(item => ({
@@ -333,8 +349,8 @@ export function calculateLayout(area: DrawingArea, agents: Agent[], buildings: B
     return { organized: [], buildings: buildingLayout };
   }
 
-  const packedRows = tryPackGroupsIntoRows(area, agentBounds, groups)
-    ?? tryPackGroupsIntoRows(area, fullBounds, groups)
+  const packedRows = tryPackGroupsIntoRows(area, agentBounds, groups, AGENT_MIN_SPACING)
+    ?? tryPackGroupsIntoRows(area, fullBounds, groups, AGENT_MIN_SPACING)
     ?? [];
 
   const organized: OrganizedAgent[] = packedRows.flatMap(row =>
@@ -343,6 +359,8 @@ export function calculateLayout(area: DrawingArea, agents: Agent[], buildings: B
       area,
       packedRows.length > 0 ? agentBounds : fullBounds,
       row.z,
+      'center',
+      Infinity,
     ).map(item => ({
       agentId: item.id,
       position: { x: item.position.x, y: 0, z: item.position.z },

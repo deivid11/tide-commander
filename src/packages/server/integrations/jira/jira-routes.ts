@@ -10,6 +10,10 @@
  *   GET    /issues/:key/comments            - Get comments
  *   GET    /issues/:key/transitions         - List transitions
  *   POST   /issues/:key/transitions         - Transition issue
+ *   GET    /issues/:key/attachments         - List issue attachments
+ *   GET    /issues/:key/comments/attachments - List attachments referenced by comments (optional ?commentId=)
+ *   POST   /issues/:key/attachments/download-all - Server-side bulk download to outputDir
+ *   GET    /attachments/:id/content         - Proxy an attachment's binary content
  *   GET    /search                          - Search via JQL
  *   POST   /service-desk/:deskId/requests   - Create SD request
  */
@@ -220,6 +224,85 @@ export function createJiraRoutes(client: JiraClient, ctx: IntegrationContext): R
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to transition issue';
       ctx.log.error(`Transition ${req.params.key} failed: ${message}`);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // ─── Attachments ───
+
+  // List attachments on an issue
+  router.get('/issues/:key/attachments', async (req: Request<{ key: string }>, res: Response) => {
+    try {
+      const attachments = await client.listAttachments(req.params.key);
+      res.json({ attachments });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to list attachments';
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // List attachments referenced by issue comments (optionally filter by commentId)
+  router.get(
+    '/issues/:key/comments/attachments',
+    async (req: Request<{ key: string }>, res: Response) => {
+      try {
+        const commentId = req.query.commentId as string | undefined;
+        const attachments = await client.listCommentAttachments(req.params.key, commentId);
+        res.json({ attachments });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to list comment attachments';
+        res.status(500).json({ error: message });
+      }
+    }
+  );
+
+  // Server-side bulk download of all attachments for an issue
+  router.post(
+    '/issues/:key/attachments/download-all',
+    async (req: Request<{ key: string }>, res: Response) => {
+      try {
+        const { outputDir, includeComments } = req.body as {
+          outputDir?: string;
+          includeComments?: boolean;
+        };
+        if (!outputDir) {
+          res.status(400).json({ error: 'outputDir is required' });
+          return;
+        }
+        const downloaded = await client.downloadAllAttachments(req.params.key, outputDir, {
+          includeComments,
+        });
+        res.json({
+          outputDir,
+          count: downloaded.length,
+          attachments: downloaded.map((a) => ({
+            id: a.id,
+            filename: a.filename,
+            mimeType: a.mimeType,
+            size: a.size,
+          })),
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to download attachments';
+        ctx.log.error(`Bulk download for ${req.params.key} failed: ${message}`);
+        res.status(500).json({ error: message });
+      }
+    }
+  );
+
+  // Proxy a single attachment's binary content (auth is added server-side)
+  router.get('/attachments/:id/content', async (req: Request<{ id: string }>, res: Response) => {
+    try {
+      const { buffer, contentType, contentDisposition, contentLength } =
+        await client.fetchAttachmentBytes(req.params.id);
+
+      if (contentType) res.setHeader('Content-Type', contentType);
+      if (contentDisposition) res.setHeader('Content-Disposition', contentDisposition);
+      if (contentLength) res.setHeader('Content-Length', contentLength);
+
+      res.status(200).send(buffer);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch attachment';
       res.status(500).json({ error: message });
     }
   });

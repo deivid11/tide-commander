@@ -226,8 +226,7 @@
     "title": "任务列表"
   },
   "bossContext": {
-    "teamContext": "团队上下文（{{count}} 个代理）",
-    "teamContext_one": "团队上下文（1 个代理）",
+    "teamContext": "团队上下文",
     "injectedInstructions": "注入的代理指令"
   },
   "delegation": {

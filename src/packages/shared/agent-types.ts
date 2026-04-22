@@ -54,7 +54,7 @@ export interface CustomAgentClass {
 // Agent Status
 // 'orphaned' = Claude process is running but agent state is out of sync (e.g., shows idle when actually working)
 export type AgentStatus = 'idle' | 'working' | 'waiting' | 'waiting_permission' | 'error' | 'offline' | 'orphaned';
-export type AgentTrackingStatus = 'working' | 'waiting-subordinates' | 'need-review' | 'blocked' | 'can-clear-context';
+export type AgentTrackingStatus = 'thinking' | 'working' | 'waiting-subordinates' | 'need-review' | 'blocked' | 'can-clear-context';
 
 // Permission Mode - controls how Claude asks for permissions
 export type PermissionMode = 'bypass' | 'interactive';
@@ -131,14 +131,16 @@ export type ClaudeModel =
   | 'opus'
   | 'haiku'
   | 'claude-opus-4-7'
-  | 'claude-opus-4-6';
+  | 'claude-opus-4-6'
+  | 'opus[1m]';
 
-export const CLAUDE_MODELS: Record<ClaudeModel, { label: string; description: string; icon: string; deprecated?: boolean }> = {
-  sonnet: { label: 'Sonnet', description: 'Balanced performance and cost (recommended)', icon: '⚡' },
-  'claude-opus-4-7': { label: 'Opus 4.7', description: 'Latest Opus — most capable, highest cost', icon: '🧠' },
-  opus: { label: 'Opus (legacy)', description: 'Legacy alias — prefer Opus 4.7', icon: '🧠', deprecated: true },
-  'claude-opus-4-6': { label: 'Opus 4.6', description: 'Previous Opus generation (retained for existing agents)', icon: '🧠', deprecated: true },
-  haiku: { label: 'Haiku', description: 'Fast and economical', icon: '🚀' },
+export const CLAUDE_MODELS: Record<ClaudeModel, { label: string; description: string; icon: string; contextWindow: number; deprecated?: boolean }> = {
+  sonnet: { label: 'Sonnet', description: 'Balanced performance and cost (recommended)', icon: '⚡', contextWindow: 200000 },
+  'opus[1m]': { label: 'Opus [1M]', description: 'Opus with 1M token context window — best for very long tasks', icon: '🧠', contextWindow: 1000000 },
+  'claude-opus-4-7': { label: 'Opus 4.7', description: 'Latest Opus — most capable, highest cost', icon: '🧠', contextWindow: 200000 },
+  opus: { label: 'Opus (legacy)', description: 'Legacy alias — prefer Opus 4.7', icon: '🧠', contextWindow: 200000, deprecated: true },
+  'claude-opus-4-6': { label: 'Opus 4.6', description: 'Previous Opus generation (retained for existing agents)', icon: '🧠', contextWindow: 200000, deprecated: true },
+  haiku: { label: 'Haiku', description: 'Fast and economical', icon: '🚀', contextWindow: 200000 },
 };
 
 // Claude Effort Level - how much reasoning effort Claude puts into responses.
@@ -182,30 +184,6 @@ export interface ContextStats {
     freeSpace: { tokens: number; percent: number };
     autocompactBuffer: { tokens: number; percent: number };
   };
-
-  // Timestamp
-  lastUpdated: number;
-}
-
-// Global Claude API Usage Stats (from /usage command)
-export interface UsageCategory {
-  percentUsed: number;      // Percentage of limit used (e.g., 45.2)
-  resetTime: string;        // When the limit resets (e.g., "Jan 25 at 5:00 PM")
-}
-
-export interface GlobalUsageStats {
-  // Current session usage
-  session: UsageCategory;
-
-  // Weekly usage - all models combined
-  weeklyAllModels: UsageCategory;
-
-  // Weekly usage - Sonnet only
-  weeklySonnet: UsageCategory;
-
-  // Source agent that provided this data
-  sourceAgentId: string;
-  sourceAgentName: string;
 
   // Timestamp
   lastUpdated: number;
@@ -358,7 +336,6 @@ export interface SubordinateContext {
   status: AgentStatus;
   currentTask?: string;
   lastAssignedTask?: string;
-  recentSupervisorSummary?: string;  // Latest supervisor analysis
   contextPercent: number;            // Context usage percentage
   tokensUsed: number;
 }
@@ -463,84 +440,6 @@ export interface AnalysisRequestDraft {
   targetAgent: string;                  // Agent ID
   query: string;
   focus?: string[];
-}
-
-// ============================================================================
-// Supervisor Types
-// ============================================================================
-
-// Activity narrative - human-readable description of agent work
-export interface ActivityNarrative {
-  id: string;
-  agentId: string;
-  timestamp: number;
-  type: 'tool_use' | 'task_start' | 'task_complete' | 'error' | 'thinking' | 'output';
-  narrative: string;
-  toolName?: string;
-}
-
-// Agent status summary for supervisor
-export interface AgentStatusSummary {
-  id: string;
-  name: string;
-  class: AgentClass;
-  status: AgentStatus;
-  currentTask?: string;
-  lastAssignedTask?: string;
-  lastAssignedTaskTime?: number;
-  recentNarratives: ActivityNarrative[];
-  tokensUsed: number;
-  contextUsed: number;
-  contextLimit: number;
-  lastActivityTime: number;
-}
-
-// Agent analysis from Claude
-export interface AgentAnalysis {
-  agentId: string;
-  agentName: string;
-  statusDescription: string;
-  progress: 'on_track' | 'stalled' | 'blocked' | 'completed' | 'idle';
-  recentWorkSummary: string;
-  currentFocus?: string;
-  blockers?: string[];
-  suggestions?: string[];
-  filesModified?: string[];
-  concerns?: string[];
-}
-
-// Supervisor report from Claude
-export interface SupervisorReport {
-  id: string;
-  timestamp: number;
-  agentSummaries: AgentAnalysis[];
-  overallStatus: 'healthy' | 'attention_needed' | 'critical';
-  insights: string[];
-  recommendations: string[];
-  rawResponse?: string;
-}
-
-// Supervisor configuration
-export interface SupervisorConfig {
-  enabled: boolean;
-  intervalMs: number;
-  maxNarrativesPerAgent: number;
-  customPrompt?: string;
-  autoReportOnComplete?: boolean; // Generate report when agent completes task (default: false)
-}
-
-// Agent supervisor history entry - a snapshot of supervisor's analysis for a specific agent
-export interface AgentSupervisorHistoryEntry {
-  id: string;
-  timestamp: number;
-  reportId: string;  // ID of the full SupervisorReport this came from
-  analysis: AgentAnalysis;
-}
-
-// Agent supervisor history - all supervisor analyses for a specific agent
-export interface AgentSupervisorHistory {
-  agentId: string;
-  entries: AgentSupervisorHistoryEntry[];
 }
 
 // ============================================================================

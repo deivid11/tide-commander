@@ -6,6 +6,7 @@ import { formatIdleTime, formatTimeAgo } from '../../utils/formatting';
 import { getIdleTimerColor } from '../../utils/colors';
 import { useAgentsWithUnseenOutput } from '../../store';
 import { AgentIcon } from '../AgentIcon';
+import { Icon } from '../Icon';
 
 interface AgentCardProps {
   agent: Agent;
@@ -36,7 +37,9 @@ export const AgentCard = React.memo(({
   const statusColor = getStatusColor(agent.status);
   const contextPercent = getContextPercent(agent);
   const barColor = getContextBarColor(contextPercent);
-  const taskPreview = agent.taskLabel ? `📋 ${agent.taskLabel}` : (agent.currentTask || agent.lastAssignedTask);
+  const taskPreview: React.ReactNode = agent.taskLabel
+    ? <><Icon name="task" size={12} /> {agent.taskLabel}</>
+    : (agent.currentTask || agent.lastAssignedTask);
   const showIdleTime = agent.status === 'idle' && agent.lastActivity > 0;
   const [, setTick] = React.useState(0);
 
@@ -68,7 +71,12 @@ export const AgentCard = React.memo(({
         <span className="dash-card__name">{agent.name}</span>
         <span className="dash-card__class"><AgentIcon agent={agent} size={14} /> {agent.class}</span>
         <span className={`dash-card__provider dash-card__provider--${agent.provider}`}>
-          {agent.provider === 'codex' ? '🔸' : agent.provider === 'opencode' ? '🟢' : '🤖'} {agent.provider}
+          <Icon
+            name={agent.provider === 'codex' ? 'status-pending' : agent.provider === 'opencode' ? 'status-pending' : 'robot'}
+            size={11}
+            weight={agent.provider === 'codex' || agent.provider === 'opencode' ? 'fill' : 'regular'}
+            color={agent.provider === 'codex' ? '#a16207' : agent.provider === 'opencode' ? '#4ade80' : undefined}
+          /> {agent.provider}
         </span>
         {hasUnseen && (
           <span
@@ -99,7 +107,7 @@ export const AgentCard = React.memo(({
       {/* Row 3: Working directory + idle time */}
       <div className="dash-card__row3">
         <span className="dash-card__workdir" title={agent.cwd}>
-          📁 {agent.cwd.split('/').pop() || agent.cwd}
+          <Icon name="folder" size={11} /> {agent.cwd.split('/').pop() || agent.cwd}
         </span>
         {showIdleTime && (
           <span
@@ -107,7 +115,7 @@ export const AgentCard = React.memo(({
             style={{ color: getIdleTimerColor(agent.lastActivity) }}
             title={formatIdleTime(agent.lastActivity)}
           >
-            ⏱ {formatTimeAgo(agent.lastActivity)}
+            <Icon name="status-waiting-input" size={10} /> {formatTimeAgo(agent.lastActivity)}
           </span>
         )}
       </div>

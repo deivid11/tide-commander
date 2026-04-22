@@ -1,14 +1,13 @@
 /**
  * SingleAgentPanel - Detailed view for a single selected agent
- * Includes stats, supervisor history, boss management, and action buttons
+ * Includes stats, boss management, and action buttons
  */
 
 import React, { useState, useRef, useEffect, useMemo, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore, store, useCustomAgentClassesArray } from '../../store';
-import { filterCostText } from '../../utils/formatting';
 import { getClassConfig } from '../../utils/classConfig';
-import { PROGRESS_COLORS, AGENT_STATUS_COLORS } from '../../utils/colors';
+import { AGENT_STATUS_COLORS } from '../../utils/colors';
 import { ModelPreview } from '../ModelPreview';
 import { AgentEditModal } from '../AgentEditModal';
 import { ContextViewModal } from '../ContextViewModal';
@@ -32,13 +31,13 @@ import type {
   SingleAgentPanelProps,
   RememberedPattern,
   ContextAction,
-  SupervisorHistoryItemProps,
   BossAgentSectionProps,
   DelegationDecisionItemProps,
   SubordinateBadgeProps,
   LinkToBossSectionProps,
 } from './types';
 import { AgentIcon } from '../AgentIcon';
+import { Icon } from '../Icon';
 
 // ============================================================================
 // SingleAgentPanel Component
@@ -74,23 +73,11 @@ export function SingleAgentPanel({
 
   // UI state
   const [, setTick] = useState(0); // For forcing re-render of idle timer
-  const [showHistory, setShowHistory] = useState(true);
   const [showPatterns, setShowPatterns] = useState(false);
   const [rememberedPatterns, setRememberedPatterns] = useState<RememberedPattern[]>([]);
   const [contextConfirm, setContextConfirm] = useState<ContextAction>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showContextModal, setShowContextModal] = useState(false);
-
-  // Get supervisor history for this agent
-  const supervisorHistory = store.getAgentSupervisorHistory(agent.id);
-  const isLoadingHistory = store.isLoadingHistoryForAgent(agent.id);
-
-  // Fetch supervisor history when agent is selected (only if not already fetched/loading)
-  useEffect(() => {
-    if (!store.hasHistoryBeenFetched(agent.id) && !isLoadingHistory) {
-      store.requestAgentSupervisorHistory(agent.id);
-    }
-  }, [agent.id, isLoadingHistory]);
 
   // Update editName when agent changes
   useEffect(() => {
@@ -246,14 +233,14 @@ export function SingleAgentPanel({
         </div>
         <div className="unit-header-actions">
           <button className="unit-action-icon" onClick={() => onFocusAgent(agent.id)} title={t('unitPanel.focusOnAgent')}>
-            🎯
+            <Icon name="target" size={16} />
           </button>
           <button
             className="unit-action-icon"
             onClick={() => setShowEditModal(true)}
             title={t('unitPanel.editProperties')}
           >
-            ✏️
+            <Icon name="edit" size={16} />
           </button>
           {(agent.isBoss || agent.class === 'boss') &&
             agent.subordinateIds &&
@@ -263,7 +250,7 @@ export function SingleAgentPanel({
                 onClick={() => onCallSubordinates?.(agent.id)}
                 title={t('unitPanel.callSubordinates')}
               >
-                📢
+                <Icon name="announce" size={16} />
               </button>
             )}
           <button
@@ -272,17 +259,17 @@ export function SingleAgentPanel({
             title={t('unitPanel.collapseContext')}
             disabled={agent.status !== 'idle'}
           >
-            📦
+            <Icon name="package" size={16} />
           </button>
           <button
             className="unit-action-icon warning"
             onClick={() => setContextConfirm('clear')}
             title={t('unitPanel.clearContext')}
           >
-            🧹
+            <Icon name="clear" size={16} />
           </button>
           <button className="unit-action-icon danger" onClick={handleKill} title={t('unitPanel.killAgent')}>
-            ☠️
+            <Icon name="skull" size={16} />
           </button>
         </div>
       </div>
@@ -310,7 +297,7 @@ export function SingleAgentPanel({
       {/* Task Label */}
       {agent.taskLabel && (
         <div className="unit-task-label">
-          <div className="unit-stat-label">📋 Task</div>
+          <div className="unit-stat-label"><Icon name="task" size={12} /> Task</div>
           <div className="unit-task-label-value">{agent.taskLabel}</div>
         </div>
       )}
@@ -328,7 +315,7 @@ export function SingleAgentPanel({
       <div className="unit-permission-mode">
         <div className="unit-stat-label">{t('unitPanel.permissions')}</div>
         <div className="unit-permission-mode-value" title={PERMISSION_MODES[agent.permissionMode]?.description}>
-          <span className="unit-permission-mode-icon">{agent.permissionMode === 'bypass' ? '⚡' : '🔐'}</span>
+          <span className="unit-permission-mode-icon"><Icon name={agent.permissionMode === 'bypass' ? 'bolt' : 'lock'} size={12} /></span>
           <span className="unit-permission-mode-label">
             {PERMISSION_MODES[agent.permissionMode]?.label || agent.permissionMode}
           </span>
@@ -379,34 +366,6 @@ export function SingleAgentPanel({
 
       {/* Session History */}
       <SessionHistorySection agentId={agent.id} />
-
-      {/* Supervisor History */}
-      <div className="unit-supervisor-history">
-        <div className="unit-supervisor-history-header" onClick={() => setShowHistory(!showHistory)}>
-          <div className="unit-stat-label">{t('unitPanel.supervisorHistory')}</div>
-          <span className="unit-supervisor-history-toggle">
-            {supervisorHistory.length > 0 && (
-              <span className="unit-supervisor-history-count">{supervisorHistory.length}</span>
-            )}
-            {showHistory ? '▼' : '▶'}
-          </span>
-        </div>
-        {showHistory && (
-          <div className="unit-supervisor-history-list">
-            {isLoadingHistory ? (
-              <div className="unit-supervisor-history-loading">{t('status.loading')}</div>
-            ) : supervisorHistory.length === 0 ? (
-              <div className="unit-supervisor-history-empty">{t('unitPanel.noSupervisorReports')}</div>
-            ) : (
-              supervisorHistory
-                .slice(0, 10)
-                .map((entry, index) => (
-                  <SupervisorHistoryItem key={entry.id} entry={entry} defaultExpanded={index === 0} />
-                ))
-            )}
-          </div>
-        )}
-      </div>
 
       {/* Boss-Specific Section */}
       {(agent.isBoss || agent.class === 'boss') && <BossAgentSection agent={agent} />}
@@ -472,7 +431,7 @@ const OtherAgentsSection = memo(function OtherAgentsSection({ currentAgentId }: 
     <div className="unit-other-agents">
       <div className="unit-other-agents-header" onClick={() => setCollapsed(!collapsed)}>
         <div className="unit-stat-label">{t('unitPanel.otherAgents')} ({otherAgents.length})</div>
-        <span className="unit-other-agents-toggle">{collapsed ? '▶' : '▼'}</span>
+        <span className="unit-other-agents-toggle"><Icon name={collapsed ? 'caret-right' : 'caret-down'} size={10} /></span>
       </div>
       {!collapsed && (
         <div className="unit-other-agents-list">
@@ -532,7 +491,7 @@ const RememberedPatternsSection = memo(function RememberedPatternsSection({
         <div className="unit-stat-label">{t('unitPanel.allowedPatterns')}</div>
         <span className="unit-remembered-patterns-toggle">
           {patterns.length > 0 && <span className="unit-remembered-patterns-count">{patterns.length}</span>}
-          {showPatterns ? '▼' : '▶'}
+          <Icon name={showPatterns ? 'caret-down' : 'caret-right'} size={10} />
         </span>
       </div>
       {showPatterns && (
@@ -554,7 +513,7 @@ const RememberedPatternsSection = memo(function RememberedPatternsSection({
                     onClick={() => onRemovePattern(p.tool, p.pattern)}
                     title={t('unitPanel.removePattern')}
                   >
-                    ×
+                    <Icon name="close" size={12} />
                   </button>
                 </div>
               ))}
@@ -648,7 +607,7 @@ const SessionHistorySection = memo(function SessionHistorySection({ agentId }: S
           {entries.length > 0 && (
             <span className="unit-session-history-count">{entries.length}</span>
           )}
-          {collapsed ? '▶' : '▼'}
+          <Icon name={collapsed ? 'caret-right' : 'caret-down'} size={10} />
         </span>
       </div>
       {!collapsed && (
@@ -662,7 +621,7 @@ const SessionHistorySection = memo(function SessionHistorySection({ agentId }: S
               <div key={entry.sessionId}>
                 <div className={`unit-session-history-item ${previewSessionId === entry.sessionId ? 'active' : ''}`}>
                   {entry.fileExists === false && (
-                    <span className="unit-session-history-missing" title="Session file missing from disk">⚠</span>
+                    <span className="unit-session-history-missing" title="Session file missing from disk"><Icon name="warn" size={12} /></span>
                   )}
                   <div
                     className="unit-session-history-item-info"
@@ -680,7 +639,7 @@ const SessionHistorySection = memo(function SessionHistorySection({ agentId }: S
                     title={t('unitPanel.restoreSession', 'Restore this session')}
                     disabled={entry.fileExists === false}
                   >
-                    ↩
+                    <Icon name="revert" size={12} />
                   </button>
                 </div>
                 {previewSessionId === entry.sessionId && (
@@ -781,79 +740,6 @@ const ContextConfirmModal = memo(function ContextConfirmModal({
 });
 
 // ============================================================================
-// SupervisorHistoryItem Component
-// ============================================================================
-
-const SupervisorHistoryItem = memo(function SupervisorHistoryItem({
-  entry,
-  defaultExpanded = false,
-  agent,
-  onAgentClick,
-}: SupervisorHistoryItemProps) {
-  const { t } = useTranslation(['common']);
-  const [expanded, setExpanded] = useState(defaultExpanded);
-  const state = useStore();
-  const customClasses = useCustomAgentClassesArray();
-  const { analysis } = entry;
-  const hideCost = state.settings.hideCost;
-
-  const statusDescription = filterCostText(analysis.statusDescription, hideCost);
-  const recentWorkSummary = filterCostText(analysis.recentWorkSummary, hideCost);
-  const concerns = analysis.concerns?.map((c) => filterCostText(c, hideCost)).filter((c) => c.length > 0);
-
-  const classConfig = agent ? getClassConfig(agent.class, customClasses) : null;
-
-  const handleAgentClick = (e: React.MouseEvent) => {
-    if (agent && onAgentClick) {
-      e.stopPropagation();
-      onAgentClick(agent.id);
-    }
-  };
-
-  return (
-    <div className="supervisor-history-item">
-      <div className="supervisor-history-item-header" onClick={() => setExpanded(!expanded)}>
-        <span
-          className="supervisor-history-progress-dot"
-          style={{ background: PROGRESS_COLORS[analysis.progress] || '#888' }}
-          title={analysis.progress}
-        />
-        <div className="supervisor-history-item-content">
-          {agent && classConfig && (
-            <div className="supervisor-history-agent-line" onClick={handleAgentClick}>
-              <span className="supervisor-history-agent-icon"><AgentIcon classId={agent.class} size={14} /></span>
-              <span className="supervisor-history-agent-name">{agent.name}</span>
-              <span className="supervisor-history-time">{formatRelativeTime(entry.timestamp)}</span>
-            </div>
-          )}
-          <div className="supervisor-history-status">{statusDescription}</div>
-        </div>
-        {!agent && (
-          <span className="supervisor-history-time">{formatRelativeTime(entry.timestamp)}</span>
-        )}
-      </div>
-      {expanded && (
-        <div className="supervisor-history-item-details">
-          <div className="supervisor-history-summary">
-            <strong>{t('labels.summary')}:</strong> {recentWorkSummary}
-          </div>
-          {concerns && concerns.length > 0 && (
-            <div className="supervisor-history-concerns">
-              <strong>{t('labels.concerns')}:</strong>
-              <ul>
-                {concerns.map((concern, i) => (
-                  <li key={i}>{concern}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-});
-
-// ============================================================================
 // BossAgentSection Component
 // ============================================================================
 
@@ -900,7 +786,7 @@ const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSect
       <div className="boss-subordinates">
         <div className="boss-subordinates-header" onClick={() => setShowSubordinates(!showSubordinates)}>
           <div className="unit-stat-label">{t('labels.team')} ({subordinates.length})</div>
-          <span className="boss-toggle">{showSubordinates ? '▼' : '▶'}</span>
+          <span className="boss-toggle"><Icon name={showSubordinates ? 'caret-down' : 'caret-right'} size={10} /></span>
         </div>
         {showSubordinates && (
           <div className="boss-subordinates-list">
@@ -951,7 +837,7 @@ const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSect
                       }}
                       title={t('unitPanel.unlinkSubordinate')}
                     >
-                      ✕
+                      <Icon name="close" size={12} />
                     </button>
                   </div>
                 );
@@ -968,13 +854,13 @@ const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSect
           onClick={() => setShowDelegationHistory(!showDelegationHistory)}
         >
           <div className="unit-stat-label">{t('unitPanel.delegationHistory')} ({delegationHistory.length})</div>
-          <span className="boss-toggle">{showDelegationHistory ? '▼' : '▶'}</span>
+          <span className="boss-toggle"><Icon name={showDelegationHistory ? 'caret-down' : 'caret-right'} size={10} /></span>
         </div>
         {showDelegationHistory && (
           <div className="boss-delegation-history-list">
             {isPendingForThisBoss && (
               <div className="boss-delegation-pending">
-                <span className="delegation-spinner">⏳</span>
+                <span className="delegation-spinner"><Icon name="status-starting" size={12} /></span>
                 {t('unitPanel.analyzingRequest')}
               </div>
             )}
@@ -1013,13 +899,13 @@ const DelegationDecisionItem = memo(function DelegationDecisionItem({ decision }
   return (
     <div className="delegation-decision-item">
       <div className="delegation-decision-header" onClick={() => setExpanded(!expanded)}>
-        <span className="delegation-decision-arrow">{expanded ? '▼' : '▶'}</span>
-        {targetClassConfig && (
+        <span className="delegation-decision-arrow"><Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} /></span>
+        {targetClassConfig && targetAgent && (
           <span className="delegation-decision-icon" style={{ color: targetClassConfig.color }}>
-            {targetClassConfig.icon}
+            <AgentIcon agent={targetAgent} size={14} />
           </span>
         )}
-        <span className="delegation-decision-agent">→ {decision.selectedAgentName}</span>
+        <span className="delegation-decision-agent"><Icon name="subitem" size={10} /> {decision.selectedAgentName}</span>
         <span
           className="delegation-decision-confidence"
           style={{ color: confidenceColors[decision.confidence] }}
@@ -1078,10 +964,10 @@ const SubordinateBadge = memo(function SubordinateBadge({ agentId, bossId }: Sub
         {t('labels.reportsTo')}: <strong>{boss.name}</strong>
       </span>
       <button className="subordinate-badge-goto" onClick={() => store.selectAgent(bossId)} title={t('unitPanel.goToBoss')}>
-        →
+        <Icon name="subitem" size={12} />
       </button>
       <button className="subordinate-badge-unlink" onClick={handleUnlink} title={t('unitPanel.unlinkFromBoss')}>
-        ✕
+        <Icon name="close" size={12} />
       </button>
     </div>
   );
@@ -1129,7 +1015,7 @@ const LinkToBossSection = memo(function LinkToBossSection({ agentId }: LinkToBos
           <div className="link-to-boss-header">
             <span>{t('unitPanel.selectBoss')}</span>
             <button className="link-to-boss-close" onClick={() => setIsExpanded(false)}>
-              ✕
+              <Icon name="close" size={12} />
             </button>
           </div>
           <div className="link-to-boss-list">
@@ -1150,7 +1036,6 @@ const LinkToBossSection = memo(function LinkToBossSection({ agentId }: LinkToBos
 });
 
 export {
-  SupervisorHistoryItem,
   BossAgentSection,
   DelegationDecisionItem,
   SubordinateBadge,

@@ -3,6 +3,7 @@ import { store, useIsConnected } from '../store';
 import { reconnect } from '../websocket/connection';
 import { getBackendUrl, setBackendUrl, subscribeBackendUrlChange } from '../utils/storage';
 import { validateBackendUrlInput, checkBackendReachability } from '../utils/backendConnection';
+import { Icon } from './Icon';
 
 const CONNECT_TIMEOUT_MS = 4000;
 
@@ -199,7 +200,7 @@ export function NotConnectedOverlay() {
           <p className="not-connected-setup-label">Get started:</p>
           <div className="not-connected-code" onClick={handleCopy} title="Click to copy">
             <span>bunx tide-commander</span>
-            <span className="not-connected-copy-icon">{copied ? '✓' : '⧉'}</span>
+            <span className="not-connected-copy-icon"><Icon name={copied ? 'check' : 'copy'} size={12} /></span>
           </div>
         </div>
         <div className="not-connected-url-section">
@@ -232,7 +233,7 @@ export function NotConnectedOverlay() {
         </div>
         <div className="not-connected-actions">
           <button className="not-connected-btn not-connected-btn-retry" onClick={() => { void handleConnect(); }} disabled={isConnecting}>
-            {isConnecting ? 'Connecting...' : '↻ Connect'}
+            {isConnecting ? 'Connecting...' : <><Icon name="refresh" size={12} /> Connect</>}
           </button>
           <button className="not-connected-btn not-connected-btn-explore" onClick={handleExplore}>
             Explore

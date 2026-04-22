@@ -13,19 +13,30 @@ import type { Building, BuildingStatus } from '../../../shared/building-types';
 import type { DrawingArea } from '../../../shared/types';
 import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
+import { Icon, type IconName } from '../Icon';
+import { getBuildingTypeIcon } from '../DashboardView/utils';
 
 interface AreaBuildingsPanelProps {
   agentId: string;
   onClose: () => void;
 }
 
-const STATUS_ICONS: Record<BuildingStatus, string> = {
-  running: '🟢',
-  stopped: '⚫',
-  error: '🔴',
-  unknown: '❓',
-  starting: '🟡',
-  stopping: '🟠',
+const STATUS_ICONS: Record<BuildingStatus, IconName> = {
+  running: 'status-running',
+  stopped: 'status-stopped',
+  error: 'status-error',
+  unknown: 'status-unknown',
+  starting: 'status-starting',
+  stopping: 'status-stopping',
+};
+
+const STATUS_COLORS: Record<BuildingStatus, string> = {
+  running: '#4ade80',
+  stopped: '#9ca3af',
+  error: '#ef4444',
+  unknown: '#9ca3af',
+  starting: '#fbbf24',
+  stopping: '#fb923c',
 };
 
 interface BuildingContextMenuState {
@@ -143,10 +154,10 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
              building.type === 'terminal' ? 'Open Terminal' :
              (building.type === 'server' && building.pm2?.enabled) ? 'View PM2 Logs' :
              'Open',
-      icon: building.type === 'database' ? '🗄️' :
-            building.type === 'folder' ? '📁' :
-            building.type === 'terminal' ? '💻' :
-            '👁️',
+      icon: <Icon name={building.type === 'database' ? 'database' :
+            building.type === 'folder' ? 'folder' :
+            building.type === 'terminal' ? 'terminal' :
+            'eye'} size={14} />,
       onClick: () => handleBuildingClick(building.id),
     });
 
@@ -156,7 +167,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
         actions.push({
           id: 'start',
           label: 'Start',
-          icon: '▶',
+          icon: <Icon name="play" size={14} />,
           onClick: () => store.sendBuildingCommand(building.id, 'start'),
         });
       }
@@ -164,13 +175,13 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
         actions.push({
           id: 'restart',
           label: 'Restart',
-          icon: '🔄',
+          icon: <Icon name="refresh" size={14} />,
           onClick: () => store.sendBuildingCommand(building.id, 'restart'),
         });
         actions.push({
           id: 'stop',
           label: 'Stop',
-          icon: '⏹',
+          icon: <Icon name="stop" size={14} />,
           onClick: () => store.sendBuildingCommand(building.id, 'stop'),
         });
       }
@@ -181,7 +192,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
       actions.push({
         id: 'start-all',
         label: 'Start All Subordinates',
-        icon: '🚀',
+        icon: <Icon name="launch" size={14} />,
         onClick: () => {
           for (const subId of building.subordinateBuildingIds!) {
             store.sendBuildingCommand(subId, 'start');
@@ -191,7 +202,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
       actions.push({
         id: 'stop-all',
         label: 'Stop All Subordinates',
-        icon: '⏸️',
+        icon: <Icon name="pause" size={14} />,
         onClick: () => {
           for (const subId of building.subordinateBuildingIds!) {
             store.sendBuildingCommand(subId, 'stop');
@@ -201,7 +212,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
       actions.push({
         id: 'restart-all',
         label: 'Restart All Subordinates',
-        icon: '♻️',
+        icon: <Icon name="restart" size={14} />,
         onClick: () => {
           for (const subId of building.subordinateBuildingIds!) {
             store.sendBuildingCommand(subId, 'restart');
@@ -215,7 +226,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
       actions.push({
         id: 'health-check',
         label: 'Health Check',
-        icon: '🩺',
+        icon: <Icon name="health" size={14} />,
         onClick: () => store.sendBuildingCommand(building.id, 'healthCheck'),
       });
     }
@@ -232,7 +243,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
     actions.push({
       id: 'edit',
       label: 'Edit Building',
-      icon: '✏️',
+      icon: <Icon name="edit" size={14} />,
       onClick: () => {
         window.dispatchEvent(new CustomEvent('tide:building-edit', { detail: { buildingId: building.id } }));
       },
@@ -242,7 +253,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
     actions.push({
       id: 'clone',
       label: 'Clone Building',
-      icon: '📋',
+      icon: <Icon name="copy" size={14} />,
       onClick: () => {
         const pos = getAreaPosition();
         store.createBuilding({
@@ -271,7 +282,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
         actions.push({
           id: `url-${link.label}`,
           label: link.label,
-          icon: '🔗',
+          icon: <Icon name="link" size={14} />,
           onClick: () => window.open(link.url, '_blank', 'noopener,noreferrer'),
         });
       }
@@ -289,7 +300,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
     actions.push({
       id: 'delete',
       label: 'Delete Building',
-      icon: '🗑️',
+      icon: <Icon name="trash" size={14} />,
       danger: true,
       onClick: () => store.deleteBuilding(building.id),
     });
@@ -531,7 +542,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
     <div className="guake-buildings-panel">
       <div className="guake-buildings-header">
         <div className="guake-buildings-title">
-          <span className="guake-buildings-icon">🏗️</span>
+          <span className="guake-buildings-icon"><Icon name="package" size={16} /></span>
           <span>{agentArea?.name || t('terminal:buildings.title', { defaultValue: 'Buildings' })}</span>
           <span className="guake-buildings-count">{areaBuildings.length}</span>
         </div>
@@ -545,7 +556,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
               +
             </button>
           )}
-          <button className="guake-buildings-close" onClick={onClose} title={t('common:buttons.close')}>✕</button>
+          <button className="guake-buildings-close" onClick={onClose} title={t('common:buttons.close')}><Icon name="close" size={14} /></button>
         </div>
       </div>
 
@@ -561,7 +572,8 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
         ) : (
           areaBuildings.map((building) => {
             const typeConfig = BUILDING_TYPES[building.type];
-            const statusIcon = STATUS_ICONS[building.status] || '❓';
+            const statusIconName = STATUS_ICONS[building.status] || 'status-unknown';
+            const statusColor = STATUS_COLORS[building.status] || '#9ca3af';
             const isRunnable = building.type === 'server' || building.type === 'docker' || building.type === 'terminal';
             const isRunning = building.status === 'running';
 
@@ -574,11 +586,11 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
               >
                 <div className="guake-building-row">
                   <span className="guake-building-type-icon" title={typeConfig.description}>
-                    {typeConfig.icon}
+                    <Icon name={getBuildingTypeIcon(building.type)} size={14} />
                   </span>
                   <span className="guake-building-name">{building.name}</span>
                   <span className="guake-building-status" title={building.status}>
-                    {statusIcon}
+                    <Icon name={statusIconName} size={14} color={statusColor} weight="fill" />
                   </span>
                 </div>
 
@@ -597,7 +609,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        🔗 {link.label}
+                        <Icon name="link" size={12} /> {link.label}
                       </a>
                     ))}
                   </div>
@@ -612,7 +624,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
                         onClick={(e) => { e.stopPropagation(); handleCommand(building.id, 'start'); }}
                         title="Start"
                       >
-                        ▶
+                        <Icon name="play" size={14} />
                       </button>
                     )}
                     {isRunning && (
@@ -622,14 +634,14 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
                           onClick={(e) => { e.stopPropagation(); handleCommand(building.id, 'restart'); }}
                           title="Restart"
                         >
-                          🔄
+                          <Icon name="refresh" size={14} />
                         </button>
                         <button
                           className="guake-building-action stop"
                           onClick={(e) => { e.stopPropagation(); handleCommand(building.id, 'stop'); }}
                           title="Stop"
                         >
-                          ⏹
+                          <Icon name="stop" size={14} />
                         </button>
                         {building.type === 'terminal' && building.terminalStatus?.url && (
                           <button
@@ -645,7 +657,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
                             }}
                             title="Open terminal below (right-click to split)"
                           >
-                            ⬇
+                            <Icon name="arrow-down" size={12} />
                           </button>
                         )}
                         {building.type === 'server' && building.pm2?.enabled && (
@@ -662,7 +674,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
                             }}
                             title="Show logs below (right-click to split)"
                           >
-                            📜
+                            <Icon name="scroll" size={14} />
                           </button>
                         )}
                         {building.type === 'database' && building.database && (
@@ -679,7 +691,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
                             }}
                             title="Show database below (right-click to split)"
                           >
-                            🗄️
+                            <Icon name="database" size={14} />
                           </button>
                         )}
                       </>

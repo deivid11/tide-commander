@@ -1,0 +1,63 @@
+---
+title: 2D Canvas
+description: The lightweight top-down renderer — same RTS controls, same agent handles, a fraction of the GPU cost.
+---
+
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+
+The **2D Canvas** is Tide Commander's alternate battlefield. It shares every behavior with the [3D Battlefield](/views/3d/) — selection, commands, buildings, areas — but renders in a flat top-down canvas instead of a Three.js scene. If your laptop's fans spin up the moment you open the 3D view, this is where you live.
+
+![2D canvas populated with four agents](/screenshots/36-main-2d-with-agents.png)
+
+## How to open it
+
+Click **2D** in the top toolbar, or press **Alt + 2** to cycle views. The toggle is persistent — Tide Commander remembers your last view on relaunch.
+
+## When to use it
+
+<CardGrid>
+  <Card title="Low-power devices" icon="laptop">
+    Integrated GPUs, remote-rendered sessions, mobile browsers — anything that doesn't love shader-heavy Three.js.
+  </Card>
+  <Card title="Screen shares" icon="information">
+    Flat renders compress better over video calls and read more cleanly on low-DPI secondary displays.
+  </Card>
+  <Card title="Dense maps" icon="document">
+    When you have 20+ agents, the top-down perspective is easier to scan than an isometric camera.
+  </Card>
+  <Card title="Battery saver" icon="seti:lock">
+    Runs without the post-processing pipeline. Quieter fans, longer battery, same workflow.
+  </Card>
+</CardGrid>
+
+## What carries over from 3D
+
+- **Selection** — click to select, drag to box-select.
+- **Movement** — right-click ground to move the selection.
+- **Buildings** — servers, databases, Docker, links, boss nodes render as flat icons in the exact same positions as 3D.
+- **Areas** — rectangle regions you drew in 3D appear as outlined zones in 2D.
+- **Spotlight** — Ctrl/Cmd + K works everywhere, view-agnostic.
+
+## What's different
+
+- **No camera tilt** — the camera is locked to top-down. Zoom and pan still work.
+- **No scene post-processing** — Settings → Scene sliders for bloom, SSAO, and shadows don't apply here. The Agent Model Style and Animations sections are also ignored.
+- **Tile-aligned icons** — agents snap cleanly to the terrain grid, which makes crowded maps easier to read.
+
+![3D scene for comparison — same agents, richer renderer](/screenshots/35-main-3d-with-agents.png)
+
+## Gotchas
+
+<Aside type="note" title="Draw Area still lives in 3D first">
+  The Rectangle tool works identically from either view, but the resulting area visualization is richer in the 3D scene (elevation-aware outlines). If a drawn area looks odd in 2D, flip to 3D briefly to sanity-check its footprint.
+</Aside>
+
+<Aside type="tip" title="Dashboard is even lighter">
+  If you don't need the spatial map at all — just metrics and running status — jump to the [Dashboard](/views/dashboard/). No map, minimal paint work.
+</Aside>
+
+## Related
+
+- [3D Battlefield](/views/3d/) — the default, feature-complete renderer.
+- [Dashboard](/views/dashboard/) — no map, just cards.
+- [Commander View](/views/commander/) — no map, just terminals.

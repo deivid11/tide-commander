@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import * as pdfjsLib from 'pdfjs-dist';
 import { DiffViewer } from './DiffViewer';
 import { apiUrl, authFetch, getAuthToken } from '../utils/storage';
 import { copyRichContentToClipboard, copyTextToClipboard, inlineStylesForRichCopy } from '../utils/clipboard';
@@ -9,6 +10,87 @@ import { useModalClose } from '../hooks';
 import { parseFilePathReference } from '../utils/filePaths';
 import { ModalPortal } from './shared/ModalPortal';
 import { getLanguageForExtension, ensureLanguageLoaded, Prism } from './FileExplorerPanel/syntaxHighlighting';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+
+function PdfJsViewer({ url, authToken }: { url: string; authToken?: string }) {
+  const [numPages, setNumPages] = useState<number>(0);
+  const [renderedPages, setRenderedPages] = useState<number>(0);
+  const [error, setError] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const render = async () => {
+      try {
+        const loadParams: Parameters<typeof pdfjsLib.getDocument>[0] = { url };
+        if (authToken) {
+          loadParams.httpHeaders = { 'X-Auth-Token': authToken };
+        }
+        const pdf = await pdfjsLib.getDocument(loadParams).promise;
+        if (cancelled) return;
+
+        const total = pdf.numPages;
+        setNumPages(total);
+
+        if (containerRef.current) {
+          containerRef.current.innerHTML = '';
+        }
+
+        for (let i = 1; i <= total; i++) {
+          if (cancelled) break;
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: 1.5 });
+
+          const canvas = document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          canvas.className = 'pdf-js-page-canvas';
+
+          const wrapper = document.createElement('div');
+          wrapper.className = 'pdf-js-page-wrapper';
+          wrapper.appendChild(canvas);
+
+          if (containerRef.current) {
+            containerRef.current.appendChild(wrapper);
+          }
+
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            await page.render({ canvas, canvasContext: ctx, viewport }).promise;
+          }
+
+          if (!cancelled) setRenderedPages(i);
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load PDF');
+        }
+      }
+    };
+
+    render();
+    return () => { cancelled = true; };
+  }, [url]);
+
+  const loading = renderedPages === 0 && !error;
+
+  return (
+    <div className="pdf-js-container">
+      {loading && <div className="pdf-js-loading">Loading PDF…</div>}
+      {error && <div className="pdf-js-error">{error}</div>}
+      {numPages > 0 && (
+        <div className="pdf-js-info">
+          {renderedPages < numPages
+            ? `Rendering page ${renderedPages + 1} of ${numPages}…`
+            : `${numPages} page${numPages !== 1 ? 's' : ''}`}
+        </div>
+      )}
+      <div ref={containerRef} className="pdf-js-pages" />
+    </div>
+  );
+}
 
 interface FileViewerModalProps {
   isOpen: boolean;
@@ -627,7 +709,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const language = isImage ? 'Image' : isPdf ? 'PDF' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
   const authToken = getAuthToken();
   const imageUrl = isImage ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}${authToken ? `&token=${encodeURIComponent(authToken)}` : ''}`) : null;
-  const pdfUrl = isPdf ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}${authToken ? `&token=${encodeURIComponent(authToken)}` : ''}`) : null;
+  const pdfUrl = isPdf ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}`) : null;
 
   if (!isOpen) return null;
 
@@ -785,14 +867,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                 />
               </div>
             ) : isPdf && pdfUrl ? (
-              // Show embedded PDF viewer
-              <div className="file-viewer-pdf-embed">
-                <iframe
-                  src={pdfUrl}
-                  title={fileData.filename}
-                  className="file-viewer-pdf-iframe"
-                />
-              </div>
+              <PdfJsViewer url={pdfUrl} authToken={authToken || undefined} />
             ) : showDiffView ? (
               // Show side-by-side diff view for Edit tool
               <DiffViewer

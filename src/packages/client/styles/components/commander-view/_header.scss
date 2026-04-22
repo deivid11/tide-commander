@@ -3,7 +3,7 @@
 
 .commander-toggle-btn {
   position: fixed;
-  bottom: 112px;  // Stacked above settings button (70 + 36 + 6)
+  top: 140px;     // Stacked below search button (98 + 36 + 6)
   left: 16px;     // Aligned with other buttons
   width: 36px;
   height: 36px;

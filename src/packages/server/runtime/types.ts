@@ -31,8 +31,8 @@ export interface RuntimeRunnerCallbacks {
 
 export interface RuntimeRunner {
   run(request: RuntimeCommandRequest): Promise<void>;
-  stop(agentId: string): Promise<void>;
-  stopAll(killProcesses?: boolean): Promise<void>;
+  stop(agentId: string, clearQueue?: boolean): Promise<void>;
+  stopAll(killProcesses?: boolean, clearQueue?: boolean): Promise<void>;
   isRunning(agentId: string): boolean;
   sendMessage(agentId: string, message: string): boolean;
   hasRecentActivity(agentId: string, withinMs: number): boolean;

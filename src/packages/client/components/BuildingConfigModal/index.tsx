@@ -23,6 +23,8 @@ import { DatabaseConfigPanel } from './DatabaseConfigPanel';
 import { BossConfigPanel } from './BossConfigPanel';
 import { ServerCommandsPanel } from './ServerCommandsPanel';
 import { TerminalConfigPanel } from './TerminalConfigPanel';
+import { Icon } from '../Icon';
+import { getBuildingTypeIcon } from '../DashboardView/utils';
 import { BuildingLogsPanel } from './BuildingLogsPanel';
 
 interface BuildingConfigModalProps {
@@ -380,7 +382,7 @@ export function BuildingConfigModal({
                     onClick={() => setType(bt)}
                     title={BUILDING_TYPES[bt].description}
                   >
-                    <span className="building-type-icon">{BUILDING_TYPES[bt].icon}</span>
+                    <span className="building-type-icon"><Icon name={getBuildingTypeIcon(bt)} size={16} /></span>
                     <span className="building-type-name">{bt}</span>
                   </button>
                 ))}
@@ -417,7 +419,7 @@ export function BuildingConfigModal({
                     title={getColorLabel(c.labelKey)}
                     style={c.value ? { backgroundColor: c.value } : undefined}
                   >
-                    {!c.value && <span className="color-default-icon">⚙</span>}
+                    {!c.value && <span className="color-default-icon"><Icon name="gear" size={12} /></span>}
                   </button>
                 ))}
                 <input

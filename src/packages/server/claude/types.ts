@@ -19,7 +19,6 @@ export interface StandardEvent {
     | 'block_start'
     | 'block_end'
     | 'context_stats'   // Response from /context command
-    | 'usage_stats'     // Response from /usage command
     | 'compacting';     // Context compaction in progress
   blockType?: 'text' | 'thinking';
   sessionId?: string;
@@ -55,7 +54,6 @@ export interface StandardEvent {
     toolInput: Record<string, unknown>;
   }>;
   contextStatsRaw?: string;  // Raw /context command output for parsing
-  usageStatsRaw?: string;    // Raw /usage command output for parsing
   // Subagent fields (for Task tool events)
   subagentName?: string;       // Task input.name
   subagentDescription?: string;// Task input.description

@@ -4,7 +4,7 @@ import { cpSync, copyFileSync, existsSync } from 'fs';
 
 // Landing site build configuration.
 export default defineConfig({
-  root: resolve(__dirname, 'src/packages/landing'),
+  root: resolve(__dirname, 'src/packages/landing/legacy'),
   publicDir: false,
   build: {
     outDir: resolve(__dirname, 'dist-landing'),

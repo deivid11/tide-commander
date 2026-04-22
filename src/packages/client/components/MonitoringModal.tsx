@@ -11,6 +11,7 @@ import type { TimelineEntry, EventStats } from '../../shared/event-types';
 import type { WorkflowDefinition } from '../../shared/workflow-types';
 import type { WorkflowInstanceRow, WorkflowStoreState } from '../store/workflows';
 import type { StoreState } from '../store/types';
+import { Icon, type IconName } from './Icon';
 
 interface MonitoringModalProps {
   isOpen: boolean;
@@ -26,12 +27,12 @@ interface IntegrationStatusInfo {
   status: { connected: boolean; lastChecked: number; error?: string };
 }
 
-const TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: 'triggers', label: 'Triggers', icon: '\u26A1' },
-  { id: 'workflows', label: 'Workflows', icon: '\u2699\uFE0F' },
-  { id: 'instances', label: 'Instances', icon: '\uD83D\uDD04' },
-  { id: 'messages', label: 'Messages', icon: '\uD83D\uDCAC' },
-  { id: 'stats', label: 'Stats', icon: '\uD83D\uDCCA' },
+const TABS: { id: TabId; label: string; icon: IconName }[] = [
+  { id: 'triggers', label: 'Triggers', icon: 'bolt' },
+  { id: 'workflows', label: 'Workflows', icon: 'gear' },
+  { id: 'instances', label: 'Instances', icon: 'refresh' },
+  { id: 'messages', label: 'Messages', icon: 'chat' },
+  { id: 'stats', label: 'Stats', icon: 'dashboard' },
 ];
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -211,7 +212,7 @@ export function MonitoringModal({ isOpen, onClose }: MonitoringModalProps) {
         {/* Header */}
         <div style={S.header}>
           <div style={S.headerTitle}>
-            <span>{'\uD83D\uDCCA'}</span>
+            <Icon name="dashboard" size={16} />
             <span>Monitoring & Logs</span>
           </div>
           <button style={S.closeBtn} onClick={onClose} title="Close">&times;</button>
@@ -229,7 +230,7 @@ export function MonitoringModal({ isOpen, onClose }: MonitoringModalProps) {
                 setExpandedId(null);
               }}
             >
-              <span>{tab.icon}</span>
+              <Icon name={tab.icon} size={14} />
               <span>{tab.label}</span>
             </button>
           ))}
@@ -440,7 +441,7 @@ function EventListContent({
                                 const reason = m.reason ? String(m.reason) : '';
                                 return (
                                   <div key={idx} style={{ display: 'flex', gap: 8, padding: '6px 10px', background: '#313244', borderRadius: 4, marginBottom: 4, fontSize: 11 }}>
-                                    <span style={{ color: matchColor, fontWeight: 600, minWidth: 50 }}>{matched ? '✓' : '✗'}</span>
+                                    <span style={{ color: matchColor, fontWeight: 600, minWidth: 50 }}>{matched ? <Icon name="check" size={12} /> : <Icon name="cross" size={12} />}</span>
                                     <span style={{ color: '#cdd6f4', flex: 1 }}>{matcherName}</span>
                                     {confidence !== null && <span style={{ color: '#a6adc8' }}>({(confidence * 100).toFixed(0)}%)</span>}
                                     {reason && <span style={{ color: '#6c7086', fontSize: 10 }}>{reason}</span>}
@@ -459,7 +460,7 @@ function EventListContent({
                             const reason = m.reason ? String(m.reason) : '';
                             return (
                               <div key={idx} style={{ display: 'flex', gap: 8, padding: '6px 10px', background: '#313244', borderRadius: 4, marginBottom: 4, fontSize: 11 }}>
-                                <span style={{ color: matchColor, fontWeight: 600, minWidth: 50 }}>{matched ? '✓ MATCH' : '✗ FAIL'}</span>
+                                <span style={{ color: matchColor, fontWeight: 600, minWidth: 50 }}>{matched ? <><Icon name="check" size={12} /> MATCH</> : <><Icon name="cross" size={12} /> FAIL</>}</span>
                                 <span style={{ color: '#cdd6f4', flex: 1 }}>{matcherName}</span>
                                 {confidence !== null && <span style={{ color: '#a6adc8' }}>({(confidence * 100).toFixed(0)}%)</span>}
                                 {reason && <span style={{ color: '#6c7086', fontSize: 10 }}>{reason}</span>}

@@ -68,8 +68,6 @@ export type {
   SingleAgentPanelProps,
   MultiAgentPanelProps,
   AgentListItemProps,
-  GlobalSupervisorStatusProps,
-  SupervisorHistoryItemProps,
   BossAgentSectionProps,
   DelegationDecisionItemProps,
   SubordinateBadgeProps,
@@ -79,10 +77,9 @@ export type {
   ContextAction,
 } from './types';
 
-export { AgentsList, AgentListItem, GlobalSupervisorStatus } from './AgentsList';
+export { AgentsList, AgentListItem } from './AgentsList';
 export {
   SingleAgentPanel,
-  SupervisorHistoryItem,
   BossAgentSection,
   DelegationDecisionItem,
   SubordinateBadge,

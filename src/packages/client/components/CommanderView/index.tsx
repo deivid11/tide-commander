@@ -27,6 +27,7 @@ import { SpawnForm } from './SpawnForm';
 import type { TabId, TabConfig, AgentFilters, AgentStatusFilter, AgentActivityFilter, AgentSortOption } from './types';
 import type { AgentHistory } from './types';
 import { AGENTS_PER_PAGE, GRID_COLS, DEFAULT_FILTERS, ACTIVITY_THRESHOLDS } from './types';
+import { Icon } from '../Icon';
 
 /**
  * Wrapper component that isolates output updates to prevent parent re-renders.
@@ -483,7 +484,7 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
               onClick={() => setAdvancedView(!advancedView)}
               title={advancedView ? t('commander.simple') : t('commander.advanced')}
             >
-              {advancedView ? `◉ ${t('commander.advanced')}` : `○ ${t('commander.simple')}`}
+              {advancedView ? <><Icon name="target" size={12} /> {t('commander.advanced')}</> : <><Icon name="status-pending" size={12} /> {t('commander.simple')}</>}
             </button>
             <button
               className="commander-add-btn"
@@ -535,7 +536,7 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
                     }}
                     title={t('commander.openFileExplorer')}
                   >
-                    📁
+                    <Icon name="folder" size={12} />
                   </span>
                 )}
               </button>
@@ -600,7 +601,7 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
               onClick={() => setPage(p => Math.max(0, p - 1))}
               disabled={page === 0}
             >
-              ← {t('commander.prev')}
+              <Icon name="caret-left" size={12} /> {t('commander.prev')}
             </button>
             <span className="commander-page-info">
               {t('commander.page', { current: page + 1, total: totalPages, count: filteredAgents.length })}
@@ -610,7 +611,7 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
               onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
               disabled={page === totalPages - 1}
             >
-              {t('commander.next')} →
+              {t('commander.next')} <Icon name="caret-right" size={12} />
             </button>
           </div>
         )}

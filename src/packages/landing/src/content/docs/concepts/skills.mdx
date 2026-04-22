@@ -1,0 +1,171 @@
+---
+title: Skills
+description: Built-in and custom TypeScript plugins that extend what agents can do — tool permissions, tracking, notifications, inter-agent messaging, and more.
+---
+
+import { Aside, Card, CardGrid, Tabs, TabItem, Steps } from '@astrojs/starlight/components';
+
+**Skills** are plugins with defined tool permissions that extend agent behaviour. Each skill injects a named section into an agent's system prompt and declares which tools the agent may call within that context. Skills can be assigned to individual agents or to entire classes.
+
+![Manage Skills view](/screenshots/27-manage-skills.png)
+
+## How skills work
+
+When Tide Commander builds the system prompt for an agent it appends the content of every skill assigned to that agent (or to its class). Skills are plain text instructions paired with an `allowedTools` list that controls which Claude Code tool calls are permitted.
+
+<Aside type="tip">
+  Skills are composable — an agent can hold multiple skills simultaneously. Each skill occupies its own named section so conflicts are rare.
+</Aside>
+
+## Built-in skills
+
+Tide Commander ships with a set of always-available built-in skills maintained in `src/packages/server/data/builtin-skills/`. Skills marked with `*` are assigned to all agents by default; others are class-specific or opt-in.
+
+### Task Label
+
+**Slug:** `task-label` &nbsp;·&nbsp; **Default:** all agents
+
+Forces agents to PATCH a 1–5 word task label to the Tide Commander API as the **very first tool call** of every task. The label appears on the agent's card in the 3D/2D scene so you can see at a glance what each agent is doing.
+
+```bash
+curl -s -X PATCH http://localhost:5174/api/agents/AGENT_ID \
+  -H "Content-Type: application/json" -H "X-Auth-Token: TOKEN" \
+  -d '{"taskLabel":"Fix auth bug"}'
+```
+
+The skill enforces strict ordering: no Read, Grep, Glob, Bash, Agent, or any other tool call may precede the label PATCH.
+
+---
+
+### Agent Tracking
+
+**Slug:** `agent-tracking` &nbsp;·&nbsp; **Default:** all agents
+
+Requires agents to PATCH a `trackingStatus` value at the end of every response turn. The status populates the Tracking Board column for that agent.
+
+| Status | Meaning |
+|---|---|
+| `need-review` | Finished — awaiting your review |
+| `blocked` | Cannot proceed; needs input or a dependency |
+| `can-clear-context` | Fully done; safe to compact context |
+| `waiting-subordinates` | Boss waiting on delegated work |
+
+![Tracking Board](/screenshots/04-tracking-board.png)
+
+```bash
+curl -s -X PATCH http://localhost:5174/api/agents/AGENT_ID \
+  -H "Content-Type: application/json" -H "X-Auth-Token: TOKEN" \
+  -d '{"trackingStatus":"need-review","trackingStatusDetail":"Auth refactor ready for review"}'
+```
+
+---
+
+### Full Notifications
+
+**Slug:** `full-notifications` &nbsp;·&nbsp; **Default:** configurable
+
+Sends a push notification (browser, in-app, or Android) when a task completes, a plan is ready for review, or the agent hits a blocker.
+
+```bash
+curl -s -X POST http://localhost:5174/api/notify \
+  -H "Content-Type: application/json" -H "X-Auth-Token: TOKEN" \
+  -d '{"agentId":"AGENT_ID","title":"Task Complete","message":"Auth module refactored"}'
+```
+
+Notification triggers: task completed, plan ready for review, blocking error, user input required.
+
+---
+
+### Send Message to Agent
+
+**Slug:** `send-message-to-agent` &nbsp;·&nbsp; **Default:** configurable
+
+Lets agents communicate directly with each other — scouts reporting to builders, builders coordinating on shared files, or any agent-to-agent handoff.
+
+<Tabs>
+  <TabItem label="List agents">
+    ```bash
+    curl -s http://localhost:5174/api/agents/simple \
+      -H "X-Auth-Token: TOKEN"
+    ```
+  </TabItem>
+  <TabItem label="Send message">
+    ```bash
+    curl -s -X POST http://localhost:5174/api/agents/TARGET_ID/message \
+      -H "Content-Type: application/json" -H "X-Auth-Token: TOKEN" \
+      -d @- <<'EOF'
+    {"message": "Message from Scout Alpha (abc123): Auth module ready, please integrate."}
+    EOF
+    ```
+  </TabItem>
+</Tabs>
+
+Always prefix the message with your name and ID so the receiver has full context.
+
+---
+
+### Boss Instructions
+
+**Slug:** `boss-instructions` &nbsp;·&nbsp; **Default:** Boss class agents
+
+Provides the full delegation, planning, and team-management ruleset for Boss agents. This skill is automatically assigned when you spawn an agent with the Boss class.
+
+Key behaviours encoded in this skill:
+
+- **Zero-questions delegation policy** — dispatch immediately, never ask for clarification.
+- **Work-plan format** — `work-plan` code fence rendered by the UI as a visual task board.
+- **Analysis-request format** — `analysis-request` fence delegates codebase exploration to scouts.
+- **Parallel delegation** — boss defaults to engaging multiple subordinates simultaneously.
+- **Spawn gate** — boss may only spawn new agents when the user explicitly requests it.
+
+---
+
+### Other built-in skills
+
+<CardGrid>
+  <Card title="Git Captain" icon="github">
+    Git workflow helpers: branch creation, commits, PR authoring, and conflict resolution instructions.
+  </Card>
+  <Card title="Streaming Exec" icon="terminal">
+    Routes long-running commands (builds, tests, Docker) through `/api/exec` for live output streaming in the agent terminal.
+  </Card>
+  <Card title="PM2 / Server Logs" icon="document">
+    Read and tail PM2-managed process logs or raw server logs; used by the Server building panel.
+  </Card>
+  <Card title="Report Task to Boss" icon="up-caret">
+    Structured completion reporting so subordinates can notify their boss when a delegated task finishes.
+  </Card>
+  <Card title="Create Building" icon="add-document">
+    Instructions for programmatically adding buildings (server, database, Docker, link, folder) to the scene via the API.
+  </Card>
+  <Card title="Workflow Builder / Designer" icon="puzzle">
+    Tooling for constructing and triggering multi-step workflow automation from inside an agent session.
+  </Card>
+</CardGrid>
+
+## Custom skills
+
+You can author your own skills and register them from the Manage Skills screen.
+
+![Manage Skills — Classes tab](/screenshots/28-manage-skills-classes-tab.png)
+
+<Steps>
+1. Open **Settings → Manage Skills** (or press the skills icon in the toolbar).
+2. Click **+ New Skill**.
+3. Set a slug, name, description, and `allowedTools` list.
+4. Write the skill body — plain markdown injected verbatim into the agent's system prompt.
+5. Assign it to one or more agent classes, or enable it per-agent from the Edit Agent modal.
+</Steps>
+
+See [Custom Skills](/advanced/custom-skills/) for the full TypeScript authoring guide and the `BuiltinSkillDefinition` type shape.
+
+<Aside type="caution">
+  Skill content is injected verbatim into every prompt for the assigned agent. Keep instructions concise — each skill adds tokens to every conversation turn.
+</Aside>
+
+## Skill assignment
+
+Skills can be assigned at two levels:
+
+- **Class level** — any agent of that class inherits the skill automatically. Managed in the Classes tab.
+- **Agent level** — one-off assignment for a specific agent regardless of class. Managed in the Edit Agent modal.

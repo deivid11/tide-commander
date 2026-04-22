@@ -181,6 +181,10 @@ export interface AgentNotification {
   title: string;
   message: string;
   timestamp: number;
+  // Optional PNG URL shown as the round/large icon on Android (and avatar in-app).
+  iconUrl?: string;
+  // Optional PNG URL shown as the expanded big-picture on Android.
+  imageUrl?: string;
 }
 
 // ============================================================================
@@ -225,121 +229,3 @@ export interface Secret {
 // Stored secret (on disk) - same as Secret but explicitly typed
 export interface StoredSecret extends Secret {}
 
-// ============================================================================
-// Snapshot Types (Conversation Snapshots)
-// ============================================================================
-
-/**
- * File captured as part of a snapshot
- * Tracks files that were created or modified during a conversation
- */
-export interface SnapshotFile {
-  path: string;              // Absolute file path
-  relativePath?: string;     // Path relative to agent's cwd
-  content: string;           // File content at time of snapshot
-  type: 'created' | 'modified'; // Whether file was created or modified
-  timestamp: number;         // When the file change was detected
-  size: number;              // File size in bytes
-}
-
-/**
- * Conversation output - a message from the conversation
- * Simplified version of SessionMessage for snapshot storage
- */
-export interface SnapshotOutput {
-  /** Unique ID for this output */
-  id: string;
-  /** Output text content */
-  text: string;
-  /** Timestamp when output was generated */
-  timestamp: number;
-  /** Whether this was streaming or complete */
-  isStreaming?: boolean;
-}
-
-/**
- * Full conversation snapshot
- * Captures the complete state of a conversation including files
- */
-export interface ConversationSnapshot {
-  id: string;
-  agentId: string;
-  agentName: string;
-  agentClass: AgentClass;
-
-  // User-provided metadata
-  title: string;
-  description?: string;
-
-  // Conversation content
-  outputs: SnapshotOutput[];    // All conversation messages
-  sessionId?: string;           // Claude session ID if available
-
-  // Captured files
-  files: SnapshotFile[];        // Files created/modified during conversation
-
-  // Context info
-  cwd: string;                  // Working directory
-
-  // Timestamps
-  createdAt: number;            // When snapshot was created
-  conversationStartedAt?: number; // When conversation started (if known)
-
-  // Metadata
-  tokensUsed?: number;          // Tokens used at time of snapshot
-  contextUsed?: number;         // Context usage at time of snapshot
-}
-
-/**
- * Lightweight snapshot item for listing
- * Used in the snapshot manager UI
- */
-export interface SnapshotListItem {
-  id: string;
-  title: string;
-  description?: string;
-  agentId: string;
-  agentName: string;
-  agentClass: AgentClass;
-  cwd: string;
-  createdAt: number;
-  fileCount: number;           // Number of files in snapshot
-  outputCount: number;         // Number of messages in snapshot
-}
-
-/**
- * Request to create a new snapshot
- */
-export interface CreateSnapshotRequest {
-  agentId: string;
-  title: string;
-  description?: string;
-}
-
-/**
- * Response when snapshot is created
- */
-export interface CreateSnapshotResponse {
-  success: boolean;
-  snapshot?: ConversationSnapshot;
-  error?: string;
-}
-
-/**
- * Request to restore files from a snapshot
- */
-export interface RestoreSnapshotRequest {
-  snapshotId: string;
-  overwrite?: boolean;         // Whether to overwrite existing files (default: false)
-  targetDir?: string;          // Alternative directory to restore to
-}
-
-/**
- * Response when files are restored from snapshot
- */
-export interface RestoreSnapshotResponse {
-  success: boolean;
-  restoredFiles: string[];     // Paths of files that were restored
-  skippedFiles: string[];      // Paths of files skipped (already exist and overwrite=false)
-  error?: string;
-}

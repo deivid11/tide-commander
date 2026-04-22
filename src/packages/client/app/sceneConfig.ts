@@ -14,6 +14,7 @@ export const DEFAULT_TERRAIN = {
   brightness: 1, // 0.2 = dark, 1 = normal, 2 = bright
   skyColor: null as string | null, // null = auto (based on time mode)
   battlefieldSize: 50, // Ground plane size in units (30-200)
+  simpleMode: false, // true = dark field only, hides all decorative elements
 };
 
 // Default agent model style config

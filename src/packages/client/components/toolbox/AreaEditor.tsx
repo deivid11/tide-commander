@@ -5,6 +5,7 @@ import type { DrawingArea } from '../../../shared/types';
 import { AREA_COLORS } from '../../utils/colors';
 import { FolderInput } from '../shared/FolderInput';
 import { uploadAreaLogo, deleteAreaLogoApi, getAreaLogoUrl } from '../../api/area-logos';
+import { Icon } from '../Icon';
 
 type LogoPosition = 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
@@ -202,14 +203,14 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
             onClick={handleBringToFront}
             title={t('config:areas.bringToFront')}
           >
-            ↑ {t('config:areas.front')}
+            <Icon name="arrow-up" size={12} /> {t('config:areas.front')}
           </button>
           <button
             className="area-layer-btn"
             onClick={handleSendToBack}
             title={t('config:areas.sendToBack')}
           >
-            ↓ {t('config:areas.back')}
+            <Icon name="arrow-down" size={12} /> {t('config:areas.back')}
           </button>
         </div>
       </div>
@@ -237,7 +238,7 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
                 >
-                  {uploading ? '...' : '↻'}
+                  {uploading ? '...' : <Icon name="refresh" size={12} />}
                 </button>
               </div>
 
@@ -345,7 +346,7 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
                 onClick={() => onOpenFolder?.(area.id)}
                 title={t('config:areas.openFolder')}
               >
-                📁
+                <Icon name="folder" size={14} />
               </span>
               <span className="area-folder-path">{dir.split('/').pop() || dir}</span>
               <button

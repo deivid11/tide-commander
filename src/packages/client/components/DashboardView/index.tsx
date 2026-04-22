@@ -22,6 +22,7 @@ import {
   findSafePositionInArea,
 } from './utils';
 import type { DashboardViewProps, GroupingMode, StatusFilter } from './types';
+import { Icon } from '../Icon';
 import './DashboardView.scss';
 
 export function DashboardView({
@@ -496,7 +497,7 @@ export function DashboardView({
               >
                 <div className="dashboard-view__zone-left">
                   <span className={`dashboard-view__zone-chevron ${isCollapsed ? 'dashboard-view__zone-chevron--collapsed' : ''}`}>
-                    ▼
+                    <Icon name="caret-down" size={12} />
                   </span>
                   <span
                     className="dashboard-view__zone-dot"

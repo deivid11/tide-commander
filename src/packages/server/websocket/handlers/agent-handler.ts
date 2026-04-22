@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import { spawn } from 'child_process';
 import type { Agent, AgentProvider, CodexConfig, ContextStats } from '../../../shared/types.js';
+import { CLAUDE_MODELS as CLAUDE_MODEL_METADATA } from '../../../shared/agent-types.js';
 import { agentService, runtimeService, skillService, customClassService, bossService, permissionService } from '../../services/index.js';
 import { createLogger } from '../../utils/index.js';
 import { ClaudeBackend, parseContextOutput } from '../../claude/backend.js';
@@ -672,7 +673,7 @@ export async function handleRequestContextStats(
   const isClaudeProvider = (agent.provider ?? 'claude') === 'claude';
   const isCodexProvider = (agent.provider ?? 'claude') === 'codex';
   const isOpencodeProvider = (agent.provider ?? 'claude') === 'opencode';
-  const isCodexLikeProvider = isCodexProvider || isOpencodeProvider;
+  const _isCodexLikeProvider = isCodexProvider || isOpencodeProvider;
 
   // For Claude agents with an active session, fetch real context stats from the CLI
   if (isClaudeProvider && agent.sessionId) {
@@ -706,7 +707,7 @@ export async function handleRequestContextStats(
     }
   }
 
-  if (isCodexLikeProvider && agent.sessionId) {
+  if (isCodexProvider && agent.sessionId) {
     const codexSnapshot = agentService.getCodexContextSnapshotFromSession(agent.sessionId);
     if (codexSnapshot) {
       const contextLimit = Math.max(1, codexSnapshot.contextLimit);
@@ -714,7 +715,7 @@ export async function handleRequestContextStats(
       const usedPercent = Math.min(100, Math.round((contextUsed / contextLimit) * 100));
       const freeTokens = Math.max(0, contextLimit - contextUsed);
       const stats: ContextStats = {
-        model: agent.codexModel || agent.opencodeModel || agent.model || 'codex',
+        model: agent.codexModel || agent.model || 'codex',
         contextWindow: contextLimit,
         totalTokens: contextUsed,
         usedPercent,
@@ -814,6 +815,7 @@ export async function handleUpdateAgentProperties(
       skillIds?: string[];
       cwd?: string;
       shortcut?: string;
+      customInstructions?: string;
     };
   }
 ): Promise<void> {
@@ -892,6 +894,20 @@ export async function handleUpdateAgentProperties(
     if (nextProvider === 'claude' && normalizedUpdatedModel === undefined) {
       ctx.sendActivity(agentId, `Ignored unsupported Claude model "${updates.model}"`);
     }
+    // Refresh contextLimit from the new model's metadata so the UI reflects
+    // the correct window size immediately (e.g. 1M for opus[1m], 200k for
+    // standard Opus) instead of waiting for the next modelUsage event.
+    if (nextProvider === 'claude' && normalizedUpdatedModel) {
+      const meta = CLAUDE_MODEL_METADATA[normalizedUpdatedModel];
+      if (meta) {
+        agentUpdates.contextLimit = meta.contextWindow;
+        // Drop stale contextStats so the UI doesn't show the old window size
+        // until the new model reports its own.
+        if (agent.contextStats && agent.contextStats.contextWindow !== meta.contextWindow) {
+          agentUpdates.contextStats = undefined;
+        }
+      }
+    }
   }
 
   if (updates.codexModel !== undefined) {
@@ -921,6 +937,10 @@ export async function handleUpdateAgentProperties(
 
   if (updates.shortcut !== undefined) {
     agentUpdates.shortcut = updates.shortcut;
+  }
+
+  if (updates.customInstructions !== undefined) {
+    agentUpdates.customInstructions = updates.customInstructions || undefined;
   }
 
   // Apply agent property updates if any

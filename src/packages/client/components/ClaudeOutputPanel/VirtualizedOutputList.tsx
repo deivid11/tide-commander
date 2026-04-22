@@ -203,7 +203,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     count: allItems.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: (index) => getEstimatedHeight(allItems[index]),
-    overscan: 10, // Render 10 items above/below viewport
+    overscan: 25, // Render 25 items above/below viewport
     initialRect: { width: 500, height: 800 },
     measureElement: (element) => {
       // Measure actual rendered height for accurate positioning

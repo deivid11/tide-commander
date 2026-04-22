@@ -101,6 +101,7 @@
     "clouds": "Clouds"
   },
   "terrainSettings": {
+    "simpleMode": "Simple Mode",
     "fog": "Fog",
     "brightness": "Brightness",
     "floor": "Floor",

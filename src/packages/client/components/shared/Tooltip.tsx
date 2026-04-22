@@ -47,7 +47,11 @@ export function Tooltip({
   const calculatePosition = useCallback(() => {
     if (!triggerRef.current || !tooltipRef.current) return;
 
-    const triggerRect = triggerRef.current.getBoundingClientRect();
+    // Prefer the first child element's rect — when the child uses position:fixed
+    // or position:absolute, the wrapper span collapses to 0×0 and would anchor
+    // the tooltip to the viewport's top-left instead of the actual trigger.
+    const anchor = (triggerRef.current.firstElementChild as HTMLElement | null) ?? triggerRef.current;
+    const triggerRect = anchor.getBoundingClientRect();
     const tooltipRect = tooltipRef.current.getBoundingClientRect();
     const scrollY = window.scrollY;
     const scrollX = window.scrollX;

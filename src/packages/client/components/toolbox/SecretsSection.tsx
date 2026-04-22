@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSecretsArray, store } from '../../store';
 import type { Secret } from '../../../shared/types';
+import { Icon } from '../Icon';
 
 export function SecretsSection() {
   const { t } = useTranslation(['config', 'common']);
@@ -98,7 +99,7 @@ export function SecretsSection() {
                     onClick={() => handleEdit(secret)}
                     title={t('common:buttons.edit')}
                   >
-                    ✎
+                    <Icon name="edit" size={12} />
                   </button>
                   <button
                     className="secret-item-btn delete"

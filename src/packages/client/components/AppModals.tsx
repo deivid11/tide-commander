@@ -1,4 +1,4 @@
-import React, { Suspense, Profiler, useEffect } from 'react';
+import React, { Suspense, Profiler } from 'react';
 import { store, useStore } from '../store';
 import { type SceneConfig } from './toolbox';
 import { ContextMenu, type ContextMenuAction } from './ContextMenu';
@@ -12,13 +12,11 @@ const SubordinateAssignmentModal = React.lazy(() => import('./SubordinateAssignm
 const Toolbox = React.lazy(() => import('./toolbox').then(m => ({ default: m.Toolbox })));
 const BuildingConfigModal = React.lazy(() => import('./BuildingConfigModal').then(m => ({ default: m.BuildingConfigModal })));
 const CommanderView = React.lazy(() => import('./CommanderView').then(m => ({ default: m.CommanderView })));
-const SupervisorPanel = React.lazy(() => import('./SupervisorPanel').then(m => ({ default: m.SupervisorPanel })));
 const FileExplorerPanel = React.lazy(() => import('./FileExplorerPanel').then(m => ({ default: m.FileExplorerPanel })));
 const Spotlight = React.lazy(() => import('./Spotlight').then(m => ({ default: m.Spotlight })));
 const ControlsModal = React.lazy(() => import('./ControlsModal').then(m => ({ default: m.ControlsModal })));
 const SkillsPanel = React.lazy(() => import('./SkillsPanel').then(m => ({ default: m.SkillsPanel })));
 const AgentEditModal = React.lazy(() => import('./AgentEditModal').then(m => ({ default: m.AgentEditModal })));
-const SnapshotManager = React.lazy(() => import('./SnapshotManager').then(m => ({ default: m.SnapshotManager })));
 const RestoreArchivedAreaModal = React.lazy(() => import('./RestoreArchivedAreaModal').then(m => ({ default: m.RestoreArchivedAreaModal })));
 const IntegrationsPanel = React.lazy(() => import('./IntegrationsPanel').then(m => ({ default: m.IntegrationsPanel })));
 const MonitoringModal = React.lazy(() => import('./MonitoringModal').then(m => ({ default: m.MonitoringModal })));
@@ -33,7 +31,6 @@ interface AppModalsProps {
   toolboxModal: UseModalState;
   commanderModal: UseModalState;
   deleteConfirmModal: UseModalState;
-  supervisorModal: UseModalState;
   spotlightModal: UseModalState;
   controlsModal: UseModalState;
   skillsModal: UseModalState;
@@ -43,7 +40,6 @@ interface AppModalsProps {
   triggerManagerModal: UseModalState;
   buildingModal: UseModalState<string | null>;
   agentEditModal: UseModalState<string>;
-  snapshotsModal: UseModalState;
   restoreArchivedModal: UseModalState<{ x: number; z: number } | null>;
   explorerModal: UseModalStateWithId;
   contextMenu: UseContextMenu;
@@ -90,7 +86,6 @@ export function AppModals({
   toolboxModal,
   commanderModal,
   deleteConfirmModal,
-  supervisorModal,
   spotlightModal,
   controlsModal,
   skillsModal,
@@ -100,7 +95,6 @@ export function AppModals({
   triggerManagerModal,
   buildingModal,
   agentEditModal,
-  snapshotsModal,
   restoreArchivedModal,
   explorerModal,
   contextMenu,
@@ -126,17 +120,6 @@ export function AppModals({
   onSyncScene,
 }: AppModalsProps) {
   const state = useStore();
-  // Get snapshot state from store
-  const snapshots = Array.from(state.snapshots.values());
-  const snapshotsLoading = state.snapshotsLoading;
-  const _currentSnapshot = state.currentSnapshot;
-
-  // Fetch snapshots when modal opens
-  useEffect(() => {
-    if (snapshotsModal.isOpen) {
-      store.fetchSnapshots();
-    }
-  }, [snapshotsModal.isOpen]);
 
   const isSelectedBuildingsDelete = pendingBuildingDelete === 'selected';
   const pendingBuilding = pendingBuildingDelete && pendingBuildingDelete !== 'selected'
@@ -299,12 +282,6 @@ export function AppModals({
         />
       </Profiler>
 
-      {/* Supervisor Panel */}
-      <SupervisorPanel
-        isOpen={supervisorModal.isOpen}
-        onClose={supervisorModal.close}
-      />
-
       {/* File Explorer Panel (right side) */}
       <FileExplorerPanel
         isOpen={explorerModal.isOpen || explorerFolderPath !== null || state.explorerAreaId !== null}
@@ -324,7 +301,6 @@ export function AppModals({
         onOpenSpawnModal={() => spawnModal.open()}
         onOpenCommanderView={() => commanderModal.open()}
         onOpenToolbox={() => toolboxModal.open()}
-        onOpenSupervisor={() => supervisorModal.open()}
         onOpenFileExplorer={(areaId) => explorerModal.open(areaId)}
         onOpenPM2LogsModal={onOpenPM2LogsModal}
         onOpenBossLogsModal={onOpenBossLogsModal}
@@ -376,43 +352,6 @@ export function AppModals({
         onClose={restoreArchivedModal.close}
         onRestored={onSyncScene}
       />
-
-      {/* Snapshots Manager */}
-      {snapshotsModal.isOpen && (
-        <div className="modal-overlay visible" onClick={snapshotsModal.close}>
-          <div className="modal snapshot-manager-modal" onClick={(e) => e.stopPropagation()}>
-            <SnapshotManager
-              snapshots={snapshots}
-              isLoading={snapshotsLoading}
-              onViewSnapshot={async (snapshotId) => {
-                // Load snapshot details and display in guake terminal
-                await store.loadSnapshot(snapshotId);
-                // Clear agent selection so snapshot view takes priority
-                // (ClaudeOutputPanel uses snapshotAgent when no agent is selected)
-                state.selectedAgentIds.clear();
-                // Open terminal (handles mobile view switching)
-                store.setTerminalOpen(true);
-                // Close the snapshot manager modal after loading
-                snapshotsModal.close();
-              }}
-              onDeleteSnapshot={async (snapshotId) => {
-                await store.deleteSnapshot(snapshotId);
-                await store.fetchSnapshots();
-              }}
-              onRestoreSnapshot={async (snapshotId) => {
-                await store.restoreFiles(snapshotId);
-              }}
-              onExportSnapshot={async (snapshotId) => {
-                // Load snapshot to view it
-                await store.loadSnapshot(snapshotId);
-                snapshotsModal.close();
-              }}
-              onClose={snapshotsModal.close}
-            />
-          </div>
-        </div>
-      )}
-
 
       {/* Right-click Context Menu */}
       <ContextMenu

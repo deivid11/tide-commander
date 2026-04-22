@@ -20,6 +20,7 @@ import {
   getActiveWorkspace,
   setActiveWorkspace as apiSetActiveWorkspace,
 } from '../api/workspaces';
+import { Icon } from './Icon';
 
 // ============================================================================
 // Shared workspace state (accessible from other components via hook)
@@ -343,11 +344,11 @@ export const WorkspaceSwitcher: React.FC = React.memo(function WorkspaceSwitcher
         onClick={() => { setDropdownOpen(!dropdownOpen); setManagerOpen(false); }}
         title="Workspaces"
       >
-        <span className="workspace-switcher-icon">📂</span>
+        <span className="workspace-switcher-icon"><Icon name="folder-open" size={14} /></span>
         <span className="workspace-switcher-label">
           {activeWorkspace ? activeWorkspace.name : (t('agentBar.allWorkspaces', { defaultValue: 'All' }))}
         </span>
-        <span className="workspace-switcher-arrow">{dropdownOpen ? '▲' : '▼'}</span>
+        <span className="workspace-switcher-arrow"><Icon name={dropdownOpen ? 'caret-up' : 'caret-down'} size={12} /></span>
       </button>
 
       {dropdownOpen && !managerOpen && (
@@ -373,7 +374,7 @@ export const WorkspaceSwitcher: React.FC = React.memo(function WorkspaceSwitcher
             className="workspace-switcher-option workspace-switcher-manage"
             onClick={() => setManagerOpen(true)}
           >
-            ⚙ {t('agentBar.manageWorkspaces', { defaultValue: 'Manage' })}
+            <Icon name="gear" size={12} /> {t('agentBar.manageWorkspaces', { defaultValue: 'Manage' })}
           </button>
         </div>
       )}
@@ -422,8 +423,8 @@ export const WorkspaceSwitcher: React.FC = React.memo(function WorkspaceSwitcher
                   <div className="workspace-switcher-manager-row">
                     <span className="workspace-switcher-manager-name">{ws.name}</span>
                     <span className="workspace-switcher-manager-count">{ws.areaIds.length} areas</span>
-                    <button className="workspace-switcher-btn-edit" onClick={() => startEdit(ws)} title="Edit">✏</button>
-                    <button className="workspace-switcher-btn-delete" onClick={() => handleDelete(ws.id)} title="Delete">🗑</button>
+                    <button className="workspace-switcher-btn-edit" onClick={() => startEdit(ws)} title="Edit"><Icon name="edit" size={12} /></button>
+                    <button className="workspace-switcher-btn-delete" onClick={() => handleDelete(ws.id)} title="Delete"><Icon name="trash" size={12} /></button>
                   </div>
                 )}
               </div>

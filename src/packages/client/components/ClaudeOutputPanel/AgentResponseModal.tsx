@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import type { Agent } from '../../../shared/types';
 import { useModalClose } from '../../hooks';
 import { ModalPortal } from '../shared/ModalPortal';
+import { Icon } from '../Icon';
 
 interface AgentResponseModalProps {
   agent: Agent;
@@ -39,7 +40,7 @@ export function AgentResponseModal({
         <div className="modal agent-response-modal">
         <div className="modal-header agent-response-modal-header">
           <div className="agent-response-modal-title">
-            <span className="agent-response-modal-icon">📝</span>
+            <span className="agent-response-modal-icon"><Icon name="edit" size={16} /></span>
             <span>{agent.name} - {t('terminal:modals.rawOutput')}</span>
           </div>
           <button
@@ -56,7 +57,7 @@ export function AgentResponseModal({
             <pre className="agent-response-raw">{content}</pre>
           ) : (
             <div className="agent-response-empty">
-              <span className="agent-response-empty-icon">📭</span>
+              <span className="agent-response-empty-icon"><Icon name="envelope" size={20} /></span>
               <span>{t('tools:response.noContent')}</span>
             </div>
           )}

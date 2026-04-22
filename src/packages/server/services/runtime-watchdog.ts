@@ -64,7 +64,8 @@ export function startStdinWatchdog(options: StartStdinWatchdogOptions): void {
 
     if (runner && !runner.hasRecentActivity(agentId, STDIN_ACTIVITY_TIMEOUT_MS)) {
       log.warn(`[STDIN-WATCHDOG] Agent ${agentId}: No activity after stdin message, respawning process...`);
-      await runner.stop(agentId);
+      // Preserve queued messages — they will be drained after the respawned process completes its turn
+      await runner.stop(agentId, false);
 
       try {
         await onRespawn(agentId, command, systemPrompt, customAgent);

@@ -175,7 +175,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 12px 2px 30px;
+  margin: 0;
+  padding: 0;
   cursor: pointer;
   font-size: 12px;
   font-family: $font-mono;
@@ -847,7 +848,8 @@
   }
 
   .guake-git-file {
-    padding: 6px 10px 6px 24px;
+    margin: 0;
+    padding: 0;
     min-height: 36px;
   }
 

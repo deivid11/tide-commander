@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
-import { useStore, store } from '../../store';
-import { getBackendUrl, setBackendUrl, subscribeBackendUrlChange, STORAGE_KEYS, setStorageString, getAuthToken } from '../../utils/storage';
+import { useStore, store, useCustomAgentClassesArray } from '../../store';
+import { getBackendUrl, setBackendUrl, subscribeBackendUrlChange, STORAGE_KEYS, setStorageString, getStorageString, getAuthToken } from '../../utils/storage';
+import { BUILT_IN_AGENT_CLASSES } from '../../../shared/agent-types';
 import { reconnect } from '../../websocket';
 import { CollapsibleSection } from './CollapsibleSection';
 import { SecretsSection } from './SecretsSection';
@@ -12,6 +13,7 @@ import { IntegrationStatusPanel } from './IntegrationStatusPanel';
 import { SystemPromptModal } from '../SystemPromptModal';
 import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath, fetchTmuxModeSetting, updateTmuxModeSetting } from '../../api/system-settings';
 import { BUILTIN_AGENT_NAMES } from '../../scene/config';
+import { Icon } from '../Icon';
 import type {
   SceneConfig,
   TerrainConfig,
@@ -183,10 +185,11 @@ function HighlightText({ text, query }: { text: string; query: string }) {
 const SETTINGS_SECTIONS = [
   { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title', 'tmux', 'process persistence'] },
   { id: 'agentNames', title: 'Agent Names', keywords: ['agent', 'names', 'custom', 'characters', 'rename'] },
+  { id: 'defaultClass', title: 'Default Spawn Class', keywords: ['default', 'class', 'spawn', 'agent', 'scout', 'builder', 'random'] },
   { id: 'appearance', title: 'Appearance', keywords: ['theme', 'appearance', 'color', 'dark', 'light', 'style', 'look'] },
   { id: 'connection', title: 'Connection', keywords: ['backend', 'url', 'auth', 'token', 'reconnect', 'server', 'api', 'connect', 'codex', 'opencode', 'binary', 'path'] },
   { id: 'scene', title: 'Scene', keywords: ['character', 'size', 'indicator', 'scale', 'time', 'dawn', 'day', 'dusk', 'night', 'auto'] },
-  { id: 'terrain', title: 'Terrain', keywords: ['trees', 'bushes', 'house', 'lamps', 'grass', 'clouds', 'fog', 'brightness', 'floor', 'sky', 'color', 'environment', 'battlefield', 'size', 'grid'] },
+  { id: 'terrain', title: 'Terrain', keywords: ['trees', 'bushes', 'house', 'lamps', 'grass', 'clouds', 'fog', 'brightness', 'floor', 'sky', 'color', 'environment', 'battlefield', 'size', 'grid', 'simple', 'minimal', 'dark', 'clean'] },
   { id: 'modelStyle', title: 'Agent Model Style', keywords: ['saturation', 'roughness', 'metalness', 'glow', 'emissive', 'reflections', 'wireframe', 'color mode', 'material', 'shader'] },
   { id: 'animations', title: 'Animations', keywords: ['idle', 'working', 'animation', 'walk', 'run', 'sprint', 'jump', 'sit', 'crouch'] },
   { id: 'secrets', title: 'Secrets', keywords: ['secrets', 'api', 'key', 'password', 'credentials', 'env', 'environment'] },
@@ -217,6 +220,8 @@ const LANGUAGE_OPTIONS: { value: string; label: string; icon: string }[] = [
 export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegrationsModal, onOpenMonitoringModal, onOpenWorkflowEditor, onOpenTriggerManager }: ConfigSectionProps) {
   const { t } = useTranslation(['config', 'common']);
   const state = useStore();
+  const customClasses = useCustomAgentClassesArray();
+  const [defaultSpawnClass, setDefaultSpawnClassState] = useState(() => getStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS) || 'scout');
   const [historyLimit, setHistoryLimit] = useState(state.settings.historyLimit);
   const [backendUrl, setBackendUrlState] = useState(() => getBackendUrl());
   const [backendUrlDirty, setBackendUrlDirty] = useState(false);
@@ -392,7 +397,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           <span className="config-value">{config.fpsLimit === 0 ? '∞' : config.fpsLimit}</span>
         </div>
         <div className="config-row">
-          <span className="config-label" title="Experimental: Reduce FPS when idle to save power"><HighlightText text={t('config:general.powerSaving')} query={searchQuery} /> ⚡</span>
+          <span className="config-label" title="Experimental: Reduce FPS when idle to save power"><HighlightText text={t('config:general.powerSaving')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
           <Toggle checked={state.settings.powerSaving} onChange={(checked) => store.updateSettings({ powerSaving: checked })} />
         </div>
         <div className="config-row">
@@ -477,6 +482,43 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       </CollapsibleSection>
       )}
 
+      {shouldShowSection('defaultClass') && (
+      <CollapsibleSection title="Default Spawn Class" storageKey="defaultClass" defaultOpen={false} forceOpen={isSearching && shouldShowSection('defaultClass')}>
+        <div className="config-row config-row-stacked">
+          <span className="config-hint">Class pre-selected when the spawn modal opens. "Random" picks a different class each time.</span>
+          <div className="agent-names-list" style={{ flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+            <div
+              className={`agent-name-chip${defaultSpawnClass === 'random' ? ' agent-name-chip--selected' : ''}`}
+              style={{ cursor: 'pointer', userSelect: 'none' }}
+              onClick={() => { setDefaultSpawnClassState('random'); setStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS, 'random'); }}
+            >
+              <span className="agent-name-text">🎲 Random</span>
+            </div>
+            {Object.entries(BUILT_IN_AGENT_CLASSES).map(([id, cfg]) => (
+              <div
+                key={id}
+                className={`agent-name-chip${defaultSpawnClass === id ? ' agent-name-chip--selected' : ''}`}
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => { setDefaultSpawnClassState(id); setStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS, id); }}
+              >
+                <span className="agent-name-text">{cfg.icon} {id.charAt(0).toUpperCase() + id.slice(1)}</span>
+              </div>
+            ))}
+            {customClasses.map(cls => (
+              <div
+                key={cls.id}
+                className={`agent-name-chip${defaultSpawnClass === cls.id ? ' agent-name-chip--selected' : ''}`}
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => { setDefaultSpawnClassState(cls.id); setStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS, cls.id); }}
+              >
+                <span className="agent-name-text">{cls.icon} {cls.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </CollapsibleSection>
+      )}
+
       {shouldShowSection('appearance') && (
       <CollapsibleSection title={t('config:sections.appearance')} storageKey="appearance" defaultOpen={false} forceOpen={isSearching && shouldShowSection('appearance')}>
         <ThemeSelector />
@@ -499,7 +541,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           <span className="config-label"><HighlightText text={t('config:connection.authToken')} query={searchQuery} /></span>
           <div className="config-input-group">
             <input type={showToken ? 'text' : 'password'} className="config-input config-input-full" value={authToken} onChange={(e) => handleAuthTokenChange(e.target.value)} placeholder={t('config:connection.tokenPlaceholder')} onKeyDown={(e) => { if (e.key === 'Enter' && authTokenDirty) { handleAuthTokenSave(); } }} />
-            <button className="config-btn config-btn-sm" onClick={() => setShowToken(!showToken)} title={showToken ? t('config:connection.hideToken') : t('config:connection.showToken')}>{showToken ? '🙈' : '👁️'}</button>
+            <button className="config-btn config-btn-sm" onClick={() => setShowToken(!showToken)} title={showToken ? t('config:connection.hideToken') : t('config:connection.showToken')}><Icon name={showToken ? 'eye-closed' : 'eye'} size={14} /></button>
             {authTokenDirty && (
               <button className="config-btn config-btn-sm" onClick={handleAuthTokenSave} title={t('config:connection.saveAndReconnect')}>{t('common:buttons.apply')}</button>
             )}
@@ -553,7 +595,11 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
 
       {shouldShowSection('terrain') && (
       <CollapsibleSection title={t('config:sections.terrain')} storageKey="terrain" defaultOpen={false} forceOpen={isSearching && shouldShowSection('terrain')}>
-        <div className="terrain-icons">
+        <div className="config-row">
+          <span className="config-label"><HighlightText text={t('config:terrainSettings.simpleMode', { defaultValue: 'Simple Mode' })} query={searchQuery} /></span>
+          <Toggle checked={config.terrain.simpleMode ?? false} onChange={(checked) => updateTerrain({ simpleMode: checked })} />
+        </div>
+        <div className="terrain-icons" style={{ opacity: config.terrain.simpleMode ? 0.4 : 1, pointerEvents: config.terrain.simpleMode ? 'none' : 'auto' }}>
           {tTerrainOpts.map((opt) => (
             <button key={opt.key} className={`terrain-icon-btn ${config.terrain[opt.key] ? 'active' : ''}`} onClick={() => toggleTerrain(opt.key)} title={opt.label}>{opt.icon}</button>
           ))}
@@ -726,15 +772,15 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       {shouldShowSection('experimental') && (
       <CollapsibleSection title={t('config:sections.experimental')} storageKey="experimental" defaultOpen={false} forceOpen={isSearching && shouldShowSection('experimental')}>
         <div className="config-row">
-          <span className="config-label" title="Lightweight 2D top-down view for better performance"><HighlightText text={t('config:experimental.2dView')} query={searchQuery} /> 🗺️</span>
+          <span className="config-label" title="Lightweight 2D top-down view for better performance"><HighlightText text={t('config:experimental.2dView')} query={searchQuery} /> <Icon name="map" size={12} /></span>
           <Toggle checked={state.settings.experimental2DView} onChange={(checked) => store.updateSettings({ experimental2DView: checked })} />
         </div>
         <div className="config-row">
-          <span className="config-label" title="Voice assistant for hands-free agent control"><HighlightText text={t('config:experimental.voiceAssistant')} query={searchQuery} /> 🎤</span>
+          <span className="config-label" title="Voice assistant for hands-free agent control"><HighlightText text={t('config:experimental.voiceAssistant')} query={searchQuery} /> <Icon name="microphone" size={12} /></span>
           <Toggle checked={state.settings.experimentalVoiceAssistant} onChange={(checked) => store.updateSettings({ experimentalVoiceAssistant: checked })} />
         </div>
         <div className="config-row">
-          <span className="config-label" title="Text-to-speech for reading agent responses"><HighlightText text={t('config:experimental.tts')} query={searchQuery} /> 🔊</span>
+          <span className="config-label" title="Text-to-speech for reading agent responses"><HighlightText text={t('config:experimental.tts')} query={searchQuery} /> <Icon name="speaker-on" size={12} /></span>
           <Toggle checked={state.settings.experimentalTTS} onChange={(checked) => store.updateSettings({ experimentalTTS: checked })} />
         </div>
         <div className="config-row">

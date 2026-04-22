@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { store, useAreas } from '../store';
 import type { DrawingArea } from '../../shared/types';
+import { Icon } from './Icon';
 
 interface RestoreArchivedAreaModalProps {
   isOpen: boolean;
@@ -71,7 +72,7 @@ export function RestoreArchivedAreaModal({
     >
       <div className="modal restore-archived-modal">
         <div className="modal-header">
-          <span className="header-icon">📦</span>
+          <span className="header-icon"><Icon name="package" size={16} /></span>
           {t('terminal:areas.restoreArchivedZone')}
         </div>
 

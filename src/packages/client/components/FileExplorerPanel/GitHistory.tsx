@@ -13,6 +13,7 @@ import type { UseGitHistoryReturn } from './useGitHistory';
 import { useGitBranches } from './useGitBranches';
 import { GIT_STATUS_CONFIG } from './constants';
 import { getIconForExtension } from './fileUtils';
+import { Icon } from '../Icon';
 
 // ============================================================================
 // PROPS
@@ -239,7 +240,7 @@ export const GitHistory = memo(function GitHistory({
           onClick={() => setShowFilters(!showFilters)}
           title="Filters"
         >
-          ⚙
+          <Icon name="gear" size={12} />
         </button>
         {hasActiveFilters && (
           <button className="gh-reset-btn" onClick={resetFilters}>

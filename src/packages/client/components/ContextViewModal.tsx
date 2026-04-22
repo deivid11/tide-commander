@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import type { Agent, ContextStats } from '../../shared/types';
 import { useModalClose } from '../hooks';
 import { ModalPortal } from './shared/ModalPortal';
+import { Icon } from './Icon';
 
 interface ContextViewModalProps {
   agent: Agent;
@@ -133,7 +134,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
                 display: 'inline-block',
                 animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
               }}>
-                {isRefreshing ? '⟳' : '↻'}
+                <Icon name="refresh" size={14} />
               </span>
               {isRefreshing ? t('common:status.loading') : t('common:buttons.refresh')}
             </button>
@@ -147,7 +148,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
               color: 'var(--text-secondary)',
               padding: '32px',
             }}>
-              <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.5 }}>📊</div>
+              <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.5 }}><Icon name="dashboard" size={48} /></div>
               <div style={{ fontSize: '14px', marginBottom: '8px' }}>{t('terminal:context.noContextData')}</div>
               <div style={{ fontSize: '12px', marginBottom: '20px', opacity: 0.7 }}>
                 {t('terminal:context.clickRefresh')}
@@ -169,7 +170,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
                     display: 'inline-block',
                     animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
                   }}>
-                    {isRefreshing ? '⟳' : '↻'}
+                    <Icon name="refresh" size={14} />
                   </span>
                   {isRefreshing ? t('terminal:context.fetchingStats') : t('terminal:context.fetchContextStats')}
                 </button>

@@ -1,0 +1,104 @@
+---
+title: Permission Modes
+description: Control whether agents execute tools autonomously or require your approval — Bypass mode for trusted work, Interactive mode for sensitive operations.
+---
+
+import { Aside, Tabs, TabItem, Card, CardGrid } from '@astrojs/starlight/components';
+
+Every agent in Tide Commander operates in one of two permission modes. You choose the mode when spawning and can change it later without respawning.
+
+![Spawn Agent modal — permission mode selector](/screenshots/07-spawn-agent-modal.png)
+
+## Bypass mode (default)
+
+Agents run with `--dangerously-skip-permissions`, which allows them to execute any tool — `Bash`, `Edit`, `Write`, `Read`, anything — without asking for approval. This is the default because it is the fastest way to work with trusted agents on your own machine.
+
+Use Bypass when:
+- You trust the agent's scope of work.
+- The agent is running in a sandboxed or disposable environment.
+- You want uninterrupted autonomous execution of long tasks.
+
+<Aside type="caution">
+  In Bypass mode agents can overwrite files, run shell commands, and make network requests without prompting. Use it in environments where you are comfortable with that level of autonomy.
+</Aside>
+
+## Interactive mode
+
+In Interactive mode, the agent uses a hook-based approval system. Read-only tools are auto-approved; potentially dangerous tools pause and ask you before proceeding.
+
+### Safe tools — auto-approved
+
+These tools are always permitted without a prompt:
+
+| Tool | Purpose |
+|---|---|
+| `Read`, `Glob`, `Grep` | File reading and searching |
+| `Task`, `TaskOutput` | Agent task management |
+| `WebFetch`, `WebSearch` | Web content fetching |
+| `TodoWrite` | Task list management |
+| `AskUserQuestion` | User interaction |
+| `EnterPlanMode`, `ExitPlanMode`, `Skill` | Planning tools |
+
+### Dangerous tools — require approval
+
+These tools pause and show a permission request in the agent inspector:
+
+| Tool | Why it is gated |
+|---|---|
+| `Bash` | Shell command execution — can run anything |
+| `Edit`, `Write` | File modifications |
+| `NotebookEdit` | Jupyter notebook edits |
+
+When a permission request appears, you can **approve**, **deny**, or **approve and remember**.
+
+![Agent inspector — permission request](/screenshots/39-agent-inspector.png)
+
+## Remembered patterns
+
+Checking **Remember this** on a permission request creates a persistent pattern so the same type of action is auto-approved in future:
+
+- **File operations** — remembers the directory. Approving an edit to `/project/src/file.ts` auto-approves future edits to any file under `/project/src/`.
+- **Bash commands** — remembers the command prefix. Approving `npm test` auto-approves any future `npm` command.
+
+Remembered patterns are stored in:
+
+```
+~/.tide-commander/remembered-permissions.json
+```
+
+To clear all remembered patterns, delete that file or use the API:
+
+```bash
+curl -s -X DELETE http://localhost:5174/api/agents/permissions/remembered \
+  -H "X-Auth-Token: TOKEN"
+```
+
+## Changing permission mode
+
+<Tabs>
+  <TabItem label="At spawn time">
+    Select the mode in the Spawn Agent modal before clicking **Spawn**.
+    ![Spawn Agent modal](/screenshots/07-spawn-agent-modal.png)
+  </TabItem>
+  <TabItem label="For a running agent">
+    Open the agent's **Edit** modal (pencil icon or right-click the agent), change the **Permission Mode** dropdown, and save.
+    ![Edit Agent modal](/screenshots/44-edit-agent-modal.png)
+  </TabItem>
+</Tabs>
+
+## Choosing the right mode
+
+<CardGrid>
+  <Card title="Solo development on your machine" icon="approve-check">
+    **Bypass** — full speed, no interruptions. You are the safety net.
+  </Card>
+  <Card title="Shared or remote environments" icon="warning">
+    **Interactive** — approve shell commands and file writes manually. Combine with [HTTPS & Auth](/configuration/https-and-auth/).
+  </Card>
+  <Card title="Long autonomous tasks" icon="rocket">
+    **Bypass** with a narrow working directory. Scope the agent's `cwd` to limit blast radius.
+  </Card>
+  <Card title="Sensitive codebases" icon="setting">
+    **Interactive** — let the agent explore freely but gate all writes. Use Remembered Patterns to build up an allowlist as you go.
+  </Card>
+</CardGrid>

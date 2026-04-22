@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Icon } from '../Icon';
 
 const TOOLBOX_COLLAPSE_KEY = 'tide-toolbox-collapse';
 
@@ -60,7 +61,7 @@ export function CollapsibleSection({
         <span className="collapsible-title">{title}</span>
         <span className="collapsible-header-right">
           {headerExtra}
-          <span className="collapsible-arrow">{effectivelyOpen ? '▼' : '▶'}</span>
+          <span className="collapsible-arrow"><Icon name={effectivelyOpen ? 'caret-down' : 'caret-right'} size={10} /></span>
         </span>
       </button>
       {effectivelyOpen && <div className="collapsible-content">{children}</div>}

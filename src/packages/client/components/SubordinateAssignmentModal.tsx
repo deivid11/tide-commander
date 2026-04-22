@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { store, useAgents, useAgent } from '../store';
 import { AGENT_CLASSES } from '../../shared/types';
 import { AgentIcon } from './AgentIcon';
+import { Icon } from './Icon';
 
 interface SubordinateAssignmentModalProps {
   isOpen: boolean;
@@ -89,12 +90,12 @@ export function SubordinateAssignmentModal({ isOpen, bossId, onClose }: Subordin
           <span className="boss-header-icon" style={{ color: bossConfig.color }}>
             <AgentIcon agent={boss} size={22} />
           </span>
-          {t('terminal:supervisor.manageTeam')}: {boss.name}
+          {t('terminal:team.manageTeam')}: {boss.name}
         </div>
 
         <div className="modal-body subordinate-assignment-body">
           <div className="subordinate-assignment-info">
-            <p>{t('terminal:supervisor.selectAgents')}</p>
+            <p>{t('terminal:team.selectAgents')}</p>
             <div className="subordinate-assignment-actions">
               <button className="btn btn-small" onClick={selectAll}>
                 {t('common:buttons.selectAll')}
@@ -108,7 +109,7 @@ export function SubordinateAssignmentModal({ isOpen, bossId, onClose }: Subordin
           <div className="subordinates-list">
             {availableAgents.length === 0 ? (
               <div className="subordinates-empty">
-                {t('terminal:supervisor.noAgentsAvailable')}
+                {t('terminal:team.noAgentsAvailable')}
               </div>
             ) : (
               availableAgents.map((agent) => {
@@ -123,7 +124,7 @@ export function SubordinateAssignmentModal({ isOpen, bossId, onClose }: Subordin
                     onClick={() => toggleSubordinate(agent.id)}
                   >
                     <div className="subordinate-checkbox">
-                      {isSelected ? '✓' : ''}
+                      {isSelected ? <Icon name="check" size={12} /> : null}
                     </div>
                     <div
                       className="subordinate-icon"
@@ -150,11 +151,11 @@ export function SubordinateAssignmentModal({ isOpen, bossId, onClose }: Subordin
           <div className="subordinate-assignment-summary">
             {hasChanges ? (
               <span className="summary-changed">
-                {currentSubCount} → {newSubCount} {t('terminal:supervisor.subordinates').toLowerCase()}
+                {currentSubCount} <Icon name="arrow-right" size={11} /> {newSubCount} {t('terminal:team.subordinates').toLowerCase()}
               </span>
             ) : (
               <span className="summary-unchanged">
-                {currentSubCount} {t('terminal:supervisor.subordinates').toLowerCase()}
+                {currentSubCount} {t('terminal:team.subordinates').toLowerCase()}
               </span>
             )}
           </div>
@@ -169,7 +170,7 @@ export function SubordinateAssignmentModal({ isOpen, bossId, onClose }: Subordin
             onClick={handleSave}
             disabled={isSaving || !hasChanges}
           >
-            {isSaving ? t('common:status.saving') : t('terminal:supervisor.saveTeam')}
+            {isSaving ? t('common:status.saving') : t('terminal:team.saveTeam')}
           </button>
         </div>
       </div>

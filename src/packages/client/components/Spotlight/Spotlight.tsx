@@ -2,8 +2,8 @@
  * Spotlight - Main component (orchestrator)
  *
  * A command palette-style modal for quickly searching and navigating:
- * - Agents (with supervisor history, modified files, and user queries)
- * - Commands (spawn, commander view, settings, supervisor)
+ * - Agents (with modified files and user queries)
+ * - Commands (spawn, commander view, settings)
  * - Areas (project groups)
  * - Modified files
  * - Recent activity
@@ -16,13 +16,14 @@ import { SpotlightInput } from './SpotlightInput';
 import { SpotlightResults } from './SpotlightResults';
 import { SpotlightFooter } from './SpotlightFooter';
 
+const MOBILE_BREAKPOINT = 768;
+
 export function Spotlight({
   isOpen,
   onClose,
   onOpenSpawnModal,
   onOpenCommanderView,
   onOpenToolbox,
-  onOpenSupervisor,
   onOpenFileExplorer,
   onOpenPM2LogsModal,
   onOpenBossLogsModal,
@@ -30,6 +31,7 @@ export function Spotlight({
   onOpenMonitoringModal,
 }: SpotlightProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const resultsLengthRef = useRef(0);
 
@@ -40,7 +42,6 @@ export function Spotlight({
       onOpenSpawnModal,
       onOpenCommanderView,
       onOpenToolbox,
-      onOpenSupervisor,
       onOpenFileExplorer,
       onOpenPM2LogsModal,
       onOpenBossLogsModal,
@@ -58,6 +59,38 @@ export function Spotlight({
         inputRef.current?.focus();
       }, 50);
     }
+  }, [isOpen]);
+
+  // On mobile, keep the overlay fitted to the visual viewport so the modal stays
+  // above the software keyboard. visualViewport.height shrinks when the keyboard
+  // opens; setting the overlay's height/top to match ensures the modal is never
+  // hidden behind the keyboard.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const vv = window.visualViewport;
+    if (!vv || window.innerWidth > MOBILE_BREAKPOINT) return;
+
+    const syncViewport = () => {
+      const el = overlayRef.current;
+      if (!el) return;
+      el.style.height = `${vv.height}px`;
+      el.style.top = `${vv.offsetTop}px`;
+    };
+
+    syncViewport();
+    vv.addEventListener('resize', syncViewport);
+    vv.addEventListener('scroll', syncViewport);
+
+    return () => {
+      vv.removeEventListener('resize', syncViewport);
+      vv.removeEventListener('scroll', syncViewport);
+      const el = overlayRef.current;
+      if (el) {
+        el.style.height = '';
+        el.style.top = '';
+      }
+    };
   }, [isOpen]);
 
   // Capture Escape and Alt+N/P at window level to prevent other handlers from intercepting
@@ -117,7 +150,7 @@ export function Spotlight({
   if (!isOpen) return null;
 
   return (
-    <div className="spotlight-overlay" onClick={handleBackdropClick}>
+    <div ref={overlayRef} className="spotlight-overlay" onClick={handleBackdropClick}>
       <div className="spotlight-modal">
         <SpotlightInput
           ref={inputRef}

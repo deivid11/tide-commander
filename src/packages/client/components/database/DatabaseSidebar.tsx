@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import type { Building, DatabaseConnection } from '../../../shared/types';
 import { DATABASE_ENGINES } from '../../../shared/types';
 import { store, useDatabaseState } from '../../store';
+import { Icon } from '../Icon';
 import './DatabaseSidebar.scss';
 
 interface DatabaseSidebarProps {
@@ -329,10 +330,10 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
                       onClick={() => toggleTableExpand(table.name)}
                       title={isExpanded ? 'Collapse table schema' : 'Expand table schema'}
                     >
-                      {isExpanded ? '▼' : '▶'}
+                      <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} />
                     </button>
                     <span className="database-sidebar__table-icon">
-                      {table.type === 'view' ? '👁' : '📋'}
+                      <Icon name={table.type === 'view' ? 'eye' : 'clipboard'} size={12} />
                     </span>
                     <span
                       className={`database-sidebar__table-name ${selectedTableName === table.name ? 'database-sidebar__table-name--selected' : ''}`}
@@ -366,7 +367,7 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
                           title={`${col.type}${col.nullable ? ' NULL' : ' NOT NULL'}${col.primaryKey ? ' PK' : ''}`}
                         >
                           <span className="database-sidebar__column-icon">
-                            {col.primaryKey ? '🔑' : ''}
+                            {col.primaryKey ? <Icon name="key" size={11} /> : null}
                           </span>
                           <span className="database-sidebar__column-name">
                             {col.name}

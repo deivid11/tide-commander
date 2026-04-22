@@ -226,8 +226,7 @@
     "title": "Список задач"
   },
   "bossContext": {
-    "teamContext": "Контекст команды ({{count}} агентов)",
-    "teamContext_one": "Контекст команды (1 агент)",
+    "teamContext": "Контекст команды",
     "injectedInstructions": "Внедрённые инструкции агента"
   },
   "delegation": {

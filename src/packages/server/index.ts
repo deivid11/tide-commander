@@ -10,7 +10,7 @@ import { createServer as createHttpsServer } from 'https';
 import fs from 'node:fs';
 import type { Socket } from 'node:net';
 import { createApp } from './app.js';
-import { agentService, runtimeService, supervisorService, bossService, skillService, customClassService, secretsService, buildingService, eventRetentionService, triggerService, workflowService } from './services/index.js';
+import { agentService, runtimeService, bossService, skillService, customClassService, secretsService, buildingService, eventRetentionService, triggerService, workflowService } from './services/index.js';
 import * as websocket from './websocket/handler.js';
 import { getDataDir } from './data/index.js';
 import { initEventDb, closeEventDb } from './data/event-db.js';
@@ -18,6 +18,7 @@ import * as eventQueries from './data/event-queries.js';
 import { logger, closeFileLogging, getLogFilePath, createLogger } from './utils/logger.js';
 import { setupTerminalWsProxy } from './services/terminal-proxy.js';
 import { initIntegrations, shutdownIntegrations, getIntegrationTriggerHandlers } from './integrations/integration-registry.js';
+import { initBackupService, shutdownBackupService } from './services/backup-service.js';
 import type { IntegrationContext } from '../shared/integration-types.js';
 
 // Configuration
@@ -73,7 +74,6 @@ async function main(): Promise<void> {
   agentService.initAgents();
   agentService.initSessionHistory();
   runtimeService.init();
-  supervisorService.init();
   bossService.init();
   skillService.initSkills();
   customClassService.initCustomClasses();
@@ -154,6 +154,9 @@ async function main(): Promise<void> {
     triggerService.registerHandler(handler);
   }
 
+  // Start hourly backup scheduler (reads persisted enabled/disabled setting)
+  initBackupService();
+
   logger.server.log(`Data directory: ${getDataDir()}`);
   logger.server.log(`Log file: ${getLogFilePath()}`);
 
@@ -232,10 +235,10 @@ async function main(): Promise<void> {
     forceShutdownTimer.unref();
 
     try {
+      shutdownBackupService();
       triggerService.shutdown();
       workflowService.shutdown();
       await shutdownIntegrations();
-      supervisorService.shutdown();
       bossService.shutdown();
       eventRetentionService.shutdown();
       buildingService.stopPM2StatusPolling();

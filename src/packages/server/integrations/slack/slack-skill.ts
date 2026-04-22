@@ -46,6 +46,38 @@ curl -s "http://localhost:5174/api/slack/users/search?q=john"
 \`\`\`
 
 Searches by name, display name, real name, or email. Returns matching users with their IDs.
+Requires the bot token to have **\`users:read\`** (plus \`users:read.email\` if you want to match on email).
+
+## Mentioning Users (Real Pings)
+
+Slack does **not** render \`@Name\` as a real mention — that's just text and will **not** notify anyone. Real mentions use a bracketed syntax that includes the Slack user ID.
+
+**Format:** \`<@USERID>\` (e.g. \`<@U0ABCDEF>\`).
+
+**Flow: find the ID, then embed it.**
+\`\`\`bash
+# 1. Look up the user's ID by name/email
+curl -s "http://localhost:5174/api/slack/users/search?q=mark"
+#   → [{ "id": "U0ABCDEF", "name": "mark", "realName": "Mark Wu", ... }]
+
+# 2. Include <@U0ABCDEF> in the message text — this renders as @Mark and notifies them
+curl -s -X POST http://localhost:5174/api/slack/send \\
+  -H "Content-Type: application/json" \\
+  -d '{"channel":"C0123456789","text":"Hey <@U0ABCDEF>, please take a look"}'
+\`\`\`
+
+**Broadcast / special mentions** (notify many people at once — use sparingly):
+- \`<!channel>\` — notifies everyone in the channel, equivalent to typing \`@channel\`
+- \`<!here>\` — notifies only currently-active members, equivalent to \`@here\`
+- \`<!everyone>\` — notifies everyone in the workspace (only valid in DMs and #general), equivalent to \`@everyone\`
+- \`<!subteam^SXXXXXXX>\` — pings a user group by its subteam id, equivalent to \`@groupname\`
+- \`<!subteam^SXXXXXXX|@groupname>\` — same, but with a display fallback for older clients
+
+**Rules of thumb:**
+- Always look up the user's ID first — never guess or hardcode, and never rely on \`@Name\` as plain text.
+- For multiple mentions, include multiple \`<@...>\` tokens in the same \`text\` field.
+- The \`<\` and \`>\` are literal — do NOT URL-encode them when sending through \`/api/slack/send\` (the endpoint accepts JSON, not query strings).
+- If you can't resolve a user's ID (not in the workspace, lookup returns no match), fall back to their human name as plain text and tell the caller you couldn't ping them directly.
 
 ## Read Channel Messages
 
@@ -97,6 +129,103 @@ curl -s http://localhost:5174/api/slack/channels
 \`\`\`bash
 curl -s http://localhost:5174/api/slack/users/U0123456789
 \`\`\`
+
+## Upload / Images
+
+Upload a file or image to Slack. Uses Slack's new two-step files API (files.upload is deprecated since Nov 2025).
+The bot token must have the **\`files:write\`** scope.
+
+**Multipart (upload a file from disk):**
+\`\`\`bash
+curl -s -F "file=@image.png" \\
+     -F "channelId=C0123456789" \\
+     -F "initialComment=Here's the chart" \\
+     http://localhost:5174/api/slack/upload
+\`\`\`
+
+**JSON / base64 (useful for in-memory images like generated charts):**
+\`\`\`bash
+curl -s -X POST http://localhost:5174/api/slack/upload-base64 \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "filename":"chart.png",
+    "contentBase64":"iVBORw0KGgoAAAANSUhEUg...",
+    "channelId":"C0123456789",
+    "initialComment":"Here is today\\'s report",
+    "threadTs":"1234567890.123456"
+  }'
+\`\`\`
+
+Fields (both variants):
+- \`file\` or \`contentBase64\` — the bytes (required)
+- \`filename\` — required for base64; multipart uses the uploaded file's original name if omitted
+- \`channelId\` — optional; if omitted the file is uploaded but not shared to a channel
+- \`title\` — optional display title (defaults to filename)
+- \`initialComment\` — optional message posted with the file
+- \`threadTs\` — optional thread timestamp to post the file as a reply
+
+Response: \`{"success":true,"fileId":"F0123...","file":{"id","name","title","mimetype","size","permalink","url_private",...}}\`.
+
+## Read / Download Files
+
+Inspect and download files shared in Slack. Requires the bot token to have **\`files:read\`**.
+
+**List files (optional filters):**
+\`\`\`bash
+# All recent files
+curl -s http://localhost:5174/api/slack/files
+
+# Images shared in a specific channel
+curl -s "http://localhost:5174/api/slack/files?channelId=C0123456789&types=images&count=20"
+\`\`\`
+Filters: \`channelId\`, \`userId\`, \`tsFrom\`, \`tsTo\`, \`types\` (Slack type string like \`images\`, \`pdfs\`, \`spaces\`), \`count\`, \`page\`.
+
+**Get a single file's metadata:**
+\`\`\`bash
+curl -s http://localhost:5174/api/slack/files/F0123ABCD
+\`\`\`
+Returns \`{ "file": { "id","name","title","mimetype","size","permalink","url_private","url_private_download" } }\`.
+
+**Download a file (binary proxy, auth added server-side):**
+\`\`\`bash
+curl -s http://localhost:5174/api/slack/files/F0123ABCD/content -o /tmp/attachment.bin
+\`\`\`
+Preserves upstream \`Content-Type\` and \`Content-Disposition\` from Slack's CDN.
+
+**Server-side save to a filesystem path:**
+\`\`\`bash
+curl -s -X POST http://localhost:5174/api/slack/files/F0123ABCD/download \\
+  -H "Content-Type: application/json" \\
+  -d '{"outputPath":"/tmp/slack/F0123ABCD.png"}'
+\`\`\`
+Returns \`{ "success":true, "path":"/tmp/slack/F0123ABCD.png", "bytes": 12345, "filename":"chart.png", "mimeType":"image/png" }\`.
+
+Messages returned by \`/messages\` and \`/thread\` now include an optional \`files: [...]\` array on each message when attachments exist — use the file ids there as input to the endpoints above.
+
+**Pitfall — do NOT \`curl\` \`url_private\` directly.** Slack's \`url_private\` (and \`url_private_download\`) only return the actual file bytes when the request sends \`Authorization: Bearer <bot-token>\`; without it Slack serves an HTML sign-in page. Use the proxy endpoints above — they attach the bot token server-side so agents never need to handle the token.
+
+## Reactions
+
+Add an emoji reaction to a Slack message. Requires the bot token to have **\`reactions:write\`**.
+
+\`\`\`bash
+curl -s -X POST http://localhost:5174/api/slack/reactions/add \\
+  -H "Content-Type: application/json" \\
+  -d '{"channel":"C0123456789","ts":"1234567890.123456","name":"eyes"}'
+\`\`\`
+
+Fields:
+- \`channel\` — Slack channel id (required)
+- \`ts\` — message timestamp (required; looks like \`1234567890.123456\`)
+- \`name\` — emoji slug without colons (e.g. \`eyes\`, \`+1\`, \`white_check_mark\`). Raw eye emoji chars (\`👁\`, \`👀\`) are auto-normalized to \`eyes\`.
+
+\`already_reacted\` responses are silently ignored.
+
+### Auto-react on triggers
+
+When a Slack trigger fires on an incoming message, the bot automatically reacts with :eyes: (👀) as a visual acknowledgement that it saw the message. This happens fire-and-forget — a failed reaction never blocks the trigger.
+
+Disable the auto-ack by setting \`SLACK_REACT_ON_TRIGGER=false\` (accepts \`false\`/\`0\`/\`no\`/\`off\`) in the server environment.
 
 ## Check Connection Status
 

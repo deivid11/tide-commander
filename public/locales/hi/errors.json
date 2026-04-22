@@ -1,8 +1,6 @@
 {
   "toast": {
     "error": "त्रुटि",
-    "snapshotFailed": "स्नैपशॉट विफल",
-    "snapshotFailedMsg": "स्नैपशॉट सहेजने में विफल",
     "mergeFailed": "मर्ज विफल",
     "mergeFailedMsg": "परिवर्तन मर्ज करने में विफल",
     "compareFailed": "तुलना विफल",

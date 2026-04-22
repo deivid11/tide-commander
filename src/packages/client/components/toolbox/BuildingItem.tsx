@@ -1,8 +1,9 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Building } from '../../../shared/types';
-import { BUILDING_TYPES } from '../../../shared/types';
 import { BUILDING_STATUS_COLORS } from '../../utils/colors';
+import { Icon } from '../Icon';
+import { getBuildingTypeIcon } from '../DashboardView/utils';
 
 interface BuildingItemProps {
   building: Building;
@@ -13,7 +14,6 @@ interface BuildingItemProps {
 
 export function BuildingItem({ building, isSelected, onClick, onEdit }: BuildingItemProps) {
   const { t } = useTranslation(['config']);
-  const typeInfo = BUILDING_TYPES[building.type];
 
   // Get auto-detected ports from PM2 status polling
   const displayPorts = building.pm2Status?.ports || [];
@@ -30,7 +30,7 @@ export function BuildingItem({ building, isSelected, onClick, onEdit }: Building
         style={{ backgroundColor: BUILDING_STATUS_COLORS[building.status] }}
         title={building.status}
       />
-      <div className="building-icon">{typeInfo.icon}</div>
+      <div className="building-icon"><Icon name={getBuildingTypeIcon(building.type)} size={16} /></div>
       <div className="building-info">
         <div className="building-name">{building.name}</div>
         <div className="building-meta">
@@ -60,7 +60,7 @@ export function BuildingItem({ building, isSelected, onClick, onEdit }: Building
         }}
         title={t('config:buildings.editBuilding')}
       >
-        ⚙
+        <Icon name="gear" size={14} />
       </button>
     </div>
   );

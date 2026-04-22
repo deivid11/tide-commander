@@ -14,6 +14,7 @@ import { QueryEditor, splitQueries, getQueryAtCursor, type ExecuteMode } from '.
 import { ResultsTable } from './ResultsTable';
 import { QueryHistoryPanel } from './QueryHistoryPanel';
 import { DatabaseTabs, type DatabaseTab } from './DatabaseTabs';
+import { Icon } from '../Icon';
 import './DatabasePanel.scss';
 
 interface DatabasePanelProps {
@@ -304,7 +305,7 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
       <div className="database-panel" ref={panelRef}>
         <div className="database-panel__header">
           <div className="database-panel__title">
-            <span className="database-panel__icon">🗄️</span>
+            <span className="database-panel__icon"><Icon name="database" size={16} /></span>
             <span className="database-panel__name">{building.name}</span>
           </div>
           <button className="database-panel__close" onClick={onClose}>
@@ -313,7 +314,7 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
         </div>
         <div className="database-panel__body">
           <div className="database-panel__no-connections">
-            <div className="database-panel__no-connections-icon">🔌</div>
+            <div className="database-panel__no-connections-icon"><Icon name="plug" size={32} /></div>
             <h3>{t('terminal:database.noConnections')}</h3>
             <p>{t('terminal:database.noConnectionsDesc')}</p>
             <p>{t('terminal:database.toGetStarted')}</p>

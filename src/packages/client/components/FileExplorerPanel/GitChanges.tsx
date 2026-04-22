@@ -17,6 +17,7 @@ import { apiUrl, authFetch } from '../../utils/storage';
 import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
 import { useToast } from '../Toast';
+import { Icon } from '../Icon';
 
 type GitViewMode = 'flat' | 'tree';
 
@@ -92,7 +93,7 @@ const GitFileItem = memo(function GitFileItem({
       </span>
       {file.oldPath && (
         <span className="git-file-renamed">
-          ← {file.oldPath.split('/').pop()}
+          <Icon name="subitem" size={10} style={{ transform: 'rotate(180deg)' }} /> {file.oldPath.split('/').pop()}
         </span>
       )}
       {showStageBtn && (
@@ -117,7 +118,7 @@ const GitFileItem = memo(function GitFileItem({
           }}
           title={status === 'untracked' || status === 'added' ? 'Delete file' : 'Discard changes'}
         >
-          ↩
+          <Icon name="revert" size={12} />
         </button>
       )}
     </div>
@@ -198,7 +199,7 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
         </span>
         {node.file!.oldPath && (
           <span className="git-file-renamed">
-            ← {node.file!.oldPath.split('/').pop()}
+            <Icon name="subitem" size={10} style={{ transform: 'rotate(180deg)' }} /> {node.file!.oldPath.split('/').pop()}
           </span>
         )}
         {fileStatus === 'untracked' && onStage && (
@@ -223,7 +224,7 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
             }}
             title={fileStatus === 'untracked' || fileStatus === 'added' ? 'Delete file' : 'Discard changes'}
           >
-            ↩
+            <Icon name="revert" size={12} />
           </button>
         )}
       </div>
@@ -244,7 +245,7 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
           onDirContextMenu?.(e, node);
         }}
       >
-        <span className={`tree-arrow ${isExpanded ? 'expanded' : ''}`}>▸</span>
+        <span className={`tree-arrow ${isExpanded ? 'expanded' : ''}`}><Icon name="caret-right" size={10} /></span>
         <img
           className="tree-folder-icon"
           src={isExpanded ? `${import.meta.env.BASE_URL}assets/vscode-icons/default_folder_opened.svg` : `${import.meta.env.BASE_URL}assets/vscode-icons/default_folder.svg`}
@@ -364,7 +365,7 @@ const GitMergedGroup = memo(function GitMergedGroup({
             }}
             title={hasUntracked ? `Delete all ${files.length} files` : `Discard all ${files.length} changes`}
           >
-            ↩ All
+            <Icon name="revert" size={12} /> All
           </button>
         )}
       </div>
@@ -563,14 +564,14 @@ function GitChangesComponent({
       actions.push({
         id: 'open-conflict',
         label: t('terminal:fileExplorer.gitContextMenu.openConflictResolver'),
-        icon: '⚠️',
+        icon: <Icon name="warn" size={14} />,
         onClick: () => onConflictOpen(file.path),
       });
     } else if (status !== 'deleted') {
       actions.push({
         id: 'open-file',
         label: t('terminal:fileExplorer.gitContextMenu.openFile'),
-        icon: '📄',
+        icon: <Icon name="file-text" size={14} />,
         onClick: () => onFileSelect(file.path, status),
       });
     }
@@ -580,7 +581,7 @@ function GitChangesComponent({
       actions.push({
         id: 'stage-file',
         label: t('terminal:fileExplorer.gitContextMenu.stageFile'),
-        icon: '➕',
+        icon: <Icon name="plus" size={14} />,
         onClick: () => { void onStageFiles([file.path]); },
       });
     }
@@ -592,7 +593,7 @@ function GitChangesComponent({
       actions.push({
         id: 'discard-changes',
         label: t('terminal:fileExplorer.gitContextMenu.discardChanges'),
-        icon: '↩️',
+        icon: <Icon name="revert" size={14} />,
         danger: true,
         onClick: () => { void handleDiscardFile(file, status); },
       });
@@ -602,7 +603,7 @@ function GitChangesComponent({
       actions.push({
         id: 'delete-file',
         label: t('terminal:fileExplorer.gitContextMenu.deleteFile'),
-        icon: '🗑️',
+        icon: <Icon name="trash" size={14} />,
         danger: true,
         onClick: () => { void handleDiscardFile(file, status); },
       });
@@ -614,14 +615,14 @@ function GitChangesComponent({
     actions.push({
       id: 'copy-full-path',
       label: t('terminal:fileExplorer.gitContextMenu.copyFullPath'),
-      icon: '🧷',
+      icon: <Icon name="pin" size={14} />,
       onClick: () => { void handleCopyFullPath(file.path); },
     });
 
     actions.push({
       id: 'copy-relative-path',
       label: t('terminal:fileExplorer.gitContextMenu.copyRelativePath'),
-      icon: '📋',
+      icon: <Icon name="clipboard" size={14} />,
       onClick: () => { void handleCopyRelativePath(file.path); },
     });
 
@@ -630,7 +631,7 @@ function GitChangesComponent({
       actions.push({
         id: 'reveal-in-tree',
         label: t('terminal:fileExplorer.gitContextMenu.revealInTree'),
-        icon: '◎',
+        icon: <Icon name="target" size={14} />,
         onClick: () => onRevealInTree(file.path),
       });
     }
@@ -690,14 +691,14 @@ function GitChangesComponent({
       {
         id: 'discard-dir',
         label: `Discard Changes (${files.length} files)`,
-        icon: '↩️',
+        icon: <Icon name="revert" size={14} />,
         danger: true,
         onClick: () => { void handleDiscardDir(node); },
       },
       {
         id: 'stage-dir',
         label: `Stage All (${files.length} files)`,
-        icon: '➕',
+        icon: <Icon name="plus" size={14} />,
         onClick: () => { void onStageFiles(files.map(f => f.path)); },
       },
     ];
@@ -914,7 +915,7 @@ function GitChangesComponent({
   if (!gitStatus || !gitStatus.isGitRepo) {
     return (
       <div className="git-changes-empty">
-        <div className="git-empty-icon">📦</div>
+        <div className="git-empty-icon"><Icon name="package" size={32} /></div>
         <div className="git-empty-text">{t('terminal:fileExplorer.notGitRepo')}</div>
       </div>
     );
@@ -924,7 +925,7 @@ function GitChangesComponent({
   if (gitStatus.files.length === 0) {
     return (
       <div className="git-changes-empty">
-        <div className="git-empty-icon">✨</div>
+        <div className="git-empty-icon"><Icon name="sparkle" size={32} /></div>
         <div className="git-empty-text">{t('terminal:fileExplorer.workingTreeClean')}</div>
         <div className="git-empty-branch">{t('terminal:fileExplorer.onBranch', { branch: gitStatus.branch })}</div>
       </div>
@@ -956,7 +957,7 @@ function GitChangesComponent({
       {/* Compact header: branch + counts + view toggle + refresh */}
       <div className="git-changes-header">
         <span className="git-branch">
-          <span className="git-branch-icon">⎇</span>
+          <span className="git-branch-icon"><Icon name="git-branch" size={12} /></span>
           {gitStatus.branch}
         </span>
         {gitStatus.counts && (
@@ -1008,7 +1009,7 @@ function GitChangesComponent({
           onClick={onRefresh}
           title={t('common:buttons.refresh')}
         >
-          ↻
+          <Icon name="refresh" size={12} />
         </button>
       </div>
 

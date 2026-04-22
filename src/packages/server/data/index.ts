@@ -15,7 +15,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import { execSync } from 'child_process';
-import type { Agent, DrawingArea, AgentSupervisorHistory, AgentSupervisorHistoryEntry, Building, DelegationDecision, Skill, StoredSkill, CustomAgentClass, ContextStats, Secret, StoredSecret, QueryHistoryEntry, SessionHistoryEntry } from '../../shared/types.js';
+import type { Agent, DrawingArea, Building, DelegationDecision, Skill, StoredSkill, CustomAgentClass, ContextStats, Secret, StoredSecret, QueryHistoryEntry, SessionHistoryEntry } from '../../shared/types.js';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('Data');
@@ -29,7 +29,6 @@ const DATA_DIR = path.join(
 const AGENTS_FILE = path.join(DATA_DIR, 'agents.json');
 const AREAS_FILE = path.join(DATA_DIR, 'areas.json');
 const BUILDINGS_FILE = path.join(DATA_DIR, 'buildings.json');
-const SUPERVISOR_HISTORY_FILE = path.join(DATA_DIR, 'supervisor-history.json');
 const DELEGATION_HISTORY_FILE = path.join(DATA_DIR, 'delegation-history.json');
 const SKILLS_FILE = path.join(DATA_DIR, 'skills.json');
 const CUSTOM_CLASSES_FILE = path.join(DATA_DIR, 'custom-agent-classes.json');
@@ -40,7 +39,6 @@ const AREA_LOGOS_DIR = path.join(DATA_DIR, 'area-logos');
 const CLASS_ICONS_DIR = path.join(DATA_DIR, 'custom-class-icons');
 
 // Maximum history entries per agent
-const MAX_HISTORY_PER_AGENT = 50;
 const MAX_SESSION_HISTORY_PER_AGENT = 100;
 const MAX_DELEGATION_HISTORY_PER_BOSS = 100;
 
@@ -395,91 +393,6 @@ export function getDataDir(): string {
 export function getClaudeProjectDir(cwd: string): string {
   const encoded = cwd.replace(/\//g, '-');
   return path.join(os.homedir(), '.claude', 'projects', encoded);
-}
-
-// ============================================================================
-// Supervisor History Persistence
-// ============================================================================
-
-interface SupervisorHistoryData {
-  histories: Record<string, AgentSupervisorHistoryEntry[]>;
-  savedAt: number;
-  version: string;
-}
-
-/**
- * Load all supervisor history from disk
- */
-export function loadSupervisorHistory(): Map<string, AgentSupervisorHistoryEntry[]> {
-  ensureDataDir();
-  const data = safeReadJsonSync<SupervisorHistoryData>(SUPERVISOR_HISTORY_FILE, 'Supervisor history');
-  if (data?.histories) {
-    log.log(` Loaded supervisor history for ${Object.keys(data.histories).length} agents`);
-    return new Map(Object.entries(data.histories));
-  }
-  return new Map();
-}
-
-/**
- * Save supervisor history to disk
- */
-export function saveSupervisorHistory(histories: Map<string, AgentSupervisorHistoryEntry[]>): void {
-  ensureDataDir();
-  try {
-    atomicWriteJsonSync(SUPERVISOR_HISTORY_FILE, {
-      histories: Object.fromEntries(histories),
-      savedAt: Date.now(),
-      version: '1.0.0',
-    });
-  } catch (err) {
-    log.error(' Failed to save supervisor history:', err);
-  }
-}
-
-/**
- * Add a history entry for an agent
- */
-export function addSupervisorHistoryEntry(
-  histories: Map<string, AgentSupervisorHistoryEntry[]>,
-  agentId: string,
-  entry: AgentSupervisorHistoryEntry
-): void {
-  let agentHistory = histories.get(agentId);
-  if (!agentHistory) {
-    agentHistory = [];
-    histories.set(agentId, agentHistory);
-  }
-
-  // Add to beginning (most recent first)
-  agentHistory.unshift(entry);
-
-  // Trim to max entries
-  if (agentHistory.length > MAX_HISTORY_PER_AGENT) {
-    agentHistory.pop();
-  }
-}
-
-/**
- * Get supervisor history for a specific agent
- */
-export function getAgentSupervisorHistory(
-  histories: Map<string, AgentSupervisorHistoryEntry[]>,
-  agentId: string
-): AgentSupervisorHistory {
-  return {
-    agentId,
-    entries: histories.get(agentId) || [],
-  };
-}
-
-/**
- * Delete supervisor history for an agent (when agent is deleted)
- */
-export function deleteSupervisorHistory(
-  histories: Map<string, AgentSupervisorHistoryEntry[]>,
-  agentId: string
-): void {
-  histories.delete(agentId);
 }
 
 // ============================================================================

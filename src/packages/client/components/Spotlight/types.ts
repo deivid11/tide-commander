@@ -4,9 +4,11 @@
 
 // Types imported but used via SearchResultType and SearchResult interface
 import type {} from '../../../shared/types';
+import type React from 'react';
+import type { IconName } from '../Icon';
 
 // Search result types
-export type SearchResultType = 'agent' | 'command' | 'area' | 'activity' | 'modified-file' | 'building';
+export type SearchResultType = 'agent' | 'command' | 'area' | 'modified-file' | 'building';
 
 export interface SearchResult {
   id: string;
@@ -14,21 +16,17 @@ export interface SearchResult {
   title: string;
   subtitle?: string;
   lastUserInput?: string; // Last user input/task for agents (always shown)
-  statusDescription?: string; // Supervisor status description
-  activityText?: string; // Last activity text (recentWorkSummary)
+  activityText?: string; // Last activity text
   matchedText?: string; // The text that matched the search query
   matchedFiles?: string[]; // Files that matched the search query (for agents)
   matchedQuery?: string; // User query that matched the search
-  matchedHistory?: { text: string; timestamp: number }; // Matched supervisor history entry
   timeAway?: number; // Time away in milliseconds (for agents)
-  lastStatusTime?: number; // Timestamp of last status update
-  icon: string;
+  icon: React.ReactNode;
   action: () => void;
   // Internal fields for searching
   _searchText?: string;
   _modifiedFiles?: string[];
   _userQueries?: string[];
-  _historyEntries?: { text: string; timestamp: number }[];
 }
 
 // Props for the main Spotlight component
@@ -38,7 +36,6 @@ export interface SpotlightProps {
   onOpenSpawnModal: () => void;
   onOpenCommanderView: () => void;
   onOpenToolbox: () => void;
-  onOpenSupervisor: () => void;
   onOpenFileExplorer: (areaId: string) => void;
   onOpenPM2LogsModal: (buildingId: string) => void;
   onOpenBossLogsModal: (buildingId: string) => void;
@@ -53,7 +50,6 @@ export interface UseSpotlightSearchOptions {
   onOpenSpawnModal: () => void;
   onOpenCommanderView: () => void;
   onOpenToolbox: () => void;
-  onOpenSupervisor: () => void;
   onOpenFileExplorer: (areaId: string) => void;
   onOpenPM2LogsModal: (buildingId: string) => void;
   onOpenBossLogsModal: (buildingId: string) => void;
@@ -81,26 +77,26 @@ export interface SpotlightSearchState {
   highlightMatch: (text: string, searchQuery: string) => React.ReactNode;
 }
 
-// File icons for modified files
-export const FILE_ICONS: Record<string, string> = {
-  '.ts': '📘',
-  '.tsx': '⚛️',
-  '.js': '📒',
-  '.jsx': '⚛️',
-  '.py': '🐍',
-  '.rs': '🦀',
-  '.go': '🔷',
-  '.md': '📝',
-  '.json': '📋',
-  '.yaml': '⚙️',
-  '.yml': '⚙️',
-  '.css': '🎨',
-  '.scss': '🎨',
-  '.html': '🌐',
-  '.sql': '🗃️',
-  '.sh': '💻',
-  '.env': '🔐',
-  '.toml': '⚙️',
-  '.lock': '🔒',
-  default: '📄',
+// Semantic icon names for modified files by extension, rendered via <Icon>
+export const FILE_ICON_NAMES: Record<string, IconName> = {
+  '.ts': 'file-code',
+  '.tsx': 'atom',
+  '.js': 'file-code',
+  '.jsx': 'atom',
+  '.py': 'file-code',
+  '.rs': 'file-code',
+  '.go': 'file-code',
+  '.md': 'file-text',
+  '.json': 'clipboard',
+  '.yaml': 'gear',
+  '.yml': 'gear',
+  '.css': 'palette',
+  '.scss': 'palette',
+  '.html': 'globe',
+  '.sql': 'database',
+  '.sh': 'terminal',
+  '.env': 'lock',
+  '.toml': 'gear',
+  '.lock': 'lock',
+  default: 'file-text',
 };

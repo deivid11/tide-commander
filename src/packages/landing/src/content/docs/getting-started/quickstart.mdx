@@ -1,0 +1,94 @@
+---
+title: Quickstart
+description: Install Tide Commander, spawn your first agent, and issue your first command — in three minutes flat.
+---
+
+import { Steps, Aside, Card, CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Zero to an AI agent working on real code in under three minutes. This guide assumes you already have at least one supported CLI installed (`claude`, `codex`, or `opencode`).
+
+<Aside type="note" title="Prerequisites">
+  - **Node.js 18+**
+  - At least one supported CLI in your `PATH`: `claude`, `codex`, or `opencode`.
+  - A project directory you want the agent to work in.
+</Aside>
+
+## 1. Install and start
+
+<Tabs>
+  <TabItem label="bunx (recommended)">
+    ```bash
+    bunx tide-commander
+    ```
+  </TabItem>
+  <TabItem label="npm global">
+    ```bash
+    npm i -g tide-commander@latest
+    tide-commander start
+    ```
+  </TabItem>
+  <TabItem label="Docker">
+    ```bash
+    docker run -p 5174:5174 \
+      -v ~/.local/share/tide-commander:/root/.local/share/tide-commander \
+      ghcr.io/deivid11/tide-commander:latest
+    ```
+  </TabItem>
+</Tabs>
+
+Once the server is up, open `http://localhost:5174` in your browser.
+
+<Steps>
+
+1. **See the empty battlefield**
+
+   You land on the 3D scene. An empty grid of tiles, a terrain horizon, and an action bar at the top. This is where your agents will appear.
+
+   ![Empty 3D battlefield](/screenshots/01-main-3d-scene-empty.png)
+
+2. **Spawn your first agent**
+
+   Hit **Alt + N** or click the ➕ **New Agent** button. The Spawn Agent dialog opens. Pick a name, a working directory, and a class (Scout is a good starting class — lightweight, general-purpose).
+
+   ![Spawn Agent modal](/screenshots/07-spawn-agent-modal.png)
+
+   Click **Spawn**. Tide Commander starts a real CLI process in the background and drops the agent onto the map as a 3D character.
+
+3. **Send a command**
+
+   Click the agent to select it (or press **1** to select the first agent). The command bar at the bottom focuses. Type a task — anything that CLI can handle:
+
+   ```text
+   Investigate why the login redirect loops when cookies are disabled.
+   Start by reading src/auth and give me a summary.
+   ```
+
+   Hit **Enter**. The agent gets to work.
+
+4. **Watch it work**
+
+   Open the right panel (**Alt + R**) to see the live activity feed: tool calls, file edits, text output. Click on a file the agent touches to see the diff inline — no IDE needed.
+
+   ![Agent inspector with live conversation](/screenshots/39-agent-inspector.png)
+
+5. **Spawn a second agent**
+
+   Repeat step 2 with a different working directory or a different class. You now have two agents working in parallel. Use **1**/**2** to switch between them, or **Ctrl + K** to spotlight-search by name.
+
+   ![3D battlefield populated with multiple agents](/screenshots/35-main-3d-with-agents.png)
+
+</Steps>
+
+## You're off
+
+From here, the three things most users do next:
+
+<CardGrid>
+  <LinkCard title="Deploy a Boss" href="/concepts/boss-and-subordinates/" description="One conversational hub that delegates to your agent team." />
+  <LinkCard title="Add a Skill" href="/concepts/skills/" description="Notifications, git workflows, streaming exec, inter-agent messaging." />
+  <LinkCard title="Set a System Prompt" href="/configuration/system-prompt/" description="Coding standards or team conventions, applied to every agent." />
+</CardGrid>
+
+<Aside type="tip" title="Keyboard-first users">
+  Press **?** to pull up the full keyboard map, or jump straight to [Keyboard Shortcuts](/configuration/keyboard-shortcuts/).
+</Aside>

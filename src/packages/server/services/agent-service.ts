@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { Agent, AgentClass, PermissionMode, ClaudeModel, ClaudeEffort, AgentProvider, CodexConfig, CodexModel, OpencodeModel, DrawingArea, SessionHistoryEntry } from '../../shared/types.js';
+import { CLAUDE_MODELS as CLAUDE_MODEL_METADATA } from '../../shared/agent-types.js';
 import { loadAgents, saveAgents, saveAgentsAsync, getDataDir, loadAreas, saveAreas, loadSessionHistory, saveSessionHistory, addSessionHistoryEntry, getSessionHistoryForAgent } from '../data/index.js';
 import {
   listSessions,
@@ -20,13 +21,9 @@ import { loadSubagentHistory, type SubagentHistoryEntry } from '../claude/subage
 import { logger, generateId } from '../utils/index.js';
 
 const log = logger.agent;
-const CLAUDE_MODELS = new Set<ClaudeModel>([
-  'sonnet',
-  'opus',
-  'haiku',
-  'claude-opus-4-7',
-  'claude-opus-4-6',
-]);
+const VALID_CLAUDE_MODELS = new Set<ClaudeModel>(
+  Object.keys(CLAUDE_MODEL_METADATA) as ClaudeModel[]
+);
 const DEFAULT_CLAUDE_CONTEXT_LIMIT = 200000;
 const DEFAULT_CODEX_CONTEXT_LIMIT = 258400;
 const DEFAULT_OPENCODE_CONTEXT_LIMIT = 200000;
@@ -36,9 +33,15 @@ interface CodexContextSnapshot {
   contextLimit: number;
 }
 
-function getDefaultContextLimit(provider: AgentProvider | undefined): number {
+function getDefaultContextLimit(
+  provider: AgentProvider | undefined,
+  model?: ClaudeModel
+): number {
   if (provider === 'codex') return DEFAULT_CODEX_CONTEXT_LIMIT;
   if (provider === 'opencode') return DEFAULT_OPENCODE_CONTEXT_LIMIT;
+  if (model && CLAUDE_MODEL_METADATA[model]) {
+    return CLAUDE_MODEL_METADATA[model].contextWindow;
+  }
   return DEFAULT_CLAUDE_CONTEXT_LIMIT;
 }
 
@@ -69,7 +72,7 @@ export function sanitizeModelForProvider(
 ): ClaudeModel | undefined {
   if (provider !== 'claude') return undefined;
   if (typeof model !== 'string') return undefined;
-  if (CLAUDE_MODELS.has(model as ClaudeModel)) {
+  if (VALID_CLAUDE_MODELS.has(model as ClaudeModel)) {
     return model as ClaudeModel;
   }
   return undefined;
@@ -200,15 +203,22 @@ export function initAgents(): void {
     const storedAgents = loadAgents();
 
     for (const stored of storedAgents) {
-      const isCodexProvider = (stored.provider ?? 'claude') === 'codex';
+      const provider = stored.provider ?? 'claude';
+      const isCodexProvider = provider === 'codex';
       const repairedCodexContext = isCodexProvider
         ? getCodexContextSnapshotFromSession(stored.sessionId)
         : null;
-      const defaultContextLimit = getDefaultContextLimit(stored.provider ?? 'claude');
+      const sanitizedModel = sanitizeModelForProvider(provider, stored.model);
+      const defaultContextLimit = getDefaultContextLimit(provider, sanitizedModel);
+      // For Claude agents, always re-derive contextLimit from the model metadata
+      // (CLAUDE_MODELS[model].contextWindow) so a model switch — or a newly
+      // added larger-context model like opus[1m] — is reflected without
+      // trusting a stale persisted value.
       const migratedPersistedContextLimit = isCodexProvider
-        && (stored.contextLimit === undefined || stored.contextLimit === DEFAULT_CLAUDE_CONTEXT_LIMIT)
-        ? defaultContextLimit
-        : stored.contextLimit;
+        ? ((stored.contextLimit === undefined || stored.contextLimit === DEFAULT_CLAUDE_CONTEXT_LIMIT)
+          ? defaultContextLimit
+          : stored.contextLimit)
+        : defaultContextLimit;
       const contextLimit = repairedCodexContext?.contextLimit ?? migratedPersistedContextLimit ?? defaultContextLimit;
       const tokensUsed = stored.tokensUsed ?? 0;
       // Preserve persisted context usage. Falling back to lifetime tokens can
@@ -220,9 +230,13 @@ export function initAgents(): void {
       // Don't clamp to contextLimit - contextUsed can legitimately exceed the default
       // 200k limit for models with larger context windows (up to 1M).
       const contextUsed = Math.max(0, baseContextUsed);
-      const clearStaleContextStats = isCodexProvider
-        && stored.contextStats
-        && (stored.contextStats.contextWindow !== contextLimit || stored.contextStats.totalTokens !== contextUsed);
+      // Drop stored contextStats if its contextWindow disagrees with the
+      // model-derived contextLimit — it's stale from before a model change
+      // (e.g. an agent migrated to opus[1m] whose stats still claim 200k).
+      // Codex additionally re-syncs when totalTokens drifts from contextUsed.
+      const clearStaleContextStats = stored.contextStats
+        && (stored.contextStats.contextWindow !== contextLimit
+          || (isCodexProvider && stored.contextStats.totalTokens !== contextUsed));
 
       const agent: Agent = {
         ...stored,
@@ -380,7 +394,7 @@ export async function createAgent(
     opencodeModel: provider === 'opencode' ? sanitizeOpencodeModel(opencodeModel) : undefined,
     tokensUsed: 0,
     contextUsed: 0,
-    contextLimit: getDefaultContextLimit(provider),
+    contextLimit: getDefaultContextLimit(provider, sanitizeModelForProvider(provider, model)),
     taskCount: 0, // Initialize task counter
     createdAt: Date.now(),
     lastActivity: Date.now(),

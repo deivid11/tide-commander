@@ -8,6 +8,7 @@ import { formatTokens, formatTimeAgo, formatIdleTime } from '../../utils/formatt
 import { getIdleTimerColor } from '../../utils/colors';
 import { getContextBarColor } from './agentUtils';
 import type { ContextInfo } from './types';
+import { Icon } from '../Icon';
 
 // ============================================================================
 // Stats Grid Component
@@ -63,9 +64,9 @@ export const ContextBar = memo(function ContextBar({
       <div className="unit-stat-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
         <span>{t('unitPanel.remainingContext')}</span>
         {hasData ? (
-          <span style={{ fontSize: '10px', opacity: 0.6 }}>📊</span>
+          <span style={{ fontSize: '10px', opacity: 0.6 }}><Icon name="dashboard" size={10} /></span>
         ) : (
-          <span style={{ fontSize: '9px', color: '#ff9e4a', opacity: 0.8 }} title={t('unitPanel.notRetrievedYet')}>⚠️</span>
+          <span style={{ fontSize: '9px', color: '#ff9e4a', opacity: 0.8 }} title={t('unitPanel.notRetrievedYet')}><Icon name="warn" size={10} /></span>
         )}
       </div>
       {hasData ? (
@@ -106,7 +107,7 @@ export const IdleTimer = memo(function IdleTimer({ lastActivity }: IdleTimerProp
       title={t('unitPanel.timeSinceActivity')}
       style={{ color: getIdleTimerColor(lastActivity) }}
     >
-      ⏱ {formatIdleTime(lastActivity)}
+      <Icon name="status-waiting-input" size={10} /> {formatIdleTime(lastActivity)}
     </div>
   );
 });

@@ -4,6 +4,42 @@
   .guake-content {
     margin-right: var(--guake-side-panel-width);
   }
+
+  // When tracking board coexists with git/buildings/workflow panels,
+  // shift it to a second column to the left of those panels.
+  &.with-git-panel,
+  &.with-buildings-panel,
+  &.with-workflow-panel {
+    .guake-content {
+      margin-right: calc(2 * var(--guake-side-panel-width));
+    }
+
+    .guake-tracking-board-panel {
+      right: var(--guake-side-panel-width);
+      border-right: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .guake-terminal.with-tracking-board {
+    .guake-content {
+      margin-right: 0;
+    }
+
+    &.with-git-panel,
+    &.with-buildings-panel,
+    &.with-workflow-panel {
+      .guake-content {
+        margin-right: 0;
+      }
+
+      .guake-tracking-board-panel {
+        right: 0;
+        border-right: none;
+      }
+    }
+  }
 }
 
 .guake-tracking-board-panel {
@@ -185,6 +221,10 @@
   font-size: 10px;
 }
 
+.tracking-board-column--thinking .tracking-board-column-header {
+  color: #ff9edb;
+}
+
 .tracking-board-column--working .tracking-board-column-header {
   color: #6fd4ff;
 }
@@ -211,6 +251,7 @@
   gap: 3px;
   padding: 4px;
   min-height: 48px;
+  max-height: clamp(150px, 55vh, 500px);
   overflow-y: auto;
 }
 
@@ -234,6 +275,10 @@
   border-radius: $radius-sm;
   background: color-mix(in srgb, var(--bg-primary) 88%, black 12%);
   cursor: pointer;
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  min-height: 60px;
   transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
 
   &:hover {
@@ -251,6 +296,67 @@
     box-shadow:
       inset 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 22%, transparent),
       0 0 0 1px color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+  }
+
+}
+
+.tracking-board-column--working .tracking-board-card,
+.tracking-board-card.compacting {
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--accent-green) 35%, var(--border-color));
+  background: color-mix(in srgb, var(--accent-green) 10%, var(--bg-secondary));
+  animation: tracking-board-card-breathe 2.4s ease-in-out infinite;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -52%;
+    width: 52%;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.6;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--accent-green) 22%, transparent),
+      transparent
+    );
+    animation: tracking-board-card-sweep 1.9s ease-in-out infinite;
+  }
+
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--accent-green) 60%, var(--border-color));
+    background: color-mix(in srgb, var(--accent-green) 16%, var(--bg-secondary));
+  }
+}
+
+@keyframes tracking-board-card-breathe {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--accent-green) 15%, transparent),
+      0 0 0 0 color-mix(in srgb, var(--accent-green) 0%, transparent);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--accent-green) 22%, transparent),
+      0 0 0 2px color-mix(in srgb, var(--accent-green) 14%, transparent);
+  }
+}
+
+@keyframes tracking-board-card-sweep {
+  0% {
+    left: -52%;
+  }
+  100% {
+    left: 108%;
   }
 }
 
@@ -309,6 +415,27 @@
   color: var(--text-primary);
   font-weight: 600;
   font-size: 11.5px;
+}
+
+.tracking-board-card-area {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 40%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+  color: var(--text-muted);
+  font-family: $font-mono;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  line-height: 1.5;
 }
 
 .tracking-board-card-time {
@@ -404,10 +531,42 @@
   color: var(--text-secondary);
   font-size: 10.5px;
   line-height: 1.3;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tracking-board-typing {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.tracking-board-typing-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #ff9edb;
+  animation: tracking-board-typing-bounce 1s ease-in-out infinite;
+
+  &:nth-child(2) { animation-delay: 0.15s; }
+  &:nth-child(3) { animation-delay: 0.3s; }
+}
+
+@keyframes tracking-board-typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
 }
 
 

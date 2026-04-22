@@ -4,7 +4,7 @@ import './ContextMenu.css';
 export interface ContextMenuAction {
   id: string;
   label: string;
-  icon?: string;
+  icon?: React.ReactNode;
   shortcut?: string;
   disabled?: boolean;
   danger?: boolean;
