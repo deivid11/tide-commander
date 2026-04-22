@@ -1,7 +1,6 @@
 /**
  * AgentsList - Enhanced list view component showing all agents grouped by area
  * Features: search, status filters, task labels, context bars, provider badges
- * Includes GlobalSupervisorStatus and AgentListItem components
  */
 
 import React, { useState, useRef, useEffect, useMemo, memo, useCallback } from 'react';
@@ -10,12 +9,11 @@ import { useStore, store, useCustomAgentClassesArray } from '../../store';
 import { getClassConfig } from '../../utils/classConfig';
 import { formatIdleTime } from '../../utils/formatting';
 import { getIdleTimerColor } from '../../utils/colors';
-import { STORAGE_KEYS, getStorageBoolean, setStorageBoolean, getStorageString, setStorageString } from '../../utils/storage';
-import { formatIdleCompact, formatRelativeTime, calculateContextInfo, getContextBarColor, groupAgentsByArea, sortAreaIds, sortAgentsByActivity } from './agentUtils';
-import type { Agent, AgentSupervisorHistoryEntry } from '../../../shared/types';
-import type { AgentsListProps, AgentListItemProps, GlobalSupervisorStatusProps } from './types';
-import { SupervisorHistoryItem } from './SingleAgentPanel';
+import { STORAGE_KEYS, getStorageString, setStorageString } from '../../utils/storage';
+import { formatIdleCompact, calculateContextInfo, getContextBarColor, groupAgentsByArea, sortAreaIds, sortAgentsByActivity } from './agentUtils';
+import type { AgentsListProps, AgentListItemProps } from './types';
 import { AgentIcon } from '../AgentIcon';
+import { Icon } from '../Icon';
 
 // ============================================================================
 // Types
@@ -42,26 +40,6 @@ export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
     return (stored as StatusFilter) || 'all';
   });
   const searchInputRef = useRef<HTMLInputElement>(null);
-
-  // Create a stable key for agent IDs to avoid re-running effect on every render
-  const agentIds = useMemo(() => agentsArray.map(a => a.id).sort().join(','), [agentsArray]);
-
-  // Track which agents we've already requested history for (avoid duplicate requests)
-  const requestedHistoryRef = useRef<Set<string>>(new Set());
-
-  // Request supervisor history for all agents that don't have it yet (only once per agent)
-  useEffect(() => {
-    for (const agent of agentsArray) {
-      // Skip if we've already requested this agent's history
-      if (requestedHistoryRef.current.has(agent.id)) continue;
-
-      const history = store.getAgentSupervisorHistory(agent.id);
-      if (history.length === 0 && !store.isLoadingHistoryForAgent(agent.id)) {
-        requestedHistoryRef.current.add(agent.id);
-        store.requestAgentSupervisorHistory(agent.id);
-      }
-    }
-  }, [agentIds]);
 
   // Agents with unseen output (completed work but user hasn't viewed yet)
   const unseenAgents = state.agentsWithUnseenOutput;
@@ -138,7 +116,7 @@ export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
   if (agentsArray.length === 0 && areasArray.length === 0) {
     return (
       <div className="empty-state">
-        <div className="empty-state-icon">⚔️</div>
+        <div className="empty-state-icon"><Icon name="class-warrior" size={32} /></div>
         <div className="empty-state-title">{t('agentsList.noAgentsDeployed')}</div>
         <div className="empty-state-desc">{t('agentsList.clickNewAgent')}</div>
       </div>
@@ -185,7 +163,7 @@ export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
 
       {/* Search Bar */}
       <div className="agents-search-bar">
-        <span className="agents-search-icon">🔍</span>
+        <span className="agents-search-icon"><Icon name="search" size={14} /></span>
         <input
           ref={searchInputRef}
           type="text"
@@ -255,7 +233,7 @@ export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
                         onClick={() => onOpenAreaExplorer?.(area.id)}
                         title={t('agentsList.browseFiles')}
                       >
-                        📂
+                        <Icon name="folder-open" size={14} />
                       </button>
                     )}
                   </>
@@ -282,14 +260,9 @@ export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
         {/* No results */}
         {isFiltering && filteredCount === 0 && (
           <div className="agents-no-results">
-            <span className="agents-no-results-icon">🔎</span>
+            <span className="agents-no-results-icon"><Icon name="search" size={18} /></span>
             <span>{t('agentsList.noResults')}</span>
           </div>
-        )}
-
-        {/* Supervisor History Timeline - below agent list */}
-        {agentsArray.length > 0 && (
-          <GlobalSupervisorStatus agents={agentsArray} />
         )}
       </div>
     </div>
@@ -380,7 +353,7 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQu
           <span className={`agent-item-status-badge ${agent.status}`}>{agent.status}</span>
           {showIdleClock && (
             <span className="agent-item-idle" style={{ color: idleColor }} title={formatIdleTime(agent.lastActivity)}>
-              ⏱ {formatIdleCompact(agent.lastActivity)}
+              <Icon name="status-waiting-input" size={10} /> {formatIdleCompact(agent.lastActivity)}
             </span>
           )}
           {agent.isBoss && (
@@ -406,81 +379,4 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQu
   );
 });
 
-// ============================================================================
-// GlobalSupervisorStatus Component
-// ============================================================================
-
-interface CombinedTimelineEntry {
-  agent: Agent;
-  entry: AgentSupervisorHistoryEntry;
-}
-
-const GlobalSupervisorStatus = memo(function GlobalSupervisorStatus({ agents }: GlobalSupervisorStatusProps) {
-  const { t } = useTranslation(['common']);
-  const state = useStore();
-  const [collapsed, setCollapsed] = useState(() => getStorageBoolean(STORAGE_KEYS.GLOBAL_SUPERVISOR_COLLAPSED));
-
-  const handleToggle = () => {
-    const newValue = !collapsed;
-    setCollapsed(newValue);
-    setStorageBoolean(STORAGE_KEYS.GLOBAL_SUPERVISOR_COLLAPSED, newValue);
-  };
-
-  // Build combined timeline: merge all entries from all agents, sorted by timestamp
-  const combinedTimeline: CombinedTimelineEntry[] = useMemo(() => {
-    const allEntries: CombinedTimelineEntry[] = [];
-
-    for (const agent of agents) {
-      const history = store.getAgentSupervisorHistory(agent.id);
-      for (const entry of history) {
-        allEntries.push({ agent, entry });
-      }
-    }
-
-    // Sort by timestamp descending (most recent first)
-    allEntries.sort((a, b) => b.entry.timestamp - a.entry.timestamp);
-
-    // Limit to 30 entries for performance
-    return allEntries.slice(0, 30);
-  }, [agents, state.supervisor.agentHistories]);
-
-  const handleAgentClick = useCallback((agentId: string) => {
-    store.selectAgent(agentId);
-  }, []);
-
-  const mostRecentTimestamp = combinedTimeline.length > 0 ? combinedTimeline[0].entry.timestamp : Date.now();
-
-  return (
-    <div className="global-supervisor-status">
-      <div className="global-supervisor-header" onClick={handleToggle}>
-        <span className="global-supervisor-toggle">{collapsed ? '▶' : '▼'}</span>
-        <span className="global-supervisor-title">{t('agentsList.supervisorStatus')}</span>
-        {combinedTimeline.length > 0 && (
-          <span className="global-supervisor-count">{combinedTimeline.length}</span>
-        )}
-        {combinedTimeline.length > 0 && (
-          <span className="global-supervisor-time">{formatRelativeTime(mostRecentTimestamp)}</span>
-        )}
-      </div>
-      {!collapsed && (
-        <div className="global-supervisor-list global-supervisor-timeline">
-          {combinedTimeline.length === 0 ? (
-            <div className="global-supervisor-empty">{t('unitPanel.noSupervisorReports')}</div>
-          ) : (
-            combinedTimeline.map(({ agent, entry }) => (
-              <SupervisorHistoryItem
-                key={entry.id}
-                entry={entry}
-                agent={agent}
-                onAgentClick={handleAgentClick}
-                defaultExpanded={false}
-              />
-            ))
-          )}
-        </div>
-      )}
-    </div>
-  );
-});
-
-export { AgentListItem, GlobalSupervisorStatus };
+export { AgentListItem };

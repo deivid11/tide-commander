@@ -3,49 +3,49 @@
  * Converts terminal color codes to styled spans
  */
 
-// ANSI color codes to CSS color mapping
+// ANSI color codes to CSS color mapping — desaturated terminal-friendly palette
 const ANSI_COLORS: Record<number, string> = {
   // Standard colors (30-37)
-  30: '#000000', // black
-  31: '#ef4444', // red
-  32: '#22c55e', // green
-  33: '#eab308', // yellow
-  34: '#3b82f6', // blue
-  35: '#a855f7', // magenta
-  36: '#06b6d4', // cyan
-  37: '#e5e5e5', // white
+  30: '#2e3440', // black
+  31: '#e88080', // red (lifted lightness for readable error contrast)
+  32: '#a3be8c', // green
+  33: '#ebcb8b', // yellow
+  34: '#81a1c1', // blue
+  35: '#b48ead', // magenta
+  36: '#88c0d0', // cyan
+  37: '#d8dee9', // white (off-white)
 
   // Bright colors (90-97)
-  90: '#666666', // bright black (gray)
-  91: '#f87171', // bright red
-  92: '#4ade80', // bright green
-  93: '#facc15', // bright yellow
-  94: '#60a5fa', // bright blue
-  95: '#c084fc', // bright magenta
-  96: '#22d3ee', // bright cyan
-  97: '#ffffff', // bright white
+  90: '#4c566a', // bright black (gray)
+  91: '#f2a6a6', // bright red (higher luminance for emphasis)
+  92: '#b4c99a', // bright green
+  93: '#f0d399', // bright yellow
+  94: '#9cb9e4', // bright blue
+  95: '#c9a6dc', // bright magenta
+  96: '#9ad2db', // bright cyan
+  97: '#eceff4', // bright white
 };
 
 const ANSI_BG_COLORS: Record<number, string> = {
   // Standard background colors (40-47)
-  40: '#000000',
-  41: '#ef4444',
-  42: '#22c55e',
-  43: '#eab308',
-  44: '#3b82f6',
-  45: '#a855f7',
-  46: '#06b6d4',
-  47: '#e5e5e5',
+  40: '#2e3440',
+  41: '#e88080',
+  42: '#a3be8c',
+  43: '#ebcb8b',
+  44: '#81a1c1',
+  45: '#b48ead',
+  46: '#88c0d0',
+  47: '#d8dee9',
 
   // Bright background colors (100-107)
-  100: '#666666',
-  101: '#f87171',
-  102: '#4ade80',
-  103: '#facc15',
-  104: '#60a5fa',
-  105: '#c084fc',
-  106: '#22d3ee',
-  107: '#ffffff',
+  100: '#4c566a',
+  101: '#f2a6a6',
+  102: '#b4c99a',
+  103: '#f0d399',
+  104: '#9cb9e4',
+  105: '#c9a6dc',
+  106: '#9ad2db',
+  107: '#eceff4',
 };
 
 interface TextStyle {

@@ -19,6 +19,7 @@ import { useStore } from '../../store';
 import { useLessNavigation } from '../../hooks/useLessNavigation';
 import { SearchBar } from './SearchBar';
 import { KeybindingsHelp } from './KeybindingsHelp';
+import { Icon } from '../Icon';
 
 // CodeMirror imports for read-only viewer
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection } from '@codemirror/view';
@@ -144,7 +145,7 @@ function FileViewerHeader({
             onClick={() => onRevealInTree(file.path)}
             title={t('terminal:fileExplorer.locateInTree')}
           >
-            ◎
+            <Icon name="target" size={14} />
           </button>
         )}
         {rightContent}
@@ -793,18 +794,18 @@ function BinaryFileViewer({ file, onRevealInTree }: { file: FileData; onRevealIn
   // Get icon based on extension
   const getIcon = () => {
     const ext = file.extension.toLowerCase();
-    if (['.xlsx', '.xls'].includes(ext)) return '📊';
-    if (['.docx', '.doc'].includes(ext)) return '📝';
-    if (['.pptx', '.ppt'].includes(ext)) return '📽️';
-    if (['.zip', '.tar', '.gz', '.rar', '.7z'].includes(ext)) return '🗜️';
-    if (['.mp3', '.wav', '.flac', '.ogg'].includes(ext)) return '🎵';
-    if (['.mp4', '.avi', '.mov', '.mkv', '.webm'].includes(ext)) return '🎬';
-    if (['.exe', '.dmg', '.app', '.msi'].includes(ext)) return '⚙️';
-    if (['.apk', '.aab', '.ipa'].includes(ext)) return '📱';
-    if (['.jar', '.war', '.ear'].includes(ext)) return '☕';
-    if (['.iso', '.img'].includes(ext)) return '💿';
-    if (['.so', '.dll', '.dylib'].includes(ext)) return '🔧';
-    return '📁';
+    if (['.xlsx', '.xls'].includes(ext)) return <Icon name="dashboard" size={48} />;
+    if (['.docx', '.doc'].includes(ext)) return <Icon name="edit" size={48} />;
+    if (['.pptx', '.ppt'].includes(ext)) return <Icon name="film" size={48} />;
+    if (['.zip', '.tar', '.gz', '.rar', '.7z'].includes(ext)) return <Icon name="file-zip" size={48} />;
+    if (['.mp3', '.wav', '.flac', '.ogg'].includes(ext)) return <Icon name="music-note" size={48} />;
+    if (['.mp4', '.avi', '.mov', '.mkv', '.webm'].includes(ext)) return <Icon name="film" size={48} />;
+    if (['.exe', '.dmg', '.app', '.msi'].includes(ext)) return <Icon name="gear" size={48} />;
+    if (['.apk', '.aab', '.ipa'].includes(ext)) return <Icon name="mobile" size={48} />;
+    if (['.jar', '.war', '.ear'].includes(ext)) return <Icon name="coffee" size={48} />;
+    if (['.iso', '.img'].includes(ext)) return <Icon name="disc" size={48} />;
+    if (['.so', '.dll', '.dylib'].includes(ext)) return <Icon name="wrench" size={48} />;
+    return <Icon name="folder" size={48} />;
   };
 
   return (
@@ -853,7 +854,7 @@ function FileViewerComponent({ file, loading, error, onRevealInTree, scrollToLin
   if (!file) {
     return (
       <div className="file-viewer-placeholder">
-        <div className="placeholder-icon">📂</div>
+        <div className="placeholder-icon"><Icon name="folder-open" size={32} /></div>
         <div className="placeholder-text">{t('terminal:fileExplorer.selectFileToView')}</div>
       </div>
     );

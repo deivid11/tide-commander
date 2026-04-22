@@ -1,0 +1,59 @@
+---
+title: Guake Terminal
+description: A drop-down terminal panel you can summon over any view with a single keystroke — run ad-hoc shell commands without leaving Tide Commander.
+---
+
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+
+The **Guake Terminal** is a drop-down shell panel — named for the Linux [Guake](https://github.com/Guake/guake) terminal that pioneered the pattern. It slides down from the top of the window, takes the keystrokes you throw at it, and slides back up when you're done. No window switching, no spawning a new agent just to run `git status`.
+
+![Guake-style terminal summoned over the 3D scene](/screenshots/35-main-3d-with-agents.png)
+
+## How to open it
+
+Press the dedicated Guake shortcut (configurable in **Settings → Keyboard Shortcuts**; default uses the backtick / grave key). The panel animates down over whatever view you're currently using — 3D, 2D, Dashboard, or Commander. Press the shortcut again (or **Esc**) to hide it.
+
+The terminal persists its session while hidden, so a long-running command keeps going, and its scrollback survives re-opens.
+
+## What it's for
+
+<CardGrid>
+  <Card title="Ad-hoc shell" icon="laptop">
+    `git`, `ls`, `grep`, `docker logs` — the short stuff you don't want to route through an agent.
+  </Card>
+  <Card title="Diagnose builds" icon="setting">
+    Tail a build log or run a one-off `npm run test` while your agents work uninterrupted on other areas.
+  </Card>
+  <Card title="Inspect working dirs" icon="document">
+    Jump into any agent's `cwd` and poke around the filesystem — perfect for confirming what an agent actually wrote.
+  </Card>
+  <Card title="Zero context tax" icon="information">
+    The terminal is your shell, not a model session. It doesn't consume any agent's context window.
+  </Card>
+</CardGrid>
+
+## Typical flow
+
+- Something looks wrong on one of your agents. Summon Guake, `cd` into that agent's working directory, inspect `git status` yourself.
+- Decide whether to correct by hand, re-prompt the agent, or restart from a snapshot.
+- Dismiss the terminal and get back to driving the team.
+
+## Gotchas
+
+<Aside type="caution" title="This is your real shell">
+  The Guake panel runs as a native PTY on the host machine. Destructive commands (`rm -rf`, `git reset --hard`) are just as destructive here as in any terminal — there's no permission-mode sandbox like agents have. Act accordingly.
+</Aside>
+
+<Aside type="tip" title="For stream-heavy commands, use streaming exec">
+  Long-running commands that need to surface progress to the rest of the system are better fired through the **Streaming Command Execution** skill — they appear as tasks in the tracking UI. Keep Guake for quick, human-only inspection.
+</Aside>
+
+<Aside type="note" title="Shortcut binding varies">
+  If the grave / backtick key collides with another app-level shortcut, rebind it under **Settings → Keyboard Shortcuts**. The binding is per-user, not per-session.
+</Aside>
+
+## Related
+
+- [Spotlight Search](/views/spotlight/) — a different overlay for navigating to agents, files, and actions instead of running shell commands.
+- [Commander View](/views/commander/) — when you want every agent's terminal, not a separate shell.
+- [Keyboard Shortcuts](/configuration/keyboard-shortcuts/) — rebind the Guake key.

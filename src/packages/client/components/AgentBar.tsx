@@ -11,11 +11,11 @@ import {
   useSettings,
   useAgentsWithUnseenOutput,
 } from '../store';
-import type { Agent, DrawingArea, AgentSupervisorHistoryEntry, CustomAgentClass } from '../../shared/types';
+import type { Agent, DrawingArea, CustomAgentClass } from '../../shared/types';
 import { formatIdleTime } from '../utils/formatting';
 import { getClassConfig } from '../utils/classConfig';
 import { getIdleTimerColor, getAgentStatusColor } from '../utils/colors';
-import { TOOL_ICONS } from '../utils/outputRendering';
+import { getToolIconName } from '../utils/outputRendering';
 import { useRenderCounter } from '../utils/profiling';
 import { useAgentOrder } from '../hooks';
 import { useNpmVersionStatus } from '../hooks/useNpmVersionStatus';
@@ -23,6 +23,7 @@ import { hasPendingSceneChanges, refreshScene } from '../hooks/useSceneSetup';
 import { Tooltip } from './shared/Tooltip';
 import { useWorkspaceFilter, isAgentVisibleInWorkspace } from './WorkspaceSwitcher';
 import { AgentIcon } from './AgentIcon';
+import { Icon } from './Icon';
 
 interface AgentBarProps {
   onFocusAgent?: (agentId: string) => void;
@@ -119,7 +120,7 @@ const AgentBarItem = memo(function AgentBarItem({
             style={{ color: getIdleTimerColor(agent.lastActivity) }}
             title={formatIdleTime(agent.lastActivity)}
           >
-            ⏱
+            <Icon name="status-waiting-input" size={11} />
           </span>
         )}
       </div>
@@ -598,7 +599,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
               className="agent-bar-hmr-refresh"
               onClick={refreshScene}
             >
-              ↻
+              <Icon name="refresh" size={12} />
             </button>
           </Tooltip>
         )}
@@ -622,7 +623,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
             className="agent-bar-spawn-btn agent-bar-boss-btn"
             onClick={onSpawnBossClick}
           >
-            <span className="agent-bar-spawn-icon">👑</span>
+            <span className="agent-bar-spawn-icon"><Icon name="crown" size={14} /></span>
             <span className="agent-bar-spawn-label">{t('common:agentBar.newBoss')}</span>
           </button>
         </Tooltip>
@@ -633,7 +634,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
             className="agent-bar-spawn-btn agent-bar-building-btn"
             onClick={onNewBuildingClick}
           >
-            <span className="agent-bar-spawn-icon">🏢</span>
+            <span className="agent-bar-spawn-icon"><Icon name="buildings" size={14} /></span>
             <span className="agent-bar-spawn-label">{t('common:agentBar.newBuilding')}</span>
           </button>
         </Tooltip>
@@ -644,7 +645,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
             className="agent-bar-spawn-btn agent-bar-area-btn"
             onClick={onNewAreaClick}
           >
-            <span className="agent-bar-spawn-icon">🔲</span>
+            <span className="agent-bar-spawn-icon"><Icon name="grid" size={14} /></span>
             <span className="agent-bar-spawn-label">{t('common:agentBar.newArea')}</span>
           </button>
         </Tooltip>
@@ -686,7 +687,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
                         store.openFileExplorer(dir);
                       }}
                     >
-                      <span className="agent-bar-folder-icon">📁</span>
+                      <span className="agent-bar-folder-icon"><Icon name="folder" size={12} /></span>
                       <div className="agent-bar-folder-tooltip">
                         <div className="agent-bar-folder-tooltip-path">{dir}</div>
                         <div className="agent-bar-folder-tooltip-hint">{t('common:agentBar.clickToOpen')}</div>
@@ -742,7 +743,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
         const el = agentItemRefs.current.get(agentId);
         if (!el) return null;
         const rect = el.getBoundingClientRect();
-        const icon = TOOL_ICONS[bubble.tool] || TOOL_ICONS.default;
+        const iconName = getToolIconName(bubble.tool);
         return (
           <div
             key={`tool-${agentId}-${bubble.key}`}
@@ -754,7 +755,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
               bottom: window.innerHeight - rect.top + 8,
             }}
           >
-            <span className="agent-bar-tool-icon">{icon}</span>
+            <span className="agent-bar-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="agent-bar-tool-name">{bubble.tool}</span>
           </div>
         );
@@ -765,11 +766,6 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
         const hoveredArea = store.getAreaForAgent(hoveredAgent.id);
         const hoveredLastPrompt = lastPrompts.get(hoveredAgent.id);
         const config = getClassConfig(hoveredAgent.class, customClasses);
-
-        // Get last supervisor analysis for this agent
-        const supervisorHistory = store.getAgentSupervisorHistory(hoveredAgent.id);
-        const lastSupervisorEntry: AgentSupervisorHistoryEntry | undefined =
-          supervisorHistory.length > 0 ? supervisorHistory[supervisorHistory.length - 1] : undefined;
 
         // Format uptime
         const uptimeMs = Date.now() - (hoveredAgent.createdAt || Date.now());
@@ -790,18 +786,6 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
         const contextPercent = hoveredAgent.contextLimit > 0
           ? Math.round((hoveredAgent.contextUsed / hoveredAgent.contextLimit) * 100)
           : 0;
-
-        // Get progress color for supervisor status
-        const getProgressColor = (progress: string) => {
-          switch (progress) {
-            case 'on_track': return '#4aff9e';
-            case 'completed': return '#4a9eff';
-            case 'stalled': return '#ff9e4a';
-            case 'blocked': return '#ff4a4a';
-            case 'idle': return '#888888';
-            default: return '#888888';
-          }
-        };
 
         // Position tooltip above the hovered agent element
         const hoveredEl = agentItemRefs.current.get(hoveredAgent.id);
@@ -881,13 +865,13 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
                 <div className="agent-bar-tooltip-row">
                   <span className="agent-bar-tooltip-label">{t('common:agentPopup.tool')}:</span>
                   <span className="agent-bar-tooltip-value agent-bar-tooltip-tool">
-                    {TOOL_ICONS[hoveredAgent.currentTool] || TOOL_ICONS.default} {hoveredAgent.currentTool}
+                    <Icon name={getToolIconName(hoveredAgent.currentTool)} size={14} /> {hoveredAgent.currentTool}
                   </span>
                 </div>
               )}
               {hoveredAgent.taskLabel && (
                 <div className="agent-bar-tooltip-row">
-                  <span className="agent-bar-tooltip-label">📋 Task:</span>
+                  <span className="agent-bar-tooltip-label"><Icon name="task" size={11} /> Task:</span>
                   <span className="agent-bar-tooltip-value agent-bar-tooltip-tool">
                     {hoveredAgent.taskLabel}
                   </span>
@@ -919,44 +903,6 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
                     {hoveredLastPrompt.text.length > 300 ? '...' : ''}
                   </span>
                 </div>
-              )}
-              {/* Supervisor Analysis Section */}
-              {lastSupervisorEntry && (
-                <>
-                  <div className="agent-bar-tooltip-divider" />
-                  <div className="agent-bar-tooltip-row">
-                    <span className="agent-bar-tooltip-label">{t('common:agentPopup.supervisor')}:</span>
-                    <span
-                      className="agent-bar-tooltip-value"
-                      style={{ color: getProgressColor(lastSupervisorEntry.analysis.progress) }}
-                    >
-                      {lastSupervisorEntry.analysis.progress.replace('_', ' ')}
-                    </span>
-                  </div>
-                  <div className="agent-bar-tooltip-row">
-                    <span className="agent-bar-tooltip-label">{t('common:labels.status')}:</span>
-                    <span className="agent-bar-tooltip-value agent-bar-tooltip-supervisor">
-                      {lastSupervisorEntry.analysis.statusDescription}
-                    </span>
-                  </div>
-                  {lastSupervisorEntry.analysis.recentWorkSummary && (
-                    <div className="agent-bar-tooltip-row">
-                      <span className="agent-bar-tooltip-label">{t('common:labels.summary')}:</span>
-                      <span className="agent-bar-tooltip-value agent-bar-tooltip-supervisor">
-                        {lastSupervisorEntry.analysis.recentWorkSummary.substring(0, 300)}
-                        {lastSupervisorEntry.analysis.recentWorkSummary.length > 300 ? '...' : ''}
-                      </span>
-                    </div>
-                  )}
-                  {lastSupervisorEntry.analysis.concerns && lastSupervisorEntry.analysis.concerns.length > 0 && (
-                    <div className="agent-bar-tooltip-row">
-                      <span className="agent-bar-tooltip-label">{t('common:labels.concerns')}:</span>
-                      <span className="agent-bar-tooltip-value agent-bar-tooltip-concerns">
-                        {lastSupervisorEntry.analysis.concerns.join('; ')}
-                      </span>
-                    </div>
-                  )}
-                </>
               )}
             </div>
           </div>

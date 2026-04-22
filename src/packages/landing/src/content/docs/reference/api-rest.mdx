@@ -1,0 +1,320 @@
+---
+title: REST API
+description: Complete reference for the Tide Commander HTTP API — agents, notifications, exec, system settings, and config.
+---
+
+import { Aside, Tabs, TabItem, Card } from '@astrojs/starlight/components';
+
+Tide Commander exposes a REST API on the same port as the UI (default `5174` in dev, `9059` in Docker). Every endpoint uses JSON and requires the `X-Auth-Token` header when `AUTH_TOKEN` is configured.
+
+## Authentication
+
+```bash
+curl -s -H "X-Auth-Token: your-token" http://localhost:5174/api/agents
+```
+
+If `AUTH_TOKEN` is not set, the header is optional. Requests without a valid token return `401`.
+
+<Aside type="note">
+  All `curl` examples below omit `-H "X-Auth-Token: ..."` for brevity. Add it to every request when auth is enabled.
+</Aside>
+
+---
+
+## Agents
+
+### List agents
+
+```bash
+GET /api/agents
+GET /api/agents/simple          # id + name only
+GET /api/agents/status          # lightweight status poll
+```
+
+**`GET /api/agents/status` response:**
+```json
+[
+  {
+    "id": "abc123",
+    "name": "Scout Alpha",
+    "status": "working",
+    "currentTask": "Refactor auth module",
+    "currentTool": "Bash",
+    "isProcessRunning": true
+  }
+]
+```
+
+### Get a single agent
+
+```bash
+GET /api/agents/:id
+```
+
+Returns the full agent object including position, context stats, token counts, and all metadata.
+
+### Create an agent
+
+```bash
+POST /api/agents
+Content-Type: application/json
+
+{
+  "name": "Scout Alpha",
+  "class": "scout",
+  "cwd": "/home/projects/my-app",
+  "provider": "claude",
+  "model": "sonnet"
+}
+```
+
+**Response:**
+```json
+{
+  "id": "abc123",
+  "name": "Scout Alpha",
+  "class": "scout",
+  "status": "idle",
+  "cwd": "/home/projects/my-app"
+}
+```
+
+### Update an agent
+
+```bash
+PATCH /api/agents/:id
+Content-Type: application/json
+
+{
+  "taskLabel": "Running tests",
+  "trackingStatus": "need-review",
+  "trackingStatusDetail": "PR ready for review"
+}
+```
+
+### Delete an agent
+
+```bash
+DELETE /api/agents/:id
+# 204 No Content on success
+```
+
+### Send a message to an agent
+
+```bash
+POST /api/agents/:id/message
+Content-Type: application/json
+
+{
+  "message": "Refactor the auth module to use JWT"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "agentId": "abc123",
+  "agentName": "Scout Alpha",
+  "message": "Command sent successfully"
+}
+```
+
+### Report task completion (subordinate → boss)
+
+Used by subordinate agents to report back to their boss:
+
+```bash
+POST /api/agents/:id/report-task
+Content-Type: application/json
+
+{
+  "summary": "Auth module refactored. All tests pass.",
+  "status": "completed"
+}
+```
+
+`status` is `"completed"` or `"failed"`. The report is forwarded to the boss agent automatically.
+
+---
+
+## Conversation history
+
+### Get history
+
+```bash
+GET /api/agents/:id/history?limit=50&offset=0
+```
+
+Query params: `limit` (default 50), `offset` (default 0), `includeSubagents` (default true), `subagentEntriesLimit` (default 200).
+
+### Search history
+
+```bash
+GET /api/agents/:id/search?q=auth+module&limit=50
+```
+
+Returns matching conversation entries. `q` is required.
+
+### List sessions
+
+```bash
+GET /api/agents/:id/sessions
+```
+
+Lists all Claude Code session files for the agent's working directory.
+
+---
+
+## Bulk operations
+
+All bulk endpoints accept an `agentIds` array:
+
+```bash
+POST /api/agents/bulk/delete
+POST /api/agents/bulk/stop
+POST /api/agents/bulk/clear-context
+POST /api/agents/bulk/change-model
+POST /api/agents/bulk/move-area
+```
+
+**Example — stop multiple agents:**
+```bash
+curl -s -X POST http://localhost:5174/api/agents/bulk/stop \
+  -H "Content-Type: application/json" \
+  -d '{"agentIds": ["abc123", "def456"]}'
+```
+
+**Example — change model:**
+```bash
+curl -s -X POST http://localhost:5174/api/agents/bulk/change-model \
+  -H "Content-Type: application/json" \
+  -d '{"agentIds": ["abc123"], "provider": "claude", "model": "opus"}'
+```
+
+---
+
+## Notifications
+
+Agents send in-app (and optionally push) notifications via this endpoint:
+
+```bash
+POST /api/notify
+Content-Type: application/json
+
+{
+  "agentId": "abc123",
+  "title": "Task Complete",
+  "message": "Build succeeded and tests pass"
+}
+```
+
+Optional fields: `iconUrl` (PNG, shown on Android), `imageUrl` (PNG big-picture on Android).
+
+**Response:**
+```json
+{
+  "success": true,
+  "notification": {
+    "id": "notif_xyz",
+    "agentId": "abc123",
+    "agentName": "Scout Alpha",
+    "agentClass": "scout",
+    "title": "Task Complete",
+    "message": "Build succeeded and tests pass",
+    "timestamp": 1716000000000
+  }
+}
+```
+
+The notification is broadcast to all connected WebSocket clients as an `agent_notification` message.
+
+---
+
+## Command execution
+
+Execute shell commands with streaming output visible in the UI's Running Tasks panel:
+
+```bash
+POST /api/exec
+Content-Type: application/json
+
+{
+  "agentId": "abc123",
+  "command": "npm run build",
+  "cwd": "/home/projects/my-app"
+}
+```
+
+`cwd` is optional — defaults to the agent's configured working directory. Secrets defined in the Secrets section are substituted automatically (e.g., `{{API_KEY}}`).
+
+**Response (when command completes):**
+```json
+{
+  "success": true,
+  "taskId": "task_abc",
+  "exitCode": 0,
+  "output": "Build succeeded in 12.3s\n",
+  "duration": 12345
+}
+```
+
+<Aside type="note">
+  `success: true` means the API call succeeded. Check `exitCode` to determine whether the command itself passed (`0`) or failed (non-zero).
+</Aside>
+
+### List / kill running tasks
+
+```bash
+GET    /api/exec/tasks/:agentId    # list running tasks for an agent
+DELETE /api/exec/tasks/:taskId     # kill a task by ID
+```
+
+---
+
+## System settings
+
+Manage the global system prompt applied to all agents:
+
+```bash
+GET    /api/agents/system-settings/prompt   # get current prompt
+POST   /api/agents/system-settings/prompt   # update prompt
+DELETE /api/agents/system-settings/prompt   # clear prompt
+```
+
+**Update:**
+```bash
+curl -s -X POST http://localhost:5174/api/agents/system-settings/prompt \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Always respond in Spanish."}'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "System prompt updated successfully"
+}
+```
+
+The prompt is persisted to `~/.local/share/tide-commander/system-prompt.json` and injected into every agent's context on the next message.
+
+---
+
+## Tool history
+
+```bash
+GET /api/agents/tool-history?limit=100
+```
+
+Returns tool usage records across all agents — useful for auditing what tools agents have been calling.
+
+---
+
+## Config export / import
+
+```bash
+GET /api/config/categories   # list exportable categories
+```
+
+Categories include: `agents`, `areas`, `buildings`, `skills`, `custom-classes`, `class-instructions`, `agent-prompts`, `custom-3d-models`, `custom-class-icons`, `hooks`, `permissions`, `system-settings`.

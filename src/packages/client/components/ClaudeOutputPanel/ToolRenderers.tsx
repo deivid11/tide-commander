@@ -6,6 +6,7 @@ import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Icon } from '../Icon';
 import type { DiffLine, EditData, TodoItem } from './types';
 
 // ============================================================================
@@ -393,7 +394,7 @@ export function ReadToolInput({ content, onFileClick }: ReadToolInputProps) {
     return (
       <div className="read-tool-input">
         <span className="read-tool-file clickable" onClick={handleClick} title={`Open ${file_path}${hasRange ? ' (with highlighted lines)' : ''}`}>
-          📄 {fileName}
+          <Icon name="file-text" size={12} /> {fileName}
         </span>
         <span className="read-tool-path">{file_path}</span>
         {(offset !== undefined || limit !== undefined) && (
@@ -438,18 +439,18 @@ export function TodoWriteInput({ content }: TodoWriteInputProps) {
     return (
       <div className="todo-tool-input">
         <div className="todo-tool-header">
-          <span className="todo-tool-title">📋 {t('tools:todoList.title')}</span>
+          <span className="todo-tool-title"><Icon name="task" size={13} /> {t('tools:todoList.title')}</span>
           <div className="todo-tool-stats">
-            {counts.completed > 0 && <span className="todo-stat completed">✓ {counts.completed}</span>}
-            {counts.in_progress > 0 && <span className="todo-stat in-progress">► {counts.in_progress}</span>}
-            {counts.pending > 0 && <span className="todo-stat pending">○ {counts.pending}</span>}
+            {counts.completed > 0 && <span className="todo-stat completed"><Icon name="check" size={11} /> {counts.completed}</span>}
+            {counts.in_progress > 0 && <span className="todo-stat in-progress"><Icon name="play" size={11} /> {counts.in_progress}</span>}
+            {counts.pending > 0 && <span className="todo-stat pending"><Icon name="status-pending" size={11} /> {counts.pending}</span>}
           </div>
         </div>
         <div className="todo-tool-list">
           {todos.map((todo, idx) => (
             <div key={idx} className={`todo-item todo-${todo.status}`}>
               <span className="todo-status-icon">
-                {todo.status === 'completed' ? '✓' : todo.status === 'in_progress' ? '►' : '○'}
+                <Icon name={todo.status === 'completed' ? 'check' : todo.status === 'in_progress' ? 'play' : 'status-pending'} size={12} />
               </span>
               <span className="todo-content">{todo.content}</span>
             </div>
@@ -518,7 +519,7 @@ export function AskQuestionInput({ content }: AskQuestionInputProps) {
                         <span className="ask-option-number">{oIdx + 1}</span>
                         <span className="ask-option-label">{opt.label}</span>
                         {opt.markdown && (
-                          <span className="ask-option-preview-hint">{isExpanded ? '▼' : '▶'}</span>
+                          <span className="ask-option-preview-hint"><Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
                         )}
                       </div>
                       {opt.description && (
@@ -566,14 +567,14 @@ export function ExitPlanModeInput({ content }: ExitPlanModeInputProps) {
     return (
       <div className="plan-tool-input">
         <div className="plan-tool-header">
-          <span className="plan-tool-title">🗺 Plan</span>
+          <span className="plan-tool-title"><Icon name="map" size={13} /> Plan</span>
           <button
             type="button"
             className="plan-tool-toggle"
             onClick={() => setExpanded((prev) => !prev)}
             title={expanded ? 'Collapse plan' : 'Expand plan'}
           >
-            {expanded ? '▼ Hide' : '▶ Show'}
+            <Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} /> {expanded ? 'Hide' : 'Show'}
           </button>
         </div>
         {expanded ? (
@@ -775,7 +776,7 @@ export function ToolSearchInput({ content, agentName }: ToolSearchInputProps) {
   return (
     <div className="toolsearch-input">
       <div className="toolsearch-header">
-        <span className="toolsearch-badge">⚡ ToolSearch</span>
+        <span className="toolsearch-badge"><Icon name="bolt" size={12} /> ToolSearch</span>
         {agentName && <span className="toolsearch-agent">{agentName}</span>}
         <span className="toolsearch-meta-pill">
           Tools: {toolSummary}
@@ -792,7 +793,7 @@ export function ToolSearchInput({ content, agentName }: ToolSearchInputProps) {
           onClick={() => setExpanded((prev) => !prev)}
           title={expanded ? 'Hide details' : 'Show details'}
         >
-          {expanded ? '▼ Hide' : '▶ Show'}
+          <Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} /> {expanded ? 'Hide' : 'Show'}
         </button>
       </div>
 
@@ -841,7 +842,7 @@ export function UnknownToolInput({ toolName: _toolName, content }: UnknownToolIn
           onClick={() => setExpanded((prev) => !prev)}
           title={expanded ? 'Collapse details' : 'Expand details'}
         >
-          {expanded ? '▼ Hide' : '▶ Show'}
+          <Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} /> {expanded ? 'Hide' : 'Show'}
         </button>
       </div>
       {expanded ? (

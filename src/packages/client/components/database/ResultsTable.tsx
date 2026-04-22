@@ -10,6 +10,7 @@ import DatePicker from 'react-datepicker';
 import type { QueryResult, TableColumn, TableIndex, Building } from '../../../shared/types';
 import { store, useDatabaseState } from '../../store';
 import { ContextMenu, type ContextMenuAction } from '../ContextMenu';
+import { Icon } from '../Icon';
 import 'react-datepicker/dist/react-datepicker.css';
 import './ResultsTable.scss';
 
@@ -536,7 +537,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, 
       {
         id: 'editability',
         label: canEdit ? 'Cell actions' : editStatusText,
-        icon: canEdit ? '▣' : 'ℹ',
+        icon: <Icon name={canEdit ? 'square' : 'info'} size={14} />,
         disabled: true,
         onClick: () => {},
       },
@@ -549,7 +550,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, 
       {
         id: 'edit-cell',
         label: 'Edit Cell',
-        icon: '✏️',
+        icon: <Icon name="edit" size={14} />,
         disabled: actionsDisabled,
         onClick: () => {
           setEditingCell({
@@ -885,7 +886,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, 
                     <span className="results-table__header-name">{col}</span>
                     {isSorted && (
                       <span className="results-table__sort-indicator">
-                        {sortDirection === 'asc' ? '▲' : '▼'}
+                        <Icon name={sortDirection === 'asc' ? 'caret-up' : 'caret-down'} size={10} />
                       </span>
                     )}
                     <span
@@ -960,7 +961,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, 
                             />
                           )}
                           {editingCell.isUpdating && (
-                            <span className="results-table__cell-feedback results-table__cell-feedback--loading">⏳</span>
+                            <span className="results-table__cell-feedback results-table__cell-feedback--loading"><Icon name="hourglass" size={12} /></span>
                           )}
                           {editingCell.error && (
                             <button
@@ -978,7 +979,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, 
                                 setEditingCell(null);
                               }}
                             >
-                              ✕
+                              <Icon name="close" size={10} />
                             </button>
                           )}
                         </div>
@@ -1027,14 +1028,14 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, 
                     }}
                     title="Edit this cell"
                   >
-                    ✏️
+                    <Icon name="edit" size={12} />
                   </button>
                 )}
                 <button
                   className="results-table__detail-close"
                   onClick={() => setCellDetail(null)}
                 >
-                  ✕
+                  <Icon name="close" size={12} />
                 </button>
               </div>
             </div>

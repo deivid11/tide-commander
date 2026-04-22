@@ -1,0 +1,94 @@
+---
+title: Environment Variables
+description: All configuration variables for the Tide Commander server — ports, network binding, HTTPS, auth, and TLS paths.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Tide Commander is configured via environment variables. Create a `.env` file at the repo root (copy `.env.example` as a starting point) or export variables in your shell before running `tide-commander start`.
+
+## Server variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `5174` | Backend HTTP/WebSocket server port |
+| `HOST` | `127.0.0.1` | Backend bind address. `127.0.0.1` means localhost-only. |
+| `VITE_PORT` | `5173` | Vite dev server port (development mode only) |
+| `TIDE_SERVER` | `http://localhost:$PORT` | Server URL used by agent hooks for internal API calls |
+| `LISTEN_ALL_INTERFACES` | _(unset)_ | Set to `1` to bind on `0.0.0.0` — makes Tide Commander reachable on your LAN |
+
+<Aside type="caution" title="Exposing to the network">
+  If you set `LISTEN_ALL_INTERFACES=1`, also set `AUTH_TOKEN` and consider enabling `HTTPS`. Without both, anyone on the same network can connect to and control your agents.
+</Aside>
+
+## Authentication
+
+| Variable | Default | Description |
+|---|---|---|
+| `AUTH_TOKEN` | _(unset)_ | Static token required in the `X-Auth-Token` header for all HTTP and WebSocket connections. Generate a strong random value: `openssl rand -hex 32` |
+
+When `AUTH_TOKEN` is set, every API request and WebSocket upgrade must include the header:
+
+```bash
+curl -H "X-Auth-Token: YOUR_TOKEN" http://localhost:5174/api/agents
+```
+
+## HTTPS / TLS
+
+| Variable | Default | Description |
+|---|---|---|
+| `HTTPS` | _(unset)_ | Set to `1` to serve the backend over HTTPS and WSS |
+| `TLS_KEY_PATH` | `~/.tide-commander/certs/localhost-key.pem` | Private key for the backend TLS certificate |
+| `TLS_CERT_PATH` | `~/.tide-commander/certs/localhost.pem` | Certificate for the backend TLS |
+| `DEV_HTTPS` | _(unset)_ | Set to `1` to run the Vite dev server over HTTPS |
+| `DEV_TLS_KEY_PATH` | _(unset)_ | Private key for the Vite dev HTTPS server |
+| `DEV_TLS_CERT_PATH` | _(unset)_ | Certificate for the Vite dev HTTPS server |
+
+See [HTTPS & Auth](/configuration/https-and-auth/) for step-by-step setup using `mkcert` or your own CA.
+
+## Using a `.env` file
+
+Create `.env` at the project root:
+
+```bash
+# .env
+PORT=5174
+HOST=0.0.0.0
+LISTEN_ALL_INTERFACES=1
+AUTH_TOKEN=your-secret-token-here
+HTTPS=1
+TLS_KEY_PATH=~/.tide-commander/certs/localhost-key.pem
+TLS_CERT_PATH=~/.tide-commander/certs/localhost.pem
+```
+
+Tide Commander loads this file automatically on startup. When running via `bunx`, pass variables inline:
+
+```bash
+PORT=8080 AUTH_TOKEN=mytoken bunx tide-commander
+```
+
+Or export them first:
+
+```bash
+export PORT=8080
+export AUTH_TOKEN=mytoken
+tide-commander start
+```
+
+## CLI flags vs environment variables
+
+Most environment variables have equivalent CLI flags for one-off usage without a `.env` file:
+
+```bash
+tide-commander --port 8080 --host 0.0.0.0
+tide-commander --listen-all --port 8080
+tide-commander --https --tls-key ./certs/key.pem --tls-cert ./certs/cert.pem
+tide-commander --auth-token mytoken
+tide-commander --generate-auth-token   # prints a new token and exits
+```
+
+CLI flags take precedence over environment variables when both are set.
+
+<Aside type="note">
+  Run `tide-commander --help` to see the full list of supported CLI flags and their current defaults.
+</Aside>

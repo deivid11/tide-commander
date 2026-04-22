@@ -1,0 +1,315 @@
+/* ===========================================================================
+   Tide Commander — Starlight theme override
+   Brand tokens lifted from src/packages/landing/legacy/styles.css
+   =========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* Brand accents */
+  --tc-indigo: #6366f1;
+  --tc-purple: #8b5cf6;
+  --tc-cyan: #06b6d4;
+  --tc-indigo-deep: #4f46e5;
+  --tc-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #06b6d4 100%);
+  --tc-gradient-soft: linear-gradient(
+    135deg,
+    rgba(99, 102, 241, 0.15) 0%,
+    rgba(139, 92, 246, 0.12) 50%,
+    rgba(6, 182, 212, 0.1) 100%
+  );
+
+  --__sl-font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --__sl-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'Fira Code', monospace;
+}
+
+/* --- Dark theme ----------------------------------------------------------- */
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #1e1a3a;
+  --sl-color-accent: var(--tc-indigo);
+  --sl-color-accent-high: #a5a9ff;
+
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #eaeaef;
+  --sl-color-gray-2: #c9c9d4;
+  --sl-color-gray-3: #a0a0b0;
+  --sl-color-gray-4: #606070;
+  --sl-color-gray-5: #2e2e3d;
+  --sl-color-gray-6: #1a1a25;
+
+  --sl-color-black: #0a0a0f;
+  --sl-color-bg: #0a0a0f;
+  --sl-color-bg-nav: rgba(10, 10, 15, 0.82);
+  --sl-color-bg-sidebar: #0d0d14;
+  --sl-color-bg-inline-code: #1a1a25;
+  --sl-color-bg-accent: var(--tc-indigo);
+
+  --sl-color-text: #eaeaef;
+  --sl-color-text-accent: #c7c8ff;
+  --sl-color-text-invert: #0a0a0f;
+
+  --sl-color-hairline: rgba(255, 255, 255, 0.08);
+  --sl-color-hairline-light: rgba(255, 255, 255, 0.04);
+  --sl-color-hairline-shade: rgba(255, 255, 255, 0.12);
+
+  --sl-shadow-md: 0 4px 24px rgba(0, 0, 0, 0.5);
+  --sl-shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.55);
+}
+
+/* --- Light theme ---------------------------------------------------------- */
+:root[data-theme='light'] {
+  --sl-color-accent-low: #eef0ff;
+  --sl-color-accent: var(--tc-indigo-deep);
+  --sl-color-accent-high: #2a2478;
+
+  --sl-color-white: #0a0a0f;
+  --sl-color-gray-1: #1f1f2a;
+  --sl-color-gray-2: #3c3c4a;
+  --sl-color-gray-3: #595966;
+  --sl-color-gray-4: #8a8a96;
+  --sl-color-gray-5: #d9d9e0;
+  --sl-color-gray-6: #f1f1f5;
+  --sl-color-gray-7: #f8f8fb;
+
+  --sl-color-black: #ffffff;
+  --sl-color-bg: #ffffff;
+  --sl-color-bg-nav: rgba(255, 255, 255, 0.85);
+  --sl-color-bg-sidebar: #fafafc;
+  --sl-color-bg-inline-code: #f1f1f5;
+}
+
+/* --- Global tweaks -------------------------------------------------------- */
+body {
+  font-family: var(--__sl-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code,
+kbd,
+pre {
+  font-family: var(--__sl-font-mono);
+}
+
+/* Header glass */
+header.header {
+  backdrop-filter: saturate(140%) blur(12px);
+  -webkit-backdrop-filter: saturate(140%) blur(12px);
+  background: var(--sl-color-bg-nav);
+}
+
+/* Sidebar active item — brand tint */
+starlight-menu-button:focus,
+.sl-link-button:focus-visible {
+  outline-color: var(--tc-indigo);
+}
+nav .top-level a[aria-current='page'],
+nav a[aria-current='page'] {
+  background: linear-gradient(
+    90deg,
+    rgba(99, 102, 241, 0.18) 0%,
+    rgba(139, 92, 246, 0.08) 70%,
+    transparent 100%
+  );
+  color: var(--sl-color-white);
+  border-left: 2px solid var(--tc-indigo);
+}
+
+/* Links in prose */
+.sl-markdown-content a:not(.not-content) {
+  color: var(--sl-color-text-accent);
+  text-decoration-color: rgba(99, 102, 241, 0.45);
+  text-underline-offset: 3px;
+}
+.sl-markdown-content a:not(.not-content):hover {
+  color: var(--tc-indigo);
+  text-decoration-color: var(--tc-indigo);
+}
+
+/* Headings */
+.sl-markdown-content h1 {
+  letter-spacing: -0.02em;
+  font-weight: 800;
+}
+.sl-markdown-content h2 {
+  letter-spacing: -0.01em;
+  font-weight: 700;
+  margin-top: 2.5rem;
+}
+.sl-markdown-content h3 {
+  font-weight: 600;
+}
+
+/* Hero (splash template override) */
+.hero .tagline {
+  color: var(--sl-color-gray-2);
+}
+.hero h1 {
+  background: var(--tc-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+/* CTA buttons */
+.sl-link-button.primary {
+  background: var(--tc-gradient);
+  border: 0;
+  color: #ffffff;
+  box-shadow: 0 8px 28px rgba(99, 102, 241, 0.35);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.sl-link-button.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 36px rgba(99, 102, 241, 0.45);
+}
+.sl-link-button.secondary,
+.sl-link-button.minimal {
+  background: transparent;
+  border: 1px solid var(--sl-color-hairline-shade);
+  color: var(--sl-color-text);
+}
+.sl-link-button.secondary:hover {
+  border-color: var(--tc-indigo);
+  color: var(--sl-color-white);
+}
+
+/* Cards */
+.card {
+  border-radius: 12px;
+  border: 1px solid var(--sl-color-hairline);
+  background: var(--sl-color-gray-6);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+:root[data-theme='light'] .card:hover {
+  box-shadow: 0 12px 32px rgba(99, 102, 241, 0.12);
+}
+.card .icon {
+  color: var(--tc-indigo);
+}
+
+/* Code blocks — soften corners, brand-glow frame */
+.expressive-code .frame {
+  border-radius: 10px;
+}
+.expressive-code .frame pre {
+  border: 1px solid var(--sl-color-hairline);
+}
+
+/* Subtle gradient top-accent on the whole page */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: var(--tc-gradient);
+  opacity: 0.75;
+  z-index: 50;
+  pointer-events: none;
+}
+
+/* Image polish in markdown */
+.sl-markdown-content img {
+  border-radius: 12px;
+  border: 1px solid var(--sl-color-hairline);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  margin: 1.25rem 0;
+}
+:root[data-theme='light'] .sl-markdown-content img {
+  box-shadow: 0 10px 30px rgba(17, 20, 40, 0.08);
+}
+
+/* Inline code pill */
+.sl-markdown-content :not(pre) > code {
+  background: var(--sl-color-bg-inline-code);
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: 6px;
+  padding: 0.1em 0.4em;
+  font-size: 0.92em;
+}
+
+/* Callouts */
+.starlight-aside {
+  border-radius: 10px;
+}
+
+/* Content container — generous max width */
+.sl-container {
+  max-width: 72rem;
+}
+
+/* Hero visual (we override Hero.astro but keep fallback styles) */
+.tc-hero-visual {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--sl-color-hairline);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  background: var(--sl-color-gray-6);
+}
+
+/* Hero glow — injected directly via ::before / ::after on Starlight's .hero */
+.hero {
+  position: relative;
+  isolation: isolate;
+}
+.hero::before,
+.hero::after {
+  content: '';
+  position: absolute;
+  width: 540px;
+  height: 540px;
+  border-radius: 50%;
+  filter: blur(110px);
+  opacity: 0.45;
+  z-index: -1;
+  pointer-events: none;
+}
+.hero::before {
+  top: -160px;
+  left: -120px;
+  background: var(--tc-indigo);
+}
+.hero::after {
+  top: -80px;
+  right: -120px;
+  background: var(--tc-cyan);
+}
+:root[data-theme='light'] .hero::before,
+:root[data-theme='light'] .hero::after {
+  opacity: 0.18;
+}
+
+/* Home-page one-off image frames */
+.tc-hero-shot {
+  margin: 1.5rem auto 3rem;
+  max-width: 1100px;
+}
+.tc-hero-shot img {
+  border-radius: 16px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+}
+:root[data-theme='light'] .tc-hero-shot img {
+  box-shadow: 0 30px 80px rgba(17, 20, 40, 0.1);
+}
+.tc-dual-shot {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+.tc-dual-shot img {
+  margin: 0;
+}
+@media (max-width: 780px) {
+  .tc-dual-shot {
+    grid-template-columns: 1fr;
+  }
+}

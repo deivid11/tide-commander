@@ -70,6 +70,9 @@ export class Battlefield {
   // Track grid visibility so resize can preserve it
   private gridVisible = true;
 
+  // Simple mode: hides all decorative elements, dark background only
+  private simpleMode = false;
+
   constructor(scene: THREE.Scene) {
     this.scene = scene;
   }
@@ -183,6 +186,7 @@ export class Battlefield {
     brightness?: number;
     skyColor?: string | null;
     battlefieldSize?: number;
+    simpleMode?: boolean;
   }): void {
     // Check if battlefield size changed - resize if needed
     if (config.battlefieldSize !== undefined && config.battlefieldSize !== this.currentSize) {
@@ -243,6 +247,16 @@ export class Battlefield {
     // Update sky color override (null = use time-based color)
     if (config.skyColor !== undefined) {
       this.skyColorOverride = config.skyColor;
+    }
+
+    // Update simple mode
+    if (config.simpleMode !== undefined) {
+      const wasSimple = this.simpleMode;
+      this.simpleMode = config.simpleMode;
+      // Restore ground material when leaving simple mode
+      if (wasSimple && !this.simpleMode) {
+        this.setFloorStyle(this.currentFloorStyle, true);
+      }
     }
 
     this.updateTimeOfDay(); // Re-apply time config which uses fog density, brightness, and sky color
@@ -500,6 +514,45 @@ export class Battlefield {
   }
 
   private applyTimeConfig(config: TimeConfig): void {
+    if (this.simpleMode) {
+      // Simple mode: dark background, day lighting, dark terrain, no decorations
+      if (this.scene.background instanceof THREE.Color) {
+        this.scene.background.setHex(0x0a0a0f);
+      } else {
+        this.scene.background = new THREE.Color(0x0a0a0f);
+      }
+      if (this.scene.fog instanceof THREE.FogExp2) {
+        this.scene.fog.density = 0;
+      }
+      if (this.sun) { this.sun.visible = false; }
+      if (this.moon) { this.moon.visible = false; }
+      if (this.stars) { this.stars.visible = false; }
+      if (this.cloudState) { this.cloudState.group.visible = false; }
+      if (this.trees) { this.trees.visible = false; }
+      if (this.bushes) { this.bushes.visible = false; }
+      if (this.house) { this.house.visible = false; }
+      if (this.lamps) { this.lamps.visible = false; }
+      this.lampLights.forEach(light => { light.visible = false; });
+      if (this.grass) { this.grass.visible = false; }
+      // Dark terrain: show ground with a near-black tint (works regardless of floor style)
+      if (this.ground && this.currentFloorStyle !== 'galactic') {
+        this.ground.visible = true;
+        (this.ground.material as THREE.MeshStandardMaterial).color.setHex(0x0d0d12);
+      }
+      // Day-level lighting so agents are well-lit
+      if (this.ambientLight) {
+        this.ambientLight.color.setHex(0xffffff);
+        this.ambientLight.intensity = 0.85 * this.brightness;
+      }
+      if (this.hemiLight) {
+        this.hemiLight.intensity = 1.0 * this.brightness;
+      }
+      if (this.mainLight) {
+        this.mainLight.intensity = 1.5 * this.brightness;
+      }
+      return;
+    }
+
     // Update sky color - use override if set, otherwise use time-based color
     const skyColor = this.skyColorOverride
       ? parseInt(this.skyColorOverride.replace('#', ''), 16)

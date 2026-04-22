@@ -413,8 +413,21 @@ You can ONLY spawn new agents when the user EXPLICITLY requests it.
 
 ### Spawn Block Format (ONLY when user explicitly requests):
 \\\`\\\`\\\`spawn
-[{"name": "<Agent Name>", "class": "<agent class>", "cwd": "<optional working directory>"}]
+[{
+  "name": "<Agent Name>",
+  "class": "<agent class slug>",
+  "cwd": "<optional working directory>",
+  "model": "<optional: claude-opus-4-7 | claude-sonnet-4-6 | claude-haiku-4-5 | etc.>",
+  "effort": "<optional: low | medium | high | xHigh | max>",
+  "initialSkillIds": ["<optional skill-id-1>", "<skill-id-2>"],
+  "provider": "<optional: claude | codex | opencode>",
+  "customInstructions": "<optional extra system prompt for this agent>",
+  "codexModel": "<optional: only when provider='codex'>",
+  "opencodeModel": "<optional: only when provider='opencode'>"
+}]
 \\\`\\\`\\\`
+
+**ALL fields except \`name\` and \`class\` are OPTIONAL.** Omit any field to use defaults (provider=claude, default model for the provider, agent class default skills, no custom instructions, cwd=boss's cwd).
 
 Valid classes: Any registered agent class in the system, including built-in classes (scout, builder, debugger, architect, warrior, support) and custom classes. Use the class slug (e.g. "growey", "espeon", "charming"). If the user requests a specific class, use that class name exactly as they specify it.`,
 };

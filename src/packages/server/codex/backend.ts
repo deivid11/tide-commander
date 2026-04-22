@@ -26,7 +26,7 @@ function shouldPassCodexModel(model: string | undefined): model is string {
   return true;
 }
 
-function buildCodexPrompt(config: BackendConfig): string {
+export function buildCodexPrompt(config: BackendConfig): string {
   const userPrompt = config.prompt?.trim() || 'Continue the task.';
   const injectedSections: string[] = [];
 

@@ -8,6 +8,7 @@
 import React, { memo, useMemo } from 'react';
 import type { TreeNode, TreeNodeProps, GitFileStatusType } from './types';
 import { getFileIcon, findMatchIndices } from './fileUtils';
+import { Icon } from '../Icon';
 
 // ============================================================================
 // GIT STATUS COLOR MAPPING
@@ -152,7 +153,7 @@ function TreeNodeItemComponent({
         {node.isDirectory ? (
           <>
             <span className={`tree-arrow ${isExpanded ? 'expanded' : ''}`}>
-              ▸
+              <Icon name="caret-right" size={10} />
             </span>
             <span className="tree-folder-icon-wrapper">
               <span

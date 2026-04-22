@@ -8,7 +8,7 @@
 
 import type { Skill, AgentClass, Agent } from '../../shared/types.js';
 import { loadSkills, saveSkills } from '../data/index.js';
-import { createLogger, generateId, generateSlug } from '../utils/index.js';
+import { createLogger, generateId, generateSlug, getCommanderBaseUrl } from '../utils/index.js';
 import { BUILTIN_SKILLS, createBuiltinSkill, isBuiltinSkillId } from '../data/builtin-skills.js';
 import { getIntegrationSkills } from '../integrations/integration-registry.js';
 import { getAuthToken } from '../auth/index.js';
@@ -368,27 +368,68 @@ export function getSkillsForAgent(agentId: string, agentClass: AgentClass, isBos
 }
 
 /**
- * Inject auth token into curl commands in skill content
- * Adds -H "X-Auth-Token: <token>" header to curl commands targeting localhost API
+ * Prepare skill content for inclusion in an agent's system prompt:
+ *  1. Rewrite any hardcoded `http://localhost:5174` references to the actual
+ *     runtime base URL so agents hit the correct port when the Commander isn't
+ *     running on 5174.
+ *  2. Inject `-H "X-Auth-Token: <token>"` into curl commands targeting the API
+ *     when auth is enabled.
  */
 function injectAuthIntoSkillContent(content: string): string {
+  const baseUrl = getCommanderBaseUrl();
+  const rewritten = content.replace(/http:\/\/localhost:5174/g, baseUrl);
+
   const authToken = getAuthToken();
   if (!authToken) {
-    return content;
+    return rewritten;
   }
 
-  // Match curl commands to localhost API that don't already have auth header
-  // This regex finds: curl ... http://localhost:5174/api/... and adds auth header
-  return content.replace(
-    /curl\s+(-s\s+)?(-X\s+\w+\s+)?http:\/\/localhost:5174\/api\//g,
-    (match) => {
-      // Insert auth header before the URL
-      return match.replace(
-        /http:\/\/localhost:5174\/api\//,
-        `-H "X-Auth-Token: ${authToken}" http://localhost:5174/api/`
-      );
-    }
+  const escapedBase = baseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const curlApiRegex = new RegExp(
+    `curl\\s+(-s\\s+)?(-X\\s+\\w+\\s+)?${escapedBase}/api/`,
+    'g',
   );
+  const apiUrlRegex = new RegExp(`${escapedBase}/api/`);
+
+  return rewritten.replace(curlApiRegex, (match) =>
+    match.replace(apiUrlRegex, `-H "X-Auth-Token: ${authToken}" ${baseUrl}/api/`),
+  );
+}
+
+/**
+ * Build the shared "API Calling Convention" preamble that explains the
+ * scaffolding every skill's curl command uses. Individual skill examples are
+ * written as method + path + JSON body only; agents combine them with this
+ * template to get the full curl invocation.
+ */
+function buildApiConventionPreamble(): string {
+  const baseUrl = getCommanderBaseUrl();
+  const authToken = getAuthToken();
+  const authHeader = authToken ? `-H "X-Auth-Token: ${authToken}" ` : '';
+
+  const authNote = authToken
+    ? '\n- Auth is enabled; the `X-Auth-Token` header in the template above is already filled in — keep it on every call.'
+    : '';
+
+  return `## API Calling Convention
+
+All skills below call the Tide Commander local API at \`${baseUrl}\`. Every request uses the **same curl scaffolding** — only the HTTP method, path, and JSON body change per skill.
+
+**Default template (always use this shape):**
+
+\`\`\`bash
+curl -s -X <METHOD> ${authHeader}${baseUrl}/<path> -H "Content-Type: application/json" -d '<json-body>'
+\`\`\`
+
+**Substitutions on every call:**
+- \`<METHOD>\` — HTTP verb specified by the skill (\`POST\`, \`PATCH\`, \`DELETE\`, etc.)
+- \`<path>\` — endpoint path specified by the skill (begins with \`/api/\`)
+- \`<json-body>\` — the JSON body shown in the skill example
+- \`YOUR_AGENT_ID\` inside any body or path — your real agent ID from the Agent Identity block
+
+**Global rules for every API call:**
+- No exclamation marks (\`!\`) anywhere in the command — bash history expansion will corrupt it.
+- Per-skill examples below omit the scaffolding (method host/headers). Combine them with this template to form the full \`curl\`.${authNote}`;
 }
 
 /**
@@ -416,10 +457,16 @@ export function buildSkillPromptContent(agentId: string, agentClass: AgentClass,
     return section;
   });
 
+  const preamble = buildApiConventionPreamble();
+
   return `
 # Available Skills
 
 The following skills are available to you. Use them when appropriate based on their descriptions.
+
+${preamble}
+
+---
 
 ${sections.join('\n\n---\n\n')}
 `;

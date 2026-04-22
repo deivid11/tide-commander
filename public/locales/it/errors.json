@@ -1,8 +1,6 @@
 {
   "toast": {
     "error": "Errore",
-    "snapshotFailed": "Snapshot fallito",
-    "snapshotFailedMsg": "Impossibile salvare lo snapshot",
     "mergeFailed": "Merge fallito",
     "mergeFailedMsg": "Impossibile eseguire il merge delle modifiche",
     "compareFailed": "Confronto fallito",
@@ -35,8 +33,8 @@
     "permissionDeniedMsg": "Non hai i permessi per questa azione"
   },
   "crash": {
-    "title": "Tide Commander si \u00e8 arrestato",
-    "description": "Qualcosa \u00e8 andato storto. Puoi provare a continuare o ricaricare la pagina.",
+    "title": "Tide Commander si è arrestato",
+    "description": "Qualcosa è andato storto. Puoi provare a continuare o ricaricare la pagina.",
     "stackTrace": "STACK TRACE",
     "componentStack": "STACK COMPONENTE",
     "checkConsole": "Controlla la console del browser per maggiori dettagli."
@@ -44,7 +42,7 @@
   "server": {
     "agentNotFound": "Agente non trovato",
     "agentSpawnFailed": "Impossibile generare l'agente",
-    "sessionExpired": "La sessione \u00e8 scaduta",
+    "sessionExpired": "La sessione è scaduta",
     "permissionDenied": "Permesso negato",
     "invalidRequest": "Richiesta non valida",
     "directoryNotFound": "Directory non trovata",

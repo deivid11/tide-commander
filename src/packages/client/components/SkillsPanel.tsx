@@ -11,6 +11,7 @@ import { apiUrl, authFetch } from '../utils/storage';
 import { uploadClassIcon, deleteClassIcon, getClassIconUrl } from '../api/class-icons';
 import { useModalClose } from '../hooks';
 import { AgentIcon } from './AgentIcon';
+import { Icon } from './Icon';
 
 type PanelTab = 'skills' | 'classes';
 
@@ -1235,7 +1236,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                         }}
                       >
                         <span style={{ width: '16px', color: 'var(--dracula-green)' }}>
-                          {classDefaultSkillIds.includes(skill.id) ? '✓' : ''}
+                          {classDefaultSkillIds.includes(skill.id) ? <Icon name="check" size={12} /> : null}
                         </span>
                         <span style={{ fontSize: '13px' }}>{skill.name}</span>
                       </div>

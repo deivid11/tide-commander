@@ -1,5 +1,6 @@
 import { Agent } from '@shared/types';
 import type { DrawingArea } from '../../../shared/common-types';
+import type { IconName } from '../Icon';
 
 // Agent collision avoidance constants
 const AGENT_RADIUS = 1; // 1 unit radius for each agent
@@ -172,50 +173,50 @@ export function formatTime(timestamp: number): string {
 }
 
 /**
- * Get icon for agent class
+ * Get semantic Icon name for agent class
  */
-export function getAgentClassIcon(agentClass: string): string {
+export function getAgentClassIcon(agentClass: string): IconName {
   switch (agentClass) {
     case 'scout':
-      return '🔍';
+      return 'class-scout';
     case 'builder':
-      return '🔨';
+      return 'class-builder';
     case 'debugger':
-      return '🐛';
+      return 'class-debugger';
     case 'architect':
-      return '📐';
+      return 'class-architect';
     case 'warrior':
-      return '⚔️';
+      return 'class-warrior';
     case 'support':
-      return '🛟';
+      return 'class-support';
     case 'boss':
-      return '👑';
+      return 'class-boss';
     default:
-      return '🤖';
+      return 'class-default';
   }
 }
 
 /**
- * Get icon for building type
+ * Get semantic Icon name for building type
  */
-export function getBuildingTypeIcon(buildingType: string): string {
+export function getBuildingTypeIcon(buildingType: string): IconName {
   switch (buildingType) {
     case 'server':
-      return '🖥️';
+      return 'desktop';
     case 'link':
-      return '🔗';
+      return 'link';
     case 'database':
-      return '🗄️';
+      return 'database';
     case 'docker':
-      return '🐳';
+      return 'package';
     case 'monitor':
-      return '📊';
+      return 'dashboard';
     case 'folder':
-      return '📁';
+      return 'folder';
     case 'boss':
-      return '🏰';
+      return 'crown';
     default:
-      return '🏢';
+      return 'building-office';
   }
 }
 

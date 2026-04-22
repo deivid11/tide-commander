@@ -4,8 +4,6 @@
     "closeSidebar": "साइडबार बंद करें",
     "showAgentInfo": "एजेंट जानकारी दिखाएं",
     "hideAgentInfo": "एजेंट जानकारी छुपाएं",
-    "saveSnapshot": "स्नैपशॉट सहेजें",
-    "saveSnapshotDesc": "इस वार्तालाप और इस एजेंट द्वारा बनाई/संशोधित सभी फ़ाइलों को कैप्चर करें",
     "showOverview": "एजेंट अवलोकन दिखाएं",
     "hideOverview": "एजेंट अवलोकन छुपाएं",
     "showDebug": "डिबग पैनल दिखाएं",
@@ -98,7 +96,16 @@
     "created": "बनाया गया",
     "detached": "डिटैच्ड",
     "yes": "हां",
-    "no": "नहीं"
+    "no": "नहीं",
+    "injectedPrompt": "इंजेक्टेड प्रॉम्प्ट",
+    "injectedPromptShow": "दिखाएँ",
+    "injectedPromptHide": "छिपाएँ",
+    "injectedPromptCopy": "कॉपी करें",
+    "injectedPromptCopied": "कॉपी हो गया",
+    "injectedPromptRefresh": "रिफ्रेश",
+    "injectedPromptLoading": "प्रॉम्प्ट लोड हो रहा है…",
+    "injectedPromptError": "प्रॉम्प्ट लोड नहीं हो सका: {{error}}",
+    "injectedPromptLength": "{{chars}} अक्षर · ~{{tokens}} टोकन"
   },
   "empty": {
     "tapAgent": "उनका टर्मिनल देखने के लिए रणभूमि पर किसी एजेंट पर टैप करें",
@@ -432,48 +439,6 @@
     "matchesInFiles": "{{files}} फ़ाइलों में {{matches}}",
     "moreMatches": "और {{count}} मिलान"
   },
-  "snapshot": {
-    "title": "स्नैपशॉट",
-    "save": "स्नैपशॉट सहेजें",
-    "load": "स्नैपशॉट लोड करें",
-    "delete": "स्नैपशॉट हटाएं",
-    "name": "स्नैपशॉट का नाम",
-    "namePlaceholder": "स्नैपशॉट का नाम दर्ज करें...",
-    "description": "विवरण",
-    "descriptionPlaceholder": "इस स्नैपशॉट का वर्णन करें...",
-    "noSnapshots": "कोई स्नैपशॉट सहेजा नहीं गया",
-    "created": "{{date}} को बनाया गया",
-    "restore": "यह स्नैपशॉट पुनर्स्थापित करें?",
-    "deleteConfirm": "यह स्नैपशॉट हटाएं?",
-    "searchPlaceholder": "स्नैपशॉट खोजें...",
-    "sortDate": "तिथि",
-    "sortTitle": "शीर्षक",
-    "sortAgent": "एजेंट",
-    "loadingSnapshots": "स्नैपशॉट लोड हो रहे हैं...",
-    "noSnapshotsMatch": "आपकी खोज से कोई स्नैपशॉट मेल नहीं खाता",
-    "noSnapshotsYet": "अभी तक कोई स्नैपशॉट नहीं",
-    "snapshotHint": "स्नैपशॉट सहेजने के लिए टर्मिनल हेडर में स्टार बटन पर क्लिक करें",
-    "restoreFiles": "फ़ाइलें पुनर्स्थापित करें",
-    "exportSnapshot": "स्नैपशॉट निर्यात करें",
-    "deleteSnapshot": "स्नैपशॉट हटाएं",
-    "whatWillBeCaptured": "क्या कैप्चर किया जाएगा",
-    "messages": "संदेश",
-    "files": "फ़ाइलें",
-    "createdLabel": "बनाया गया",
-    "modified": "संशोधित",
-    "more": "+{{count}} और",
-    "noFilesChanged": "इस वार्तालाप में कोई फ़ाइल बनाई या संशोधित नहीं की गई",
-    "saving": "सहेजा जा रहा है...",
-    "enterTitle": "इस स्नैपशॉट के लिए शीर्षक दर्ज करें",
-    "whatWasAccomplished": "इस वार्तालाप में क्या हासिल किया गया?",
-    "viewingSnapshot": "स्नैपशॉट देख रहे हैं",
-    "conversationMessages": "वार्तालाप ({{count}} संदेश)",
-    "noConversation": "इस स्नैपशॉट में कोई वार्तालाप डेटा नहीं",
-    "fileChanges": "फ़ाइल बदलाव",
-    "createdFiles": "बनाई गई ({{count}})",
-    "modifiedFiles": "संशोधित ({{count}})",
-    "noFileChanges": "इस स्नैपशॉट में कोई फ़ाइल बदलाव नहीं"
-  },
   "database": {
     "title": "डेटाबेस",
     "query": "क्वेरी",
@@ -543,47 +508,12 @@
     "lastPage": "अंतिम पेज",
     "pageInfo": "पेज {{current}} / {{total}}"
   },
-  "supervisor": {
-    "title": "पर्यवेक्षक",
-    "subordinates": "अधीनस्थ",
-    "noSubordinates": "कोई अधीनस्थ नहीं",
-    "assignTask": "कार्य सौंपें",
-    "taskHistory": "कार्य इतिहास",
-    "startAll": "सभी अधीनस्थ शुरू करें",
-    "stopAll": "सभी अधीनस्थ रोकें",
-    "delegateTo": "को सौंपें...",
-    "overview": "पर्यवेक्षक अवलोकन",
-    "active": "सक्रिय",
-    "paused": "रुका हुआ",
-    "auto": "ऑटो",
-    "manual": "मैन्युअल",
-    "generating": "बनाया जा रहा है...",
-    "generatingReport": "पर्यवेक्षक रिपोर्ट बनाई जा रही है...",
-    "noReportYet": "अभी तक कोई पर्यवेक्षक रिपोर्ट उपलब्ध नहीं।",
-    "generateFirstReport": "पहली रिपोर्ट बनाएं",
-    "lastReport": "अंतिम रिपोर्ट: {{time}}",
-    "autoUpdates": "कार्य पूर्ण होने पर ऑटो-अपडेट",
-    "manualUpdates": "केवल मैन्युअल अपडेट",
-    "allSystemsHealthy": "सभी सिस्टम स्वस्थ",
-    "attentionNeeded": "ध्यान आवश्यक",
-    "criticalIssues": "गंभीर समस्याएं पाई गईं",
-    "keyInsights": "मुख्य जानकारी",
-    "agentStatus": "एजेंट स्थिति",
-    "recommendations": "सुझाव",
-    "claudeApiUsage": "Claude API उपयोग",
-    "noUsageData": "अभी तक कोई उपयोग डेटा नहीं",
-    "fetchUsage": "उपयोग प्राप्त करें",
-    "fetching": "प्राप्त हो रहा है...",
-    "session": "सत्र",
-    "weeklyAll": "साप्ताहिक (सभी)",
-    "weeklySonnet": "साप्ताहिक (Sonnet)",
-    "resets": "{{time}} पर रीसेट होगा",
-    "autoUpdatesOnComplete": "कार्य पूर्ण होने पर ऑटो-अपडेट",
-    "manualUpdatesOnly": "केवल मैन्युअल अपडेट",
+  "team": {
     "manageTeam": "टीम प्रबंधन",
-    "assignSubordinates": "अधीनस्थ नियुक्त करें",
+    "selectAgents": "अधीनस्थ के रूप में नियुक्त करने के लिए एजेंट चुनें",
     "noAgentsAvailable": "नियुक्त करने के लिए कोई एजेंट उपलब्ध नहीं",
-    "selectAgents": "अधीनस्थ के रूप में नियुक्त करने के लिए एजेंट चुनें"
+    "subordinates": "अधीनस्थ",
+    "saveTeam": "टीम सहेजें"
   },
   "context": {
     "contextWindow": "संदर्भ विंडो: {{name}}",
@@ -679,69 +609,221 @@
       "forward": "फ़ॉरवर्ड बटन"
     },
     "mouseBindings": {
-      "left-click-select": { "name": "चयन या क्लिक", "description": "एजेंट चुनें और बिल्डिंग या क्षेत्र पर क्लिक करें" },
-      "left-drag-selection": { "name": "चयन बॉक्स", "description": "कई एजेंट चुनने के लिए खींचें" },
-      "right-click-context": { "name": "संदर्भ मेनू या मूव", "description": "संदर्भ मेनू खोलें या चयनित एजेंट मूव करें" },
-      "alt-right-drag-pan": { "name": "कैमरा पैन", "description": "Alt + दायां खींचकर कैमरा पैन करें" },
-      "middle-drag-orbit": { "name": "कैमरा ऑर्बिट", "description": "मध्य खींचकर कैमरा ऑर्बिट करें" },
-      "shift-middle-drag-pan": { "name": "कैमरा पैन विकल्प", "description": "Shift + मध्य खींचकर वैकल्पिक पैन" },
-      "wheel-zoom": { "name": "ज़ूम", "description": "स्क्रॉल व्हील से कैमरा ज़ूम करें" }
+      "left-click-select": {
+        "name": "चयन या क्लिक",
+        "description": "एजेंट चुनें और बिल्डिंग या क्षेत्र पर क्लिक करें"
+      },
+      "left-drag-selection": {
+        "name": "चयन बॉक्स",
+        "description": "कई एजेंट चुनने के लिए खींचें"
+      },
+      "right-click-context": {
+        "name": "संदर्भ मेनू या मूव",
+        "description": "संदर्भ मेनू खोलें या चयनित एजेंट मूव करें"
+      },
+      "alt-right-drag-pan": {
+        "name": "कैमरा पैन",
+        "description": "Alt + दायां खींचकर कैमरा पैन करें"
+      },
+      "middle-drag-orbit": {
+        "name": "कैमरा ऑर्बिट",
+        "description": "मध्य खींचकर कैमरा ऑर्बिट करें"
+      },
+      "shift-middle-drag-pan": {
+        "name": "कैमरा पैन विकल्प",
+        "description": "Shift + मध्य खींचकर वैकल्पिक पैन"
+      },
+      "wheel-zoom": {
+        "name": "ज़ूम",
+        "description": "स्क्रॉल व्हील से कैमरा ज़ूम करें"
+      }
     },
     "shortcuts": {
-      "toggle-commander": { "name": "कमांडर टॉगल", "description": "कमांडर व्यू खोलें या बंद करें" },
-      "toggle-commander-tab": { "name": "कमांडर टैब टॉगल", "description": "Tab से कमांडर व्यू खोलें या बंद करें" },
-      "spawn-agent": { "name": "एजेंट स्पॉन", "description": "नया एजेंट स्पॉन मोडल खोलें" },
-      "select-agent-1": { "name": "एजेंट 1 चुनें", "description": "पहला एजेंट चुनें" },
-      "select-agent-2": { "name": "एजेंट 2 चुनें", "description": "दूसरा एजेंट चुनें" },
-      "select-agent-3": { "name": "एजेंट 3 चुनें", "description": "तीसरा एजेंट चुनें" },
-      "select-agent-4": { "name": "एजेंट 4 चुनें", "description": "चौथा एजेंट चुनें" },
-      "select-agent-5": { "name": "एजेंट 5 चुनें", "description": "पांचवां एजेंट चुनें" },
-      "select-agent-6": { "name": "एजेंट 6 चुनें", "description": "छठा एजेंट चुनें" },
-      "select-agent-7": { "name": "एजेंट 7 चुनें", "description": "सातवां एजेंट चुनें" },
-      "select-agent-8": { "name": "एजेंट 8 चुनें", "description": "आठवां एजेंट चुनें" },
-      "select-agent-9": { "name": "एजेंट 9 चुनें", "description": "नौवां एजेंट चुनें" },
-      "delete-selected": { "name": "चयनित हटाएं", "description": "चयनित एजेंट हटाएं" },
-      "delete-selected-backspace": { "name": "बैकस्पेस से चयनित हटाएं", "description": "चयनित एजेंट हटाएं" },
-      "deselect-all": { "name": "सब अचयनित", "description": "एजेंट चयन साफ करें" },
-      "open-terminal": { "name": "टर्मिनल खोलें", "description": "चयनित एजेंट का टर्मिनल खोलें" },
-      "dashboard-selector-toggle": { "name": "डैशबोर्ड सेलेक्टर", "description": "डैशबोर्ड कार्ड सेलेक्टर सक्षम करें" },
-      "dashboard-vim-left": { "name": "डैशबोर्ड बाएं", "description": "डैशबोर्ड सेलेक्टर बाएं ले जाएं" },
-      "dashboard-vim-down": { "name": "डैशबोर्ड नीचे", "description": "डैशबोर्ड सेलेक्टर नीचे ले जाएं" },
-      "dashboard-vim-up": { "name": "डैशबोर्ड ऊपर", "description": "डैशबोर्ड सेलेक्टर ऊपर ले जाएं" },
-      "dashboard-vim-right": { "name": "डैशबोर्ड दाएं", "description": "डैशबोर्ड सेलेक्टर दाएं ले जाएं" },
-      "next-agent": { "name": "अगला एजेंट", "description": "रणभूमि पर अगला एजेंट चुनें" },
-      "prev-agent": { "name": "पिछला एजेंट", "description": "रणभूमि पर पिछला एजेंट चुनें" },
-      "next-working-agent": { "name": "अगला कार्यरत एजेंट", "description": "रणभूमि पर अगला कार्यरत एजेंट चुनें" },
-      "prev-working-agent": { "name": "पिछला कार्यरत एजेंट", "description": "रणभूमि पर पिछला कार्यरत एजेंट चुनें" },
-      "next-message": { "name": "अगला संदेश", "description": "अगले टर्मिनल संदेश पर जाएं" },
-      "prev-message": { "name": "पिछला संदेश", "description": "पिछले टर्मिनल संदेश पर जाएं" },
-      "page-down-messages": { "name": "पेज डाउन संदेश", "description": "10 टर्मिनल संदेश नीचे कूदें" },
-      "page-up-messages": { "name": "पेज अप संदेश", "description": "10 टर्मिनल संदेश ऊपर कूदें" },
-      "next-agent-terminal": { "name": "अगला एजेंट टर्मिनल", "description": "टर्मिनल में अगले एजेंट पर स्विच करें" },
-      "prev-agent-terminal": { "name": "पिछला एजेंट टर्मिनल", "description": "टर्मिनल में पिछले एजेंट पर स्विच करें" },
-      "activate-message": { "name": "संदेश सक्रिय करें", "description": "चयनित संदेश में इंटरैक्टिव तत्व सक्रिय करें" },
-      "toggle-file-explorer": { "name": "फ़ाइल एक्सप्लोरर टॉगल", "description": "फ़ाइल एक्सप्लोरर खोलें या बंद करें" },
-      "file-explorer-close-tab": { "name": "फ़ाइल टैब बंद करें", "description": "एक्सप्लोरर में सक्रिय फ़ाइल टैब बंद करें" },
-      "toggle-spotlight": { "name": "Spotlight टॉगल", "description": "ग्लोबल खोज खोलें या बंद करें" },
-      "toggle-2d-view": { "name": "दृश्य मोड साइकल", "description": "3D, 2D, और डैशबोर्ड दृश्यों के बीच साइकल करें" },
-      "commander-close": { "name": "कमांडर बंद करें", "description": "कमांडर व्यू बंद करें" },
-      "commander-vim-left": { "name": "बाएं नेविगेट करें", "description": "Vim H बाएं फ़ोकस ले जाएं" },
-      "commander-vim-down": { "name": "नीचे नेविगेट करें", "description": "Vim J नीचे फ़ोकस ले जाएं" },
-      "commander-vim-up": { "name": "ऊपर नेविगेट करें", "description": "Vim K ऊपर फ़ोकस ले जाएं" },
-      "commander-vim-right": { "name": "दाएं नेविगेट करें", "description": "Vim L दाएं फ़ोकस ले जाएं" },
-      "commander-expand": { "name": "विस्तार/संक्षिप्त", "description": "एजेंट विस्तार टॉगल करें" },
-      "commander-new-agent": { "name": "नया एजेंट", "description": "कमांडर में स्पॉन फ़ॉर्म खोलें" },
-      "commander-next-tab": { "name": "अगला टैब", "description": "अगले क्षेत्र टैब पर स्विच करें" },
-      "commander-prev-tab": { "name": "पिछला टैब", "description": "पिछले क्षेत्र टैब पर स्विच करें" },
-      "toolbox-close": { "name": "टूलबॉक्स बंद करें", "description": "सेटिंग्स पैनल बंद करें" }
+      "toggle-commander": {
+        "name": "कमांडर टॉगल",
+        "description": "कमांडर व्यू खोलें या बंद करें"
+      },
+      "toggle-commander-tab": {
+        "name": "कमांडर टैब टॉगल",
+        "description": "Tab से कमांडर व्यू खोलें या बंद करें"
+      },
+      "spawn-agent": {
+        "name": "एजेंट स्पॉन",
+        "description": "नया एजेंट स्पॉन मोडल खोलें"
+      },
+      "select-agent-1": {
+        "name": "एजेंट 1 चुनें",
+        "description": "पहला एजेंट चुनें"
+      },
+      "select-agent-2": {
+        "name": "एजेंट 2 चुनें",
+        "description": "दूसरा एजेंट चुनें"
+      },
+      "select-agent-3": {
+        "name": "एजेंट 3 चुनें",
+        "description": "तीसरा एजेंट चुनें"
+      },
+      "select-agent-4": {
+        "name": "एजेंट 4 चुनें",
+        "description": "चौथा एजेंट चुनें"
+      },
+      "select-agent-5": {
+        "name": "एजेंट 5 चुनें",
+        "description": "पांचवां एजेंट चुनें"
+      },
+      "select-agent-6": {
+        "name": "एजेंट 6 चुनें",
+        "description": "छठा एजेंट चुनें"
+      },
+      "select-agent-7": {
+        "name": "एजेंट 7 चुनें",
+        "description": "सातवां एजेंट चुनें"
+      },
+      "select-agent-8": {
+        "name": "एजेंट 8 चुनें",
+        "description": "आठवां एजेंट चुनें"
+      },
+      "select-agent-9": {
+        "name": "एजेंट 9 चुनें",
+        "description": "नौवां एजेंट चुनें"
+      },
+      "delete-selected": {
+        "name": "चयनित हटाएं",
+        "description": "चयनित एजेंट हटाएं"
+      },
+      "delete-selected-backspace": {
+        "name": "बैकस्पेस से चयनित हटाएं",
+        "description": "चयनित एजेंट हटाएं"
+      },
+      "deselect-all": {
+        "name": "सब अचयनित",
+        "description": "एजेंट चयन साफ करें"
+      },
+      "open-terminal": {
+        "name": "टर्मिनल खोलें",
+        "description": "चयनित एजेंट का टर्मिनल खोलें"
+      },
+      "dashboard-selector-toggle": {
+        "name": "डैशबोर्ड सेलेक्टर",
+        "description": "डैशबोर्ड कार्ड सेलेक्टर सक्षम करें"
+      },
+      "dashboard-vim-left": {
+        "name": "डैशबोर्ड बाएं",
+        "description": "डैशबोर्ड सेलेक्टर बाएं ले जाएं"
+      },
+      "dashboard-vim-down": {
+        "name": "डैशबोर्ड नीचे",
+        "description": "डैशबोर्ड सेलेक्टर नीचे ले जाएं"
+      },
+      "dashboard-vim-up": {
+        "name": "डैशबोर्ड ऊपर",
+        "description": "डैशबोर्ड सेलेक्टर ऊपर ले जाएं"
+      },
+      "dashboard-vim-right": {
+        "name": "डैशबोर्ड दाएं",
+        "description": "डैशबोर्ड सेलेक्टर दाएं ले जाएं"
+      },
+      "next-agent": {
+        "name": "अगला एजेंट",
+        "description": "रणभूमि पर अगला एजेंट चुनें"
+      },
+      "prev-agent": {
+        "name": "पिछला एजेंट",
+        "description": "रणभूमि पर पिछला एजेंट चुनें"
+      },
+      "next-working-agent": {
+        "name": "अगला कार्यरत एजेंट",
+        "description": "रणभूमि पर अगला कार्यरत एजेंट चुनें"
+      },
+      "prev-working-agent": {
+        "name": "पिछला कार्यरत एजेंट",
+        "description": "रणभूमि पर पिछला कार्यरत एजेंट चुनें"
+      },
+      "next-message": {
+        "name": "अगला संदेश",
+        "description": "अगले टर्मिनल संदेश पर जाएं"
+      },
+      "prev-message": {
+        "name": "पिछला संदेश",
+        "description": "पिछले टर्मिनल संदेश पर जाएं"
+      },
+      "page-down-messages": {
+        "name": "पेज डाउन संदेश",
+        "description": "10 टर्मिनल संदेश नीचे कूदें"
+      },
+      "page-up-messages": {
+        "name": "पेज अप संदेश",
+        "description": "10 टर्मिनल संदेश ऊपर कूदें"
+      },
+      "next-agent-terminal": {
+        "name": "अगला एजेंट टर्मिनल",
+        "description": "टर्मिनल में अगले एजेंट पर स्विच करें"
+      },
+      "prev-agent-terminal": {
+        "name": "पिछला एजेंट टर्मिनल",
+        "description": "टर्मिनल में पिछले एजेंट पर स्विच करें"
+      },
+      "activate-message": {
+        "name": "संदेश सक्रिय करें",
+        "description": "चयनित संदेश में इंटरैक्टिव तत्व सक्रिय करें"
+      },
+      "toggle-file-explorer": {
+        "name": "फ़ाइल एक्सप्लोरर टॉगल",
+        "description": "फ़ाइल एक्सप्लोरर खोलें या बंद करें"
+      },
+      "file-explorer-close-tab": {
+        "name": "फ़ाइल टैब बंद करें",
+        "description": "एक्सप्लोरर में सक्रिय फ़ाइल टैब बंद करें"
+      },
+      "toggle-spotlight": {
+        "name": "Spotlight टॉगल",
+        "description": "ग्लोबल खोज खोलें या बंद करें"
+      },
+      "toggle-2d-view": {
+        "name": "दृश्य मोड साइकल",
+        "description": "3D, 2D, और डैशबोर्ड दृश्यों के बीच साइकल करें"
+      },
+      "commander-close": {
+        "name": "कमांडर बंद करें",
+        "description": "कमांडर व्यू बंद करें"
+      },
+      "commander-vim-left": {
+        "name": "बाएं नेविगेट करें",
+        "description": "Vim H बाएं फ़ोकस ले जाएं"
+      },
+      "commander-vim-down": {
+        "name": "नीचे नेविगेट करें",
+        "description": "Vim J नीचे फ़ोकस ले जाएं"
+      },
+      "commander-vim-up": {
+        "name": "ऊपर नेविगेट करें",
+        "description": "Vim K ऊपर फ़ोकस ले जाएं"
+      },
+      "commander-vim-right": {
+        "name": "दाएं नेविगेट करें",
+        "description": "Vim L दाएं फ़ोकस ले जाएं"
+      },
+      "commander-expand": {
+        "name": "विस्तार/संक्षिप्त",
+        "description": "एजेंट विस्तार टॉगल करें"
+      },
+      "commander-new-agent": {
+        "name": "नया एजेंट",
+        "description": "कमांडर में स्पॉन फ़ॉर्म खोलें"
+      },
+      "commander-next-tab": {
+        "name": "अगला टैब",
+        "description": "अगले क्षेत्र टैब पर स्विच करें"
+      },
+      "commander-prev-tab": {
+        "name": "पिछला टैब",
+        "description": "पिछले क्षेत्र टैब पर स्विच करें"
+      },
+      "toolbox-close": {
+        "name": "टूलबॉक्स बंद करें",
+        "description": "सेटिंग्स पैनल बंद करें"
+      }
     }
-  },
-  "toolHistory": {
-    "tools": "टूल्स",
-    "filesSection": "फ़ाइलें",
-    "noToolsYet": "अभी तक कोई टूल निष्पादित नहीं हुआ",
-    "noFileChangesYet": "अभी तक कोई फ़ाइल बदलाव नहीं",
-    "viewFile": "फ़ाइल देखें"
   },
   "logs": {
     "title": "लॉग",
@@ -866,14 +948,14 @@
   },
   "commander": {
     "title": "कमांडर व्यू",
-    "shortcuts": "Tab क्षेत्र स्विच \u2022 \u2325H/J/K/L नेविगेशन \u2022 \u2325O विस्तार \u2022 \u2325N नया",
+    "shortcuts": "Tab क्षेत्र स्विच • ⌥H/J/K/L नेविगेशन • ⌥O विस्तार • ⌥N नया",
     "advanced": "उन्नत",
     "simple": "सरल",
     "addAgent": "+ एजेंट जोड़ें",
     "close": "बंद करें (Esc)",
-    "noAgentsAll": "कोई एजेंट तैनात नहीं। एजेंट जोड़ने के लिए \u2325N दबाएं।",
+    "noAgentsAll": "कोई एजेंट तैनात नहीं। एजेंट जोड़ने के लिए ⌥N दबाएं।",
     "noAgentsUnassigned": "कोई अनियुक्त एजेंट नहीं।",
-    "noAgentsArea": "इस क्षेत्र में कोई एजेंट नहीं। जोड़ने के लिए \u2325N दबाएं।",
+    "noAgentsArea": "इस क्षेत्र में कोई एजेंट नहीं। जोड़ने के लिए ⌥N दबाएं।",
     "unassigned": "अनियुक्त",
     "page": "पेज {{current}} / {{total}} ({{count}} एजेंट)",
     "prev": "पिछला",
@@ -907,8 +989,7 @@
     "spotlight": "Spotlight",
     "closeMenu": "मेनू बंद करें",
     "openMenu": "मेनू खोलें",
-    "showTerminal": "टर्मिनल दिखाएं",
-    "takeSnapshot": "स्नैपशॉट लें"
+    "showTerminal": "टर्मिनल दिखाएं"
   },
   "building": {
     "unitsCount": "{{count}} यूनिट",
@@ -1035,5 +1116,13 @@
   "content": {
     "clickToViewImage": "चित्र देखने के लिए क्लिक करें",
     "clickToViewFile": "फ़ाइल देखने के लिए क्लिक करें: {{path}}"
+  },
+  "trackingStatus": {
+    "label": "ट्रैकिंग स्थिति",
+    "need-review": "कार्य पूरा, समीक्षा की प्रतीक्षा में",
+    "blocked": "आगे नहीं बढ़ सकता",
+    "can-clear-context": "पूरी तरह पूर्ण — संदर्भ साफ़ कर सकते हैं",
+    "waiting-subordinates": "सौंपे गए कार्य की प्रतीक्षा में",
+    "working": "कार्य कर रहा है"
   }
 }

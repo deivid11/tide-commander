@@ -9,6 +9,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -23,14 +25,18 @@ import androidx.core.app.NotificationCompat;
 
 import org.json.JSONObject;
 
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import okhttp3.Call;
+import okhttp3.Callback;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import okhttp3.ResponseBody;
 import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
 
@@ -231,12 +237,14 @@ public class WebSocketForegroundService extends Service {
                     String body = payload.optString("message", "");
                     String agentId = payload.optString("agentId", "");
                     String agentName = payload.optString("agentName", "Agent");
+                    String iconUrl = payload.optString("iconUrl", "");
+                    String imageUrl = payload.optString("imageUrl", "");
 
                     // Only show native notification when app is in background
                     // (when in foreground, the WebView JS handles it with in-app toast)
                     if (!isAppInForeground) {
                         if (shouldDisplayNotification(notificationId)) {
-                            showAgentNotification(agentName + ": " + title, body, agentId);
+                            showAgentNotification(agentName + ": " + title, body, agentId, iconUrl, imageUrl);
                         } else {
                             Log.d(TAG, "Skipping duplicate notification id=" + notificationId);
                         }
@@ -283,10 +291,33 @@ public class WebSocketForegroundService extends Service {
         }
     }
 
-    private void showAgentNotification(String title, String body, String agentId) {
+    private void showAgentNotification(String title, String body, String agentId,
+                                        String iconUrl, String imageUrl) {
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager == null) return;
 
+        final int id = agentNotificationId++;
+
+        // Post immediately with the fallback icon; upgrade asynchronously once
+        // remote PNGs finish downloading. This keeps latency low on slow networks.
+        manager.notify(id, buildAgentNotification(title, body, agentId, null, null));
+
+        boolean hasIcon = iconUrl != null && !iconUrl.isEmpty();
+        boolean hasImage = imageUrl != null && !imageUrl.isEmpty();
+        if (!hasIcon && !hasImage) return;
+
+        fetchBitmapAsync(hasIcon ? iconUrl : null, iconBitmap -> {
+            fetchBitmapAsync(hasImage ? imageUrl : null, bigBitmap -> {
+                if (iconBitmap == null && bigBitmap == null) return;
+                NotificationManager m = getSystemService(NotificationManager.class);
+                if (m == null) return;
+                m.notify(id, buildAgentNotification(title, body, agentId, iconBitmap, bigBitmap));
+            });
+        });
+    }
+
+    private Notification buildAgentNotification(String title, String body, String agentId,
+                                                 @Nullable Bitmap largeIcon, @Nullable Bitmap bigPicture) {
         Intent tapIntent = new Intent(this, MainActivity.class);
         tapIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         tapIntent.putExtra("agentId", agentId);
@@ -294,7 +325,7 @@ public class WebSocketForegroundService extends Service {
             this, agentNotificationId, tapIntent,
             PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
 
-        Notification notification = new NotificationCompat.Builder(this, MainActivity.AGENT_NOTIFICATION_CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, MainActivity.AGENT_NOTIFICATION_CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(body)
             .setSmallIcon(R.mipmap.ic_launcher)
@@ -303,10 +334,63 @@ public class WebSocketForegroundService extends Service {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setDefaults(NotificationCompat.DEFAULT_ALL)
-            .build();
+            .setDefaults(NotificationCompat.DEFAULT_ALL);
 
-        manager.notify(agentNotificationId++, notification);
+        if (largeIcon != null) {
+            builder.setLargeIcon(largeIcon);
+        }
+        if (bigPicture != null) {
+            NotificationCompat.BigPictureStyle style = new NotificationCompat.BigPictureStyle()
+                .bigPicture(bigPicture)
+                .setSummaryText(body);
+            // Hide the round thumbnail when the notification is expanded, per platform guidance.
+            if (largeIcon != null) {
+                style.bigLargeIcon((Bitmap) null);
+            }
+            builder.setStyle(style);
+        }
+        return builder.build();
+    }
+
+    private interface BitmapCallback {
+        void onResult(@Nullable Bitmap bitmap);
+    }
+
+    // Download a PNG/JPEG from a URL off the main thread. Invokes callback with
+    // null on any failure so the caller can fall back to a plain notification.
+    private void fetchBitmapAsync(@Nullable String url, @NonNull BitmapCallback callback) {
+        if (url == null || url.isEmpty() || okHttpClient == null) {
+            callback.onResult(null);
+            return;
+        }
+        Request request;
+        try {
+            request = new Request.Builder().url(url).build();
+        } catch (IllegalArgumentException e) {
+            Log.w(TAG, "Invalid notification image URL: " + url);
+            callback.onResult(null);
+            return;
+        }
+        okHttpClient.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.w(TAG, "Failed to fetch notification image: " + e.getMessage());
+                callback.onResult(null);
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) {
+                Bitmap bitmap = null;
+                try (ResponseBody responseBody = response.body()) {
+                    if (response.isSuccessful() && responseBody != null) {
+                        bitmap = BitmapFactory.decodeStream(responseBody.byteStream());
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Failed to decode notification image: " + e.getMessage());
+                }
+                callback.onResult(bitmap);
+            }
+        });
     }
 
     // ─── Foreground Notification Management ──────────────────────────

@@ -1,0 +1,143 @@
+---
+title: HTTPS & Auth
+description: Secure Tide Commander with TLS encryption and an auth token — essential when the server is reachable beyond localhost.
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+By default, Tide Commander listens on `127.0.0.1` over plain HTTP — safe for solo local use. The moment you expose the server to a network (local or otherwise), you should enable both HTTPS/WSS and an auth token.
+
+<Aside type="caution">
+  Anyone who can reach the Tide Commander port can control your agents, read conversation history, and execute shell commands on your machine. Treat it like an SSH server.
+</Aside>
+
+## Quick start with mkcert (recommended)
+
+`mkcert` creates a locally-trusted certificate that browsers accept without security warnings. Tide Commander can do this in a single flag:
+
+```bash
+tide-commander start --install-local-cert --https --generate-auth-token
+```
+
+This command:
+1. Installs a local CA with `mkcert` (once; requires `mkcert` to be installed).
+2. Generates a TLS certificate for `localhost` and saves it to `~/.tide-commander/certs/`.
+3. Starts the server over HTTPS/WSS on port 5174.
+4. Generates a random auth token, prints it to stdout, and enforces it on all connections.
+
+**Save the printed token** — you will need it in every client (browser, mobile app, curl).
+
+Install `mkcert` first if you do not have it:
+
+```bash
+# macOS
+brew install mkcert && mkcert -install
+
+# Linux (Debian/Ubuntu)
+sudo apt install mkcert && mkcert -install
+
+# Or via Go
+go install filippo.io/mkcert@latest && mkcert -install
+```
+
+## Using existing certificates
+
+If you already have a certificate (from Let's Encrypt, your corporate CA, or another source):
+
+```bash
+tide-commander start \
+  --https \
+  --tls-key ./certs/localhost-key.pem \
+  --tls-cert ./certs/localhost.pem \
+  --auth-token YOUR_TOKEN
+```
+
+Or via environment variables in `.env`:
+
+```bash
+HTTPS=1
+TLS_KEY_PATH=./certs/localhost-key.pem
+TLS_CERT_PATH=./certs/localhost.pem
+AUTH_TOKEN=your-secret-token
+```
+
+## Auth token
+
+The auth token is a static secret required in the `X-Auth-Token` header for every HTTP request and WebSocket upgrade.
+
+### Generating a token
+
+```bash
+# Option 1 — let Tide Commander generate one
+tide-commander start --generate-auth-token
+
+# Option 2 — generate yourself with openssl
+openssl rand -hex 32
+
+# Option 3 — any strong random string generator works
+```
+
+<Aside type="note">
+  Store the token in a password manager. `--generate-auth-token` prints it once at startup and does not store it to disk — if you lose it, regenerate with a new value and update all clients.
+</Aside>
+
+### Using the token
+
+Every API call and WebSocket connection must include the header:
+
+```bash
+curl -H "X-Auth-Token: YOUR_TOKEN" https://localhost:5174/api/agents
+```
+
+The Tide Commander UI (browser or Android app) prompts for the token on first connection and caches it in local storage.
+
+## Exposing to your LAN
+
+To reach Tide Commander from other devices on your network (phone, second machine):
+
+```bash
+tide-commander start \
+  --listen-all \
+  --port 5174 \
+  --https \
+  --install-local-cert \
+  --generate-auth-token
+```
+
+Then connect from other devices using your machine's LAN IP:
+`https://192.168.1.X:5174` (replace with your actual IP).
+
+<Aside type="caution">
+  Local CA certificates installed by `mkcert` are only trusted by the machine that installed them. Other devices on the LAN will see a certificate warning unless you also install the CA on those devices, or use a certificate from a public CA.
+</Aside>
+
+## Development HTTPS (Vite dev server)
+
+For HTTPS on the Vite dev server during local development:
+
+```bash
+DEV_HTTPS=1 \
+DEV_TLS_KEY_PATH=~/.tide-commander/certs/localhost-key.pem \
+DEV_TLS_CERT_PATH=~/.tide-commander/certs/localhost.pem \
+bun run dev
+```
+
+## Certificate storage
+
+Certificates installed via `--install-local-cert` are stored at:
+
+```
+~/.tide-commander/certs/localhost-key.pem   # private key
+~/.tide-commander/certs/localhost.pem       # certificate
+```
+
+These paths are the defaults for `TLS_KEY_PATH` and `TLS_CERT_PATH`. You can override them with environment variables or CLI flags if you store your certs elsewhere.
+
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| Browser shows "connection not secure" | Run `mkcert -install` to trust the local CA, then restart the browser |
+| WebSocket connection fails after enabling HTTPS | Ensure your client connects to `wss://` not `ws://` |
+| Auth token rejected | Check you are sending the `X-Auth-Token` header, not `Authorization` |
+| Token lost | Set a new `AUTH_TOKEN` env var and restart; update all clients |

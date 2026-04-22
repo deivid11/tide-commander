@@ -1,8 +1,6 @@
 {
   "toast": {
     "error": "错误",
-    "snapshotFailed": "快照失败",
-    "snapshotFailedMsg": "保存快照失败",
     "mergeFailed": "合并失败",
     "mergeFailedMsg": "合并更改失败",
     "compareFailed": "比较失败",

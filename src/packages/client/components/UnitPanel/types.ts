@@ -2,7 +2,7 @@
  * Types and constants for the UnitPanel component family
  */
 
-import type { Agent, DrawingArea, AgentSupervisorHistoryEntry, DelegationDecision } from '../../../shared/types';
+import type { Agent, DrawingArea, DelegationDecision } from '../../../shared/types';
 
 // ============================================================================
 // Props Types
@@ -34,17 +34,6 @@ export interface SingleAgentPanelProps {
 
 export interface MultiAgentPanelProps {
   agents: Agent[];
-}
-
-export interface GlobalSupervisorStatusProps {
-  agents: Agent[];
-}
-
-export interface SupervisorHistoryItemProps {
-  entry: AgentSupervisorHistoryEntry;
-  defaultExpanded?: boolean;
-  agent?: Agent;
-  onAgentClick?: (agentId: string) => void;
 }
 
 export interface BossAgentSectionProps {
@@ -88,15 +77,6 @@ export interface ContextInfo {
   totalTokens: number;
   contextWindow: number;
   freeTokens: number;
-}
-
-/**
- * Agent status with supervisor history entry
- */
-export interface AgentStatusWithHistory {
-  agent: Agent;
-  entry: AgentSupervisorHistoryEntry | null;
-  timestamp: number;
 }
 
 // ============================================================================

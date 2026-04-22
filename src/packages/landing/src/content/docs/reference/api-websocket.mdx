@@ -1,0 +1,203 @@
+---
+title: WebSocket API
+description: Real-time WebSocket events emitted by the Tide Commander server — agent lifecycle, output streaming, notifications, delegation, and exec tasks.
+---
+
+import { Aside, Card } from '@astrojs/starlight/components';
+
+Tide Commander uses a single WebSocket connection for all real-time updates. The client connects to `ws://localhost:5174` (or whichever port is configured). All messages are JSON with a `type` discriminant and a `payload` object.
+
+## Connecting
+
+```js
+const ws = new WebSocket('ws://localhost:5174');
+
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+  console.log(msg.type, msg.payload);
+};
+```
+
+<Aside type="note">
+  Authentication uses the same `X-Auth-Token` mechanism as REST. Pass it as a query param when auth is enabled: `ws://localhost:5174?token=your-token`.
+</Aside>
+
+---
+
+## Message direction
+
+- **S→C** — Server pushes to all connected clients
+- **C→S** — Client sends to server
+
+---
+
+## Agent lifecycle (S→C)
+
+| Type | Description |
+|---|---|
+| `agents_update` | Full agent list sync, sent on connect |
+| `agent_created` | New agent was created |
+| `agent_updated` | Agent properties changed (status, position, context, etc.) |
+| `agent_deleted` | Agent was removed — `payload: { id }` |
+
+**Example `agent_updated`:**
+```json
+{
+  "type": "agent_updated",
+  "payload": {
+    "id": "abc123",
+    "name": "Scout Alpha",
+    "status": "working",
+    "currentTool": "Bash",
+    "contextUsed": 12500,
+    "contextLimit": 200000
+  }
+}
+```
+
+---
+
+## Output streaming (S→C)
+
+Claude Code streams its output token-by-token. Each chunk arrives as an `output` message:
+
+```json
+{
+  "type": "output",
+  "payload": {
+    "agentId": "abc123",
+    "text": "Analyzing the codebase...",
+    "isStreaming": true,
+    "timestamp": 1716000000000,
+    "toolName": "Bash",
+    "toolInput": { "command": "find . -name '*.ts'" },
+    "toolOutput": "src/index.ts\nsrc/app.ts\n"
+  }
+}
+```
+
+`isStreaming: false` marks the final chunk of a turn. Optional `toolName` / `toolInput` / `toolOutput` are parsed from the stream for the debugger panel.
+
+---
+
+## Context updates (S→C)
+
+Lightweight real-time context usage update, emitted during streaming:
+
+```json
+{
+  "type": "context_update",
+  "payload": {
+    "agentId": "abc123",
+    "contextUsed": 45000,
+    "contextLimit": 200000
+  }
+}
+```
+
+| Type | Description |
+|---|---|
+| `context_update` | Live context usage during a streaming turn |
+| `context_stats` | Full context breakdown (after `/context` command) |
+| `compacting_status` | Autocompact active / finished — `payload: { agentId, active }` |
+
+---
+
+## Notifications (S→C)
+
+Sent when an agent calls `POST /api/notify`:
+
+```json
+{
+  "type": "agent_notification",
+  "payload": {
+    "id": "notif_xyz",
+    "agentId": "abc123",
+    "agentName": "Scout Alpha",
+    "agentClass": "scout",
+    "title": "Task Complete",
+    "message": "Build succeeded",
+    "timestamp": 1716000000000
+  }
+}
+```
+
+---
+
+## Boss / delegation (S→C and C→S)
+
+### Client → Server
+
+| Type | Description |
+|---|---|
+| `spawn_boss_agent` | Create a new boss agent |
+| `assign_subordinates` | Add subordinates to a boss |
+| `remove_subordinate` | Remove one subordinate from a boss |
+| `send_boss_command` | Send a task command to a boss for delegation |
+| `request_delegation_history` | Request past delegation decisions |
+
+**`assign_subordinates` example:**
+```json
+{
+  "type": "assign_subordinates",
+  "payload": {
+    "bossId": "boss123",
+    "subordinateIds": ["sub1", "sub2"]
+  }
+}
+```
+
+### Server → Client
+
+| Type | Description |
+|---|---|
+| `delegation_decision` | Boss decided which subordinate handles a task |
+| `boss_subordinates_updated` | Subordinate list changed |
+| `delegation_history` | Past delegation records for a boss |
+| `boss_spawned_agent` | Boss spawned a new subordinate |
+| `agent_task_started` | Subordinate started a delegated task |
+| `agent_task_output` | Streaming output from a subordinate's delegated task |
+| `agent_task_completed` | Subordinate finished — `payload: { bossId, subordinateId, success }` |
+
+---
+
+## Exec tasks (S→C)
+
+When an agent calls `POST /api/exec`, output is streamed to all clients:
+
+| Type | Payload fields |
+|---|---|
+| `exec_task_started` | `taskId`, `agentId`, `agentName`, `command`, `cwd` |
+| `exec_task_output` | `taskId`, `agentId`, `output`, `isError?` |
+| `exec_task_completed` | `taskId`, `agentId`, `exitCode`, `success` |
+
+---
+
+## Permissions (C→S and S→C)
+
+When an agent requests a tool permission, the server sends a `permission_request` to all clients. The UI responds with a `permission_response`:
+
+```json
+{
+  "type": "permission_response",
+  "payload": {
+    "agentId": "abc123",
+    "permissionId": "perm_xyz",
+    "granted": true
+  }
+}
+```
+
+---
+
+## Miscellaneous (S→C)
+
+| Type | Description |
+|---|---|
+| `activity` | Human-readable activity log entry |
+| `error` | Server-side error — `payload: { message }` |
+| `focus_agent` | UI should focus/scroll to an agent |
+| `work_plan_created` | New work plan created |
+| `work_plan_updated` | Work plan changed |
+| `work_plan_deleted` | Work plan removed |
+| `work_plans_update` | Full work plan sync on connect |

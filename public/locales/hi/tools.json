@@ -226,8 +226,7 @@
     "title": "कार्य सूची"
   },
   "bossContext": {
-    "teamContext": "टीम संदर्भ ({{count}} एजेंट)",
-    "teamContext_one": "टीम संदर्भ (1 एजेंट)",
+    "teamContext": "टीम संदर्भ",
     "injectedInstructions": "इंजेक्ट किए गए एजेंट निर्देश"
   },
   "delegation": {

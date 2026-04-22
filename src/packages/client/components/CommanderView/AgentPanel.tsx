@@ -9,7 +9,7 @@
 import React, { useRef, useEffect, useState, useMemo, useCallback, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Agent } from '../../../shared/types';
-import { useSupervisorLastReport, useLastPrompt, store, ClaudeOutput } from '../../store';
+import { useLastPrompt, store, ClaudeOutput } from '../../store';
 import { formatTokens } from '../../utils/formatting';
 import { getDisplayContextInfo } from '../../utils/context';
 import { VirtualizedOutputList } from '../ClaudeOutputPanel/VirtualizedOutputList';
@@ -21,6 +21,7 @@ import type { AgentHistory } from './types';
 import { STATUS_COLORS } from './types';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { useModalStackRegistration } from '../../hooks/useModalStack';
+import { Icon } from '../Icon';
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -67,7 +68,7 @@ const ElapsedTimer = memo(function ElapsedTimer({
         onClick={() => store.stopAgent(agentId)}
         title={t('terminal:input.stopOperation')}
       >
-        <span className="stop-icon">■</span>
+        <span className="stop-icon"><Icon name="stop" size={12} weight="fill" /></span>
         <span className="stop-label">{t('terminal:input.stop')}</span>
       </button>
     </div>
@@ -102,7 +103,6 @@ export function AgentPanel({
   onClearHistory,
 }: AgentPanelProps) {
   const { t } = useTranslation(['terminal', 'common']);
-  const lastReport = useSupervisorLastReport();
   const lastPrompt = useLastPrompt(agent.id);
   const outputRef = useRef<HTMLDivElement>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -143,14 +143,6 @@ export function AgentPanel({
 
   // Just use the filtered outputs directly - no dedup
   const filteredOutputs = viewFilteredOutputs;
-
-  // Get supervisor status for this agent
-  const supervisorStatus = useMemo(() => {
-    if (!lastReport?.agentSummaries) return null;
-    return lastReport.agentSummaries.find(
-      s => s.agentId === agent.id || s.agentName === agent.name
-    );
-  }, [lastReport, agent.id, agent.name]);
 
   // Calculate context usage info
   const contextInfo = useMemo(() => {
@@ -365,7 +357,7 @@ export function AgentPanel({
           />
           <span className="agent-panel-name">
             {(agent.isBoss || agent.class === 'boss') && (
-              <span className="agent-panel-boss-crown">👑</span>
+              <span className="agent-panel-boss-crown"><Icon name="crown" size={14} /></span>
             )}
             {agent.name}
           </span>
@@ -379,7 +371,7 @@ export function AgentPanel({
           </span>
           {agent.taskLabel ? (
             <div className="agent-panel-task agent-panel-task-label" title={agent.taskLabel}>
-              📋 {agent.taskLabel}
+              <Icon name="task" size={12} /> {agent.taskLabel}
             </div>
           ) : agent.currentTask ? (
             <div className="agent-panel-task" title={agent.currentTask}>
@@ -429,11 +421,6 @@ export function AgentPanel({
           </button>
         </div>
       </div>
-
-      {/* Supervisor Status */}
-      {supervisorStatus && (
-        <div className="agent-panel-supervisor-status">{supervisorStatus.statusDescription}</div>
-      )}
 
       {/* Output Content - Virtualized scroll rendering */}
       <div className="agent-panel-content" ref={outputRef}>

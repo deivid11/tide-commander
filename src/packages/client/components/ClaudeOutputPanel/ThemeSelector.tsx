@@ -2,27 +2,58 @@
  * ThemeSelector - Compact theme switcher for the terminal status bar
  */
 
-import React, { memo, useState, useRef, useEffect } from 'react';
+import React, { memo, useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ModalPortal } from '../shared/ModalPortal';
 import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
+import { Icon } from '../Icon';
 
 export const ThemeSelector = memo(function ThemeSelector() {
   const { t } = useTranslation(['terminal']);
   const [isOpen, setIsOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeId>(() => getSavedTheme());
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [dropdownPosition, setDropdownPosition] = useState<{ left: number; bottom: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   // Get current theme index
   const currentIndex = themes.findIndex(t => t.id === currentTheme);
 
+  // Compute dropdown position anchored to the trigger, since it is portaled to body
+  // to escape ancestor overflow: hidden clipping on the terminal status bar.
+  useLayoutEffect(() => {
+    if (!isOpen) {
+      setDropdownPosition(null);
+      return;
+    }
+    const updatePosition = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setDropdownPosition({
+        left: rect.right,
+        bottom: window.innerHeight - rect.top + 8,
+      });
+    };
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [isOpen]);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     if (!isOpen) return;
 
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const insideTrigger = containerRef.current?.contains(target);
+      const insideDropdown = dropdownRef.current?.contains(target);
+      if (!insideTrigger && !insideDropdown) {
         setIsOpen(false);
       }
     };
@@ -94,58 +125,71 @@ export const ThemeSelector = memo(function ThemeSelector() {
     applyTheme(theme);
     setCurrentTheme(themeId);
     setIsOpen(false);
+    // Return focus to trigger so ArrowUp/ArrowDown continue cycling themes.
+    triggerRef.current?.focus();
   };
 
   const currentThemeData = getTheme(currentTheme);
 
   return (
-    <div className="theme-selector" ref={dropdownRef}>
+    <div className="theme-selector" ref={containerRef}>
       <button
         ref={triggerRef}
+        type="button"
         className="theme-selector-trigger"
         onClick={() => setIsOpen(!isOpen)}
         onKeyDown={handleTriggerKeyDown}
         title={t('terminal:themeSelector.themeTitle', { name: currentThemeData.name })}
       >
-        <span className="theme-selector-icon">🎨</span>
+        <span className="theme-selector-icon"><Icon name="palette" size={14} /></span>
         <span className="theme-selector-name">{currentThemeData.name}</span>
-        <span className="theme-selector-arrow">{isOpen ? '▲' : '▼'}</span>
+        <span className="theme-selector-arrow"><Icon name={isOpen ? 'caret-up' : 'caret-down'} size={11} /></span>
       </button>
 
-      {isOpen && (
-        <div
-          className="theme-selector-dropdown"
-          onMouseDown={(e) => e.stopPropagation()} // Prevent terminal close-on-click-outside
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="theme-selector-header">{t('terminal:themeSelector.selectTheme')}</div>
-          <div className="theme-selector-list">
-            {themes.map((theme, index) => (
-              <button
-                key={theme.id}
-                className={`theme-selector-option ${theme.id === currentTheme ? 'active' : ''} ${index === highlightedIndex ? 'highlighted' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation(); // Prevent click-outside handler from closing terminal
-                  handleThemeSelect(theme.id);
-                }}
-                onMouseDown={(e) => e.stopPropagation()} // Prevent mousedown tracking
-                onMouseEnter={() => setHighlightedIndex(index)}
-              >
-                <span
-                  className="theme-option-preview"
-                  style={{
-                    background: `linear-gradient(135deg, ${theme.colors.bgPrimary} 0%, ${theme.colors.bgSecondary} 50%, ${theme.colors.accentPurple} 100%)`,
+      {isOpen && dropdownPosition && (
+        <ModalPortal>
+          <div
+            ref={dropdownRef}
+            className="theme-selector-dropdown theme-selector-dropdown--portaled"
+            style={{
+              position: 'fixed',
+              left: `${dropdownPosition.left}px`,
+              bottom: `${dropdownPosition.bottom}px`,
+              transform: 'translateX(-100%)',
+            }}
+            onMouseDown={(e) => e.stopPropagation()} // Prevent terminal close-on-click-outside
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="theme-selector-header">{t('terminal:themeSelector.selectTheme')}</div>
+            <div className="theme-selector-list">
+              {themes.map((theme, index) => (
+                <button
+                  key={theme.id}
+                  type="button"
+                  className={`theme-selector-option ${theme.id === currentTheme ? 'active' : ''} ${index === highlightedIndex ? 'highlighted' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent click-outside handler from closing terminal
+                    handleThemeSelect(theme.id);
                   }}
-                />
-                <span className="theme-option-info">
-                  <span className="theme-option-name">{theme.name}</span>
-                  <span className="theme-option-desc">{theme.description}</span>
-                </span>
-                {theme.id === currentTheme && <span className="theme-option-check">✓</span>}
-              </button>
-            ))}
+                  onMouseDown={(e) => e.stopPropagation()} // Prevent mousedown tracking
+                  onMouseEnter={() => setHighlightedIndex(index)}
+                >
+                  <span
+                    className="theme-option-preview"
+                    style={{
+                      background: `linear-gradient(135deg, ${theme.colors.bgPrimary} 0%, ${theme.colors.bgSecondary} 50%, ${theme.colors.accentPurple} 100%)`,
+                    }}
+                  />
+                  <span className="theme-option-info">
+                    <span className="theme-option-name">{theme.name}</span>
+                    <span className="theme-option-desc">{theme.description}</span>
+                  </span>
+                  {theme.id === currentTheme && <span className="theme-option-check"><Icon name="check" size={12} /></span>}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

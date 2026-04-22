@@ -184,7 +184,7 @@
   font-family: $font-mono;
 }
 
-// Combined status line: supervisor badge + last input
+// Combined status line: last input
 .guake-status-line {
   display: flex;
   align-items: center;
@@ -200,29 +200,6 @@
   cursor: help;
   flex: 1 1 280px;
   min-width: min(100%, 220px);
-}
-
-.guake-supervisor-badge {
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-size: 10px;
-  flex-shrink: 0;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, currentColor 12%, transparent);
-  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
-}
-
-.guake-supervisor-summary {
-  color: $dracula-fg;
-  font-size: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  opacity: 0.9;
-  flex: 1;
-  min-width: 0;
 }
 
 .guake-task-label {
@@ -901,58 +878,6 @@
   }
 }
 
-// Supervisor info section - compact single line
-.guake-supervisor-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 12px;
-  background: rgba($dracula-purple, 0.1);
-  border-bottom: 1px solid rgba($dracula-purple, 0.2);
-  font-family: $font-mono;
-  font-size: 10px;
-  cursor: help;
-
-  .guake-supervisor-icon {
-    font-size: 11px;
-    flex-shrink: 0;
-  }
-
-  .guake-supervisor-progress {
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    flex-shrink: 0;
-  }
-
-  .guake-supervisor-status {
-    color: $dracula-comment;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex: 1;
-  }
-
-  .guake-supervisor-warning {
-    color: $dracula-orange;
-    flex-shrink: 0;
-    font-size: 10px;
-  }
-}
-
-// Snapshot star button
-.guake-snapshot-btn {
-  background: color-mix(in srgb, $dracula-yellow 10%, transparent);
-  border-color: color-mix(in srgb, $dracula-yellow 26%, transparent);
-  color: $dracula-yellow;
-
-  &:hover:not(:disabled) {
-    background: color-mix(in srgb, $dracula-yellow 16%, transparent);
-    border-color: color-mix(in srgb, $dracula-yellow 40%, transparent);
-    color: color.adjust($dracula-yellow, $lightness: 8%);
-  }
-}
-
 .guake-debug-toggle,
 .guake-debug-panel-toggle {
   background: color-mix(in srgb, $dracula-orange 10%, transparent);
@@ -1089,6 +1014,16 @@
   border-radius: $radius-md;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
   z-index: 1000;
+
+  // Portaled to document.body to escape ancestor overflow: hidden clipping
+  // on .guake-agent-status-bar. Inline styles provide the fixed-position
+  // coordinates; these overrides neutralize the anchored defaults above.
+  &.theme-selector-dropdown--portaled {
+    right: auto;
+    bottom: auto;
+    margin-bottom: 0;
+    z-index: 1200;
+  }
 
   // Scrollbar styling
   &::-webkit-scrollbar {

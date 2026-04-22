@@ -33,7 +33,8 @@ export interface RuntimeCommandExecutionApi {
     systemPrompt?: string,
     forceNewSession?: boolean,
     customAgent?: CustomAgentConfig,
-    silent?: boolean
+    silent?: boolean,
+    skipNotify?: boolean
   ) => Promise<void>;
   sendCommand: (
     agentId: string,
@@ -62,7 +63,8 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
     systemPrompt?: string,
     forceNewSession?: boolean,
     customAgent?: CustomAgentConfig,
-    silent?: boolean
+    silent?: boolean,
+    skipNotify?: boolean
   ): Promise<void> {
     const agent = agentService.getAgent(agentId);
     if (!agent) {
@@ -73,7 +75,7 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
       throw new Error(`Runtime provider not initialized: ${agent.provider}`);
     }
 
-    if (!silent) {
+    if (!silent && !skipNotify) {
       notifyCommandStarted(agentId, command);
     }
 
@@ -162,29 +164,40 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
           }
           agentService.updateAgent(agentId, updateData);
 
-          startStdinWatchdog({
-            agentId,
-            command,
-            systemPrompt,
-            customAgent,
-            runner: getRunnerForAgent(agentId),
-            onRespawn: async (retryAgentId, retryCommand, retrySystemPrompt, retryCustomAgent) => {
-              await executeCommand(
-                retryAgentId,
-                retryCommand,
-                retrySystemPrompt,
-                false,
-                retryCustomAgent as CustomAgentConfig | undefined
-              );
-            },
-          });
+          // Only start the stdin watchdog when the message was written directly to stdin
+          // (i.e. the agent was idle/waiting_for_input). When the agent was mid-turn
+          // (turnState === 'processing'), the runner queues the message and delivers it
+          // via the step_complete handler — no watchdog needed since delivery is guaranteed.
+          if (turnState !== 'processing') {
+            startStdinWatchdog({
+              agentId,
+              command,
+              systemPrompt,
+              customAgent,
+              runner: getRunnerForAgent(agentId),
+              onRespawn: async (retryAgentId, retryCommand, retrySystemPrompt, retryCustomAgent) => {
+                // User was already notified via command_started when the message was first sent;
+                // skip re-emitting it to prevent the duplicate message in the UI.
+                await executeCommand(
+                  retryAgentId,
+                  retryCommand,
+                  retrySystemPrompt,
+                  false,
+                  retryCustomAgent as CustomAgentConfig | undefined,
+                  undefined,
+                  true // skipNotify: command_started already broadcast on initial send
+                );
+              },
+            });
+          }
 
           return;
         }
         log.warn(`[sendCommand] Agent ${agentId}: stdin sendMessage returned false, falling through to respawn`);
       } else {
         log.log(`[sendCommand] Agent ${agentId} (${agent.provider}): backend does not support stdin, stopping current process to respawn with resume`);
-        await runner.stop(agentId);
+        // Preserve queued messages — they will be drained after the new process completes its turn
+        await runner.stop(agentId, false);
       }
     } else if (!processRunning) {
       log.log(`[sendCommand] Agent ${agentId}: Process not running, spawning new (sessionId=${agent.sessionId || 'none'})`);

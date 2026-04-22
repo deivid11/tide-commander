@@ -1,9 +1,8 @@
-import type { ContextStats, GlobalUsageStats } from '../../shared/types.js';
+import type { ContextStats } from '../../shared/types.js';
 import type { SessionMessage } from '../claude/session-loader.js';
 import { loadSession } from '../claude/session-loader.js';
 import type { RuntimeEvent } from '../runtime/index.js';
 import * as agentService from './agent-service.js';
-import * as supervisorService from './supervisor-service.js';
 import {
   clearPendingSilentContextRefresh,
   consumeStepCompleteReceived,
@@ -42,7 +41,6 @@ interface RuntimeEventsDeps {
   ) => void;
   emitComplete: (agentId: string, success: boolean) => void;
   emitError: (agentId: string, error: string) => void;
-  parseUsageOutput: (raw: string) => Pick<GlobalUsageStats, 'session' | 'weeklyAllModels' | 'weeklySonnet'> | null;
   executeCommand: (
     agentId: string,
     command: string,
@@ -91,6 +89,7 @@ function estimateTokensFromText(text: string | undefined): number {
 
 function getDefaultContextWindow(provider: 'claude' | 'codex' | 'opencode' | undefined): number {
   if (provider === 'codex') return DEFAULT_CODEX_CONTEXT_WINDOW;
+  if (provider === 'opencode') return DEFAULT_CLAUDE_CONTEXT_WINDOW;
   return DEFAULT_CLAUDE_CONTEXT_WINDOW;
 }
 
@@ -206,7 +205,6 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
     emitOutput,
     emitComplete,
     emitError,
-    parseUsageOutput,
     executeCommand,
     isAgentProcessActive,
   } = deps;
@@ -260,7 +258,8 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         // total_input = cache_read + cache_creation + input_tokens (the full prompt size).
         if (event.tokens) {
           const isClaudeProvider = (agent.provider ?? 'claude') === 'claude';
-          if (isClaudeProvider) {
+          const isOpencodeProvider = (agent.provider ?? 'claude') === 'opencode';
+          if (isClaudeProvider || isOpencodeProvider) {
             const cacheRead = event.tokens.cacheRead || 0;
             const cacheCreation = event.tokens.cacheCreation || 0;
             const inputTokens = event.tokens.input || 0;
@@ -298,7 +297,7 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
                   updates.contextStats = buildEstimatedContextStats(
                     safeContextUsed,
                     effectiveLimit,
-                    agent.model || 'claude'
+                    isClaudeProvider ? (agent.model || 'claude') : (agent.opencodeModel || 'opencode')
                   );
                 }
                 agentService.updateAgent(agentId, updates, false);
@@ -329,6 +328,7 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
 
         const isClaudeProvider = (agent.provider ?? 'claude') === 'claude';
         const isCodexProvider = (agent.provider ?? 'claude') === 'codex';
+        const isOpencodeProvider = (agent.provider ?? 'claude') === 'opencode';
         const lastTask = agent.lastAssignedTask?.trim() || '';
         const isContextCommand = lastTask === '/context' || lastTask === '/cost' || lastTask === '/compact';
 
@@ -340,11 +340,11 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         // zero out contextUsed (since all fields would be undefined → 0).
         const hasModelUsageData = event.modelUsage && Object.keys(event.modelUsage).length > 0;
 
-        // For CLAUDE agents: the usage_snapshot handler (from the streaming assistant
-        // event) already set the authoritative per-turn contextUsed value. The
-        // step_complete's modelUsage/tokens may contain CUMULATIVE session-wide totals
-        // which would inflate the tracked context. Only extract contextLimit (window
-        // size) from modelUsage — never override contextUsed for Claude agents.
+        // For CLAUDE and OPENCODE agents: the usage_snapshot handler already set
+        // the authoritative per-turn contextUsed value. The step_complete's
+        // modelUsage/tokens may contain CUMULATIVE session-wide totals which would
+        // inflate the tracked context. Only extract contextLimit (window size) from
+        // modelUsage — never override contextUsed for Claude/OpenCode agents.
         //
         // For CODEX agents: there's no usage_snapshot, so step_complete is the only
         // source of context estimation.
@@ -356,6 +356,11 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
           // Preserve contextUsed from usage_snapshot (set during streaming)
           contextUsed = agent.contextUsed || 0;
           log.log(`[step_complete] Claude agent ${agentId}: preserving usage_snapshot contextUsed=${contextUsed}, contextLimit=${contextLimit}`);
+        } else if (isOpencodeProvider) {
+          // OpenCode: preserve contextUsed from usage_snapshot, use stored contextLimit
+          contextUsed = agent.contextUsed || 0;
+          contextLimit = agent.contextLimit || getDefaultContextWindow('opencode');
+          log.log(`[step_complete] OpenCode agent ${agentId}: preserving usage_snapshot contextUsed=${contextUsed}, contextLimit=${contextLimit}`);
         } else if (hasModelUsageData && event.modelUsage) {
           const inputTokens = event.modelUsage.inputTokens || 0;
           const outputTokens = event.modelUsage.outputTokens || 0;
@@ -386,7 +391,7 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
               : rollingEstimate;
             contextLimit = agent.contextLimit || DEFAULT_CODEX_CONTEXT_WINDOW;
           }
-          // For Claude with tokens but no modelUsage — usage_snapshot already handled it
+          // For Claude/OpenCode with tokens but no modelUsage — usage_snapshot already handled it
         }
 
         // For /context, /cost, /compact: the context_stats event already set the
@@ -420,6 +425,13 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         // Always keep contextStats in sync. If authoritative stats exist (from
         // /context), merge the updated totalTokens while preserving category
         // breakdowns. Otherwise build fresh estimated stats.
+        const modelForStats = isClaudeProvider
+          ? (agent.model || 'claude')
+          : isCodexProvider
+            ? (agent.codexModel || agent.model)
+            : isOpencodeProvider
+              ? (agent.opencodeModel || 'opencode')
+              : (agent.model || 'unknown');
         if (agent.contextStats && agent.contextStats.lastUpdated) {
           updates.contextStats = updateContextStatsTokens(
             agent.contextStats,
@@ -430,12 +442,11 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
           updates.contextStats = buildEstimatedContextStats(
             Math.max(0, Math.round(contextUsed)),
             Math.max(1, Math.round(contextLimit)),
-            isClaudeProvider ? (agent.model || 'claude') : (agent.codexModel || agent.model)
+            modelForStats
           );
         }
         agentService.updateAgent(agentId, updates);
 
-        const isOpencodeProvider = (agent.provider ?? 'claude') === 'opencode';
         if (!isCodexProvider && !isOpencodeProvider) {
           setTimeout(() => {
             log.log(`[step_complete] Setting status to idle for agent ${agentId} (lastTask: ${agent.lastAssignedTask})`);
@@ -461,25 +472,8 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
 
       case 'context_stats':
         break;
-
-      case 'usage_stats':
-        console.log('[Claude] Received usage_stats event');
-        console.log('[Claude] usageStatsRaw:', event.usageStatsRaw?.substring(0, 200));
-        if (event.usageStatsRaw) {
-          const usageStats = parseUsageOutput(event.usageStatsRaw);
-          console.log('[Claude] Parsed usage stats:', usageStats);
-          if (usageStats) {
-            supervisorService.updateGlobalUsage(agentId, agent.name, usageStats);
-          } else {
-            console.log('[Claude] Failed to parse usage stats');
-          }
-        } else {
-          console.log('[Claude] No usageStatsRaw in event');
-        }
-        break;
     }
 
-    supervisorService.generateNarrative(agentId, event);
     emitEvent(agentId, event);
   }
 

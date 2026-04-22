@@ -9,12 +9,14 @@ import { store, useSkillsArray, useCustomAgentClassesArray } from '../store';
 import { KeyCaptureInput } from './KeyCaptureInput';
 import { ModelPreview } from './ModelPreview';
 import { FolderInput } from './shared/FolderInput';
+import { OpencodeModelSelect } from './OpencodeModelSelect';
 import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig } from '../../shared/types';
 import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../shared/types';
 import { ShortcutConfig, formatShortcutString, parseShortcutString, shortcutValueToString } from '../store/shortcuts';
 import { apiUrl } from '../utils/storage';
 import { useModalClose } from '../hooks';
 import { AgentIcon } from './AgentIcon';
+import { Icon } from './Icon';
 
 interface AgentEditModalProps {
   agent: Agent;
@@ -48,9 +50,28 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const [workdir, setWorkdir] = useState<string>(agent.cwd);
   const [shortcut, setShortcut] = useState<string>(((agent as AgentWithShortcut).shortcut || '').trim());
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
+  const [classSearch, setClassSearch] = useState('');
   const [skillSearch, setSkillSearch] = useState('');
+  const [customInstructions, setCustomInstructions] = useState<string>(agent.customInstructions || '');
   const [editingInstructions, setEditingInstructions] = useState(false);
   const [instructionsText, setInstructionsText] = useState('');
+
+  // Filter classes by search query
+  const filteredCustomClasses = useMemo(() => {
+    if (!classSearch.trim()) return customClasses;
+    const query = classSearch.toLowerCase();
+    return customClasses.filter(c =>
+      c.name.toLowerCase().includes(query) ||
+      c.id.toLowerCase().includes(query)
+    );
+  }, [customClasses, classSearch]);
+
+  const filteredBuiltInClasses = useMemo(() => {
+    const entries = Object.entries(BUILT_IN_AGENT_CLASSES).filter(([key]) => key !== 'boss');
+    if (!classSearch.trim()) return entries;
+    const query = classSearch.toLowerCase();
+    return entries.filter(([key]) => key.toLowerCase().includes(query));
+  }, [classSearch]);
 
   // Get skills currently assigned to this agent
   const _currentAgentSkills = useMemo(() => {
@@ -90,6 +111,8 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       setUseChrome(agent.useChrome || false);
       setWorkdir(agent.cwd);
       setShortcut((((agent as AgentWithShortcut).shortcut) || '').trim());
+      setClassSearch('');
+      setCustomInstructions(agent.customInstructions || '');
       const directlyAssigned = allSkills
         .filter(s => s.assignedAgentIds.includes(agent.id))
         .map(s => s.id);
@@ -188,6 +211,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (useChrome !== (agent.useChrome || false)) return true;
     if (workdir !== agent.cwd) return true;
     if (shortcut !== (((agent as AgentWithShortcut).shortcut || '').trim())) return true;
+    if (customInstructions !== (agent.customInstructions || '')) return true;
 
     // Check skill changes
     const currentDirectSkills = allSkills
@@ -199,7 +223,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (currentDirectSkills !== newSkills) return true;
 
     return false;
-  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedEffort, selectedCodexModel, codexConfig, opencodeModel, useChrome, workdir, shortcut, selectedSkillIds, agent, allSkills]);
+  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedEffort, selectedCodexModel, codexConfig, opencodeModel, useChrome, workdir, shortcut, customInstructions, selectedSkillIds, agent, allSkills]);
 
   // Handle save
   const handleSave = () => {
@@ -217,6 +241,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       skillIds?: string[];
       cwd?: string;
       shortcut?: string;
+      customInstructions?: string;
     } = {};
 
     if (trimmedName && trimmedName !== agent.name) {
@@ -265,6 +290,10 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
 
     if (shortcut !== (((agent as AgentWithShortcut).shortcut || '').trim())) {
       updates.shortcut = shortcut;
+    }
+
+    if (customInstructions !== (agent.customInstructions || '')) {
+      updates.customInstructions = customInstructions;
     }
 
     // Always send skill IDs if changed
@@ -324,8 +353,15 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
             </div>
             <div className="spawn-class-section">
               <div className="spawn-class-label">{t('terminal:spawn.agentClass')}</div>
+              <input
+                type="text"
+                className="spawn-input class-search-input"
+                placeholder="Filter classes..."
+                value={classSearch}
+                onChange={(e) => setClassSearch(e.target.value)}
+              />
               <div className="class-selector-inline">
-                {customClasses.map((customClass) => (
+                {filteredCustomClasses.map((customClass) => (
                   <button
                     key={customClass.id}
                     className={`class-chip ${selectedClass === customClass.id ? 'selected' : ''}`}
@@ -336,19 +372,20 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     <span className="class-chip-name">{customClass.name}</span>
                   </button>
                 ))}
-                {Object.entries(BUILT_IN_AGENT_CLASSES)
-                  .filter(([key]) => key !== 'boss')
-                  .map(([key, config]) => (
-                    <button
-                      key={key}
-                      className={`class-chip ${selectedClass === key ? 'selected' : ''}`}
-                      onClick={() => setSelectedClass(key as AgentClass)}
-                      title={config.description}
-                    >
-                      <AgentIcon classId={key} size={18} className="class-chip-icon" />
-                      <span className="class-chip-name">{key.charAt(0).toUpperCase() + key.slice(1)}</span>
-                    </button>
-                  ))}
+                {filteredBuiltInClasses.map(([key, config]) => (
+                  <button
+                    key={key}
+                    className={`class-chip ${selectedClass === key ? 'selected' : ''}`}
+                    onClick={() => setSelectedClass(key as AgentClass)}
+                    title={config.description}
+                  >
+                    <AgentIcon classId={key} size={18} className="class-chip-icon" />
+                    <span className="class-chip-name">{key.charAt(0).toUpperCase() + key.slice(1)}</span>
+                  </button>
+                ))}
+                {filteredCustomClasses.length === 0 && filteredBuiltInClasses.length === 0 && (
+                  <div className="class-search-empty">No classes match "{classSearch}"</div>
+                )}
               </div>
             </div>
           </div>
@@ -357,9 +394,9 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
           {selectedCustomClass && (
             <div className="custom-class-notice">
               <div className="custom-class-notice-header" onClick={() => setEditingInstructions(!editingInstructions)} style={{ cursor: 'pointer' }}>
-                <span>📋</span>
+                <span><Icon name="task" size={14} /></span>
                 <span>{selectedCustomClass.instructions ? t('terminal:spawn.hasCustomInstructions') : 'Add custom instructions'}</span>
-                <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}>{editingInstructions ? '▲' : '▼'}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}><Icon name={editingInstructions ? 'caret-up' : 'caret-down'} size={11} /></span>
               </div>
               {!editingInstructions && selectedCustomClass.instructions && (
                 <div className="custom-class-notice-info">
@@ -428,21 +465,21 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     className={`spawn-select-btn ${selectedProvider === 'claude' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('claude')}
                   >
-                    <span>🧠</span>
+                    <span><Icon name="brain" size={14} /></span>
                     <span>Claude</span>
                   </button>
                   <button
                     className={`spawn-select-btn ${selectedProvider === 'codex' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('codex')}
                   >
-                    <span>⚙️</span>
+                    <span><Icon name="gear" size={14} /></span>
                     <span>Codex</span>
                   </button>
                   <button
                     className={`spawn-select-btn spawn-select-btn--opencode ${selectedProvider === 'opencode' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('opencode')}
                   >
-                    <span>🟢</span>
+                    <img src={`${import.meta.env.BASE_URL}assets/opencode.svg`} alt="OpenCode" className="spawn-provider-icon" />
                     <span>OpenCode</span>
                   </button>
                 </div>
@@ -457,7 +494,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                       onClick={() => setPermissionMode(mode)}
                       title={PERMISSION_MODES[mode].description}
                     >
-                      <span>{mode === 'bypass' ? '⚡' : '🔐'}</span>
+                      <span><Icon name={mode === 'bypass' ? 'bolt' : 'lock'} size={14} /></span>
                       <span>{PERMISSION_MODES[mode].label}</span>
                     </button>
                   ))}
@@ -503,12 +540,10 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     ))}
                   </div>
                 ) : selectedProvider === 'opencode' ? (
-                  <input
-                    type="text"
-                    className="spawn-input"
+                  <OpencodeModelSelect
                     value={opencodeModel}
-                    onChange={(e) => setOpencodeModel(e.target.value)}
-                    placeholder="provider/model (e.g., minimax/MiniMax-M1-80k)"
+                    onChange={setOpencodeModel}
+                    inputId="edit-opencode-model"
                   />
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.codex.configuration')}</div>
@@ -652,6 +687,21 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
               </div>
             )}
 
+            {/* Custom Instructions */}
+            <div className="spawn-form-row">
+              <div className="spawn-field">
+                <label className="spawn-label">Custom Instructions</label>
+                <textarea
+                  className="spawn-input"
+                  value={customInstructions}
+                  onChange={(e) => setCustomInstructions(e.target.value)}
+                  placeholder="Additional instructions appended to this agent's system prompt..."
+                  rows={7}
+                  style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
+                />
+              </div>
+            </div>
+
             {/* Skills section */}
             <div className="spawn-skills-section">
               <label className="spawn-label">
@@ -684,7 +734,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                         onClick={() => !isClassBased && toggleSkill(skill.id)}
                         title={isClassBased ? t('terminal:spawn.assignedViaClass') : skill.name}
                       >
-                        {isActive && <span className="skill-check">✓</span>}
+                        {isActive && <span className="skill-check"><Icon name="check" size={12} /></span>}
                         <span className="skill-chip-name">{skill.name}</span>
                         {skill.builtin && <span className="skill-chip-badge builtin">TC</span>}
                         {isClassBased && <span className="skill-chip-badge">class</span>}

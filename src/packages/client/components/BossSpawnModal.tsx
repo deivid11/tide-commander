@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useStore, useCustomAgentClassesArray, useSkillsArray } from '../store';
+import { store, useAgents, useCustomAgentClassesArray, useSkillsArray } from '../store';
 import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, CodexModel, AgentProvider, CodexConfig } from '../../shared/types';
 import { PERMISSION_MODES, AGENT_CLASSES, CLAUDE_MODELS, CODEX_MODELS } from '../../shared/types';
@@ -8,6 +8,7 @@ import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl } from '../uti
 import { ModelPreview } from './ModelPreview';
 import { FolderInput } from './shared/FolderInput';
 import { AgentIcon } from './AgentIcon';
+import { Icon } from './Icon';
 
 interface BossSpawnModalProps {
   isOpen: boolean;
@@ -32,7 +33,7 @@ function getRandomBossName(usedNames: Set<string>): string {
 
 export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPosition }: BossSpawnModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
-  const { agents } = useStore();
+  const agents = useAgents();
   const customClasses = useCustomAgentClassesArray();
   const skills = useSkillsArray();
   const [name, setName] = useState('');
@@ -49,7 +50,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
     approvalMode: 'on-request',
     search: false,
   });
-  const [selectedModel, setSelectedModel] = useState<ClaudeModel>('claude-opus-4-7');
+  const [selectedModel, setSelectedModel] = useState<ClaudeModel>('opus[1m]');
   const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>('gpt-5.3-codex');
   const [selectedSubordinates, setSelectedSubordinates] = useState<Set<string>>(new Set());
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
@@ -82,7 +83,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
   }, [customClasses, selectedClass, skills]);
 
   // Default skill slugs that should be pre-selected for new boss agents
-  const DEFAULT_SKILL_SLUGS = ['full-notifications', 'streaming-exec', 'task-label', 'report-task-to-boss'];
+  const DEFAULT_SKILL_SLUGS = ['full-notifications', 'streaming-exec', 'task-label', 'report-task-to-boss', 'send-message-to-agent'];
 
   // Initialize default skills once per open event
   useEffect(() => {
@@ -146,8 +147,11 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
   }, [selectedClass, selectedCustomClass]);
 
   // Get available subordinates (non-boss agents without a boss)
-  const availableSubordinates = Array.from(agents.values()).filter(
-    (agent) => !agent.isBoss && agent.class !== 'boss' && !agent.bossId
+  const availableSubordinates = useMemo(
+    () => Array.from(agents.values()).filter(
+      (agent) => !agent.isBoss && agent.class !== 'boss' && !agent.bossId
+    ),
+    [agents]
   );
 
   // Filter classes by search query
@@ -191,7 +195,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
   useEffect(() => {
     if (isOpen && !hasInitializedRef.current) {
       hasInitializedRef.current = true;
-      const usedNames = new Set(Array.from(agents.values()).map((a) => a.name));
+      const usedNames = new Set(Array.from(store.getState().agents.values()).map((a) => a.name));
       // If a custom class is selected, prefix with class name instead of "Boss"
       const customClass = customClasses.find(c => c.id === selectedClass);
       if (customClass) {
@@ -214,7 +218,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
       // Reset the flag when modal closes so it reinitializes next time
       hasInitializedRef.current = false;
     }
-  }, [isOpen, agents]);
+  }, [isOpen]);
 
   // Update name prefix when custom class changes
   useEffect(() => {
@@ -256,7 +260,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
     }
 
     if (!name.trim()) {
-      const usedNames = new Set(Array.from(agents.values()).map((a) => a.name));
+      const usedNames = new Set(Array.from(store.getState().agents.values()).map((a) => a.name));
       setName(getRandomBossName(usedNames));
       return;
     }
@@ -477,7 +481,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                     onClick={() => setSelectedProvider('opencode')}
                     title="Use OpenCode CLI (multi-provider)"
                   >
-                    <span>🟢</span>
+                    <span><Icon name="status-pending" size={14} weight="fill" color="#4ade80" /></span>
                     <span>OpenCode</span>
                   </button>
                 </div>
@@ -492,7 +496,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                       onClick={() => setPermissionMode(mode)}
                       title={PERMISSION_MODES[mode].description}
                     >
-                      <span>{mode === 'bypass' ? '⚡' : '🔐'}</span>
+                      <span><Icon name={mode === 'bypass' ? 'bolt' : 'lock'} size={14} /></span>
                       <span>{PERMISSION_MODES[mode].label}</span>
                     </button>
                   ))}
@@ -642,7 +646,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                         onClick={() => toggleSkill(skill.id)}
                         title={skill.description}
                       >
-                        {isSelected && <span className="spawn-skill-check">✓</span>}
+                        {isSelected && <span className="spawn-skill-check"><Icon name="check" size={12} /></span>}
                         <span>{skill.name}</span>
                         {skill.builtin && <span className="spawn-skill-builtin">TC</span>}
                       </button>
@@ -689,7 +693,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                         className={`subordinate-chip ${isSelected ? 'selected' : ''}`}
                         onClick={() => toggleSubordinate(agent.id)}
                       >
-                        {isSelected && <span className="subordinate-check">✓</span>}
+                        {isSelected && <span className="subordinate-check"><Icon name="check" size={12} /></span>}
                         <span className="subordinate-chip-icon" style={{ color: classConfig.color }}>
                           <AgentIcon classId={agent.class} size={16} />
                         </span>

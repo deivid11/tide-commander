@@ -29,8 +29,14 @@ export interface UseSwipeNavigationProps {
 export interface UseSwipeNavigationReturn {
   /** Sorted agents list matching visual order */
   sortedAgents: Agent[];
-  /** Current swipe offset for visual feedback */
-  swipeOffset: number;
+  /** True while finger is actively dragging (show dots) */
+  isDragging: boolean;
+  /**
+   * Direction the finger is dragging past the indicator threshold.
+   * 'right' = dragging right (showing prev-agent indicator on the left).
+   * 'left'  = dragging left  (showing next-agent indicator on the right).
+   */
+  indicatorDirection: 'left' | 'right' | null;
   /** CSS class for swipe animation */
   swipeAnimationClass: string;
   /** Current agent index in sorted list */
@@ -43,6 +49,8 @@ export interface UseSwipeNavigationReturn {
   headerRef: React.RefObject<HTMLDivElement | null>;
   /** Ref for the swipeable output element */
   outputRef: React.RefObject<HTMLDivElement | null>;
+  /** Ref for the swipe container element — gesture hook applies transform directly */
+  containerRef: React.RefObject<HTMLDivElement | null>;
   /** Handler for left swipe (next agent) */
   handleSwipeLeft: () => void;
   /** Handler for right swipe (prev agent) */
@@ -54,7 +62,7 @@ export function useSwipeNavigation({
   selectedAgentId,
   isOpen,
   overviewPanelOpen,
-  loadingHistory,
+  loadingHistory: _loadingHistory,
   hasModalOpen = false,
   outputRef,
 }: UseSwipeNavigationProps): UseSwipeNavigationReturn {
@@ -238,13 +246,12 @@ export function useSwipeNavigation({
     return filteredAgents;
   }, [agents, areas, toolExecutions, selectedAgentId, overviewPanelOpen]);
 
-  // Swipe animation state
-  const [swipeOffset, setSwipeOffset] = useState(0);
-  const [swipeAnimationClass, setSwipeAnimationClass] = useState('');
-  const swipeAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Swipe UI state — only a handful of updates per gesture (not per touchmove frame)
+  const [isDragging, setIsDragging] = useState(false);
+  const [indicatorDirection, setIndicatorDirection] = useState<'left' | 'right' | null>(null);
 
-  // Track pending swipe direction for animation after agent switch
-  const [pendingSwipeDirection, setPendingSwipeDirection] = useState<'left' | 'right' | null>(null);
+  // Ref for the swipe container — gesture hook writes transform directly to avoid re-renders
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Get current agent index
   const currentAgentIndex = selectedAgentId
@@ -258,101 +265,77 @@ export function useSwipeNavigation({
   // Refs for swipe targets
   const headerRef = useRef<HTMLDivElement>(null);
 
-  // Swipe handlers — swipe left = previous agent (up in list), swipe right = next agent (down in list)
+  const resetDragState = useCallback(() => {
+    setIsDragging(false);
+    setIndicatorDirection(null);
+  }, []);
+
+  // Swipe handlers — swipe left = previous agent, swipe right = next agent
   const handleSwipeLeft = useCallback(() => {
     if (!selectedAgentId || sortedAgents.length <= 1) return;
     const currentIndex = sortedAgents.findIndex((a) => a.id === selectedAgentId);
     if (currentIndex === -1) return;
     const prevIndex = (currentIndex - 1 + sortedAgents.length) % sortedAgents.length;
-
-    setPendingSwipeDirection('left');
-    setSwipeOffset(0);
-    setSwipeAnimationClass('');
-    // Mark that this selection is from swipe to prevent autofocus
+    resetDragState();
     store.setLastSelectionViaSwipe(true);
     store.selectAgent(sortedAgents[prevIndex].id);
-  }, [selectedAgentId, sortedAgents]);
+  }, [selectedAgentId, sortedAgents, resetDragState]);
 
   const handleSwipeRight = useCallback(() => {
     if (!selectedAgentId || sortedAgents.length <= 1) return;
     const currentIndex = sortedAgents.findIndex((a) => a.id === selectedAgentId);
     if (currentIndex === -1) return;
     const nextIndex = (currentIndex + 1) % sortedAgents.length;
-
-    setPendingSwipeDirection('right');
-    setSwipeOffset(0);
-    setSwipeAnimationClass('');
-    // Mark that this selection is from swipe to prevent autofocus
+    resetDragState();
     store.setLastSelectionViaSwipe(true);
     store.selectAgent(sortedAgents[nextIndex].id);
-  }, [selectedAgentId, sortedAgents]);
+  }, [selectedAgentId, sortedAgents, resetDragState]);
 
-  // Handle swipe movement for visual feedback
-  const handleSwipeMove = useCallback((offset: number) => {
-    setSwipeOffset(offset);
-    setSwipeAnimationClass('is-swiping');
+  // Fires once when visual drag begins — show dots
+  const handleDragStart = useCallback(() => {
+    setIsDragging(true);
   }, []);
 
-  // Handle swipe cancel
+  // Fires when drag crosses indicator threshold — show/hide agent name indicator
+  const handleDragThreshold = useCallback((direction: 'left' | 'right' | null) => {
+    setIndicatorDirection(direction);
+  }, []);
+
+  // Swipe cancelled without navigation — snap-back is handled by gesture hook inline,
+  // we just need to reset the UI state
   const handleSwipeCancel = useCallback(() => {
-    setSwipeAnimationClass('is-animating');
-    setSwipeOffset(0);
-    if (swipeAnimationTimeoutRef.current) {
-      clearTimeout(swipeAnimationTimeoutRef.current);
-    }
-    swipeAnimationTimeoutRef.current = setTimeout(() => {
-      setSwipeAnimationClass('');
-    }, 100);
-  }, []);
+    resetDragState();
+  }, [resetDragState]);
 
-  // Trigger swipe-in animation after history finishes loading
-  useEffect(() => {
-    if (!pendingSwipeDirection || loadingHistory) return;
-
-    const direction = pendingSwipeDirection;
-    setPendingSwipeDirection(null);
-
-    requestAnimationFrame(() => {
-      setSwipeAnimationClass(direction === 'left' ? 'swipe-in-left' : 'swipe-in-right');
-      swipeAnimationTimeoutRef.current = setTimeout(() => {
-        setSwipeAnimationClass('');
-      }, 120);
-    });
-  }, [pendingSwipeDirection, loadingHistory]);
-
-  // Cleanup animation timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (swipeAnimationTimeoutRef.current) {
-        clearTimeout(swipeAnimationTimeoutRef.current);
-      }
-    };
-  }, []);
+  const swipeEnabled = isOpen && sortedAgents.length > 1;
+  const sharedSwipeOpts = {
+    // Gesture direction intentionally inverted: swipe-left gesture → prev agent, swipe-right → next
+    onSwipeLeft: handleSwipeRight,
+    onSwipeRight: handleSwipeLeft,
+    onDragStart: handleDragStart,
+    onDragThreshold: handleDragThreshold,
+    onSwipeCancel: handleSwipeCancel,
+    // Apply transform only to the output scroll area, not the container that wraps the input bar.
+    // Transforming an ancestor of .guake-input-wrapper (position:fixed) would break its fixed
+    // positioning by creating a new containing block.
+    dragTarget: outputRef,
+    vibrationIntensity,
+  };
 
   // Attach swipe gesture to header
   useSwipeGesture(headerRef, {
-    enabled: isOpen && sortedAgents.length > 1,
-    // Gesture direction is intentionally inverted from keyboard next/prev semantics:
-    // swipe left => previous agent, swipe right => next agent.
-    onSwipeLeft: handleSwipeRight,
-    onSwipeRight: handleSwipeLeft,
-    onSwipeMove: handleSwipeMove,
-    onSwipeCancel: handleSwipeCancel,
+    ...sharedSwipeOpts,
+    enabled: swipeEnabled,
     threshold: 40,
     maxVerticalMovement: 50,
-    vibrationIntensity,
   });
 
   // Attach swipe gesture to output area
   useSwipeGesture(outputRef, {
-    enabled: isOpen && sortedAgents.length > 1,
-    onSwipeLeft: handleSwipeRight,
-    onSwipeRight: handleSwipeLeft,
-    onSwipeMove: handleSwipeMove,
-    onSwipeCancel: handleSwipeCancel,
+    ...sharedSwipeOpts,
+    enabled: swipeEnabled,
     threshold: 50,
     maxVerticalMovement: 35,
-    vibrationIntensity,
   });
 
   // Keyboard shortcuts for agent navigation (Alt+H / Alt+L)
@@ -422,13 +405,15 @@ export function useSwipeNavigation({
 
   return {
     sortedAgents,
-    swipeOffset,
-    swipeAnimationClass,
+    isDragging,
+    indicatorDirection,
+    swipeAnimationClass: '',
     currentAgentIndex,
     prevAgent,
     nextAgent,
     headerRef,
     outputRef,
+    containerRef,
     handleSwipeLeft,
     handleSwipeRight,
   };

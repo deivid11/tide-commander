@@ -1,0 +1,114 @@
+---
+title: Data Storage
+description: Where Tide Commander stores agent state, sessions, skills, secrets, and configuration on disk.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Tide Commander stores all persistent data under two root directories: `~/.local/share/tide-commander/` for portable application data, and `~/.tide-commander/` for machine-specific runtime files (models, prompts, session tokens).
+
+## Directory layout
+
+```
+~/.local/share/tide-commander/
+├── agents.db              # SQLite — agent records, positions, classes, session IDs
+├── custom-classes.json    # Custom class definitions (name, icon, instructions path, skills)
+├── secrets.json           # AES-256-GCM encrypted secrets store
+├── system-prompt.json     # Global system prompt { content, updatedAt, version }
+├── skills.json            # Custom skill definitions
+└── config.json            # Exported config (skills, system prompt, class metadata)
+
+~/.tide-commander/
+├── custom-models/
+│   └── {classId}.glb      # Uploaded custom 3D models
+├── class-instructions/
+│   └── {classId}.md       # Class instruction markdown files
+├── prompts/
+│   └── prompt-{agentId}-project.md  # Built system prompt per running agent
+└── remembered-permissions.json      # Claude Code permission patterns
+```
+
+## agents.db
+
+Agent records are stored in SQLite. Each row holds:
+
+- `id` — short random agent ID used across the API
+- `name`, `class`, `provider`, `model`
+- `cwd` — working directory the subprocess runs in
+- `sessionId` — the CLI session ID for `--resume`
+- `position` — X/Y/Z coordinates on the terrain
+- `bossId` — parent boss agent ID (if subordinate)
+- `permissionMode` — `bypass` or `interactive`
+- `contextUsed`, `contextLimit` — context meter values
+
+## Session files
+
+CLI sessions themselves are stored by the provider, not by Tide Commander:
+
+| Provider | Session location |
+|----------|----------------|
+| Claude Code | `~/.claude/projects/{cwd-hash}/` |
+| Codex | Provider-managed, referenced by session ID |
+| OpenCode | Provider-managed |
+
+Tide Commander only stores the `sessionId` pointer. The actual conversation transcript lives in the provider's own storage.
+
+## secrets.json
+
+Encrypted with AES-256-GCM using a machine-derived key. The file is unreadable on any other machine. Contents:
+
+```json
+{
+  "secrets": [
+    {
+      "id": "abc123",
+      "name": "GitHub Token",
+      "key": "GITHUB_TOKEN",
+      "encryptedValue": "...",
+      "description": "Personal access token for github.com"
+    }
+  ]
+}
+```
+
+<Aside type="caution" title="No cross-machine portability">
+Secrets cannot be exported and imported across machines. The encryption key is derived from hardware identifiers. Re-enter secrets manually after migrating to a new machine.
+</Aside>
+
+## system-prompt.json
+
+```json
+{
+  "content": "Your global instructions here…",
+  "updatedAt": 1714000000000,
+  "version": "1.0"
+}
+```
+
+This file is included in the config export/import flow (Settings → Data → Export Config).
+
+## remembered-permissions.json
+
+Stores Claude Code's "always allow" permission patterns granted by the user during interactive sessions:
+
+```json
+{
+  "patterns": [
+    { "tool": "Bash", "pattern": "git *", "agentId": "abc123" }
+  ]
+}
+```
+
+## Backup
+
+To fully back up a Tide Commander installation, archive these two directories:
+
+```bash
+tar czf tide-commander-backup.tar.gz \
+  ~/.local/share/tide-commander/ \
+  ~/.tide-commander/
+```
+
+<Aside type="note">
+Custom model GLB files and class instructions are in `~/.tide-commander/` — they are **not** included in the built-in config export. Always include both directories in backups.
+</Aside>

@@ -1,0 +1,59 @@
+---
+title: Dashboard
+description: A map-free, metrics-first view — status cards, building summaries, and run-time counters ideal for stand-ups and always-on displays.
+---
+
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+
+The **Dashboard** trades the battlefield for a wall of cards. When you don't need spatial awareness — you just need to know who's working, who's blocked, and what buildings are healthy — this is the view to pin on a second monitor.
+
+![Dashboard populated with four agents](/screenshots/37-dashboard-with-agents.png)
+
+## How to open it
+
+Pick **Dashboard** from the top toolbar, or press **Alt + 2** to cycle. Dashboard persists per-browser, so if you keep a second window open for always-on viewing it will stay on Dashboard even as the primary window cycles.
+
+## What's on the screen
+
+<CardGrid>
+  <Card title="Agent cards" icon="seti:default">
+    One card per agent: name, class, provider chip (CL/CO/OC), tracking status, current tool, context-used percentage, working directory.
+  </Card>
+  <Card title="Status totals" icon="bars">
+    Roll-up counts at the top — TOTAL, IDLE, WORKING, NEED-REVIEW, BLOCKED, WAITING-SUBORDINATES. Click to filter.
+  </Card>
+  <Card title="Building health" icon="random">
+    Any servers, databases, Docker containers, or links you've placed appear with last-seen state and connection indicators.
+  </Card>
+  <Card title="Recent activity" icon="pencil">
+    A streaming log of the most recent tool calls, notifications, and tracking-status changes across the team.
+  </Card>
+</CardGrid>
+
+## Empty vs. populated
+
+On a fresh install the Dashboard is quiet — a single "no agents yet" card with a **Spawn New Agent** CTA. As soon as you spawn, cards fill in left-to-right in spawn order.
+
+![Dashboard, empty](/screenshots/03-dashboard-view.png)
+
+## When to use it
+
+- **Team stand-ups.** Share-screen the Dashboard and walk the room through what each agent is doing.
+- **Always-on displays.** Pin to a TV or second monitor; it updates live without requiring focus.
+- **Triage.** When something's wrong, a single glance tells you whose status is `blocked` or `need-review` and who owes a report to a boss.
+
+## Gotchas
+
+<Aside type="note" title="Cards do not include full conversations">
+  Dashboard cards are summaries. To read the actual conversation or send a command, click through to the [Agent Inspector](/views/overview/#agent-inspector) or switch to [Commander View](/views/commander/).
+</Aside>
+
+<Aside type="tip" title="Filtering is sticky">
+  Click a status total at the top (e.g. IDLE) to filter the card grid. The filter persists across view switches, so if Dashboard suddenly looks empty after returning from 3D, check your filters.
+</Aside>
+
+## Related
+
+- [Commander View](/views/commander/) — when you need every terminal at once instead of summaries.
+- [Agent Inspector](/views/overview/#agent-inspector) — drill into a single agent.
+- [Tracking Board](/views/overview/#tracking-board) — same status info, organised as a board.

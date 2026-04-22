@@ -2,6 +2,235 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.66.1] - 2026-04-22
+
+### Changed
+- **Simpler agent-switch path in terminal pane** — drop the `pendingSelectionScrollRef` indirection and the cold-switch `requestAnimationFrame`; remove `key={agentId}` from the virtualized output list so the same instance is reused across switches instead of being unmounted and rebuilt
+- **Larger virtualizer overscan** — bump `VirtualizedOutputList` overscan from 10 to 25 items so more rows are pre-rendered above/below the viewport, reducing flashes of blank space during fast scrolling
+- **Tracking-board card detail is now single-line ellipsis** — replace the 2-line `-webkit-line-clamp` clamp with `white-space: nowrap` + `text-overflow: ellipsis` for tighter, more predictable card sizing in both the sidebar and guake-terminal tracking boards
+
+## [1.66.0] - 2026-04-22
+
+### Added
+- **Automatic hourly backups** — in-process scheduler backs up all config JSON files and the SQLite event database every hour with content-signature dedup (skips unchanged data); rotation keeps 8 newest hourly + 1 from each of the 2 most recent prior days (~10 total); default enabled for all installs
+- **Backup & Restore skill** — new built-in agent skill documenting backup architecture, listing/inspecting/comparing backups, and step-by-step restore procedures (single file, full directory, SQLite-only)
+- **Backup toggle in Settings** — Data section now includes an "Hourly Backups" toggle with status info (backup directory, last run time, error state)
+
+## [1.65.1] - 2026-04-22
+
+### Changed
+- **Faster agent switching in terminal pane** — when switching to an agent whose history is already cached, skip the fade-out so content appears instantly; on cold switches, drop one redundant `requestAnimationFrame` so the scroll-to-bottom happens a frame earlier; tighten the auto-pin-to-bottom watchdog (1 stable frame instead of 3, 1.5s timeout instead of 8s); shorten history fade-in to 50ms / 0.1s slide
+
+## [1.65.0] - 2026-04-22
+
+### Added
+- **Opencode provider integration** — new `OpencodeModelSelect` UI component, opencode API client, and `GET /api/agents/opencode/models` endpoint (1h cached, with `?refresh=1` bypass) that shells out to the `opencode models` CLI to populate the picker
+- **Boss spawn enhancements** — boss agents can now spawn subordinates with `model`, `codexModel`, `opencodeModel`, `effort`, `provider`, `initialSkillIds`, `customInstructions`, `codexConfig`, and `permissionMode`; class default skills are auto-assigned alongside any explicit ones
+- **Runtime stop `clearQueue` flag** — `RuntimeRunner.stop` / `stopAll` now accept an optional `clearQueue` argument so callers can choose whether queued work is dropped on stop
+
+### Changed
+- **Tracking status renamed `writing` → `thinking`** — the "agent is forming a plan" tracking status is now called `thinking` across shared types, client selectors/tracking board, and the built-in `task-label`, `agent-tracking`, and boss-instructions skills
+- **Store fallback for `send_command`** — when the store's cached `sendMessage` is unavailable, agent command dispatch now dynamically imports the websocket send module so commands queue correctly while disconnected
+
+## [1.64.1] - 2026-04-21
+
+### Changed
+- **Slack skill docs** — expanded user-mention guidance: explicit `<@USERID>` syntax (plain `@Name` does not ping), lookup-then-embed flow, broadcast tokens (`<!channel>`, `<!here>`, `<!everyone>`, `<!subteam^…>`), and a note that the user search endpoint requires `users:read` (+ `users:read.email` for email matches)
+
+## [1.64.0] - 2026-04-21
+
+### Added
+- **Slack emoji reactions** — new `/api/slack/reactions/add` endpoint to react to messages (`reactions:write` scope); raw eye emoji chars auto-normalize to `eyes`; `already_reacted` is silently ignored
+- **Slack auto-ack on triggers** — bot now auto-reacts with `:eyes:` when a Slack trigger fires, as a visual acknowledgement; fire-and-forget so failures never block triggers. Disable via `SLACK_REACT_ON_TRIGGER=false`
+- **`writing` tracking status** — new tracking status group for agents currently producing output, surfaced in the client tracking board and selectors
+
+### Changed
+- **Slim PATCH /api/agents/:id response** — endpoint now returns only the fields agents care about (id, name, status, trackingStatus, taskLabel, lastActivity, isBoss) instead of the full agent object; full state still broadcast via WS `agent_updated`. Reduces agent context bloat from multi-KB `lastAssignedTask`/`currentTask` strings on frequent PATCHes
+- **Tracking / task-label skill docs** — refreshed built-in skill instructions for agent-tracking and task-label
+
+## [1.63.0] - 2026-04-21
+
+### Added
+- **Jira attachments** — new endpoints to list issue attachments, list comment-referenced attachments, download a single attachment via auth-handled proxy, and bulk-download all issue attachments server-side to a filesystem path
+- **Slack file upload** — upload files/images to Slack via multipart or base64 JSON using Slack's new two-step files API (`files:write` scope), with optional `channelId`, `initialComment`, `threadTs`, `title`
+- **Slack file read/download** — list files with filters, fetch metadata, stream binary via authenticated proxy, or save directly to disk server-side (`files:read` scope); `files: [...]` now included on Slack message responses
+- **Slack trigger file vars** — `slack.fileCount`, `slack.fileIds`, `slack.fileNames` exposed to trigger templates; LLM event formatting now lists attachment names and mimetypes
+
+## [1.62.0] - 2026-04-21
+
+### Added
+- **Bulk reasoning effort** — bulk change-model endpoint now accepts an optional `effort` field for Claude agents, letting you set low/medium/high/xHigh/max (or clear it) across many agents at once
+- **Expandable terminal input** — new expand/collapse control on the terminal input area, plus upload-in-progress indicator with translated labels
+- **File explorer language coverage** — syntax highlighting and file-type constants expanded with many additional languages and extensions
+
+### Changed
+- **Pasted text chip** — refined attachment chip rendering with updated layout and styling in the terminal input
+- **Overview panel styling** — polished guake-terminal overview panel visuals
+
+## [1.61.1] - 2026-04-21
+
+### Fixed
+- **File viewer markdown padding** — rendered markdown in the code viewer now has breathing room with consistent padding on all sides for easier reading
+
+## [1.61.0] - 2026-04-20
+
+### Added
+- **Copy Markdown source** — DiffViewer now shows a "Copy Markdown" button when viewing markdown files in modified-only mode, copying the raw source text to clipboard
+
+### Changed
+- **Keyboard shortcut meta key** — `meta` modifier is now handled independently from `ctrl`; shortcuts can require Meta/Cmd alone without triggering on Ctrl, enabling proper Mac-only bindings
+- **Language support cleanup** — removed Java and PHP CodeMirror/Prism language packages; JVM files (`.kt`, `.groovy`, `.scala`) now use C++ highlighting as a lighter-weight fallback
+
+## [1.60.0] - 2026-04-20
+
+### Added
+- **Copy as rich text** — new button on conversation output and history lines copies formatted markdown content (with inline styles) to clipboard, with visual feedback on success or error
+
+### Changed
+- **Landing site** — Astro docs now served under `/docs` base path; Vite landing build now uses the legacy static layout as its root
+
+## [1.59.0] - 2026-04-20
+
+### Added
+- **Scene simple mode** — new terrain option that renders a dark background with day-level lighting, hiding all decorative elements (sky, trees, clouds, lamps, grass, house); configurable via Settings
+
+### Changed
+- **Agent model preloading** — custom models are now only preloaded for classes that have visible agents in the scene, reducing unnecessary asset loading on startup
+
+## [1.58.0] - 2026-04-20
+
+### Added
+- **OpenCode SQLite session reading** — session-loader now reads OpenCode sessions directly from `~/.local/share/opencode/opencode.db`, with legacy filesystem layout as fallback
+- **OpenCode reasoning/thinking events** — `OpencodeJsonEventParser` now handles `reasoning` event type; thinking-only turns emit a placeholder instead of appearing to hang
+- **Astro landing page** — new documentation site under `src/packages/landing/` replacing the old static HTML/JS/CSS
+- **Docker entrypoint script** — added `entrypoint.sh` for containerized deployments
+- **Null-activity stale fallback** — agents stuck in `working` with no resolvable session file auto-flip to idle after 30 seconds
+
+### Changed
+- **SpawnModal defaults** — Chrome disabled by default; default model changed to `opus[1m]`; default effort changed to `xHigh`
+- **SpawnModal random class** — respects `DEFAULT_AGENT_CLASS` storage preference for random class pre-selection on open
+- **ANSI stripping** — comprehensive escape sequence removal (CSI, OSC, nF, Fe) replacing the previous partial regex
+- **Terminal JSON viewer** — automatically unwraps curl `/api/exec` wrapper responses to display inner command output as JSON
+- **OpenCode context tracking** — OpenCode agents now mirror Claude behavior: `usage_snapshot` values are preserved across `step_complete`, preventing cumulative inflation
+
+### Fixed
+- **Orphaned OpenCode agents** — agents with unresolvable session files and no live process no longer remain stuck in `working` state indefinitely
+
+## [1.57.0] - 2026-04-20
+
+### Added
+- **Custom Instructions per agent** — new textarea field in AgentEditModal lets you append custom instructions to any agent's system prompt; persisted via store and API
+- **Docker support** — added `docker-compose.yml`, `.dockerignore`, and updated `Dockerfile` for containerized deployment
+- **OpenCode SVG icon** — replaced generic icon with proper OpenCode logo in SpawnModal and AgentEditModal provider selector
+
+### Changed
+- **SpawnModal layout** — model selection and effort/browser controls split into separate rows; model select buttons now wrap instead of overflow
+- **Jira client** — removed redundant `startAt` field from JQL query body
+
+## [1.56.0] - 2026-04-20
+
+### Added
+- **JSON viewer in terminal** — bash tool output that is valid JSON is now rendered as a collapsible interactive tree in `TerminalModals`, with syntax-highlighted keys, values, and inline collapse/expand at depth ≥ 2
+- **Class search filter in AgentEditModal** — new text input filters both custom and built-in agent classes by name as you type; clears on modal reset
+
+### Fixed
+- Jira client minor fix
+- Toolbox and terminal tool styles updated
+
+## [1.55.2] - 2026-04-20
+
+### Fixed
+- **Swipe gesture refactor** — `useSwipeGesture` now applies transforms directly via `containerRef` instead of React state, eliminating re-render jank; swipe direction exposed as `isDragging`/`indicatorDirection` booleans replacing the raw `swipeOffset` float
+- **Terminal header swipe classes** — `TerminalHeader` now receives `isSwipingLeft`/`isSwipingRight` booleans instead of `swipeOffset`, making CSS class application more reliable
+- Runtime command execution minor fix
+
+## [1.55.1] - 2026-04-20
+
+### Fixed
+- **Mobile bottom stack layout** — `AgentBar` and `MobileBottomMenu` are now wrapped in a measured `mobile-bottom-stack` div; a `ResizeObserver` sets `--mobile-bottom-stack-height` so the terminal input sits exactly above the stack instead of overlapping it
+- **Tracking status icons use Icon component** — `getTrackingStatusIcon` replaced with `getTrackingStatusIconName` + `Icon` component in `HistoryLine` and `OutputLine` for consistent icon rendering
+- Mobile responsive style refinements
+
+## [1.55.0] - 2026-04-19
+
+### Added
+- **Icon component** — new `Icon` component (`src/packages/client/components/Icon.tsx`) providing a unified icon system; built-in agent class icons (scout, builder, debugger, architect, warrior, support, boss) now render via `Icon` instead of emoji fallbacks in `AgentIcon`
+- **New store selectors** — added `src/packages/client/store/selectors.ts` with reusable Redux selectors for agent class lookups
+
+### Changed
+- **Reliable mid-turn message delivery** — messages sent to an agent that is currently processing are now queued and delivered via `drainMessageQueue` once the turn completes, preventing silent drops that occurred when writing to stdin mid-turn
+- **Spotlight and context menu files converted to `.tsx`** — `useSpotlightSearch`, `utils`, and `contextMenuActions` migrated from `.ts` to `.tsx` for JSX support
+
+### Fixed
+- Various UI component refinements across terminal output, tracking board, git panel, and mobile styles
+
+## [1.54.1] - 2026-04-18
+
+### Fixed
+- **MobileBottomMenu hidden when sidebar is open** — menu now accepts a `sidebarOpen` prop and returns null while the sidebar is visible, preventing it from overlapping the panel; also removed the unused `useMobileView` hook from the component
+
+## [1.54.0] - 2026-04-18
+
+### Added
+- **`opus[1m]` model** — new Tide Commander model label representing Opus 4.7 running with the 1M-token context beta; translates to `claude-opus-4-7` in the CLI, with `contextWindow: 1_000_000` in the metadata and correct limit propagation through `agent-service`, `agent-handler`, `llm-matcher-service`, and `backend.ts`
+- **Bulk change-model** — new `POST /api/agents/bulk/change-model` endpoint and matching `bulkChangeModel()` API client let you switch model/provider for multiple selected agents at once; `BulkManageModal` gains a provider + model picker and a "Change Model" confirm step
+- **Mobile bottom menu** — new `MobileBottomMenu` component provides a bottom navigation bar on mobile 3D view with quick-access buttons for Search, Tracking, Spawn, Commander, and Settings
+- **Global search in FAB / mobile menu** — `FloatingActionButtons` and `MobileFabMenu` now expose an "Open Spotlight" (global search) button
+
+### Changed
+- **`CLAUDE_MODELS` metadata** — each entry now carries a `contextWindow` field (200k or 1M) used as the authoritative source for context limit derivation across the server, replacing the previous hardcoded 200k default
+- **`getDefaultContextLimit`** — reads `CLAUDE_MODELS[model].contextWindow` so newly added larger-context models are picked up automatically without code changes
+- **`initAgents`** — re-derives `contextLimit` from model metadata on startup so agents migrated to `opus[1m]` immediately show 1M context instead of the stale persisted 200k
+- **`handleUpdateAgentProperties`** — immediately updates `contextLimit` and drops stale `contextStats` when the model changes, so the UI reflects the correct window size without waiting for the next modelUsage event
+- **`VALID_CLAUDE_MODELS`** — now derived from `Object.keys(CLAUDE_MODELS)` (single source of truth) instead of a manually maintained `Set`
+- **Sidebar closes on agent select** — tapping an agent on mobile now closes the sidebar
+
+## [1.53.0] - 2026-04-18
+
+### Added
+- **Rich notification images** - `AgentNotification`, `POST /api/notify`, and the `SendNotificationMessage` WebSocket payload now accept optional `iconUrl` (round/large icon) and `imageUrl` (expanded big-picture) PNG URLs
+- **Android large-icon / big-picture rendering** - `WebSocketForegroundService` downloads the PNGs asynchronously off the main thread via OkHttp, posts a plain notification immediately for low-latency delivery, then upgrades it in place once the bitmaps arrive (hides the round thumbnail on expand per platform guidance)
+
+### Fixed
+- **Mobile swipe breaking `position: fixed` descendants** - `_mobile-swipe.scss` no longer applies `transform: translateX(0)` or `will-change: transform` at rest, which was establishing a containing block and trapping the input wrapper's viewport-relative positioning. These properties are now only set on the active swipe/animation state classes
+
+## [1.52.0] - 2026-04-18
+
+### Added
+- **Curl card renderer** - New `CurlCard` component and `curlParser` that detect curl commands in agent output and render them as structured cards (method, URL, headers, body) with their own stylesheet
+- **Agent progress indicators in boss context** - Boss "Team Context" panel now shows per-subordinate `AgentProgressIndicator` with inline truncated markdown previews of their latest activity
+
+### Changed
+- **ANSI terminal palette** - Replaced the saturated standard/bright ANSI color table with a Nord-inspired, desaturated palette for better readability in the terminal output
+- **Boss subordinate context percent** - `gatherSubordinateContext` now mirrors the `guake-agent-context` UI calculation byte-for-byte so every TEAM CONTEXT line matches the subordinate's UI bar
+- **Terminal history & tracking board styles** - Substantial SCSS overhaul across `_history.scss`, `_tracking-board.scss`, `_output.scss`, and `_sidebar-tracking-board.scss` for tighter visual alignment
+- **Tracking board selection callback** - Extracted and memoized via `useCallback` in `GuakeOutputPanel` to avoid re-creating the handler on each render
+- **Team Context locale key** - Collapsed the pluralized `teamContext_one` / `teamContext` pair to a single `"Team Context"` string across all 10 locales
+
+### Removed
+- **Unused code** - Dropped the `store` import in `AgentTerminalPane`, the `HTTP_METHODS` constant in `curlParser`, and the `buildCapabilitiesSection` function (plus its now-orphan imports) in `subordinate-context-service`
+
+## [1.51.0] - 2026-04-17
+
+### Removed
+- **Supervisor feature** - Removed the Supervisor service, UI, API routes, translations, and config entries
+- **Picture-in-Picture window** - Removed the PiP agents view, the FAB entry point, and the `useDocumentPiP` hook
+- **Snapshot system** - Removed the snapshot save/load UI, server routes, store, types, and tests
+- **Tool History panel** - Removed the standalone tool-history component and its styles
+- **fileTracker service** - Removed the unused server-side file tracker
+
+### Added
+- **Commander URL helper** - New `getCommanderBaseUrl()` utility that resolves the commander base URL from `process.env.PORT` at call time, replacing hardcoded `http://localhost:5174` usage in dynamic prompts and skill bodies
+
+### Changed
+- **Boss delegation prompts** - Subordinate task delegation now uses the runtime-resolved commander URL so report-task curls reflect the actual port the commander is listening on
+- **UI surfaces** - Substantial refactor across Spotlight, AgentBar, AppModals, FloatingActionButtons, MobileFabMenu, UnitPanel, ClaudeOutputPanel, and CommanderView alongside the feature removals
+- **Locale strings** - Updated `common`, `errors`, `notifications`, and `terminal` namespaces across all 11 locales to drop removed-feature copy
+- **Documentation** - Updated `README.md`, `docs/asyncapi.yaml`, `docs/views.md`; removed `docs/snapshots.md`
+
+### Fixed
+- **command-handler / boss-response-handler tests** - Added the new `getCommanderBaseUrl` export to the `../../utils/index.js` mocks so the tests can import the handlers without crashing
+
 ## [1.50.0] - 2026-04-16
 
 ### Added

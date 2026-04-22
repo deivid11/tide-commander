@@ -3,7 +3,6 @@
  * Manages Claude/Codex runtime runners and command execution
  */
 
-import { parseUsageOutput } from '../claude/backend.js';
 import {
   isClaudeProcessRunningInCwd,
   isCodexProcessRunningInCwd,
@@ -181,7 +180,6 @@ const runtimeEvents = createRuntimeEventHandlers({
   },
   emitComplete: (agentId, success) => emit('complete', agentId, success),
   emitError: (agentId, error) => emit('error', agentId, error),
-  parseUsageOutput: (raw) => parseUsageOutput(raw),
   executeCommand: (agentId, command, systemPrompt, forceNewSession) =>
     commandExecution.executeCommand(agentId, command, systemPrompt, forceNewSession),
   isAgentProcessActive: (agentId) => isAnyRunnerActive(agentId),

@@ -6,15 +6,19 @@ import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHideCost, useSettings, ClaudeOutput, store } from '../../store';
 import { filterCostText } from '../../utils/formatting';
-import { TOOL_ICONS, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { getToolIconName, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, UnknownToolInput, ToolSearchInput, isToolSearchContent } from './ToolRenderers';
+import { parseCurlCommand, looksLikeCurl } from './curlParser';
+import { CurlCard } from './CurlCard';
 import { renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
+import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { useTTS } from '../../hooks/useTTS';
+import { Icon, type IconName } from '../Icon';
 import type { EditData } from './types';
 import type { ExecTask, Subagent, SubagentStreamEntry } from '../../../shared/types';
 
@@ -24,6 +28,11 @@ function getExtFromPath(filePath: string): string {
   const dotIdx = basename.lastIndexOf('.');
   if (dotIdx <= 0) return '';
   return basename.slice(dotIdx).toLowerCase();
+}
+
+/** Extract basename from a path, e.g. '/foo/bar.tsx' → 'bar.tsx' */
+function getBasenameFromPath(filePath: string): string {
+  return filePath.split('/').pop() || filePath;
 }
 
 /** Inline panel showing streamed subagent JSONL content */
@@ -46,7 +55,7 @@ const SubagentStreamPanel = memo(function SubagentStreamPanel({ entries, isWorki
         className="subagent-stream-toggle"
         onClick={() => setExpanded(!expanded)}
       >
-        <span className="stream-toggle-arrow">{expanded ? '▼' : '▶'}</span>
+        <span className="stream-toggle-arrow"><Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} /></span>
         <span>{expanded ? 'Hide stream' : `Stream (${entries.length} events)`}</span>
       </div>
       {(expanded || entries.length <= 3) && (
@@ -55,20 +64,20 @@ const SubagentStreamPanel = memo(function SubagentStreamPanel({ entries, isWorki
             <div key={i} className={`subagent-stream-entry entry-${entry.type}${entry.isError ? ' entry-error' : ''}`}>
               {entry.type === 'text' && (
                 <>
-                  <span className="stream-entry-icon">🤖</span>
+                  <span className="stream-entry-icon"><Icon name="robot" size={12} /></span>
                   <span className="stream-entry-text">{entry.text}</span>
                 </>
               )}
               {entry.type === 'tool_use' && (
                 <>
-                  <span className="stream-entry-icon">{TOOL_ICONS[entry.toolName || ''] || TOOL_ICONS.default}</span>
+                  <span className="stream-entry-icon"><Icon name={getToolIconName(entry.toolName || '')} size={12} /></span>
                   <span className="stream-entry-tool">{entry.toolName}</span>
                   {entry.toolKeyParam && <span className="stream-entry-param">{entry.toolKeyParam}</span>}
                 </>
               )}
               {entry.type === 'tool_result' && (
                 <>
-                  <span className="stream-entry-icon">{entry.isError ? '✗' : '✓'}</span>
+                  <span className="stream-entry-icon"><Icon name={entry.isError ? 'cross' : 'check'} size={12} /></span>
                   <span className="stream-entry-result">{entry.resultPreview}</span>
                 </>
               )}
@@ -301,7 +310,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       if (pending > 0) parts.push(`${pending} pending`);
       toolKeyParamOrFallback = `${todos.length} items (${parts.join(', ')})`;
     } else {
-      toolKeyParamOrFallback = (input.file_path || input.path || input.notebook_path || input.command || input.pattern || input.url || input.query || input.description) as string;
+      toolKeyParamOrFallback = (input.file_path || input.filePath || input.path || input.notebook_path || input.notebookPath || input.command || input.pattern || input.url || input.query || input.description) as string;
       // Fallback: JSON serialize for any unrecognized tool inputs
       if (!toolKeyParamOrFallback) {
         try {
@@ -324,6 +333,21 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   const [sessionExpanded, setSessionExpanded] = useState(false);
   const [subagentResultExpanded, setSubagentResultExpanded] = useState(false);
   const { toggle: toggleTTS, speaking } = useTTS();
+  const markdownContentRef = useRef<HTMLDivElement>(null);
+  const [copyRichStatus, setCopyRichStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const handleCopyRichText = useCallback(async () => {
+    if (!markdownContentRef.current) return;
+    try {
+      const html = inlineStylesForRichCopy(markdownContentRef.current.innerHTML);
+      const plainText = markdownContentRef.current.innerText;
+      await copyRichContentToClipboard(html, plainText);
+      setCopyRichStatus('copied');
+      setTimeout(() => setCopyRichStatus('idle'), 2000);
+    } catch {
+      setCopyRichStatus('error');
+      setTimeout(() => setCopyRichStatus('idle'), 2000);
+    }
+  }, []);
 
   // Format timestamp for display
   const timeStr = formatTimestamp(timestamp || Date.now());
@@ -336,7 +360,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     return (
       <div className="output-line output-skill-update">
         <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-        <span className="skill-update-icon">🔄</span>
+        <span className="skill-update-icon"><Icon name="refresh" size={14} /></span>
         <span className="skill-update-label">{t('tools:skills.skillsUpdated')}</span>
         <span className="skill-update-list">
           {skillUpdate.skills.map((skill, i) => (
@@ -360,9 +384,9 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         title="Click to expand/collapse"
       >
         <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-        <span className="session-continuation-icon">🔗</span>
+        <span className="session-continuation-icon"><Icon name="link" size={14} /></span>
         <span className="session-continuation-label">{t('tools:display.sessionContinued')}</span>
-        <span className="session-continuation-toggle">{sessionExpanded ? '▼' : '▶'}</span>
+        <span className="session-continuation-toggle"><Icon name={sessionExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
         {sessionExpanded && (
           <div className="session-continuation-content">
             {renderContentWithImages(text, onImageClick, onFileClick)}
@@ -411,7 +435,6 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             agentName={taskReportParsed.agentName}
             agentId={taskReportParsed.agentId}
             status={taskReportParsed.status}
-            originalTask={taskReportParsed.originalTask}
             summary={taskReportParsed.summary}
           />
         </div>
@@ -459,7 +482,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   if (text.startsWith('Using tool:')) {
     const toolName = text.replace('Using tool:', '').trim();
     const displayToolName = getLocalizedToolName(toolName, t);
-    const icon = TOOL_ICONS[toolName] || TOOL_ICONS.default;
+    const iconName = getToolIconName(toolName);
 
     const recognizedTools = new Set([
       'Bash',
@@ -496,7 +519,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         <div className={`output-line output-tool-use output-todo-inline ${isStreaming ? 'output-streaming' : ''}`}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-          <span className="output-tool-icon">{icon}</span>
+          <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
           <TodoWriteInput content={todoContent} />
         </div>
@@ -514,7 +537,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         <div className={`output-line output-tool-use output-ask-question-inline ${isStreaming ? 'output-streaming' : ''}`}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-          <span className="output-tool-icon">{icon}</span>
+          <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
           <AskQuestionInput content={askQuestionContent} />
         </div>
@@ -532,7 +555,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         <div className={`output-line output-tool-use output-plan-inline ${isStreaming ? 'output-streaming' : ''}`}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-          <span className="output-tool-icon">{icon}</span>
+          <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
           <ExitPlanModeInput content={exitPlanContent} />
         </div>
@@ -548,7 +571,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       return (
         <div className={`output-line output-tool-use output-toolsearch-inline ${isStreaming ? 'output-streaming' : ''}`}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-          <span className="output-tool-icon">⚡</span>
+          <span className="output-tool-icon"><Icon name="bolt" size={14} /></span>
           <span className="output-tool-name">ToolSearch</span>
           <ToolSearchInput content={toolSearchContent} agentName={agentName} />
         </div>
@@ -573,7 +596,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         <div className={`output-line output-tool-use output-collab-tool output-collab-${toolName} ${isStreaming ? 'output-streaming' : ''}`}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-          <span className="output-tool-icon">{icon}</span>
+          <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name collab-tool-name">{collabLabel}</span>
           {receiverIds && receiverIds.length > 0 && (
             <span className="collab-thread-ids">
@@ -602,8 +625,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const payloadFilePath = payloadInputRecord
       ? (
           (typeof payloadInputRecord.file_path === 'string' ? payloadInputRecord.file_path : undefined)
+          || (typeof payloadInputRecord.filePath === 'string' ? payloadInputRecord.filePath : undefined)
           || (typeof payloadInputRecord.path === 'string' ? payloadInputRecord.path : undefined)
           || (typeof payloadInputRecord.notebook_path === 'string' ? payloadInputRecord.notebook_path : undefined)
+          || (typeof payloadInputRecord.notebookPath === 'string' ? payloadInputRecord.notebookPath : undefined)
         )
       : undefined;
 
@@ -677,8 +702,20 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       : undefined;
     const bashSearchCommand = isBashTool && bashCommand ? parseBashSearchCommand(bashCommand) : null;
     const bashNotificationCommand = isBashTool && bashCommand ? parseBashNotificationCommand(bashCommand) : null;
-    const bashTaskLabelCommand = isBashTool && bashCommand ? parseBashTaskLabelCommand(bashCommand) : null;
+    const bashTrackingStatusCommand = isBashTool && bashCommand ? parseBashTrackingStatusCommand(bashCommand) : null;
+    const bashTaskLabelCommand = !bashTrackingStatusCommand && isBashTool && bashCommand ? parseBashTaskLabelCommand(bashCommand) : null;
     const bashReportTaskCommand = isBashTool && bashCommand ? parseBashReportTaskCommand(bashCommand) : null;
+    const bashCurlParsed = (
+      isBashTool
+      && bashCommand
+      && !bashTrackingStatusCommand
+      && !bashNotificationCommand
+      && !bashTaskLabelCommand
+      && !bashReportTaskCommand
+      && !bashSearchCommand
+      && !isCurlExecCommand
+      && looksLikeCurl(bashCommand)
+    ) ? (() => { try { return parseCurlCommand(bashCommand); } catch { return null; } })() : null;
 
     const handleParamClick = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -738,28 +775,49 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     return (
       <>
         <div
-          className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''} ${isBashTool ? 'bash-clickable' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''}`}
+          className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''} ${isBashTool ? 'bash-clickable' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''} ${bashTrackingStatusCommand ? 'bash-tracking-use' : ''}`}
           onClick={isBashTool ? handleBashClick : undefined}
           title={isBashTool ? t('tools:display.clickToViewOutput') : undefined}
         >
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-          <span className="output-tool-icon">{icon}</span>
+          <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
 
           {/* For Bash tools, show the command inline (more useful than file paths) */}
           {isBashTool && bashCommand && (
-            bashNotificationCommand ? (
+            bashTrackingStatusCommand ? (() => {
+              const status = bashTrackingStatusCommand.trackingStatus;
+              const detail = bashTrackingStatusCommand.trackingStatusDetail;
+              const description = t(`terminal:trackingStatus.${status}`, { defaultValue: '' }) as string;
+              const tooltipParts = [description || t('terminal:trackingStatus.label', { defaultValue: 'Tracking status' }), detail].filter(Boolean) as string[];
+              return (
+                <span
+                  className={`output-tool-param bash-command bash-tracking-param status-${status}`}
+                  onClick={handleBashClick}
+                  title={tooltipParts.join(' — ')}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <span className={`bash-tracking-chip status-${status}`}>
+                    <span className="bash-tracking-icon"><Icon name={getTrackingStatusIconName(status)} size={13} /></span>
+                    <span className="bash-tracking-status">{status}</span>
+                  </span>
+                  {detail && (
+                    <span className="bash-tracking-detail">{detail}</span>
+                  )}
+                </span>
+              );
+            })() : bashNotificationCommand ? (
               <span
                 className="output-tool-param bash-command bash-notify-param"
                 onClick={handleBashClick}
                 title={bashNotificationCommand.commandBody}
                 style={{ cursor: 'pointer' }}
               >
-                {bashNotificationCommand.shellPrefix && (
-                  <span className="bash-search-shell">{bashNotificationCommand.shellPrefix}</span>
-                )}
-                <span className="bash-notify-chip">notify</span>
+                <span className="bash-notify-chip">
+                  <span className="bash-notify-icon"><Icon name="bell" size={12} /></span>
+                  <span className="bash-notify-label">notify</span>
+                </span>
                 {bashNotificationCommand.title && (
                   <span className="bash-notify-title">{bashNotificationCommand.title}</span>
                 )}
@@ -774,7 +832,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 title={bashTaskLabelCommand.commandBody}
                 style={{ cursor: 'pointer' }}
               >
-                <span className="bash-task-label-chip">📋 task</span>
+                <span className="bash-task-label-chip"><Icon name="task" size={12} /> task</span>
                 <span className="bash-task-label-value">{bashTaskLabelCommand.taskLabel}</span>
               </span>
             ) : bashReportTaskCommand ? (
@@ -785,7 +843,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 style={{ cursor: 'pointer' }}
               >
                 <span className={`bash-report-task-chip ${bashReportTaskCommand.status === 'failed' ? 'status-failed' : 'status-completed'}`}>
-                  {bashReportTaskCommand.status === 'failed' ? '❌ report' : '✅ report'}
+                  <Icon name={bashReportTaskCommand.status === 'failed' ? 'failure' : 'success'} size={12} /> report
                 </span>
                 {bashReportTaskCommand.summary && (
                   <span className="bash-report-task-summary">{bashReportTaskCommand.summary}</span>
@@ -804,6 +862,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 <span className="bash-search-chip">search</span>
                 <span className="bash-search-term">{bashSearchCommand.searchTerm}</span>
               </span>
+            ) : bashCurlParsed ? (
+              <div className="output-tool-param bash-curl-param">
+                <CurlCard parsed={bashCurlParsed} rawCommand={bashCommand} />
+              </div>
             ) : (
               <span
                 className="output-tool-param bash-command"
@@ -821,7 +883,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             <span
               className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}`}
               onClick={isFileClickable ? handleParamClick : undefined}
-              title={isFileClickable ? (toolName === 'Edit' && (_editData || editDataFallback) ? t('tools:display.clickToViewDiff') : t('tools:display.clickToViewFile')) : undefined}
+              title={isFileClickable ? (toolName === 'Edit' && (_editData || editDataFallback) ? t('tools:display.clickToViewDiff') : t('tools:display.clickToViewFile')) : toolKeyParamOrFallback}
               style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
             >
               {isFileTool && isFilePath && (() => {
@@ -829,13 +891,18 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 const iconPath = ext ? getIconForExtension(ext) : '';
                 return iconPath ? <img className="output-tool-file-icon" src={iconPath} alt="" /> : null;
               })()}
-              {toolKeyParamOrFallback}
+              {['Read', 'Write', 'Edit', 'NotebookEdit'].includes(toolName) && isFilePath ? getBasenameFromPath(toolKeyParamOrFallback) : toolKeyParamOrFallback}
             </span>
           )}
 
+          {isBashTool && _isRunning && (
+            <span className="bash-output-indicator bash-output-indicator--running">
+              <span className="bash-spinner" />
+            </span>
+          )}
           {isBashTool && !_isRunning && (
             <span className="bash-output-indicator">
-              {execTasks.some(t => t.status === 'completed') ? '✅' : (hasBashOutput ? '📄' : '💻')}
+              <Icon name={execTasks.some(t => t.status === 'completed') ? 'success' : (hasBashOutput ? 'file-text' : 'terminal')} size={12} />
             </span>
           )}
           {isStreaming && <span className="output-tool-loading">...</span>}
@@ -875,7 +942,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                         })
                       }
                     >
-                      <span className="exec-task-toggle-arrow">{isExpanded ? '▼' : '▶'}</span>
+                      <span className="exec-task-toggle-arrow"><Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
                       <span className="exec-task-toggle-text">
                         {isExpanded ? t('tools:skills.hide') : t('tools:skills.showAll', { count: task.output.length })}
                       </span>
@@ -916,7 +983,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 <div className="subagent-activity-list">
                   {matchingSubagent.activities.slice(-8).map((activity, i) => (
                     <div key={i} className="subagent-activity-item">
-                      <span className="activity-icon">{TOOL_ICONS[activity.toolName] || TOOL_ICONS.default}</span>
+                      <span className="activity-icon"><Icon name={getToolIconName(activity.toolName)} size={12} /></span>
                       <span className="activity-tool">{activity.toolName}</span>
                       <span className="activity-desc">{activity.description.length > 80 ? activity.description.slice(0, 77) + '...' : activity.description}</span>
                     </div>
@@ -1009,7 +1076,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     return (
       <div className={`output-line output-tool-result ${isError ? 'is-error' : ''}`}>
         <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-        <span className="output-result-icon">{isError ? '❌' : '✓'}</span>
+        <span className="output-result-icon"><Icon name={isError ? 'failure' : 'check'} size={12} /></span>
         <pre className="output-result-content">{resultText}</pre>
       </div>
     );
@@ -1065,10 +1132,17 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       .replace(/\s+/g, ' ')
       .trim()
     : '';
-  const isSystemMessage = /^\s*(?:[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\s*)?\[System\]/u.test(text);
+  const systemMessageMatch = text.match(/^\s*([\u{1F300}-\u{1FAFF}\u2600-\u27BF])?\s*\[System\]([\s\S]*)$/u);
+  const isSystemMessage = Boolean(systemMessageMatch);
+  const systemEmoji = systemMessageMatch?.[1];
+  const systemRest = systemMessageMatch?.[2] ?? '';
+  const systemIconName: IconName = systemEmoji === '🔄' ? 'refresh' : systemEmoji === '📋' ? 'task' : 'info';
 
   // Detect subagent completion messages with full result content
-  const isSubagentCompletion = Boolean(output.subagentName && payloadToolOutput && /^[✅❌]\s*Subagent\s/.test(text));
+  const subagentCompletionMatch = output.subagentName && payloadToolOutput ? text.match(/^([✅❌])\s*(Subagent\s[\s\S]*)$/) : null;
+  const isSubagentCompletion = Boolean(subagentCompletionMatch);
+  const subagentSuccess = subagentCompletionMatch?.[1] === '✅';
+  const subagentDisplayText = subagentCompletionMatch?.[2] ?? text;
 
   // Categorize other output types
   let className = 'output-line';
@@ -1118,14 +1192,20 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             )}
             {assistantRoleLabel}
           </span>
-          <div className="markdown-content">
+          <div ref={markdownContentRef} className="markdown-content">
             {renderContentWithImages(workPlanParsed.contentWithoutBlock, onImageClick, onFileClick)}
           </div>
           {workPlanParsed.hasWorkPlan && workPlanParsed.workPlan && (
             <WorkPlanBlock workPlan={workPlanParsed.workPlan} />
           )}
           {delegationParsed.hasDelegation && delegationParsed.delegations.map((delegation, i) => (
-            <DelegationBlock key={`del-${i}`} delegation={delegation} />
+            <DelegationBlock
+              key={`del-${i}`}
+              delegation={delegation}
+              bossId={agentId}
+              onFileClick={onFileClick}
+              onBashClick={onBashClick}
+            />
           ))}
           <div className="message-action-btns">
             {settings.experimentalTTS && (
@@ -1134,7 +1214,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 onClick={(e) => { e.stopPropagation(); toggleTTS(text); }}
                 title={speaking ? 'Stop speaking' : 'Speak (Spanish)'}
               >
-                {speaking ? '🔊' : '🔈'}
+                <Icon name={speaking ? 'speaker-on' : 'speaker-off'} size={14} />
               </button>
             )}
             {onViewMarkdown && (
@@ -1143,9 +1223,16 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 onClick={(e) => { e.stopPropagation(); onViewMarkdown(payloadToolOutput || text); }}
                 title="View as Markdown"
               >
-                📄
+                <Icon name="file-text" size={14} />
               </button>
             )}
+            <button
+              className="history-view-md-btn"
+              onClick={(e) => { e.stopPropagation(); handleCopyRichText(); }}
+              title="Copy as rich text"
+            >
+              <Icon name={copyRichStatus === 'copied' ? 'check' : copyRichStatus === 'error' ? 'cross' : 'copy'} size={14} />
+            </button>
           </div>
         </div>
       );
@@ -1171,8 +1258,22 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         </span>
       )}
       {useMarkdown ? (
-        <div className="markdown-content">
-          {renderContentWithImages(text, onImageClick, onFileClick)}
+        <div ref={markdownContentRef} className="markdown-content">
+          {isSubagentCompletion ? (
+            <>
+              <Icon name={subagentSuccess ? 'status-success' : 'status-error'} size={14} weight="fill" color={subagentSuccess ? '#4ade80' : '#f87171'} />
+              {' '}
+              {renderContentWithImages(subagentDisplayText, onImageClick, onFileClick)}
+            </>
+          ) : isSystemMessage && systemEmoji ? (
+            <>
+              <Icon name={systemIconName} size={14} />
+              {' '}
+              {renderContentWithImages(`[System]${systemRest}`, onImageClick, onFileClick)}
+            </>
+          ) : (
+            renderContentWithImages(text, onImageClick, onFileClick)
+          )}
         </div>
       ) : isThinking ? (
         <>
@@ -1193,7 +1294,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             className="subagent-result-toggle"
             onClick={(e) => { e.stopPropagation(); setSubagentResultExpanded(!subagentResultExpanded); }}
           >
-            <span className="subagent-result-arrow">{subagentResultExpanded ? '▼' : '▶'}</span>
+            <span className="subagent-result-arrow"><Icon name={subagentResultExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
             {subagentResultExpanded ? 'Hide result' : 'Show result'}
           </button>
           {subagentResultExpanded && (
@@ -1211,7 +1312,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               onClick={(e) => { e.stopPropagation(); toggleTTS(text); }}
               title={speaking ? 'Stop speaking' : 'Speak (Spanish)'}
             >
-              {speaking ? '🔊' : '🔈'}
+              <Icon name={speaking ? 'speaker-on' : 'speaker-off'} size={14} />
             </button>
           )}
           {onViewMarkdown && (
@@ -1220,9 +1321,16 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               onClick={(e) => { e.stopPropagation(); onViewMarkdown(payloadToolOutput || text); }}
               title="View as Markdown"
             >
-              📄
+              <Icon name="file-text" size={14} />
             </button>
           )}
+          <button
+            className="history-view-md-btn"
+            onClick={(e) => { e.stopPropagation(); handleCopyRichText(); }}
+            title="Copy as rich text"
+          >
+            <Icon name={copyRichStatus === 'copied' ? 'check' : copyRichStatus === 'error' ? 'cross' : 'copy'} size={14} />
+          </button>
         </div>
       )}
     </div>

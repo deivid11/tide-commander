@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Building } from '@shared/types';
 import { getStatusColor, getBuildingTypeIcon } from './utils';
+import { Icon } from '../Icon';
 
 interface BuildingPillsProps {
   buildings: Map<string, Building>;
@@ -27,7 +28,7 @@ export const BuildingPills: React.FC<BuildingPillsProps> = ({
       <div className="dashboard-view__buildings-row">
         {buildingArray.map((building) => {
           const statusColor = getStatusColor(building.status);
-          const icon = getBuildingTypeIcon(building.type);
+          const iconName = getBuildingTypeIcon(building.type);
           return (
             <button
               key={building.id}
@@ -35,7 +36,7 @@ export const BuildingPills: React.FC<BuildingPillsProps> = ({
               onClick={() => onSelectBuilding?.(building.id)}
               title={`${building.name} (${building.type}) - ${building.status}`}
             >
-              <span className="dash-pill__icon">{icon}</span>
+              <span className="dash-pill__icon"><Icon name={iconName} size={14} /></span>
               <span className="dash-pill__name">{building.name}</span>
               <span className={`dash-pill__dot dash-pill__dot--${statusColor}`} />
             </button>

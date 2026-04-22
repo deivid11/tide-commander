@@ -1,8 +1,6 @@
 {
   "toast": {
     "error": "Ошибка",
-    "snapshotFailed": "Ошибка снимка",
-    "snapshotFailedMsg": "Не удалось сохранить снимок",
     "mergeFailed": "Ошибка слияния",
     "mergeFailedMsg": "Не удалось выполнить слияние",
     "compareFailed": "Ошибка сравнения",

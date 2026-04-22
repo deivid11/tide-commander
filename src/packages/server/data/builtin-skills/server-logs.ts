@@ -91,7 +91,6 @@ grep -E "Server started|Server shutting|Server running" logs/server.log
 | \`[Claude]\` | Claude API interactions |
 | \`[Agent]\` | Agent lifecycle and operations |
 | \`[Files]\` | File system operations |
-| \`[Supervisor]\` | Supervisor service events |
 | \`[Boss]\` | Boss agent hierarchy events |
 
 ## Best Practices

@@ -39,7 +39,7 @@ function writePromptToFile(prompt: string, agentId?: string): string {
   return promptPath;
 }
 
-function buildAppendedProjectInstructions(config: BackendConfig): string {
+export function buildAppendedProjectInstructions(config: BackendConfig): string {
   const sections: string[] = [
     '## CLAUDE.md / Project instructions — Tide Commander-specific rules',
     TIDE_COMMANDER_APPENDED_PROMPT,
@@ -141,8 +141,11 @@ export class ClaudeBackend implements CLIBackend {
     }
 
     // Model selection
+    // 'opus[1m]' is a Tide Commander label representing Opus 4.7 with the
+    // 1M-token context beta; translate to the CLI-accepted model ID.
     if (config.model) {
-      args.push('--model', config.model);
+      const cliModel = config.model === 'opus[1m]' ? 'claude-opus-4-7' : config.model;
+      args.push('--model', cliModel);
     }
 
     // Reasoning effort level
@@ -303,14 +306,6 @@ export class ClaudeBackend implements CLIBackend {
           return {
             type: 'context_stats',
             contextStatsRaw: content,
-          };
-        }
-        // Check if this is /usage output
-        if (content.includes('## Usage') || content.includes('Current Session')) {
-          log.log(`parseUserEvent: Found /usage output`);
-          return {
-            type: 'usage_stats',
-            usageStatsRaw: content,
           };
         }
       }
@@ -737,60 +732,6 @@ export function parseContextOutput(content: string): import('../../shared/types.
     };
   } catch (error) {
     log.error('parseContextOutput error:', error);
-    return null;
-  }
-}
-
-/**
- * Parse /usage command output from Claude Code CLI
- *
- * Expected format:
- * ## Usage
- *
- * | Category | % | Reset |
- * |---|---|---|
- * | Current Session | 45.2% | Jan 25 at 5:00 PM |
- * | Current Week (All Models) | 12.3% | Jan 27 at 12:00 AM |
- * | Current Week (Sonnet Only) | 8.5% | Jan 27 at 12:00 AM |
- */
-export function parseUsageOutput(content: string): {
-  session: { percentUsed: number; resetTime: string };
-  weeklyAllModels: { percentUsed: number; resetTime: string };
-  weeklySonnet: { percentUsed: number; resetTime: string };
-} | null {
-  try {
-    log.log('parseUsageOutput: Attempting to parse usage output');
-    log.log('parseUsageOutput content:', content.substring(0, 500));
-
-    // Parse a usage row: | Category Name | XX.X% | Reset Time |
-    const parseUsageRow = (categoryPattern: string): { percentUsed: number; resetTime: string } | null => {
-      const regex = new RegExp(`\\|\\s*${categoryPattern}\\s*\\|\\s*([\\d.]+)%\\s*\\|\\s*([^|]+)\\s*\\|`, 'i');
-      const match = content.match(regex);
-      if (match) {
-        return {
-          percentUsed: parseFloat(match[1]),
-          resetTime: match[2].trim(),
-        };
-      }
-      return null;
-    };
-
-    const session = parseUsageRow('Current Session');
-    const weeklyAllModels = parseUsageRow('Current Week \\(All Models\\)');
-    const weeklySonnet = parseUsageRow('Current Week \\(Sonnet Only\\)');
-
-    if (!session || !weeklyAllModels || !weeklySonnet) {
-      log.log('parseUsageOutput: Could not parse all usage categories');
-      log.log(`  session: ${session ? 'found' : 'missing'}`);
-      log.log(`  weeklyAllModels: ${weeklyAllModels ? 'found' : 'missing'}`);
-      log.log(`  weeklySonnet: ${weeklySonnet ? 'found' : 'missing'}`);
-      return null;
-    }
-
-    log.log('parseUsageOutput: Successfully parsed usage stats');
-    return { session, weeklyAllModels, weeklySonnet };
-  } catch (error) {
-    log.error('parseUsageOutput error:', error);
     return null;
   }
 }

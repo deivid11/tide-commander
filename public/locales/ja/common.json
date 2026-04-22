@@ -205,8 +205,6 @@
     "clickToCopy": "クリックしてコピー",
     "session": "セッション",
     "newSession": "新しいエージェント、新しいセッション",
-    "supervisorHistory": "スーパーバイザー履歴",
-    "noSupervisorReports": "スーパーバイザーレポートはまだありません",
     "bossAgent": "ボスエージェント",
     "subordinates": "部下",
     "noSubordinates": "部下が割り当てられていません。「チーム管理」でエージェントを追加してください。",
@@ -248,7 +246,6 @@
     "clickNewAgent": "「+ 新規エージェント」をクリックして最初のエージェントを配置してください",
     "areasAndAgents": "エリアとエージェント",
     "browseFiles": "ファイルを閲覧",
-    "supervisorStatus": "スーパーバイザーステータス",
     "unassigned": "未割り当て",
     "total": "合計",
     "statusActive": "アクティブ",
@@ -275,14 +272,10 @@
     "selectAgentLogs": "エージェントを選択してログを表示",
     "logsWillAppear": "エージェントのログがここに表示されます",
     "logsHint": "詳細なメッセージログはデバッグパネルをご利用ください",
-    "selectAgentSnapshots": "エージェントを選択してスナップショットを表示",
-    "snapshotsFor": "{{name}}のスナップショット",
-    "snapshotsHint": "ターミナルヘッダーのスターボタンでスナップショットを保存できます",
     "tabs": {
       "details": "詳細",
       "chat": "チャット",
-      "logs": "ログ",
-      "snapshot": "スナップショット"
+      "logs": "ログ"
     }
   },
   "toast": {
@@ -297,8 +290,7 @@
     "used": "使用済み",
     "tool": "ツール",
     "assignedTask": "割り当てタスク",
-    "lastQuery": "最後のクエリ",
-    "supervisor": "スーパーバイザー"
+    "lastQuery": "最後のクエリ"
   },
   "agentBar": {
     "spawnNewAgent": "新しいエージェントをスポーン",
@@ -316,13 +308,8 @@
   "floatingButtons": {
     "settingsAndTools": "設定とツール",
     "commanderView": "コマンダービュー",
-    "viewSnapshots": "スナップショットを表示",
-    "supervisorOverview": "スーパーバイザー概要",
     "controls": "コントロール",
-    "manageSkills": "スキル管理",
-    "pipNotSupported": "このブラウザではPiPがサポートされていません",
-    "closePip": "PiPモードのエージェントを閉じる",
-    "openPip": "PiPモードでエージェントを開く"
+    "manageSkills": "スキル管理"
   },
   "sidebar": {
     "agentsView": "エージェント",

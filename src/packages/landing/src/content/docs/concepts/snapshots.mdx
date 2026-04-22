@@ -1,0 +1,44 @@
+---
+title: Snapshots
+description: Snapshots save a complete picture of an agent's conversation and all files it touched, so you can restore or diff at any point.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A **snapshot** is a point-in-time save of an agent's conversation history plus all the files it has touched during that session. Taking a snapshot before a risky change, a context compaction, or a handoff to another agent gives you a rollback point you can diff or restore from later.
+
+## What a snapshot captures
+
+- The full conversation transcript (every user message, assistant turn, and tool call result).
+- The content of every file the agent read, wrote, or edited — as it existed at snapshot time.
+- Metadata: timestamp, agent name, session ID, and a short description you write.
+
+The snapshot does **not** capture the agent's running process state. It is a data archive, not a live VM checkpoint.
+
+## When to take a snapshot
+
+- **Before a large refactor** — you can restore the pre-refactor state if the direction turns out wrong.
+- **Before context compaction** — when the context meter approaches the limit, snapshot first, then compact. The new session starts fresh but the snapshot preserves the full history.
+- **At a milestone** — "feature complete, tests passing" is a good snapshot moment. Treat it like a commit message for the conversation.
+- **Before handing off to a different agent** — snapshot Agent A's context, attach the snapshot as reference for Agent B.
+
+## Restoring a snapshot
+
+Restoring replaces the agent's current session files with the snapshotted versions. The agent's next turn will resume from the snapshotted conversation state.
+
+<Aside type="caution" title="Restore is not undo">
+Restoring a snapshot writes the snapshotted file contents back to disk. Any changes made after the snapshot was taken — by the agent or by you — will be overwritten. Restore only when you're sure you want to roll back.
+</Aside>
+
+## Snapshots vs git
+
+Snapshots and git serve different purposes and work best together:
+
+| | Snapshot | Git commit |
+|---|---|---|
+| Captures | Conversation + files | Files only |
+| Granularity | Any moment | Explicit commit |
+| Restore | Writes files back | `git checkout` |
+| Shareable | No (local only) | Yes |
+
+A good workflow: snapshot before a risky agent run, then commit with git once the agent's output looks right.

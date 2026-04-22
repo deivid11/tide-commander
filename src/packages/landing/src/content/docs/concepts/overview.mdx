@@ -1,0 +1,85 @@
+---
+title: Core Concepts
+description: Agents, Boss/Subordinate hierarchy, Delegation, Skills, Classes, and the 3D Scene — the mental model behind Tide Commander.
+---
+
+import { Card, CardGrid, LinkCard, Aside } from '@astrojs/starlight/components';
+
+Tide Commander is a thin orchestration layer around real CLI processes (`claude`, `codex`, `opencode`). Everything you see — agents, buildings, areas — maps to something concrete on disk or in a subprocess. This page is the mental model. Each concept has a deep-dive linked from its card.
+
+## Agents
+
+An **agent** is one running CLI process. When you click **+ New Agent**, Tide Commander spawns a real subprocess (for Claude: `claude --output-format stream-json`; for Codex: `codex exec --experimental-json`; for OpenCode: `opencode run --format json`) and parses its stdout stream in real time. The character you see on the 3D map is a live handle to that subprocess.
+
+Each agent has:
+
+- A **name** (for you) and **ID** (for the system).
+- A **working directory** it runs in.
+- A **class** (behavior + 3D model + default skills).
+- A **session** that can be resumed across restarts.
+- A **context meter** ("mana bar") showing how much of the model's context window is consumed.
+
+![3D battlefield with multiple agents deployed](/screenshots/35-main-3d-with-agents.png)
+
+## Boss & Subordinates
+
+A **Boss agent** has persistent context on the other agents assigned to it. Talk to the Boss — it decides which subordinate is best suited for the task, dispatches it, and streams progress back. No more hunting across terminal windows for the one that knows the auth code.
+
+When you spawn a Boss, you assign subordinates from the existing agent pool. The Boss carries their identities, current tasks, and tracking status into its own prompt stack.
+
+![Spawn Boss Agent modal](/screenshots/08-spawn-boss-modal.png)
+
+## Delegation
+
+Once a Boss has subordinates, it can **delegate** tasks. The Boss emits a structured delegation payload in its reply, Tide Commander parses it, and forwards the task to the chosen subordinate with full context (who delegated it, the original user request, any referenced files).
+
+Delegated subordinates automatically **report completion** back to their Boss when done. The Boss Inspector's Team tab shows who's doing what in flight.
+
+![Boss inspector showing team view](/screenshots/43-boss-inspector-team-view.png)
+
+## Classes
+
+A **class** is a reusable bundle of:
+
+- A 3D character model (GLB) with idle/walk/work animations.
+- A set of default skills.
+- A default set of instructions (layered on top of any global System Prompt).
+
+Built-in classes: **Scout**, **Builder**, **Debugger**, **Architect**, **Warrior**, **Support**, **Boss**. You can also build your own.
+
+![Create custom agent class modal](/screenshots/29-create-agent-class-modal.png)
+
+## Skills
+
+**Skills** are plugins with defined tool permissions, assignable to individual agents or entire classes. Built-ins include:
+
+- Notifications (browser + mobile)
+- Inter-agent messaging
+- Git workflow helpers
+- Streaming command execution
+- Task tracking labels
+
+You can author custom skills in TypeScript and register them from the Manage Skills screen.
+
+![Manage Skills view](/screenshots/27-manage-skills.png)
+
+## The 3D Scene
+
+The **3D battlefield** is a Three.js-powered isometric view. Each agent is a character you can select, move, and command RTS-style. Buildings sit on the terrain as interactive 3D objects: servers, databases, Docker containers, links, folders, and boss nodes. Areas are drawn regions that group agents and buildings into visual clusters.
+
+Don't like 3D? Press **Alt + 2** to cycle through the 2D canvas, Dashboard, and Commander views.
+
+<CardGrid>
+  <LinkCard title="Agents" href="/concepts/agents/" description="Lifecycle, session resume, working directory, context tracking." />
+  <LinkCard title="Boss & Subordinates" href="/concepts/boss-and-subordinates/" description="One hub for the team. Context-aware delegation." />
+  <LinkCard title="Delegation" href="/concepts/delegation/" description="How tasks are dispatched, tracked, and reported." />
+  <LinkCard title="Classes" href="/concepts/classes/" description="Behavior, models, and default instructions in a reusable bundle." />
+  <LinkCard title="Skills" href="/concepts/skills/" description="Built-in + custom TypeScript skills for agents." />
+  <LinkCard title="Areas" href="/concepts/areas/" description="Visual groupings; attach folders for the file explorer." />
+  <LinkCard title="Snapshots" href="/concepts/snapshots/" description="Save a conversation + all touched files. Restore later." />
+  <LinkCard title="Secrets" href="/concepts/secrets/" description="`{{PLACEHOLDER}}` injection — tokens never leave the server." />
+</CardGrid>
+
+<Aside type="tip" title="Prompt stacking">
+  Individual agent instructions, class instructions, a global system prompt, and Tide Commander's base rules are all layered into the final prompt sent to the CLI. See [Prompt Stacking](/configuration/prompt-stacking/).
+</Aside>

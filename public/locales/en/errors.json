@@ -1,8 +1,6 @@
 {
   "toast": {
     "error": "Error",
-    "snapshotFailed": "Snapshot Failed",
-    "snapshotFailedMsg": "Failed to save snapshot",
     "mergeFailed": "Merge Failed",
     "mergeFailedMsg": "Failed to merge changes",
     "compareFailed": "Compare Failed",

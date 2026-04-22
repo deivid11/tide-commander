@@ -1,8 +1,7 @@
 import type {
   Agent, AgentClass, AgentProvider, PermissionMode, ClaudeModel, ClaudeEffort, CodexModel, CodexConfig,
-  ContextStats, GlobalUsageStats, Subagent, DelegationDecision,
-  WorkPlan, AnalysisRequest, ActivityNarrative, AgentAnalysis,
-  SupervisorReport, SupervisorConfig, AgentSupervisorHistory,
+  ContextStats, Subagent, DelegationDecision,
+  WorkPlan, AnalysisRequest,
   CustomAgentClass,
 } from './agent-types.js';
 import type {
@@ -13,8 +12,7 @@ import type {
 } from './database-types.js';
 import type {
   ClaudeEvent, DrawingArea, Skill, PermissionRequest, PermissionResponse,
-  AgentNotification, Secret, SnapshotListItem, ConversationSnapshot,
-  CreateSnapshotRequest, RestoreSnapshotRequest, RestoreSnapshotResponse,
+  AgentNotification, Secret,
   SkillUpdateData,
 } from './common-types.js';
 
@@ -371,75 +369,6 @@ export interface SyncAreasMessage extends WSMessage {
 }
 
 // ============================================================================
-// Supervisor Messages
-// ============================================================================
-
-// Supervisor WebSocket messages (Server -> Client)
-export interface SupervisorReportMessage extends WSMessage {
-  type: 'supervisor_report';
-  payload: SupervisorReport;
-}
-
-export interface SupervisorStatusMessage extends WSMessage {
-  type: 'supervisor_status';
-  payload: {
-    enabled: boolean;
-    lastReportTime: number | null;
-    nextReportTime: number | null;
-  };
-}
-
-export interface NarrativeUpdateMessage extends WSMessage {
-  type: 'narrative_update';
-  payload: {
-    agentId: string;
-    narrative: ActivityNarrative;
-  };
-}
-
-export interface AgentSupervisorHistoryMessage extends WSMessage {
-  type: 'agent_supervisor_history';
-  payload: AgentSupervisorHistory;
-}
-
-export interface AgentAnalysisMessage extends WSMessage {
-  type: 'agent_analysis';
-  payload: {
-    agentId: string;
-    analysis: AgentAnalysis;
-  };
-}
-
-// Global Usage WebSocket messages
-export interface GlobalUsageMessage extends WSMessage {
-  type: 'global_usage';
-  payload: GlobalUsageStats | null;
-}
-
-export interface RequestGlobalUsageMessage extends WSMessage {
-  type: 'request_global_usage';
-  payload: Record<string, never>;
-}
-
-// Supervisor WebSocket messages (Client -> Server)
-export interface SetSupervisorConfigMessage extends WSMessage {
-  type: 'set_supervisor_config';
-  payload: Partial<SupervisorConfig>;
-}
-
-export interface RequestSupervisorReportMessage extends WSMessage {
-  type: 'request_supervisor_report';
-  payload: Record<string, never>;
-}
-
-export interface RequestAgentSupervisorHistoryMessage extends WSMessage {
-  type: 'request_agent_supervisor_history';
-  payload: {
-    agentId: string;
-  };
-}
-
-// ============================================================================
 // Building Messages
 // ============================================================================
 
@@ -720,6 +649,8 @@ export interface SendNotificationMessage extends WSMessage {
     agentId: string;
     title: string;
     message: string;
+    iconUrl?: string;
+    imageUrl?: string;
   };
 }
 
@@ -1144,75 +1075,6 @@ export interface DeleteSecretMessage extends WSMessage {
 }
 
 // ============================================================================
-// Snapshot Messages
-// ============================================================================
-
-// Snapshots sync message (Server -> Client) - sent on connect
-export interface SnapshotsUpdateMessage extends WSMessage {
-  type: 'snapshots_update';
-  payload: SnapshotListItem[];
-}
-
-// Snapshot created message (Server -> Client)
-export interface SnapshotCreatedMessage extends WSMessage {
-  type: 'snapshot_created';
-  payload: ConversationSnapshot;
-}
-
-// Snapshot deleted message (Server -> Client)
-export interface SnapshotDeletedMessage extends WSMessage {
-  type: 'snapshot_deleted';
-  payload: { id: string };
-}
-
-// Request snapshot list (Client -> Server)
-export interface RequestSnapshotsMessage extends WSMessage {
-  type: 'request_snapshots';
-  payload: {
-    agentId?: string;          // Optional: filter by agent
-    limit?: number;            // Max snapshots to return
-  };
-}
-
-// Request snapshot details (Client -> Server)
-export interface RequestSnapshotDetailsMessage extends WSMessage {
-  type: 'request_snapshot_details';
-  payload: {
-    snapshotId: string;
-  };
-}
-
-// Snapshot details response (Server -> Client)
-export interface SnapshotDetailsMessage extends WSMessage {
-  type: 'snapshot_details';
-  payload: ConversationSnapshot;
-}
-
-// Create snapshot request (Client -> Server)
-export interface CreateSnapshotMessage extends WSMessage {
-  type: 'create_snapshot';
-  payload: CreateSnapshotRequest;
-}
-
-// Delete snapshot request (Client -> Server)
-export interface DeleteSnapshotMessage extends WSMessage {
-  type: 'delete_snapshot';
-  payload: { id: string };
-}
-
-// Restore snapshot request (Client -> Server)
-export interface RestoreSnapshotMessage extends WSMessage {
-  type: 'restore_snapshot';
-  payload: RestoreSnapshotRequest;
-}
-
-// Restore snapshot response (Server -> Client)
-export interface SnapshotRestoredMessage extends WSMessage {
-  type: 'snapshot_restored';
-  payload: RestoreSnapshotResponse;
-}
-
-// ============================================================================
 // Database Messages
 // ============================================================================
 
@@ -1615,11 +1477,6 @@ export type ServerMessage =
   | DirectoryNotFoundMessage
   | CommandStartedMessage
   | SessionUpdatedMessage
-  | SupervisorReportMessage
-  | SupervisorStatusMessage
-  | NarrativeUpdateMessage
-  | AgentSupervisorHistoryMessage
-  | AgentAnalysisMessage
   | AreasUpdateMessage
   | BuildingsUpdateMessage
   | BuildingCreatedMessage
@@ -1652,7 +1509,6 @@ export type ServerMessage =
   | WorkPlansUpdateMessage
   | AnalysisRequestCreatedMessage
   | AnalysisRequestCompletedMessage
-  | GlobalUsageMessage
   | AgentNotificationMessage
   | FocusAgentMessage
   | ExecTaskStartedMessage
@@ -1676,11 +1532,6 @@ export type ServerMessage =
   | QueryHistoryUpdateMessage
   | TableSchemaMessage
   | TablesListMessage
-  | SnapshotsUpdateMessage
-  | SnapshotCreatedMessage
-  | SnapshotDeletedMessage
-  | SnapshotDetailsMessage
-  | SnapshotRestoredMessage
   | SubagentStartedMessage
   | SubagentOutputMessage
   | SubagentCompletedMessage
@@ -1720,9 +1571,6 @@ export type ClientMessage =
   | RemoveAgentMessage
   | RenameAgentMessage
   | UpdateAgentPropertiesMessage
-  | SetSupervisorConfigMessage
-  | RequestSupervisorReportMessage
-  | RequestAgentSupervisorHistoryMessage
   | SyncAreasMessage
   | SyncBuildingsMessage
   | CreateBuildingMessage
@@ -1755,7 +1603,6 @@ export type ClientMessage =
   | PauseWorkPlanMessage
   | CancelWorkPlanMessage
   | RequestWorkPlansMessage
-  | RequestGlobalUsageMessage
   | SendNotificationMessage
   | CreateSecretMessage
   | UpdateSecretMessage
@@ -1773,11 +1620,6 @@ export type ClientMessage =
   | ClearQueryHistoryMessage
   | GetTableSchemaMessage
   | ListTablesMessage
-  | RequestSnapshotsMessage
-  | RequestSnapshotDetailsMessage
-  | CreateSnapshotMessage
-  | DeleteSnapshotMessage
-  | RestoreSnapshotMessage
   | CreateTriggerMessage
   | UpdateTriggerMessage
   | DeleteTriggerMessage

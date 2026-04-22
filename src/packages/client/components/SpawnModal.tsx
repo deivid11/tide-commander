@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useAgents, useSkillsArray, useCustomAgentClassesArray, useCustomAgentNames } from '../store';
+import { store, useSkillsArray, useCustomAgentClassesArray, useCustomAgentNames } from '../store';
 import { AGENT_CLASS_CONFIG, BUILTIN_AGENT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig } from '../../shared/types';
 import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../shared/types';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl, authFetch } from '../utils/storage';
+import { BUILT_IN_AGENT_CLASSES } from '../../shared/agent-types';
 import { ModelPreview } from './ModelPreview';
 import { HelpTooltip } from './shared/Tooltip';
 import { FolderInput } from './shared/FolderInput';
+import { OpencodeModelSelect } from './OpencodeModelSelect';
 import { useModalClose } from '../hooks';
 import { AgentIcon } from './AgentIcon';
+import { Icon } from './Icon';
 
 interface ClaudeSession {
   sessionId: string;
@@ -51,7 +54,6 @@ function getRandomAgentName(usedNames: Set<string>, namesList: string[]): string
 
 export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPosition, spawnAreaId }: SpawnModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
-  const agents = useAgents();
   const skills = useSkillsArray();
   const customClasses = useCustomAgentClassesArray();
   const customAgentNames = useCustomAgentNames();
@@ -70,7 +72,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [sessionSearch, setSessionSearch] = useState('');
   const [classSearch, setClassSearch] = useState('');
-  const [useChrome, setUseChrome] = useState(true); // Enabled by default
+  const [useChrome, setUseChrome] = useState(false); // Disabled by default
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('bypass'); // Default to permissionless
   const [selectedProvider, setSelectedProvider] = useState<AgentProvider>('claude');
   const [codexConfig, setCodexConfig] = useState<CodexConfig>({
@@ -80,8 +82,8 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     search: false,
   });
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
-  const [selectedModel, setSelectedModel] = useState<ClaudeModel>('claude-opus-4-7'); // Default to latest Opus
-  const [selectedEffort, setSelectedEffort] = useState<ClaudeEffort | undefined>('high'); // Default: high (matches CLI default)
+  const [selectedModel, setSelectedModel] = useState<ClaudeModel>('opus[1m]'); // Default to Opus 1M
+  const [selectedEffort, setSelectedEffort] = useState<ClaudeEffort | undefined>('xHigh'); // Default: xHigh (extra high reasoning)
   const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>('gpt-5.3-codex');
   const [opencodeModel, setOpencodeModel] = useState<string>('minimax/MiniMax-M1-80k');
   const [customInstructions, setCustomInstructions] = useState('');
@@ -97,21 +99,34 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   const availableSkills = useMemo(() => skills.filter(s => s.enabled), [skills]);
 
   // Default skill slugs that should be pre-selected for new agents
-  const DEFAULT_SKILL_SLUGS = ['full-notifications', 'streaming-exec', 'task-label', 'report-task-to-boss', 'agent-tracking'];
+  const DEFAULT_SKILL_SLUGS = ['full-notifications', 'streaming-exec', 'task-label', 'report-task-to-boss', 'agent-tracking', 'send-message-to-agent'];
 
-  // Initialize default skills once per open event
+  // Initialize default skills and class once per open event
   useEffect(() => {
     const didJustOpen = isOpen && !wasOpenRef.current;
-    if (didJustOpen && availableSkills.length > 0) {
-      const defaultSkillIds = availableSkills
-        .filter(s => DEFAULT_SKILL_SLUGS.includes(s.slug))
-        .map(s => s.id);
-      if (defaultSkillIds.length > 0) {
-        setSelectedSkillIds(new Set(defaultSkillIds));
+    if (didJustOpen) {
+      if (availableSkills.length > 0) {
+        const defaultSkillIds = availableSkills
+          .filter(s => DEFAULT_SKILL_SLUGS.includes(s.slug))
+          .map(s => s.id);
+        if (defaultSkillIds.length > 0) {
+          setSelectedSkillIds(new Set(defaultSkillIds));
+        }
+      }
+
+      const defaultClassPref = getStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS);
+      if (defaultClassPref === 'random') {
+        const builtInIds = Object.keys(BUILT_IN_AGENT_CLASSES) as AgentClass[];
+        const allClassIds: AgentClass[] = [...builtInIds, ...customClasses.map(c => c.id)];
+        setSelectedClass(allClassIds[Math.floor(Math.random() * allClassIds.length)]);
+      } else if (defaultClassPref) {
+        setSelectedClass(defaultClassPref);
+      } else {
+        setSelectedClass('scout');
       }
     }
     wasOpenRef.current = isOpen;
-  }, [isOpen, availableSkills]);
+  }, [isOpen, availableSkills, customClasses]);
 
   // Filter skills by search query
   const filteredSkills = useMemo(() => {
@@ -283,7 +298,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     }
 
     // Fall back to the most common cwd among area members
-    const areaAgents = Array.from(agents.values()).filter(
+    const areaAgents = Array.from(store.getState().agents.values()).filter(
       (a) => store.getAreaForAgent(a.id)?.id === spawnAreaId && a.cwd
     );
     if (areaAgents.length === 0) return;
@@ -303,12 +318,12 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     if (bestCwd) {
       setCwd(bestCwd);
     }
-  }, [isOpen, spawnAreaId, agents]);
+  }, [isOpen, spawnAreaId]);
 
   // Generate a new name when modal opens
   useEffect(() => {
     if (isOpen) {
-      const usedNames = new Set(Array.from(agents.values()).map((a) => a.name));
+      const usedNames = new Set(Array.from(store.getState().agents.values()).map((a) => a.name));
       const baseName = getRandomAgentName(usedNames, effectiveNamesList);
       // If a custom class is selected, prefix the class name
       const customClass = customClasses.find(c => c.id === selectedClass);
@@ -319,12 +334,11 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
         nameInputRef.current.select();
       }
     }
-  }, [isOpen, agents, effectiveNamesList]);
+  }, [isOpen, effectiveNamesList]);
 
   // Update name prefix when custom class changes
   useEffect(() => {
     if (!isOpen) return;
-    const _usedNames = new Set(Array.from(agents.values()).map((a) => a.name));
     const customClass = customClasses.find(c => c.id === selectedClass);
 
     if (customClass) {
@@ -381,7 +395,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     if (!name.trim()) {
       // Name should be prefilled, but regenerate if somehow empty
       console.log('[SpawnModal] Empty name, regenerating');
-      const usedNames = new Set(Array.from(agents.values()).map((a) => a.name));
+      const usedNames = new Set(Array.from(store.getState().agents.values()).map((a) => a.name));
       setName(getRandomAgentName(usedNames, effectiveNamesList));
       return;
     }
@@ -662,7 +676,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     onClick={() => setSelectedProvider('opencode')}
                     title="Use OpenCode CLI (multi-provider)"
                   >
-                    <span>🟢</span>
+                    <img src={`${import.meta.env.BASE_URL}assets/opencode.svg`} alt="OpenCode" className="spawn-provider-icon" />
                     <span>OpenCode</span>
                   </button>
                 </div>
@@ -685,7 +699,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                       onClick={() => setPermissionMode(mode)}
                       title={PERMISSION_MODES[mode].description}
                     >
-                      <span>{mode === 'bypass' ? '⚡' : '🔐'}</span>
+                      <span><Icon name={mode === 'bypass' ? 'bolt' : 'lock'} size={12} /></span>
                       <span>{PERMISSION_MODES[mode].label}</span>
                     </button>
                   ))}
@@ -693,7 +707,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
               </div>
             </div>
 
-            {/* Row 3: Model (Claude only) + Chrome */}
+            {/* Row 3: Model */}
             <div className="spawn-form-row">
               <div className="spawn-field">
                 <label className="spawn-label">
@@ -706,7 +720,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                   />
                 </label>
                 {selectedProvider === 'claude' ? (
-                  <div className="spawn-select-row">
+                  <div className="spawn-select-row spawn-select-row--wrap">
                     {(Object.keys(CLAUDE_MODELS) as ClaudeModel[])
                       .filter((model) => !CLAUDE_MODELS[model].deprecated)
                       .map((model) => (
@@ -736,17 +750,19 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     ))}
                   </div>
                 ) : selectedProvider === 'opencode' ? (
-                  <input
-                    type="text"
-                    className="spawn-input"
+                  <OpencodeModelSelect
                     value={opencodeModel}
-                    onChange={(e) => setOpencodeModel(e.target.value)}
-                    placeholder="provider/model (e.g., minimax/MiniMax-M1-80k)"
+                    onChange={setOpencodeModel}
+                    inputId="spawn-opencode-model"
                   />
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.chooseCodexModel')}</div>
                 )}
               </div>
+            </div>
+
+            {/* Row 4: Effort + Browser */}
+            <div className="spawn-form-row">
               {selectedProvider === 'claude' && (
                 <div className="spawn-field">
                   <label className="spawn-label">Effort</label>
@@ -773,26 +789,24 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
               )}
               <div className="spawn-field">
                 <label className="spawn-label">{t('terminal:spawn.browser')}</label>
-                <div className="spawn-form-row spawn-options-row">
-                  <label className="spawn-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={useChrome}
-                      onChange={(e) => setUseChrome(e.target.checked)}
-                      disabled={selectedProvider !== 'claude'}
-                    />
-                    <span>🌐 {t('terminal:spawn.chromeBrowser')}</span>
-                    <HelpTooltip
-                      text={selectedProvider === 'claude'
-                        ? t('terminal:spawn.helpChrome')
-                        : t('terminal:spawn.helpChromeDisabled')
-                      }
-                      title={t('terminal:spawn.chromeBrowser')}
-                      position="top"
-                      size="sm"
-                    />
-                  </label>
-                </div>
+                <label className="spawn-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={useChrome}
+                    onChange={(e) => setUseChrome(e.target.checked)}
+                    disabled={selectedProvider !== 'claude'}
+                  />
+                  <span><Icon name="globe" size={12} /> {t('terminal:spawn.chromeBrowser')}</span>
+                  <HelpTooltip
+                    text={selectedProvider === 'claude'
+                      ? t('terminal:spawn.helpChrome')
+                      : t('terminal:spawn.helpChromeDisabled')
+                    }
+                    title={t('terminal:spawn.chromeBrowser')}
+                    position="top"
+                    size="sm"
+                  />
+                </label>
               </div>
             </div>
 
@@ -931,7 +945,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                         onClick={() => toggleSkill(skill.id)}
                         title={skill.description}
                       >
-                        {isSelected && <span className="spawn-skill-check">✓</span>}
+                        {isSelected && <span className="spawn-skill-check"><Icon name="check" size={10} /></span>}
                         <span>{skill.name}</span>
                         {skill.builtin && <span className="spawn-skill-builtin">TC</span>}
                       </button>

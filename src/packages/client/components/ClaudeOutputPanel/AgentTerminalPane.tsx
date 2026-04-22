@@ -27,11 +27,9 @@ import {
   useAgentCompacting,
   useReconnectCount,
   useHistoryRefreshTrigger,
-  useAgentTaskProgress,
   useExecTasks,
   useSubagentsMapForAgent,
   usePermissionRequests,
-  store,
   type ClaudeOutput,
 } from '../../store';
 import type { Agent } from '../../../shared/types';
@@ -47,12 +45,17 @@ import { useTerminalInput } from './useTerminalInput';
 import { useMessageNavigation } from './useMessageNavigation';
 import { useFilteredOutputsWithLogging } from '../shared/useFilteredOutputs';
 import { parseBossContext, parseInjectedInstructions } from './BossContext';
+import {
+  parseBashTrackingStatusCommand,
+  parseBashTaskLabelCommand,
+  parseBashNotificationCommand,
+  parseBashReportTaskCommand,
+} from '../../utils/outputRendering';
 
 // Components
 import { SearchBar } from './TerminalHeader';
 import { TerminalInputArea } from './TerminalInputArea';
 import { VirtualizedOutputList } from './VirtualizedOutputList';
-import { AgentProgressIndicator } from './AgentProgressIndicator';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -98,13 +101,6 @@ export interface AgentTerminalPaneProps {
   viewMode: ViewMode;
   /** Whether the terminal is open/visible */
   isOpen: boolean;
-  /** Whether viewing a snapshot */
-  isSnapshotView: boolean;
-  /** Snapshot data (null if not viewing snapshot) */
-  currentSnapshot: {
-    agentId: string;
-    outputs: Array<{ text: string; timestamp: number; isStreaming?: boolean; isUserPrompt?: boolean }>;
-  } | null;
 
   // ── Modal callbacks (parent owns modals) ──
   onImageClick: (url: string, name: string) => void;
@@ -119,9 +115,6 @@ export interface AgentTerminalPaneProps {
     keyboardScrollLockRef: React.MutableRefObject<boolean>;
     cleanup: () => void;
   };
-
-  // ── Snapshot save (for TerminalInputArea) ──
-  onSaveSnapshot?: () => void;
 
   // ── Mobile swipe close (for TerminalInputArea) ──
   canSwipeClose?: boolean;
@@ -178,14 +171,11 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     agent,
     viewMode,
     isOpen,
-    isSnapshotView,
-    currentSnapshot,
     onImageClick,
     onFileClick,
     onBashClick,
     onViewMarkdown,
     keyboard,
-    // onSaveSnapshot - available via props but unused in this pane
     canSwipeClose,
     onSwipeCloseOffsetChange,
     onSwipeClose,
@@ -201,51 +191,28 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   const lastPrompts = useLastPrompts();
   const outputs = useAgentOutputs(agentId);
   const isCompacting = useAgentCompacting(agentId);
-  const hasSessionId = !!agent?.sessionId && !isSnapshotView;
-
-  // Boss agent progress
-  const isBoss = agent?.class === 'boss' || agent?.isBoss;
-  const agentTaskProgress = useAgentTaskProgress(!isSnapshotView && isBoss ? agentId : null);
-  const activeTaskProgress = useMemo(
-    () => Array.from(agentTaskProgress.values()).filter((progress) => progress.status === 'working'),
-    [agentTaskProgress]
-  );
-  const completedTaskProgressIds = useMemo(
-    () => Array.from(agentTaskProgress.values())
-      .filter((progress) => progress.status === 'completed' || progress.status === 'failed')
-      .map((progress) => progress.agentId),
-    [agentTaskProgress]
-  );
-  const [agentProgressCollapsed, setAgentProgressCollapsed] = useState(true);
+  const hasSessionId = !!agent?.sessionId;
 
   // Exec tasks & subagents
-  const execTasks = useExecTasks(!isSnapshotView ? agentId : null);
-  const subagents = useSubagentsMapForAgent(!isSnapshotView ? agentId : null);
+  const execTasks = useExecTasks(agentId);
+  const subagents = useSubagentsMapForAgent(agentId);
 
   // Pending permission requests
   const permissionRequests = usePermissionRequests();
   const pendingPermissions = useMemo(() => {
-    if (isSnapshotView || !agentId) return [];
+    if (!agentId) return [];
     return Array.from(permissionRequests.values()).filter(
       (r) => r.agentId === agentId && r.status === 'pending'
     );
-  }, [isSnapshotView, agentId, permissionRequests]);
+  }, [agentId, permissionRequests]);
 
   // ── Refs ──
   const outputScrollRef = useRef<HTMLDivElement>(null);
   const terminalInputRef = useRef<HTMLInputElement>(null);
   const terminalTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // ── Display outputs (snapshot vs live) ──
-  const displayOutputs = useMemo(() => {
-    if (!(isSnapshotView && currentSnapshot)) return outputs;
-    return currentSnapshot.outputs.map((output) => ({
-      text: output.text || '',
-      timestamp: output.timestamp,
-      isStreaming: false,
-      isUserPrompt: false,
-    }));
-  }, [isSnapshotView, currentSnapshot, outputs]);
+  // ── Display outputs ──
+  const displayOutputs = outputs;
 
   // ── History loader ──
   const historyLoader = useHistoryLoader({
@@ -264,14 +231,39 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   const filteredHistory = useMemo((): EnrichedHistoryMessage[] => {
     const { history } = historyLoader;
     const toolResultMap = new Map<string, string>();
+    // Collect tool_use_ids whose bash command was a self-invoked Tide Commander
+    // API curl (tracking/taskLabel/notification/report-task). Their tool_use is
+    // already rendered as a chip; their tool_result is a raw JSON dump that
+    // would otherwise render as a noisy `$ Terminal output` block at the tail
+    // of the log.
+    const suppressedToolUseIds = new Set<string>();
     for (const msg of history) {
       if (msg.type === 'tool_result' && msg.toolUseId) {
         toolResultMap.set(msg.toolUseId, msg.content);
       }
+      if (msg.type === 'tool_use' && msg.toolName === 'Bash' && msg.toolUseId) {
+        let bashCommand: string | undefined;
+        try {
+          const input = msg.toolInput || (msg.content ? JSON.parse(msg.content) : {});
+          bashCommand = input.command;
+        } catch { /* ignore */ }
+        if (bashCommand && (
+          parseBashTrackingStatusCommand(bashCommand)
+          || parseBashTaskLabelCommand(bashCommand)
+          || parseBashNotificationCommand(bashCommand)
+          || parseBashReportTaskCommand(bashCommand)
+        )) {
+          suppressedToolUseIds.add(msg.toolUseId);
+        }
+      }
     }
 
     const enrichHistory = (messages: typeof history): EnrichedHistoryMessage[] => {
-      return messages.map((msg) => {
+      const out: EnrichedHistoryMessage[] = [];
+      for (const msg of messages) {
+        if (msg.type === 'tool_result' && msg.toolUseId && suppressedToolUseIds.has(msg.toolUseId)) {
+          continue;
+        }
         if (msg.type === 'tool_use' && msg.toolName === 'Bash' && msg.toolUseId) {
           const bashOutput = toolResultMap.get(msg.toolUseId);
           let bashCommand: string | undefined;
@@ -279,10 +271,12 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
             const input = msg.toolInput || (msg.content ? JSON.parse(msg.content) : {});
             bashCommand = input.command;
           } catch { /* ignore */ }
-          return { ...msg, _bashOutput: bashOutput, _bashCommand: bashCommand };
+          out.push({ ...msg, _bashOutput: bashOutput, _bashCommand: bashCommand });
+          continue;
         }
-        return msg as EnrichedHistoryMessage;
-      });
+        out.push(msg as EnrichedHistoryMessage);
+      }
+      return out;
     };
 
     return enrichHistory(history);
@@ -340,7 +334,9 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // Remove live outputs that duplicate history
   const dedupedOutputs = useMemo(() => {
     const latestHistoryUserTsByKey = new Map<string, number>();
-    const historyAssistantUuidSet = new Set<string>();
+    // Covers any non-user history uuid (assistant, tool_use, tool_result) so
+    // that bash/tool live outputs replaying a persisted turn get deduped too.
+    const historyKnownUuidSet = new Set<string>();
     const latestHistoryAssistantTsByKey = new Map<string, number>();
     for (const msg of dedupedHistory) {
       const ts = msg.timestamp ? new Date(msg.timestamp).getTime() : 0;
@@ -350,10 +346,17 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
         if (ts > prev) latestHistoryUserTsByKey.set(key, ts);
         continue;
       }
-      if (msg.type !== 'assistant') continue;
       if (msg.uuid) {
-        historyAssistantUuidSet.add(msg.uuid);
+        historyKnownUuidSet.add(msg.uuid);
       }
+      // Also index by toolUseId (Anthropic tool_use_id like "toolu_01..."): live
+      // outputs for tool_start/tool_result events are broadcast with uuid=tool_use_id,
+      // which is different from the JSONL entry uuid — without this, tool outputs
+      // duplicate in the panel until a history refresh flushes them.
+      if (msg.toolUseId) {
+        historyKnownUuidSet.add(msg.toolUseId);
+      }
+      if (msg.type !== 'assistant') continue;
       const key = normalizeAssistantMessage(msg.content);
       const prev = latestHistoryAssistantTsByKey.get(key) ?? 0;
       if (ts > prev) latestHistoryAssistantTsByKey.set(key, ts);
@@ -365,10 +368,13 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
     for (const output of filteredOutputs) {
       if (!output.isUserPrompt) {
+        // Apply uuid dedup unconditionally — a live output whose uuid matches a
+        // persisted history entry is the same turn, regardless of whether the
+        // text is classified as tool/system output.
+        if (output.uuid && historyKnownUuidSet.has(output.uuid)) {
+          continue;
+        }
         if (!output.isStreaming && !isToolOrSystemOutput(output.text)) {
-          if (output.uuid && historyAssistantUuidSet.has(output.uuid)) {
-            continue;
-          }
           const key = normalizeAssistantMessage(output.text);
           const ts = output.timestamp || 0;
           const historyTs = latestHistoryAssistantTsByKey.get(key);
@@ -465,19 +471,6 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     };
   }, [agent?.status]);
 
-  // ── Boss progress auto-dismiss ──
-  useEffect(() => {
-    if (!agentId || !isBoss || isSnapshotView || completedTaskProgressIds.length === 0) {
-      return;
-    }
-    const dismissTimer = window.setTimeout(() => {
-      completedTaskProgressIds.forEach((subordinateId) => {
-        store.clearAgentTaskProgress(agentId, subordinateId);
-      });
-    }, 300);
-    return () => window.clearTimeout(dismissTimer);
-  }, [agentId, isBoss, isSnapshotView, completedTaskProgressIds]);
-
   // ── Auto-update bash modal state from parent ──
   // (Bash modal is owned by parent; this effect was previously in GuakeOutputPanel.
   //  We expose dedupedOutputs via ref so parent can do this if needed.)
@@ -485,7 +478,6 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // ── Scroll management ──
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const isUserScrolledUpRef = useRef(false);
-  const pendingSelectionScrollRef = useRef(false);
   const agentSwitchGraceRef = useRef(false);
 
   const handleUserScrollUp = useCallback(() => {
@@ -506,7 +498,6 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   useEffect(() => {
     setShouldAutoScroll(true);
     isUserScrolledUpRef.current = false;
-    pendingSelectionScrollRef.current = true;
     agentSwitchGraceRef.current = true;
     const timeout = setTimeout(() => {
       agentSwitchGraceRef.current = false;
@@ -551,7 +542,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   const [historyFadeIn, setHistoryFadeIn] = useState(false);
   const [isAgentSwitching, setIsAgentSwitching] = useState(false);
 
-  // Hide content immediately on agent change
+  // Hide content immediately on agent change, then fade in after scroll settles
   const prevSelectedAgentIdRef = useRef<string | null>(null);
   useLayoutEffect(() => {
     const prev = prevSelectedAgentIdRef.current;
@@ -574,38 +565,8 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   useEffect(() => {
     if (!isAgentSwitching) return;
     if (historyLoader.fetchingHistory) return;
-    const raf = requestAnimationFrame(() => {
-      if (outputScrollRef.current) {
-        outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
-      }
-      setIsAgentSwitching(false);
-    });
-    return () => cancelAnimationFrame(raf);
+    setIsAgentSwitching(false);
   }, [isAgentSwitching, historyLoader.fetchingHistory, historyLoader.historyLoadVersion]);
-
-  // Scroll-to-bottom after agent change
-  useEffect(() => {
-    if (!pendingSelectionScrollRef.current) return;
-    if (!agentId) return;
-    if (isAgentSwitching) return;
-    if (historyLoader.fetchingHistory) return;
-
-    let rafId = 0;
-    let rafId2 = 0;
-    rafId = requestAnimationFrame(() => {
-      rafId2 = requestAnimationFrame(() => {
-        if (outputScrollRef.current) {
-          outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
-        }
-        pendingSelectionScrollRef.current = false;
-      });
-    });
-
-    return () => {
-      cancelAnimationFrame(rafId);
-      cancelAnimationFrame(rafId2);
-    };
-  }, [agentId, isAgentSwitching, historyLoader.fetchingHistory, historyLoader.historyLoadVersion]);
 
   // ── Pin to bottom (stabilization loop) ──
   const pendingFadeInRef = useRef(false);
@@ -654,13 +615,13 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
       lastScrollHeight = currentScrollHeight;
 
-      if (stableFrames >= 3) {
+      if (stableFrames >= 1) {
         setPinToBottom(false);
         rafId = null;
         return;
       }
 
-      if (now - start > 8000) {
+      if (now - start > 1500) {
         setPinToBottom(false);
         rafId = null;
         return;
@@ -828,44 +789,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
               <span className="compacting-label">Compacting context...</span>
             </div>
           )}
-          {/* Boss agent progress indicators */}
-          {!isAgentSwitching && isBoss && activeTaskProgress.length > 0 && (
-            <div className={`agent-progress-container ${agentProgressCollapsed ? 'collapsed' : 'expanded'}`}>
-              <div
-                className="agent-progress-container-header"
-                onClick={() => setAgentProgressCollapsed((previous) => !previous)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    setAgentProgressCollapsed((previous) => !previous);
-                  }
-                }}
-              >
-                <span className="progress-crown">👑</span>
-                <span>{t('terminal:empty.subordinateProgress')}</span>
-                <span className="progress-count">{t('terminal:empty.activeCount', { count: activeTaskProgress.length })}</span>
-                <span className="agent-progress-container-toggle">{agentProgressCollapsed ? '▶' : '▼'}</span>
-              </div>
-              {!agentProgressCollapsed && activeTaskProgress.map((progress) => (
-                <AgentProgressIndicator
-                  key={progress.agentId}
-                  progress={progress}
-                  defaultExpanded={progress.status === 'working'}
-                  onAgentClick={(clickedAgentId) => {
-                    store.selectAgent(clickedAgentId);
-                    store.setTerminalOpen(true);
-                  }}
-                  onDismiss={(subordinateId) => {
-                    store.clearAgentTaskProgress(agentId, subordinateId);
-                  }}
-                  onFileClick={onFileClick}
-                  onBashClick={onBashClick}
-                />
-              ))}
-            </div>
-          )}
+          {/* Subordinate progress indicators now render inline within each DelegationBlock */}
         </div>
       </div>
 
@@ -896,7 +820,6 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
         onImageClick={onImageClick}
         inputRef={terminalInputRef}
         textareaRef={terminalTextareaRef}
-        isSnapshotView={isSnapshotView}
         onClearHistory={historyLoader.clearHistory}
         onSendCommand={handleSendCommand}
         canSwipeClose={canSwipeClose}

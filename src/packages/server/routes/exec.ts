@@ -9,7 +9,7 @@
 import { Router, Request, Response } from 'express';
 import { spawn, ChildProcess } from 'child_process';
 import { agentService, secretsService } from '../services/index.js';
-import { createLogger, generateId } from '../utils/index.js';
+import { createLogger, generateId, getCommanderBaseUrl } from '../utils/index.js';
 import type { ServerMessage } from '../../shared/types.js';
 
 const log = createLogger('Exec');
@@ -307,7 +307,7 @@ router.post('/generate-curl', (req: Request, res: Response) => {
 
   // Generate curl command using $'...' syntax (ANSI-C quoting)
   // This is more reliable across different shells
-  const curlCommand = `curl -s -X POST http://localhost:5174/api/exec -H "Content-Type: application/json" -d '${escapedJson}'`;
+  const curlCommand = `curl -s -X POST ${getCommanderBaseUrl()}/api/exec -H "Content-Type: application/json" -d '${escapedJson}'`;
 
   res.json({
     success: true,

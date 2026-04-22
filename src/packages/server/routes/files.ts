@@ -319,6 +319,9 @@ router.get('/binary', async (req: Request, res: Response) => {
 
     if (download) {
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    } else if (extension === '.pdf') {
+      // Tell browsers to display the PDF inline rather than download it
+      res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
     }
 
     // Stream the file

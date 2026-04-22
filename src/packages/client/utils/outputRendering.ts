@@ -3,7 +3,10 @@
  * This file contains common functions for displaying Claude output, tool calls, etc.
  */
 
-// Tool icons mapping - used in both Guake terminal and Commander view
+// Tool icons mapping - used in both Guake terminal and Commander view.
+// Emoji variants are kept here because they are rendered inside <canvas> 2D scenes
+// (AgentRenderer, EffectsManager) where JSX isn't an option. For React render sites
+// prefer `TOOL_ICON_NAMES` + `<Icon name={...} />` below.
 export const TOOL_ICONS: Record<string, string> = {
   Read: '📖',
   Write: '✏️',
@@ -30,11 +33,45 @@ export const TOOL_ICONS: Record<string, string> = {
   default: '⚡',
 };
 
+// Semantic Icon name per tool for React-rendered surfaces. Keep in sync with TOOL_ICONS.
+import type { IconName } from '../components/Icon';
+export const TOOL_ICON_NAMES: Record<string, IconName> = {
+  Read: 'eye',
+  Write: 'edit',
+  Edit: 'edit',
+  Bash: 'terminal',
+  Glob: 'search',
+  Grep: 'search',
+  Task: 'list-checks',
+  Agent: 'robot',
+  WebFetch: 'globe',
+  WebSearch: 'globe-hemisphere',
+  TodoWrite: 'list-checks',
+  NotebookEdit: 'edit',
+  AskFollowupQuestion: 'question',
+  AskUserQuestion: 'question',
+  AttemptCompletion: 'sparkle',
+  ListFiles: 'folder-open',
+  SearchFiles: 'search',
+  ExecuteCommand: 'gear',
+  spawn_agent: 'dna',
+  send_input: 'send',
+  wait: 'hourglass',
+  default: 'bolt',
+};
+
 /**
- * Get the icon for a tool, with fallback to default
+ * Get the emoji icon for a tool (for canvas/text renderers).
  */
 export function getToolIcon(toolName: string): string {
   return TOOL_ICONS[toolName] || TOOL_ICONS.default;
+}
+
+/**
+ * Get a semantic Icon name for a tool (for JSX render sites).
+ */
+export function getToolIconName(toolName: string): IconName {
+  return TOOL_ICON_NAMES[toolName] || TOOL_ICON_NAMES.default;
 }
 
 const TOOL_NAME_TRANSLATION_KEYS: Record<string, string> = {
@@ -130,7 +167,7 @@ export function extractToolKeyParam(toolName: string, inputJson: string): string
       case 'Write':
       case 'Edit':
       case 'NotebookEdit': {
-        const filePath = input.file_path || input.path || input.notebook_path;
+        const filePath = input.file_path || input.filePath || input.path || input.notebook_path || input.notebookPath;
         if (filePath) {
           return filePath; // Full path, no truncation
         }
@@ -666,6 +703,88 @@ export interface BashReportTaskCommandInfo {
   commandBody: string;
   summary: string;
   status: 'completed' | 'failed';
+}
+
+export type TrackingStatusValue =
+  | 'need-review'
+  | 'blocked'
+  | 'can-clear-context'
+  | 'waiting-subordinates'
+  | 'working'
+  | string;
+
+export interface BashTrackingStatusCommandInfo {
+  shellPrefix?: string;
+  commandBody: string;
+  trackingStatus: TrackingStatusValue;
+  trackingStatusDetail?: string;
+}
+
+/**
+ * Parse Bash commands that update agent tracking status via curl PATCH /api/agents/...
+ * Detects: curl ... -X PATCH .../api/agents/... -d '{"trackingStatus":"...","trackingStatusDetail":"..."}'
+ * Returns null when command does not look like a tracking-status command.
+ */
+export function parseBashTrackingStatusCommand(command: string): BashTrackingStatusCommandInfo | null {
+  const trimmed = command.trim();
+  if (!trimmed) return null;
+
+  let shellPrefix: string | undefined;
+  let commandBody = trimmed;
+
+  const shellWrapped = trimmed.match(/^(\S+)\s+-lc\s+([\s\S]+)$/);
+  if (shellWrapped) {
+    shellPrefix = `${shellWrapped[1]} -lc`;
+    commandBody = stripWrappingQuotes(shellWrapped[2].trim());
+  }
+
+  if (!/\bcurl\b/.test(commandBody)) return null;
+  if (!/PATCH/.test(commandBody)) return null;
+  if (!/\/api\/agents\//.test(commandBody)) return null;
+
+  const payloadMatch = commandBody.match(/-d\s+((['"])([\s\S]*?)\2)/);
+  if (!payloadMatch) return null;
+
+  const rawPayload = stripWrappingQuotes(payloadMatch[1]).replace(/\\"/g, '"');
+  const statusMatch = rawPayload.match(/"trackingStatus"\s*:\s*"([^"]*)"/);
+  if (!statusMatch?.[1]) return null;
+
+  const detailMatch = rawPayload.match(/"trackingStatusDetail"\s*:\s*"([^"]*)"/);
+
+  return {
+    shellPrefix,
+    commandBody,
+    trackingStatus: statusMatch[1],
+    trackingStatusDetail: detailMatch?.[1],
+  };
+}
+
+/**
+ * Resolve an emoji icon for a given tracking status value.
+ * Falls back to a neutral indicator for unknown statuses.
+ */
+export function getTrackingStatusIcon(status: string): string {
+  switch (status) {
+    case 'need-review': return '✅';
+    case 'blocked': return '🚫';
+    case 'can-clear-context': return '🧹';
+    case 'waiting-subordinates': return '⏳';
+    case 'working': return '💻';
+    case 'thinking': return '✏️';
+    default: return '📍';
+  }
+}
+
+export function getTrackingStatusIconName(status: string): IconName {
+  switch (status) {
+    case 'need-review': return 'success';
+    case 'blocked': return 'warn';
+    case 'can-clear-context': return 'clear';
+    case 'waiting-subordinates': return 'hourglass';
+    case 'working': return 'terminal';
+    case 'thinking': return 'edit';
+    default: return 'pin';
+  }
 }
 
 /**

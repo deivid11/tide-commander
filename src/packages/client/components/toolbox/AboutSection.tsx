@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppUpdate } from '../../hooks/useAppUpdate';
 import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
+import { Icon } from '../Icon';
 
 // Theme selector component
 export function ThemeSelector() {
@@ -79,7 +80,7 @@ export function AboutSection() {
   return (
     <div className="about-section">
       <div className="about-logo">
-        <span className="about-logo-icon">🌊</span>
+        <span className="about-logo-icon"><Icon name="waves" size={24} /></span>
         <span className="about-logo-text">Tide Commander</span>
       </div>
 
@@ -193,7 +194,7 @@ export function AboutSection() {
           rel="noopener noreferrer"
           className="about-link"
         >
-          <span className="about-link-icon">📦</span>
+          <span className="about-link-icon"><Icon name="package" size={14} /></span>
           <span>{t('config:about.repository')}</span>
         </a>
       </div>

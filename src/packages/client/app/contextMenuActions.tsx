@@ -1,0 +1,375 @@
+import React from 'react';
+import { store } from '../store';
+import type { SceneManager } from '../scene/SceneManager';
+import type { ContextMenuAction } from '../components/ContextMenu';
+import type { ToastType } from '../components/Toast';
+import { Icon } from '../components/Icon';
+import type { Agent, DrawingArea as Area, Building } from '../../shared/types';
+import { organizeArea } from '../api/area-layout';
+import type { OrganizeResult } from '../api/area-layout';
+
+export interface ContextMenuTarget {
+  type: 'ground' | 'agent' | 'area' | 'building';
+  id?: string;
+}
+
+export interface ContextMenuCallbacks {
+  showToast: (type: ToastType, title: string, message: string) => void;
+  openSpawnModal: () => void;
+  openBossSpawnModal: () => void;
+  openToolboxModal: () => void;
+  openCommanderModal: () => void;
+  openExplorerModal: (areaId: string) => void;
+  openBuildingModal: (buildingId: string | null) => void;
+  openAgentEditModal: (agentId: string) => void;
+  requestBuildingDelete: (buildingId: string) => void;
+  setSpawnPosition: (pos: { x: number; z: number }) => void;
+  openRestoreArchivedModal: (worldPos: { x: number; z: number }) => void;
+  sceneRef: React.RefObject<SceneManager | null>;
+}
+
+/**
+ * Apply organize results: update agent positions in the store so the scene animates them.
+ */
+export function applyOrganizeResult(
+  result: OrganizeResult,
+  sceneRef: React.RefObject<SceneManager | null>
+): void {
+  const state = store.getState();
+  for (const entry of result.organized) {
+    const agent = state.agents.get(entry.agentId);
+    if (agent) {
+      const updated = { ...agent, position: entry.position };
+      store.updateAgent(updated);
+      // Trigger animated movement in the 3D/2D scene
+      sceneRef.current?.updateAgent(updated, true);
+    }
+  }
+
+  for (const entry of result.buildings) {
+    const building = state.buildings.get(entry.buildingId);
+    if (!building) continue;
+
+    store.updateBuilding(entry.buildingId, { position: entry.position });
+    sceneRef.current?.updateBuilding({ ...building, position: entry.position });
+  }
+}
+
+/**
+ * Build context menu actions based on what was clicked
+ */
+export function buildContextMenuActions(
+  worldPos: { x: number; z: number },
+  target: ContextMenuTarget,
+  agents: Map<string, Agent>,
+  areas: Map<string, Area>,
+  buildings: Map<string, Building>,
+  callbacks: ContextMenuCallbacks
+): ContextMenuAction[] {
+  const actions: ContextMenuAction[] = [];
+
+  // Agent-specific actions
+  if (target.type === 'agent' && target.id) {
+    const agent = agents.get(target.id);
+    if (agent) {
+      actions.push({
+        id: 'select-agent',
+        label: `Select ${agent.name}`,
+        icon: <Icon name="hand-point" size={14} />,
+        onClick: () => {
+          store.selectAgent(target.id!);
+          callbacks.sceneRef.current?.refreshSelectionVisuals();
+        },
+      });
+      actions.push({
+        id: 'focus-agent',
+        label: 'Focus Camera',
+        icon: <Icon name="target" size={14} />,
+        onClick: () => {
+          callbacks.sceneRef.current?.focusAgent(target.id!);
+        },
+      });
+      actions.push({
+        id: 'open-terminal',
+        label: 'Open Terminal',
+        icon: <Icon name="chat" size={14} />,
+        onClick: () => {
+          store.selectAgent(target.id!);
+          store.setTerminalOpen(true);
+        },
+      });
+      actions.push({
+        id: 'edit-agent',
+        label: 'Edit Agent',
+        icon: <Icon name="edit" size={14} />,
+        onClick: () => {
+          callbacks.openAgentEditModal(target.id!);
+        },
+      });
+      actions.push({ id: 'divider-agent', label: '', divider: true, onClick: () => {} });
+      actions.push({
+        id: 'delete-agent',
+        label: `Remove ${agent.name}`,
+        icon: <Icon name="failure" size={14} />,
+        danger: true,
+        onClick: () => {
+          store.removeAgentFromServer(target.id!);
+          callbacks.sceneRef.current?.removeAgent(target.id!);
+          callbacks.showToast('info', 'Agent Removed', `${agent.name} removed from view`);
+        },
+      });
+      return actions;
+    }
+  }
+
+  // Area-specific actions
+  if (target.type === 'area' && target.id) {
+    const area = areas.get(target.id);
+    if (area) {
+      actions.push({
+        id: 'select-area',
+        label: `Select "${area.name}"`,
+        icon: <Icon name="class-architect" size={14} />,
+        onClick: () => {
+          store.selectArea(target.id!);
+          callbacks.openToolboxModal();
+        },
+      });
+      if (area.directories && area.directories.length > 0) {
+        actions.push({
+          id: 'open-explorer',
+          label: 'Open File Explorer',
+          icon: <Icon name="folder" size={14} />,
+          onClick: () => {
+            callbacks.openExplorerModal(target.id!);
+          },
+        });
+      }
+      actions.push({
+        id: 'spawn-in-area',
+        label: 'Spawn Agent',
+        icon: <Icon name="robot" size={14} />,
+        onClick: () => {
+          window.dispatchEvent(
+            new CustomEvent('tide:open-spawn-modal', {
+              detail: { areaId: target.id, position: { x: area.center.x, z: area.center.z } },
+            })
+          );
+        },
+      });
+      actions.push({ id: 'divider-area-layer', label: '', divider: true, onClick: () => {} });
+      actions.push({
+        id: 'bring-to-front',
+        label: 'Bring to Front',
+        icon: <Icon name="arrow-up" size={14} />,
+        onClick: () => {
+          store.bringAreaToFront(target.id!);
+          callbacks.sceneRef.current?.syncAreas();
+        },
+      });
+      actions.push({
+        id: 'send-to-back',
+        label: 'Send to Back',
+        icon: <Icon name="arrow-down" size={14} />,
+        onClick: () => {
+          store.sendAreaToBack(target.id!);
+          callbacks.sceneRef.current?.syncAreas();
+        },
+      });
+      // Auto-organize agents within this area
+      if (area.assignedAgentIds.length > 0) {
+        actions.push({
+          id: 'organize-area',
+          label: 'Organize Area',
+          icon: <Icon name="sparkle" size={14} />,
+          onClick: () => {
+            organizeArea(target.id!)
+              .then((result) => {
+                applyOrganizeResult(result, callbacks.sceneRef);
+                callbacks.showToast('success', 'Area Organized', `Arranged ${result.organized.length} agent${result.organized.length !== 1 ? 's' : ''} in "${area.name}"`);
+              })
+              .catch((err) => {
+                console.error('organize area error:', err);
+                callbacks.showToast('error', 'Organize Failed', err.message || 'Failed to organize area');
+              });
+          },
+        });
+      }
+      actions.push({ id: 'divider-area', label: '', divider: true, onClick: () => {} });
+      actions.push({
+        id: 'archive-area',
+        label: `Archive "${area.name}"`,
+        icon: <Icon name="package" size={14} />,
+        onClick: () => {
+          const agentCount = area.assignedAgentIds.length;
+          // Use stopAgent instead of killAgent so agents are preserved for restore
+          store.archiveArea(target.id!, (agentId) => store.stopAgent(agentId));
+          callbacks.sceneRef.current?.syncAreas();
+          callbacks.sceneRef.current?.syncAgents(Array.from(store.getState().agents.values()));
+          const agentMsg = agentCount > 0 ? ` (${agentCount} agent${agentCount > 1 ? 's' : ''} stopped)` : '';
+          callbacks.showToast('info', 'Zone Archived', `"${area.name}" has been archived${agentMsg}`);
+        },
+      });
+      actions.push({
+        id: 'delete-area',
+        label: `Delete "${area.name}"`,
+        icon: <Icon name="trash" size={14} />,
+        danger: true,
+        onClick: () => {
+          store.deleteArea(target.id!);
+          callbacks.sceneRef.current?.syncAreas();
+          callbacks.showToast('info', 'Area Deleted', `"${area.name}" has been deleted`);
+        },
+      });
+      return actions;
+    }
+  }
+
+  // Building-specific actions
+  if (target.type === 'building' && target.id) {
+    const building = buildings.get(target.id);
+    if (building) {
+      actions.push({
+        id: 'select-building',
+        label: `Select "${building.name}"`,
+        icon: <Icon name="buildings" size={14} />,
+        onClick: () => {
+          store.selectBuilding(target.id!);
+          callbacks.openToolboxModal();
+        },
+      });
+      actions.push({
+        id: 'edit-building',
+        label: 'Edit Building',
+        icon: <Icon name="edit" size={14} />,
+        onClick: () => {
+          callbacks.openBuildingModal(target.id!);
+        },
+      });
+      actions.push({
+        id: 'clone-building',
+        label: 'Clone Building',
+        icon: <Icon name="clipboard" size={14} />,
+        onClick: () => {
+          // Clone the building with offset position
+          const cloneData = {
+            name: `${building.name} (Copy)`,
+            type: building.type,
+            style: building.style,
+            color: building.color,
+            scale: building.scale,
+            position: {
+              x: building.position.x + 2,
+              z: building.position.z + 2,
+            },
+            cwd: building.cwd,
+            folderPath: building.folderPath,
+            commands: building.commands,
+            pm2: building.pm2,
+            docker: building.docker,
+            database: building.database,
+            urls: building.urls,
+            subordinateBuildingIds: building.subordinateBuildingIds,
+          };
+          store.createBuilding(cloneData);
+          callbacks.showToast('success', 'Building Cloned', `Created "${cloneData.name}"`);
+        },
+      });
+      if (building.type === 'folder' && building.folderPath) {
+        actions.push({
+          id: 'open-folder',
+          label: 'Open Folder',
+          icon: <Icon name="folder" size={14} />,
+          onClick: () => {
+            store.openFileExplorer(building.folderPath!);
+          },
+        });
+      }
+      actions.push({ id: 'divider-building', label: '', divider: true, onClick: () => {} });
+      actions.push({
+        id: 'delete-building',
+        label: `Delete "${building.name}"`,
+        icon: <Icon name="trash" size={14} />,
+        danger: true,
+        onClick: () => {
+          callbacks.requestBuildingDelete(target.id!);
+        },
+      });
+      return actions;
+    }
+  }
+
+  // Ground actions (default) - spawn, draw, etc.
+  actions.push({
+    id: 'spawn-agent',
+    label: 'Spawn Agent Here',
+    icon: <Icon name="robot" size={14} />,
+    shortcut: 'N',
+    onClick: () => {
+      callbacks.setSpawnPosition(worldPos);
+      callbacks.openSpawnModal();
+    },
+  });
+  actions.push({
+    id: 'spawn-boss',
+    label: 'Spawn Boss Here',
+    icon: <Icon name="crown" size={14} />,
+    onClick: () => {
+      callbacks.setSpawnPosition(worldPos);
+      callbacks.openBossSpawnModal();
+    },
+  });
+  actions.push({ id: 'divider-1', label: '', divider: true, onClick: () => {} });
+  actions.push({
+    id: 'draw-area',
+    label: 'Draw Area',
+    icon: <Icon name="class-architect" size={14} />,
+    onClick: () => {
+      callbacks.sceneRef.current?.setDrawingTool('rectangle');
+      if (typeof window !== 'undefined' && (window as any).__tideScene2D_setDrawingTool) {
+        (window as any).__tideScene2D_setDrawingTool('rectangle');
+      }
+      callbacks.showToast('info', 'Rectangle Tool', 'Click and drag on the battlefield to draw an area');
+    },
+  });
+  actions.push({
+    id: 'new-building',
+    label: 'Place Building',
+    icon: <Icon name="buildings" size={14} />,
+    onClick: () => {
+      callbacks.openBuildingModal(null);
+    },
+  });
+  // Show "Restore Archived Zone" if there are any archived areas
+  const archivedCount = Array.from(areas.values()).filter((a) => a.archived).length;
+  if (archivedCount > 0) {
+    actions.push({
+      id: 'restore-archived',
+      label: `Restore Archived Zone (${archivedCount})`,
+      icon: <Icon name="package" size={14} />,
+      onClick: () => {
+        callbacks.openRestoreArchivedModal(worldPos);
+      },
+    });
+  }
+  actions.push({ id: 'divider-2', label: '', divider: true, onClick: () => {} });
+  actions.push({
+    id: 'open-settings',
+    label: 'Settings',
+    icon: <Icon name="gear" size={14} />,
+    onClick: () => {
+      callbacks.openToolboxModal();
+    },
+  });
+  actions.push({
+    id: 'open-commander',
+    label: 'Commander View',
+    icon: <Icon name="dashboard" size={14} />,
+    shortcut: '⌘K',
+    onClick: () => {
+      callbacks.openCommanderModal();
+    },
+  });
+
+  return actions;
+}

@@ -5,7 +5,7 @@
 
 import React, { memo } from 'react';
 import type { SearchResult } from './types';
-import { formatDuration, formatRelativeTime, getTypeLabel } from './utils';
+import { formatDuration, getTypeLabel } from './utils';
 
 interface SpotlightItemProps {
   result: SearchResult;
@@ -27,10 +27,8 @@ export const SpotlightItem = memo(function SpotlightItem({
   // Determine if this result has secondary information
   const hasSecondaryInfo =
     result.activityText ||
-    result.statusDescription ||
     (result.matchedFiles && result.matchedFiles.length > 0) ||
-    result.matchedQuery ||
-    result.matchedHistory;
+    result.matchedQuery;
 
   return (
     <div
@@ -57,11 +55,6 @@ export const SpotlightItem = memo(function SpotlightItem({
           <span className="spotlight-item-subtitle">{highlightMatch(result.subtitle, query)}</span>
         )}
 
-        {/* Status badge if present */}
-        {result.statusDescription && (
-          <span className="spotlight-item-status">{highlightMatch(result.statusDescription, query)}</span>
-        )}
-
         {/* Activity/Summary text - most important context */}
         {result.activityText && <span className="spotlight-item-activity">{highlightMatch(result.activityText, query)}</span>}
 
@@ -84,26 +77,13 @@ export const SpotlightItem = memo(function SpotlightItem({
             {result.matchedQuery && (
               <span className="spotlight-item-query">{highlightMatch(result.matchedQuery, query)}</span>
             )}
-
-            {/* History/Analysis */}
-            {result.matchedHistory && (
-              <span className="spotlight-item-history">
-                {highlightMatch(result.matchedHistory.text, query)}
-                <span className="spotlight-history-time">{formatRelativeTime(result.matchedHistory.timestamp)}</span>
-              </span>
-            )}
           </div>
         )}
 
         {/* Time indicators */}
-        {(result.timeAway !== undefined || result.lastStatusTime !== undefined) && (
+        {result.timeAway !== undefined && (
           <span className="spotlight-item-time">
-            {result.timeAway !== undefined && (
-              <span className="spotlight-time-away">Idle: {formatDuration(result.timeAway)}</span>
-            )}
-            {result.lastStatusTime !== undefined && (
-              <span className="spotlight-status-time">Updated {formatRelativeTime(result.lastStatusTime)}</span>
-            )}
+            <span className="spotlight-time-away">Idle: {formatDuration(result.timeAway)}</span>
           </span>
         )}
 

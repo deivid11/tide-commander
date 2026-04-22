@@ -13,7 +13,7 @@ import { apiUrl, authFetch, getAuthToken } from '../../utils/storage';
 const TEXT_EXTENSIONS = new Set([
   '.txt', '.md', '.markdown', '.json', '.yaml', '.yml', '.xml', '.html', '.htm',
   '.css', '.scss', '.sass', '.less', '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs',
-  '.py', '.rb', '.php', '.java', '.c', '.cpp', '.h', '.hpp', '.cs', '.go', '.rs',
+  '.py', '.rb', '.c', '.cpp', '.h', '.hpp', '.cs', '.go', '.rs',
   '.swift', '.kt', '.scala', '.clj', '.ex', '.exs', '.erl', '.hs', '.ml', '.fs',
   '.sql', '.sh', '.bash', '.zsh', '.fish', '.ps1', '.bat', '.cmd',
   '.toml', '.ini', '.cfg', '.conf', '.env', '.gitignore', '.dockerignore',

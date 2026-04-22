@@ -14,8 +14,6 @@ import type {
   DelegationDecision,
   Skill,
   CustomAgentClass,
-  AgentSupervisorHistoryEntry,
-  GlobalUsageStats,
   ExecTask,
   Secret,
   QueryResult,
@@ -28,7 +26,6 @@ import type {
   LastPrompt,
   Activity,
   Settings,
-  SupervisorState,
   ToolExecution,
   FileChange,
   AgentTaskProgress,
@@ -245,6 +242,7 @@ export function useSubordinateAgents(): Agent[] {
 
 export function selectAgentsByTrackingStatus(state: StoreState) {
   const result = {
+    thinking: [] as Agent[],
     working: [] as Agent[],
     'waiting-subordinates': [] as Agent[],
     'need-review': [] as Agent[],
@@ -265,7 +263,8 @@ function shallowTrackingStatusGroupsEqual(
   a: ReturnType<typeof selectAgentsByTrackingStatus>,
   b: ReturnType<typeof selectAgentsByTrackingStatus>
 ): boolean {
-  return shallowArrayEqual(a.working, b.working)
+  return shallowArrayEqual(a.thinking, b.thinking)
+    && shallowArrayEqual(a.working, b.working)
     && shallowArrayEqual(a['waiting-subordinates'], b['waiting-subordinates'])
     && shallowArrayEqual(a['need-review'], b['need-review'])
     && shallowArrayEqual(a.blocked, b.blocked)
@@ -435,56 +434,6 @@ export function useBuildingLogs(): Map<string, string[]> {
 }
 
 // ============================================================================
-// SUPERVISOR SELECTORS
-// ============================================================================
-
-/**
- * Get supervisor state. Only re-renders when supervisor state changes.
- */
-export function useSupervisor(): SupervisorState {
-  return useSelector(useCallback((state: StoreState) => state.supervisor, []));
-}
-
-/**
- * Get supervisor last report. Only re-renders when lastReport changes.
- */
-export function useSupervisorLastReport() {
-  return useSelector(useCallback((state: StoreState) => state.supervisor.lastReport, []));
-}
-
-/**
- * Get supervisor enabled status. Only re-renders when enabled changes.
- */
-export function useSupervisorEnabled(): boolean {
-  return useSelector(useCallback((state: StoreState) => state.supervisor.enabled, []));
-}
-
-/**
- * Get supervisor generating report status. Only re-renders when it changes.
- */
-export function useSupervisorGeneratingReport(): boolean {
-  return useSelector(useCallback((state: StoreState) => state.supervisor.generatingReport, []));
-}
-
-/**
- * Get supervisor history for a specific agent.
- */
-export function useAgentSupervisorHistory(agentId: string | null): AgentSupervisorHistoryEntry[] {
-  const emptyArray = useRef<AgentSupervisorHistoryEntry[]>([]);
-
-  return useSelector(
-    useCallback(
-      (state: StoreState) => {
-        if (!agentId) return emptyArray.current;
-        return state.supervisor.agentHistories.get(agentId) || emptyArray.current;
-      },
-      [agentId]
-    ),
-    shallowArrayEqual
-  );
-}
-
-// ============================================================================
 // PERMISSION SELECTORS
 // ============================================================================
 
@@ -613,6 +562,13 @@ export function useTerminalOpen(): boolean {
  */
 export function useTerminalResizing(): boolean {
   return useSelector(useCallback((state: StoreState) => state.terminalResizing, []));
+}
+
+/**
+ * Get terminal expand request counter. Increments each time the terminal should maximize.
+ */
+export function useTerminalExpandRequest(): number {
+  return useSelector(useCallback((state: StoreState) => state.terminalExpandRequest, []));
 }
 
 /**
@@ -821,24 +777,6 @@ export function useHistoryRefreshTrigger(): number {
 }
 
 // ============================================================================
-// GLOBAL USAGE SELECTORS
-// ============================================================================
-
-/**
- * Get global Claude API usage stats. Only re-renders when usage changes.
- */
-export function useGlobalUsage(): GlobalUsageStats | null {
-  return useSelector(useCallback((state: StoreState) => state.supervisor.globalUsage, []));
-}
-
-/**
- * Get whether usage is currently being refreshed.
- */
-export function useRefreshingUsage(): boolean {
-  return useSelector(useCallback((state: StoreState) => state.supervisor.refreshingUsage, []));
-}
-
-// ============================================================================
 // AGENT TASK PROGRESS SELECTORS
 // ============================================================================
 
@@ -1034,41 +972,6 @@ export function useDockerComposeProjectsList(): import('../../shared/types').Exi
     (state: StoreState) => state.dockerComposeProjectsList,
     shallowArrayEqual
   );
-}
-
-// ============================================================================
-// SNAPSHOT SELECTORS
-// ============================================================================
-
-/**
- * Get all snapshots
- */
-export function useSnapshots(): import('../../shared/types/snapshot').SnapshotListItem[] {
-  return useSelector((state: StoreState) => {
-    const snapshots = state.snapshots;
-    return Array.from(snapshots.values());
-  }, shallowArrayEqual);
-}
-
-/**
- * Get current snapshot being viewed
- */
-export function useCurrentSnapshot(): import('../../shared/types/snapshot').ConversationSnapshot | null {
-  return useSelector((state: StoreState) => state.currentSnapshot);
-}
-
-/**
- * Get snapshot loading state
- */
-export function useSnapshotsLoading(): boolean {
-  return useSelector((state: StoreState) => state.snapshotsLoading);
-}
-
-/**
- * Get snapshot error state
- */
-export function useSnapshotsError(): string | null {
-  return useSelector((state: StoreState) => state.snapshotsError);
 }
 
 // ============================================================================

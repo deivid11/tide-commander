@@ -4,6 +4,11 @@ import HttpBackend from 'i18next-http-backend';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import { setI18nInstance } from './utils/formatting';
 
+// Cache-bust locale JSON requests so translation edits ship without browsers
+// serving a stale ({{count}} agents)-style file. Stamp once at module load
+// so namespace/language switches reuse one URL per session.
+const LOCALE_CACHE_BUSTER = Date.now();
+
 i18n
   .use(HttpBackend)
   .use(LanguageDetector)
@@ -13,7 +18,7 @@ i18n
     ns: ['common', 'tools', 'config', 'errors', 'notifications', 'dashboard', 'terminal'],
     defaultNS: 'common',
     backend: {
-      loadPath: `${import.meta.env.BASE_URL}locales/{{lng}}/{{ns}}.json`,
+      loadPath: `${import.meta.env.BASE_URL}locales/{{lng}}/{{ns}}.json?v=${LOCALE_CACHE_BUSTER}`,
     },
     detection: {
       order: ['localStorage', 'navigator'],

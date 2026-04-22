@@ -1,0 +1,20 @@
+services:
+  tide-commander:
+    build: .
+    ports:
+      - "9059:9059"
+    volumes:
+      - tide-data:/home/commander/.local/share/tide-commander
+      - tide-claude-sessions:/home/commander/.claude
+      - tide-projects:/home/projects
+    environment:
+      - PORT=9059
+      - HOST=0.0.0.0
+      - AUTH_TOKEN=${AUTH_TOKEN:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    restart: unless-stopped
+
+volumes:
+  tide-data:
+  tide-claude-sessions:
+  tide-projects:

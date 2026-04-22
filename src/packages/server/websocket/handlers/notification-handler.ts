@@ -11,7 +11,7 @@ export function handleSendNotification(
   ctx: HandlerContext,
   payload: SendNotificationPayload
 ): void {
-  const { agentId, title, message } = payload;
+  const { agentId, title, message, iconUrl, imageUrl } = payload;
   const agent = agentService.getAgent(agentId);
 
   if (!agent) {
@@ -27,6 +27,8 @@ export function handleSendNotification(
     title,
     message,
     timestamp: Date.now(),
+    ...(iconUrl ? { iconUrl } : {}),
+    ...(imageUrl ? { imageUrl } : {}),
   };
 
   log.log(`[Notification] Agent ${agent.name} sent notification: "${title}"`);

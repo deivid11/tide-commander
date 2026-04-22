@@ -5,6 +5,8 @@
  */
 
 import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
 import {
   store,
@@ -24,6 +26,8 @@ import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import type { Agent } from '../../../shared/types';
 import { useModalClose } from '../../hooks';
 import { ModalPortal } from '../shared/ModalPortal';
+import { fetchAgentInjectedPrompt } from '../../api/agent-prompt';
+import { Icon } from '../Icon';
 
 // Image modal props
 export interface ImageModalProps {
@@ -53,6 +57,244 @@ export function ImageModal({ url, name, onClose }: ImageModalProps) {
   );
 }
 
+// JSON Viewer component for bash modal output
+
+function escapeJsonString(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+}
+
+interface JsonNodeProps {
+  value: unknown;
+  keyName?: string;
+  depth: number;
+  isLast: boolean;
+}
+
+function JsonNode({ value, keyName, depth, isLast }: JsonNodeProps) {
+  const [collapsed, setCollapsed] = React.useState(depth >= 2);
+
+  const renderKey = () =>
+    keyName !== undefined ? (
+      <>
+        <span className="json-key">&quot;{keyName}&quot;</span>
+        <span className="json-punctuation">: </span>
+      </>
+    ) : null;
+
+  const comma = !isLast ? <span className="json-punctuation">,</span> : null;
+  const indent = depth * 16;
+
+  if (value === null) {
+    return (
+      <div className="json-line" style={{ paddingLeft: indent }}>
+        {renderKey()}<span className="json-null">null</span>{comma}
+      </div>
+    );
+  }
+
+  if (typeof value === 'boolean') {
+    return (
+      <div className="json-line" style={{ paddingLeft: indent }}>
+        {renderKey()}<span className="json-boolean">{value ? 'true' : 'false'}</span>{comma}
+      </div>
+    );
+  }
+
+  if (typeof value === 'number') {
+    return (
+      <div className="json-line" style={{ paddingLeft: indent }}>
+        {renderKey()}<span className="json-number">{value}</span>{comma}
+      </div>
+    );
+  }
+
+  if (typeof value === 'string') {
+    return (
+      <div className="json-line" style={{ paddingLeft: indent }}>
+        {renderKey()}<span className="json-string">&quot;{escapeJsonString(value)}&quot;</span>{comma}
+      </div>
+    );
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return (
+        <div className="json-line" style={{ paddingLeft: indent }}>
+          {renderKey()}<span className="json-punctuation">[]</span>{comma}
+        </div>
+      );
+    }
+    return (
+      <div className="json-node">
+        <div className="json-line json-collapsible" style={{ paddingLeft: indent }} onClick={() => setCollapsed(!collapsed)}>
+          <span className="json-toggle">{collapsed ? '▶' : '▼'}</span>
+          {renderKey()}<span className="json-punctuation">[</span>
+          {collapsed && (
+            <>
+              <span className="json-collapsed-hint">{value.length} item{value.length !== 1 ? 's' : ''}</span>
+              <span className="json-punctuation">]</span>{comma}
+            </>
+          )}
+        </div>
+        {!collapsed && (
+          <>
+            {value.map((item, i) => (
+              <JsonNode key={i} value={item} depth={depth + 1} isLast={i === value.length - 1} />
+            ))}
+            <div className="json-line" style={{ paddingLeft: indent }}>
+              <span className="json-punctuation">]</span>{comma}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) {
+      return (
+        <div className="json-line" style={{ paddingLeft: indent }}>
+          {renderKey()}<span className="json-punctuation">{'{}'}</span>{comma}
+        </div>
+      );
+    }
+    return (
+      <div className="json-node">
+        <div className="json-line json-collapsible" style={{ paddingLeft: indent }} onClick={() => setCollapsed(!collapsed)}>
+          <span className="json-toggle">{collapsed ? '▶' : '▼'}</span>
+          {renderKey()}<span className="json-punctuation">{'{'}</span>
+          {collapsed && (
+            <>
+              <span className="json-collapsed-hint">{entries.length} key{entries.length !== 1 ? 's' : ''}</span>
+              <span className="json-punctuation">{'}'}</span>{comma}
+            </>
+          )}
+        </div>
+        {!collapsed && (
+          <>
+            {entries.map(([k, v], i) => (
+              <JsonNode key={k} value={v} keyName={k} depth={depth + 1} isLast={i === entries.length - 1} />
+            ))}
+            <div className="json-line" style={{ paddingLeft: indent }}>
+              <span className="json-punctuation">{'}'}</span>{comma}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="json-line" style={{ paddingLeft: indent }}>
+      {renderKey()}<span className="json-string">{String(value)}</span>{comma}
+    </div>
+  );
+}
+
+interface JsonViewerProps {
+  data: unknown;
+}
+
+function JsonViewer({ data }: JsonViewerProps) {
+  return (
+    <div className="json-viewer">
+      <JsonNode value={data} depth={0} isLast={true} />
+    </div>
+  );
+}
+
+function stripAnsi(text: string): string {
+  // Comprehensive ANSI escape sequence removal:
+  // 1. CSI sequences (ESC [ params intermediate final) — covers colors,
+  //    cursor movement, erase, and private sequences like [?25l
+  // 2. OSC sequences (ESC ] ... BEL or ESC \
+  // 3. nF escape sequences (ESC intermediate final)
+  // 4. Fe escape sequences (ESC final)
+  return text
+    .replace(/\x1b\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]/g, '')
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?/g, '')
+    .replace(/\x1b[\x20-\x2f][\x30-\x7e]/g, '')
+    .replace(/\x1b[\x40-\x5f\x60-\x7e]/g, '');
+}
+
+/**
+ * Detect curl /api/exec JSON wrapper responses and extract the actual
+ * command output from the "output" field.
+ */
+function tryExtractExecOutput(text: string): string | null {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{')) return null;
+  try {
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    if (
+      parsed
+      && typeof parsed === 'object'
+      && typeof parsed.output === 'string'
+      && 'taskId' in parsed
+      && 'exitCode' in parsed
+    ) {
+      return parsed.output;
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return null;
+}
+
+function tryParseJson(text: string): { ok: true; data: unknown } | { ok: false } {
+  const stripped = stripAnsi(text.trim());
+  if (!stripped) return { ok: false };
+
+  // If this is a curl /api/exec response, try to parse the inner output
+  const execOutput = tryExtractExecOutput(stripped);
+  if (execOutput !== null) {
+    const innerResult = tryParseJson(execOutput);
+    if (innerResult.ok) return innerResult;
+  }
+
+  if (stripped[0] !== '{' && stripped[0] !== '[') return { ok: false };
+
+  // Try whole text first
+  try {
+    return { ok: true, data: JSON.parse(stripped) };
+  } catch {
+    // ignore
+  }
+
+  // Try extracting JSON between first brace/bracket and last brace/bracket
+  const firstBrace = stripped.indexOf('{');
+  const firstBracket = stripped.indexOf('[');
+  let start = -1;
+  if (firstBrace !== -1 && firstBracket !== -1) {
+    start = Math.min(firstBrace, firstBracket);
+  } else {
+    start = Math.max(firstBrace, firstBracket);
+  }
+
+  if (start !== -1) {
+    const lastBrace = stripped.lastIndexOf('}');
+    const lastBracket = stripped.lastIndexOf(']');
+    let end = -1;
+    if (lastBrace !== -1 && lastBracket !== -1) {
+      end = Math.max(lastBrace, lastBracket);
+    } else {
+      end = Math.max(lastBrace, lastBracket);
+    }
+
+    if (end > start) {
+      const extracted = stripped.slice(start, end + 1);
+      try {
+        return { ok: true, data: JSON.parse(extracted) };
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  return { ok: false };
+}
+
 // Bash output modal props
 export interface BashModalState {
   command: string;
@@ -68,6 +310,26 @@ export interface BashModalProps {
 export function BashModal({ state, onClose }: BashModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
+
+  const { jsonResult, displayOutput } = React.useMemo(() => {
+    if (state.isLive) {
+      return { jsonResult: { ok: false as const }, displayOutput: state.output };
+    }
+
+    // If this is a curl /api/exec wrapper response, extract the actual command output
+    const execOutput = tryExtractExecOutput(state.output);
+    if (execOutput !== null) {
+      const innerJson = tryParseJson(execOutput);
+      if (innerJson.ok) {
+        return { jsonResult: innerJson, displayOutput: execOutput };
+      }
+      // Inner output is plain text — show it instead of the wrapper JSON
+      return { jsonResult: { ok: false as const }, displayOutput: execOutput };
+    }
+
+    return { jsonResult: tryParseJson(state.output), displayOutput: state.output };
+  }, [state.output, state.isLive]);
+
   return (
     <ModalPortal>
       <div className="bash-modal-overlay" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
@@ -75,6 +337,7 @@ export function BashModal({ state, onClose }: BashModalProps) {
           <div className="bash-modal-header">
             <span className="bash-modal-icon">$</span>
             <span className="bash-modal-title">{t('terminal:modals.terminalOutput')}</span>
+            {jsonResult.ok && <span className="bash-modal-json-badge">JSON</span>}
             <button className="bash-modal-close" onClick={onClose}>
               ×
             </button>
@@ -82,8 +345,16 @@ export function BashModal({ state, onClose }: BashModalProps) {
           <div className="bash-modal-command">
             <pre dangerouslySetInnerHTML={{ __html: highlightCode(state.command, 'bash') }} />
           </div>
-          <div className={`bash-modal-content ${state.isLive ? 'is-loading' : ''}`}>
-            <pre dangerouslySetInnerHTML={{ __html: ansiToHtml(state.output) }} />
+          <div className={`bash-modal-content ${state.isLive ? 'is-loading' : ''} ${jsonResult.ok ? 'is-json' : ''}`}>
+            {jsonResult.ok ? (
+              <JsonViewer data={jsonResult.data} />
+            ) : (
+              <pre className="exec-task-inline-output bash-modal-ansi-output">
+                {displayOutput.split('\n').map((line, idx) => (
+                  <div key={idx} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
+                ))}
+              </pre>
+            )}
           </div>
         </div>
       </div>
@@ -247,6 +518,130 @@ function formatDateTime(timestamp?: number): string {
   }
 }
 
+interface InjectedPromptSectionProps {
+  agentId: string;
+}
+
+function InjectedPromptSection({ agentId }: InjectedPromptSectionProps) {
+  const { t } = useTranslation(['terminal', 'common']);
+  const [expanded, setExpanded] = React.useState(false);
+  const [prompt, setPrompt] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [copied, setCopied] = React.useState(false);
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await fetchAgentInjectedPrompt(agentId);
+      setPrompt(result);
+    } catch (err: any) {
+      setError(err?.message || 'Error');
+    } finally {
+      setLoading(false);
+    }
+  }, [agentId]);
+
+  const handleToggle = () => {
+    const next = !expanded;
+    setExpanded(next);
+    if (next && prompt === null && !loading) {
+      void load();
+    }
+  };
+
+  const handleRefresh = () => {
+    void load();
+  };
+
+  const handleCopy = async () => {
+    if (!prompt) return;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard denied; ignore silently
+    }
+  };
+
+  const lengthLabel = React.useMemo(() => {
+    if (prompt === null) return null;
+    const chars = prompt.length;
+    // Rough token estimate (~4 chars per token is the standard heuristic)
+    const tokens = Math.max(1, Math.round(chars / 4));
+    return t('terminal:agentInfo.injectedPromptLength', {
+      chars: chars.toLocaleString(),
+      tokens: tokens.toLocaleString(),
+    });
+  }, [prompt, t]);
+
+  return (
+    <section className="agent-info-section agent-info-injected-prompt">
+      <div className="agent-info-injected-prompt-header">
+        <h4>{t('terminal:agentInfo.injectedPrompt')}</h4>
+        <div className="agent-info-injected-prompt-actions">
+          {expanded && prompt !== null && lengthLabel && (
+            <span className="agent-info-injected-prompt-length" title={lengthLabel}>
+              {lengthLabel}
+            </span>
+          )}
+          {expanded && prompt !== null && (
+            <>
+              <button
+                type="button"
+                className="agent-info-injected-prompt-btn"
+                onClick={handleCopy}
+                disabled={loading}
+                title={t('terminal:agentInfo.injectedPromptCopy')}
+              >
+                {copied ? t('terminal:agentInfo.injectedPromptCopied') : t('terminal:agentInfo.injectedPromptCopy')}
+              </button>
+              <button
+                type="button"
+                className="agent-info-injected-prompt-btn"
+                onClick={handleRefresh}
+                disabled={loading}
+                title={t('terminal:agentInfo.injectedPromptRefresh')}
+              >
+                {t('terminal:agentInfo.injectedPromptRefresh')}
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            className="agent-info-injected-prompt-btn agent-info-injected-prompt-toggle"
+            onClick={handleToggle}
+            aria-expanded={expanded}
+          >
+            {expanded ? t('terminal:agentInfo.injectedPromptHide') : t('terminal:agentInfo.injectedPromptShow')}
+          </button>
+        </div>
+      </div>
+      {expanded && (
+        <div className="agent-info-injected-prompt-body">
+          {loading && (
+            <div className="agent-info-injected-prompt-status">
+              {t('terminal:agentInfo.injectedPromptLoading')}
+            </div>
+          )}
+          {!loading && error && (
+            <div className="agent-info-injected-prompt-status error">
+              {t('terminal:agentInfo.injectedPromptError', { error })}
+            </div>
+          )}
+          {!loading && !error && prompt !== null && (
+            <div className="agent-info-injected-prompt-content markdown-content">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{prompt}</ReactMarkdown>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
@@ -279,7 +674,7 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
         <div className="agent-info-modal">
           <div className="agent-info-modal-header">
             <div className="agent-info-modal-title">
-              <span className="icon">ℹ️</span>
+              <span className="icon"><Icon name="info" size={14} /></span>
               <span>{t('terminal:agentInfo.title', { name: agent.name })}</span>
             </div>
             <button className="agent-info-modal-close" onClick={onClose}>×</button>
@@ -358,6 +753,8 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
                 </div>
               )}
             </section>
+
+            <InjectedPromptSection agentId={agent.id} />
 
             <section className="agent-info-section">
               <h4>{t('terminal:agentInfo.diagnostics')}</h4>

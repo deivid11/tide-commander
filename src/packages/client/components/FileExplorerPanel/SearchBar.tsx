@@ -7,6 +7,7 @@
 
 import React, { useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Icon } from '../Icon';
 
 export interface SearchBarProps {
   query: string;
@@ -91,7 +92,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               title={t('terminal:fileExplorer.previousMatch')}
               aria-label={t('terminal:fileExplorer.previousMatch')}
             >
-              ↑
+              <Icon name="caret-up" size={10} />
             </button>
             <button
               className="file-viewer-search-btn file-viewer-search-next"
@@ -100,7 +101,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               title={t('terminal:fileExplorer.nextMatch')}
               aria-label={t('terminal:fileExplorer.nextMatch')}
             >
-              ↓
+              <Icon name="caret-down" size={10} />
             </button>
           </div>
         </>
@@ -112,7 +113,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         title={t('terminal:fileExplorer.closeSearch')}
         aria-label={t('terminal:fileExplorer.closeSearch')}
       >
-        ✕
+        <Icon name="close" size={12} />
       </button>
     </div>
   );

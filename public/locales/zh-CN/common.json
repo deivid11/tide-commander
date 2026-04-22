@@ -205,8 +205,6 @@
     "clickToCopy": "点击复制",
     "session": "会话",
     "newSession": "新代理，新会话",
-    "supervisorHistory": "监管历史",
-    "noSupervisorReports": "尚无监管报告",
     "bossAgent": "主管代理",
     "subordinates": "下属",
     "noSubordinates": "尚未分配下属。使用\"管理团队\"添加代理。",
@@ -248,7 +246,6 @@
     "clickNewAgent": "点击\"+ 新建代理\"部署你的第一个代理",
     "areasAndAgents": "区域和代理",
     "browseFiles": "浏览文件",
-    "supervisorStatus": "监管状态",
     "unassigned": "未分配",
     "total": "总计",
     "statusActive": "活跃",
@@ -275,14 +272,10 @@
     "selectAgentLogs": "选择一个代理查看日志",
     "logsWillAppear": "代理日志将在此显示",
     "logsHint": "使用调试面板查看详细消息日志",
-    "selectAgentSnapshots": "选择一个代理查看快照",
-    "snapshotsFor": "{{name}} 的快照",
-    "snapshotsHint": "使用终端头部的星标按钮保存快照",
     "tabs": {
       "details": "详情",
       "chat": "聊天",
-      "logs": "日志",
-      "snapshot": "快照"
+      "logs": "日志"
     }
   },
   "toast": {
@@ -297,8 +290,7 @@
     "used": "已使用",
     "tool": "工具",
     "assignedTask": "分配的任务",
-    "lastQuery": "最近查询",
-    "supervisor": "监管者"
+    "lastQuery": "最近查询"
   },
   "agentBar": {
     "spawnNewAgent": "创建新代理",
@@ -316,13 +308,8 @@
   "floatingButtons": {
     "settingsAndTools": "设置与工具",
     "commanderView": "指挥官视图",
-    "viewSnapshots": "查看快照",
-    "supervisorOverview": "监管概览",
     "controls": "控制",
-    "manageSkills": "管理技能",
-    "pipNotSupported": "此浏览器不支持画中画",
-    "closePip": "关闭画中画模式中的代理",
-    "openPip": "在画中画模式中打开代理"
+    "manageSkills": "管理技能"
   },
   "sidebar": {
     "agentsView": "代理",

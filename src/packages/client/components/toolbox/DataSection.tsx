@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiUrl, authFetch } from '../../utils/storage';
+import { fetchBackupStatus, updateBackupEnabled, type BackupStatus } from '../../api/system-settings';
 
 // Config category for export/import
 interface ConfigCategory {
@@ -8,6 +9,24 @@ interface ConfigCategory {
   name: string;
   description: string;
   fileCount?: number;
+}
+
+// Local copy of the Toggle used in ConfigSection.tsx — keeps CSS class parity.
+function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean }) {
+  return (
+    <label className="config-toggle">
+      <input
+        type="checkbox"
+        className="config-toggle-input"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span className="config-toggle-track">
+        <span className="config-toggle-thumb" />
+      </span>
+    </label>
+  );
 }
 
 export function DataSection() {
@@ -21,6 +40,11 @@ export function DataSection() {
   const [importPreview, setImportPreview] = useState<{ version: string; exportedAt: string; categories: ConfigCategory[] } | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Hourly-backup cron status
+  const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupError, setBackupError] = useState<string | null>(null);
+
   // Fetch available categories on mount
   useEffect(() => {
     authFetch(apiUrl('/api/config/categories'))
@@ -32,6 +56,30 @@ export function DataSection() {
       })
       .catch(err => console.error('Failed to fetch config categories:', err));
   }, []);
+
+  // Fetch backup cron status on mount
+  useEffect(() => {
+    fetchBackupStatus()
+      .then(setBackupStatus)
+      .catch(err => {
+        console.error('Failed to fetch backup status:', err);
+        setBackupError(err.message || 'Failed to fetch backup status');
+      });
+  }, []);
+
+  const handleToggleBackup = async (enabled: boolean) => {
+    if (backupBusy) return;
+    setBackupBusy(true);
+    setBackupError(null);
+    try {
+      const next = await updateBackupEnabled(enabled);
+      setBackupStatus(next);
+    } catch (err: any) {
+      setBackupError(err.message || 'Failed to update backup setting');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
 
   const toggleExportCategory = (id: string) => {
     setSelectedExport(prev => {
@@ -172,6 +220,53 @@ export function DataSection() {
           {message.text}
         </div>
       )}
+
+      {/* Hourly Backup Toggle */}
+      <div className="data-subsection">
+        <div className="data-subsection-header">
+          <span className="data-subsection-title">Hourly Backups</span>
+          <Toggle
+            checked={!!backupStatus?.enabled}
+            disabled={backupBusy || !backupStatus}
+            onChange={handleToggleBackup}
+          />
+        </div>
+        <div className="data-backup-info">
+          {backupStatus ? (
+            <>
+              <div>
+                Saves a compressed snapshot of your data every hour to{' '}
+                <code>{backupStatus.backupDir}</code>.
+                Identical snapshots are skipped. Keeps the 8 newest plus one from each
+                of the 2 most recent prior days.
+              </div>
+              {!backupStatus.scriptExists && (
+                <div style={{ marginTop: 6, color: 'var(--dracula-red, #ff5555)' }}>
+                  Backup script not found at <code>{backupStatus.scriptPath}</code>
+                </div>
+              )}
+              {backupStatus.lastRunAt && (
+                <div style={{ marginTop: 6 }}>
+                  Last run: {new Date(backupStatus.lastRunAt).toLocaleString()}
+                  {backupStatus.lastRunOk === true && ' — ok'}
+                  {backupStatus.lastRunOk === false && backupStatus.lastRunError && (
+                    <span style={{ color: 'var(--dracula-red, #ff5555)' }}>
+                      {' — '}{backupStatus.lastRunError}
+                    </span>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <div>Loading backup status…</div>
+          )}
+          {backupError && (
+            <div className="data-message data-message-error" style={{ marginTop: 6 }}>
+              {backupError}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Export Section */}
       <div className="data-subsection">

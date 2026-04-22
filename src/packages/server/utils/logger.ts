@@ -295,7 +295,6 @@ export const logger = {
   claude: createLogger('Claude'),
   agent: createLogger('Agent'),
   files: createLogger('Files'),
-  supervisor: createLogger('Supervisor'),
   boss: createLogger('Boss'),
 };
 

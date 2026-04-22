@@ -10,7 +10,12 @@ vi.mock('../../services/index.js', () => ({
   runtimeService: {
     stopAgent: vi.fn(),
   },
-  skillService: {},
+  skillService: {
+    assignSkillToAgent: vi.fn(),
+    unassignSkillFromAgent: vi.fn(),
+    removeAgentFromAllSkills: vi.fn(),
+    getSkillsForAgent: vi.fn(() => []),
+  },
   customClassService: {},
   bossService: {},
   permissionService: {
@@ -31,7 +36,7 @@ vi.mock('../../claude/backend.js', () => ({
   parseContextOutput: vi.fn(() => null),
 }));
 
-import { agentService, runtimeService } from '../../services/index.js';
+import { agentService, runtimeService, skillService } from '../../services/index.js';
 import { handleClearContext } from './agent-handler.js';
 
 describe('Agent Handler', () => {
@@ -61,5 +66,26 @@ describe('Agent Handler', () => {
       contextStats: undefined,
     }));
     expect(ctx.sendActivity).toHaveBeenCalledWith('agent-1', expect.stringContaining('Context cleared'));
+  });
+
+  it('clear_context preserves skill assignments (regression: skills must survive context clearing)', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({ id: 'agent-1', name: 'Worker' } as any);
+
+    const ctx = {
+      sendActivity: vi.fn(),
+      broadcast: vi.fn(),
+    } as any;
+
+    await handleClearContext(ctx, { agentId: 'agent-1' });
+
+    expect(skillService.assignSkillToAgent).not.toHaveBeenCalled();
+    expect(skillService.unassignSkillFromAgent).not.toHaveBeenCalled();
+    expect(skillService.removeAgentFromAllSkills).not.toHaveBeenCalled();
+
+    const updateCall = vi.mocked(agentService.updateAgent).mock.calls[0];
+    const updates = updateCall?.[1] as Record<string, unknown> | undefined;
+    expect(updates).toBeDefined();
+    expect(updates).not.toHaveProperty('skillIds');
+    expect(updates).not.toHaveProperty('class');
   });
 });

@@ -399,16 +399,22 @@ export class AgentManager {
   }
 
   setCustomAgentClasses(classes: Map<string, CustomAgentClass>): void {
-    console.log(`[AgentManager] setCustomAgentClasses called with ${classes.size} classes`);
     this.characterFactory.setCustomClasses(classes);
+
+    // Collect classes actually used by agents currently visible in the scene
+    const state = store.getState();
+    const usedClassIds = new Set<string>();
+    for (const agentId of this.agentMeshes.keys()) {
+      const agent = state.agents.get(agentId);
+      if (agent) usedClassIds.add(agent.class);
+    }
+
+    // Only preload models for classes that have visible agents — addAgent() handles
+    // on-demand loading for any class that appears later
     for (const customClass of classes.values()) {
-      if (customClass.customModelPath) {
-        console.log(`[AgentManager] Preloading custom model for class ${customClass.id}: ${customClass.customModelPath}`);
-        this.characterLoader.loadCustomModel(customClass.id).then(() => {
-          console.log(`[AgentManager] Successfully preloaded custom model for class ${customClass.id}`);
-        }).catch(err => {
+      if (customClass.customModelPath && usedClassIds.has(customClass.id)) {
+        this.characterLoader.loadCustomModel(customClass.id).catch(err => {
           const errorMsg = err instanceof Error ? err.message : String(err);
-          console.error(`[AgentManager] Failed to preload custom model for class ${customClass.id}:`, err);
           this.onToast?.('error', 'Model Load Failed', `Failed to load custom model for ${customClass.name}: ${errorMsg}`);
         });
       }
@@ -558,7 +564,15 @@ export class AgentManager {
       this.agentMeshes.delete(agent.id);
     }
 
-    const meshData = this.characterFactory.createAgentMesh(agent);
+    let meshData: AgentMeshData;
+    try {
+      meshData = this.characterFactory.createAgentMesh(agent);
+    } catch (err) {
+      console.error(`[AgentManager] createAgentMesh crashed for ${agent.name} (class ${agent.class}):`, err);
+      this.onToast?.('error', 'Agent Model Error', `Could not render ${agent.name} (${agent.class}), using fallback`);
+      return;
+    }
+
     this.scene.add(meshData.group);
     this.agentMeshes.set(agent.id, meshData);
     console.log(`[AgentManager] Agent ${agent.name} added to scene, total meshes: ${this.agentMeshes.size}`);
@@ -578,9 +592,10 @@ export class AgentManager {
       if (statusBar) {
         // Box3.setFromObject already accounts for the object's current scale
         const box = new THREE.Box3().setFromObject(body);
-        // Use max.y as the top of the model, with smaller padding for bosses
-        // since they're already taller
-        const modelTop = box.max.y;
+        // Box3 can come back empty (Infinity) when geometry hasn't decoded or is degenerate;
+        // falling through with Infinity propagates NaN through the sprite matrix.
+        const rawTop = box.max.y;
+        const modelTop = Number.isFinite(rawTop) ? rawTop : 1.0;
         const padding = isBoss ? 0.2 : 0.3;
         // Cap the height to prevent mana bar going too high
         const maxHeight = isBoss ? 3.0 : 2.2;

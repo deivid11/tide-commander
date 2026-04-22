@@ -38,11 +38,9 @@ export const STORAGE_KEYS = {
 
   // Spawn/CWD
   LAST_CWD: 'tide-last-cwd',
+  DEFAULT_AGENT_CLASS: 'tide-default-agent-class',
 
   // UI State
-  GLOBAL_SUPERVISOR_COLLAPSED: 'tide-global-supervisor-collapsed',
-  TOOLS_COLLAPSED: 'tide-tool-history-collapsed',
-  FILES_COLLAPSED: 'tide-file-history-collapsed',
   MOBILE_VIEW: 'tide-mobile-view',
 
   // File Explorer

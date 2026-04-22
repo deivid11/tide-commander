@@ -2,7 +2,7 @@
  * HistoryLine component for rendering conversation history messages
  */
 
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -10,16 +10,20 @@ import { useHideCost, useSettings } from '../../store';
 import { store } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText } from '../../utils/formatting';
-import { TOOL_ICONS, extractToolKeyParam, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { createMarkdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay } from './BossContext';
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, ToolSearchInput, isToolSearchContent } from './ToolRenderers';
+import { parseCurlCommand, looksLikeCurl } from './curlParser';
+import { CurlCard } from './CurlCard';
 import { highlightText, renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { useTTS } from '../../hooks/useTTS';
 import { ansiToHtml } from '../../utils/ansiToHtml';
+import { Icon } from '../Icon';
+import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
 import type { EnrichedHistoryMessage, EditData } from './types';
 
 /** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
@@ -28,6 +32,11 @@ function getExtFromPath(filePath: string): string {
   const dotIdx = basename.lastIndexOf('.');
   if (dotIdx <= 0) return '';
   return basename.slice(dotIdx).toLowerCase();
+}
+
+/** Extract basename from a path, e.g. '/foo/bar.tsx' → 'bar.tsx' */
+function getBasenameFromPath(filePath: string): string {
+  return filePath.split('/').pop() || filePath;
 }
 
 interface HistoryLineProps {
@@ -73,6 +82,21 @@ export const HistoryLine = memo(function HistoryLine({
   const content = filterCostText(rawContent, hideCost);
   const { toggle: toggleTTS, speaking } = useTTS();
   const markdownComponents = createMarkdownComponents({ onFileClick: onFileClick ? (path) => onFileClick(path) : undefined });
+  const markdownContentRef = useRef<HTMLSpanElement>(null);
+  const [copyRichStatus, setCopyRichStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const handleCopyRichText = useCallback(async () => {
+    if (!markdownContentRef.current) return;
+    try {
+      const html = inlineStylesForRichCopy(markdownContentRef.current.innerHTML);
+      const plainText = markdownContentRef.current.innerText;
+      await copyRichContentToClipboard(html, plainText);
+      setCopyRichStatus('copied');
+      setTimeout(() => setCopyRichStatus('idle'), 2000);
+    } catch {
+      setCopyRichStatus('error');
+      setTimeout(() => setCopyRichStatus('idle'), 2000);
+    }
+  }, []);
 
   // Resolve agent name for tool attribution badge
   // For Task tool_use messages, show the subagent name instead of parent agent
@@ -124,9 +148,9 @@ export const HistoryLine = memo(function HistoryLine({
         title={t('terminal:history.clickToExpandCollapse')}
       >
         {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
-        <span className="session-continuation-icon">🔗</span>
+        <span className="session-continuation-icon"><Icon name="link" size={14} /></span>
         <span className="session-continuation-label">{t('tools:display.sessionContinued')}</span>
-        <span className="session-continuation-toggle">{sessionExpanded ? '▼' : '▶'}</span>
+        <span className="session-continuation-toggle"><Icon name={sessionExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
         {sessionExpanded && (
           <div className="session-continuation-content">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
@@ -191,7 +215,7 @@ export const HistoryLine = memo(function HistoryLine({
         title={agentId ? t('terminal:history.clickForContextStats') : undefined}
       >
         {timeStr && <span className="output-timestamp context-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span className="context-debug-hash">[{debugHash}]</span></span>}
-        <span className="context-icon">📊</span>
+        <span className="context-icon"><Icon name="dashboard" size={14} /></span>
         <span className="context-label">{t('terminal:history.contextLabel')}</span>
         <div className="context-bar">
           <div
@@ -301,7 +325,7 @@ export const HistoryLine = memo(function HistoryLine({
   };
 
   if (type === 'tool_use') {
-    const icon = TOOL_ICONS[toolName || ''] || TOOL_ICONS.default;
+    const iconName = getToolIconName(toolName || '');
     const displayToolName = toolName ? getLocalizedToolName(toolName, t) : '';
     const toolInputContent = message.toolInput ? JSON.stringify(message.toolInput) : content;
 
@@ -323,8 +347,21 @@ export const HistoryLine = memo(function HistoryLine({
       const bashCommand = _bashCommand || keyParam || '';
       const bashSearchCommand = isBashTool && bashCommand ? parseBashSearchCommand(bashCommand) : null;
       const bashNotificationCommand = isBashTool && bashCommand ? parseBashNotificationCommand(bashCommand) : null;
-      const bashTaskLabelCommand = isBashTool && bashCommand ? parseBashTaskLabelCommand(bashCommand) : null;
+      const bashTrackingStatusCommand = isBashTool && bashCommand ? parseBashTrackingStatusCommand(bashCommand) : null;
+      const bashTaskLabelCommand = !bashTrackingStatusCommand && isBashTool && bashCommand ? parseBashTaskLabelCommand(bashCommand) : null;
       const bashReportTaskCommand = isBashTool && bashCommand ? parseBashReportTaskCommand(bashCommand) : null;
+      const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
+      const bashCurlParsed = (
+        isBashTool
+        && bashCommand
+        && !bashTrackingStatusCommand
+        && !bashNotificationCommand
+        && !bashTaskLabelCommand
+        && !bashReportTaskCommand
+        && !bashSearchCommand
+        && !isCurlExecCommand
+        && looksLikeCurl(bashCommand)
+      ) ? (() => { try { return parseCurlCommand(bashCommand); } catch { return null; } })() : null;
 
       const handleParamClick = () => {
         if (isFileClickable && keyParam) {
@@ -402,7 +439,6 @@ export const HistoryLine = memo(function HistoryLine({
         : (isFileClickable ? t('tools:display.clickToViewFile') : undefined);
 
       // Check if this is a curl exec command and try to parse the exec output
-      const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
       let execTaskOutput: { output: string[] } | null = null;
 
       if (isCurlExecCommand && _bashOutput) {
@@ -420,7 +456,7 @@ export const HistoryLine = memo(function HistoryLine({
           <div className={`output-line output-tool-use output-tool-simple output-todo-inline`}>
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
             <TodoWriteInput content={toolInputContent} />
           </div>
@@ -441,7 +477,7 @@ export const HistoryLine = memo(function HistoryLine({
             <div className={`output-line output-tool-use output-tool-simple output-ask-question-inline`}>
               {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
               {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-              <span className="output-tool-icon">{icon}</span>
+              <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
               <span className="output-tool-name">{displayToolName}</span>
               <AskQuestionInput content={toolInputContent} />
             </div>
@@ -455,7 +491,7 @@ export const HistoryLine = memo(function HistoryLine({
           <div className={`output-line output-tool-use output-tool-simple output-plan-inline`}>
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
             <ExitPlanModeInput content={toolInputContent} />
           </div>
@@ -465,26 +501,47 @@ export const HistoryLine = memo(function HistoryLine({
       return (
         <>
           <div
-            className={`output-line output-tool-use output-tool-simple ${isBashTool ? 'clickable-bash' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''}`}
+            className={`output-line output-tool-use output-tool-simple ${isBashTool ? 'clickable-bash' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''} ${bashTrackingStatusCommand ? 'bash-tracking-use' : ''}`}
             onClick={isBashTool ? handleBashClick : undefined}
             style={isBashTool ? { cursor: 'pointer' } : undefined}
             title={isBashTool ? t('tools:display.clickToViewOutput') : undefined}
           >
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
-            {isBashTool && bashNotificationCommand ? (
+            {isBashTool && bashTrackingStatusCommand ? (() => {
+              const status = bashTrackingStatusCommand.trackingStatus;
+              const detail = bashTrackingStatusCommand.trackingStatusDetail;
+              const description = t(`terminal:trackingStatus.${status}`, { defaultValue: '' }) as string;
+              const tooltipParts = [description || t('terminal:trackingStatus.label', { defaultValue: 'Tracking status' }), detail].filter(Boolean) as string[];
+              return (
+                <span
+                  className={`output-tool-param bash-command bash-tracking-param status-${status}`}
+                  onClick={handleBashClick}
+                  title={tooltipParts.join(' — ')}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <span className={`bash-tracking-chip status-${status}`}>
+                    <span className="bash-tracking-icon"><Icon name={getTrackingStatusIconName(status)} size={13} /></span>
+                    <span className="bash-tracking-status">{status}</span>
+                  </span>
+                  {detail && (
+                    <span className="bash-tracking-detail">{detail}</span>
+                  )}
+                </span>
+              );
+            })() : isBashTool && bashNotificationCommand ? (
               <span
                 className="output-tool-param bash-command bash-notify-param"
                 onClick={handleBashClick}
                 title={bashNotificationCommand.commandBody}
                 style={{ cursor: 'pointer' }}
               >
-                {bashNotificationCommand.shellPrefix && (
-                  <span className="bash-search-shell">{bashNotificationCommand.shellPrefix}</span>
-                )}
-                <span className="bash-notify-chip">notify</span>
+                <span className="bash-notify-chip">
+                  <span className="bash-notify-icon"><Icon name="bell" size={12} /></span>
+                  <span className="bash-notify-label">notify</span>
+                </span>
                 {bashNotificationCommand.title && (
                   <span className="bash-notify-title">{bashNotificationCommand.title}</span>
                 )}
@@ -499,7 +556,7 @@ export const HistoryLine = memo(function HistoryLine({
                 title={bashTaskLabelCommand.commandBody}
                 style={{ cursor: 'pointer' }}
               >
-                <span className="bash-task-label-chip">📋 task</span>
+                <span className="bash-task-label-chip"><Icon name="task" size={12} /> task</span>
                 <span className="bash-task-label-value">{bashTaskLabelCommand.taskLabel}</span>
               </span>
             ) : isBashTool && bashReportTaskCommand ? (
@@ -510,7 +567,7 @@ export const HistoryLine = memo(function HistoryLine({
                 style={{ cursor: 'pointer' }}
               >
                 <span className={`bash-report-task-chip ${bashReportTaskCommand.status === 'failed' ? 'status-failed' : 'status-completed'}`}>
-                  {bashReportTaskCommand.status === 'failed' ? '❌ report' : '✅ report'}
+                  <Icon name={bashReportTaskCommand.status === 'failed' ? 'failure' : 'success'} size={12} /> report
                 </span>
                 {bashReportTaskCommand.summary && (
                   <span className="bash-report-task-summary">{bashReportTaskCommand.summary}</span>
@@ -529,12 +586,16 @@ export const HistoryLine = memo(function HistoryLine({
                 <span className="bash-search-chip">search</span>
                 <span className="bash-search-term">{bashSearchCommand.searchTerm}</span>
               </span>
+            ) : isBashTool && bashCurlParsed ? (
+              <div className="output-tool-param bash-curl-param">
+                <CurlCard parsed={bashCurlParsed} rawCommand={bashCommand} />
+              </div>
             ) : (
               keyParam && (
                 <span
                   className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}`}
                   onClick={isFileClickable ? handleParamClick : undefined}
-                  title={clickTitle}
+                  title={isFileClickable ? clickTitle : keyParam}
                   style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
                 >
                   {isFileTool && isFilePath && (() => {
@@ -542,7 +603,7 @@ export const HistoryLine = memo(function HistoryLine({
                     const iconPath = ext ? getIconForExtension(ext) : '';
                     return iconPath ? <img className="output-tool-file-icon" src={iconPath} alt="" /> : null;
                   })()}
-                  {isBashTool ? renderBashCommandWithFileLinks() : keyParam}
+                  {isBashTool ? renderBashCommandWithFileLinks() : (['Read', 'Write', 'Edit', 'NotebookEdit'].includes(toolName || '') && isFilePath ? getBasenameFromPath(keyParam) : keyParam)}
                 </span>
               )
             )}
@@ -576,7 +637,7 @@ export const HistoryLine = memo(function HistoryLine({
                             })
                           }
                         >
-                          <span className="exec-task-toggle-arrow">{isExpanded ? '▼' : '▶'}</span>
+                          <span className="exec-task-toggle-arrow"><Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
                           <span className="exec-task-toggle-text">
                             {isExpanded ? t('tools:skills.hide') : t('tools:skills.showAll', { count: execTaskOutput.output.length })}
                           </span>
@@ -608,7 +669,7 @@ export const HistoryLine = memo(function HistoryLine({
           <div className="output-line output-tool-use">
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
           </div>
           <div className="output-line output-tool-input">
@@ -625,7 +686,7 @@ export const HistoryLine = memo(function HistoryLine({
           <div className="output-line output-tool-use">
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
           </div>
           <div className="output-line output-tool-input">
@@ -642,7 +703,7 @@ export const HistoryLine = memo(function HistoryLine({
           <div className="output-line output-tool-use">
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
           </div>
           <div className="output-line output-tool-input">
@@ -659,7 +720,7 @@ export const HistoryLine = memo(function HistoryLine({
           <div className="output-line output-tool-use">
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon">{icon}</span>
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
           </div>
           <div className="output-line output-tool-input">
@@ -676,7 +737,7 @@ export const HistoryLine = memo(function HistoryLine({
           <div className="output-line output-tool-use">
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon">⚡</span>
+            <span className="output-tool-icon"><Icon name="bolt" size={14} /></span>
             <span className="output-tool-name">ToolSearch</span>
           </div>
           <div className="output-line output-tool-input">
@@ -692,7 +753,7 @@ export const HistoryLine = memo(function HistoryLine({
           <div className="output-line output-tool-use">
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon">⚡</span>
+            <span className="output-tool-icon"><Icon name="bolt" size={14} /></span>
             <span className="output-tool-name">ToolSearch</span>
           </div>
           <div className="output-line output-tool-input">
@@ -708,7 +769,7 @@ export const HistoryLine = memo(function HistoryLine({
         <div className="output-line output-tool-use">
           {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-          <span className="output-tool-icon">{icon}</span>
+          <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
         </div>
         {toolInputContent && (
@@ -750,7 +811,7 @@ export const HistoryLine = memo(function HistoryLine({
     return (
       <div className={`output-line output-tool-result ${isError ? 'is-error' : ''}`}>
         {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-        <span className="output-result-icon">{isError ? '❌' : '✓'}</span>
+        <span className="output-result-icon"><Icon name={isError ? 'failure' : 'check'} size={12} /></span>
         <pre className="output-result-content">{highlightText(content, highlight)}</pre>
       </div>
     );
@@ -793,7 +854,6 @@ export const HistoryLine = memo(function HistoryLine({
               agentName={taskReportParsed.agentName}
               agentId={taskReportParsed.agentId}
               status={taskReportParsed.status}
-              originalTask={taskReportParsed.originalTask}
               summary={taskReportParsed.summary}
             />
           </span>
@@ -860,7 +920,7 @@ export const HistoryLine = memo(function HistoryLine({
           )}
           {assistantOrSystemRoleLabel}
         </span>
-        <span className="history-content markdown-content">
+        <span ref={markdownContentRef} className="history-content markdown-content">
           {highlight ? (
             <div>{highlightText(workPlanParsed.contentWithoutBlock, highlight)}</div>
           ) : (
@@ -870,7 +930,13 @@ export const HistoryLine = memo(function HistoryLine({
             <WorkPlanBlock workPlan={workPlanParsed.workPlan} />
           )}
           {delegationParsed.hasDelegation && delegationParsed.delegations.map((delegation, i) => (
-            <DelegationBlock key={`del-${i}`} delegation={delegation} />
+            <DelegationBlock
+              key={`del-${i}`}
+              delegation={delegation}
+              bossId={agentId}
+              onFileClick={onFileClick}
+              onBashClick={onBashClick}
+            />
           ))}
         </span>
         <div className="message-action-btns">
@@ -880,7 +946,7 @@ export const HistoryLine = memo(function HistoryLine({
               onClick={(e) => { e.stopPropagation(); toggleTTS(content); }}
               title={speaking ? t('terminal:history.stopSpeaking') : t('terminal:history.speakSpanish')}
             >
-              {speaking ? '🔊' : '🔈'}
+              <Icon name={speaking ? 'speaker-on' : 'speaker-off'} size={14} />
             </button>
           )}
           {onViewMarkdown && (
@@ -889,9 +955,16 @@ export const HistoryLine = memo(function HistoryLine({
               onClick={(e) => { e.stopPropagation(); onViewMarkdown(content); }}
               title={t('terminal:history.viewAsMarkdown')}
             >
-              📄
+              <Icon name="file-text" size={14} />
             </button>
           )}
+          <button
+            className="history-view-md-btn"
+            onClick={(e) => { e.stopPropagation(); handleCopyRichText(); }}
+            title="Copy as rich text"
+          >
+            <Icon name={copyRichStatus === 'copied' ? 'check' : copyRichStatus === 'error' ? 'cross' : 'copy'} size={14} />
+          </button>
         </div>
       </div>
     );
@@ -911,7 +984,7 @@ export const HistoryLine = memo(function HistoryLine({
         )}
         {isUser ? t('common:labels.you') : assistantOrSystemRoleLabel}
       </span>
-      <span className={`history-content ${isUser ? 'user-prompt-text' : 'markdown-content'}`}>
+      <span ref={markdownContentRef} className={`history-content ${isUser ? 'user-prompt-text' : 'markdown-content'}`}>
         {highlight ? <div>{highlightText(content, highlight)}</div> : (
           isUser ? renderUserPromptContent(content, onImageClick, onFileClick) : renderContentWithImages(content, onImageClick, onFileClick)
         )}
@@ -924,7 +997,7 @@ export const HistoryLine = memo(function HistoryLine({
               onClick={(e) => { e.stopPropagation(); toggleTTS(content); }}
               title={speaking ? t('terminal:history.stopSpeaking') : t('terminal:history.speakSpanish')}
             >
-              {speaking ? '🔊' : '🔈'}
+              <Icon name={speaking ? 'speaker-on' : 'speaker-off'} size={14} />
             </button>
           )}
           {onViewMarkdown && (
@@ -933,9 +1006,16 @@ export const HistoryLine = memo(function HistoryLine({
               onClick={(e) => { e.stopPropagation(); onViewMarkdown(content); }}
               title={t('terminal:history.viewAsMarkdown')}
             >
-              📄
+              <Icon name="file-text" size={14} />
             </button>
           )}
+          <button
+            className="history-view-md-btn"
+            onClick={(e) => { e.stopPropagation(); handleCopyRichText(); }}
+            title="Copy as rich text"
+          >
+            <Icon name={copyRichStatus === 'copied' ? 'check' : copyRichStatus === 'error' ? 'cross' : 'copy'} size={14} />
+          </button>
         </div>
       )}
     </div>

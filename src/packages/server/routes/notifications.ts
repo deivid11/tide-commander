@@ -34,13 +34,15 @@ export function setBroadcast(fn: (message: ServerMessage) => void): void {
  * - agentId: string (required) - The ID of the agent sending the notification
  * - title: string (required) - Notification title
  * - message: string (required) - Notification message
+ * - iconUrl: string (optional) - PNG URL for the large/round icon on Android
+ * - imageUrl: string (optional) - PNG URL for the expanded big-picture on Android
  *
  * This endpoint is designed to be called by agents via curl or similar tools.
  * The notification will be broadcast to all connected clients via WebSocket.
  */
 router.post('/', (req: Request, res: Response) => {
   try {
-    const { agentId, title, message } = req.body;
+    const { agentId, title, message, iconUrl, imageUrl } = req.body;
 
     // Validate required fields
     if (!agentId || !title || !message) {
@@ -66,6 +68,8 @@ router.post('/', (req: Request, res: Response) => {
       title,
       message,
       timestamp: Date.now(),
+      ...(typeof iconUrl === 'string' && iconUrl ? { iconUrl } : {}),
+      ...(typeof imageUrl === 'string' && imageUrl ? { imageUrl } : {}),
     };
 
     // Update agent's task label to reflect the notification

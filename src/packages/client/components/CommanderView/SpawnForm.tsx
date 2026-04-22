@@ -10,6 +10,7 @@ import { store } from '../../store';
 import { STORAGE_KEYS, getStorageString, setStorageString } from '../../utils/storage';
 import { FolderInput } from '../shared/FolderInput';
 import { AgentIcon } from '../AgentIcon';
+import { Icon } from '../Icon';
 
 interface SpawnFormProps {
   currentArea: DrawingArea | null;
@@ -132,21 +133,21 @@ export function SpawnForm({ currentArea, onClose }: SpawnFormProps) {
                 className={`commander-spawn-class ${selectedProvider === 'claude' ? 'selected' : ''}`}
                 onClick={() => setSelectedProvider('claude')}
               >
-                <span className="commander-spawn-class-icon">🧠</span>
+                <span className="commander-spawn-class-icon"><Icon name="brain" size={14} /></span>
                 <span>Claude</span>
               </button>
               <button
                 className={`commander-spawn-class ${selectedProvider === 'codex' ? 'selected' : ''}`}
                 onClick={() => setSelectedProvider('codex')}
               >
-                <span className="commander-spawn-class-icon">⚙️</span>
+                <span className="commander-spawn-class-icon"><Icon name="gear" size={14} /></span>
                 <span>Codex</span>
               </button>
               <button
                 className={`commander-spawn-class ${selectedProvider === 'opencode' ? 'selected' : ''}`}
                 onClick={() => setSelectedProvider('opencode')}
               >
-                <span className="commander-spawn-class-icon">🟢</span>
+                <span className="commander-spawn-class-icon"><Icon name="status-pending" size={12} weight="fill" color="#4ade80" /></span>
                 <span>OpenCode</span>
               </button>
             </div>

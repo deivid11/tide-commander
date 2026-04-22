@@ -13,6 +13,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { fpsTracker, memory, perf } from '../utils/profiling';
 import { useAgentsArray } from '../store';
 import { apiUrl, authFetch } from '../utils/storage';
+import { Icon } from './Icon';
 
 interface FPSMeterProps {
   visible?: boolean;
@@ -382,7 +383,7 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
         )}
 
         <span style={{ color: '#444', marginLeft: 'auto', fontSize: '10px' }}>
-          {expanded ? '▼' : '▶'}
+          <Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} />
         </span>
       </div>
 

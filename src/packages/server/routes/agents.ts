@@ -16,7 +16,9 @@ import { getAllCustomClasses } from '../services/custom-class-service.js';
 import { createLogger } from '../utils/logger.js';
 import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js';
 import { clearDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
+import { OpencodeBackend } from '../opencode/backend.js';
 import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled } from '../services/system-prompt-service.js';
+import { getBackupStatus, setBackupEnabled } from '../services/backup-service.js';
 import type { ServerMessage } from '../../shared/types.js';
 
 const log = createLogger('Routes');
@@ -92,6 +94,57 @@ function runCommandWithTimeout(
     });
   });
 }
+
+// GET /api/agents/opencode/models - List opencode CLI models
+// NOTE: Defined BEFORE /:id routes so "opencode" is not parsed as an agent id.
+interface OpencodeModelsCache {
+  models: string[];
+  fetchedAt: number;
+  source: 'cli' | 'fallback';
+}
+let opencodeModelsCache: OpencodeModelsCache | null = null;
+const OPENCODE_MODELS_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+router.get('/opencode/models', async (req: Request, res: Response) => {
+  const refresh = req.query.refresh === 'true' || req.query.refresh === '1';
+  const now = Date.now();
+
+  if (!refresh && opencodeModelsCache && now - opencodeModelsCache.fetchedAt < OPENCODE_MODELS_TTL_MS) {
+    res.json({
+      models: opencodeModelsCache.models,
+      source: opencodeModelsCache.source,
+      cached: true,
+      fetchedAt: opencodeModelsCache.fetchedAt,
+    });
+    return;
+  }
+
+  try {
+    const opencodeExe = new OpencodeBackend().getExecutablePath();
+    const args = refresh ? ['models', '--refresh'] : ['models'];
+    const result = await runCommandWithTimeout(opencodeExe, args, 15000);
+
+    const models = result.output
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && line.includes('/'));
+
+    if (models.length === 0) {
+      res.status(502).json({
+        error: 'opencode CLI returned no models',
+        stderr: result.errorOutput || undefined,
+        exitCode: result.exitCode,
+      });
+      return;
+    }
+
+    opencodeModelsCache = { models, fetchedAt: now, source: 'cli' };
+    res.json({ models, source: 'cli', cached: false, fetchedAt: now });
+  } catch (err: any) {
+    log.error(' opencode models fetch failed:', err);
+    res.status(500).json({ error: err?.message || 'Failed to run opencode CLI' });
+  }
+});
 
 // GET /api/agents/claude-sessions - List all Claude Code sessions
 // NOTE: This must be defined BEFORE /:id routes to prevent being interpreted as an ID
@@ -465,6 +518,98 @@ router.post('/bulk/clear-context', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/agents/bulk/change-model - Change model for multiple agents (clears sessions)
+router.post('/bulk/change-model', async (req: Request, res: Response) => {
+  try {
+    const { agentIds, provider, model, effort } = req.body as {
+      agentIds?: string[];
+      provider?: 'claude' | 'codex' | 'opencode';
+      model?: string;
+      effort?: string | null;
+    };
+
+    if (!Array.isArray(agentIds) || agentIds.length === 0) {
+      res.status(400).json({ error: 'agentIds must be a non-empty array of strings' });
+      return;
+    }
+    if (typeof provider !== 'string' || typeof model !== 'string') {
+      res.status(400).json({ error: 'provider and model are required strings' });
+      return;
+    }
+
+    let sanitized: string | undefined;
+    if (provider === 'claude') {
+      sanitized = agentService.sanitizeModelForProvider('claude', model);
+    } else if (provider === 'codex') {
+      sanitized = agentService.sanitizeCodexModel(model);
+    } else if (provider === 'opencode') {
+      sanitized = agentService.sanitizeOpencodeModel(model);
+    }
+
+    if (!sanitized) {
+      res.status(400).json({ error: `Invalid model "${model}" for provider "${provider}"` });
+      return;
+    }
+
+    // Effort is Claude-only. `null` means "clear back to default"; undefined means "leave unchanged".
+    const VALID_EFFORTS = new Set(['low', 'medium', 'high', 'xHigh', 'max']);
+    let effortUpdate: { set: true; value: string | undefined } | { set: false } = { set: false };
+    if (effort !== undefined && provider === 'claude') {
+      if (effort === null) {
+        effortUpdate = { set: true, value: undefined };
+      } else if (typeof effort === 'string' && VALID_EFFORTS.has(effort)) {
+        effortUpdate = { set: true, value: effort };
+      } else {
+        res.status(400).json({ error: `Invalid effort "${effort}" — expected one of: low, medium, high, xHigh, max, or null` });
+        return;
+      }
+    }
+
+    const changed: string[] = [];
+    const failed: string[] = [];
+
+    for (const agentId of agentIds) {
+      try {
+        const agent = agentService.getAgent(agentId);
+        if (!agent || (agent.provider ?? 'claude') !== provider) {
+          failed.push(agentId);
+          continue;
+        }
+
+        await runtimeService.stopAgent(agentId);
+
+        const modelUpdates: Record<string, unknown> = {
+          status: 'idle',
+          currentTask: undefined,
+          currentTool: undefined,
+          sessionId: undefined,
+          tokensUsed: 0,
+          contextUsed: 0,
+          contextStats: undefined,
+        };
+        if (provider === 'claude') modelUpdates.model = sanitized;
+        else if (provider === 'codex') modelUpdates.codexModel = sanitized;
+        else if (provider === 'opencode') modelUpdates.opencodeModel = sanitized;
+
+        if (effortUpdate.set) modelUpdates.effort = effortUpdate.value;
+
+        agentService.updateAgent(agentId, modelUpdates);
+        changed.push(agentId);
+      } catch (err) {
+        log.error(` Bulk change-model failed for agent ${agentId}:`, err);
+        failed.push(agentId);
+      }
+    }
+
+    const effortLabel = effortUpdate.set ? ` effort=${effortUpdate.value ?? 'default'}` : '';
+    log.log(`Bulk change-model: ${changed.length} changed to ${provider}:${sanitized}${effortLabel}, ${failed.length} failed`);
+    res.json({ changed, failed });
+  } catch (err: any) {
+    log.error(' Bulk change-model failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/agents/bulk/move-area - Move multiple agents to an area
 router.post('/bulk/move-area', async (req: Request, res: Response) => {
   try {
@@ -628,7 +773,21 @@ router.patch('/:id', (req: Request<{ id: string }>, res: Response) => {
     return;
   }
 
-  res.json(updated);
+  // Slim response: agents PATCH this endpoint several times per turn (taskLabel, trackingStatus),
+  // and returning the full agent — which includes multi-KB `lastAssignedTask`/`currentTask` strings —
+  // bloated agent context. Full agent state is already broadcast to clients via the WS `agent_updated`
+  // channel, so the response only needs to confirm the fields an agent typically cares about.
+  res.json({
+    id: updated.id,
+    name: updated.name,
+    status: updated.status,
+    trackingStatus: updated.trackingStatus,
+    trackingStatusDetail: updated.trackingStatusDetail,
+    taskLabel: updated.taskLabel,
+    lastActivity: updated.lastActivity,
+    isBoss: updated.isBoss,
+    ok: true,
+  });
 });
 
 // DELETE /api/agents/:id - Delete agent
@@ -681,6 +840,22 @@ router.get('/:id/history', async (req: Request<{ id: string }>, res: Response) =
     });
   } catch (err: any) {
     log.error(' Failed to load history:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/agents/:id/injected-prompt - Get the full prompt injected into this agent
+router.get('/:id/injected-prompt', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const { buildInjectedPromptForAgent } = await import('../services/prompt-inspection-service.js');
+    const prompt = await buildInjectedPromptForAgent(req.params.id);
+    if (prompt === null) {
+      res.status(404).json({ error: 'Agent not found' });
+      return;
+    }
+    res.json({ prompt });
+  } catch (err: any) {
+    log.error(' Failed to build injected prompt:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1012,6 +1187,32 @@ router.post('/system-settings/tmux-mode', (req: Request, res: Response) => {
     res.json({ success: true, enabled });
   } catch (err: any) {
     log.error(' Failed to set tmux mode setting:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/system-settings/backup - Get hourly backup scheduler status
+router.get('/system-settings/backup', (_req: Request, res: Response) => {
+  try {
+    res.json(getBackupStatus());
+  } catch (err: any) {
+    log.error(' Failed to get backup status:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/system-settings/backup - Enable or disable the hourly backup scheduler
+router.post('/system-settings/backup', (req: Request, res: Response) => {
+  try {
+    const { enabled } = req.body;
+    if (typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'enabled must be a boolean' });
+      return;
+    }
+    const status = setBackupEnabled(enabled);
+    res.json({ success: true, ...status });
+  } catch (err: any) {
+    log.error(' Failed to set backup enabled:', err);
     res.status(500).json({ error: err.message });
   }
 });

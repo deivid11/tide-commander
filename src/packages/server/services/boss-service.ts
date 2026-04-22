@@ -7,7 +7,6 @@
 import { spawn } from 'child_process';
 import { StringDecoder } from 'string_decoder';
 import * as agentService from './agent-service.js';
-import * as supervisorService from './supervisor-service.js';
 import type {
   Agent,
   DelegationDecision,
@@ -205,23 +204,16 @@ export async function gatherSubordinateContext(bossId: string): Promise<Subordin
   const subordinates = getSubordinates(bossId);
 
   return Promise.all(subordinates.map(async (sub) => {
-    // Get latest supervisor analysis for this agent
-    const history = supervisorService.getAgentSupervisorHistory(sub.id);
-    const latestEntry = history.entries[0];
-
-    // Use contextStats (from /context command) when available, otherwise fallback to basic calculation
-    // This matches how the UI calculates context in agentUtils.ts
-    let contextPercent: number;
-    let tokensUsed: number;
-    if (sub.contextStats) {
-      contextPercent = Math.round(sub.contextStats.usedPercent);
-      tokensUsed = sub.contextStats.totalTokens;
-    } else {
-      contextPercent = sub.contextLimit > 0
-        ? Math.round((sub.contextUsed / sub.contextLimit) * 100)
-        : 0;
-      tokensUsed = sub.tokensUsed || 0;
-    }
+    // Mirror the guake-agent-context component in
+    // src/packages/client/components/ClaudeOutputPanel/index.tsx:1705-1710
+    // byte-for-byte so every TEAM CONTEXT line matches the subordinate's UI bar.
+    const stats = sub.contextStats;
+    const totalTokens = stats ? stats.totalTokens : (sub.contextUsed || 0);
+    const contextWindow = stats ? stats.contextWindow : (sub.contextLimit || 200000);
+    const rawUsedPercent = stats ? stats.usedPercent : Math.round((totalTokens / contextWindow) * 100);
+    const usedPercent = Math.max(0, Math.min(100, rawUsedPercent));
+    const contextPercent = Math.round(usedPercent);
+    const tokensUsed = totalTokens;
 
     return {
       id: sub.id,
@@ -230,7 +222,6 @@ export async function gatherSubordinateContext(bossId: string): Promise<Subordin
       status: sub.status,
       currentTask: sub.currentTask,
       lastAssignedTask: sub.lastAssignedTask,
-      recentSupervisorSummary: latestEntry?.analysis?.recentWorkSummary,
       contextPercent,
       tokensUsed,
     };
@@ -375,7 +366,6 @@ function buildDelegationPrompt(command: string, contexts: SubordinateContext[]):
     status: ctx.status,
     currentTask: sanitizeUnicode(ctx.currentTask || 'None'),
     lastAssignedTask: ctx.lastAssignedTask ? sanitizeUnicode(truncateOrEmpty(ctx.lastAssignedTask, 200)) : 'None',
-    recentSupervisorSummary: sanitizeUnicode(ctx.recentSupervisorSummary || 'No recent analysis'),
     contextPercent: ctx.contextPercent,
     tokensUsed: ctx.tokensUsed,
   }));
