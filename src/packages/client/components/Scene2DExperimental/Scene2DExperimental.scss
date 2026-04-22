@@ -1,0 +1,1102 @@
+/**
+ * Scene2DExperimental Styles - 3-Column Layout
+ *
+ * Layout: Sidebar | Middle (Agents) | Right (Chat)
+ */
+
+// Dracula theme colors
+$bg-primary: #282a36;
+$bg-secondary: #1e1f29;
+$bg-tertiary: #21222c;
+$bg-card: #363848;
+$bg-card-hover: #44475a;
+$text-primary: #f8f8f2;
+$text-secondary: #9a9caa;
+$text-muted: #6272a4;
+$accent-cyan: #8be9fd;
+$accent-green: #50fa7b;
+$accent-orange: #ffb86c;
+$accent-purple: #bd93f9;
+$accent-red: #ff5555;
+$accent-yellow: #f1fa8c;
+$accent-gold: #ffd700;
+
+// Status colors
+$status-idle: #4aff9e;
+$status-working: #4a9eff;
+$status-waiting: #ff9e4a;
+$status-error: #ff4a4a;
+$status-offline: #888888;
+
+// Layout dimensions
+$sidebar-width: 64px;
+$sidebar-width-expanded: 180px;
+$middle-min-width: 280px;
+
+// ============================================================================
+// Main Container - 3 Column Layout
+// ============================================================================
+
+.scene-2d-experimental {
+  display: grid;
+  grid-template-columns: $sidebar-width 1fr 1fr;
+  height: 100%;
+  width: 100%;
+  background: $bg-primary;
+  overflow: hidden;
+  // Reserve room for the flat-view top bar (44px) so sidebar/columns
+  // don't sit underneath the view controls.
+  padding-top: 44px;
+  box-sizing: border-box;
+  transition: grid-template-columns 0.25s ease;
+
+  // When the inspector is open, add a 4th column that pushes the other
+  // columns left (no overlay). Mid column keeps its width; right column
+  // shares the remaining space with the inspector.
+  &--with-inspector {
+    grid-template-columns: $sidebar-width 1fr 1fr 320px;
+  }
+}
+
+// ============================================================================
+// Left Sidebar
+// ============================================================================
+
+.exp-sidebar {
+  background: $bg-secondary;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  overflow: hidden;
+
+  &__logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 8px 20px;
+    gap: 8px;
+  }
+
+  &__logo-icon {
+    font-size: 24px;
+  }
+
+  &__logo-text {
+    display: none;
+    font-weight: 700;
+    font-size: 16px;
+    color: $text-primary;
+  }
+
+  &__nav {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 8px;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border: none;
+    background: transparent;
+    color: $text-secondary;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.15s ease;
+    width: 100%;
+    justify-content: center;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.06);
+      color: $text-primary;
+    }
+
+    &--active {
+      background: rgba($accent-cyan, 0.15);
+      color: $accent-cyan;
+
+      &:hover {
+        background: rgba($accent-cyan, 0.2);
+      }
+    }
+  }
+
+  &__item-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  &__item-label {
+    display: none;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  &__footer {
+    padding: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+}
+
+// ============================================================================
+// Middle Column - Agents & Buildings
+// ============================================================================
+
+.exp-middle {
+  display: flex;
+  flex-direction: column;
+  background: $bg-primary;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  min-width: $middle-min-width;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+    gap: 12px;
+  }
+
+  &__title {
+    font-size: 14px;
+    font-weight: 600;
+    color: $text-primary;
+    margin: 0;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  &__content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+    }
+  }
+}
+
+// ============================================================================
+// CTA Buttons
+// ============================================================================
+
+.exp-cta-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+
+  &--agent {
+    background: rgba($accent-green, 0.15);
+    color: $accent-green;
+
+    &:hover {
+      background: rgba($accent-green, 0.25);
+    }
+  }
+
+  &--boss {
+    background: rgba($accent-gold, 0.15);
+    color: $accent-gold;
+
+    &:hover {
+      background: rgba($accent-gold, 0.25);
+    }
+  }
+
+  &--building {
+    background: rgba($accent-cyan, 0.15);
+    color: $accent-cyan;
+
+    &:hover {
+      background: rgba($accent-cyan, 0.25);
+    }
+  }
+
+  &--area {
+    background: rgba($accent-purple, 0.15);
+    color: $accent-purple;
+
+    &:hover {
+      background: rgba($accent-purple, 0.25);
+    }
+  }
+}
+
+// ============================================================================
+// Collapsible Section
+// ============================================================================
+
+.exp-collapsible {
+  background: $bg-secondary;
+  border-radius: 8px;
+  overflow: hidden;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    user-select: none;
+    border-left: 3px solid transparent;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+  }
+
+  &__toggle {
+    font-size: 8px;
+    color: $text-muted;
+    width: 12px;
+  }
+
+  &__icon {
+    font-size: 14px;
+  }
+
+  &__title {
+    font-size: 12px;
+    font-weight: 600;
+    color: $text-primary;
+    flex: 1;
+  }
+
+  &__count {
+    font-size: 11px;
+    color: $text-muted;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 2px 6px;
+    border-radius: 10px;
+  }
+
+  &__content {
+    padding: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+  }
+}
+
+// ============================================================================
+// Agent Card - Compact
+// ============================================================================
+
+.exp-agents-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.exp-agent-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: $bg-card;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.12s ease;
+  position: relative;
+
+  &:hover {
+    background: $bg-card-hover;
+  }
+
+  &--selected {
+    border-color: $accent-green;
+    background: rgba($accent-green, 0.08);
+  }
+
+  &--boss {
+    border-left: 2px solid $accent-gold;
+  }
+
+  &__avatar {
+    position: relative;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  &__status-dot {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid $bg-card;
+  }
+
+  &__crown {
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 8px;
+  }
+
+  &__unseen {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 12px;
+    height: 12px;
+    background: $accent-cyan;
+    color: $bg-primary;
+    font-size: 8px;
+    font-weight: bold;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &__info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  &__name {
+    font-size: 12px;
+    font-weight: 500;
+    color: $text-primary;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__status {
+    font-size: 10px;
+    text-transform: capitalize;
+  }
+
+  &__context {
+    width: 40px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  &__context-fill {
+    height: 100%;
+    background: linear-gradient(90deg, $accent-green, $accent-cyan);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+}
+
+// ============================================================================
+// Building Card - Compact
+// ============================================================================
+
+.exp-buildings-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.exp-building-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: $bg-card;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.12s ease;
+
+  &:hover {
+    background: $bg-card-hover;
+  }
+
+  &--selected {
+    border-color: $accent-cyan;
+  }
+
+  &__emoji {
+    font-size: 14px;
+  }
+
+  &__name {
+    font-size: 11px;
+    color: $text-primary;
+    white-space: nowrap;
+  }
+
+  &__status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+
+    &[data-status='running'] {
+      background: $status-idle;
+    }
+    &[data-status='stopped'] {
+      background: $status-offline;
+    }
+    &[data-status='error'] {
+      background: $status-error;
+    }
+    &[data-status='starting'],
+    &[data-status='stopping'],
+    &[data-status='unknown'] {
+      background: $status-waiting;
+    }
+  }
+}
+
+// ============================================================================
+// Right Column - Chat View
+// ============================================================================
+
+.exp-right {
+  display: flex;
+  flex-direction: column;
+  background: $bg-tertiary;
+  overflow: hidden;
+}
+
+// Keep only the empty/placeholder styles — the rest is replaced by
+// AgentTerminalPane (see .exp-terminal-wrapper below).
+.exp-chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  &--empty {
+    align-items: center;
+    justify-content: center;
+  }
+
+  &__placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    color: $text-muted;
+  }
+
+  &__placeholder-icon {
+    font-size: 48px;
+    opacity: 0.5;
+  }
+
+  &__placeholder-text {
+    font-size: 14px;
+  }
+}
+
+// ============================================================================
+// Embedded Terminal (AgentTerminalPane) inside flat view
+// ----------------------------------------------------------------------------
+// The pane normally lives in a fixed-position .guake-terminal shell; here we
+// embed it as a normal flex child, so we have to override a handful of
+// positioning rules so the output scrolls and the input sticks to the bottom.
+// ============================================================================
+
+.exp-terminal-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  position: relative;
+  background: $bg-tertiary;
+  overflow: hidden;
+
+  &__header {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: $bg-secondary;
+    flex-shrink: 0;
+  }
+
+  &__header-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  &__header-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    row-gap: 6px;
+  }
+
+  &__header-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  &__header-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  &__header-status {
+    font-size: 11px;
+    text-transform: capitalize;
+  }
+
+  &__header-task {
+    margin-left: auto;
+    font-size: 11px;
+    color: $text-muted;
+    max-width: 280px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 3px 8px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  // ── Working directory chip ──────────────────────────────────────────────
+  &__cwd {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 9px;
+    font-size: 11px;
+    color: $text-secondary;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    cursor: pointer;
+    max-width: 240px;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.14);
+      color: $text-primary;
+    }
+
+    &-icon {
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    &-text {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+    }
+  }
+
+  // ── Context / token usage chip ──────────────────────────────────────────
+  &__context {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 9px;
+    font-size: 11px;
+    color: $text-secondary;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+
+    &-icon {
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    &-bar {
+      position: relative;
+      width: 56px;
+      height: 5px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+    }
+
+    &-bar-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.2s ease, background-color 0.2s ease;
+    }
+
+    &-tokens {
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 11px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    &-warning {
+      font-size: 11px;
+      opacity: 0.8;
+    }
+  }
+
+  // ── View mode selector (segmented pill) ─────────────────────────────────
+  &__view-mode {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px;
+    gap: 2px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    margin-left: auto;
+  }
+
+  &__view-mode-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    color: $text-muted;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+
+    &:hover {
+      color: $text-primary;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    &--active {
+      color: $text-primary;
+      background: rgba($accent-purple, 0.28);
+      box-shadow: 0 0 0 1px rgba($accent-purple, 0.5),
+        0 1px 3px rgba(0, 0, 0, 0.25);
+
+      &:hover {
+        background: rgba($accent-purple, 0.36);
+      }
+    }
+  }
+
+  &__view-mode-icon {
+    font-size: 13px;
+    line-height: 1;
+  }
+
+  &__view-mode-label {
+    line-height: 1;
+  }
+
+  // ── Theme selector wrapper ──────────────────────────────────────────────
+  &__theme {
+    display: inline-flex;
+    align-items: center;
+
+    // Compact the shared ThemeSelector so it fits the flat header chip row.
+    .theme-selector-trigger {
+      padding: 4px 9px;
+      font-size: 11px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.14);
+      }
+    }
+  }
+
+  // ── Inspector toggle button (show/hide right inspector panel) ───────────
+  &__inspector-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    color: $text-secondary;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease,
+      box-shadow 0.15s ease;
+
+    &:hover {
+      color: $text-primary;
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+
+    &--active {
+      color: $text-primary;
+      background: rgba($accent-purple, 0.22);
+      border-color: rgba($accent-purple, 0.55);
+      box-shadow: 0 0 0 1px rgba($accent-purple, 0.35),
+        0 1px 3px rgba(0, 0, 0, 0.25);
+
+      &:hover {
+        background: rgba($accent-purple, 0.32);
+      }
+    }
+  }
+
+  &__inspector-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  &__inspector-label {
+    line-height: 1;
+  }
+
+  // Narrow panels: collapse the view-mode labels and cwd to save room.
+  @media (max-width: 1100px) {
+    &__view-mode-label,
+    &__inspector-label {
+      display: none;
+    }
+
+    &__cwd {
+      max-width: 160px;
+    }
+  }
+
+  // ── Output area fills remaining space ──
+  .guake-output {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 14px 18px;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+  }
+
+  // ── Input container sits at bottom of the flex column ──
+  .guake-input-container {
+    position: relative;
+    flex-shrink: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    background: $bg-secondary;
+  }
+
+  // ── Search bar sticky at top ──
+  .guake-search-bar,
+  .atp-search-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: $bg-secondary;
+  }
+
+  // ── Hide features that don't apply in embedded view ──
+  .guake-handle,
+  .guake-side-panel-resize,
+  .atp-resize-handle {
+    display: none;
+  }
+
+  // Compacting indicator padding
+  .compacting-indicator {
+    padding: 12px;
+    margin: 8px;
+  }
+}
+
+// ============================================================================
+// Placeholder Sections
+// ============================================================================
+
+.exp-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  color: $text-muted;
+
+  &__icon {
+    font-size: 48px;
+    opacity: 0.5;
+  }
+
+  &__title {
+    font-size: 18px;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  &__text {
+    font-size: 13px;
+  }
+}
+
+// ============================================================================
+// Empty States
+// ============================================================================
+
+.exp-empty-section {
+  padding: 12px;
+  text-align: center;
+  color: $text-muted;
+  font-size: 11px;
+  font-style: italic;
+}
+
+.exp-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  gap: 8px;
+
+  &__icon {
+    font-size: 32px;
+    opacity: 0.5;
+  }
+
+  &__title {
+    font-size: 14px;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  &__hint {
+    font-size: 12px;
+    color: $text-muted;
+  }
+}
+
+// ============================================================================
+// Animations
+// ============================================================================
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+// ============================================================================
+// Inspector side panel (pushes chat column; does not overlay)
+// ----------------------------------------------------------------------------
+// Rendered as a 4th grid column that slides in alongside .exp-right when the
+// user toggles the Inspector button in the chat header. Reuses the embedded
+// SingleAgentPanel (session details) with flat-UI-specific overrides.
+// ============================================================================
+
+.exp-inspector {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  background: $bg-secondary;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  animation: exp-inspector-slide-in 0.22s ease;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: $bg-tertiary;
+    flex-shrink: 0;
+  }
+
+  &__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  &__title-icon {
+    font-size: 14px;
+  }
+
+  &__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    font-size: 13px;
+    color: $text-muted;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      color: $text-primary;
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+  }
+
+  &__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+
+    // The embedded SingleAgentPanel uses .unit-panel as its root. Ensure it
+    // fills the inspector body so its internal scrolling behaves correctly.
+    .unit-panel {
+      flex: 1 1 auto;
+      min-height: 0;
+      min-width: 0;
+      padding: 10px;
+    }
+  }
+
+  &__empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    color: $text-muted;
+    font-size: 13px;
+  }
+}
+
+@keyframes exp-inspector-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+// ============================================================================
+// Responsive
+// ============================================================================
+
+@media (max-width: 1024px) {
+  .scene-2d-experimental {
+    grid-template-columns: $sidebar-width 1fr;
+
+    &--with-inspector {
+      grid-template-columns: $sidebar-width 1fr;
+    }
+  }
+
+  .exp-right,
+  .exp-inspector {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .scene-2d-experimental {
+    grid-template-columns: 1fr;
+
+    &--with-inspector {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .exp-sidebar {
+    display: none;
+  }
+}
+
+@media (min-width: 1400px) {
+  .scene-2d-experimental {
+    grid-template-columns: $sidebar-width minmax($middle-min-width, 400px) 1fr;
+
+    &--with-inspector {
+      grid-template-columns: $sidebar-width minmax($middle-min-width, 400px) 1fr 360px;
+    }
+  }
+}

@@ -127,7 +127,7 @@ if (typeof window !== 'undefined') {
 interface UseSceneSetupOptions {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   selectionBoxRef: React.RefObject<HTMLDivElement | null>;
-  viewMode: '2d' | '3d' | 'dashboard';
+  viewMode: '2d' | '3d' | 'dashboard' | '2d-experimental';
   sceneMountKey?: number;
   showToast: (type: ToastType, title: string, message: string, duration?: number) => void;
   showAgentNotification: (notification: any) => void;
