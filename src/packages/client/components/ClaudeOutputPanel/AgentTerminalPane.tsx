@@ -349,6 +349,13 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       if (msg.uuid) {
         historyKnownUuidSet.add(msg.uuid);
       }
+      // Also index by toolUseId (Anthropic tool_use_id like "toolu_01..."): live
+      // outputs for tool_start/tool_result events are broadcast with uuid=tool_use_id,
+      // which is different from the JSONL entry uuid — without this, tool outputs
+      // duplicate in the panel until a history refresh flushes them.
+      if (msg.toolUseId) {
+        historyKnownUuidSet.add(msg.toolUseId);
+      }
       if (msg.type !== 'assistant') continue;
       const key = normalizeAssistantMessage(msg.content);
       const prev = latestHistoryAssistantTsByKey.get(key) ?? 0;

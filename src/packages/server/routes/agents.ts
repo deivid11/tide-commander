@@ -16,6 +16,7 @@ import { getAllCustomClasses } from '../services/custom-class-service.js';
 import { createLogger } from '../utils/logger.js';
 import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js';
 import { clearDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
+import { OpencodeBackend } from '../opencode/backend.js';
 import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled } from '../services/system-prompt-service.js';
 import type { ServerMessage } from '../../shared/types.js';
 
@@ -92,6 +93,57 @@ function runCommandWithTimeout(
     });
   });
 }
+
+// GET /api/agents/opencode/models - List opencode CLI models
+// NOTE: Defined BEFORE /:id routes so "opencode" is not parsed as an agent id.
+interface OpencodeModelsCache {
+  models: string[];
+  fetchedAt: number;
+  source: 'cli' | 'fallback';
+}
+let opencodeModelsCache: OpencodeModelsCache | null = null;
+const OPENCODE_MODELS_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+router.get('/opencode/models', async (req: Request, res: Response) => {
+  const refresh = req.query.refresh === 'true' || req.query.refresh === '1';
+  const now = Date.now();
+
+  if (!refresh && opencodeModelsCache && now - opencodeModelsCache.fetchedAt < OPENCODE_MODELS_TTL_MS) {
+    res.json({
+      models: opencodeModelsCache.models,
+      source: opencodeModelsCache.source,
+      cached: true,
+      fetchedAt: opencodeModelsCache.fetchedAt,
+    });
+    return;
+  }
+
+  try {
+    const opencodeExe = new OpencodeBackend().getExecutablePath();
+    const args = refresh ? ['models', '--refresh'] : ['models'];
+    const result = await runCommandWithTimeout(opencodeExe, args, 15000);
+
+    const models = result.output
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && line.includes('/'));
+
+    if (models.length === 0) {
+      res.status(502).json({
+        error: 'opencode CLI returned no models',
+        stderr: result.errorOutput || undefined,
+        exitCode: result.exitCode,
+      });
+      return;
+    }
+
+    opencodeModelsCache = { models, fetchedAt: now, source: 'cli' };
+    res.json({ models, source: 'cli', cached: false, fetchedAt: now });
+  } catch (err: any) {
+    log.error(' opencode models fetch failed:', err);
+    res.status(500).json({ error: err?.message || 'Failed to run opencode CLI' });
+  }
+});
 
 // GET /api/agents/claude-sessions - List all Claude Code sessions
 // NOTE: This must be defined BEFORE /:id routes to prevent being interpreted as an ID

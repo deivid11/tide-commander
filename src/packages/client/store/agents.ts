@@ -457,10 +457,23 @@ export function createAgentActions(
       });
       notify();
 
-      getSendMessage()?.({
+      const msg: ClientMessage = {
         type: 'send_command',
         payload: { agentId, command },
-      });
+      };
+
+      const sendMessage = getSendMessage();
+      if (sendMessage) {
+        sendMessage(msg);
+      } else {
+        // Fallback: websocket send module handles queuing when disconnected.
+        // Dynamic import avoids pulling in browser-only code during tests.
+        import('../websocket/send').then(({ sendMessage: wsSend }) => {
+          wsSend(msg);
+        }).catch(() => {
+          console.error('[Store] Failed to send command - no WebSocket connection available');
+        });
+      }
     },
 
     refreshAgentContext(agentId: string): void {

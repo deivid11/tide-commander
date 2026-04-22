@@ -303,11 +303,11 @@ export function useHistoryLoader({
           const lastHistoryTimestamp = messages.length > 0
             ? Math.max(...messages.map((m: HistoryMessage) => m.timestamp ? new Date(m.timestamp).getTime() : 0))
             : 0;
-          const historyUuidSet = new Set<string>(
-            messages
-              .map((m) => m.uuid)
-              .filter((uuid): uuid is string => typeof uuid === 'string' && uuid.length > 0)
-          );
+          const historyUuidSet = new Set<string>();
+          for (const m of messages) {
+            if (typeof m.uuid === 'string' && m.uuid.length > 0) historyUuidSet.add(m.uuid);
+            if (typeof m.toolUseId === 'string' && m.toolUseId.length > 0) historyUuidSet.add(m.toolUseId);
+          }
           const latestHistoryTsByKey = new Map<string, number>();
           for (const msg of messages) {
             if (msg.type !== 'user' && msg.type !== 'assistant') continue;
@@ -333,11 +333,11 @@ export function useHistoryLoader({
           const lastHistoryTimestamp = Math.max(
             ...messages.map((m: HistoryMessage) => m.timestamp ? new Date(m.timestamp).getTime() : 0)
           );
-          const historyUuidSet = new Set<string>(
-            messages
-              .map((m) => m.uuid)
-              .filter((uuid): uuid is string => typeof uuid === 'string' && uuid.length > 0)
-          );
+          const historyUuidSet = new Set<string>();
+          for (const m of messages) {
+            if (typeof m.uuid === 'string' && m.uuid.length > 0) historyUuidSet.add(m.uuid);
+            if (typeof m.toolUseId === 'string' && m.toolUseId.length > 0) historyUuidSet.add(m.toolUseId);
+          }
           const latestHistoryTsByKey = new Map<string, number>();
           for (const msg of messages) {
             if (msg.type !== 'user' && msg.type !== 'assistant') continue;

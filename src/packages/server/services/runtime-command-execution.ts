@@ -196,7 +196,8 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
         log.warn(`[sendCommand] Agent ${agentId}: stdin sendMessage returned false, falling through to respawn`);
       } else {
         log.log(`[sendCommand] Agent ${agentId} (${agent.provider}): backend does not support stdin, stopping current process to respawn with resume`);
-        await runner.stop(agentId);
+        // Preserve queued messages — they will be drained after the new process completes its turn
+        await runner.stop(agentId, false);
       }
     } else if (!processRunning) {
       log.log(`[sendCommand] Agent ${agentId}: Process not running, spawning new (sessionId=${agent.sessionId || 'none'})`);

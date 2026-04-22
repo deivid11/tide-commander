@@ -1,0 +1,169 @@
+@use '../variables' as *;
+
+.opencode-model-select {
+  position: relative;
+  width: 100%;
+
+  &__field {
+    display: flex;
+    align-items: stretch;
+    background: $bg-tertiary;
+    border: 1px solid $border-color;
+    border-radius: $radius-sm;
+    transition: border-color $transition-fast;
+
+    &:focus-within {
+      border-color: $accent-blue;
+    }
+  }
+
+  &__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px 0 10px;
+    color: $text-muted;
+  }
+
+  &__input {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 8px;
+    background: transparent;
+    border: none;
+    color: $text-primary;
+    font-size: 13px;
+    outline: none;
+
+    &::placeholder {
+      color: $text-muted;
+    }
+  }
+
+  &__refresh {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+    background: transparent;
+    border: none;
+    border-left: 1px solid $border-color;
+    color: $text-secondary;
+    cursor: pointer;
+    transition: color $transition-fast, background $transition-fast;
+
+    &:hover:not(:disabled) {
+      color: $text-primary;
+      background: rgba($accent-blue, 0.08);
+    }
+
+    &:disabled {
+      cursor: default;
+      opacity: 0.6;
+    }
+
+    .spin {
+      display: inline-flex;
+      animation: opencode-model-select-spin 1s linear infinite;
+    }
+  }
+
+  &__dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 50;
+    background: $bg-secondary;
+    border: 1px solid $border-color;
+    border-radius: $radius-md;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: 320px;
+  }
+
+  &__status {
+    padding: 12px 14px;
+    color: $text-secondary;
+    font-size: 12px;
+
+    code {
+      background: $bg-tertiary;
+      padding: 1px 5px;
+      border-radius: $radius-sm;
+      font-size: 11px;
+      color: $text-primary;
+    }
+
+    &--error {
+      color: $accent-red;
+    }
+  }
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 4px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  &__option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px;
+    border-radius: $radius-sm;
+    font-size: 12px;
+    cursor: pointer;
+    color: $text-primary;
+    transition: background $transition-fast;
+
+    &.is-active {
+      background: rgba($accent-blue, 0.18);
+    }
+
+    &.is-selected {
+      color: $accent-blue;
+    }
+  }
+
+  &__provider {
+    color: $text-muted;
+    font-size: 11px;
+  }
+
+  &__model {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__check {
+    display: inline-flex;
+    color: $accent-blue;
+  }
+
+  &__footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    border-top: 1px solid $border-color;
+    color: $text-muted;
+    font-size: 10px;
+  }
+
+  &__hint {
+    opacity: 0.8;
+  }
+}
+
+@keyframes opencode-model-select-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
