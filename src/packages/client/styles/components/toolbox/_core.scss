@@ -201,10 +201,19 @@
 .fab-spawn-area-btn:hover    { border-color: $dracula-purple; color: $dracula-purple; }
 
 .toolbox-backdrop {
+  // Click-through dim overlay: signals the panel is open without trapping
+  // pointer events. Closing is still wired through the X button and Escape key.
   position: fixed;
   inset: 0;
-  background: transparent;
+  background: rgba(0, 0, 0, 0.3);
+  pointer-events: none;
   z-index: 200;
+  animation: toolbox-backdrop-fade-in $transition-normal ease-out;
+}
+
+@keyframes toolbox-backdrop-fade-in {
+  from { background: rgba(0, 0, 0, 0); }
+  to   { background: rgba(0, 0, 0, 0.3); }
 }
 
 .toolbox {
