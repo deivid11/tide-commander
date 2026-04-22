@@ -18,6 +18,7 @@ import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js
 import { clearDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
 import { OpencodeBackend } from '../opencode/backend.js';
 import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled } from '../services/system-prompt-service.js';
+import { getBackupStatus, setBackupEnabled } from '../services/backup-service.js';
 import type { ServerMessage } from '../../shared/types.js';
 
 const log = createLogger('Routes');
@@ -1186,6 +1187,32 @@ router.post('/system-settings/tmux-mode', (req: Request, res: Response) => {
     res.json({ success: true, enabled });
   } catch (err: any) {
     log.error(' Failed to set tmux mode setting:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/system-settings/backup - Get hourly backup scheduler status
+router.get('/system-settings/backup', (_req: Request, res: Response) => {
+  try {
+    res.json(getBackupStatus());
+  } catch (err: any) {
+    log.error(' Failed to get backup status:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/system-settings/backup - Enable or disable the hourly backup scheduler
+router.post('/system-settings/backup', (req: Request, res: Response) => {
+  try {
+    const { enabled } = req.body;
+    if (typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'enabled must be a boolean' });
+      return;
+    }
+    const status = setBackupEnabled(enabled);
+    res.json({ success: true, ...status });
+  } catch (err: any) {
+    log.error(' Failed to set backup enabled:', err);
     res.status(500).json({ error: err.message });
   }
 });

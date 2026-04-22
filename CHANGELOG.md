@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.66.0] - 2026-04-22
+
+### Added
+- **Automatic hourly backups** — in-process scheduler backs up all config JSON files and the SQLite event database every hour with content-signature dedup (skips unchanged data); rotation keeps 8 newest hourly + 1 from each of the 2 most recent prior days (~10 total); default enabled for all installs
+- **Backup & Restore skill** — new built-in agent skill documenting backup architecture, listing/inspecting/comparing backups, and step-by-step restore procedures (single file, full directory, SQLite-only)
+- **Backup toggle in Settings** — Data section now includes an "Hourly Backups" toggle with status info (backup directory, last run time, error state)
+
 ## [1.65.1] - 2026-04-22
 
 ### Changed
