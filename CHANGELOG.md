@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.66.2] - 2026-04-22
+
+### Changed
+- **Toolbox backdrop now dims the page** — replace the transparent backdrop with a 30% black overlay that fades in (`pointer-events: none`, so it stays click-through); the panel is still closed via the X button or Escape
+
 ## [1.66.1] - 2026-04-22
 
 ### Changed
