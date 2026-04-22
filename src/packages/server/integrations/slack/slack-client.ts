@@ -4,6 +4,8 @@
  * channel/user lookup, and long-poll reply waiting.
  */
 
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import { WebClient } from '@slack/web-api';
 import { SocketModeClient } from '@slack/socket-mode';
 import type { IntegrationContext, IntegrationStatus } from '../../../shared/integration-types.js';
@@ -20,6 +22,8 @@ export interface SlackMessage {
   userName: string;
   text: string;
   timestamp: number;
+  /** Files attached to this message (only populated when Slack returns a files[] array). */
+  files?: SlackFile[];
 }
 
 export interface SlackChannel {
@@ -39,6 +43,43 @@ export interface SlackUser {
   email?: string;
   isBot: boolean;
 }
+
+export interface SlackFile {
+  id: string;
+  name?: string;
+  title?: string;
+  mimetype?: string;
+  size?: number;
+  permalink?: string;
+  permalink_public?: string;
+  url_private?: string;
+  url_private_download?: string;
+}
+
+// Subtypes we never want to trigger on: edits, deletions, channel housekeeping, bot echoes.
+// NOTE: `file_share` (legacy) and undefined (modern file-share) MUST NOT be in this set.
+const SKIP_MESSAGE_SUBTYPES = new Set<string>([
+  'bot_message',
+  'message_changed',
+  'message_deleted',
+  'message_replied',
+  'channel_join',
+  'channel_leave',
+  'channel_topic',
+  'channel_purpose',
+  'channel_name',
+  'channel_archive',
+  'channel_unarchive',
+  'group_join',
+  'group_leave',
+  'group_topic',
+  'group_purpose',
+  'group_name',
+  'group_archive',
+  'group_unarchive',
+  'pinned_item',
+  'unpinned_item',
+]);
 
 // ─── State ───
 
@@ -167,7 +208,17 @@ function setupSocketHandlers(): void {
   socketClient.on('message', async ({ event, ack }) => {
     await ack();
 
-    if (!event || !event.text || event.subtype) return;
+    if (!event) return;
+
+    // Drop non-trigger-worthy subtypes (edits, joins, bot echoes, topic changes, etc.).
+    // Modern file-share messages have NO subtype; legacy ones use `file_share` — both must pass.
+    if (event.subtype && SKIP_MESSAGE_SUBTYPES.has(event.subtype as string)) return;
+
+    const hasFiles = Array.isArray(event.files) && event.files.length > 0;
+    const text = (event.text as string | undefined) ?? '';
+
+    // Require either text or attached files — otherwise there's nothing useful to trigger on.
+    if (!text && !hasFiles) return;
 
     // Skip bot's own messages
     const config = loadConfig();
@@ -177,14 +228,19 @@ function setupSocketHandlers(): void {
     const user = await resolveUser(event.user);
     const userName = user?.displayName || user?.name || event.user;
 
+    const files = hasFiles
+      ? (event.files as SlackFile[]).map((f) => normalizeSlackFile(f))
+      : undefined;
+
     const message: SlackMessage = {
       ts: event.ts,
       threadTs: event.thread_ts,
       channel: event.channel,
       userId: event.user,
       userName,
-      text: event.text,
+      text,
       timestamp: parseSlackTs(event.ts),
+      files,
     };
 
     // Log to SQLite
@@ -195,7 +251,7 @@ function setupSocketHandlers(): void {
       channelName: channelNameCache.get(event.channel),
       userId: event.user,
       userName,
-      text: event.text,
+      text,
       direction: 'inbound',
       rawEvent: event,
       receivedAt: Date.now(),
@@ -204,7 +260,13 @@ function setupSocketHandlers(): void {
     // Broadcast to WS clients
     ctx?.broadcast({
       type: 'slack_message_received',
-      payload: { channel: event.channel, userName, text: event.text, ts: event.ts },
+      payload: {
+        channel: event.channel,
+        userName,
+        text,
+        ts: event.ts,
+        fileCount: files?.length ?? 0,
+      },
     });
 
     // Notify trigger listeners
@@ -511,6 +573,193 @@ export async function sendDm(params: SendDmParams): Promise<{ ts: string; channe
   });
 }
 
+// ─── File Upload (new two-step flow; files.upload is deprecated Nov 2025) ───
+
+export interface UploadFileParams {
+  filename: string;
+  bytes: Buffer | Uint8Array;
+  /** If omitted, the file is uploaded to Slack but not posted to any channel. */
+  channelId?: string;
+  title?: string;
+  initialComment?: string;
+  threadTs?: string;
+}
+
+/**
+ * Upload a file to Slack via the new two-step flow:
+ *   1. files.getUploadURLExternal (filename, length) → { upload_url, file_id }
+ *   2. PUT raw bytes to upload_url
+ *   3. files.completeUploadExternal (files[], channel_id?, initial_comment?, thread_ts?)
+ * Requires the bot token to have the `files:write` scope.
+ */
+export async function uploadFile(params: UploadFileParams): Promise<{ fileId: string; file: SlackFile }> {
+  if (!webClient) throw new Error('Slack not connected');
+
+  const length = params.bytes instanceof Buffer ? params.bytes.length : params.bytes.byteLength;
+  if (!length) throw new Error('uploadFile: bytes is empty');
+
+  // Step 1: get an external upload URL
+  const step1 = await webClient.files.getUploadURLExternal({
+    filename: params.filename,
+    length,
+  });
+  if (!step1.ok || !step1.upload_url || !step1.file_id) {
+    throw new Error(`Slack files.getUploadURLExternal failed: ${step1.error ?? 'unknown error'}`);
+  }
+
+  // Step 2: POST the raw bytes to the signed upload URL (no Slack auth on this call).
+  // Node's global fetch accepts Buffer/Uint8Array at runtime; BodyInit types require a cast.
+  const bodyBytes = params.bytes instanceof Buffer
+    ? new Uint8Array(params.bytes.buffer, params.bytes.byteOffset, params.bytes.byteLength)
+    : params.bytes;
+  const putResp = await fetch(step1.upload_url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: bodyBytes as unknown as BodyInit,
+  });
+  if (!putResp.ok) {
+    const detail = await putResp.text().catch(() => '');
+    throw new Error(`Slack upload_url POST failed (${putResp.status}): ${detail}`);
+  }
+
+  // Step 3: finalize and (optionally) share
+  const files: [{ id: string; title: string }] = [
+    { id: step1.file_id, title: params.title ?? params.filename },
+  ];
+  const step3 = params.channelId
+    ? await webClient.files.completeUploadExternal({
+        files,
+        channel_id: params.channelId,
+        initial_comment: params.initialComment,
+        thread_ts: params.threadTs,
+      })
+    : await webClient.files.completeUploadExternal({ files });
+  if (!step3.ok) {
+    throw new Error(`Slack files.completeUploadExternal failed: ${step3.error ?? 'unknown error'}`);
+  }
+
+  const file = (step3.files?.[0] ?? { id: step1.file_id }) as SlackFile;
+  return { fileId: step1.file_id, file };
+}
+
+// ─── File Read / Download ───
+
+export interface ListFilesParams {
+  channelId?: string;
+  userId?: string;
+  tsFrom?: string;
+  tsTo?: string;
+  /** Comma-separated Slack file types (e.g. "images,pdfs"). */
+  types?: string;
+  count?: number;
+  page?: number;
+}
+
+/**
+ * List files visible to the bot, optionally filtered by channel/user/time/type.
+ * Requires the bot token to have `files:read`.
+ */
+export async function listFiles(params: ListFilesParams = {}): Promise<SlackFile[]> {
+  if (!webClient) throw new Error('Slack not connected');
+
+  const result = await webClient.files.list({
+    channel: params.channelId,
+    user: params.userId,
+    ts_from: params.tsFrom,
+    ts_to: params.tsTo,
+    types: params.types,
+    count: params.count ?? 50,
+    page: params.page,
+  });
+
+  return ((result.files ?? []) as unknown as SlackFile[]).map((f) => normalizeSlackFile(f));
+}
+
+/** Fetch metadata for a single file (title, permalink, url_private, mimetype, size, ...). */
+export async function getFileInfo(fileId: string): Promise<SlackFile> {
+  if (!webClient) throw new Error('Slack not connected');
+
+  const result = await webClient.files.info({ file: fileId });
+  if (!result.ok || !result.file) {
+    throw new Error(`Slack files.info failed for ${fileId}: ${result.error ?? 'unknown error'}`);
+  }
+  return normalizeSlackFile(result.file as unknown as SlackFile);
+}
+
+/**
+ * Fetch a file's raw bytes using the bot token Bearer auth.
+ * Slack's `url_private` redirects to the CDN but requires the bot token on the initial request.
+ */
+export async function fetchFileBytes(fileId: string): Promise<{
+  buffer: Buffer;
+  contentType: string | null;
+  contentDisposition: string | null;
+  contentLength: string | null;
+  filename?: string;
+}> {
+  const token = ctx?.secrets.get('SLACK_BOT_TOKEN');
+  if (!token) throw new Error('Slack bot token is not configured');
+
+  const info = await getFileInfo(fileId);
+  const url = info.url_private_download || info.url_private;
+  if (!url) throw new Error(`Slack file ${fileId} has no url_private`);
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: '*/*',
+    },
+    redirect: 'follow',
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`Slack file download failed for ${fileId} (${response.status}): ${detail}`);
+  }
+
+  return {
+    buffer: Buffer.from(await response.arrayBuffer()),
+    contentType: response.headers.get('content-type'),
+    contentDisposition: response.headers.get('content-disposition'),
+    contentLength: response.headers.get('content-length'),
+    filename: info.name,
+  };
+}
+
+/**
+ * Download a Slack file to disk. Accepts a file id or a full {@link SlackFile} object.
+ * Parent directory is created if missing; filename collisions overwrite.
+ */
+export async function downloadFile(
+  file: string | SlackFile,
+  outputPath: string
+): Promise<{ path: string; bytes: number; filename?: string; mimeType?: string }> {
+  const fileId = typeof file === 'string' ? file : file.id;
+  const { buffer, filename, contentType } = await fetchFileBytes(fileId);
+  await fs.mkdir(path.dirname(path.resolve(outputPath)), { recursive: true });
+  await fs.writeFile(outputPath, buffer);
+  return {
+    path: outputPath,
+    bytes: buffer.byteLength,
+    filename,
+    mimeType: contentType ?? undefined,
+  };
+}
+
+function normalizeSlackFile(f: SlackFile): SlackFile {
+  return {
+    id: f.id,
+    name: f.name,
+    title: f.title,
+    mimetype: f.mimetype,
+    size: f.size,
+    permalink: f.permalink,
+    permalink_public: f.permalink_public,
+    url_private: f.url_private,
+    url_private_download: f.url_private_download,
+  };
+}
+
 export async function searchUsers(query: string): Promise<SlackUser[]> {
   if (!webClient) throw new Error('Slack not connected');
 
@@ -592,6 +841,9 @@ async function slackApiMessageToSlackMessage(
     // Use userId as fallback
   }
 
+  const rawFiles = msg.files as SlackFile[] | undefined;
+  const files = rawFiles?.length ? rawFiles.map(normalizeSlackFile) : undefined;
+
   return {
     ts: msg.ts as string,
     threadTs: msg.thread_ts as string | undefined,
@@ -600,5 +852,6 @@ async function slackApiMessageToSlackMessage(
     userName,
     text: (msg.text as string) || '',
     timestamp: parseSlackTs(msg.ts as string),
+    files,
   };
 }

@@ -98,6 +98,80 @@ curl -s http://localhost:5174/api/slack/channels
 curl -s http://localhost:5174/api/slack/users/U0123456789
 \`\`\`
 
+## Upload / Images
+
+Upload a file or image to Slack. Uses Slack's new two-step files API (files.upload is deprecated since Nov 2025).
+The bot token must have the **\`files:write\`** scope.
+
+**Multipart (upload a file from disk):**
+\`\`\`bash
+curl -s -F "file=@image.png" \\
+     -F "channelId=C0123456789" \\
+     -F "initialComment=Here's the chart" \\
+     http://localhost:5174/api/slack/upload
+\`\`\`
+
+**JSON / base64 (useful for in-memory images like generated charts):**
+\`\`\`bash
+curl -s -X POST http://localhost:5174/api/slack/upload-base64 \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "filename":"chart.png",
+    "contentBase64":"iVBORw0KGgoAAAANSUhEUg...",
+    "channelId":"C0123456789",
+    "initialComment":"Here is today\\'s report",
+    "threadTs":"1234567890.123456"
+  }'
+\`\`\`
+
+Fields (both variants):
+- \`file\` or \`contentBase64\` — the bytes (required)
+- \`filename\` — required for base64; multipart uses the uploaded file's original name if omitted
+- \`channelId\` — optional; if omitted the file is uploaded but not shared to a channel
+- \`title\` — optional display title (defaults to filename)
+- \`initialComment\` — optional message posted with the file
+- \`threadTs\` — optional thread timestamp to post the file as a reply
+
+Response: \`{"success":true,"fileId":"F0123...","file":{"id","name","title","mimetype","size","permalink","url_private",...}}\`.
+
+## Read / Download Files
+
+Inspect and download files shared in Slack. Requires the bot token to have **\`files:read\`**.
+
+**List files (optional filters):**
+\`\`\`bash
+# All recent files
+curl -s http://localhost:5174/api/slack/files
+
+# Images shared in a specific channel
+curl -s "http://localhost:5174/api/slack/files?channelId=C0123456789&types=images&count=20"
+\`\`\`
+Filters: \`channelId\`, \`userId\`, \`tsFrom\`, \`tsTo\`, \`types\` (Slack type string like \`images\`, \`pdfs\`, \`spaces\`), \`count\`, \`page\`.
+
+**Get a single file's metadata:**
+\`\`\`bash
+curl -s http://localhost:5174/api/slack/files/F0123ABCD
+\`\`\`
+Returns \`{ "file": { "id","name","title","mimetype","size","permalink","url_private","url_private_download" } }\`.
+
+**Download a file (binary proxy, auth added server-side):**
+\`\`\`bash
+curl -s http://localhost:5174/api/slack/files/F0123ABCD/content -o /tmp/attachment.bin
+\`\`\`
+Preserves upstream \`Content-Type\` and \`Content-Disposition\` from Slack's CDN.
+
+**Server-side save to a filesystem path:**
+\`\`\`bash
+curl -s -X POST http://localhost:5174/api/slack/files/F0123ABCD/download \\
+  -H "Content-Type: application/json" \\
+  -d '{"outputPath":"/tmp/slack/F0123ABCD.png"}'
+\`\`\`
+Returns \`{ "success":true, "path":"/tmp/slack/F0123ABCD.png", "bytes": 12345, "filename":"chart.png", "mimeType":"image/png" }\`.
+
+Messages returned by \`/messages\` and \`/thread\` now include an optional \`files: [...]\` array on each message when attachments exist — use the file ids there as input to the endpoints above.
+
+**Pitfall — do NOT \`curl\` \`url_private\` directly.** Slack's \`url_private\` (and \`url_private_download\`) only return the actual file bytes when the request sends \`Authorization: Bearer <bot-token>\`; without it Slack serves an HTML sign-in page. Use the proxy endpoints above — they attach the bot token server-side so agents never need to handle the token.
+
 ## Check Connection Status
 
 \`\`\`bash

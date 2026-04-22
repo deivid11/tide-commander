@@ -4,6 +4,8 @@
  * Authentication: Basic (email:apiToken) for Atlassian Cloud.
  */
 
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import type { IntegrationContext } from '../../../shared/integration-types.js';
 import { parseCustomFieldMappings } from './jira-config.js';
 
@@ -56,6 +58,17 @@ export interface JiraSearchResult {
   total: number;
   startAt: number;
   maxResults: number;
+}
+
+export interface JiraAttachment {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  /** Direct, authenticated download URL returned by Jira (includes signed query params or base path). */
+  contentUrl: string;
+  authorDisplayName?: string;
+  created?: string;
 }
 
 // ─── Client ───
@@ -241,6 +254,191 @@ export class JiraClient {
     return this.getIssue(resp.issueKey);
   }
 
+  // ─── Attachments ───
+
+  /**
+   * List all attachments on a Jira issue.
+   * @param issueKey Issue key or numeric id (e.g. "SD-1234").
+   * @returns Array of attachment descriptors (id, filename, mimeType, size, contentUrl, author, created).
+   */
+  async listAttachments(issueKey: string): Promise<JiraAttachment[]> {
+    const resp = (await this.request(
+      'GET',
+      `/rest/api/3/issue/${encodeURIComponent(issueKey)}?fields=attachment`
+    )) as {
+      fields?: {
+        attachment?: Array<{
+          id: string;
+          filename: string;
+          mimeType: string;
+          size: number;
+          content: string;
+          author?: { displayName?: string };
+          created?: string;
+        }>;
+      };
+    };
+
+    const list = resp.fields?.attachment ?? [];
+    return list.map((a) => ({
+      id: a.id,
+      filename: a.filename,
+      mimeType: a.mimeType,
+      size: a.size,
+      contentUrl: a.content,
+      authorDisplayName: a.author?.displayName,
+      created: a.created,
+    }));
+  }
+
+  /**
+   * List attachments referenced by comments on an issue.
+   * Comments reference media via ADF nodes of type "media"; those ids resolve to entries in the
+   * issue's own attachment list.
+   * @param issueKey Issue key or numeric id.
+   * @param commentId Optional — restrict to a single comment.
+   * @returns Attachments referenced by matching comment ADF bodies.
+   */
+  async listCommentAttachments(issueKey: string, commentId?: string): Promise<JiraAttachment[]> {
+    const resp = (await this.request(
+      'GET',
+      `/rest/api/3/issue/${encodeURIComponent(issueKey)}/comment`
+    )) as { comments?: Array<{ id: string; body?: unknown }> };
+
+    const comments = commentId
+      ? (resp.comments ?? []).filter((c) => c.id === commentId)
+      : resp.comments ?? [];
+
+    const mediaIds = new Set<string>();
+    for (const c of comments) {
+      for (const id of extractMediaIdsFromADF(c.body)) mediaIds.add(id);
+    }
+    if (mediaIds.size === 0) return [];
+
+    const all = await this.listAttachments(issueKey);
+    return all.filter((a) => mediaIds.has(a.id));
+  }
+
+  /**
+   * Download a single attachment to disk.
+   * @param attachment Either the attachment id (string) or a full {@link JiraAttachment} object.
+   * @param outputPath Absolute or relative destination file path. Parent directory is created.
+   * @returns The destination path and bytes written.
+   */
+  async downloadAttachment(
+    attachment: string | JiraAttachment,
+    outputPath: string
+  ): Promise<{ path: string; bytes: number }> {
+    if (!this.isConfigured) {
+      throw new Error('Jira client is not configured. Set base URL, email, and API token.');
+    }
+
+    const url =
+      typeof attachment === 'string'
+        ? `${this.baseUrl}/rest/api/3/attachment/content/${encodeURIComponent(attachment)}`
+        : attachment.contentUrl;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Basic ${this.auth}`,
+        Accept: '*/*',
+      },
+      redirect: 'follow',
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      const id = typeof attachment === 'string' ? attachment : attachment.id;
+      throw new Error(
+        `Jira attachment download failed for id ${id} (${response.status}): ${detail}`
+      );
+    }
+
+    const buf = Buffer.from(await response.arrayBuffer());
+    await fs.mkdir(path.dirname(path.resolve(outputPath)), { recursive: true });
+    await fs.writeFile(outputPath, buf);
+    return { path: outputPath, bytes: buf.byteLength };
+  }
+
+  /**
+   * Fetch an attachment's raw bytes along with relevant response headers. Used by the HTTP
+   * proxy route to stream content back to a caller without exposing credentials.
+   * @param attachmentId Jira attachment id.
+   */
+  async fetchAttachmentBytes(
+    attachmentId: string
+  ): Promise<{
+    buffer: Buffer;
+    contentType: string | null;
+    contentDisposition: string | null;
+    contentLength: string | null;
+  }> {
+    if (!this.isConfigured) {
+      throw new Error('Jira client is not configured. Set base URL, email, and API token.');
+    }
+
+    const response = await fetch(
+      `${this.baseUrl}/rest/api/3/attachment/content/${encodeURIComponent(attachmentId)}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Basic ${this.auth}`,
+          Accept: '*/*',
+        },
+        redirect: 'follow',
+      }
+    );
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(
+        `Jira attachment fetch failed for id ${attachmentId} (${response.status}): ${detail}`
+      );
+    }
+
+    return {
+      buffer: Buffer.from(await response.arrayBuffer()),
+      contentType: response.headers.get('content-type'),
+      contentDisposition: response.headers.get('content-disposition'),
+      contentLength: response.headers.get('content-length'),
+    };
+  }
+
+  /**
+   * Download every attachment on an issue (optionally also those referenced by comments) to a directory.
+   * Filename collisions overwrite.
+   * @param issueKey Issue key or numeric id.
+   * @param outputDir Directory to write files into; created recursively if missing.
+   * @param opts.includeComments When true, union in attachments referenced by the issue's comments.
+   * @returns The list of attachments that were downloaded.
+   */
+  async downloadAllAttachments(
+    issueKey: string,
+    outputDir: string,
+    opts?: { includeComments?: boolean }
+  ): Promise<JiraAttachment[]> {
+    await fs.mkdir(outputDir, { recursive: true });
+
+    const issueAtts = await this.listAttachments(issueKey);
+    const byId = new Map<string, JiraAttachment>();
+    for (const a of issueAtts) byId.set(a.id, a);
+
+    if (opts?.includeComments) {
+      const commentAtts = await this.listCommentAttachments(issueKey);
+      for (const a of commentAtts) if (!byId.has(a.id)) byId.set(a.id, a);
+    }
+
+    const downloaded: JiraAttachment[] = [];
+    for (const att of byId.values()) {
+      const safeName = sanitizeFilename(att.filename) || att.id;
+      const outPath = path.join(outputDir, safeName);
+      await this.downloadAttachment(att, outPath);
+      downloaded.push(att);
+    }
+    return downloaded;
+  }
+
   // ─── Helpers ───
 
   /** Convert plain text to Atlassian Document Format (ADF). */
@@ -315,4 +513,28 @@ export class JiraClient {
 
     return response.json();
   }
+}
+
+// ─── Module-level helpers ───
+
+/** Walk an ADF document and return all media-node ids (`{type:"media",attrs:{id,...}}`). */
+function extractMediaIdsFromADF(adf: unknown): string[] {
+  const ids: string[] = [];
+  const walk = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    const n = node as { type?: string; attrs?: { id?: string }; content?: unknown[] };
+    if (n.type === 'media' && typeof n.attrs?.id === 'string') {
+      ids.push(n.attrs.id);
+    }
+    if (Array.isArray(n.content)) {
+      for (const child of n.content) walk(child);
+    }
+  };
+  walk(adf);
+  return ids;
+}
+
+/** Strip path separators and NUL so an attachment filename is safe to join with an outputDir. */
+function sanitizeFilename(name: string): string {
+  return name.replace(/[\\/\0]/g, '_').replace(/^\.+/, '_').trim();
 }

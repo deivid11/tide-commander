@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.63.0] - 2026-04-21
+
+### Added
+- **Jira attachments** — new endpoints to list issue attachments, list comment-referenced attachments, download a single attachment via auth-handled proxy, and bulk-download all issue attachments server-side to a filesystem path
+- **Slack file upload** — upload files/images to Slack via multipart or base64 JSON using Slack's new two-step files API (`files:write` scope), with optional `channelId`, `initialComment`, `threadTs`, `title`
+- **Slack file read/download** — list files with filters, fetch metadata, stream binary via authenticated proxy, or save directly to disk server-side (`files:read` scope); `files: [...]` now included on Slack message responses
+- **Slack trigger file vars** — `slack.fileCount`, `slack.fileIds`, `slack.fileNames` exposed to trigger templates; LLM event formatting now lists attachment names and mimetypes
+
 ## [1.62.0] - 2026-04-21
 
 ### Added
