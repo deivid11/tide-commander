@@ -162,3 +162,51 @@ export async function updateTmuxModeSetting(enabled: boolean): Promise<void> {
     throw new Error(`Failed to update tmux mode setting: ${response.statusText}`);
   }
 }
+
+/**
+ * Backup scheduler status returned by the backend.
+ */
+export interface BackupStatus {
+  enabled: boolean;
+  running: boolean;
+  scriptPath: string;
+  scriptExists: boolean;
+  backupDir: string;
+  lastRunAt: string | null;
+  lastRunOk: boolean | null;
+  lastRunError: string | null;
+}
+
+/**
+ * Get the current hourly-backup scheduler status
+ */
+export async function fetchBackupStatus(): Promise<BackupStatus> {
+  const token = getAuthToken();
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/backup`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch backup status: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Enable or disable the hourly-backup scheduler
+ */
+export async function updateBackupEnabled(enabled: boolean): Promise<BackupStatus> {
+  const token = getAuthToken();
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/backup`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ enabled }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to update backup setting: ${response.statusText}`);
+  }
+  return response.json();
+}
