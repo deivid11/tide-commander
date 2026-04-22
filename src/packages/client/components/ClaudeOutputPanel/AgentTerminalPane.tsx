@@ -544,18 +544,19 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   const [historyFadeIn, setHistoryFadeIn] = useState(false);
   const [isAgentSwitching, setIsAgentSwitching] = useState(false);
 
-  // Hide content immediately on agent change
+  // Hide content immediately on agent change (skip if cached for instant visual)
   const prevSelectedAgentIdRef = useRef<string | null>(null);
   useLayoutEffect(() => {
     const prev = prevSelectedAgentIdRef.current;
     const changed = prev !== null && prev !== agentId;
 
     if (changed) {
-      setHistoryFadeIn(false);
       const hasCached = historyLoader.hasCachedHistory(agentId);
       if (!hasCached) {
+        setHistoryFadeIn(false);
         setIsAgentSwitching(true);
       }
+      // If cached, keep historyFadeIn true so content appears instantly
     } else if (!agentId) {
       setHistoryFadeIn(false);
     }
@@ -584,19 +585,15 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     if (historyLoader.fetchingHistory) return;
 
     let rafId = 0;
-    let rafId2 = 0;
     rafId = requestAnimationFrame(() => {
-      rafId2 = requestAnimationFrame(() => {
-        if (outputScrollRef.current) {
-          outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
-        }
-        pendingSelectionScrollRef.current = false;
-      });
+      if (outputScrollRef.current) {
+        outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
+      }
+      pendingSelectionScrollRef.current = false;
     });
 
     return () => {
       cancelAnimationFrame(rafId);
-      cancelAnimationFrame(rafId2);
     };
   }, [agentId, isAgentSwitching, historyLoader.fetchingHistory, historyLoader.historyLoadVersion]);
 
@@ -647,13 +644,13 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
       lastScrollHeight = currentScrollHeight;
 
-      if (stableFrames >= 3) {
+      if (stableFrames >= 1) {
         setPinToBottom(false);
         rafId = null;
         return;
       }
 
-      if (now - start > 8000) {
+      if (now - start > 1500) {
         setPinToBottom(false);
         rafId = null;
         return;
