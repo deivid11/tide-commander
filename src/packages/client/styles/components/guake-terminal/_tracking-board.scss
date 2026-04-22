@@ -221,6 +221,10 @@
   font-size: 10px;
 }
 
+.tracking-board-column--writing .tracking-board-column-header {
+  color: #ff9edb;
+}
+
 .tracking-board-column--working .tracking-board-column-header {
   color: #6fd4ff;
 }
@@ -531,6 +535,36 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
+}
+
+.tracking-board-typing {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.tracking-board-typing-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #ff9edb;
+  animation: tracking-board-typing-bounce 1s ease-in-out infinite;
+
+  &:nth-child(2) { animation-delay: 0.15s; }
+  &:nth-child(3) { animation-delay: 0.3s; }
+}
+
+@keyframes tracking-board-typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
 }
 
 

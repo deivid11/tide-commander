@@ -17,11 +17,27 @@ interface SlackTriggerConfig {
 
 let unsubscribe: (() => void) | null = null;
 
+/** Env toggle: set SLACK_REACT_ON_TRIGGER=false (or 0/no/off) to disable the auto-:eyes: ack. */
+function reactOnTriggerEnabled(): boolean {
+  const raw = (process.env.SLACK_REACT_ON_TRIGGER ?? '').toLowerCase().trim();
+  if (!raw) return true;
+  return !['false', '0', 'no', 'off'].includes(raw);
+}
+
 export const slackTriggerHandler: TriggerHandler = {
   triggerType: 'slack',
 
   async startListening(onEvent) {
+    const autoReact = reactOnTriggerEnabled();
+
     unsubscribe = slackClient.onMessage((message: SlackMessage) => {
+      // Fire-and-forget :eyes: reaction to ack that the bot saw it. Failure MUST NOT block triggers.
+      if (autoReact) {
+        slackClient
+          .addReaction({ channel: message.channel, ts: message.ts, name: 'eyes' })
+          .catch(() => { /* swallow — already logged upstream if it matters */ });
+      }
+
       onEvent({
         source: 'slack',
         type: 'message',

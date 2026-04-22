@@ -45,6 +45,12 @@ import { useTerminalInput } from './useTerminalInput';
 import { useMessageNavigation } from './useMessageNavigation';
 import { useFilteredOutputsWithLogging } from '../shared/useFilteredOutputs';
 import { parseBossContext, parseInjectedInstructions } from './BossContext';
+import {
+  parseBashTrackingStatusCommand,
+  parseBashTaskLabelCommand,
+  parseBashNotificationCommand,
+  parseBashReportTaskCommand,
+} from '../../utils/outputRendering';
 
 // Components
 import { SearchBar } from './TerminalHeader';
@@ -225,14 +231,39 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   const filteredHistory = useMemo((): EnrichedHistoryMessage[] => {
     const { history } = historyLoader;
     const toolResultMap = new Map<string, string>();
+    // Collect tool_use_ids whose bash command was a self-invoked Tide Commander
+    // API curl (tracking/taskLabel/notification/report-task). Their tool_use is
+    // already rendered as a chip; their tool_result is a raw JSON dump that
+    // would otherwise render as a noisy `$ Terminal output` block at the tail
+    // of the log.
+    const suppressedToolUseIds = new Set<string>();
     for (const msg of history) {
       if (msg.type === 'tool_result' && msg.toolUseId) {
         toolResultMap.set(msg.toolUseId, msg.content);
       }
+      if (msg.type === 'tool_use' && msg.toolName === 'Bash' && msg.toolUseId) {
+        let bashCommand: string | undefined;
+        try {
+          const input = msg.toolInput || (msg.content ? JSON.parse(msg.content) : {});
+          bashCommand = input.command;
+        } catch { /* ignore */ }
+        if (bashCommand && (
+          parseBashTrackingStatusCommand(bashCommand)
+          || parseBashTaskLabelCommand(bashCommand)
+          || parseBashNotificationCommand(bashCommand)
+          || parseBashReportTaskCommand(bashCommand)
+        )) {
+          suppressedToolUseIds.add(msg.toolUseId);
+        }
+      }
     }
 
     const enrichHistory = (messages: typeof history): EnrichedHistoryMessage[] => {
-      return messages.map((msg) => {
+      const out: EnrichedHistoryMessage[] = [];
+      for (const msg of messages) {
+        if (msg.type === 'tool_result' && msg.toolUseId && suppressedToolUseIds.has(msg.toolUseId)) {
+          continue;
+        }
         if (msg.type === 'tool_use' && msg.toolName === 'Bash' && msg.toolUseId) {
           const bashOutput = toolResultMap.get(msg.toolUseId);
           let bashCommand: string | undefined;
@@ -240,10 +271,12 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
             const input = msg.toolInput || (msg.content ? JSON.parse(msg.content) : {});
             bashCommand = input.command;
           } catch { /* ignore */ }
-          return { ...msg, _bashOutput: bashOutput, _bashCommand: bashCommand };
+          out.push({ ...msg, _bashOutput: bashOutput, _bashCommand: bashCommand });
+          continue;
         }
-        return msg as EnrichedHistoryMessage;
-      });
+        out.push(msg as EnrichedHistoryMessage);
+      }
+      return out;
     };
 
     return enrichHistory(history);
@@ -301,7 +334,9 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // Remove live outputs that duplicate history
   const dedupedOutputs = useMemo(() => {
     const latestHistoryUserTsByKey = new Map<string, number>();
-    const historyAssistantUuidSet = new Set<string>();
+    // Covers any non-user history uuid (assistant, tool_use, tool_result) so
+    // that bash/tool live outputs replaying a persisted turn get deduped too.
+    const historyKnownUuidSet = new Set<string>();
     const latestHistoryAssistantTsByKey = new Map<string, number>();
     for (const msg of dedupedHistory) {
       const ts = msg.timestamp ? new Date(msg.timestamp).getTime() : 0;
@@ -311,10 +346,10 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
         if (ts > prev) latestHistoryUserTsByKey.set(key, ts);
         continue;
       }
-      if (msg.type !== 'assistant') continue;
       if (msg.uuid) {
-        historyAssistantUuidSet.add(msg.uuid);
+        historyKnownUuidSet.add(msg.uuid);
       }
+      if (msg.type !== 'assistant') continue;
       const key = normalizeAssistantMessage(msg.content);
       const prev = latestHistoryAssistantTsByKey.get(key) ?? 0;
       if (ts > prev) latestHistoryAssistantTsByKey.set(key, ts);
@@ -326,10 +361,13 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
     for (const output of filteredOutputs) {
       if (!output.isUserPrompt) {
+        // Apply uuid dedup unconditionally — a live output whose uuid matches a
+        // persisted history entry is the same turn, regardless of whether the
+        // text is classified as tool/system output.
+        if (output.uuid && historyKnownUuidSet.has(output.uuid)) {
+          continue;
+        }
         if (!output.isStreaming && !isToolOrSystemOutput(output.text)) {
-          if (output.uuid && historyAssistantUuidSet.has(output.uuid)) {
-            continue;
-          }
           const key = normalizeAssistantMessage(output.text);
           const ts = output.timestamp || 0;
           const historyTs = latestHistoryAssistantTsByKey.get(key);

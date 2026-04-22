@@ -267,6 +267,12 @@
     background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
     border: 1px solid color-mix(in srgb, var(--accent-cyan) 40%, transparent);
   }
+
+  &.status-writing {
+    color: #ff9edb;
+    background: color-mix(in srgb, #ff9edb 15%, transparent);
+    border: 1px solid color-mix(in srgb, #ff9edb 40%, transparent);
+  }
 }
 
 .bash-tracking-icon {

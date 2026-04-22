@@ -242,6 +242,7 @@ export function useSubordinateAgents(): Agent[] {
 
 export function selectAgentsByTrackingStatus(state: StoreState) {
   const result = {
+    writing: [] as Agent[],
     working: [] as Agent[],
     'waiting-subordinates': [] as Agent[],
     'need-review': [] as Agent[],
@@ -262,7 +263,8 @@ function shallowTrackingStatusGroupsEqual(
   a: ReturnType<typeof selectAgentsByTrackingStatus>,
   b: ReturnType<typeof selectAgentsByTrackingStatus>
 ): boolean {
-  return shallowArrayEqual(a.working, b.working)
+  return shallowArrayEqual(a.writing, b.writing)
+    && shallowArrayEqual(a.working, b.working)
     && shallowArrayEqual(a['waiting-subordinates'], b['waiting-subordinates'])
     && shallowArrayEqual(a['need-review'], b['need-review'])
     && shallowArrayEqual(a.blocked, b.blocked)

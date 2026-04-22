@@ -720,7 +720,21 @@ router.patch('/:id', (req: Request<{ id: string }>, res: Response) => {
     return;
   }
 
-  res.json(updated);
+  // Slim response: agents PATCH this endpoint several times per turn (taskLabel, trackingStatus),
+  // and returning the full agent — which includes multi-KB `lastAssignedTask`/`currentTask` strings —
+  // bloated agent context. Full agent state is already broadcast to clients via the WS `agent_updated`
+  // channel, so the response only needs to confirm the fields an agent typically cares about.
+  res.json({
+    id: updated.id,
+    name: updated.name,
+    status: updated.status,
+    trackingStatus: updated.trackingStatus,
+    trackingStatusDetail: updated.trackingStatusDetail,
+    taskLabel: updated.taskLabel,
+    lastActivity: updated.lastActivity,
+    isBoss: updated.isBoss,
+    ok: true,
+  });
 });
 
 // DELETE /api/agents/:id - Delete agent

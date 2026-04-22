@@ -770,6 +770,7 @@ export function getTrackingStatusIcon(status: string): string {
     case 'can-clear-context': return '🧹';
     case 'waiting-subordinates': return '⏳';
     case 'working': return '💻';
+    case 'writing': return '✏️';
     default: return '📍';
   }
 }
@@ -781,6 +782,7 @@ export function getTrackingStatusIconName(status: string): IconName {
     case 'can-clear-context': return 'clear';
     case 'waiting-subordinates': return 'hourglass';
     case 'working': return 'terminal';
+    case 'writing': return 'edit';
     default: return 'pin';
   }
 }

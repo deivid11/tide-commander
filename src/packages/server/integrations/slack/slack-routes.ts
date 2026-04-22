@@ -314,6 +314,23 @@ router.post('/files/:id/download', async (req: Request<{ id: string }>, res: Res
   }
 });
 
+// POST /api/slack/reactions/add — Add an emoji reaction to a message
+// Body: { channel, ts, name } — name is the Slack slug without colons (e.g. "eyes").
+router.post('/reactions/add', async (req: Request, res: Response) => {
+  try {
+    const { channel, ts, name } = req.body as { channel?: string; ts?: string; name?: string };
+    if (!channel || !ts || !name) {
+      res.status(400).json({ error: 'channel, ts, and name are required' });
+      return;
+    }
+    await slackClient.addReaction({ channel, ts, name });
+    res.json({ success: true });
+  } catch (err) {
+    log.error(`Slack reactions.add error: ${err}`);
+    res.status(500).json({ error: `Failed to add reaction: ${err instanceof Error ? err.message : err}` });
+  }
+});
+
 // GET /api/slack/status — Get connection status
 router.get('/status', (_req: Request, res: Response) => {
   const config = loadConfig();

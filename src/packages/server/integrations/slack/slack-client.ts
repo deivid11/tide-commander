@@ -343,6 +343,45 @@ export async function sendMessage(params: SendMessageParams): Promise<{ ts: stri
   return { ts, channel };
 }
 
+// ─── Reactions ───
+
+export interface AddReactionParams {
+  channel: string;
+  /** Slack message timestamp. */
+  ts: string;
+  /** Emoji slug without colons (e.g. "eyes"). Raw eye emoji chars are normalized to "eyes". */
+  name: string;
+}
+
+/**
+ * Add an emoji reaction to a message. Requires `reactions:write`.
+ * `already_reacted` responses are swallowed silently.
+ */
+export async function addReaction(params: AddReactionParams): Promise<void> {
+  if (!webClient) throw new Error('Slack not connected');
+
+  const name = normalizeEmojiName(params.name);
+  try {
+    await webClient.reactions.add({
+      channel: params.channel,
+      timestamp: params.ts,
+      name,
+    });
+  } catch (err) {
+    const slackErr = (err as { data?: { error?: string } }).data?.error;
+    if (slackErr === 'already_reacted') return;
+    throw err;
+  }
+}
+
+/** Map raw emoji chars to Slack slugs; strip surrounding colons if caller passed `:eyes:`. */
+function normalizeEmojiName(input: string): string {
+  const trimmed = input.trim().replace(/^:|:$/g, '');
+  // Any eye-related emoji char collapses to the common `eyes` slug.
+  if (trimmed === '👁' || trimmed === '👁️' || trimmed === '👀') return 'eyes';
+  return trimmed;
+}
+
 // ─── Reading ───
 
 export interface GetMessagesParams {

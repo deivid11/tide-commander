@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.64.0] - 2026-04-21
+
+### Added
+- **Slack emoji reactions** — new `/api/slack/reactions/add` endpoint to react to messages (`reactions:write` scope); raw eye emoji chars auto-normalize to `eyes`; `already_reacted` is silently ignored
+- **Slack auto-ack on triggers** — bot now auto-reacts with `:eyes:` when a Slack trigger fires, as a visual acknowledgement; fire-and-forget so failures never block triggers. Disable via `SLACK_REACT_ON_TRIGGER=false`
+- **`writing` tracking status** — new tracking status group for agents currently producing output, surfaced in the client tracking board and selectors
+
+### Changed
+- **Slim PATCH /api/agents/:id response** — endpoint now returns only the fields agents care about (id, name, status, trackingStatus, taskLabel, lastActivity, isBoss) instead of the full agent object; full state still broadcast via WS `agent_updated`. Reduces agent context bloat from multi-KB `lastAssignedTask`/`currentTask` strings on frequent PATCHes
+- **Tracking / task-label skill docs** — refreshed built-in skill instructions for agent-tracking and task-label
+
 ## [1.63.0] - 2026-04-21
 
 ### Added

@@ -172,6 +172,29 @@ Messages returned by \`/messages\` and \`/thread\` now include an optional \`fil
 
 **Pitfall — do NOT \`curl\` \`url_private\` directly.** Slack's \`url_private\` (and \`url_private_download\`) only return the actual file bytes when the request sends \`Authorization: Bearer <bot-token>\`; without it Slack serves an HTML sign-in page. Use the proxy endpoints above — they attach the bot token server-side so agents never need to handle the token.
 
+## Reactions
+
+Add an emoji reaction to a Slack message. Requires the bot token to have **\`reactions:write\`**.
+
+\`\`\`bash
+curl -s -X POST http://localhost:5174/api/slack/reactions/add \\
+  -H "Content-Type: application/json" \\
+  -d '{"channel":"C0123456789","ts":"1234567890.123456","name":"eyes"}'
+\`\`\`
+
+Fields:
+- \`channel\` — Slack channel id (required)
+- \`ts\` — message timestamp (required; looks like \`1234567890.123456\`)
+- \`name\` — emoji slug without colons (e.g. \`eyes\`, \`+1\`, \`white_check_mark\`). Raw eye emoji chars (\`👁\`, \`👀\`) are auto-normalized to \`eyes\`.
+
+\`already_reacted\` responses are silently ignored.
+
+### Auto-react on triggers
+
+When a Slack trigger fires on an incoming message, the bot automatically reacts with :eyes: (👀) as a visual acknowledgement that it saw the message. This happens fire-and-forget — a failed reaction never blocks the trigger.
+
+Disable the auto-ack by setting \`SLACK_REACT_ON_TRIGGER=false\` (accepts \`false\`/\`0\`/\`no\`/\`off\`) in the server environment.
+
 ## Check Connection Status
 
 \`\`\`bash
