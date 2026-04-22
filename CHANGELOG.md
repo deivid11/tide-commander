@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.64.1] - 2026-04-21
+
+### Changed
+- **Slack skill docs** — expanded user-mention guidance: explicit `<@USERID>` syntax (plain `@Name` does not ping), lookup-then-embed flow, broadcast tokens (`<!channel>`, `<!here>`, `<!everyone>`, `<!subteam^…>`), and a note that the user search endpoint requires `users:read` (+ `users:read.email` for email matches)
+
 ## [1.64.0] - 2026-04-21
 
 ### Added

@@ -46,6 +46,38 @@ curl -s "http://localhost:5174/api/slack/users/search?q=john"
 \`\`\`
 
 Searches by name, display name, real name, or email. Returns matching users with their IDs.
+Requires the bot token to have **\`users:read\`** (plus \`users:read.email\` if you want to match on email).
+
+## Mentioning Users (Real Pings)
+
+Slack does **not** render \`@Name\` as a real mention — that's just text and will **not** notify anyone. Real mentions use a bracketed syntax that includes the Slack user ID.
+
+**Format:** \`<@USERID>\` (e.g. \`<@U0ABCDEF>\`).
+
+**Flow: find the ID, then embed it.**
+\`\`\`bash
+# 1. Look up the user's ID by name/email
+curl -s "http://localhost:5174/api/slack/users/search?q=mark"
+#   → [{ "id": "U0ABCDEF", "name": "mark", "realName": "Mark Wu", ... }]
+
+# 2. Include <@U0ABCDEF> in the message text — this renders as @Mark and notifies them
+curl -s -X POST http://localhost:5174/api/slack/send \\
+  -H "Content-Type: application/json" \\
+  -d '{"channel":"C0123456789","text":"Hey <@U0ABCDEF>, please take a look"}'
+\`\`\`
+
+**Broadcast / special mentions** (notify many people at once — use sparingly):
+- \`<!channel>\` — notifies everyone in the channel, equivalent to typing \`@channel\`
+- \`<!here>\` — notifies only currently-active members, equivalent to \`@here\`
+- \`<!everyone>\` — notifies everyone in the workspace (only valid in DMs and #general), equivalent to \`@everyone\`
+- \`<!subteam^SXXXXXXX>\` — pings a user group by its subteam id, equivalent to \`@groupname\`
+- \`<!subteam^SXXXXXXX|@groupname>\` — same, but with a display fallback for older clients
+
+**Rules of thumb:**
+- Always look up the user's ID first — never guess or hardcode, and never rely on \`@Name\` as plain text.
+- For multiple mentions, include multiple \`<@...>\` tokens in the same \`text\` field.
+- The \`<\` and \`>\` are literal — do NOT URL-encode them when sending through \`/api/slack/send\` (the endpoint accepts JSON, not query strings).
+- If you can't resolve a user's ID (not in the workspace, lookup returns no match), fall back to their human name as plain text and tell the caller you couldn't ping them directly.
 
 ## Read Channel Messages
 
