@@ -794,13 +794,10 @@ const ChatView = React.memo(function ChatView({
 
 export function FlatView({
   onAgentClick,
-  onAgentDoubleClick,
   onBuildingClick,
   onBuildingDoubleClick,
-  onAreaClick,
   onOpenSpawnModal,
   onOpenBossSpawnModal,
-  onOpenBuildingModal,
   onOpenAreaModal,
 }: FlatViewProps) {
   const agents = useAgentsArray();
