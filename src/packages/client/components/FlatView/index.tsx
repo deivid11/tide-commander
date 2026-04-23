@@ -206,10 +206,10 @@ const ChatView = React.memo(function ChatView({
 
   if (!agent) {
     return (
-      <div className="exp-chat exp-chat--empty">
-        <div className="exp-chat__placeholder">
-          <span className="exp-chat__placeholder-icon">💬</span>
-          <span className="exp-chat__placeholder-text">Select an agent to start chatting</span>
+      <div className="flat-chat flat-chat--empty">
+        <div className="flat-chat__placeholder">
+          <span className="flat-chat__placeholder-icon">💬</span>
+          <span className="flat-chat__placeholder-text">Select an agent to start chatting</span>
         </div>
       </div>
     );
@@ -246,28 +246,28 @@ const ChatView = React.memo(function ChatView({
   const hasSubordinates = subordinateCount > 0;
 
   return (
-    <div className="exp-terminal-wrapper">
-      <div className="exp-terminal-wrapper__header">
-        <div className="exp-terminal-wrapper__header-main">
+    <div className="flat-terminal-wrapper">
+      <div className="flat-terminal-wrapper__header">
+        <div className="flat-terminal-wrapper__header-main">
           <AgentIcon agent={agent} size={28} />
-          <div className="exp-terminal-wrapper__header-info">
-            <span className="exp-terminal-wrapper__header-name">{agent.name}</span>
+          <div className="flat-terminal-wrapper__header-info">
+            <span className="flat-terminal-wrapper__header-name">{agent.name}</span>
             <span
-              className="exp-terminal-wrapper__header-status"
+              className="flat-terminal-wrapper__header-status"
               style={{ color: getAgentStatusColor(agent.status) }}
             >
               {agent.status}
             </span>
           </div>
           {agent.taskLabel && (
-            <span className="exp-terminal-wrapper__header-task" title={agent.taskLabel}>
+            <span className="flat-terminal-wrapper__header-task" title={agent.taskLabel}>
               📋 {agent.taskLabel}
             </span>
           )}
         </div>
-        <div className="exp-terminal-wrapper__header-meta">
+        <div className="flat-terminal-wrapper__header-meta">
           <div
-            className="exp-terminal-wrapper__view-mode"
+            className="flat-terminal-wrapper__view-mode"
             role="group"
             aria-label="Message view mode"
           >
@@ -275,27 +275,27 @@ const ChatView = React.memo(function ChatView({
               <button
                 key={mode}
                 type="button"
-                className={`exp-terminal-wrapper__view-mode-btn ${
-                  terminalViewMode === mode ? 'exp-terminal-wrapper__view-mode-btn--active' : ''
+                className={`flat-terminal-wrapper__view-mode-btn ${
+                  terminalViewMode === mode ? 'flat-terminal-wrapper__view-mode-btn--active' : ''
                 }`}
                 onClick={() => onTerminalViewModeChange(mode)}
                 title={TERMINAL_VIEW_MODE_DESCRIPTIONS[mode]}
                 aria-pressed={terminalViewMode === mode}
               >
-                <span className="exp-terminal-wrapper__view-mode-icon" aria-hidden="true">
+                <span className="flat-terminal-wrapper__view-mode-icon" aria-hidden="true">
                   {TERMINAL_VIEW_MODE_ICONS[mode]}
                 </span>
-                <span className="exp-terminal-wrapper__view-mode-label">
+                <span className="flat-terminal-wrapper__view-mode-label">
                   {TERMINAL_VIEW_MODE_LABELS[mode]}
                 </span>
               </button>
             ))}
           </div>
           {/* Applicable guake-actions — back/forward, search, clear-context, more-menu */}
-          <div className="exp-terminal-wrapper__actions" role="group" aria-label="Terminal actions">
+          <div className="flat-terminal-wrapper__actions" role="group" aria-label="Terminal actions">
             <button
               type="button"
-              className="exp-terminal-wrapper__action-btn"
+              className="flat-terminal-wrapper__action-btn"
               onClick={onNavigateBack}
               disabled={!canNavigateBack}
               title="Back to previous agent"
@@ -305,7 +305,7 @@ const ChatView = React.memo(function ChatView({
             </button>
             <button
               type="button"
-              className="exp-terminal-wrapper__action-btn"
+              className="flat-terminal-wrapper__action-btn"
               onClick={onNavigateForward}
               disabled={!canNavigateForward}
               title="Forward to next agent"
@@ -315,7 +315,7 @@ const ChatView = React.memo(function ChatView({
             </button>
             <button
               type="button"
-              className={`exp-terminal-wrapper__action-btn ${searchMode ? 'exp-terminal-wrapper__action-btn--active' : ''}`}
+              className={`flat-terminal-wrapper__action-btn ${searchMode ? 'flat-terminal-wrapper__action-btn--active' : ''}`}
               onClick={handleSearchToggle}
               title={searchMode ? 'Close search' : 'Search messages'}
               aria-pressed={searchMode}
@@ -324,7 +324,7 @@ const ChatView = React.memo(function ChatView({
             </button>
             <button
               type="button"
-              className={`exp-terminal-wrapper__action-btn exp-terminal-wrapper__action-btn--danger ${isClearArmed ? 'exp-terminal-wrapper__action-btn--confirm' : ''}`}
+              className={`flat-terminal-wrapper__action-btn flat-terminal-wrapper__action-btn--danger ${isClearArmed ? 'flat-terminal-wrapper__action-btn--confirm' : ''}`}
               onClick={() =>
                 clearConfirm.handleClick(CLEAR_CONFIRM_ID, () => {
                   store.clearContext(agentId);
@@ -335,10 +335,10 @@ const ChatView = React.memo(function ChatView({
             >
               <Icon name={isClearArmed ? 'question' : 'clear'} size={14} />
             </button>
-            <div className="exp-terminal-wrapper__more" ref={menuRef}>
+            <div className="flat-terminal-wrapper__more" ref={menuRef}>
               <button
                 type="button"
-                className={`exp-terminal-wrapper__action-btn ${menuOpen ? 'exp-terminal-wrapper__action-btn--active' : ''}`}
+                className={`flat-terminal-wrapper__action-btn ${menuOpen ? 'flat-terminal-wrapper__action-btn--active' : ''}`}
                 onClick={() => setMenuOpen((o) => !o)}
                 title="More actions"
                 aria-expanded={menuOpen}
@@ -346,11 +346,11 @@ const ChatView = React.memo(function ChatView({
                 ⋮
               </button>
               {menuOpen && (
-                <div className="exp-terminal-wrapper__more-menu" role="menu">
+                <div className="flat-terminal-wrapper__more-menu" role="menu">
                   <button
                     type="button"
                     role="menuitem"
-                    className="exp-terminal-wrapper__more-item"
+                    className="flat-terminal-wrapper__more-item"
                     onClick={() => {
                       store.collapseContext(agentId);
                       setMenuOpen(false);
@@ -365,7 +365,7 @@ const ChatView = React.memo(function ChatView({
                     <button
                       type="button"
                       role="menuitem"
-                      className="exp-terminal-wrapper__more-item exp-terminal-wrapper__more-item--danger"
+                      className="flat-terminal-wrapper__more-item flat-terminal-wrapper__more-item--danger"
                       onClick={() => {
                         // Route through the shared ContextConfirmModal so the
                         // destructive action has the same confirm-step UX as
@@ -380,11 +380,11 @@ const ChatView = React.memo(function ChatView({
                       </span>
                     </button>
                   )}
-                  <div className="exp-terminal-wrapper__more-divider" />
+                  <div className="flat-terminal-wrapper__more-divider" />
                   <button
                     type="button"
                     role="menuitem"
-                    className="exp-terminal-wrapper__more-item exp-terminal-wrapper__more-item--danger"
+                    className="flat-terminal-wrapper__more-item flat-terminal-wrapper__more-item--danger"
                     onClick={() => {
                       store.killAgent(agentId);
                       setMenuOpen(false);
@@ -399,15 +399,15 @@ const ChatView = React.memo(function ChatView({
           </div>
           <button
             type="button"
-            className={`exp-terminal-wrapper__inspector-toggle ${
-              inspectorOpen ? 'exp-terminal-wrapper__inspector-toggle--active' : ''
+            className={`flat-terminal-wrapper__inspector-toggle ${
+              inspectorOpen ? 'flat-terminal-wrapper__inspector-toggle--active' : ''
             }`}
             onClick={onToggleInspector}
             title={inspectorOpen ? 'Hide inspector panel' : 'Show inspector panel'}
             aria-label={inspectorOpen ? 'Hide inspector panel' : 'Show inspector panel'}
             aria-pressed={inspectorOpen}
           >
-            <span className="exp-terminal-wrapper__inspector-icon" aria-hidden="true">
+            <span className="flat-terminal-wrapper__inspector-icon" aria-hidden="true">
               {/* Sidebar-right icon */}
               <svg
                 width="14"
@@ -423,7 +423,7 @@ const ChatView = React.memo(function ChatView({
                 <line x1="10" y1="2.5" x2="10" y2="13.5" />
               </svg>
             </span>
-            <span className="exp-terminal-wrapper__inspector-label">Inspector</span>
+            <span className="flat-terminal-wrapper__inspector-label">Inspector</span>
           </button>
         </div>
       </div>
@@ -440,10 +440,10 @@ const ChatView = React.memo(function ChatView({
         keyboard={keyboard}
         hasModalOpen={false}
       />
-      <div className="exp-terminal-wrapper__statusbar" role="contentinfo">
+      <div className="flat-terminal-wrapper__statusbar" role="contentinfo">
         {agent.isDetached && (
           <span
-            className="exp-terminal-wrapper__detached"
+            className="flat-terminal-wrapper__detached"
             title="Reattaching session..."
           >
             <Icon name="refresh" size={12} />
@@ -452,14 +452,14 @@ const ChatView = React.memo(function ChatView({
         )}
         {cwd && cwdShort && (
           <span
-            className="exp-terminal-wrapper__cwd"
+            className="flat-terminal-wrapper__cwd"
             title={cwd}
             onClick={() => store.setFileViewerPath(cwd)}
           >
-            <span className="exp-terminal-wrapper__cwd-icon">
+            <span className="flat-terminal-wrapper__cwd-icon">
               <Icon name="folder" size={12} />
             </span>
-            <span className="exp-terminal-wrapper__cwd-text">{cwdShort}</span>
+            <span className="flat-terminal-wrapper__cwd-text">{cwdShort}</span>
           </span>
         )}
         {agentAreaDirectories && agentAreaDirectories.map(({ areaId, areaName, dir }) => {
@@ -469,29 +469,29 @@ const ChatView = React.memo(function ChatView({
           return (
             <span
               key={`${areaId}:${dir}`}
-              className="exp-terminal-wrapper__area-dir"
+              className="flat-terminal-wrapper__area-dir"
               title={`${areaName}: ${dir}${branchInfo ? ` (${branchInfo.branch}${branchInfo.ahead ? ` ↑${branchInfo.ahead}` : ''}${branchInfo.behind ? ` ↓${branchInfo.behind}` : ''})` : ''}`}
               onClick={() => store.openFileExplorerForAreaFolder(areaId, dir)}
             >
               <Icon name="folder-open" size={12} />
-              <span className="exp-terminal-wrapper__area-dir-name">{dirLabel}</span>
+              <span className="flat-terminal-wrapper__area-dir-name">{dirLabel}</span>
               {branchInfo && (
                 <>
-                  <span className="exp-terminal-wrapper__area-dir-branch">
+                  <span className="flat-terminal-wrapper__area-dir-branch">
                     <Icon name="git-branch" size={10} /> {branchInfo.branch}
                   </span>
                   {branchInfo.ahead > 0 && (
-                    <span className="exp-terminal-wrapper__branch-ahead" title={`${branchInfo.ahead} ahead`}>
+                    <span className="flat-terminal-wrapper__branch-ahead" title={`${branchInfo.ahead} ahead`}>
                       <Icon name="arrow-up" size={9} />{branchInfo.ahead}
                     </span>
                   )}
                   {branchInfo.behind > 0 && (
-                    <span className="exp-terminal-wrapper__branch-behind" title={`${branchInfo.behind} behind`}>
+                    <span className="flat-terminal-wrapper__branch-behind" title={`${branchInfo.behind} behind`}>
                       <Icon name="arrow-down" size={9} />{branchInfo.behind}
                     </span>
                   )}
                   <span
-                    className={`exp-terminal-wrapper__area-fetch ${isFetching ? 'exp-terminal-wrapper__area-fetch--fetching' : ''}`}
+                    className={`flat-terminal-wrapper__area-fetch ${isFetching ? 'flat-terminal-wrapper__area-fetch--fetching' : ''}`}
                     title="Git fetch"
                     onClick={(e) => { e.stopPropagation(); fetchGitRemote(dir); }}
                   >
@@ -503,7 +503,7 @@ const ChatView = React.memo(function ChatView({
           );
         })}
         <span
-          className="exp-terminal-wrapper__context"
+          className="flat-terminal-wrapper__context"
           onClick={() => store.setContextModalAgentId(agentId)}
           title={
             contextHasData
@@ -511,31 +511,31 @@ const ChatView = React.memo(function ChatView({
               : 'Click to fetch context stats'
           }
         >
-          <span className="exp-terminal-wrapper__context-icon">
+          <span className="flat-terminal-wrapper__context-icon">
             <Icon name="dashboard" size={12} />
           </span>
-          <span className="exp-terminal-wrapper__context-label">Ctx:</span>
-          <span className="exp-terminal-wrapper__context-bar">
+          <span className="flat-terminal-wrapper__context-label">Ctx:</span>
+          <span className="flat-terminal-wrapper__context-bar">
             <span
-              className="exp-terminal-wrapper__context-bar-fill"
+              className="flat-terminal-wrapper__context-bar-fill"
               style={{ width: `${contextUsedPercent}%`, backgroundColor: contextColor }}
             />
           </span>
           <span
-            className="exp-terminal-wrapper__context-tokens"
+            className="flat-terminal-wrapper__context-tokens"
             style={{ color: contextColor }}
           >
             {contextUsedK}k/{contextLimitK}k
           </span>
-          <span className="exp-terminal-wrapper__context-free">({contextFreePercent}% free)</span>
+          <span className="flat-terminal-wrapper__context-free">({contextFreePercent}% free)</span>
           {!contextHasData && (
-            <span className="exp-terminal-wrapper__context-warning" title="No context stats yet">
+            <span className="flat-terminal-wrapper__context-warning" title="No context stats yet">
               <Icon name="warn" size={12} />
             </span>
           )}
         </span>
-        <div className="exp-terminal-wrapper__statusbar-spacer" aria-hidden="true" />
-        <div className="exp-terminal-wrapper__theme">
+        <div className="flat-terminal-wrapper__statusbar-spacer" aria-hidden="true" />
+        <div className="flat-terminal-wrapper__theme">
           <ThemeSelector />
         </div>
       </div>
@@ -764,26 +764,26 @@ export function FlatView({
       {/* Middle Column - Agents overview. The former in-view SidebarMenu was
           removed because the floating left-side FAB menu (settings/spotlight/
           spawn buttons) already covers navigation. */}
-      <div className="exp-middle">
-        <div className="exp-middle__header">
-          <h2 className="exp-middle__title">👥 Agents</h2>
-          <div className="exp-middle__actions">
+      <div className="flat-middle">
+        <div className="flat-middle__header">
+          <h2 className="flat-middle__title">👥 Agents</h2>
+          <div className="flat-middle__actions">
             <button
-              className="exp-cta-btn exp-cta-btn--agent"
+              className="flat-cta-btn flat-cta-btn--agent"
               onClick={onOpenSpawnModal}
               title="Create new agent"
             >
               + Agent
             </button>
             <button
-              className="exp-cta-btn exp-cta-btn--boss"
+              className="flat-cta-btn flat-cta-btn--boss"
               onClick={onOpenBossSpawnModal}
               title="Create new boss agent"
             >
               + Boss
             </button>
             <button
-              className="exp-cta-btn exp-cta-btn--area"
+              className="flat-cta-btn flat-cta-btn--area"
               onClick={onOpenAreaModal}
               title="Create new area"
             >
@@ -791,7 +791,7 @@ export function FlatView({
             </button>
           </div>
         </div>
-        <div className="exp-middle__content">
+        <div className="flat-middle__content">
           <AgentOverviewPanel
             activeAgentId={overviewActiveAgentId}
             onClose={noopOverviewClose}
@@ -801,7 +801,7 @@ export function FlatView({
       </div>
 
       {/* Right Column - Chat/Details */}
-      <div className="exp-right">
+      <div className="flat-right">
         {selectedAgentId ? (
           <ChatView
             agentId={selectedAgentId}
@@ -821,10 +821,10 @@ export function FlatView({
             onNavigateForward={handleNavigateForward}
           />
         ) : (
-          <div className="exp-chat exp-chat--empty">
-            <div className="exp-chat__placeholder">
-              <span className="exp-chat__placeholder-icon">💬</span>
-              <span className="exp-chat__placeholder-text">Select an agent to start chatting</span>
+          <div className="flat-chat flat-chat--empty">
+            <div className="flat-chat__placeholder">
+              <span className="flat-chat__placeholder-icon">💬</span>
+              <span className="flat-chat__placeholder-text">Select an agent to start chatting</span>
             </div>
           </div>
         )}
@@ -832,14 +832,14 @@ export function FlatView({
 
       {/* Inspector Column - Pushes chat column rather than overlaying */}
       {showInspector && selectedAgentId && (
-        <aside className="exp-inspector" aria-label="Inspector panel">
-          <div className="exp-inspector__header">
-            <div className="exp-inspector__tabs" role="tablist" aria-label="Inspector view">
+        <aside className="flat-inspector" aria-label="Inspector panel">
+          <div className="flat-inspector__header">
+            <div className="flat-inspector__tabs" role="tablist" aria-label="Inspector view">
               <button
                 type="button"
                 role="tab"
                 aria-selected={inspectorView === 'agent'}
-                className={`exp-inspector__tab ${inspectorView === 'agent' ? 'exp-inspector__tab--active' : ''}`}
+                className={`flat-inspector__tab ${inspectorView === 'agent' ? 'flat-inspector__tab--active' : ''}`}
                 onClick={() => setInspectorView('agent')}
               >
                 Agent
@@ -848,7 +848,7 @@ export function FlatView({
                 type="button"
                 role="tab"
                 aria-selected={inspectorView === 'tracking'}
-                className={`exp-inspector__tab ${inspectorView === 'tracking' ? 'exp-inspector__tab--active' : ''}`}
+                className={`flat-inspector__tab ${inspectorView === 'tracking' ? 'flat-inspector__tab--active' : ''}`}
                 onClick={() => setInspectorView('tracking')}
               >
                 Tracking
@@ -856,7 +856,7 @@ export function FlatView({
             </div>
             <button
               type="button"
-              className="exp-inspector__close"
+              className="flat-inspector__close"
               onClick={handleCloseInspector}
               title="Close inspector"
               aria-label="Close inspector"
@@ -864,7 +864,7 @@ export function FlatView({
               ✕
             </button>
           </div>
-          <div className="exp-inspector__body">
+          <div className="flat-inspector__body">
             {inspectorView === 'tracking' ? (
               <TrackingBoard
                 activeAgentId={selectedAgentId ?? ''}
@@ -874,7 +874,7 @@ export function FlatView({
               const selectedAgent = agents.find((a) => a.id === selectedAgentId);
               if (!selectedAgent) {
                 return (
-                  <div className="exp-inspector__empty">
+                  <div className="flat-inspector__empty">
                     <span>Agent not found</span>
                   </div>
                 );

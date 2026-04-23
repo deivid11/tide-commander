@@ -73,7 +73,7 @@ $middle-min-width: 280px;
 // Middle Column - Agents Overview
 // ============================================================================
 
-.exp-middle {
+.flat-middle {
   display: flex;
   flex-direction: column;
   background: $bg-primary;
@@ -135,7 +135,7 @@ $middle-min-width: 280px;
 // CTA Buttons
 // ============================================================================
 
-.exp-cta-btn {
+.flat-cta-btn {
   padding: 4px 10px;
   font-size: 11px;
   font-weight: 500;
@@ -191,7 +191,7 @@ $middle-min-width: 280px;
 // available column space.
 // ============================================================================
 
-.exp-middle .agent-overview-panel {
+.flat-middle .agent-overview-panel {
   // Neutralize the absolute positioning the panel uses inside the Guake
   // terminal — here it should flow inline as the middle column's body, filling
   // whatever space the column flex container gives it.
@@ -211,7 +211,7 @@ $middle-min-width: 280px;
   }
 }
 
-.exp-middle__content:has(> .agent-overview-panel) {
+.flat-middle__content:has(> .agent-overview-panel) {
   // Let the panel manage its own scrolling instead of double-scrolling inside
   // the column's content wrapper.
   padding: 0;
@@ -222,7 +222,7 @@ $middle-min-width: 280px;
 // Right Column - Chat View
 // ============================================================================
 
-.exp-right {
+.flat-right {
   display: flex;
   flex-direction: column;
   background: $bg-tertiary;
@@ -230,8 +230,8 @@ $middle-min-width: 280px;
 }
 
 // Keep only the empty/placeholder styles — the rest is replaced by
-// AgentTerminalPane (see .exp-terminal-wrapper below).
-.exp-chat {
+// AgentTerminalPane (see .flat-terminal-wrapper below).
+.flat-chat {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -267,7 +267,7 @@ $middle-min-width: 280px;
 // positioning rules so the output scrolls and the input sticks to the bottom.
 // ============================================================================
 
-.exp-terminal-wrapper {
+.flat-terminal-wrapper {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -323,8 +323,8 @@ $middle-min-width: 280px;
 
     // Keep the chips a little flatter on the status bar so they read as
     // "status" rather than interactive header controls.
-    .exp-terminal-wrapper__cwd,
-    .exp-terminal-wrapper__context {
+    .flat-terminal-wrapper__cwd,
+    .flat-terminal-wrapper__context {
       background: transparent;
       border-color: rgba(255, 255, 255, 0.04);
     }
@@ -874,12 +874,12 @@ $middle-min-width: 280px;
 // ============================================================================
 // Inspector side panel (pushes chat column; does not overlay)
 // ----------------------------------------------------------------------------
-// Rendered as a 4th grid column that slides in alongside .exp-right when the
+// Rendered as a 4th grid column that slides in alongside .flat-right when the
 // user toggles the Inspector button in the chat header. Reuses the embedded
 // SingleAgentPanel (session details) with flat-UI-specific overrides.
 // ============================================================================
 
-.exp-inspector {
+.flat-inspector {
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -888,7 +888,7 @@ $middle-min-width: 280px;
   background: $bg-secondary;
   border-left: 1px solid rgba(255, 255, 255, 0.06);
   overflow: hidden;
-  animation: exp-inspector-slide-in 0.22s ease;
+  animation: flat-inspector-slide-in 0.22s ease;
 
   &__header {
     display: flex;
@@ -982,7 +982,7 @@ $middle-min-width: 280px;
   }
 }
 
-@keyframes exp-inspector-slide-in {
+@keyframes flat-inspector-slide-in {
   from {
     opacity: 0;
     transform: translateX(12px);
@@ -1006,8 +1006,8 @@ $middle-min-width: 280px;
     }
   }
 
-  .exp-right,
-  .exp-inspector {
+  .flat-right,
+  .flat-inspector {
     display: none;
   }
 }
