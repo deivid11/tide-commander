@@ -1136,7 +1136,20 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   const isSystemMessage = Boolean(systemMessageMatch);
   const systemEmoji = systemMessageMatch?.[1];
   const systemRest = systemMessageMatch?.[2] ?? '';
-  const systemIconName: IconName = systemEmoji === '🔄' ? 'refresh' : systemEmoji === '📋' ? 'task' : 'info';
+  const systemIconName: IconName =
+    systemEmoji === '🔄' ? 'refresh'
+      : systemEmoji === '📋' ? 'task'
+        : systemEmoji === '🛑' ? 'warn'
+          : systemEmoji === '⚠' || systemEmoji === '⚠️' ? 'warn'
+            : systemEmoji === '❌' ? 'cross'
+              : systemEmoji === '✅' ? 'check'
+                : 'info';
+  const systemVariantClass =
+    systemEmoji === '🛑' ? ' output-system--interrupt'
+      : systemEmoji === '❌' ? ' output-system--error'
+        : systemEmoji === '⚠' || systemEmoji === '⚠️' ? ' output-system--warn'
+          : systemEmoji === '✅' ? ' output-system--success'
+            : '';
 
   // Detect subagent completion messages with full result content
   const subagentCompletionMatch = output.subagentName && payloadToolOutput ? text.match(/^([✅❌])\s*(Subagent\s[\s\S]*)$/) : null;
@@ -1162,7 +1175,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     className += ' output-raw';
     useMarkdown = false;
   } else if (isSystemMessage) {
-    className += ' output-text output-system markdown-content';
+    className += ' output-text output-system' + systemVariantClass;
   } else {
     className += ' output-text output-claude markdown-content';
     isClaudeMessage = true;

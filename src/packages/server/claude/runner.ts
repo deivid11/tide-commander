@@ -161,6 +161,24 @@ export class ClaudeRunner {
     });
 
     this.bus.on('runner.watchdog_missing_process', ({ agentId, activeProcess }) => {
+      // If the process (tmux session or pipe process) exited after completing
+      // its turn (turnState='waiting_for_input') and has queued messages, treat
+      // it the same as a clean turn-end exit in process_closed: respawn with
+      // session resume, delivering the queued message as the new prompt.
+      // This is the tmux analogue of the cleanTurnEnd branch in process_closed.
+      // Without this, codex/opencode agents in tmux mode silently lose queued
+      // messages because the tmux launcher PID doesn't emit 'close' events —
+      // the watchdog is the only signal we get when the session dies.
+      const queuedCount = this.messageQueue.get(agentId)?.length ?? 0;
+      if (
+        activeProcess.turnState === 'waiting_for_input'
+        && queuedCount > 0
+        && activeProcess.lastRequest
+      ) {
+        log.log(`🔁 [WATCHDOG] Agent ${agentId}: session died after turn complete with ${queuedCount} queued message(s), respawning to deliver`);
+        this.respawnWithQueuedMessage(agentId, activeProcess);
+        return;
+      }
       this.restartPolicy.maybeAutoRestart(agentId, activeProcess, null, null);
     });
 
@@ -266,6 +284,10 @@ export class ClaudeRunner {
     return this.backend.requiresStdinInput();
   }
 
+  closesStdinAfterPrompt(): boolean {
+    return this.backend.shouldCloseStdinAfterPrompt?.() === true;
+  }
+
   setAutoRestart(enabled: boolean): void {
     this.autoRestartEnabled = enabled;
     log.log(`🔄 Auto-restart ${enabled ? 'enabled' : 'disabled'}`);
@@ -336,8 +358,24 @@ export class ClaudeRunner {
       return false;
     }
 
-    // tmux mode: send via tmux send-keys
+    // tmux mode: send via tmux send-keys — EXCEPT for backends that close stdin
+    // after the initial prompt (codex). Those are launched as `cat <file> | codex`
+    // so codex's stdin is the pipe, NOT the tmux pane. Once cat hits EOF, codex
+    // gets EOF; tmux send-keys would write to a pane codex isn't reading. We must
+    // queue those messages and deliver them via respawn-with-session-resume
+    // triggered by the watchdog_missing_process handler when the session dies.
+    // Also queue mid-turn messages for all backends — send-keys mid-turn is
+    // unreliable and can interfere with the current prompt being processed.
     if (activeProcess.tmuxSession) {
+      const tmuxTurnState = activeProcess.turnState || 'processing';
+      const tmuxBackendClosesStdin = this.backend.shouldCloseStdinAfterPrompt?.() === true;
+      if (tmuxTurnState === 'processing' || tmuxBackendClosesStdin) {
+        const queue = this.messageQueue.get(agentId) ?? [];
+        queue.push(message);
+        this.messageQueue.set(agentId, queue);
+        log.log(`📋 [QUEUE-TMUX] Agent ${agentId}: queued message (turnState=${tmuxTurnState}, closesStdin=${tmuxBackendClosesStdin}, queue=${queue.length}, ${message.length} chars)`);
+        return true;
+      }
       const stdinInput = this.backend.formatStdinInput(message);
       log.log(`📨 [SEND_MESSAGE] Agent ${agentId} (tmux mode), sending via tmux send-keys (${stdinInput.length} chars)`);
       const ok = sendToTmux(agentId, stdinInput);
@@ -349,18 +387,24 @@ export class ClaudeRunner {
 
     const turnState = activeProcess.turnState || 'processing';
     const messageLen = message.length;
+    const backendClosesStdin = this.backend.shouldCloseStdinAfterPrompt?.() === true;
 
     // Queue mid-turn messages BEFORE any stdin-writability check. Writing to the OS
     // stdin pipe mid-turn is unreliable on all backends (async callback + possible
-    // pipe close), and backends like opencode explicitly close stdin after the initial
-    // prompt so there is nothing to write to at all. In both cases the queue is the
-    // source of truth; drain happens after the current turn ends (via stdin for
-    // stdin-open backends, or via session-resume respawn for stdin-closed ones).
-    if (turnState === 'processing') {
+    // pipe close), and backends like codex/opencode explicitly close stdin after the
+    // initial prompt so there is nothing to write to at all. For stdin-closed backends
+    // we queue regardless of turnState — there is a race window between step_complete
+    // (turnState flips to 'waiting_for_input') and process exit where direct stdin
+    // write would fail, the fallthrough path SIGINTs the old process, and the
+    // respawn-with-queue path is skipped (cleanTurnEnd requires a clean exit).
+    // The queue is the source of truth; drain happens after the current turn ends
+    // (via stdin for stdin-open backends, or via session-resume respawn for
+    // stdin-closed ones).
+    if (turnState === 'processing' || backendClosesStdin) {
       const queue = this.messageQueue.get(agentId) ?? [];
       queue.push(message);
       this.messageQueue.set(agentId, queue);
-      log.log(`📋 [QUEUE] Agent ${agentId} is mid-turn, queued message for post-turn delivery (queue=${queue.length}, ${messageLen} chars)`);
+      log.log(`📋 [QUEUE] Agent ${agentId}: queued message for post-turn delivery (turnState=${turnState}, closesStdin=${backendClosesStdin}, queue=${queue.length}, ${messageLen} chars)`);
       return true;
     }
 
@@ -422,6 +466,16 @@ export class ClaudeRunner {
     if (!queue || queue.length === 0) return;
 
     if (activeProcess.tmuxSession) {
+      // For stdin-closing backends in tmux mode (codex): the process was launched
+      // as `cat <file> | codex` so codex's stdin is the pipe, not the tmux pane.
+      // Once the initial file is consumed codex gets EOF; tmux send-keys would
+      // write to a pane codex isn't reading. Leave the message in the queue and
+      // let the runner.watchdog_missing_process handler respawn with session
+      // resume when the codex process exits and the tmux session dies.
+      if (this.backend.shouldCloseStdinAfterPrompt?.() === true) {
+        log.log(`⏸️ [QUEUE-DRAIN] Agent ${agentId}: tmux + stdin-closed backend, deferring delivery to respawn after session exit (${queue.length} queued)`);
+        return;
+      }
       const nextMessage = queue.shift()!;
       if (queue.length === 0) this.messageQueue.delete(agentId);
       log.log(`📤 [QUEUE-DRAIN] Agent ${agentId}: Delivering queued message via tmux (${queue.length} remaining, ${nextMessage.length} chars)`);

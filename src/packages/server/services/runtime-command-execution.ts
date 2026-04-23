@@ -145,6 +145,41 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
     }
 
     const processRunning = runner.isRunning(agentId);
+
+    // For backends that close stdin after the initial prompt (codex, opencode),
+    // a new user prompt arriving mid-turn should INTERRUPT the current work and
+    // RESTART the session with the new prompt — not wait for the current turn
+    // to finish and then deliver the queued message via session-resume (which
+    // is the default queue-based behavior for these backends).
+    //
+    // Safe for tmux mode: runner.stop() routes through
+    // src/packages/server/claude/runner/process-lifecycle.ts:281-284 which
+    // calls killTmuxSession — this destroys only the agent's detached tmux
+    // session (created by spawnInTmux), NOT the user's own pane/window. The
+    // subsequent executeCommand spawns a fresh tmux session for the new turn.
+    //
+    // clearQueue=true is intentional: user is replacing whatever was pending
+    // with this new command, so any queued messages from prior mid-turn sends
+    // are stale and must be dropped.
+    const backendClosesStdin = runner.closesStdinAfterPrompt?.() === true;
+    if (processRunning && backendClosesStdin && !forceNewSession) {
+      const turnState = runner.getTurnState?.(agentId);
+      if (turnState !== 'waiting_for_input') {
+        log.log(`[sendCommand] Agent ${agentId} (${agent.provider}): mid-turn prompt (turnState=${turnState ?? 'unknown'}) — interrupting current work and restarting session with new prompt`);
+        emitOutput(
+          agentId,
+          '🛑 [System] Interrupting current work to process new prompt…',
+          false,
+          undefined,
+          'system-interrupt-restart'
+        );
+        await runner.stop(agentId, true);
+        agentService.updateAgent(agentId, { taskCount: (agent.taskCount || 0) + 1 });
+        await executeCommand(agentId, command, systemPrompt, forceNewSession, customAgent);
+        return;
+      }
+    }
+
     if (processRunning && !forceNewSession) {
       if (runner.supportsStdin()) {
         const turnState = runner.getTurnState?.(agentId) || 'unknown';
@@ -165,10 +200,16 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
           agentService.updateAgent(agentId, updateData);
 
           // Only start the stdin watchdog when the message was written directly to stdin
-          // (i.e. the agent was idle/waiting_for_input). When the agent was mid-turn
-          // (turnState === 'processing'), the runner queues the message and delivers it
-          // via the step_complete handler — no watchdog needed since delivery is guaranteed.
-          if (turnState !== 'processing') {
+          // (i.e. the agent was idle/waiting_for_input on a stdin-open backend).
+          // When the agent was mid-turn (turnState === 'processing'), or the backend
+          // closes stdin after the initial prompt (codex/opencode), the runner queues
+          // the message and delivers it via the step_complete handler or the
+          // respawn-on-close path — no watchdog needed since delivery is guaranteed.
+          // Starting the watchdog here would cause double-execution for stdin-closed
+          // backends because the watchdog's onRespawn path and the queue-drain path
+          // would both deliver the same command.
+          const backendClosesStdin = runner.closesStdinAfterPrompt?.() === true;
+          if (turnState !== 'processing' && !backendClosesStdin) {
             startStdinWatchdog({
               agentId,
               command,

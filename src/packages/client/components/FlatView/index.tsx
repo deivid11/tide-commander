@@ -21,6 +21,7 @@ import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../../shared/typ
 import type { Agent } from '../../../shared/types';
 import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
+import { ContextMenu, type ContextMenuAction } from '../ContextMenu';
 import { getAgentStatusColor } from '../../utils/colors';
 import { AgentOverviewPanel } from '../ClaudeOutputPanel/AgentOverviewPanel';
 import { AgentTerminalPane, type AgentTerminalPaneHandle } from '../ClaudeOutputPanel/AgentTerminalPane';
@@ -926,6 +927,11 @@ export function FlatView({
   // the 3D overlay uses, so the two views share one source of truth for the
   // destructive action's UX.
   const [clearSubsModal, setClearSubsModal] = useState<{ agentId: string; count: number } | null>(null);
+  // Right-click menu on agent chips in the empty-state overview (no selected agent).
+  const [emptyAgentContextMenu, setEmptyAgentContextMenu] = useState<{
+    agentId: string;
+    position: { x: number; y: number };
+  } | null>(null);
   // Agent info modal — opened by clicking the agent avatar/name in the chat
   // header, mirroring the Guake terminal's guake-title-btn behavior.
   const [agentInfoOpen, setAgentInfoOpen] = useState(false);
@@ -1315,6 +1321,41 @@ export function FlatView({
     return { groups: [...assignedGroups, ...unassignedGroups], gridCols, gridRows, positions };
   }, [agents, areas, activeWorkspace]);
 
+  // Right-click menu actions for agent chips in the empty-state overview.
+  // Mirrors the Edit Agent / Delete Agent actions wired in AgentOverviewPanel so
+  // both surfaces share one UX for per-agent mutations.
+  const emptyAgentContextMenuActions = useMemo((): ContextMenuAction[] => {
+    if (!emptyAgentContextMenu) return [];
+    const agent = agents.find(a => a.id === emptyAgentContextMenu.agentId);
+    if (!agent) return [];
+    return [
+      {
+        id: 'edit-agent',
+        label: 'Edit Agent',
+        icon: <Icon name="edit" size={14} />,
+        onClick: () => {
+          window.dispatchEvent(new CustomEvent('tide:open-agent-edit', { detail: { agentId: agent.id } }));
+        },
+      },
+      {
+        id: 'open-chat',
+        label: 'Open Chat',
+        icon: <Icon name="chat" size={14} />,
+        onClick: () => onAgentClick(agent.id),
+      },
+      {
+        id: 'delete-agent',
+        label: 'Delete Agent',
+        icon: <Icon name="trash" size={14} />,
+        danger: true,
+        onClick: () => {
+          if (!window.confirm(`Remove ${agent.name} from view?`)) return;
+          store.removeAgentFromServer(agent.id);
+        },
+      },
+    ];
+  }, [emptyAgentContextMenu, agents, onAgentClick]);
+
   // ── Focus an area in the left-panel AgentOverviewPanel ──
   const handleFocusArea = useCallback((areaKey: string) => {
     // 1. Collapse every area except the clicked one
@@ -1405,17 +1446,17 @@ export function FlatView({
           />
         ) : (
           <div className="flat-chat flat-chat--empty">
-            <div className="flat-empty-overview">
-              <div className="flat-empty-overview__header">
-                <span className="flat-empty-overview__title">🗺️ Areas</span>
-                <span className="flat-empty-overview__hint">Click an area to focus it, or an agent to chat</span>
+            <div className="flat-map">
+              <div className="flat-map__header">
+                <span className="flat-map__title">🗺️ Areas</span>
+                <span className="flat-map__hint">Click an area to focus it, or an agent to chat</span>
               </div>
               <div
-                className="flat-empty-overview__grid"
+                className="flat-map__grid"
                 style={{ gridTemplateColumns: `repeat(${emptyChatGroups.gridCols}, 1fr)` }}
               >
                 {emptyChatGroups.groups.length === 0 ? (
-                  <div className="flat-empty-overview__empty">
+                  <div className="flat-map__empty">
                     <span>No areas or agents yet</span>
                   </div>
                 ) : (
@@ -1425,7 +1466,7 @@ export function FlatView({
                     return (
                       <div
                         key={areaKey}
-                        className="flat-empty-area-card"
+                        className="flat-map-area-card"
                         style={{
                           '--area-color': group.area.color,
                           gridRow: pos?.row,
@@ -1434,30 +1475,38 @@ export function FlatView({
                       >
                         <button
                           type="button"
-                          className="flat-empty-area-card__header"
+                          className="flat-map-area-card__header"
                           onClick={() => handleFocusArea(areaKey)}
                           title={`Focus ${group.area.name} in left panel`}
                         >
                           <span
-                            className="flat-empty-area-card__color"
+                            className="flat-map-area-card__color"
                             style={{ background: group.area.color }}
                           />
-                          <span className="flat-empty-area-card__name">{group.area.name}</span>
-                          <span className="flat-empty-area-card__count">{group.agents.length}</span>
+                          <span className="flat-map-area-card__name">{group.area.name}</span>
+                          <span className="flat-map-area-card__count">{group.agents.length}</span>
                         </button>
-                        <div className="flat-empty-area-card__agents">
+                        <div className="flat-map-area-card__agents">
                           {group.agents.map(agent => (
                             <button
                               key={agent.id}
                               type="button"
-                              className={`flat-empty-agent-chip ${agent.status}`}
+                              className={`flat-map-agent-chip ${agent.status}`}
                               onClick={() => onAgentClick(agent.id)}
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setEmptyAgentContextMenu({
+                                  agentId: agent.id,
+                                  position: { x: e.clientX, y: e.clientY },
+                                });
+                              }}
                               title={`Open chat with ${agent.name}`}
                             >
                               <AgentIcon agent={agent} size={16} />
-                              <span className="flat-empty-agent-chip__name">{agent.name}</span>
+                              <span className="flat-map-agent-chip__name">{agent.name}</span>
                               <span
-                                className="flat-empty-agent-chip__dot"
+                                className="flat-map-agent-chip__dot"
                                 style={{ backgroundColor: getAgentStatusColor(agent.status) }}
                               />
                             </button>
@@ -1565,6 +1614,14 @@ export function FlatView({
         agent={selectedAgentId ? agents.find((a) => a.id === selectedAgentId) ?? null : null}
         isOpen={agentInfoOpen && !!selectedAgentId}
         onClose={handleCloseAgentInfo}
+      />
+
+      <ContextMenu
+        isOpen={emptyAgentContextMenu !== null}
+        position={emptyAgentContextMenu?.position ?? { x: 0, y: 0 }}
+        worldPosition={{ x: 0, z: 0 }}
+        actions={emptyAgentContextMenuActions}
+        onClose={() => setEmptyAgentContextMenu(null)}
       />
     </div>
   );

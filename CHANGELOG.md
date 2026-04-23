@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.69.0] - 2026-04-23
+
+### Added
+- **Edit / Delete agent context menu actions** — right-click on an agent card in the overview panel now exposes "Edit Agent" and "Delete Agent"; Delete opens a confirmation dialog and removes the agent from the server (`store.removeAgentFromServer`) rather than just the view
+- **Right-click menu on Flat UI agent chips** — the empty-state area map in Flat UI now supports right-click on any agent chip with Edit Agent / Open Chat / Delete Agent actions, mirroring the overview panel UX
+- **`tide:open-agent-edit` global event** — dispatching this CustomEvent with `{ agentId }` opens the AgentEditModal from any surface, so surfaces like the Flat map and overview panel don't need direct modal wiring
+- **Codex `gpt-5.5` model** — registered the next-generation frontier Codex model alongside existing 5.4/5.3/5.2/5.1 entries
+
+### Changed
+- **System message styling** — runtime/session banners are now a single-row flex layout with per-emoji variant: 🛑 interrupt, ✅ success, ⚠ warn, ❌ error, 📋 task, 🔄 refresh all map to distinct Phosphor icons and CSS accent classes; larger base font (11.5px), tighter padding, and flattened markdown wrapper so the icon sits on the text baseline
+- **Flat UI empty-state class rename** — `flat-empty-*` → `flat-map-*` across the empty-state area map (cards, chips, headers) to better reflect that the component is a map overview, not just an empty placeholder
+
+### Fixed
+- **Mid-turn prompts on Codex/OpenCode now interrupt and restart** — when the user sends a new prompt while a stdin-closing backend is mid-turn, `runtime-command-execution.ts` calls `runner.stop()` and re-spawns with the new prompt (and `clearQueue=true`) instead of queuing for post-turn delivery, matching user intent to replace pending work; safe for tmux mode because only the agent's detached tmux session is killed
+- **Queued messages no longer lost when codex/opencode tmux sessions die** — `runner.watchdog_missing_process` now respawns with session-resume when `turnState === 'waiting_for_input'` and the queue is non-empty, fixing the silent loss caused by tmux launcher PIDs not emitting 'close' events
+- **tmux send-keys path queues correctly for stdin-closing backends and mid-turn** — `codex` is launched as `cat <file> | codex` so its stdin is the pipe, not the tmux pane; `send-keys` would have written to a pane codex wasn't reading. Mid-turn messages on any backend now also go through the queue instead of send-keys
+- **No more double-delivery on stdin-closing backends** — the stdin watchdog is skipped for backends that close stdin after the initial prompt, preventing the watchdog's onRespawn path and the queue-drain path from both delivering the same command
+- **Queue drain defers to respawn for tmux + stdin-closed** — the drain step leaves the message queued when the backend closes stdin in tmux mode, letting the watchdog respawn path handle delivery instead of doing an unreliable send-keys
+- **New `RuntimeRunner.closesStdinAfterPrompt()` method** — runners expose whether their backend consumes stdin once then closes, so command-execution logic can pick the right delivery path without hard-coded backend checks
+
 ## [1.68.0] - 2026-04-23
 
 ### Added

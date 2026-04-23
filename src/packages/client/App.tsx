@@ -606,19 +606,26 @@ function AppContent() {
       }
     };
 
+    const handleOpenAgentEdit = (event: Event) => {
+      const detail = (event as CustomEvent<{ agentId?: string }>).detail;
+      if (detail?.agentId) agentEditModal.open(detail.agentId);
+    };
+
     window.addEventListener('tide:open-spawn-modal', handleOpenSpawnModal as EventListener);
     window.addEventListener('tide:building-action', handleBuildingAction as EventListener);
     window.addEventListener('tide:building-edit', handleBuildingEdit as EventListener);
     window.addEventListener('tide:building-create', handleBuildingCreate as EventListener);
     window.addEventListener('tide:open-iframe-modal', handleOpenIframeModal as EventListener);
+    window.addEventListener('tide:open-agent-edit', handleOpenAgentEdit as EventListener);
     return () => {
       window.removeEventListener('tide:open-spawn-modal', handleOpenSpawnModal as EventListener);
       window.removeEventListener('tide:building-action', handleBuildingAction as EventListener);
       window.removeEventListener('tide:building-edit', handleBuildingEdit as EventListener);
       window.removeEventListener('tide:building-create', handleBuildingCreate as EventListener);
       window.removeEventListener('tide:open-iframe-modal', handleOpenIframeModal as EventListener);
+      window.removeEventListener('tide:open-agent-edit', handleOpenAgentEdit as EventListener);
     };
-  }, [spawnModal, buildingModal]);
+  }, [spawnModal, buildingModal, agentEditModal]);
 
   // Check if in drawing mode
   const isDrawingMode = activeTool === 'rectangle' || activeTool === 'circle';

@@ -39,6 +39,14 @@ export interface RuntimeRunner {
   onNextActivity(agentId: string, callback: () => void): void;
   /** Whether this runner's backend supports stdin-based follow-up messages */
   supportsStdin(): boolean;
+  /**
+   * Whether this runner's backend closes stdin after the initial prompt
+   * (e.g. codex, opencode). When true, mid-session messages cannot be written
+   * directly to stdin and must always go through the runner's queue + respawn-
+   * on-close path. Callers should skip the stdin watchdog in this case since
+   * delivery is handled by the respawn mechanism.
+   */
+  closesStdinAfterPrompt?(): boolean;
   /** Get the current turn state of a process (processing vs waiting for input) */
   getTurnState?(agentId: string): 'processing' | 'waiting_for_input' | undefined;
 }
