@@ -266,7 +266,7 @@ $middle-min-width: 280px;
 // areas and their agents, with one-click expand (area) or open-chat (agent).
 // ============================================================================
 
-.flat-empty-overview {
+.flat-map {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -332,7 +332,7 @@ $middle-min-width: 280px;
   }
 }
 
-.flat-empty-area-card {
+.flat-map-area-card {
   display: flex;
   flex-direction: column;
   background: $bg-card;
@@ -407,7 +407,7 @@ $middle-min-width: 280px;
   }
 }
 
-.flat-empty-agent-chip {
+.flat-map-agent-chip {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -429,32 +429,51 @@ $middle-min-width: 280px;
     color: $text-primary;
   }
 
-  // Working agents: pulse the status dot only (semantic, no layout shift,
-  // does not bleed into sibling chips). Color is keyed to the actual
-  // working-status blue (#4a9eff) used elsewhere in the UI.
-  &.working &__dot {
-    animation: flat-empty-agent-working-pulse 1.8s ease-out infinite;
-    transform-origin: center;
+  // Working agents: clearly visible moving shimmer band that sweeps across
+  // the chip. Uses background-position animation (universally supported, no
+  // @property / no mask-composite quirks). The base layer is a soft blue
+  // tint, the shimmer layer is a diagonal cyan band that travels right→left
+  // continuously. A static blue border + soft glow reinforce the "active"
+  // look so the working state stays legible even with reduced motion.
+  &.working {
+    background-color: rgba(74, 158, 255, 0.14);
+    background-image: linear-gradient(
+      110deg,
+      transparent 35%,
+      rgba(139, 233, 253, 0.55) 50%,
+      transparent 65%
+    );
+    background-size: 250% 100%;
+    background-repeat: no-repeat;
+    background-position: 150% 0;
+    border-color: rgba(74, 158, 255, 0.55);
+    color: $text-primary;
+    box-shadow: 0 0 8px rgba(74, 158, 255, 0.35);
+    animation: flat-map-agent-working-shimmer 1.6s linear infinite;
+
+    .flat-map-agent-chip__dot {
+      box-shadow: 0 0 6px rgba(74, 158, 255, 0.7);
+    }
   }
 
-  @keyframes flat-empty-agent-working-pulse {
-    0% {
-      transform: scale(1);
-      box-shadow: 0 0 0 0 rgba(74, 158, 255, 0.6);
-    }
-    70% {
-      transform: scale(1.15);
-      box-shadow: 0 0 0 5px rgba(74, 158, 255, 0);
-    }
-    100% {
-      transform: scale(1);
-      box-shadow: 0 0 0 0 rgba(74, 158, 255, 0);
-    }
+  @keyframes flat-map-agent-working-shimmer {
+    0%   { background-position: 150% 0; }
+    100% { background-position: -50% 0; }
   }
 
+  // Reduced-motion: keep the shimmer visible but slow it WAY down (5s) and
+  // soften the band so it's calmer rather than removed entirely. Respects
+  // the spirit of `prefers-reduced-motion: reduce` (no fast/distracting
+  // motion) without dropping the working-state cue altogether.
   @media (prefers-reduced-motion: reduce) {
-    &.working &__dot {
-      animation: none;
+    &.working {
+      animation-duration: 5s;
+      background-image: linear-gradient(
+        110deg,
+        transparent 40%,
+        rgba(139, 233, 253, 0.30) 50%,
+        transparent 60%
+      );
     }
   }
 

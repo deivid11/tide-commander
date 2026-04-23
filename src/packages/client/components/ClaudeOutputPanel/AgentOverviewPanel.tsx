@@ -702,6 +702,14 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
 
     return [
       {
+        id: 'edit-agent',
+        label: t('terminal:overview.editAgent', { defaultValue: 'Edit Agent' }),
+        icon: <Icon name="edit" size={14} />,
+        onClick: () => {
+          window.dispatchEvent(new CustomEvent('tide:open-agent-edit', { detail: { agentId: agent.id } }));
+        },
+      },
+      {
         id: 'toggle-expand',
         label: isExpanded ? t('terminal:overview.collapse', { defaultValue: 'Collapse' }) : t('terminal:overview.expand', { defaultValue: 'Expand' }),
         icon: <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={14} />,
@@ -714,11 +722,15 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         onClick: () => store.clearContext(agent.id),
       },
       {
-        id: 'remove-agent',
-        label: t('terminal:overview.removeAgent', { defaultValue: 'Remove agent' }),
+        id: 'delete-agent',
+        label: t('terminal:overview.deleteAgent', { defaultValue: 'Delete Agent' }),
         icon: <Icon name="trash" size={14} />,
         danger: true,
-        onClick: () => store.removeAgent(agent.id),
+        onClick: () => {
+          const confirmMsg = t('common:confirm.removeAgent', { name: agent.name, defaultValue: `Remove ${agent.name} from view?` });
+          if (!window.confirm(confirmMsg)) return;
+          store.removeAgentFromServer(agent.id);
+        },
       },
     ];
   }, [agentContextMenu, agents, expandedAgents, t]);
@@ -1290,6 +1302,11 @@ const AgentCard = React.memo(function AgentCard({
           (e.currentTarget as HTMLElement).style.opacity = '';
         }}
         onClick={handleSelect}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onContextMenu(agent.id, { x: e.clientX, y: e.clientY });
+        }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={finishSwipe}
@@ -1314,11 +1331,7 @@ const AgentCard = React.memo(function AgentCard({
         </div>
         <div className="aop-card-content">
         {/* Card Header - always visible */}
-        <div className="aop-agent-header" onContextMenu={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onContextMenu(agent.id, { x: e.clientX, y: e.clientY });
-        }}>
+        <div className="aop-agent-header">
         <span
           className="aop-agent-name"
           title={t('terminal:overview.clickToSwitch')}

@@ -74,6 +74,7 @@ export type OpencodeModel = string;
 export type CodexApprovalMode = 'untrusted' | 'on-failure' | 'on-request' | 'never';
 export type CodexSandboxMode = 'read-only' | 'workspace-write' | 'danger-full-access';
 export type CodexModel =
+  | 'gpt-5.5'
   | 'gpt-5.4'
   | 'gpt-5.3-codex'
   | 'gpt-5.2-codex'
@@ -90,6 +91,11 @@ export interface CodexConfig {
 }
 
 export const CODEX_MODELS: Record<CodexModel, { label: string; description: string; icon: string }> = {
+  'gpt-5.5': {
+    label: 'GPT-5.5',
+    description: 'Next-generation frontier model with advanced reasoning and coding',
+    icon: '✨',
+  },
   'gpt-5.4': {
     label: 'GPT-5.4',
     description: 'Latest frontier model with advanced reasoning and coding',

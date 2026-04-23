@@ -367,31 +367,103 @@
 }
 
 // System message styling (for runtime/session notifications)
+//
+// Layout: icon + text align on a single baseline with a consistent gap.
+// The row itself uses flex so the timestamp, role label, icon, and message
+// text sit on one line without being at the mercy of paragraph margins from
+// the nested markdown wrapper (renderContentWithImages wraps content in a
+// <div class="markdown-content"><p>…</p></div>, and the default <p> margin
+// would otherwise push the banner taller than it needs to be).
 .output-system {
+  --system-accent: var(--accent-blue);
+  --system-tint-strong: 78%;
+  --system-tint-medium: 72%;
+  --system-tint-soft: 20%;
+  --system-bg-strong: 12%;
+  --system-bg-soft: 6%;
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+
   background: linear-gradient(
     to right,
-    color-mix(in srgb, var(--accent-blue) 12%, transparent),
-    color-mix(in srgb, var(--accent-blue) 6%, transparent)
+    color-mix(in srgb, var(--system-accent) var(--system-bg-strong), transparent),
+    color-mix(in srgb, var(--system-accent) var(--system-bg-soft), transparent)
   );
-  border-left: 3px solid color-mix(in srgb, var(--accent-blue) 72%, var(--text-muted));
-  border-right: 1px solid color-mix(in srgb, var(--accent-blue) 20%, transparent);
-  padding: 8px 12px;
+  border-left: 3px solid color-mix(in srgb, var(--system-accent) var(--system-tint-medium), var(--text-muted));
+  border-right: 1px solid color-mix(in srgb, var(--system-accent) var(--system-tint-soft), transparent);
+  padding: 6px 12px;
   margin: 6px 0;
   border-radius: $radius-sm;
-  color: color-mix(in srgb, var(--accent-blue) 78%, var(--text-primary));
-  font-size: 10px;
-  line-height: 1.35;
+  color: color-mix(in srgb, var(--system-accent) var(--system-tint-strong), var(--text-primary));
+  font-size: 11.5px;
+  line-height: 1.4;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  transition: all 0.15s ease;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
 
   &:hover {
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
   }
 
   .output-role {
-    color: color-mix(in srgb, var(--accent-blue) 84%, var(--text-primary));
+    color: color-mix(in srgb, var(--system-accent) 84%, var(--text-primary));
     font-size: 9px;
     font-weight: 700;
+  }
+
+  // The inner markdown wrapper is unavoidable (shared renderer), but for
+  // single-line system banners we don't want its default paragraph spacing.
+  // Flatten it so the icon + text read as one aligned row.
+  > .markdown-content {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+
+    .markdown-content {
+      display: inline;
+    }
+
+    p {
+      margin: 0;
+      display: inline;
+    }
+
+    // Nudge Phosphor icons up a hair so they sit on the text baseline
+    // instead of floating above it.
+    svg {
+      flex-shrink: 0;
+      vertical-align: -1px;
+    }
+  }
+
+  // --- Variants -----------------------------------------------------------
+  // Override the accent to re-tint the gradient, border, role label, and text
+  // in one place via the CSS variables defined at the top of the block.
+
+  &--interrupt {
+    --system-accent: var(--accent-orange);
+    --system-tint-strong: 82%;
+    --system-bg-strong: 16%;
+    --system-bg-soft: 8%;
+  }
+
+  &--error {
+    --system-accent: var(--accent-red);
+    --system-tint-strong: 82%;
+    --system-bg-strong: 16%;
+    --system-bg-soft: 8%;
+  }
+
+  &--warn {
+    --system-accent: var(--accent-yellow);
+  }
+
+  &--success {
+    --system-accent: var(--accent-green);
   }
 }
 
