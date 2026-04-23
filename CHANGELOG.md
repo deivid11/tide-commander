@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.67.0] - 2026-04-23
+
+### Added
+- **Flat UI view mode** — new full-page flat UI alternative to the 3D scene, selectable from the view-mode switcher
+- **Area building buttons + embedded resizable terminal in Flat UI** — quick-create building controls per area and an embedded terminal pane that shares sizing preferences with the 3D overlay
+- **GuakeGitPanel + AreaBuildingsPanel reused as Flat UI side panels** — the git and area-buildings panels from the 3D overlay now mount inside Flat UI so both surfaces share one source of truth
+
+### Changed
+- **Flat UI polish** — general layout and interaction refinements to the Flat UI view
+- **CSS class rename: `exp-*` → `flat-*`** — leftover experimental class names in Flat UI have been aligned with the `flat-` prefix
+- **Component rename: `Scene2DExperimental` → `FlatView`** — the experimental 2D scene is now the stable `FlatView`, and the clear-subordinates flow was tightened to match the 3D overlay
+
+### Fixed
+- **npm audit vulnerabilities resolved** — dependency updates to clear reported advisories
+
 ## [1.66.2] - 2026-04-22
 
 ### Changed
