@@ -13,6 +13,7 @@ import {
   useSelectedAgentIds,
   useAgent,
   useAreas,
+  useBuildings,
 } from '../../store/selectors';
 import { store } from '../../store';
 import { AgentIcon } from '../AgentIcon';
@@ -22,11 +23,13 @@ import { AgentOverviewPanel } from '../ClaudeOutputPanel/AgentOverviewPanel';
 import { AgentTerminalPane, type AgentTerminalPaneHandle } from '../ClaudeOutputPanel/AgentTerminalPane';
 import { ContextConfirmModal, ImageModal, BashModal, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
 import { useKeyboardHeight } from '../ClaudeOutputPanel/useKeyboardHeight';
+import { useBottomTerminalResize } from '../ClaudeOutputPanel/useBottomTerminalResize';
 import { ThemeSelector } from '../ClaudeOutputPanel/ThemeSelector';
 import { useGitBranches } from '../ClaudeOutputPanel/useGitBranch';
 import { SingleAgentPanel } from '../UnitPanel/SingleAgentPanel';
 import { TrackingBoard } from '../ClaudeOutputPanel/TrackingBoard';
 import type { ViewMode as TerminalViewMode } from '../ClaudeOutputPanel/types';
+import TerminalEmbed from '../TerminalEmbed';
 import { useTwoClickConfirm } from '../../hooks';
 import {
   getStorageBoolean,
@@ -69,6 +72,7 @@ interface ChatViewProps {
   onBashClick: (command: string, output: string) => void;
   onViewMarkdown: (content: string) => void;
   onRequestClearSubordinates: (agentId: string, count: number) => void;
+  onOpenBuilding: (buildingId: string) => void;
   keyboard: ReturnType<typeof useKeyboardHeight>;
   canNavigateBack: boolean;
   canNavigateForward: boolean;
@@ -136,6 +140,7 @@ const ChatView = React.memo(function ChatView({
   onBashClick,
   onViewMarkdown,
   onRequestClearSubordinates,
+  onOpenBuilding,
   keyboard,
   canNavigateBack,
   canNavigateForward,
@@ -143,6 +148,7 @@ const ChatView = React.memo(function ChatView({
   onNavigateForward,
 }: ChatViewProps) {
   const agent = useAgent(agentId);
+  const buildings = useBuildings();
   const paneRef = useRef<AgentTerminalPaneHandle>(null);
 
   // ── Statusbar: area folder lookup (mirrors the Guake statusbar deriv) ────
@@ -177,6 +183,49 @@ const ChatView = React.memo(function ChatView({
   const { branches: areaBranches, fetchRemote: fetchGitRemote, fetchingDirs: gitFetchingDirs } =
     useGitBranches(agentAreaDirectories);
 
+  // ── Area-scoped buildings for the statusbar (terminal / PM2 / database) ──
+  // Mirrors ClaudeOutputPanel so the chat statusbar surfaces the same shortcut
+  // buttons for buildings in the agent's working area.
+  const areaTerminalBuildings = useMemo(() => {
+    const area = store.getAreaForAgent(agentId);
+    if (!area) return [];
+    const result: { id: string; name: string; hasUrl: boolean }[] = [];
+    for (const building of buildings.values()) {
+      if (building.type === 'terminal' && store.isPositionInArea(building.position, area)) {
+        result.push({
+          id: building.id,
+          name: building.name,
+          hasUrl: !!building.terminalStatus?.url,
+        });
+      }
+    }
+    return result;
+  }, [agentId, buildings]);
+
+  const areaPm2Buildings = useMemo(() => {
+    const area = store.getAreaForAgent(agentId);
+    if (!area) return [];
+    const result: { id: string; name: string }[] = [];
+    for (const building of buildings.values()) {
+      if (building.type === 'server' && building.pm2?.enabled && store.isPositionInArea(building.position, area)) {
+        result.push({ id: building.id, name: building.name });
+      }
+    }
+    return result;
+  }, [agentId, buildings]);
+
+  const areaDatabaseBuildings = useMemo(() => {
+    const area = store.getAreaForAgent(agentId);
+    if (!area) return [];
+    const result: { id: string; name: string }[] = [];
+    for (const building of buildings.values()) {
+      if (building.type === 'database' && building.database && store.isPositionInArea(building.position, area)) {
+        result.push({ id: building.id, name: building.name });
+      }
+    }
+    return result;
+  }, [agentId, buildings]);
+
   // Search-mode mirror: paneRef owns the search state, but header buttons
   // need to re-render to reflect the active style when toggled. A counter
   // forces a re-render after we call toggleSearch().
@@ -191,6 +240,24 @@ const ChatView = React.memo(function ChatView({
   // behavior matches the tracking board and the 3D header).
   const clearConfirm = useTwoClickConfirm();
   const isClearArmed = clearConfirm.isPending(CLEAR_CONFIRM_ID);
+
+  // Embedded bottom panel — currently just a single terminal at a time,
+  // rendered under the chat pane like the Guake statusbar's bottom panels.
+  // Logs/database buttons still fall back to the global modal.
+  const [embeddedTerminalBuildingId, setEmbeddedTerminalBuildingId] = useState<string | null>(null);
+  const embeddedTerminalBuilding = embeddedTerminalBuildingId
+    ? buildings.get(embeddedTerminalBuildingId)
+    : null;
+  // Shared resizer — same hook the Guake bottom panel uses, so the persisted
+  // height is kept in sync across both surfaces.
+  const { height: embeddedHeight, onResizeStart: handleEmbeddedResizeStart } = useBottomTerminalResize();
+  // Close the embed automatically if the building leaves the current area or
+  // disappears, so the panel doesn't stick around as a stale ghost.
+  useEffect(() => {
+    if (!embeddedTerminalBuildingId) return;
+    const stillInArea = areaTerminalBuildings.some((tb) => tb.id === embeddedTerminalBuildingId);
+    if (!stillInArea) setEmbeddedTerminalBuildingId(null);
+  }, [embeddedTerminalBuildingId, areaTerminalBuildings]);
 
   // More-actions menu (kebab) for collapse/remove/clear-subs
   const [menuOpen, setMenuOpen] = useState(false);
@@ -440,6 +507,52 @@ const ChatView = React.memo(function ChatView({
         keyboard={keyboard}
         hasModalOpen={false}
       />
+      {embeddedTerminalBuilding && (
+        <>
+          <div
+            className="guake-bottom-terminal-resize"
+            onMouseDown={handleEmbeddedResizeStart}
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Resize embedded terminal"
+          />
+          <div
+            className="flat-bottom-panel"
+            role="region"
+            aria-label={`Embedded terminal: ${embeddedTerminalBuilding.name}`}
+            style={{ height: embeddedHeight }}
+          >
+            <div className="flat-bottom-panel__header">
+              <span className="flat-bottom-panel__title">
+                <Icon name="terminal" size={12} />
+                <span>{embeddedTerminalBuilding.name}</span>
+                {!embeddedTerminalBuilding.terminalStatus?.url && (
+                  <span className="flat-bottom-panel__muted">(starting...)</span>
+                )}
+              </span>
+              <button
+                type="button"
+                className="flat-bottom-panel__close"
+                onClick={() => setEmbeddedTerminalBuildingId(null)}
+                title="Close embedded terminal"
+                aria-label="Close embedded terminal"
+              >
+                <Icon name="cross" size={12} />
+              </button>
+            </div>
+            <div className="flat-bottom-panel__body">
+              {embeddedTerminalBuilding.terminalStatus?.url ? (
+                <TerminalEmbed
+                  terminalUrl={embeddedTerminalBuilding.terminalStatus.url}
+                  visible={true}
+                />
+              ) : (
+                <div className="flat-bottom-panel__placeholder">Starting terminal...</div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
       <div className="flat-terminal-wrapper__statusbar" role="contentinfo">
         {agent.isDetached && (
           <span
@@ -535,6 +648,63 @@ const ChatView = React.memo(function ChatView({
           )}
         </span>
         <div className="flat-terminal-wrapper__statusbar-spacer" aria-hidden="true" />
+        {/* Area-scoped building shortcuts — mirrors the Guake statusbar so the
+            user can jump into a terminal/PM2 logs/database from any view. */}
+        {areaTerminalBuildings.length > 0 && (
+          <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area terminals">
+            {areaTerminalBuildings.map((tb) => {
+              const isActive = embeddedTerminalBuildingId === tb.id;
+              return (
+                <button
+                  key={tb.id}
+                  type="button"
+                  className={`flat-terminal-wrapper__building-btn ${isActive ? 'flat-terminal-wrapper__building-btn--active' : ''} ${!tb.hasUrl ? 'flat-terminal-wrapper__building-btn--offline' : ''}`}
+                  title={`${isActive ? 'Hide' : 'Show'} terminal: ${tb.name}${!tb.hasUrl ? ' (starting...)' : ''}`}
+                  onClick={() => {
+                    if (isActive) {
+                      setEmbeddedTerminalBuildingId(null);
+                      return;
+                    }
+                    if (!tb.hasUrl) store.sendBuildingCommand(tb.id, 'start');
+                    setEmbeddedTerminalBuildingId(tb.id);
+                  }}
+                >
+                  <Icon name="terminal" size={14} />
+                </button>
+              );
+            })}
+          </span>
+        )}
+        {areaPm2Buildings.length > 0 && (
+          <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area PM2 logs">
+            {areaPm2Buildings.map((sb) => (
+              <button
+                key={sb.id}
+                type="button"
+                className="flat-terminal-wrapper__building-btn"
+                title={`Open logs: ${sb.name}`}
+                onClick={() => onOpenBuilding(sb.id)}
+              >
+                <Icon name="scroll" size={14} />
+              </button>
+            ))}
+          </span>
+        )}
+        {areaDatabaseBuildings.length > 0 && (
+          <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area databases">
+            {areaDatabaseBuildings.map((db) => (
+              <button
+                key={db.id}
+                type="button"
+                className="flat-terminal-wrapper__building-btn"
+                title={`Open database: ${db.name}`}
+                onClick={() => onOpenBuilding(db.id)}
+              >
+                <Icon name="hard-drives" size={14} />
+              </button>
+            ))}
+          </span>
+        )}
         <div className="flat-terminal-wrapper__theme">
           <ThemeSelector />
         </div>
@@ -651,6 +821,18 @@ export function FlatView({
     setClearSubsModal({ agentId, count });
   }, []);
 
+  const handleOpenBuilding = useCallback((buildingId: string) => {
+    // Delegate to the app-level double-click handler so the appropriate modal
+    // (PM2 logs, database panel, file explorer, etc.) opens based on the
+    // building's type — identical to what happens when the user double-clicks
+    // a building in the 3D scene.
+    if (onBuildingDoubleClick) {
+      onBuildingDoubleClick(buildingId);
+    } else {
+      onBuildingClick(buildingId);
+    }
+  }, [onBuildingClick, onBuildingDoubleClick]);
+
   // Get first selected agent for chat view
   const selectedAgentId = useMemo(() => {
     return selectedAgentIds.size > 0 ? Array.from(selectedAgentIds)[0] : null;
@@ -661,6 +843,9 @@ export function FlatView({
   const agentNavigationHistoryRef = useRef<string[]>([]);
   const agentNavigationIndexRef = useRef(-1);
   const isHistoryNavigationRef = useRef(false);
+  // Tracks the most recently opened agent independently of navigation history
+  // so Space/Backspace can reopen it even after history is cleared.
+  const lastOpenedAgentIdRef = useRef<string | null>(null);
   const [canNavigateBack, setCanNavigateBack] = useState(false);
   const [canNavigateForward, setCanNavigateForward] = useState(false);
 
@@ -704,6 +889,10 @@ export function FlatView({
       updateAgentNavigationAvailability();
       return;
     }
+
+    // Remember this agent as the last explicitly opened one so Space/Backspace
+    // can reopen it later when no agent is selected.
+    lastOpenedAgentIdRef.current = selectedAgentId;
 
     if (isHistoryNavigationRef.current) {
       isHistoryNavigationRef.current = false;
@@ -757,6 +946,97 @@ export function FlatView({
 
   const showInspector = inspectorOpen && !!selectedAgentId;
 
+  // ── Ref for scrolling the left-panel AgentOverviewPanel ──
+  const agentListRef = useRef<HTMLDivElement>(null);
+
+  // ── Space / Backspace reopen last agent when empty-chat view is showing ──
+  useEffect(() => {
+    if (selectedAgentId) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== ' ' && event.key !== 'Backspace') return;
+      // Ignore when typing in inputs, textareas, or contenteditable elements
+      const target = event.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+      const lastId = lastOpenedAgentIdRef.current;
+      if (!lastId || !agentIdSet.has(lastId)) return;
+      event.preventDefault();
+      store.selectAgent(lastId);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [selectedAgentId, agentIdSet]);
+
+  // ── Collapsed areas state (lifted so empty-chat overview can expand them) ──
+  const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
+  const handleToggleArea = useCallback((areaKey: string) => {
+    setCollapsedAreas(prev => {
+      const next = new Set(prev);
+      if (next.has(areaKey)) next.delete(areaKey);
+      else next.add(areaKey);
+      return next;
+    });
+  }, []);
+
+  // ── Focus an area in the left-panel AgentOverviewPanel ──
+  const handleFocusArea = useCallback((areaKey: string) => {
+    // 1. Ensure the area is expanded in the left panel
+    setCollapsedAreas(prev => {
+      if (!prev.has(areaKey)) return prev;
+      const next = new Set(prev);
+      next.delete(areaKey);
+      return next;
+    });
+    // 2. After React flushes, scroll the area header into view
+    requestAnimationFrame(() => {
+      const container = agentListRef.current;
+      if (!container) return;
+      const header = container.querySelector<HTMLElement>(`[data-area-id="${areaKey}"]`);
+      if (!header) return;
+      const containerRect = container.getBoundingClientRect();
+      const headerRect = header.getBoundingClientRect();
+      const offset = headerRect.top - containerRect.top + container.scrollTop - 8;
+      container.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
+    });
+  }, []);
+
+  // ── Compact area/agent data for the empty-chat state ──
+  const areas = useAreas();
+  const emptyChatGroups = useMemo(() => {
+    const agentsByAreaId = new Map<string, typeof agents>();
+    const unassigned: typeof agents = [];
+    for (const agent of agents) {
+      const area = store.getAreaForAgent(agent.id);
+      if (!area || area.archived) {
+        unassigned.push(agent);
+        continue;
+      }
+      const list = agentsByAreaId.get(area.id);
+      if (list) list.push(agent);
+      else agentsByAreaId.set(area.id, [agent]);
+    }
+    const groups: { area: typeof areas extends Map<string, infer V> ? V : never; agents: typeof agents }[] = [];
+    for (const [, area] of areas) {
+      if (area.archived) continue;
+      const list = agentsByAreaId.get(area.id);
+      if (list && list.length > 0) {
+        groups.push({ area, agents: list });
+      }
+    }
+    if (unassigned.length > 0) {
+      groups.push({
+        area: { id: '__unassigned__', name: 'Unassigned', color: '#6272a4', center: { x: 0, z: 0 }, type: 'circle', radius: 0, directories: [], archived: false, assignedAgentIds: [], zIndex: 0 } as any,
+        agents: unassigned,
+      });
+    }
+    return groups;
+  }, [agents, areas]);
+
   return (
     <div
       className={`flat-view ${showInspector ? 'flat-view--with-inspector' : ''}`}
@@ -796,6 +1076,9 @@ export function FlatView({
             activeAgentId={overviewActiveAgentId}
             onClose={noopOverviewClose}
             onSelectAgent={handleOverviewSelectAgent}
+            collapsedAreas={collapsedAreas}
+            onToggleArea={handleToggleArea}
+            agentListRef={agentListRef}
           />
         </div>
       </div>
@@ -814,6 +1097,7 @@ export function FlatView({
             onBashClick={handleBashClick}
             onViewMarkdown={handleViewMarkdown}
             onRequestClearSubordinates={handleRequestClearSubordinates}
+            onOpenBuilding={handleOpenBuilding}
             keyboard={keyboard}
             canNavigateBack={canNavigateBack}
             canNavigateForward={canNavigateForward}
@@ -822,9 +1106,61 @@ export function FlatView({
           />
         ) : (
           <div className="flat-chat flat-chat--empty">
-            <div className="flat-chat__placeholder">
-              <span className="flat-chat__placeholder-icon">💬</span>
-              <span className="flat-chat__placeholder-text">Select an agent to start chatting</span>
+            <div className="flat-empty-overview">
+              <div className="flat-empty-overview__header">
+                <span className="flat-empty-overview__title">🗺️ Areas</span>
+                <span className="flat-empty-overview__hint">Click an area to focus it, or an agent to chat</span>
+              </div>
+              <div className="flat-empty-overview__grid">
+                {emptyChatGroups.length === 0 ? (
+                  <div className="flat-empty-overview__empty">
+                    <span>No areas or agents yet</span>
+                  </div>
+                ) : (
+                  emptyChatGroups.map(group => {
+                    const areaKey = group.area.id;
+                    return (
+                      <div
+                        key={areaKey}
+                        className="flat-empty-area-card"
+                        style={{ '--area-color': group.area.color } as React.CSSProperties}
+                      >
+                        <button
+                          type="button"
+                          className="flat-empty-area-card__header"
+                          onClick={() => handleFocusArea(areaKey)}
+                          title={`Focus ${group.area.name} in left panel`}
+                        >
+                          <span
+                            className="flat-empty-area-card__color"
+                            style={{ background: group.area.color }}
+                          />
+                          <span className="flat-empty-area-card__name">{group.area.name}</span>
+                          <span className="flat-empty-area-card__count">{group.agents.length}</span>
+                        </button>
+                        <div className="flat-empty-area-card__agents">
+                          {group.agents.map(agent => (
+                            <button
+                              key={agent.id}
+                              type="button"
+                              className={`flat-empty-agent-chip ${agent.status}`}
+                              onClick={() => onAgentClick(agent.id)}
+                              title={`Open chat with ${agent.name}`}
+                            >
+                              <AgentIcon agent={agent} size={16} />
+                              <span className="flat-empty-agent-chip__name">{agent.name}</span>
+                              <span
+                                className="flat-empty-agent-chip__dot"
+                                style={{ backgroundColor: getAgentStatusColor(agent.status) }}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
         )}

@@ -260,6 +260,186 @@ $middle-min-width: 280px;
 }
 
 // ============================================================================
+// Empty-chat compact area/agent overview
+// ----------------------------------------------------------------------------
+// Shown when no agent is selected. Gives users a quick browseable map of
+// areas and their agents, with one-click expand (area) or open-chat (agent).
+// ============================================================================
+
+.flat-empty-overview {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 12px 16px;
+  gap: 10px;
+  overflow-y: auto;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  }
+
+  &__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  &__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  &__hint {
+    font-size: 11px;
+    color: $text-muted;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 8px;
+    align-content: start;
+  }
+
+  &__empty {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: $text-muted;
+    font-size: 13px;
+  }
+}
+
+.flat-empty-area-card {
+  display: flex;
+  flex-direction: column;
+  background: $bg-card;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &:hover {
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    color: $text-primary;
+    font-size: 12px;
+    font-weight: 600;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+  }
+
+  &__color {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  &__name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__count {
+    font-size: 10px;
+    font-weight: 500;
+    color: $text-muted;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 1px 5px;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  &__caret {
+    font-size: 10px;
+    color: $text-muted;
+    flex-shrink: 0;
+    width: 12px;
+    text-align: center;
+  }
+
+  &__agents {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 0 8px 8px;
+  }
+}
+
+.flat-empty-agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  cursor: pointer;
+  color: $text-secondary;
+  font-size: 11px;
+  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+  min-width: 0;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: $text-primary;
+  }
+
+  &__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+}
+
+// ============================================================================
 // Embedded Terminal (AgentTerminalPane) inside flat view
 // ----------------------------------------------------------------------------
 // The pane normally lives in a fixed-position .guake-terminal shell; here we
@@ -332,6 +512,55 @@ $middle-min-width: 280px;
 
   &__statusbar-spacer {
     flex: 1 1 auto;
+  }
+
+  // ── Area-scoped building shortcut buttons (terminal / logs / database) ──
+  &__buildings {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+  }
+
+  &__building-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 22px;
+    padding: 0;
+    color: $text-muted;
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      color: $text-primary;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    &--offline {
+      color: rgba($accent-orange, 0.75);
+
+      &:hover {
+        color: $accent-orange;
+      }
+    }
+
+    &--active {
+      color: $text-primary;
+      background: rgba($accent-purple, 0.28);
+      box-shadow: 0 0 0 1px rgba($accent-purple, 0.45);
+
+      &:hover {
+        background: rgba($accent-purple, 0.36);
+      }
+    }
   }
 
   // ── Detached (reattaching) badge ────────────────────────────────────────
@@ -1019,5 +1248,94 @@ $middle-min-width: 280px;
     &--with-inspector {
       grid-template-columns: minmax($middle-min-width, 400px) 1fr 360px;
     }
+  }
+}
+
+// ============================================================================
+// Embedded bottom panel (terminal) — sits between the AgentTerminalPane and
+// the statusbar, mirroring the Guake terminal's bottom split panel area.
+// ============================================================================
+
+.flat-bottom-panel {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  // Height comes from useBottomTerminalResize via inline style; fallback keeps
+  // the panel visible even if the style prop is missing for some reason.
+  height: 250px;
+  min-height: 0;
+  background: $bg-secondary;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 4px 10px;
+    background: $bg-tertiary;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+    min-height: 28px;
+  }
+
+  &__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    color: $text-primary;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__muted {
+    color: $text-muted;
+    font-weight: 400;
+    font-size: 10px;
+  }
+
+  &__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    color: $text-muted;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      color: $text-primary;
+      background: rgba(255, 255, 255, 0.08);
+    }
+  }
+
+  &__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    background: $bg-primary;
+
+    > * {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+  }
+
+  &__placeholder {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: $text-muted;
+    font-size: 12px;
   }
 }
