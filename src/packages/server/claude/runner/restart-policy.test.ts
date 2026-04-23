@@ -62,6 +62,47 @@ describe('RunnerRestartPolicy', () => {
     );
   });
 
+  it('treats a fast-exiting process in waiting_for_input as a completed turn, not a crash', () => {
+    const callbacks: RunnerCallbacks = {
+      onEvent: vi.fn(),
+      onOutput: vi.fn(),
+      onSessionId: vi.fn(),
+      onComplete: vi.fn(),
+      onError: vi.fn(),
+    };
+
+    const activeProcesses = new Map<string, ActiveProcess>();
+    const run = vi.fn(async () => {});
+
+    const policy = new RunnerRestartPolicy({
+      callbacks,
+      activeProcesses,
+      getAutoRestartEnabled: () => true,
+      run,
+    });
+
+    // Simulates a Codex `exec` run that finishes its turn in under 5 seconds:
+    // tmux session ends, watchdog calls maybeAutoRestart with null/null, but the
+    // parser has already set turnState='waiting_for_input' from turn.completed.
+    const shortLivedCodexTurn: ActiveProcess = {
+      agentId: 'agent-1',
+      startTime: Date.now() - 2_800,
+      process: { pid: 123 } as any,
+      lastRequest: {
+        agentId: 'agent-1',
+        prompt: 'which your model?',
+        workingDir: '/tmp',
+      },
+      turnState: 'waiting_for_input',
+    };
+
+    policy.maybeAutoRestart('agent-1', shortLivedCodexTurn, null, null);
+
+    expect(run).not.toHaveBeenCalled();
+    expect(callbacks.onError).not.toHaveBeenCalled();
+    expect(callbacks.onComplete).toHaveBeenCalledWith('agent-1', true);
+  });
+
   it('stops restarting after max attempts and reports error', () => {
     const callbacks: RunnerCallbacks = {
       onEvent: vi.fn(),

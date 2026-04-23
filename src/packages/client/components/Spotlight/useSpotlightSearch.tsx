@@ -475,6 +475,11 @@ export function useSpotlightSearch({
       }
     }
 
+    // Within each group, surface the most recently active agents first.
+    const byRecency = (a: SearchResult, b: SearchResult) => (a.timeAway ?? Number.POSITIVE_INFINITY) - (b.timeAway ?? Number.POSITIVE_INFINITY);
+    prioritizedAgents.sort(byRecency);
+    remainingAgents.sort(byRecency);
+
     // If agent name is an exact/prefix match, prioritize it ahead of infrastructure hits.
     for (const item of prioritizedAgents) {
       finalResults.push(item);

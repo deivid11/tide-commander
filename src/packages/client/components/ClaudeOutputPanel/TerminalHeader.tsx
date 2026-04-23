@@ -14,6 +14,27 @@ import { Tooltip } from '../shared/Tooltip';
 import type { Agent } from '../../../shared/types';
 import type { ViewMode } from './types';
 import { VIEW_MODES } from './types';
+import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../../shared/types';
+
+// Resolve a compact "Model · Effort" label for the header chip. Claude agents
+// have both a model and a reasoning effort; Codex/OpenCode only carry a model.
+function getAgentModelLabel(agent: Agent): { model: string; effort?: string } {
+  if (agent.provider === 'codex') {
+    const id = agent.codexModel || 'gpt-5.3-codex';
+    const meta = (CODEX_MODELS as Record<string, { label: string }>)[id];
+    return { model: meta?.label || id };
+  }
+  if (agent.provider === 'opencode') {
+    return { model: (agent as unknown as { opencodeModel?: string }).opencodeModel || 'opencode' };
+  }
+  const id = agent.model || 'sonnet';
+  const meta = (CLAUDE_MODELS as Record<string, { label: string }>)[id];
+  const effortId = agent.effort;
+  const effortMeta = effortId
+    ? (CLAUDE_EFFORTS as Record<string, { label: string }>)[effortId]
+    : undefined;
+  return { model: meta?.label || id, effort: effortMeta?.label };
+}
 import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
 import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
@@ -294,6 +315,23 @@ export const TerminalHeader = memo(function TerminalHeader({
                   className="guake-provider-icon"
                   title={selectedAgent.provider === 'codex' ? 'Codex Agent' : selectedAgent.provider === 'opencode' ? 'OpenCode Agent' : 'Claude Agent'}
                 />
+                {(() => {
+                  const { model, effort } = getAgentModelLabel(selectedAgent);
+                  return (
+                    <span
+                      className="guake-model-chip"
+                      title={effort ? `Model: ${model} · Effort: ${effort}` : `Model: ${model}`}
+                    >
+                      <span className="guake-model-chip-name">{model}</span>
+                      {effort && (
+                        <>
+                          <span className="guake-model-chip-sep" aria-hidden="true">·</span>
+                          <span className="guake-model-chip-effort">{effort}</span>
+                        </>
+                      )}
+                    </span>
+                  );
+                })()}
               </span>
             </button>
           ) : (
@@ -317,6 +355,23 @@ export const TerminalHeader = memo(function TerminalHeader({
                   className="guake-provider-icon"
                   title={selectedAgent.provider === 'codex' ? 'Codex Agent' : selectedAgent.provider === 'opencode' ? 'OpenCode Agent' : 'Claude Agent'}
                 />
+                {(() => {
+                  const { model, effort } = getAgentModelLabel(selectedAgent);
+                  return (
+                    <span
+                      className="guake-model-chip"
+                      title={effort ? `Model: ${model} · Effort: ${effort}` : `Model: ${model}`}
+                    >
+                      <span className="guake-model-chip-name">{model}</span>
+                      {effort && (
+                        <>
+                          <span className="guake-model-chip-sep" aria-hidden="true">·</span>
+                          <span className="guake-model-chip-effort">{effort}</span>
+                        </>
+                      )}
+                    </span>
+                  );
+                })()}
               </span>
             </div>
           )}

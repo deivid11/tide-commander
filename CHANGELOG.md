@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.68.0] - 2026-04-23
+
+### Added
+- **Agent info modal in Flat UI** — clicking the chat header now opens an `AgentInfoModal` showing the agent's full details; the header doubles as a toggle button with pressed state and tooltip
+- **Model · Effort chip in headers** — both the Flat UI chat header and the Guake-style terminal header now show a provider icon plus a compact "Model · Effort" chip (Claude shows model + reasoning effort; Codex/OpenCode show model only)
+- **Mouse back/forward gestures in Flat UI** — physical mouse side buttons (buttons 3/4) now navigate agent history in Flat UI, mirroring the 3D overlay
+- **Close-chat button in Flat UI** — a new close control deselects the active agent from within the chat wrapper
+- **Workspace filter applied to Flat UI** — agent and area lists in Flat UI now honor the active workspace filter via `isAgentVisibleInWorkspace` / `isAreaVisibleInWorkspace`
+
+### Changed
+- **Spotlight agent results sorted by recency** — within each Spotlight group, agents are now ordered by most-recent activity so the freshest agents surface first
+- **WorkspaceSwitcher instances stay in sync** — multiple mounted switchers (App shell + AgentOverviewPanel) now subscribe to shared workspace state so changes in one propagate to the others
+- **Auto-expand area on cross-surface agent selection** — selecting an agent from TrackingBoard, FlatView chat, or the 3D scene now auto-expands its containing area in `AgentOverviewPanel` so the highlighted card is actually visible
+- **Sidebar hidden in Flat view** — the App-level sidebar and its edge toggle are suppressed while Flat view is active since Flat UI owns its own middle column
+- **Codex prompts delivered via stdin** — `CodexBackend` now streams the assembled prompt through stdin (passing `-` as the PROMPT positional) instead of argv, avoiding tmux's ~16KB argv limit that silently rejected spawns for large prompts (skills + system prompt + class instructions)
+
+### Fixed
+- **Claude restart policy no longer wedges single-shot backends** — normal-exit conditions (`SIGINT`/`SIGTERM`, `turnState=waiting_for_input`, `exitCode === 0`) are now evaluated BEFORE the "runtime < 5s" crash heuristic, so Codex-style backends that legitimately finish a turn in under five seconds are recognized as completed instead of being flagged as crashed
+
 ## [1.67.0] - 2026-04-23
 
 ### Added

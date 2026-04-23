@@ -17,6 +17,8 @@ import {
   useBuildings,
 } from '../../store/selectors';
 import { store } from '../../store';
+import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../../shared/types';
+import type { Agent } from '../../../shared/types';
 import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
 import { getAgentStatusColor } from '../../utils/colors';
@@ -24,13 +26,14 @@ import { AgentOverviewPanel } from '../ClaudeOutputPanel/AgentOverviewPanel';
 import { AgentTerminalPane, type AgentTerminalPaneHandle } from '../ClaudeOutputPanel/AgentTerminalPane';
 import { AreaBuildingsPanel } from '../ClaudeOutputPanel/AreaBuildingsPanel';
 import { GuakeGitPanel } from '../ClaudeOutputPanel/GuakeGitPanel';
-import { ContextConfirmModal, ImageModal, BashModal, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
+import { ContextConfirmModal, ImageModal, BashModal, AgentInfoModal, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
 import { useKeyboardHeight } from '../ClaudeOutputPanel/useKeyboardHeight';
 import { useBottomTerminalResize } from '../ClaudeOutputPanel/useBottomTerminalResize';
 import { ThemeSelector } from '../ClaudeOutputPanel/ThemeSelector';
 import { useGitBranches } from '../ClaudeOutputPanel/useGitBranch';
 import { SingleAgentPanel } from '../UnitPanel/SingleAgentPanel';
 import { TrackingBoard } from '../ClaudeOutputPanel/TrackingBoard';
+import { useWorkspaceFilter, isAgentVisibleInWorkspace, isAreaVisibleInWorkspace } from '../WorkspaceSwitcher';
 import type { ViewMode as TerminalViewMode } from '../ClaudeOutputPanel/types';
 import TerminalEmbed from '../TerminalEmbed';
 import { useTwoClickConfirm } from '../../hooks';
@@ -81,6 +84,8 @@ interface ChatViewProps {
   canNavigateForward: boolean;
   onNavigateBack: () => void;
   onNavigateForward: () => void;
+  agentInfoOpen: boolean;
+  onToggleAgentInfo: () => void;
 }
 
 const TERMINAL_VIEW_MODES: TerminalViewMode[] = ['simple', 'chat', 'advanced'];
@@ -106,6 +111,26 @@ function formatCwdShort(cwd: string): string {
   const parts = cwd.split('/').filter(Boolean);
   if (parts.length === 0) return cwd;
   return parts.slice(-2).join('/');
+}
+
+// Resolve a compact "Model · Effort" label for the header chip. Claude agents
+// have both a model and a reasoning effort; Codex/OpenCode only carry a model.
+function getAgentModelLabel(agent: Agent): { model: string; effort?: string } {
+  if (agent.provider === 'codex') {
+    const id = agent.codexModel || 'gpt-5.3-codex';
+    const meta = (CODEX_MODELS as Record<string, { label: string }>)[id];
+    return { model: meta?.label || id };
+  }
+  if (agent.provider === 'opencode') {
+    return { model: (agent as unknown as { opencodeModel?: string }).opencodeModel || 'opencode' };
+  }
+  const id = agent.model || 'sonnet';
+  const meta = (CLAUDE_MODELS as Record<string, { label: string }>)[id];
+  const effortId = agent.effort;
+  const effortMeta = effortId
+    ? (CLAUDE_EFFORTS as Record<string, { label: string }>)[effortId]
+    : undefined;
+  return { model: meta?.label || id, effort: effortMeta?.label };
 }
 
 // Geometry helper — mirrors ClaudeOutputPanel/index.tsx so the area-dir chips
@@ -149,10 +174,46 @@ const ChatView = React.memo(function ChatView({
   canNavigateForward,
   onNavigateBack,
   onNavigateForward,
+  agentInfoOpen,
+  onToggleAgentInfo,
 }: ChatViewProps) {
   const agent = useAgent(agentId);
   const buildings = useBuildings();
   const paneRef = useRef<AgentTerminalPaneHandle>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Mouse back/forward button gestures for agent history navigation — mirrors
+  // the 3D ClaudeOutputPanel so the Flat view responds to the same physical
+  // mouse side-buttons. Scoped to the flat-terminal-wrapper element.
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+
+    const onMouseUp = (e: MouseEvent) => {
+      if (e.button === 3) {
+        e.preventDefault();
+        e.stopPropagation();
+        onNavigateBack();
+      } else if (e.button === 4) {
+        e.preventDefault();
+        e.stopPropagation();
+        onNavigateForward();
+      }
+    };
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button === 3 || e.button === 4) {
+        e.preventDefault();
+      }
+    };
+
+    el.addEventListener('mouseup', onMouseUp);
+    el.addEventListener('mousedown', onMouseDown);
+    return () => {
+      el.removeEventListener('mouseup', onMouseUp);
+      el.removeEventListener('mousedown', onMouseDown);
+    };
+  }, [onNavigateBack, onNavigateForward]);
 
   // ── Statusbar: area folder lookup (mirrors the Guake statusbar deriv) ────
   const areas = useAreas();
@@ -351,11 +412,20 @@ const ChatView = React.memo(function ChatView({
   const hasSubordinates = subordinateCount > 0;
 
   return (
-    <div className={`flat-terminal-wrapper ${gitPanelOpen || buildingsPanelOpen ? 'flat-terminal-wrapper--with-side-panel' : ''}`}>
+    <div
+      ref={wrapperRef}
+      className={`flat-terminal-wrapper ${gitPanelOpen || buildingsPanelOpen ? 'flat-terminal-wrapper--with-side-panel' : ''}`}
+    >
       <div className="flat-terminal-wrapper__header">
-        <div className="flat-terminal-wrapper__header-main">
+        <button
+          type="button"
+          className={`flat-terminal-wrapper__header-main ${agentInfoOpen ? 'flat-terminal-wrapper__header-main--active' : ''}`}
+          onClick={onToggleAgentInfo}
+          title={agentInfoOpen ? 'Hide agent info' : 'Show agent info'}
+          aria-pressed={agentInfoOpen}
+        >
           <AgentIcon agent={agent} size={28} />
-          <div className="flat-terminal-wrapper__header-info">
+          <span className="flat-terminal-wrapper__header-info">
             <span className="flat-terminal-wrapper__header-name">{agent.name}</span>
             <span
               className="flat-terminal-wrapper__header-status"
@@ -363,13 +433,50 @@ const ChatView = React.memo(function ChatView({
             >
               {agent.status}
             </span>
-          </div>
+          </span>
           {agent.taskLabel && (
             <span className="flat-terminal-wrapper__header-task" title={agent.taskLabel}>
               📋 {agent.taskLabel}
             </span>
           )}
-        </div>
+          <span className="flat-terminal-wrapper__header-model">
+            <img
+              src={
+                agent.provider === 'codex'
+                  ? `${import.meta.env.BASE_URL}assets/codex.png`
+                  : agent.provider === 'opencode'
+                    ? `${import.meta.env.BASE_URL}assets/opencode.png`
+                    : `${import.meta.env.BASE_URL}assets/claude.png`
+              }
+              alt={agent.provider}
+              className="flat-terminal-wrapper__header-provider-icon"
+              title={
+                agent.provider === 'codex'
+                  ? 'Codex Agent'
+                  : agent.provider === 'opencode'
+                    ? 'OpenCode Agent'
+                    : 'Claude Agent'
+              }
+            />
+            {(() => {
+              const { model, effort } = getAgentModelLabel(agent);
+              return (
+                <span
+                  className="flat-terminal-wrapper__header-model-chip"
+                  title={effort ? `Model: ${model} · Effort: ${effort}` : `Model: ${model}`}
+                >
+                  <span className="flat-terminal-wrapper__header-model-name">{model}</span>
+                  {effort && (
+                    <>
+                      <span className="flat-terminal-wrapper__header-model-sep" aria-hidden="true">·</span>
+                      <span className="flat-terminal-wrapper__header-model-effort">{effort}</span>
+                    </>
+                  )}
+                </span>
+              );
+            })()}
+          </span>
+        </button>
         <div className="flat-terminal-wrapper__header-meta">
           <div
             className="flat-terminal-wrapper__view-mode"
@@ -547,6 +654,15 @@ const ChatView = React.memo(function ChatView({
               </svg>
             </span>
             <span className="flat-terminal-wrapper__inspector-label">Inspector</span>
+          </button>
+          <button
+            type="button"
+            className="flat-terminal-wrapper__close"
+            onClick={() => store.deselectAll()}
+            title="Close chat"
+            aria-label="Close chat"
+          >
+            <Icon name="cross" size={14} />
           </button>
         </div>
       </div>
@@ -810,6 +926,15 @@ export function FlatView({
   // the 3D overlay uses, so the two views share one source of truth for the
   // destructive action's UX.
   const [clearSubsModal, setClearSubsModal] = useState<{ agentId: string; count: number } | null>(null);
+  // Agent info modal — opened by clicking the agent avatar/name in the chat
+  // header, mirroring the Guake terminal's guake-title-btn behavior.
+  const [agentInfoOpen, setAgentInfoOpen] = useState(false);
+  const handleToggleAgentInfo = useCallback(() => {
+    setAgentInfoOpen((prev) => !prev);
+  }, []);
+  const handleCloseAgentInfo = useCallback(() => {
+    setAgentInfoOpen(false);
+  }, []);
 
   // Terminal view-mode (simple/chat/advanced). Shared with the 3D overlay via
   // STORAGE_KEYS.VIEW_MODE so users don't have to re-configure their preference.
@@ -909,6 +1034,12 @@ export function FlatView({
   const selectedAgentId = useMemo(() => {
     return selectedAgentIds.size > 0 ? Array.from(selectedAgentIds)[0] : null;
   }, [selectedAgentIds]);
+
+  // Close the agent-info modal whenever the selected agent changes so it
+  // doesn't linger on top of a different agent's chat.
+  useEffect(() => {
+    setAgentInfoOpen(false);
+  }, [selectedAgentId]);
 
   // Agent history navigation — mirrors GuakeOutputPanel agent history so Flat
   // view users get the same browser-style back/forward through selected agents.
@@ -1055,33 +1186,17 @@ export function FlatView({
     });
   }, []);
 
-  // ── Track how many CSS grid columns the overview actually has ──
-  const overviewGridRef = useRef<HTMLDivElement>(null);
-  const [overviewGridCols, setOverviewGridCols] = useState(2);
-
-  useEffect(() => {
-    const el = overviewGridRef.current;
-    if (!el) return;
-    const computeCols = () => {
-      const w = el.clientWidth;
-      const colWidth = 240;
-      const gap = 10;
-      const cols = Math.max(1, Math.floor((w + gap) / (colWidth + gap)));
-      setOverviewGridCols(cols);
-    };
-    computeCols();
-    const ro = new ResizeObserver(computeCols);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
   // ── Compact area/agent data for the empty-chat state ──
   const areas = useAreas();
+  const [activeWorkspace] = useWorkspaceFilter();
   const emptyChatGroups = useMemo(() => {
     const agentsByAreaId = new Map<string, typeof agents>();
     const unassigned: typeof agents = [];
     for (const agent of agents) {
       const area = store.getAreaForAgent(agent.id);
+      // Workspace filter: hide agents whose area isn't part of the active
+      // workspace (and unassigned agents while a workspace is active).
+      if (!isAgentVisibleInWorkspace(area?.id ?? null)) continue;
       if (!area || area.archived) {
         unassigned.push(agent);
         continue;
@@ -1093,6 +1208,8 @@ export function FlatView({
     const groups: { area: typeof areas extends Map<string, infer V> ? V : never; agents: typeof agents }[] = [];
     for (const [, area] of areas) {
       if (area.archived) continue;
+      // Workspace filter: skip areas that aren't part of the active workspace.
+      if (!isAreaVisibleInWorkspace(area.id)) continue;
       const list = agentsByAreaId.get(area.id);
       if (list && list.length > 0) {
         groups.push({ area, agents: list });
@@ -1105,9 +1222,13 @@ export function FlatView({
       });
     }
 
-    // ── Spatial sort so the grid order mirrors the 2D/3D scene layout ──
     const assignedGroups = groups.filter(g => g.area.id !== '__unassigned__');
     const unassignedGroups = groups.filter(g => g.area.id === '__unassigned__');
+
+    // ── Compute a 2D grid that mirrors the actual scene layout ──
+    let gridCols = 1;
+    let gridRows = 1;
+    const positions = new Map<string, { row: number; col: number }>();
 
     if (assignedGroups.length > 1) {
       let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
@@ -1117,21 +1238,67 @@ export function FlatView({
         minZ = Math.min(minZ, g.area.center.z);
         maxZ = Math.max(maxZ, g.area.center.z);
       }
+      const spanX = maxX - minX || 1;
       const spanZ = maxZ - minZ || 1;
-      // Use the actual CSS grid column count so each conceptual row aligns
-      // with a real CSS grid row.  Areas are grouped into horizontal bands
-      // (by z / scene vertical position) and sorted left-to-right within
-      // each band so the card grid visually maps to the 2D canvas layout.
-      const cols = Math.max(1, overviewGridCols);
-      const bands = Math.max(1, Math.ceil(assignedGroups.length / cols));
-      const bandHeight = spanZ / bands;
 
-      assignedGroups.sort((a, b) => {
-        const bandA = Math.min(bands - 1, Math.floor((a.area.center.z - minZ) / bandHeight));
-        const bandB = Math.min(bands - 1, Math.floor((b.area.center.z - minZ) / bandHeight));
-        if (bandA !== bandB) return bandA - bandB;
-        return a.area.center.x - b.area.center.x;
-      });
+      // For small numbers of areas, lay them out left-to-right in a single row
+      // so the flat view column count matches the 2D scene more directly.
+      if (assignedGroups.length <= 4) {
+        gridCols = assignedGroups.length;
+        gridRows = 1;
+        const xSorted = [...assignedGroups].sort((a, b) => a.area.center.x - b.area.center.x);
+        for (let i = 0; i < xSorted.length; i++) {
+          positions.set(xSorted[i].area.id, { row: 1, col: i + 1 });
+        }
+      } else {
+        // Detect natural columns from x-coordinate gaps
+        const xSorted = [...assignedGroups].sort((a, b) => a.area.center.x - b.area.center.x);
+        const xGaps: number[] = [];
+        for (let i = 1; i < xSorted.length; i++) {
+          xGaps.push(xSorted[i].area.center.x - xSorted[i - 1].area.center.x);
+        }
+        const meanXGap = xGaps.reduce((a, b) => a + b, 0) / xGaps.length || 1;
+        let detectedCols = 1;
+        for (const gap of xGaps) {
+          if (gap > meanXGap * 1.3) detectedCols++;
+        }
+        gridCols = Math.max(2, Math.min(detectedCols, assignedGroups.length));
+
+        // Detect natural rows from z-coordinate gaps
+        const zSorted = [...assignedGroups].sort((a, b) => a.area.center.z - b.area.center.z);
+        const zGaps: number[] = [];
+        for (let i = 1; i < zSorted.length; i++) {
+          zGaps.push(zSorted[i].area.center.z - zSorted[i - 1].area.center.z);
+        }
+        const meanZGap = zGaps.reduce((a, b) => a + b, 0) / zGaps.length || 1;
+        let detectedRows = 1;
+        for (const gap of zGaps) {
+          if (gap > meanZGap * 1.3) detectedRows++;
+        }
+        gridRows = Math.max(2, Math.min(detectedRows, assignedGroups.length));
+
+        // Make sure the grid is large enough to hold every area
+        gridCols = Math.max(gridCols, Math.ceil(assignedGroups.length / gridRows));
+        gridRows = Math.max(gridRows, Math.ceil(assignedGroups.length / gridCols));
+
+        // Snap each area to its nearest grid cell
+        const colWidth = spanX / gridCols;
+        const rowHeight = spanZ / gridRows;
+        const usedCells = new Set<string>();
+
+        for (const g of assignedGroups) {
+          let col = Math.min(gridCols - 1, Math.max(0, Math.floor((g.area.center.x - minX) / colWidth)));
+          let row = Math.min(gridRows - 1, Math.max(0, Math.floor((g.area.center.z - minZ) / rowHeight)));
+          // Resolve collisions by shifting right within the same row
+          let cellKey = `${row},${col}`;
+          while (usedCells.has(cellKey) && col < gridCols - 1) {
+            col++;
+            cellKey = `${row},${col}`;
+          }
+          usedCells.add(cellKey);
+          positions.set(g.area.id, { row: row + 1, col: col + 1 }); // CSS grid is 1-based
+        }
+      }
     }
 
     // Sort agents inside each group by their scene position (z then x)
@@ -1145,13 +1312,13 @@ export function FlatView({
     for (const g of assignedGroups) sortAgents(g.agents);
     for (const g of unassignedGroups) sortAgents(g.agents);
 
-    return [...assignedGroups, ...unassignedGroups];
-  }, [agents, areas, overviewGridCols]);
+    return { groups: [...assignedGroups, ...unassignedGroups], gridCols, gridRows, positions };
+  }, [agents, areas, activeWorkspace]);
 
   // ── Focus an area in the left-panel AgentOverviewPanel ──
   const handleFocusArea = useCallback((areaKey: string) => {
     // 1. Collapse every area except the clicked one
-    const allOtherKeys = new Set(emptyChatGroups.map(g => g.area.id));
+    const allOtherKeys = new Set(emptyChatGroups.groups.map(g => g.area.id));
     allOtherKeys.delete(areaKey);
     setCollapsedAreas(allOtherKeys);
     // 2. After React flushes, scroll the area header into view
@@ -1233,6 +1400,8 @@ export function FlatView({
             canNavigateForward={canNavigateForward}
             onNavigateBack={handleNavigateBack}
             onNavigateForward={handleNavigateForward}
+            agentInfoOpen={agentInfoOpen}
+            onToggleAgentInfo={handleToggleAgentInfo}
           />
         ) : (
           <div className="flat-chat flat-chat--empty">
@@ -1241,19 +1410,27 @@ export function FlatView({
                 <span className="flat-empty-overview__title">🗺️ Areas</span>
                 <span className="flat-empty-overview__hint">Click an area to focus it, or an agent to chat</span>
               </div>
-              <div className="flat-empty-overview__grid" ref={overviewGridRef}>
-                {emptyChatGroups.length === 0 ? (
+              <div
+                className="flat-empty-overview__grid"
+                style={{ gridTemplateColumns: `repeat(${emptyChatGroups.gridCols}, 1fr)` }}
+              >
+                {emptyChatGroups.groups.length === 0 ? (
                   <div className="flat-empty-overview__empty">
                     <span>No areas or agents yet</span>
                   </div>
                 ) : (
-                  emptyChatGroups.map(group => {
+                  emptyChatGroups.groups.map(group => {
                     const areaKey = group.area.id;
+                    const pos = emptyChatGroups.positions.get(areaKey);
                     return (
                       <div
                         key={areaKey}
                         className="flat-empty-area-card"
-                        style={{ '--area-color': group.area.color } as React.CSSProperties}
+                        style={{
+                          '--area-color': group.area.color,
+                          gridRow: pos?.row,
+                          gridColumn: pos?.col,
+                        } as React.CSSProperties}
                       >
                         <button
                           type="button"
@@ -1384,6 +1561,11 @@ export function FlatView({
           }}
         />
       )}
+      <AgentInfoModal
+        agent={selectedAgentId ? agents.find((a) => a.id === selectedAgentId) ?? null : null}
+        isOpen={agentInfoOpen && !!selectedAgentId}
+        onClose={handleCloseAgentInfo}
+      />
     </div>
   );
 }

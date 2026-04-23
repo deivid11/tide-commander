@@ -638,6 +638,28 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     });
   };
 
+  // When the selected agent changes, make sure its area is expanded so the
+  // card is actually visible. Without this, selecting an agent from another
+  // surface (TrackingBoard, FlatView chat, 3D scene) would silently highlight
+  // a hidden card inside a collapsed area.
+  useEffect(() => {
+    if (!activeAgentId) return;
+    const areaKey = agentToAreaId.get(activeAgentId) ?? '__unassigned__';
+    if (!collapsedAreas.has(areaKey)) return;
+    if (externalOnToggleArea) {
+      externalOnToggleArea(areaKey);
+    } else {
+      setInternalCollapsedAreas(prev => {
+        if (!prev.has(areaKey)) return prev;
+        const next = new Set(prev);
+        next.delete(areaKey);
+        return next;
+      });
+    }
+    // Depend only on the agent id so a later user-driven collapse of the same
+    // area is respected; we re-expand only when the selection itself changes.
+  }, [activeAgentId]);
+
   const requestSpawnForArea = useCallback((area: DrawingArea) => {
     window.dispatchEvent(new CustomEvent('tide:open-spawn-modal', {
       detail: {

@@ -44,10 +44,17 @@ export class RunnerRestartPolicy {
       return;
     }
 
-    const runtime = Date.now() - activeProcess.startTime;
-    if (runtime < MIN_RUNTIME_FOR_RESTART_MS) {
-      log.error(`🔄 [AUTO-RESTART] Process ${agentId} died after only ${runtime}ms - NOT restarting (likely config error)`);
-      this.callbacks.onError(agentId, `Process crashed immediately (${runtime}ms) - not auto-restarting. Check Claude Code installation.`);
+    // Normal-exit conditions must be checked BEFORE the "runtime < 5s" crash
+    // heuristic, because single-shot backends like Codex routinely finish a
+    // turn in under 5 seconds — classifying that as a crash wedges the agent.
+    if (signal === 'SIGINT' || signal === 'SIGTERM') {
+      log.log(`🔄 [AUTO-RESTART] Process ${agentId} was stopped intentionally (${signal}), not restarting`);
+      return;
+    }
+
+    if (activeProcess.turnState === 'waiting_for_input') {
+      log.log(`🔄 [AUTO-RESTART] Process ${agentId} exited after completing its turn (turnState=waiting_for_input), not restarting`);
+      this.callbacks.onComplete(agentId, true);
       return;
     }
 
@@ -55,18 +62,11 @@ export class RunnerRestartPolicy {
       log.log(`🔄 [AUTO-RESTART] Process ${agentId} exited cleanly (code 0), not restarting`);
       return;
     }
-    if (signal === 'SIGINT' || signal === 'SIGTERM') {
-      log.log(`🔄 [AUTO-RESTART] Process ${agentId} was stopped intentionally (${signal}), not restarting`);
-      return;
-    }
 
-    // If the process had completed its turn and was waiting for new input,
-    // its exit is a normal completion — not a crash.  This is especially
-    // important for backends like Codex that exit after each task rather
-    // than staying resident for stdin-based follow-ups.
-    if (activeProcess.turnState === 'waiting_for_input') {
-      log.log(`🔄 [AUTO-RESTART] Process ${agentId} exited after completing its turn (turnState=waiting_for_input), not restarting`);
-      this.callbacks.onComplete(agentId, true);
+    const runtime = Date.now() - activeProcess.startTime;
+    if (runtime < MIN_RUNTIME_FOR_RESTART_MS) {
+      log.error(`🔄 [AUTO-RESTART] Process ${agentId} died after only ${runtime}ms - NOT restarting (likely config error)`);
+      this.callbacks.onError(agentId, `Process crashed immediately (${runtime}ms) - not auto-restarting. Check Claude Code installation.`);
       return;
     }
 

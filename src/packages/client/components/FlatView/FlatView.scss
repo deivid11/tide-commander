@@ -312,9 +312,13 @@ $middle-min-width: 280px;
 
   &__grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 10px;
     align-content: start;
+
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+    }
   }
 
   &__empty {
@@ -425,6 +429,35 @@ $middle-min-width: 280px;
     color: $text-primary;
   }
 
+  // Working agents: pulse the status dot only (semantic, no layout shift,
+  // does not bleed into sibling chips). Color is keyed to the actual
+  // working-status blue (#4a9eff) used elsewhere in the UI.
+  &.working &__dot {
+    animation: flat-empty-agent-working-pulse 1.8s ease-out infinite;
+    transform-origin: center;
+  }
+
+  @keyframes flat-empty-agent-working-pulse {
+    0% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(74, 158, 255, 0.6);
+    }
+    70% {
+      transform: scale(1.15);
+      box-shadow: 0 0 0 5px rgba(74, 158, 255, 0);
+    }
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(74, 158, 255, 0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &.working &__dot {
+      animation: none;
+    }
+  }
+
   &__name {
     min-width: 0;
     overflow: hidden;
@@ -487,6 +520,32 @@ $middle-min-width: 280px;
     min-width: 0;
     flex: 1 1 auto;
     overflow: hidden;
+    // Button reset — the header-main is a <button> so clicking it opens the
+    // AgentInfoModal (mirrors the guake-title-btn behavior in the 3D view).
+    padding: 4px 6px;
+    margin: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.06);
+    }
+
+    &--active {
+      background: rgba($accent-purple, 0.18);
+      border-color: rgba($accent-purple, 0.45);
+
+      &:hover {
+        background: rgba($accent-purple, 0.26);
+      }
+    }
   }
 
   &__header-meta {
@@ -833,6 +892,60 @@ $middle-min-width: 280px;
     flex-shrink: 1;
   }
 
+  // Model + effort cluster — provider icon followed by a chip with the model
+  // name and reasoning effort. Visible next to the agent name so the user can
+  // tell at a glance which model is running.
+  &__header-model {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    min-width: 0;
+  }
+
+  &__header-provider-icon {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+    flex-shrink: 0;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+  }
+
+  &__header-model-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-weight: 600;
+    color: $text-secondary;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 999px;
+    white-space: nowrap;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+  }
+
+  &__header-model-name {
+    color: $text-primary;
+    text-transform: lowercase;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__header-model-sep {
+    opacity: 0.6;
+  }
+
+  &__header-model-effort {
+    color: $accent-purple;
+    text-transform: lowercase;
+  }
+
   // ── Working directory chip ──────────────────────────────────────────────
   &__cwd {
     display: inline-flex;
@@ -1037,6 +1150,28 @@ $middle-min-width: 280px;
 
   &__inspector-label {
     line-height: 1;
+  }
+
+  // ── Close button (deselect agent, return to empty-chat overview) ────────
+  &__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    color: $text-muted;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      color: $accent-red;
+      background: rgba($accent-red, 0.12);
+      border-color: rgba($accent-red, 0.4);
+    }
   }
 
   // Narrow panels: collapse the view-mode labels and cwd to save room.
