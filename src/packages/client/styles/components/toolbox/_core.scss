@@ -194,11 +194,189 @@
 .fab-spawn-boss-btn     { top: 308px; color: $dracula-yellow; }  // 266 + 36 + 6
 .fab-spawn-building-btn { top: 350px; color: $dracula-cyan;   }  // 308 + 36 + 6
 .fab-spawn-area-btn     { top: 392px; color: $dracula-purple; }  // 350 + 36 + 6
+.fab-spawn-viewmode-btn { top: 434px; color: $dracula-orange; }  // 392 + 36 + 6
+.fab-spawn-organize-btn { top: 518px; color: $dracula-red;    }  // 476 (workspace FAB) + 36 + 6
 
 .fab-spawn-agent-btn:hover   { border-color: $dracula-green;  color: $dracula-green;  }
 .fab-spawn-boss-btn:hover    { border-color: $dracula-yellow; color: $dracula-yellow; }
 .fab-spawn-building-btn:hover{ border-color: $dracula-cyan;   color: $dracula-cyan;   }
 .fab-spawn-area-btn:hover    { border-color: $dracula-purple; color: $dracula-purple; }
+.fab-spawn-viewmode-btn:hover{ border-color: $dracula-orange; color: $dracula-orange; }
+.fab-spawn-organize-btn:hover{ border-color: $dracula-red;    color: $dracula-red;    }
+
+.fab-spawn-organize-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fab-spawn-viewmode-btn.is-open {
+  border-color: $dracula-orange;
+  color: $dracula-orange;
+  background: rgba($dracula-orange, 0.1);
+}
+
+// Group wrapper for the view-mode FAB + popover menu. Both children are
+// position:fixed on their own, so the wrapper only exists as a DOM anchor for
+// click-outside detection — `display: contents` removes its line box so it
+// can't push flex siblings (which was adding a 21px strip at the bottom of
+// the flat view's .app flex column).
+.fab-viewmode-wrapper {
+  display: contents;
+}
+
+// Popover menu anchored to the view-mode FAB
+.fab-viewmode-menu {
+  position: fixed;
+  left: 62px;        // 16 (FAB left) + 36 (FAB width) + 10 gap
+  top: 434px;        // aligned with the FAB
+  min-width: 220px;
+  background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
+  border: 1px solid $dracula-comment;
+  border-radius: $radius-lg;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 151;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  animation: fab-menu-in 0.12s ease-out;
+
+  &__item {
+    display: grid;
+    grid-template-columns: 24px 1fr;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: $radius-md;
+    color: $dracula-fg;
+    text-align: left;
+    cursor: pointer;
+    transition: background $transition-fast, border-color $transition-fast, color $transition-fast;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: $dracula-comment;
+    }
+
+    &.is-active {
+      background: rgba($dracula-orange, 0.12);
+      border-color: rgba($dracula-orange, 0.5);
+      color: $dracula-orange;
+    }
+  }
+
+  &__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+  }
+
+  &__label {
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  &__desc {
+    font-size: 10px;
+    color: $dracula-comment;
+    grid-column: 2;
+    grid-row: 2;
+    margin-top: -2px;
+  }
+}
+
+@keyframes fab-menu-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+// ============================================================================
+// Workspace switcher rendered as a FAB (left rail)
+// ============================================================================
+.fab-workspace-wrapper {
+  position: fixed;
+  left: 16px;
+  top: 476px;       // 434 (view-mode FAB) + 36 + 6
+  z-index: 150;
+
+  .workspace-switcher {
+    position: static;
+  }
+
+  .workspace-switcher-trigger {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    gap: 0;
+    border-radius: $radius-lg;
+    background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
+    border: 1px solid $dracula-comment;
+    color: $dracula-pink;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+
+    &:hover {
+      border-color: $dracula-pink;
+      color: $dracula-pink;
+      background: linear-gradient(180deg, color.adjust($dracula-current, $lightness: 5%) 0%, $dracula-current 100%);
+    }
+  }
+
+  // Icon-only FAB: hide the workspace label & dropdown caret
+  .workspace-switcher-label,
+  .workspace-switcher-arrow {
+    display: none;
+  }
+
+  .workspace-switcher-icon {
+    font-size: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  // Popover: slide out to the right of the FAB instead of dropping down
+  .workspace-switcher-dropdown {
+    top: 0;
+    left: calc(100% + 10px);
+    min-width: 220px;
+    background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
+    border: 1px solid $dracula-comment;
+    border-radius: $radius-lg;
+    padding: 6px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    animation: fab-menu-in 0.12s ease-out;
+  }
+
+  .workspace-switcher-option {
+    border-radius: $radius-md;
+    padding: 8px 10px;
+    font-size: 12px;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    &.active {
+      color: $dracula-pink;
+      background: rgba($dracula-pink, 0.12);
+    }
+  }
+
+  .workspace-switcher-divider {
+    margin: 4px 2px;
+  }
+
+  .workspace-switcher-manager {
+    min-width: 280px;
+  }
+}
 
 .toolbox-backdrop {
   position: fixed;

@@ -1058,6 +1058,26 @@ export function FlatView({
     });
   }, []);
 
+  // ── Track how many CSS grid columns the overview actually has ──
+  const overviewGridRef = useRef<HTMLDivElement>(null);
+  const [overviewGridCols, setOverviewGridCols] = useState(2);
+
+  useEffect(() => {
+    const el = overviewGridRef.current;
+    if (!el) return;
+    const computeCols = () => {
+      const w = el.clientWidth;
+      const colWidth = 240;
+      const gap = 10;
+      const cols = Math.max(1, Math.floor((w + gap) / (colWidth + gap)));
+      setOverviewGridCols(cols);
+    };
+    computeCols();
+    const ro = new ResizeObserver(computeCols);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // ── Compact area/agent data for the empty-chat state ──
   const areas = useAreas();
   const emptyChatGroups = useMemo(() => {
@@ -1088,18 +1108,48 @@ export function FlatView({
       });
     }
 
-    // Sort so the grid order mirrors the 2D/3D scene layout: top-to-bottom (smaller z → larger z)
-    // then left-to-right (smaller x → larger x). Unassigned always stays last.
-    groups.sort((a, b) => {
-      if (a.area.id === '__unassigned__') return 1;
-      if (b.area.id === '__unassigned__') return -1;
-      const zDiff = a.area.center.z - b.area.center.z;
-      if (zDiff !== 0) return zDiff;
-      return a.area.center.x - b.area.center.x;
-    });
+    // ── Spatial sort so the grid order mirrors the 2D/3D scene layout ──
+    const assignedGroups = groups.filter(g => g.area.id !== '__unassigned__');
+    const unassignedGroups = groups.filter(g => g.area.id === '__unassigned__');
 
-    return groups;
-  }, [agents, areas]);
+    if (assignedGroups.length > 1) {
+      let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      for (const g of assignedGroups) {
+        minX = Math.min(minX, g.area.center.x);
+        maxX = Math.max(maxX, g.area.center.x);
+        minZ = Math.min(minZ, g.area.center.z);
+        maxZ = Math.max(maxZ, g.area.center.z);
+      }
+      const spanZ = maxZ - minZ || 1;
+      // Use the actual CSS grid column count so each conceptual row aligns
+      // with a real CSS grid row.  Areas are grouped into horizontal bands
+      // (by z / scene vertical position) and sorted left-to-right within
+      // each band so the card grid visually maps to the 2D canvas layout.
+      const cols = Math.max(1, overviewGridCols);
+      const bands = Math.max(1, Math.ceil(assignedGroups.length / cols));
+      const bandHeight = spanZ / bands;
+
+      assignedGroups.sort((a, b) => {
+        const bandA = Math.min(bands - 1, Math.floor((a.area.center.z - minZ) / bandHeight));
+        const bandB = Math.min(bands - 1, Math.floor((b.area.center.z - minZ) / bandHeight));
+        if (bandA !== bandB) return bandA - bandB;
+        return a.area.center.x - b.area.center.x;
+      });
+    }
+
+    // Sort agents inside each group by their scene position (z then x)
+    const sortAgents = (list: typeof agents) => {
+      list.sort((a, b) => {
+        const zDiff = (a.position?.z ?? 0) - (b.position?.z ?? 0);
+        if (zDiff !== 0) return zDiff;
+        return (a.position?.x ?? 0) - (b.position?.x ?? 0);
+      });
+    };
+    for (const g of assignedGroups) sortAgents(g.agents);
+    for (const g of unassignedGroups) sortAgents(g.agents);
+
+    return [...assignedGroups, ...unassignedGroups];
+  }, [agents, areas, overviewGridCols]);
 
   // ── Focus an area in the left-panel AgentOverviewPanel ──
   const handleFocusArea = useCallback((areaKey: string) => {
@@ -1194,7 +1244,7 @@ export function FlatView({
                 <span className="flat-empty-overview__title">🗺️ Areas</span>
                 <span className="flat-empty-overview__hint">Click an area to focus it, or an agent to chat</span>
               </div>
-              <div className="flat-empty-overview__grid">
+              <div className="flat-empty-overview__grid" ref={overviewGridRef}>
                 {emptyChatGroups.length === 0 ? (
                   <div className="flat-empty-overview__empty">
                     <span>No areas or agents yet</span>
