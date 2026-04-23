@@ -455,6 +455,18 @@ $middle-min-width: 280px;
   position: relative;
   background: $bg-tertiary;
   overflow: hidden;
+  // Side panels (git / buildings / workflow) rely on this CSS var for their
+  // width. The Guake wrapper sets the same var; we mirror it here so the
+  // reused panel components render correctly inside the Flat layout.
+  --guake-side-panel-width: 380px;
+
+  // When a side panel is open, push chat content left so the two don't
+  // overlap. Mirrors the 3D Guake behavior where the chat shrinks to make
+  // room for the side panel instead of being overlaid.
+  &--with-side-panel > *:not(.guake-git-panel):not(.guake-buildings-panel):not(.guake-workflow-panel) {
+    margin-right: var(--guake-side-panel-width);
+    transition: margin-right 0.2s ease;
+  }
 
   &__header {
     display: flex;

@@ -9,6 +9,7 @@
 
 import React, { useState, useMemo, useCallback, useRef, useEffect, useReducer } from 'react';
 import {
+  useAgents,
   useAgentsArray,
   useSelectedAgentIds,
   useAgent,
@@ -21,6 +22,8 @@ import { Icon } from '../Icon';
 import { getAgentStatusColor } from '../../utils/colors';
 import { AgentOverviewPanel } from '../ClaudeOutputPanel/AgentOverviewPanel';
 import { AgentTerminalPane, type AgentTerminalPaneHandle } from '../ClaudeOutputPanel/AgentTerminalPane';
+import { AreaBuildingsPanel } from '../ClaudeOutputPanel/AreaBuildingsPanel';
+import { GuakeGitPanel } from '../ClaudeOutputPanel/GuakeGitPanel';
 import { ContextConfirmModal, ImageModal, BashModal, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
 import { useKeyboardHeight } from '../ClaudeOutputPanel/useKeyboardHeight';
 import { useBottomTerminalResize } from '../ClaudeOutputPanel/useBottomTerminalResize';
@@ -251,6 +254,41 @@ const ChatView = React.memo(function ChatView({
   // Shared resizer — same hook the Guake bottom panel uses, so the persisted
   // height is kept in sync across both surfaces.
   const { height: embeddedHeight, onResizeStart: handleEmbeddedResizeStart } = useBottomTerminalResize();
+
+  // Side panels (git / area buildings) — reuse the Guake components, persist
+  // open-state to the same STORAGE_KEYS so the toggle survives a view swap.
+  const [gitPanelOpen, setGitPanelOpen] = useState<boolean>(() =>
+    getStorageBoolean(STORAGE_KEYS.GIT_PANEL_OPEN, false)
+  );
+  const [buildingsPanelOpen, setBuildingsPanelOpen] = useState<boolean>(() =>
+    getStorageBoolean(STORAGE_KEYS.BUILDINGS_PANEL_OPEN, false)
+  );
+  const toggleGitPanel = useCallback(() => {
+    setGitPanelOpen((prev) => {
+      const next = !prev;
+      setStorageBoolean(STORAGE_KEYS.GIT_PANEL_OPEN, next);
+      return next;
+    });
+  }, []);
+  const toggleBuildingsPanel = useCallback(() => {
+    setBuildingsPanelOpen((prev) => {
+      const next = !prev;
+      setStorageBoolean(STORAGE_KEYS.BUILDINGS_PANEL_OPEN, next);
+      return next;
+    });
+  }, []);
+  const closeGitPanel = useCallback(() => {
+    setGitPanelOpen(false);
+    setStorageBoolean(STORAGE_KEYS.GIT_PANEL_OPEN, false);
+  }, []);
+  const closeBuildingsPanel = useCallback(() => {
+    setBuildingsPanelOpen(false);
+    setStorageBoolean(STORAGE_KEYS.BUILDINGS_PANEL_OPEN, false);
+  }, []);
+
+  // Agents Map needed by GuakeGitPanel's diff viewer lookups.
+  const agentsMap = useAgents();
+
   // Close the embed automatically if the building leaves the current area or
   // disappears, so the panel doesn't stick around as a stale ghost.
   useEffect(() => {
@@ -313,7 +351,7 @@ const ChatView = React.memo(function ChatView({
   const hasSubordinates = subordinateCount > 0;
 
   return (
-    <div className="flat-terminal-wrapper">
+    <div className={`flat-terminal-wrapper ${gitPanelOpen || buildingsPanelOpen ? 'flat-terminal-wrapper--with-side-panel' : ''}`}>
       <div className="flat-terminal-wrapper__header">
         <div className="flat-terminal-wrapper__header-main">
           <AgentIcon agent={agent} size={28} />
@@ -401,6 +439,24 @@ const ChatView = React.memo(function ChatView({
               title={isClearArmed ? 'Click again to confirm clear context' : 'Clear context'}
             >
               <Icon name={isClearArmed ? 'question' : 'clear'} size={14} />
+            </button>
+            <button
+              type="button"
+              className={`flat-terminal-wrapper__action-btn ${gitPanelOpen ? 'flat-terminal-wrapper__action-btn--active' : ''}`}
+              onClick={toggleGitPanel}
+              title={gitPanelOpen ? 'Hide git panel' : 'Show git changes'}
+              aria-pressed={gitPanelOpen}
+            >
+              <Icon name="git-branch" size={14} />
+            </button>
+            <button
+              type="button"
+              className={`flat-terminal-wrapper__action-btn ${buildingsPanelOpen ? 'flat-terminal-wrapper__action-btn--active' : ''}`}
+              onClick={toggleBuildingsPanel}
+              title={buildingsPanelOpen ? 'Hide buildings panel' : 'Show area buildings'}
+              aria-pressed={buildingsPanelOpen}
+            >
+              <Icon name="buildings" size={14} />
             </button>
             <div className="flat-terminal-wrapper__more" ref={menuRef}>
               <button
@@ -709,6 +765,25 @@ const ChatView = React.memo(function ChatView({
           <ThemeSelector />
         </div>
       </div>
+      {/* Side panels — reuse the same GuakeGitPanel / AreaBuildingsPanel the
+          3D view uses, so the feature set stays aligned. They position
+          absolutely against the .flat-terminal-wrapper (position: relative). */}
+      {gitPanelOpen && (
+        <GuakeGitPanel
+          agentId={agentId}
+          agents={agentsMap}
+          onClose={closeGitPanel}
+          branchInfoMap={areaBranches}
+          fetchRemote={fetchGitRemote}
+          fetchingDirs={gitFetchingDirs}
+        />
+      )}
+      {buildingsPanelOpen && (
+        <AreaBuildingsPanel
+          agentId={agentId}
+          onClose={closeBuildingsPanel}
+        />
+      )}
     </div>
   );
 });
@@ -983,28 +1058,6 @@ export function FlatView({
     });
   }, []);
 
-  // ── Focus an area in the left-panel AgentOverviewPanel ──
-  const handleFocusArea = useCallback((areaKey: string) => {
-    // 1. Ensure the area is expanded in the left panel
-    setCollapsedAreas(prev => {
-      if (!prev.has(areaKey)) return prev;
-      const next = new Set(prev);
-      next.delete(areaKey);
-      return next;
-    });
-    // 2. After React flushes, scroll the area header into view
-    requestAnimationFrame(() => {
-      const container = agentListRef.current;
-      if (!container) return;
-      const header = container.querySelector<HTMLElement>(`[data-area-id="${areaKey}"]`);
-      if (!header) return;
-      const containerRect = container.getBoundingClientRect();
-      const headerRect = header.getBoundingClientRect();
-      const offset = headerRect.top - containerRect.top + container.scrollTop - 8;
-      container.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
-    });
-  }, []);
-
   // ── Compact area/agent data for the empty-chat state ──
   const areas = useAreas();
   const emptyChatGroups = useMemo(() => {
@@ -1034,8 +1087,38 @@ export function FlatView({
         agents: unassigned,
       });
     }
+
+    // Sort so the grid order mirrors the 2D/3D scene layout: top-to-bottom (smaller z → larger z)
+    // then left-to-right (smaller x → larger x). Unassigned always stays last.
+    groups.sort((a, b) => {
+      if (a.area.id === '__unassigned__') return 1;
+      if (b.area.id === '__unassigned__') return -1;
+      const zDiff = a.area.center.z - b.area.center.z;
+      if (zDiff !== 0) return zDiff;
+      return a.area.center.x - b.area.center.x;
+    });
+
     return groups;
   }, [agents, areas]);
+
+  // ── Focus an area in the left-panel AgentOverviewPanel ──
+  const handleFocusArea = useCallback((areaKey: string) => {
+    // 1. Collapse every area except the clicked one
+    const allOtherKeys = new Set(emptyChatGroups.map(g => g.area.id));
+    allOtherKeys.delete(areaKey);
+    setCollapsedAreas(allOtherKeys);
+    // 2. After React flushes, scroll the area header into view
+    requestAnimationFrame(() => {
+      const container = agentListRef.current;
+      if (!container) return;
+      const header = container.querySelector<HTMLElement>(`[data-area-id="${areaKey}"]`);
+      if (!header) return;
+      const containerRect = container.getBoundingClientRect();
+      const headerRect = header.getBoundingClientRect();
+      const offset = headerRect.top - containerRect.top + container.scrollTop - 8;
+      container.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
+    });
+  }, [emptyChatGroups]);
 
   return (
     <div
