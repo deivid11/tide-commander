@@ -222,6 +222,18 @@ export class ClaudeRunner {
         this.watchdog.recordDeath(deathInfo);
       }
 
+      // If the backend closes stdin per-turn (e.g. opencode) and a user sent a
+      // message while this turn was in flight, that message is still queued.
+      // Detect a clean turn-end exit and respawn with session resume so the
+      // queued message gets delivered as the next prompt.
+      const queuedCount = this.messageQueue.get(agentId)?.length ?? 0;
+      const cleanTurnEnd =
+        wasTracked
+        && code === 0
+        && !signal
+        && !!trackedProcess?.lastRequest
+        && queuedCount > 0;
+
       if (!wasTracked && (signal === 'SIGINT' || signal === 'SIGTERM')) {
         log.log(`⏭️ [EXIT] Agent ${agentId}: Skipping onComplete - process was explicitly stopped (signal=${signal})`);
         // Belt-and-suspenders: ensure the agent ends up idle even if stale
@@ -236,11 +248,15 @@ export class ClaudeRunner {
             isDetached: false,
           });
         }
+      } else if (cleanTurnEnd) {
+        log.log(`⏭️ [EXIT] Agent ${agentId}: Skipping onComplete - respawning to deliver ${queuedCount} queued message(s)`);
       } else {
         this.callbacks.onComplete(agentId, code === 0);
       }
 
-      if (trackedProcess && code !== 0 && signal !== 'SIGINT' && signal !== 'SIGTERM') {
+      if (cleanTurnEnd && trackedProcess) {
+        this.respawnWithQueuedMessage(agentId, trackedProcess);
+      } else if (trackedProcess && code !== 0 && signal !== 'SIGINT' && signal !== 'SIGTERM') {
         this.restartPolicy.maybeAutoRestart(agentId, trackedProcess, code, signal);
       }
     });
@@ -331,6 +347,24 @@ export class ClaudeRunner {
       return ok;
     }
 
+    const turnState = activeProcess.turnState || 'processing';
+    const messageLen = message.length;
+
+    // Queue mid-turn messages BEFORE any stdin-writability check. Writing to the OS
+    // stdin pipe mid-turn is unreliable on all backends (async callback + possible
+    // pipe close), and backends like opencode explicitly close stdin after the initial
+    // prompt so there is nothing to write to at all. In both cases the queue is the
+    // source of truth; drain happens after the current turn ends (via stdin for
+    // stdin-open backends, or via session-resume respawn for stdin-closed ones).
+    if (turnState === 'processing') {
+      const queue = this.messageQueue.get(agentId) ?? [];
+      queue.push(message);
+      this.messageQueue.set(agentId, queue);
+      log.log(`📋 [QUEUE] Agent ${agentId} is mid-turn, queued message for post-turn delivery (queue=${queue.length}, ${messageLen} chars)`);
+      return true;
+    }
+
+    // Agent is waiting for input: send directly via stdin (immediate processing)
     const stdin = activeProcess.process.stdin;
     if (!stdin) {
       log.error(`❌ [SEND_MESSAGE] stdin is null for agent ${agentId}`);
@@ -341,23 +375,6 @@ export class ClaudeRunner {
       return false;
     }
 
-    const turnState = activeProcess.turnState || 'processing';
-    const messageLen = message.length;
-
-    if (turnState === 'processing') {
-      // Agent is mid-turn: queue the message for delivery once the current turn completes.
-      // Writing to the OS stdin pipe buffer mid-turn is unreliable — the write callback is
-      // async, and if the process exits or stdin closes before the buffer is read the message
-      // is silently dropped. The queue is drained in the step_complete handler, which fires
-      // after the turn ends and the process is confirmed waiting for input.
-      const queue = this.messageQueue.get(agentId) ?? [];
-      queue.push(message);
-      this.messageQueue.set(agentId, queue);
-      log.log(`📋 [QUEUE] Agent ${agentId} is mid-turn, queued message for post-turn delivery (queue=${queue.length}, ${messageLen} chars)`);
-      return true;
-    }
-
-    // Agent is waiting for input: send directly via stdin (immediate processing)
     log.log(`📨 [SEND_MESSAGE] Agent ${agentId} is idle (turnState=${turnState}), sending directly via stdin (${messageLen} chars)`);
     return this.writeToStdin(agentId, activeProcess, message);
   }
@@ -395,19 +412,19 @@ export class ClaudeRunner {
   /**
    * Drain the next queued message (if any) to the process stdin.
    * Called after step_complete when the process transitions to waiting_for_input.
+   *
+   * For backends that close stdin after each turn (e.g. opencode), the process
+   * is about to exit — we leave the message in the queue and let the
+   * runner.process_closed handler respawn with session resume.
    */
   private drainMessageQueue(agentId: string, activeProcess: ActiveProcess): void {
     const queue = this.messageQueue.get(agentId);
     if (!queue || queue.length === 0) return;
 
-    const nextMessage = queue.shift()!;
-    if (queue.length === 0) {
-      this.messageQueue.delete(agentId);
-    }
-
-    log.log(`📤 [QUEUE-DRAIN] Agent ${agentId}: Delivering queued message (${queue.length} remaining, ${nextMessage.length} chars)`);
-
     if (activeProcess.tmuxSession) {
+      const nextMessage = queue.shift()!;
+      if (queue.length === 0) this.messageQueue.delete(agentId);
+      log.log(`📤 [QUEUE-DRAIN] Agent ${agentId}: Delivering queued message via tmux (${queue.length} remaining, ${nextMessage.length} chars)`);
       const stdinInput = this.backend.formatStdinInput(nextMessage);
       const ok = sendToTmux(agentId, stdinInput);
       if (ok) {
@@ -415,9 +432,70 @@ export class ClaudeRunner {
       } else {
         log.error(`❌ [QUEUE-DRAIN] Agent ${agentId}: tmux send failed for queued message`);
       }
-    } else {
-      this.writeToStdin(agentId, activeProcess, nextMessage);
+      return;
     }
+
+    const stdin = activeProcess.process.stdin;
+    if (!stdin || !stdin.writable) {
+      // Backend closes stdin per-turn (e.g. opencode). The process will exit on
+      // its own now that the turn is done and stdin is at EOF. The message stays
+      // in the queue; the runner.process_closed handler will respawn with session
+      // resume and deliver it as the next prompt.
+      log.log(`⏸️ [QUEUE-DRAIN] Agent ${agentId}: stdin closed, deferring delivery to respawn after process exit (${queue.length} queued)`);
+      return;
+    }
+
+    const nextMessage = queue.shift()!;
+    if (queue.length === 0) this.messageQueue.delete(agentId);
+    log.log(`📤 [QUEUE-DRAIN] Agent ${agentId}: Delivering queued message via stdin (${queue.length} remaining, ${nextMessage.length} chars)`);
+    this.writeToStdin(agentId, activeProcess, nextMessage);
+  }
+
+  /**
+   * Respawn the agent process with session resume, using the next queued
+   * message as the new prompt. Used for backends that close stdin per-turn
+   * (e.g. opencode): after the process exits at end-of-turn we create a new
+   * process that resumes the same session, delivering the queued message.
+   */
+  private respawnWithQueuedMessage(agentId: string, exitedProcess: ActiveProcess): void {
+    const queue = this.messageQueue.get(agentId);
+    if (!queue || queue.length === 0) return;
+
+    const lastRequest = exitedProcess.lastRequest;
+    if (!lastRequest) {
+      log.error(`❌ [RESPAWN] No lastRequest for ${agentId}, cannot respawn with queued message — queue preserved for next user send`);
+      return;
+    }
+
+    const nextMessage = queue.shift()!;
+    if (queue.length === 0) this.messageQueue.delete(agentId);
+
+    const sessionId = exitedProcess.sessionId ?? lastRequest.sessionId;
+    log.log(`🔁 [RESPAWN] Agent ${agentId}: Spawning new process to deliver queued message (session=${sessionId ?? 'none'}, prompt=${nextMessage.length} chars, ${queue.length} more queued)`);
+
+    const newRequest: RunnerRequest = {
+      ...lastRequest,
+      prompt: nextMessage,
+      sessionId,
+      forceNewSession: false,
+    };
+
+    // Re-assert 'working' state so the brief window between the old process's
+    // exit and the new process's first event doesn't show the agent as idle.
+    agentService.updateAgent(agentId, {
+      status: 'working',
+      currentTask: nextMessage.substring(0, 100),
+      isDetached: false,
+    });
+
+    void this.run(newRequest).catch((err) => {
+      log.error(`❌ [RESPAWN] Failed to respawn ${agentId} with queued message: ${err}`);
+      // Put the message back at the head of the queue so it isn't lost.
+      const currentQueue = this.messageQueue.get(agentId) ?? [];
+      currentQueue.unshift(nextMessage);
+      this.messageQueue.set(agentId, currentQueue);
+      this.callbacks.onError(agentId, `Failed to deliver queued message: ${err}`);
+    });
   }
 
   /**

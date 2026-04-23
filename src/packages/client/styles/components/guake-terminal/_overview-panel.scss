@@ -36,22 +36,27 @@
   .aop-stats-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-    background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
-    border-bottom: 1px solid var(--border-color);
+    gap: 6px;
+    padding: 6px 12px;
+    background: transparent;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
     font-family: $font-mono;
-    font-size: 14px;
-    flex-wrap: wrap;
+    font-size: 11px;
+    flex-wrap: nowrap;
 
     .stat {
-      color: var(--text-primary);
-      opacity: 0.8;
+      color: var(--text-muted);
+      opacity: 0.55;
       flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      font-weight: 400;
+      font-size: 10px;
 
-      &.stat-working { color: var(--accent-green); }
-      &.stat-idle { color: var(--text-muted); }
-      &.stat-error { color: var(--accent-red); }
+      &.stat-working { color: var(--accent-green); opacity: 0.65; }
+      &.stat-idle { color: var(--accent-purple); opacity: 0.65; }
+      &.stat-error { color: var(--accent-red); opacity: 0.65; }
     }
 
     .aop-row-controls {
@@ -61,6 +66,7 @@
       margin-left: auto;
       flex-shrink: 1;
       min-width: 0;
+      justify-content: flex-end;
     }
 
     .aop-search-toggle {
@@ -96,41 +102,53 @@
     }
 
     .filter-select {
-      padding: 3px 4px;
-      background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
-      border: 1px solid var(--border-color);
+      padding: 3px 5px;
+      background: transparent;
+      border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
       border-radius: $radius-sm;
-      color: var(--text-primary);
+      color: var(--text-secondary);
       font-family: $font-mono;
-      font-size: 12px;
+      font-size: 11px;
       cursor: pointer;
       max-width: 90px;
+      transition: border-color 0.15s;
 
       &:focus {
         outline: none;
         border-color: var(--accent-cyan);
+      }
+
+      &:hover {
+        border-color: color-mix(in srgb, var(--accent-cyan) 50%, transparent);
+        color: var(--text-primary);
       }
     }
 
     .search-input {
-      padding: 3px 6px;
-      background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
-      border: 1px solid var(--border-color);
+      padding: 3px 7px;
+      background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+      border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
       border-radius: $radius-sm;
       color: var(--text-primary);
       font-family: $font-mono;
-      font-size: 12px;
-      min-width: 60px;
-      max-width: 120px;
+      font-size: 11px;
+      min-width: 70px;
+      max-width: 110px;
+      transition: border-color 0.15s, max-width 0.2s;
 
       &::placeholder {
         color: var(--text-muted);
+        opacity: 0.6;
       }
 
       &:focus {
         outline: none;
         border-color: var(--accent-cyan);
-        max-width: 160px;
+        max-width: 150px;
+      }
+
+      &:hover {
+        border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
       }
     }
 
@@ -138,15 +156,19 @@
       background: transparent;
       border: none;
       color: var(--text-muted);
-      font-size: 18px;
+      font-size: 16px;
       cursor: pointer;
-      padding: 2px 6px;
+      padding: 2px 5px;
       border-radius: $radius-sm;
       transition: all 0.2s;
       flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 2px;
 
       &:hover {
-        background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+        background: color-mix(in srgb, var(--accent-red) 15%, transparent);
         color: var(--accent-red);
       }
     }
@@ -156,45 +178,72 @@
   .aop-actions {
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 5px 10px;
-    background: color-mix(in srgb, var(--bg-secondary) 30%, transparent);
-    border-bottom: 1px solid var(--border-color);
+    gap: 3px;
+    padding: 4px 12px;
+    background: transparent;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
     flex-wrap: wrap;
 
     .action-btn {
       padding: 2px 7px;
-      background: color-mix(in srgb, var(--text-muted) 10%, transparent);
-      border: 1px solid color-mix(in srgb, var(--text-muted) 25%, transparent);
+      background: transparent;
+      border: 1px solid transparent;
       border-radius: $radius-sm;
       color: var(--text-muted);
       font-family: $font-mono;
-      font-size: 12px;
+      font-size: 11px;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: all 0.12s ease;
       white-space: nowrap;
 
       &:hover {
-        background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
-        border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
-        color: var(--accent-cyan);
+        background: color-mix(in srgb, var(--text-muted) 8%, transparent);
+        border-color: color-mix(in srgb, var(--text-muted) 20%, transparent);
+        color: var(--text-secondary);
       }
 
       &:active {
-        background: color-mix(in srgb, var(--accent-cyan) 25%, transparent);
+        background: color-mix(in srgb, var(--text-muted) 14%, transparent);
       }
 
       // Toggle buttons (Areas, Same Area, Subagents, Activity)
       &--toggle {
+        border: 1px solid color-mix(in srgb, var(--text-muted) 18%, transparent);
+
         &.active {
-          background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
-          border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+          background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+          border-color: color-mix(in srgb, var(--accent-cyan) 35%, transparent);
           color: var(--accent-cyan);
         }
 
         &.active:hover {
-          background: color-mix(in srgb, var(--accent-cyan) 25%, transparent);
+          background: color-mix(in srgb, var(--accent-cyan) 20%, transparent);
+          border-color: color-mix(in srgb, var(--accent-cyan) 45%, transparent);
         }
+      }
+    }
+
+    .filter-select {
+      padding: 2px 5px;
+      background: transparent;
+      border: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+      border-radius: $radius-sm;
+      color: var(--text-muted);
+      font-family: $font-mono;
+      font-size: 11px;
+      cursor: pointer;
+      max-width: 90px;
+      transition: border-color 0.15s, color 0.15s;
+
+      &:focus {
+        outline: none;
+        border-color: var(--accent-cyan);
+        color: var(--text-primary);
+      }
+
+      &:hover {
+        border-color: color-mix(in srgb, var(--accent-cyan) 50%, transparent);
+        color: var(--text-secondary);
       }
     }
 
@@ -203,29 +252,30 @@
 
       .workspace-switcher-trigger {
         padding: 2px 7px;
-        background: color-mix(in srgb, var(--text-muted) 10%, transparent);
-        border: 1px solid color-mix(in srgb, var(--text-muted) 25%, transparent);
+        background: transparent;
+        border: 1px solid transparent;
         border-radius: $radius-sm;
         color: var(--text-muted);
         font-family: $font-mono;
-        font-size: 12px;
+        font-size: 11px;
         box-shadow: none;
+        transition: all 0.12s ease;
 
         &:hover {
-          background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
-          border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
-          color: var(--accent-cyan);
+          background: color-mix(in srgb, var(--text-muted) 8%, transparent);
+          border-color: color-mix(in srgb, var(--text-muted) 20%, transparent);
+          color: var(--text-secondary);
         }
       }
 
       .workspace-switcher-label {
-        max-width: 120px;
+        max-width: 100px;
       }
 
       .workspace-switcher-arrow {
         font-size: 9px;
         color: currentColor;
-        opacity: 0.7;
+        opacity: 0.6;
       }
     }
 
@@ -1310,7 +1360,6 @@
       0 8px 24px rgba(0, 0, 0, 0.45);
 
     &.mobile-filters-collapsed {
-      .aop-stats-row .aop-row-controls .filter-select,
       .aop-stats-row .aop-row-controls .search-input,
       .aop-actions {
         display: none;
@@ -1348,12 +1397,6 @@
         gap: 6px;
       }
 
-      .filter-select {
-        max-width: none;
-        min-height: 28px;
-        font-size: 11px;
-      }
-
       .search-input {
         max-width: none;
         flex: 1 1 100%;
@@ -1370,6 +1413,13 @@
       padding: 8px 12px;
       scrollbar-width: thin;
       -webkit-overflow-scrolling: touch;
+
+      .filter-select {
+        max-width: none;
+        min-height: 28px;
+        font-size: 11px;
+        flex-shrink: 0;
+      }
 
       .action-btn {
         flex: 0 0 auto;

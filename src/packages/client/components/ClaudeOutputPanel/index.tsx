@@ -61,6 +61,7 @@ import type { ViewMode } from './types';
 
 // Import extracted hooks
 import { useKeyboardHeight } from './useKeyboardHeight';
+import { useBottomTerminalResize } from './useBottomTerminalResize';
 import { useTerminalResize } from './useTerminalResize';
 import { useMobileOverviewResize } from './useMobileOverviewResize';
 import { useSwipeNavigation } from './useSwipeNavigation';
@@ -570,13 +571,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
       return (saved === 'vertical' ? 'vertical' : 'horizontal') as SplitDirection;
     } catch { return 'horizontal' as SplitDirection; }
   });
-  const [bottomTerminalHeight, setBottomTerminalHeight] = useState(() => {
-    try {
-      const h = localStorage.getItem('tide:bottom-terminal-height');
-      return h ? Math.max(120, Math.min(600, Number(h))) : 250;
-    } catch { return 250; }
-  });
-  const bottomTerminalResizeRef = useRef<{ startY: number; startH: number } | null>(null);
+  const { height: bottomTerminalHeight, onResizeStart: handleBottomTerminalResizeStart } = useBottomTerminalResize();
   // Split panel ratios (flex values for each panel, default equal)
   const [splitRatios, setSplitRatios] = useState<number[]>([1]);
   const splitResizeRef = useRef<{ index: number; startPos: number; startRatios: number[] } | null>(null);
@@ -901,28 +896,6 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
       }
     }
   }, [bottomPanels, buildings, closeBottomPanel]);
-
-  // Bottom terminal resize handler
-  const handleBottomTerminalResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    bottomTerminalResizeRef.current = { startY: e.clientY, startH: bottomTerminalHeight };
-    let lastHeight = bottomTerminalHeight;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      if (!bottomTerminalResizeRef.current) return;
-      const dy = bottomTerminalResizeRef.current.startY - moveEvent.clientY;
-      lastHeight = Math.max(120, Math.min(600, bottomTerminalResizeRef.current.startH + dy));
-      setBottomTerminalHeight(lastHeight);
-    };
-    const onMouseUp = () => {
-      bottomTerminalResizeRef.current = null;
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      try { localStorage.setItem('tide:bottom-terminal-height', String(lastHeight)); } catch { /* ignore */ }
-    };
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  }, [bottomTerminalHeight]);
 
   // Drag-and-drop file attach
   const [draggingOver, setDraggingOver] = useState(false);

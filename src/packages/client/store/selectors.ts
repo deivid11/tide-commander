@@ -1048,6 +1048,10 @@ export function useTrackingBoardVisible(): boolean {
   return useSelector(useCallback((state: StoreState) => state.trackingBoardVisible, []));
 }
 
+export function useAgentBarHidden(): boolean {
+  return useSelector(useCallback((state: StoreState) => state.agentBarHidden, []));
+}
+
 export function useSplitPaneAgentIds(): string[] {
   return useSelector(useCallback((state: StoreState) => state.splitPaneAgentIds, []));
 }

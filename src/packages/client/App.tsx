@@ -16,6 +16,7 @@ import {
   useFileViewerPath,
   useContextModalAgentId,
   useTerminalOpen,
+  useAgentBarHidden,
 } from './store';
 import { ToastProvider, useToast } from './components/Toast';
 import { Icon } from './components/Icon';
@@ -39,8 +40,8 @@ const PM2LogsModal = React.lazy(() => import('./components/PM2LogsModal').then(m
 const DockerLogsModal = React.lazy(() => import('./components/DockerLogsModal').then(m => ({ default: m.DockerLogsModal })));
 const BossLogsModal = React.lazy(() => import('./components/BossLogsModal').then(m => ({ default: m.BossLogsModal })));
 const Scene2DCanvas = React.lazy(() => import('./components/Scene2DCanvas').then(m => ({ default: m.Scene2DCanvas })));
+const FlatView = React.lazy(() => import('./components/FlatView').then(m => ({ default: m.FlatView })));
 const DashboardView = React.lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
-import { ViewModeToggle } from './components/ViewModeToggle/ViewModeToggle';
 import { MobileFabMenu } from './components/MobileFabMenu';
 import { MobileBottomMenu } from './components/MobileBottomMenu';
 import { FloatingActionButtons } from './components/FloatingActionButtons';
@@ -158,6 +159,7 @@ function AppContent() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileView = useMobileView();
   const viewMode = useViewMode();
+  const agentBarHidden = useAgentBarHidden();
   const fileViewerPath = useFileViewerPath();
   const contextModalAgentId = useContextModalAgentId();
   const terminalOpen = useTerminalOpen();
@@ -650,13 +652,17 @@ function AppContent() {
       {/* FPS Meter */}
       <FPSMeter visible={settings.showFPS} position="bottom-right" />
 
-      {/* View Mode Toggle (3D / 2D / Dashboard) + Workspace Switcher + Organize */}
-      <div className="app-top-bar">
-        <ViewModeToggle className="app-view-mode-toggle" />
+      {/* Workspace switcher as floating FAB (left rail) */}
+      <div className="fab-workspace-wrapper">
         <WorkspaceSwitcher />
+      </div>
+
+      {/* Organize button — only relevant in 2D/3D scenes */}
+      {(viewMode === '2d' || viewMode === '3d') && (
         <button
-          className="app-organize-all-btn"
+          className="fab-spawn-btn fab-spawn-organize-btn"
           disabled={isOrganizing}
+          aria-label="Auto-organize all agents in their areas"
           title="Auto-organize all agents in their areas"
           onClick={() => {
             setIsOrganizing(true);
@@ -672,9 +678,9 @@ function AppContent() {
               .finally(() => setIsOrganizing(false));
           }}
         >
-          <Icon name={isOrganizing ? 'hourglass' : 'sparkle'} size={14} /> Organize
+          <span className="fab-spawn-icon"><Icon name={isOrganizing ? 'hourglass' : 'sparkle'} size={18} /></span>
         </button>
-      </div>
+      )}
 
       <main className="main-content">
         <div className="battlefield-container">
@@ -685,7 +691,57 @@ function AppContent() {
             </div>
           )}
           <React.Suspense fallback={null}>
-          {viewMode === 'dashboard' ? (
+          {viewMode === 'flat' ? (
+            <FlatView
+              onAgentClick={(agentId) => store.selectAgent(agentId)}
+              onAgentDoubleClick={(agentId) => {
+                if (window.innerWidth <= 768) {
+                  store.openTerminalOnMobile(agentId);
+                  return;
+                }
+                store.selectAgent(agentId);
+                store.setTerminalOpen(true);
+              }}
+              onBuildingClick={(buildingId) => store.selectBuilding(buildingId)}
+              onBuildingDoubleClick={(buildingId) => {
+                const building = store.getState().buildings.get(buildingId);
+                if (building?.type === 'server' && building.pm2?.enabled) {
+                  setPm2LogsModalBuildingId(buildingId);
+                } else if (building?.type === 'boss') {
+                  setBossLogsModalBuildingId(buildingId);
+                } else if (building?.type === 'database') {
+                  setDatabasePanelBuildingId(buildingId);
+                } else if (building?.type === 'folder' && building.folderPath) {
+                  store.openFileExplorer(building.folderPath);
+                } else {
+                  buildingModal.open(buildingId);
+                }
+              }}
+              onAreaClick={(areaId) => {
+                store.selectArea(areaId);
+                toolboxModal.open();
+              }}
+              // Creation modal callbacks
+              onOpenSpawnModal={() => {
+                setSpawnPosition(null);
+                setSpawnAreaId(null);
+                spawnModal.open();
+              }}
+              onOpenBossSpawnModal={() => {
+                setSpawnPosition(null);
+                bossSpawnModal.open();
+              }}
+              onOpenBuildingModal={() => {
+                setBuildingInitialPosition(null);
+                buildingModal.open(null);
+              }}
+              onOpenAreaModal={() => {
+                // Switch to 2D view with rectangle tool active for area drawing
+                store.setViewMode('2d');
+                handleToolChange('rectangle');
+              }}
+            />
+          ) : viewMode === 'dashboard' ? (
             <DashboardView
               onSelectAgent={(agentId) => store.selectAgent(agentId)}
               onFocusAgent={(agentId) => {
@@ -1181,13 +1237,25 @@ function AppContent() {
 
       {/* Bottom stack: agent bar + mobile nav, measured so input can sit above it */}
       <div className="mobile-bottom-stack" ref={bottomStackRef}>
-        <AgentBar
-          onFocusAgent={handleFocusAgent}
-          onSpawnClick={spawnModal.open}
-          onSpawnBossClick={bossSpawnModal.open}
-          onNewBuildingClick={handleNewBuilding}
-          onNewAreaClick={handleNewArea}
-        />
+        {viewMode !== 'flat' && !agentBarHidden && (
+          <AgentBar
+            onFocusAgent={handleFocusAgent}
+            onSpawnClick={spawnModal.open}
+            onSpawnBossClick={bossSpawnModal.open}
+            onNewBuildingClick={handleNewBuilding}
+            onNewAreaClick={handleNewArea}
+          />
+        )}
+        {viewMode !== 'flat' && agentBarHidden && (
+          <button
+            className="agent-bar-show-btn"
+            onClick={() => store.setAgentBarHidden(false)}
+            aria-label="Show agent bar"
+            title="Show agent bar"
+          >
+            ▲
+          </button>
+        )}
         <MobileBottomMenu
           onOpenSpotlight={spotlightModal.open}
           onOpenTrackingBoard={handleOpenTrackingBoard}

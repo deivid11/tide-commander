@@ -141,12 +141,14 @@
     "labels": {
       "2d": "2D",
       "3d": "3D",
-      "dashboard": "Dashboard"
+      "dashboard": "Dashboard",
+      "flat": "Flat"
     },
     "descriptions": {
       "2d": "Lightweight top-down view",
       "3d": "Full 3D isometric view",
-      "dashboard": "Metrics and status overview"
+      "dashboard": "Metrics and status overview",
+      "flat": "Flat UI layout"
     }
   },
   "buttons2": {

@@ -49,6 +49,10 @@ interface AgentOverviewPanelProps {
   agentListRef?: React.RefObject<HTMLDivElement | null>;
   /** Two-finger selector state driven from the parent (GuakeOutputPanel). */
   twoFingerState?: TwoFingerSelectorState;
+  /** Optional external control of which areas are collapsed. */
+  collapsedAreas?: Set<string>;
+  /** Optional external handler for area toggle. */
+  onToggleArea?: (areaKey: string) => void;
 }
 
 type SortMode = 'name' | 'status' | 'recent';
@@ -143,7 +147,7 @@ interface AreaGroup {
   agents: Agent[];
 }
 
-export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agentListRef: externalAgentListRef, twoFingerState }: AgentOverviewPanelProps) {
+export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agentListRef: externalAgentListRef, twoFingerState, collapsedAreas: externalCollapsedAreas, onToggleArea: externalOnToggleArea }: AgentOverviewPanelProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const allAgents = useAgentsArray();
   const [activeWorkspace] = useWorkspaceFilter();
@@ -170,7 +174,8 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   }), []);
 
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(() => new Set());
-  const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
+  const [internalCollapsedAreas, setInternalCollapsedAreas] = useState<Set<string>>(new Set());
+  const collapsedAreas = externalCollapsedAreas ?? internalCollapsedAreas;
   const [editingPromptAreaId, setEditingPromptAreaId] = useState<string | null>(null);
   const [editingPromptText, setEditingPromptText] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>(savedConfig.sortMode);
@@ -621,7 +626,11 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   };
 
   const toggleArea = (areaKey: string) => {
-    setCollapsedAreas(prev => {
+    if (externalOnToggleArea) {
+      externalOnToggleArea(areaKey);
+      return;
+    }
+    setInternalCollapsedAreas(prev => {
       const next = new Set(prev);
       if (next.has(areaKey)) next.delete(areaKey);
       else next.add(areaKey);
@@ -724,12 +733,12 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
 
   return (
     <div className={`agent-overview-panel${isMobileViewport && mobileFiltersCollapsed ? ' mobile-filters-collapsed' : ''}`}>
-      {/* Stats + Filters + Close — single compact row */}
+      {/* Stats + Search + Close — minimal top row */}
       <div className="aop-stats-row">
         <span className="stat">{t('terminal:overview.agents', { count: statusSummary.total })}</span>
-        {statusSummary.working > 0 && <span className="stat stat-working"><Icon name="status-working" size={12} color={STATUS_COLORS.working} weight="fill" /> {statusSummary.working}</span>}
-        {statusSummary.idle > 0 && <span className="stat stat-idle"><Icon name="status-idle" size={12} color={STATUS_COLORS.idle} weight="fill" /> {statusSummary.idle}</span>}
-        {statusSummary.error > 0 && <span className="stat stat-error"><Icon name="status-error" size={12} color={STATUS_COLORS.error} weight="fill" /> {statusSummary.error}</span>}
+        {statusSummary.working > 0 && <span className="stat stat-working"><Icon name="status-working" size={11} color={STATUS_COLORS.working} weight="fill" /> {statusSummary.working}</span>}
+        {statusSummary.idle > 0 && <span className="stat stat-idle"><Icon name="status-idle" size={11} color={STATUS_COLORS.idle} weight="fill" /> {statusSummary.idle}</span>}
+        {statusSummary.error > 0 && <span className="stat stat-error"><Icon name="status-error" size={11} color={STATUS_COLORS.error} weight="fill" /> {statusSummary.error}</span>}
 
         <div className="aop-row-controls">
           <button
@@ -751,25 +760,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
           >
             {mobileFiltersCollapsed ? 'Filters' : 'Hide filters'}
           </button>
-          <select
-            value={filterMode}
-            onChange={e => setFilterMode(e.target.value as FilterMode)}
-            className="filter-select"
-          >
-            <option value="all">{t('terminal:overview.allStatus')}</option>
-            <option value="working">{t('terminal:overview.statusLabels.working')}</option>
-            <option value="idle">{t('terminal:overview.statusLabels.idle')}</option>
-            <option value="error">{t('terminal:overview.statusLabels.error')}</option>
-          </select>
-          <select
-            value={sortMode}
-            onChange={e => setSortMode(e.target.value as SortMode)}
-            className="filter-select"
-          >
-            <option value="recent">{t('terminal:overview.mostRecent')}</option>
-            <option value="status">{t('terminal:overview.byStatus')}</option>
-            <option value="name">{t('terminal:overview.byName')}</option>
-          </select>
           <input
             ref={searchInputRef}
             type="text"
@@ -794,8 +784,27 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         </div>
       </div>
 
-      {/* Actions */}
+      {/* Actions — filter, sort, workspace, toggles */}
       <div className="aop-actions">
+        <select
+          value={filterMode}
+          onChange={e => setFilterMode(e.target.value as FilterMode)}
+          className="filter-select"
+        >
+          <option value="all">{t('terminal:overview.allStatus')}</option>
+          <option value="working">{t('terminal:overview.statusLabels.working')}</option>
+          <option value="idle">{t('terminal:overview.statusLabels.idle')}</option>
+          <option value="error">{t('terminal:overview.statusLabels.error')}</option>
+        </select>
+        <select
+          value={sortMode}
+          onChange={e => setSortMode(e.target.value as SortMode)}
+          className="filter-select"
+        >
+          <option value="recent">{t('terminal:overview.mostRecent')}</option>
+          <option value="status">{t('terminal:overview.byStatus')}</option>
+          <option value="name">{t('terminal:overview.byName')}</option>
+        </select>
         <WorkspaceSwitcher />
         <button onClick={() => setGroupByArea(v => !v)} className={`action-btn action-btn--toggle${groupByArea ? ' active' : ''}`} title={t('terminal:overview.areas')}>
           {t('terminal:overview.areas')}
@@ -898,6 +907,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
                 {groupByArea && (
                   <div
                     className="aop-area-header"
+                    data-area-id={areaKey}
                     onClick={() => toggleArea(areaKey)}
                     style={{ borderLeftColor: areaColor }}
                   >
