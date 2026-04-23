@@ -141,12 +141,14 @@
     "labels": {
       "2d": "2D",
       "3d": "3D",
-      "dashboard": "Panel de control"
+      "dashboard": "Panel de control",
+      "flat": "Plano"
     },
     "descriptions": {
       "2d": "Vista cenital ligera",
       "3d": "Vista isometrica 3D completa",
-      "dashboard": "Resumen de metricas y estado"
+      "dashboard": "Resumen de metricas y estado",
+      "flat": "Diseño plano"
     }
   },
   "buttons2": {

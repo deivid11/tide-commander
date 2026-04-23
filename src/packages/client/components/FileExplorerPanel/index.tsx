@@ -235,6 +235,13 @@ export function FileExplorerPanel({
   const [openTabs, setOpenTabs] = useState<FileTab[]>([]);
   const [activeTabPath, setActiveTabPath] = useState<string | null>(null);
 
+  // Tab navigation history — browser-style back/forward through opened files.
+  const tabHistoryRef = useRef<string[]>([]);
+  const tabHistoryIndexRef = useRef(-1);
+  const isTabHistoryNavRef = useRef(false);
+  const [canNavigateTabBack, setCanNavigateTabBack] = useState(false);
+  const [canNavigateTabForward, setCanNavigateTabForward] = useState(false);
+
   // Line number to scroll to (from file:line search)
   const [scrollToLine, setScrollToLine] = useState<number | undefined>(undefined);
 
@@ -681,6 +688,49 @@ export function FileExplorerPanel({
     }
   };
 
+  // Tab navigation history: push current activeTabPath onto the stack whenever
+  // it changes, unless the change was itself caused by a back/forward click.
+  const updateTabNavAvailability = useCallback(() => {
+    const history = tabHistoryRef.current;
+    const index = tabHistoryIndexRef.current;
+    setCanNavigateTabBack(index > 0);
+    setCanNavigateTabForward(index >= 0 && index < history.length - 1);
+  }, []);
+
+  useEffect(() => {
+    if (!activeTabPath) {
+      tabHistoryRef.current = [];
+      tabHistoryIndexRef.current = -1;
+      updateTabNavAvailability();
+      return;
+    }
+
+    if (isTabHistoryNavRef.current) {
+      isTabHistoryNavRef.current = false;
+      updateTabNavAvailability();
+      return;
+    }
+
+    const history = tabHistoryRef.current;
+    const currentIndex = tabHistoryIndexRef.current;
+    if (currentIndex >= 0 && history[currentIndex] === activeTabPath) {
+      updateTabNavAvailability();
+      return;
+    }
+
+    const trimmed =
+      currentIndex < history.length - 1
+        ? history.slice(0, currentIndex + 1)
+        : history.slice();
+    trimmed.push(activeTabPath);
+    const MAX = 100;
+    if (trimmed.length > MAX) trimmed.shift();
+
+    tabHistoryRef.current = trimmed;
+    tabHistoryIndexRef.current = trimmed.length - 1;
+    updateTabNavAvailability();
+  }, [activeTabPath, updateTabNavAvailability]);
+
   // Tab handlers
   const handleSelectTab = (path: string) => {
     setActiveTabPath(path);
@@ -697,6 +747,31 @@ export function FileExplorerPanel({
       loadFile(path);
     }
   };
+
+  const navigateTabHistory = useCallback(
+    (direction: -1 | 1) => {
+      const history = tabHistoryRef.current;
+      if (history.length === 0) return;
+
+      let nextIndex = tabHistoryIndexRef.current + direction;
+      while (nextIndex >= 0 && nextIndex < history.length) {
+        const target = history[nextIndex];
+        // Skip entries whose tab has since been closed.
+        if (openTabs.some((t) => t.path === target)) {
+          isTabHistoryNavRef.current = true;
+          tabHistoryIndexRef.current = nextIndex;
+          updateTabNavAvailability();
+          handleSelectTab(target);
+          return;
+        }
+        nextIndex += direction;
+      }
+    },
+    [openTabs, updateTabNavAvailability]
+  );
+
+  const handleNavigateTabBack = useCallback(() => navigateTabHistory(-1), [navigateTabHistory]);
+  const handleNavigateTabForward = useCallback(() => navigateTabHistory(1), [navigateTabHistory]);
 
   const handleCloseTab = (path: string) => {
     setOpenTabs(prev => {
@@ -1312,6 +1387,29 @@ export function FileExplorerPanel({
       {/* Header */}
       <div className="file-explorer-panel-header">
         <div className="file-explorer-panel-title">
+          {/* Back / Forward navigation through tab history */}
+          <div className="file-explorer-nav-group" role="group" aria-label="Tab history navigation">
+            <button
+              type="button"
+              className="file-explorer-nav-btn"
+              onClick={handleNavigateTabBack}
+              disabled={!canNavigateTabBack}
+              title="Back to previous file"
+              aria-label="Back to previous file"
+            >
+              <Icon name="arrow-left" size={14} />
+            </button>
+            <button
+              type="button"
+              className="file-explorer-nav-btn"
+              onClick={handleNavigateTabForward}
+              disabled={!canNavigateTabForward}
+              title="Forward to next file"
+              aria-label="Forward to next file"
+            >
+              <Icon name="arrow-right" size={14} />
+            </button>
+          </div>
           {/* Folder selector */}
           {currentFolder && (
             <div

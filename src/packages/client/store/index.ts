@@ -148,6 +148,7 @@ export {
   useViewMode,
   useOverviewPanelOpen,
   useTrackingBoardVisible,
+  useAgentBarHidden,
   useSplitPaneAgentIds,
   useSplitOrientation,
   useAgentsWithUnseenOutput,
@@ -245,10 +246,14 @@ class Store
       subagents: new Map(),
       viewMode: (() => {
         const saved = getStorageString(STORAGE_KEYS.SCENE_VIEW_MODE, '3d');
-        return (saved === '2d' || saved === '3d' || saved === 'dashboard') ? saved as StoreState['viewMode'] : '3d';
+        // Legacy value from when Flat view shipped as "2d-experimental" —
+        // transparently migrate so users keep their chosen view after update.
+        const normalized = saved === '2d-experimental' ? 'flat' : saved;
+        return (normalized === '2d' || normalized === '3d' || normalized === 'dashboard' || normalized === 'flat') ? normalized as StoreState['viewMode'] : '3d';
       })(),
       overviewPanelOpen: getStorageBoolean(STORAGE_KEYS.AOP_OPEN, false),
       trackingBoardVisible: getStorageBoolean(STORAGE_KEYS.AOP_TRACKING_BOARD_VISIBLE, false),
+      agentBarHidden: getStorageBoolean(STORAGE_KEYS.AGENT_BAR_HIDDEN, false),
       splitPaneAgentIds: this.loadSplitPaneAgentIds(),
       splitOrientation: this.loadSplitOrientation(),
       agentsWithUnseenOutput: this.loadUnseenAgents(),
@@ -479,6 +484,18 @@ class Store
     this.notify();
   }
 
+  toggleAgentBarHidden(): void {
+    this.state.agentBarHidden = !this.state.agentBarHidden;
+    setStorageBoolean(STORAGE_KEYS.AGENT_BAR_HIDDEN, this.state.agentBarHidden);
+    this.notify();
+  }
+
+  setAgentBarHidden(hidden: boolean): void {
+    this.state.agentBarHidden = hidden;
+    setStorageBoolean(STORAGE_KEYS.AGENT_BAR_HIDDEN, hidden);
+    this.notify();
+  }
+
   // ============================================================================
   // Split Pane State
   // ============================================================================
@@ -539,7 +556,7 @@ class Store
     this.notify();
   }
 
-  setViewMode(mode: '2d' | '3d' | 'dashboard'): void {
+  setViewMode(mode: '2d' | '3d' | 'dashboard' | 'flat'): void {
     this.state.viewMode = mode;
     setStorageString(STORAGE_KEYS.SCENE_VIEW_MODE, mode);
     // Keep experimental2DView in sync for backward compatibility

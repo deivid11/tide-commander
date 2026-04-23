@@ -525,7 +525,16 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
   let globalIndex = 0;
 
   return (
-    <div className="agent-bar" ref={agentBarRef}>
+    <>
+      <button
+        className="agent-bar-hide-btn"
+        onClick={() => store.toggleAgentBarHidden()}
+        aria-label="Hide agent bar"
+        title={t('common:agentBar.hideBar', { defaultValue: 'Hide bar' })}
+      >
+        ▼
+      </button>
+      <div className="agent-bar" ref={agentBarRef}>
       <div className="agent-bar-scroll" ref={scrollRef}>
       {/* Version indicator */}
       <div
@@ -900,5 +909,6 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
         );
       })()}
     </div>
+    </>
   );
 });

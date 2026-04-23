@@ -189,6 +189,42 @@
   }
 }
 
+.file-explorer-nav-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: $radius-sm;
+  flex-shrink: 0;
+}
+
+.file-explorer-nav-btn {
+  background: transparent;
+  border: none;
+  color: $text-muted;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border-radius: calc(#{$radius-sm} - 2px);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+
+  &:hover:not(:disabled) {
+    color: $text-primary;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+}
+
 .file-explorer-back-btn {
   background: transparent;
   border: 1px solid $border-color;

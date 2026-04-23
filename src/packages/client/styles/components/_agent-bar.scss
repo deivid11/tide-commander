@@ -42,6 +42,75 @@
   }
 }
 
+// Hide button sits just above the top-right corner of the agent bar
+.agent-bar-hide-btn {
+  position: fixed;
+  bottom: 72px; // height of .agent-bar
+  right: 16px;
+  width: 44px;
+  height: 20px;
+  padding: 0;
+  background: $dracula-bg-darker;
+  border: 1px solid $dracula-current;
+  border-bottom: none;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  color: $dracula-comment;
+  font-size: 11px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+  z-index: 101;
+
+  &:hover {
+    color: $dracula-fg;
+    background: $dracula-current;
+  }
+
+  &:focus-visible {
+    outline: 1px solid $dracula-purple;
+    outline-offset: 1px;
+  }
+}
+
+// Show button displayed when the agent bar is hidden
+.agent-bar-show-btn {
+  position: fixed;
+  bottom: 0;
+  right: 16px;
+  width: 44px;
+  height: 20px;
+  padding: 0;
+  background: linear-gradient(180deg, rgba($dracula-bg, 0.95) 0%, rgba($dracula-bg-darker, 0.98) 100%);
+  border: 1px solid $dracula-current;
+  border-bottom: none;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  color: $dracula-comment;
+  font-size: 12px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  z-index: 100;
+
+  &:hover {
+    color: $dracula-fg;
+    background: $dracula-current;
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    outline: 1px solid $dracula-purple;
+    outline-offset: 1px;
+  }
+}
+
 // Inner scrollable wrapper — scrolls the agent list horizontally
 .agent-bar-scroll {
   display: flex;
