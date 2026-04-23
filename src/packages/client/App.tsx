@@ -941,6 +941,11 @@ function AppContent() {
           />
         )}
 
+        {/* Sidebar + its edge toggle button are irrelevant in Flat View —
+            FlatView owns its own middle column, so hiding both prevents a
+            redundant agent list and frees up horizontal space. */}
+        {viewMode !== 'flat' && (
+          <>
         {/* Sidebar toggle button - always visible, positioned fixed */}
         <button
           className={`sidebar-collapse-edge-btn ${sidebarCollapsed ? 'is-collapsed' : ''} ${sidebarRevealedByHover ? 'can-pin' : ''}`}
@@ -1031,6 +1036,8 @@ function AppContent() {
             </div>
           )}
         </aside>
+          </>
+        )}
 
         {/* Guake-style dropdown terminal */}
         <Profiler id="GuakeOutputPanel" onRender={profileRender}>

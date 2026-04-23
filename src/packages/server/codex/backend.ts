@@ -72,10 +72,14 @@ export function buildCodexPrompt(config: BackendConfig): string {
 export class CodexBackend implements CLIBackend {
   readonly name = 'codex';
   private parser = new CodexJsonEventParser({ enableFileDiffEnrichment: true });
+  // Prompts are passed via stdin (not argv) so large prompts (skills + system
+  // prompt + class instructions) don't blow past tmux's ~16KB argv limit,
+  // which silently rejects the spawn with "command too long".
+  private pendingStdinPrompt: string | undefined;
 
   buildArgs(config: BackendConfig): string[] {
     this.parser.setWorkingDirectory(config.workingDir);
-    const prompt = buildCodexPrompt(config);
+    this.pendingStdinPrompt = buildCodexPrompt(config);
     const args: string[] = ['exec', '--experimental-json'];
     const codexConfig = config.codexConfig;
     const fullAuto = codexConfig?.fullAuto !== false;
@@ -109,12 +113,15 @@ export class CodexBackend implements CLIBackend {
       args.push('--model', config.model);
     }
 
+    // `-` in the PROMPT positional tells codex to read the prompt from stdin.
+    // Omitting it works too for `exec`, but being explicit makes the intent
+    // clear and is required by the `resume` subcommand.
     if (config.sessionId) {
-      args.push('resume', config.sessionId, prompt);
+      args.push('resume', config.sessionId, '-');
       return args;
     }
 
-    args.push(prompt);
+    args.push('-');
     return args;
   }
 
@@ -183,10 +190,21 @@ export class CodexBackend implements CLIBackend {
   }
 
   requiresStdinInput(): boolean {
-    return false;
+    return true;
+  }
+
+  shouldCloseStdinAfterPrompt(): boolean {
+    // codex exec reads the prompt once then processes. EOF on stdin lets it
+    // start without waiting for more input.
+    return true;
   }
 
   formatStdinInput(prompt: string): string {
-    return prompt;
+    // buildArgs caches the fully-assembled prompt (including injected
+    // system/area/class sections). Fall back to the raw prompt for the
+    // sendMessage path where buildArgs isn't re-invoked.
+    const full = this.pendingStdinPrompt ?? prompt;
+    this.pendingStdinPrompt = undefined;
+    return full;
   }
 }

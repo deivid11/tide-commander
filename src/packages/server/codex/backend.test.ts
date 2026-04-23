@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CodexBackend } from './backend.js';
 
 describe('CodexBackend', () => {
-  it('builds exec args for a fresh run', () => {
+  it('builds exec args for a fresh run and caches the prompt for stdin', () => {
     const backend = new CodexBackend();
     const args = backend.buildArgs({
       workingDir: '/tmp/project',
@@ -14,11 +14,13 @@ describe('CodexBackend', () => {
     expect(args[2]).toBe('--dangerously-bypass-approvals-and-sandbox');
     expect(args[3]).toBe('-C');
     expect(args[4]).toBe('/tmp/project');
-    // Prompt is wrapped with Tide Commander appended instructions
-    const promptArg = args[5];
-    expect(promptArg).toContain('find recent taco recipes');
-    expect(promptArg).toContain('## User Request');
-    expect(promptArg).toContain('Tide Commander');
+    // Prompt is delivered via stdin; positional '-' tells codex to read it
+    expect(args[5]).toBe('-');
+
+    const stdin = backend.formatStdinInput('ignored-fallback');
+    expect(stdin).toContain('find recent taco recipes');
+    expect(stdin).toContain('## User Request');
+    expect(stdin).toContain('Tide Commander');
   });
 
   it('builds exec resume args when session id exists', () => {
@@ -36,10 +38,11 @@ describe('CodexBackend', () => {
     expect(args[4]).toBe('/tmp/project');
     expect(args[5]).toBe('resume');
     expect(args[6]).toBe('019c3925-c665-7b70-8711-d63bf7d8bda0');
-    // Prompt is wrapped with Tide Commander appended instructions
-    const promptArg = args[7];
-    expect(promptArg).toContain('continue');
-    expect(promptArg).toContain('## User Request');
+    expect(args[7]).toBe('-');
+
+    const stdin = backend.formatStdinInput('ignored-fallback');
+    expect(stdin).toContain('continue');
+    expect(stdin).toContain('## User Request');
   });
 
   it('builds explicit approval/sandbox args when fullAuto is disabled', () => {
@@ -67,10 +70,11 @@ describe('CodexBackend', () => {
     expect(args[8]).toBe('ci');
     expect(args[9]).toBe('-C');
     expect(args[10]).toBe('/tmp/project');
-    // Prompt is wrapped with Tide Commander appended instructions
-    const promptArg = args[11];
-    expect(promptArg).toContain('continue');
-    expect(promptArg).toContain('## User Request');
+    expect(args[11]).toBe('-');
+
+    const stdin = backend.formatStdinInput('ignored-fallback');
+    expect(stdin).toContain('continue');
+    expect(stdin).toContain('## User Request');
   });
 
   it('extracts thread id as session id', () => {
@@ -103,15 +107,16 @@ describe('CodexBackend', () => {
     expect(args[2]).toBe('--dangerously-bypass-approvals-and-sandbox');
     expect(args[3]).toBe('-C');
     expect(args[4]).toBe('/tmp/project');
+    expect(args[5]).toBe('-');
 
-    const promptArg = args[5];
-    expect(promptArg).toContain('Follow all instructions below for this task.');
-    expect(promptArg).toContain('## Agent Instructions');
-    expect(promptArg).toContain('# Skills\n- Use grep skill first');
-    expect(promptArg).toContain('## System Context');
-    expect(promptArg).toContain('You are operating as team lead.');
-    expect(promptArg).toContain('## User Request');
-    expect(promptArg).toContain('Implement the feature');
+    const stdin = backend.formatStdinInput('ignored-fallback');
+    expect(stdin).toContain('Follow all instructions below for this task.');
+    expect(stdin).toContain('## Agent Instructions');
+    expect(stdin).toContain('# Skills\n- Use grep skill first');
+    expect(stdin).toContain('## System Context');
+    expect(stdin).toContain('You are operating as team lead.');
+    expect(stdin).toContain('## User Request');
+    expect(stdin).toContain('Implement the feature');
   });
 
   it('injects custom prompts for resume runs too', () => {
@@ -131,8 +136,33 @@ describe('CodexBackend', () => {
 
     expect(args[5]).toBe('resume');
     expect(args[6]).toBe('thread-123');
-    expect(args[7]).toContain('Always apply assigned skills.');
-    expect(args[7]).toContain('## User Request');
-    expect(args[7]).toContain('continue');
+    expect(args[7]).toBe('-');
+
+    const stdin = backend.formatStdinInput('ignored-fallback');
+    expect(stdin).toContain('Always apply assigned skills.');
+    expect(stdin).toContain('## User Request');
+    expect(stdin).toContain('continue');
+  });
+
+  it('stdin input consumption clears the cached prompt', () => {
+    const backend = new CodexBackend();
+    backend.buildArgs({
+      workingDir: '/tmp/project',
+      prompt: 'first turn',
+    });
+    const first = backend.formatStdinInput('fallback');
+    expect(first).toContain('first turn');
+
+    // A subsequent formatStdinInput without buildArgs falls back to the raw
+    // message — used by the runner.sendMessage path when the agent is still
+    // alive and only a fresh user message needs delivering.
+    const second = backend.formatStdinInput('fallback text');
+    expect(second).toBe('fallback text');
+  });
+
+  it('requires stdin input and closes stdin after delivering the prompt', () => {
+    const backend = new CodexBackend();
+    expect(backend.requiresStdinInput()).toBe(true);
+    expect(backend.shouldCloseStdinAfterPrompt?.()).toBe(true);
   });
 });

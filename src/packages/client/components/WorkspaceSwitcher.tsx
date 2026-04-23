@@ -177,6 +177,17 @@ export const WorkspaceSwitcher: React.FC = React.memo(function WorkspaceSwitcher
     return () => { cancelled = true; };
   }, []);
 
+  // Sync local state when ANY WorkspaceSwitcher instance (or other code path)
+  // mutates the shared workspace state. Without this, sibling instances of
+  // this component (e.g. the one in App.tsx and the one in AgentOverviewPanel)
+  // hold stale `activeId`/`workspaces` and don't reflect each other's changes.
+  useEffect(() => {
+    return subscribeToWorkspaceChanges(() => {
+      setActiveId(currentActiveWorkspace?.id ?? null);
+      setWorkspaces(allWorkspaces);
+    });
+  }, []);
+
   // Click outside to close dropdown
   useEffect(() => {
     if (!dropdownOpen && !managerOpen) return;
