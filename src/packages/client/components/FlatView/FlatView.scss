@@ -1,5 +1,5 @@
 /**
- * Scene2DExperimental Styles - 3-Column Layout
+ * FlatView Styles - 3-Column Layout
  *
  * Layout: Sidebar | Middle (Agents) | Right (Chat)
  */
@@ -29,123 +29,48 @@ $status-error: #ff4a4a;
 $status-offline: #888888;
 
 // Layout dimensions
-$sidebar-width: 64px;
-$sidebar-width-expanded: 180px;
 $middle-min-width: 280px;
 
 // ============================================================================
-// Main Container - 3 Column Layout
+// Main Container - 2 Column Layout (middle agents + right chat)
+// ----------------------------------------------------------------------------
+// The in-view sidebar nav was removed: the global floating FAB menu
+// (settings/spotlight/spawn buttons) on the left edge covers navigation, so
+// reserving a column for an internal SidebarMenu is wasted space.
 // ============================================================================
 
-.scene-2d-experimental {
+// In Flat UI mode the Guake-style dropdown terminal is redundant — the
+// FlatView's right column already hosts an AgentTerminalPane for the selected
+// agent. Rendering Guake on top would cover the global FAB buttons
+// (settings / spotlight / spawn) at z-index 200 > 150, so we hide it.
+.app.view-mode-flat .guake-terminal {
+  display: none;
+}
+
+.flat-view {
   display: grid;
-  grid-template-columns: $sidebar-width 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   height: 100%;
   width: 100%;
   background: $bg-primary;
   overflow: hidden;
-  // Reserve room for the flat-view top bar (44px) so sidebar/columns
-  // don't sit underneath the view controls.
-  padding-top: 44px;
+  // 64px left gutter keeps the columns from sitting under the global
+  // floating FAB stack (settings/spotlight/spawn buttons at left:16,
+  // width:36 → ~52px + breathing room).
+  padding-left: 64px;
   box-sizing: border-box;
   transition: grid-template-columns 0.25s ease;
 
-  // When the inspector is open, add a 4th column that pushes the other
+  // When the inspector is open, add a 3rd column that pushes the other
   // columns left (no overlay). Mid column keeps its width; right column
   // shares the remaining space with the inspector.
   &--with-inspector {
-    grid-template-columns: $sidebar-width 1fr 1fr 320px;
+    grid-template-columns: 1fr 1fr 320px;
   }
 }
 
 // ============================================================================
-// Left Sidebar
-// ============================================================================
-
-.exp-sidebar {
-  background: $bg-secondary;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
-  display: flex;
-  flex-direction: column;
-  padding: 8px 0;
-  overflow: hidden;
-
-  &__logo {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 12px 8px 20px;
-    gap: 8px;
-  }
-
-  &__logo-icon {
-    font-size: 24px;
-  }
-
-  &__logo-text {
-    display: none;
-    font-weight: 700;
-    font-size: 16px;
-    color: $text-primary;
-  }
-
-  &__nav {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 0 8px;
-  }
-
-  &__item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
-    border: none;
-    background: transparent;
-    color: $text-secondary;
-    cursor: pointer;
-    border-radius: 8px;
-    transition: all 0.15s ease;
-    width: 100%;
-    justify-content: center;
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.06);
-      color: $text-primary;
-    }
-
-    &--active {
-      background: rgba($accent-cyan, 0.15);
-      color: $accent-cyan;
-
-      &:hover {
-        background: rgba($accent-cyan, 0.2);
-      }
-    }
-  }
-
-  &__item-icon {
-    font-size: 18px;
-    flex-shrink: 0;
-  }
-
-  &__item-label {
-    display: none;
-    font-size: 13px;
-    font-weight: 500;
-    white-space: nowrap;
-  }
-
-  &__footer {
-    padding: 8px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-  }
-}
-
-// ============================================================================
-// Middle Column - Agents & Buildings
+// Middle Column - Agents Overview
 // ============================================================================
 
 .exp-middle {
@@ -258,238 +183,39 @@ $middle-min-width: 280px;
 }
 
 // ============================================================================
-// Collapsible Section
+// Embedded Agents Overview Panel (reused from the Guake terminal)
+// ----------------------------------------------------------------------------
+// The 'agents' middle column renders <AgentOverviewPanel /> directly. Strip
+// the close button (the panel can't be dismissed inside the Flat UI — the
+// left-nav is how users move away from agents) and let the panel fill the
+// available column space.
 // ============================================================================
 
-.exp-collapsible {
-  background: $bg-secondary;
-  border-radius: 8px;
-  overflow: hidden;
-
-  &__header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-    cursor: pointer;
-    user-select: none;
-    border-left: 3px solid transparent;
-    transition: background 0.15s ease;
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.03);
-    }
-  }
-
-  &__toggle {
-    font-size: 8px;
-    color: $text-muted;
-    width: 12px;
-  }
-
-  &__icon {
-    font-size: 14px;
-  }
-
-  &__title {
-    font-size: 12px;
-    font-weight: 600;
-    color: $text-primary;
-    flex: 1;
-  }
-
-  &__count {
-    font-size: 11px;
-    color: $text-muted;
-    background: rgba(255, 255, 255, 0.06);
-    padding: 2px 6px;
-    border-radius: 10px;
-  }
-
-  &__content {
-    padding: 8px;
-    border-top: 1px solid rgba(255, 255, 255, 0.04);
-  }
-}
-
-// ============================================================================
-// Agent Card - Compact
-// ============================================================================
-
-.exp-agents-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.exp-agent-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  background: $bg-card;
-  border-radius: 6px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: all 0.12s ease;
+.exp-middle .agent-overview-panel {
+  // Neutralize the absolute positioning the panel uses inside the Guake
+  // terminal — here it should flow inline as the middle column's body, filling
+  // whatever space the column flex container gives it.
   position: relative;
+  inset: auto;
+  width: 100%;
+  height: 100%;
+  border-right: none;
+  flex: 1;
+  min-height: 0;
+  // Drop the Guake-side z-index (201) so the global floating FAB buttons on
+  // the left edge (z-index 150) stay clickable on top of the panel.
+  z-index: auto;
 
-  &:hover {
-    background: $bg-card-hover;
-  }
-
-  &--selected {
-    border-color: $accent-green;
-    background: rgba($accent-green, 0.08);
-  }
-
-  &--boss {
-    border-left: 2px solid $accent-gold;
-  }
-
-  &__avatar {
-    position: relative;
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  &__status-dot {
-    position: absolute;
-    bottom: -2px;
-    right: -2px;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    border: 1.5px solid $bg-card;
-  }
-
-  &__crown {
-    position: absolute;
-    top: -6px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 8px;
-  }
-
-  &__unseen {
-    position: absolute;
-    top: -4px;
-    right: -4px;
-    width: 12px;
-    height: 12px;
-    background: $accent-cyan;
-    color: $bg-primary;
-    font-size: 8px;
-    font-weight: bold;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  &__info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-
-  &__name {
-    font-size: 12px;
-    font-weight: 500;
-    color: $text-primary;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  &__status {
-    font-size: 10px;
-    text-transform: capitalize;
-  }
-
-  &__context {
-    width: 40px;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 2px;
-    overflow: hidden;
-    flex-shrink: 0;
-  }
-
-  &__context-fill {
-    height: 100%;
-    background: linear-gradient(90deg, $accent-green, $accent-cyan);
-    border-radius: 2px;
-    transition: width 0.3s ease;
+  .aop-row-controls .close-btn {
+    display: none;
   }
 }
 
-// ============================================================================
-// Building Card - Compact
-// ============================================================================
-
-.exp-buildings-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.exp-building-card {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: $bg-card;
-  border-radius: 6px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: all 0.12s ease;
-
-  &:hover {
-    background: $bg-card-hover;
-  }
-
-  &--selected {
-    border-color: $accent-cyan;
-  }
-
-  &__emoji {
-    font-size: 14px;
-  }
-
-  &__name {
-    font-size: 11px;
-    color: $text-primary;
-    white-space: nowrap;
-  }
-
-  &__status-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    flex-shrink: 0;
-
-    &[data-status='running'] {
-      background: $status-idle;
-    }
-    &[data-status='stopped'] {
-      background: $status-offline;
-    }
-    &[data-status='error'] {
-      background: $status-error;
-    }
-    &[data-status='starting'],
-    &[data-status='stopping'],
-    &[data-status='unknown'] {
-      background: $status-waiting;
-    }
-  }
+.exp-middle__content:has(> .agent-overview-panel) {
+  // Let the panel manage its own scrolling instead of double-scrolling inside
+  // the column's content wrapper.
+  padding: 0;
+  overflow: hidden;
 }
 
 // ============================================================================
@@ -552,59 +278,318 @@ $middle-min-width: 280px;
 
   &__header {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 10px 14px;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 12px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     background: $bg-secondary;
     flex-shrink: 0;
+    min-height: 40px;
   }
 
   &__header-main {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
   }
 
   &__header-meta {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+  }
+
+  // ── Guake-style bottom status bar ───────────────────────────────────────
+  // Hosts the cwd chip, context/token usage, and theme selector under the
+  // terminal pane (below its input). Mirrors the look of the top header but
+  // stays visually subordinate so the terminal output remains the focus.
+  &__statusbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    flex-shrink: 0;
+    background: $bg-secondary;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    min-height: 32px;
+    box-sizing: border-box;
+
+    // Keep the chips a little flatter on the status bar so they read as
+    // "status" rather than interactive header controls.
+    .exp-terminal-wrapper__cwd,
+    .exp-terminal-wrapper__context {
+      background: transparent;
+      border-color: rgba(255, 255, 255, 0.04);
+    }
+  }
+
+  &__statusbar-spacer {
+    flex: 1 1 auto;
+  }
+
+  // ── Detached (reattaching) badge ────────────────────────────────────────
+  &__detached {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    color: $accent-orange;
+    background: rgba($accent-orange, 0.12);
+    border: 1px solid rgba($accent-orange, 0.35);
+    border-radius: 10px;
+    animation: blink 1.6s ease-in-out infinite;
+  }
+
+  // ── Area directory chips (one per area folder, with git branch info) ────
+  &__area-dir {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    color: $text-secondary;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    cursor: pointer;
+    max-width: 240px;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: $text-primary;
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+  }
+
+  &__area-dir-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__area-dir-branch {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: $accent-cyan;
+    opacity: 0.85;
+  }
+
+  &__branch-ahead {
+    display: inline-flex;
+    align-items: center;
+    color: $accent-green;
+  }
+
+  &__branch-behind {
+    display: inline-flex;
+    align-items: center;
+    color: $accent-orange;
+  }
+
+  &__area-fetch {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 3px;
+    border-radius: 4px;
+    color: $text-muted;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: $text-primary;
+    }
+
+    &--fetching {
+      animation: blink 1s ease-in-out infinite;
+    }
+  }
+
+  // ── Context chip extra sub-labels ───────────────────────────────────────
+  &__context-label {
+    color: $text-muted;
+    margin-right: 2px;
+  }
+
+  &__context-free {
+    color: $text-muted;
+    font-size: 10px;
+  }
+
+  // ── Action button cluster (search / clear context / more) ───────────────
+  &__actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+  }
+
+  &__action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 24px;
+    padding: 0;
+    font-size: 12px;
+    line-height: 1;
+    color: $text-muted;
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+
+    &:hover:not(:disabled) {
+      color: $text-primary;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    &:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    &--active {
+      color: $text-primary;
+      background: rgba($accent-purple, 0.28);
+      box-shadow: 0 0 0 1px rgba($accent-purple, 0.45);
+
+      &:hover {
+        background: rgba($accent-purple, 0.36);
+      }
+    }
+
+    &--danger {
+      color: rgba($accent-red, 0.85);
+
+      &:hover {
+        color: $accent-red;
+        background: rgba($accent-red, 0.12);
+      }
+    }
+
+    &--confirm {
+      color: $accent-red;
+      background: rgba($accent-red, 0.18);
+      box-shadow: 0 0 0 1px rgba($accent-red, 0.5);
+      animation: blink 1s ease-in-out infinite;
+    }
+  }
+
+  // ── More-actions dropdown menu ──────────────────────────────────────────
+  &__more {
+    position: relative;
+    display: inline-flex;
+  }
+
+  &__more-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    min-width: 220px;
+    padding: 4px;
+    background: $bg-card;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+    z-index: 100;
+  }
+
+  &__more-item {
+    display: flex;
+    align-items: center;
     gap: 8px;
-    row-gap: 6px;
+    width: 100%;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: $text-primary;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    &--danger {
+      color: rgba($accent-red, 0.9);
+
+      &:hover:not(:disabled) {
+        color: $accent-red;
+        background: rgba($accent-red, 0.12);
+      }
+    }
+  }
+
+  &__more-divider {
+    height: 1px;
+    margin: 4px 2px;
+    background: rgba(255, 255, 255, 0.06);
   }
 
   &__header-info {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
     min-width: 0;
+    overflow: hidden;
   }
 
   &__header-name {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     color: $text-primary;
-  }
-
-  &__header-status {
-    font-size: 11px;
-    text-transform: capitalize;
-  }
-
-  &__header-task {
-    margin-left: auto;
-    font-size: 11px;
-    color: $text-muted;
-    max-width: 280px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding: 3px 8px;
+  }
+
+  &__header-status {
+    font-size: 10px;
+    text-transform: capitalize;
+    flex-shrink: 0;
+  }
+
+  &__header-task {
+    font-size: 11px;
+    color: $text-muted;
+    max-width: 220px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 2px 8px;
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 1;
   }
 
   // ── Working directory chip ──────────────────────────────────────────────
@@ -705,7 +690,6 @@ $middle-min-width: 280px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 10px;
-    margin-left: auto;
   }
 
   &__view-mode-btn {
@@ -879,73 +863,6 @@ $middle-min-width: 280px;
 }
 
 // ============================================================================
-// Placeholder Sections
-// ============================================================================
-
-.exp-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: 16px;
-  color: $text-muted;
-
-  &__icon {
-    font-size: 48px;
-    opacity: 0.5;
-  }
-
-  &__title {
-    font-size: 18px;
-    font-weight: 600;
-    color: $text-primary;
-  }
-
-  &__text {
-    font-size: 13px;
-  }
-}
-
-// ============================================================================
-// Empty States
-// ============================================================================
-
-.exp-empty-section {
-  padding: 12px;
-  text-align: center;
-  color: $text-muted;
-  font-size: 11px;
-  font-style: italic;
-}
-
-.exp-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-  text-align: center;
-  gap: 8px;
-
-  &__icon {
-    font-size: 32px;
-    opacity: 0.5;
-  }
-
-  &__title {
-    font-size: 14px;
-    font-weight: 600;
-    color: $text-primary;
-  }
-
-  &__hint {
-    font-size: 12px;
-    color: $text-muted;
-  }
-}
-
-// ============================================================================
 // Animations
 // ============================================================================
 
@@ -983,17 +900,35 @@ $middle-min-width: 280px;
     flex-shrink: 0;
   }
 
-  &__title {
+  &__tabs {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    color: $text-primary;
+    gap: 4px;
+    padding: 2px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
   }
 
-  &__title-icon {
-    font-size: 14px;
+  &__tab {
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    color: $text-muted;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      color: $text-primary;
+    }
+
+    &--active {
+      color: $text-primary;
+      background: rgba(255, 255, 255, 0.08);
+    }
   }
 
   &__close {
@@ -1063,11 +998,11 @@ $middle-min-width: 280px;
 // ============================================================================
 
 @media (max-width: 1024px) {
-  .scene-2d-experimental {
-    grid-template-columns: $sidebar-width 1fr;
+  .flat-view {
+    grid-template-columns: 1fr;
 
     &--with-inspector {
-      grid-template-columns: $sidebar-width 1fr;
+      grid-template-columns: 1fr;
     }
   }
 
@@ -1077,26 +1012,12 @@ $middle-min-width: 280px;
   }
 }
 
-@media (max-width: 768px) {
-  .scene-2d-experimental {
-    grid-template-columns: 1fr;
-
-    &--with-inspector {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  .exp-sidebar {
-    display: none;
-  }
-}
-
 @media (min-width: 1400px) {
-  .scene-2d-experimental {
-    grid-template-columns: $sidebar-width minmax($middle-min-width, 400px) 1fr;
+  .flat-view {
+    grid-template-columns: minmax($middle-min-width, 400px) 1fr;
 
     &--with-inspector {
-      grid-template-columns: $sidebar-width minmax($middle-min-width, 400px) 1fr 360px;
+      grid-template-columns: minmax($middle-min-width, 400px) 1fr 360px;
     }
   }
 }

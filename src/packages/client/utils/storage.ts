@@ -51,8 +51,9 @@ export const STORAGE_KEYS = {
   AGENT_ORDER: 'tide-agent-order',
   AGENT_BAR_HIDDEN: 'tide-agent-bar-hidden',
 
-  // Flat view (Scene2DExperimental) inspector panel
+  // Flat view inspector panel
   FLAT_INSPECTOR_OPEN: 'tide-flat-inspector-open',
+  FLAT_INSPECTOR_VIEW: 'tide-flat-inspector-view',
 
   // Agent Overview Panel
   AOP_CONFIG: 'tide-aop-config',
