@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.70.0] - 2026-04-23
+
+### Added
+- **Boss crown + provider icon on Flat UI map chips** — agent chips in the empty-state area map now render a gold crown for boss agents and the provider logo (Claude / Codex / OpenCode) alongside the agent name
+- **Context-usage gauge on Flat UI map chips** — each chip has a 2px bar pinned to its bottom edge showing context usage with color-graded fill (green <40%, yellow ≥40%, orange ≥60%, red ≥80%); tooltip shows the exact `used/total k` breakdown, reusing `getDisplayContextInfo()` so the statusbar and map chip share one source of truth
+- **Codex reasoning effort selector** — SpawnModal now exposes a reasoning-effort dropdown for Codex agents (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`) with icons; CodexBackend translates the selection to `-c model_reasoning_effort=<value>` on the codex CLI invocation. New `CodexReasoningEffort` type and `CODEX_REASONING_EFFORTS` registry in `shared/agent-types.ts`
+
+### Changed
+- **Stdin-open backends (Claude) write directly regardless of turnState** — `sendMessage` no longer gates on `turnState === 'waiting_for_input'` for Claude; mid-turn messages go straight to Claude's `--input-format stream-json` stdin and Claude handles interleaving per its own protocol, so users no longer wait for `step_complete` before the message is seen. Same logic applies to the tmux send-keys path.
+
+### Fixed
+- **Stdin-closed backends (Codex / OpenCode) always interrupt and respawn on a new prompt** — `runtime-command-execution.ts` removed the `turnState !== 'waiting_for_input'` gate. Reason: OpenCode's NDJSON emits `step_finish` per LLM step, so `turnState` oscillates `processing ↔ waiting_for_input` within a single conversational turn; the old gate stranded prompts that arrived during those brief idle windows because the queue-respawn path only fires on process exit, which wasn't happening
+- **Defensive stdin fallback** — if the child's stdin pipe is unexpectedly non-writable (pipe closed, process dying), the message is now queued for recovery via the respawn path instead of being dropped with an error
+- **tmux send-keys routing clarified** — only queue on tmux when the backend closes stdin (codex); claude in tmux goes through the trailing `cat` in `(cat file; cat) | claude` and receives send-keys writes as additional stream-json lines regardless of turnState
+
 ## [1.69.0] - 2026-04-23
 
 ### Added

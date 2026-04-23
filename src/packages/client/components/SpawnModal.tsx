@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next';
 import { store, useSkillsArray, useCustomAgentClassesArray, useCustomAgentNames } from '../store';
 import { AGENT_CLASS_CONFIG, BUILTIN_AGENT_NAMES, CHARACTER_MODELS } from '../scene/config';
-import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig } from '../../shared/types';
-import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../shared/types';
+import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
+import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, CODEX_REASONING_EFFORTS } from '../../shared/types';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl, authFetch } from '../utils/storage';
 import { BUILT_IN_AGENT_CLASSES } from '../../shared/agent-types';
 import { ModelPreview } from './ModelPreview';
@@ -907,6 +907,28 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                         }))
                       }
                     />
+                  </div>
+
+                  {/* Reasoning effort option */}
+                  <div className="codex-option-group">
+                    <div className="codex-option-header">{t('terminal:spawn.codex.reasoningEffort')}</div>
+                    <select
+                      className="spawn-input codex-select"
+                      value={codexConfig.reasoningEffort || ''}
+                      onChange={(e) =>
+                        setCodexConfig((prev) => ({
+                          ...prev,
+                          reasoningEffort: (e.target.value || undefined) as CodexReasoningEffort | undefined,
+                        }))
+                      }
+                    >
+                      <option value="">{t('terminal:spawn.codex.reasoningEffortDefault')}</option>
+                      {(Object.keys(CODEX_REASONING_EFFORTS) as CodexReasoningEffort[]).map((level) => (
+                        <option key={level} value={level}>
+                          {CODEX_REASONING_EFFORTS[level].icon} {CODEX_REASONING_EFFORTS[level].label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>

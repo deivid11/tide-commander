@@ -82,12 +82,26 @@ export type CodexModel =
   | 'gpt-5.1-codex-mini'
   | 'gpt-5.2';
 
+// Valid values accepted by the codex CLI's `-c model_reasoning_effort=<value>` override.
+// Confirmed from `codex -c model_reasoning_effort=bogus exec …` error message.
+export type CodexReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+
+export const CODEX_REASONING_EFFORTS: Record<CodexReasoningEffort, { label: string; description: string; icon: string }> = {
+  none: { label: 'None', description: 'No reasoning', icon: '⚪' },
+  minimal: { label: 'Minimal', description: 'Least reasoning, fastest', icon: '💨' },
+  low: { label: 'Low', description: 'Light reasoning', icon: '🏃' },
+  medium: { label: 'Medium', description: 'Balanced reasoning', icon: '⚖️' },
+  high: { label: 'High', description: 'Deep reasoning', icon: '🔬' },
+  xhigh: { label: 'X-High', description: 'Extra-high reasoning, slowest', icon: '🧠' },
+};
+
 export interface CodexConfig {
   fullAuto?: boolean; // maps to --full-auto
   approvalMode?: CodexApprovalMode; // maps to --ask-for-approval
   sandbox?: CodexSandboxMode; // maps to --sandbox
   search?: boolean; // maps to --search
   profile?: string; // maps to --profile
+  reasoningEffort?: CodexReasoningEffort; // maps to -c model_reasoning_effort=<value>
 }
 
 export const CODEX_MODELS: Record<CodexModel, { label: string; description: string; icon: string }> = {

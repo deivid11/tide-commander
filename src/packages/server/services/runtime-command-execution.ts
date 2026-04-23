@@ -147,10 +147,29 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
     const processRunning = runner.isRunning(agentId);
 
     // For backends that close stdin after the initial prompt (codex, opencode),
-    // a new user prompt arriving mid-turn should INTERRUPT the current work and
-    // RESTART the session with the new prompt — not wait for the current turn
-    // to finish and then deliver the queued message via session-resume (which
-    // is the default queue-based behavior for these backends).
+    // a new user prompt arriving while the process is alive should INTERRUPT
+    // the current work and RESTART the session with the new prompt — not wait
+    // for the current turn to finish and then deliver the queued message via
+    // session-resume (which is the default queue-based behavior).
+    //
+    // Why no turnState gate: stdin is closed, so there's literally no way to
+    // deliver a follow-up prompt without respawning. 'waiting_for_input' is
+    // also not a reliable "turn is over" signal across these backends —
+    // opencode's NDJSON emits `step_finish` per LLM step (see
+    // src/packages/server/opencode/json-event-parser.ts:197-207), so during a
+    // single conversational turn the runner's turnState oscillates
+    // processing → waiting_for_input → processing → … between steps. Gating
+    // on 'waiting_for_input' would strand the new prompt on those mid-turn
+    // windows: sendMessage would queue it, but the process isn't exiting
+    // (it's starting the next step), so the queue-respawn path never fires.
+    // Codex happens to emit `step_complete` once per turn (via
+    // src/packages/server/codex/json-event-parser.ts:300-301), so the old
+    // gate looked fine there — but the correct invariant for ALL stdin-closed
+    // backends is: process-alive + new-prompt ⇒ interrupt + respawn.
+    //
+    // SIGINT on a process already at true turn-end (about to exit cleanly on
+    // its own) is harmless — process-lifecycle's stop() just short-circuits
+    // the natural exit, and the fresh spawn still resumes the same sessionId.
     //
     // Safe for tmux mode: runner.stop() routes through
     // src/packages/server/claude/runner/process-lifecycle.ts:281-284 which
@@ -164,20 +183,18 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
     const backendClosesStdin = runner.closesStdinAfterPrompt?.() === true;
     if (processRunning && backendClosesStdin && !forceNewSession) {
       const turnState = runner.getTurnState?.(agentId);
-      if (turnState !== 'waiting_for_input') {
-        log.log(`[sendCommand] Agent ${agentId} (${agent.provider}): mid-turn prompt (turnState=${turnState ?? 'unknown'}) — interrupting current work and restarting session with new prompt`);
-        emitOutput(
-          agentId,
-          '🛑 [System] Interrupting current work to process new prompt…',
-          false,
-          undefined,
-          'system-interrupt-restart'
-        );
-        await runner.stop(agentId, true);
-        agentService.updateAgent(agentId, { taskCount: (agent.taskCount || 0) + 1 });
-        await executeCommand(agentId, command, systemPrompt, forceNewSession, customAgent);
-        return;
-      }
+      log.log(`[sendCommand] Agent ${agentId} (${agent.provider}): in-flight prompt (turnState=${turnState ?? 'unknown'}) — interrupting current work and restarting session with new prompt`);
+      emitOutput(
+        agentId,
+        '🛑 [System] Interrupting current work to process new prompt…',
+        false,
+        undefined,
+        'system-interrupt-restart'
+      );
+      await runner.stop(agentId, true);
+      agentService.updateAgent(agentId, { taskCount: (agent.taskCount || 0) + 1 });
+      await executeCommand(agentId, command, systemPrompt, forceNewSession, customAgent);
+      return;
     }
 
     if (processRunning && !forceNewSession) {

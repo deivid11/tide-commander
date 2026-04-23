@@ -23,6 +23,7 @@ import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
 import { ContextMenu, type ContextMenuAction } from '../ContextMenu';
 import { getAgentStatusColor } from '../../utils/colors';
+import { getDisplayContextInfo } from '../../utils/context';
 import { AgentOverviewPanel } from '../ClaudeOutputPanel/AgentOverviewPanel';
 import { AgentTerminalPane, type AgentTerminalPaneHandle } from '../ClaudeOutputPanel/AgentTerminalPane';
 import { AreaBuildingsPanel } from '../ClaudeOutputPanel/AreaBuildingsPanel';
@@ -1487,30 +1488,72 @@ export function FlatView({
                           <span className="flat-map-area-card__count">{group.agents.length}</span>
                         </button>
                         <div className="flat-map-area-card__agents">
-                          {group.agents.map(agent => (
-                            <button
-                              key={agent.id}
-                              type="button"
-                              className={`flat-map-agent-chip ${agent.status}`}
-                              onClick={() => onAgentClick(agent.id)}
-                              onContextMenu={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setEmptyAgentContextMenu({
-                                  agentId: agent.id,
-                                  position: { x: e.clientX, y: e.clientY },
-                                });
-                              }}
-                              title={`Open chat with ${agent.name}`}
-                            >
-                              <AgentIcon agent={agent} size={16} />
-                              <span className="flat-map-agent-chip__name">{agent.name}</span>
-                              <span
-                                className="flat-map-agent-chip__dot"
-                                style={{ backgroundColor: getAgentStatusColor(agent.status) }}
-                              />
-                            </button>
-                          ))}
+                          {group.agents.map(agent => {
+                            const isBoss = agent.isBoss || agent.class === 'boss';
+                            const ctx = getDisplayContextInfo(agent);
+                            const ctxColor =
+                              ctx.usedPercent >= 80 ? '#ff4a4a'
+                                : ctx.usedPercent >= 60 ? '#ff9e4a'
+                                  : ctx.usedPercent >= 40 ? '#ffd700'
+                                    : '#4aff9e';
+                            const ctxTitle = `Context: ${(ctx.totalTokens / 1000).toFixed(1)}k / ${(ctx.contextWindow / 1000).toFixed(1)}k (${ctx.usedPercent}% used, ${ctx.freePercent}% free)`;
+                            return (
+                              <button
+                                key={agent.id}
+                                type="button"
+                                className={`flat-map-agent-chip ${agent.status}`}
+                                onClick={() => onAgentClick(agent.id)}
+                                onContextMenu={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setEmptyAgentContextMenu({
+                                    agentId: agent.id,
+                                    position: { x: e.clientX, y: e.clientY },
+                                  });
+                                }}
+                                title={`${isBoss ? 'Boss · ' : ''}Open chat with ${agent.name}\n${ctxTitle}`}
+                              >
+                                <AgentIcon agent={agent} size={16} />
+                                {isBoss && (
+                                  <span className="flat-map-agent-chip__crown" aria-hidden="true">
+                                    <Icon name="crown" size={11} color="#ffd700" weight="fill" />
+                                  </span>
+                                )}
+                                <span className="flat-map-agent-chip__name">{agent.name}</span>
+                                <img
+                                  src={
+                                    agent.provider === 'codex'
+                                      ? `${import.meta.env.BASE_URL}assets/codex.png`
+                                      : agent.provider === 'opencode'
+                                        ? `${import.meta.env.BASE_URL}assets/opencode.png`
+                                        : `${import.meta.env.BASE_URL}assets/claude.png`
+                                  }
+                                  alt={agent.provider}
+                                  className="flat-map-agent-chip__provider-icon"
+                                  title={
+                                    agent.provider === 'codex'
+                                      ? 'Codex Agent'
+                                      : agent.provider === 'opencode'
+                                        ? 'OpenCode Agent'
+                                        : 'Claude Agent'
+                                  }
+                                />
+                                <span
+                                  className="flat-map-agent-chip__dot"
+                                  style={{ backgroundColor: getAgentStatusColor(agent.status) }}
+                                />
+                                <span
+                                  className="flat-map-agent-chip__context-bar"
+                                  aria-hidden="true"
+                                >
+                                  <span
+                                    className="flat-map-agent-chip__context-bar-fill"
+                                    style={{ width: `${ctx.usedPercent}%`, backgroundColor: ctxColor }}
+                                  />
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     );

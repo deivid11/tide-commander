@@ -358,26 +358,33 @@ export class ClaudeRunner {
       return false;
     }
 
-    // tmux mode: send via tmux send-keys — EXCEPT for backends that close stdin
-    // after the initial prompt (codex). Those are launched as `cat <file> | codex`
-    // so codex's stdin is the pipe, NOT the tmux pane. Once cat hits EOF, codex
-    // gets EOF; tmux send-keys would write to a pane codex isn't reading. We must
-    // queue those messages and deliver them via respawn-with-session-resume
-    // triggered by the watchdog_missing_process handler when the session dies.
-    // Also queue mid-turn messages for all backends — send-keys mid-turn is
-    // unreliable and can interfere with the current prompt being processed.
+    // tmux mode dispatch:
+    //   - Stdin-closed backends (codex, opencode) MUST queue. They were
+    //     launched as `cat <file> | codex …` so their stdin is the pipe, not
+    //     the tmux pane. Once cat hits EOF they receive EOF; tmux send-keys
+    //     would write to a pane they aren't reading. Delivery happens via
+    //     respawn-with-session-resume when the session dies (handled by the
+    //     watchdog_missing_process branch).
+    //   - Stdin-open backends (claude) are launched as
+    //     `(cat <file>; cat) | claude --input-format stream-json …` — the
+    //     trailing `cat` reads from the tmux pane, so send-keys writes are
+    //     fed to claude's stdin as additional stream-json lines. Claude
+    //     handles mid-turn `{type:"user",…}` messages natively (queues them
+    //     internally for post-turn or injects them per its own protocol), so
+    //     we write immediately regardless of turnState instead of blocking
+    //     the user until step_complete.
     if (activeProcess.tmuxSession) {
       const tmuxTurnState = activeProcess.turnState || 'processing';
       const tmuxBackendClosesStdin = this.backend.shouldCloseStdinAfterPrompt?.() === true;
-      if (tmuxTurnState === 'processing' || tmuxBackendClosesStdin) {
+      if (tmuxBackendClosesStdin) {
         const queue = this.messageQueue.get(agentId) ?? [];
         queue.push(message);
         this.messageQueue.set(agentId, queue);
-        log.log(`📋 [QUEUE-TMUX] Agent ${agentId}: queued message (turnState=${tmuxTurnState}, closesStdin=${tmuxBackendClosesStdin}, queue=${queue.length}, ${message.length} chars)`);
+        log.log(`📋 [QUEUE-TMUX] Agent ${agentId}: queued message (stdin-closed backend, turnState=${tmuxTurnState}, queue=${queue.length}, ${message.length} chars)`);
         return true;
       }
       const stdinInput = this.backend.formatStdinInput(message);
-      log.log(`📨 [SEND_MESSAGE] Agent ${agentId} (tmux mode), sending via tmux send-keys (${stdinInput.length} chars)`);
+      log.log(`📨 [SEND_MESSAGE] Agent ${agentId} (tmux, turnState=${tmuxTurnState}), sending via tmux send-keys (${stdinInput.length} chars)`);
       const ok = sendToTmux(agentId, stdinInput);
       if (ok) {
         activeProcess.turnState = 'processing';
@@ -389,37 +396,39 @@ export class ClaudeRunner {
     const messageLen = message.length;
     const backendClosesStdin = this.backend.shouldCloseStdinAfterPrompt?.() === true;
 
-    // Queue mid-turn messages BEFORE any stdin-writability check. Writing to the OS
-    // stdin pipe mid-turn is unreliable on all backends (async callback + possible
-    // pipe close), and backends like codex/opencode explicitly close stdin after the
-    // initial prompt so there is nothing to write to at all. For stdin-closed backends
-    // we queue regardless of turnState — there is a race window between step_complete
-    // (turnState flips to 'waiting_for_input') and process exit where direct stdin
-    // write would fail, the fallthrough path SIGINTs the old process, and the
-    // respawn-with-queue path is skipped (cleanTurnEnd requires a clean exit).
-    // The queue is the source of truth; drain happens after the current turn ends
-    // (via stdin for stdin-open backends, or via session-resume respawn for
-    // stdin-closed ones).
-    if (turnState === 'processing' || backendClosesStdin) {
+    // Stdin-closed backends (codex, opencode) MUST always queue: there is
+    // literally no open stdin to write to after the initial prompt.
+    // sendCommand's interrupt-and-restart branch handles mid-turn prompts for
+    // these by stopping+respawning; this queue catches the narrow
+    // step_complete/process_exit race window where respawn is the only
+    // delivery path (cleanTurnEnd in runner.ts:248 picks it up).
+    if (backendClosesStdin) {
       const queue = this.messageQueue.get(agentId) ?? [];
       queue.push(message);
       this.messageQueue.set(agentId, queue);
-      log.log(`📋 [QUEUE] Agent ${agentId}: queued message for post-turn delivery (turnState=${turnState}, closesStdin=${backendClosesStdin}, queue=${queue.length}, ${messageLen} chars)`);
+      log.log(`📋 [QUEUE] Agent ${agentId}: queued message for respawn delivery (stdin-closed backend, turnState=${turnState}, queue=${queue.length}, ${messageLen} chars)`);
       return true;
     }
 
-    // Agent is waiting for input: send directly via stdin (immediate processing)
+    // Stdin-open backends (claude): write directly regardless of turnState.
+    // Claude's --input-format stream-json accepts additional
+    // {type:"user",...} JSON lines at any time and interleaves them with the
+    // current turn per its own protocol. Blocking on 'waiting_for_input'
+    // previously made the user wait for step_complete before Claude even saw
+    // the message; now it goes straight to Claude's stdin.
     const stdin = activeProcess.process.stdin;
-    if (!stdin) {
-      log.error(`❌ [SEND_MESSAGE] stdin is null for agent ${agentId}`);
-      return false;
-    }
-    if (!stdin.writable) {
-      log.error(`❌ [SEND_MESSAGE] stdin is not writable for agent ${agentId} (destroyed: ${stdin.destroyed}, closed: ${(stdin as any).closed})`);
-      return false;
+    if (!stdin || !stdin.writable) {
+      // Defensive fallback: if stdin unexpectedly isn't writable (pipe
+      // closed, process dying), queue so the respawn path can recover the
+      // message instead of dropping it.
+      log.warn(`⚠️ [SEND_MESSAGE] Agent ${agentId}: stdin not writable (stdin=${!!stdin}, writable=${stdin?.writable}); queueing for recovery path (turnState=${turnState}, ${messageLen} chars)`);
+      const queue = this.messageQueue.get(agentId) ?? [];
+      queue.push(message);
+      this.messageQueue.set(agentId, queue);
+      return true;
     }
 
-    log.log(`📨 [SEND_MESSAGE] Agent ${agentId} is idle (turnState=${turnState}), sending directly via stdin (${messageLen} chars)`);
+    log.log(`📨 [SEND_MESSAGE] Agent ${agentId} (turnState=${turnState}), sending directly via stdin (${messageLen} chars)`);
     return this.writeToStdin(agentId, activeProcess, message);
   }
 

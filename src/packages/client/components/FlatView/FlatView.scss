@@ -408,10 +408,11 @@ $middle-min-width: 280px;
 }
 
 .flat-map-agent-chip {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 7px;
+  padding: 3px 7px 6px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 10px;
@@ -422,6 +423,7 @@ $middle-min-width: 280px;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
   white-space: nowrap;
   min-width: 0;
+  overflow: hidden;
 
   &:hover {
     background: rgba(255, 255, 255, 0.08);
@@ -488,6 +490,41 @@ $middle-min-width: 280px;
     height: 6px;
     border-radius: 50%;
     flex-shrink: 0;
+  }
+
+  &__provider-icon {
+    width: 12px;
+    height: 12px;
+    object-fit: contain;
+    flex-shrink: 0;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+  }
+
+  &__crown {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  // Thin remaining-context gauge pinned to the bottom edge. Source of truth
+  // matches the FlatView terminal statusbar chip (flat-terminal-wrapper__context)
+  // via getDisplayContextInfo() — used% fills the bar, color shifts red as the
+  // agent approaches its context window limit.
+  &__context-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.06);
+    pointer-events: none;
+  }
+
+  &__context-bar-fill {
+    display: block;
+    height: 100%;
+    transition: width 0.2s ease, background-color 0.2s ease;
   }
 }
 

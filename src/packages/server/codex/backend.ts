@@ -104,6 +104,11 @@ export class CodexBackend implements CLIBackend {
     if (codexConfig?.profile) {
       args.push('--profile', codexConfig.profile);
     }
+    if (codexConfig?.reasoningEffort) {
+      // Pass as a two-arg pair so the spawned process receives the flag and
+      // value as separate argv entries — no shell-level quoting needed.
+      args.push('-c', `model_reasoning_effort=${codexConfig.reasoningEffort}`);
+    }
 
     if (config.workingDir) {
       args.push('-C', config.workingDir);
