@@ -326,16 +326,24 @@
   animation: pulse-dots 1.5s infinite;
 }
 
-// Agent name badge shown next to tool usage
+// Agent name badge shown next to tool usage.
+//
+// Previously the bg/border used `rgba(var(--accent-pink-rgb, 255, 121, 198), …)`,
+// but `--accent-pink-rgb` is never set anywhere — so EVERY theme fell
+// back to the hard-coded Dracula pink (255, 121, 198) for the bg/border
+// while only the text color actually followed the active theme. Derive
+// the bg/border from `--accent-pink` itself via color-mix so all three
+// properties stay in sync with whatever the active theme sets (including
+// the Grayscale theme, where --accent-pink is a bright gray for contrast).
 .output-agent-badge {
   font-family: $font-mono;
   font-size: 10px;
   font-weight: 600;
   color: var(--accent-pink);
-  background: rgba(var(--accent-pink-rgb, 255, 121, 198), 0.12);
+  background: color-mix(in srgb, var(--accent-pink) 12%, transparent);
   padding: 1px 6px;
   border-radius: 3px;
-  border: 1px solid rgba(var(--accent-pink-rgb, 255, 121, 198), 0.25);
+  border: 1px solid color-mix(in srgb, var(--accent-pink) 25%, transparent);
   white-space: nowrap;
   flex-shrink: 0;
   max-width: 100px;

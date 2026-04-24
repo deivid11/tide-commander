@@ -947,7 +947,7 @@ const grayscaleTheme: Theme = {
     accentCyan: '#b6b6b6',
     accentClaude: '#cccccc',
     accentClaudeLight: '#e0e0e0',
-    accentPink: '#9e9e9e',
+    accentPink: '#e8e8e8',        // brightest gray — agent-name badge text
     accentYellow: '#bababa',
     // Messages: flat gray surfaces, no color tint
     msgUserBg: 'rgba(232, 232, 232, 0.06)',
