@@ -463,6 +463,20 @@ function AppContent() {
     showToast('info', t('notifications:drawing.rectangleTool'), t('notifications:drawing.clickAndDrag'), 3000);
   }, [sceneRef, showToast]);
 
+  const handleOrganizeAll = useCallback(() => {
+    setIsOrganizing(true);
+    organizeAllAreas()
+      .then((result) => {
+        applyOrganizeResult(result, sceneRef);
+        showToast('success', 'Organized', `Arranged ${result.organized.length} agent${result.organized.length !== 1 ? 's' : ''}`);
+      })
+      .catch((err) => {
+        console.error('organize all error:', err);
+        showToast('error', 'Organize Failed', err.message || 'Failed to organize');
+      })
+      .finally(() => setIsOrganizing(false));
+  }, [sceneRef, showToast]);
+
   // Handle opening URL in iframe modal
   const handleOpenUrlInModal = useCallback((url: string) => {
     setIframeModalUrl(url);
@@ -693,19 +707,7 @@ function AppContent() {
             disabled={isOrganizing}
             aria-label="Auto-organize all agents in their areas"
             title="Auto-organize all agents in their areas"
-            onClick={() => {
-              setIsOrganizing(true);
-              organizeAllAreas()
-                .then((result) => {
-                  applyOrganizeResult(result, sceneRef);
-                  showToast('success', 'Organized', `Arranged ${result.organized.length} agent${result.organized.length !== 1 ? 's' : ''}`);
-                })
-                .catch((err) => {
-                  console.error('organize all error:', err);
-                  showToast('error', 'Organize Failed', err.message || 'Failed to organize');
-                })
-                .finally(() => setIsOrganizing(false));
-            }}
+            onClick={handleOrganizeAll}
           >
             <span className="fab-spawn-icon"><Icon name={isOrganizing ? 'hourglass' : 'sparkle'} size={18} /></span>
           </button>
@@ -952,6 +954,13 @@ function AppContent() {
           onOpenCommander={commanderModal.open}
           onOpenControls={controlsModal.open}
           onOpenSkills={skillsModal.open}
+          onSpawnAgent={spawnModal.open}
+          onSpawnBoss={bossSpawnModal.open}
+          onNewBuilding={handleNewBuilding}
+          onNewArea={handleNewArea}
+          onOrganizeAll={handleOrganizeAll}
+          canOrganize={viewMode === '2d' || viewMode === '3d'}
+          isOrganizing={isOrganizing}
           mobileView={mobileView}
         />
 

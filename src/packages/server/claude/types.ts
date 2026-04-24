@@ -279,6 +279,10 @@ export interface ActiveProcess {
   tmuxLogFile?: string;
   // tmux file tailer handle
   tmuxTailer?: import('./runner/tmux-helper.js').TmuxFileTailer;
+  // Basename of the CLI executable (e.g. "claude", "codex", "opencode") so the
+  // watchdog can tell when the inner CLI died but the wrapping shell pipeline
+  // kept the tmux session alive (zombie session).
+  tmuxExpectedCommand?: string;
 }
 
 // Process death info for diagnostics

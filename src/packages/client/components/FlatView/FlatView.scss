@@ -48,8 +48,16 @@ $middle-min-width: 280px;
 }
 
 .flat-view {
+  // User-resizable column widths. Defaults: middle 1fr (50/50 split),
+  // inspector 320px. FlatView/index.tsx sets these inline (as CSS custom
+  // properties) when the user drags a splitter, overriding both the base
+  // and the `@media (min-width: 1400px)` values via the usual inline-style
+  // cascade. Mobile (`max-width: 1024px`) sets grid-template-columns
+  // directly, bypassing the vars entirely.
+  --flat-middle-width: 1fr;
+  --flat-inspector-width: 320px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: var(--flat-middle-width) 3px 1fr;
   height: 100%;
   width: 100%;
   background: $bg-primary;
@@ -61,11 +69,58 @@ $middle-min-width: 280px;
   box-sizing: border-box;
   transition: grid-template-columns 0.25s ease;
 
-  // When the inspector is open, add a 3rd column that pushes the other
-  // columns left (no overlay). Mid column keeps its width; right column
-  // shares the remaining space with the inspector.
+  // When the inspector is open, slot in a 4th track plus a 2nd splitter
+  // between the chat and the inspector. Mid and inspector keep their
+  // (resizable) widths; the chat column soaks up what's left.
   &--with-inspector {
-    grid-template-columns: 1fr 1fr 320px;
+    grid-template-columns: var(--flat-middle-width) 3px 1fr 3px var(--flat-inspector-width);
+  }
+}
+
+// ============================================================================
+// Draggable splitters. The visible strip is 3px; a ±5px invisible hit-target
+// widens the grab area to 13px total so it stays easy to grab. Hidden on
+// mobile (see the `@media (max-width: 1024px)` block further down) since
+// the agents column becomes a slide-in drawer and the inspector renders
+// full-screen.
+// ============================================================================
+.flat-splitter {
+  position: relative;
+  cursor: col-resize;
+  background: rgba(255, 255, 255, 0.04);
+  touch-action: none;
+  user-select: none;
+  transition: background 0.15s ease;
+  z-index: 2;
+
+  // Widen the hit target without growing the visible strip.
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -5px;
+    right: -5px;
+  }
+
+  &:hover {
+    background: rgba($accent-cyan, 0.45);
+  }
+}
+
+// Global body flag set while the pointer is captured — keeps the splitter
+// highlighted even if the pointer temporarily leaves the 3px strip, and
+// disables the grid transition so each pointermove update lands immediately.
+body.flat-splitter-dragging {
+  cursor: col-resize !important;
+  user-select: none !important;
+
+  .flat-splitter {
+    background: rgba($accent-cyan, 0.6);
+  }
+
+  .flat-view {
+    transition: none !important;
   }
 }
 
@@ -1621,6 +1676,12 @@ $middle-min-width: 280px;
     }
   }
 
+  // Resize splitter is desktop/tablet-only — the agents column becomes a
+  // slide-in drawer on mobile so there's nothing for it to divide.
+  .flat-splitter {
+    display: none;
+  }
+
   // Chat / flat-map is always visible on mobile — no matter whether an agent
   // is selected. When none is, the right column shows the flat-map empty
   // state; when one is, it shows the chat pane.
@@ -1886,11 +1947,12 @@ $middle-min-width: 280px;
 
 @media (min-width: 1400px) {
   .flat-view {
-    grid-template-columns: minmax($middle-min-width, 400px) 1fr;
-
-    &--with-inspector {
-      grid-template-columns: minmax($middle-min-width, 400px) 1fr 360px;
-    }
+    // On wide screens, cap the agents column at 400px and set the
+    // inspector to 360px by default. User drag overrides either of these
+    // via the matching inline CSS custom property (inline style trumps
+    // this regular rule for custom properties).
+    --flat-middle-width: minmax(#{$middle-min-width}, 400px);
+    --flat-inspector-width: 360px;
   }
 }
 

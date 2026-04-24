@@ -2,7 +2,7 @@ import type { ActiveProcess, ProcessDeathInfo } from '../types.js';
 import { createLogger } from '../../utils/logger.js';
 import { isProcessRunning } from '../../data/index.js';
 import type { RunnerInternalEventBus } from './internal-events.js';
-import { hasTmuxSession } from './tmux-helper.js';
+import { hasTmuxSession, isTmuxPaneCommandAlive } from './tmux-helper.js';
 
 const log = createLogger('Runner');
 
@@ -35,8 +35,22 @@ export class RunnerWatchdog {
     for (const [agentId, activeProcess] of this.activeProcesses) {
       // tmux mode: the launcher PID exits immediately — check the tmux session instead
       if (activeProcess.tmuxSession) {
-        if (!hasTmuxSession(agentId)) {
-          log.error(`🐕 [WATCHDOG] Agent ${agentId}: tmux session ${activeProcess.tmuxSession} no longer exists!`);
+        const sessionAlive = hasTmuxSession(agentId);
+        // Zombie-session detection: the wrapping `(cat;cat) | claude` shell
+        // pipeline keeps the tmux session alive even when the inner CLI dies
+        // (e.g. claude exits on a stream-json parse error but cat is still
+        // hung on the pane stdin). hasTmuxSession alone misses this — check
+        // that the expected CLI binary is still in the pane's process tree.
+        const expected = activeProcess.tmuxExpectedCommand;
+        const cliAlive = !sessionAlive
+          ? false
+          : (expected ? isTmuxPaneCommandAlive(agentId, expected) : true);
+        if (!sessionAlive || !cliAlive) {
+          if (!sessionAlive) {
+            log.error(`🐕 [WATCHDOG] Agent ${agentId}: tmux session ${activeProcess.tmuxSession} no longer exists!`);
+          } else {
+            log.error(`🐕 [WATCHDOG] Agent ${agentId}: tmux session ${activeProcess.tmuxSession} is alive but CLI '${expected}' is gone (zombie session)`);
+          }
           activeProcess.tmuxTailer?.stop();
           this.recordDeath({
             agentId,

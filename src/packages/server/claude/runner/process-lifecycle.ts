@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'child_process';
+import * as path from 'path';
 import { StringDecoder } from 'string_decoder';
 import type { ActiveProcess, CLIBackend, RunnerCallbacks, RunnerRequest } from '../types.js';
 import type { RunnerStdoutPipeline } from './stdout-pipeline.js';
@@ -128,6 +129,7 @@ export class RunnerProcessLifecycle {
         turnState: 'processing',
         tmuxSession: tmuxResult.sessionName,
         tmuxLogFile: tmuxResult.logFile,
+        tmuxExpectedCommand: path.basename(executable),
       };
       this.activeProcesses.set(agentId, activeProcess);
 

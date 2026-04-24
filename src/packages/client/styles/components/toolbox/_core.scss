@@ -271,16 +271,15 @@
     position: fixed;
   }
 
-  // Workspace wrapper's dropdown is anchored with `left: calc(100% + 10px)`
-  // which already works against any positioned parent. No extra rules here.
+  // Workspace wrapper's dropdown is positioned further down with viewport caps.
 }
 
-// Compress the FAB rail on short viewports (mobile landscape, small tablets
-// above the 768px width cutoff) so all 12 icons fit vertically without the
-// rail needing a scroll container — which would clip the side-anchored
-// popover menus. Only active when vertical room is tight; tall desktops are
-// untouched.
-@media (max-height: 640px) and (min-width: 769px) {
+// Compress the FAB rail on short viewports so all icons fit vertically without
+// the rail needing a scroll container, which would clip the side-anchored
+// popover menus. Width is intentionally not part of this query: tablets,
+// landscape phones in desktop-width WebViews, and split-screen windows can all
+// have tight vertical room while still rendering the rail.
+@media (max-height: 640px) {
   .fab-rail {
     gap: 2px;
 
@@ -298,9 +297,11 @@
   }
 }
 
-@media (max-height: 480px) and (min-width: 769px) {
+@media (max-height: 520px) {
   .fab-rail {
-    gap: 0;
+    top: 8px;
+    bottom: 8px;
+    gap: 1px;
 
     .floating-settings-btn,
     .search-toggle-btn,
@@ -312,6 +313,26 @@
     .workspace-switcher-trigger {
       width: 28px;
       height: 28px;
+    }
+  }
+}
+
+@media (max-height: 440px) {
+  .fab-rail {
+    top: 6px;
+    bottom: 6px;
+    gap: 0;
+
+    .floating-settings-btn,
+    .search-toggle-btn,
+    .commander-toggle-btn,
+    .shortcuts-toggle-btn,
+    .skills-toggle-btn,
+    .fab-spawn-btn,
+    .fab-viewmode-wrapper,
+    .workspace-switcher-trigger {
+      width: 26px;
+      height: 26px;
     }
   }
 }
@@ -351,6 +372,8 @@
   left: calc(100% + 10px);
   top: 0;
   min-width: 220px;
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
   background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
   border: 1px solid $dracula-comment;
   border-radius: $radius-lg;
@@ -410,6 +433,11 @@
   }
 }
 
+.fab-rail .fab-viewmode-menu {
+  top: auto;
+  bottom: 0;
+}
+
 @keyframes fab-menu-in {
   from { opacity: 0; transform: translateX(-6px); }
   to   { opacity: 1; transform: translateX(0); }
@@ -464,9 +492,12 @@
 
   // Popover: slide out to the right of the FAB instead of dropping down
   .workspace-switcher-dropdown {
-    top: 0;
+    top: auto;
+    bottom: 0;
     left: calc(100% + 10px);
     min-width: 220px;
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
     background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
     border: 1px solid $dracula-comment;
     border-radius: $radius-lg;
