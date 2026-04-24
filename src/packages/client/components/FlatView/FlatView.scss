@@ -2035,7 +2035,14 @@ $middle-min-width: 280px;
     // composer appeared 6px wider than the claude card.
     padding: 6px calc(var(--flat-chat-column-pad-x) + 6px) 12px
              var(--flat-chat-column-pad-x) !important;
-    background: transparent !important;
+    // Paint this band with the same fill as the thread above
+    // (`.guake-output` uses `var(--bg-primary)` at _output.scss:16), so
+    // the strip below the thread and the composer surface share one
+    // continuous color. Without this, the wrapper's `transparent` fell
+    // through to `.flat-terminal-wrapper`'s `$bg-tertiary` (a lighter
+    // tone), which read as a visible bg mismatch between thread and
+    // composer.
+    background: var(--bg-primary) !important;
     border: 0 !important;
     border-top: 0 !important;
     box-sizing: border-box !important;
@@ -2120,11 +2127,22 @@ $middle-min-width: 280px;
     min-width: 0 !important;
     box-sizing: border-box !important;
     overflow-x: hidden;
-    // Transparent so the composer visually blends with the conversation
-    // thread background (.guake-history-content has no bg of its own;
-    // both inherit from .flat-terminal-wrapper). The border + shadow
-    // still delineate the input surface.
-    background: transparent !important;
+    // Match the conversation thread fill exactly so the composer reads
+    // as part of the same surface.
+    //
+    // Ancestor chain (painted colors in parens):
+    //   .flat-terminal-wrapper   ($bg-tertiary = #1c1c28, lighter)
+    //     .guake-output          (var(--bg-primary) = #0d0d14, darker)  ← thread
+    //     .guake-input-wrapper   (no bg — falls through to $bg-tertiary)
+    //       .guake-input-container                                      ← this
+    //
+    // `_output.scss:16` paints the thread darker with var(--bg-primary).
+    // Everything below it inside `.flat-terminal-wrapper` fell through
+    // to the wrapper's lighter $bg-tertiary, so a `transparent` composer
+    // was exposing $bg-tertiary instead of matching the thread above.
+    // Painting the container with `var(--bg-primary)` snaps it to the
+    // same color the thread uses.
+    background: var(--bg-primary) !important;
     border: 1px solid rgba(255, 255, 255, 0.06) !important;
     border-radius: 14px !important;
     padding: 10px 12px !important;
@@ -2152,7 +2170,8 @@ $middle-min-width: 280px;
 
     &:focus-within {
       border-color: rgba(255, 255, 255, 0.16) !important;
-      background: transparent !important;
+      // Keep the thread-matching fill on focus too.
+      background: var(--bg-primary) !important;
       box-shadow:
         0 0 0 1px rgba(255, 255, 255, 0.08),
         0 1px 2px rgba(0, 0, 0, 0.24),
@@ -2176,9 +2195,8 @@ $middle-min-width: 280px;
     max-width: 100% !important;
     min-width: 0 !important;
     box-sizing: border-box !important;
-    // Transparent in working state too — keep the composer flush with
-    // the conversation thread background.
-    background: transparent !important;
+    // Match the thread fill in the working state too.
+    background: var(--bg-primary) !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
     // Match the 146px grid height from the idle state rule above so the
     // working/stop-bar variants don't snap back to the shared flex height.
