@@ -1806,6 +1806,33 @@ $middle-min-width: 280px;
       }
     }
 
+    // HistoryLine renders the timestamp as a BARE `<span.output-timestamp>`
+    // with no `.output-timestamp-wrapper` around it (HistoryLine.tsx:888,
+    // 911, 975). Without an explicit grid placement, it falls through to
+    // `> * { grid-column: 1 / -1 }` and auto-flows to a new row at the
+    // BOTTOM of the card. Pin it to row 1, col 3 so the info chip sits
+    // in the header row just like the OutputLine path.
+    > .output-timestamp {
+      grid-row: 1 !important;
+      grid-column: 3 !important;
+      justify-self: end !important;
+      align-self: center !important;
+      position: relative !important;  // anchor for .msg-meta-tooltip
+      right: auto !important;
+      top: auto !important;
+      left: auto !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      float: none !important;
+      opacity: 1 !important;
+
+      // HistoryLine embeds an inline-styled `[debugHash]` span inside the
+      // timestamp. Suppress it so only the 22px info chip shows.
+      > span {
+        display: none !important;
+      }
+    }
+
     // Info-icon skin for the clickable timestamp chip.
     //
     // The shared rule in _output.scss:540 styles this as a small time
