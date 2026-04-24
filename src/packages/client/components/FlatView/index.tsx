@@ -46,9 +46,23 @@ import {
   setStorageBoolean,
   getStorageString,
   setStorageString,
+  getStorageNumber,
+  setStorageNumber,
   STORAGE_KEYS,
 } from '../../utils/storage';
 import './FlatView.scss';
+
+// ============================================================================
+// Layout constants (desktop/tablet resizable splitters: one between
+// .flat-middle and .flat-right, one between .flat-right and .flat-inspector
+// when it's open). Mirror the CSS fallback values so the drag clamp logic
+// agrees with what the responsive stylesheet enforces.
+// ============================================================================
+const FLAT_SPLITTER_WIDTH = 3;
+const FLAT_AGENTS_MIN_WIDTH = 280;
+const FLAT_RIGHT_MIN_WIDTH = 320;
+const FLAT_INSPECTOR_MIN_WIDTH = 240;
+const FLAT_LEFT_GUTTER = 64; // matches .flat-view `padding-left` in FlatView.scss
 
 // ============================================================================
 // Types
@@ -1015,6 +1029,143 @@ export function FlatView({
   const toggleMobileSidebar = useCallback(() => setMobileSidebarOpen(prev => !prev), []);
   const closeMobileSidebar = useCallback(() => setMobileSidebarOpen(false), []);
 
+  // Desktop/tablet: user-resizable widths for the .flat-middle (agents) and
+  // .flat-inspector (right-side details) columns. `null` = use the responsive
+  // CSS default; a number is a pixel override applied via a CSS custom
+  // property inline on .flat-view so media queries for mobile still win.
+  const flatViewRef = useRef<HTMLDivElement>(null);
+  const splitterDragRef = useRef<{
+    kind: 'middle' | 'inspector';
+    startX: number;
+    startWidth: number;
+    pointerId: number;
+  } | null>(null);
+  const [middleWidth, setMiddleWidth] = useState<number | null>(() => {
+    const saved = getStorageNumber(STORAGE_KEYS.FLAT_MIDDLE_WIDTH, 0);
+    return saved >= FLAT_AGENTS_MIN_WIDTH ? saved : null;
+  });
+  const [inspectorWidth, setInspectorWidth] = useState<number | null>(() => {
+    const saved = getStorageNumber(STORAGE_KEYS.FLAT_INSPECTOR_WIDTH, 0);
+    return saved >= FLAT_INSPECTOR_MIN_WIDTH ? saved : null;
+  });
+
+  // Clamp helpers — the max for each column depends on the other columns'
+  // current widths so neither can push the chat column below its min.
+  const clampMiddleWidth = useCallback((w: number): number => {
+    if (typeof window === 'undefined') return w;
+    const inspectorCost =
+      inspectorWidth !== null ? FLAT_SPLITTER_WIDTH + inspectorWidth : 0;
+    const maxWidth =
+      window.innerWidth - FLAT_LEFT_GUTTER - FLAT_SPLITTER_WIDTH - FLAT_RIGHT_MIN_WIDTH - inspectorCost;
+    return Math.max(FLAT_AGENTS_MIN_WIDTH, Math.min(Math.max(maxWidth, FLAT_AGENTS_MIN_WIDTH), w));
+  }, [inspectorWidth]);
+
+  const clampInspectorWidth = useCallback((w: number): number => {
+    if (typeof window === 'undefined') return w;
+    const middle = flatViewRef.current?.querySelector<HTMLElement>('.flat-middle');
+    const middleActual = middle?.getBoundingClientRect().width ?? FLAT_AGENTS_MIN_WIDTH;
+    const maxWidth =
+      window.innerWidth - FLAT_LEFT_GUTTER - middleActual - FLAT_SPLITTER_WIDTH - FLAT_RIGHT_MIN_WIDTH - FLAT_SPLITTER_WIDTH;
+    return Math.max(FLAT_INSPECTOR_MIN_WIDTH, Math.min(Math.max(maxWidth, FLAT_INSPECTOR_MIN_WIDTH), w));
+  }, []);
+
+  // Re-clamp persisted widths if the viewport gets smaller (e.g. window
+  // resize). Without this, stored values that no longer fit could hide the
+  // chat column entirely.
+  useEffect(() => {
+    if (middleWidth === null && inspectorWidth === null) return;
+    const onResize = () => {
+      setMiddleWidth(prev => {
+        if (prev === null) return prev;
+        const clamped = clampMiddleWidth(prev);
+        return clamped === prev ? prev : clamped;
+      });
+      setInspectorWidth(prev => {
+        if (prev === null) return prev;
+        const clamped = clampInspectorWidth(prev);
+        return clamped === prev ? prev : clamped;
+      });
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [middleWidth, inspectorWidth, clampMiddleWidth, clampInspectorWidth]);
+
+  const handleMiddleSplitterPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const middle = flatViewRef.current?.querySelector<HTMLElement>('.flat-middle');
+    if (!middle) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    splitterDragRef.current = {
+      kind: 'middle',
+      startX: e.clientX,
+      startWidth: middle.getBoundingClientRect().width,
+      pointerId: e.pointerId,
+    };
+    document.body.classList.add('flat-splitter-dragging');
+  }, []);
+
+  const handleInspectorSplitterPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const inspector = flatViewRef.current?.querySelector<HTMLElement>('.flat-inspector');
+    if (!inspector) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    splitterDragRef.current = {
+      kind: 'inspector',
+      startX: e.clientX,
+      startWidth: inspector.getBoundingClientRect().width,
+      pointerId: e.pointerId,
+    };
+    document.body.classList.add('flat-splitter-dragging');
+  }, []);
+
+  const handleSplitterPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const state = splitterDragRef.current;
+    if (!state || e.pointerId !== state.pointerId) return;
+    const deltaX = e.clientX - state.startX;
+    if (state.kind === 'middle') {
+      setMiddleWidth(clampMiddleWidth(state.startWidth + deltaX));
+    } else {
+      // Inspector sits at the right edge — dragging its handle LEFT (negative
+      // deltaX) widens it, dragging RIGHT narrows it.
+      setInspectorWidth(clampInspectorWidth(state.startWidth - deltaX));
+    }
+  }, [clampMiddleWidth, clampInspectorWidth]);
+
+  const handleSplitterPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const state = splitterDragRef.current;
+    if (!state || e.pointerId !== state.pointerId) return;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+    splitterDragRef.current = null;
+    document.body.classList.remove('flat-splitter-dragging');
+    // Skip persistence for a pure click with no drag — the user is probably
+    // double-clicking to reset, and a stray persist-on-pointerup would
+    // overwrite the reset's "0" between the 2nd click and the dblclick event.
+    const moved = Math.abs(e.clientX - state.startX) > 2;
+    if (!moved) return;
+    // Compute the final width from the same delta math as pointermove so we
+    // can write storage directly (no setState updater side effect).
+    const deltaX = e.clientX - state.startX;
+    if (state.kind === 'middle') {
+      const final = clampMiddleWidth(state.startWidth + deltaX);
+      setMiddleWidth(final);
+      setStorageNumber(STORAGE_KEYS.FLAT_MIDDLE_WIDTH, final);
+    } else {
+      const final = clampInspectorWidth(state.startWidth - deltaX);
+      setInspectorWidth(final);
+      setStorageNumber(STORAGE_KEYS.FLAT_INSPECTOR_WIDTH, final);
+    }
+  }, [clampMiddleWidth, clampInspectorWidth]);
+
+  const handleMiddleSplitterDoubleClick = useCallback(() => {
+    setMiddleWidth(null);
+    setStorageNumber(STORAGE_KEYS.FLAT_MIDDLE_WIDTH, 0);
+  }, []);
+
+  const handleInspectorSplitterDoubleClick = useCallback(() => {
+    setInspectorWidth(null);
+    setStorageNumber(STORAGE_KEYS.FLAT_INSPECTOR_WIDTH, 0);
+  }, []);
+
   // Inspector tab — matches the traditional sidebar's Agents/Tracking toggle.
   const [inspectorView, setInspectorViewState] = useState<'agent' | 'tracking'>(() => {
     const saved = getStorageString(STORAGE_KEYS.FLAT_INSPECTOR_VIEW);
@@ -1442,7 +1593,17 @@ export function FlatView({
 
   return (
     <div
+      ref={flatViewRef}
       className={`flat-view ${showInspector ? 'flat-view--with-inspector' : ''} ${selectedAgentId ? 'flat-view--has-chat' : ''} ${mobileSidebarOpen ? 'flat-view--mobile-sidebar-open' : ''}`}
+      style={(() => {
+        if (middleWidth === null && inspectorWidth === null) return undefined;
+        // Typed as a record so the custom CSS properties pass through the
+        // React `style` narrowing.
+        const s: Record<string, string> = {};
+        if (middleWidth !== null) s['--flat-middle-width'] = `${middleWidth}px`;
+        if (inspectorWidth !== null) s['--flat-inspector-width'] = `${inspectorWidth}px`;
+        return s as React.CSSProperties;
+      })()}
     >
       {/* Backdrop that captures taps outside the drawer to close it. Only
           rendered when the drawer is open. Hidden on desktop via CSS. */}
@@ -1494,6 +1655,22 @@ export function FlatView({
           />
         </div>
       </div>
+
+      {/* Draggable splitter between .flat-middle and .flat-right. Hidden on
+          mobile by the `@media (max-width: 1024px)` block in FlatView.scss.
+          Double-click to reset to the CSS default. */}
+      <div
+        className="flat-splitter flat-splitter--middle"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize agents panel"
+        title="Drag to resize · Double-click to reset"
+        onPointerDown={handleMiddleSplitterPointerDown}
+        onPointerMove={handleSplitterPointerMove}
+        onPointerUp={handleSplitterPointerUp}
+        onPointerCancel={handleSplitterPointerUp}
+        onDoubleClick={handleMiddleSplitterDoubleClick}
+      />
 
       {/* Right Column - Chat/Details */}
       <div className="flat-right">
@@ -1651,6 +1828,24 @@ export function FlatView({
           </div>
         )}
       </div>
+
+      {/* Draggable splitter between .flat-right and .flat-inspector. Only
+          rendered while the inspector is open. Hidden on mobile via the
+          `@media (max-width: 1024px)` block in FlatView.scss. */}
+      {showInspector && (
+        <div
+          className="flat-splitter flat-splitter--inspector"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize inspector panel"
+          title="Drag to resize · Double-click to reset"
+          onPointerDown={handleInspectorSplitterPointerDown}
+          onPointerMove={handleSplitterPointerMove}
+          onPointerUp={handleSplitterPointerUp}
+          onPointerCancel={handleSplitterPointerUp}
+          onDoubleClick={handleInspectorSplitterDoubleClick}
+        />
+      )}
 
       {/* Inspector Column - Pushes chat column rather than overlaying.
           Independent of chat/selection state: stays visible even when no

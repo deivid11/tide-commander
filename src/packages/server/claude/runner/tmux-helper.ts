@@ -13,6 +13,7 @@ import { execSync, spawn, type ChildProcess } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { StringDecoder } from 'string_decoder';
 import { createLogger } from '../../utils/logger.js';
 import { isTmuxModeEnabled } from '../../services/system-prompt-service.js';
 
@@ -113,6 +114,15 @@ export function spawnInTmux(
   // Stdin remains connected to the tmux pane for send-keys input.
   const escapedArgs = args.map((a) => `'${a.replace(/'/g, "'\\''")}'`).join(' ');
 
+  // `stty raw -echo` puts the pane PTY into raw mode before any reader runs.
+  // Why: the second `cat` in `(cat <file>; cat) | claude …` reads from the
+  // pane PTY, which is in canonical mode by default. Linux's n_tty driver
+  // truncates any line longer than ~4096 bytes (N_TTY_BUF_SIZE) in canonical
+  // mode, silently corrupting long stream-json messages and killing the CLI
+  // with "Error parsing streaming input line: Unterminated string". Raw mode
+  // disables the line-discipline buffer so bytes flow through unchanged.
+  const sttyPrefix = 'stty raw -echo 2>/dev/null; ';
+
   let fullCmd: string;
   if (options.initialStdin) {
     const initialStdinFile = path.join(os.tmpdir(), `tc-initial-${options.agentId}.tmp`);
@@ -121,14 +131,14 @@ export function spawnInTmux(
     if (options.closeStdinAfterPrompt) {
       // Pipe the prompt then close stdin (EOF).  For one-shot backends
       // like opencode that need EOF to start processing.
-      fullCmd = `cat '${initialStdinFile}' | ${executable} ${escapedArgs} > '${logFile}' 2> '${stderrFile}'`;
+      fullCmd = `${sttyPrefix}cat '${initialStdinFile}' | ${executable} ${escapedArgs} > '${logFile}' 2> '${stderrFile}'`;
     } else {
       // Pipe the prompt then keep stdin open via the tmux pane pty.
       // The second `cat` reads from the pane so sendToTmux() still works.
-      fullCmd = `(cat '${initialStdinFile}'; cat) | ${executable} ${escapedArgs} > '${logFile}' 2> '${stderrFile}'`;
+      fullCmd = `${sttyPrefix}(cat '${initialStdinFile}'; cat) | ${executable} ${escapedArgs} > '${logFile}' 2> '${stderrFile}'`;
     }
   } else {
-    fullCmd = `${executable} ${escapedArgs} > '${logFile}' 2> '${stderrFile}'`;
+    fullCmd = `${sttyPrefix}${executable} ${escapedArgs} > '${logFile}' 2> '${stderrFile}'`;
   }
 
   // Spawn the tmux session
@@ -168,11 +178,16 @@ export function sendToTmux(agentId: string, text: string): boolean {
   const sessionName = tmuxSessionName(agentId);
   try {
     // Write the text to a temp file and use load-buffer + paste-buffer
-    // to avoid shell escaping issues with send-keys
+    // to avoid shell escaping issues with send-keys.
+    // Per-agent buffer name avoids cross-agent races on concurrent sends.
+    // `-r` preserves LF (without it tmux translates LF→CR; the receiving
+    // pane is in raw mode now so a CR would not be re-translated to LF and
+    // claude's stream-json line terminator would be wrong).
     const tmpFile = path.join(os.tmpdir(), `tc-stdin-${agentId}.tmp`);
+    const bufferName = `tc-input-${agentId}`;
     fs.writeFileSync(tmpFile, text + '\n');
     execSync(
-      `tmux load-buffer -b tc-input ${tmpFile} && tmux paste-buffer -b tc-input -t ${sessionName} -d`,
+      `tmux load-buffer -b ${bufferName} ${tmpFile} && tmux paste-buffer -b ${bufferName} -t ${sessionName} -r -d`,
       { stdio: 'ignore', timeout: 5000 },
     );
     fs.unlinkSync(tmpFile);
@@ -250,7 +265,10 @@ export interface TmuxFileTailer {
 
 /**
  * Create a file tailer that reads new lines appended to a log file.
- * Uses `fs.watchFile` (polling) for reliability with pipe-pane output.
+ * Uses polling (`setInterval` + `fs.statSync`) for reliability with pipe-pane
+ * output. Keeps a partial-line buffer across polls so long JSON events that
+ * span multiple ticks (common with codex — single lines can be >20KB) are
+ * delivered to `onLine` as complete lines, never mid-line fragments.
  */
 export function createFileTailer(
   logFile: string,
@@ -259,27 +277,56 @@ export function createFileTailer(
   let offset = 0;
   let watching = false;
   let pollInterval: ReturnType<typeof setInterval> | null = null;
+  // Buffer for bytes that arrive before the terminating '\n'. Flushed to
+  // `onLine` only when a newline is seen. `StringDecoder` handles multibyte
+  // UTF-8 sequences that straddle a chunk boundary.
+  const decoder = new StringDecoder('utf8');
+  let partialLine = '';
 
   function readNewData(): void {
+    let stat: fs.Stats;
     try {
-      const stat = fs.statSync(logFile);
-      if (stat.size <= offset) return;
-
-      const fd = fs.openSync(logFile, 'r');
-      const buf = Buffer.alloc(stat.size - offset);
-      fs.readSync(fd, buf, 0, buf.length, offset);
-      fs.closeSync(fd);
-      offset = stat.size;
-
-      const text = buf.toString('utf8');
-      const lines = text.split('\n');
-      for (const line of lines) {
-        if (line.trim()) {
-          onLine(line);
-        }
-      }
+      stat = fs.statSync(logFile);
     } catch {
-      // file may not exist yet or be temporarily unavailable
+      return; // file may not exist yet or be temporarily unavailable
+    }
+
+    // Truncation recovery: if the file shrank (rotated, truncated, or the
+    // agent was restarted into a fresh log), reset to the start so we don't
+    // stall forever waiting for size to grow past a stale offset.
+    if (stat.size < offset) {
+      offset = 0;
+      partialLine = '';
+    }
+    if (stat.size <= offset) return;
+
+    let fd: number;
+    try {
+      fd = fs.openSync(logFile, 'r');
+    } catch {
+      return;
+    }
+    const buf = Buffer.alloc(stat.size - offset);
+    try {
+      fs.readSync(fd, buf, 0, buf.length, offset);
+    } catch {
+      try { fs.closeSync(fd); } catch { /* ignore */ }
+      return;
+    }
+    try { fs.closeSync(fd); } catch { /* ignore */ }
+    offset = stat.size;
+
+    const text = decoder.write(buf);
+    if (!text) return;
+
+    const combined = partialLine + text;
+    const lines = combined.split('\n');
+    partialLine = lines.pop() ?? '';
+
+    for (const line of lines) {
+      if (line.trim()) {
+        onLine(line);
+      }
     }
   }
 
@@ -298,12 +345,20 @@ export function createFileTailer(
         clearInterval(pollInterval);
         pollInterval = null;
       }
+      // Flush any bytes left in the decoder; drop the trailing partial line
+      // (it will be re-read if the tailer is restarted from a saved offset).
+      decoder.end();
+      partialLine = '';
     },
     getOffset() {
       return offset;
     },
     setOffset(newOffset: number) {
       offset = newOffset;
+      // Offset was repositioned externally — drop any buffered bytes that
+      // belong to the old position so we don't concatenate them onto the new
+      // starting point.
+      partialLine = '';
     },
   };
 }
@@ -324,6 +379,50 @@ export function getTmuxPanePid(agentId: string): number | undefined {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Returns true when the expected CLI binary is alive somewhere in the pane's
+ * descendant process tree. Catches the "zombie tmux" case where the CLI died
+ * (e.g. claude crashed on a malformed stream-json line) but the wrapping
+ * `(cat;cat) | claude` shell pipeline keeps the session alive — in that case
+ * `hasTmuxSession` returns true but the agent is silently broken.
+ *
+ * Returns true on probe failure to avoid false-positive restarts.
+ */
+export function isTmuxPaneCommandAlive(agentId: string, expectedCommand: string): boolean {
+  const panePid = getTmuxPanePid(agentId);
+  if (!panePid) return false;
+  let psOutput: string;
+  try {
+    psOutput = execSync(
+      'ps -e -o pid=,ppid=,comm=',
+      { encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] },
+    );
+  } catch {
+    return true;
+  }
+  const procs = new Map<number, { ppid: number; comm: string }>();
+  for (const line of psOutput.split('\n')) {
+    const m = line.trim().match(/^(\d+)\s+(\d+)\s+(.+)$/);
+    if (!m) continue;
+    procs.set(parseInt(m[1], 10), { ppid: parseInt(m[2], 10), comm: m[3].trim() });
+  }
+  const target = expectedCommand.trim();
+  // BFS through descendants of panePid
+  const queue: number[] = [panePid];
+  const visited = new Set<number>();
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    if (visited.has(cur)) continue;
+    visited.add(cur);
+    const info = procs.get(cur);
+    if (info && info.comm === target) return true;
+    for (const [pid, p] of procs) {
+      if (p.ppid === cur && !visited.has(pid)) queue.push(pid);
+    }
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------------------

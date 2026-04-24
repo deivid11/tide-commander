@@ -14,6 +14,7 @@ import { loadSession } from '../claude/session-loader.js';
 import { getAllCustomClasses } from '../services/custom-class-service.js';
 // Session listing is done inline for performance
 import { createLogger } from '../utils/logger.js';
+import { truncateOrEmpty } from '../utils/string.js';
 import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js';
 import { clearDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
 import { OpencodeBackend } from '../opencode/backend.js';
@@ -1017,7 +1018,13 @@ router.post('/:id/report-task', async (req: Request<{ id: string }>, res: Respon
     // If the boss agent is no longer available, accept the report without failing.
     let forwarded = false;
     if (bossAgent) {
-      const reportMessage = `[TASK REPORT from ${agent.name} (${subordinateId})]\n\nStatus: ${taskStatus === 'completed' ? 'COMPLETED' : 'FAILED'}\nOriginal task: ${taskDescription}\n${summary ? `\nSummary: ${summary}` : ''}\n\nYou may review the result, give follow-up instructions, or dismiss this agent's progress indicator.`;
+      // Truncate the original task description: the boss already issued the
+      // delegation and has it in its own conversation history; replaying it
+      // verbatim wastes tokens and can blow past line-length limits in the
+      // CLI's stream-json input. A short label is enough to disambiguate
+      // which delegation this report refers to.
+      const taskLabel = truncateOrEmpty(taskDescription, 160);
+      const reportMessage = `[TASK REPORT from ${agent.name} (${subordinateId})]\n\nStatus: ${taskStatus === 'completed' ? 'COMPLETED' : 'FAILED'}\nOriginal task: ${taskLabel}\n${summary ? `\nSummary: ${summary}` : ''}\n\nYou may review the result, give follow-up instructions, or dismiss this agent's progress indicator.`;
 
       try {
         if (bossAgent.isBoss || bossAgent.class === 'boss') {

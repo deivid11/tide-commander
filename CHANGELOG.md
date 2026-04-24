@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.72.0] - 2026-04-24
+
+### Added
+- **Resizable Flat view columns** — the chat/agents and chat/inspector dividers are now drag-resizable splitters (`.flat-splitter`) backed by CSS custom properties `--flat-middle-width` / `--flat-inspector-width`. Widths persist in localStorage (`tide-flat-middle-width`, `tide-flat-inspector-width`) and respect per-column minimums; the inline overrides cascade over the `@media (min-width: 1400px)` defaults. Splitters hide on mobile where the agents column becomes a drawer. New `getStorageNumber` / `setStorageNumber` helpers in `storage.ts`
+- **Mobile FAB menu parity with desktop rails** — `MobileFabMenu` now exposes view-mode switcher, workspace switcher, Spawn Agent, Spawn Boss, New Building, New Area, and Organize All directly in the slide-out menu. Previously these actions were only reachable from the desktop-only FAB rail, stranding mobile users
+- **`tmux-helper.test.ts`** — unit coverage for the tmux helper (pane PTY setup, send-keys routing, file tailer behaviour)
+
+### Changed
+- **`handleOrganizeAll` extracted to a shared callback** in `App.tsx` so the desktop FAB and mobile menu share one implementation
+- **`report-task` endpoint truncates the echoed original task description to 160 chars** — the boss already has the delegation in its own conversation history, so replaying the full text wasted tokens and risked overflowing stream-json line limits. A short label still disambiguates which delegation the report refers to
+
+### Fixed
+- **tmux pane PTY now starts in raw mode (`stty raw -echo`)** — the Linux n_tty canonical-mode line buffer (~4096 bytes `N_TTY_BUF_SIZE`) was silently truncating long stream-json messages sent through the `(cat; cat) | claude` pipeline and killing the CLI with `Error parsing streaming input line: Unterminated string`. Raw mode disables the line-discipline buffer so bytes flow through unchanged
+- **Per-agent tmux paste buffer name** — replaced the shared `tc-input` buffer with `tc-input-<agentId>` to eliminate cross-agent races on concurrent sends; added `-r` to `paste-buffer` so LF is preserved (now that the pane is raw, tmux's default LF→CR translation would corrupt claude's line terminator)
+- **Zombie tmux session detection in watchdog** — the wrapping `(cat; cat) | claude` pipeline keeps the tmux session alive even when the inner CLI dies (e.g. claude exits on a stream-json parse error but `cat` is still hung on the pane stdin). `RunnerWatchdog` now verifies the expected CLI binary is still in the pane's process tree via new `isTmuxPaneCommandAlive()`; the basename is captured in `ActiveProcess.tmuxExpectedCommand` at spawn time
+- **Mid-turn process deaths surface as `status: error`** — `ClaudeRunner` previously queued for silent recovery. When `turnState !== 'waiting_for_input'` at death, the agent card now flips to `error` with a task message so the user can see a recovery attempt is in flight. The next `init` event flips it back to `working` automatically once recovery succeeds
+- **File tailer partial-line buffer** — `createFileTailer` now keeps a partial-line buffer across polls so long JSON events (codex lines frequently exceed 20KB) are delivered to `onLine` as complete lines rather than mid-line fragments
+
 ## [1.71.0] - 2026-04-24
 
 ### Added

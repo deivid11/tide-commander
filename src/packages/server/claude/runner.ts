@@ -170,6 +170,25 @@ export class ClaudeRunner {
       // messages because the tmux launcher PID doesn't emit 'close' events —
       // the watchdog is the only signal we get when the session dies.
       const queuedCount = this.messageQueue.get(agentId)?.length ?? 0;
+
+      // Surface mid-turn deaths in the UI. A waiting_for_input death is the
+      // expected end-of-turn exit for stdin-closed backends and shouldn't
+      // alarm the user. Anything else is a real failure worth showing as
+      // `status=error` — if recovery succeeds the next 'init' event flips it
+      // back to 'working' automatically.
+      const wasMidTurn = activeProcess.turnState !== 'waiting_for_input';
+      if (wasMidTurn) {
+        const errorReason = activeProcess.tmuxSession
+          ? `Process died unexpectedly inside tmux session ${activeProcess.tmuxSession}`
+          : 'Process died unexpectedly';
+        agentService.updateAgent(agentId, {
+          status: 'error',
+          currentTask: `[runtime] ${errorReason} — attempting recovery`,
+          currentTool: undefined,
+        });
+        this.callbacks.onError(agentId, errorReason);
+      }
+
       if (
         activeProcess.turnState === 'waiting_for_input'
         && queuedCount > 0
