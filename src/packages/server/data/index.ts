@@ -59,6 +59,7 @@ export interface StoredAgent {
   permissionMode?: Agent['permissionMode']; // May be missing in older data
   useChrome?: boolean;   // May be missing in older data
   model?: Agent['model']; // May be missing in older data
+  effort?: Agent['effort']; // Claude reasoning effort (low/medium/high/xHigh/max)
   codexModel?: Agent['codexModel']; // May be missing in older data
   codexConfig?: Agent['codexConfig']; // May be missing in older data
   opencodeModel?: Agent['opencodeModel']; // May be missing in older data
@@ -189,6 +190,7 @@ function toStoredAgents(agents: Agent[]): StoredAgent[] {
     permissionMode: agent.permissionMode,
     useChrome: agent.useChrome,
     model: agent.model,
+    effort: agent.effort,
     codexModel: agent.codexModel,
     codexConfig: agent.codexConfig,
     opencodeModel: agent.opencodeModel,

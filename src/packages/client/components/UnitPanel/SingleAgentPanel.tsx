@@ -190,8 +190,8 @@ export function SingleAgentPanel({
           customModelUrl={customModelUrl}
           modelScale={modelScale}
           status={agent.status}
-          width={80}
-          height={80}
+          width={180}
+          height={130}
         />
       </div>
 
@@ -308,9 +308,6 @@ export function SingleAgentPanel({
       {/* Working Directory */}
       <WorkingDirectory cwd={agent.cwd} />
 
-      {/* Other Agents */}
-      <OtherAgentsSection currentAgentId={agent.id} />
-
       {/* Permission Mode */}
       <div className="unit-permission-mode">
         <div className="unit-stat-label">{t('unitPanel.permissions')}</div>
@@ -408,62 +405,6 @@ export function SingleAgentPanel({
     </div>
   );
 }
-
-// ============================================================================
-// OtherAgentsSection Component
-// ============================================================================
-
-const OtherAgentsSection = memo(function OtherAgentsSection({ currentAgentId }: { currentAgentId: string }) {
-  const { t } = useTranslation(['common']);
-  const state = useStore();
-  const customClasses = useCustomAgentClassesArray();
-  const [collapsed, setCollapsed] = useState(false);
-
-  const otherAgents = useMemo(() => {
-    const agents = Array.from(state.agents.values()).filter(a => a.id !== currentAgentId);
-    // Sort by most recent activity first
-    return [...agents].sort((a, b) => (b.lastActivity || 0) - (a.lastActivity || 0));
-  }, [state.agents, currentAgentId]);
-
-  if (otherAgents.length === 0) return null;
-
-  return (
-    <div className="unit-other-agents">
-      <div className="unit-other-agents-header" onClick={() => setCollapsed(!collapsed)}>
-        <div className="unit-stat-label">{t('unitPanel.otherAgents')} ({otherAgents.length})</div>
-        <span className="unit-other-agents-toggle"><Icon name={collapsed ? 'caret-right' : 'caret-down'} size={10} /></span>
-      </div>
-      {!collapsed && (
-        <div className="unit-other-agents-list">
-          {otherAgents.map(agent => {
-            const cc = getClassConfig(agent.class, customClasses);
-            return (
-              <div
-                key={agent.id}
-                className={`unit-other-agent-item ${agent.status}`}
-                onClick={() => {
-                  store.selectAgent(agent.id);
-                  store.setTerminalOpen(true);
-                }}
-              >
-                <span className="unit-other-agent-icon" style={{ background: `${cc.color}20` }}>
-                  <AgentIcon agent={agent} size={16} customClasses={customClasses} />
-                </span>
-                <div className="unit-other-agent-info">
-                  <span className="unit-other-agent-name">{agent.name}</span>
-                  {agent.taskLabel && (
-                    <span className="unit-other-agent-task">{agent.taskLabel}</span>
-                  )}
-                </div>
-                <div className={`agent-status-dot ${agent.status}`} />
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-});
 
 // ============================================================================
 // RememberedPatternsSection Component

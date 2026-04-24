@@ -232,8 +232,7 @@
     "clearContextBtn": "清除上下文",
     "removePattern": "移除此模式",
     "agentsCount": "{{count}} 个代理",
-    "confidence": "置信度：{{level}}",
-    "otherAgents": "其他代理"
+    "confidence": "置信度：{{level}}"
   },
   "multiAgent": {
     "agentsSelected": "已选择 {{count}} 个代理",

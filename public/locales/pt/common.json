@@ -232,8 +232,7 @@
     "clearContextBtn": "Limpar Contexto",
     "removePattern": "Remover este padrao",
     "agentsCount": "{{count}} agentes",
-    "confidence": "Confianca: {{level}}",
-    "otherAgents": "Outros agentes"
+    "confidence": "Confianca: {{level}}"
   },
   "multiAgent": {
     "agentsSelected": "{{count}} Agentes Selecionados",

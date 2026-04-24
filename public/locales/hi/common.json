@@ -232,8 +232,7 @@
     "clearContextBtn": "संदर्भ साफ करें",
     "removePattern": "यह पैटर्न हटाएं",
     "agentsCount": "{{count}} एजेंट",
-    "confidence": "विश्वास: {{level}}",
-    "otherAgents": "अन्य एजेंट"
+    "confidence": "विश्वास: {{level}}"
   },
   "multiAgent": {
     "agentsSelected": "{{count}} एजेंट चयनित",
