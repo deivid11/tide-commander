@@ -4,7 +4,7 @@
  * Each theme defines CSS variable values that override the defaults in _variables.scss
  */
 
-export type ThemeId = 'dracula' | 'muted' | 'muted-red' | 'nord' | 'solarized-dark' | 'monokai' | 'gruvbox' | 'atom' | 'cyberpunk' | 'synthwave' | 'abyss' | 'obsidian-bloom' | 'catppuccin' | 'github-dark' | 'one-dark' | 'midnight-harbor' | 'ember-noir' | 'classic';
+export type ThemeId = 'dracula' | 'muted' | 'muted-red' | 'nord' | 'solarized-dark' | 'monokai' | 'gruvbox' | 'atom' | 'cyberpunk' | 'synthwave' | 'abyss' | 'obsidian-bloom' | 'catppuccin' | 'github-dark' | 'one-dark' | 'midnight-harbor' | 'ember-noir' | 'classic' | 'grayscale';
 
 export interface ThemeColors {
   bgPrimary: string;
@@ -920,6 +920,59 @@ const classicTheme: Theme = {
   },
 };
 
+// Grayscale - single-hue monochrome palette. Every accent collapses
+// into a neutral gray of a different luminance so the entire UI reads
+// as a simplified, distraction-free black-and-white document. Role
+// chips, status dots, and tool colors still stay distinguishable via
+// brightness alone (no hue differentiation).
+const grayscaleTheme: Theme = {
+  id: 'grayscale',
+  name: 'Grayscale',
+  description: 'Monochrome — one hue, separated by brightness',
+  colors: {
+    bgPrimary: '#0f0f0f',
+    bgSecondary: '#181818',
+    bgTertiary: '#202020',
+    borderColor: '#2e2e2e',
+    textPrimary: '#e8e8e8',
+    textSecondary: '#b0b0b0',
+    textMuted: '#707070',
+    // Accents all folded into neutral grays of varying luminance so
+    // role/status/tool colors stay distinguishable via brightness alone.
+    accentBlue: '#9a9a9a',
+    accentGreen: '#c4c4c4',       // brightest — success / assistant
+    accentOrange: '#a8a8a8',
+    accentRed: '#d0d0d0',          // bright — draws eye like red would
+    accentPurple: '#888888',
+    accentCyan: '#b6b6b6',
+    accentClaude: '#cccccc',
+    accentClaudeLight: '#e0e0e0',
+    accentPink: '#9e9e9e',
+    accentYellow: '#bababa',
+    // Messages: flat gray surfaces, no color tint
+    msgUserBg: 'rgba(232, 232, 232, 0.06)',
+    msgUserBorder: 'transparent',
+    msgUserText: '#e8e8e8',
+    msgAssistantBg: 'rgba(196, 196, 196, 0.08)',
+    msgAssistantBorder: 'transparent',
+    msgAssistantText: '#c4c4c4',
+    // Tools: subtle gray layering
+    toolUseBg: 'rgba(168, 168, 168, 0.05)',
+    toolUseBorder: 'transparent',
+    toolUseText: '#b0b0b0',
+    toolUseName: '#e8e8e8',
+    toolResultBg: 'rgba(196, 196, 196, 0.06)',
+    toolResultBorder: 'transparent',
+    toolResultText: '#c4c4c4',
+    // Output line: transparent over bg-primary
+    outputLineBg: 'transparent',
+    // Context stats: mid-gray bar, bright-gray fill
+    contextBarBg: 'rgba(176, 176, 176, 0.22)',
+    contextBarFill: '#b0b0b0',
+    taskLabelColor: '#c4c4c4',
+  },
+};
+
 // All available themes
 export const themes: Theme[] = [
   classicTheme,      // Default - original transparent style
@@ -940,6 +993,7 @@ export const themes: Theme[] = [
   oneDarkTheme,
   midnightHarborTheme,
   emberNoirTheme,
+  grayscaleTheme,    // Monochrome — single-hue, simplified
 ];
 
 // Get theme by ID
