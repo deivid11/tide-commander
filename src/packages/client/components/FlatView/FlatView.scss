@@ -2594,5 +2594,24 @@ $middle-min-width: 280px;
     border: 0 !important;
     border-left: 0 !important;
   }
+
+  // Active (currently selected) agent — needs a stronger signal now
+  // that borders are gone. Shared rule (_overview-panel.scss:715) only
+  // recolored `border-color`, which no longer applies under this scope.
+  //
+  // Treatment:
+  //   - Solid-ish purple-tinted fill (stronger than hover)
+  //   - 3px inset left accent bar in $accent-purple so the selection
+  //     reads at a glance scanning down the column
+  //   - Repeat the tint at `.active:hover` so the card doesn't appear
+  //     to "lose" selection when the pointer is over it.
+  .aop-agent-card.active {
+    background: color-mix(in srgb, $accent-purple 22%, var(--bg-secondary)) !important;
+    box-shadow: inset 3px 0 0 0 $accent-purple !important;
+
+    &:hover {
+      background: color-mix(in srgb, $accent-purple 28%, var(--bg-secondary)) !important;
+    }
+  }
 }
 
