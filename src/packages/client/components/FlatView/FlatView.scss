@@ -542,7 +542,16 @@ $middle-min-width: 280px;
   height: 100%;
   min-height: 0;
   position: relative;
-  background: $bg-tertiary;
+  // Match the thread/composer fill so there is ONE continuous bg color
+  // behind the entire chat column. `.guake-output` and the composer
+  // both paint `var(--bg-primary)`; the area OUTSIDE the 960px-wide
+  // composer wrapper (left/right strips when the viewport is wider
+  // than 960px) used to fall through to $bg-tertiary (a lighter tone),
+  // which read as vertical mismatched lines on the sides.
+  // Now the fall-through color matches, so those strips disappear.
+  // Zones with their own bg (header → $bg-secondary, side panels, etc.)
+  // are unaffected because they override this at a deeper level.
+  background: var(--bg-primary);
   overflow: hidden;
   // Side panels (git / buildings / workflow) rely on this CSS var for their
   // width. The Guake wrapper sets the same var; we mirror it here so the
