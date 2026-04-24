@@ -1563,7 +1563,7 @@ $middle-min-width: 280px;
 // working identically; this is purely a visual overhaul.
 .flat-terminal-wrapper {
   // Tokens local to Flat UI. Re-used below so theme changes still propagate.
-  --flat-chat-column-max: 840px;
+  --flat-chat-column-max: 960px;
   --flat-chat-column-pad-x: 20px;
   --flat-chat-column-pad-y: 16px;
   --flat-chat-gap: 10px;
@@ -1813,12 +1813,16 @@ $middle-min-width: 280px;
   }
 
   // The bordered box becomes the craft "input surface".
+  // Background matches the chat surface ($bg-secondary) so the composer reads
+  // as one continuous panel with the transcript above it.
+  // Fixed, taller multi-line default (~140px) — the textarea no longer visibly
+  // grows for the first few lines; it only scrolls once content exceeds that.
   .guake-input-wrapper .guake-input-container {
-    background: var(--flat-assistant-card-bg) !important;
+    background: $bg-secondary !important;
     border: 1px solid rgba(255, 255, 255, 0.06) !important;
-    border-radius: 12px !important;
-    padding: 4px 6px !important;
-    min-height: 56px;
+    border-radius: 14px !important;
+    padding: 8px 10px !important;
+    min-height: 140px;
     box-shadow:
       0 1px 1px rgba(0, 0, 0, 0.2),
       0 3px 6px rgba(0, 0, 0, 0.18) !important;
@@ -1830,7 +1834,7 @@ $middle-min-width: 280px;
 
     &:focus-within {
       border-color: rgba(255, 255, 255, 0.16) !important;
-      background: #{color-mix(in srgb, $bg-secondary 80%, $bg-primary 20%)} !important;
+      background: $bg-secondary !important;
       box-shadow:
         0 0 0 1px rgba(255, 255, 255, 0.08),
         0 1px 2px rgba(0, 0, 0, 0.24),
@@ -1838,9 +1842,9 @@ $middle-min-width: 280px;
     }
   }
 
-  // Working-state — tone down the shimmer so it doesn't fight the surface.
+  // Working-state — keep the unified bg, adjust only the border tone.
   .guake-input-wrapper.is-working .guake-input-container {
-    background: #{color-mix(in srgb, $bg-secondary 80%, $bg-primary 20%)} !important;
+    background: $bg-secondary !important;
     border-color: rgba(255, 255, 255, 0.08) !important;
   }
 
@@ -1853,25 +1857,48 @@ $middle-min-width: 280px;
   }
 
   // Textarea / input — roomy composer text.
+  // Use !important on min-height/height so the JS auto-resize hook in
+  // TerminalInputArea.tsx (which sets inline textarea.style.height on every
+  // keystroke) cannot collapse the composer below our craft-style minimum.
   .guake-input-wrapper .guake-input-container input[type='text'],
   .guake-input-wrapper .guake-input-container textarea {
     background: transparent !important;
     border: 0 !important;
-    padding: 10px 10px !important;
+    padding: 10px 12px !important;
     font-family: inherit;
-    font-size: 13px;
-    line-height: 1.45;
+    font-size: 14px;
+    line-height: 1.5;
     color: $text-primary;
-    min-height: 36px;
+    min-height: 110px !important;
 
     &::placeholder {
       color: $text-muted;
       opacity: 0.75;
     }
   }
+
+  // Single-line input variant (pre-expand) still gets a comfortable height but
+  // not quite as tall — craft shows a 2-3 line composer before any typing.
+  .guake-input-wrapper .guake-input-container input[type='text'] {
+    min-height: 90px !important;
+  }
+
+  // Textarea: fixed multi-line default — ~5 lines visible, scroll beyond.
+  // !important beats the inline style.height from the useEffect hook; the
+  // max-height caps how tall the composer can grow before scrolling kicks in.
   .guake-input-wrapper .guake-input-container textarea {
-    min-height: 44px;
-    max-height: 220px;
+    min-height: 110px !important;
+    height: 110px !important;
+    max-height: 260px !important;
+    resize: none !important;
+  }
+
+  // When the user explicitly expands the composer via the caret button,
+  // let it grow to the craft-style full editor height.
+  .guake-input-wrapper .guake-input.guake-input-expanded textarea {
+    min-height: 280px !important;
+    height: 280px !important;
+    max-height: 480px !important;
   }
 
   // Left-cluster buttons: paperclip / mic / expand → flat hover pills.
