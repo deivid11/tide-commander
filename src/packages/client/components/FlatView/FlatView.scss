@@ -2246,10 +2246,35 @@ $middle-min-width: 280px;
     }
   }
 
-  // Single-line <input> fallback — fills the 80px row 1 height.
+  // Single-line <input> fallback.
+  //
+  // DOM note: useTerminalInput.ts:96 dynamically swaps between
+  //   <input type="text">   (≤50 chars, no newlines, desktop)
+  //   <textarea>            (>50 chars, any newline, or mobile)
+  // as the user types. The user's pain:
+  //   "some spacing above the text — when I type a certain set of
+  //    characters the text moves upwards and that spacing is removed"
+  //
+  // Cause: with `height: 80px !important`, the browser vertically
+  // CENTERS the <input>'s single line of text inside the 80px box,
+  // leaving ~30px of empty space above and below. When the char count
+  // crosses 50, the component swaps to <textarea>, which top-aligns
+  // its content at `padding-top: 6px`. That ~24px jump reads as the
+  // text "moving up" and the "spacing above" vanishing.
+  //
+  // Fix: anchor the <input> to the TOP of its grid cell and let it
+  // size to its natural line-height instead of stretching to 80px.
+  //   - align-self: start       → input hugs the top of the 80px row 1
+  //   - height: auto            → natural line-height height (~27px)
+  //   - padding 6px 8px          → matches the textarea's inner padding
+  // The empty space between the input and the button row is absorbed
+  // by the grid cell, so the text sits at the same vertical position
+  // as the textarea's first line — no jump when the element swaps.
   .guake-input-wrapper .guake-input-container input[type='text'] {
-    min-height: 80px !important;
-    height: 80px !important;
+    align-self: start !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
   }
 
   // Textarea: truly FIXED at 80px — min=height=max. The JS auto-resize hook
