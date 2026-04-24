@@ -2529,22 +2529,31 @@ $middle-min-width: 280px;
     border-radius: 999px !important;
   }
 
-  // ───────────────────────────────────────────────────────────────────────
-  // Agent overview list (left sidebar) — breathe the stack, drop the
-  // borders, promote the hover so the whole card lights up.
-  //
-  // Shared defaults live in
-  //   src/packages/client/styles/components/guake-terminal/_overview-panel.scss
-  // where:
-  //   - `.aop-agent-swipe`     : margin-bottom: 4px  (too tight)
-  //   - `.aop-agent-card`      : 1px border + 3px left accent stripe
-  //   - `.aop-agent-header`    : hover highlight only on the header row,
-  //                              leaving the avatar column un-highlighted
-  //
-  // We override all three under `.flat-terminal-wrapper` so the Flat UI
-  // build feels less compressed without touching other views.
-  // ───────────────────────────────────────────────────────────────────────
+}
 
+// ───────────────────────────────────────────────────────────────────────
+// Agent overview list (left/middle agent sidebar) — breathe the stack,
+// drop the borders, promote the hover so the whole card lights up.
+//
+// IMPORTANT SCOPING NOTE:
+// `AgentOverviewPanel` is rendered at `.flat-view > .flat-middle >
+// .flat-middle__content > AgentOverviewPanel` (FlatView/index.tsx:1386,
+// 1413-1414). It is OUTSIDE `.flat-terminal-wrapper` (that wrapper only
+// covers the RIGHT-side chat/terminal pane on `FlatView/index.tsx:419`).
+// Scoping these overrides under `.flat-terminal-wrapper` would do
+// nothing — we MUST scope under `.flat-view` (the outermost flat layout
+// container at FlatView/index.tsx:1381) so they only apply inside the
+// Flat UI experiment and don't leak into Guake / other views.
+//
+// Shared defaults live in
+//   src/packages/client/styles/components/guake-terminal/_overview-panel.scss
+// where:
+//   - `.aop-agent-swipe`     : margin-bottom: 4px  (too tight)
+//   - `.aop-agent-card`      : 1px border + 3px left accent stripe
+//   - `.aop-agent-header`    : hover highlight only on the header row,
+//                              leaving the avatar column un-highlighted
+// ───────────────────────────────────────────────────────────────────────
+.flat-view {
   // Wider gap between cards — keeps the list scannable.
   .aop-agent-swipe {
     margin-bottom: 10px !important;
