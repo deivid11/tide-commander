@@ -1773,5 +1773,255 @@ $middle-min-width: 280px;
 
     &::before { display: none !important; }
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Craft-style composer (input box) — scoped to Flat UI only.
+  //
+  // DOM (see src/packages/client/components/ClaudeOutputPanel/TerminalInputArea.tsx:889-1002):
+  //   .guake-input-wrapper               ← outer shell, carries state
+  //     └ .guake-input-swipe-shell          classes is-working / is-completed
+  //         ├ .guake-attachments
+  //         ├ .guake-pasted-texts
+  //         ├ .guake-pending-messages
+  //         └ .guake-input
+  //             └ .guake-input-container
+  //                 ├ .guake-attach-btn   (paperclip)
+  //                 ├ .guake-mic-btn      (TTS, optional)
+  //                 ├ <textarea|input>
+  //                 ├ .guake-expand-btn   (caret)
+  //                 └ <button> (send, no class)
+  //
+  // Port from craft-agents-oss:
+  //   - 12px rounded composer surface, subtle hairline + layered shadow
+  //   - Centered in the 840px column to align with messages
+  //   - Roomy textarea padding, muted placeholder
+  //   - Attach/mic/expand → transparent hover pills
+  //   - Send → circular accent button (disabled state included)
+  //
+  // No JSX changes: all handlers (paperclip picker, expand toggle, mic
+  // record/transcribe, send, paste, drag-drop, swipe-close, permission bar,
+  // stop button, completion badge) stay intact.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Keep the composer aligned with the 840px message column.
+  .guake-input-wrapper {
+    max-width: var(--flat-chat-column-max);
+    margin: 0 auto !important;
+    padding: 6px var(--flat-chat-column-pad-x) 12px !important;
+    background: transparent !important;
+    border-top: 0 !important;
+  }
+
+  // The bordered box becomes the craft "input surface".
+  .guake-input-wrapper .guake-input-container {
+    background: var(--flat-assistant-card-bg) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    border-radius: 12px !important;
+    padding: 4px 6px !important;
+    min-height: 56px;
+    box-shadow:
+      0 1px 1px rgba(0, 0, 0, 0.2),
+      0 3px 6px rgba(0, 0, 0, 0.18) !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+
+    &:hover {
+      border-color: rgba(255, 255, 255, 0.1) !important;
+    }
+
+    &:focus-within {
+      border-color: rgba(255, 255, 255, 0.16) !important;
+      background: #{color-mix(in srgb, $bg-secondary 80%, $bg-primary 20%)} !important;
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.08),
+        0 1px 2px rgba(0, 0, 0, 0.24),
+        0 4px 12px rgba(0, 0, 0, 0.22) !important;
+    }
+  }
+
+  // Working-state — tone down the shimmer so it doesn't fight the surface.
+  .guake-input-wrapper.is-working .guake-input-container {
+    background: #{color-mix(in srgb, $bg-secondary 80%, $bg-primary 20%)} !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+  }
+
+  // Completion — soften to an accent-green ring instead of a full flash.
+  .guake-input-wrapper.is-completed .guake-input-container {
+    border-color: #{color-mix(in srgb, $accent-green 55%, transparent)} !important;
+    box-shadow:
+      0 0 0 1px #{color-mix(in srgb, $accent-green 35%, transparent)},
+      0 4px 12px rgba(0, 0, 0, 0.22) !important;
+  }
+
+  // Textarea / input — roomy composer text.
+  .guake-input-wrapper .guake-input-container input[type='text'],
+  .guake-input-wrapper .guake-input-container textarea {
+    background: transparent !important;
+    border: 0 !important;
+    padding: 10px 10px !important;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.45;
+    color: $text-primary;
+    min-height: 36px;
+
+    &::placeholder {
+      color: $text-muted;
+      opacity: 0.75;
+    }
+  }
+  .guake-input-wrapper .guake-input-container textarea {
+    min-height: 44px;
+    max-height: 220px;
+  }
+
+  // Left-cluster buttons: paperclip / mic / expand → flat hover pills.
+  .guake-input-wrapper .guake-input-container .guake-attach-btn,
+  .guake-input-wrapper .guake-input-container .guake-mic-btn,
+  .guake-input-wrapper .guake-input-container .guake-expand-btn {
+    width: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    height: 32px !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 8px !important;
+    color: $text-muted !important;
+    margin: 4px 2px;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.06) !important;
+      color: $text-primary !important;
+    }
+
+    &:active:not(:disabled) {
+      background: rgba(255, 255, 255, 0.1) !important;
+    }
+
+    &.active {
+      background: rgba(255, 255, 255, 0.08) !important;
+      color: $text-primary !important;
+    }
+  }
+
+  // Mic button record / transcribe states keep their accent semantic colors.
+  .guake-input-wrapper .guake-input-container .guake-mic-btn.recording {
+    color: $accent-red !important;
+  }
+  .guake-input-wrapper .guake-input-container .guake-mic-btn.transcribing {
+    color: $accent-cyan !important;
+  }
+
+  // Send button — last unnamed <button> inside the container.
+  // Circular accent button, matches craft's 28-32px rounded-full send control.
+  .guake-input-wrapper
+    .guake-input-container
+    > button:not(.guake-attach-btn):not(.guake-mic-btn):not(.guake-expand-btn) {
+    width: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    height: 32px !important;
+    background: #{color-mix(in srgb, $accent-cyan 85%, $bg-primary 15%)} !important;
+    color: $bg-primary !important;
+    border: 0 !important;
+    border-radius: 999px !important;
+    margin: 4px 4px 4px 6px;
+    padding: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+
+    &:hover:not(:disabled) {
+      background: $accent-cyan !important;
+      color: $bg-primary !important;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+    }
+
+    &:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    &:disabled {
+      background: rgba(255, 255, 255, 0.08) !important;
+      color: $text-muted !important;
+      opacity: 1 !important;
+      box-shadow: none !important;
+      cursor: not-allowed;
+    }
+  }
+
+  // ── Accessory rows (attachments / pasted text / pending) ─────────────────
+  // Stack above the input; restyle to match the new surface aesthetic.
+  .guake-input-wrapper .guake-attachments,
+  .guake-input-wrapper .guake-pasted-texts,
+  .guake-input-wrapper .guake-pending-messages {
+    max-width: var(--flat-chat-column-max);
+    margin: 0 auto !important;
+    background: transparent !important;
+    border-top: 0 !important;
+    padding: 6px var(--flat-chat-column-pad-x) !important;
+  }
+
+  // Attachment chips — subtle card look.
+  .guake-input-wrapper .guake-attachment {
+    background: #{color-mix(in srgb, $bg-card 70%, transparent)} !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    border-radius: 8px !important;
+  }
+
+  // Pasted-text chips — neutralize cyan frame to the muted palette.
+  .guake-input-wrapper .pasted-text-chip {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 999px !important;
+    color: $text-secondary !important;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.08) !important;
+      border-color: rgba(255, 255, 255, 0.14) !important;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+  }
+
+  // Queued / pending message chips — keep yellow meaning but softer.
+  .guake-input-wrapper .guake-pending-message-chip {
+    background: #{color-mix(in srgb, $accent-yellow 14%, transparent)} !important;
+    border: 1px solid #{color-mix(in srgb, $accent-yellow 35%, transparent)} !important;
+    border-radius: 999px !important;
+  }
+
+  // Permission bar — subtle panel instead of the default orange slab.
+  // May render as a sibling OR inside the swipe shell; cover both.
+  .guake-input-wrapper + .permission-bar,
+  .permission-bar {
+    background: #{color-mix(in srgb, $accent-orange 10%, transparent)} !important;
+    border-top: 1px solid #{color-mix(in srgb, $accent-orange 30%, transparent)} !important;
+    border-bottom: 0 !important;
+  }
+
+  // Stop button (shown while agent is working) — craft-style neutral circle.
+  .guake-input-wrapper .guake-stop-btn {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    border-radius: 999px !important;
+    color: $text-primary !important;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.14) !important;
+      border-color: rgba(255, 255, 255, 0.2) !important;
+    }
+  }
+
+  // Completion badge (tiny timer after a run) — muted pill.
+  .guake-input-wrapper .guake-completion-time {
+    color: $accent-green !important;
+    background: #{color-mix(in srgb, $accent-green 12%, transparent)} !important;
+    border: 1px solid #{color-mix(in srgb, $accent-green 30%, transparent)} !important;
+    border-radius: 999px !important;
+  }
 }
 
