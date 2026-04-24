@@ -1674,10 +1674,10 @@ $middle-min-width: 280px;
     // Top padding (38px) reserves space for the SINGLE header row that
     // holds: role label (left) · info icon + action buttons (right).
     padding: 38px 16px 14px 22px !important;
-    // Restore a small inline margin so cards have visible breathing room
-    // independent of the flex `gap`. The extra margin stacks on top of
-    // .guake-history-content's `gap: var(--flat-chat-gap)`.
-    margin: 6px 0 !important;
+    // Inline margin so cards have visible breathing room independent of
+    // the flex `gap`. Stacks on top of .guake-history-content's
+    // `gap: var(--flat-chat-gap)`.
+    margin: 12px 0 !important;
     box-shadow: var(--flat-assistant-card-shadow) !important;
 
     &::before { display: none !important; }
