@@ -1812,11 +1812,30 @@ $middle-min-width: 280px;
     border-top: 0 !important;
   }
 
-  // .guake-input is the flex row that wraps .guake-input-container. Force it
-  // to fill the 960px column (minus the 20px side padding on the wrapper) so
-  // the composer's visual width exactly matches the assistant card above it.
+  // DOM chain (confirmed in TerminalInputArea.tsx:889-943):
+  //   .guake-input-wrapper
+  //     └ .guake-input-swipe-shell           ← touch/swipe ancestor
+  //         └ .guake-input                   ← flex row
+  //             └ .guake-input-container     ← bordered box
+  //                 └ <textarea>             ← growing input
+  //
+  // Pin EVERY link in the chain to 100% of its parent with min-width: 0 so
+  // the textarea's intrinsic content width cannot push any ancestor wider
+  // than the 960px column cap set on .guake-input-wrapper.
+  .guake-input-wrapper .guake-input-swipe-shell {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  // .guake-input is the flex row that wraps .guake-input-container.
   .guake-input-wrapper .guake-input {
     width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
     padding: 0 !important;
     background: transparent !important;
     border-top: 0 !important;
@@ -1830,8 +1849,10 @@ $middle-min-width: 280px;
   // textarea shrink instead of pushing the container wider as the user types.
   .guake-input-wrapper .guake-input-container {
     width: 100% !important;
+    max-width: 100% !important;
     min-width: 0 !important;
     box-sizing: border-box !important;
+    overflow-x: hidden;
     background: $bg-secondary !important;
     border: 1px solid rgba(255, 255, 255, 0.06) !important;
     border-radius: 14px !important;
@@ -1881,11 +1902,15 @@ $middle-min-width: 280px;
   //    auto-resize hook in TerminalInputArea.tsx sets on every keystroke.
   .guake-input-wrapper .guake-input-container input[type='text'],
   .guake-input-wrapper .guake-input-container textarea {
-    flex: 1 1 auto !important;
-    width: 100% !important;
+    // flex-basis: 0 (not auto) — flex should ignore intrinsic content width
+    // so the textarea is ALWAYS sized by the container, never by its text.
+    flex: 1 1 0 !important;
+    width: 0 !important;
     min-width: 0 !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
+    // Cancels the shared `field-sizing: content` in _input.scss:288 which
+    // was the primary source of horizontal growth as the user typed.
     field-sizing: auto !important;
     background: transparent !important;
     border: 0 !important;
