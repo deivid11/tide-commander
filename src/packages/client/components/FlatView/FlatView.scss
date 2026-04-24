@@ -1694,6 +1694,15 @@ $middle-min-width: 280px;
     // icon still toggles state, but the tooltip renders off-screen and
     // reads as "nothing happens".
     position: relative !important;
+    // `_output.scss:292` clips this card with `overflow: hidden` so the
+    // shared card gradient never bleeds out. That same clip was hiding
+    // `.msg-meta-tooltip` (absolute-positioned below the info icon at
+    // `top: calc(100% + 4px)`) — the popover was mounting correctly on
+    // click but getting clipped entirely by the card boundary, reading
+    // as "nothing happens". Override to `visible` so the popover escapes
+    // the card. Wide children (code blocks, pre tags) already handle
+    // their own horizontal overflow via `overflow-x: auto`.
+    overflow: visible !important;
     display: grid !important;
     grid-template-columns: auto 1fr auto auto;
     grid-auto-rows: auto;
@@ -1779,9 +1788,12 @@ $middle-min-width: 280px;
       // the right edge of the card, left-anchoring would push the
       // popover off-screen to the right. Right-anchor it so it opens
       // below the icon, extending leftward into the card.
+      // Keep z-index high enough that the popover floats over the next
+      // card in the flex column (cards now have `overflow: visible`).
       .msg-meta-tooltip {
         left: auto !important;
         right: 0 !important;
+        z-index: 1000 !important;
       }
     }
 
