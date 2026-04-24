@@ -1666,14 +1666,46 @@ $middle-min-width: 280px;
   // ─────────────────────────────────────────────────────────────────────────
   .output-claude,
   .history-assistant {
-    position: relative; // anchor for absolute-positioned header row
+    // ───────────────────────────────────────────────────────────────────
+    // Card layout — CSS Grid so the header row is guaranteed by the
+    // browser to be a SINGLE row regardless of how many CTAs render.
+    //
+    // JSX DOM order inside the card (OutputLine.tsx:1257-1349, HistoryLine):
+    //   1. <span.output-timestamp-wrapper>…</span>          ← info icon
+    //   2. <span.output-role>…</span>                       ← "Claude"
+    //   3. <div.markdown-content>…</div>                    ← body
+    //   4. <div.message-action-btns>…</div>  (assistant)    ← CTAs
+    //
+    // We map these four children onto a 4-column / 2-row grid:
+    //
+    //     col 1 (auto)  col 2 (1fr)  col 3 (auto)  col 4 (auto)
+    //  r1: [role] ................. [info-icon]   [view-md · copy]
+    //  r2: [markdown-content spans all columns                    ]
+    //
+    // Info icon = col 3, CTA bar = col 4, both on r1 with flex-wrap
+    // nowrap — they CANNOT break to another row no matter how many
+    // CTAs render.
+    // ───────────────────────────────────────────────────────────────────
+    display: grid !important;
+    grid-template-columns: auto 1fr auto auto;
+    grid-auto-rows: auto;
+    column-gap: 6px;
+    row-gap: 6px;
+    align-items: center;
+
+    // Default placement for any direct child we don't explicitly place
+    // (WorkPlanBlock, DelegationBlock, subagent-result-section, etc).
+    // They span the full width starting from row 2 onward, auto-flowing
+    // beneath the markdown body.
+    > * {
+      grid-column: 1 / -1;
+    }
+
     background: var(--flat-assistant-card-bg) !important;
     border: 0 !important;
     border-left: 0 !important;
     border-radius: var(--flat-assistant-card-radius) !important;
-    // Top padding (38px) reserves space for the SINGLE header row that
-    // holds: role label (left) · info icon + action buttons (right).
-    padding: 38px 16px 14px 22px !important;
+    padding: 12px 16px !important;
     // Inline margin so cards have visible breathing room independent of
     // the flex `gap`. Stacks on top of .guake-history-content's
     // `gap: var(--flat-chat-gap)`.
@@ -1688,62 +1720,44 @@ $middle-min-width: 280px;
         0 2px 8px rgba(0, 0, 0, 0.18) !important;
     }
 
-    // ───────────────────────────────────────────────────────────────────
-    // Single-row card header: role (left) · info icon + CTAs (right).
-    //
-    // JSX DOM inside the card (OutputLine.tsx:1257-1349, HistoryLine.tsx):
-    //   <TimestampWithMeta>   → <span.output-timestamp-wrapper>…</span>
-    //   <span.output-role>…</span>
-    //   <div.markdown-content>…</div>
-    //   <div.message-action-btns>…</div>     (assistant only)
-    //
-    // The previous revision left the role label in normal flow, which
-    // produced TWO visual rows (icons floated on top, role on a line by
-    // itself). We now pull ALL three header elements out of flow and
-    // anchor them inside the 38px reserved band at the top of the card:
-    //
-    //   [Claude]              . . . . . . . . . . . . [ℹ] [📄] [⧉]
-    //
-    // - .output-role/.history-role   → absolute top:10px; left:22px
-    // - .message-action-btns         → absolute top:10px; right:10px
-    // - .output-timestamp-wrapper    → absolute top:10px; right:74px
-    //                                  (just left of the CTA group)
-    //
-    // Click behaviors and tooltip anchors remain unchanged — we only
-    // repositioned the existing elements via CSS.
-    // ───────────────────────────────────────────────────────────────────
-
-    // Role label pinned to the top-left of the header band.
+    // Role label → grid row 1, col 1. Normal flow inside the grid cell.
     .output-role,
     .history-role {
-      position: absolute;
-      top: 10px;
-      left: 22px;
+      grid-row: 1;
+      grid-column: 1;
       margin: 0 !important;
       padding: 0 !important;
-      line-height: 22px; // matches the 22px info/CTA chips next to it
+      line-height: 22px; // matches the 22px chips next to it
       color: $text-muted !important;
       font-size: 11px;
-      z-index: 2;
+      justify-self: start;
+      align-self: center;
 
-      // Keep the provider avatar icon visually aligned with the text.
       .output-role-icon,
       .history-role-icon {
         vertical-align: -3px;
       }
     }
 
+    // Info-icon wrapper → grid row 1, col 3. Sits immediately to the
+    // left of the CTA bar (col 4) without any fixed pixel offsets.
     .output-timestamp-wrapper,
     .history-timestamp-wrapper {
-      position: absolute;
-      top: 10px;
-      // Reserve 74px on the right for the CTA group (~2 x 22px + gaps)
-      // so the info icon sits immediately to their left.
-      right: 74px;
+      grid-row: 1;
+      grid-column: 3;
+      display: inline-flex;
+      align-items: center;
       margin: 0 !important;
+      padding: 0 !important;
       float: none !important;
       opacity: 1 !important;
-      z-index: 2;
+      position: static !important;   // cancel any absolute/relative
+                                     // set by shared _output.scss rules
+      right: auto !important;
+      top: auto !important;
+      left: auto !important;
+      justify-self: end;
+      align-self: center;
     }
 
     // Info-icon skin for the clickable timestamp chip.
@@ -1798,23 +1812,34 @@ $middle-min-width: 280px;
       }
     }
 
-    // Right-anchored CTA bar: was a full-width footer, now a compact chip
-    // row pinned to the top-right on the same visual line as the info
-    // icon. All click behaviors (view-md, copy-rich-text, TTS) stay wired
-    // to the same buttons; only their placement and skin change.
+    // Markdown body → grid row 2, spans all 3 columns so the text flows
+    // full-width under the header row.
+    .markdown-content {
+      grid-row: 2;
+      grid-column: 1 / -1;
+      min-width: 0;
+    }
+
+    // CTA bar → grid row 1, col 4. Sits immediately to the right of the
+    // info icon. flex-wrap: nowrap + grid row 1 guarantee view-md and
+    // copy-rich-text can never break to a second row.
     .message-action-btns {
-      position: absolute !important;
-      top: 10px !important;
-      right: 10px !important;
+      grid-row: 1;
+      grid-column: 4;
+      position: static !important;   // cancel shared absolute rule
+      top: auto !important;
+      right: auto !important;
       margin: 0 !important;
       padding: 0 !important;
       background: transparent !important;
       border: 0 !important;
       border-radius: 0 !important;
-      display: flex;
+      display: inline-flex;
+      flex-wrap: nowrap;             // never wrap to a second row
       gap: 4px;
       opacity: 1; // show the buttons even without hover
-      z-index: 2;
+      justify-self: end;
+      align-self: center;
 
       // Make each CTA a 22px square matching the info icon chip size.
       .history-view-md-btn,
