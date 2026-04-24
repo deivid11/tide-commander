@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next';
 import { store, useAgents, useCustomAgentClassesArray, useSkillsArray } from '../store';
 import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../scene/config';
-import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, CodexModel, AgentProvider, CodexConfig } from '../../shared/types';
+import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
+import { CODEX_REASONING_EFFORTS } from '../../shared/types';
 import { PERMISSION_MODES, AGENT_CLASSES, CLAUDE_MODELS, CODEX_MODELS } from '../../shared/types';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
@@ -17,6 +18,14 @@ interface BossSpawnModalProps {
   onSpawnEnd: () => void;
   /** Optional spawn position - if provided, agent spawns at this location */
   spawnPosition?: { x: number; z: number } | null;
+  /** Optional area context - if provided, assign the created boss agent to this area */
+  spawnAreaId?: string | null;
+}
+
+declare global {
+  interface Window {
+    __spawnModalAreaContext?: { areaId: string } | null;
+  }
 }
 
 /**
@@ -31,7 +40,7 @@ function getRandomBossName(usedNames: Set<string>): string {
   return `Boss ${availableNames[Math.floor(Math.random() * availableNames.length)]}`;
 }
 
-export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPosition }: BossSpawnModalProps) {
+export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPosition, spawnAreaId }: BossSpawnModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const agents = useAgents();
   const customClasses = useCustomAgentClassesArray();
@@ -145,6 +154,38 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
     if (selectedClass === 'boss') return 'architect'; // Boss uses architect model
     return selectedClass as BuiltInAgentClass;
   }, [selectedClass, selectedCustomClass]);
+
+  // Infer cwd from area directories or area members when spawning a boss into an area
+  useEffect(() => {
+    if (!isOpen || !spawnAreaId) return;
+
+    const area = store.getState().areas.get(spawnAreaId);
+    if (area?.directories && area.directories.length > 0) {
+      setCwd(area.directories[0]);
+      return;
+    }
+
+    const areaAgents = Array.from(store.getState().agents.values()).filter(
+      (a) => store.getAreaForAgent(a.id)?.id === spawnAreaId && a.cwd
+    );
+    if (areaAgents.length === 0) return;
+
+    const cwdCounts = new Map<string, number>();
+    for (const a of areaAgents) {
+      cwdCounts.set(a.cwd, (cwdCounts.get(a.cwd) || 0) + 1);
+    }
+    let bestCwd = '';
+    let bestCount = 0;
+    for (const [dir, count] of cwdCounts) {
+      if (count > bestCount) {
+        bestCwd = dir;
+        bestCount = count;
+      }
+    }
+    if (bestCwd) {
+      setCwd(bestCwd);
+    }
+  }, [isOpen, spawnAreaId]);
 
   // Get available subordinates (non-boss agents without a boss)
   const availableSubordinates = useMemo(
@@ -267,6 +308,8 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
 
     setStorageString(STORAGE_KEYS.LAST_CWD, cwd);
     onSpawnStart();
+
+    window.__spawnModalAreaContext = spawnAreaId ? { areaId: spawnAreaId } : null;
 
     const trimmedInstructions = customInstructions.trim() || undefined;
     const initialSkillIds = Array.from(selectedSkillIds);
@@ -616,6 +659,18 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                       value={codexConfig.profile || ''}
                       onChange={(e) => setCodexConfig((prev) => ({ ...prev, profile: e.target.value || undefined }))}
                     />
+                    <select
+                      className="spawn-input"
+                      value={codexConfig.reasoningEffort || ''}
+                      onChange={(e) => setCodexConfig((prev) => ({ ...prev, reasoningEffort: (e.target.value || undefined) as CodexReasoningEffort | undefined }))}
+                    >
+                      <option value="">{t('terminal:spawn.codex.reasoningEffortDefault')}</option>
+                      {(Object.keys(CODEX_REASONING_EFFORTS) as CodexReasoningEffort[]).map((level) => (
+                        <option key={level} value={level}>
+                          {CODEX_REASONING_EFFORTS[level].icon} {t('terminal:spawn.codex.reasoningEffort')}: {CODEX_REASONING_EFFORTS[level].label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>

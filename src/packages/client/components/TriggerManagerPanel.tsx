@@ -38,6 +38,17 @@ const EXTRACTION_MODES: { value: ExtractionMode; label: string }[] = [
   { value: 'llm', label: 'LLM' },
 ];
 
+// Convert an ISO datetime string (UTC) to the value format expected by
+// <input type="datetime-local"> (YYYY-MM-DDTHH:mm in local time). Returns
+// empty string for invalid / missing input.
+function toDatetimeLocal(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 const emptyTrigger = (): Partial<Trigger> => ({
   name: '',
   description: '',
@@ -331,6 +342,19 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                     <div style={styles.cardTitle}>
                       <span style={styles.typeTag}>{trigger.type}</span>
                       <span>{trigger.name}</span>
+                      {trigger.type === 'cron' && (() => {
+                        const cfg = (trigger as any).config || {};
+                        if (!cfg.runOnce) {
+                          return <span style={styles.matchTag}>Recurring</span>;
+                        }
+                        if (cfg.completedAt) {
+                          return <span style={{ ...styles.matchTag, color: '#a6e3a1' }}>Once · completed</span>;
+                        }
+                        if (cfg.missedAt) {
+                          return <span style={{ ...styles.matchTag, color: '#f38ba8' }}>Once · missed</span>;
+                        }
+                        return <span style={{ ...styles.matchTag, color: '#f9e2af' }}>Once · pending</span>;
+                      })()}
                       {trigger.matchMode !== 'structural' && (
                         <span style={styles.matchTag}>{trigger.matchMode}</span>
                       )}
@@ -491,42 +515,122 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                 </div>
               )}
 
-              {editingTrigger.type === 'cron' && (
-                <div style={styles.section}>
-                  <h4 style={styles.sectionTitle}>Cron Config</h4>
-                  <div style={styles.row}>
-                    <div style={styles.field}>
-                      <label style={styles.label}>Expression</label>
-                      <input
-                        style={styles.input}
-                        value={(editingTrigger as any).config?.expression || ''}
-                        onChange={e => {
-                          updateConfig('expression', e.target.value);
-                          if (e.target.value) handleValidateCron(e.target.value);
+              {editingTrigger.type === 'cron' && (() => {
+                const cronConfig = (editingTrigger as any).config || {};
+                const runOnce = !!cronConfig.runOnce;
+                const completedAt = cronConfig.completedAt as number | undefined;
+                const missedAt = cronConfig.missedAt as number | undefined;
+                const isCompleted = !!completedAt;
+
+                return (
+                  <div style={styles.section}>
+                    <h4 style={styles.sectionTitle}>Cron Config</h4>
+
+                    {/* Kind selector: Repeats vs Run once */}
+                    <div style={styles.modeSelector}>
+                      <button
+                        type="button"
+                        style={{
+                          ...styles.modeBtn,
+                          ...(!runOnce ? styles.modeBtnActive : {}),
                         }}
-                        placeholder="0 9 * * MON-FRI"
-                      />
+                        onClick={() => updateConfig('runOnce', false)}
+                        disabled={isCompleted}
+                      >
+                        <strong>Repeats</strong>
+                        <span style={styles.modeDesc}>Fires on a cron schedule</span>
+                      </button>
+                      <button
+                        type="button"
+                        style={{
+                          ...styles.modeBtn,
+                          ...(runOnce ? styles.modeBtnActive : {}),
+                        }}
+                        onClick={() => updateConfig('runOnce', true)}
+                        disabled={isCompleted}
+                      >
+                        <strong>Run once</strong>
+                        <span style={styles.modeDesc}>Fires exactly once at a specific time</span>
+                      </button>
                     </div>
-                    <div style={styles.field}>
-                      <label style={styles.label}>Timezone</label>
-                      <input
-                        style={styles.input}
-                        value={(editingTrigger as any).config?.timezone || 'UTC'}
-                        onChange={e => updateConfig('timezone', e.target.value)}
-                        placeholder="America/Mexico_City"
-                      />
-                    </div>
+
+                    {/* Status banner for completed / missed one-shots */}
+                    {isCompleted && (
+                      <div style={{ ...styles.testResult, borderLeft: '3px solid #a6e3a1' }}>
+                        <strong style={{ color: '#a6e3a1' }}>Completed</strong>
+                        <span style={styles.llmMeta}>
+                          Fired at {new Date(completedAt).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    {!isCompleted && missedAt && (
+                      <div style={{ ...styles.testResult, borderLeft: '3px solid #f38ba8' }}>
+                        <strong style={{ color: '#f38ba8' }}>Missed</strong>
+                        <span style={styles.llmMeta}>
+                          Marked missed at {new Date(missedAt).toLocaleString()} (server was down at runAt)
+                        </span>
+                      </div>
+                    )}
+
+                    {runOnce ? (
+                      <div style={styles.row}>
+                        <div style={styles.field}>
+                          <label style={styles.label}>Run at</label>
+                          <input
+                            style={styles.input}
+                            type="datetime-local"
+                            value={toDatetimeLocal(cronConfig.runAt)}
+                            onChange={e => {
+                              const local = e.target.value;
+                              if (!local) {
+                                updateConfig('runAt', undefined);
+                                return;
+                              }
+                              // datetime-local is interpreted as local time; convert to absolute UTC ISO.
+                              const iso = new Date(local).toISOString();
+                              updateConfig('runAt', iso);
+                            }}
+                            disabled={isCompleted}
+                          />
+                          <span style={styles.llmMeta}>Interpreted in your browser's local timezone</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={styles.row}>
+                        <div style={styles.field}>
+                          <label style={styles.label}>Expression</label>
+                          <input
+                            style={styles.input}
+                            value={cronConfig.expression || ''}
+                            onChange={e => {
+                              updateConfig('expression', e.target.value);
+                              if (e.target.value) handleValidateCron(e.target.value);
+                            }}
+                            placeholder="0 9 * * MON-FRI"
+                          />
+                        </div>
+                        <div style={styles.field}>
+                          <label style={styles.label}>Timezone</label>
+                          <input
+                            style={styles.input}
+                            value={cronConfig.timezone || 'UTC'}
+                            onChange={e => updateConfig('timezone', e.target.value)}
+                            placeholder="America/Mexico_City"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {!runOnce && cronNextFires.length > 0 && (
+                      <div style={styles.nextFires}>
+                        <label style={styles.label}>Next fires:</label>
+                        {cronNextFires.map((d, i) => (
+                          <div key={i} style={styles.nextFireItem}>{new Date(d).toLocaleString()}</div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {cronNextFires.length > 0 && (
-                    <div style={styles.nextFires}>
-                      <label style={styles.label}>Next fires:</label>
-                      {cronNextFires.map((d, i) => (
-                        <div key={i} style={styles.nextFireItem}>{new Date(d).toLocaleString()}</div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+                );
+              })()}
 
               {/* Match Mode Selector */}
               <div style={styles.section}>
@@ -731,7 +835,18 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                 <button style={styles.cancelBtn} onClick={() => { setView('list'); setError(null); }}>
                   Cancel
                 </button>
-                <button style={styles.saveBtn} onClick={handleSave} disabled={loading || !editingTrigger.name || !editingTrigger.agentId}>
+                <button
+                  style={styles.saveBtn}
+                  onClick={handleSave}
+                  disabled={
+                    loading
+                    || !editingTrigger.name
+                    || !editingTrigger.agentId
+                    || (editingTrigger.type === 'cron'
+                      && !!(editingTrigger as any).config?.runOnce
+                      && !(editingTrigger as any).config?.runAt)
+                  }
+                >
                   {loading ? 'Saving...' : (isEditing ? 'Update' : 'Create')}
                 </button>
               </div>

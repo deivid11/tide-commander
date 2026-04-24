@@ -1,19 +1,30 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useIsConnected } from '../store';
 import { reconnect } from '../websocket/connection';
-import { getBackendUrl, setBackendUrl, subscribeBackendUrlChange } from '../utils/storage';
+import {
+  getBackendUrl,
+  setBackendUrl,
+  subscribeBackendUrlChange,
+  getAuthToken,
+  setStorageString,
+  STORAGE_KEYS,
+} from '../utils/storage';
 import { validateBackendUrlInput, checkBackendReachability } from '../utils/backendConnection';
 import { Icon } from './Icon';
 
 const CONNECT_TIMEOUT_MS = 4000;
 
 export function NotConnectedOverlay() {
+  const { t } = useTranslation(['config']);
   const isConnected = useIsConnected();
   const [dismissed, setDismissed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [gracePeriod, setGracePeriod] = useState(true);
   const [reconnecting, setReconnecting] = useState(false);
   const [backendUrlDraft, setBackendUrlDraft] = useState(() => getBackendUrl());
+  const [authTokenDraft, setAuthTokenDraft] = useState(() => getAuthToken());
+  const [showAuthToken, setShowAuthToken] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [connectStatus, setConnectStatus] = useState<string | null>(null);
@@ -130,6 +141,7 @@ export function NotConnectedOverlay() {
     }
 
     setBackendUrl(validation.normalizedUrl);
+    setStorageString(STORAGE_KEYS.AUTH_TOKEN, authTokenDraft.trim());
     setConnectStatus('Connecting to server');
     reconnect();
 
@@ -158,7 +170,7 @@ export function NotConnectedOverlay() {
     setIsConnecting(false);
     setConnectStatus('Connected');
     setConnectError(null);
-  }, [backendUrlDraft, isConnecting, waitForWsConnected]);
+  }, [backendUrlDraft, authTokenDraft, isConnecting, waitForWsConnected]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !isConnecting) {
@@ -224,6 +236,41 @@ export function NotConnectedOverlay() {
             />
           </div>
           <span className="config-hint">Leave empty for auto-detect</span>
+        </div>
+        <div className="not-connected-url-section">
+          <label className="not-connected-url-label" htmlFor="auth-token">
+            {t('config:connection.connectScreen.authTokenLabel')}
+          </label>
+          <div className="not-connected-url-row">
+            <input
+              id="auth-token"
+              type={showAuthToken ? 'text' : 'password'}
+              className="not-connected-url-input"
+              placeholder={t('config:connection.connectScreen.authTokenPlaceholder')}
+              value={authTokenDraft}
+              disabled={isConnecting}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => {
+                setAuthTokenDraft(e.target.value);
+                if (connectError) {
+                  setConnectError(null);
+                }
+              }}
+              onKeyDown={handleKeyDown}
+            />
+            <button
+              type="button"
+              className="not-connected-token-toggle"
+              onClick={() => setShowAuthToken((v) => !v)}
+              title={showAuthToken ? t('config:connection.hideToken') : t('config:connection.showToken')}
+              aria-label={showAuthToken ? t('config:connection.hideToken') : t('config:connection.showToken')}
+              disabled={isConnecting}
+            >
+              <Icon name={showAuthToken ? 'eye-closed' : 'eye'} size={14} />
+            </button>
+          </div>
+          <span className="config-hint">{t('config:connection.connectScreen.authTokenHint')}</span>
           {connectStatus && !connectError && (
             <div className="not-connected-status" aria-live="polite">{connectStatus}</div>
           )}

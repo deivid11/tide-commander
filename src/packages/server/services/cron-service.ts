@@ -171,6 +171,61 @@ function getDateInTimezone(timezone: string): Date {
 
 const CHECK_INTERVAL_MS = 30_000; // Check every 30 seconds
 
+// Max safe setTimeout delay (2^31-1 ms ≈ 24.8 days). Longer waits are chained.
+const MAX_SETTIMEOUT_MS = 2_147_483_647;
+
+/**
+ * Schedule a callback to fire exactly once at the given absolute datetime.
+ * If the time is already in the past, the callback is fired immediately (next tick).
+ * Returns a CronJob-compatible handle that can be stopped via `stop(job)`.
+ */
+export function scheduleOnce(runAtIso: string, callback: () => void): CronJob {
+  const id = `once_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const runAtMs = new Date(runAtIso).getTime();
+
+  const job: CronJob = {
+    id,
+    expression: `@once ${runAtIso}`,
+    timezone: 'UTC',
+    callback,
+    timer: null,
+    lastFired: null,
+  };
+
+  const fire = (reason: string) => {
+    job.lastFired = Date.now();
+    log.log(`One-shot cron ${id} fired (runAt=${runAtIso}, ${reason})`);
+    activeJobs.delete(id);
+    try {
+      callback();
+    } catch (err) {
+      log.error(`One-shot cron ${id} callback error:`, err);
+    }
+  };
+
+  const armTimer = () => {
+    const remaining = runAtMs - Date.now();
+    // Always schedule via setTimeout (delay clamped to >= 0) so the callback
+    // never runs synchronously within scheduleOnce — callers often update state
+    // after this returns, and a sync callback would race that.
+    const delay = Math.max(0, Math.min(remaining, MAX_SETTIMEOUT_MS));
+    job.timer = setTimeout(() => {
+      if (remaining > MAX_SETTIMEOUT_MS) {
+        // Chained wait: re-arm for the remaining interval
+        armTimer();
+        return;
+      }
+      fire('scheduled');
+    }, delay);
+  };
+
+  armTimer();
+  activeJobs.set(id, job);
+  log.log(`Scheduled one-shot cron ${id} for ${runAtIso}`);
+
+  return job;
+}
+
 export function schedule(expression: string, timezone: string, callback: () => void): CronJob {
   const id = `cron_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 

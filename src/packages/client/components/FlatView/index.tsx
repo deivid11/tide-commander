@@ -26,8 +26,10 @@ import { getAgentStatusColor } from '../../utils/colors';
 import { getDisplayContextInfo } from '../../utils/context';
 import { AgentOverviewPanel } from '../ClaudeOutputPanel/AgentOverviewPanel';
 import { AgentTerminalPane, type AgentTerminalPaneHandle } from '../ClaudeOutputPanel/AgentTerminalPane';
+import { AgentDebugPanel } from '../ClaudeOutputPanel/AgentDebugPanel';
 import { AreaBuildingsPanel } from '../ClaudeOutputPanel/AreaBuildingsPanel';
 import { GuakeGitPanel } from '../ClaudeOutputPanel/GuakeGitPanel';
+import { agentDebugger } from '../../services/agentDebugger';
 import { ContextConfirmModal, ImageModal, BashModal, AgentInfoModal, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
 import { useKeyboardHeight } from '../ClaudeOutputPanel/useKeyboardHeight';
 import { useBottomTerminalResize } from '../ClaudeOutputPanel/useBottomTerminalResize';
@@ -326,6 +328,18 @@ const ChatView = React.memo(function ChatView({
   const [buildingsPanelOpen, setBuildingsPanelOpen] = useState<boolean>(() =>
     getStorageBoolean(STORAGE_KEYS.BUILDINGS_PANEL_OPEN, false)
   );
+  // Debug panel parity with the Guake terminal header: same AgentDebugPanel,
+  // same auto-enable-on-open behavior. Not persisted to storage — the Guake
+  // version also keeps it session-local.
+  const [debugPanelOpen, setDebugPanelOpen] = useState(false);
+  const toggleDebugPanel = useCallback(() => {
+    setDebugPanelOpen((prev) => {
+      const next = !prev;
+      if (next) agentDebugger.setEnabled(true);
+      return next;
+    });
+  }, []);
+  const closeDebugPanel = useCallback(() => setDebugPanelOpen(false), []);
   const toggleGitPanel = useCallback(() => {
     setGitPanelOpen((prev) => {
       const next = !prev;
@@ -416,7 +430,7 @@ const ChatView = React.memo(function ChatView({
   return (
     <div
       ref={wrapperRef}
-      className={`flat-terminal-wrapper ${gitPanelOpen || buildingsPanelOpen ? 'flat-terminal-wrapper--with-side-panel' : ''}`}
+      className={`flat-terminal-wrapper ${gitPanelOpen || buildingsPanelOpen || debugPanelOpen ? 'flat-terminal-wrapper--with-side-panel' : ''}`}
     >
       <div className="flat-terminal-wrapper__header">
         <button
@@ -579,6 +593,20 @@ const ChatView = React.memo(function ChatView({
               </button>
               {menuOpen && (
                 <div className="flat-terminal-wrapper__more-menu" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={`flat-terminal-wrapper__more-item ${debugPanelOpen ? 'flat-terminal-wrapper__more-item--active' : ''}`}
+                    onClick={() => {
+                      toggleDebugPanel();
+                      setMenuOpen(false);
+                    }}
+                    title={debugPanelOpen ? 'Hide Debug Panel' : 'Show Debug Panel'}
+                  >
+                    <Icon name="bug" size={14} />
+                    <span>{debugPanelOpen ? 'Hide Debug Panel' : 'Show Debug Panel'}</span>
+                  </button>
+                  <div className="flat-terminal-wrapper__more-divider" />
                   <button
                     type="button"
                     role="menuitem"
@@ -902,6 +930,9 @@ const ChatView = React.memo(function ChatView({
           onClose={closeBuildingsPanel}
         />
       )}
+      {debugPanelOpen && (
+        <AgentDebugPanel agentId={agentId} onClose={closeDebugPanel} />
+      )}
     </div>
   );
 });
@@ -975,6 +1006,14 @@ export function FlatView({
   const [inspectorOpen, setInspectorOpen] = useState<boolean>(() =>
     getStorageBoolean(STORAGE_KEYS.FLAT_INSPECTOR_OPEN, false)
   );
+
+  // Mobile-only: agents column renders as a slide-in drawer. The toggle
+  // button is only visible below the CSS mobile breakpoint, but the state
+  // lives here so the drawer can be closed programmatically (e.g. after an
+  // agent is tapped from inside it).
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const toggleMobileSidebar = useCallback(() => setMobileSidebarOpen(prev => !prev), []);
+  const closeMobileSidebar = useCallback(() => setMobileSidebarOpen(false), []);
 
   // Inspector tab — matches the traditional sidebar's Agents/Tracking toggle.
   const [inspectorView, setInspectorViewState] = useState<'agent' | 'tracking'>(() => {
@@ -1136,6 +1175,9 @@ export function FlatView({
   const handleAgentClick = useCallback(
     (agentId: string) => {
       onAgentClick(agentId);
+      // Auto-close the mobile drawer when an agent is picked so the user
+      // lands straight in the chat without an extra dismiss tap.
+      setMobileSidebarOpen(false);
     },
     [onAgentClick]
   );
@@ -1154,7 +1196,7 @@ export function FlatView({
     [handleAgentClick]
   );
 
-  const showInspector = inspectorOpen && !!selectedAgentId;
+  const showInspector = inspectorOpen;
 
   // ── Ref for scrolling the left-panel AgentOverviewPanel ──
   const agentListRef = useRef<HTMLDivElement>(null);
@@ -1296,11 +1338,33 @@ export function FlatView({
         for (const g of assignedGroups) {
           let col = Math.min(gridCols - 1, Math.max(0, Math.floor((g.area.center.x - minX) / colWidth)));
           let row = Math.min(gridRows - 1, Math.max(0, Math.floor((g.area.center.z - minZ) / rowHeight)));
-          // Resolve collisions by shifting right within the same row
+          // Resolve collisions: scan forward in reading order (right, then
+          // wrap to the next row) until a free cell is found. The previous
+          // implementation only shifted right within the same row, so when
+          // the preferred column was already the last column, two areas
+          // would silently land on the same {row,col} — and CSS grid would
+          // stack the second card directly on top of the first, making the
+          // agent chips inside the lower card appear to overlap with the
+          // one on top.
           let cellKey = `${row},${col}`;
-          while (usedCells.has(cellKey) && col < gridCols - 1) {
+          let scanned = 0;
+          const maxCells = gridRows * gridCols;
+          while (usedCells.has(cellKey) && scanned < maxCells) {
             col++;
+            if (col >= gridCols) {
+              col = 0;
+              row = (row + 1) % gridRows;
+            }
             cellKey = `${row},${col}`;
+            scanned++;
+          }
+          if (usedCells.has(cellKey)) {
+            // Every existing cell is taken — append a new row so the card
+            // still gets a unique slot instead of stacking on an occupied cell.
+            row = gridRows;
+            col = 0;
+            cellKey = `${row},${col}`;
+            gridRows++;
           }
           usedCells.add(cellKey);
           positions.set(g.area.id, { row: row + 1, col: col + 1 }); // CSS grid is 1-based
@@ -1378,8 +1442,17 @@ export function FlatView({
 
   return (
     <div
-      className={`flat-view ${showInspector ? 'flat-view--with-inspector' : ''}`}
+      className={`flat-view ${showInspector ? 'flat-view--with-inspector' : ''} ${selectedAgentId ? 'flat-view--has-chat' : ''} ${mobileSidebarOpen ? 'flat-view--mobile-sidebar-open' : ''}`}
     >
+      {/* Backdrop that captures taps outside the drawer to close it. Only
+          rendered when the drawer is open. Hidden on desktop via CSS. */}
+      {mobileSidebarOpen && (
+        <div
+          className="flat-mobile-sidebar-backdrop"
+          onClick={closeMobileSidebar}
+          aria-hidden="true"
+        />
+      )}
       {/* Middle Column - Agents overview. The former in-view SidebarMenu was
           removed because the floating left-side FAB menu (settings/spotlight/
           spawn buttons) already covers navigation. */}
@@ -1424,6 +1497,20 @@ export function FlatView({
 
       {/* Right Column - Chat/Details */}
       <div className="flat-right">
+        {/* Mobile-only: toggle button for the agents drawer. Rendered as the
+            first child of flat-right so it docks above whatever content the
+            right column shows (chat header, or flat-map empty state). Hidden
+            on desktop via CSS. */}
+        <button
+          type="button"
+          className="flat-mobile-sidebar-toggle"
+          aria-label={mobileSidebarOpen ? 'Close agents sidebar' : 'Open agents sidebar'}
+          aria-expanded={mobileSidebarOpen}
+          onClick={toggleMobileSidebar}
+        >
+          <Icon name="list" size={18} />
+          <span className="flat-mobile-sidebar-toggle__label">Agents</span>
+        </button>
         {selectedAgentId ? (
           <ChatView
             agentId={selectedAgentId}
@@ -1565,8 +1652,11 @@ export function FlatView({
         )}
       </div>
 
-      {/* Inspector Column - Pushes chat column rather than overlaying */}
-      {showInspector && selectedAgentId && (
+      {/* Inspector Column - Pushes chat column rather than overlaying.
+          Independent of chat/selection state: stays visible even when no
+          agent is selected so the tracking board remains available. The
+          Agent tab shows an empty-state when there's no selection. */}
+      {showInspector && (
         <aside className="flat-inspector" aria-label="Inspector panel">
           <div className="flat-inspector__header">
             <div className="flat-inspector__tabs" role="tablist" aria-label="Inspector view">
@@ -1606,6 +1696,13 @@ export function FlatView({
                 onSelectAgent={(agentId) => onAgentClick(agentId)}
               />
             ) : (() => {
+              if (!selectedAgentId) {
+                return (
+                  <div className="flat-inspector__empty">
+                    <span>Select an agent to inspect</span>
+                  </div>
+                );
+              }
               const selectedAgent = agents.find((a) => a.id === selectedAgentId);
               if (!selectedAgent) {
                 return (

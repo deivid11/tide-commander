@@ -145,14 +145,17 @@ export class CodexBackend implements CLIBackend {
   }
 
   getExecutablePath(): string {
-    // Priority: 1) CODEX_BINARY env var  2) Settings UI  3) auto-detect
-    const envBinary = process.env.CODEX_BINARY;
-    if (envBinary && fs.existsSync(envBinary)) {
-      return envBinary;
-    }
+    // Priority: 1) Settings UI  2) CODEX_BINARY env var  3) auto-detect
+    // The Settings UI value is an explicit user override and must win over
+    // the env var default so the user can point Tide Commander at a specific
+    // codex install without clearing their shell environment.
     const settingsBinary = getCodexBinaryPath();
     if (settingsBinary && fs.existsSync(settingsBinary)) {
       return settingsBinary;
+    }
+    const envBinary = process.env.CODEX_BINARY;
+    if (envBinary && fs.existsSync(envBinary)) {
+      return envBinary;
     }
     return this.detectInstallation() || 'codex';
   }
@@ -181,10 +184,11 @@ export class CodexBackend implements CLIBackend {
   getExtraEnv(): Record<string, string> {
     // When using the native binary directly, we need to add
     // the vendor path directory to PATH so codex can find bundled tools like rg.
-    const envBinary = process.env.CODEX_BINARY || getCodexBinaryPath();
-    if (!envBinary) return {};
+    // Match the precedence used by getExecutablePath(): Settings UI wins over env var.
+    const binary = getCodexBinaryPath() || process.env.CODEX_BINARY;
+    if (!binary) return {};
 
-    const codexDir = path.dirname(envBinary);    // .../codex/
+    const codexDir = path.dirname(binary);    // .../codex/
     const archRoot = path.dirname(codexDir);      // .../x86_64-unknown-linux-musl/
     const pathDir = path.join(archRoot, 'path');
     if (fs.existsSync(pathDir)) {

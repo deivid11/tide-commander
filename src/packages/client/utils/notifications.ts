@@ -46,7 +46,12 @@ export function openAgentTerminalFromNotification(agentId: string): void {
   }
 
   store.selectAgent(agentId);
-  store.setTerminalOpen(true);
+  // Flat view has its own inline chat column driven by the shared selection,
+  // so the fixed-position Guake overlay would just cover it (z-index 200) and
+  // hide the chat the user is trying to land on. Skip opening it there.
+  if (store.getState().viewMode !== 'flat') {
+    store.setTerminalOpen(true);
+  }
 }
 
 /**

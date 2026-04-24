@@ -197,6 +197,125 @@
 .fab-spawn-viewmode-btn { top: 434px; color: $dracula-orange; }  // 392 + 36 + 6
 .fab-spawn-organize-btn { top: 518px; color: $dracula-red;    }  // 476 (workspace FAB) + 36 + 6
 
+// ============================================================================
+// FAB rail container — single fixed-positioned flex column that hosts all
+// left-edge floating buttons. Replaces the per-button hardcoded `top: Xpx`
+// layout that used to spill off the bottom of short viewports. On short
+// viewports the `@media (max-height: ...)` rules below compress button size
+// + gap so all icons stay reachable without needing `overflow` here (which
+// would clip the view-mode and workspace popovers).
+// ============================================================================
+.fab-rail {
+  position: fixed;
+  top: 12px;
+  left: 16px;
+  bottom: 12px;
+  width: 36px;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  // NOTE: Do NOT set `overflow` on this container. The view-mode and
+  // workspace popovers render as `position: absolute` children anchored
+  // with `left: calc(100% + 10px)` — any `overflow: auto/scroll/hidden`
+  // here creates a clipping box and those popovers get cut off. Short
+  // viewports are handled via the `@media (max-height: …)` rules further
+  // down the file, which compress button size + gap so all icons fit.
+
+  // Tooltip trigger wraps each button in an `<span.tide-tooltip-trigger>`
+  // (see components/shared/Tooltip.tsx) — the buttons are nested one level
+  // deep, so the neutralize-positioning rules below use descendant
+  // selectors. The wrapper itself needs to flex-shrink: 0 so the buttons
+  // stack uniformly inside the rail.
+  .tide-tooltip-trigger {
+    display: flex;
+    flex-shrink: 0;
+  }
+
+  // Neutralize the per-button `position: fixed; top: Xpx; left: 16px;` rules
+  // that live in _core.scss, _skills-panel.scss, _shortcuts-modal.scss, and
+  // commander-view/_header.scss. Inside the rail, the buttons flow naturally
+  // as a flex column so the stack height matches its content instead of the
+  // hardcoded max-top (~554px), which was the source of the overflow bug.
+  .floating-settings-btn,
+  .search-toggle-btn,
+  .commander-toggle-btn,
+  .shortcuts-toggle-btn,
+  .skills-toggle-btn,
+  .fab-spawn-btn,
+  .fab-workspace-wrapper,
+  .fab-viewmode-wrapper {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    flex-shrink: 0;
+  }
+
+  // The view-mode wrapper previously used `display: contents` so its
+  // individually fixed children could layout against the viewport. Inside
+  // the rail it needs to be a real flex box so the popover can anchor to
+  // it with `position: absolute`.
+  .fab-viewmode-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+  }
+
+  // Voice assistant stays pinned bottom-ish — its `position: fixed` rule
+  // lives elsewhere and is unaffected by the rail layout.
+  .voice-assistant-btn {
+    position: fixed;
+  }
+
+  // Workspace wrapper's dropdown is anchored with `left: calc(100% + 10px)`
+  // which already works against any positioned parent. No extra rules here.
+}
+
+// Compress the FAB rail on short viewports (mobile landscape, small tablets
+// above the 768px width cutoff) so all 12 icons fit vertically without the
+// rail needing a scroll container — which would clip the side-anchored
+// popover menus. Only active when vertical room is tight; tall desktops are
+// untouched.
+@media (max-height: 640px) and (min-width: 769px) {
+  .fab-rail {
+    gap: 2px;
+
+    .floating-settings-btn,
+    .search-toggle-btn,
+    .commander-toggle-btn,
+    .shortcuts-toggle-btn,
+    .skills-toggle-btn,
+    .fab-spawn-btn,
+    .fab-viewmode-wrapper,
+    .workspace-switcher-trigger {
+      width: 30px;
+      height: 30px;
+    }
+  }
+}
+
+@media (max-height: 480px) and (min-width: 769px) {
+  .fab-rail {
+    gap: 0;
+
+    .floating-settings-btn,
+    .search-toggle-btn,
+    .commander-toggle-btn,
+    .shortcuts-toggle-btn,
+    .skills-toggle-btn,
+    .fab-spawn-btn,
+    .fab-viewmode-wrapper,
+    .workspace-switcher-trigger {
+      width: 28px;
+      height: 28px;
+    }
+  }
+}
+
 .fab-spawn-agent-btn:hover   { border-color: $dracula-green;  color: $dracula-green;  }
 .fab-spawn-boss-btn:hover    { border-color: $dracula-yellow; color: $dracula-yellow; }
 .fab-spawn-building-btn:hover{ border-color: $dracula-cyan;   color: $dracula-cyan;   }
@@ -224,11 +343,13 @@
   display: contents;
 }
 
-// Popover menu anchored to the view-mode FAB
+// Popover menu anchored to the view-mode FAB. The wrapper is
+// `position: relative` inside `.fab-rail`, so the menu lays out against the
+// wrapper rather than the viewport.
 .fab-viewmode-menu {
-  position: fixed;
-  left: 62px;        // 16 (FAB left) + 36 (FAB width) + 10 gap
-  top: 434px;        // aligned with the FAB
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 0;
   min-width: 220px;
   background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
   border: 1px solid $dracula-comment;

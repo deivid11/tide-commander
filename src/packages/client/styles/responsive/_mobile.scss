@@ -140,7 +140,10 @@
     }
   }
 
-  // Hide old standalone buttons on mobile - they're in the FAB menu now
+  // Hide old standalone buttons on mobile - they're in the FAB menu now.
+  // `.fab-rail` wraps all of them, so hiding the rail hides them in one shot
+  // and also drops the empty fixed-positioned container from the viewport.
+  .fab-rail,
   .mobile-view-toggle-btn,
   .floating-settings-btn,
   .search-toggle-btn,

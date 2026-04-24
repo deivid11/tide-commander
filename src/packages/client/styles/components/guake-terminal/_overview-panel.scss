@@ -939,6 +939,20 @@
       box-shadow: 0 0 0 1px rgba(47, 140, 255, 0.35);
     }
 
+    .aop-draft-indicator {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--accent-yellow, #f5c542) 22%, transparent);
+      color: var(--accent-yellow, #f5c542);
+      line-height: 1;
+      flex-shrink: 0;
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-yellow, #f5c542) 45%, transparent);
+    }
+
     .aop-subagent-count {
       color: var(--accent-orange);
       font-size: 12px;
@@ -1179,36 +1193,28 @@
   }
 }
 
+// Subtle group label for unread / idle transitions inside the agent list.
+// Previously rendered as a full-width horizontal rule flanked by uppercase
+// text, which visually fragmented every area group. Now it's a quiet left-
+// aligned caption — still marks the transition without chopping the list.
 .aop-status-separator {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 4px 0 6px;
+  gap: 6px;
+  margin: 6px 2px 2px;
+  padding: 0;
   font-family: $font-mono;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: color-mix(in srgb, var(--text-muted) 95%, transparent);
-
-  &::before,
-  &::after {
-    content: '';
-    height: 1px;
-    flex: 1;
-    background: color-mix(in srgb, var(--border-color) 65%, transparent);
-  }
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--text-muted) 70%, transparent);
+  opacity: 0.7;
 
   span {
     white-space: nowrap;
   }
 
   &.aop-status-separator--unread {
-    color: color-mix(in srgb, var(--accent-cyan) 55%, var(--text-muted));
-
-    &::before,
-    &::after {
-      background: color-mix(in srgb, var(--accent-cyan) 30%, var(--border-color));
-    }
+    color: color-mix(in srgb, var(--accent-cyan) 45%, var(--text-muted));
   }
 }
 
@@ -1566,15 +1572,10 @@
   }
 
   .aop-status-separator {
-    gap: 6px;
-    margin: 5px 0 6px;
-    font-size: 10px;
+    gap: 5px;
+    margin: 5px 2px 2px;
+    font-size: 9px;
     letter-spacing: 0.02em;
-
-    &::before,
-    &::after {
-      opacity: 0.8;
-    }
   }
 
   .aop-tool-timeline {

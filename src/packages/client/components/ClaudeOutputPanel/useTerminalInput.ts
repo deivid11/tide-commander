@@ -8,6 +8,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { STORAGE_KEYS, getStorageString, setStorageString, removeStorage, apiUrl, authFetch } from '../../utils/storage';
+import { setAgentDraft } from '../../utils/agentDrafts';
 import type { AttachedFile } from './types';
 
 // Stable empty references to avoid defeating memo on consumers
@@ -65,6 +66,7 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
     const savedInput = getStorageString(`${STORAGE_KEYS.INPUT_TEXT_PREFIX}${selectedAgentId}`);
     if (savedInput) {
       setAgentCommands((prev) => new Map(prev).set(selectedAgentId, savedInput));
+      setAgentDraft(selectedAgentId, savedInput.trim().length > 0);
     }
 
     // Load pasted texts from storage
@@ -106,6 +108,7 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
       } else {
         removeStorage(`${STORAGE_KEYS.INPUT_TEXT_PREFIX}${selectedAgentId}`);
       }
+      setAgentDraft(selectedAgentId, value.trim().length > 0);
     },
     [selectedAgentId]
   );

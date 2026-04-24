@@ -718,9 +718,17 @@ function interpolateTemplate(template: string, variables: Record<string, string>
 
 // ─── Cron Management ───
 
+// Grace window for firing a one-shot whose runAt slipped past while the server was down.
+const ONE_SHOT_MISS_GRACE_MS = 5 * 60 * 1000;
+
 function startCronJob(trigger: CronTrigger): void {
   // Stop existing job if any
   stopCronJob(trigger.id);
+
+  if (trigger.config.runOnce) {
+    startOneShotJob(trigger);
+    return;
+  }
 
   const job = cronService.schedule(
     trigger.config.expression,
@@ -738,6 +746,73 @@ function startCronJob(trigger: CronTrigger): void {
 
   cronJobs.set(trigger.id, job);
   log.log(`Started cron job for trigger ${trigger.name}: ${trigger.config.expression}`);
+}
+
+function startOneShotJob(trigger: CronTrigger): void {
+  const runAt = trigger.config.runAt;
+  if (!runAt) {
+    log.warn(`One-shot trigger ${trigger.name} has no runAt; skipping schedule`);
+    return;
+  }
+
+  // Already completed — do not re-arm.
+  if (trigger.config.completedAt) {
+    log.log(`One-shot trigger ${trigger.name} already completed at ${new Date(trigger.config.completedAt).toISOString()}`);
+    return;
+  }
+
+  const runAtMs = new Date(runAt).getTime();
+  if (Number.isNaN(runAtMs)) {
+    log.error(`One-shot trigger ${trigger.name} has invalid runAt: ${runAt}`);
+    return;
+  }
+
+  const now = Date.now();
+  const overdueMs = now - runAtMs;
+
+  if (overdueMs > ONE_SHOT_MISS_GRACE_MS) {
+    // Missed by more than the grace window — mark missed and disable.
+    log.warn(`One-shot trigger ${trigger.name} missed (overdue by ${Math.round(overdueMs / 1000)}s); marking as missed`);
+    const updatedConfig = { ...trigger.config, missedAt: now };
+    updateTrigger(trigger.id, {
+      enabled: false,
+      status: 'error',
+      lastError: 'missed: server was down at runAt',
+      config: updatedConfig,
+    } as Partial<Trigger>);
+    return;
+  }
+
+  const job = cronService.scheduleOnce(runAt, () => {
+    const variables: Record<string, string> = {
+      'cron.runAt': runAt,
+      'cron.scheduledAt': new Date().toISOString(),
+      ...(trigger.config.payload || {}),
+    };
+    void handleOneShotFire(trigger.id, variables);
+  });
+
+  cronJobs.set(trigger.id, job);
+  log.log(`Armed one-shot trigger ${trigger.name} for ${runAt}${overdueMs > 0 ? ' (within grace window, firing immediately)' : ''}`);
+}
+
+async function handleOneShotFire(triggerId: string, variables: Record<string, string>): Promise<void> {
+  const trigger = triggers.get(triggerId);
+  if (!trigger || trigger.type !== 'cron') return;
+  const cronTrigger = trigger as CronTrigger;
+  if (!cronTrigger.config.runOnce) return;
+
+  // Mark completed + disabled BEFORE firing. fireTrigger internally calls
+  // updateTrigger which would otherwise re-enter startCronJob and re-arm the
+  // one-shot. The completedAt guard in startOneShotJob short-circuits that.
+  const updatedConfig = { ...cronTrigger.config, completedAt: Date.now() };
+  updateTrigger(triggerId, {
+    enabled: false,
+    config: updatedConfig,
+  } as Partial<Trigger>);
+  cronJobs.delete(triggerId);
+
+  await fireTrigger(triggerId, variables);
 }
 
 function stopCronJob(triggerId: string): void {

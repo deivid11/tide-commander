@@ -2,7 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.70.0] - 2026-04-23
+## [1.71.0] - 2026-04-24
+
+### Added
+- **One-shot cron triggers** — cron triggers can now be marked "Run once" to fire exactly once at a specific datetime instead of on a recurring schedule. New `runOnce` / `runAt` / `completedAt` / `missedAt` fields on `CronTrigger.config`; `cronService.scheduleOnce()` arms a one-shot via `setTimeout` (with chained waits beyond the 24.8-day `setTimeout` ceiling); on server restart, one-shots whose `runAt` slipped past within a 5-minute grace window fire immediately, and overdue ones are marked `missed` + auto-disabled. UI in TriggerManagerPanel has a "Repeats" vs "Run once" selector, a `datetime-local` picker, and status chips (`Once · pending` / `Once · completed` / `Once · missed`)
+- **Auth Token field on the connect screen** — `NotConnectedOverlay` now exposes an `X-Auth-Token` input (with show/hide toggle) alongside the backend URL, so users connecting to an auth-enforcing server can paste their token without hunting for Settings first
+- **Boss spawn from area context menu** — right-clicking an area header in the overview panel now offers "New Boss" (opens `BossSpawnModal` pre-configured for that area) and "New Area" (creates a new area placed at a free spot near the current one). A new `tide:open-boss-spawn-modal` global event carries `{ areaId, position }`; `BossSpawnModal` infers `cwd` from the area's `directories` or the most common cwd among its member agents
+- **Codex reasoning effort in AgentEditModal** — the reasoning-effort dropdown (`none`/`minimal`/`low`/`medium`/`high`/`xhigh`) is now editable post-spawn, matching the SpawnModal; previously only the spawn form exposed it
+- **Unsent-draft indicator on agent cards** — when an agent has text sitting in its input box, a small pencil icon appears next to the agent name on the overview panel. Backed by a new `agentDrafts.ts` store (`setAgentDraft` / `useHasDraft`) wired into `useTerminalInput` so the indicator appears as the user types and clears when the input is emptied
+- **Debug panel in Flat UI chat** — the Flat UI chat header menu now has a "Show Debug Panel" toggle that opens the same `AgentDebugPanel` as the Guake terminal (auto-enables `agentDebugger` on first open), with the chat wrapper widening via the `--with-side-panel` class
+- **Mobile agents drawer in Flat UI** — below the mobile breakpoint, the left agents column now renders as a slide-in drawer toggled by a new button; tapping an agent auto-closes the drawer so the user lands directly in chat
+- **`areaPlacement.ts` helper** — `findFreeAreaSpot(areas, w, h, origin)` picks a non-overlapping location near an origin point, used by the new "New Area" context action
+
+### Changed
+- **Left-edge FAB rail unified into a single flex column (`.fab-rail`)** — replaces the stack of per-button `position: fixed; top: <Xpx>` rules that used to spill off the bottom on short viewports (mobile landscape, small tablets). The rail neutralizes each button's hardcoded positioning and flows them as a flex column, so every icon stays reachable. Popovers (view-mode, workspace) still anchor absolutely without needing `overflow` on the container
+- **"Working" state on Flat UI map chips is much more alive** — the single-layer shimmer was replaced with a layered animation: double shimmer band at different phases, iridescent hue-cycling aura behind the chip, breathing glow/border pulse, bouncy pulsing dot, and twinkling sparkle dots. Every layer runs at its own tempo so the chip never loops in lockstep
+- **Notification click in Flat view no longer opens the Guake overlay** — `openAgentTerminalFromNotification` now skips `setTerminalOpen(true)` when `viewMode === 'flat'`, so the fixed Guake overlay (z-index 200) stops covering the inline Flat chat the user is trying to land on
+
+### Fixed
+- **Area colour tint on overview agent name chip removed** — the inline background/border tint on `.aop-agent-name` was overriding the area's left-border accent and making the name chip look mismatched under hover/selection states
 
 ### Added
 - **Boss crown + provider icon on Flat UI map chips** — agent chips in the empty-state area map now render a gold crown for boss agents and the provider logo (Claude / Codex / OpenCode) alongside the agent name
