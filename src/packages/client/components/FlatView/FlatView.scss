@@ -1566,7 +1566,8 @@ $middle-min-width: 280px;
   --flat-chat-column-max: 960px;
   --flat-chat-column-pad-x: 20px;
   --flat-chat-column-pad-y: 16px;
-  --flat-chat-gap: 10px;
+  // Bumped from 10px → 22px so messages "breathe" and the card shadow has room.
+  --flat-chat-gap: 22px;
 
   --flat-user-bubble-bg: #{color-mix(in srgb, $text-primary 6%, transparent)};
   --flat-user-bubble-bg-hover: #{color-mix(in srgb, $text-primary 9%, transparent)};
@@ -1665,12 +1666,17 @@ $middle-min-width: 280px;
   // ─────────────────────────────────────────────────────────────────────────
   .output-claude,
   .history-assistant {
+    position: relative; // anchor for absolute-positioned header row
     background: var(--flat-assistant-card-bg) !important;
     border: 0 !important;
     border-left: 0 !important;
     border-radius: var(--flat-assistant-card-radius) !important;
-    padding: 12px 16px 12px 22px !important;
-    margin: 4px 0 !important;
+    // Extra top padding (34px) reserves space for the header row that now
+    // holds the info icon + action buttons (see header-row rules below).
+    padding: 34px 16px 14px 22px !important;
+    // Let .guake-history-content's `gap: var(--flat-chat-gap)` control vertical
+    // rhythm on its own; no additional vertical margin.
+    margin: 0 !important;
     box-shadow: var(--flat-assistant-card-shadow) !important;
 
     &::before { display: none !important; }
@@ -1688,19 +1694,130 @@ $middle-min-width: 280px;
       font-size: 10px;
     }
 
-    // Hover action buttons become a permanent footer bar sitting flush with
-    // the card bottom. The JSX already renders them; we just restyle.
+    // ───────────────────────────────────────────────────────────────────
+    // Card header row: timestamp (as info icon) + CTAs, right-aligned.
+    //
+    // JSX DOM inside the card (OutputLine.tsx:1257-1349, HistoryLine.tsx):
+    //   <TimestampWithMeta>   → <span.output-timestamp-wrapper>…</span>
+    //   <span.output-role>…</span>
+    //   <div.markdown-content>…</div>
+    //   <div.message-action-btns>…</div>     (assistant only)
+    //
+    // We pull both the timestamp wrapper and the action-btns bar out of
+    // flow and anchor them absolutely in the top-right of the card. They
+    // render side-by-side so the user sees ONE right-aligned chip row:
+    //   [ℹ] [📄] [⧉]
+    //
+    // The timestamp text is hidden (the user asked for "remove the
+    // timestamp"), but the wrapper remains the tooltip anchor for the
+    // metadata popover — clicking the info icon still toggles the
+    // <MessageMetadataTooltip> because the same clickable span is re-
+    // skinned as a circular icon button (see .output-timestamp rules).
+    // ───────────────────────────────────────────────────────────────────
+    .output-timestamp-wrapper,
+    .history-timestamp-wrapper {
+      position: absolute;
+      top: 8px;
+      // Reserve 74px on the right for the CTA group (~2 x 26px buttons +
+      // gaps) so the info icon sits immediately to their left.
+      right: 74px;
+      margin: 0 !important;
+      float: none !important;
+      opacity: 1 !important;
+      z-index: 2;
+    }
+
+    // Info-icon skin for the clickable timestamp chip.
+    //
+    // The shared rule in _output.scss:540 styles this as a small time
+    // badge with a gradient background. We replace it with a 22px square
+    // "info" chip:
+    //  - font-size: 0 hides the HH:MM:SS text without removing the node
+    //  - ::before injects an "i" glyph centered in the chip
+    //  - the clickable behavior (toggles MessageMetadataTooltip on click,
+    //    already wired in OutputLine.tsx:232) is preserved exactly.
+    .output-timestamp,
+    .history-timestamp {
+      display: inline-flex !important;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      padding: 0 !important;
+      border-radius: 50% !important;
+      background: transparent !important;
+      border: 1px solid color-mix(in srgb, $text-muted 40%, transparent) !important;
+      box-shadow: none !important;
+      // Hide timestamp text (font-size: 0 collapses the character glyphs
+      // but keeps the element clickable and focusable).
+      font-size: 0 !important;
+      line-height: 1 !important;
+      color: $text-muted !important;
+
+      // The info "i" glyph.
+      &::before {
+        content: 'i';
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 600;
+        font-style: italic;
+        line-height: 1;
+        color: $text-muted;
+      }
+
+      &--clickable {
+        cursor: pointer;
+
+        &:hover {
+          background: color-mix(in srgb, $accent-cyan 12%, transparent) !important;
+          border-color: color-mix(in srgb, $accent-cyan 55%, transparent) !important;
+
+          &::before {
+            color: $accent-cyan;
+          }
+        }
+      }
+    }
+
+    // Right-anchored CTA bar: was a full-width footer, now a compact chip
+    // row pinned to the top-right on the same visual line as the info
+    // icon. All click behaviors (view-md, copy-rich-text, TTS) stay wired
+    // to the same buttons; only their placement and skin change.
     .message-action-btns {
-      margin: 10px -16px -12px -22px;
-      padding: 6px 10px;
-      background: var(--flat-assistant-footer-bg);
-      border-top: 1px solid var(--flat-assistant-footer-border);
-      border-bottom-left-radius: var(--flat-assistant-card-radius);
-      border-bottom-right-radius: var(--flat-assistant-card-radius);
+      position: absolute !important;
+      top: 8px !important;
+      right: 10px !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: transparent !important;
+      border: 0 !important;
+      border-radius: 0 !important;
       display: flex;
-      justify-content: flex-end;
-      gap: 6px;
-      opacity: 1; // show the bar even without hover
+      gap: 4px;
+      opacity: 1; // show the buttons even without hover
+      z-index: 2;
+
+      // Make each CTA a 22px square matching the info icon chip size.
+      .history-view-md-btn,
+      .history-speak-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        padding: 0 !important;
+        border-radius: 50% !important;
+        background: transparent !important;
+        border: 1px solid color-mix(in srgb, $text-muted 40%, transparent) !important;
+        color: $text-muted !important;
+        transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+
+        &:hover {
+          color: $accent-cyan !important;
+          border-color: color-mix(in srgb, $accent-cyan 55%, transparent) !important;
+          background: color-mix(in srgb, $accent-cyan 12%, transparent) !important;
+        }
+      }
     }
   }
 
