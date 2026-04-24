@@ -1812,8 +1812,22 @@ $middle-min-width: 280px;
   //
   // The composer is a SIBLING of .guake-output. To land the same 920px
   // band centered at W/2 we use the SAME 960px cap + 20px side padding.
-  .guake-input-wrapper {
-    max-width: var(--flat-chat-column-max);
+  //
+  // HIGH-SPECIFICITY state-combo overrides. The shared _input.scss:156 rule
+  // `.is-working &` applies border+bg !important on the container, and
+  // because the user reported the width still not matching .output-claude
+  // when the agent is working (class combo `has-stop-btn is-working`), we
+  // force the wrapper width/padding on EVERY state combo so nothing in the
+  // shared stylesheet can widen or narrow the composer column.
+  .guake-input-wrapper,
+  .guake-input-wrapper.has-stop-btn,
+  .guake-input-wrapper.is-working,
+  .guake-input-wrapper.has-stop-btn.is-working,
+  .guake-input-wrapper.is-completed,
+  .guake-input-wrapper.has-stop-btn.is-completed {
+    width: 100% !important;
+    max-width: var(--flat-chat-column-max) !important;
+    min-width: 0 !important;
     margin: 0 auto !important;
     // 20px left + (20px + 6px scrollbar compensation) right, so the composer's
     // right edge aligns with the assistant card's right edge. The message
@@ -1824,7 +1838,9 @@ $middle-min-width: 280px;
     padding: 6px calc(var(--flat-chat-column-pad-x) + 6px) 12px
              var(--flat-chat-column-pad-x) !important;
     background: transparent !important;
+    border: 0 !important;
     border-top: 0 !important;
+    box-sizing: border-box !important;
   }
 
   // Reserve the scrollbar gutter on the output so the message column width
@@ -1844,7 +1860,11 @@ $middle-min-width: 280px;
   // Pin EVERY link in the chain to 100% of its parent with min-width: 0 so
   // the textarea's intrinsic content width cannot push any ancestor wider
   // than the 960px column cap set on .guake-input-wrapper.
-  .guake-input-wrapper .guake-input-swipe-shell {
+  .guake-input-wrapper .guake-input-swipe-shell,
+  .guake-input-wrapper.has-stop-btn .guake-input-swipe-shell,
+  .guake-input-wrapper.is-working .guake-input-swipe-shell,
+  .guake-input-wrapper.has-stop-btn.is-working .guake-input-swipe-shell,
+  .guake-input-wrapper.is-completed .guake-input-swipe-shell {
     display: block !important;
     width: 100% !important;
     max-width: 100% !important;
@@ -1853,7 +1873,11 @@ $middle-min-width: 280px;
   }
 
   // .guake-input is the flex row that wraps .guake-input-container.
-  .guake-input-wrapper .guake-input {
+  .guake-input-wrapper .guake-input,
+  .guake-input-wrapper.has-stop-btn .guake-input,
+  .guake-input-wrapper.is-working .guake-input,
+  .guake-input-wrapper.has-stop-btn.is-working .guake-input,
+  .guake-input-wrapper.is-completed .guake-input {
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
@@ -1905,14 +1929,37 @@ $middle-min-width: 280px;
   }
 
   // Working-state — keep the unified bg, adjust only the border tone.
-  .guake-input-wrapper.is-working .guake-input-container {
+  //
+  // IMPORTANT: the shared _input.scss:156 `.is-working &` rule sets
+  //   border: 2px solid var(--border-color) !important;
+  // on the container. With `box-sizing: border-box`, that extra 1px of border
+  // on each side does NOT change the outer width of the composer, but a
+  // thicker border reads as a visible width change against the 1px-bordered
+  // assistant cards. We re-force `border: 1px solid ...` here so the
+  // working/has-stop-btn/completed states visually match the idle state.
+  .guake-input-wrapper.is-working .guake-input-container,
+  .guake-input-wrapper.has-stop-btn .guake-input-container,
+  .guake-input-wrapper.has-stop-btn.is-working .guake-input-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
     background: $bg-secondary !important;
-    border-color: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+
+    // The shared _input.scss:156 rule also injects a shimmer pseudo with
+    // position: absolute and width: 200%. It's clipped by overflow: hidden
+    // on the parent, so it does not affect layout width; we leave it alone.
   }
 
   // Completion — soften to an accent-green ring instead of a full flash.
-  .guake-input-wrapper.is-completed .guake-input-container {
-    border-color: #{color-mix(in srgb, $accent-green 55%, transparent)} !important;
+  .guake-input-wrapper.is-completed .guake-input-container,
+  .guake-input-wrapper.has-stop-btn.is-completed .guake-input-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    border: 1px solid #{color-mix(in srgb, $accent-green 55%, transparent)} !important;
     box-shadow:
       0 0 0 1px #{color-mix(in srgb, $accent-green 35%, transparent)},
       0 4px 12px rgba(0, 0, 0, 0.22) !important;
