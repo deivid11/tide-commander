@@ -1803,13 +1803,35 @@ $middle-min-width: 280px;
   // stop button, completion badge) stay intact.
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Keep the composer aligned with the 840px message column.
+  // Align composer with the EXACT width of .output-claude / .history-assistant.
+  //
+  // Measurement chain (at viewport width W ≥ 996):
+  //   .guake-output:            padding 14px 18px        (content: W - 36)
+  //   .guake-history-content:   max-width 960px, padding 16px 20px, centered
+  //      ⇒ .output-claude rendered width = 960 - 40 = 920px, centered at W/2
+  //
+  // The composer is a SIBLING of .guake-output. To land the same 920px
+  // band centered at W/2 we use the SAME 960px cap + 20px side padding.
   .guake-input-wrapper {
     max-width: var(--flat-chat-column-max);
     margin: 0 auto !important;
-    padding: 6px var(--flat-chat-column-pad-x) 12px !important;
+    // 20px left + (20px + 6px scrollbar compensation) right, so the composer's
+    // right edge aligns with the assistant card's right edge. The message
+    // column sits inside .guake-output (which has a 6px scrollbar eating
+    // 6px of its content area on the right); the composer is a sibling of
+    // .guake-output and has no scrollbar, so without compensation the
+    // composer appeared 6px wider than the claude card.
+    padding: 6px calc(var(--flat-chat-column-pad-x) + 6px) 12px
+             var(--flat-chat-column-pad-x) !important;
     background: transparent !important;
     border-top: 0 !important;
+  }
+
+  // Reserve the scrollbar gutter on the output so the message column width
+  // stays constant regardless of overflow state, and the 6px compensation
+  // we apply to the composer's right padding always matches the claude card.
+  .guake-output {
+    scrollbar-gutter: stable;
   }
 
   // DOM chain (confirmed in TerminalInputArea.tsx:889-943):
@@ -1857,7 +1879,9 @@ $middle-min-width: 280px;
     border: 1px solid rgba(255, 255, 255, 0.06) !important;
     border-radius: 14px !important;
     padding: 10px 12px !important;
-    min-height: 112px;
+    height: 112px !important;       // truly fixed — no vertical scale-on-type
+    min-height: 112px !important;
+    max-height: 112px !important;
     align-items: flex-end !important;  // buttons sit at the bottom; textarea
                                        // aligns to the bottom of its 80px
                                        // box, leaving breathing room at top
@@ -1941,13 +1965,15 @@ $middle-min-width: 280px;
     height: 56px !important;
   }
 
-  // Textarea: fixed ~3-line default at ~80px. Locked by !important so the
-  // JS auto-resize hook cannot collapse OR grow it. Scrolls beyond max-height
-  // when the user writes a long message.
+  // Textarea: truly FIXED at 80px — min=height=max. The JS auto-resize hook
+  // in TerminalInputArea.tsx:394 writes textarea.style.height on every
+  // keystroke; matching min/max with !important prevents any vertical change
+  // regardless of content. When the user types past ~3 lines the textarea
+  // scrolls internally; the composer never grows.
   .guake-input-wrapper .guake-input-container textarea {
     min-height: 80px !important;
     height: 80px !important;
-    max-height: 200px !important;
+    max-height: 80px !important;
     resize: none !important;
     overflow-y: auto !important;
     white-space: pre-wrap !important;
