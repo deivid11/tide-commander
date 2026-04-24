@@ -1812,17 +1812,31 @@ $middle-min-width: 280px;
     border-top: 0 !important;
   }
 
+  // .guake-input is the flex row that wraps .guake-input-container. Force it
+  // to fill the 960px column (minus the 20px side padding on the wrapper) so
+  // the composer's visual width exactly matches the assistant card above it.
+  .guake-input-wrapper .guake-input {
+    width: 100% !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border-top: 0 !important;
+  }
+
   // The bordered box becomes the craft "input surface".
   // Background matches the chat surface ($bg-secondary) so the composer reads
   // as one continuous panel with the transcript above it.
-  // Fixed, taller multi-line default (~140px) — the textarea no longer visibly
-  // grows for the first few lines; it only scrolls once content exceeds that.
+  // Fixed, compact height (~70px) — half of the previous 140px.
+  // width: 100% pins the box to the column; min-width: 0 lets the inner
+  // textarea shrink instead of pushing the container wider as the user types.
   .guake-input-wrapper .guake-input-container {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
     background: $bg-secondary !important;
     border: 1px solid rgba(255, 255, 255, 0.06) !important;
     border-radius: 14px !important;
-    padding: 8px 10px !important;
-    min-height: 140px;
+    padding: 6px 8px !important;
+    min-height: 70px;
     box-shadow:
       0 1px 1px rgba(0, 0, 0, 0.2),
       0 3px 6px rgba(0, 0, 0, 0.18) !important;
@@ -1857,19 +1871,29 @@ $middle-min-width: 280px;
   }
 
   // Textarea / input — roomy composer text.
-  // Use !important on min-height/height so the JS auto-resize hook in
-  // TerminalInputArea.tsx (which sets inline textarea.style.height on every
-  // keystroke) cannot collapse the composer below our craft-style minimum.
+  // Key fixes:
+  //  - width: 100% + flex: 1 + min-width: 0 → the textarea fills the row and
+  //    can shrink instead of pushing the container wider as the user types.
+  //  - field-sizing: auto cancels the shared `field-sizing: content` rule in
+  //    _input.scss:288 which was making the textarea grow horizontally with
+  //    its text content.
+  //  - !important on min-height/height beats the inline style.height that the
+  //    auto-resize hook in TerminalInputArea.tsx sets on every keystroke.
   .guake-input-wrapper .guake-input-container input[type='text'],
   .guake-input-wrapper .guake-input-container textarea {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    field-sizing: auto !important;
     background: transparent !important;
     border: 0 !important;
-    padding: 10px 12px !important;
+    padding: 8px 10px !important;
     font-family: inherit;
     font-size: 14px;
     line-height: 1.5;
     color: $text-primary;
-    min-height: 110px !important;
 
     &::placeholder {
       color: $text-muted;
@@ -1877,34 +1901,37 @@ $middle-min-width: 280px;
     }
   }
 
-  // Single-line input variant (pre-expand) still gets a comfortable height but
-  // not quite as tall — craft shows a 2-3 line composer before any typing.
+  // Single-line <input> fallback — compact, matches halved composer.
   .guake-input-wrapper .guake-input-container input[type='text'] {
-    min-height: 90px !important;
+    min-height: 48px !important;
+    height: 48px !important;
   }
 
-  // Textarea: fixed multi-line default — ~5 lines visible, scroll beyond.
-  // !important beats the inline style.height from the useEffect hook; the
-  // max-height caps how tall the composer can grow before scrolling kicks in.
+  // Textarea: fixed ~2-line default, locked by !important so the JS
+  // auto-resize hook can't collapse OR grow it vertically. Scrolls beyond
+  // the max-height when the user writes a long message.
   .guake-input-wrapper .guake-input-container textarea {
-    min-height: 110px !important;
-    height: 110px !important;
-    max-height: 260px !important;
+    min-height: 56px !important;
+    height: 56px !important;
+    max-height: 130px !important;
     resize: none !important;
+    overflow-y: auto !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
   }
 
-  // When the user explicitly expands the composer via the caret button,
-  // let it grow to the craft-style full editor height.
-  .guake-input-wrapper .guake-input.guake-input-expanded textarea {
-    min-height: 280px !important;
-    height: 280px !important;
-    max-height: 480px !important;
-  }
-
-  // Left-cluster buttons: paperclip / mic / expand → flat hover pills.
-  .guake-input-wrapper .guake-input-container .guake-attach-btn,
-  .guake-input-wrapper .guake-input-container .guake-mic-btn,
+  // Hide the collapse/expand caret button entirely in the Flat UI — the
+  // composer height is fixed via CSS, so toggling isInputExpanded no longer
+  // changes anything visible. The button still exists in the DOM (no JSX
+  // change) but is removed from layout so tab order, pointer events and
+  // surrounding spacing close up cleanly.
   .guake-input-wrapper .guake-input-container .guake-expand-btn {
+    display: none !important;
+  }
+
+  // Left-cluster buttons: paperclip / mic → flat hover pills.
+  .guake-input-wrapper .guake-input-container .guake-attach-btn,
+  .guake-input-wrapper .guake-input-container .guake-mic-btn {
     width: 32px !important;
     min-width: 32px !important;
     min-height: 32px !important;
