@@ -1686,6 +1686,14 @@ $middle-min-width: 280px;
     // nowrap — they CANNOT break to another row no matter how many
     // CTAs render.
     // ───────────────────────────────────────────────────────────────────
+    // `position: relative` is required so that any absolutely-positioned
+    // descendant (notably `.msg-meta-tooltip` — the message metadata
+    // popover opened by clicking the info icon; see OutputLine.tsx:201
+    // and _output.scss:585) anchors to the card instead of escaping up
+    // to an ancestor or the viewport. Without this, clicking the info
+    // icon still toggles state, but the tooltip renders off-screen and
+    // reads as "nothing happens".
+    position: relative !important;
     display: grid !important;
     grid-template-columns: auto 1fr auto auto;
     grid-auto-rows: auto;
@@ -1741,6 +1749,14 @@ $middle-min-width: 280px;
 
     // Info-icon wrapper → grid row 1, col 3. Sits immediately to the
     // left of the CTA bar (col 4) without any fixed pixel offsets.
+    //
+    // `position: relative` (inherited from _output.scss:533) is kept
+    // intentionally so `.msg-meta-tooltip` (which uses
+    //   position: absolute; top: calc(100% + 4px); left: 0;
+    // in _output.scss:585) anchors to THIS wrapper and appears directly
+    // below the info icon on click. That popover is rendered by
+    // MessageMetadataTooltip (OutputLine.tsx:117) when setShowMeta(true)
+    // fires from the inner `<span>` click handler on line 232.
     .output-timestamp-wrapper,
     .history-timestamp-wrapper {
       grid-row: 1;
@@ -1751,13 +1767,22 @@ $middle-min-width: 280px;
       padding: 0 !important;
       float: none !important;
       opacity: 1 !important;
-      position: static !important;   // cancel any absolute/relative
-                                     // set by shared _output.scss rules
+      position: relative !important;  // anchor for .msg-meta-tooltip
       right: auto !important;
       top: auto !important;
       left: auto !important;
       justify-self: end;
       align-self: center;
+
+      // The metadata popover is 280px+ wide and anchors `left: 0` by
+      // default (_output.scss:585). Since the info icon now sits near
+      // the right edge of the card, left-anchoring would push the
+      // popover off-screen to the right. Right-anchor it so it opens
+      // below the icon, extending leftward into the card.
+      .msg-meta-tooltip {
+        left: auto !important;
+        right: 0 !important;
+      }
     }
 
     // Info-icon skin for the clickable timestamp chip.
