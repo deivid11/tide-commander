@@ -1856,8 +1856,11 @@ $middle-min-width: 280px;
     background: $bg-secondary !important;
     border: 1px solid rgba(255, 255, 255, 0.06) !important;
     border-radius: 14px !important;
-    padding: 6px 8px !important;
-    min-height: 70px;
+    padding: 10px 12px !important;
+    min-height: 112px;
+    align-items: flex-end !important;  // buttons sit at the bottom; textarea
+                                       // aligns to the bottom of its 80px
+                                       // box, leaving breathing room at top
     box-shadow:
       0 1px 1px rgba(0, 0, 0, 0.2),
       0 3px 6px rgba(0, 0, 0, 0.18) !important;
@@ -1900,45 +1903,51 @@ $middle-min-width: 280px;
   //    its text content.
   //  - !important on min-height/height beats the inline style.height that the
   //    auto-resize hook in TerminalInputArea.tsx sets on every keystroke.
+  // Textarea / input — craft-style roomy composer.
+  //
+  //  - flex: 1 1 0 with width: 100% → the textarea fills the remaining row
+  //    space (after the 32px buttons) but uses a ZERO flex-basis so the
+  //    browser never considers intrinsic content width. This is what stops
+  //    the composer from growing horizontally as the user types.
+  //  - field-sizing: auto cancels the shared `field-sizing: content` in
+  //    _input.scss:288 which was the primary source of horizontal growth.
+  //  - !important on min-height/height beats the inline style.height the
+  //    auto-resize hook in TerminalInputArea.tsx sets on every keystroke.
   .guake-input-wrapper .guake-input-container input[type='text'],
   .guake-input-wrapper .guake-input-container textarea {
-    // flex-basis: 0 (not auto) — flex should ignore intrinsic content width
-    // so the textarea is ALWAYS sized by the container, never by its text.
     flex: 1 1 0 !important;
-    width: 0 !important;
+    width: 100% !important;
     min-width: 0 !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
-    // Cancels the shared `field-sizing: content` in _input.scss:288 which
-    // was the primary source of horizontal growth as the user typed.
     field-sizing: auto !important;
     background: transparent !important;
     border: 0 !important;
-    padding: 8px 10px !important;
+    padding: 6px 8px !important;
     font-family: inherit;
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: 15px;
+    line-height: 1.55;
     color: $text-primary;
 
     &::placeholder {
       color: $text-muted;
-      opacity: 0.75;
+      opacity: 0.8;
     }
   }
 
-  // Single-line <input> fallback — compact, matches halved composer.
+  // Single-line <input> fallback — a bit shorter but still comfortable.
   .guake-input-wrapper .guake-input-container input[type='text'] {
-    min-height: 48px !important;
-    height: 48px !important;
-  }
-
-  // Textarea: fixed ~2-line default, locked by !important so the JS
-  // auto-resize hook can't collapse OR grow it vertically. Scrolls beyond
-  // the max-height when the user writes a long message.
-  .guake-input-wrapper .guake-input-container textarea {
     min-height: 56px !important;
     height: 56px !important;
-    max-height: 130px !important;
+  }
+
+  // Textarea: fixed ~3-line default at ~80px. Locked by !important so the
+  // JS auto-resize hook cannot collapse OR grow it. Scrolls beyond max-height
+  // when the user writes a long message.
+  .guake-input-wrapper .guake-input-container textarea {
+    min-height: 80px !important;
+    height: 80px !important;
+    max-height: 200px !important;
     resize: none !important;
     overflow-y: auto !important;
     white-space: pre-wrap !important;
