@@ -632,7 +632,11 @@ $middle-min-width: 280px;
     gap: 10px;
     padding: 6px 12px;
     flex-shrink: 0;
-    background: $bg-secondary;
+    // Match the chat window fill (`.guake-output` uses --bg-primary;
+    // FlatView also paints `.flat-terminal-wrapper` + composer with
+    // --bg-primary) so the statusbar blends into the thread column
+    // instead of reading as a separate, lighter tray.
+    background: var(--bg-primary);
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     min-height: 32px;
     box-sizing: border-box;
