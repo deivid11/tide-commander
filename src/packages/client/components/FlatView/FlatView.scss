@@ -2091,6 +2091,29 @@ $middle-min-width: 280px;
   // Fixed, compact height (~70px) — half of the previous 140px.
   // width: 100% pins the box to the column; min-width: 0 lets the inner
   // textarea shrink instead of pushing the container wider as the user types.
+  // ───────────────────────────────────────────────────────────────────────
+  // Composer container — split into TWO rows via CSS Grid.
+  //
+  // JSX DOM order inside `.guake-input-container`
+  // (see TerminalInputArea.tsx:947-1000):
+  //   1. <input type="file" hidden>                  ← hidden, ignored
+  //   2. <button.guake-attach-btn>                   ← row 2, col 1
+  //   3. <button.guake-mic-btn>          (optional)  ← row 2, col 2
+  //   4. <textarea> | <input[type=text]>             ← row 1, span all
+  //   5. <button.guake-expand-btn>                   ← display:none
+  //   6. <button>  (send, unnamed)                   ← row 2, col -1
+  //
+  // Grid shape:
+  //
+  //     col1   col2       col3         col4
+  //  r1 [────── textarea fills the whole row ──────]
+  //  r2 [attach][mic?][────  spacer  ────][send]
+  //
+  // Row 2 uses `auto auto 1fr auto` so the left cluster hugs the left edge
+  // and the send button stays pinned to the right regardless of whether
+  // the mic button is rendered (the expand button is display:none and
+  // collapses out of the grid).
+  // ───────────────────────────────────────────────────────────────────────
   .guake-input-wrapper .guake-input-container {
     width: 100% !important;
     max-width: 100% !important;
@@ -2101,12 +2124,19 @@ $middle-min-width: 280px;
     border: 1px solid rgba(255, 255, 255, 0.06) !important;
     border-radius: 14px !important;
     padding: 10px 12px !important;
-    height: 112px !important;       // truly fixed — no vertical scale-on-type
-    min-height: 112px !important;
-    max-height: 112px !important;
-    align-items: flex-end !important;  // buttons sit at the bottom; textarea
-                                       // aligns to the bottom of its 80px
-                                       // box, leaving breathing room at top
+    // Grid overrides the shared flex layout. Textarea owns r1 (80px
+    // fixed height), buttons live in r2 (40px pill row). Total interior:
+    //   80 (textarea) + 6 (row-gap) + 40 (button row) = 126px
+    // + 20 padding = 146px outer.
+    display: grid !important;
+    grid-template-columns: auto auto 1fr auto;
+    grid-template-rows: 80px 40px;
+    row-gap: 6px;
+    column-gap: 4px;
+    align-items: center !important;
+    height: 146px !important;
+    min-height: 146px !important;
+    max-height: 146px !important;
     box-shadow:
       0 1px 1px rgba(0, 0, 0, 0.2),
       0 3px 6px rgba(0, 0, 0, 0.18) !important;
@@ -2144,6 +2174,11 @@ $middle-min-width: 280px;
     box-sizing: border-box !important;
     background: $bg-secondary !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    // Match the 146px grid height from the idle state rule above so the
+    // working/stop-bar variants don't snap back to the shared flex height.
+    height: 146px !important;
+    min-height: 146px !important;
+    max-height: 146px !important;
 
     // The shared _input.scss:156 rule also injects a shimmer pseudo with
     // position: absolute and width: 200%. It's clipped by overflow: hidden
@@ -2182,8 +2217,15 @@ $middle-min-width: 280px;
   //    _input.scss:288 which was the primary source of horizontal growth.
   //  - !important on min-height/height beats the inline style.height the
   //    auto-resize hook in TerminalInputArea.tsx sets on every keystroke.
+  // Textarea / input — now sits alone in row 1 and spans ALL grid columns.
+  // `grid-column: 1 / -1` guarantees full-row span regardless of how many
+  // right-column children the grid has. `flex: 1 1 0` is preserved (as a
+  // no-op under grid) so if the parent ever reverts to flex the textarea
+  // still shrinks correctly.
   .guake-input-wrapper .guake-input-container input[type='text'],
   .guake-input-wrapper .guake-input-container textarea {
+    grid-row: 1 !important;
+    grid-column: 1 / -1 !important;
     flex: 1 1 0 !important;
     width: 100% !important;
     min-width: 0 !important;
@@ -2204,10 +2246,10 @@ $middle-min-width: 280px;
     }
   }
 
-  // Single-line <input> fallback — a bit shorter but still comfortable.
+  // Single-line <input> fallback — fills the 80px row 1 height.
   .guake-input-wrapper .guake-input-container input[type='text'] {
-    min-height: 56px !important;
-    height: 56px !important;
+    min-height: 80px !important;
+    height: 80px !important;
   }
 
   // Textarea: truly FIXED at 80px — min=height=max. The JS auto-resize hook
@@ -2235,8 +2277,13 @@ $middle-min-width: 280px;
   }
 
   // Left-cluster buttons: paperclip / mic → flat hover pills.
+  // Both land in grid row 2. Attach in col 1, mic in col 2. Justify-self:
+  // start so they hug the left edge regardless of cell size.
   .guake-input-wrapper .guake-input-container .guake-attach-btn,
   .guake-input-wrapper .guake-input-container .guake-mic-btn {
+    grid-row: 2 !important;
+    justify-self: start !important;
+    align-self: center !important;
     width: 32px !important;
     min-width: 32px !important;
     min-height: 32px !important;
@@ -2245,7 +2292,7 @@ $middle-min-width: 280px;
     border: 0 !important;
     border-radius: 8px !important;
     color: $text-muted !important;
-    margin: 4px 2px;
+    margin: 0 !important;
     transition: background 0.15s ease, color 0.15s ease;
 
     &:hover:not(:disabled) {
@@ -2263,6 +2310,14 @@ $middle-min-width: 280px;
     }
   }
 
+  // Explicit column placement: attach = col 1, mic = col 2.
+  .guake-input-wrapper .guake-input-container .guake-attach-btn {
+    grid-column: 1 !important;
+  }
+  .guake-input-wrapper .guake-input-container .guake-mic-btn {
+    grid-column: 2 !important;
+  }
+
   // Mic button record / transcribe states keep their accent semantic colors.
   .guake-input-wrapper .guake-input-container .guake-mic-btn.recording {
     color: $accent-red !important;
@@ -2273,9 +2328,15 @@ $middle-min-width: 280px;
 
   // Send button — last unnamed <button> inside the container.
   // Circular accent button, matches craft's 28-32px rounded-full send control.
+  // Pinned to grid row 2, last column (col 4) with justify-self: end so it
+  // anchors hard to the right edge regardless of mic-button visibility.
   .guake-input-wrapper
     .guake-input-container
     > button:not(.guake-attach-btn):not(.guake-mic-btn):not(.guake-expand-btn) {
+    grid-row: 2 !important;
+    grid-column: 4 !important;
+    justify-self: end !important;
+    align-self: center !important;
     width: 32px !important;
     min-width: 32px !important;
     min-height: 32px !important;
@@ -2284,7 +2345,7 @@ $middle-min-width: 280px;
     color: $bg-primary !important;
     border: 0 !important;
     border-radius: 999px !important;
-    margin: 4px 4px 4px 6px;
+    margin: 0 !important;
     padding: 0 !important;
     display: inline-flex;
     align-items: center;
