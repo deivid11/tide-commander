@@ -63,6 +63,150 @@ function getHistoryDebugHash(message: EnrichedHistoryMessage): string {
   return `${flags}:${(hash >>> 0).toString(16).slice(0, 6)}`;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// History metadata tooltip — the replay-side equivalent of
+// OutputLine.tsx's MessageMetadataTooltip.
+//
+// HistoryLine was rendering a bare `<span.output-timestamp>` with no
+// click handler and no tooltip component mounted, so clicking the info
+// chip did nothing for historical messages. The Flat UI repainted that
+// span as a 22px info chip, which made the "dead click" obvious.
+//
+// This component mirrors the shared `.msg-meta-tooltip` markup/styles
+// exactly (so _output.scss:585 handles all the visuals) and exposes the
+// subset of fields that are available on an EnrichedHistoryMessage.
+// ─────────────────────────────────────────────────────────────────────────
+function HistoryMessageMetadataTooltip({
+  message,
+  timestampMs,
+  debugHash,
+  agentId,
+  onClose,
+}: {
+  message: EnrichedHistoryMessage;
+  timestampMs: number;
+  debugHash: string;
+  agentId: string | null;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation(['tools']);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (tooltipRef.current && !tooltipRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose]);
+
+  const copyField = (value: string) => {
+    navigator.clipboard.writeText(value);
+  };
+
+  const fullTime = timestampMs ? new Date(timestampMs).toISOString() : '(unknown)';
+
+  const copyAll = () => {
+    const data: Record<string, unknown> = {
+      hash: debugHash,
+      type: message.type,
+      timestamp: timestampMs,
+      iso: fullTime,
+      agentId: agentId || null,
+      source: 'history',
+      textLen: message.content.length,
+      textPreview: message.content.slice(0, 120),
+    };
+    if (message.toolName) data.toolName = message.toolName;
+    navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+  };
+
+  const rows: Array<{ label: string; value: string; mono?: boolean }> = [
+    { label: 'Hash', value: debugHash, mono: true },
+    { label: 'Type', value: message.type },
+    { label: 'Source', value: 'history' },
+    { label: 'Agent', value: agentId || '(none)', mono: true },
+    { label: 'Time', value: fullTime, mono: true },
+    { label: 'Epoch', value: String(timestampMs || 0), mono: true },
+    { label: 'Text', value: `[${message.content.length} chars] ${message.content.slice(0, 120)}`, mono: true },
+  ];
+  if (message.toolName) rows.push({ label: 'Tool', value: message.toolName });
+
+  return (
+    <div className="msg-meta-tooltip" ref={tooltipRef}>
+      <div className="msg-meta-tooltip__header">
+        <span>{t('tools:metadata.messageInfo')}</span>
+        <div className="msg-meta-tooltip__actions">
+          <button className="msg-meta-tooltip__copy-all" onClick={copyAll} title={t('tools:metadata.copyAllAsJSON')}>JSON</button>
+          <button className="msg-meta-tooltip__close" onClick={onClose}>&times;</button>
+        </div>
+      </div>
+      <div className="msg-meta-tooltip__body">
+        {rows.map(({ label, value, mono }) => (
+          <div key={label} className="msg-meta-tooltip__row">
+            <span className="msg-meta-tooltip__label">{label}</span>
+            <span
+              className={`msg-meta-tooltip__value ${mono ? 'mono' : ''}`}
+              onClick={() => copyField(value)}
+              title={t('tools:metadata.clickToCopy')}
+            >
+              {value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Clickable history timestamp that opens the metadata tooltip.
+// Drop-in replacement for the bare `<span.output-timestamp>` spans that
+// were scattered through HistoryLine's render paths.
+function HistoryTimestampWithMeta({
+  message,
+  timeStr,
+  timestampMs,
+  debugHash,
+  agentId,
+}: {
+  message: EnrichedHistoryMessage;
+  timeStr: string;
+  timestampMs: number;
+  debugHash: string;
+  agentId: string | null;
+}) {
+  const { t } = useTranslation(['tools']);
+  const [showMeta, setShowMeta] = useState(false);
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowMeta(prev => !prev);
+  }, []);
+  const handleClose = useCallback(() => setShowMeta(false), []);
+
+  return (
+    <span className="output-timestamp-wrapper">
+      <span
+        className="output-timestamp output-timestamp--clickable"
+        onClick={handleClick}
+        title={t('tools:metadata.clickForMessageInfo')}
+      >
+        {timeStr} <span style={{ fontSize: '9px', color: '#888', fontFamily: 'monospace' }}>[{debugHash}]</span>
+      </span>
+      {showMeta && (
+        <HistoryMessageMetadataTooltip
+          message={message}
+          timestampMs={timestampMs}
+          debugHash={debugHash}
+          agentId={agentId}
+          onClose={handleClose}
+        />
+      )}
+    </span>
+  );
+}
+
 export const HistoryLine = memo(function HistoryLine({
   message,
   agentId,
@@ -121,7 +265,7 @@ export const HistoryLine = memo(function HistoryLine({
   if (type === 'assistant' && !content.trim()) {
     return (
       <div className="output-line output-empty-message">
-        {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
+        {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
         <span className="history-role">
           {provider && (
             <img
@@ -147,7 +291,7 @@ export const HistoryLine = memo(function HistoryLine({
         onClick={() => setSessionExpanded(!sessionExpanded)}
         title={t('terminal:history.clickToExpandCollapse')}
       >
-        {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
+        {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
         <span className="session-continuation-icon"><Icon name="link" size={14} /></span>
         <span className="session-continuation-label">{t('tools:display.sessionContinued')}</span>
         <span className="session-continuation-toggle"><Icon name={sessionExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
@@ -454,7 +598,7 @@ export const HistoryLine = memo(function HistoryLine({
       if (toolName === 'TodoWrite' && toolInputContent) {
         return (
           <div className={`output-line output-tool-use output-tool-simple output-todo-inline`}>
-            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
@@ -475,7 +619,7 @@ export const HistoryLine = memo(function HistoryLine({
         if (hasQuestions) {
           return (
             <div className={`output-line output-tool-use output-tool-simple output-ask-question-inline`}>
-              {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+              {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
               {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
               <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
               <span className="output-tool-name">{displayToolName}</span>
@@ -489,7 +633,7 @@ export const HistoryLine = memo(function HistoryLine({
       if (toolName === 'ExitPlanMode' && toolInputContent) {
         return (
           <div className={`output-line output-tool-use output-tool-simple output-plan-inline`}>
-            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
@@ -506,7 +650,7 @@ export const HistoryLine = memo(function HistoryLine({
             style={isBashTool ? { cursor: 'pointer' } : undefined}
             title={isBashTool ? t('tools:display.clickToViewOutput') : undefined}
           >
-            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
@@ -667,7 +811,7 @@ export const HistoryLine = memo(function HistoryLine({
       return (
         <>
           <div className="output-line output-tool-use">
-            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
@@ -684,7 +828,7 @@ export const HistoryLine = memo(function HistoryLine({
       return (
         <>
           <div className="output-line output-tool-use">
-            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
@@ -701,7 +845,7 @@ export const HistoryLine = memo(function HistoryLine({
       return (
         <>
           <div className="output-line output-tool-use">
-            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
@@ -718,7 +862,7 @@ export const HistoryLine = memo(function HistoryLine({
       return (
         <>
           <div className="output-line output-tool-use">
-            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
@@ -735,7 +879,7 @@ export const HistoryLine = memo(function HistoryLine({
       return (
         <>
           <div className="output-line output-tool-use">
-            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name="bolt" size={14} /></span>
             <span className="output-tool-name">ToolSearch</span>
@@ -751,7 +895,7 @@ export const HistoryLine = memo(function HistoryLine({
       return (
         <>
           <div className="output-line output-tool-use">
-            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name="bolt" size={14} /></span>
             <span className="output-tool-name">ToolSearch</span>
@@ -767,7 +911,7 @@ export const HistoryLine = memo(function HistoryLine({
     return (
       <>
         <div className="output-line output-tool-use">
-          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+          {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
@@ -795,7 +939,7 @@ export const HistoryLine = memo(function HistoryLine({
       const isTruncated = content.includes('... (truncated,');
       return (
         <div className={`output-line output-bash-result ${isBashError ? 'is-error' : ''}`}>
-          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+          {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
           <div className="bash-output-container">
             <div className="bash-output-header">
               <span className="bash-output-icon">$</span>
@@ -810,7 +954,7 @@ export const HistoryLine = memo(function HistoryLine({
 
     return (
       <div className={`output-line output-tool-result ${isError ? 'is-error' : ''}`}>
-        {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+        {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
         <span className="output-result-icon"><Icon name={isError ? 'failure' : 'check'} size={12} /></span>
         <pre className="output-result-content">{highlightText(content, highlight)}</pre>
       </div>
@@ -832,7 +976,7 @@ export const HistoryLine = memo(function HistoryLine({
     if (delegatedTaskParsed.isDelegatedTask) {
       return (
         <div className={className}>
-          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+          {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
           <span className="history-content">
             <DelegatedTaskMessage bossName={delegatedTaskParsed.bossName} bossId={delegatedTaskParsed.bossId} taskCommand={delegatedTaskParsed.taskCommand} />
           </span>
@@ -845,7 +989,7 @@ export const HistoryLine = memo(function HistoryLine({
     if (taskReportParsed.isTaskReport) {
       return (
         <div className={className}>
-          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+          {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
           <span className="history-content">
             {parsedBoss.hasContext && parsedBoss.context && (
               <BossContext key={`boss-${timestamp || content.slice(0, 50)}`} context={parsedBoss.context} onFileClick={onFileClick ? (path) => onFileClick(path) : undefined} />
@@ -866,7 +1010,7 @@ export const HistoryLine = memo(function HistoryLine({
     if (subagentNotif.hasNotification) {
       return (
         <div className={className}>
-          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+          {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
           <span className="history-content">
             <SubagentNotificationDisplay agentId={subagentNotif.agentId} status={subagentNotif.status} />
             {subagentNotif.contentWithoutNotification && (
@@ -885,7 +1029,7 @@ export const HistoryLine = memo(function HistoryLine({
 
     return (
       <div className={className}>
-        {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+        {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
         <span className="history-role history-role-chip">{t('common:labels.you')}</span>
         <span className="history-content user-prompt-text">
           {parsedBoss.hasContext && parsedBoss.context && (
@@ -908,7 +1052,7 @@ export const HistoryLine = memo(function HistoryLine({
   if (delegationParsed.hasDelegation || workPlanParsed.hasWorkPlan) {
     return (
       <div className={className}>
-        {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+        {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
         <span className="history-role">
           {!isSystemMessage && provider && (
             <img
@@ -972,7 +1116,7 @@ export const HistoryLine = memo(function HistoryLine({
 
   return (
     <div className={className}>
-      {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+      {timeStr && <HistoryTimestampWithMeta message={message} timeStr={timeStr} timestampMs={timestampMs} debugHash={debugHash} agentId={agentId || null} />}
       <span className={`history-role ${isUser ? 'history-role-chip' : ''}`}>
         {!isUser && !isSystemMessage && provider && (
           <img
