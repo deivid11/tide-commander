@@ -232,8 +232,7 @@
     "clearContextBtn": "コンテキストをクリア",
     "removePattern": "このパターンを削除",
     "agentsCount": "{{count}}エージェント",
-    "confidence": "信頼度: {{level}}",
-    "otherAgents": "他のエージェント"
+    "confidence": "信頼度: {{level}}"
   },
   "multiAgent": {
     "agentsSelected": "{{count}}エージェント選択中",

@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.73.0] - 2026-04-24
+
+### Added
+- **Claude `effort` field is now persisted to disk** — `StoredAgent` gains an `effort` property so the Claude reasoning-effort setting (`low`/`medium`/`high`/`xHigh`/`max`) survives server restarts and agent reloads. Previously the value lived only in memory and was lost between sessions
+
+### Changed
+- **SingleAgentPanel 3D preview enlarged** — the agent model preview grows from 80x80 to 180x130 for a more prominent view of the unit
+- **"Other Agents" list removed from SingleAgentPanel** — the in-panel sidebar of other agents (with its collapsible header and click-to-switch row) has been cut; agent switching stays available through the overview panel and other navigation affordances, and the single-agent panel now focuses strictly on the selected unit
+
 ## [1.72.0] - 2026-04-24
 
 ### Added

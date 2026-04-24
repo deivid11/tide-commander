@@ -20,11 +20,13 @@
 .unit-model-preview {
   display: flex;
   justify-content: center;
+  align-items: center;
   margin-bottom: 8px;
   background: rgba(0, 0, 0, 0.2);
   border-radius: $radius-md;
   overflow: hidden;
   padding: 4px;
+  min-height: 138px;
 }
 
 .unit-panel-header {
@@ -1507,85 +1509,3 @@
   margin-top: 4px;
 }
 
-// ── Other Agents Section ─────────────────────────────────────────────────────
-.unit-other-agents {
-  margin-bottom: 8px;
-  background: $bg-tertiary;
-  border-radius: $radius-md;
-  overflow: hidden;
-}
-
-.unit-other-agents-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 8px;
-  cursor: pointer;
-  user-select: none;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.03);
-  }
-}
-
-.unit-other-agents-toggle {
-  font-size: 8px;
-  color: $text-muted;
-}
-
-.unit-other-agents-list {
-  padding: 0 4px 4px;
-}
-
-.unit-other-agent-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 6px;
-  border-radius: $radius-sm;
-  cursor: pointer;
-  margin-bottom: 2px;
-  transition: background $transition-fast;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.05);
-  }
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-}
-
-.unit-other-agent-icon {
-  width: 18px;
-  height: 18px;
-  border-radius: $radius-sm;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  flex-shrink: 0;
-}
-
-.unit-other-agent-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.unit-other-agent-name {
-  font-size: 10px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.unit-other-agent-task {
-  font-size: 9px;
-  color: $text-muted;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
