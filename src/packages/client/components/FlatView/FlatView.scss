@@ -2528,5 +2528,62 @@ $middle-min-width: 280px;
     border: 1px solid #{color-mix(in srgb, $accent-green 30%, transparent)} !important;
     border-radius: 999px !important;
   }
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Agent overview list (left sidebar) — breathe the stack, drop the
+  // borders, promote the hover so the whole card lights up.
+  //
+  // Shared defaults live in
+  //   src/packages/client/styles/components/guake-terminal/_overview-panel.scss
+  // where:
+  //   - `.aop-agent-swipe`     : margin-bottom: 4px  (too tight)
+  //   - `.aop-agent-card`      : 1px border + 3px left accent stripe
+  //   - `.aop-agent-header`    : hover highlight only on the header row,
+  //                              leaving the avatar column un-highlighted
+  //
+  // We override all three under `.flat-terminal-wrapper` so the Flat UI
+  // build feels less compressed without touching other views.
+  // ───────────────────────────────────────────────────────────────────────
+
+  // Wider gap between cards — keeps the list scannable.
+  .aop-agent-swipe {
+    margin-bottom: 10px !important;
+  }
+
+  // Strip the card border + left accent stripe. Status signalling now
+  // lives entirely in the status chip inside the header + any background
+  // tint rules below.
+  .aop-agent-card {
+    border: 0 !important;
+    border-left: 0 !important;
+    box-shadow: none !important;
+    transition: background 0.15s ease !important;
+
+    // Hover paints the ENTIRE card, not just the header row.
+    &:hover {
+      background: color-mix(in srgb, var(--accent-purple) 12%, var(--bg-secondary)) !important;
+    }
+
+    // Null out the child-level hover so we don't double-paint and leave
+    // the avatar column looking like an un-highlighted stripe on hover.
+    .aop-agent-header:hover {
+      background: transparent !important;
+    }
+  }
+
+  // Status-tinted cards (boss / working / idle / unread / active) also
+  // drop the 1px + 3px borders the shared stylesheet adds, keeping the
+  // flat look consistent across every state. The tinted backgrounds
+  // they set remain intact.
+  .aop-agent-card.boss,
+  .aop-agent-card.active,
+  .aop-agent-card.working,
+  .aop-agent-card.compacting,
+  .aop-agent-card.error,
+  .aop-agent-card.idle,
+  .aop-agent-card.unread {
+    border: 0 !important;
+    border-left: 0 !important;
+  }
 }
 
