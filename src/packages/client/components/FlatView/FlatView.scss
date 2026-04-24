@@ -431,51 +431,214 @@ $middle-min-width: 280px;
     color: $text-primary;
   }
 
-  // Working agents: clearly visible moving shimmer band that sweeps across
-  // the chip. Uses background-position animation (universally supported, no
-  // @property / no mask-composite quirks). The base layer is a soft blue
-  // tint, the shimmer layer is a diagonal cyan band that travels right→left
-  // continuously. A static blue border + soft glow reinforce the "active"
-  // look so the working state stays legible even with reduced motion.
+  // Working agents: high-energy magical animation. Double shimmer band
+  // sweeping at different phases, an iridescent hue-cycling aura behind the
+  // chip, a breathing glow/border pulse, a heartbeat scale, a bouncy pulsing
+  // dot, and twinkling sparkle dots on top. Every layer runs at a different
+  // tempo so the chip never loops in lockstep — it feels alive.
   &.working {
-    background-color: rgba(74, 158, 255, 0.14);
-    background-image: linear-gradient(
-      110deg,
-      transparent 35%,
-      rgba(139, 233, 253, 0.55) 50%,
-      transparent 65%
-    );
-    background-size: 250% 100%;
-    background-repeat: no-repeat;
-    background-position: 150% 0;
-    border-color: rgba(74, 158, 255, 0.55);
+    overflow: visible;
+    isolation: isolate;
+    background-color: rgba(74, 158, 255, 0.12);
+    background-image:
+      linear-gradient(
+        100deg,
+        transparent 30%,
+        rgba(180, 230, 255, 0.45) 49%,
+        rgba(139, 220, 240, 0.3) 51%,
+        transparent 70%
+      ),
+      linear-gradient(
+        100deg,
+        transparent 32%,
+        rgba(139, 233, 253, 0.3) 50%,
+        transparent 68%
+      );
+    background-size: 220% 100%, 260% 100%;
+    background-repeat: no-repeat, no-repeat;
+    background-position: 150% 0, 150% 0;
+    border-color: rgba(139, 233, 253, 0.7);
     color: $text-primary;
-    box-shadow: 0 0 8px rgba(74, 158, 255, 0.35);
-    animation: flat-map-agent-working-shimmer 1.6s linear infinite;
+    box-shadow:
+      0 0 8px rgba(74, 158, 255, 0.35),
+      inset 0 0 0 1px rgba(139, 233, 253, 0);
+    transform-origin: center;
+    will-change: transform, background-position, box-shadow, border-color;
+    animation:
+      flat-map-agent-working-shimmer 0.75s linear infinite,
+      flat-map-agent-working-shimmer-2 1.15s linear infinite,
+      flat-map-agent-working-pulse 1.1s ease-in-out infinite,
+      flat-map-agent-working-beat 0.85s ease-in-out infinite,
+      flat-map-agent-working-iris 3.2s linear infinite;
+
+    // Living iridescent aura. It rotates, but also inhales/exhales (scale)
+    // and dims/brightens (opacity) on independent tempos so the motion never
+    // feels mechanical — more like a soft halo drawing breath.
+    &::before {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: inherit;
+      pointer-events: none;
+      z-index: -1;
+      background: conic-gradient(
+        from 0deg,
+        rgba(139, 233, 253, 0.0),
+        rgba(139, 200, 253, 0.55),
+        rgba(160, 130, 230, 0.5),
+        rgba(220, 130, 200, 0.45),
+        rgba(220, 180, 130, 0.4),
+        rgba(139, 200, 253, 0.55),
+        rgba(139, 233, 253, 0.0)
+      );
+      filter: blur(8px);
+      transform-origin: center;
+      will-change: transform, opacity;
+      animation:
+        flat-map-agent-working-spin 3.8s linear infinite,
+        flat-map-agent-working-breath 2.6s ease-in-out infinite;
+    }
+
+    // Subtle sparkle dust — soft twinkle, not fireworks.
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      z-index: 1;
+      background-image:
+        radial-gradient(1px 1px at 18% 32%, rgba(255, 255, 255, 0.7) 0%, transparent 60%),
+        radial-gradient(1px 1px at 72% 58%, rgba(200, 240, 255, 0.65) 0%, transparent 60%),
+        radial-gradient(1.5px 1.5px at 42% 80%, rgba(220, 200, 255, 0.55) 0%, transparent 60%),
+        radial-gradient(1px 1px at 88% 22%, rgba(255, 255, 255, 0.6) 0%, transparent 60%),
+        radial-gradient(1px 1px at 12% 70%, rgba(210, 190, 255, 0.55) 0%, transparent 60%),
+        radial-gradient(1px 1px at 58% 18%, rgba(255, 255, 255, 0.55) 0%, transparent 60%);
+      mix-blend-mode: screen;
+      opacity: 0.5;
+      animation: flat-map-agent-working-twinkle 1.9s ease-in-out infinite;
+    }
 
     .flat-map-agent-chip__dot {
+      position: relative;
+      z-index: 2;
       box-shadow: 0 0 6px rgba(74, 158, 255, 0.7);
+      animation: flat-map-agent-working-dot 0.65s ease-in-out infinite;
+    }
+
+    .flat-map-agent-chip__name,
+    .flat-map-agent-chip__provider-icon,
+    .flat-map-agent-chip__crown {
+      position: relative;
+      z-index: 2;
     }
   }
 
   @keyframes flat-map-agent-working-shimmer {
-    0%   { background-position: 150% 0; }
-    100% { background-position: -50% 0; }
+    0%   { background-position: 150% 0, 150% 0; }
+    100% { background-position: -70% 0, 150% 0; }
   }
 
-  // Reduced-motion: keep the shimmer visible but slow it WAY down (5s) and
-  // soften the band so it's calmer rather than removed entirely. Respects
-  // the spirit of `prefers-reduced-motion: reduce` (no fast/distracting
-  // motion) without dropping the working-state cue altogether.
+  @keyframes flat-map-agent-working-shimmer-2 {
+    0%   { background-position: 150% 0, 150% 0; }
+    100% { background-position: 150% 0, -70% 0; }
+  }
+
+  @keyframes flat-map-agent-working-pulse {
+    0%, 100% {
+      border-color: rgba(74, 158, 255, 0.55);
+      box-shadow:
+        0 0 6px rgba(74, 158, 255, 0.35),
+        inset 0 0 0 1px rgba(139, 233, 253, 0);
+    }
+    50% {
+      border-color: rgba(180, 250, 255, 1);
+      box-shadow:
+        0 0 18px rgba(74, 158, 255, 0.8),
+        0 0 30px rgba(139, 233, 253, 0.35),
+        inset 0 0 0 1px rgba(180, 250, 255, 0.55);
+    }
+  }
+
+  @keyframes flat-map-agent-working-beat {
+    0%, 100% { transform: scale(1); }
+    35%      { transform: scale(1.035); }
+    55%      { transform: scale(0.99); }
+    75%      { transform: scale(1.015); }
+  }
+
+  @keyframes flat-map-agent-working-dot {
+    0%, 100% {
+      transform: scale(1);
+      box-shadow: 0 0 6px rgba(74, 158, 255, 0.7);
+    }
+    50% {
+      transform: scale(1.7);
+      box-shadow:
+        0 0 12px rgba(180, 250, 255, 1),
+        0 0 22px rgba(74, 158, 255, 0.7);
+    }
+  }
+
+  @keyframes flat-map-agent-working-iris {
+    0%   { border-color: rgba(139, 233, 253, 0.7); }
+    25%  { border-color: rgba(180, 130, 255, 0.85); }
+    50%  { border-color: rgba(255, 120, 220, 0.8); }
+    75%  { border-color: rgba(255, 200, 120, 0.75); }
+    100% { border-color: rgba(139, 233, 253, 0.7); }
+  }
+
+  @keyframes flat-map-agent-working-spin {
+    0%   { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  // Breathing: gentle in/out on opacity + blur so the aura feels alive.
+  // Asymmetric timing (inhale faster than exhale) reads as organic.
+  @keyframes flat-map-agent-working-breath {
+    0%, 100% { opacity: 0.3;  filter: blur(7px); }
+    40%      { opacity: 0.7;  filter: blur(11px); }
+    70%      { opacity: 0.45; filter: blur(8px); }
+  }
+
+  @keyframes flat-map-agent-working-twinkle {
+    0%, 100% { opacity: 0.25; transform: translate(0, 0) scale(0.9); }
+    25%      { opacity: 1;    transform: translate(1px, -1px) scale(1.1); }
+    50%      { opacity: 0.55; transform: translate(-1px, 1px) scale(0.95); }
+    75%      { opacity: 1;    transform: translate(1px, 1px) scale(1.15); }
+  }
+
+  // Reduced-motion: keep the state legible but drop the energetic motion.
+  // Shimmer is slowed dramatically, the pulse/dot animations are disabled,
+  // and the band is softened. Respects `prefers-reduced-motion: reduce`
+  // without dropping the working-state cue altogether.
   @media (prefers-reduced-motion: reduce) {
     &.working {
-      animation-duration: 5s;
-      background-image: linear-gradient(
-        110deg,
-        transparent 40%,
-        rgba(139, 233, 253, 0.30) 50%,
-        transparent 60%
-      );
+      animation: flat-map-agent-working-shimmer 5s linear infinite;
+      background-image:
+        linear-gradient(
+          110deg,
+          transparent 40%,
+          rgba(139, 233, 253, 0.30) 50%,
+          transparent 60%
+        ),
+        linear-gradient(
+          110deg,
+          transparent 40%,
+          rgba(139, 233, 253, 0.0) 50%,
+          transparent 60%
+        );
+      transform: none;
+
+      &::before,
+      &::after {
+        animation: none;
+        opacity: 0.3;
+      }
+
+      .flat-map-agent-chip__dot {
+        animation: none;
+      }
     }
   }
 
@@ -552,7 +715,7 @@ $middle-min-width: 280px;
   // When a side panel is open, push chat content left so the two don't
   // overlap. Mirrors the 3D Guake behavior where the chat shrinks to make
   // room for the side panel instead of being overlaid.
-  &--with-side-panel > *:not(.guake-git-panel):not(.guake-buildings-panel):not(.guake-workflow-panel) {
+  &--with-side-panel > *:not(.guake-git-panel):not(.guake-buildings-panel):not(.guake-workflow-panel):not(.agent-debug-panel) {
     margin-right: var(--guake-side-panel-width);
     transition: margin-right 0.2s ease;
   }
@@ -1426,9 +1589,29 @@ $middle-min-width: 280px;
 }
 
 // ============================================================================
+// Mobile sidebar toggle + backdrop (only active on narrow viewports)
+// ----------------------------------------------------------------------------
+// On mobile the agents column collapses into a slide-in drawer, so we surface
+// a dedicated toggle button + backdrop here. Both are hidden on desktop and
+// become visible only inside the `@media (max-width: 1024px)` block below.
+// ============================================================================
+
+.flat-mobile-sidebar-toggle {
+  display: none;
+}
+
+.flat-mobile-sidebar-backdrop {
+  display: none;
+}
+
+// ============================================================================
 // Responsive
 // ============================================================================
 
+// Tablet + mobile: collapse to a single column where the chat/flat-map always
+// fills the viewport, and the agents list slides in from the left as a
+// drawer. The `flat-view--mobile-sidebar-open` class is toggled by the
+// in-view toggle button.
 @media (max-width: 1024px) {
   .flat-view {
     grid-template-columns: 1fr;
@@ -1438,9 +1621,266 @@ $middle-min-width: 280px;
     }
   }
 
-  .flat-right,
+  // Chat / flat-map is always visible on mobile — no matter whether an agent
+  // is selected. When none is, the right column shows the flat-map empty
+  // state; when one is, it shows the chat pane.
+  .flat-right {
+    grid-column: 1 / -1;
+  }
+
+  // When the agents toggle button is rendered at the top of flat-right, the
+  // chat/flat-map below it needs to claim the remaining height rather than
+  // trying to be 100% of the parent (which would push the button off-screen).
+  .flat-right > .flat-terminal-wrapper,
+  .flat-right > .flat-chat {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+  }
+
+  // Agents column becomes a fixed drawer anchored to the left edge. Hidden
+  // offscreen by default, slides in when the mobile toggle is activated.
+  .flat-middle {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(340px, 86vw);
+    z-index: 185;
+    transform: translateX(-110%);
+    transition: transform 0.22s ease;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.45);
+  }
+
+  .flat-view--mobile-sidebar-open .flat-middle {
+    transform: translateX(0);
+  }
+
+  // Toggle button: docked at the top of .flat-right as a pill, visible on
+  // mobile only. Rendered inline (not fixed) so it doesn't overlap the FAB
+  // hamburger at the page's top-left edge.
+  .flat-mobile-sidebar-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    margin: 10px 12px 0;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    color: $text-primary;
+    background: rgba($bg-card, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    cursor: pointer;
+    min-height: 36px;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease;
+
+    &:hover,
+    &:active {
+      background: rgba($accent-purple, 0.28);
+      border-color: rgba($accent-purple, 0.5);
+    }
+
+    &__label {
+      line-height: 1;
+    }
+  }
+
+  // Backdrop: dims the chat/flat-map behind the drawer and captures taps
+  // to dismiss it.
+  .flat-mobile-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 184;
+    background: rgba(0, 0, 0, 0.45);
+    animation: flat-inspector-fade-in 0.18s ease;
+  }
+
+  // Inspector renders as a fullscreen overlay on narrow viewports so it
+  // doesn't compete with the chat/agent columns for horizontal space.
   .flat-inspector {
+    position: fixed;
+    inset: 0;
+    z-index: 186;
+    border-left: none;
+    animation: flat-inspector-fade-in 0.18s ease;
+
+    // Leave room on the left for the floating FAB toggle (44px at left:12 →
+    // 56px right-edge). Apply padding to the header only — the body already
+    // fills the viewport and uses standard padding.
+    &__header {
+      padding-left: 64px;
+    }
+  }
+}
+
+// Tablet tweak: smaller left gutter and lighter header paddings. The FAB
+// stack on the left edge needs ~56px at most on narrow phones.
+@media (max-width: 768px) {
+  .flat-view {
+    // FAB toggle is 44px wide at left:12 → ~56px. Keep a bit of breathing
+    // room but reclaim space vs. the desktop 64px gutter.
+    padding-left: 56px;
+  }
+
+  // Agents column header: allow actions to wrap under the title if
+  // horizontal room runs out instead of overflowing off-screen.
+  .flat-middle__header {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .flat-middle__content {
+    padding: 8px;
+  }
+
+  // CTA buttons: bump tap-target height and space them a little more.
+  .flat-cta-btn {
+    padding: 8px 10px;
+    font-size: 11px;
+    min-height: 34px;
+  }
+
+  // Empty-state map grid tightens up; single column already kicks in above.
+  .flat-map {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .flat-map-area-card__agents {
+    gap: 6px;
+  }
+
+  .flat-map-agent-chip {
+    padding: 7px 10px 9px;
+    font-size: 12px;
+    min-height: 34px;
+  }
+
+  // Chat header: allow chips / controls to wrap onto a second row instead
+  // of overflowing horizontally, and tighten inner spacing.
+  .flat-terminal-wrapper__header {
+    flex-wrap: wrap;
+    padding: 6px 10px;
+    gap: 8px;
+    min-height: 44px;
+  }
+
+  .flat-terminal-wrapper__header-main {
+    flex: 1 1 100%;
+  }
+
+  .flat-terminal-wrapper__header-meta {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  // Hide the task chip — redundant with the agent name on a cramped header.
+  .flat-terminal-wrapper__header-task {
     display: none;
+  }
+
+  // Status bar: let chips wrap to avoid horizontal scroll.
+  .flat-terminal-wrapper__statusbar {
+    flex-wrap: wrap;
+    padding: 6px 10px;
+    gap: 6px;
+    row-gap: 6px;
+  }
+
+  // Action buttons: wider tap targets on touch devices.
+  .flat-terminal-wrapper__action-btn,
+  .flat-terminal-wrapper__building-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .flat-terminal-wrapper__close {
+    width: 32px;
+    height: 32px;
+  }
+
+  // Side panel (git / buildings / debug) should overlay on mobile — there
+  // isn't room to push chat content left by 380px.
+  .flat-terminal-wrapper {
+    --guake-side-panel-width: 100%;
+  }
+
+  .flat-terminal-wrapper--with-side-panel > *:not(.guake-git-panel):not(.guake-buildings-panel):not(.guake-workflow-panel):not(.agent-debug-panel) {
+    margin-right: 0;
+  }
+
+  .flat-terminal-wrapper .guake-git-panel,
+  .flat-terminal-wrapper .guake-buildings-panel,
+  .flat-terminal-wrapper .guake-workflow-panel,
+  .flat-terminal-wrapper .agent-debug-panel {
+    width: 100%;
+  }
+
+  // Bottom embedded panel: shorter default height on mobile so it doesn't
+  // swallow most of the chat area.
+  .flat-bottom-panel {
+    height: 180px;
+  }
+}
+
+// Phone: tightest layout. Reserve just enough space for the FAB toggle and
+// compact chrome so the agent list is the dominant surface.
+@media (max-width: 480px) {
+  .flat-view {
+    // FAB button is 44px wide at left:12 → 56px right-edge. Give it a
+    // hair of breathing room but no more.
+    padding-left: 52px;
+  }
+
+  .flat-middle__header {
+    padding: 8px 10px;
+  }
+
+  .flat-middle__title {
+    font-size: 13px;
+  }
+
+  .flat-middle__actions {
+    gap: 4px;
+  }
+
+  .flat-cta-btn {
+    padding: 6px 8px;
+    font-size: 10px;
+    min-height: 32px;
+  }
+
+  .flat-map-area-card__header {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  .flat-map-agent-chip {
+    font-size: 12px;
+    padding: 6px 8px 8px;
+  }
+
+  // Chat: shrink title typography so more room is left for status chips.
+  .flat-terminal-wrapper__header-name {
+    font-size: 12px;
+  }
+
+  .flat-terminal-wrapper__header-model-chip {
+    font-size: 9px;
+    max-width: 130px;
+  }
+
+  // Fullscreen inspector overlay uses the standard header close, so the
+  // body should fill the viewport.
+  .flat-inspector__body {
+    padding-bottom: env(safe-area-inset-bottom, 0);
   }
 }
 
@@ -1452,6 +1892,11 @@ $middle-min-width: 280px;
       grid-template-columns: minmax($middle-min-width, 400px) 1fr 360px;
     }
   }
+}
+
+@keyframes flat-inspector-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 // ============================================================================

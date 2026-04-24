@@ -27,10 +27,13 @@ import type { ToolExecution, ClaudeOutput } from '../../store/types';
 import type { TwoFingerSelectorState } from '../../hooks/useTwoFingerSelector';
 import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
+import { findFreeAreaSpot } from '../../utils/areaPlacement';
+import { AREA_COLORS } from '../../utils/colors';
 import { WorkspaceSwitcher, useWorkspaceFilter, isAgentVisibleInWorkspace } from '../WorkspaceSwitcher';
 import { BulkManageModal } from '../BulkManageModal';
 import { AgentIcon } from '../AgentIcon';
 import { Icon, type IconName } from '../Icon';
+import { useHasDraft } from '../../utils/agentDrafts';
 
 /** Persisted config shape for the overview panel */
 interface AopConfig {
@@ -672,6 +675,39 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     }));
   }, []);
 
+  const requestBossSpawnForArea = useCallback((area: DrawingArea) => {
+    window.dispatchEvent(new CustomEvent('tide:open-boss-spawn-modal', {
+      detail: {
+        areaId: area.id,
+        position: {
+          x: area.center.x,
+          z: area.center.z,
+        },
+      },
+    }));
+  }, []);
+
+  const createNewAreaNear = useCallback((origin: { x: number; z: number } | null) => {
+    const DEFAULT_SIZE = 8;
+    const allAreas = Array.from(store.getState().areas.values());
+    const spot = findFreeAreaSpot(allAreas, DEFAULT_SIZE, DEFAULT_SIZE, origin ?? { x: 0, z: 0 });
+    const visibleCount = allAreas.filter(a => !a.archived).length;
+    const randomSuffix = Math.random().toString(36).slice(2, 11);
+    const newArea: DrawingArea = {
+      id: `area_${Date.now()}_${randomSuffix}`,
+      name: `Area ${visibleCount + 1}`,
+      type: 'rectangle',
+      center: spot,
+      width: DEFAULT_SIZE,
+      height: DEFAULT_SIZE,
+      color: AREA_COLORS[visibleCount % AREA_COLORS.length],
+      zIndex: store.getNextZIndex(),
+      assignedAgentIds: [],
+      directories: [],
+    };
+    store.addArea(newArea);
+  }, []);
+
   const openAreaContextMenu = useCallback((area: DrawingArea, position: { x: number; y: number }) => {
     setAreaContextMenu({
       areaId: area.id,
@@ -691,8 +727,20 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         icon: '+',
         onClick: () => requestSpawnForArea(area),
       },
+      {
+        id: 'spawn-boss',
+        label: t('terminal:overview.newBoss', { defaultValue: 'New Boss' }),
+        icon: <Icon name="crown" size={14} />,
+        onClick: () => requestBossSpawnForArea(area),
+      },
+      {
+        id: 'new-area',
+        label: t('terminal:overview.newArea', { defaultValue: 'New Area' }),
+        icon: <Icon name="target" size={14} />,
+        onClick: () => createNewAreaNear(area.center),
+      },
     ];
-  }, [areaContextMenu, areas, requestSpawnForArea, t]);
+  }, [areaContextMenu, areas, requestSpawnForArea, requestBossSpawnForArea, createNewAreaNear, t]);
 
   const agentContextMenuActions = useMemo((): ContextMenuAction[] => {
     if (!agentContextMenu) return [];
@@ -943,6 +991,15 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
                     className="aop-area-header"
                     data-area-id={areaKey}
                     onClick={() => toggleArea(areaKey)}
+                    onContextMenu={(event) => {
+                      if (!group.area) return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      openAreaContextMenu(group.area, {
+                        x: event.clientX,
+                        y: event.clientY,
+                      });
+                    }}
                     style={{ borderLeftColor: areaColor }}
                   >
                     <span className="aop-area-expand"><Icon name={isCollapsed ? 'caret-right' : 'caret-down'} size={10} /></span>
@@ -1131,6 +1188,7 @@ const AgentCard = React.memo(function AgentCard({
   const classConfig = getClassConfig(agent.class, customClasses);
   const isBossAgent = agent.isBoss || agent.class === 'boss';
   const isCompacting = useAgentCompacting(agent.id);
+  const hasDraft = useHasDraft(agent.id);
   const _statusIcon = STATUS_ICONS[agent.status] || '❓';
   const _statusLabel = STATUS_LABEL_KEYS[agent.status] ? t(`terminal:${STATUS_LABEL_KEYS[agent.status]}`) : agent.status;
   const recentTools = toolExecs.slice(0, isMobile ? 4 : 8);
@@ -1335,13 +1393,21 @@ const AgentCard = React.memo(function AgentCard({
         <span
           className="aop-agent-name"
           title={t('terminal:overview.clickToSwitch')}
-          style={areaInfo ? { background: `${areaInfo.color}12`, borderColor: `${areaInfo.color}28` } : undefined}
         >
           {isBossAgent && <span className="aop-boss-crown" aria-hidden="true"><Icon name="crown" size={12} color="#ffd700" weight="fill" /></span>}
           {agent.name}
         </span>
         {hasPendingRead && (
           <span className="aop-pending-read-indicator" title="Pending read">!</span>
+        )}
+        {hasDraft && (
+          <span
+            className="aop-draft-indicator"
+            title={t('terminal:overview.hasDraft', { defaultValue: 'Has unsent draft' })}
+            aria-label={t('terminal:overview.hasDraft', { defaultValue: 'Has unsent draft' })}
+          >
+            <Icon name="edit" size={10} />
+          </span>
         )}
         {msgCount > 0 && (
           <span className="aop-msg-count" title={t('terminal:overview.messages', { count: msgCount })}>

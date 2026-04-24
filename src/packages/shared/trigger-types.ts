@@ -104,9 +104,13 @@ export interface JiraTrigger extends BaseTrigger {
 export interface CronTrigger extends BaseTrigger {
   type: 'cron';
   config: {
-    expression: string;               // Cron expression (e.g. "0 9 * * MON-FRI")
+    expression: string;               // Cron expression (e.g. "0 9 * * MON-FRI"). Required when runOnce is false/undefined.
     timezone: string;                 // IANA timezone (e.g. "America/Mexico_City")
     payload?: Record<string, string>; // Static variables injected into promptTemplate
+    runOnce?: boolean;                // If true, fire exactly once at runAt then auto-disable
+    runAt?: string;                   // ISO 8601 absolute datetime (UTC). Required when runOnce is true.
+    completedAt?: number;             // Epoch ms when the one-shot fired successfully
+    missedAt?: number;                // Epoch ms when a one-shot was detected as missed on restart
   };
 }
 

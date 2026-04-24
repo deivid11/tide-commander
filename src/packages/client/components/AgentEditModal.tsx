@@ -10,7 +10,8 @@ import { KeyCaptureInput } from './KeyCaptureInput';
 import { ModelPreview } from './ModelPreview';
 import { FolderInput } from './shared/FolderInput';
 import { OpencodeModelSelect } from './OpencodeModelSelect';
-import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig } from '../../shared/types';
+import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
+import { CODEX_REASONING_EFFORTS } from '../../shared/types';
 import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../shared/types';
 import { ShortcutConfig, formatShortcutString, parseShortcutString, shortcutValueToString } from '../store/shortcuts';
 import { apiUrl } from '../utils/storage';
@@ -626,6 +627,18 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                       value={codexConfig.profile || ''}
                       onChange={(e) => setCodexConfig((prev) => ({ ...prev, profile: e.target.value || undefined }))}
                     />
+                    <select
+                      className="spawn-input"
+                      value={codexConfig.reasoningEffort || ''}
+                      onChange={(e) => setCodexConfig((prev) => ({ ...prev, reasoningEffort: (e.target.value || undefined) as CodexReasoningEffort | undefined }))}
+                    >
+                      <option value="">{t('terminal:spawn.codex.reasoningEffortDefault')}</option>
+                      {(Object.keys(CODEX_REASONING_EFFORTS) as CodexReasoningEffort[]).map((level) => (
+                        <option key={level} value={level}>
+                          {CODEX_REASONING_EFFORTS[level].icon} {t('terminal:spawn.codex.reasoningEffort')}: {CODEX_REASONING_EFFORTS[level].label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>

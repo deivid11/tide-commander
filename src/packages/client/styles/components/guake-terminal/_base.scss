@@ -536,8 +536,14 @@
     padding: 4px 0 0 4px;
   }
 
-  // Custom scrollbar matching Commander's theme
-  .xterm-viewport {
+  // Custom scrollbar matching Commander's theme.
+  // xterm.js paints the theme's background color on .xterm-viewport; we
+  // override with transparent so the embed container's background is the
+  // single source of truth — eliminates the extra dark band the user saw
+  // at the top of the embedded terminal panel.
+  .xterm .xterm-viewport {
+    background-color: transparent !important;
+
     &::-webkit-scrollbar { width: 6px; }
     &::-webkit-scrollbar-track { background: transparent; }
     &::-webkit-scrollbar-thumb { background: rgba(98, 114, 164, 0.4); border-radius: 3px; }

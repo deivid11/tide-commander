@@ -167,6 +167,7 @@ export function AppModals({
         onSpawnStart={() => {}}
         onSpawnEnd={() => {}}
         spawnPosition={spawnPosition}
+        spawnAreaId={spawnAreaId}
       />
 
       <SubordinateAssignmentModal

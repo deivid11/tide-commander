@@ -611,7 +611,15 @@ function AppContent() {
       if (detail?.agentId) agentEditModal.open(detail.agentId);
     };
 
+    const handleOpenBossSpawnModal = (event: Event) => {
+      const detail = (event as CustomEvent<{ areaId?: string; position?: { x: number; z: number } }>).detail;
+      setSpawnAreaId(detail?.areaId || null);
+      setSpawnPosition(detail?.position || null);
+      bossSpawnModal.open();
+    };
+
     window.addEventListener('tide:open-spawn-modal', handleOpenSpawnModal as EventListener);
+    window.addEventListener('tide:open-boss-spawn-modal', handleOpenBossSpawnModal as EventListener);
     window.addEventListener('tide:building-action', handleBuildingAction as EventListener);
     window.addEventListener('tide:building-edit', handleBuildingEdit as EventListener);
     window.addEventListener('tide:building-create', handleBuildingCreate as EventListener);
@@ -619,13 +627,14 @@ function AppContent() {
     window.addEventListener('tide:open-agent-edit', handleOpenAgentEdit as EventListener);
     return () => {
       window.removeEventListener('tide:open-spawn-modal', handleOpenSpawnModal as EventListener);
+      window.removeEventListener('tide:open-boss-spawn-modal', handleOpenBossSpawnModal as EventListener);
       window.removeEventListener('tide:building-action', handleBuildingAction as EventListener);
       window.removeEventListener('tide:building-edit', handleBuildingEdit as EventListener);
       window.removeEventListener('tide:building-create', handleBuildingCreate as EventListener);
       window.removeEventListener('tide:open-iframe-modal', handleOpenIframeModal as EventListener);
       window.removeEventListener('tide:open-agent-edit', handleOpenAgentEdit as EventListener);
     };
-  }, [spawnModal, buildingModal, agentEditModal]);
+  }, [spawnModal, bossSpawnModal, buildingModal, agentEditModal]);
 
   // Check if in drawing mode
   const isDrawingMode = activeTool === 'rectangle' || activeTool === 'circle';
@@ -659,35 +668,49 @@ function AppContent() {
       {/* FPS Meter */}
       <FPSMeter visible={settings.showFPS} position="bottom-right" />
 
-      {/* Workspace switcher as floating FAB (left rail) */}
-      <div className="fab-workspace-wrapper">
-        <WorkspaceSwitcher />
+      {/* Left-edge FAB rail. Single fixed-positioned scrollable column so
+          the stack doesn't overflow off the bottom on short viewports
+          (mobile landscape, small tablets). Children are rendered in normal
+          flow via CSS inside .fab-rail. */}
+      <div className="fab-rail">
+        <FloatingActionButtons
+          onOpenToolbox={toolboxModal.open}
+          onOpenSpotlight={spotlightModal.open}
+          onOpenCommander={commanderModal.open}
+          onOpenControls={controlsModal.open}
+          onOpenSkills={skillsModal.open}
+          onSpawnAgent={spawnModal.open}
+          onSpawnBoss={bossSpawnModal.open}
+          onNewBuilding={handleNewBuilding}
+          onNewArea={handleNewArea}
+        />
+        <div className="fab-workspace-wrapper">
+          <WorkspaceSwitcher />
+        </div>
+        {(viewMode === '2d' || viewMode === '3d') && (
+          <button
+            className="fab-spawn-btn fab-spawn-organize-btn"
+            disabled={isOrganizing}
+            aria-label="Auto-organize all agents in their areas"
+            title="Auto-organize all agents in their areas"
+            onClick={() => {
+              setIsOrganizing(true);
+              organizeAllAreas()
+                .then((result) => {
+                  applyOrganizeResult(result, sceneRef);
+                  showToast('success', 'Organized', `Arranged ${result.organized.length} agent${result.organized.length !== 1 ? 's' : ''}`);
+                })
+                .catch((err) => {
+                  console.error('organize all error:', err);
+                  showToast('error', 'Organize Failed', err.message || 'Failed to organize');
+                })
+                .finally(() => setIsOrganizing(false));
+            }}
+          >
+            <span className="fab-spawn-icon"><Icon name={isOrganizing ? 'hourglass' : 'sparkle'} size={18} /></span>
+          </button>
+        )}
       </div>
-
-      {/* Organize button — only relevant in 2D/3D scenes */}
-      {(viewMode === '2d' || viewMode === '3d') && (
-        <button
-          className="fab-spawn-btn fab-spawn-organize-btn"
-          disabled={isOrganizing}
-          aria-label="Auto-organize all agents in their areas"
-          title="Auto-organize all agents in their areas"
-          onClick={() => {
-            setIsOrganizing(true);
-            organizeAllAreas()
-              .then((result) => {
-                applyOrganizeResult(result, sceneRef);
-                showToast('success', 'Organized', `Arranged ${result.organized.length} agent${result.organized.length !== 1 ? 's' : ''}`);
-              })
-              .catch((err) => {
-                console.error('organize all error:', err);
-                showToast('error', 'Organize Failed', err.message || 'Failed to organize');
-              })
-              .finally(() => setIsOrganizing(false));
-          }}
-        >
-          <span className="fab-spawn-icon"><Icon name={isOrganizing ? 'hourglass' : 'sparkle'} size={18} /></span>
-        </button>
-      )}
 
       <main className="main-content">
         <div className="battlefield-container">
@@ -1051,19 +1074,6 @@ function AppContent() {
           <GuakeOutputPanel />
         </Profiler>
       </main>
-
-      {/* Floating Action Buttons */}
-      <FloatingActionButtons
-        onOpenToolbox={toolboxModal.open}
-        onOpenSpotlight={spotlightModal.open}
-        onOpenCommander={commanderModal.open}
-        onOpenControls={controlsModal.open}
-        onOpenSkills={skillsModal.open}
-        onSpawnAgent={spawnModal.open}
-        onSpawnBoss={bossSpawnModal.open}
-        onNewBuilding={handleNewBuilding}
-        onNewArea={handleNewArea}
-      />
 
       {/* Drawing Mode Indicator */}
       <DrawingModeIndicator
