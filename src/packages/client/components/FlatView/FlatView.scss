@@ -1671,12 +1671,13 @@ $middle-min-width: 280px;
     border: 0 !important;
     border-left: 0 !important;
     border-radius: var(--flat-assistant-card-radius) !important;
-    // Extra top padding (34px) reserves space for the header row that now
-    // holds the info icon + action buttons (see header-row rules below).
-    padding: 34px 16px 14px 22px !important;
-    // Let .guake-history-content's `gap: var(--flat-chat-gap)` control vertical
-    // rhythm on its own; no additional vertical margin.
-    margin: 0 !important;
+    // Top padding (38px) reserves space for the SINGLE header row that
+    // holds: role label (left) · info icon + action buttons (right).
+    padding: 38px 16px 14px 22px !important;
+    // Restore a small inline margin so cards have visible breathing room
+    // independent of the flex `gap`. The extra margin stacks on top of
+    // .guake-history-content's `gap: var(--flat-chat-gap)`.
+    margin: 6px 0 !important;
     box-shadow: var(--flat-assistant-card-shadow) !important;
 
     &::before { display: none !important; }
@@ -1687,15 +1688,8 @@ $middle-min-width: 280px;
         0 2px 8px rgba(0, 0, 0, 0.18) !important;
     }
 
-    // Role label stays in top-left, but muted (avatar-like).
-    .output-role,
-    .history-role {
-      color: $text-muted !important;
-      font-size: 10px;
-    }
-
     // ───────────────────────────────────────────────────────────────────
-    // Card header row: timestamp (as info icon) + CTAs, right-aligned.
+    // Single-row card header: role (left) · info icon + CTAs (right).
     //
     // JSX DOM inside the card (OutputLine.tsx:1257-1349, HistoryLine.tsx):
     //   <TimestampWithMeta>   → <span.output-timestamp-wrapper>…</span>
@@ -1703,23 +1697,48 @@ $middle-min-width: 280px;
     //   <div.markdown-content>…</div>
     //   <div.message-action-btns>…</div>     (assistant only)
     //
-    // We pull both the timestamp wrapper and the action-btns bar out of
-    // flow and anchor them absolutely in the top-right of the card. They
-    // render side-by-side so the user sees ONE right-aligned chip row:
-    //   [ℹ] [📄] [⧉]
+    // The previous revision left the role label in normal flow, which
+    // produced TWO visual rows (icons floated on top, role on a line by
+    // itself). We now pull ALL three header elements out of flow and
+    // anchor them inside the 38px reserved band at the top of the card:
     //
-    // The timestamp text is hidden (the user asked for "remove the
-    // timestamp"), but the wrapper remains the tooltip anchor for the
-    // metadata popover — clicking the info icon still toggles the
-    // <MessageMetadataTooltip> because the same clickable span is re-
-    // skinned as a circular icon button (see .output-timestamp rules).
+    //   [Claude]              . . . . . . . . . . . . [ℹ] [📄] [⧉]
+    //
+    // - .output-role/.history-role   → absolute top:10px; left:22px
+    // - .message-action-btns         → absolute top:10px; right:10px
+    // - .output-timestamp-wrapper    → absolute top:10px; right:74px
+    //                                  (just left of the CTA group)
+    //
+    // Click behaviors and tooltip anchors remain unchanged — we only
+    // repositioned the existing elements via CSS.
     // ───────────────────────────────────────────────────────────────────
+
+    // Role label pinned to the top-left of the header band.
+    .output-role,
+    .history-role {
+      position: absolute;
+      top: 10px;
+      left: 22px;
+      margin: 0 !important;
+      padding: 0 !important;
+      line-height: 22px; // matches the 22px info/CTA chips next to it
+      color: $text-muted !important;
+      font-size: 11px;
+      z-index: 2;
+
+      // Keep the provider avatar icon visually aligned with the text.
+      .output-role-icon,
+      .history-role-icon {
+        vertical-align: -3px;
+      }
+    }
+
     .output-timestamp-wrapper,
     .history-timestamp-wrapper {
       position: absolute;
-      top: 8px;
-      // Reserve 74px on the right for the CTA group (~2 x 26px buttons +
-      // gaps) so the info icon sits immediately to their left.
+      top: 10px;
+      // Reserve 74px on the right for the CTA group (~2 x 22px + gaps)
+      // so the info icon sits immediately to their left.
       right: 74px;
       margin: 0 !important;
       float: none !important;
@@ -1785,7 +1804,7 @@ $middle-min-width: 280px;
     // to the same buttons; only their placement and skin change.
     .message-action-btns {
       position: absolute !important;
-      top: 8px !important;
+      top: 10px !important;
       right: 10px !important;
       margin: 0 !important;
       padding: 0 !important;
