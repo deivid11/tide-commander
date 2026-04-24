@@ -1542,3 +1542,236 @@ $middle-min-width: 280px;
     font-size: 12px;
   }
 }
+
+// =============================================================================
+// Flat UI — Craft-style chat UI overhaul
+// =============================================================================
+//
+// Goal: inside the Flat view only (scoped under .flat-terminal-wrapper), restyle
+// the shared chat rows (.output-user/.output-claude, .history-user/
+// .history-assistant) to match the lukilabs/craft-agents-oss pattern:
+//
+//   • User messages  -> right-aligned pill bubble with a subtle neutral fill
+//   • Assistant      -> full-column "document card" with shadow + footer tint
+//   • Tool use rows  -> thin timeline, not primary bubbles
+//   • Centered column with a shared max-width
+//
+// IMPORTANT: these rules MUST stay scoped under .flat-terminal-wrapper so the
+// default 3D/Guake view is not visually affected. The JSX layer is untouched so
+// all existing functionality (selection, search, hover actions, metadata
+// tooltip, provider icons, boss context, history loader, TTS, copy, etc.) keeps
+// working identically; this is purely a visual overhaul.
+.flat-terminal-wrapper {
+  // Tokens local to Flat UI. Re-used below so theme changes still propagate.
+  --flat-chat-column-max: 840px;
+  --flat-chat-column-pad-x: 20px;
+  --flat-chat-column-pad-y: 16px;
+  --flat-chat-gap: 10px;
+
+  --flat-user-bubble-bg: #{color-mix(in srgb, $text-primary 6%, transparent)};
+  --flat-user-bubble-bg-hover: #{color-mix(in srgb, $text-primary 9%, transparent)};
+  --flat-user-bubble-text: #{$text-primary};
+  --flat-user-bubble-radius: 16px;
+  --flat-user-bubble-max-width: 80%;
+
+  --flat-assistant-card-bg: #{color-mix(in srgb, $bg-secondary 70%, $bg-primary 30%)};
+  --flat-assistant-card-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+  --flat-assistant-card-radius: 8px;
+  --flat-assistant-footer-bg: #{color-mix(in srgb, $bg-tertiary 55%, transparent)};
+  --flat-assistant-footer-border: rgba(255, 255, 255, 0.06);
+
+  --flat-tool-rail: #{color-mix(in srgb, $accent-orange 55%, transparent)};
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Centered column for the message list.
+  // .guake-output is the scroll container; .guake-history-content is the inner
+  // list that stacks messages vertically. Centering the inner list keeps the
+  // scrollbar flush to the right of the pane like Guake.
+  // ─────────────────────────────────────────────────────────────────────────
+  .guake-history-content {
+    max-width: var(--flat-chat-column-max);
+    margin: 0 auto;
+    padding: var(--flat-chat-column-pad-y) var(--flat-chat-column-pad-x);
+    display: flex;
+    flex-direction: column;
+    gap: var(--flat-chat-gap);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // User message — right-aligned pill bubble (live output + history).
+  // We keep the existing JSX exactly as-is: the .output-user/.history-user
+  // <div> becomes the bubble itself (not a wrapper). Right-alignment is
+  // achieved with `margin-left: auto` + `width: fit-content`, so the
+  // timestamp/role chip, BossContext, TTS/copy buttons, metadata popover, and
+  // all existing click handlers continue to work unchanged.
+  // ─────────────────────────────────────────────────────────────────────────
+  .output-user,
+  .history-user {
+    // Reset the shared stripe/gradient — we replace it with a bubble.
+    background: var(--flat-user-bubble-bg) !important;
+    border: 0 !important;
+    border-left: 0 !important;
+    border-radius: var(--flat-user-bubble-radius) !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18) !important;
+    padding: 10px 16px !important;
+    margin: 14px 0 6px auto !important;      // right-align the whole row
+    width: fit-content;
+    max-width: var(--flat-user-bubble-max-width);
+    color: var(--flat-user-bubble-text);
+    line-height: 1.5;
+    word-break: break-word;
+
+    &::before { display: none !important; }
+
+    // Hover: subtle bg change; drop the translateX (would slide off-axis).
+    &:hover {
+      background: var(--flat-user-bubble-bg-hover) !important;
+      transform: none !important;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22) !important;
+    }
+
+    // Timestamp is retained (clickable metadata popover still works) but
+    // floats tiny and muted at the top-right inside the bubble.
+    .output-timestamp-wrapper,
+    .history-timestamp-wrapper {
+      float: right;
+      margin-left: 8px;
+      opacity: 0.55;
+    }
+
+    // The "You" role chip is redundant once the bubble is right-aligned.
+    // Hide it visually but keep it in the DOM (tests/selectors may reference
+    // it).
+    .output-role,
+    .history-role,
+    .output-role-chip,
+    .history-role-chip,
+    .output-role-user-chip {
+      display: none !important;
+    }
+
+    // Inline text chunks (spans produced by renderUserPromptContent) flow
+    // naturally inside the bubble — nothing extra needed. Image/file
+    // references retain their clickable styling.
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Assistant message — full-column "document card".
+  // Assistant rows always carry .output-claude (see OutputLine.tsx:1180)
+  // or .history-assistant (HistoryLine.tsx), so these two selectors are
+  // sufficient and won't clash with system / tool rows.
+  // ─────────────────────────────────────────────────────────────────────────
+  .output-claude,
+  .history-assistant {
+    background: var(--flat-assistant-card-bg) !important;
+    border: 0 !important;
+    border-left: 0 !important;
+    border-radius: var(--flat-assistant-card-radius) !important;
+    padding: 12px 16px 12px 22px !important;
+    margin: 4px 0 !important;
+    box-shadow: var(--flat-assistant-card-shadow) !important;
+
+    &::before { display: none !important; }
+
+    &:hover {
+      transform: none !important;
+      box-shadow: var(--flat-assistant-card-shadow),
+        0 2px 8px rgba(0, 0, 0, 0.18) !important;
+    }
+
+    // Role label stays in top-left, but muted (avatar-like).
+    .output-role,
+    .history-role {
+      color: $text-muted !important;
+      font-size: 10px;
+    }
+
+    // Hover action buttons become a permanent footer bar sitting flush with
+    // the card bottom. The JSX already renders them; we just restyle.
+    .message-action-btns {
+      margin: 10px -16px -12px -22px;
+      padding: 6px 10px;
+      background: var(--flat-assistant-footer-bg);
+      border-top: 1px solid var(--flat-assistant-footer-border);
+      border-bottom-left-radius: var(--flat-assistant-card-radius);
+      border-bottom-right-radius: var(--flat-assistant-card-radius);
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+      opacity: 1; // show the bar even without hover
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Tool-use / tool-result rows — render as a thin left-rail timeline so
+  // they read as "steps above the assistant card" rather than primary bubbles.
+  // ─────────────────────────────────────────────────────────────────────────
+  .output-tool-use,
+  .output-tool-result,
+  .history-tool-use,
+  .history-tool-result {
+    background: none !important;
+    border-left: 2px solid var(--flat-tool-rail) !important;
+    border-radius: 0 !important;
+    padding: 2px 10px !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    font-size: 12px;
+
+    &::before { display: none !important; }
+    &:hover { transform: none !important; }
+  }
+
+  // Tight the gap between a tool-use run and the assistant card that follows.
+  .output-tool-use + .output-claude,
+  .output-tool-result + .output-claude,
+  .output-thinking + .output-claude,
+  .history-tool-use + .history-assistant,
+  .history-tool-result + .history-assistant {
+    margin-top: 4px !important;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Message navigation selection indicator — keep, but relocate the ▶ arrow
+  // onto the outer wrapper so it doesn't fight the new pill/card alignment.
+  // ─────────────────────────────────────────────────────────────────────────
+  .message-nav-wrapper.message-selected {
+    // Drop the old full-width tinted background; use a slim left bar instead.
+    background: none !important;
+    border-left: 2px solid $accent-cyan !important;
+    border-right: 0 !important;
+    box-shadow: none !important;
+    margin-left: 0 !important;
+
+    &::before {
+      left: -2px;
+    }
+
+    > .output-line,
+    > .history-line {
+      padding-left: 0;
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // System messages — render centered like craft's SystemMessage, muted.
+  // ─────────────────────────────────────────────────────────────────────────
+  .output-system,
+  .history-system {
+    max-width: min(560px, 80%);
+    margin: 6px auto !important;
+    background: #{color-mix(in srgb, $bg-tertiary 50%, transparent)} !important;
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.05) !important;
+    border-radius: 6px !important;
+    padding: 6px 10px !important;
+    text-align: center;
+    color: $text-secondary !important;
+    font-size: 11px;
+
+    &::before { display: none !important; }
+  }
+}
+
