@@ -85,6 +85,7 @@
     "status": "Status",
     "class": "Class",
     "permission": "Permission",
+    "agentId": "Agent ID",
     "session": "Session",
     "notStarted": "Not started",
     "promptAndInstructions": "Prompt and Instructions",

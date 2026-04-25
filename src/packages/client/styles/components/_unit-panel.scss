@@ -137,6 +137,23 @@
   color: $text-secondary;
 }
 
+.unit-id {
+  margin-top: 2px;
+  font-size: 10px;
+  font-family: $font-mono;
+  color: $dracula-comment;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  user-select: all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &:hover {
+    color: $text-secondary;
+  }
+}
+
 .unit-idle-timer {
   display: inline-flex;
   align-items: center;
