@@ -334,11 +334,20 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
       clearPendingSilentContextRefresh(agentId);
     }
 
+    // Clear tracking-board state on explicit stop so stale taskLabel /
+    // trackingStatus / trackingStatusDetail don't linger on the tracking board
+    // after the agent is killed. Natural task completion does NOT funnel
+    // through stopAgent — its final-turn PATCH sets need-review /
+    // can-clear-context, and we want to keep that visible.
     agentService.updateAgent(agentId, {
       status: 'idle',
       currentTask: undefined,
       currentTool: undefined,
       isDetached: false,
+      taskLabel: undefined,
+      trackingStatus: null,
+      trackingStatusDetail: undefined,
+      trackingStatusTimestamp: undefined,
     });
   }
 

@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.76.1] - 2026-04-24
+
+### Changed
+- **`SubordinateProgressDots` now hides when no subordinate is `working`** — boss agents whose subordinates are all idle (or otherwise non-working) no longer render an empty progress indicator. Reduces visual noise on the agent cards / list rows / flat-view chips when there's no in-flight work to signal
+
+### Fixed
+- **`stopAgent` clears tracking-board state on explicit kill** — `runtime-command-execution.ts` now wipes `taskLabel`, `trackingStatus`, `trackingStatusDetail`, and `trackingStatusTimestamp` when an agent is stopped. Previously a killed agent would leave its last-known status (e.g. `thinking`, `working`) lingering on the tracking board indefinitely. Natural task completion is unaffected — that path goes through the agent's own final-turn PATCH, so `need-review` / `can-clear-context` outcomes are preserved
+
 ## [1.76.0] - 2026-04-24
 
 ### Added
