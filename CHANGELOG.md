@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.76.2] - 2026-04-24
+
+### Fixed
+- **Live tool-use chips no longer disappear after re-selecting an agent** — both `ClaudeOutputPanel/useHistoryLoader.ts` and `CommanderView/useAgentHistory.ts` now short-circuit `shouldKeepOutput` to keep any uuid-bearing live event whose uuid did not match a persisted JSONL entry. The previous fallback (`outputTs > lastHistoryTimestamp`) silently pruned WS events whose timestamps trailed the newest persisted JSONL entry, freezing tool_use / tool_result / subagent-progress chips after a history re-fetch. Legacy outputs without a uuid still go through the timestamp gate
+
 ## [1.76.1] - 2026-04-24
 
 ### Changed

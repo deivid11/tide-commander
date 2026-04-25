@@ -68,6 +68,17 @@ function shouldKeepOutput(
     return false;
   }
 
+  // Uuid-bearing outputs with no history match are genuinely live events the
+  // JSONL hasn't persisted yet (most commonly tool_use/tool_result chips and
+  // subagent progress that arrive while a history re-fetch is in flight).
+  // Keep unconditionally — the `outputTs > lastHistoryTimestamp` fallback
+  // below wrongly prunes them when WS event timestamps happen to trail the
+  // newest persisted JSONL entry, freezing the live stream after the user
+  // switches away and back.
+  if (output.uuid) {
+    return true;
+  }
+
   const outputType: 'user' | 'assistant' = output.isUserPrompt ? 'user' : 'assistant';
   const key = buildOutputHistoryKey(outputType, output.text);
   const outputTs = output.timestamp || 0;
@@ -77,7 +88,7 @@ function shouldKeepOutput(
     return false;
   }
 
-  // If no close signature match was found, keep only outputs that are newer than loaded history.
+  // Legacy no-uuid outputs: keep only those newer than loaded history.
   return outputTs > lastHistoryTimestamp;
 }
 

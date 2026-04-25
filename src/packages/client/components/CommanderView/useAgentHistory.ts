@@ -36,6 +36,14 @@ function shouldKeepOutput(
     return false;
   }
 
+  // Uuid-bearing outputs with no history match are genuinely live events not
+  // yet persisted to JSONL. Don't prune them by timestamp — WS event times
+  // can trail the newest JSONL entry and were silently killing live tool_use
+  // chips after an agent re-select / history refresh.
+  if (output.uuid) {
+    return true;
+  }
+
   const outputType: 'user' | 'assistant' = output.isUserPrompt ? 'user' : 'assistant';
   const key = buildOutputHistoryKey(outputType, output.text);
   const outputTs = output.timestamp || 0;
