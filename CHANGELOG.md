@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.79.0] - 2026-04-24
+
+### Changed
+- **`FlatView` middle column header simplified** — removed the `👥 Agents` title from the middle pane. The action buttons (spawn agent / class spawn) already convey what the column is, so the redundant heading just consumed vertical space. The corresponding `.flat-middle__title` font-size override is also dropped from `FlatView.scss` since the rule no longer has a target
+
 ## [1.78.0] - 2026-04-24
 
 ### Added

@@ -1791,7 +1791,6 @@ export function FlatView({
           spawn buttons) already covers navigation. */}
       <div className="flat-middle">
         <div className="flat-middle__header">
-          <h2 className="flat-middle__title">👥 Agents</h2>
           <div className="flat-middle__actions">
             <button
               className="flat-cta-btn flat-cta-btn--agent"
