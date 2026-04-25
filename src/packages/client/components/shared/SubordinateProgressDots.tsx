@@ -55,6 +55,9 @@ function sortSubordinates(subordinates: Agent[]): Agent[] {
 
 export function SubordinateProgressDots({ subordinates, maxDots = 12 }: SubordinateProgressDotsProps) {
   if (!subordinates || subordinates.length === 0) return null;
+  // Hide the dots entirely when no subordinate is actively working — boss
+  // bosses with all-idle subordinates don't need a visual progress indicator.
+  if (!subordinates.some((sub) => sub.status === 'working')) return null;
 
   const sorted = sortSubordinates(subordinates);
   const dots = sorted.slice(0, maxDots);
