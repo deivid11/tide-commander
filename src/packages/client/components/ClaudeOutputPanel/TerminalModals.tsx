@@ -700,6 +700,7 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
                 <div className="agent-info-item"><span>{t('terminal:agentInfo.status')}</span><strong>{agent.status}</strong></div>
                 <div className="agent-info-item"><span>{t('terminal:agentInfo.class')}</span><strong>{agent.class}</strong></div>
                 <div className="agent-info-item"><span>{t('terminal:agentInfo.permission')}</span><strong>{agent.permissionMode}</strong></div>
+                <div className="agent-info-item"><span>{t('terminal:agentInfo.agentId')}</span><strong>{agent.id}</strong></div>
                 <div className="agent-info-item"><span>{t('terminal:agentInfo.session')}</span><strong>{agent.sessionId || t('terminal:agentInfo.notStarted')}</strong></div>
               </div>
             </section>

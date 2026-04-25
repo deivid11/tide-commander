@@ -226,6 +226,20 @@ export function SingleAgentPanel({
             </span>
             <span> • {agent.class} • {agent.provider}</span>
           </div>
+          <div
+            className="unit-id"
+            title={t('unitPanel.clickToCopy')}
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(agent.id);
+                showToast('success', t('toast.copied'), agent.id, 2000);
+              } catch {
+                showToast('error', t('toast.errorTitle'), t('toast.failedToCopy'), 3000);
+              }
+            }}
+          >
+            {agent.id}
+          </div>
           {/* Idle timer - shows how long agent has been idle */}
           {agent.status === 'idle' && agent.lastActivity > 0 && (
             <IdleTimer lastActivity={agent.lastActivity} />

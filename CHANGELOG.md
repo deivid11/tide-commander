@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.74.0] - 2026-04-24
+
+### Added
+- **Agent ID is now visible and click-to-copy in SingleAgentPanel** — a new `.unit-id` row under the unit name shows the full agent ID in a monospace style; clicking copies it to the clipboard with a success toast (and an error toast if `navigator.clipboard.writeText` rejects). Useful for grabbing IDs to paste into curl calls / boss-delegation messages without hunting through the agent object
+- **Agent ID row in `AgentInfoModal`** — the terminal's agent info modal now renders a dedicated "Agent ID" line alongside Status / Class / Permission / Session, backed by new `terminal:agentInfo.agentId` translation key
+
+### Changed
+- **Russian locale cleanup** — dropped the orphan `unitPanel.otherAgents` key carried over from v1.73.0's removal of the Other Agents section
+
 ## [1.73.0] - 2026-04-24
 
 ### Added

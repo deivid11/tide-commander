@@ -232,8 +232,7 @@
     "clearContextBtn": "Очистить контекст",
     "removePattern": "Удалить этот шаблон",
     "agentsCount": "{{count}} агентов",
-    "confidence": "Уверенность: {{level}}",
-    "otherAgents": "Другие агенты"
+    "confidence": "Уверенность: {{level}}"
   },
   "multiAgent": {
     "agentsSelected": "{{count}} агентов выбрано",
