@@ -261,6 +261,9 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     const enrichHistory = (messages: typeof history): EnrichedHistoryMessage[] => {
       const out: EnrichedHistoryMessage[] = [];
       for (const msg of messages) {
+        if (msg.type === 'tool_use' && msg.toolUseId && suppressedToolUseIds.has(msg.toolUseId)) {
+          continue;
+        }
         if (msg.type === 'tool_result' && msg.toolUseId && suppressedToolUseIds.has(msg.toolUseId)) {
           continue;
         }
@@ -289,6 +292,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     const result: EnrichedHistoryMessage[] = [];
     const seenAssistantKeys = new Set<string>();
     const seenUserUuidKeys = new Set<string>();
+    const seenToolUseKeys = new Set<string>();
     let lastUserKey: string | null = null;
     let lastUserTs = 0;
 
@@ -306,6 +310,15 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       }
 
       if (msg.type !== 'user') {
+        if (msg.type === 'tool_use') {
+          const toolUseKey = msg.uuid || msg.toolUseId;
+          if (toolUseKey) {
+            if (seenToolUseKeys.has(toolUseKey)) {
+              continue;
+            }
+            seenToolUseKeys.add(toolUseKey);
+          }
+        }
         result.push(msg);
         continue;
       }
@@ -368,6 +381,23 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
     for (const output of filteredOutputs) {
       if (!output.isUserPrompt) {
+        // Suppress internal-API bookkeeping curls (tracking PATCH, notify,
+        // taskLabel, report-task). They are agent skill ceremony, not
+        // user-meaningful work — render-time hide mirrors the JSONL-side
+        // suppression in `enrichHistory` above.
+        if (output.toolName === 'Bash') {
+          const cmd = typeof output.toolInput?.command === 'string'
+            ? (output.toolInput.command as string)
+            : undefined;
+          if (cmd && (
+            parseBashTrackingStatusCommand(cmd)
+            || parseBashTaskLabelCommand(cmd)
+            || parseBashNotificationCommand(cmd)
+            || parseBashReportTaskCommand(cmd)
+          )) {
+            continue;
+          }
+        }
         // Apply uuid dedup unconditionally — a live output whose uuid matches a
         // persisted history entry is the same turn, regardless of whether the
         // text is classified as tool/system output.

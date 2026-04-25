@@ -36,6 +36,8 @@ import { Icon, type IconName } from '../Icon';
 import { useHasDraft } from '../../utils/agentDrafts';
 import { ConfirmModal } from '../shared/ConfirmModal';
 import { TaskProgressDots } from '../shared/TaskProgressDots';
+import { SubordinateProgressDots } from '../shared/SubordinateProgressDots';
+import { AgentHoverTooltip } from '../shared/AgentHoverTooltip';
 
 /** Persisted config shape for the overview panel */
 interface AopConfig {
@@ -65,6 +67,7 @@ type FilterMode = 'all' | 'working' | 'idle' | 'error';
 
 const EMPTY_TOOL_EXECS: ToolExecution[] = [];
 const EMPTY_SUBAGENTS: Subagent[] = [];
+const EMPTY_SUBORDINATES: Agent[] = [];
 
 const STATUS_ICONS: Record<string, IconName> = {
   working: 'status-working',
@@ -168,6 +171,21 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   const subagents = useSubagents();
   const areas = useAreas();
   const fileChanges = useFileChanges();
+
+  // Resolve subordinate Agent objects per boss for the SubordinateProgressDots indicator.
+  const subordinatesByBoss = useMemo(() => {
+    const byId = new Map(allAgents.map((a) => [a.id, a]));
+    const map = new Map<string, Agent[]>();
+    for (const agent of allAgents) {
+      if ((agent.isBoss || agent.class === 'boss') && agent.subordinateIds && agent.subordinateIds.length > 0) {
+        const subs = agent.subordinateIds
+          .map((id) => byId.get(id))
+          .filter((a): a is Agent => a !== undefined);
+        if (subs.length > 0) map.set(agent.id, subs);
+      }
+    }
+    return map;
+  }, [allAgents]);
 
   // Load persisted config from localStorage
   const savedConfig = useMemo(() => getStorage<AopConfig>(STORAGE_KEYS.AOP_CONFIG, {
@@ -591,6 +609,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
           showAreaChip={!groupByArea}
           toolExecs={toolsByAgent.get(agent.id) || EMPTY_TOOL_EXECS}
           subagents={subagentsByParent.get(agent.id) || EMPTY_SUBAGENTS}
+          subordinates={subordinatesByBoss.get(agent.id) || EMPTY_SUBORDINATES}
           areaInfo={agentAreaInfo.get(agent.id)}
           matchContext={searchMatchContexts.get(agent.id)}
           onSelect={handleCardSelect}
@@ -609,6 +628,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     groupByArea,
     toolsByAgent,
     subagentsByParent,
+    subordinatesByBoss,
     agentAreaInfo,
     searchMatchContexts,
     handleCardSelect,
@@ -1168,6 +1188,7 @@ interface AgentCardProps {
   showAreaChip: boolean;
   toolExecs: ToolExecution[];
   subagents: Subagent[];
+  subordinates: Agent[];
   areaInfo?: { color: string; name: string };
   matchContext?: SearchMatchContext;
   onSelect: (agentId: string) => void;
@@ -1195,6 +1216,7 @@ const AgentCard = React.memo(function AgentCard({
   showAreaChip,
   toolExecs,
   subagents,
+  subordinates,
   areaInfo,
   matchContext,
   onSelect,
@@ -1407,6 +1429,7 @@ const AgentCard = React.memo(function AgentCard({
         </div>
         <div className="aop-card-content">
         {/* Card Header - always visible */}
+        <AgentHoverTooltip todos={agent.latestTodos} subordinates={isBossAgent ? subordinates : undefined} position="bottom">
         <div className="aop-agent-header">
         <span
           className="aop-agent-name"
@@ -1453,7 +1476,11 @@ const AgentCard = React.memo(function AgentCard({
         {agent.latestTodos && agent.latestTodos.length > 0 && (
           <TaskProgressDots todos={agent.latestTodos} />
         )}
+        {isBossAgent && subordinates.length > 0 && (
+          <SubordinateProgressDots subordinates={subordinates} />
+        )}
         </div>
+        </AgentHoverTooltip>
 
         {/* Task label preview - always visible when available */}
         {agent.taskLabel && (

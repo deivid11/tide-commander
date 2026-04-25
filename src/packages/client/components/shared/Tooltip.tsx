@@ -25,6 +25,8 @@ export interface TooltipProps {
   disabled?: boolean;
   /** Custom class name for the tooltip */
   className?: string;
+  /** Override the wrapper span's inline style (defaults to display: inline-flex) */
+  triggerStyle?: React.CSSProperties;
 }
 
 export function Tooltip({
@@ -35,6 +37,7 @@ export function Tooltip({
   maxWidth = 280,
   disabled = false,
   className = '',
+  triggerStyle,
 }: TooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -163,7 +166,7 @@ export function Tooltip({
         onMouseLeave={hideTooltip}
         onFocus={showTooltip}
         onBlur={hideTooltip}
-        style={{ display: 'inline-flex' }}
+        style={triggerStyle ?? { display: 'inline-flex' }}
       >
         {children}
       </span>

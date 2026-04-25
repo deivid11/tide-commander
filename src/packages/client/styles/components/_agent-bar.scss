@@ -218,6 +218,62 @@
   color: $accent-blue;
 }
 
+// Fixed bottom-left circle indicator: highly visible "outdated" signal
+.agent-bar-version-outdated-indicator {
+  position: fixed;
+  bottom: 12px;
+  left: 12px;
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-decoration: none;
+  pointer-events: auto;
+
+  &:hover .agent-bar-version-outdated-dot {
+    transform: scale(1.35);
+    box-shadow:
+      0 0 0 2px rgba(0, 0, 0, 0.5),
+      0 0 14px rgba($accent-orange, 0.95);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent-orange;
+    outline-offset: 3px;
+    border-radius: 50%;
+  }
+}
+
+.agent-bar-version-outdated-dot {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: $accent-orange;
+  box-shadow:
+    0 0 0 2px rgba(0, 0, 0, 0.45),
+    0 0 8px rgba($accent-orange, 0.75);
+  animation: outdated-version-pulse 1.6s ease-in-out infinite;
+  transition: transform $transition-fast, box-shadow $transition-fast;
+}
+
+@keyframes outdated-version-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.2);
+  }
+}
+
 // HMR refresh button - shows when 3D scene changes are pending
 .agent-bar-hmr-refresh {
   font-size: 12px;

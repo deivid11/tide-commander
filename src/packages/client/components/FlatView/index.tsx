@@ -23,6 +23,9 @@ import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../../shared/typ
 import type { Agent } from '../../../shared/types';
 import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
+import { TaskProgressDots } from '../shared/TaskProgressDots';
+import { SubordinateProgressDots } from '../shared/SubordinateProgressDots';
+import { AgentHoverTooltip } from '../shared/AgentHoverTooltip';
 import { ContextMenu, type ContextMenuAction } from '../ContextMenu';
 import { getAgentStatusColor } from '../../utils/colors';
 import { getDisplayContextInfo } from '../../utils/context';
@@ -1260,6 +1263,21 @@ export function FlatView({
 
   const agentIdSet = useMemo(() => new Set(agents.map((a) => a.id)), [agents]);
 
+  // Resolve subordinate Agent objects per boss for the SubordinateProgressDots indicator on the FlatView map.
+  const subordinatesByBoss = useMemo(() => {
+    const byId = new Map(agents.map((a) => [a.id, a]));
+    const map = new Map<string, Agent[]>();
+    for (const agent of agents) {
+      if ((agent.isBoss || agent.class === 'boss') && agent.subordinateIds && agent.subordinateIds.length > 0) {
+        const subs = agent.subordinateIds
+          .map((id) => byId.get(id))
+          .filter((a): a is Agent => a !== undefined);
+        if (subs.length > 0) map.set(agent.id, subs);
+      }
+    }
+    return map;
+  }, [agents]);
+
   const updateAgentNavigationAvailability = useCallback(() => {
     const history = agentNavigationHistoryRef.current;
     const index = agentNavigationIndexRef.current;
@@ -1762,6 +1780,7 @@ export function FlatView({
                         <div className="flat-map-area-card__agents">
                           {group.agents.map(agent => {
                             const isBoss = agent.isBoss || agent.class === 'boss';
+                            const subs = isBoss ? subordinatesByBoss.get(agent.id) : undefined;
                             const ctx = getDisplayContextInfo(agent);
                             const ctxColor =
                               ctx.usedPercent >= 80 ? '#ff4a4a'
@@ -1769,9 +1788,15 @@ export function FlatView({
                                   : ctx.usedPercent >= 40 ? '#ffd700'
                                     : '#4aff9e';
                             const ctxTitle = `Context: ${(ctx.totalTokens / 1000).toFixed(1)}k / ${(ctx.contextWindow / 1000).toFixed(1)}k (${ctx.usedPercent}% used, ${ctx.freePercent}% free)`;
+                            const hasHoverContent = (agent.latestTodos && agent.latestTodos.length > 0) || (subs && subs.length > 0);
                             return (
-                              <button
+                              <AgentHoverTooltip
                                 key={agent.id}
+                                todos={agent.latestTodos}
+                                subordinates={subs}
+                                position="top"
+                              >
+                              <button
                                 type="button"
                                 className={`flat-map-agent-chip ${agent.status}`}
                                 onClick={() => onAgentClick(agent.id)}
@@ -1783,7 +1808,7 @@ export function FlatView({
                                     position: { x: e.clientX, y: e.clientY },
                                   });
                                 }}
-                                title={`${isBoss ? 'Boss · ' : ''}Open chat with ${agent.name}\n${ctxTitle}`}
+                                title={hasHoverContent ? undefined : `${isBoss ? 'Boss · ' : ''}Open chat with ${agent.name}\n${ctxTitle}`}
                               >
                                 <AgentIcon agent={agent} size={16} />
                                 {isBoss && (
@@ -1814,6 +1839,12 @@ export function FlatView({
                                   className="flat-map-agent-chip__dot"
                                   style={{ backgroundColor: getAgentStatusColor(agent.status) }}
                                 />
+                                {agent.latestTodos && agent.latestTodos.length > 0 && (
+                                  <TaskProgressDots todos={agent.latestTodos} maxDots={6} />
+                                )}
+                                {isBoss && subs && subs.length > 0 && (
+                                  <SubordinateProgressDots subordinates={subs} maxDots={6} />
+                                )}
                                 <span
                                   className="flat-map-agent-chip__context-bar"
                                   aria-hidden="true"
@@ -1824,6 +1855,7 @@ export function FlatView({
                                   />
                                 </span>
                               </button>
+                              </AgentHoverTooltip>
                             );
                           })}
                         </div>

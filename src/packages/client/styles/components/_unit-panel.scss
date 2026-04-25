@@ -1355,6 +1355,19 @@
   letter-spacing: 0.5px;
 }
 
+// ── Agent hover tooltip wrapper (combines tasks + subordinates sections) ─────
+.agent-hover-tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-hover-tooltip-divider {
+  height: 1px;
+  background: rgba($border-color, 0.6);
+  margin: 2px 0;
+}
+
 // ── Task progress dots (latestTodos snapshot) ────────────────────────────────
 .task-progress-dots {
   display: inline-flex;
@@ -1459,6 +1472,193 @@
 @keyframes task-progress-dot-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
+}
+
+// ── Subordinate progress dots (boss watching its team) ───────────────────────
+.subordinate-progress-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(255, 215, 0, 0.08);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  cursor: help;
+}
+
+.subordinate-progress-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1px solid rgba($text-muted, 0.6);
+  background: transparent;
+
+  &.status-working {
+    background: $accent-blue;
+    border-color: $accent-blue;
+    animation: task-progress-dot-pulse 1.5s ease-in-out infinite;
+  }
+  &.status-idle {
+    background: $accent-green;
+    border-color: $accent-green;
+  }
+  &.status-waiting,
+  &.status-waiting_permission {
+    background: $accent-orange;
+    border-color: $accent-orange;
+  }
+  &.status-error,
+  &.status-orphaned {
+    background: $accent-red;
+    border-color: $accent-red;
+  }
+  &.status-offline {
+    background: transparent;
+    border-color: rgba($text-muted, 0.5);
+    opacity: 0.5;
+  }
+}
+
+.subordinate-progress-overflow {
+  font-family: $font-mono;
+  font-size: 8px;
+  color: $text-muted;
+  margin-left: 2px;
+}
+
+.subordinate-progress-tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: $font-mono;
+}
+
+.subordinate-progress-tooltip-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: $text-primary;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba($border-color, 0.5);
+}
+
+.subordinate-progress-tooltip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.subordinate-progress-tooltip-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  line-height: 1.35;
+  padding: 4px 0;
+
+  & + & {
+    border-top: 1px solid rgba($border-color, 0.4);
+  }
+}
+
+.subordinate-progress-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.subordinate-progress-tooltip-preview {
+  margin-left: 14px;
+  font-size: 10.5px;
+  color: $text-secondary;
+  word-break: break-word;
+  line-height: 1.35;
+
+  &.source-detail {
+    font-style: italic;
+    color: $text-muted;
+  }
+  &.source-task {
+    color: $accent-blue;
+  }
+  &.source-lastAssigned {
+    color: $text-muted;
+  }
+}
+
+.subordinate-progress-tooltip-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: 14px;
+
+  &:empty { display: none; }
+}
+
+.subordinate-progress-tooltip-meta-chip {
+  font-family: $font-mono;
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  color: $text-secondary;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+
+  &.muted {
+    color: $text-muted;
+  }
+}
+
+.subordinate-progress-tooltip-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid rgba($text-muted, 0.6);
+
+  &.status-working {
+    background: $accent-blue;
+    border-color: $accent-blue;
+  }
+  &.status-idle {
+    background: $accent-green;
+    border-color: $accent-green;
+  }
+  &.status-waiting,
+  &.status-waiting_permission {
+    background: $accent-orange;
+    border-color: $accent-orange;
+  }
+  &.status-error,
+  &.status-orphaned {
+    background: $accent-red;
+    border-color: $accent-red;
+  }
+  &.status-offline {
+    background: transparent;
+    opacity: 0.5;
+  }
+}
+
+.subordinate-progress-tooltip-name {
+  flex: 1;
+  color: $text-primary;
+  word-break: break-word;
+}
+
+.subordinate-progress-tooltip-status {
+  font-size: 10px;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
 // ── Mini Context Bar ─────────────────────────────────────────────────────────
