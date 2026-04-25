@@ -8,6 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ModalPortal } from './shared/ModalPortal';
+import { ConfirmModal } from './shared/ConfirmModal';
 import { fetchSystemPrompt, updateSystemPrompt, clearSystemPrompt } from '../api/system-settings';
 import { Icon } from './Icon';
 import '../styles/components/system-prompt-modal.scss';
@@ -26,6 +27,8 @@ export function SystemPromptModal({ isOpen, onClose }: SystemPromptModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [unsavedConfirmOpen, setUnsavedConfirmOpen] = useState(false);
 
   // Load system prompt when modal opens
   useEffect(() => {
@@ -71,11 +74,11 @@ export function SystemPromptModal({ isOpen, onClose }: SystemPromptModalProps) {
     }
   };
 
-  const handleClear = async () => {
-    if (!window.confirm(t('config:systemPrompt.confirmClear'))) {
-      return;
-    }
+  const handleClear = () => {
+    setClearConfirmOpen(true);
+  };
 
+  const performClear = async () => {
     try {
       setError(null);
       setSuccess(null);
@@ -96,15 +99,18 @@ export function SystemPromptModal({ isOpen, onClose }: SystemPromptModalProps) {
     setSuccess(null);
   };
 
+  const requestClose = () => {
+    if (isDirty) {
+      setUnsavedConfirmOpen(true);
+      return;
+    }
+    onClose();
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
-      if (isDirty) {
-        if (!window.confirm('You have unsaved changes. Close anyway?')) {
-          e.preventDefault();
-          return;
-        }
-      }
-      onClose();
+      e.preventDefault();
+      requestClose();
     }
   };
 
@@ -112,11 +118,11 @@ export function SystemPromptModal({ isOpen, onClose }: SystemPromptModalProps) {
 
   return (
     <ModalPortal>
-      <div className={`modal-overlay ${isOpen ? 'visible' : ''}`} onClick={onClose}>
+      <div className={`modal-overlay ${isOpen ? 'visible' : ''}`} onClick={requestClose}>
         <div className="system-prompt-modal" onClick={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
           <div className="modal-header">
             <h2>{t('config:systemPrompt.title')}</h2>
-            <button className="modal-close" onClick={onClose} aria-label="Close">
+            <button className="modal-close" onClick={requestClose} aria-label="Close">
               <Icon name="close" size={16} />
             </button>
           </div>
@@ -187,7 +193,7 @@ export function SystemPromptModal({ isOpen, onClose }: SystemPromptModalProps) {
             <div className="footer-buttons-right">
               <button
                 className="btn btn-secondary"
-                onClick={onClose}
+                onClick={requestClose}
               >
                 Close
               </button>
@@ -211,6 +217,28 @@ export function SystemPromptModal({ isOpen, onClose }: SystemPromptModalProps) {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={clearConfirmOpen}
+        title={t('config:systemPrompt.clear')}
+        message={t('config:systemPrompt.confirmClear')}
+        confirmLabel={t('config:systemPrompt.clear')}
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => { void performClear(); }}
+        onClose={() => setClearConfirmOpen(false)}
+      />
+
+      <ConfirmModal
+        isOpen={unsavedConfirmOpen}
+        title="Unsaved Changes"
+        message="You have unsaved changes. Close anyway?"
+        confirmLabel="Close anyway"
+        cancelLabel="Keep editing"
+        variant="danger"
+        onConfirm={onClose}
+        onClose={() => setUnsavedConfirmOpen(false)}
+      />
     </ModalPortal>
   );
 }

@@ -6,6 +6,7 @@ import type { MouseControlConfig, CameraSensitivityConfig, TrackpadConfig } from
 import { formatMouseBinding, findConflictingMouseBindings } from '../store/mouseControls';
 import { KeyCaptureInput } from './KeyCaptureInput';
 import { useModalClose } from '../hooks';
+import { ConfirmModal } from './shared/ConfirmModal';
 
 interface ControlsModalProps {
   isOpen: boolean;
@@ -208,21 +209,23 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
     store.updateShortcut(id, updates);
   };
 
+  const [resetConfirm, setResetConfirm] = useState<ControlTab | null>(null);
   const handleResetAll = () => {
-    if (activeTab === 'keyboard') {
-      if (confirm(t('terminal:controls.confirmResetKeyboard'))) {
-        store.resetShortcuts();
-      }
-    } else if (activeTab === 'mouse') {
-      if (confirm(t('terminal:controls.confirmResetMouse'))) {
-        store.resetMouseControls();
-      }
-    } else if (activeTab === 'trackpad') {
-      if (confirm(t('terminal:controls.confirmResetTrackpad'))) {
-        store.resetMouseControls(); // This resets trackpad too
-      }
+    setResetConfirm(activeTab);
+  };
+  const performResetAll = () => {
+    if (resetConfirm === 'keyboard') {
+      store.resetShortcuts();
+    } else if (resetConfirm === 'mouse' || resetConfirm === 'trackpad') {
+      store.resetMouseControls();
     }
   };
+  const resetConfirmMessageKey =
+    resetConfirm === 'keyboard'
+      ? 'terminal:controls.confirmResetKeyboard'
+      : resetConfirm === 'mouse'
+        ? 'terminal:controls.confirmResetMouse'
+        : 'terminal:controls.confirmResetTrackpad';
 
   const contexts: ShortcutConfig['context'][] = ['global', 'commander', 'toolbox'];
 
@@ -524,6 +527,17 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
           </span>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={resetConfirm !== null}
+        title={t('common:buttons.resetToDefaults')}
+        message={t(resetConfirmMessageKey)}
+        confirmLabel={t('common:buttons.reset')}
+        cancelLabel={t('common:buttons.cancel')}
+        variant="danger"
+        onConfirm={performResetAll}
+        onClose={() => setResetConfirm(null)}
+      />
     </div>
   );
 }

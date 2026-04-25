@@ -1100,71 +1100,59 @@
 }
 
 .output-toolsearch-inline {
-  flex-wrap: wrap;
-
-  .toolsearch-input {
-    flex-basis: 100%;
-    margin-top: 4px;
-  }
+  // Inherits .output-tool-use flex layout — no extra wrapping or boxing.
+  // The .toolsearch-input below flows inline next to the tool icon/name.
 }
 
 .toolsearch-input {
-  width: 100%;
-  border: 1px solid rgba($accent-yellow, 0.35);
-  border-radius: $radius-sm;
-  background: rgba($accent-yellow, 0.06);
-  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .toolsearch-header {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
   flex-wrap: wrap;
-  padding: 4px 8px;
-  background: rgba($bg-tertiary, 0.55);
-  border-bottom: 1px solid rgba($border-color, 0.45);
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+  border: none;
 }
 
-.toolsearch-badge {
-  font-family: $font-mono;
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  color: $accent-yellow;
-  background: rgba($accent-yellow, 0.16);
-  border: 1px solid rgba($accent-yellow, 0.45);
-  border-radius: 4px;
-  padding: 1px 5px;
-}
-
-.toolsearch-agent {
-  font-family: $font-mono;
-  font-size: 10px;
-  color: $text-primary;
-  font-weight: 600;
+.toolsearch-tools-inline {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .toolsearch-meta-pill {
   font-family: $font-mono;
-  font-size: 9px;
+  font-size: 10px;
+  line-height: 16px;
   color: $text-secondary;
   border: 1px solid rgba($border-color, 0.55);
   border-radius: 4px;
-  padding: 1px 5px;
-  background: rgba($bg-primary, 0.55);
+  padding: 0 5px;
+  background: rgba($bg-primary, 0.4);
 }
 
 .toolsearch-toggle {
-  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   border: 1px solid rgba($accent-yellow, 0.4);
-  background: rgba($accent-yellow, 0.12);
+  background: rgba($accent-yellow, 0.1);
   color: $accent-yellow;
-  border-radius: $radius-sm;
-  padding: 1px 7px;
+  border-radius: 4px;
+  padding: 0 5px;
   font-family: $font-mono;
-  font-size: 9px;
+  font-size: 10px;
+  line-height: 16px;
   cursor: pointer;
 
   &:hover {
@@ -1172,50 +1160,36 @@
   }
 }
 
-.toolsearch-tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 6px 8px 4px;
-  background: rgba($bg-primary, 0.32);
-}
-
 .toolsearch-tool-chip {
   font-family: $font-mono;
-  font-size: 9px;
+  font-size: 10px;
+  line-height: 16px;
   color: $accent-cyan;
   border: 1px solid rgba($accent-cyan, 0.4);
-  border-radius: 999px;
-  padding: 1px 6px;
-  background: rgba($accent-cyan, 0.12);
-}
+  border-radius: 4px;
+  padding: 0 5px;
+  background: rgba($accent-cyan, 0.1);
 
-.toolsearch-preview,
-.toolsearch-empty {
-  padding: 0 8px 6px;
-  font-family: $font-mono;
-  font-size: 9px;
-  color: $text-secondary;
+  &.toolsearch-tool-chip--more {
+    color: $text-secondary;
+    border-color: rgba($border-color, 0.55);
+    background: rgba($bg-primary, 0.4);
+  }
 }
 
 .toolsearch-query-block {
-  border-top: 1px solid rgba($border-color, 0.5);
-  background: rgba($bg-primary, 0.36);
-}
-
-.toolsearch-query-title {
-  padding: 6px 8px 4px;
-  font-family: $font-mono;
-  font-size: 10px;
-  font-weight: 600;
-  color: $text-primary;
+  flex-basis: 100%;
+  margin-top: 4px;
+  padding: 4px 8px;
+  background: rgba($bg-primary, 0.32);
+  border: 1px solid rgba($border-color, 0.4);
+  border-radius: $radius-sm;
 }
 
 .toolsearch-query-list {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: 0 8px 8px;
 }
 
 .toolsearch-query-row {
@@ -1235,6 +1209,12 @@
 .toolsearch-query-value {
   color: $text-secondary;
   word-break: break-word;
+}
+
+@media (max-width: 720px) {
+  .toolsearch-toggle-label {
+    display: none;
+  }
 }
 
 .plan-tool-input {

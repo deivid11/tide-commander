@@ -210,6 +210,18 @@ export interface ContextStats {
 }
 
 // ============================================================================
+// Agent Todo List (latest TodoWrite snapshot)
+// ============================================================================
+
+export type AgentTodoStatus = 'pending' | 'in_progress' | 'completed';
+
+export interface AgentTodoItem {
+  content: string;
+  status: AgentTodoStatus;
+  activeForm?: string;
+}
+
+// ============================================================================
 // Agent State
 // ============================================================================
 
@@ -245,6 +257,9 @@ export interface Agent {
   // Current task
   currentTask?: string;
   currentTool?: string;
+
+  // Latest TodoWrite snapshot for this agent (most recent task list)
+  latestTodos?: AgentTodoItem[];
 
   // Detached mode - true when the Claude process is running but not attached to Tide Commander
   // (e.g., after server restart while agent was working)

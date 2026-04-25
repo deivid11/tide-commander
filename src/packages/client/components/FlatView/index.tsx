@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useMemo, useCallback, useRef, useEffect, useReducer } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   useAgents,
   useAgentsArray,
@@ -17,6 +18,7 @@ import {
   useBuildings,
 } from '../../store/selectors';
 import { store } from '../../store';
+import { ConfirmModal } from '../shared/ConfirmModal';
 import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../../shared/types';
 import type { Agent } from '../../../shared/types';
 import { AgentIcon } from '../AgentIcon';
@@ -963,6 +965,7 @@ export function FlatView({
   onOpenBossSpawnModal,
   onOpenAreaModal,
 }: FlatViewProps) {
+  const { t } = useTranslation(['common']);
   const agents = useAgentsArray();
   const selectedAgentIds = useSelectedAgentIds();
 
@@ -977,6 +980,12 @@ export function FlatView({
   const [emptyAgentContextMenu, setEmptyAgentContextMenu] = useState<{
     agentId: string;
     position: { x: number; y: number };
+  } | null>(null);
+  // Remove-agent confirmation modal — replaces the native window.confirm() the
+  // delete action used to trigger so the dialog matches the rest of the app.
+  const [removeAgentConfirm, setRemoveAgentConfirm] = useState<{
+    agentId: string;
+    name: string;
   } | null>(null);
   // Agent info modal — opened by clicking the agent avatar/name in the chat
   // header, mirroring the Guake terminal's guake-title-btn behavior.
@@ -1565,8 +1574,7 @@ export function FlatView({
         icon: <Icon name="trash" size={14} />,
         danger: true,
         onClick: () => {
-          if (!window.confirm(`Remove ${agent.name} from view?`)) return;
-          store.removeAgentFromServer(agent.id);
+          setRemoveAgentConfirm({ agentId: agent.id, name: agent.name });
         },
       },
     ];
@@ -1957,6 +1965,21 @@ export function FlatView({
         worldPosition={{ x: 0, z: 0 }}
         actions={emptyAgentContextMenuActions}
         onClose={() => setEmptyAgentContextMenu(null)}
+      />
+
+      <ConfirmModal
+        isOpen={removeAgentConfirm !== null}
+        title={t('common:confirm.removeAgentTitle')}
+        message={t('common:confirm.removeAgentMessage', { name: removeAgentConfirm?.name ?? '' })}
+        confirmLabel={t('common:buttons.remove')}
+        cancelLabel={t('common:buttons.cancel')}
+        variant="danger"
+        onConfirm={() => {
+          if (removeAgentConfirm) {
+            store.removeAgentFromServer(removeAgentConfirm.agentId);
+          }
+        }}
+        onClose={() => setRemoveAgentConfirm(null)}
       />
     </div>
   );

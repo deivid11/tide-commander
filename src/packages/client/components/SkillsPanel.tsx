@@ -12,6 +12,7 @@ import { uploadClassIcon, deleteClassIcon, getClassIconUrl } from '../api/class-
 import { useModalClose } from '../hooks';
 import { AgentIcon } from './AgentIcon';
 import { Icon } from './Icon';
+import { ConfirmModal } from './shared/ConfirmModal';
 
 type PanelTab = 'skills' | 'classes';
 
@@ -417,10 +418,9 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
     setClassModel('character-male-a.glb'); // Reset to default
   };
 
+  const [deleteClassConfirmId, setDeleteClassConfirmId] = useState<string | null>(null);
   const handleDeleteClass = (classId: string) => {
-    if (window.confirm(t('tools:skills.deleteClassConfirm'))) {
-      store.deleteCustomAgentClass(classId);
-    }
+    setDeleteClassConfirmId(classId);
   };
 
   const toggleClassSkill = (skillId: string) => {
@@ -1280,6 +1280,19 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={deleteClassConfirmId !== null}
+        title={t('tools:skills.deleteClass', { defaultValue: 'Delete Class' })}
+        message={t('tools:skills.deleteClassConfirm')}
+        confirmLabel={t('common:buttons.delete')}
+        cancelLabel={t('common:buttons.cancel')}
+        variant="danger"
+        onConfirm={() => {
+          if (deleteClassConfirmId) store.deleteCustomAgentClass(deleteClassConfirmId);
+        }}
+        onClose={() => setDeleteClassConfirmId(null)}
+      />
     </>
   );
 }

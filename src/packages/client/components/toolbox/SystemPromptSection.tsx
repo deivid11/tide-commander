@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { fetchSystemPrompt, updateSystemPrompt, clearSystemPrompt } from '../../api/system-settings';
 import '../styles/system-prompt-section.scss';
 import { Icon } from '../Icon';
+import { ConfirmModal } from '../shared/ConfirmModal';
 
 interface SystemPromptSectionProps {
   searchQuery?: string;
@@ -14,6 +15,7 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ search
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
   // Load system prompt on mount
   useEffect(() => {
@@ -56,11 +58,11 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ search
     }
   };
 
-  const handleClear = async () => {
-    if (!window.confirm('Are you sure you want to clear the system prompt?')) {
-      return;
-    }
+  const handleClear = () => {
+    setClearConfirmOpen(true);
+  };
 
+  const performClear = async () => {
     try {
       setError(null);
       setSuccess(null);
@@ -160,6 +162,17 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ search
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={clearConfirmOpen}
+        title="Clear System Prompt"
+        message="Are you sure you want to clear the system prompt?"
+        confirmLabel="Clear"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => { void performClear(); }}
+        onClose={() => setClearConfirmOpen(false)}
+      />
     </div>
   );
 };

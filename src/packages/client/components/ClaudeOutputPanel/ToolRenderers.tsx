@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Icon } from '../Icon';
+import { TaskListView } from '../shared/TaskListView';
 import type { DiffLine, EditData, TodoItem } from './types';
 
 // ============================================================================
@@ -420,7 +421,6 @@ interface TodoWriteInputProps {
 }
 
 export function TodoWriteInput({ content }: TodoWriteInputProps) {
-  const { t } = useTranslation(['tools']);
   try {
     const input = JSON.parse(content);
     const todos: TodoItem[] = input.todos;
@@ -429,35 +429,7 @@ export function TodoWriteInput({ content }: TodoWriteInputProps) {
       return <pre className="output-input-content">{content}</pre>;
     }
 
-    // Count by status
-    const counts = {
-      completed: todos.filter((t) => t.status === 'completed').length,
-      in_progress: todos.filter((t) => t.status === 'in_progress').length,
-      pending: todos.filter((t) => t.status === 'pending').length,
-    };
-
-    return (
-      <div className="todo-tool-input">
-        <div className="todo-tool-header">
-          <span className="todo-tool-title"><Icon name="task" size={13} /> {t('tools:todoList.title')}</span>
-          <div className="todo-tool-stats">
-            {counts.completed > 0 && <span className="todo-stat completed"><Icon name="check" size={11} /> {counts.completed}</span>}
-            {counts.in_progress > 0 && <span className="todo-stat in-progress"><Icon name="play" size={11} /> {counts.in_progress}</span>}
-            {counts.pending > 0 && <span className="todo-stat pending"><Icon name="status-pending" size={11} /> {counts.pending}</span>}
-          </div>
-        </div>
-        <div className="todo-tool-list">
-          {todos.map((todo, idx) => (
-            <div key={idx} className={`todo-item todo-${todo.status}`}>
-              <span className="todo-status-icon">
-                <Icon name={todo.status === 'completed' ? 'check' : todo.status === 'in_progress' ? 'play' : 'status-pending'} size={12} />
-              </span>
-              <span className="todo-content">{todo.content}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return <TaskListView todos={todos} />;
   } catch {
     return <pre className="output-input-content">{content}</pre>;
   }
@@ -759,7 +731,7 @@ interface ToolSearchInputProps {
   agentName?: string | null;
 }
 
-export function ToolSearchInput({ content, agentName }: ToolSearchInputProps) {
+export function ToolSearchInput({ content }: ToolSearchInputProps) {
   const [expanded, setExpanded] = useState(false);
   const parsed = parseToolSearchContent(content);
 
@@ -767,59 +739,58 @@ export function ToolSearchInput({ content, agentName }: ToolSearchInputProps) {
     return <pre className="output-input-content">{content}</pre>;
   }
 
-  const compactTools = parsed.selectedTools.length > 0
-    ? parsed.selectedTools.slice(0, 4).join(', ')
-    : '-';
-  const hasMoreTools = parsed.selectedTools.length > 4;
-  const toolSummary = hasMoreTools ? `${compactTools} +${parsed.selectedTools.length - 4}` : compactTools;
+  const visibleTools = parsed.selectedTools.slice(0, 4);
+  const extraToolCount = parsed.selectedTools.length - visibleTools.length;
+  const hasQueryParams = parsed.queryParams.length > 0;
+  const fallback = parsed.fallback && parsed.fallback !== '-' ? parsed.fallback : null;
+  const showHide = parsed.showHide && parsed.showHide !== '-' ? parsed.showHide : null;
 
   return (
     <div className="toolsearch-input">
       <div className="toolsearch-header">
-        <span className="toolsearch-badge"><Icon name="bolt" size={12} /> ToolSearch</span>
-        {agentName && <span className="toolsearch-agent">{agentName}</span>}
-        <span className="toolsearch-meta-pill">
-          Tools: {toolSummary}
-        </span>
-        <span className="toolsearch-meta-pill">
-          Fallback: {parsed.fallback ?? '-'}
-        </span>
-        <span className="toolsearch-meta-pill">
-          Show/Hide: {parsed.showHide ?? '-'}
-        </span>
-        <button
-          type="button"
-          className="toolsearch-toggle"
-          onClick={() => setExpanded((prev) => !prev)}
-          title={expanded ? 'Hide details' : 'Show details'}
-        >
-          <Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} /> {expanded ? 'Hide' : 'Show'}
-        </button>
+        {visibleTools.length > 0 && (
+          <span className="toolsearch-tools-inline">
+            {visibleTools.map((tool) => (
+              <span key={tool} className="toolsearch-tool-chip">{tool}</span>
+            ))}
+            {extraToolCount > 0 && (
+              <span className="toolsearch-tool-chip toolsearch-tool-chip--more">+{extraToolCount}</span>
+            )}
+          </span>
+        )}
+        {fallback && (
+          <span className="toolsearch-meta-pill">Fallback: {fallback}</span>
+        )}
+        {showHide && (
+          <span className="toolsearch-meta-pill">Show: {showHide}</span>
+        )}
+        {hasQueryParams && (
+          <button
+            type="button"
+            className="toolsearch-toggle"
+            onClick={() => setExpanded((prev) => !prev)}
+            aria-label={expanded ? 'Hide query parameters' : 'Show query parameters'}
+            title={expanded ? 'Hide query parameters' : 'Show query parameters'}
+          >
+            <Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} />
+            <span className="toolsearch-toggle-label">
+              {expanded ? 'Hide' : `${parsed.queryParams.length} param${parsed.queryParams.length === 1 ? '' : 's'}`}
+            </span>
+          </button>
+        )}
       </div>
 
-      {expanded ? (
+      {expanded && hasQueryParams && (
         <div className="toolsearch-query-block">
-          <div className="toolsearch-tools">
-            {parsed.selectedTools.length > 0 ? parsed.selectedTools.map((tool) => (
-              <span key={tool} className="toolsearch-tool-chip">{tool}</span>
-            )) : <span className="toolsearch-empty">No selected tools</span>}
+          <div className="toolsearch-query-list">
+            {parsed.queryParams.map((param, index) => (
+              <div key={`${param.key}-${index}`} className="toolsearch-query-row">
+                <span className="toolsearch-query-key">{param.key}</span>
+                <span className="toolsearch-query-value">{param.value}</span>
+              </div>
+            ))}
           </div>
-          <div className="toolsearch-query-title">Query Parameters</div>
-          {parsed.queryParams.length > 0 ? (
-            <div className="toolsearch-query-list">
-              {parsed.queryParams.map((param, index) => (
-                <div key={`${param.key}-${index}`} className="toolsearch-query-row">
-                  <span className="toolsearch-query-key">{param.key}</span>
-                  <span className="toolsearch-query-value">{param.value}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="toolsearch-empty">No query parameters provided</div>
-          )}
         </div>
-      ) : (
-        <div className="toolsearch-preview">Collapsed</div>
       )}
     </div>
   );
