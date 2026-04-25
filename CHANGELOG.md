@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.77.0] - 2026-04-24
+
+### Added
+- **Browser back/forward navigation in `FlatView`** — Alt+Left / Alt+Right, trackpad swipe, and mouse side buttons (anything that fires a `popstate`) now cycle the selected agent the same way the prev/next buttons do. Mirrors `ClaudeOutputPanel`'s `__guakeAgentNav` pattern but uses a distinct `__flatAgentNav` history-state marker so the two views coexist without colliding. Each agent selection pushes a new history entry (replace on first init, push thereafter) and `popstate` resolves the target agent from `event.state.__flatAgentNav.agentId` against the live `agentIdSet`. Listeners are scoped to FlatView mount so they tear down cleanly on unmount
+
+### Changed
+- **`SubagentInline` shared component extracted** — the inline activity / stream panel for `Task` & `Agent` tool chips moves out of `OutputLine.tsx` (-107 lines) into a new `ClaudeOutputPanel/SubagentInline.tsx` (120 lines) and is now consumed by both `OutputLine` (live) and `HistoryLine` (persisted). The shared `SubagentStreamPanel` keeps the expand/collapse state, recent-3 preview, auto-scroll while working, and entry icons (`tool_use` / `tool_result` / `text`). `VirtualizedOutputList` threads the `subagents` map through to `HistoryLine` so persisted `Task`/`Agent` rows can resolve their subagent by `toolUseId`
+
+### Fixed
+- **Subagent stream no longer disappears after a JSONL re-fetch** — once the live `tool_use` chip gets deduped against the persisted history, `HistoryLine` becomes the sole renderer of the `Task`/`Agent` chip. Before this change it had no way to render the inline activity panel, so the `Stream (X events)` block would vanish on panel re-mount even while the subagent was still streaming. `HistoryLine` now matches the `tool_use.toolUseId` against the in-memory `subagents` map (linear scan through entries) and renders `<SubagentInline />` in both the simple-view and full-view branches
+
 ## [1.76.2] - 2026-04-24
 
 ### Fixed

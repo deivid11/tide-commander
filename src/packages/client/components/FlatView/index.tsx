@@ -1261,6 +1261,14 @@ export function FlatView({
   const [canNavigateBack, setCanNavigateBack] = useState(false);
   const [canNavigateForward, setCanNavigateForward] = useState(false);
 
+  // Browser history integration so Alt+Left/Right (and trackpad swipe → popstate
+  // and any other browser-driven back/forward) cycles selected agents the same
+  // way the prev/next buttons do. Mirrors ClaudeOutputPanel's __guakeAgentNav
+  // pattern; uses a distinct __flatAgentNav marker so the two coexist.
+  const browserHistoryInitializedRef = useRef(false);
+  const lastBrowserHistoryAgentIdRef = useRef<string | null>(null);
+  const isBrowserPopNavigationRef = useRef(false);
+
   const agentIdSet = useMemo(() => new Set(agents.map((a) => a.id)), [agents]);
 
   // Resolve subordinate Agent objects per boss for the SubordinateProgressDots indicator on the FlatView map.
@@ -1308,6 +1316,79 @@ export function FlatView({
 
   const handleNavigateBack = useCallback(() => navigateAgentHistory(-1), [navigateAgentHistory]);
   const handleNavigateForward = useCallback(() => navigateAgentHistory(1), [navigateAgentHistory]);
+
+  const setFlatBrowserHistoryState = useCallback((agentId: string, mode: 'push' | 'replace') => {
+    if (typeof window === 'undefined') return;
+    const currentState = window.history.state;
+    const baseState = typeof currentState === 'object' && currentState !== null ? currentState : {};
+    const nextState = {
+      ...baseState,
+      __flatAgentNav: { agentId },
+    };
+    if (mode === 'replace') {
+      window.history.replaceState(nextState, '', window.location.href);
+    } else {
+      window.history.pushState(nextState, '', window.location.href);
+    }
+  }, []);
+
+  // Push (or replace on first init) a browser-history entry every time the
+  // selected agent changes — except when the change itself was triggered by
+  // a browser pop, in which case the entry already exists.
+  useEffect(() => {
+    if (!selectedAgentId) {
+      browserHistoryInitializedRef.current = false;
+      lastBrowserHistoryAgentIdRef.current = null;
+      return;
+    }
+
+    if (!browserHistoryInitializedRef.current) {
+      setFlatBrowserHistoryState(selectedAgentId, 'replace');
+      browserHistoryInitializedRef.current = true;
+      lastBrowserHistoryAgentIdRef.current = selectedAgentId;
+      return;
+    }
+
+    if (isBrowserPopNavigationRef.current) {
+      isBrowserPopNavigationRef.current = false;
+      lastBrowserHistoryAgentIdRef.current = selectedAgentId;
+      return;
+    }
+
+    if (lastBrowserHistoryAgentIdRef.current === selectedAgentId) return;
+
+    setFlatBrowserHistoryState(selectedAgentId, 'push');
+    lastBrowserHistoryAgentIdRef.current = selectedAgentId;
+  }, [selectedAgentId, setFlatBrowserHistoryState]);
+
+  // Browser back/forward (Alt+Left/Right, trackpad swipe, mouse side buttons
+  // routed through the browser) — listener is installed on FlatView mount and
+  // torn down on unmount so it can't leak into other views.
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const targetAgentId = event.state?.__flatAgentNav?.agentId;
+      if (!targetAgentId || typeof targetAgentId !== 'string') return;
+      if (!agentIdSet.has(targetAgentId)) return;
+      if (targetAgentId === selectedAgentId) return;
+
+      isBrowserPopNavigationRef.current = true;
+      isHistoryNavigationRef.current = true;
+
+      const history = agentNavigationHistoryRef.current;
+      const foundIndex = history.lastIndexOf(targetAgentId);
+      if (foundIndex >= 0) {
+        agentNavigationIndexRef.current = foundIndex;
+      } else {
+        history.push(targetAgentId);
+        agentNavigationIndexRef.current = history.length - 1;
+      }
+      updateAgentNavigationAvailability();
+      store.selectAgent(targetAgentId);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [agentIdSet, selectedAgentId, updateAgentNavigationAvailability]);
 
   useEffect(() => {
     if (!selectedAgentId) {
