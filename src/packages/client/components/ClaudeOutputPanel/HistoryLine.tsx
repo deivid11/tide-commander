@@ -25,6 +25,8 @@ import { ansiToHtml } from '../../utils/ansiToHtml';
 import { Icon } from '../Icon';
 import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
 import type { EnrichedHistoryMessage, EditData } from './types';
+import type { Subagent } from '../../../shared/types';
+import { SubagentInline } from './SubagentInline';
 
 /** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
 function getExtFromPath(filePath: string): string {
@@ -44,6 +46,13 @@ interface HistoryLineProps {
   agentId?: string | null;
   highlight?: string;
   simpleView?: boolean;
+  /**
+   * Subagents map keyed by subagent id. Needed so that persisted Task/Agent
+   * tool_use rows can render the inline activity + stream panel — the live
+   * tool_use chip gets deduped against the JSONL once it flushes, leaving
+   * HistoryLine as the sole renderer of the Task chip.
+   */
+  subagents?: Map<string, Subagent>;
   onImageClick?: (url: string, name: string) => void;
   onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
   onBashClick?: (command: string, output: string) => void;
@@ -68,6 +77,7 @@ export const HistoryLine = memo(function HistoryLine({
   agentId,
   highlight,
   simpleView,
+  subagents,
   onImageClick,
   onFileClick,
   onBashClick,
@@ -328,6 +338,17 @@ export const HistoryLine = memo(function HistoryLine({
     const iconName = getToolIconName(toolName || '');
     const displayToolName = toolName ? getLocalizedToolName(toolName, t) : '';
     const toolInputContent = message.toolInput ? JSON.stringify(message.toolInput) : content;
+
+    // Match Task/Agent tool_use to its subagent so the inline activity + stream
+    // panel survives the JSONL re-fetch that drops the live tool_use chip.
+    const matchingSubagent = (toolName === 'Task' || toolName === 'Agent') && subagents && message.toolUseId
+      ? (() => {
+          for (const [, sub] of subagents) {
+            if (sub.toolUseId === message.toolUseId) return sub;
+          }
+          return undefined;
+        })()
+      : undefined;
 
     // Simple view: show icon, tool name, and key parameter
     if (simpleView) {
@@ -658,6 +679,7 @@ export const HistoryLine = memo(function HistoryLine({
               </div>
             </div>
           )}
+          {matchingSubagent && <SubagentInline subagent={matchingSubagent} />}
         </>
       );
     }
@@ -777,6 +799,7 @@ export const HistoryLine = memo(function HistoryLine({
             <pre className="output-input-content">{highlightText(toolInputContent, highlight)}</pre>
           </div>
         )}
+        {matchingSubagent && <SubagentInline subagent={matchingSubagent} />}
       </>
     );
   }

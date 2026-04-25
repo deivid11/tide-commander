@@ -20,7 +20,8 @@ import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { useTTS } from '../../hooks/useTTS';
 import { Icon, type IconName } from '../Icon';
 import type { EditData } from './types';
-import type { ExecTask, Subagent, SubagentStreamEntry } from '../../../shared/types';
+import type { ExecTask, Subagent } from '../../../shared/types';
+import { SubagentInline } from './SubagentInline';
 
 /** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
 function getExtFromPath(filePath: string): string {
@@ -34,61 +35,6 @@ function getExtFromPath(filePath: string): string {
 function getBasenameFromPath(filePath: string): string {
   return filePath.split('/').pop() || filePath;
 }
-
-/** Inline panel showing streamed subagent JSONL content */
-const SubagentStreamPanel = memo(function SubagentStreamPanel({ entries, isWorking }: { entries: SubagentStreamEntry[]; isWorking: boolean }) {
-  const [expanded, setExpanded] = useState(false);
-  const listRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll when new entries arrive while working and expanded
-  useEffect(() => {
-    if (isWorking && expanded && listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
-    }
-  }, [entries.length, isWorking, expanded]);
-
-  const visibleEntries = expanded ? entries : entries.slice(-3);
-
-  return (
-    <div className="subagent-stream-panel">
-      <div
-        className="subagent-stream-toggle"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <span className="stream-toggle-arrow"><Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} /></span>
-        <span>{expanded ? 'Hide stream' : `Stream (${entries.length} events)`}</span>
-      </div>
-      {(expanded || entries.length <= 3) && (
-        <div className="subagent-stream-list" ref={listRef}>
-          {visibleEntries.map((entry, i) => (
-            <div key={i} className={`subagent-stream-entry entry-${entry.type}${entry.isError ? ' entry-error' : ''}`}>
-              {entry.type === 'text' && (
-                <>
-                  <span className="stream-entry-icon"><Icon name="robot" size={12} /></span>
-                  <span className="stream-entry-text">{entry.text}</span>
-                </>
-              )}
-              {entry.type === 'tool_use' && (
-                <>
-                  <span className="stream-entry-icon"><Icon name={getToolIconName(entry.toolName || '')} size={12} /></span>
-                  <span className="stream-entry-tool">{entry.toolName}</span>
-                  {entry.toolKeyParam && <span className="stream-entry-param">{entry.toolKeyParam}</span>}
-                </>
-              )}
-              {entry.type === 'tool_result' && (
-                <>
-                  <span className="stream-entry-icon"><Icon name={entry.isError ? 'cross' : 'check'} size={12} /></span>
-                  <span className="stream-entry-result">{entry.resultPreview}</span>
-                </>
-              )}
-            </div>
-          ))}
-          {isWorking && <span className="subagent-cursor">▌</span>}
-        </div>
-      )}
-    </div>
-  );
-});
 
 interface OutputLineProps {
   output: ClaudeOutput & { _toolKeyParam?: string; _editData?: EditData; _todoInput?: string; _bashOutput?: string; _bashCommand?: string; _isRunning?: boolean };
@@ -965,54 +911,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         )}
 
         {/* Inline subagent activity panel below Task tool line */}
-        {matchingSubagent && (matchingSubagent.status === 'working' || (matchingSubagent.activities && matchingSubagent.activities.length > 0) || matchingSubagent.stats) && (
-          <div className="subagent-activity-container">
-            <div className={`subagent-activity-inline status-${matchingSubagent.status}`}>
-              {/* Header with type badge and elapsed time */}
-              <div className="subagent-activity-header">
-                <span className="subagent-type-badge">{matchingSubagent.subagentType}</span>
-                <span className="subagent-elapsed">
-                  {matchingSubagent.completedAt
-                    ? `${((matchingSubagent.completedAt - matchingSubagent.startedAt) / 1000).toFixed(0)}s`
-                    : `${((Date.now() - matchingSubagent.startedAt) / 1000).toFixed(0)}s`}
-                </span>
-              </div>
-
-              {/* Tool activity timeline */}
-              {matchingSubagent.activities && matchingSubagent.activities.length > 0 && (
-                <div className="subagent-activity-list">
-                  {matchingSubagent.activities.slice(-8).map((activity, i) => (
-                    <div key={i} className="subagent-activity-item">
-                      <span className="activity-icon"><Icon name={getToolIconName(activity.toolName)} size={12} /></span>
-                      <span className="activity-tool">{activity.toolName}</span>
-                      <span className="activity-desc">{activity.description.length > 80 ? activity.description.slice(0, 77) + '...' : activity.description}</span>
-                    </div>
-                  ))}
-                  {matchingSubagent.status === 'working' && (
-                    <span className="subagent-cursor">▌</span>
-                  )}
-                </div>
-              )}
-
-              {/* Completion stats bar */}
-              {matchingSubagent.stats && (
-                <div className="subagent-stats-bar">
-                  <span>{(matchingSubagent.stats.durationMs / 1000).toFixed(0)}s</span>
-                  <span>{(matchingSubagent.stats.tokensUsed / 1000).toFixed(1)}K tokens</span>
-                  <span>{matchingSubagent.stats.toolUseCount} tools</span>
-                </div>
-              )}
-
-              {/* Streaming content from JSONL file */}
-              {matchingSubagent.streamEntries && matchingSubagent.streamEntries.length > 0 && (
-                <SubagentStreamPanel
-                  entries={matchingSubagent.streamEntries}
-                  isWorking={matchingSubagent.status === 'working'}
-                />
-              )}
-            </div>
-          </div>
-        )}
+        {matchingSubagent && <SubagentInline subagent={matchingSubagent} />}
       </>
     );
   }

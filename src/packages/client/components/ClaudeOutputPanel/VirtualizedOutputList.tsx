@@ -131,6 +131,7 @@ const VirtualRow = memo(function VirtualRow({
           agentId={agentId}
           simpleView={simpleView}
           highlight={searchHighlight}
+          subagents={subagents}
           onImageClick={onImageClick}
           onFileClick={onFileClick}
           onBashClick={onBashClick}
