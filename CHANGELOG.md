@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.75.0] - 2026-04-24
+
+### Added
+- **Per-agent TodoWrite snapshot is now persisted on the agent** — the runtime listener intercepts top-level `TodoWrite` tool calls (ignoring sub-agent ones via `parentToolUseId`), parses them with the new `parseTodoWriteInput` helper, and stores the result on `Agent.latestTodos`. New shared types `AgentTodoStatus` and `AgentTodoItem` model the entry shape (`content` + `status` + optional `activeForm`). The snapshot is cleared automatically when the agent transitions back to `idle` so stale task lists never linger across turns
+- **`TaskListView` shared component** — extracts the full TodoWrite list rendering (status counts header, per-item icons, content) into `components/shared/TaskListView.tsx` so both the streaming tool feed and the unit panel render the exact same layout from a single source of truth
+- **`TaskProgressDots` shared component** — compact dot visualization of an agent's `latestTodos`, capped at 12 dots with `+N` overflow and a hover tooltip listing every task with status icons (`✓`/`▶`/`○`) and a `done/total` header. Lives at `components/shared/TaskProgressDots.tsx`
+- **TaskProgressDots in agent cards and list items** — the `AgentOverviewPanel` agent cards and the `UnitPanel/AgentsList` rows both render the dots inline next to the name when `latestTodos` is present, giving a glance-able progress signal without opening the agent
+- **TaskListView in `SingleAgentPanel`** — the unit panel now shows a `unit-task-list` block under the current task, rendering `TaskListView` when `latestTodos` exists or a translated "No active tasks" empty state otherwise. New `unitPanel.noActiveTasks` translation key
+- **`ConfirmModal` shared component** — reusable TC-styled confirmation dialog at `components/shared/ConfirmModal.tsx` replacing native `window.confirm()`. Backed by the existing `.modal-overlay` / `.modal` / `.confirm-modal` styles so it inherits the dark theme, focus-traps the destructive button on open, supports Escape-to-close (capture phase so it wins over inner handlers), and exposes a `variant: 'danger' | 'primary'` toggle. Auto-closes on confirm via the wrapper handler
+- **`removeAgentTitle` / `removeAgentMessage` translations** — split out of the old single-line `removeAgent` confirm so the new modal can show a proper title and a separate body line
+
+### Changed
+- **`AgentOverviewPanel` remove-agent flow uses `ConfirmModal`** — the trash-icon menu action now opens the modal instead of `window.confirm()`, with a typed `removeAgentConfirm` state holding `{ agentId, name }` until the user confirms or cancels
+- **`TerminalHeader` remove-agent flow uses `ConfirmModal`** — same swap for the terminal header's remove button so the styling matches the rest of the app
+- **`FlatView` remove-agent flow uses `ConfirmModal`** — the flat-view delete action moves off `window.confirm()` and onto the shared modal with the same confirm-state pattern
+- **`SingleAgentPanel` "Clear all patterns" + "Terminate agent" flows use `ConfirmModal`** — `handleClearAllPatterns` and `handleKill` now open dedicated modals (`clearPatternsConfirmOpen`, `terminateConfirmOpen`) and the destructive work runs from the `onConfirm` handler. The terminate dialog also surfaces the existing "This action cannot be undone." line via the modal's `note` prop
+- **`ToolRenderers.TodoWriteInput` delegates to `TaskListView`** — the inline TodoWrite renderer in the streaming tool feed loses its duplicated layout code and forwards parsed todos to the shared component, eliminating drift between the two surfaces
+- **`ToolRenderers.ToolSearchInput` header layout overhauled** — selected tools now render as inline chips (capped at 4 with `+N` overflow) instead of a comma-separated meta-pill; the `Tools:` and `ToolSearch` badges are gone; `Fallback` / `Show` pills only render when their values are real (not `-`); the expand toggle is conditional on having query params and shows the param count in its label (`3 params`); the expanded panel drops the redundant tool list + section title and just shows the parameter rows. The collapsed "Collapsed" placeholder is removed entirely
+
+### Fixed
+- **`agent-service.updateAgent` clears `latestTodos` on idle transitions** — when an agent moves from any non-idle status into `idle`, the in-flight TodoWrite snapshot is wiped (unless the same update payload explicitly sets `latestTodos`). Prevents the previous turn's task list from ghosting on the next one
+
 ## [1.74.0] - 2026-04-24
 
 ### Added

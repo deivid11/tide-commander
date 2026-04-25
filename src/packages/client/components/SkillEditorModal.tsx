@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { store, useSkill, useAgentsArray } from '../store';
 import type { Skill, AgentClass } from '../../shared/types';
 import { useModalClose } from '../hooks';
+import { ConfirmModal } from './shared/ConfirmModal';
 
 interface SkillEditorModalProps {
   isOpen: boolean;
@@ -83,6 +84,8 @@ export function SkillEditorModal({
   const [assignedAgentClasses, setAssignedAgentClasses] = useState<AgentClass[]>([]);
   const [enabled, setEnabled] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [updateConfirmData, setUpdateConfirmData] = useState<Partial<Skill> | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const nameInputRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
@@ -170,8 +173,8 @@ export function SkillEditorModal({
       );
 
       if (contentChanged) {
-        const confirmed = confirm(t('tools:skills.updateSkillConfirm'));
-        if (!confirmed) return;
+        setUpdateConfirmData(skillData);
+        return;
       }
 
       store.updateSkill(skillId, skillData);
@@ -183,10 +186,8 @@ export function SkillEditorModal({
   };
 
   const handleDelete = () => {
-    if (skillId && confirm(t('tools:skills.deleteSkillConfirm'))) {
-      store.deleteSkill(skillId);
-      onClose();
-    }
+    if (!skillId) return;
+    setDeleteConfirmOpen(true);
   };
 
   const toggleTool = (tool: string) => {
@@ -526,6 +527,38 @@ export function SkillEditorModal({
           </div>
         </form>
       </div>
+
+      <ConfirmModal
+        isOpen={updateConfirmData !== null}
+        title={t('tools:skills.saveAssignments', { defaultValue: 'Save Changes' })}
+        message={t('tools:skills.updateSkillConfirm')}
+        confirmLabel={t('common:buttons.save')}
+        cancelLabel={t('common:buttons.cancel')}
+        variant="primary"
+        onConfirm={() => {
+          if (skillId && updateConfirmData) {
+            store.updateSkill(skillId, updateConfirmData);
+            onClose();
+          }
+        }}
+        onClose={() => setUpdateConfirmData(null)}
+      />
+
+      <ConfirmModal
+        isOpen={deleteConfirmOpen}
+        title={t('common:buttons.delete')}
+        message={t('tools:skills.deleteSkillConfirm')}
+        confirmLabel={t('common:buttons.delete')}
+        cancelLabel={t('common:buttons.cancel')}
+        variant="danger"
+        onConfirm={() => {
+          if (skillId) {
+            store.deleteSkill(skillId);
+            onClose();
+          }
+        }}
+        onClose={() => setDeleteConfirmOpen(false)}
+      />
     </div>
   );
 }

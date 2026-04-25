@@ -38,6 +38,8 @@ import type {
 } from './types';
 import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
+import { ConfirmModal } from '../shared/ConfirmModal';
+import { TaskListView } from '../shared/TaskListView';
 
 // ============================================================================
 // SingleAgentPanel Component
@@ -78,6 +80,8 @@ export function SingleAgentPanel({
   const [contextConfirm, setContextConfirm] = useState<ContextAction>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showContextModal, setShowContextModal] = useState(false);
+  const [clearPatternsConfirmOpen, setClearPatternsConfirmOpen] = useState(false);
+  const [terminateConfirmOpen, setTerminateConfirmOpen] = useState(false);
 
   // Update editName when agent changes
   useEffect(() => {
@@ -143,8 +147,11 @@ export function SingleAgentPanel({
     }
   };
 
-  const handleClearAllPatterns = async () => {
-    if (!confirm(t('confirm.clearPatterns'))) return;
+  const handleClearAllPatterns = () => {
+    setClearPatternsConfirmOpen(true);
+  };
+
+  const performClearAllPatterns = async () => {
     try {
       const res = await authFetch(apiUrl('/api/remembered-patterns'), { method: 'DELETE' });
       if (res.ok) {
@@ -156,9 +163,7 @@ export function SingleAgentPanel({
   };
 
   const handleKill = () => {
-    if (confirm(t('confirm.terminateAgent'))) {
-      onKillAgent(agent.id);
-    }
+    setTerminateConfirmOpen(true);
   };
 
   const handleNameSave = () => {
@@ -319,6 +324,15 @@ export function SingleAgentPanel({
       {/* Current Task */}
       {agent.currentTask && <CurrentTask task={agent.currentTask} />}
 
+      {/* Latest TodoWrite snapshot */}
+      <div className="unit-task-list">
+        {agent.latestTodos && agent.latestTodos.length > 0 ? (
+          <TaskListView todos={agent.latestTodos} />
+        ) : (
+          <div className="unit-task-list-empty">{t('unitPanel.noActiveTasks')}</div>
+        )}
+      </div>
+
       {/* Working Directory */}
       <WorkingDirectory cwd={agent.cwd} />
 
@@ -415,6 +429,29 @@ export function SingleAgentPanel({
         onRefresh={() => {
           store.refreshAgentContext(agent.id);
         }}
+      />
+
+      <ConfirmModal
+        isOpen={clearPatternsConfirmOpen}
+        title={t('common:buttons.clearAll')}
+        message={t('common:confirm.clearPatterns')}
+        confirmLabel={t('common:buttons.clearAll')}
+        cancelLabel={t('common:buttons.cancel')}
+        variant="danger"
+        onConfirm={performClearAllPatterns}
+        onClose={() => setClearPatternsConfirmOpen(false)}
+      />
+
+      <ConfirmModal
+        isOpen={terminateConfirmOpen}
+        title={t('common:buttons.terminate')}
+        message={t('common:confirm.terminateAgent')}
+        note={t('common:confirm.cannotBeUndone')}
+        confirmLabel={t('common:buttons.terminate')}
+        cancelLabel={t('common:buttons.cancel')}
+        variant="danger"
+        onConfirm={() => onKillAgent(agent.id)}
+        onClose={() => setTerminateConfirmOpen(false)}
       />
     </div>
   );

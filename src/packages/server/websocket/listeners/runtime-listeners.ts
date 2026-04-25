@@ -1,7 +1,7 @@
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import type { ContextStats, ServerMessage, Subagent } from '../../../shared/types.js';
+import type { AgentTodoItem, AgentTodoStatus, ContextStats, ServerMessage, Subagent } from '../../../shared/types.js';
 import { parseContextOutput } from '../../claude/backend.js';
 import { parseAllFormats } from '../handlers/agent-handler.js';
 import { agentService, runtimeService } from '../../services/index.js';
@@ -81,6 +81,13 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
     } else if (event.type === 'tool_start') {
       const details = formatToolActivity(event.toolName, event.toolInput);
       ctx.sendActivity(agentId, details);
+
+      if (event.toolName === 'TodoWrite' && !event.parentToolUseId) {
+        const todos = parseTodoWriteInput(event.toolInput);
+        if (todos) {
+          agentService.updateAgent(agentId, { latestTodos: todos }, false);
+        }
+      }
 
       if ((event.toolName === 'Task' || event.toolName === 'Agent') && event.toolUseId && event.subagentName) {
         const subagent = runtimeService.getActiveSubagentByToolUseId(event.toolUseId);
@@ -588,6 +595,27 @@ function findGitRoot(startDir: string): string | null {
   } catch {
     return null;
   }
+}
+
+function parseTodoWriteInput(toolInput: Record<string, unknown> | undefined): AgentTodoItem[] | null {
+  if (!toolInput || typeof toolInput !== 'object') return null;
+  const rawTodos = (toolInput as { todos?: unknown }).todos;
+  if (!Array.isArray(rawTodos)) return null;
+  const validStatuses: AgentTodoStatus[] = ['pending', 'in_progress', 'completed'];
+  const todos: AgentTodoItem[] = [];
+  for (const raw of rawTodos) {
+    if (!raw || typeof raw !== 'object') continue;
+    const item = raw as { content?: unknown; status?: unknown; activeForm?: unknown };
+    const content = typeof item.content === 'string' ? item.content : '';
+    const status = typeof item.status === 'string' ? item.status as AgentTodoStatus : 'pending';
+    if (!content || !validStatuses.includes(status)) continue;
+    const todo: AgentTodoItem = { content, status };
+    if (typeof item.activeForm === 'string' && item.activeForm.length > 0) {
+      todo.activeForm = item.activeForm;
+    }
+    todos.push(todo);
+  }
+  return todos;
 }
 
 function readHeadFileIfSmall(gitRoot: string, relativePath: string): string | null {

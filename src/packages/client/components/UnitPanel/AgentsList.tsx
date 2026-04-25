@@ -14,6 +14,7 @@ import { formatIdleCompact, calculateContextInfo, getContextBarColor, groupAgent
 import type { AgentsListProps, AgentListItemProps } from './types';
 import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
+import { TaskProgressDots } from '../shared/TaskProgressDots';
 
 // ============================================================================
 // Types
@@ -358,6 +359,9 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQu
           )}
           {agent.isBoss && (
             <span className="agent-item-boss-badge" title="Boss agent">B</span>
+          )}
+          {agent.latestTodos && agent.latestTodos.length > 0 && (
+            <TaskProgressDots todos={agent.latestTodos} />
           )}
         </div>
 

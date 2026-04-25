@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useSecretsArray, store } from '../../store';
 import type { Secret } from '../../../shared/types';
 import { Icon } from '../Icon';
+import { ConfirmModal } from '../shared/ConfirmModal';
 
 export function SecretsSection() {
   const { t } = useTranslation(['config', 'common']);
@@ -10,6 +11,7 @@ export function SecretsSection() {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ name: '', key: '', value: '', description: '' });
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const handleAdd = () => {
     setIsAdding(true);
@@ -56,10 +58,13 @@ export function SecretsSection() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm(t('config:secrets.deleteConfirm'))) {
-      store.deleteSecret(id);
-      if (editingId === id) handleCancel();
-    }
+    setDeleteConfirmId(id);
+  };
+
+  const performDelete = () => {
+    if (!deleteConfirmId) return;
+    store.deleteSecret(deleteConfirmId);
+    if (editingId === deleteConfirmId) handleCancel();
   };
 
   const copyPlaceholder = (key: string) => {
@@ -184,6 +189,17 @@ export function SecretsSection() {
           {t('config:secrets.addSecret')}
         </button>
       )}
+
+      <ConfirmModal
+        isOpen={deleteConfirmId !== null}
+        title={t('common:buttons.delete')}
+        message={t('config:secrets.deleteConfirm')}
+        confirmLabel={t('common:buttons.delete')}
+        cancelLabel={t('common:buttons.cancel')}
+        variant="danger"
+        onConfirm={performDelete}
+        onClose={() => setDeleteConfirmId(null)}
+      />
     </div>
   );
 }

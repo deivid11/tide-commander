@@ -39,6 +39,7 @@ import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../..
 import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
 import { useTwoClickConfirm } from '../../hooks';
+import { ConfirmModal } from '../shared/ConfirmModal';
 
 export interface TerminalHeaderProps {
   selectedAgent: Agent;
@@ -168,10 +169,9 @@ export const TerminalHeader = memo(function TerminalHeader({
     }
   };
 
+  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
   const handleRemoveAgent = () => {
-    const confirmed = window.confirm(t('common:confirm.removeAgent', { name: selectedAgent.name }));
-    if (!confirmed) return;
-    store.removeAgentFromServer(selectedAgentId);
+    setRemoveConfirmOpen(true);
   };
 
   // Get status info
@@ -718,6 +718,16 @@ export const TerminalHeader = memo(function TerminalHeader({
           <Icon name="close" size={16} />
         </button>
       </div>
+      <ConfirmModal
+        isOpen={removeConfirmOpen}
+        title={t('common:confirm.removeAgentTitle')}
+        message={t('common:confirm.removeAgentMessage', { name: selectedAgent.name })}
+        confirmLabel={t('common:buttons.remove')}
+        cancelLabel={t('common:buttons.cancel')}
+        variant="danger"
+        onConfirm={() => store.removeAgentFromServer(selectedAgentId)}
+        onClose={() => setRemoveConfirmOpen(false)}
+      />
     </div>
   );
 });

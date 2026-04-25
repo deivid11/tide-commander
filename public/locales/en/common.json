@@ -179,6 +179,8 @@
     "cannotBeUndone": "This action cannot be undone.",
     "terminateAgent": "Are you sure you want to terminate this agent?",
     "removeAgent": "Remove {{name}} from view?",
+    "removeAgentTitle": "Remove Agent",
+    "removeAgentMessage": "Are you sure you want to remove {{name}}? This action cannot be undone.",
     "deleteBuilding": "Delete this building?",
     "clearPatterns": "Clear all remembered permission patterns?"
   },
@@ -234,7 +236,8 @@
     "clearContextBtn": "Clear Context",
     "removePattern": "Remove this pattern",
     "agentsCount": "{{count}} agents",
-    "confidence": "Confidence: {{level}}"
+    "confidence": "Confidence: {{level}}",
+    "noActiveTasks": "No active tasks"
   },
   "multiAgent": {
     "agentsSelected": "{{count}} Agents Selected",

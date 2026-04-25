@@ -389,6 +389,29 @@
   margin-bottom: 8px;
 }
 
+.unit-task-list {
+  margin-bottom: 8px;
+
+  .todo-tool-input {
+    border: 1px solid rgba($border-color, 0.5);
+    border-radius: $radius-md;
+    overflow: hidden;
+  }
+
+  .todo-tool-list {
+    max-height: 240px;
+  }
+}
+
+.unit-task-list-empty {
+  padding: 6px 8px;
+  font-size: 11px;
+  font-style: italic;
+  color: $text-muted;
+  background: $bg-tertiary;
+  border-radius: $radius-md;
+}
+
 .unit-task-text {
   font-size: 11px;
   color: $text-primary;
@@ -1330,6 +1353,112 @@
   background: rgba(255, 215, 0, 0.15);
   color: #ffd700;
   letter-spacing: 0.5px;
+}
+
+// ── Task progress dots (latestTodos snapshot) ────────────────────────────────
+.task-progress-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+  cursor: help;
+}
+
+.task-progress-tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: $font-mono;
+}
+
+.task-progress-tooltip-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: $text-primary;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba($border-color, 0.5);
+}
+
+.task-progress-tooltip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.task-progress-tooltip-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.35;
+
+  &.status-completed {
+    .task-progress-tooltip-icon { color: $accent-green; }
+    .task-progress-tooltip-text { color: $text-muted; text-decoration: line-through; }
+  }
+
+  &.status-in_progress {
+    .task-progress-tooltip-icon { color: $accent-blue; }
+    .task-progress-tooltip-text { color: $accent-blue; font-weight: 500; }
+  }
+
+  &.status-pending {
+    .task-progress-tooltip-icon { color: $text-muted; }
+    .task-progress-tooltip-text { color: $text-primary; }
+  }
+}
+
+.task-progress-tooltip-icon {
+  flex-shrink: 0;
+  width: 12px;
+  text-align: center;
+  font-size: 11px;
+}
+
+.task-progress-tooltip-text {
+  flex: 1;
+  word-break: break-word;
+}
+
+.task-progress-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1px solid rgba($text-muted, 0.6);
+  background: transparent;
+
+  &.task-progress-dot-completed {
+    background: $accent-green;
+    border-color: $accent-green;
+  }
+
+  &.task-progress-dot-in_progress {
+    background: $accent-blue;
+    border-color: $accent-blue;
+    animation: task-progress-dot-pulse 1.5s ease-in-out infinite;
+  }
+
+  &.task-progress-dot-pending {
+    background: transparent;
+  }
+}
+
+.task-progress-overflow {
+  font-family: $font-mono;
+  font-size: 8px;
+  color: $text-muted;
+  margin-left: 2px;
+}
+
+@keyframes task-progress-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 // ── Mini Context Bar ─────────────────────────────────────────────────────────

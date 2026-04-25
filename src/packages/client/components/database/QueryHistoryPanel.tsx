@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import type { QueryHistoryEntry } from '../../../shared/types';
 import { store } from '../../store';
 import { Icon } from '../Icon';
+import { ConfirmModal } from '../shared/ConfirmModal';
 import './QueryHistoryPanel.scss';
 
 interface QueryHistoryPanelProps {
@@ -22,9 +23,10 @@ export const QueryHistoryPanel: React.FC<QueryHistoryPanelProps> = ({
   history,
   onLoadQuery,
 }) => {
-  const { t } = useTranslation(['terminal']);
+  const { t } = useTranslation(['terminal', 'common']);
   const [search, setSearch] = useState('');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
   // Filter history
   const filteredHistory = useMemo(() => {
@@ -80,10 +82,8 @@ export const QueryHistoryPanel: React.FC<QueryHistoryPanelProps> = ({
 
   // Clear all history
   const handleClearAll = useCallback(() => {
-    if (confirm(t('terminal:database.confirmClearHistory'))) {
-      store.clearQueryHistory(buildingId);
-    }
-  }, [buildingId, t]);
+    setClearConfirmOpen(true);
+  }, []);
 
   if (history.length === 0) {
     return (
@@ -187,6 +187,17 @@ export const QueryHistoryPanel: React.FC<QueryHistoryPanelProps> = ({
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={clearConfirmOpen}
+        title={t('terminal:database.clearAll')}
+        message={t('terminal:database.confirmClearHistory')}
+        confirmLabel={t('terminal:database.clearAll')}
+        cancelLabel={t('common:buttons.cancel')}
+        variant="danger"
+        onConfirm={() => store.clearQueryHistory(buildingId)}
+        onClose={() => setClearConfirmOpen(false)}
+      />
     </div>
   );
 };

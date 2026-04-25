@@ -550,6 +550,13 @@ export function updateAgent(id: string, updates: Partial<Agent>, updateActivity 
     }
   }
 
+  // Clear the latest TodoWrite snapshot when the agent transitions to idle —
+  // the task list belongs to an in-flight turn and shouldn't linger after work ends.
+  const enteredIdleState = agent.status !== 'idle' && nextStatus === 'idle';
+  if (enteredIdleState && !('latestTodos' in normalizedUpdates)) {
+    normalizedUpdates.latestTodos = undefined;
+  }
+
   // Only update lastActivity for real activity (not position changes, etc.)
   if (updateActivity) {
     Object.assign(agent, normalizedUpdates, { lastActivity: Date.now() });

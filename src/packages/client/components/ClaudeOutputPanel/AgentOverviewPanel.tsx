@@ -34,6 +34,8 @@ import { BulkManageModal } from '../BulkManageModal';
 import { AgentIcon } from '../AgentIcon';
 import { Icon, type IconName } from '../Icon';
 import { useHasDraft } from '../../utils/agentDrafts';
+import { ConfirmModal } from '../shared/ConfirmModal';
+import { TaskProgressDots } from '../shared/TaskProgressDots';
 
 /** Persisted config shape for the overview panel */
 interface AopConfig {
@@ -206,6 +208,12 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   const [agentContextMenu, setAgentContextMenu] = useState<{
     agentId: string;
     position: { x: number; y: number };
+  } | null>(null);
+  // Remove-agent confirmation — replaces native window.confirm() so the dialog
+  // matches the rest of the TC modals (dark theme, escape-to-close, focus trap).
+  const [removeAgentConfirm, setRemoveAgentConfirm] = useState<{
+    agentId: string;
+    name: string;
   } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const internalAgentListRef = useRef<HTMLDivElement>(null);
@@ -775,9 +783,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         icon: <Icon name="trash" size={14} />,
         danger: true,
         onClick: () => {
-          const confirmMsg = t('common:confirm.removeAgent', { name: agent.name, defaultValue: `Remove ${agent.name} from view?` });
-          if (!window.confirm(confirmMsg)) return;
-          store.removeAgentFromServer(agent.id);
+          setRemoveAgentConfirm({ agentId: agent.id, name: agent.name });
         },
       },
     ];
@@ -1132,6 +1138,18 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
 
       <BulkManageModal isOpen={bulkManageOpen} onClose={() => setBulkManageOpen(false)} />
 
+      <ConfirmModal
+        isOpen={removeAgentConfirm !== null}
+        title={t('common:confirm.removeAgentTitle')}
+        message={t('common:confirm.removeAgentMessage', { name: removeAgentConfirm?.name ?? '' })}
+        confirmLabel={t('common:buttons.remove')}
+        cancelLabel={t('common:buttons.cancel')}
+        variant="danger"
+        onConfirm={() => {
+          if (removeAgentConfirm) store.removeAgentFromServer(removeAgentConfirm.agentId);
+        }}
+        onClose={() => setRemoveAgentConfirm(null)}
+      />
     </div>
   );
 }
@@ -1431,6 +1449,9 @@ const AgentCard = React.memo(function AgentCard({
           >
             {areaInfo.name}
           </span>
+        )}
+        {agent.latestTodos && agent.latestTodos.length > 0 && (
+          <TaskProgressDots todos={agent.latestTodos} />
         )}
         </div>
 
