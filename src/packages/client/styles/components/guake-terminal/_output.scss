@@ -806,6 +806,30 @@
   color: var(--text-primary);
 }
 
+.output-error {
+  color: #fca5a5;
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  border-left: 3px solid #ef4444;
+  padding-left: 8px;
+  white-space: pre-wrap;
+  font-weight: 500;
+
+  &::before {
+    content: 'Error';
+    display: inline-block;
+    margin-right: 8px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    vertical-align: middle;
+  }
+}
+
 .output-streaming {
   border-right: 2px solid var(--accent-blue);
   animation: cursor-blink 1s infinite;

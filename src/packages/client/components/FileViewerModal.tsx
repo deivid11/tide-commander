@@ -7,7 +7,7 @@ import { DiffViewer } from './DiffViewer';
 import { apiUrl, authFetch, getAuthToken } from '../utils/storage';
 import { copyRichContentToClipboard, copyTextToClipboard, inlineStylesForRichCopy } from '../utils/clipboard';
 import { useModalClose } from '../hooks';
-import { parseFilePathReference } from '../utils/filePaths';
+import { parseFilePathReference, resolveAgentFilePath } from '../utils/filePaths';
 import { ModalPortal } from './shared/ModalPortal';
 import { getLanguageForExtension, ensureLanguageLoaded, Prism } from './FileExplorerPanel/syntaxHighlighting';
 
@@ -216,7 +216,13 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const contentRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const parsedReference = useMemo(() => parseFilePathReference(filePath), [filePath]);
-  const effectivePath = parsedReference.path;
+  // Resolve relative paths against searchRoot (the agent's cwd) so the modal
+  // displays a canonical absolute path before the server response comes back.
+  // Absolute paths and missing searchRoot pass through unchanged.
+  const effectivePath = useMemo(
+    () => resolveAgentFilePath(parsedReference.path, searchRoot),
+    [parsedReference.path, searchRoot],
+  );
   const targetLine = editData?.targetLine ?? parsedReference.line;
   const effectiveHighlightRange = editData?.highlightRange
     || undefined;
@@ -362,7 +368,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     const fetchDiff = async () => {
       try {
         const diffPath = fileData.path || effectivePath;
-        const res = await authFetch(apiUrl(`/api/files/git-diff?path=${encodeURIComponent(diffPath)}`));
+        const res = await authFetch(apiUrl(`/api/files/git-diff?path=${encodeURIComponent(diffPath)}${baseDirParam}`));
         if (res.ok) {
           const data = await res.json();
           if (data.diff && data.diff.trim()) {
@@ -389,7 +395,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     const fetchOriginal = async () => {
       try {
         const filePath = fileData.path || effectivePath;
-        const res = await authFetch(apiUrl(`/api/files/git-original?path=${encodeURIComponent(filePath)}`));
+        const res = await authFetch(apiUrl(`/api/files/git-original?path=${encodeURIComponent(filePath)}${baseDirParam}`));
         if (res.ok) {
           const data = await res.json();
           if (data.content !== undefined && data.content !== fileData.content) {
@@ -452,14 +458,16 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     return () => window.clearTimeout(id);
   }, [isOpen, fileData, showHighlightView, effectiveHighlightRange?.offset, targetLine]);
 
+  const baseDirParam = searchRoot ? `&baseDir=${encodeURIComponent(searchRoot)}` : '';
+
   const loadFileByPath = async (filePath: string): Promise<{ ok: boolean; data?: any; error?: string; isDirectory?: boolean }> => {
     const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
     const isPdfFile = PDF_EXTENSIONS.includes(ext);
     const isImageFile = IMAGE_EXTENSIONS.includes(ext);
 
     const endpoint = (isPdfFile || isImageFile)
-      ? `/api/files/info?path=${encodeURIComponent(filePath)}`
-      : `/api/files/read?path=${encodeURIComponent(filePath)}`;
+      ? `/api/files/info?path=${encodeURIComponent(filePath)}${baseDirParam}`
+      : `/api/files/read?path=${encodeURIComponent(filePath)}${baseDirParam}`;
 
     const res = await authFetch(apiUrl(endpoint));
     const data = await res.json();
@@ -489,7 +497,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
 
   const loadDirectoryContents = async (dirPath: string): Promise<ResolveResult[]> => {
     try {
-      const res = await authFetch(apiUrl(`/api/files/list?path=${encodeURIComponent(dirPath)}`));
+      const res = await authFetch(apiUrl(`/api/files/list?path=${encodeURIComponent(dirPath)}${baseDirParam}`));
       const data = await res.json();
       if (res.ok && data.files?.length > 0) {
         return data.files.slice(0, 20).map((f: any) => ({
@@ -708,8 +716,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const isPdf = fileData && PDF_EXTENSIONS.includes(fileData.extension);
   const language = isImage ? 'Image' : isPdf ? 'PDF' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
   const authToken = getAuthToken();
-  const imageUrl = isImage ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}${authToken ? `&token=${encodeURIComponent(authToken)}` : ''}`) : null;
-  const pdfUrl = isPdf ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}`) : null;
+  const imageUrl = isImage ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}${baseDirParam}${authToken ? `&token=${encodeURIComponent(authToken)}` : ''}`) : null;
+  const pdfUrl = isPdf ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}${baseDirParam}`) : null;
 
   if (!isOpen) return null;
 

@@ -1061,7 +1061,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   let useMarkdown = true;
   let isClaudeMessage = false;
 
-  if (text.startsWith('Session started:') || text.startsWith('Session initialized')) {
+  if (output.isError) {
+    className += ' output-text output-error';
+    useMarkdown = false;
+  } else if (text.startsWith('Session started:') || text.startsWith('Session initialized')) {
     className += ' output-session';
     useMarkdown = false;
   } else if (text.startsWith('Tokens:') || text.startsWith('Cost:')) {

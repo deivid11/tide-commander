@@ -42,6 +42,62 @@ describe('CodexJsonEventParser', () => {
     });
   });
 
+  it('maps item.completed error to error event with errorMessage', () => {
+    const parser = new CodexJsonEventParser();
+    const events = parser.parseEvent({
+      type: 'item.completed',
+      item: {
+        id: 'item_0',
+        type: 'error',
+        message: 'Tool execution failed: timeout',
+      },
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: 'error',
+      errorMessage: 'Tool execution failed: timeout',
+    });
+  });
+
+  it('falls back to a generic error message when error item has no text', () => {
+    const parser = new CodexJsonEventParser();
+    const events = parser.parseEvent({
+      type: 'item.completed',
+      item: { id: 'item_0', type: 'error' },
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: 'error',
+      errorMessage: 'Codex emitted an error',
+    });
+  });
+
+  it('appends error text into step_complete resultText for boss delegation pipeline', () => {
+    const parser = new CodexJsonEventParser();
+
+    parser.parseEvent({
+      type: 'item.completed',
+      item: { type: 'agent_message', text: 'Working on it.' },
+    });
+    parser.parseEvent({
+      type: 'item.completed',
+      item: { id: 'item_0', type: 'error', message: 'Network unreachable' },
+    });
+
+    const turnEvents = parser.parseEvent({
+      type: 'turn.completed',
+      usage: { input_tokens: 1, output_tokens: 2, cached_input_tokens: 0 },
+    });
+
+    expect(turnEvents).toHaveLength(1);
+    expect(turnEvents[0]).toMatchObject({
+      type: 'step_complete',
+      resultText: 'Working on it.\n\n[Error] Network unreachable',
+    });
+  });
+
   it('filters turn_aborted marker noise from agent_message', () => {
     const parser = new CodexJsonEventParser();
     const events = parser.parseEvent({

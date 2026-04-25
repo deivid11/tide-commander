@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.80.0] - 2026-04-25
+
+### Added
+- **Relative-path resolution in `/api/files/*` endpoints** — every read endpoint (`read`, `exists`, `info`, `binary`, `list`, `tree`, `git-original`, `git-diff`) now accepts a `baseDir` query parameter and resolves a relative `path` against it via the new `resolveAndValidateFilePath` helper in `src/packages/server/routes/files.ts`. Absolute paths still pass through unchanged. When neither `baseDir` nor an absolute `path` is provided, the server falls back to its own cwd so file-modal links like `../../../tmp/foo.md` open even from contexts without an explicit agent cwd (spotlight, flat view). Covered by a new `src/packages/server/routes/files.test.ts` suite
+- **Codex `error` items surfaced to the UI and to boss agents** — `CodexJsonEventParser` now parses Codex `item.completed` events of type `error` and emits a runtime `error` event carrying the message text. The same text is appended to the next `step_complete.resultText` (prefixed `[Error]`) so boss agents can see subordinate failures in their delegation results. Client-side, the WebSocket handler creates an output entry with `isError: true`, `OutputLine` switches to the new `output-error` class, and the SCSS rule paints a red-tinted background, red border, and an "Error" badge so failures pop out of the stream
+- **Public `__seed_auth__.html` dev helper** — small static page in `public/` that seeds `tide-auth-token`, `tide-backend-url`, and view-mode preferences into `localStorage` then redirects to `/#app`. Useful for fresh browser profiles and end-to-end test setup
+
+### Changed
+- **`FileViewerModal` now sends `baseDir` to all file endpoints** — passes the agent's `searchRoot` as `baseDir` when calling `read`, `info`, `binary`, `list`, `git-diff`, and `git-original`, and resolves relative paths client-side via the new `resolveAgentFilePath` helper so the modal shows a canonical absolute path before the server response arrives
+- **Codex CLI is launched with `--enable multi_agent`** — Codex renamed `[features].collab` → `[features].multi_agent`, and emits a deprecation error every turn when the old key is set in `~/.codex/config.toml`. `CodexBackend` now passes the new flag explicitly so subagent orchestration (`collab_tool_call` items) keeps working without user config changes
+- **Mobile `agent-bar` items hit real touch targets** — the bar's items, spawn buttons, and folder dividers were 15×15 px on phones (well below any tap-target floor) and have been resized: 36×36 (mobile portrait, was 15×15), 32×32 (small mobile), 28×28 (small mobile landscape, denser since more agents fit per row). Folder items shrink to ~40% so the hierarchy reads agent-first; status dots, area dots, notification badges, and gaps are scaled proportionally
+- **Mobile `FlatView` sidebar drawer is more prominent** — drawer width grows from `min(340px, 86vw)` to `min(380px, 92vw)` and on phones expands to fill the full viewport (`100vw`, no shadow) so the agent list is the dominant surface while open. Box-shadow is heavier and offset for depth, and the backdrop darkens from 0.45 → 0.68 with a 2px blur
+
 ## [1.79.0] - 2026-04-24
 
 ### Changed

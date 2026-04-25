@@ -1706,12 +1706,12 @@ body.flat-splitter-dragging {
     top: 0;
     left: 0;
     bottom: 0;
-    width: min(340px, 86vw);
+    width: min(380px, 92vw);
     z-index: 185;
     transform: translateX(-110%);
     transition: transform 0.22s ease;
     border-right: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 0 24px rgba(0, 0, 0, 0.45);
+    box-shadow: 6px 0 32px rgba(0, 0, 0, 0.6);
   }
 
   .flat-view--mobile-sidebar-open .flat-middle {
@@ -1757,7 +1757,8 @@ body.flat-splitter-dragging {
     position: fixed;
     inset: 0;
     z-index: 184;
-    background: rgba(0, 0, 0, 0.45);
+    background: rgba(0, 0, 0, 0.68);
+    backdrop-filter: blur(2px);
     animation: flat-inspector-fade-in 0.18s ease;
   }
 
@@ -1898,6 +1899,14 @@ body.flat-splitter-dragging {
     // FAB button is 44px wide at left:12 → 56px right-edge. Give it a
     // hair of breathing room but no more.
     padding-left: 52px;
+  }
+
+  // Drawer fills the viewport on phones — no chat bleed-through, agent list
+  // is the dominant surface while open.
+  .flat-middle {
+    width: 100vw;
+    max-width: 100vw;
+    box-shadow: none;
   }
 
   .flat-middle__header {

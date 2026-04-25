@@ -142,12 +142,20 @@ export function handleServerMessage(message: ServerMessage): void {
         type: string;
         toolName?: string;
         toolInput?: Record<string, unknown>;
+        errorMessage?: string;
       };
       debugLog.debug(`Event: ${event.type}`, {
         agentId: event.agentId,
         toolName: event.toolName,
       }, 'ws:event');
-      if (event.type === 'tool_start' && event.toolName) {
+      if (event.type === 'error' && event.errorMessage) {
+        store.addOutput(event.agentId, {
+          text: event.errorMessage,
+          isStreaming: false,
+          timestamp: Date.now(),
+          isError: true,
+        });
+      } else if (event.type === 'tool_start' && event.toolName) {
         cb.onToolUse?.(event.agentId, event.toolName, event.toolInput);
         // Track tool execution with input
         store.addToolExecution(event.agentId, event.toolName, event.toolInput);

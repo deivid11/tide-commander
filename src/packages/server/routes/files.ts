@@ -41,6 +41,36 @@ interface TreeNode {
 
 const router = Router();
 
+/**
+ * Resolve a path query against an optional baseDir. Absolute paths pass through
+ * unchanged; relative paths are resolved via path.resolve(baseDir, rawPath).
+ * If no usable baseDir is supplied, the server's own cwd is used so file-modal
+ * links like `../../../tmp/foo.md` open even from contexts without an explicit
+ * agent cwd (e.g. spotlight, flat view). The client should pass the agent cwd
+ * as baseDir whenever it has one, which takes precedence.
+ */
+export function resolveAndValidateFilePath(
+  rawPath: string | undefined,
+  baseDir?: string,
+  fallbackBaseDir: string = process.cwd(),
+): { ok: true; path: string } | { ok: false; status: number; error: string } {
+  if (!rawPath) {
+    return { ok: false, status: 400, error: 'Missing path parameter' };
+  }
+  if (path.isAbsolute(rawPath)) {
+    return { ok: true, path: rawPath };
+  }
+  const effectiveBase = baseDir && path.isAbsolute(baseDir) ? baseDir : fallbackBaseDir;
+  if (!path.isAbsolute(effectiveBase)) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Cannot resolve relative path: no absolute baseDir and server cwd is not absolute',
+    };
+  }
+  return { ok: true, path: path.resolve(effectiveBase, rawPath) };
+}
+
 // Prevent browser from caching git-related GET responses (status, diff, branch, etc.)
 // Without this, browsers may serve stale cached data — e.g. deleted files still appearing.
 router.use('/git-*path', (_req: Request, res: Response, next: import('express').NextFunction) => {
@@ -52,28 +82,25 @@ router.use('/git-*path', (_req: Request, res: Response, next: import('express').
 // GET /api/files/read - Read file contents
 router.get('/read', async (req: Request, res: Response) => {
   try {
-    const filePath = req.query.path as string;
-
-    if (!filePath) {
-      res.status(400).json({ error: 'Missing path parameter' });
+    const resolution = resolveAndValidateFilePath(
+      req.query.path as string | undefined,
+      req.query.baseDir as string | undefined,
+    );
+    if (!resolution.ok) {
+      res.status(resolution.status).json({ error: resolution.error });
       return;
     }
-
-    // Security: ensure path is absolute and doesn't contain ..
-    if (!path.isAbsolute(filePath)) {
-      res.status(400).json({ error: 'Path must be absolute' });
-      return;
-    }
+    const filePath = resolution.path;
 
     if (!fs.existsSync(filePath)) {
-      res.status(404).json({ error: 'File not found' });
+      res.status(404).json({ error: 'File not found', path: filePath });
       return;
     }
 
     const stats = fs.statSync(filePath);
 
     if (stats.isDirectory()) {
-      res.status(400).json({ error: 'Path is a directory' });
+      res.status(400).json({ error: 'Path is a directory', path: filePath });
       return;
     }
 
@@ -187,17 +214,15 @@ router.get('/resolve', async (req: Request, res: Response) => {
 // GET /api/files/exists - Check if a file exists
 router.get('/exists', async (req: Request, res: Response) => {
   try {
-    const filePath = req.query.path as string;
-
-    if (!filePath) {
-      res.status(400).json({ error: 'Missing path parameter' });
+    const resolution = resolveAndValidateFilePath(
+      req.query.path as string | undefined,
+      req.query.baseDir as string | undefined,
+    );
+    if (!resolution.ok) {
+      res.status(resolution.status).json({ error: resolution.error });
       return;
     }
-
-    if (!path.isAbsolute(filePath)) {
-      res.status(400).json({ error: 'Path must be absolute' });
-      return;
-    }
+    const filePath = resolution.path;
 
     const exists = fs.existsSync(filePath);
     res.json({ exists, path: filePath });
@@ -210,27 +235,25 @@ router.get('/exists', async (req: Request, res: Response) => {
 // GET /api/files/info - Get file info without content
 router.get('/info', async (req: Request, res: Response) => {
   try {
-    const filePath = req.query.path as string;
-
-    if (!filePath) {
-      res.status(400).json({ error: 'Missing path parameter' });
+    const resolution = resolveAndValidateFilePath(
+      req.query.path as string | undefined,
+      req.query.baseDir as string | undefined,
+    );
+    if (!resolution.ok) {
+      res.status(resolution.status).json({ error: resolution.error });
       return;
     }
-
-    if (!path.isAbsolute(filePath)) {
-      res.status(400).json({ error: 'Path must be absolute' });
-      return;
-    }
+    const filePath = resolution.path;
 
     if (!fs.existsSync(filePath)) {
-      res.status(404).json({ error: 'File not found' });
+      res.status(404).json({ error: 'File not found', path: filePath });
       return;
     }
 
     const stats = fs.statSync(filePath);
 
     if (stats.isDirectory()) {
-      res.status(400).json({ error: 'Path is a directory' });
+      res.status(400).json({ error: 'Path is a directory', path: filePath });
       return;
     }
 
@@ -253,28 +276,26 @@ router.get('/info', async (req: Request, res: Response) => {
 // GET /api/files/binary - Read binary file (for images, PDFs, downloads)
 router.get('/binary', async (req: Request, res: Response) => {
   try {
-    const filePath = req.query.path as string;
+    const resolution = resolveAndValidateFilePath(
+      req.query.path as string | undefined,
+      req.query.baseDir as string | undefined,
+    );
+    if (!resolution.ok) {
+      res.status(resolution.status).json({ error: resolution.error });
+      return;
+    }
+    const filePath = resolution.path;
     const download = req.query.download === 'true';
 
-    if (!filePath) {
-      res.status(400).json({ error: 'Missing path parameter' });
-      return;
-    }
-
-    if (!path.isAbsolute(filePath)) {
-      res.status(400).json({ error: 'Path must be absolute' });
-      return;
-    }
-
     if (!fs.existsSync(filePath)) {
-      res.status(404).json({ error: 'File not found' });
+      res.status(404).json({ error: 'File not found', path: filePath });
       return;
     }
 
     const stats = fs.statSync(filePath);
 
     if (stats.isDirectory()) {
-      res.status(400).json({ error: 'Path is a directory' });
+      res.status(400).json({ error: 'Path is a directory', path: filePath });
       return;
     }
 
@@ -336,21 +357,18 @@ router.get('/binary', async (req: Request, res: Response) => {
 // GET /api/files/list - List directory contents
 router.get('/list', async (req: Request, res: Response) => {
   try {
-    const dirPath = req.query.path as string;
-
-    if (!dirPath) {
-      res.status(400).json({ error: 'Missing path parameter' });
+    const resolution = resolveAndValidateFilePath(
+      req.query.path as string | undefined,
+      req.query.baseDir as string | undefined,
+    );
+    if (!resolution.ok) {
+      res.status(resolution.status).json({ error: resolution.error });
       return;
     }
-
-    // Security: ensure path is absolute
-    if (!path.isAbsolute(dirPath)) {
-      res.status(400).json({ error: 'Path must be absolute' });
-      return;
-    }
+    const dirPath = resolution.path;
 
     if (!fs.existsSync(dirPath)) {
-      res.status(404).json({ error: 'Directory not found' });
+      res.status(404).json({ error: 'Directory not found', path: dirPath });
       return;
     }
 
@@ -492,21 +510,19 @@ function copyPathToDirectory(sourcePath: string, targetDir: string): string {
 // GET /api/files/tree - Get recursive directory tree
 router.get('/tree', async (req: Request, res: Response) => {
   try {
-    const dirPath = req.query.path as string;
+    const resolution = resolveAndValidateFilePath(
+      req.query.path as string | undefined,
+      req.query.baseDir as string | undefined,
+    );
+    if (!resolution.ok) {
+      res.status(resolution.status).json({ error: resolution.error });
+      return;
+    }
+    const dirPath = resolution.path;
     const maxDepth = parseInt(req.query.depth as string) || 5;
 
-    if (!dirPath) {
-      res.status(400).json({ error: 'Missing path parameter' });
-      return;
-    }
-
-    if (!path.isAbsolute(dirPath)) {
-      res.status(400).json({ error: 'Path must be absolute' });
-      return;
-    }
-
     if (!fs.existsSync(dirPath)) {
-      res.status(404).json({ error: 'Directory not found' });
+      res.status(404).json({ error: 'Directory not found', path: dirPath });
       return;
     }
 
@@ -1193,17 +1209,15 @@ router.post('/git-discard', async (req: Request, res: Response) => {
 // GET /api/files/git-original - Get original file content from git HEAD
 router.get('/git-original', async (req: Request, res: Response) => {
   try {
-    const filePath = req.query.path as string;
-
-    if (!filePath) {
-      res.status(400).json({ error: 'Missing path parameter' });
+    const resolution = resolveAndValidateFilePath(
+      req.query.path as string | undefined,
+      req.query.baseDir as string | undefined,
+    );
+    if (!resolution.ok) {
+      res.status(resolution.status).json({ error: resolution.error });
       return;
     }
-
-    if (!path.isAbsolute(filePath)) {
-      res.status(400).json({ error: 'Path must be absolute' });
-      return;
-    }
+    const filePath = resolution.path;
 
     // Find git root
     let gitRoot: string;
@@ -1259,17 +1273,15 @@ router.get('/git-original', async (req: Request, res: Response) => {
 // GET /api/files/git-diff - Get unified diff for a file
 router.get('/git-diff', async (req: Request, res: Response) => {
   try {
-    const filePath = req.query.path as string;
-
-    if (!filePath) {
-      res.status(400).json({ error: 'Missing path parameter' });
+    const resolution = resolveAndValidateFilePath(
+      req.query.path as string | undefined,
+      req.query.baseDir as string | undefined,
+    );
+    if (!resolution.ok) {
+      res.status(resolution.status).json({ error: resolution.error });
       return;
     }
-
-    if (!path.isAbsolute(filePath)) {
-      res.status(400).json({ error: 'Path must be absolute' });
-      return;
-    }
+    const filePath = resolution.path;
 
     // Find git root
     let gitRoot: string;

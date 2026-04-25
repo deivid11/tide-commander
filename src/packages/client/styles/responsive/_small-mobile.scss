@@ -11,18 +11,51 @@
     padding: 6px 8px;
   }
 
+  // Items still meet 32px touch-target floor on small phones
   .agent-bar-item {
-    width: 27px;
-    height: 27px;
+    width: 32px;
+    height: 32px;
   }
 
   .agent-bar-icon {
-    font-size: 12px;
+    font-size: 18px;
+  }
+
+  .agent-bar-status {
+    width: 8px;
+    height: 8px;
+  }
+
+  .agent-bar-notification-badge {
+    top: -4px;
+    right: -4px;
+    border-left-width: 5px;
+    border-right-width: 5px;
+    border-bottom-width: 9px;
+
+    &::after {
+      font-size: 8px;
+      left: -3px;
+      top: -7px;
+    }
+  }
+
+  .agent-bar-folder-item {
+    width: 14px;
+    height: 14px;
   }
 
   .agent-bar-spawn-btn {
-    width: 27px;
-    height: 27px;
+    width: 32px;
+    height: 32px;
+  }
+
+  .agent-bar-spawn-icon {
+    font-size: 16px;
+  }
+
+  .agent-bar-list {
+    gap: 6px;
   }
 
   // Guake header compact on small screens
@@ -426,6 +459,31 @@
   // Adjust guake content padding for smaller landscape agent bar
   .guake-content {
     padding-bottom: 56px;
+  }
+
+  // Landscape compresses vertical space — drop items to 28x28 (still larger than
+  // the previous 15x15 portrait bug, just denser since more agents fit per row)
+  .agent-bar-item {
+    width: 28px;
+    height: 28px;
+  }
+
+  .agent-bar-icon {
+    font-size: 16px;
+  }
+
+  .agent-bar-spawn-btn {
+    width: 28px;
+    height: 28px;
+  }
+
+  .agent-bar-folder-item {
+    width: 12px;
+    height: 12px;
+  }
+
+  .agent-bar-list {
+    gap: 5px;
   }
 
   // Sidebar narrower on landscape

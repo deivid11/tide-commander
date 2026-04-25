@@ -11,11 +11,13 @@ describe('CodexBackend', () => {
 
     expect(args[0]).toBe('exec');
     expect(args[1]).toBe('--experimental-json');
-    expect(args[2]).toBe('--dangerously-bypass-approvals-and-sandbox');
-    expect(args[3]).toBe('-C');
-    expect(args[4]).toBe('/tmp/project');
+    expect(args[2]).toBe('--enable');
+    expect(args[3]).toBe('multi_agent');
+    expect(args[4]).toBe('--dangerously-bypass-approvals-and-sandbox');
+    expect(args[5]).toBe('-C');
+    expect(args[6]).toBe('/tmp/project');
     // Prompt is delivered via stdin; positional '-' tells codex to read it
-    expect(args[5]).toBe('-');
+    expect(args[7]).toBe('-');
 
     const stdin = backend.formatStdinInput('ignored-fallback');
     expect(stdin).toContain('find recent taco recipes');
@@ -33,12 +35,14 @@ describe('CodexBackend', () => {
 
     expect(args[0]).toBe('exec');
     expect(args[1]).toBe('--experimental-json');
-    expect(args[2]).toBe('--dangerously-bypass-approvals-and-sandbox');
-    expect(args[3]).toBe('-C');
-    expect(args[4]).toBe('/tmp/project');
-    expect(args[5]).toBe('resume');
-    expect(args[6]).toBe('019c3925-c665-7b70-8711-d63bf7d8bda0');
-    expect(args[7]).toBe('-');
+    expect(args[2]).toBe('--enable');
+    expect(args[3]).toBe('multi_agent');
+    expect(args[4]).toBe('--dangerously-bypass-approvals-and-sandbox');
+    expect(args[5]).toBe('-C');
+    expect(args[6]).toBe('/tmp/project');
+    expect(args[7]).toBe('resume');
+    expect(args[8]).toBe('019c3925-c665-7b70-8711-d63bf7d8bda0');
+    expect(args[9]).toBe('-');
 
     const stdin = backend.formatStdinInput('ignored-fallback');
     expect(stdin).toContain('continue');
@@ -61,16 +65,18 @@ describe('CodexBackend', () => {
 
     expect(args[0]).toBe('exec');
     expect(args[1]).toBe('--experimental-json');
-    expect(args[2]).toBe('--ask-for-approval');
-    expect(args[3]).toBe('never');
-    expect(args[4]).toBe('--sandbox');
-    expect(args[5]).toBe('read-only');
-    expect(args[6]).toBe('--search');
-    expect(args[7]).toBe('--profile');
-    expect(args[8]).toBe('ci');
-    expect(args[9]).toBe('-C');
-    expect(args[10]).toBe('/tmp/project');
-    expect(args[11]).toBe('-');
+    expect(args[2]).toBe('--enable');
+    expect(args[3]).toBe('multi_agent');
+    expect(args[4]).toBe('--ask-for-approval');
+    expect(args[5]).toBe('never');
+    expect(args[6]).toBe('--sandbox');
+    expect(args[7]).toBe('read-only');
+    expect(args[8]).toBe('--search');
+    expect(args[9]).toBe('--profile');
+    expect(args[10]).toBe('ci');
+    expect(args[11]).toBe('-C');
+    expect(args[12]).toBe('/tmp/project');
+    expect(args[13]).toBe('-');
 
     const stdin = backend.formatStdinInput('ignored-fallback');
     expect(stdin).toContain('continue');
@@ -104,10 +110,12 @@ describe('CodexBackend', () => {
 
     expect(args[0]).toBe('exec');
     expect(args[1]).toBe('--experimental-json');
-    expect(args[2]).toBe('--dangerously-bypass-approvals-and-sandbox');
-    expect(args[3]).toBe('-C');
-    expect(args[4]).toBe('/tmp/project');
-    expect(args[5]).toBe('-');
+    expect(args[2]).toBe('--enable');
+    expect(args[3]).toBe('multi_agent');
+    expect(args[4]).toBe('--dangerously-bypass-approvals-and-sandbox');
+    expect(args[5]).toBe('-C');
+    expect(args[6]).toBe('/tmp/project');
+    expect(args[7]).toBe('-');
 
     const stdin = backend.formatStdinInput('ignored-fallback');
     expect(stdin).toContain('Follow all instructions below for this task.');
@@ -134,9 +142,9 @@ describe('CodexBackend', () => {
       },
     });
 
-    expect(args[5]).toBe('resume');
-    expect(args[6]).toBe('thread-123');
-    expect(args[7]).toBe('-');
+    expect(args[7]).toBe('resume');
+    expect(args[8]).toBe('thread-123');
+    expect(args[9]).toBe('-');
 
     const stdin = backend.formatStdinInput('ignored-fallback');
     expect(stdin).toContain('Always apply assigned skills.');
@@ -164,5 +172,19 @@ describe('CodexBackend', () => {
     const backend = new CodexBackend();
     expect(backend.requiresStdinInput()).toBe(true);
     expect(backend.shouldCloseStdinAfterPrompt?.()).toBe(true);
+  });
+
+  it('always enables the multi_agent feature flag (replaces deprecated [features].collab)', () => {
+    const backend = new CodexBackend();
+    const args = backend.buildArgs({
+      workingDir: '/tmp/project',
+      prompt: 'anything',
+    });
+
+    const enableIdx = args.indexOf('--enable');
+    expect(enableIdx).toBeGreaterThanOrEqual(0);
+    expect(args[enableIdx + 1]).toBe('multi_agent');
+    // We must never re-introduce the deprecated `collab` feature value.
+    expect(args).not.toContain('collab');
   });
 });

@@ -81,6 +81,11 @@ export class CodexBackend implements CLIBackend {
     this.parser.setWorkingDirectory(config.workingDir);
     this.pendingStdinPrompt = buildCodexPrompt(config);
     const args: string[] = ['exec', '--experimental-json'];
+    // Codex renamed [features].collab → [features].multi_agent. Enable the new
+    // flag explicitly so subagent orchestration (collab_tool_call items) works
+    // without the user needing `[features].collab = true` in ~/.codex/config.toml,
+    // which Codex now emits a deprecation error for on every turn.
+    args.push('--enable', 'multi_agent');
     const codexConfig = config.codexConfig;
     const fullAuto = codexConfig?.fullAuto !== false;
 

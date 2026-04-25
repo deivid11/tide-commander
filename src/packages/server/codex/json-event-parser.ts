@@ -40,6 +40,9 @@ interface CodexItem {
   receiver_thread_ids?: string[];
   prompt?: string | null;
   agents_states?: Record<string, CodexCollabAgentState>;
+  // error item fields — Codex emits these on tool/network/model failures
+  message?: string;
+  error?: string;
 }
 
 interface CodexUsage {
@@ -181,6 +184,8 @@ function parseItem(item: unknown): CodexItem | undefined {
     receiver_thread_ids: asStringArray(item.receiver_thread_ids),
     prompt: item.prompt === null ? null : asString(item.prompt),
     agents_states: parseCollabAgentStates(item.agents_states),
+    message: asString(item.message),
+    error: asString(item.error),
   };
 }
 
@@ -244,6 +249,7 @@ function parseResponsePayload(payload: unknown): CodexResponsePayload | undefine
 export class CodexJsonEventParser {
   private activeToolByItemId = new Map<string, string>();
   private lastAgentMessageText: string | undefined;
+  private lastErrorText: string | undefined;
   private lastModelUsageSnapshot: {
     contextWindow?: number;
     inputTokens?: number;
@@ -542,6 +548,12 @@ export class CodexJsonEventParser {
   private parseItemCompleted(item?: CodexItem): RuntimeEvent[] {
     if (!item?.type) return [];
 
+    if (item.type === 'error') {
+      const errorMessage = item.message || item.text || item.error || 'Codex emitted an error';
+      this.lastErrorText = errorMessage;
+      return [{ type: 'error', errorMessage }];
+    }
+
     if (item.type === 'reasoning' && item.text) {
       return [{ type: 'thinking', text: item.text, isStreaming: false }];
     }
@@ -678,10 +690,15 @@ export class CodexJsonEventParser {
       },
     };
 
-    // Include the last agent message as resultText for boss delegation processing
-    if (this.lastAgentMessageText) {
-      event.resultText = this.lastAgentMessageText;
-      this.lastAgentMessageText = undefined; // Reset for next turn
+    // Include the last agent message as resultText for boss delegation processing.
+    // If an error item arrived in the same turn, append it so the boss/UI sees the failure.
+    if (this.lastAgentMessageText || this.lastErrorText) {
+      const parts: string[] = [];
+      if (this.lastAgentMessageText) parts.push(this.lastAgentMessageText);
+      if (this.lastErrorText) parts.push(`[Error] ${this.lastErrorText}`);
+      event.resultText = parts.join('\n\n');
+      this.lastAgentMessageText = undefined;
+      this.lastErrorText = undefined;
     }
 
     if (this.lastModelUsageSnapshot && (

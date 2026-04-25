@@ -58,6 +58,7 @@ export interface AgentOutput {
   toolName?: string; // Tool name extracted from "Using tool:" messages (for real-time display)
   toolInput?: Record<string, unknown>; // Parsed tool input JSON (for key param extraction before look-ahead)
   toolOutput?: string; // Tool result/bash output text
+  isError?: boolean; // True when this entry represents an error event (rendered in red/danger styling)
 }
 
 // Backward-compatible alias for existing references

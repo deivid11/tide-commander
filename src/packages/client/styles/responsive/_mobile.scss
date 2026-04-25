@@ -695,29 +695,65 @@
   .agent-bar-list {
     display: flex;
     flex-wrap: nowrap;
-    gap: 2px;
+    gap: 8px;
     padding: 0 12px;
     min-width: max-content;
     align-items: center;
   }
 
-  // Tiny agent items on mobile
+  // Touch-friendly agent items on mobile (was 15x15, well below tap-target min)
   .agent-bar-item {
-    width: 15px;
-    height: 15px;
+    width: 36px;
+    height: 36px;
     flex-shrink: 0;
   }
 
   .agent-bar-icon {
-    font-size: 8px;
+    font-size: 20px;
+  }
+
+  // Status dot proportional to 36px avatar
+  .agent-bar-status {
+    width: 9px;
+    height: 9px;
+  }
+
+  // Area indicator dot proportional
+  .agent-bar-area-dot {
+    width: 8px;
+    height: 8px;
+    top: -2px;
+    left: -2px;
+  }
+
+  // Notification badge scaled to avatar (was 8/8/14 — fine for 36 but tighten offsets)
+  .agent-bar-notification-badge {
+    top: -5px;
+    right: -5px;
+    border-left-width: 6px;
+    border-right-width: 6px;
+    border-bottom-width: 11px;
+
+    &::after {
+      font-size: 9px;
+      left: -4px;
+      top: -8px;
+    }
+  }
+
+  // Folder dividers smaller than items so hierarchy reads agent-first
+  .agent-bar-folder-item {
+    width: 16px;
+    height: 16px;
+    opacity: 0.55;
   }
 
   // Agent groups minimal
   .agent-bar-group {
-    padding: 1px 2px;
+    padding: 2px 4px;
     margin-top: 0;
     flex-shrink: 0;
-    border-radius: 3px;
+    border-radius: 4px;
   }
 
   .agent-bar-area-label {
@@ -738,23 +774,23 @@
     padding-bottom: 4px;
   }
 
-  // Spawn buttons minimal
+  // Spawn buttons match agent items for consistent tap targets
   .agent-bar-spawn-btn {
     display: flex !important;
     flex-direction: row !important;
     align-items: center;
     justify-content: center;
-    width: 15px;
-    min-width: 15px;
-    height: 15px;
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
     flex-shrink: 0;
-    margin-right: 1px;
-    border-radius: 3px;
+    margin-right: 4px;
+    border-radius: 8px;
     padding: 0;
   }
 
   .agent-bar-spawn-icon {
-    font-size: 8px;
+    font-size: 18px;
     margin: 0;
   }
 
