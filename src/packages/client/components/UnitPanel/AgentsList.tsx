@@ -15,6 +15,9 @@ import type { AgentsListProps, AgentListItemProps } from './types';
 import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
 import { TaskProgressDots } from '../shared/TaskProgressDots';
+import { SubordinateProgressDots } from '../shared/SubordinateProgressDots';
+import { AgentHoverTooltip } from '../shared/AgentHoverTooltip';
+import type { Agent } from '../../../shared/types';
 
 // ============================================================================
 // Types
@@ -312,6 +315,14 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQu
   const providerLabel = agent.provider === 'codex' ? 'CX' : agent.provider === 'opencode' ? 'OC' : 'CL';
   const providerTitle = agent.provider === 'codex' ? 'OpenAI Codex' : agent.provider === 'opencode' ? 'OpenCode' : 'Claude';
 
+  // Boss subordinates (for the progress dots indicator)
+  const isBoss = agent.isBoss === true || agent.class === 'boss';
+  const subordinates: Agent[] = isBoss && agent.subordinateIds
+    ? agent.subordinateIds
+        .map((id) => state.agents.get(id))
+        .filter((a): a is Agent => a !== undefined)
+    : [];
+
   // Highlight matching text
   const highlightText = (text: string) => {
     if (!searchQuery.trim()) return text;
@@ -328,6 +339,7 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQu
   };
 
   return (
+    <AgentHoverTooltip todos={agent.latestTodos} subordinates={subordinates} position="right">
     <div className={`agent-item ${isSelected ? 'selected' : ''} ${hasUnread ? 'unread' : ''} ${agent.status}`} onClick={handleClick}>
       {/* Icon */}
       <div className="agent-item-icon" style={{ background: `${classConfig.color}20` }}>
@@ -363,6 +375,9 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQu
           {agent.latestTodos && agent.latestTodos.length > 0 && (
             <TaskProgressDots todos={agent.latestTodos} />
           )}
+          {subordinates.length > 0 && (
+            <SubordinateProgressDots subordinates={subordinates} />
+          )}
         </div>
 
         {/* Mini context bar */}
@@ -380,6 +395,7 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQu
       {/* Status dot */}
       <div className={`agent-status-dot ${agent.status}`} />
     </div>
+    </AgentHoverTooltip>
   );
 });
 

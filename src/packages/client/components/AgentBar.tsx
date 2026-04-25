@@ -909,6 +909,25 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
         );
       })()}
     </div>
+    {relation === 'behind' && latestVersion && (
+      <a
+        href="https://github.com/deivid11/tide-commander/releases"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="agent-bar-version-outdated-indicator"
+        title={t('common:agentBar.outdatedIndicatorTooltip', {
+          defaultValue: 'Outdated: v{{current}} → npm latest v{{latest}}. Click to view releases.',
+          current: currentVersion,
+          latest: latestVersion,
+        })}
+        aria-label={t('common:agentBar.outdatedIndicatorAria', {
+          defaultValue: 'Outdated version, latest is v{{latest}}',
+          latest: latestVersion,
+        })}
+      >
+        <span className="agent-bar-version-outdated-dot" />
+      </a>
+    )}
     </>
   );
 });

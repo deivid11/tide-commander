@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.76.0] - 2026-04-24
+
+### Added
+- **`SubordinateProgressDots` shared component** — compact dot visualization of a boss's subordinates colored by agent status, capped at 12 dots with `+N` overflow. Also exports `SubordinateProgressTooltipContent` which renders a full per-subordinate list with status label, a preview line picked from `taskLabel` / `trackingStatusDetail` / `currentTask` / `lastAssignedTask` (in that priority order), todo completion chip (`completed/total todos`), and a relative idle time chip for idle subordinates. Sort order puts free agents (`idle` → `error` → `orphaned` → `waiting_permission` → `waiting` → `offline`) ahead of `working` so the user can see capacity at a glance
+- **`AgentHoverTooltip` shared component** — wraps an arbitrary trigger and renders a combined tooltip showing task progress (via `TaskProgressTooltipContent`) and/or subordinate progress (via `SubordinateProgressTooltipContent`) with a divider when both are present. Defaults `triggerStyle` to `display: contents` so it stays transparent to the surrounding flexbox layout, and short-circuits to render children directly when there's nothing to show
+- **Boss subordinate indicators across views** — `AgentOverviewPanel` agent cards, `UnitPanel/AgentsList` rows, and `FlatView` map chips now render `SubordinateProgressDots` for boss agents (with their resolved subordinate `Agent[]`) inline next to the existing `TaskProgressDots`, and the headers/chips are wrapped in `AgentHoverTooltip` so hovering exposes the full task list and subordinate roster in a single popover
+- **Outdated-version indicator on `AgentBar`** — when the local version is `behind` the npm `latestVersion`, a new `.agent-bar-version-outdated-indicator` link with a `.agent-bar-version-outdated-dot` is rendered next to the version block. Opens https://github.com/deivid11/tide-commander/releases in a new tab and exposes `agentBar.outdatedIndicatorTooltip` / `agentBar.outdatedIndicatorAria` translation defaults
+- **`Tooltip.triggerStyle` prop** — lets callers override the default `display: inline-flex` wrapper style. Used by `AgentHoverTooltip` to default to `display: contents` so the tooltip wrapper doesn't break the surrounding layout
+
+### Changed
+- **`TaskProgressDots` refactored to expose tooltip content separately** — the dots span no longer wraps itself in a `Tooltip`; consumers compose tooltips externally (e.g. via `AgentHoverTooltip`). The new exported `TaskProgressTooltipContent` component renders the `done/total tasks done` header + per-task list and is used by `AgentHoverTooltip`. Existing callers that still want a standalone tooltip can wrap manually
+- **`AgentTerminalPane` hides internal-API bookkeeping calls from the rendered terminal** — `enrichHistory` now skips `tool_use` messages (not just `tool_result`s) whose `toolUseId` matches a suppressed entry, and the live-output deduper drops `Bash` calls whose command matches the tracking PATCH / taskLabel PATCH / notify / report-task curl patterns. The skill-ceremony curls no longer pollute the user-meaningful tool feed. Also adds a `seenToolUseKeys` set keyed on `uuid || toolUseId` to dedupe duplicated tool-use events across history loads
+- **`FlatView` map chip native `title` is suppressed when hover content exists** — when an agent has todos or subordinates the `AgentHoverTooltip` takes over, so the chip's `title=` attribute is left undefined to avoid the browser's default tooltip racing the rich one
+
 ## [1.75.0] - 2026-04-24
 
 ### Added
