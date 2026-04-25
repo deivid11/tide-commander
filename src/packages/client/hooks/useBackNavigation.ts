@@ -67,13 +67,25 @@ export function useBackNavigation(): {
       }
     };
 
-    const handlePopState = () => {
+    const handlePopState = (event: PopStateEvent) => {
+      // Panels (FlatView, GuakeOutputPanel) maintain their own browser-history
+      // stack of selected agents — they tag each entry with __flatAgentNav /
+      // __guakeAgentNav. Re-pushing the hash buffer here would destroy the
+      // forward stack those panels rely on for prev/next, so skip the re-push
+      // when the popped state is owned by a panel.
+      const ownedByPanel = !!(
+        event.state &&
+        typeof event.state === 'object' &&
+        ((event.state as { __flatAgentNav?: unknown }).__flatAgentNav ||
+          (event.state as { __guakeAgentNav?: unknown }).__guakeAgentNav)
+      );
+
       if (!window.location.hash.includes('app')) {
         window.location.hash = '#app';
       }
 
       // Re-push the buffer entry so the next gesture is also absorbed
-      if (window.location.hash === '#app') {
+      if (!ownedByPanel && window.location.hash === '#app') {
         setTimeout(() => {
           if (window.location.hash === '#app' && !window.location.hash.includes('app2')) {
             window.history.pushState(null, '', '#app2');
@@ -85,7 +97,7 @@ export function useBackNavigation(): {
       if (isMobile()) {
         if (closeTopModal()) {
           backHandledAt = Date.now();
-        } else {
+        } else if (!ownedByPanel) {
           window.__tideSetBackNavModal?.(true);
         }
       } else {

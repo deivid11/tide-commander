@@ -238,6 +238,71 @@ const ChatView = React.memo(function ChatView({
     };
   }, [onNavigateBack, onNavigateForward]);
 
+  // Mac trackpad two-finger horizontal swipe → prev/next agent. macOS browsers
+  // translate the gesture into wheel events with horizontal deltaX; relying on
+  // popstate alone is unreliable because Safari/Chrome may not commit a same-
+  // URL pushState navigation. We accumulate horizontal delta and fire when
+  // dominant horizontal motion crosses a threshold. Skipped when the gesture
+  // is consumed by an inner horizontally-scrollable element (e.g. wide code).
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+
+    let accumX = 0;
+    let lastWheelAt = 0;
+    let cooldownUntil = 0;
+    const RESET_MS = 250;
+    const COOLDOWN_MS = 600;
+    const THRESHOLD = 80;
+    const DOMINANCE = 1.5;
+
+    const isInHorizontalScroller = (target: EventTarget | null): boolean => {
+      let node = target instanceof HTMLElement ? target : null;
+      while (node && node !== el) {
+        const ox = window.getComputedStyle(node).overflowX;
+        if ((ox === 'auto' || ox === 'scroll') && node.scrollWidth > node.clientWidth) {
+          return true;
+        }
+        node = node.parentElement;
+      }
+      return false;
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      const now = Date.now();
+      if (now < cooldownUntil) {
+        e.preventDefault();
+        return;
+      }
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) * DOMINANCE) {
+        accumX = 0;
+        return;
+      }
+      if (isInHorizontalScroller(e.target)) {
+        accumX = 0;
+        return;
+      }
+      if (now - lastWheelAt > RESET_MS) accumX = 0;
+      lastWheelAt = now;
+      accumX += e.deltaX;
+
+      if (accumX <= -THRESHOLD) {
+        accumX = 0;
+        cooldownUntil = now + COOLDOWN_MS;
+        e.preventDefault();
+        onNavigateBack();
+      } else if (accumX >= THRESHOLD) {
+        accumX = 0;
+        cooldownUntil = now + COOLDOWN_MS;
+        e.preventDefault();
+        onNavigateForward();
+      }
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [onNavigateBack, onNavigateForward]);
+
   // ── Statusbar: area folder lookup (mirrors the Guake statusbar deriv) ────
   const areas = useAreas();
   const agentAreaDirectories = useMemo(() => {

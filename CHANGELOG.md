@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.78.0] - 2026-04-24
+
+### Added
+- **Mac trackpad two-finger horizontal swipe cycles agents in `FlatView`** — wheel-based fallback for the swipe gesture, since `popstate` alone is unreliable on Safari/Chrome for same-URL `pushState` navigations. The handler is attached to the FlatView wrapper (`{ passive: false }` so it can `preventDefault`) and uses an accumulator + dominance check (`|deltaX| > |deltaY| × 1.5`) before firing — gentle vertical scrolls are not misinterpreted as horizontal swipes. A 250ms idle window resets the accumulator, the trigger threshold is 80px, and a 600ms cooldown after each fire prevents momentum-flick double-triggers. Skipped when the gesture starts inside an inner element with horizontal overflow (e.g. wide code blocks) so existing horizontal scrollers keep working
+
+### Fixed
+- **`useBackNavigation` no longer destroys panel-owned forward stacks** — when a `popstate` carries `__flatAgentNav` or `__guakeAgentNav`, the hook now skips the `#app2` buffer re-push and the back-nav modal trigger that the global handler normally fires. Before this fix, the global hash buffer was overwriting the panel's own history entry, killing the prev/next stack `FlatView` and `GuakeOutputPanel` rely on for in-panel agent navigation. Mobile modal-close behavior is preserved — only the buffer re-push and the desktop back-nav modal are gated on `ownedByPanel`
+
 ## [1.77.0] - 2026-04-24
 
 ### Added
