@@ -233,7 +233,12 @@ export function getApiBaseUrl(): string {
   if (import.meta.env.DEV) {
     const defaultPort = typeof __SERVER_PORT__ !== 'undefined' ? __SERVER_PORT__ : 6200;
     const apiProtocol = window.location.protocol === 'https:' ? 'https' : 'http';
-    return `${apiProtocol}://localhost:${defaultPort}`;
+    // Prefer the browser host so LAN devices reach the backend; loopback only for local browsing.
+    const browserHost = window.location.hostname;
+    const apiHost = (browserHost === 'localhost' || browserHost === '127.0.0.1' || browserHost === '::1')
+      ? '127.0.0.1'
+      : browserHost;
+    return `${apiProtocol}://${apiHost}:${defaultPort}`;
   }
 
   // In production, use the same host that served the UI.
