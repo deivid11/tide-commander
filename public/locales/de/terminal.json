@@ -46,6 +46,7 @@
     "stopOperation": "Aktuellen Vorgang stoppen (Esc)",
     "stop": "Stoppen",
     "voiceInput": "Spracheingabe (Whisper)",
+    "voiceInputErrorTitle": "Spracheingabefehler",
     "stopRecording": "Aufnahme stoppen",
     "transcribing": "Transkribiere..."
   },

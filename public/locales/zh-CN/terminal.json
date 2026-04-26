@@ -46,6 +46,7 @@
     "stopOperation": "停止当前操作 (Esc)",
     "stop": "停止",
     "voiceInput": "语音输入 (Whisper)",
+    "voiceInputErrorTitle": "语音输入错误",
     "stopRecording": "停止录音",
     "transcribing": "转录中..."
   },
