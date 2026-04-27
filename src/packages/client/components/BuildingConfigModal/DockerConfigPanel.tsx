@@ -545,7 +545,7 @@ export function DockerConfigPanel({
               {building.dockerStatus.ports.map((p, i) => (
                 <a
                   key={i}
-                  href={`http://localhost:${p.host}`}
+                  href={`http://${window.location.hostname}:${p.host}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="docker-port-link"

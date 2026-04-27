@@ -118,7 +118,7 @@ export const BossBuildingActionPopup = memo(function BossBuildingActionPopup({ b
   const hasPM2Subordinates = subordinates.some(s => s.pm2?.enabled);
 
   const handleOpenUrl = (port: number, openInPiP?: boolean) => {
-    const url = `http://localhost:${port}`;
+    const url = `http://${window.location.hostname}:${port}`;
     if (openInPiP && onOpenUrlInModal) {
       onOpenUrlInModal(url);
     } else {
@@ -202,14 +202,14 @@ export const BossBuildingActionPopup = memo(function BossBuildingActionPopup({ b
                   {sub.pm2Status.ports.map((port) => (
                     <a
                       key={port}
-                      href={`http://localhost:${port}`}
+                      href={`http://${window.location.hostname}:${port}`}
                       className="building-popup-port-link"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         handleOpenUrl(port, e.altKey);
                       }}
-                      title={`Open http://localhost:${port} (Alt+Click for modal)`}
+                      title={`Open http://${window.location.hostname}:${port} (Alt+Click for modal)`}
                     >
                       :{port}
                     </a>

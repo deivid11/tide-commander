@@ -8,7 +8,7 @@ import {
 } from '../../data/index.js';
 import * as agentService from '../../services/agent-service.js';
 import { createLogger } from '../../utils/logger.js';
-import { hasTmuxSession, isTmuxEnabled, tmuxLogPath } from './tmux-helper.js';
+import { hasTmuxSession, isTmuxEnabled, killTmuxSession, listAgentTmuxSessions, tmuxLogPath } from './tmux-helper.js';
 
 const log = createLogger('Runner');
 
@@ -74,7 +74,43 @@ export class RunnerRecoveryStore {
     clearRunningProcesses();
   }
 
+  /**
+   * On startup, list all `tc-*` tmux sessions and kill any whose agent ID
+   * is not in the current agent list. Catches sessions abandoned by prior
+   * commander crashes — the kind of orphans the idle-timeout watchdog can't
+   * reach because they're not tracked in activeProcesses.
+   *
+   * Idempotent: running per-provider is safe — once a session is killed by
+   * the first runner, subsequent runners see no `tc-*` sessions for it.
+   */
+  private killUnknownTmuxSessions(): void {
+    if (!isTmuxEnabled()) {
+      return;
+    }
+    const sessionAgentIds = listAgentTmuxSessions();
+    if (sessionAgentIds.length === 0) {
+      return;
+    }
+    let killed = 0;
+    for (const agentId of sessionAgentIds) {
+      if (this.activeProcesses.has(agentId)) {
+        continue;
+      }
+      if (agentService.getAgent(agentId)) {
+        continue;
+      }
+      log.log(`🧹 [STARTUP] Killing orphan tmux session tc-${agentId} — agent no longer exists`);
+      killTmuxSession(agentId);
+      killed++;
+    }
+    if (killed > 0) {
+      log.log(`🧹 [STARTUP] Cleaned up ${killed} orphan tmux session(s) from prior commander instance`);
+    }
+  }
+
   recoverOrphanedProcesses(): void {
+    this.killUnknownTmuxSessions();
+
     const savedProcesses = loadRunningProcesses();
     if (savedProcesses.length === 0) {
       return;

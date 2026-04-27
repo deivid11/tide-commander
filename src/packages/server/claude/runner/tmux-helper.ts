@@ -134,7 +134,11 @@ export function spawnInTmux(
       fullCmd = `${sttyPrefix}cat '${initialStdinFile}' | ${executable} ${escapedArgs} > '${logFile}' 2> '${stderrFile}'`;
     } else {
       // Pipe the prompt then keep stdin open via the tmux pane pty.
-      // The second `cat` reads from the pane so sendToTmux() still works.
+      // The second `cat` reads from the pane so sendToTmux() still works —
+      // mid-turn user messages are delivered via tmux paste-buffer and land
+      // on claude's live stdin as additional stream-json lines. Without this
+      // trailing cat, claude sees EOF immediately after the initial prompt
+      // and mid-turn follow-ups are silently dropped by tmux paste-buffer.
       fullCmd = `${sttyPrefix}(cat '${initialStdinFile}'; cat) | ${executable} ${escapedArgs} > '${logFile}' 2> '${stderrFile}'`;
     }
   } else {
@@ -234,6 +238,27 @@ export function killTmuxSession(agentId: string): void {
     } catch {
       // ignore cleanup errors
     }
+  }
+}
+
+/**
+ * List all tmux sessions whose names start with `tc-`.
+ * Returns the bare agent IDs (the prefix is stripped).
+ * Used at startup to find orphaned sessions whose owning agent is gone.
+ */
+export function listAgentTmuxSessions(): string[] {
+  try {
+    const out = execSync(
+      `tmux list-sessions -F '#{session_name}' 2>/dev/null`,
+      { encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] },
+    );
+    return out
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((name) => name.startsWith('tc-'))
+      .map((name) => name.slice('tc-'.length));
+  } catch {
+    return [];
   }
 }
 

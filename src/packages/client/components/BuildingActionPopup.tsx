@@ -184,7 +184,7 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
 
   const handleOpenUrl = (port?: number, openInPiP?: boolean) => {
     if (port) {
-      const url = `http://localhost:${port}`;
+      const url = `http://${window.location.hostname}:${port}`;
       if (openInPiP && onOpenUrlInModal) {
         onOpenUrlInModal(url);
       } else {
@@ -248,7 +248,7 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
             {allPorts.map((port) => (
               <a
                 key={port}
-                href={`http://localhost:${port}`}
+                href={`http://${window.location.hostname}:${port}`}
                 className="building-popup-port-link"
                 onClick={(e) => {
                   e.preventDefault();
@@ -256,7 +256,7 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
                   handleOpenUrl(port, e.altKey);
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
-                title={`Open http://localhost:${port} (Alt+Click for modal)`}
+                title={`Open http://${window.location.hostname}:${port} (Alt+Click for modal)`}
               >
                 :{port}
               </a>
@@ -411,7 +411,7 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
           <button
             className="action-btn open-url"
             onClick={(e) => handleOpenUrl(allPorts[0], e.altKey)}
-            title={`Open http://localhost:${allPorts[0]} (Alt+Click for modal)`}
+            title={`Open http://${window.location.hostname}:${allPorts[0]} (Alt+Click for modal)`}
           >
             <span className="icon">&#128279;</span>
             {t('terminal:buildingAction.openInBrowser')}
@@ -425,7 +425,7 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
                 key={port}
                 className="action-btn open-url port-btn"
                 onClick={(e) => handleOpenUrl(port, e.altKey)}
-                title={`Open http://localhost:${port} (Alt+Click for modal)`}
+                title={`Open http://${window.location.hostname}:${port} (Alt+Click for modal)`}
               >
                 :{port}
               </button>
