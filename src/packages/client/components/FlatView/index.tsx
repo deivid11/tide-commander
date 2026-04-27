@@ -856,8 +856,17 @@ const ChatView = React.memo(function ChatView({
         {cwd && cwdShort && (
           <span
             className="flat-terminal-wrapper__cwd"
-            title={cwd}
-            onClick={() => store.setFileViewerPath(cwd)}
+            title={`Open in file explorer: ${cwd}`}
+            aria-label={`Open ${cwd} in file explorer`}
+            role="button"
+            tabIndex={0}
+            onClick={() => store.openFileExplorer(cwd)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                store.openFileExplorer(cwd);
+              }
+            }}
           >
             <span className="flat-terminal-wrapper__cwd-icon">
               <Icon name="folder" size={12} />

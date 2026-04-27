@@ -54,6 +54,7 @@ export interface FileTabsProps {
   activeTabPath: string | null;
   onSelectTab: (path: string) => void;
   onCloseTab: (path: string) => void;
+  onShowGitHistory?: (path: string) => void;
 }
 
 // ============================================================================

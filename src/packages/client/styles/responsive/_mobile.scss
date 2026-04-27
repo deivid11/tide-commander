@@ -286,19 +286,25 @@
       }
     }
 
-    // When the keyboard is open, hide the bottom stack so only the input shows above keyboard.
+    // The agent toolbar (.mobile-bottom-stack — agent bar + bottom nav)
+    // stays visible at all times on mobile, including while the keyboard is
+    // open. When the keyboard is shown we lift the stack above it so it isn't
+    // hidden behind the IME. The `MobileBottomMenu` child still hides itself
+    // via its own component logic when the keyboard opens; that is unchanged.
     &.keyboard-visible {
       .mobile-bottom-stack {
-        display: none !important;
+        bottom: var(--keyboard-height, 0px) !important;
       }
     }
 
     .main-content {
       display: flex;
       flex-direction: column;
-      // Stack height set by ResizeObserver in App.tsx via --mobile-bottom-stack-height
-      height: calc(100% - (var(--mobile-bottom-stack-height, 72px) * (1 - var(--keyboard-visible, 0)))) !important;
-      max-height: calc(100% - (var(--mobile-bottom-stack-height, 72px) * (1 - var(--keyboard-visible, 0)))) !important;
+      // Stack height set by ResizeObserver in App.tsx via --mobile-bottom-stack-height.
+      // The agent toolbar (.mobile-bottom-stack) is now always visible on mobile,
+      // so we always reserve its height — no keyboard-visibility multiplier.
+      height: calc(100% - var(--mobile-bottom-stack-height, 72px)) !important;
+      max-height: calc(100% - var(--mobile-bottom-stack-height, 72px)) !important;
       overflow: hidden;
     }
 
@@ -352,11 +358,16 @@
       min-height: 0;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
-      // Add padding at bottom so last message is visible above fixed input
-      // The input wrapper contains: context bar (~20px) + stop bar (~30px) + input (~70px)
-      // Total ~120px, plus the guake-content padding-bottom offsets by 80px,
-      // so we need enough internal padding to clear the remaining overlap (~40px) plus breathing room
-      padding-bottom: calc(var(--keyboard-height, 0px) + 120px) !important;
+      // Add padding at bottom so the last message is scrollable past the
+      // fixed UI that overlays the bottom of the screen:
+      //   - keyboard (when open)
+      //   - agent toolbar / mobile-bottom-stack (always visible on mobile)
+      //   - input wrapper (~120px: context bar + stop bar + input)
+      padding-bottom: calc(
+        var(--keyboard-height, 0px)
+        + var(--mobile-bottom-stack-height, 72px)
+        + 120px
+      ) !important;
     }
 
     // Input wrapper - FIXED at bottom. The vertical anchor is computed in a
@@ -366,18 +377,18 @@
     // measured keyboard height was wrong).
     //
     // Composition (px, all driven by JS / native insets listener):
-    //   - var(--keyboard-height)       — keyboard overlap on iOS-style WebViews
-    //                                     where the layout viewport does NOT shrink.
-    //                                     0 on Android Chrome/Capacitor where the
-    //                                     layout viewport already shrinks for us.
-    //   - var(--mobile-bottom-stack-height) * (1 - --keyboard-visible)
-    //                                   — leave room for the agent bar + bottom nav
-    //                                     stack only while the keyboard is closed.
+    //   - var(--keyboard-height)            — keyboard overlap on iOS-style WebViews
+    //                                          where the layout viewport does NOT shrink.
+    //                                          0 on Android Chrome/Capacitor where the
+    //                                          layout viewport already shrinks for us.
+    //   - var(--mobile-bottom-stack-height) — always reserve room for the agent toolbar
+    //                                          (the stack stays visible on mobile, just
+    //                                          lifts above the keyboard when shown).
     .guake-input-wrapper {
       position: fixed !important;
       bottom: calc(
         var(--keyboard-height, 0px)
-        + var(--mobile-bottom-stack-height, 72px) * (1 - var(--keyboard-visible, 0))
+        + var(--mobile-bottom-stack-height, 72px)
       ) !important;
       left: 0 !important;
       right: 0 !important;

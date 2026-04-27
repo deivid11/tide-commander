@@ -2998,6 +2998,238 @@ router.get('/git-commit-files', async (req: Request, res: Response) => {
   }
 });
 
+// Simple extension-based language detection for the diff viewer
+function detectLanguageFromPath(filePath: string): string {
+  const base = path.basename(filePath).toLowerCase();
+  if (base === 'dockerfile') return 'dockerfile';
+  if (base === 'makefile') return 'makefile';
+  const ext = path.extname(base);
+  const mapping: Record<string, string> = {
+    '.ts': 'typescript', '.tsx': 'typescript',
+    '.js': 'javascript', '.jsx': 'javascript', '.mjs': 'javascript', '.cjs': 'javascript',
+    '.json': 'json', '.jsonc': 'json',
+    '.html': 'html', '.htm': 'html',
+    '.css': 'css', '.scss': 'scss', '.sass': 'sass', '.less': 'less',
+    '.md': 'markdown', '.mdx': 'markdown',
+    '.py': 'python', '.rb': 'ruby', '.go': 'go', '.rs': 'rust',
+    '.java': 'java', '.kt': 'kotlin', '.swift': 'swift',
+    '.c': 'c', '.h': 'c', '.cpp': 'cpp', '.cc': 'cpp', '.cxx': 'cpp', '.hpp': 'cpp',
+    '.cs': 'csharp', '.php': 'php',
+    '.sh': 'shell', '.bash': 'shell', '.zsh': 'shell',
+    '.yaml': 'yaml', '.yml': 'yaml', '.toml': 'toml', '.xml': 'xml',
+    '.sql': 'sql', '.lua': 'lua', '.dart': 'dart',
+    '.svelte': 'svelte', '.vue': 'vue',
+    '.dockerfile': 'dockerfile', '.ini': 'ini', '.env': 'shell',
+  };
+  return mapping[ext] || 'plaintext';
+}
+
+// GET /api/files/git-file-history - History of commits that touched a single file (with --follow)
+router.get('/git-file-history', async (req: Request, res: Response) => {
+  try {
+    const filePath = req.query.path as string;
+    const cwd = req.query.cwd as string;
+    const limitParam = req.query.limit as string | undefined;
+
+    if (!filePath) { res.status(400).json({ error: 'Missing path parameter' }); return; }
+    if (!cwd) { res.status(400).json({ error: 'Missing cwd parameter' }); return; }
+    if (!path.isAbsolute(cwd)) { res.status(400).json({ error: 'cwd must be absolute' }); return; }
+    if (!fs.existsSync(cwd)) { res.status(404).json({ error: 'cwd not found' }); return; }
+
+    let limit = 100;
+    if (limitParam !== undefined) {
+      const parsed = Number.parseInt(limitParam, 10);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        res.status(400).json({ error: 'limit must be a positive integer' });
+        return;
+      }
+      limit = Math.min(parsed, 1000);
+    }
+
+    const gitRoot = resolveGitRootOrThrow(cwd);
+    if (!gitRoot) { res.status(400).json({ error: 'Not in a git repository' }); return; }
+
+    const relativePath = resolveGitRelativePath(gitRoot, filePath);
+    if (!relativePath) { res.status(400).json({ error: 'path is outside the git repository' }); return; }
+
+    // NUL-delimited fields, newline-separated commits (git log default)
+    const logFormat = '%H%x00%h%x00%an%x00%ae%x00%aI%x00%s';
+    const cmd = [
+      'git log',
+      '--follow',
+      `--format=${shellEscape(logFormat)}`,
+      `-n ${limit}`,
+      '--',
+      shellEscape(relativePath),
+    ].join(' ');
+
+    let output = '';
+    try {
+      output = execSync(cmd, {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+        maxBuffer: 10 * 1024 * 1024,
+      });
+    } catch (err: any) {
+      const stderr = err.stderr?.toString() || err.message || '';
+      if (stderr.includes('does not have any commits yet')) {
+        res.json({ commits: [] });
+        return;
+      }
+      if (stderr.includes('unknown revision') || stderr.includes('bad revision') || stderr.includes('ambiguous argument')) {
+        res.status(404).json({ error: 'file not tracked' });
+        return;
+      }
+      throw err;
+    }
+
+    const commits: Array<{
+      sha: string;
+      shortSha: string;
+      author: string;
+      email: string;
+      date: string;
+      subject: string;
+    }> = [];
+
+    for (const line of output.split('\n')) {
+      if (!line) continue;
+      const fields = line.split('\x00');
+      if (fields.length < 6) continue;
+      commits.push({
+        sha: fields[0] || '',
+        shortSha: fields[1] || '',
+        author: fields[2] || '',
+        email: fields[3] || '',
+        date: fields[4] || '',
+        subject: fields[5] || '',
+      });
+    }
+
+    if (commits.length === 0) {
+      // Distinguish "tracked but no history" (rare) from "not tracked at all" (404).
+      try {
+        execSync(`git ls-files --error-unmatch -- ${shellEscape(relativePath)}`, {
+          cwd: gitRoot,
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+      } catch {
+        res.status(404).json({ error: 'file not tracked' });
+        return;
+      }
+    }
+
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.json({ commits });
+  } catch (err: any) {
+    log.error(' Failed to get git file history:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/files/git-file-commit-diff - File contents at <sha> vs its parent, for the
+// per-file history diff viewer (GitFileHistoryModal). Distinct from the older
+// /git-commit-file-diff endpoint above, which serves the FileExplorerPanel commit-log
+// view with a different param/shape contract.
+router.get('/git-file-commit-diff', async (req: Request, res: Response) => {
+  try {
+    const filePath = req.query.path as string;
+    const cwd = req.query.cwd as string;
+    const sha = req.query.sha as string;
+
+    if (!filePath) { res.status(400).json({ error: 'Missing path parameter' }); return; }
+    if (!cwd) { res.status(400).json({ error: 'Missing cwd parameter' }); return; }
+    if (!sha) { res.status(400).json({ error: 'Missing sha parameter' }); return; }
+    if (!path.isAbsolute(cwd)) { res.status(400).json({ error: 'cwd must be absolute' }); return; }
+    if (!fs.existsSync(cwd)) { res.status(404).json({ error: 'cwd not found' }); return; }
+    if (!/^[a-f0-9]{4,40}$/i.test(sha)) { res.status(400).json({ error: 'Invalid commit SHA' }); return; }
+
+    const gitRoot = resolveGitRootOrThrow(cwd);
+    if (!gitRoot) { res.status(400).json({ error: 'Not in a git repository' }); return; }
+
+    const relativePath = resolveGitRelativePath(gitRoot, filePath);
+    if (!relativePath) { res.status(400).json({ error: 'path is outside the git repository' }); return; }
+
+    // Determine if this commit has a parent (root commits don't)
+    let hasParent = false;
+    try {
+      const parentLine = execSync(`git rev-list --parents -n 1 ${shellEscape(sha)}`, {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
+      hasParent = parentLine.split(/\s+/).length > 1;
+    } catch (err: any) {
+      const stderr = err.stderr?.toString() || err.message || '';
+      if (stderr.includes('unknown revision') || stderr.includes('bad object') || stderr.includes('ambiguous argument')) {
+        res.status(404).json({ error: 'Commit not found' });
+        return;
+      }
+      throw err;
+    }
+
+    // Read raw bytes so we can sniff for binary content. execSync without encoding returns Buffer.
+    const showBytes = (ref: string): { buf: Buffer | null; missing: boolean } => {
+      try {
+        const buf = execSync(`git show ${shellEscape(`${ref}:${relativePath}`)}`, {
+          cwd: gitRoot,
+          stdio: ['pipe', 'pipe', 'pipe'],
+          maxBuffer: 50 * 1024 * 1024,
+        }) as Buffer;
+        return { buf, missing: false };
+      } catch {
+        // git show fails when the path doesn't exist at that ref — treat as missing.
+        return { buf: null, missing: true };
+      }
+    };
+
+    const original = hasParent ? showBytes(`${sha}~1`) : { buf: null, missing: true };
+    const modified = showBytes(sha);
+
+    let changeType: 'added' | 'modified' | 'deleted';
+    if (original.missing && !modified.missing) changeType = 'added';
+    else if (!original.missing && modified.missing) changeType = 'deleted';
+    else if (!original.missing && !modified.missing) changeType = 'modified';
+    else {
+      res.status(404).json({ error: 'File not present in commit or its parent' });
+      return;
+    }
+
+    const filename = path.basename(relativePath);
+
+    // Binary sniff: scan first 8KB of either side for NUL byte.
+    const looksBinary = (b: Buffer | null): boolean => {
+      if (!b || b.length === 0) return false;
+      const sample = b.subarray(0, Math.min(b.length, 8192));
+      return sample.includes(0);
+    };
+    const binary = looksBinary(original.buf) || looksBinary(modified.buf);
+
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+
+    if (binary) {
+      res.json({ binary: true, filename, changeType });
+      return;
+    }
+
+    res.json({
+      originalContent: original.buf ? original.buf.toString('utf-8') : '',
+      modifiedContent: modified.buf ? modified.buf.toString('utf-8') : '',
+      filename,
+      language: detectLanguageFromPath(filename),
+      changeType,
+      binary: false,
+    });
+  } catch (err: any) {
+    log.error(' Failed to get git commit file diff:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/files/git-branches-list - Simple branch list for filters
 router.get('/git-branches-list', async (req: Request, res: Response) => {
   try {
