@@ -6,6 +6,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { getCurrentAgentId } from './log-context.js';
 
 // ============================================
 // File Logging Configuration
@@ -222,6 +223,11 @@ function formatMessage(level: LogLevel, context: string, message: string, ...arg
   const levelStr = `${color}${colors.bright}${label.padStart(7)}${colors.reset}`;
   const contextStr = `${colors.yellow}[${context}]${colors.reset}`;
 
+  const agentId = getCurrentAgentId();
+  const agentStr = agentId
+    ? ` ${colors.cyan}[agentId=${agentId}]${colors.reset}`
+    : '';
+
   let formattedMessage = message;
   if (args.length > 0) {
     const argsStr = args.map(arg => {
@@ -237,7 +243,7 @@ function formatMessage(level: LogLevel, context: string, message: string, ...arg
     formattedMessage = `${message} ${colors.cyan}${argsStr}${colors.reset}`;
   }
 
-  return `${appName} ${pidStr}  - ${timestampStr}  ${levelStr} ${contextStr} ${formattedMessage}`;
+  return `${appName} ${pidStr}  - ${timestampStr}  ${levelStr} ${contextStr}${agentStr} ${formattedMessage}`;
 }
 
 class Logger {

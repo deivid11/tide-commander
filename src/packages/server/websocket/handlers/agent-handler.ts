@@ -241,10 +241,15 @@ export async function handleClearContext(
 
 /**
  * Handle restore_session message - restores a previous session for an agent
+ *
+ * Optional `cwd` enables cross-project restore from the global Session Finder:
+ * if the chosen session lives in a different project directory than the agent
+ * currently uses, we update the agent's cwd alongside its sessionId so Claude
+ * Code can resolve the JSONL on the next run.
  */
 export async function handleRestoreSession(
   ctx: HandlerContext,
-  payload: { agentId: string; sessionId: string }
+  payload: { agentId: string; sessionId: string; cwd?: string }
 ): Promise<void> {
   const agent = agentService.getAgent(payload.agentId);
   if (!agent) {
@@ -252,7 +257,11 @@ export async function handleRestoreSession(
     return;
   }
 
-  log.log(`Agent ${agent.name}: Restoring session ${payload.sessionId}`);
+  const targetCwd = payload.cwd && payload.cwd !== agent.cwd ? payload.cwd : undefined;
+  log.log(
+    `Agent ${agent.name}: Restoring session ${payload.sessionId}` +
+      (targetCwd ? ` (cwd change: ${agent.cwd} -> ${targetCwd})` : '')
+  );
 
   // Archive the current session first (if any)
   agentService.archiveCurrentSession(payload.agentId);
@@ -260,8 +269,7 @@ export async function handleRestoreSession(
   // Stop any running process
   await runtimeService.stopAgent(payload.agentId);
 
-  // Set the restored session ID
-  agentService.updateAgent(payload.agentId, {
+  const updates: Parameters<typeof agentService.updateAgent>[1] = {
     status: 'idle',
     currentTask: undefined,
     taskLabel: undefined,
@@ -270,9 +278,18 @@ export async function handleRestoreSession(
     tokensUsed: 0,
     contextUsed: 0,
     contextStats: undefined,
-  });
+  };
+  if (targetCwd) {
+    updates.cwd = targetCwd;
+  }
+  agentService.updateAgent(payload.agentId, updates);
 
-  ctx.sendActivity(payload.agentId, `Session restored - will resume on next command`);
+  ctx.sendActivity(
+    payload.agentId,
+    targetCwd
+      ? `Session restored from ${targetCwd} - will resume on next command`
+      : `Session restored - will resume on next command`
+  );
   log.log(`Agent ${agent.name}: Session restored to ${payload.sessionId}`);
 }
 

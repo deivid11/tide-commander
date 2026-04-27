@@ -12,6 +12,7 @@ import type {
 } from './types.js';
 import { ClaudeBackend } from './backend.js';
 import { createLogger } from '../utils/logger.js';
+import { withAgentContext } from '../utils/log-context.js';
 import { isProcessRunning } from '../data/index.js';
 import { sendToTmux, hasTmuxSession, tmuxSessionName, getTmuxPanePid } from './runner/tmux-helper.js';
 import type { RunningProcessInfo } from '../data/index.js';
@@ -386,10 +387,14 @@ export class ClaudeRunner {
   }
 
   async run(request: RunnerRequest): Promise<void> {
-    await this.lifecycle.run(request);
+    await withAgentContext(request.agentId, () => this.lifecycle.run(request));
   }
 
   sendMessage(agentId: string, message: string): boolean {
+    return withAgentContext(agentId, () => this.sendMessageImpl(agentId, message));
+  }
+
+  private sendMessageImpl(agentId: string, message: string): boolean {
     const activeProcess = this.activeProcesses.get(agentId);
     if (!activeProcess) {
       log.error(`❌ [SEND_MESSAGE] No active process for agent ${agentId}`);
@@ -644,7 +649,7 @@ export class ClaudeRunner {
   }
 
   interrupt(agentId: string): boolean {
-    return this.lifecycle.interrupt(agentId);
+    return withAgentContext(agentId, () => this.lifecycle.interrupt(agentId));
   }
 
   getActiveProcessCount(): number {
@@ -652,17 +657,16 @@ export class ClaudeRunner {
   }
 
   async stop(agentId: string, clearQueue: boolean = true): Promise<void> {
-    // Only clear queued messages on explicit user-initiated stops.
-    // Respawns (watchdog, auto-restart) should preserve the queue so
-    // messages sent while the agent was processing are not lost.
-    if (clearQueue && this.messageQueue.has(agentId)) {
-      const count = this.messageQueue.get(agentId)!.length;
-      this.messageQueue.delete(agentId);
-      if (count > 0) {
-        log.log(`🗑️ [QUEUE] Agent ${agentId}: Discarded ${count} queued message(s) on stop`);
+    await withAgentContext(agentId, async () => {
+      if (clearQueue && this.messageQueue.has(agentId)) {
+        const count = this.messageQueue.get(agentId)!.length;
+        this.messageQueue.delete(agentId);
+        if (count > 0) {
+          log.log(`🗑️ [QUEUE] Agent ${agentId}: Discarded ${count} queued message(s) on stop`);
+        }
       }
-    }
-    await this.lifecycle.stop(agentId);
+      await this.lifecycle.stop(agentId);
+    });
   }
 
   async stopAll(killProcesses: boolean = true, clearQueue: boolean = true): Promise<void> {

@@ -14,6 +14,7 @@ import { loadSession } from '../claude/session-loader.js';
 import { getAllCustomClasses } from '../services/custom-class-service.js';
 // Session listing is done inline for performance
 import { createLogger } from '../utils/logger.js';
+import { withAgentContext } from '../utils/log-context.js';
 import { truncateOrEmpty } from '../utils/string.js';
 import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js';
 import { clearDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
@@ -25,6 +26,10 @@ import type { ServerMessage } from '../../shared/types.js';
 const log = createLogger('Routes');
 
 const router = Router();
+
+router.param('id', (req, _res, next, id) => {
+  withAgentContext(typeof id === 'string' ? id : undefined, () => next());
+});
 
 // Store for broadcasting via WebSocket
 let broadcastFn: ((message: ServerMessage) => void) | null = null;

@@ -595,13 +595,42 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  cursor: pointer;
   padding: 2px 0;
+  gap: 6px;
+}
+
+.unit-session-history-header-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
 
   &:hover {
     .unit-stat-label {
       color: $text-primary;
     }
+  }
+}
+
+.unit-session-history-find-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba($accent-blue, 0.12);
+  border: 1px solid rgba($accent-blue, 0.3);
+  border-radius: $radius-sm;
+  color: $accent-blue;
+  font-size: 10px;
+  padding: 3px 7px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+
+  &:hover {
+    background: rgba($accent-blue, 0.22);
+    border-color: $accent-blue;
   }
 }
 

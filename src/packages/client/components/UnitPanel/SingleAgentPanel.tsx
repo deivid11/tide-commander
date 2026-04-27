@@ -38,6 +38,7 @@ import type {
 } from './types';
 import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
+import { SessionSearchModal } from '../SessionSearchModal';
 import { ConfirmModal } from '../shared/ConfirmModal';
 import { TaskListView } from '../shared/TaskListView';
 
@@ -541,6 +542,7 @@ const SessionHistorySection = memo(function SessionHistorySection({ agentId }: S
   const [previewSessionId, setPreviewSessionId] = useState<string | null>(null);
   const [previewMessages, setPreviewMessages] = useState<PreviewMessage[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [finderOpen, setFinderOpen] = useState(false);
   const state = useStore();
   const entries = state.sessionHistories.get(agentId) || [];
 
@@ -593,14 +595,24 @@ const SessionHistorySection = memo(function SessionHistorySection({ agentId }: S
 
   return (
     <div className="unit-session-history">
-      <div className="unit-session-history-header" onClick={handleToggle}>
-        <div className="unit-stat-label">{t('unitPanel.sessionHistory', 'Session History')}</div>
-        <span className="unit-session-history-toggle">
-          {entries.length > 0 && (
-            <span className="unit-session-history-count">{entries.length}</span>
-          )}
-          <Icon name={collapsed ? 'caret-right' : 'caret-down'} size={10} />
-        </span>
+      <div className="unit-session-history-header">
+        <div className="unit-session-history-header-toggle" onClick={handleToggle}>
+          <div className="unit-stat-label">{t('unitPanel.sessionHistory', 'Session History')}</div>
+          <span className="unit-session-history-toggle">
+            {entries.length > 0 && (
+              <span className="unit-session-history-count">{entries.length}</span>
+            )}
+            <Icon name={collapsed ? 'caret-right' : 'caret-down'} size={10} />
+          </span>
+        </div>
+        <button
+          className="unit-session-history-find-btn"
+          onClick={(e) => { e.stopPropagation(); setFinderOpen(true); }}
+          title={t('unitPanel.findSessionGlobal', 'Find sessions across all projects (Ctrl+Shift+F)')}
+        >
+          <Icon name="search" size={11} />
+          <span>{t('unitPanel.findSession', 'Find')}</span>
+        </button>
       </div>
       {!collapsed && (
         <div className="unit-session-history-list">
@@ -669,6 +681,13 @@ const SessionHistorySection = memo(function SessionHistorySection({ agentId }: S
             ))
           )}
         </div>
+      )}
+      {finderOpen && (
+        <SessionSearchModal
+          isOpen={finderOpen}
+          onClose={() => setFinderOpen(false)}
+          initialAgentId={agentId}
+        />
       )}
     </div>
   );

@@ -1,6 +1,7 @@
 import type { AgentProvider } from '../../shared/types.js';
 import type { CustomAgentDefinition, RuntimeRunner } from '../runtime/index.js';
 import * as agentService from './agent-service.js';
+import { withAgentContext } from '../utils/log-context.js';
 import {
   clearPendingSilentContextRefresh,
   clearStdinWatchdog,
@@ -58,6 +59,18 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
   } = deps;
 
   async function executeCommand(
+    agentId: string,
+    command: string,
+    systemPrompt?: string,
+    forceNewSession?: boolean,
+    customAgent?: CustomAgentConfig,
+    silent?: boolean,
+    skipNotify?: boolean
+  ): Promise<void> {
+    return withAgentContext(agentId, () => executeCommandImpl(agentId, command, systemPrompt, forceNewSession, customAgent, silent, skipNotify));
+  }
+
+  async function executeCommandImpl(
     agentId: string,
     command: string,
     systemPrompt?: string,
@@ -129,6 +142,16 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
   }
 
   async function sendCommand(
+    agentId: string,
+    command: string,
+    systemPrompt?: string,
+    forceNewSession?: boolean,
+    customAgent?: CustomAgentConfig
+  ): Promise<void> {
+    return withAgentContext(agentId, () => sendCommandImpl(agentId, command, systemPrompt, forceNewSession, customAgent));
+  }
+
+  async function sendCommandImpl(
     agentId: string,
     command: string,
     systemPrompt?: string,
@@ -277,6 +300,10 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
   }
 
   async function sendSilentCommand(agentId: string, command: string): Promise<void> {
+    return withAgentContext(agentId, () => sendSilentCommandImpl(agentId, command));
+  }
+
+  async function sendSilentCommandImpl(agentId: string, command: string): Promise<void> {
     const agent = agentService.getAgent(agentId);
     if (!agent) {
       throw new Error(`Agent not found: ${agentId}`);
@@ -312,6 +339,10 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
   }
 
   async function stopAgent(agentId: string): Promise<void> {
+    return withAgentContext(agentId, () => stopAgentImpl(agentId));
+  }
+
+  async function stopAgentImpl(agentId: string): Promise<void> {
     // Cancel any pending stdin watchdog timer to prevent it from respawning
     // the process after we've stopped it
     clearStdinWatchdog(agentId);

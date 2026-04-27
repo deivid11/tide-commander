@@ -98,7 +98,7 @@ export interface AgentActions {
   killAgent(agentId: string): void;
   stopAgent(agentId: string): void;
   clearContext(agentId: string): void;
-  restoreSession(agentId: string, sessionId: string): void;
+  restoreSession(agentId: string, sessionId: string, cwd?: string): void;
   requestSessionHistory(agentId: string): void;
   setSessionHistory(agentId: string, entries: import('../../shared/types').SessionHistoryEntry[]): void;
   getSessionHistory(agentId: string): import('../../shared/types').SessionHistoryEntry[];
@@ -584,10 +584,10 @@ export function createAgentActions(
       notify();
     },
 
-    restoreSession(agentId: string, sessionId: string): void {
+    restoreSession(agentId: string, sessionId: string, cwd?: string): void {
       getSendMessage()?.({
         type: 'restore_session',
-        payload: { agentId, sessionId },
+        payload: cwd ? { agentId, sessionId, cwd } : { agentId, sessionId },
       });
       // Optimistic update: set sessionId and clear outputs for immediate UI parity
       setState((state) => {
@@ -600,6 +600,7 @@ export function createAgentActions(
             taskLabel: undefined,
             currentTool: undefined,
             sessionId,
+            ...(cwd ? { cwd } : {}),
             tokensUsed: 0,
             contextUsed: 0,
             contextStats: undefined,
