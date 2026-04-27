@@ -1,0 +1,205 @@
+@use '../variables' as *;
+
+// Git File History Modal — two-pane layout (commit list + DiffViewer)
+// Mirrors the visual feel of system-prompt-modal.scss / SkillEditorModal.
+.git-file-history-modal {
+  width: 1100px;
+  max-width: 95vw;
+  height: 80vh;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-xl;
+  overflow: hidden;
+  outline: none;
+
+  .modal-header {
+    padding: 14px 20px;
+    margin-bottom: 0;
+    border-bottom: 1px solid $border-color;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+
+    h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+  }
+}
+
+.git-file-history-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  .git-file-history-filepath {
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $text-secondary;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 60ch;
+  }
+}
+
+.git-file-history-body {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.git-file-history-commit-list {
+  width: 300px;
+  flex-shrink: 0;
+  border-right: 1px solid $border-color;
+  background: $bg-tertiary;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.git-file-history-commits {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.git-file-history-commit {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba($border-color, 0.5);
+  cursor: pointer;
+  transition: background $transition-fast, border-color $transition-fast;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+
+  &:hover {
+    background: rgba($accent-blue, 0.08);
+  }
+
+  &.selected {
+    background: rgba($accent-blue, 0.18);
+    border-left: 3px solid $accent-blue;
+    padding-left: 9px;
+  }
+}
+
+.git-file-history-commit-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.git-file-history-sha {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $accent-blue;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.git-file-history-date {
+  font-size: 10px;
+  color: $text-muted;
+  flex-shrink: 0;
+}
+
+.git-file-history-subject {
+  font-size: 12px;
+  color: $text-primary;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+
+.git-file-history-author {
+  font-size: 10px;
+  color: $text-secondary;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-file-history-diff {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  .diff-viewer {
+    flex: 1;
+    min-height: 0;
+  }
+}
+
+.git-file-history-loading,
+.git-file-history-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px 20px;
+  color: $text-secondary;
+  text-align: center;
+  flex: 1;
+
+  p {
+    margin: 0;
+    font-size: 12px;
+  }
+
+  .spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid rgba($border-color, 0.5);
+    border-top-color: $accent-blue;
+    border-radius: 50%;
+    animation: git-file-history-spin 0.8s linear infinite;
+  }
+}
+
+@keyframes git-file-history-spin {
+  to { transform: rotate(360deg); }
+}
+
+// Responsive: stack panels on narrow screens
+@media (max-width: 720px) {
+  .git-file-history-modal {
+    width: 100vw;
+    height: 100vh;
+    max-width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .git-file-history-body {
+    flex-direction: column;
+  }
+
+  .git-file-history-commit-list {
+    width: 100%;
+    max-height: 40%;
+    border-right: none;
+    border-bottom: 1px solid $border-color;
+  }
+}

@@ -49,6 +49,7 @@ import { GitHistory } from './GitHistory';
 import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
 import { Icon } from '../Icon';
+import { GitFileHistoryModal } from '../GitFileHistoryModal';
 
 // Constants
 import { EXTENSION_TO_LANGUAGE } from './constants';
@@ -224,6 +225,11 @@ export function FileExplorerPanel({
     isDirectory: boolean;
     name: string;
   } | null>(null);
+  const [gitHistoryModal, setGitHistoryModal] = useState<{
+    open: boolean;
+    path: string;
+    cwd: string;
+  }>({ open: false, path: '', cwd: '' });
   const [renameDialog, setRenameDialog] = useState<RenameDialogState>({
     isOpen: false,
     node: null,
@@ -1001,11 +1007,21 @@ export function FileExplorerPanel({
     }
   }, [showToast]);
 
+  const handleOpenGitHistory = useCallback((node: TreeNode) => {
+    if (node.isDirectory || !currentFolder) return;
+    setGitHistoryModal({ open: true, path: node.path, cwd: currentFolder });
+  }, [currentFolder]);
+
+  const handleShowGitHistoryForPath = useCallback((path: string) => {
+    if (!currentFolder || !path) return;
+    setGitHistoryModal({ open: true, path, cwd: currentFolder });
+  }, [currentFolder]);
+
   const fileTreeContextActions = useMemo((): ContextMenuAction[] => {
     if (!fileTreeContextMenu) return [];
     const node = fileTreeContextMenu.node;
 
-    return [
+    const actions: ContextMenuAction[] = [
       {
         id: 'rename',
         label: node.isDirectory ? 'Rename Folder' : 'Rename File',
@@ -1033,50 +1049,54 @@ export function FileExplorerPanel({
         onClick: () => { void handleCopyPath(node); },
       },
     ];
-  }, [fileTreeContextMenu, fileClipboard, handleOpenRenameDialog, handleCopyNode, handlePasteNode, handleCopyPath]);
+
+    if (!node.isDirectory) {
+      actions.push(
+        { id: 'divider-git-history', label: '', divider: true, onClick: () => {} },
+        {
+          id: 'git-history',
+          label: t('terminal:fileExplorer.showGitHistory') ?? 'Show Git History',
+          icon: <Icon name="git-commit" size={14} />,
+          onClick: () => handleOpenGitHistory(node),
+        },
+      );
+    }
+
+    return actions;
+  }, [fileTreeContextMenu, fileClipboard, handleOpenRenameDialog, handleCopyNode, handlePasteNode, handleCopyPath, handleOpenGitHistory, t]);
 
   // Reveal a file in the tree by expanding all parent directories
-  const handleRevealInTree = useCallback((filePath: string) => {
+  const handleRevealInTree = useCallback(async (filePath: string) => {
     // Switch to files view and clear search to show tree
     setViewMode('files');
     setSearchQuery('');
 
-    // Normalize: strip trailing slash to prevent double-slash paths
-    const rootFolder = currentFolder?.replace(/\/+$/, '') || null;
+    // Lazy-load and expand every ancestor; expandToPath also handles
+    // compaction chains (single-child dir chains rendered as one row).
+    await expandToPath(filePath);
 
-    // Build list of all parent paths to expand - start with root folder
-    const pathsToExpand = new Set<string>();
-    if (rootFolder) {
-      pathsToExpand.add(rootFolder);
-    }
-
-    // Get all parent directories by building up the path from rootFolder
-    if (rootFolder && filePath.startsWith(rootFolder)) {
-      // Get relative path from rootFolder
-      const relativePath = filePath.substring(rootFolder.length);
-      const parts = relativePath.split('/').filter(p => p);
-
-      // Build each parent path relative to rootFolder
-      let currentPath = rootFolder;
-      for (let i = 0; i < parts.length - 1; i++) {
-        currentPath = currentPath + '/' + parts[i];
-        pathsToExpand.add(currentPath);
-      }
-    }
-
-    setExpandedPaths(pathsToExpand);
     setSelectedPath(filePath);
 
-    // Scroll the file into view after DOM update - use longer timeout for reliability
+    // After expansion + lazy load, wait two frames for the DOM to render
+    // the newly visible rows, then scroll the target into view. If the file
+    // itself isn't directly rendered (e.g. a compacted ancestor row covers
+    // it), fall back to the closest visible ancestor.
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        const fileElement = document.querySelector(`[data-path="${filePath}"]`);
-        if (fileElement) {
+        let pathToFind = filePath;
+        let fileElement = document.querySelector(`[data-path="${pathToFind}"]`);
+
+        while (!fileElement && pathToFind.includes('/')) {
+          pathToFind = pathToFind.substring(0, pathToFind.lastIndexOf('/'));
+          fileElement = document.querySelector(`[data-path="${pathToFind}"]`);
+        }
+
+        if (fileElement instanceof HTMLElement) {
           fileElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       });
     });
-  }, [currentFolder]);
+  }, [expandToPath]);
 
   // Stage files (git add)
   const handleStageFiles = useCallback(async (paths: string[]) => {
@@ -1725,6 +1745,7 @@ export function FileExplorerPanel({
                 activeTabPath={activeTabPath}
                 onSelectTab={handleSelectTab}
                 onCloseTab={handleCloseTab}
+                onShowGitHistory={handleShowGitHistoryForPath}
               />
 
               {/* File Content */}
@@ -1818,6 +1839,13 @@ export function FileExplorerPanel({
           onClose={() => setFileTreeContextMenu(null)}
         />
       )}
+
+      <GitFileHistoryModal
+        isOpen={gitHistoryModal.open}
+        filePath={gitHistoryModal.path}
+        cwd={gitHistoryModal.cwd}
+        onClose={() => setGitHistoryModal(prev => ({ ...prev, open: false }))}
+      />
     </div>
   );
 }

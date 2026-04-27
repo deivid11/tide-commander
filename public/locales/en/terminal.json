@@ -481,6 +481,18 @@
       "noCommits": "No commits found",
       "selectCommit": "Select a commit to see changed files",
       "noFiles": "No changed files"
+    },
+    "showGitHistory": "Show Git History",
+    "fileGitHistory": {
+      "title": "Git History",
+      "loading": "Loading...",
+      "empty": "No history found for this file",
+      "binaryFile": "Binary file — diff not available",
+      "error": "Failed to load git history",
+      "selectCommit": "Select a commit to view its diff",
+      "added": "Added",
+      "deleted": "Deleted",
+      "modified": "Modified"
     }
   },
   "database": {

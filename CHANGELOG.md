@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.82.0] - 2026-04-27
+
+### Added
+- **Per-file Git History modal** — right-click a file in the File Explorer tree or on a file tab to open a new `GitFileHistoryModal` that lists every commit that touched that path (using `git log --follow`, so renames are tracked), with a click-to-view diff pane that detects the file's language from its extension for syntax-highlighted diffs. Backed by a new `GET /api/files/git-file-history` endpoint (configurable `limit`, default 100, max 1000) and a paired `GET /api/files/git-commit-file-diff` route. Untitled / in-memory tabs are filtered out client-side via `isRealFileTab` since they have no on-disk path to query. Translations live under `terminal.fileGitHistory.*`
+- **Right-click context menu on file tabs** — `FileTabs` now supports `onContextMenu`, exposing a "Show Git History" action for any tab whose path resolves to a real file on disk. Mirrors the new tree-row context menu entry, so the action is reachable from both surfaces
+- **`detectLanguageFromPath` helper in `src/packages/server/routes/files.ts`** — small extension/basename → language mapping (Dockerfile, Makefile, TS/TSX/JS/JSX, JSON, HTML/CSS/SCSS, MD, Python, Ruby, Go, Rust, Java/Kotlin/Swift, C/C++/C#, PHP, shell, YAML/TOML/XML, SQL, Lua, Dart, Svelte/Vue, INI/env) used to tag diff payloads so the client can pick the correct highlighter without each consumer rolling its own detector
+
+### Changed
+- **Mobile agent toolbar stays visible while the keyboard is open** — `.mobile-bottom-stack` (agent bar + bottom nav) used to be hard-hidden via `display: none !important` whenever the IME opened. It now stays mounted and is lifted above the keyboard with `bottom: var(--keyboard-height)`. Removed the `(1 - --keyboard-visible)` multiplier from `main-content` height/max-height and from the `.guake-input-wrapper` `bottom` calc — the bottom stack height is now always reserved. Message-list `padding-bottom` adds `--mobile-bottom-stack-height` so the last message is still scrollable past the toolbar+input+keyboard stack. The `MobileBottomMenu` child component still hides its own contents on keyboard-open via its existing internal logic; only the outer stack visibility changed
+- **`FlatView` cwd chip opens the file explorer instead of a single-file viewer** — clicking the working-directory chip in the chat header used to call `store.setFileViewerPath(cwd)` (single-file modal, which made no sense for a directory). It now calls `store.openFileExplorer(cwd)` and the chip gains keyboard support (`role="button"`, `tabIndex={0}`, Enter/Space handlers), an explicit aria-label, and a more descriptive title ("Open in file explorer: …")
+- **`handleRevealInTree` lazy-loads via `expandToPath` and handles compaction chains** — the previous implementation built up parent paths from `currentFolder` and dropped them into `expandedPaths` directly, which only worked for already-loaded subtrees. The new flow awaits `expandToPath(filePath)` (lazy-loads each ancestor) and, after two `requestAnimationFrame`s, walks up the path string to find the closest rendered `[data-path]` row when the exact target isn't directly in the DOM (single-child directory chains are rendered as one compacted row, so the leaf may not have its own element). Drops the now-unused `currentFolder`/`pathsToExpand`/`setExpandedPaths` plumbing from this code path
+
 ## [1.81.2] - 2026-04-26
 
 ### Fixed
