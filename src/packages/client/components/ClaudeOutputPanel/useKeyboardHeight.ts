@@ -10,7 +10,7 @@
  * Viewport API detection is skipped to avoid conflicts.
  */
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 declare global {
   interface Window {
@@ -150,11 +150,18 @@ export function useKeyboardHeight(): UseKeyboardHeightReturn {
           // When keyboard IS visible, use the full overlap (don't subtract baseline).
           // The baseline overlap comes from bottom system chrome (navigation bar)
           // which the keyboard covers, so the full overlap is the true keyboard height.
-          const keyboardHeight = layoutShrink >= 120
+          const rawKeyboardHeight = layoutShrink >= 120
             ? 0
             : keyboardVisible
               ? Math.max(0, overlap)
               : 0;
+
+          // Clamp to a safe upper bound. visualViewport.resize can fire mid-animation
+          // with intermediate values that occasionally over-report the keyboard
+          // height; an unclamped value would lift the fixed input bar to the top
+          // of the screen ("ceiling" bug on mobile).
+          const safeMaxKeyboardHeight = Math.floor(window.innerHeight * 0.75);
+          const keyboardHeight = Math.min(rawKeyboardHeight, safeMaxKeyboardHeight);
 
           // Update the CSS custom property
           if (keyboardHeight !== lastKeyboardHeightRef.current || keyboardVisible !== lastKeyboardVisibleRef.current) {
@@ -208,6 +215,45 @@ export function useKeyboardHeight(): UseKeyboardHeightReturn {
       cleanupKeyboardHandling();
     }
   }, [resetKeyboardStyles, cleanupKeyboardHandling]);
+
+  // Always-on visualViewport watcher. The focus-gated listener above handles the
+  // primary case (input focused -> keyboard opens), but on some Android browsers
+  // the keyboard can open or stay open without our `focus` handler firing in
+  // sync (e.g. programmatic focus, autofill, IME show after navigation), which
+  // would leave `--keyboard-height` / `--keyboard-visible` stale and the input
+  // bar visually misplaced. This passive watcher keeps the CSS variables in
+  // sync with the actual viewport at all times. It is intentionally simple:
+  // no baseline tracking, no scroll-lock — those are owned by the focus path.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isMobile = window.innerWidth <= 768;
+    if (!isMobile) return;
+    if (!window.visualViewport) return;
+    // Native Android handler owns the keyboard CSS vars when active; let it.
+    if (typeof window.__nativeKeyboardHeight === 'number') return;
+
+    const sync = () => {
+      const vv = window.visualViewport;
+      if (!vv) return;
+      const visualBottom = vv.height + vv.offsetTop;
+      const overlap = Math.max(0, window.innerHeight - visualBottom);
+      const visible = overlap >= 120;
+      const safeMax = Math.floor(window.innerHeight * 0.75);
+      const height = visible ? Math.min(Math.max(0, overlap), safeMax) : 0;
+      if (height !== lastKeyboardHeightRef.current || visible !== lastKeyboardVisibleRef.current) {
+        setKeyboardState(height, visible);
+      }
+    };
+
+    window.visualViewport.addEventListener('resize', sync);
+    window.visualViewport.addEventListener('scroll', sync);
+    sync();
+
+    return () => {
+      window.visualViewport?.removeEventListener('resize', sync);
+      window.visualViewport?.removeEventListener('scroll', sync);
+    };
+  }, [setKeyboardState]);
 
   return {
     isInputFocusedRef,

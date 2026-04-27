@@ -119,11 +119,17 @@ public class MainActivity extends BridgeActivity {
             // Convert to CSS pixels by dividing by device pixel ratio (handled in JS).
             int keyboardHeightPx = imeInsets.bottom;
 
+            // Clamp the reported height to <= 75% of the viewport. WindowInsets
+            // can momentarily report inflated values during keyboard animation,
+            // and an unclamped value combined with the CSS bottom calc would lift
+            // the input bar to the top of the screen ("ceiling" bug).
             String js = "(() => {"
                 + "const app = document.querySelector('.app');"
                 + "if (!app) return;"
                 + "const density = window.devicePixelRatio || 1;"
-                + "const heightCss = Math.round(" + keyboardHeightPx + " / density);"
+                + "const rawHeightCss = Math.round(" + keyboardHeightPx + " / density);"
+                + "const safeMax = Math.floor(window.innerHeight * 0.75);"
+                + "const heightCss = Math.max(0, Math.min(rawHeightCss, safeMax));"
                 + "app.style.setProperty('--native-keyboard-height', heightCss + 'px');"
                 + "app.style.setProperty('--keyboard-height', heightCss + 'px');"
                 + "app.style.setProperty('--keyboard-visible', " + (imeVisible ? "'1'" : "'0'") + ");"

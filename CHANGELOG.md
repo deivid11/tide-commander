@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.81.2] - 2026-04-26
+
+### Fixed
+- **Mobile keyboard "ceiling" bug — input bar no longer flies to the top of the screen** — three coordinated fixes:
+  - `MainActivity.java` clamps `WindowInsets.bottom` to ≤75% of viewport height before pushing it into `--native-keyboard-height`. Android occasionally reports inflated IME insets mid-animation and an unclamped value made the input bar lift to the screen ceiling
+  - `useKeyboardHeight.ts` applies the same `Math.min(rawKeyboardHeight, viewport * 0.75)` clamp on the JS-driven `visualViewport.resize` path
+  - `_mobile.scss` removes the `transform: translateY(--keyboard-height * -1)` on `.guake-input-wrapper` and folds the keyboard offset into the existing `bottom` calc instead. `transform` creates a containing block on the element which broke `position: fixed` relative to the visual viewport on some Android WebViews — combining transform + fixed was the root of the ceiling jump
+
+### Added
+- **`useKeyboardHeight` always-on `visualViewport` watcher** — the existing focus-gated listener missed cases where the keyboard opens without a `focus` event firing in sync (programmatic focus, autofill, IME show after navigation), leaving `--keyboard-height` / `--keyboard-visible` stale and the input bar misplaced. The new passive watcher subscribes to `visualViewport.resize`/`scroll` for the lifetime of the component on mobile and keeps the CSS variables in sync regardless of focus state. Native handler still owns the variables when `window.__nativeKeyboardHeight` is set
+
 ## [1.81.1] - 2026-04-26
 
 ### Added
