@@ -282,6 +282,11 @@ export interface TmuxFileTailer {
   start(): void;
   /** Stop tailing and clean up watchers. */
   stop(): void;
+  /** Synchronously read any unread bytes from the log file and emit them as
+   *  lines. Use this before stop() when the underlying tmux session has died
+   *  to recover trailing events (e.g. step_complete) that the 100ms poll
+   *  hasn't picked up yet. */
+  drain(): void;
   /** Current byte offset (for recovery). */
   getOffset(): number;
   /** Set the byte offset (for resuming after reconnect). */
@@ -363,6 +368,16 @@ export function createFileTailer(
       readNewData();
       // Poll every 100ms for new data
       pollInterval = setInterval(readNewData, 100);
+    },
+    drain() {
+      // Final synchronous read. Closes the polling-vs-watchdog race: when the
+      // tmux session ends, the CLI's last bytes (step_complete, final result)
+      // may still be sitting in the log file unread because the 100ms poll
+      // hasn't fired yet. Calling drain() before stop() guarantees those
+      // events flow through onLine → bus.emit → turnState updates so the
+      // caller (the watchdog) sees the post-step_complete state instead of a
+      // stale 'processing' state.
+      readNewData();
     },
     stop() {
       watching = false;

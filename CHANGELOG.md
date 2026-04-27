@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.82.1] - 2026-04-27
+
+### Fixed
+- **Spurious auto-restart loops on clean turn-end (watchdog vs. tailer race)** — when a tmux-mode CLI session ended, the 5-second watchdog often beat the 100ms `TmuxFileTailer` poll, stopped the tailer, and the CLI's final `step_complete` bytes still sitting in the log file were dropped. Without those bytes the runtime never transitioned `turnState` to `waiting_for_input`, and `runner.ts`'s `watchdog_missing_process` branch then mis-classified a clean turn-end exit as a mid-turn death (`status=error`) and kicked off an auto-restart loop. New `TmuxFileTailer.drain()` does a synchronous `readNewData()`; the watchdog calls `tailer.drain()` *before* `tailer.stop()` so the trailing events flow through `onLine → bus.emit → turnState` and the post-`step_complete` state is what `runner.ts` sees
+- **`npm test` killing live agents every ~20s** — server modules resolve their data dir at module-load from `XDG_DATA_HOME || ~/.local/share/tide-commander`, so a test process that instantiated a real `ClaudeRunner` (mocks leaking, or code paths the mocks didn't cover) ran `recoverOrphanedProcesses()` against the *live* data dir, called `killUnknownTmuxSessions()`, and killed `tc-*` sessions belonging to the running dev server. New `src/test-setup.ts` (wired into `vitest.config.ts` via `setupFiles`) `mkdtempSync`'s a per-process sandbox and points `XDG_DATA_HOME` at it before any module imports it — `running-processes.json` reads/writes go to the sandbox, `tmux-mode-setting.json` is absent so `isTmuxEnabled()` returns false, and `killUnknownTmuxSessions()` early-returns even if a runner accidentally `start()`s
+
+### Changed
+- **`ClaudeRunner` constructor is now side-effect-free** — orphan recovery, the periodic `persistRunningProcesses` timer, and the watchdog used to kick off in the constructor, which meant any non-canonical context that imported the runner code (tests, scripts, sidecars) shared the live data dir and could kill the live server's tmux sessions on import. Background work moved into a new idempotent `start()` method; the canonical production entry point `runtime-service.init()` calls `runner.start?.()` after constructing all runners. `RuntimeRunner.start?()` is optional in the interface so existing test mocks don't have to implement it
+
 ## [1.82.0] - 2026-04-27
 
 ### Added

@@ -41,6 +41,7 @@ export class ClaudeRunner {
 
   private persistTimer: NodeJS.Timeout | null = null;
   private watchdogTimer: NodeJS.Timeout | null = null;
+  private started = false;
 
   private bus: RunnerInternalEventBus;
   private stdoutPipeline: RunnerStdoutPipeline;
@@ -104,6 +105,24 @@ export class ClaudeRunner {
     });
 
     this.wireInternalEvents();
+  }
+
+  /**
+   * Begin background work: orphan recovery from a prior commander instance,
+   * the periodic running-processes persist, and the watchdog.
+   *
+   * Call this exactly once from the canonical production entry point
+   * (`runtime-service.init()`). Tests, REPLs, scripts, sidecar containers
+   * and any other context that imports the runner code MUST NOT call this:
+   * those contexts share `~/.local/share/tide-commander/`, and running the
+   * orphan-recovery cleanup from a non-server process kills `tc-*` tmux
+   * sessions belonging to the live server.
+   *
+   * Idempotent — repeat calls are no-ops.
+   */
+  start(): void {
+    if (this.started) return;
+    this.started = true;
 
     this.persistTimer = setInterval(() => {
       this.recoveryStore.persistRunningProcesses();
@@ -114,7 +133,7 @@ export class ClaudeRunner {
     }, WATCHDOG_INTERVAL);
 
     this.recoveryStore.recoverOrphanedProcesses();
-    log.log('🛡️ Runner initialized with auto-restart and watchdog enabled');
+    log.log('🛡️ Runner started with auto-restart and watchdog enabled');
   }
 
   private wireInternalEvents(): void {

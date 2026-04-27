@@ -30,6 +30,14 @@ export interface RuntimeRunnerCallbacks {
 }
 
 export interface RuntimeRunner {
+  /**
+   * Start background work (orphan recovery, persist timer, watchdog).
+   * Optional so test mocks don't have to implement it. The production entry
+   * point (runtime-service.init()) MUST call this; non-canonical contexts
+   * (tests, scripts, sidecars) MUST NOT — those share the data dir and
+   * recovery cleanup would kill the live server's tmux sessions.
+   */
+  start?(): void;
   run(request: RuntimeCommandRequest): Promise<void>;
   stop(agentId: string, clearQueue?: boolean): Promise<void>;
   stopAll(killProcesses?: boolean, clearQueue?: boolean): Promise<void>;
