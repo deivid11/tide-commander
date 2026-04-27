@@ -1,4 +1,5 @@
 import type { ActiveProcess, StandardEvent } from '../types.js';
+import { withAgentContext } from '../../utils/log-context.js';
 
 export type RunnerInternalEvent =
   | { type: 'runner.activity'; agentId: string; timestamp: number }
@@ -44,8 +45,10 @@ export class RunnerInternalEventBus {
     if (!handlers || handlers.size === 0) {
       return;
     }
-    for (const handler of handlers) {
-      handler(event);
-    }
+    withAgentContext(event.agentId, () => {
+      for (const handler of handlers) {
+        handler(event);
+      }
+    });
   }
 }

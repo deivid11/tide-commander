@@ -14,6 +14,7 @@ const BuildingConfigModal = React.lazy(() => import('./BuildingConfigModal').the
 const CommanderView = React.lazy(() => import('./CommanderView').then(m => ({ default: m.CommanderView })));
 const FileExplorerPanel = React.lazy(() => import('./FileExplorerPanel').then(m => ({ default: m.FileExplorerPanel })));
 const Spotlight = React.lazy(() => import('./Spotlight').then(m => ({ default: m.Spotlight })));
+const SessionSearchModal = React.lazy(() => import('./SessionSearchModal').then(m => ({ default: m.SessionSearchModal })));
 const ControlsModal = React.lazy(() => import('./ControlsModal').then(m => ({ default: m.ControlsModal })));
 const SkillsPanel = React.lazy(() => import('./SkillsPanel').then(m => ({ default: m.SkillsPanel })));
 const AgentEditModal = React.lazy(() => import('./AgentEditModal').then(m => ({ default: m.AgentEditModal })));
@@ -32,6 +33,7 @@ interface AppModalsProps {
   commanderModal: UseModalState;
   deleteConfirmModal: UseModalState;
   spotlightModal: UseModalState;
+  sessionFinderModal: UseModalState;
   controlsModal: UseModalState;
   skillsModal: UseModalState;
   integrationsModal: UseModalState<string | undefined>;
@@ -87,6 +89,7 @@ export function AppModals({
   commanderModal,
   deleteConfirmModal,
   spotlightModal,
+  sessionFinderModal,
   controlsModal,
   skillsModal,
   integrationsModal,
@@ -308,6 +311,14 @@ export function AppModals({
         onOpenDatabasePanel={onOpenDatabasePanel}
         onOpenMonitoringModal={() => monitoringModal.open()}
       />
+
+      {/* Session Finder (Ctrl+Shift+F) */}
+      {sessionFinderModal.isOpen && (
+        <SessionSearchModal
+          isOpen={sessionFinderModal.isOpen}
+          onClose={sessionFinderModal.close}
+        />
+      )}
 
       {/* Controls Modal (Keyboard & Mouse) */}
       <ControlsModal

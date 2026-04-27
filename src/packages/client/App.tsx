@@ -90,6 +90,7 @@ function AppContent() {
   const commanderModal = useModalState();
   const deleteConfirmModal = useModalState();
   const spotlightModal = useModalState();
+  const sessionFinderModal = useModalState();
   const controlsModal = useModalState();
   const skillsModal = useModalState();
   const integrationsModal = useModalState<string | undefined>();
@@ -324,6 +325,7 @@ function AppContent() {
     commanderModal,
     explorerModal,
     spotlightModal,
+    sessionFinderModal,
     deleteConfirmModal,
     onRequestBuildingDelete: () => setPendingBuildingDelete('selected'),
     onOpenDatabasePanel: setDatabasePanelBuildingId,
@@ -339,6 +341,7 @@ function AppContent() {
   useModalStackRegistration('commander-modal', commanderModal.isOpen, commanderModal.close);
   useModalStackRegistration('delete-confirm-modal', deleteConfirmModal.isOpen, deleteConfirmModal.close);
   useModalStackRegistration('spotlight-modal', spotlightModal.isOpen, spotlightModal.close);
+  useModalStackRegistration('session-finder-modal', sessionFinderModal.isOpen, sessionFinderModal.close);
   useModalStackRegistration('controls-modal', controlsModal.isOpen, controlsModal.close);
   useModalStackRegistration('skills-modal', skillsModal.isOpen, skillsModal.close);
   useModalStackRegistration('integrations-modal', integrationsModal.isOpen, integrationsModal.close);
@@ -1315,6 +1318,7 @@ function AppContent() {
         commanderModal={commanderModal}
         deleteConfirmModal={deleteConfirmModal}
         spotlightModal={spotlightModal}
+        sessionFinderModal={sessionFinderModal}
         controlsModal={controlsModal}
         skillsModal={skillsModal}
         integrationsModal={integrationsModal}

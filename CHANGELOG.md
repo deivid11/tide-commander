@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.83.0] - 2026-04-27
+
+### Added
+- **Global Session Finder (Ctrl+Shift+F)** — new `SessionSearchModal` opens a cross-project search over every Claude Code session on disk, not just the ones for the currently-selected agent's cwd. Three new server endpoints back it: `GET /api/sessions/global` (paginated list of all sessions across every project, with `lastModified`, `messageCount`, first-prompt preview, and `sizeBytes`), `GET /api/sessions/search?q=...` (full-text search returning hit count + snippet per session, optional `cwdFilter`), and `GET /api/sessions/preview?cwd=...&sessionId=...` (loads the first N messages of a session for a hover/preview pane). Wired in via the new `open-session-finder` shortcut in the shortcuts store, the `useKeyboardShortcuts` hook, and a new "Find" button in the per-agent Session History header on `SingleAgentPanel`. Implementation lives in new files: `src/packages/client/components/SessionSearchModal.tsx`, `src/packages/client/api/sessions.ts`, `src/packages/client/styles/components/session-search-modal.scss`, `src/packages/server/routes/sessions.ts`, and 270 new lines of helpers (`listAllSessions`, `searchAllSessions`) in `src/packages/server/claude/session-loader.ts`
+- **Cross-project session restore** — `restore_session` WS message now accepts an optional `cwd`. When the Session Finder picks a session from a different project, the server updates the agent's `cwd` alongside its `sessionId` so Claude Code can resolve the JSONL on the next run. Client `restoreSession(agentId, sessionId, cwd?)` mirrors this with an optimistic `cwd` update in the agent store. Activity log spells out the cwd swap (`Session restored from <new cwd> - will resume on next command`) so the user can see the change took effect
+- **`agentId` now appears in every server log line** — new `src/packages/server/utils/log-context.ts` exposes `withAgentContext(agentId, fn)` and `getCurrentAgentId()` backed by `node:async_hooks`' `AsyncLocalStorage`. The logger reads `getCurrentAgentId()` inside `formatMessage()` and emits `[agentId=...]` (cyan) right after the context tag when the call is inside an agent-scoped frame. Wrapped at the boundaries: `ClaudeRunner.run/sendMessage/interrupt/stop`, the runner's internal event bus emit path, and all four command-execution paths in `runtime-command-execution.ts` (`executeCommand`, `sendCommand`, `sendSilentCommand`, `stopAgent`). Effect: chasing a single agent's behaviour in the log no longer requires hand-correlating thread IDs to context tags
+
 ## [1.82.1] - 2026-04-27
 
 ### Fixed

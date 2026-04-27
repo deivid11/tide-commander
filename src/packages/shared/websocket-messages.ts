@@ -220,6 +220,9 @@ export interface RestoreSessionMessage extends WSMessage {
   payload: {
     agentId: string;
     sessionId: string;
+    /** Optional cwd to attach to the agent alongside the session — used for
+     *  cross-project restore from the global Session Finder. */
+    cwd?: string;
   };
 }
 

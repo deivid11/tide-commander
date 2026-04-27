@@ -535,6 +535,276 @@ export async function listSessions(cwd: string): Promise<SessionInfo[]> {
   return sessions;
 }
 
+// ============================================================================
+// Global session listing & search (cross-project)
+// ============================================================================
+
+/**
+ * Lightweight session record used by the global session finder UI.
+ *
+ * Includes everything needed to render a result row and to attach the session
+ * onto an agent (`projectPath` is the original `cwd`, recovered from the JSONL
+ * itself rather than from the project dir name — the encoding is lossy because
+ * `_` and `/` both map to `-`).
+ */
+export interface GlobalSessionInfo {
+  sessionId: string;
+  projectPath: string;          // recovered cwd ("" if file is empty/unreadable)
+  projectDir: string;            // encoded dir name under ~/.claude/projects
+  lastModified: Date;
+  messageCount: number;          // 0 = unknown / skipped for cost reasons
+  firstPrompt: string;           // first user prompt content (truncated)
+  sizeBytes: number;
+}
+
+/**
+ * Search hit produced by `searchAllSessions`.
+ */
+export interface GlobalSessionSearchMatch {
+  sessionId: string;
+  projectPath: string;
+  projectDir: string;
+  lastModified: Date;
+  totalMatches: number;          // total matching lines in this session
+  snippet: string;               // first matching line, trimmed
+  firstPrompt: string;           // first user prompt content (truncated) for context
+}
+
+const FIRST_PROMPT_MAX_LEN = 240;
+const SEARCH_SNIPPET_MAX_LEN = 280;
+
+function truncate(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return text.slice(0, max - 1) + '…';
+}
+
+function extractClaudeMessageText(message: unknown): string {
+  if (!message || typeof message !== 'object') return '';
+  const m = message as { content?: unknown };
+  const content = m.content;
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    const parts: string[] = [];
+    for (const block of content) {
+      if (block && typeof block === 'object' && 'type' in block && (block as { type: string }).type === 'text') {
+        const text = (block as { text?: unknown }).text;
+        if (typeof text === 'string') parts.push(text);
+      }
+    }
+    return parts.join('\n');
+  }
+  return '';
+}
+
+/**
+ * Read the first up-to-`maxLines` JSONL records of a session file. Used to
+ * cheaply recover `cwd` and the first user prompt without parsing the whole
+ * conversation. Falls back to a single readFileSync slice for very small files.
+ */
+async function readSessionHeader(filePath: string, maxLines = 20): Promise<{ cwd: string; firstPrompt: string }> {
+  let cwd = '';
+  let firstPrompt = '';
+  try {
+    const stream = fs.createReadStream(filePath, { encoding: 'utf-8' });
+    const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+    let lineCount = 0;
+    for await (const line of rl) {
+      if (!line.trim()) continue;
+      lineCount += 1;
+      try {
+        const obj = JSON.parse(line) as Record<string, unknown>;
+        if (!cwd && typeof obj.cwd === 'string') cwd = obj.cwd as string;
+        // queue-operation enqueue rows carry the user's prompt as `content`
+        if (!firstPrompt && obj.type === 'queue-operation' && (obj as { operation?: string }).operation === 'enqueue') {
+          const content = (obj as { content?: unknown }).content;
+          if (typeof content === 'string') firstPrompt = content;
+        }
+        if (!firstPrompt && obj.type === 'user') {
+          const text = extractClaudeMessageText(obj.message);
+          if (text) firstPrompt = text;
+        }
+        if (cwd && firstPrompt) break;
+      } catch {
+        // ignore malformed lines
+      }
+      if (lineCount >= maxLines) break;
+    }
+    rl.close();
+    stream.destroy();
+  } catch {
+    // unreadable file — return empty defaults
+  }
+  return { cwd, firstPrompt: truncate(firstPrompt, FIRST_PROMPT_MAX_LEN) };
+}
+
+/**
+ * List every Claude session across every project directory.
+ *
+ * Cheap: only stats each .jsonl and reads the first few lines for cwd/firstPrompt.
+ * Skips message-count computation by default to keep the operation fast even
+ * across hundreds of sessions.
+ */
+export async function listAllSessions(options?: {
+  limit?: number;             // cap how many sessions to return (newest first)
+  includeMessageCount?: boolean; // when true, count user/assistant turns (slow)
+}): Promise<GlobalSessionInfo[]> {
+  if (!fs.existsSync(PROJECTS_DIR)) return [];
+  const projectDirs = fs.readdirSync(PROJECTS_DIR);
+  const all: GlobalSessionInfo[] = [];
+
+  for (const projectDir of projectDirs) {
+    const fullProjectPath = path.join(PROJECTS_DIR, projectDir);
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(fullProjectPath, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith('.jsonl')) continue;
+      const sessionId = entry.name.replace(/\.jsonl$/, '');
+      const filePath = path.join(fullProjectPath, entry.name);
+      let stats: fs.Stats;
+      try {
+        stats = fs.statSync(filePath);
+      } catch {
+        continue;
+      }
+      all.push({
+        sessionId,
+        projectPath: '',
+        projectDir,
+        lastModified: stats.mtime,
+        messageCount: 0,
+        firstPrompt: '',
+        sizeBytes: stats.size,
+      });
+    }
+  }
+
+  all.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+
+  const limit = options?.limit ?? all.length;
+  const limited = all.slice(0, limit);
+
+  // Enrich with cwd + firstPrompt (and optionally messageCount). Run concurrently
+  // but cap concurrency so we don't open hundreds of file handles at once.
+  const concurrency = 8;
+  let cursor = 0;
+  const workers: Promise<void>[] = [];
+  for (let i = 0; i < concurrency; i++) {
+    workers.push((async () => {
+      while (cursor < limited.length) {
+        const idx = cursor++;
+        const item = limited[idx];
+        const filePath = path.join(PROJECTS_DIR, item.projectDir, `${item.sessionId}.jsonl`);
+        const header = await readSessionHeader(filePath);
+        item.projectPath = header.cwd;
+        item.firstPrompt = header.firstPrompt;
+        if (options?.includeMessageCount) {
+          try {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            const lines = content.split('\n');
+            let count = 0;
+            for (const line of lines) {
+              if (!line.trim()) continue;
+              try {
+                const obj = JSON.parse(line) as { type?: string };
+                if (obj.type === 'user' || obj.type === 'assistant') count++;
+              } catch { /* ignore */ }
+            }
+            item.messageCount = count;
+          } catch { /* ignore */ }
+        }
+      }
+    })());
+  }
+  await Promise.all(workers);
+
+  return limited;
+}
+
+/**
+ * Full-text search every Claude session for `query`. Streams files line-by-line
+ * so memory usage stays bounded even with many large sessions.
+ */
+export async function searchAllSessions(
+  query: string,
+  options?: {
+    limit?: number;            // cap returned sessions (default 100)
+    cwdFilter?: string;        // only search sessions whose recovered cwd contains this substring
+  }
+): Promise<GlobalSessionSearchMatch[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+  const queryLower = trimmed.toLowerCase();
+  const limit = options?.limit ?? 100;
+  const cwdFilter = options?.cwdFilter?.toLowerCase();
+
+  const sessions = await listAllSessions({ limit: 1000 });
+
+  const out: GlobalSessionSearchMatch[] = [];
+  const concurrency = 6;
+  let cursor = 0;
+  const workers: Promise<void>[] = [];
+  for (let i = 0; i < concurrency; i++) {
+    workers.push((async () => {
+      while (cursor < sessions.length) {
+        const idx = cursor++;
+        const session = sessions[idx];
+        if (cwdFilter && !session.projectPath.toLowerCase().includes(cwdFilter)) continue;
+        const filePath = path.join(PROJECTS_DIR, session.projectDir, `${session.sessionId}.jsonl`);
+        let totalMatches = 0;
+        let snippet = '';
+        try {
+          const stream = fs.createReadStream(filePath, { encoding: 'utf-8' });
+          const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+          for await (const line of rl) {
+            if (!line) continue;
+            // Skip the cheap path: just lowercase the raw line and substring search.
+            // This avoids parsing every JSON record but matches inside any field
+            // (message text, tool args, etc.) — fine for a UX search.
+            if (!line.toLowerCase().includes(queryLower)) continue;
+            totalMatches++;
+            if (!snippet) {
+              // try to extract a clean text snippet from message content
+              try {
+                const obj = JSON.parse(line) as { type?: string; message?: unknown; content?: unknown };
+                if (obj.type === 'user' || obj.type === 'assistant') {
+                  const text = extractClaudeMessageText(obj.message);
+                  if (text) snippet = text;
+                } else if (obj.type === 'queue-operation' && typeof obj.content === 'string') {
+                  snippet = obj.content;
+                }
+              } catch { /* fall through to raw-line snippet */ }
+              if (!snippet) snippet = line;
+              snippet = truncate(snippet.replace(/\s+/g, ' ').trim(), SEARCH_SNIPPET_MAX_LEN);
+            }
+          }
+          rl.close();
+          stream.destroy();
+        } catch { /* unreadable — skip */ }
+
+        if (totalMatches > 0) {
+          out.push({
+            sessionId: session.sessionId,
+            projectPath: session.projectPath,
+            projectDir: session.projectDir,
+            lastModified: session.lastModified,
+            totalMatches,
+            snippet,
+            firstPrompt: session.firstPrompt,
+          });
+        }
+      }
+    })());
+  }
+  await Promise.all(workers);
+
+  out.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+  return out.slice(0, limit);
+}
+
 /**
  * Wait for file to be stable (not actively being written)
  * Checks if file size remains constant over a small interval

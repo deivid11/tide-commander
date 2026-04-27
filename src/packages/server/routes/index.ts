@@ -23,6 +23,7 @@ import triggerRouter, { setBroadcast as setTriggerBroadcast } from './trigger-ro
 import integrationRouter from './integration-routes.js';
 import eventRouter from './event-routes.js';
 import workflowRouter from './workflow-routes.js';
+import sessionsRouter from './sessions.js';
 import { getPlugins } from '../integrations/integration-registry.js';
 
 const router = Router();
@@ -50,6 +51,7 @@ router.use('/triggers', triggerRouter);
 router.use('/integrations', integrationRouter);
 router.use('/events', eventRouter);
 router.use('/workflows', workflowRouter);
+router.use('/sessions', sessionsRouter);
 // Integration plugin routes (e.g. /api/slack/*, /api/documents/*, /api/jira/*)
 // Uses lazy lookup so plugins can be registered after route setup
 router.use((req: Request, res: Response, next: NextFunction) => {

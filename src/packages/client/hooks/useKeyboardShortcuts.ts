@@ -13,6 +13,7 @@ interface UseKeyboardShortcutsOptions {
   commanderModal: UseModalState;
   explorerModal: UseModalStateWithId;
   spotlightModal: UseModalState;
+  sessionFinderModal: UseModalState;
   deleteConfirmModal: UseModalState;
   onRequestBuildingDelete: () => void;
   onOpenDatabasePanel: (buildingId: string) => void;
@@ -29,6 +30,7 @@ export function useKeyboardShortcuts({
   commanderModal,
   explorerModal,
   spotlightModal,
+  sessionFinderModal,
   deleteConfirmModal,
   onRequestBuildingDelete,
   onOpenDatabasePanel,
@@ -193,6 +195,14 @@ export function useKeyboardShortcuts({
         return;
       }
 
+      // Open Session Finder (Ctrl+Shift+F)
+      const sessionFinderShortcut = shortcuts.find(s => s.id === 'open-session-finder');
+      if (matchesShortcut(e, sessionFinderShortcut)) {
+        e.preventDefault();
+        sessionFinderModal.toggle();
+        return;
+      }
+
       // Cycle View Mode: 3D → 2D → Dashboard → 3D (Alt+2)
       const toggle2DViewShortcut = shortcuts.find(s => s.id === 'toggle-2d-view');
       if (matchesShortcut(e, toggle2DViewShortcut)) {
@@ -293,5 +303,5 @@ export function useKeyboardShortcuts({
     // This is necessary because the canvas doesn't naturally receive keyboard events
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [sceneRef, spawnModal, commanderModal, explorerModal, spotlightModal, deleteConfirmModal, onRequestBuildingDelete, onOpenDatabasePanel, onCloseDatabasePanel, databasePanelOpen]);
+  }, [sceneRef, spawnModal, commanderModal, explorerModal, spotlightModal, sessionFinderModal, deleteConfirmModal, onRequestBuildingDelete, onOpenDatabasePanel, onCloseDatabasePanel, databasePanelOpen]);
 }
