@@ -249,3 +249,51 @@ export function setTmuxModeEnabled(enabled: boolean): void {
     throw error;
   }
 }
+
+// ============================================================================
+// Tmux Idle Timeout Setting
+// ============================================================================
+
+const TMUX_IDLE_TIMEOUT_FILE = path.join(DATA_DIR, 'tmux-idle-timeout-setting.json');
+const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+
+interface TmuxIdleTimeoutSetting {
+  timeoutMs: number;
+  updatedAt: number;
+}
+
+/**
+ * Get the idle timeout for tmux sessions in milliseconds.
+ * Sessions whose owning agent is idle (status !== 'working') and have had no
+ * activity for this duration will be killed by the watchdog.
+ * Defaults to 30 minutes when unset.
+ */
+export function getTmuxIdleTimeoutMs(): number {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(TMUX_IDLE_TIMEOUT_FILE)) {
+      const data: TmuxIdleTimeoutSetting = JSON.parse(fs.readFileSync(TMUX_IDLE_TIMEOUT_FILE, 'utf-8'));
+      if (typeof data.timeoutMs === 'number' && data.timeoutMs > 0) {
+        return data.timeoutMs;
+      }
+    }
+  } catch (error: any) {
+    log.error(` Failed to load tmux idle timeout setting: ${error.message}`);
+  }
+  return DEFAULT_IDLE_TIMEOUT_MS;
+}
+
+export function setTmuxIdleTimeoutMs(timeoutMs: number): void {
+  ensureDataDir();
+  const data: TmuxIdleTimeoutSetting = {
+    timeoutMs,
+    updatedAt: Date.now(),
+  };
+  try {
+    fs.writeFileSync(TMUX_IDLE_TIMEOUT_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    log.log(` Tmux idle timeout updated: ${timeoutMs}ms`);
+  } catch (error: any) {
+    log.error(` Failed to save tmux idle timeout setting: ${error.message}`);
+    throw error;
+  }
+}

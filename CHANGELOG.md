@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.81.1] - 2026-04-26
+
+### Added
+- **Tmux session idle-timeout reaper in the watchdog** — tmux mode kept claude processes alive across Commander restarts via persistent stdin (the trailing `cat` in `tmux-helper.ts`), but those sessions never died on their own and accumulated as orphans (168 stale `tc-*` sessions observed in the wild). The 5-second watchdog loop now tracks `lastActivityTime` per active process, updates it on `sendToTmux` and on every stdout line via the runtime activity bus, and calls `killTmuxSession()` for any tmux-mode agent whose status is not `working` and whose last activity is older than the idle timeout. Default 30 minutes, configurable via the new `getTmuxIdleTimeoutMs()` / `setTmuxIdleTimeoutMs()` helpers in `system-prompt-service.ts` (persisted to `tmux-idle-timeout-setting.json`). `runner.isRunning()` already self-cleans `activeProcesses` and `runtime-command-execution.sendCommand()` falls through to `executeCommand` (fresh spawn) when no live runner exists, so a reaped session whose user sends a follow-up message recovers transparently — no message drop
+- **Startup orphan reconciliation in `recovery-store.ts`** — on `recoverOrphanedProcesses()`, the recovery store now enumerates live `tc-*` tmux sessions via `tmux ls -F '#{session_name}'` and kills any whose agent ID is not present in `agentService.getAllAgents()`. Catches stragglers from prior Commander crashes where the agent record was deleted but its tmux session was adopted by `init` (`PPID 1`) and kept running. Runs once at boot, before the regular reconnect path so legitimate live sessions are still picked up
+
+### Fixed
+- **Building-card port links work over VPN/LAN** — `BossBuildingActionPopup`, `BuildingActionPopup`, `BuildingConfigModal/DockerConfigPanel`, and `toolbox/BuildingItem` were hardcoding `http://localhost:${port}` for the click-through links. Replaced with `http://${window.location.hostname}:${port}` across all 9 spots so the link points to whatever host the user actually loaded the UI from — `localhost` for local dev, the VPN/LAN address otherwise
+
+### Changed
+- **Expanded comment on the trailing `cat` in `tmux-helper.ts`** — the `(cat file; cat) | claude …` pattern in the non-`closeStdinAfterPrompt` branch is load-bearing: `sendToTmux()` injects mid-turn input via `tmux paste-buffer`, which only reaches claude's stdin if there is a live reader on the other side of the pipe. A previous attempt to remove the trailing `cat` silently broke mid-turn messaging (paste-buffer succeeded into a dead pane and the input was lost). The expanded comment now spells out *why* the trailing `cat` must stay, with a direct callout to the regression, so future readers don't repeat the mistake
+
 ## [1.81.0] - 2026-04-26
 
 ### Added

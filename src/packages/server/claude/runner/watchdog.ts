@@ -2,7 +2,9 @@ import type { ActiveProcess, ProcessDeathInfo } from '../types.js';
 import { createLogger } from '../../utils/logger.js';
 import { isProcessRunning } from '../../data/index.js';
 import type { RunnerInternalEventBus } from './internal-events.js';
-import { hasTmuxSession, isTmuxPaneCommandAlive } from './tmux-helper.js';
+import { hasTmuxSession, isTmuxPaneCommandAlive, killTmuxSession } from './tmux-helper.js';
+import * as agentService from '../../services/agent-service.js';
+import { getTmuxIdleTimeoutMs } from '../../services/system-prompt-service.js';
 
 const log = createLogger('Runner');
 
@@ -36,6 +38,9 @@ export class RunnerWatchdog {
     if (activeCount > 0) {
       log.log(`🐕 [WATCHDOG] Checking ${activeCount} process(es)...`);
     }
+
+    const idleTimeoutMs = getTmuxIdleTimeoutMs();
+    const now = Date.now();
 
     for (const [agentId, activeProcess] of this.activeProcesses) {
       // tmux mode: the launcher PID exits immediately — check the tmux session instead
@@ -75,6 +80,25 @@ export class RunnerWatchdog {
             pid: activeProcess.process.pid ?? 0,
             activeProcess,
           });
+          continue;
+        }
+
+        // Idle-timeout cleanup: if the owning agent is idle (not actively
+        // working) and there's been no activity (output, send, spawn) for
+        // longer than the configured threshold, kill the tmux session to
+        // free resources. The natural watchdog_missing_process path on the
+        // next tick will then route the cleanup through restartPolicy,
+        // which skips restart for turnState='waiting_for_input'.
+        const lastActivity = activeProcess.lastActivityTime ?? activeProcess.startTime;
+        const idleFor = now - lastActivity;
+        if (idleFor >= idleTimeoutMs) {
+          const agent = agentService.getAgent(agentId);
+          const status = agent?.status;
+          if (status && status !== 'working') {
+            log.log(`🐕 [WATCHDOG] Agent ${agentId}: idle for ${(idleFor / 1000).toFixed(0)}s (status=${status}, threshold=${(idleTimeoutMs / 1000).toFixed(0)}s) — killing tmux session ${activeProcess.tmuxSession}`);
+            activeProcess.tmuxTailer?.stop();
+            killTmuxSession(agentId);
+          }
         }
         continue;
       }

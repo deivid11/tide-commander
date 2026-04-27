@@ -20,7 +20,7 @@ export function BuildingItem({ building, isSelected, onClick, onEdit }: Building
 
   const handlePortClick = (e: React.MouseEvent, port: number) => {
     e.stopPropagation();
-    window.open(`http://localhost:${port}`, '_blank');
+    window.open(`http://${window.location.hostname}:${port}`, '_blank');
   };
 
   return (
@@ -40,7 +40,7 @@ export function BuildingItem({ building, isSelected, onClick, onEdit }: Building
               {displayPorts.map(port => (
                 <a
                   key={port}
-                  href={`http://localhost:${port}`}
+                  href={`http://${window.location.hostname}:${port}`}
                   className="building-port-link"
                   onClick={(e) => handlePortClick(e, port)}
                   title={`Open :${port}`}

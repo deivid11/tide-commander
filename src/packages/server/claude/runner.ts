@@ -407,6 +407,7 @@ export class ClaudeRunner {
       const ok = sendToTmux(agentId, stdinInput);
       if (ok) {
         activeProcess.turnState = 'processing';
+        activeProcess.lastActivityTime = Date.now();
       }
       return ok;
     }
@@ -511,6 +512,7 @@ export class ClaudeRunner {
       const ok = sendToTmux(agentId, stdinInput);
       if (ok) {
         activeProcess.turnState = 'processing';
+        activeProcess.lastActivityTime = Date.now();
       } else {
         log.error(`❌ [QUEUE-DRAIN] Agent ${agentId}: tmux send failed for queued message`);
       }
