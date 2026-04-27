@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { useStore, store, useCustomAgentClassesArray } from '../../store';
-import { getBackendUrl, setBackendUrl, subscribeBackendUrlChange, STORAGE_KEYS, setStorageString, getStorageString, getAuthToken } from '../../utils/storage';
+import { getBackendUrls, setBackendUrls, subscribeBackendUrlChange, STORAGE_KEYS, setStorageString, getStorageString, getAuthToken } from '../../utils/storage';
 import { BUILT_IN_AGENT_CLASSES } from '../../../shared/agent-types';
 import { reconnect } from '../../websocket';
 import { CollapsibleSection } from './CollapsibleSection';
@@ -11,6 +11,7 @@ import { DataSection } from './DataSection';
 import { AboutSection, ThemeSelector } from './AboutSection';
 import { IntegrationStatusPanel } from './IntegrationStatusPanel';
 import { SystemPromptModal } from '../SystemPromptModal';
+import { WhatsAppConfigModal } from '../WhatsAppConfigModal';
 import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath, fetchTmuxModeSetting, updateTmuxModeSetting } from '../../api/system-settings';
 import { BUILTIN_AGENT_NAMES } from '../../scene/config';
 import { Icon } from '../Icon';
@@ -194,6 +195,7 @@ const SETTINGS_SECTIONS = [
   { id: 'animations', title: 'Animations', keywords: ['idle', 'working', 'animation', 'walk', 'run', 'sprint', 'jump', 'sit', 'crouch'] },
   { id: 'secrets', title: 'Secrets', keywords: ['secrets', 'api', 'key', 'password', 'credentials', 'env', 'environment'] },
   { id: 'systemPrompt', title: 'System Prompt', keywords: ['system', 'prompt', 'global', 'instructions', 'ai', 'agent', 'rules', 'guidelines'] },
+  { id: 'whatsapp', title: 'WhatsApp Integration', keywords: ['whatsapp', 'message', 'sms', 'integration', 'notification', 'baileys'] },
   { id: 'data', title: 'Data', keywords: ['export', 'import', 'backup', 'restore', 'save', 'load', 'json'] },
   { id: 'integrations', title: 'Integrations', keywords: ['integrations', 'plugins', 'gmail', 'slack', 'jira', 'calendar', 'docx', 'email', 'config', 'setup'] },
   { id: 'workflows', title: 'Workflows', keywords: ['workflow', 'automation', 'state machine', 'editor', 'actions', 'transitions', 'pipeline'] },
@@ -223,13 +225,15 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
   const customClasses = useCustomAgentClassesArray();
   const [defaultSpawnClass, setDefaultSpawnClassState] = useState(() => getStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS) || 'scout');
   const [historyLimit, setHistoryLimit] = useState(state.settings.historyLimit);
-  const [backendUrl, setBackendUrlState] = useState(() => getBackendUrl());
-  const [backendUrlDirty, setBackendUrlDirty] = useState(false);
+  const [backendUrls, setBackendUrlsState] = useState<string[]>(() => getBackendUrls());
+  const [backendUrlsDirty, setBackendUrlsDirty] = useState(false);
+  const [newBackendUrl, setNewBackendUrl] = useState('');
   const [authToken, setAuthToken] = useState(() => getAuthToken());
   const [authTokenDirty, setAuthTokenDirty] = useState(false);
   const [showToken, setShowToken] = useState(false);
   const [newAgentName, setNewAgentName] = useState('');
   const [isSystemPromptModalOpen, setIsSystemPromptModalOpen] = useState(false);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [codexBinaryPath, setCodexBinaryPathState] = useState('');
   const [codexBinaryPathDirty, setCodexBinaryPathDirty] = useState(false);
 
@@ -257,9 +261,9 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
   }, []);
 
   useEffect(() => {
-    return subscribeBackendUrlChange((nextUrl) => {
-      setBackendUrlState(nextUrl);
-      setBackendUrlDirty(false);
+    return subscribeBackendUrlChange((nextUrls) => {
+      setBackendUrlsState(nextUrls);
+      setBackendUrlsDirty(false);
     });
   }, []);
 
@@ -306,14 +310,35 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
     store.updateSettings({ customAgentNames: [] });
   };
 
-  const handleBackendUrlChange = (value: string) => {
-    setBackendUrlState(value);
-    setBackendUrlDirty(true);
+  const handleAddBackendUrl = () => {
+    const trimmed = newBackendUrl.trim();
+    if (!trimmed) return;
+    if (backendUrls.includes(trimmed)) {
+      setNewBackendUrl('');
+      return;
+    }
+    setBackendUrlsState([...backendUrls, trimmed]);
+    setBackendUrlsDirty(true);
+    setNewBackendUrl('');
   };
 
-  const handleBackendUrlSave = () => {
-    setBackendUrl(backendUrl);
-    setBackendUrlDirty(false);
+  const handleRemoveBackendUrl = (index: number) => {
+    setBackendUrlsState(backendUrls.filter((_, i) => i !== index));
+    setBackendUrlsDirty(true);
+  };
+
+  const handleMoveBackendUrl = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= backendUrls.length) return;
+    const next = backendUrls.slice();
+    [next[index], next[target]] = [next[target], next[index]];
+    setBackendUrlsState(next);
+    setBackendUrlsDirty(true);
+  };
+
+  const handleBackendUrlsSave = () => {
+    setBackendUrls(backendUrls);
+    setBackendUrlsDirty(false);
     reconnect();
   };
 
@@ -529,13 +554,51 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       <CollapsibleSection title={t('config:sections.connection')} storageKey="connection" defaultOpen={false} forceOpen={isSearching && shouldShowSection('connection')}>
         <div className="config-row config-row-stacked">
           <span className="config-label"><HighlightText text={t('config:connection.backendUrl')} query={searchQuery} /></span>
+          <div className="backend-urls-list">
+            {backendUrls.map((url, index) => (
+              <div key={`${url}-${index}`} className="backend-url-row">
+                <span className="backend-url-priority" title={t('config:connection.priorityLabel', { defaultValue: 'Priority' })}>{index + 1}</span>
+                <span className="backend-url-text" title={url}>{url}</span>
+                <button
+                  className="config-btn config-btn-sm"
+                  onClick={() => handleMoveBackendUrl(index, -1)}
+                  disabled={index === 0}
+                  title={t('config:connection.moveUp', { defaultValue: 'Move up' })}
+                >↑</button>
+                <button
+                  className="config-btn config-btn-sm"
+                  onClick={() => handleMoveBackendUrl(index, 1)}
+                  disabled={index === backendUrls.length - 1}
+                  title={t('config:connection.moveDown', { defaultValue: 'Move down' })}
+                >↓</button>
+                <button
+                  className="config-btn config-btn-sm"
+                  onClick={() => handleRemoveBackendUrl(index)}
+                  title={t('common:buttons.remove')}
+                >x</button>
+              </div>
+            ))}
+          </div>
           <div className="config-input-group">
-            <input type="text" className="config-input config-input-full" value={backendUrl} onChange={(e) => handleBackendUrlChange(e.target.value)} placeholder="http://localhost:5174" onKeyDown={(e) => { if (e.key === 'Enter' && backendUrlDirty) { handleBackendUrlSave(); } }} />
-            {backendUrlDirty && (
-              <button className="config-btn config-btn-sm" onClick={handleBackendUrlSave} title={t('config:connection.saveAndReconnect')}>{t('common:buttons.apply')}</button>
+            <input
+              type="text"
+              className="config-input config-input-full"
+              value={newBackendUrl}
+              onChange={(e) => setNewBackendUrl(e.target.value)}
+              placeholder={t('config:connection.addUrlPlaceholder', { defaultValue: 'http://host:port' })}
+              onKeyDown={(e) => { if (e.key === 'Enter') { handleAddBackendUrl(); } }}
+            />
+            <button
+              className="config-btn config-btn-sm"
+              onClick={handleAddBackendUrl}
+              disabled={!newBackendUrl.trim()}
+              title={t('config:connection.addUrl', { defaultValue: 'Add URL' })}
+            >+</button>
+            {backendUrlsDirty && (
+              <button className="config-btn config-btn-sm" onClick={handleBackendUrlsSave} title={t('config:connection.saveAndReconnect')}>{t('common:buttons.apply')}</button>
             )}
           </div>
-          <span className="config-hint">{t('config:connection.autoDetectHint')}</span>
+          <span className="config-hint">{t('config:connection.urlsHint', { defaultValue: 'Tried in order on connect; the first reachable host wins. Leave empty for auto-detect.' })}</span>
         </div>
         <div className="config-row config-row-stacked">
           <span className="config-label"><HighlightText text={t('config:connection.authToken')} query={searchQuery} /></span>
@@ -709,6 +772,20 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       </CollapsibleSection>
       )}
 
+      {shouldShowSection('whatsapp') && (
+      <CollapsibleSection title={t('config:sections.whatsapp')} storageKey="whatsapp" defaultOpen={false} forceOpen={isSearching && shouldShowSection('whatsapp')}>
+        <div className="config-row">
+          <span className="config-label"><HighlightText text={t('config:whatsapp.title')} query={searchQuery} /></span>
+          <button
+            className="config-button"
+            onClick={() => setIsWhatsAppModalOpen(true)}
+          >
+            {t('config:whatsapp.editConfig')}
+          </button>
+        </div>
+      </CollapsibleSection>
+      )}
+
       {shouldShowSection('data') && (
       <CollapsibleSection title={t('config:sections.data')} storageKey="data" defaultOpen={false} forceOpen={isSearching && shouldShowSection('data')}>
         <DataSection />
@@ -808,6 +885,11 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
     <SystemPromptModal
       isOpen={isSystemPromptModalOpen}
       onClose={() => setIsSystemPromptModalOpen(false)}
+    />
+
+    <WhatsAppConfigModal
+      isOpen={isWhatsAppModalOpen}
+      onClose={() => setIsWhatsAppModalOpen(false)}
     />
     </>
   );

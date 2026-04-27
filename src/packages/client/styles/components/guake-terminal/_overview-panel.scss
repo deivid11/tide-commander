@@ -792,6 +792,32 @@
     transition: border-color 0.1s, background 0.1s, box-shadow 0.1s;
   }
 
+  // Subordinate of currently selected boss agent — a quiet gold "tether" that
+  // breathes in sync with the badge so the connection feels alive, not loud.
+  &.subordinate-of-active-boss {
+    border-left-color: color-mix(in srgb, #ffd700 55%, var(--border-color));
+    animation: aop-subordinate-tether 2.8s ease-in-out infinite;
+  }
+
+  // Active card retains its selection color even when also marked as subordinate.
+  &.active.subordinate-of-active-boss {
+    border-color: var(--aop-selected);
+    border-left-color: var(--aop-selected);
+    animation: none;
+  }
+
+  // Inline badge — chain-link glyph that gently breathes, suggesting the agent
+  // is "tied" to the currently selected boss.
+  .aop-subordinate-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1px;
+    line-height: 0;
+    transform-origin: center;
+    animation: aop-subordinate-breathe 2.8s ease-in-out infinite;
+  }
+
   // Card header (always visible)
   .aop-agent-header {
     display: flex;
@@ -1190,6 +1216,31 @@
     box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-green) 0%, transparent);
     transform: scale(1);
     opacity: 0.9;
+  }
+}
+
+// Subordinate-of-active-boss tether breathe — the left edge gently brightens
+// in sync with the chain-link badge, so the connection feels like a live wire
+// without ever shouting for attention.
+@keyframes aop-subordinate-tether {
+  0%,
+  100% {
+    border-left-color: color-mix(in srgb, #ffd700 40%, var(--border-color));
+  }
+  50% {
+    border-left-color: color-mix(in srgb, #ffd700 75%, var(--border-color));
+  }
+}
+
+@keyframes aop-subordinate-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.08);
   }
 }
 

@@ -187,6 +187,16 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     return map;
   }, [allAgents]);
 
+  // When the currently selected agent is a boss, highlight its subordinates in the panel
+  // so the user can quickly see which agents report to the boss they just clicked.
+  const subordinatesOfActiveBoss = useMemo(() => {
+    const active = allAgents.find((a) => a.id === activeAgentId);
+    if (!active) return null;
+    const isBoss = active.isBoss || active.class === 'boss';
+    if (!isBoss || !active.subordinateIds || active.subordinateIds.length === 0) return null;
+    return new Set(active.subordinateIds);
+  }, [allAgents, activeAgentId]);
+
   // Load persisted config from localStorage
   const savedConfig = useMemo(() => getStorage<AopConfig>(STORAGE_KEYS.AOP_CONFIG, {
     groupByArea: true,
@@ -602,6 +612,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         <AgentCard
           agent={agent}
           isActive={agent.id === activeAgentId}
+          isSubordinateOfActiveBoss={subordinatesOfActiveBoss?.has(agent.id) ?? false}
           isExpanded={expandedAgents.has(agent.id)}
           isMobile={isMobileViewport}
           hasPendingRead={agentsWithUnseenOutput.has(agent.id)}
@@ -629,6 +640,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     toolsByAgent,
     subagentsByParent,
     subordinatesByBoss,
+    subordinatesOfActiveBoss,
     agentAreaInfo,
     searchMatchContexts,
     handleCardSelect,
@@ -1181,6 +1193,8 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
 interface AgentCardProps {
   agent: Agent;
   isActive: boolean;
+  /** True when this agent reports to the currently selected boss agent. */
+  isSubordinateOfActiveBoss: boolean;
   isExpanded: boolean;
   isMobile: boolean;
   hasPendingRead: boolean;
@@ -1209,6 +1223,7 @@ interface SubagentEntry {
 const AgentCard = React.memo(function AgentCard({
   agent,
   isActive,
+  isSubordinateOfActiveBoss,
   isExpanded,
   isMobile,
   hasPendingRead,
@@ -1388,7 +1403,7 @@ const AgentCard = React.memo(function AgentCard({
         </button>
       )}
       <div
-        className={`aop-agent-card ${isBossAgent ? 'boss' : ''} ${isActive ? 'active' : ''} ${agent.status} ${hasPendingRead ? 'unread' : ''}${isTwoFingerHovered ? ' two-finger-hover' : ''}${isCompacting ? ' compacting' : ''}`}
+        className={`aop-agent-card ${isBossAgent ? 'boss' : ''} ${isActive ? 'active' : ''} ${agent.status} ${hasPendingRead ? 'unread' : ''}${isTwoFingerHovered ? ' two-finger-hover' : ''}${isCompacting ? ' compacting' : ''}${isSubordinateOfActiveBoss ? ' subordinate-of-active-boss' : ''}`}
         data-agent-id={agent.id}
         draggable
         onDragStart={(e) => {
@@ -1436,6 +1451,15 @@ const AgentCard = React.memo(function AgentCard({
           title={t('terminal:overview.clickToSwitch')}
         >
           {isBossAgent && <span className="aop-boss-crown" aria-hidden="true"><Icon name="crown" size={12} color="#ffd700" weight="fill" /></span>}
+          {isSubordinateOfActiveBoss && (
+            <span
+              className="aop-subordinate-badge"
+              title={t('terminal:overview.subordinateOfSelectedBoss', { defaultValue: 'Reports to selected boss' })}
+              aria-label={t('terminal:overview.subordinateOfSelectedBoss', { defaultValue: 'Reports to selected boss' })}
+            >
+              <Icon name="link" size={10} color="#ffd700" weight="bold" />
+            </span>
+          )}
           {agent.name}
         </span>
         {hasPendingRead && (

@@ -705,6 +705,45 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     }
   }, [fileData]);
 
+  const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'error'>('idle');
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const handleDownload = useCallback(async () => {
+    setDownloadStatus('downloading');
+    setDownloadError(null);
+    try {
+      const url = apiUrl(
+        `/api/files/binary?path=${encodeURIComponent(effectivePath)}${baseDirParam}&download=true`,
+      );
+      const res = await authFetch(url);
+      if (!res.ok) {
+        const hint = res.status === 401
+          ? 'Auth token missing or expired'
+          : `${res.status} ${res.statusText || ''}`.trim();
+        throw new Error(hint);
+      }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const filename = fileData?.filename || effectivePath.split('/').pop() || 'download';
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      // Give the browser a tick to start the download before revoking.
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      setDownloadStatus('idle');
+    } catch (err: any) {
+      setDownloadError(err?.message || 'Download failed');
+      setDownloadStatus('error');
+      setTimeout(() => {
+        setDownloadStatus('idle');
+        setDownloadError(null);
+      }, 4000);
+    }
+  }, [effectivePath, baseDirParam, fileData?.filename]);
+
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -771,15 +810,21 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                 </button>
               </>
             )}
-            {(isImage && imageUrl) || (isPdf && pdfUrl) ? (
-              <a
-                className="file-viewer-copy-html-btn"
-                href={`${isImage ? imageUrl : pdfUrl}&download=true`}
-                download={fileData?.filename}
-                title={isImage ? t('terminal:fileExplorer.downloadImage') : t('terminal:fileExplorer.downloadPdf')}
+            {(isImage || isPdf) && fileData ? (
+              <button
+                type="button"
+                className={`file-viewer-copy-html-btn ${downloadStatus}`}
+                onClick={handleDownload}
+                disabled={downloadStatus === 'downloading'}
+                title={downloadError
+                  || (isImage ? t('terminal:fileExplorer.downloadImage') : t('terminal:fileExplorer.downloadPdf'))}
               >
-                {t('common:buttons.download')}
-              </a>
+                {downloadStatus === 'downloading'
+                  ? '…'
+                  : downloadStatus === 'error'
+                    ? t('common:status.error')
+                    : t('common:buttons.download')}
+              </button>
             ) : null}
             <button className="file-viewer-close" onClick={onClose}>×</button>
           </div>

@@ -4,6 +4,9 @@
  */
 
 import type { Agent, CustomAgentClass, AgentNotification, Subagent } from '../../shared/types';
+import type { WhatsAppMessageReceivedMessage } from '../../shared/websocket-messages';
+
+export type WhatsAppMessagePayload = WhatsAppMessageReceivedMessage['payload'];
 
 /** Mutable callback registry – handlers and connection code read from this directly. */
 export const cb = {
@@ -21,6 +24,7 @@ export const cb = {
   onCustomClassesSync: null as ((classes: Map<string, CustomAgentClass>) => void) | null,
   onReconnect: null as (() => void) | null,
   onAgentNotification: null as ((notification: AgentNotification) => void) | null,
+  onWhatsAppMessage: null as ((message: WhatsAppMessagePayload) => void) | null,
   onBuildingUpdated: null as ((building: import('../../shared/types').Building) => void) | null,
   onSubagentStarted: null as ((subagent: Subagent) => void) | null,
   onSubagentCompleted: null as ((subagentId: string) => void) | null,
@@ -45,6 +49,7 @@ export function setCallbacks(callbacks: WsCallbacks): void {
   if (callbacks.onCustomClassesSync) cb.onCustomClassesSync = callbacks.onCustomClassesSync;
   if (callbacks.onReconnect) cb.onReconnect = callbacks.onReconnect;
   if (callbacks.onAgentNotification) cb.onAgentNotification = callbacks.onAgentNotification;
+  if (callbacks.onWhatsAppMessage) cb.onWhatsAppMessage = callbacks.onWhatsAppMessage;
   if (callbacks.onBuildingUpdated) cb.onBuildingUpdated = callbacks.onBuildingUpdated;
   if (callbacks.onSubagentStarted) cb.onSubagentStarted = callbacks.onSubagentStarted;
   if (callbacks.onSubagentCompleted) cb.onSubagentCompleted = callbacks.onSubagentCompleted;
@@ -69,6 +74,7 @@ export function clearCallbacks(): void {
   cb.onCustomClassesSync = null;
   cb.onReconnect = null;
   cb.onAgentNotification = null;
+  cb.onWhatsAppMessage = null;
   cb.onSubagentStarted = null;
   cb.onSubagentCompleted = null;
 }

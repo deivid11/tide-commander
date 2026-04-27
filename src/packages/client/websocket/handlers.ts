@@ -657,6 +657,12 @@ export function handleServerMessage(message: ServerMessage): void {
       break;
     }
 
+    case 'whatsapp_message': {
+      const wa = message.payload;
+      cb.onWhatsAppMessage?.(wa);
+      break;
+    }
+
     case 'focus_agent': {
       const { agentId, openTerminal } = message.payload as {
         agentId: string;

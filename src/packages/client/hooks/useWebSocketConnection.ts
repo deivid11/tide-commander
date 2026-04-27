@@ -19,10 +19,12 @@ import {
   openAgentTerminalFromNotification,
 } from '../utils/notifications';
 import type { ToastType } from '../components/Toast';
+import type { WhatsAppMessagePayload } from '../websocket/callbacks';
 
 interface UseWebSocketConnectionOptions {
   showToast: (type: ToastType, title: string, message: string, duration?: number) => void;
   showAgentNotification: (notification: any) => void;
+  showWhatsAppMessage: (payload: WhatsAppMessagePayload) => void;
 }
 
 /**
@@ -32,6 +34,7 @@ interface UseWebSocketConnectionOptions {
 export function useWebSocketConnection({
   showToast,
   showAgentNotification,
+  showWhatsAppMessage,
 }: UseWebSocketConnectionOptions): void {
   useEffect(() => {
     // Set up websocket callbacks for store updates
@@ -44,6 +47,9 @@ export function useWebSocketConnection({
       },
       onAgentNotification: (notification) => {
         showAgentNotification(notification);
+      },
+      onWhatsAppMessage: (payload) => {
+        showWhatsAppMessage(payload);
       },
     });
 
@@ -76,5 +82,5 @@ export function useWebSocketConnection({
       window.removeEventListener('tideAppResume', handleAppResume);
       cleanupNotificationListeners?.();
     };
-  }, [showToast, showAgentNotification]);
+  }, [showToast, showAgentNotification, showWhatsAppMessage]);
 }

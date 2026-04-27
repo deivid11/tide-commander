@@ -746,6 +746,62 @@ body.flat-splitter-dragging {
   }
 }
 
+.flat-map-area-card__buildings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 8px 8px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.05);
+  margin-top: 2px;
+  padding-top: 6px;
+}
+
+.flat-map-building-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  cursor: pointer;
+  color: $text-secondary;
+  font-size: 11px;
+  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: $text-primary;
+  }
+
+  &__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  &--error {
+    border-color: rgba(255, 74, 74, 0.4);
+  }
+
+  &--running {
+    border-style: solid;
+    border-color: rgba(74, 255, 158, 0.25);
+  }
+}
+
 // ============================================================================
 // Embedded Terminal (AgentTerminalPane) inside flat view
 // ----------------------------------------------------------------------------

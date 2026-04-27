@@ -21,6 +21,7 @@ import {
 import { ToastProvider, useToast } from './components/Toast';
 import { Icon } from './components/Icon';
 import { AgentNotificationProvider, useAgentNotification } from './components/AgentNotificationToast';
+import { WhatsAppMessageProvider, useWhatsAppMessage } from './components/WhatsAppMessageToast';
 import { UnitPanel } from './components/UnitPanel';
 import { TrackingBoard } from './components/ClaudeOutputPanel/TrackingBoard';
 import { type SceneConfig } from './components/toolbox';
@@ -165,6 +166,7 @@ function AppContent() {
   const terminalOpen = useTerminalOpen();
   const { showToast } = useToast();
   const { showAgentNotification } = useAgentNotification();
+  const { showWhatsAppMessage } = useWhatsAppMessage();
 
   // Back navigation handling
   const { showBackNavModal, setShowBackNavModal, handleLeave } = useBackNavigation();
@@ -188,6 +190,7 @@ function AppContent() {
   useWebSocketConnection({
     showToast,
     showAgentNotification,
+    showWhatsAppMessage,
   });
 
   // Scene loading state
@@ -748,6 +751,10 @@ function AppContent() {
                 } else {
                   buildingModal.open(buildingId);
                 }
+              }}
+              onBuildingPopup={(buildingId, screenPos) => {
+                store.selectBuilding(buildingId);
+                setBuildingPopup({ buildingId, screenPos, fromClick: true });
               }}
               onAreaClick={(areaId) => {
                 store.selectArea(areaId);
@@ -1351,7 +1358,9 @@ export function App() {
   return (
     <ToastProvider>
       <AgentNotificationProvider>
-        <AppContent />
+        <WhatsAppMessageProvider>
+          <AppContent />
+        </WhatsAppMessageProvider>
       </AgentNotificationProvider>
     </ToastProvider>
   );
