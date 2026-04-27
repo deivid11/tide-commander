@@ -359,12 +359,26 @@
       padding-bottom: calc(var(--keyboard-height, 0px) + 120px) !important;
     }
 
-    // Input wrapper - FIXED at bottom, sits exactly above the bottom stack
+    // Input wrapper - FIXED at bottom. The vertical anchor is computed in a
+    // single `bottom` calc so we avoid combining `transform` with `position: fixed`
+    // (the transform creates a containing block which made the input drift to
+    // the top of the screen — "the ceiling" — on some Android browsers when the
+    // measured keyboard height was wrong).
+    //
+    // Composition (px, all driven by JS / native insets listener):
+    //   - var(--keyboard-height)       — keyboard overlap on iOS-style WebViews
+    //                                     where the layout viewport does NOT shrink.
+    //                                     0 on Android Chrome/Capacitor where the
+    //                                     layout viewport already shrinks for us.
+    //   - var(--mobile-bottom-stack-height) * (1 - --keyboard-visible)
+    //                                   — leave room for the agent bar + bottom nav
+    //                                     stack only while the keyboard is closed.
     .guake-input-wrapper {
       position: fixed !important;
-      // When keyboard closed: sit above the bottom stack (agent bar + bottom nav)
-      // When keyboard open: go to bottom-0 (keyboard covers the stack)
-      bottom: calc(var(--mobile-bottom-stack-height, 72px) * (1 - var(--keyboard-visible, 0))) !important;
+      bottom: calc(
+        var(--keyboard-height, 0px)
+        + var(--mobile-bottom-stack-height, 72px) * (1 - var(--keyboard-visible, 0))
+      ) !important;
       left: 0 !important;
       right: 0 !important;
       z-index: 200 !important;
@@ -373,15 +387,16 @@
       padding: 8px !important;
       padding-bottom: calc(8px + env(safe-area-inset-bottom, 0)) !important;
       border-top: 1px solid rgba(139, 233, 253, 0.2) !important;
+      // No `transform` here — see comment above. Browsers create a containing
+      // block on transformed elements which can break fixed positioning relative
+      // to the visual viewport on certain Android WebViews.
     }
 
     &.keyboard-visible {
       .guake-input-wrapper {
-        // Keep the bar pinned to the (shrunk) layout viewport bottom, then lift by measured keyboard height.
-        // On Android/WebViews that shrink the layout viewport, `--keyboard-height` will be 0.
-        transform: translateY(calc(var(--keyboard-height, 0px) * -1)) !important;
-        // Keyboard covers the bottom safe area (navigation bar), so remove its padding
-        // to prevent the input from being pushed lower than the keyboard edge.
+        // Keyboard covers the bottom safe area (navigation bar), so drop its
+        // padding to prevent the input from being pushed lower than the
+        // keyboard edge.
         padding-bottom: 8px !important;
       }
     }
