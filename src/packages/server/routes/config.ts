@@ -120,6 +120,13 @@ const CONFIG_CATEGORIES: ConfigCategory[] = [
     files: ['system-prompt.json', 'echo-prompt-setting.json', 'codex-binary-path.json'],
     sourceDir: 'data',
   },
+  {
+    id: 'whatsapp',
+    name: 'WhatsApp',
+    description: 'WhatsApp integration configuration (base URL, default session, etc.)',
+    files: ['whatsapp-config.json'],
+    sourceDir: 'data',
+  },
 ];
 
 /**

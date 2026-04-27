@@ -1,0 +1,505 @@
+@use '../variables' as *;
+
+// WhatsApp Config Modal — mirrors system-prompt-modal layout/feel.
+.whatsapp-config-modal {
+  width: 900px;
+  max-width: 95vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-xl;
+  overflow: hidden;
+
+  .modal-header {
+    padding: 14px 20px;
+    margin-bottom: 0;
+    border-bottom: 1px solid $border-color;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+
+    h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+  }
+
+  .modal-footer {
+    padding: 12px 20px;
+    border-top: 1px solid $border-color;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .modal-description {
+    margin: 0;
+    font-size: 12px;
+    color: $text-secondary;
+    line-height: 1.5;
+  }
+
+  .loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 48px 24px;
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba($border-color, 0.5);
+      border-top-color: $accent-blue;
+      border-radius: 50%;
+      animation: wa-spin 0.8s linear infinite;
+    }
+
+    p {
+      color: $text-secondary;
+      margin: 0;
+      font-size: 13px;
+    }
+  }
+
+  .alert {
+    padding: 10px 12px;
+    border-radius: $radius-sm;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    font-size: 12px;
+    line-height: 1.4;
+
+    .alert-icon {
+      flex-shrink: 0;
+      font-size: 14px;
+    }
+
+    &.alert-error {
+      background: rgba($accent-red, 0.1);
+      border: 1px solid rgba($accent-red, 0.25);
+      color: $accent-red;
+    }
+
+    &.alert-success {
+      background: rgba($dracula-green, 0.1);
+      border: 1px solid rgba($dracula-green, 0.25);
+      color: $dracula-green;
+    }
+  }
+
+  .footer-buttons-left {
+    display: flex;
+    gap: 6px;
+  }
+
+  .footer-buttons-right {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+  }
+}
+
+@keyframes wa-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// Section blocks within the modal body
+.wa-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 14px 16px;
+  border: 1px solid $border-color;
+  border-radius: $radius-lg;
+  background: rgba($bg-tertiary, 0.45);
+}
+
+.wa-section-title {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: $text-secondary;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.wa-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  &.wa-field-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  &.wa-field-inline {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+
+    .wa-input {
+      flex: 1 1 220px;
+      min-width: 160px;
+    }
+  }
+
+  &.wa-field-end {
+    justify-content: flex-end;
+  }
+}
+
+.wa-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: $text-secondary;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.wa-hint {
+  font-size: 10px;
+  color: $text-muted;
+  font-style: italic;
+}
+
+.wa-input,
+.wa-textarea {
+  padding: 8px 10px;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  background: $bg-tertiary;
+  color: $text-primary;
+  font-family: $font-mono;
+  font-size: 12px;
+  line-height: 1.5;
+  outline: none;
+  transition: all $transition-fast;
+  width: 100%;
+  box-sizing: border-box;
+
+  &:focus {
+    border-color: $accent-blue;
+    background: rgba($bg-tertiary, 0.8);
+  }
+
+  &::placeholder {
+    color: $text-muted;
+  }
+}
+
+.wa-textarea {
+  resize: vertical;
+  min-height: 6rem;
+  max-height: 14rem;
+}
+
+// Toggle switch
+.wa-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+
+  input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .wa-toggle-track {
+    width: 32px;
+    height: 18px;
+    background: $bg-tertiary;
+    border: 1px solid $border-color;
+    border-radius: 9px;
+    transition: background $transition-fast, border-color $transition-fast;
+    position: relative;
+    display: inline-block;
+  }
+
+  .wa-toggle-thumb {
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    width: 14px;
+    height: 14px;
+    background: $text-secondary;
+    border-radius: 50%;
+    transition: transform $transition-fast, background $transition-fast;
+  }
+
+  input:checked + .wa-toggle-track {
+    background: rgba($accent-blue, 0.35);
+    border-color: $accent-blue;
+
+    .wa-toggle-thumb {
+      transform: translateX(14px);
+      background: $accent-blue;
+    }
+  }
+}
+
+// API key status
+.wa-key-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wa-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: $radius-sm;
+  font-size: 11px;
+  font-weight: 500;
+
+  &.wa-status-ok {
+    background: rgba($dracula-green, 0.12);
+    color: $dracula-green;
+    border: 1px solid rgba($dracula-green, 0.3);
+  }
+
+  &.wa-status-warn {
+    background: rgba($accent-orange, 0.12);
+    color: $accent-orange;
+    border: 1px solid rgba($accent-orange, 0.3);
+  }
+}
+
+// Sessions list
+.wa-sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wa-empty {
+  font-size: 12px;
+  color: $text-muted;
+  font-style: italic;
+  padding: 8px 0;
+}
+
+.wa-session-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  background: $bg-tertiary;
+}
+
+.wa-session-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.wa-session-id {
+  font-family: $font-mono;
+  font-size: 12px;
+  color: $text-primary;
+  font-weight: 500;
+}
+
+.wa-session-status {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: $radius-sm;
+  background: rgba($text-muted, 0.15);
+  color: $text-secondary;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+
+  &.status-connected,
+  &.status-paired,
+  &.status-open,
+  &.status-ready {
+    background: rgba($dracula-green, 0.15);
+    color: $dracula-green;
+  }
+
+  &.status-pairing,
+  &.status-connecting,
+  &.status-qr {
+    background: rgba($accent-blue, 0.15);
+    color: $accent-blue;
+  }
+
+  &.status-error,
+  &.status-disconnected,
+  &.status-failed {
+    background: rgba($accent-red, 0.15);
+    color: $accent-red;
+  }
+}
+
+.wa-session-paired {
+  font-size: 11px;
+  color: $text-muted;
+}
+
+// QR pairing panel
+.wa-qr-panel {
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px dashed $border-color;
+  border-radius: $radius-md;
+  background: rgba($bg-primary, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wa-qr-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: $text-secondary;
+}
+
+.wa-qr-image {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  background: #fff;
+  border-radius: $radius-sm;
+
+  img {
+    width: 240px;
+    height: 240px;
+    image-rendering: pixelated;
+  }
+}
+
+.wa-qr-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px;
+
+  .spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid rgba($border-color, 0.5);
+    border-top-color: $accent-blue;
+    border-radius: 50%;
+    animation: wa-spin 0.8s linear infinite;
+  }
+
+  p {
+    margin: 0;
+    font-size: 12px;
+    color: $text-secondary;
+  }
+}
+
+.wa-pairing-message {
+  font-size: 12px;
+  color: $text-secondary;
+  font-style: italic;
+}
+
+// Buttons (kept consistent with system-prompt-modal scope)
+.btn {
+  padding: 8px 14px;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all $transition-fast;
+  white-space: nowrap;
+  background: $bg-tertiary;
+  color: $text-primary;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  &:hover:not(:disabled) {
+    border-color: $text-secondary;
+    background: rgba($bg-tertiary, 0.8);
+  }
+
+  &.btn-sm {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
+  &.btn-primary {
+    background: $accent-blue;
+    color: #fff;
+    border-color: $accent-blue;
+
+    &:hover:not(:disabled) {
+      background: rgba($accent-blue, 0.9);
+      box-shadow: 0 0 0 2px rgba($accent-blue, 0.2);
+    }
+  }
+
+  &.btn-secondary {
+    background: $bg-tertiary;
+    color: $text-primary;
+    border-color: $border-color;
+
+    &:hover:not(:disabled) {
+      border-color: $text-secondary;
+      background: rgba($bg-tertiary, 0.8);
+    }
+  }
+
+  &.btn-danger {
+    background: rgba($accent-red, 0.15);
+    color: $accent-red;
+    border-color: rgba($accent-red, 0.3);
+
+    &:hover:not(:disabled) {
+      background: rgba($accent-red, 0.25);
+      border-color: rgba($accent-red, 0.5);
+    }
+  }
+}

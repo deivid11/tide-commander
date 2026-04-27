@@ -232,11 +232,11 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     const { history } = historyLoader;
     const toolResultMap = new Map<string, string>();
     // Collect tool_use_ids whose bash command was a self-invoked Tide Commander
-    // API curl (tracking/taskLabel/notification/report-task). Their tool_use is
-    // already rendered as a chip; their tool_result is a raw JSON dump that
-    // would otherwise render as a noisy `$ Terminal output` block at the tail
-    // of the log.
-    const suppressedToolUseIds = new Set<string>();
+    // API curl (tracking/taskLabel/notification/report-task). The tool_use itself
+    // renders as a styled chip (HistoryLine resolves these via the bash*Command
+    // parsers); only the tool_result is suppressed, since it's a raw JSON dump
+    // that would otherwise render as a noisy `$ Terminal output` block.
+    const suppressedToolResultIds = new Set<string>();
     for (const msg of history) {
       if (msg.type === 'tool_result' && msg.toolUseId) {
         toolResultMap.set(msg.toolUseId, msg.content);
@@ -253,7 +253,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
           || parseBashNotificationCommand(bashCommand)
           || parseBashReportTaskCommand(bashCommand)
         )) {
-          suppressedToolUseIds.add(msg.toolUseId);
+          suppressedToolResultIds.add(msg.toolUseId);
         }
       }
     }
@@ -261,10 +261,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     const enrichHistory = (messages: typeof history): EnrichedHistoryMessage[] => {
       const out: EnrichedHistoryMessage[] = [];
       for (const msg of messages) {
-        if (msg.type === 'tool_use' && msg.toolUseId && suppressedToolUseIds.has(msg.toolUseId)) {
-          continue;
-        }
-        if (msg.type === 'tool_result' && msg.toolUseId && suppressedToolUseIds.has(msg.toolUseId)) {
+        if (msg.type === 'tool_result' && msg.toolUseId && suppressedToolResultIds.has(msg.toolUseId)) {
           continue;
         }
         if (msg.type === 'tool_use' && msg.toolName === 'Bash' && msg.toolUseId) {
@@ -381,23 +378,10 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
     for (const output of filteredOutputs) {
       if (!output.isUserPrompt) {
-        // Suppress internal-API bookkeeping curls (tracking PATCH, notify,
-        // taskLabel, report-task). They are agent skill ceremony, not
-        // user-meaningful work — render-time hide mirrors the JSONL-side
-        // suppression in `enrichHistory` above.
-        if (output.toolName === 'Bash') {
-          const cmd = typeof output.toolInput?.command === 'string'
-            ? (output.toolInput.command as string)
-            : undefined;
-          if (cmd && (
-            parseBashTrackingStatusCommand(cmd)
-            || parseBashTaskLabelCommand(cmd)
-            || parseBashNotificationCommand(cmd)
-            || parseBashReportTaskCommand(cmd)
-          )) {
-            continue;
-          }
-        }
+        // Internal-API bookkeeping curls (tracking PATCH, notify, taskLabel,
+        // report-task) are NOT suppressed here — OutputLine renders them as
+        // styled chips via the bash*Command parsers. Mirrors the JSONL-side
+        // behavior in `enrichHistory` above (only tool_result is hidden).
         // Apply uuid dedup unconditionally — a live output whose uuid matches a
         // persisted history entry is the same turn, regardless of whether the
         // text is classified as tool/system output.

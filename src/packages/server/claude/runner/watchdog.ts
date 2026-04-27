@@ -7,6 +7,11 @@ import { hasTmuxSession, isTmuxPaneCommandAlive } from './tmux-helper.js';
 const log = createLogger('Runner');
 
 const MAX_DEATH_HISTORY = 50;
+// Process is alive but no events have been emitted for this long while mid-turn → assume
+// the subprocess is wedged (e.g. hung HTTP request to the model API where TCP retransmits
+// can hang for many minutes without an exit signal) and SIGKILL it so the normal
+// process_closed → maybeAutoRestart path can respawn with session resume.
+const IDLE_RESPAWN_MS = Number.parseInt(process.env.TIDE_IDLE_RESPAWN_MS ?? '', 10) || 180_000;
 
 interface WatchdogDeps {
   activeProcesses: Map<string, ActiveProcess>;
@@ -104,6 +109,26 @@ export class RunnerWatchdog {
           pid,
           activeProcess,
         });
+      } else if (
+        activeProcess.turnState === 'processing'
+        && activeProcess.lastActivityTime
+        && Date.now() - activeProcess.lastActivityTime > IDLE_RESPAWN_MS
+      ) {
+        const idleSec = Math.round((Date.now() - activeProcess.lastActivityTime) / 1000);
+        log.error(
+          `🐕 [WATCHDOG] Agent ${agentId}: stuck mid-turn `
+          + `(no events for ${idleSec}s, threshold=${IDLE_RESPAWN_MS / 1000}s) `
+          + `— SIGKILL pid ${pid} to trigger respawn`
+        );
+        this.lastStderr.set(
+          agentId,
+          `[idle-watchdog] no model output for ${idleSec}s while processing — killed and respawning`
+        );
+        try {
+          process.kill(pid, 'SIGKILL');
+        } catch (err) {
+          log.error(`🐕 [WATCHDOG] Agent ${agentId}: SIGKILL on pid ${pid} failed:`, err);
+        }
       }
     }
   }

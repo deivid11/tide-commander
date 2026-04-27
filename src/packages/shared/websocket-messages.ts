@@ -633,6 +633,29 @@ export interface AgentNotificationMessage extends WSMessage {
   payload: AgentNotification;
 }
 
+// ============================================================================
+// WhatsApp Message Received (Server -> Client)
+// ============================================================================
+// Pushed by the WhatsApp integration's upstream WS bridge whenever the
+// whatsapp-api server delivers a 'message' or 'message_create' event.
+// `direction` is 'outbound' when the message originated from the connected
+// WhatsApp account (Baileys key.fromMe === true), 'inbound' otherwise.
+export interface WhatsAppMessageReceivedMessage extends WSMessage {
+  type: 'whatsapp_message';
+  payload: {
+    sessionId: string;
+    from: string;
+    fromName?: string;
+    body: string;
+    timestamp: number;
+    isGroup: boolean;
+    groupName?: string;
+    mediaType?: 'image' | 'video' | 'audio' | 'document' | 'sticker';
+    mediaUrl?: string;
+    direction: 'inbound' | 'outbound';
+  };
+}
+
 // Focus agent request pushed by REST endpoint (Server -> Client)
 export interface FocusAgentMessage extends WSMessage {
   type: 'focus_agent';
@@ -1510,6 +1533,7 @@ export type ServerMessage =
   | AnalysisRequestCreatedMessage
   | AnalysisRequestCompletedMessage
   | AgentNotificationMessage
+  | WhatsAppMessageReceivedMessage
   | FocusAgentMessage
   | ExecTaskStartedMessage
   | ExecTaskOutputMessage

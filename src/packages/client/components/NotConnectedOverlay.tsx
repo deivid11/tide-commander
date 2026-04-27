@@ -4,7 +4,8 @@ import { store, useIsConnected } from '../store';
 import { reconnect } from '../websocket/connection';
 import {
   getBackendUrl,
-  setBackendUrl,
+  getBackendUrls,
+  setBackendUrls,
   subscribeBackendUrlChange,
   getAuthToken,
   setStorageString,
@@ -89,8 +90,8 @@ export function NotConnectedOverlay() {
   }, []);
 
   useEffect(() => {
-    return subscribeBackendUrlChange((nextUrl) => {
-      setBackendUrlDraft(nextUrl);
+    return subscribeBackendUrlChange((nextUrls) => {
+      setBackendUrlDraft(nextUrls[0] ?? '');
     });
   }, []);
 
@@ -140,7 +141,15 @@ export function NotConnectedOverlay() {
       return;
     }
 
-    setBackendUrl(validation.normalizedUrl);
+    // Promote the typed URL to the top of the list (or insert it). Preserves
+    // any other configured URLs the user has set up so multi-network setups
+    // (LAN + VPN) survive a manual reconnect from this overlay.
+    const existingUrls = getBackendUrls();
+    const reorderedUrls = [
+      validation.normalizedUrl,
+      ...existingUrls.filter((u) => u !== validation.normalizedUrl),
+    ];
+    setBackendUrls(reorderedUrls);
     setStorageString(STORAGE_KEYS.AUTH_TOKEN, authTokenDraft.trim());
     setConnectStatus('Connecting to server');
     reconnect();

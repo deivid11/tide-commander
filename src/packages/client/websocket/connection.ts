@@ -5,7 +5,12 @@
 import type { ServerMessage } from '../../shared/types';
 import { store } from '../store';
 import { agentDebugger } from '../services/agentDebugger';
-import { getBackendUrl, getAuthToken } from '../utils/storage';
+import {
+  getBackendUrls,
+  getActiveBackendUrl,
+  setActiveBackendUrl,
+  getAuthToken,
+} from '../utils/storage';
 import { syncConnectionToNative } from '../utils/notifications';
 import {
   getWs, setWs,
@@ -68,6 +73,71 @@ export function reconnect(): void {
   setTimeout(() => connect(), 100);
 }
 
+/** Probe a single backend by hitting `/api/health` with an abort timeout. */
+async function probeBackend(httpUrl: string, timeoutMs: number): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const resp = await fetch(`${httpUrl.replace(/\/$/, '')}/api/health`, {
+      method: 'GET',
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Pick the first reachable URL from the configured priority list.
+ * Tries the previously-active URL first if it's still in the list, then walks the rest in order.
+ */
+async function pickReachableUrl(candidates: string[], timeoutPerProbeMs: number): Promise<string | null> {
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  const previouslyActive = getActiveBackendUrl();
+  if (previouslyActive && candidates.includes(previouslyActive)) {
+    ordered.push(previouslyActive);
+    seen.add(previouslyActive);
+  }
+  for (const u of candidates) {
+    if (!seen.has(u)) {
+      ordered.push(u);
+      seen.add(u);
+    }
+  }
+  for (const candidate of ordered) {
+    if (await probeBackend(candidate, timeoutPerProbeMs)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+/** Build the WS URL to connect to given a chosen HTTP base URL (or null for defaults). */
+function buildWsUrl(httpUrl: string | null): string {
+  const defaultPort = typeof __SERVER_PORT__ !== 'undefined' ? __SERVER_PORT__ : 6200;
+  if (httpUrl) {
+    const wsConfigured = httpUrl
+      .replace(/^https:\/\//, 'wss://')
+      .replace(/^http:\/\//, 'ws://');
+    return wsConfigured.endsWith('/ws') ? wsConfigured : `${wsConfigured.replace(/\/$/, '')}/ws`;
+  }
+  if (import.meta.env.DEV) {
+    const browserHost = window.location.hostname;
+    const wsHost = (browserHost === 'localhost' || browserHost === '127.0.0.1' || browserHost === '::1')
+      ? '127.0.0.1'
+      : browserHost;
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    return `${wsProtocol}://${wsHost}:${defaultPort}/ws`;
+  }
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${wsProtocol}//${window.location.host}/ws`;
+}
+
 /** Establish (or re-use) a WebSocket connection to the backend. */
 export function connect(): void {
   ensureBeforeUnloadListener();
@@ -96,33 +166,46 @@ export function connect(): void {
   setReconnectAttempts(getReconnectAttempts() + 1);
   setIsConnecting(true);
 
-  // Get configured backend URL or use defaults
-  const configuredUrl = getBackendUrl();
-  const authToken = getAuthToken();
+  void openSocket();
+}
 
-  // Build WebSocket URL
+async function openSocket(): Promise<void> {
+  const candidates = getBackendUrls();
+  const authToken = getAuthToken();
   const defaultPort = typeof __SERVER_PORT__ !== 'undefined' ? __SERVER_PORT__ : 6200;
-  let wsUrl: string;
-  if (configuredUrl) {
-    const wsConfigured = configuredUrl
-      .replace(/^https:\/\//, 'wss://')
-      .replace(/^http:\/\//, 'ws://');
-    wsUrl = wsConfigured.endsWith('/ws') ? wsConfigured : `${wsConfigured.replace(/\/$/, '')}/ws`;
-  } else {
-    if (import.meta.env.DEV) {
-      // In dev, prefer the browser host so LAN devices can connect to the backend.
-      // Keep loopback for local browsing on the same machine.
-      const browserHost = window.location.hostname;
-      const wsHost = (browserHost === 'localhost' || browserHost === '127.0.0.1' || browserHost === '::1')
-        ? '127.0.0.1'
-        : browserHost;
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      wsUrl = `${wsProtocol}://${wsHost}:${defaultPort}/ws`;
-    } else {
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+
+  // Resolve which HTTP base URL to use. With a configured list, probe in priority
+  // order (last successful first) and pick the first reachable host.
+  let chosenHttpUrl: string | null = null;
+  if (candidates.length > 0) {
+    chosenHttpUrl = await pickReachableUrl(candidates, 3000);
+    if (!chosenHttpUrl) {
+      // None of the configured URLs answered. Surface a toast and back off.
+      setIsConnecting(false);
+      const attempts = getReconnectAttempts();
+      if (attempts < maxReconnectAttempts) {
+        cb.onToast?.(
+          'warning',
+          'Disconnected',
+          `No backend URL reachable. Retrying… (attempt ${attempts}/${maxReconnectAttempts})`,
+        );
+        handleReconnectDelay();
+      } else {
+        cb.onToast?.(
+          'error',
+          'Connection Failed',
+          'None of the configured backend URLs are reachable.',
+        );
+      }
+      return;
     }
+    setActiveBackendUrl(chosenHttpUrl);
+  } else {
+    // No configured URL — use built-in defaults exactly as before.
+    setActiveBackendUrl('');
   }
+
+  const wsUrl = buildWsUrl(chosenHttpUrl);
 
   let newSocket: WebSocket | null = null;
   try {
@@ -155,8 +238,8 @@ export function connect(): void {
       cb.onToast?.('success', 'Connected', 'Connected to Tide Commander server');
     }
 
-    // Sync server URL to native foreground service for background notifications
-    syncConnectionToNative(configuredUrl, authToken);
+    // Sync the URL we actually connected to so background services align.
+    syncConnectionToNative(chosenHttpUrl ?? '', authToken);
 
     // Flush any messages that were queued while disconnected
     flushPendingMessages();

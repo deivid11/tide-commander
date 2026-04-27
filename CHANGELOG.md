@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.81.0] - 2026-04-26
+
+### Added
+- **WhatsApp integration plugin** — full server module under `src/packages/server/integrations/whatsapp/` (client, routes, config, skill, trigger handler, contact-name cache, message-dedupe) registered in the integration registry alongside Gmail/Slack/Jira/Calendar/Drive. Inbound and outbound messages stream into the app via a new `whatsapp_message` server-to-client WebSocket event with full payload (sessionId, from, fromName, body, timestamp, isGroup, groupName, mediaType, mediaUrl, direction). Client adds a `WhatsAppConfigModal`, a `WhatsAppMessageToast`, an api client, a Settings section ("WhatsApp Integration", searchable), and a new `whatsapp` config-export category persisting `whatsapp-config.json`. Covered by `contact-name-cache.test.ts`, `message-dedupe.test.ts`, and `whatsapp-trigger-handler.test.ts`
+- **Multi-URL backend with health-probe failover** — the configured backend URL now stores a JSON array (legacy single-string values migrate transparently). On each connect, the client probes each URL's `/api/health` with a 3 s timeout in priority order (last successful first, then list order) and connects to the first reachable host. The chosen URL is persisted as a separate `tide-active-backend-url` so HTTP calls (not just the WS) target the same host. Settings UI gains add/remove/reorder controls (priority badge, ↑/↓/×) per URL. The `NotConnectedOverlay` reconnect form promotes the typed URL to the top of the list while preserving the others, so LAN+VPN setups survive a manual reconnect
+- **Watchdog idle-respawn for wedged Claude subprocesses** — `RunnerWatchdog` now SIGKILLs any process that has been mid-turn (`turnState === 'processing'`) but emitted no events for `TIDE_IDLE_RESPAWN_MS` (default 180 000 ms / 3 min). Catches the failure mode where the Anthropic API socket hangs in TCP retransmits without a process exit; the kill triggers the existing `process_closed → maybeAutoRestart` path so the agent respawns with session resume. A stderr breadcrumb tells the user why. Configurable via the `TIDE_IDLE_RESPAWN_MS` env var; covered by 6 new tests in `watchdog.test.ts`
+- **`AgentOverviewPanel` highlights subordinates of the active boss** — when the selected agent is a boss, every subordinate gets a chain-link badge and a quietly breathing gold left-edge "tether" (synced animations, ~2.8 s cycle) so the user can see the reporting graph at a glance. Active card retains its own selection styling (no flicker)
+- **`FlatView` empty-state map shows building chips per area** — area cards in the empty-chat overview now render building chips alongside agent chips, bucketed by the same point-in-area test the 3D scene uses. Right-click a chip for the full action menu (open / start / stop / restart / start-all subordinates / boss-specific actions), mirroring `AreaBuildingsPanel`
+- **`onBuildingPopup` handler in App** — clicking a building now opens the floating `BuildingActionPopup` anchored to the click instead of immediately opening the modal, matching the agent popup pattern
+
+### Changed
+- **`AgentTerminalPane` no longer hides the bookmark `tool_use` chips for skill-related curls** — tracking-status PATCH, taskLabel, notify, and report-task `Bash` calls used to be suppressed entirely (both `tool_use` and `tool_result`); they now render as their styled chip via the existing `bash*Command` parsers, and only the noisy raw `tool_result` JSON dump is hidden. Live and persisted history paths are aligned
+- **`FileViewerModal` download is now a real fetch + blob download** — replaced the `<a download>` anchor with an `authFetch`-driven blob download that respects the auth header, surfaces a downloading/error state on the button, and includes the agent's `baseDir` so relative paths download correctly. The previous anchor lost auth on cross-origin backends (the browser strips headers from anchor navigations)
+
 ## [1.80.0] - 2026-04-25
 
 ### Added

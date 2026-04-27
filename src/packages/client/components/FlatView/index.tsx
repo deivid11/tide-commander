@@ -21,13 +21,15 @@ import { store } from '../../store';
 import { ConfirmModal } from '../shared/ConfirmModal';
 import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../../shared/types';
 import type { Agent } from '../../../shared/types';
+import type { Building } from '../../../shared/building-types';
 import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
+import { getBuildingTypeIcon } from '../DashboardView/utils';
 import { TaskProgressDots } from '../shared/TaskProgressDots';
 import { SubordinateProgressDots } from '../shared/SubordinateProgressDots';
 import { AgentHoverTooltip } from '../shared/AgentHoverTooltip';
 import { ContextMenu, type ContextMenuAction } from '../ContextMenu';
-import { getAgentStatusColor } from '../../utils/colors';
+import { getAgentStatusColor, getBuildingStatusColor } from '../../utils/colors';
 import { getDisplayContextInfo } from '../../utils/context';
 import { AgentOverviewPanel } from '../ClaudeOutputPanel/AgentOverviewPanel';
 import { AgentTerminalPane, type AgentTerminalPaneHandle } from '../ClaudeOutputPanel/AgentTerminalPane';
@@ -78,6 +80,8 @@ interface FlatViewProps {
   onAgentDoubleClick?: (agentId: string) => void;
   onBuildingClick: (buildingId: string) => void;
   onBuildingDoubleClick?: (buildingId: string) => void;
+  /** Open the floating BuildingActionPopup (boss/database/server etc.) anchored at the click. */
+  onBuildingPopup?: (buildingId: string, screenPos: { x: number; y: number }) => void;
   onAreaClick?: (areaId: string) => void;
   // Creation modal callbacks
   onOpenSpawnModal?: () => void;
@@ -1029,6 +1033,7 @@ export function FlatView({
   onAgentClick,
   onBuildingClick,
   onBuildingDoubleClick,
+  onBuildingPopup,
   onOpenSpawnModal,
   onOpenBossSpawnModal,
   onOpenAreaModal,
@@ -1047,6 +1052,12 @@ export function FlatView({
   // Right-click menu on agent chips in the empty-state overview (no selected agent).
   const [emptyAgentContextMenu, setEmptyAgentContextMenu] = useState<{
     agentId: string;
+    position: { x: number; y: number };
+  } | null>(null);
+  // Right-click menu on building chips in the empty-state overview. Mirrors the
+  // AreaBuildingsPanel actions (open / start-stop / edit / clone / delete).
+  const [buildingContextMenu, setBuildingContextMenu] = useState<{
+    buildingId: string;
     position: { x: number; y: number };
   } | null>(null);
   // Remove-agent confirmation modal — replaces the native window.confirm() the
@@ -1561,6 +1572,7 @@ export function FlatView({
 
   // ── Compact area/agent data for the empty-chat state ──
   const areas = useAreas();
+  const buildingsMap = useBuildings();
   const [activeWorkspace] = useWorkspaceFilter();
   const emptyChatGroups = useMemo(() => {
     const agentsByAreaId = new Map<string, typeof agents>();
@@ -1578,20 +1590,46 @@ export function FlatView({
       if (list) list.push(agent);
       else agentsByAreaId.set(area.id, [agent]);
     }
-    const groups: { area: typeof areas extends Map<string, infer V> ? V : never; agents: typeof agents }[] = [];
+
+    // Bucket buildings by area using the same point-in-area test the 3D scene
+    // uses, so a building shows up in the area card whose footprint contains
+    // its world position.
+    const buildingsByAreaId = new Map<string, Building[]>();
+    const unassignedBuildings: Building[] = [];
+    for (const building of buildingsMap.values()) {
+      let matched = false;
+      for (const area of areas.values()) {
+        if (area.archived) continue;
+        if (!isAreaVisibleInWorkspace(area.id)) continue;
+        if (store.isPositionInArea(building.position, area)) {
+          const list = buildingsByAreaId.get(area.id);
+          if (list) list.push(building);
+          else buildingsByAreaId.set(area.id, [building]);
+          matched = true;
+          break;
+        }
+      }
+      if (!matched && isAgentVisibleInWorkspace(null)) {
+        unassignedBuildings.push(building);
+      }
+    }
+
+    const groups: { area: typeof areas extends Map<string, infer V> ? V : never; agents: typeof agents; buildings: Building[] }[] = [];
     for (const [, area] of areas) {
       if (area.archived) continue;
       // Workspace filter: skip areas that aren't part of the active workspace.
       if (!isAreaVisibleInWorkspace(area.id)) continue;
       const list = agentsByAreaId.get(area.id);
-      if (list && list.length > 0) {
-        groups.push({ area, agents: list });
+      const bList = buildingsByAreaId.get(area.id) ?? [];
+      if ((list && list.length > 0) || bList.length > 0) {
+        groups.push({ area, agents: list ?? [], buildings: bList });
       }
     }
-    if (unassigned.length > 0) {
+    if (unassigned.length > 0 || unassignedBuildings.length > 0) {
       groups.push({
         area: { id: '__unassigned__', name: 'Unassigned', color: '#6272a4', center: { x: 0, z: 0 }, type: 'circle', radius: 0, directories: [], archived: false, assignedAgentIds: [], zIndex: 0 } as any,
         agents: unassigned,
+        buildings: unassignedBuildings,
       });
     }
 
@@ -1708,7 +1746,7 @@ export function FlatView({
     for (const g of unassignedGroups) sortAgents(g.agents);
 
     return { groups: [...assignedGroups, ...unassignedGroups], gridCols, gridRows, positions };
-  }, [agents, areas, activeWorkspace]);
+  }, [agents, areas, buildingsMap, activeWorkspace]);
 
   // Right-click menu actions for agent chips in the empty-state overview.
   // Mirrors the Edit Agent / Delete Agent actions wired in AgentOverviewPanel so
@@ -1743,6 +1781,172 @@ export function FlatView({
       },
     ];
   }, [emptyAgentContextMenu, agents, onAgentClick]);
+
+  // Right-click menu actions for building chips on the empty-state map. Mirrors
+  // AreaBuildingsPanel so the two surfaces share one UX for per-building
+  // mutations (start/stop/restart, edit, clone, delete, open URLs, etc).
+  const buildingContextMenuActions = useMemo((): ContextMenuAction[] => {
+    if (!buildingContextMenu) return [];
+    const building = buildingsMap.get(buildingContextMenu.buildingId);
+    if (!building) return [];
+
+    const actions: ContextMenuAction[] = [];
+    const isRunnable = building.type === 'server' || building.type === 'docker' || building.type === 'terminal';
+    const isRunning = building.status === 'running';
+    const isBoss = building.type === 'boss';
+
+    actions.push({
+      id: 'open',
+      label: building.type === 'database' ? 'Open Database' :
+             building.type === 'folder' ? 'Open Folder' :
+             building.type === 'boss' ? 'View Boss Logs' :
+             building.type === 'terminal' ? 'Open Terminal' :
+             (building.type === 'server' && building.pm2?.enabled) ? 'View PM2 Logs' :
+             'Open',
+      icon: <Icon name={building.type === 'database' ? 'database' :
+            building.type === 'folder' ? 'folder' :
+            building.type === 'terminal' ? 'terminal' :
+            'eye'} size={14} />,
+      onClick: () => handleOpenBuilding(building.id),
+    });
+
+    if (isRunnable) {
+      if (!isRunning) {
+        actions.push({
+          id: 'start',
+          label: 'Start',
+          icon: <Icon name="play" size={14} />,
+          onClick: () => store.sendBuildingCommand(building.id, 'start'),
+        });
+      }
+      if (isRunning) {
+        actions.push({
+          id: 'restart',
+          label: 'Restart',
+          icon: <Icon name="refresh" size={14} />,
+          onClick: () => store.sendBuildingCommand(building.id, 'restart'),
+        });
+        actions.push({
+          id: 'stop',
+          label: 'Stop',
+          icon: <Icon name="stop" size={14} />,
+          onClick: () => store.sendBuildingCommand(building.id, 'stop'),
+        });
+      }
+    }
+
+    if (isBoss && building.subordinateBuildingIds && building.subordinateBuildingIds.length > 0) {
+      actions.push({
+        id: 'start-all',
+        label: 'Start All Subordinates',
+        icon: <Icon name="launch" size={14} />,
+        onClick: () => {
+          for (const subId of building.subordinateBuildingIds!) {
+            store.sendBuildingCommand(subId, 'start');
+          }
+        },
+      });
+      actions.push({
+        id: 'stop-all',
+        label: 'Stop All Subordinates',
+        icon: <Icon name="pause" size={14} />,
+        onClick: () => {
+          for (const subId of building.subordinateBuildingIds!) {
+            store.sendBuildingCommand(subId, 'stop');
+          }
+        },
+      });
+      actions.push({
+        id: 'restart-all',
+        label: 'Restart All Subordinates',
+        icon: <Icon name="restart" size={14} />,
+        onClick: () => {
+          for (const subId of building.subordinateBuildingIds!) {
+            store.sendBuildingCommand(subId, 'restart');
+          }
+        },
+      });
+    }
+
+    if (isRunnable) {
+      actions.push({
+        id: 'health-check',
+        label: 'Health Check',
+        icon: <Icon name="health" size={14} />,
+        onClick: () => store.sendBuildingCommand(building.id, 'healthCheck'),
+      });
+    }
+
+    actions.push({
+      id: 'divider-edit',
+      label: '',
+      divider: true,
+      onClick: () => {},
+    });
+
+    actions.push({
+      id: 'edit',
+      label: 'Edit Building',
+      icon: <Icon name="edit" size={14} />,
+      onClick: () => {
+        window.dispatchEvent(new CustomEvent('tide:building-edit', { detail: { buildingId: building.id } }));
+      },
+    });
+
+    actions.push({
+      id: 'clone',
+      label: 'Clone Building',
+      icon: <Icon name="copy" size={14} />,
+      onClick: () => {
+        // Drop the clone next to the original so it stays in the same area.
+        store.createBuilding({
+          name: `${building.name} (Copy)`,
+          type: building.type,
+          style: building.style,
+          color: building.color,
+          scale: building.scale,
+          position: { x: building.position.x + 2, z: building.position.z + 2 },
+          cwd: building.cwd,
+          folderPath: building.folderPath,
+          commands: building.commands,
+          pm2: building.pm2,
+          docker: building.docker,
+          database: building.database,
+          terminal: building.terminal,
+          urls: building.urls,
+          subordinateBuildingIds: building.subordinateBuildingIds,
+        });
+      },
+    });
+
+    if (building.urls && building.urls.length > 0) {
+      for (const link of building.urls) {
+        actions.push({
+          id: `url-${link.label}`,
+          label: link.label,
+          icon: <Icon name="link" size={14} />,
+          onClick: () => window.open(link.url, '_blank', 'noopener,noreferrer'),
+        });
+      }
+    }
+
+    actions.push({
+      id: 'divider-danger',
+      label: '',
+      divider: true,
+      onClick: () => {},
+    });
+
+    actions.push({
+      id: 'delete',
+      label: 'Delete Building',
+      icon: <Icon name="trash" size={14} />,
+      danger: true,
+      onClick: () => store.deleteBuilding(building.id),
+    });
+
+    return actions;
+  }, [buildingContextMenu, buildingsMap, handleOpenBuilding]);
 
   // ── Focus an area in the left-panel AgentOverviewPanel ──
   const handleFocusArea = useCallback((areaKey: string) => {
@@ -2004,6 +2208,47 @@ export function FlatView({
                             );
                           })}
                         </div>
+                        {group.buildings.length > 0 && (
+                          <div className="flat-map-area-card__buildings">
+                            {group.buildings.map(building => (
+                              <button
+                                key={building.id}
+                                type="button"
+                                className={`flat-map-building-chip flat-map-building-chip--${building.status}`}
+                                onClick={(e) => {
+                                  if (onBuildingPopup) {
+                                    // Anchor the popup at the chip's right edge so it
+                                    // visually points at what was clicked rather than at
+                                    // the cursor's exact pixel.
+                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                    onBuildingPopup(building.id, {
+                                      x: rect.right,
+                                      y: rect.top + rect.height / 2,
+                                    });
+                                  } else {
+                                    handleOpenBuilding(building.id);
+                                  }
+                                }}
+                                onContextMenu={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setBuildingContextMenu({
+                                    buildingId: building.id,
+                                    position: { x: e.clientX, y: e.clientY },
+                                  });
+                                }}
+                                title={`${building.name} · ${building.type} · ${building.status}`}
+                              >
+                                <Icon name={getBuildingTypeIcon(building.type)} size={12} />
+                                <span className="flat-map-building-chip__name">{building.name}</span>
+                                <span
+                                  className="flat-map-building-chip__dot"
+                                  style={{ backgroundColor: getBuildingStatusColor(building.status) }}
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })
@@ -2142,6 +2387,14 @@ export function FlatView({
         worldPosition={{ x: 0, z: 0 }}
         actions={emptyAgentContextMenuActions}
         onClose={() => setEmptyAgentContextMenu(null)}
+      />
+
+      <ContextMenu
+        isOpen={buildingContextMenu !== null}
+        position={buildingContextMenu?.position ?? { x: 0, y: 0 }}
+        worldPosition={{ x: 0, z: 0 }}
+        actions={buildingContextMenuActions}
+        onClose={() => setBuildingContextMenu(null)}
       />
 
       <ConfirmModal

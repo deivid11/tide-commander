@@ -1,0 +1,184 @@
+@use '../variables' as *;
+
+#whatsapp-toast-container {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 2100;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+  max-width: 360px;
+  width: 90%;
+}
+
+.whatsapp-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, $bg-tertiary 0%, rgba($bg-secondary, 0.95) 100%);
+  border: 1px solid rgba($dracula-green, 0.5);
+  border-left: 3px solid $dracula-green;
+  border-radius: $radius-md;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 20px rgba($dracula-green, 0.1);
+  pointer-events: auto;
+  cursor: pointer;
+  animation: whatsapp-toast-in 0.4s ease-out;
+  transition: box-shadow $transition-fast, border-color $transition-fast;
+
+  &:hover {
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6), 0 0 30px rgba($dracula-green, 0.2);
+    border-color: $dracula-green;
+  }
+}
+
+@keyframes whatsapp-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(20%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.whatsapp-toast-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.whatsapp-toast-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.whatsapp-toast-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.whatsapp-toast-name {
+  font-weight: 700;
+  font-size: 13px;
+  color: $dracula-green;
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.whatsapp-toast-subtitle {
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: $text-muted;
+  margin-top: 2px;
+  letter-spacing: 0.1px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.whatsapp-toast-group {
+  font-size: 11px;
+  color: $text-secondary;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.whatsapp-toast-time {
+  font-size: 10px;
+  color: $text-muted;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.whatsapp-toast-body {
+  font-size: 11px;
+  color: $text-primary;
+  line-height: 1.4;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.whatsapp-toast-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.whatsapp-toast-media {
+  font-size: 10px;
+  color: $accent-cyan;
+  background: rgba($accent-cyan, 0.1);
+  border: 1px solid rgba($accent-cyan, 0.25);
+  padding: 2px 6px;
+  border-radius: $radius-sm;
+  text-transform: lowercase;
+  letter-spacing: 0.2px;
+}
+
+.whatsapp-toast-copy {
+  font-size: 10px;
+  color: $text-muted;
+  background: transparent;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: color $transition-fast, border-color $transition-fast, background $transition-fast;
+  margin-left: auto;
+
+  &:hover {
+    color: $text-primary;
+    border-color: $text-secondary;
+    background: rgba($bg-tertiary, 0.5);
+  }
+
+  &.copied {
+    color: $dracula-green;
+    border-color: rgba($dracula-green, 0.5);
+    background: rgba($dracula-green, 0.1);
+  }
+}
+
+.whatsapp-toast-close {
+  background: none;
+  border: none;
+  color: $text-muted;
+  cursor: pointer;
+  padding: 2px;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: color $transition-fast, opacity $transition-fast;
+
+  &:hover {
+    color: $text-primary;
+    opacity: 1;
+  }
+}

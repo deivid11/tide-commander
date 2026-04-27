@@ -15,6 +15,7 @@ export const STORAGE_KEYS = {
   SHORTCUTS: 'tide-shortcuts',
   MOUSE_CONTROLS: 'tide-mouse-controls',
   BACKEND_URL: 'tide-backend-url',
+  ACTIVE_BACKEND_URL: 'tide-active-backend-url',
   AUTH_TOKEN: 'tide-auth-token',
 
   // Scene view mode (2d/3d/dashboard)
@@ -220,13 +221,18 @@ export function hasStorage(key: string): boolean {
 
 /**
  * Get the backend API base URL
- * Uses configured backend URL, dev default, or same-origin in production.
+ * Uses the active backend URL (chosen by the last successful WS probe), then the
+ * first configured URL, then the dev default, then same-origin in production.
  */
 export function getApiBaseUrl(): string {
-  const configuredUrl = getBackendUrl();
-  if (configuredUrl) {
-    // Remove trailing slash if present
-    return configuredUrl.replace(/\/$/, '');
+  const active = getActiveBackendUrl();
+  if (active) {
+    return active.replace(/\/$/, '');
+  }
+
+  const configured = getBackendUrls();
+  if (configured.length > 0) {
+    return configured[0].replace(/\/$/, '');
   }
 
   // In dev, frontend (Vite) and backend run on different ports.
@@ -248,33 +254,95 @@ export function getAuthToken(): string {
 }
 
 /**
- * Get the configured backend URL.
+ * Get the configured backend URLs in priority order.
+ * Reads the new array form, but transparently migrates the legacy single-string
+ * value if that's all that's stored.
  */
-export function getBackendUrl(): string {
-  return getStorageString(STORAGE_KEYS.BACKEND_URL, '');
+export function getBackendUrls(): string[] {
+  const raw = getStorageString(STORAGE_KEYS.BACKEND_URL, '');
+  if (!raw) return [];
+  // Try array form first
+  if (raw.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((u): u is string => typeof u === 'string')
+          .map((u) => u.trim())
+          .filter((u) => u.length > 0);
+      }
+    } catch {
+      // fall through to legacy handling
+    }
+  }
+  const single = raw.trim();
+  return single ? [single] : [];
 }
 
 /**
- * Set the configured backend URL and notify listeners in this window.
+ * Get the first configured backend URL (or the active one if set).
+ * Kept for backward compatibility with single-URL callers.
  */
-export function setBackendUrl(url: string): void {
-  const nextUrl = url.trim();
-  setStorageString(STORAGE_KEYS.BACKEND_URL, nextUrl);
+export function getBackendUrl(): string {
+  const active = getActiveBackendUrl();
+  if (active) return active;
+  const list = getBackendUrls();
+  return list[0] ?? '';
+}
+
+/**
+ * Persist the ordered list of backend URLs and notify listeners.
+ * Empty entries are stripped; an empty array clears the configuration.
+ */
+export function setBackendUrls(urls: string[]): void {
+  const cleaned = urls.map((u) => u.trim()).filter((u) => u.length > 0);
+  if (cleaned.length === 0) {
+    setStorageString(STORAGE_KEYS.BACKEND_URL, '');
+  } else {
+    setStorageString(STORAGE_KEYS.BACKEND_URL, JSON.stringify(cleaned));
+  }
+  // Active URL must remain valid; clear it if it dropped out of the list.
+  const active = getActiveBackendUrl();
+  if (active && !cleaned.includes(active)) {
+    setActiveBackendUrl('');
+  }
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent<string>(BACKEND_URL_CHANGE_EVENT, { detail: nextUrl }));
+    window.dispatchEvent(new CustomEvent<string[]>(BACKEND_URL_CHANGE_EVENT, { detail: cleaned }));
   }
 }
 
 /**
- * Subscribe to backend URL changes from both in-window updates and cross-tab storage updates.
+ * Legacy single-URL setter — replaces the list with a single entry (or clears it).
  */
-export function subscribeBackendUrlChange(onChange: (url: string) => void): () => void {
+export function setBackendUrl(url: string): void {
+  const trimmed = url.trim();
+  setBackendUrls(trimmed ? [trimmed] : []);
+}
+
+/**
+ * Get the URL the WebSocket last successfully connected to. Empty until probed.
+ */
+export function getActiveBackendUrl(): string {
+  return getStorageString(STORAGE_KEYS.ACTIVE_BACKEND_URL, '');
+}
+
+/**
+ * Record which configured URL is currently the live one, so HTTP calls go there too.
+ */
+export function setActiveBackendUrl(url: string): void {
+  setStorageString(STORAGE_KEYS.ACTIVE_BACKEND_URL, url.trim());
+}
+
+/**
+ * Subscribe to backend URL list changes from both in-window updates and cross-tab storage updates.
+ */
+export function subscribeBackendUrlChange(onChange: (urls: string[]) => void): () => void {
   if (typeof window === 'undefined') {
     return () => {};
   }
 
   const handleCustomEvent = (event: Event) => {
-    const customEvent = event as CustomEvent<string>;
+    const customEvent = event as CustomEvent<string[]>;
     onChange(customEvent.detail);
   };
 
@@ -282,7 +350,7 @@ export function subscribeBackendUrlChange(onChange: (url: string) => void): () =
     if (event.key !== STORAGE_KEYS.BACKEND_URL) {
       return;
     }
-    onChange(event.newValue ?? '');
+    onChange(getBackendUrls());
   };
 
   window.addEventListener(BACKEND_URL_CHANGE_EVENT, handleCustomEvent);

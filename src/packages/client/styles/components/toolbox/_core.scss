@@ -860,6 +860,46 @@
   gap: 6px;
 }
 
+.backend-urls-list {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.backend-url-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.backend-url-priority {
+  flex: 0 0 auto;
+  min-width: 18px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: $radius-sm;
+  text-align: center;
+  opacity: 0.75;
+}
+
+.backend-url-text {
+  flex: 1 1 auto;
+  font-size: 11px;
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: $radius-sm;
+  min-width: 0;
+}
+
 .config-btn {
   padding: 4px 8px;
   font-size: 10px;
