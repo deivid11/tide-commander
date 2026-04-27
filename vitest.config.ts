@@ -5,6 +5,12 @@ export default defineConfig({
     // Use Node.js environment for server tests
     environment: 'node',
 
+    // Sandbox the per-user data dir before any test module loads, so a test
+    // that accidentally instantiates a real ClaudeRunner can't kill the live
+    // server's tc-* tmux sessions or stomp running-processes.json. See
+    // src/test-setup.ts for the full rationale.
+    setupFiles: ['./src/test-setup.ts'],
+
     // Include test files
     include: [
       'src/**/*.test.ts',

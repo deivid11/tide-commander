@@ -223,6 +223,14 @@ export function init(): void {
     onError: runtimeEvents.handleError,
   }));
 
+  // Start each runner's background work (orphan recovery, persist timer,
+  // watchdog). The constructor is now side-effect-free so non-canonical
+  // contexts (tests, scripts, sidecars) that import the runner code don't
+  // race the live server on the shared data dir / tmux sessions.
+  for (const runner of runners.values()) {
+    runner.start?.();
+  }
+
   if (statusPollTimer) {
     clearInterval(statusPollTimer);
   }

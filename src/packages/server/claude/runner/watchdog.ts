@@ -61,6 +61,19 @@ export class RunnerWatchdog {
           } else {
             log.error(`🐕 [WATCHDOG] Agent ${agentId}: tmux session ${activeProcess.tmuxSession} is alive but CLI '${expected}' is gone (zombie session)`);
           }
+          // Drain any unread bytes from the log file BEFORE stopping the
+          // tailer. The CLI's final step_complete event is often still
+          // sitting in the file when the 5s watchdog beats the 100ms tailer
+          // poll; without this drain those bytes are lost, turnState never
+          // transitions to 'waiting_for_input', and the
+          // watchdog_missing_process handler in runner.ts marks a clean
+          // turn-end exit as a mid-turn death (status=error, spurious
+          // auto-restart loop).
+          try {
+            activeProcess.tmuxTailer?.drain();
+          } catch (err) {
+            log.error(`🐕 [WATCHDOG] Agent ${agentId}: tailer drain failed: ${String(err)}`);
+          }
           activeProcess.tmuxTailer?.stop();
           this.recordDeath({
             agentId,
