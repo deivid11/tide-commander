@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.84.5] - 2026-04-29
+
+### Fixed
+- **Notification toast taps now register on touch devices** — `AgentNotificationToast` listened only for `onClick`, but on mobile WebViews the synthetic click was suppressed by the swipe-to-dismiss handler so taps did nothing. `handleTouchEnd` now also fires `onClick(notification)` when the gesture didn't pass the dismiss threshold and didn't lock into a swipe, with a `closest('.agent-notification-close')` guard so tapping the X doesn't double-fire navigation
+- **Tapping a notification on FlatView no longer stacks a second chat overlay** — `store.openTerminalOnMobile()` used to flip `terminalOpen=true` and `mobileView='terminal'` regardless of view mode. In FlatView the right-side chat is already inline, so flipping those flags drew the Guake-style terminal overlay on top of FlatView's own chat. The store now reads `state.viewMode` and skips the flag flip when it's `'flat'`, matching the existing carve-out in `client/utils/notifications.ts` for the desktop flat path
+- **FlatView side panels close on notification tap** — even with the agent selected, the FlatView agents drawer / inspector are kept in component-local state the store can't reach, so a notification tap that landed correctly was still hidden behind those panels. `openAgentTerminalFromNotification` now dispatches `tide-close-flat-side-views` after the mobile branch so any open side panel dismisses and the chat is visible
+
 ## [1.84.4] - 2026-04-29
 
 ### Changed

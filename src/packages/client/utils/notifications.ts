@@ -36,6 +36,13 @@ function isMobileDevice(): boolean {
 export function openAgentTerminalFromNotification(agentId: string): void {
   if (isMobileDevice()) {
     store.openTerminalOnMobile(agentId);
+    // FlatView keeps its agents drawer / inspector open in component-local
+    // state that the store can't reach. Without dismissing them here, a
+    // notification tap on FlatView would correctly select the agent but
+    // leave the drawer covering the chat the user is trying to land on.
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('tide-close-flat-side-views'));
+    }
     return;
   }
 
