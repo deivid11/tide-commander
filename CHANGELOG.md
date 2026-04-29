@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.84.6] - 2026-04-29
+
+### Fixed
+- **Tapping an Android system notification now opens the right agent's chat (cold-start safe)** — `WebSocketForegroundService` already built `PendingIntent`s with an `agentId` extra, but `MainActivity` never read them, so the tap just brought the app to the foreground without routing. New `forwardNotificationIntentToJs(Intent)` extracts the `agentId`, dispatches the same `tide-notification-tap` `CustomEvent` the JS side already listens for in `client/utils/notifications.ts`, and clears the extra so a later unrelated `onResume` bounce doesn't resurrect the same tap. Called from `onResume()` so it fires for both warm-start (`onNewIntent → onResume`) and cold-start (`onCreate → onResume`) routes; the new `onNewIntent()` override calls `setIntent(intent)` so `getIntent()` in `onResume` returns the fresh extras
+- **Cold-start race between the native dispatch and the JS bundle boot** — on a fresh launch the `CustomEvent` can fire before `initNotificationListeners` has had a chance to register. The native side now also stashes the payload on `window.__tidePendingNotificationTap`, and `initNotificationListeners` drains and consumes that property right after attaching the listener so the tap isn't lost
+
 ## [1.84.5] - 2026-04-29
 
 ### Fixed

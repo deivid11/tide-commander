@@ -190,6 +190,19 @@ export async function initNotificationListeners(
     };
     window.addEventListener(TIDE_NOTIFICATION_TAP_EVENT, handler);
     cleanups.push(() => window.removeEventListener(TIDE_NOTIFICATION_TAP_EVENT, handler));
+
+    // Cold-start race: the native side dispatches the CustomEvent in
+    // MainActivity.onResume(), which on a fresh launch can run before this
+    // listener has been registered (the JS bundle is still booting). The
+    // Android side also stashes the payload on `window.__tidePendingNotificationTap`
+    // so we can pick it up here.
+    const pending = (window as { __tidePendingNotificationTap?: Record<string, unknown> })
+      .__tidePendingNotificationTap;
+    if (pending) {
+      delete (window as { __tidePendingNotificationTap?: Record<string, unknown> })
+        .__tidePendingNotificationTap;
+      onTap(pending);
+    }
   }
 
   if (isNativeApp()) {
