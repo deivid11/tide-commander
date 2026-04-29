@@ -188,6 +188,10 @@
     "2dView": "2D 视图模式",
     "voiceAssistant": "语音助手",
     "tts": "文字转语音",
+    "webSpeechSTT": "Web Speech STT (浏览器)",
+    "ttsHint": "基于 Whisper 的语音识别（服务端转录）",
+    "webSpeechSTTHint": "通过 Web Speech API 的浏览器原生语音识别 (Chromium / Safari)",
+    "webSpeechSTTUnsupported": "此浏览器不支持。请尝试 Chrome、Edge 或 Safari。",
     "echoPrompt": "Echo Prompt",
     "hint": "这些功能是实验性的，可能会发生变化"
   },

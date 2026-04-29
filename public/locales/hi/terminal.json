@@ -46,6 +46,7 @@
     "stopOperation": "वर्तमान ऑपरेशन रोकें (Esc)",
     "stop": "रोकें",
     "voiceInput": "वॉइस इनपुट (Whisper)",
+    "voiceInputErrorTitle": "वॉइस इनपुट त्रुटि",
     "stopRecording": "रिकॉर्डिंग बंद करें",
     "transcribing": "ट्रांसक्राइब हो रहा है..."
   },

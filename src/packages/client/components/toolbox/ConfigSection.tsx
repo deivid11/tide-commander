@@ -14,6 +14,7 @@ import { SystemPromptModal } from '../SystemPromptModal';
 import { WhatsAppConfigModal } from '../WhatsAppConfigModal';
 import { WhatsAppNotificationsModal } from '../WhatsAppNotificationsModal';
 import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath, fetchTmuxModeSetting, updateTmuxModeSetting } from '../../api/system-settings';
+import { isWebSpeechSTTSupported } from '../../hooks/useWebSpeechSTT';
 import { BUILTIN_AGENT_NAMES } from '../../scene/config';
 import { Icon } from '../Icon';
 import type {
@@ -115,13 +116,14 @@ const SKY_KEY_MAP: Record<string, string> = {
 };
 
 // Compact toggle switch for config rows
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
+function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean }) {
   return (
-    <label className="config-toggle">
+    <label className={`config-toggle${disabled ? ' config-toggle-disabled' : ''}`}>
       <input
         type="checkbox"
         className="config-toggle-input"
         checked={checked}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
       />
       <span className="config-toggle-track">
@@ -874,8 +876,31 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           <Toggle checked={state.settings.experimentalVoiceAssistant} onChange={(checked) => store.updateSettings({ experimentalVoiceAssistant: checked })} />
         </div>
         <div className="config-row">
-          <span className="config-label" title="Text-to-speech for reading agent responses"><HighlightText text={t('config:experimental.tts')} query={searchQuery} /> <Icon name="speaker-on" size={12} /></span>
-          <Toggle checked={state.settings.experimentalTTS} onChange={(checked) => store.updateSettings({ experimentalTTS: checked })} />
+          <span className="config-label" title={t('config:experimental.ttsHint') ?? ''}><HighlightText text={t('config:experimental.tts')} query={searchQuery} /> <Icon name="speaker-on" size={12} /></span>
+          <Toggle checked={state.settings.experimentalTTS} onChange={(checked) => store.updateSettings({
+            experimentalTTS: checked,
+            // Mutually exclusive with the Web Speech STT mode.
+            ...(checked ? { experimentalWebSpeechSTT: false } : {}),
+          })} />
+        </div>
+        <div className="config-row">
+          <span
+            className="config-label"
+            title={isWebSpeechSTTSupported()
+              ? (t('config:experimental.webSpeechSTTHint') ?? '')
+              : (t('config:experimental.webSpeechSTTUnsupported') ?? '')}
+          >
+            <HighlightText text={t('config:experimental.webSpeechSTT')} query={searchQuery} /> <Icon name="microphone" size={12} />
+          </span>
+          <Toggle
+            checked={state.settings.experimentalWebSpeechSTT}
+            disabled={!isWebSpeechSTTSupported()}
+            onChange={(checked) => store.updateSettings({
+              experimentalWebSpeechSTT: checked,
+              // Mutually exclusive with the Whisper STT mode.
+              ...(checked ? { experimentalTTS: false } : {}),
+            })}
+          />
         </div>
         <div className="config-row">
           <span className="config-label" title="Duplicate system prompt for improved LLM attention coverage. Increases input token usage."><HighlightText text={t('config:experimental.echoPrompt')} query={searchQuery} /></span>

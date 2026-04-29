@@ -46,6 +46,7 @@
     "stopOperation": "Arrêter l'opération en cours (Échap)",
     "stop": "Arrêter",
     "voiceInput": "Saisie vocale (Whisper)",
+    "voiceInputErrorTitle": "Erreur de saisie vocale",
     "stopRecording": "Arrêter l'enregistrement",
     "transcribing": "Transcription..."
   },

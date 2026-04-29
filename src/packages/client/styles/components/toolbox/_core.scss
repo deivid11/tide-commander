@@ -831,6 +831,15 @@
   border-color: $text-secondary;
 }
 
+.config-toggle-disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+
+  &:hover .config-toggle-track {
+    border-color: $border-color;
+  }
+}
+
 .config-input {
   width: 60px;
   padding: 3px 6px;

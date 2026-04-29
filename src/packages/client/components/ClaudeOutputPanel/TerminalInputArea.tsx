@@ -11,6 +11,8 @@ import { PermissionRequestInline } from './PermissionRequest';
 import { getImageWebUrl } from './contentRendering';
 import { PastedTextChip } from './PastedTextChip';
 import { useSTT } from '../../hooks/useSTT';
+import { useWebSpeechSTT } from '../../hooks/useWebSpeechSTT';
+import { useToast } from '../Toast';
 import type { Agent, PermissionRequest } from '../../../shared/types';
 import type { AttachedFile } from './types';
 import { Icon } from '../Icon';
@@ -278,17 +280,46 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     activeInput?.focus({ preventScroll: true });
   }, [inputRef, textareaRef, useTextarea]);
 
-  // Speech-to-text hook - automatically send transcribed text to agent
-  const { recording, transcribing, toggleRecording } = useSTT({
+  // Send transcribed text directly to the agent (shared by both STT modes)
+  const handleTranscription = useCallback((text: string) => {
+    if (text.trim() && selectedAgentId) {
+      store.sendCommand(selectedAgentId, text.trim());
+    }
+  }, [selectedAgentId]);
+
+  // Whisper-backed STT (server-side transcription).
+  const whisperSTT = useSTT({
     language: 'Spanish',
     model: 'medium',
-    onTranscription: (text) => {
-      // Send transcribed text directly to the agent
-      if (text.trim() && selectedAgentId) {
-        store.sendCommand(selectedAgentId, text.trim());
-      }
-    },
+    onTranscription: handleTranscription,
   });
+
+  // Web Speech API STT (browser-side transcription).
+  const webSpeechSTT = useWebSpeechSTT({
+    language: 'es-ES',
+    onTranscription: handleTranscription,
+  });
+
+  const sttMode: 'whisper' | 'webspeech' | null = settings.experimentalTTS
+    ? 'whisper'
+    : settings.experimentalWebSpeechSTT
+      ? 'webspeech'
+      : null;
+  const activeSTT = sttMode === 'webspeech' ? webSpeechSTT : whisperSTT;
+  const sttButtonVisible = sttMode !== null && activeSTT.supported;
+  const recording = activeSTT.recording;
+  const transcribing = activeSTT.transcribing;
+  const toggleRecording = activeSTT.toggleRecording;
+
+  // Surface STT errors via toast so users see what failed without opening the console.
+  // Web Speech in Chromium is finicky (network/permission/no-speech) and the existing
+  // Whisper hook also sets errors silently — both deserve visibility.
+  const { showToast } = useToast();
+  const sttError = activeSTT.error;
+  useEffect(() => {
+    if (!sttError) return;
+    showToast('error', t('terminal:input.voiceInputErrorTitle'), sttError, 6000);
+  }, [sttError, showToast, t]);
 
   const clearSwipeCloseResetTimer = useCallback(() => {
     if (!swipeCloseResetTimerRef.current) return;
@@ -952,7 +983,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
               >
                 <Icon name="paperclip" size={14} />
               </button>
-              {settings.experimentalTTS && (
+              {sttButtonVisible && (
                 <button
                   className={`guake-mic-btn ${recording ? 'recording' : ''} ${transcribing ? 'transcribing' : ''}`}
                   onClick={toggleRecording}

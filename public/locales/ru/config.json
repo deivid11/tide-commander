@@ -188,6 +188,10 @@
     "2dView": "Режим 2D-вида",
     "voiceAssistant": "Голосовой помощник",
     "tts": "Синтез речи",
+    "webSpeechSTT": "Web Speech STT (Браузер)",
+    "ttsHint": "Распознавание речи на базе Whisper (транскрипция на сервере)",
+    "webSpeechSTTHint": "Браузерное распознавание речи через Web Speech API (Chromium / Safari)",
+    "webSpeechSTTUnsupported": "Не поддерживается в этом браузере. Попробуйте Chrome, Edge или Safari.",
     "echoPrompt": "Echo Prompt",
     "hint": "Эти функции экспериментальные и могут измениться"
   },

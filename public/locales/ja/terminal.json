@@ -46,6 +46,7 @@
     "stopOperation": "現在の操作を停止 (Esc)",
     "stop": "停止",
     "voiceInput": "音声入力 (Whisper)",
+    "voiceInputErrorTitle": "音声入力エラー",
     "stopRecording": "録音を停止",
     "transcribing": "文字起こし中..."
   },

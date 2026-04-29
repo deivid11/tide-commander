@@ -49,6 +49,7 @@
     "stopOperation": "Stop current operation (Esc)",
     "stop": "Stop",
     "voiceInput": "Voice input (Whisper)",
+    "voiceInputErrorTitle": "Voice input error",
     "stopRecording": "Stop recording",
     "transcribing": "Transcribing...",
     "expandInput": "Expand input area",

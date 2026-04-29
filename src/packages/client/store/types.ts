@@ -111,6 +111,7 @@ export interface Settings {
   experimental2DView: boolean;
   experimentalVoiceAssistant: boolean;
   experimentalTTS: boolean;
+  experimentalWebSpeechSTT: boolean;
   experimentalEchoPrompt: boolean;
   // External editor preference
   externalEditorCommand?: string; // e.g., 'subl', 'code', 'nvim' (empty = system default)
@@ -131,6 +132,7 @@ export const DEFAULT_SETTINGS: Settings = {
   experimental2DView: false,
   experimentalVoiceAssistant: false,
   experimentalTTS: false,
+  experimentalWebSpeechSTT: false,
   experimentalEchoPrompt: false,
   externalEditorCommand: '',
   vibrationIntensity: 1,
