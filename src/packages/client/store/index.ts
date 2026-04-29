@@ -567,16 +567,23 @@ class Store
   /**
    * Open terminal on mobile, closing all other modals first.
    * This ensures the terminal is visible and not obscured by other panels.
+   *
+   * FlatView has its own inline chat column driven by the same selection,
+   * so we skip toggling the Guake `terminalOpen` flag there — flipping it
+   * would stack a second chat overlay on top of FlatView's own chat
+   * (same reason `openAgentTerminalFromNotification` skips it on desktop
+   * flat view in client/utils/notifications.ts).
    */
   openTerminalOnMobile(agentId: string): void {
+    const isFlat = this.state.viewMode === 'flat';
     // Close all modals except terminal itself
     closeAllModalsExcept('terminal');
     // Select the agent
     this.state.selectedAgentIds = new Set([agentId]);
-    // Open terminal
-    this.state.terminalOpen = true;
-    // Switch to terminal view
-    this.state.mobileView = 'terminal';
+    if (!isFlat) {
+      this.state.terminalOpen = true;
+      this.state.mobileView = 'terminal';
+    }
 
     // NEW: Clear unseen badge for this agent
     if (this.state.agentsWithUnseenOutput.has(agentId)) {

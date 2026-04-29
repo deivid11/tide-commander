@@ -84,17 +84,28 @@ function SwipeableNotification({ notification, onDismiss, onClick }: SwipeableNo
     }
   }, []);
 
-  const handleTouchEnd = useCallback(() => {
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    // The close button has its own onClick; don't double-fire navigation
+    // when the user is tapping the X.
+    const target = e.target as HTMLElement;
+    const onCloseBtn = !!target.closest?.('.agent-notification-close');
+
     if (swipeX < -SWIPE_DISMISS_THRESHOLD) {
       setDismissing(true);
       triggerHaptic(2);
       setTimeout(() => onDismiss(notification.id), 200);
     } else {
       setSwipeX(0);
+      // No swipe past the dead zone → treat as a tap on the toast.
+      // The synthetic `click` is suppressed on touch devices below, so this
+      // is the path that actually opens the chat for an agent notification.
+      if (!touchRef.current.locked && !onCloseBtn) {
+        onClick(notification);
+      }
     }
     // Prevent onClick from firing after swipe
     setTimeout(() => { swipingRef.current = false; }, 50);
-  }, [swipeX, onDismiss, notification.id]);
+  }, [swipeX, onDismiss, onClick, notification]);
 
   const handleClick = useCallback(() => {
     if (!swipingRef.current) onClick(notification);
