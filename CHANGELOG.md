@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.84.3] - 2026-04-29
+
+### Changed
+- **`ViewModeToggle` is now reachable from the FlatView Areas header** — the 3D / 2D / Dashboard switcher used to live elsewhere in the chrome and was missing once a user dropped into FlatView, so going back to 3D required hunting through menus. It now sits pinned in the top-right of the Areas header (`flat-map__header`) with `position: absolute; top: 10px; right: 12px`, a backdrop-blurred pill background (`color-mix(in srgb, $bg-secondary 92%, transparent)` + `backdrop-filter: blur(6px)`) and a subtle drop shadow so it floats above the grid. The header gets `padding-right: 130px` to reserve space and `position: relative` so the toggle anchors to it
+
 ## [1.84.2] - 2026-04-29
 
 ### Fixed
