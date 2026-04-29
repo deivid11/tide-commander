@@ -144,21 +144,15 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void hideSystemUI() {
-        View decorView = getWindow().getDecorView();
-        WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), decorView);
-
-        if (controller != null) {
-            // Hide both status bar and navigation bar
-            controller.hide(WindowInsetsCompat.Type.statusBars());
-            // Use BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE for immersive mode
-            // Bars will temporarily appear when swiping from edge
-            controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-        }
-
-        // Make content extend into the cutout area (notch)
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
 
-        // Keep screen on while app is active
+        View decorView = getWindow().getDecorView();
+        WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), decorView);
+        if (controller != null) {
+            controller.setAppearanceLightStatusBars(false);
+            controller.setAppearanceLightNavigationBars(false);
+        }
+
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
 
