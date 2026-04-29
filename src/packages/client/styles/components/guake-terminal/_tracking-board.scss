@@ -575,3 +575,63 @@
     min-height: 40px;
   }
 }
+
+@media (max-width: 768px) {
+  .tracking-board {
+    padding: 4px;
+    gap: 4px;
+  }
+
+  .flat-inspector__body .tracking-board {
+    flex: 0 0 auto;
+    overflow: visible;
+    height: auto;
+    min-height: 0;
+  }
+
+  .flat-inspector__body .tracking-board-column-body {
+    max-height: none;
+  }
+
+  .tracking-board-column-header {
+    padding: 3px 6px;
+    font-size: 9.5px;
+  }
+
+  .tracking-board-card {
+    min-height: 44px;
+    padding: 4px 6px;
+    gap: 6px;
+  }
+
+  .tracking-board-card-name {
+    font-size: 12px;
+  }
+
+  .tracking-board-card-area,
+  .tracking-board-card-task,
+  .tracking-board-card-clear-context {
+    display: none;
+  }
+
+  .tracking-board-card-detail {
+    font-size: 10.5px;
+    line-height: 1.25;
+  }
+
+  .tracking-board-column--working .tracking-board-card,
+  .tracking-board-card.compacting {
+    animation: none;
+    background: color-mix(in srgb, var(--accent-green) 6%, var(--bg-secondary));
+    border-color: color-mix(in srgb, var(--accent-green) 30%, var(--border-color));
+
+    &::after {
+      display: none;
+    }
+  }
+
+  .tracking-board-card.unread {
+    box-shadow: none;
+    background: color-mix(in srgb, var(--accent-cyan) 8%, var(--bg-secondary));
+  }
+}

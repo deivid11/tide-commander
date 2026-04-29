@@ -2393,7 +2393,10 @@ export function FlatView({
             {inspectorView === 'tracking' ? (
               <TrackingBoard
                 activeAgentId={selectedAgentId ?? ''}
-                onSelectAgent={(agentId) => onAgentClick(agentId)}
+                onSelectAgent={(agentId) => {
+                  onAgentClick(agentId);
+                  handleCloseInspector();
+                }}
               />
             ) : (() => {
               if (!selectedAgentId) {
@@ -2414,7 +2417,10 @@ export function FlatView({
               return (
                 <SingleAgentPanel
                   agent={selectedAgent}
-                  onFocusAgent={(agentId) => onAgentClick(agentId)}
+                  onFocusAgent={(agentId) => {
+                    onAgentClick(agentId);
+                    handleCloseInspector();
+                  }}
                   onKillAgent={(agentId) => store.killAgent(agentId)}
                 />
               );

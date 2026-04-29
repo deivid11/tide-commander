@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.84.1] - 2026-04-29
+
+### Changed
+- **Android Capacitor goes edge-to-edge** — `MainActivity.hideSystemUI()` no longer hides the status bar; instead it calls `WindowCompat.setDecorFitsSystemWindows(false)` and lets the WebView draw under the system bars, with `setAppearanceLightStatusBars(false)` / `setAppearanceLightNavigationBars(false)` so the icons stay visible against the dark UI. `styles.xml` makes the status and navigation bars transparent across `AppTheme`, `AppTheme.NoActionBar`, and `AppTheme.NoActionBarLaunch` (`android:statusBarColor=@android:color/transparent`, same for nav, plus `windowDrawsSystemBarBackgrounds=true` and the `enforceStatusBarContrast` / `enforceNavigationBarContrast` opt-outs). `index.html` viewport gains `viewport-fit=cover` so the WebView fills the cutout area
+- **FlatView headers and bodies respect Android safe-area insets** — with the WebView now extending behind the status bar, FlatView headers (`flat-terminal-wrapper__header`, `flat-inspector__header`, `flat-middle__header`, `flat-map__header`) gain `padding-top: calc(6px + env(safe-area-inset-top, 0px))` so their content doesn't sit under the battery/wifi icons. `.flat-inspector__body` and `.flat-middle__content` gain `padding-bottom: var(--mobile-bottom-stack-height, 72px)` so the last item isn't hidden behind the bottom-nav (which sits at z-index 2100)
+- **Mobile tracking-board layout — compact card variant under 768px** — new `@media (max-width: 768px)` block: card padding/gap shrinks (4–6px), column header drops to 9.5px, card name to 12px, `tracking-board-card-area` / `tracking-board-card-task` / `tracking-board-card-clear-context` are hidden on small screens, working-column shimmer animation is disabled (replaced with a flat color-mix tint) so phones don't repaint constantly, and unread cards drop the box-shadow halo for a flatter look. Inside `flat-inspector__body` the board lays out `flex: 0 0 auto; height: auto` with `overflow: visible` so the inspector body's own scroll is the only scroller (no nested-scroll trap)
+
+### Fixed
+- **FlatView inspector now closes after picking an agent** — clicking an agent in the inspector's tracking board (`onSelectAgent`) or in `SingleAgentPanel` (`onFocusAgent`) used to leave the inspector panel open over the new agent's content. Both callbacks now also call `handleCloseInspector()` so the inspector dismisses on selection
+- **Spotlight no longer triggers terminal expand in FlatView** — `useSpotlightSearch`'s agent action unconditionally called `store.requestTerminalExpand()` after selecting, which is a Guake-style bottom-up expand and makes no sense in FlatView (no Guake terminal exists). Now guarded by `store.getState().viewMode !== 'flat'`
+
 ## [1.84.0] - 2026-04-28
 
 ### Added

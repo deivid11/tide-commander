@@ -12,8 +12,9 @@ import { store, useAgents, useAreas, useBuildings, useFileChanges } from '../../
 import { formatShortcut } from '../../store/shortcuts';
 import type { Agent, DrawingArea } from '../../../shared/types';
 import type { SearchResult, UseSpotlightSearchOptions, SpotlightSearchState } from './types';
-import { getFileIconFromPath, getAgentIcon } from './utils';
+import { getFileIconFromPath } from './utils';
 import { Icon, type IconName } from '../Icon';
+import { AgentIcon } from '../AgentIcon';
 
 // Category display order - must match SpotlightResults rendering
 const categoryOrder = ['command', 'agent', 'building', 'area', 'modified-file'];
@@ -181,14 +182,16 @@ export function useSpotlightSearch({
         subtitle,
         lastUserInput,
         timeAway,
-        icon: getAgentIcon(agent.class),
+        icon: <AgentIcon agent={agent} size={20} />,
         _searchText: searchableText,
         _modifiedFiles: uniqueFiles,
         _userQueries: userQueries,
         action: () => {
           onCloseRef.current();
           store.selectAgent(agent.id);
-          store.requestTerminalExpand();
+          if (store.getState().viewMode !== 'flat') {
+            store.requestTerminalExpand();
+          }
         },
       };
     });

@@ -1867,6 +1867,24 @@ body.flat-splitter-dragging {
     overflow: hidden;
   }
 
+  // Edge-to-edge: the WebView extends behind the system status bar on
+  // Android Capacitor. Push the topmost UI elements down by the inset so
+  // their content doesn't sit behind the battery/wifi icons.
+  .app.view-mode-flat .flat-terminal-wrapper__header,
+  .app.view-mode-flat .flat-inspector__header,
+  .app.view-mode-flat .flat-middle__header,
+  .app.view-mode-flat .flat-map__header {
+    padding-top: calc(6px + env(safe-area-inset-top, 0px));
+  }
+
+  // Inspector + agents drawer extend to the bottom of the viewport but the
+  // bottom-nav (z-index 2100) sits on top. Reserve room at the bottom of
+  // their scrollable bodies so the last item isn't hidden behind the nav.
+  .app.view-mode-flat .flat-inspector__body,
+  .app.view-mode-flat .flat-middle__content {
+    padding-bottom: var(--mobile-bottom-stack-height, 72px);
+  }
+
   .flat-view {
     // FAB toggle is 44px wide at left:12 → ~56px. Keep a bit of breathing
     // room but reclaim space vs. the desktop 64px gutter.
