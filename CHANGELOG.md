@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.84.4] - 2026-04-29
+
+### Changed
+- **Mobile flat-map collapses areas to header-only tiles by default** — under the (max-width: 768px) breakpoint, the empty-state map used to render every area card with all its agent chips visible, which forced a horizontal pan because cards couldn't fit side-by-side at phone width. Now each area collapses to a header-only chip (color dot + name + agent count + caret) so all areas fit on screen at once while preserving their spatial grid positions (each card stays in the row/column its world coords assigned). Tapping a header expands that area in place via `grid-column: 1 / -1`, revealing the agent chips underneath; the other cards on the same spatial row are dropped from the render so the expanded card has the row to itself without overlap. Single-area expansion — tapping a different area collapses the previous one. Implemented with a `matchMedia('(max-width: 768px)')` listener on `useEffect` so orientation changes flip the behavior immediately. Desktop is unchanged
+- **Mobile flat-map drops horizontal scroll** — `overflow-x: auto` / `touch-action: pan-x pan-y` / `overscroll-behavior-x: contain` on `.flat-chat--empty` are gone now that headers fit in a single column-set; the container is `overflow-x: hidden` with `touch-action: pan-y` so vertical scrolling is no longer fighting horizontal pan gestures
+
 ## [1.84.3] - 2026-04-29
 
 ### Changed

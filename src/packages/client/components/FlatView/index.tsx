@@ -1646,6 +1646,28 @@ export function FlatView({
     });
   }, []);
 
+  // ── Mobile flat-map: areas collapse to header-only tiles so all of them
+  // fit on screen at once (preserving the spatial grid layout); tapping a
+  // header expands that area in place to reveal its agents. Single-selection
+  // — only one area is expanded at a time, so tapping a different area
+  // collapses the previous one. `null` means everything is collapsed. Only
+  // consulted while the (max-width: 768px) breakpoint is active; on desktop
+  // the area cards always render their full content.
+  const [isFlatMobile, setIsFlatMobile] = useState<boolean>(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 768px)');
+    const onChange = (e: MediaQueryListEvent) => setIsFlatMobile(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  const [mobileExpandedAreaId, setMobileExpandedAreaId] = useState<string | null>(null);
+  const handleMobileToggleArea = useCallback((areaKey: string) => {
+    setMobileExpandedAreaId(prev => prev === areaKey ? null : areaKey);
+  }, []);
+
   // ── Compact area/agent data for the empty-chat state ──
   const areas = useAreas();
   const buildingsMap = useBuildings();
@@ -2177,13 +2199,31 @@ export function FlatView({
                     <span>No areas or agents yet</span>
                   </div>
                 ) : (
-                  emptyChatGroups.groups.map(group => {
+                  (() => {
+                    // Compute the spatial row of the currently-expanded area
+                    // (mobile only) so we can drop the other cards on that
+                    // row from the render — the expanded card spans the full
+                    // grid width on its original row, and showing the other
+                    // chips underneath it would overlap or look broken.
+                    const expandedRow = (isFlatMobile && mobileExpandedAreaId)
+                      ? emptyChatGroups.positions.get(mobileExpandedAreaId)?.row ?? null
+                      : null;
+                    return emptyChatGroups.groups.map(group => {
                     const areaKey = group.area.id;
                     const pos = emptyChatGroups.positions.get(areaKey);
+                    const isMobileCollapsed = isFlatMobile && mobileExpandedAreaId !== areaKey;
+                    if (
+                      isFlatMobile
+                      && expandedRow != null
+                      && pos?.row === expandedRow
+                      && areaKey !== mobileExpandedAreaId
+                    ) {
+                      return null;
+                    }
                     return (
                       <div
                         key={areaKey}
-                        className="flat-map-area-card"
+                        className={`flat-map-area-card${isMobileCollapsed ? ' flat-map-area-card--collapsed' : ''}`}
                         style={{
                           '--area-color': group.area.color,
                           gridRow: pos?.row,
@@ -2193,8 +2233,11 @@ export function FlatView({
                         <button
                           type="button"
                           className="flat-map-area-card__header"
-                          onClick={() => handleFocusArea(areaKey)}
-                          title={`Focus ${group.area.name} in left panel`}
+                          onClick={() => isFlatMobile ? handleMobileToggleArea(areaKey) : handleFocusArea(areaKey)}
+                          title={isFlatMobile
+                            ? (isMobileCollapsed ? `Expand ${group.area.name}` : `Collapse ${group.area.name}`)
+                            : `Focus ${group.area.name} in left panel`}
+                          aria-expanded={isFlatMobile ? !isMobileCollapsed : undefined}
                         >
                           <span
                             className="flat-map-area-card__color"
@@ -2202,6 +2245,13 @@ export function FlatView({
                           />
                           <span className="flat-map-area-card__name">{group.area.name}</span>
                           <span className="flat-map-area-card__count">{group.agents.length}</span>
+                          {isFlatMobile && (
+                            <Icon
+                              name={isMobileCollapsed ? 'caret-down' : 'caret-up'}
+                              size={11}
+                              className="flat-map-area-card__caret"
+                            />
+                          )}
                         </button>
                         <div className="flat-map-area-card__agents">
                           {group.agents.map(agent => {
@@ -2328,7 +2378,8 @@ export function FlatView({
                         )}
                       </div>
                     );
-                  })
+                  });
+                  })()
                 )}
               </div>
             </div>
