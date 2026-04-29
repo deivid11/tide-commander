@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { Agent, AgentTodoItem } from '../../../shared/types';
 import { Tooltip, type TooltipPosition } from './Tooltip';
 import { TaskProgressTooltipContent } from './TaskProgressDots';
@@ -13,6 +13,20 @@ interface AgentHoverTooltipProps {
   children: ReactNode;
 }
 
+function useIsMobileViewport(): boolean {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 768px)');
+    const onChange = () => setIsMobile(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return isMobile;
+}
+
 export function AgentHoverTooltip({
   todos,
   subordinates,
@@ -20,9 +34,11 @@ export function AgentHoverTooltip({
   triggerStyle = { display: 'contents' },
   children,
 }: AgentHoverTooltipProps) {
+  const isMobile = useIsMobileViewport();
   const hasTodos = todos && todos.length > 0;
   const hasSubordinates = subordinates && subordinates.length > 0;
 
+  if (isMobile) return <>{children}</>;
   if (!hasTodos && !hasSubordinates) return <>{children}</>;
 
   const content = (
