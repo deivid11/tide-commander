@@ -370,10 +370,6 @@ body.flat-splitter-dragging {
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 10px;
     align-content: start;
-
-    @media (max-width: 768px) {
-      grid-template-columns: 1fr;
-    }
   }
 
   &__empty {
@@ -1820,25 +1816,57 @@ body.flat-splitter-dragging {
 
   // Inspector renders as a fullscreen overlay on narrow viewports so it
   // doesn't compete with the chat/agent columns for horizontal space.
+  // Slides in from the right (and back out) to mirror the agents drawer's
+  // slide-from-left animation, keeping the open/close gesture consistent.
   .flat-inspector {
     position: fixed;
     inset: 0;
     z-index: 186;
     border-left: none;
-    animation: flat-inspector-fade-in 0.18s ease;
+    animation: none;
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
+  }
 
-    // Leave room on the left for the floating FAB toggle (44px at left:12 →
-    // 56px right-edge). Apply padding to the header only — the body already
-    // fills the viewport and uses standard padding.
-    &__header {
-      padding-left: 64px;
-    }
+  .flat-inspector--open {
+    transform: translateX(0);
+  }
+
+  .flat-inspector--closing {
+    transform: translateX(100%);
   }
 }
 
 // Tablet tweak: smaller left gutter and lighter header paddings. The FAB
 // stack on the left edge needs ~56px at most on narrow phones.
 @media (max-width: 768px) {
+  // Flat view has its own agents drawer toggle, so the global FAB hamburger
+  // would just be a redundant second hamburger eating top-row space. Hide
+  // the FAB chrome inside flat view; its menu items are still reachable via
+  // the bottom-nav (Settings / Commander / Spawn / Tracking / Search).
+  .app.view-mode-flat .mobile-fab-toggle,
+  .app.view-mode-flat .mobile-fab-menu,
+  .app.view-mode-flat .voice-assistant-btn.mobile-voice-assistant {
+    display: none !important;
+  }
+
+  // No FAB on the left edge in flat view → drop the 56px gutter so the chat
+  // can use the full viewport width.
+  .app.view-mode-flat .flat-view {
+    padding-left: 0;
+  }
+
+  // Reserve room for the fixed mobile bottom-stack so the chat input (which
+  // sits at the bottom of the flat-terminal-wrapper flex column, NOT
+  // position-fixed) doesn't end up underneath the bottom-nav. The Guake
+  // mobile-view-terminal layout already does this on .main-content; flat
+  // view defaults to mobileView='3d' on phones so we apply it ourselves.
+  .app.view-mode-flat .main-content {
+    height: calc(100% - var(--mobile-bottom-stack-height, 72px)) !important;
+    max-height: calc(100% - var(--mobile-bottom-stack-height, 72px)) !important;
+    overflow: hidden;
+  }
+
   .flat-view {
     // FAB toggle is 44px wide at left:12 → ~56px. Keep a bit of breathing
     // room but reclaim space vs. the desktop 64px gutter.
@@ -1864,10 +1892,34 @@ body.flat-splitter-dragging {
     min-height: 34px;
   }
 
-  // Empty-state map grid tightens up; single column already kicks in above.
+  // Empty-state map: keep the spatial grid (cards positioned by area
+  // coords) but switch to fixed-width columns so the layout can extend
+  // past the viewport horizontally — the user pans sideways like the 2D
+  // view instead of having every card squashed into a single column.
+  // The parent .flat-chat--empty centres its children, which would shrink
+  // the map to its content width and kill the horizontal scroll, so we
+  // override that here too.
+  .flat-chat--empty {
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
   .flat-map {
+    width: 100%;
     padding: 10px 12px;
     gap: 8px;
+    overflow-x: auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x pan-y;
+  }
+
+  .flat-map__grid {
+    grid-template-columns: unset !important;
+    grid-auto-columns: 220px;
+    width: max-content;
+    min-width: 100%;
   }
 
   .flat-map-area-card__agents {
@@ -1880,23 +1932,26 @@ body.flat-splitter-dragging {
     min-height: 34px;
   }
 
-  // Chat header: allow chips / controls to wrap onto a second row instead
-  // of overflowing horizontally, and tighten inner spacing.
+  // Chat header: keep a single row on mobile to avoid stacking identity +
+  // toolbar across two rows (was the "double row after the agent name"
+  // complaint). Identity flexes to fill, meta hugs its content on the right.
   .flat-terminal-wrapper__header {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     padding: 6px 10px;
     gap: 8px;
-    min-height: 44px;
+    min-height: 40px;
   }
 
   .flat-terminal-wrapper__header-main {
-    flex: 1 1 100%;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .flat-terminal-wrapper__header-meta {
-    flex: 1 1 100%;
-    justify-content: flex-start;
-    flex-wrap: wrap;
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: 4px;
   }
 
   // Hide the task chip — redundant with the agent name on a cramped header.
@@ -1912,16 +1967,34 @@ body.flat-splitter-dragging {
     row-gap: 6px;
   }
 
-  // Action buttons: wider tap targets on touch devices.
+  // Action buttons: smaller on mobile so the trimmed toolbar (search /
+  // clear / git / buildings / kebab) + inspector toggle still fits beside
+  // the agent identity in a single header row.
   .flat-terminal-wrapper__action-btn,
   .flat-terminal-wrapper__building-btn {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
   }
 
   .flat-terminal-wrapper__close {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
+  }
+
+  .flat-terminal-wrapper__inspector-toggle {
+    padding: 4px 6px;
+  }
+
+  .flat-terminal-wrapper__inspector-label {
+    display: none;
+  }
+
+  .flat-terminal-wrapper__actions {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
   }
 
   // Side panel (git / buildings / debug) should overlay on mobile — there
@@ -1945,6 +2018,37 @@ body.flat-splitter-dragging {
   // swallow most of the chat area.
   .flat-bottom-panel {
     height: 180px;
+  }
+
+  // Compact mode: reclaim vertical space for chat by hiding low-priority
+  // chrome. Functionality is preserved — view modes default to one mode,
+  // back/forward replaced by the agents drawer, close handled by switching
+  // agents, and statusbar info is reachable from the inspector / file
+  // explorer / FAB menu.
+  .flat-terminal-wrapper__view-mode {
+    display: none;
+  }
+
+  .flat-terminal-wrapper__actions .flat-terminal-wrapper__action-btn:nth-child(1),
+  .flat-terminal-wrapper__actions .flat-terminal-wrapper__action-btn:nth-child(2) {
+    display: none;
+  }
+
+  .flat-terminal-wrapper__close {
+    display: none;
+  }
+
+  .flat-terminal-wrapper__statusbar {
+    display: none;
+  }
+
+  // The agents drawer toggle and inspector toggle have been moved to the
+  // bottom-nav (Agents / Inspector buttons in MobileBottomMenu) — see
+  // src/packages/client/components/MobileBottomMenu.tsx. Hide the in-view
+  // floating buttons so the top of the chat is clean.
+  .app.view-mode-flat .flat-mobile-sidebar-toggle,
+  .app.view-mode-flat .flat-terminal-wrapper__inspector-toggle {
+    display: none;
   }
 }
 

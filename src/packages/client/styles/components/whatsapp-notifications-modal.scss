@@ -1,0 +1,260 @@
+@use '../variables' as *;
+
+.whatsapp-notifications-modal {
+  width: 720px;
+  max-width: 95vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-xl;
+  overflow: hidden;
+
+  .modal-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid $border-color;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+
+    h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+  }
+
+  .modal-footer {
+    padding: 12px 20px;
+    border-top: 1px solid $border-color;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+
+    .footer-buttons-right {
+      display: flex;
+      gap: 8px;
+    }
+  }
+
+  .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .modal-description {
+    margin: 0;
+    font-size: 12px;
+    color: $text-secondary;
+    line-height: 1.5;
+  }
+
+  .loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 48px 24px;
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba($border-color, 0.5);
+      border-top-color: $accent-blue;
+      border-radius: 50%;
+      animation: wan-spin 0.8s linear infinite;
+    }
+
+    p {
+      color: $text-secondary;
+      margin: 0;
+      font-size: 13px;
+    }
+  }
+
+  .alert {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: $radius-md;
+    font-size: 12px;
+
+    &.alert-error {
+      background: rgba(220, 38, 38, 0.1);
+      color: #f87171;
+      border: 1px solid rgba(220, 38, 38, 0.3);
+    }
+
+    &.alert-success {
+      background: rgba(34, 197, 94, 0.1);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+  }
+
+  .wan-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid $border-color;
+    border-radius: $radius-lg;
+    background: $bg-primary;
+  }
+
+  .wan-section-title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  .wan-section-hint {
+    margin: 0;
+    font-size: 11px;
+    color: $text-secondary;
+    line-height: 1.4;
+  }
+
+  .wan-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .wan-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: $text-secondary;
+  }
+
+  .wan-input {
+    padding: 8px 10px;
+    background: $bg-secondary;
+    color: $text-primary;
+    border: 1px solid $border-color;
+    border-radius: $radius-md;
+    font-size: 13px;
+
+    &:focus {
+      outline: none;
+      border-color: $accent-blue;
+    }
+  }
+
+  .wan-hint {
+    font-size: 11px;
+    color: $text-secondary;
+  }
+
+  .wan-toggle-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba($border-color, 0.5);
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  .wan-toggle-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .wan-toggle-title {
+    font-size: 13px;
+    color: $text-primary;
+    font-weight: 500;
+  }
+
+  .wan-toggle-help {
+    font-size: 11px;
+    color: $text-secondary;
+    line-height: 1.4;
+  }
+
+  .wan-toggle {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+    flex-shrink: 0;
+    cursor: pointer;
+
+    input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+
+      &:checked + .wan-toggle-track {
+        background: $accent-blue;
+
+        .wan-toggle-thumb {
+          transform: translateX(16px);
+        }
+      }
+    }
+  }
+
+  .wan-toggle-track {
+    position: absolute;
+    inset: 0;
+    background: rgba($border-color, 0.6);
+    border-radius: 999px;
+    transition: background 0.15s ease;
+  }
+
+  .wan-toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    background: #ffffff;
+    border-radius: 50%;
+    transition: transform 0.15s ease;
+  }
+
+  @media (max-width: 600px) {
+    width: 100%;
+    max-width: 100vw;
+
+    .modal-footer {
+      flex-direction: column;
+      align-items: stretch;
+
+      .footer-buttons-left,
+      .footer-buttons-right {
+        width: 100%;
+        justify-content: stretch;
+
+        .btn {
+          flex: 1;
+        }
+      }
+    }
+  }
+}
+
+@keyframes wan-spin {
+  to { transform: rotate(360deg); }
+}

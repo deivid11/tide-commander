@@ -673,15 +673,18 @@
     display: none;
   }
 
-  // Single fixed bottom container — agent bar stacks on top of bottom nav naturally
+  // Single fixed bottom container — agent bar stacks on top of bottom nav naturally.
+  // Lifted above modal overlays (toolbox 250, spotlight 2000, commander) so the
+  // user can always tap a bottom-nav button to close/swap the open view.
   .mobile-bottom-stack {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 200;
+    z-index: 2100;
     display: flex;
     flex-direction: column;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   // Agent bar inside the stack — no independent fixed positioning needed
@@ -695,6 +698,7 @@
     -webkit-overflow-scrolling: touch;
     justify-content: flex-start;
     scroll-padding: 0 8px;
+    transform: none;
     // Opaque background so content behind doesn't bleed through
     background: rgba(40, 42, 54, 0.98);
     border-top: 1px solid rgba(255, 255, 255, 0.08);

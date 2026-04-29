@@ -438,9 +438,10 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     prevIsOpenRef.current = _isOpen;
 
     const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+    const isMobileWidth = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
     const wasSwipe = store.consumeSwipeSelectionFlag();
     const wasDirectClick = store.consumeDirectClickSelectionFlag();
-    const shouldSuppressAutofocus = isTouchDevice && (wasSwipe || wasDirectClick);
+    const shouldSuppressAutofocus = (isTouchDevice && (wasSwipe || wasDirectClick)) || isMobileWidth;
 
     if (_isOpen && (!wasOpen || selectedAgentId) && !shouldSuppressAutofocus) {
       const timeoutId = setTimeout(() => {

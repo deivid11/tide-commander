@@ -13,6 +13,17 @@
   z-index: 2000;
   animation: spotlight-fade-in 0.15s ease-out;
   backdrop-filter: blur(2px);
+
+  @media (max-width: 768px) {
+    bottom: var(--mobile-bottom-stack-height, 72px);
+    padding-top: 6vh;
+  }
+}
+
+.spotlight-modal {
+  @media (max-width: 768px) {
+    max-height: calc(84vh - var(--mobile-bottom-stack-height, 0px));
+  }
 }
 
 @keyframes spotlight-fade-in {

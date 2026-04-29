@@ -186,6 +186,25 @@ function AppContent() {
     return () => obs.disconnect();
   }, []);
 
+  const [flatAgentsDrawerOpen, setFlatAgentsDrawerOpen] = useState(false);
+  const [flatInspectorOpen, setFlatInspectorOpen] = useState(false);
+  useEffect(() => {
+    const onAgents = (e: Event) => {
+      const detail = (e as CustomEvent<{ open: boolean }>).detail;
+      setFlatAgentsDrawerOpen(detail?.open ?? false);
+    };
+    const onInspector = (e: Event) => {
+      const detail = (e as CustomEvent<{ open: boolean }>).detail;
+      setFlatInspectorOpen(detail?.open ?? false);
+    };
+    window.addEventListener('tide-flat-agents-drawer-state', onAgents);
+    window.addEventListener('tide-flat-inspector-state', onInspector);
+    return () => {
+      window.removeEventListener('tide-flat-agents-drawer-state', onAgents);
+      window.removeEventListener('tide-flat-inspector-state', onInspector);
+    };
+  }, []);
+
   // WebSocket connection - runs regardless of 2D/3D view mode
   // This ensures agents are synced on page load even when 2D mode is active
   useWebSocketConnection({
@@ -673,10 +692,63 @@ function AppContent() {
   const handleMobileMenuToggle = useCallback(() => setMobileMenuOpen(prev => !prev), []);
   const handleShowTerminal = useCallback(() => store.setMobileView('terminal'), []);
   const handleOpenSidebar = useCallback(() => setSidebarOpen(true), []);
-  const handleOpenTrackingBoard = useCallback(() => {
-    setSidebarView('tracking');
-    localStorage.setItem('tide-commander-sidebar-view', 'tracking');
-    setSidebarOpen(true);
+  const closeAllMobileBottomNavViews = useCallback(() => {
+    toolboxModal.close();
+    commanderModal.close();
+    spotlightModal.close();
+    window.dispatchEvent(new CustomEvent('tide-close-flat-side-views'));
+  }, [toolboxModal, commanderModal, spotlightModal]);
+
+  const handleToggleAgentsDrawer = useCallback(() => {
+    toolboxModal.close();
+    commanderModal.close();
+    spotlightModal.close();
+    window.dispatchEvent(new CustomEvent('tide-close-flat-inspector-only'));
+    window.dispatchEvent(new CustomEvent('tide-toggle-flat-agents-drawer'));
+  }, [toolboxModal, commanderModal, spotlightModal]);
+
+  const handleToggleInspector = useCallback(() => {
+    toolboxModal.close();
+    commanderModal.close();
+    spotlightModal.close();
+    window.dispatchEvent(new CustomEvent('tide-close-flat-agents-drawer-only'));
+    window.dispatchEvent(new CustomEvent('tide-toggle-flat-inspector'));
+  }, [toolboxModal, commanderModal, spotlightModal]);
+
+  const handleToggleToolbox = useCallback(() => {
+    if (toolboxModal.isOpen) {
+      toolboxModal.close();
+      return;
+    }
+    closeAllMobileBottomNavViews();
+    toolboxModal.open();
+  }, [toolboxModal, closeAllMobileBottomNavViews]);
+
+  const handleToggleCommander = useCallback(() => {
+    if (commanderModal.isOpen) {
+      commanderModal.close();
+      return;
+    }
+    closeAllMobileBottomNavViews();
+    commanderModal.open();
+  }, [commanderModal, closeAllMobileBottomNavViews]);
+
+  const handleToggleSpotlight = useCallback(() => {
+    if (spotlightModal.isOpen) {
+      spotlightModal.close();
+      return;
+    }
+    closeAllMobileBottomNavViews();
+    spotlightModal.open();
+  }, [spotlightModal, closeAllMobileBottomNavViews]);
+
+  const handleSpawnFromBottomNav = useCallback(() => {
+    closeAllMobileBottomNavViews();
+    spawnModal.open();
+  }, [spawnModal, closeAllMobileBottomNavViews]);
+
+  const handleCloseFlatAgent = useCallback(() => {
+    store.deselectAll();
   }, []);
 
   return (
@@ -1300,12 +1372,22 @@ function AppContent() {
           </button>
         )}
         <MobileBottomMenu
-          onOpenSpotlight={spotlightModal.open}
-          onOpenTrackingBoard={handleOpenTrackingBoard}
-          onOpenCommander={commanderModal.open}
-          onOpenToolbox={toolboxModal.open}
-          onSpawnAgent={spawnModal.open}
+          onOpenSpotlight={handleToggleSpotlight}
+          onOpenCommander={handleToggleCommander}
+          onOpenToolbox={handleToggleToolbox}
+          onSpawnAgent={handleSpawnFromBottomNav}
           sidebarOpen={sidebarOpen}
+          onToggleAgentsDrawer={viewMode === 'flat' ? handleToggleAgentsDrawer : undefined}
+          onToggleInspector={viewMode === 'flat' ? handleToggleInspector : undefined}
+          onCloseAgent={viewMode === 'flat' && selectedAgentIds.size > 0 ? handleCloseFlatAgent : undefined}
+          activeView={
+            toolboxModal.isOpen ? 'settings'
+              : commanderModal.isOpen ? 'commander'
+              : spotlightModal.isOpen ? 'search'
+              : viewMode === 'flat' && flatInspectorOpen ? 'inspector'
+              : viewMode === 'flat' && flatAgentsDrawerOpen ? 'agents'
+              : null
+          }
         />
       </div>
 

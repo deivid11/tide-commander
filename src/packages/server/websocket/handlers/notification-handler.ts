@@ -2,6 +2,8 @@ import type { ClientMessage } from '../../../shared/types.js';
 import { agentService } from '../../services/index.js';
 import { logger } from '../../utils/index.js';
 import type { HandlerContext } from './types.js';
+import { publishNotification } from '../../integrations/whatsapp/whatsapp-notification-publisher.js';
+import type { WhatsAppNotificationEventType } from '../../services/whatsapp-notification-config-service.js';
 
 const log = logger.ws;
 
@@ -36,4 +38,18 @@ export function handleSendNotification(
     type: 'agent_notification',
     payload: notification,
   });
+
+  void publishNotification(
+    classifyNotificationEventType(title),
+    `${agent.name}: ${title}`,
+    message,
+  ).catch((err) => log.warn(`WhatsApp publish skipped: ${err}`));
+}
+
+function classifyNotificationEventType(title: string): WhatsAppNotificationEventType {
+  const t = title.toLowerCase();
+  if (t.includes('plan ready') || t.includes('plan')) return 'planReady';
+  if (t.includes('error') || t.includes('failed') || t.includes('blocked')) return 'errors';
+  if (t.includes('task complete') || t.includes('completed') || t.includes('done')) return 'taskComplete';
+  return 'messages';
 }
