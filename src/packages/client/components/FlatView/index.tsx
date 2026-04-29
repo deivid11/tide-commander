@@ -47,6 +47,7 @@ import { TrackingBoard } from '../ClaudeOutputPanel/TrackingBoard';
 import { useWorkspaceFilter, isAgentVisibleInWorkspace, isAreaVisibleInWorkspace } from '../WorkspaceSwitcher';
 import type { ViewMode as TerminalViewMode } from '../ClaudeOutputPanel/types';
 import TerminalEmbed from '../TerminalEmbed';
+import { ViewModeToggle } from '../ViewModeToggle/ViewModeToggle';
 import { useTwoClickConfirm } from '../../hooks';
 import {
   getStorageBoolean,
@@ -2165,6 +2166,7 @@ export function FlatView({
               <div className="flat-map__header">
                 <span className="flat-map__title">🗺️ Areas</span>
                 <span className="flat-map__hint">Click an area to focus it, or an agent to chat</span>
+                <ViewModeToggle className="flat-map__view-mode" />
               </div>
               <div
                 className="flat-map__grid"
