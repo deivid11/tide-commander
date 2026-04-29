@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.84.2] - 2026-04-29
+
+### Fixed
+- **`AgentHoverTooltip` no longer renders its hover wrapper on touch devices** — on phones the hover tooltip would latch open on tap and stick over the underlying agent UI, since touch has no `mouseleave`. The component now subscribes to `window.matchMedia('(max-width: 768px)')` (with a `change` listener so orientation/resize is honored) and short-circuits to its raw children when the viewport is mobile, skipping `Tooltip` entirely. Desktop behavior is unchanged
+
 ## [1.84.1] - 2026-04-29
 
 ### Changed
