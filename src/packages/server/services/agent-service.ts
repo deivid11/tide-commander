@@ -19,6 +19,7 @@ import {
 } from '../claude/session-loader.js';
 import { loadSubagentHistory, type SubagentHistoryEntry } from '../claude/subagent-history-loader.js';
 import { logger, generateId } from '../utils/index.js';
+import { publishNotification } from '../integrations/whatsapp/whatsapp-notification-publisher.js';
 
 const log = logger.agent;
 const VALID_CLAUDE_MODELS = new Set<ClaudeModel>(
@@ -428,6 +429,12 @@ export async function createAgent(
   emit('created', agent);
   log.log('  Event emitted: created');
 
+  void publishNotification(
+    'agentSpawned',
+    `${agent.name}: spawned`,
+    `Class: ${agent.class ?? 'unknown'}, cwd: ${agent.cwd}`,
+  ).catch(() => { /* publisher logs its own failures */ });
+
   return agent;
 }
 
@@ -504,6 +511,8 @@ export function updateAgent(id: string, updates: Partial<Agent>, updateActivity 
   const normalizedUpdates = { ...updates };
 
   const sessionIdBefore = agent.sessionId;
+  const statusBefore = agent.status;
+  const agentNameBefore = agent.name;
   const hasSessionIdInUpdates = 'sessionId' in normalizedUpdates;
 
   // Track pending property updates for notification on next command
@@ -577,6 +586,14 @@ export function updateAgent(id: string, updates: Partial<Agent>, updateActivity 
   }
 
   emit('updated', agent);
+
+  if (statusBefore !== agent.status) {
+    void publishNotification(
+      'statusChanges',
+      `${agentNameBefore}: status changed`,
+      `${statusBefore ?? 'unknown'} → ${agent.status ?? 'unknown'}`,
+    ).catch(() => { /* publisher logs its own failures */ });
+  }
   return agent;
 }
 
@@ -584,6 +601,8 @@ export function deleteAgent(id: string): boolean {
   const agent = agents.get(id);
   if (!agent) return false;
 
+  const deletedAgentName = agent.name;
+  const deletedAgentClass = agent.class;
   agents.delete(id);
   persistAgents();
 
@@ -614,6 +633,13 @@ export function deleteAgent(id: string): boolean {
   });
 
   emit('deleted', id);
+
+  void publishNotification(
+    'agentStopped',
+    `${deletedAgentName}: stopped`,
+    `Class: ${deletedAgentClass ?? 'unknown'}`,
+  ).catch(() => { /* publisher logs its own failures */ });
+
   return true;
 }
 

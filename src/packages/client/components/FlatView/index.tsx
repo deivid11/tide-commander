@@ -1126,6 +1126,47 @@ export function FlatView({
   const toggleMobileSidebar = useCallback(() => setMobileSidebarOpen(prev => !prev), []);
   const closeMobileSidebar = useCallback(() => setMobileSidebarOpen(false), []);
 
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('tide-flat-agents-drawer-state', { detail: { open: mobileSidebarOpen } }));
+  }, [mobileSidebarOpen]);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('tide-flat-inspector-state', { detail: { open: inspectorOpen } }));
+  }, [inspectorOpen]);
+
+  useEffect(() => {
+    const onToggleAgents = () => setMobileSidebarOpen((prev) => !prev);
+    const onToggleInspectorEvt = () => {
+      setInspectorOpen((prev) => {
+        const next = !prev;
+        setStorageBoolean(STORAGE_KEYS.FLAT_INSPECTOR_OPEN, next);
+        return next;
+      });
+    };
+    const onCloseSideViews = () => {
+      setMobileSidebarOpen(false);
+      setInspectorOpen(false);
+      setStorageBoolean(STORAGE_KEYS.FLAT_INSPECTOR_OPEN, false);
+    };
+    const onCloseAgentsDrawerOnly = () => setMobileSidebarOpen(false);
+    const onCloseInspectorOnly = () => {
+      setInspectorOpen(false);
+      setStorageBoolean(STORAGE_KEYS.FLAT_INSPECTOR_OPEN, false);
+    };
+    window.addEventListener('tide-toggle-flat-agents-drawer', onToggleAgents);
+    window.addEventListener('tide-toggle-flat-inspector', onToggleInspectorEvt);
+    window.addEventListener('tide-close-flat-side-views', onCloseSideViews);
+    window.addEventListener('tide-close-flat-agents-drawer-only', onCloseAgentsDrawerOnly);
+    window.addEventListener('tide-close-flat-inspector-only', onCloseInspectorOnly);
+    return () => {
+      window.removeEventListener('tide-toggle-flat-agents-drawer', onToggleAgents);
+      window.removeEventListener('tide-toggle-flat-inspector', onToggleInspectorEvt);
+      window.removeEventListener('tide-close-flat-side-views', onCloseSideViews);
+      window.removeEventListener('tide-close-flat-agents-drawer-only', onCloseAgentsDrawerOnly);
+      window.removeEventListener('tide-close-flat-inspector-only', onCloseInspectorOnly);
+    };
+  }, []);
+
   // Desktop/tablet: user-resizable widths for the .flat-middle (agents) and
   // .flat-inspector (right-side details) columns. `null` = use the responsive
   // CSS default; a number is a pixel override applied via a CSS custom
@@ -1541,6 +1582,31 @@ export function FlatView({
   );
 
   const showInspector = inspectorOpen;
+
+  const [inspectorMounted, setInspectorMounted] = useState(showInspector);
+  const [inspectorAnimateOpen, setInspectorAnimateOpen] = useState(showInspector);
+
+  useEffect(() => {
+    if (showInspector) {
+      setInspectorMounted(true);
+      return;
+    }
+    setInspectorAnimateOpen(false);
+    const timer = setTimeout(() => setInspectorMounted(false), 240);
+    return () => clearTimeout(timer);
+  }, [showInspector]);
+
+  useEffect(() => {
+    if (!inspectorMounted || !showInspector) return;
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setInspectorAnimateOpen(true));
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [inspectorMounted, showInspector]);
 
   // ── Ref for scrolling the left-panel AgentOverviewPanel ──
   const agentListRef = useRef<HTMLDivElement>(null);
@@ -2290,8 +2356,8 @@ export function FlatView({
           Independent of chat/selection state: stays visible even when no
           agent is selected so the tracking board remains available. The
           Agent tab shows an empty-state when there's no selection. */}
-      {showInspector && (
-        <aside className="flat-inspector" aria-label="Inspector panel">
+      {inspectorMounted && (
+        <aside className={`flat-inspector ${inspectorAnimateOpen ? 'flat-inspector--open' : 'flat-inspector--closing'}`} aria-label="Inspector panel">
           <div className="flat-inspector__header">
             <div className="flat-inspector__tabs" role="tablist" aria-label="Inspector view">
               <button

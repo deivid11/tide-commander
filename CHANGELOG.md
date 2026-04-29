@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.84.0] - 2026-04-28
+
+### Added
+- **WhatsApp notifications for agent events** — new `whatsapp-notification-publisher.ts` forwards classified agent events to WhatsApp via the existing Baileys integration, with a per-event-type filter persisted at `~/.local/share/tide-commander/whatsapp-notifications.json`. Seven toggleable event types: `messages`, `statusChanges`, `taskComplete`, `errors`, `planReady`, `agentSpawned`, `agentStopped`. Three new REST endpoints expose the config: `GET /api/whatsapp/notification-config`, `PATCH /api/whatsapp/notification-config` (filter and/or recipient JID), `DELETE /api/whatsapp/notification-config` (reset to defaults). Publisher silently skips when the toggle is off, the integration is disabled, the API key secret is missing, or no recipient is configured — no spurious failures during normal operation. Wired in at four publish sites: `POST /api/notify` and the `send_notification` WS handler classify the title into an event type; `agent-service.createAgent` emits `agentSpawned`, `agent-service.updateAgent` emits `statusChanges` on transition, `agent-service.deleteAgent` emits `agentStopped`
+- **WhatsApp Notifications Settings modal** — new `WhatsAppNotificationsModal` in the toolbox config section lets the user pick a recipient JID and toggle each event type. Backed by `src/packages/client/api/whatsapp-notifications.ts` against the new `/notification-config` endpoints. Translations in `public/locales/en/config.json` (61 new strings)
+- **Mobile FlatView agents drawer + inspector panel** — FlatView now has dedicated mobile-friendly Agents drawer and Inspector panels reachable from the bottom nav. App-level state mirrors them via `tide-flat-agents-drawer-state` / `tide-flat-inspector-state` custom events, and the toggle handlers (`handleToggleAgentsDrawer`, `handleToggleInspector`) close the other panels first so only one bottom-nav view is active at a time
+
+### Changed
+- **Mobile bottom nav is now a single-active-view controller** — the bottom-nav buttons (Spotlight, Commander, Toolbox, plus FlatView's Agents/Inspector toggles) used to each just `.open()` their modal. They now route through `handleToggle*` callbacks that close every other bottom-nav surface (toolbox, commander, spotlight, FlatView drawer/inspector) before opening the chosen one, and `MobileBottomMenu` highlights the currently-active view. The Spawn button also closes the rest before opening the spawn modal so we can't end up with overlapping bottom-nav panels
+- **`SessionSearchModal` keyboard nav uses `if/else` instead of ternary-as-statement** — `e.shiftKey ? goPrev() : goNext();` was a `no-unused-expressions` lint warning. Converted to a real `if (e.shiftKey) { goPrev(); } else { goNext(); }`
+
+### Fixed
+- **`agent-service.test.ts` Codex context-limit suite crash** — three tests in the `agent-service context limits` suite started failing with `[vitest] No "createLogger" export is defined on the "../utils/index.js" mock` once the new WhatsApp publisher was wired into `agent-service.ts`. The transitive import chain (`agent-service → whatsapp-notification-publisher → secrets-service`) needed `createLogger` at module load. Mock now exports a `createLogger` stub returning `{ log, warn, error, info, debug }` so the chain resolves without changing test semantics
+
 ## [1.83.0] - 2026-04-27
 
 ### Added

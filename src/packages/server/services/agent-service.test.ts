@@ -42,6 +42,13 @@ vi.mock('../utils/index.js', () => ({
       error: vi.fn(),
     },
   },
+  createLogger: () => ({
+    log: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+  }),
   generateId: mockGenerateId,
 }));
 

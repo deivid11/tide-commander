@@ -11,6 +11,8 @@ import { Router, Request, Response } from 'express';
 import { agentService } from '../services/index.js';
 import { createLogger, generateId } from '../utils/index.js';
 import type { AgentNotification, ServerMessage } from '../../shared/types.js';
+import { publishNotification } from '../integrations/whatsapp/whatsapp-notification-publisher.js';
+import type { WhatsAppNotificationEventType } from '../services/whatsapp-notification-config-service.js';
 
 const log = createLogger('Notifications');
 
@@ -87,6 +89,12 @@ router.post('/', (req: Request, res: Response) => {
       log.warn('Broadcast function not set - notification not sent to clients');
     }
 
+    void publishNotification(
+      classifyNotificationEventType(title),
+      `${agent.name}: ${title}`,
+      message,
+    ).catch((err) => log.warn(`WhatsApp publish skipped: ${err}`));
+
     res.status(200).json({
       success: true,
       notification
@@ -96,5 +104,13 @@ router.post('/', (req: Request, res: Response) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+function classifyNotificationEventType(title: string): WhatsAppNotificationEventType {
+  const t = title.toLowerCase();
+  if (t.includes('plan ready') || t.includes('plan')) return 'planReady';
+  if (t.includes('error') || t.includes('failed') || t.includes('blocked')) return 'errors';
+  if (t.includes('task complete') || t.includes('completed') || t.includes('done')) return 'taskComplete';
+  return 'messages';
+}
 
 export default router;

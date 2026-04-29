@@ -31,10 +31,12 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Autofocus search input when sidebar opens
+  // Autofocus search input when sidebar opens (skip on mobile width so the
+  // on-screen keyboard doesn't pop up immediately)
   useEffect(() => {
     if (isOpen && searchInputRef.current) {
-      // Small delay to ensure the sidebar animation has started
+      const isMobileWidth = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
+      if (isMobileWidth) return;
       const timer = setTimeout(() => {
         searchInputRef.current?.focus();
       }, 50);

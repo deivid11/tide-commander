@@ -338,6 +338,10 @@
     "tracking": "Tracking",
     "spawn": "Spawn",
     "commander": "Commander",
-    "settings": "Settings"
+    "settings": "Settings",
+    "agents": "Agents",
+    "inspector": "Inspector",
+    "close": "Close",
+    "closeAgent": "Close agent"
   }
 }

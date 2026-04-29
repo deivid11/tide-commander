@@ -14,6 +14,7 @@
     "secrets": "Secrets",
     "systemPrompt": "System Prompt",
     "whatsapp": "WhatsApp Integration",
+    "whatsappNotifications": "WhatsApp Notifications",
     "data": "Data",
     "experimental": "Experimental",
     "about": "About",
@@ -389,6 +390,66 @@
       "sessionDeleteFailed": "Failed to delete the WhatsApp session.",
       "qrFetchFailed": "Failed to fetch the pairing QR code.",
       "testSendFailed": "Failed to send the test message."
+    }
+  },
+  "whatsappNotifications": {
+    "title": "WhatsApp Notifications",
+    "description": "Choose which agent events get forwarded to WhatsApp. The recipient JID receives a message whenever an enabled event fires. Requires the WhatsApp integration to be enabled and a default session paired.",
+    "editButton": "Edit Notification Filters",
+    "loading": "Loading WhatsApp notification settings...",
+    "save": "Save",
+    "reset": "Reset Changes",
+    "resetToDefaults": "Reset to defaults",
+    "resetDone": "Notification filters reset to defaults.",
+    "saved": "Notification filters saved.",
+    "close": "Close",
+    "unsavedTitle": "Unsaved Changes",
+    "unsavedMessage": "You have unsaved notification filter changes. Close anyway?",
+    "closeAnyway": "Close anyway",
+    "keepEditing": "Keep editing",
+    "confirmReset": "Reset all toggles to ON and clear the recipient?",
+    "sections": {
+      "recipient": "Recipient",
+      "events": "Event Types"
+    },
+    "recipientLabel": "Recipient JID or phone number",
+    "recipientPlaceholder": "e.g. 5215512345678 or 5215512345678@s.whatsapp.net",
+    "recipientHint": "Where notification messages are sent. Leave empty to disable all WhatsApp notifications.",
+    "eventsHint": "Each toggle controls one event type. When OFF, that event is skipped silently.",
+    "events": {
+      "messages": {
+        "title": "Agent messages",
+        "help": "Generic agent notifications sent via /api/notify or the in-app notification skill."
+      },
+      "statusChanges": {
+        "title": "Status changes",
+        "help": "Whenever an agent transitions between idle, working, or other states."
+      },
+      "taskComplete": {
+        "title": "Task complete",
+        "help": "Notifications whose title indicates a task finished or completed."
+      },
+      "errors": {
+        "title": "Errors / blocked",
+        "help": "Notifications whose title flags an error, failure, or blocker."
+      },
+      "planReady": {
+        "title": "Plan ready",
+        "help": "Notifications emitted when an agent's plan is ready for review."
+      },
+      "agentSpawned": {
+        "title": "Agent spawned",
+        "help": "When a new agent is created."
+      },
+      "agentStopped": {
+        "title": "Agent stopped",
+        "help": "When an agent is deleted/stopped."
+      }
+    },
+    "errors": {
+      "loadFailed": "Failed to load WhatsApp notification settings.",
+      "saveFailed": "Failed to save WhatsApp notification settings.",
+      "resetFailed": "Failed to reset WhatsApp notification settings."
     }
   },
   "data": {

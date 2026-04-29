@@ -12,7 +12,7 @@
     align-items: stretch;
     justify-content: space-around;
     gap: 2px;
-    padding: 2px 4px calc(2px + env(safe-area-inset-bottom, 0px));
+    padding: 2px 4px;
     background: rgba($dracula-bg, 0.98);
     border-top: 1px solid rgba($dracula-purple, 0.5);
     backdrop-filter: blur(8px);
@@ -33,12 +33,21 @@
     border-radius: $radius-md;
     color: $dracula-fg;
     cursor: pointer;
-    transition: background 0.15s ease, transform 0.1s ease;
+    transition: background 0.15s ease, transform 0.1s ease, color 0.15s ease;
     -webkit-tap-highlight-color: transparent;
 
     &:active {
       background: rgba($dracula-purple, 0.25);
       transform: scale(0.95);
+    }
+
+    &--active {
+      background: rgba($dracula-purple, 0.25);
+      color: $dracula-purple;
+
+      .mobile-bottom-menu__label {
+        color: $dracula-purple;
+      }
     }
   }
 

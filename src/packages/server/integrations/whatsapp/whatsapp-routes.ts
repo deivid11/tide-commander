@@ -17,6 +17,15 @@ import {
   type WhatsAppConfig,
 } from './whatsapp-config.js';
 import { syncBridge } from './index.js';
+import {
+  getConfig as getNotificationConfig,
+  updateConfig as updateNotificationConfig,
+  clearConfig as clearNotificationConfig,
+  getDefaultConfig as getDefaultNotificationConfig,
+  WHATSAPP_NOTIFICATION_EVENT_TYPES,
+  type WhatsAppNotificationEventType,
+  type WhatsAppNotificationFilter,
+} from '../../services/whatsapp-notification-config-service.js';
 
 const log = createLogger('WhatsAppRoutes');
 
@@ -296,6 +305,49 @@ export function createWhatsAppRoutes(ctx: IntegrationContext): Router {
     } catch (err) {
       log.error(`WhatsApp sendMediaUrl error: ${err}`);
       res.status(502).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // ─── GET /notification-config — Read per-event-type WhatsApp notification toggles ───
+  router.get('/notification-config', (_req: Request, res: Response) => {
+    res.json(getNotificationConfig());
+  });
+
+  // ─── PATCH /notification-config — Update toggles and/or recipient JID ───
+  router.patch('/notification-config', (req: Request, res: Response) => {
+    const body = (req.body ?? {}) as { filter?: unknown; recipient?: unknown };
+    const update: { filter?: Partial<WhatsAppNotificationFilter>; recipient?: string } = {};
+    if (body.filter && typeof body.filter === 'object') {
+      const inputFilter = body.filter as Record<string, unknown>;
+      const cleaned: Partial<WhatsAppNotificationFilter> = {};
+      for (const key of WHATSAPP_NOTIFICATION_EVENT_TYPES) {
+        const v = inputFilter[key];
+        if (typeof v === 'boolean') {
+          cleaned[key as WhatsAppNotificationEventType] = v;
+        }
+      }
+      update.filter = cleaned;
+    }
+    if (typeof body.recipient === 'string') {
+      update.recipient = body.recipient;
+    }
+    try {
+      const next = updateNotificationConfig(update);
+      res.json(next);
+    } catch (err) {
+      log.error(`WhatsApp notification-config update error: ${err}`);
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // ─── DELETE /notification-config — Reset to defaults (all toggles ON, recipient cleared) ───
+  router.delete('/notification-config', (_req: Request, res: Response) => {
+    try {
+      clearNotificationConfig();
+      res.json(getDefaultNotificationConfig());
+    } catch (err) {
+      log.error(`WhatsApp notification-config clear error: ${err}`);
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
 

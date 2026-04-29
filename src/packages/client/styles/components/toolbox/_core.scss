@@ -539,6 +539,10 @@
   pointer-events: none;
   z-index: 200;
   animation: toolbox-backdrop-fade-in $transition-normal ease-out;
+
+  @media (max-width: 768px) {
+    bottom: var(--mobile-bottom-stack-height, 72px);
+  }
 }
 
 @keyframes toolbox-backdrop-fade-in {
@@ -560,6 +564,10 @@
   z-index: 250;
   box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
   animation: slide-in-left $transition-normal ease-out;
+
+  @media (max-width: 768px) {
+    height: calc(100dvh - var(--mobile-bottom-stack-height, 72px));
+  }
 }
 
 .toolbox-content {
