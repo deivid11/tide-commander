@@ -1924,13 +1924,11 @@ body.flat-splitter-dragging {
     min-height: 34px;
   }
 
-  // Empty-state map: keep the spatial grid (cards positioned by area
-  // coords) but switch to fixed-width columns so the layout can extend
-  // past the viewport horizontally — the user pans sideways like the 2D
-  // view instead of having every card squashed into a single column.
-  // The parent .flat-chat--empty centres its children, which would shrink
-  // the map to its content width and kill the horizontal scroll, so we
-  // override that here too.
+  // Empty-state map: collapse all areas to header-only tiles by default so
+  // the user can see every area at once on a phone-sized viewport, while
+  // preserving the spatial grid (each card stays in the row/col its world
+  // position assigns it). Tapping an area header toggles its expansion in
+  // place — the agent chips reveal underneath without breaking the grid.
   .flat-chat--empty {
     align-items: stretch;
     justify-content: flex-start;
@@ -1940,18 +1938,55 @@ body.flat-splitter-dragging {
     width: 100%;
     padding: 10px 12px;
     gap: 8px;
-    overflow-x: auto;
+    overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior-x: contain;
-    touch-action: pan-x pan-y;
+    touch-action: pan-y;
   }
 
+  // Honour the inline grid-template-columns from emptyChatGroups.gridCols so
+  // the spatial layout stays intact; just shrink the gaps for mobile.
   .flat-map__grid {
-    grid-template-columns: unset !important;
-    grid-auto-columns: 220px;
-    width: max-content;
-    min-width: 100%;
+    width: 100%;
+    gap: 6px;
+  }
+
+  .flat-map-area-card__header {
+    padding: 8px 6px;
+    gap: 4px;
+    min-height: 36px;
+  }
+
+  .flat-map-area-card__name {
+    font-size: 11px;
+  }
+
+  .flat-map-area-card__count {
+    font-size: 9px;
+    padding: 0 4px;
+  }
+
+  .flat-map-area-card__caret {
+    flex-shrink: 0;
+    margin-left: auto;
+    opacity: 0.7;
+  }
+
+  // Collapsed: just the header tile is visible.
+  .flat-map-area-card--collapsed {
+    .flat-map-area-card__agents,
+    .flat-map-area-card__buildings {
+      display: none;
+    }
+  }
+
+  // Expanded card stays on its spatial row but spans the full grid width
+  // so the agent chips render directly underneath the title chip the user
+  // tapped. The cards that originally shared that row are hidden in JSX
+  // (single-area expansion) so this full-width card has the row to itself
+  // and doesn't overlap any siblings. Rows above and below are untouched.
+  .flat-map-area-card:not(.flat-map-area-card--collapsed) {
+    grid-column: 1 / -1 !important;
   }
 
   .flat-map-area-card__agents {
