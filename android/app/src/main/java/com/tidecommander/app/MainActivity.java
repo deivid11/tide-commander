@@ -65,6 +65,19 @@ public class MainActivity extends BridgeActivity {
         // Trigger reconnect when app comes back to foreground
         // The WebView will receive this and reconnect the WebSocket
         getBridge().eval("window.dispatchEvent(new Event('tideAppResume'));", null);
+
+        // The PendingIntent on agent notifications uses FLAG_ACTIVITY_SINGLE_TOP,
+        // which routes warm-start taps through onNewIntent (already handled) and
+        // cold-start taps through onCreate. In both cases onResume runs after,
+        // so this is the single point where we forward the agentId to JS.
+        forwardNotificationIntentToJs(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        // Replace the cached intent so onResume / getIntent() see the new extras.
+        setIntent(intent);
     }
 
     @Override
@@ -85,6 +98,34 @@ public class MainActivity extends BridgeActivity {
         if (hasFocus) {
             hideSystemUI();
         }
+    }
+
+    /**
+     * If the activity was launched (or resumed) by tapping an agent notification
+     * built by WebSocketForegroundService, the Intent carries an "agentId"
+     * extra. Dispatch a CustomEvent the JS side already listens for
+     * (`tide-notification-tap` in client/utils/notifications.ts) so the chat
+     * for that agent is opened.
+     *
+     * On a cold start the JS bundle may still be loading when this runs, so we
+     * also stash the payload on `window` and drain it from the JS listener
+     * once it registers — see initNotificationListeners().
+     */
+    private void forwardNotificationIntentToJs(Intent intent) {
+        if (intent == null) return;
+        String agentId = intent.getStringExtra("agentId");
+        if (agentId == null || agentId.isEmpty()) return;
+        // Clear so onResume on a later un-related lifecycle bounce doesn't
+        // resurrect the same tap.
+        intent.removeExtra("agentId");
+
+        String escaped = agentId.replace("\\", "\\\\").replace("'", "\\'");
+        String js = "(function(){"
+            + "var detail = { type: 'agent_notification', agentId: '" + escaped + "' };"
+            + "window.__tidePendingNotificationTap = detail;"
+            + "try { window.dispatchEvent(new CustomEvent('tide-notification-tap', { detail: detail })); } catch (e) {}"
+            + "})();";
+        getBridge().eval(js, null);
     }
 
     private void startBackgroundService() {
