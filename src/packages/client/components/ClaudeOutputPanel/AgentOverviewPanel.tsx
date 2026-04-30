@@ -589,26 +589,8 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   }, [areas, filteredAgents, sortAgents, groupByArea, visibleAreaIds]);
 
   const renderAgentCards = useCallback((groupAgents: Agent[]) => {
-    const isUnreadAgent = (agent: Agent) => agentsWithUnseenOutput.has(agent.id);
-    const firstUnreadIndex = groupAgents.findIndex(agent => isUnreadAgent(agent) && agent.status !== 'working');
-    const hasUnreadAgents = firstUnreadIndex >= 0;
-    // Idle separator should only apply to "read idle" agents.
-    const firstReadIdleIndex = groupAgents.findIndex(agent => agent.status === 'idle' && !isUnreadAgent(agent));
-    const hasIdleSeparator = firstReadIdleIndex >= 0
-      && groupAgents.slice(0, firstReadIdleIndex).some(agent => agent.status === 'working' || isUnreadAgent(agent));
-
-    return groupAgents.map((agent, index) => (
+    return groupAgents.map((agent) => (
       <React.Fragment key={agent.id}>
-        {hasUnreadAgents && index === firstUnreadIndex && (
-          <div className="aop-status-separator aop-status-separator--unread" role="separator" aria-label="unread notifications">
-            <span>Unread notifications</span>
-          </div>
-        )}
-        {hasIdleSeparator && index === firstReadIdleIndex && (
-          <div className="aop-status-separator" role="separator" aria-label="idle agents">
-            <span>{t('terminal:overview.statusLabels.idle')}</span>
-          </div>
-        )}
         <AgentCard
           agent={agent}
           isActive={agent.id === activeAgentId}
@@ -630,7 +612,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       </React.Fragment>
     ));
   }, [
-    t,
     activeAgentId,
     expandedAgents,
     isMobileViewport,

@@ -1244,31 +1244,6 @@
   }
 }
 
-// Subtle group label for unread / idle transitions inside the agent list.
-// Previously rendered as a full-width horizontal rule flanked by uppercase
-// text, which visually fragmented every area group. Now it's a quiet left-
-// aligned caption — still marks the transition without chopping the list.
-.aop-status-separator {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 6px 2px 2px;
-  padding: 0;
-  font-family: $font-mono;
-  font-size: 10px;
-  letter-spacing: 0.02em;
-  color: color-mix(in srgb, var(--text-muted) 70%, transparent);
-  opacity: 0.7;
-
-  span {
-    white-space: nowrap;
-  }
-
-  &.aop-status-separator--unread {
-    color: color-mix(in srgb, var(--accent-cyan) 45%, var(--text-muted));
-  }
-}
-
 // =============================================================================
 // Subagents section
 // =============================================================================
@@ -1622,13 +1597,6 @@
     }
   }
 
-  .aop-status-separator {
-    gap: 5px;
-    margin: 5px 2px 2px;
-    font-size: 9px;
-    letter-spacing: 0.02em;
-  }
-
   .aop-tool-timeline {
     .aop-timeline-entry {
       flex-wrap: wrap;
@@ -1653,11 +1621,6 @@
   }
 
   .agent-overview-panel {
-    .aop-status-separator {
-      font-size: 9px;
-      margin: 4px 0 5px;
-    }
-
     .aop-stats-row {
       font-size: 9px;
       gap: 5px;

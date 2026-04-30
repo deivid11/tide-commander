@@ -1187,5 +1187,19 @@
     "can-clear-context": "Fully done — context safe to clear",
     "waiting-subordinates": "Waiting on delegated work",
     "working": "Working"
+  },
+  "usage": {
+    "title": "Claude Usage",
+    "session": "Session",
+    "tokensUsed": "Tokens used",
+    "taskCount": "Tasks sent",
+    "today": "Today",
+    "messages": "Messages",
+    "sessions": "Sessions",
+    "toolCalls": "Tool calls",
+    "noActivityToday": "No activity recorded yet today.",
+    "recentDays": "Last 7 days",
+    "refresh": "Refresh usage data",
+    "error": "Could not load usage: {{message}}"
   }
 }

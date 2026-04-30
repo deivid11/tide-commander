@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.85.0] - 2026-04-29
+
+### Added
+- **Claude usage snapshot endpoint and modal section** — new `GET /api/agents/:id/usage` route on the server (Claude agents only) backed by `claude-usage-service.ts`, which assembles the kind of data the Claude CLI's `/usage` slash command surfaces but read non-interactively from local sources. The `ContextViewModal` now lazily fetches and renders this snapshot when opened for a Claude agent, with stale-request guarding (`usageReqRef`) so rapid agent switches don't leak older responses, plus loading and error states. Codex/Opencode agents skip the section entirely. Frontend client lives in `src/packages/client/api/claude-usage.ts`
+
+### Changed
+- **`AgentOverviewPanel` styling refresh** — overview panel SCSS trimmed and component markup adjusted to match
+- **`FlatView` tweaks** — small render adjustments alongside the new context-modal usage section
+
+### Fixed
+- **Sidebar no longer auto-closes on desktop when selecting an agent** — `App.tsx` previously called `setSidebarOpen(false)` unconditionally after agent selection, collapsing the desktop sidebar on every click. Now gated behind `window.innerWidth <= 768` so only mobile collapses; desktop keeps the sidebar open
+
 ## [1.84.6] - 2026-04-29
 
 ### Fixed

@@ -464,7 +464,9 @@ function AppContent() {
     store.setLastSelectionViaDirectClick(true);
     store.selectAgent(agentId);
     store.setTerminalOpen(true);
-    setSidebarOpen(false);
+    if (window.innerWidth <= 768) {
+      setSidebarOpen(false);
+    }
   }, []);
 
   // Handle opening file explorer for an area
