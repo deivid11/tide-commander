@@ -20,6 +20,7 @@ import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js
 import { clearDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
 import { OpencodeBackend } from '../opencode/backend.js';
 import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled } from '../services/system-prompt-service.js';
+import { buildClaudeUsageSnapshot } from '../services/claude-usage-service.js';
 import { getBackupStatus, setBackupEnabled } from '../services/backup-service.js';
 import type { ServerMessage } from '../../shared/types.js';
 
@@ -806,6 +807,33 @@ router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
   }
 
   res.status(204).end();
+});
+
+// GET /api/agents/:id/usage - Claude usage snapshot for a single agent
+//
+// Mirrors what the Claude CLI's `/usage` slash command would surface — but
+// assembled from local data we can read non-interactively. See
+// services/claude-usage-service.ts for the rationale and source list.
+router.get('/:id/usage', (req: Request<{ id: string }>, res: Response) => {
+  const agent = agentService.getAgent(req.params.id);
+  if (!agent) {
+    res.status(404).json({ error: 'Agent not found' });
+    return;
+  }
+  if (agent.provider !== 'claude') {
+    res.status(400).json({
+      error: 'Usage data is only available for Claude agents',
+      provider: agent.provider,
+    });
+    return;
+  }
+  try {
+    const snapshot = buildClaudeUsageSnapshot(agent);
+    res.json(snapshot);
+  } catch (err: any) {
+    log.error('Failed to build Claude usage snapshot:', err);
+    res.status(500).json({ error: err?.message ?? 'Failed to build usage snapshot' });
+  }
 });
 
 // GET /api/agents/:id/sessions - List agent's sessions

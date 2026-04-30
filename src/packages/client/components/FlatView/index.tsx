@@ -499,7 +499,8 @@ const ChatView = React.memo(function ChatView({
     ? contextStats.usedPercent
     : Math.round((contextTotalTokens / contextWindow) * 100);
   const contextUsedPercent = Math.max(0, Math.min(100, contextUsedPercentRaw));
-  const contextFreePercent = Math.max(0, 100 - contextUsedPercent);
+  const contextUsedPercentDisplay = Math.round(contextUsedPercent * 10) / 10;
+  const contextFreePercentDisplay = Math.round((100 - contextUsedPercent) * 10) / 10;
   const contextColor =
     contextUsedPercent >= 80
       ? '#ff4a4a'
@@ -920,7 +921,7 @@ const ChatView = React.memo(function ChatView({
           onClick={() => store.setContextModalAgentId(agentId)}
           title={
             contextHasData
-              ? `Context usage: ${contextUsedK}k / ${contextLimitK}k tokens (${contextUsedPercent}% used). Click to view stats.`
+              ? `Context usage: ${contextUsedK}k / ${contextLimitK}k tokens (${contextUsedPercentDisplay}% used). Click to view stats.`
               : 'Click to fetch context stats'
           }
         >
@@ -940,7 +941,7 @@ const ChatView = React.memo(function ChatView({
           >
             {contextUsedK}k/{contextLimitK}k
           </span>
-          <span className="flat-terminal-wrapper__context-free">({contextFreePercent}% free)</span>
+          <span className="flat-terminal-wrapper__context-free">({contextFreePercentDisplay}% free)</span>
           {!contextHasData && (
             <span className="flat-terminal-wrapper__context-warning" title="No context stats yet">
               <Icon name="warn" size={12} />
@@ -2448,7 +2449,9 @@ export function FlatView({
                 activeAgentId={selectedAgentId ?? ''}
                 onSelectAgent={(agentId) => {
                   onAgentClick(agentId);
-                  handleCloseInspector();
+                  if (window.innerWidth <= 768) {
+                    handleCloseInspector();
+                  }
                 }}
               />
             ) : (() => {
@@ -2472,7 +2475,9 @@ export function FlatView({
                   agent={selectedAgent}
                   onFocusAgent={(agentId) => {
                     onAgentClick(agentId);
-                    handleCloseInspector();
+                    if (window.innerWidth <= 768) {
+                      handleCloseInspector();
+                    }
                   }}
                   onKillAgent={(agentId) => store.killAgent(agentId)}
                 />
