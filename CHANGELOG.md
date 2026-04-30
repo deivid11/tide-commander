@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.86.0] - 2026-04-30
+
+### Added
+- **`useAndroidBackButton` hook for native Android back-gesture handling** — new Capacitor-backed hook (`src/packages/client/hooks/useAndroidBackButton.ts`) that wires the system back gesture on Android APK builds. Handler returns `'handled'` to absorb the gesture or `'exit'` to call `App.exitApp()` and let the OS close the app. No-op on web. Adds the `@capacitor/app` dependency for the underlying listener
+- **FlatView routes Android back through its agent-history stack** — the back gesture now walks the same prev-agent stack the toolbar's Back button uses, falling back to `App.exitApp()` only when the stack is empty, so users get history navigation instead of an immediate app close
+
 ## [1.85.0] - 2026-04-29
 
 ### Added
