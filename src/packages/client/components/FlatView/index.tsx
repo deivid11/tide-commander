@@ -48,7 +48,7 @@ import { useWorkspaceFilter, isAgentVisibleInWorkspace, isAreaVisibleInWorkspace
 import type { ViewMode as TerminalViewMode } from '../ClaudeOutputPanel/types';
 import TerminalEmbed from '../TerminalEmbed';
 import { ViewModeToggle } from '../ViewModeToggle/ViewModeToggle';
-import { useTwoClickConfirm } from '../../hooks';
+import { useTwoClickConfirm, useAndroidBackButton } from '../../hooks';
 import {
   getStorageBoolean,
   setStorageBoolean,
@@ -1444,6 +1444,21 @@ export function FlatView({
 
   const handleNavigateBack = useCallback(() => navigateAgentHistory(-1), [navigateAgentHistory]);
   const handleNavigateForward = useCallback(() => navigateAgentHistory(1), [navigateAgentHistory]);
+
+  // Android system back gesture (Capacitor APK) routes through the same
+  // prev-agent stack the FlatView toolbar's Back button uses. When there's
+  // no previous agent in the stack, fall back to App.exitApp() so the OS
+  // closes the app like users expect. No-op on web. Forward gestures aren't
+  // exposed by Android, so only back is wired.
+  useAndroidBackButton(useCallback(() => {
+    const history = agentNavigationHistoryRef.current;
+    const index = agentNavigationIndexRef.current;
+    if (history.length > 0 && index > 0) {
+      navigateAgentHistory(-1);
+      return 'handled';
+    }
+    return 'exit';
+  }, [navigateAgentHistory]));
 
   const setFlatBrowserHistoryState = useCallback((agentId: string, mode: 'push' | 'replace') => {
     if (typeof window === 'undefined') return;
