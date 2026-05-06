@@ -54,6 +54,7 @@ export const gmailPlugin: IntegrationPlugin = {
         authMethod: 'oauth2',
         clientId: '',
         clientSecret: '',
+        redirectBaseUrl: '',
         serviceAccountJson: '',
         impersonateEmail: '',
         pollingIntervalMs: 30000,
@@ -66,6 +67,7 @@ export const gmailPlugin: IntegrationPlugin = {
       // Calendar and Drive integrations, which share these same secrets).
       clientId: integrationCtx.secrets.get('GOOGLE_CLIENT_ID') ? '********' : '',
       clientSecret: integrationCtx.secrets.get('GOOGLE_CLIENT_SECRET') ? '********' : '',
+      redirectBaseUrl: integrationCtx.secrets.get('GOOGLE_REDIRECT_BASE_URL') || '',
       serviceAccountJson: integrationCtx.secrets.get('GOOGLE_SERVICE_ACCOUNT_JSON') ? '********' : '',
       impersonateEmail: integrationCtx.secrets.get('GOOGLE_IMPERSONATE_EMAIL') || '',
       pollingIntervalMs: gmailClient.getConfig().pollingIntervalMs,
@@ -89,6 +91,11 @@ export const gmailPlugin: IntegrationPlugin = {
       updates.clientSecret = config.clientSecret as string;
       integrationCtx.secrets.set('GOOGLE_CLIENT_SECRET', config.clientSecret as string);
     }
+    if (config.redirectBaseUrl !== undefined) {
+      const value = String(config.redirectBaseUrl).trim();
+      updates.redirectBaseUrl = value;
+      integrationCtx.secrets.set('GOOGLE_REDIRECT_BASE_URL', value);
+    }
     if (config.serviceAccountJson && config.serviceAccountJson !== '********') {
       updates.serviceAccountJson = config.serviceAccountJson as string;
       integrationCtx.secrets.set('GOOGLE_SERVICE_ACCOUNT_JSON', config.serviceAccountJson as string);
@@ -110,8 +117,13 @@ export const gmailPlugin: IntegrationPlugin = {
 
     gmailClient.updateConfig(updates);
 
-    // Re-initialize authentication when auth method or credentials change
-    if (config.authMethod !== undefined || config.serviceAccountJson || config.clientId) {
+    // Re-initialize authentication when auth method, credentials, or redirect URL change
+    if (
+      config.authMethod !== undefined
+      || config.serviceAccountJson
+      || config.clientId
+      || config.redirectBaseUrl !== undefined
+    ) {
       gmailClient.shutdown();
       await gmailClient.init(integrationCtx);
     }

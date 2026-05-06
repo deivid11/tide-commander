@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.87.0] - 2026-05-05
+
+### Added
+- **Configurable OAuth redirect base URL for Google integrations** — Gmail, Calendar, and Drive now expose an "OAuth Redirect Base URL" field in their OAuth setup screens. The value is stored in a single shared secret (`GOOGLE_REDIRECT_BASE_URL`) used by all three integrations when constructing the `redirect_uri` for Google's auth and token-exchange endpoints, so a non-localhost commander (VPN box, headless server, hosts-file domain alias) can complete the consent flow without a `redirect_uri_mismatch` error from Google's token endpoint. Empty value preserves the existing `http://localhost:<port>` default. The displayed redirect URI hint in the OAuth UI now reflects the override when set, per integration callback path. Google does not accept raw IPs, so a domain (e.g. `commander.local` mapped in `/etc/hosts`) is required when accessing the commander outside localhost
+
+### Changed
+- **Google integrations re-initialize their OAuth client on credential or redirect-URL change** — Calendar and Drive plugins' `setConfig` now call `shutdown()` + `init()` when `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, or `GOOGLE_REDIRECT_BASE_URL` changes, so a cached `oauth2Client` from a prior session is recreated with the new redirect URI on the next auth flow. `shutdown()` for both clients now also resets `oauth2Client = null` (previously only cleared the API handle)
+
 ## [1.86.0] - 2026-04-30
 
 ### Added

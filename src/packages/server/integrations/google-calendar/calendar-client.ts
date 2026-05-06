@@ -80,7 +80,7 @@ export async function init(integrationCtx: IntegrationContext): Promise<void> {
     return;
   }
 
-  oauth2Client = new google.auth.OAuth2(clientId, clientSecret, `${ctx.serverConfig.baseUrl}${REDIRECT_PATH}`);
+  oauth2Client = new google.auth.OAuth2(clientId, clientSecret, getRedirectUri());
   oauth2Client.setCredentials({ refresh_token: refreshToken });
 
   calendarApi = google.calendar({ version: 'v3', auth: oauth2Client });
@@ -89,6 +89,7 @@ export async function init(integrationCtx: IntegrationContext): Promise<void> {
 
 export async function shutdown(): Promise<void> {
   calendarApi = null;
+  oauth2Client = null;
 }
 
 // ─── Status ───
@@ -322,6 +323,13 @@ const REDIRECT_PATH = '/api/calendar/auth/callback'; // Calendar's own callback
 
 let oauth2Client: InstanceType<typeof google.auth.OAuth2> | null = null;
 
+function getRedirectUri(): string {
+  if (!ctx) throw new Error('Google Calendar not initialized');
+  const override = ctx.secrets.get('GOOGLE_REDIRECT_BASE_URL')?.trim();
+  const base = (override || ctx.serverConfig.baseUrl).replace(/\/$/, '');
+  return `${base}${REDIRECT_PATH}`;
+}
+
 export function getAuthUrl(): string {
   if (!oauth2Client) {
     const clientId = ctx?.secrets.get('GOOGLE_CLIENT_ID');
@@ -332,7 +340,7 @@ export function getAuthUrl(): string {
     oauth2Client = new google.auth.OAuth2(
       clientId,
       clientSecret,
-      `${ctx.serverConfig.baseUrl}${REDIRECT_PATH}`
+      getRedirectUri()
     );
   }
   return oauth2Client.generateAuthUrl({

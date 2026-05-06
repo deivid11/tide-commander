@@ -25,6 +25,9 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
     (integration.values.GOOGLE_CLIENT_ID as string) || ''
   );
   const [clientSecret, setClientSecret] = useState('');
+  const [redirectBaseUrl, setRedirectBaseUrl] = useState(
+    (integration.values.GOOGLE_REDIRECT_BASE_URL as string) || ''
+  );
   const [authUrl, setAuthUrl] = useState<string | null>(null);
   const [authStatus, setAuthStatus] = useState<GoogleAuthStatus | null>(null);
   const [loading, setLoading] = useState(false);
@@ -126,7 +129,9 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
     setError(null);
 
     try {
-      const config: Record<string, unknown> = {};
+      const config: Record<string, unknown> = {
+        GOOGLE_REDIRECT_BASE_URL: redirectBaseUrl.trim(),
+      };
       // Only send the Client ID if it was changed (not the '********' placeholder)
       if (clientId.trim() && clientId.trim() !== '********') {
         config.GOOGLE_CLIENT_ID = clientId.trim();
@@ -210,11 +215,15 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
                 </a>
                 . Enable the relevant API (Gmail, Calendar, or Drive). Set the redirect URI to:{' '}
                 <code className="google-oauth-code">
-                  {apiUrl(
-                    integration.id === 'gmail' ? '/api/email/auth/callback' :
-                    integration.id === 'google-drive' ? '/api/drive/auth/callback' :
-                    '/api/calendar/auth/callback'
-                  )}
+                  {(() => {
+                    const path = integration.id === 'gmail' ? '/api/email/auth/callback' :
+                      integration.id === 'google-drive' ? '/api/drive/auth/callback' :
+                      '/api/calendar/auth/callback';
+                    const trimmed = redirectBaseUrl.trim();
+                    return trimmed
+                      ? `${trimmed.replace(/\/$/, '')}${path}`
+                      : apiUrl(path);
+                  })()}
                 </code>
               </p>
 
@@ -243,6 +252,25 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
                   onChange={(e) => setClientSecret(e.target.value)}
                   autoComplete="off"
                 />
+              </div>
+
+              <div className="google-oauth-field">
+                <label className="integration-field-label">
+                  OAuth Redirect Base URL
+                </label>
+                <input
+                  type="text"
+                  className="integration-field-input"
+                  value={redirectBaseUrl}
+                  placeholder="http://localhost:6200"
+                  onChange={(e) => setRedirectBaseUrl(e.target.value)}
+                  autoComplete="off"
+                />
+                <span className="integration-field-description" style={{ display: 'block', marginTop: 7, color: '#7f849c', fontSize: 12 }}>
+                  Override the base URL used to build the OAuth redirect (e.g. <code>http://commander.local:10003</code>).
+                  Shared across Gmail, Calendar, and Drive. Leave empty to use the server&apos;s local address.
+                  Google does not accept raw IPs — use a domain (you can map one in <code>/etc/hosts</code>).
+                </span>
               </div>
 
               <div className="integration-form-actions">

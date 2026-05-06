@@ -95,7 +95,7 @@ export async function init(context: IntegrationContext): Promise<void> {
     oauth2Client = new google.auth.OAuth2(
       config.clientId,
       config.clientSecret,
-      `${ctx.serverConfig.baseUrl}${REDIRECT_PATH}`
+      getRedirectUri()
     );
 
     // Load refresh token from secrets
@@ -126,15 +126,23 @@ function loadConfig(): void {
   const refreshToken = ctx.secrets.get('GOOGLE_REFRESH_TOKEN');
   const serviceAccountJson = ctx.secrets.get('GOOGLE_SERVICE_ACCOUNT_JSON') || undefined;
   const impersonateEmail = ctx.secrets.get('GOOGLE_IMPERSONATE_EMAIL') || undefined;
+  const redirectBaseUrl = ctx.secrets.get('GOOGLE_REDIRECT_BASE_URL') || undefined;
 
   config = {
     ...config,
     clientId,
     clientSecret,
+    redirectBaseUrl,
     refreshToken: refreshToken || undefined,
     serviceAccountJson,
     impersonateEmail,
   };
+}
+
+function getRedirectUri(): string {
+  if (!ctx) throw new Error('Gmail not initialized');
+  const base = (config.redirectBaseUrl?.trim() || ctx.serverConfig.baseUrl).replace(/\/$/, '');
+  return `${base}${REDIRECT_PATH}`;
 }
 
 export function updateConfig(updates: Partial<GmailConfig>): void {
@@ -148,6 +156,11 @@ export function updateConfig(updates: Partial<GmailConfig>): void {
   if (updates.clientSecret !== undefined) {
     config.clientSecret = updates.clientSecret;
     ctx?.secrets.set('GOOGLE_CLIENT_SECRET', updates.clientSecret);
+  }
+  if (updates.redirectBaseUrl !== undefined) {
+    const trimmed = updates.redirectBaseUrl.trim();
+    config.redirectBaseUrl = trimmed || undefined;
+    ctx?.secrets.set('GOOGLE_REDIRECT_BASE_URL', trimmed);
   }
   if (updates.serviceAccountJson !== undefined) {
     config.serviceAccountJson = updates.serviceAccountJson;
@@ -206,7 +219,7 @@ export function getAuthUrl(): string {
     oauth2Client = new google.auth.OAuth2(
       config.clientId,
       config.clientSecret,
-      `${ctx.serverConfig.baseUrl}${REDIRECT_PATH}`
+      getRedirectUri()
     );
   }
   return oauth2Client.generateAuthUrl({
