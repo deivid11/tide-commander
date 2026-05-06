@@ -65,6 +65,16 @@ export const googleDrivePlugin: IntegrationPlugin = {
   async setConfig(config: Record<string, unknown>) {
     if (!integrationCtx) throw new Error('Google Drive not initialized');
     await setConfigValues(config, integrationCtx.secrets);
+
+    // Re-initialize so any cached oauth2Client picks up new credentials or redirect URL.
+    if (
+      config.GOOGLE_CLIENT_ID !== undefined
+      || config.GOOGLE_CLIENT_SECRET !== undefined
+      || config.GOOGLE_REDIRECT_BASE_URL !== undefined
+    ) {
+      await driveClient.shutdown();
+      await driveClient.init(integrationCtx);
+    }
   },
 
   getCustomSettingsComponent() {

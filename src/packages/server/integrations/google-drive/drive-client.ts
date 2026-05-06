@@ -180,6 +180,13 @@ const REDIRECT_PATH = '/api/drive/auth/callback';
 
 let oauth2Client: InstanceType<typeof google.auth.OAuth2> | null = null;
 
+function getRedirectUri(): string {
+  if (!ctx) throw new Error('Google Drive not initialized');
+  const override = ctx.secrets.get('GOOGLE_REDIRECT_BASE_URL')?.trim();
+  const base = (override || ctx.serverConfig.baseUrl).replace(/\/$/, '');
+  return `${base}${REDIRECT_PATH}`;
+}
+
 // ─── Init / Shutdown ───
 
 export async function init(integrationCtx: IntegrationContext): Promise<void> {
@@ -200,7 +207,7 @@ export async function init(integrationCtx: IntegrationContext): Promise<void> {
     return;
   }
 
-  oauth2Client = new google.auth.OAuth2(clientId, clientSecret, `${ctx.serverConfig.baseUrl}${REDIRECT_PATH}`);
+  oauth2Client = new google.auth.OAuth2(clientId, clientSecret, getRedirectUri());
   oauth2Client.setCredentials({ refresh_token: refreshToken });
 
   driveApi = google.drive({ version: 'v3', auth: oauth2Client });
@@ -211,6 +218,7 @@ export async function init(integrationCtx: IntegrationContext): Promise<void> {
 export async function shutdown(): Promise<void> {
   driveApi = null;
   docsApi = null;
+  oauth2Client = null;
 }
 
 // ─── Status ───
@@ -247,7 +255,7 @@ export function getAuthUrl(): string {
     oauth2Client = new google.auth.OAuth2(
       clientId,
       clientSecret,
-      `${ctx.serverConfig.baseUrl}${REDIRECT_PATH}`
+      getRedirectUri()
     );
   }
   return oauth2Client.generateAuthUrl({

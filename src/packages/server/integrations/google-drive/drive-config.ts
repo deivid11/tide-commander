@@ -108,6 +108,14 @@ export const driveConfigSchema: ConfigField[] = [
     group: 'Authentication',
   },
   {
+    key: 'GOOGLE_REDIRECT_BASE_URL',
+    label: 'OAuth Redirect Base URL',
+    type: 'text',
+    description: 'Override the base URL used for the OAuth redirect (e.g. http://commander.local:10003). Leave empty to use http://localhost:<port>. Shared with Gmail/Calendar. Google does not accept raw IPs — use a domain (you can map one in /etc/hosts).',
+    required: false,
+    group: 'Authentication',
+  },
+  {
     key: 'defaultFolderId',
     label: 'Default Folder ID',
     type: 'text',
@@ -127,6 +135,7 @@ export function getConfigValues(secrets: { get: (key: string) => string | undefi
     GOOGLE_CLIENT_ID: secrets.get('GOOGLE_CLIENT_ID') ? '********' : '',
     GOOGLE_CLIENT_SECRET: secrets.get('GOOGLE_CLIENT_SECRET') ? '********' : '',
     GOOGLE_REFRESH_TOKEN: secrets.get('GOOGLE_REFRESH_TOKEN') ? '********' : '',
+    GOOGLE_REDIRECT_BASE_URL: secrets.get('GOOGLE_REDIRECT_BASE_URL') || '',
   };
 }
 
@@ -140,6 +149,11 @@ export async function setConfigValues(
     if (typeof val === 'string' && val && val !== '********') {
       secrets.set(key, val);
     }
+  }
+
+  // Redirect base URL is shared but not masked — write it whenever it's provided (empty string clears it).
+  if (typeof values.GOOGLE_REDIRECT_BASE_URL === 'string') {
+    secrets.set('GOOGLE_REDIRECT_BASE_URL', values.GOOGLE_REDIRECT_BASE_URL.trim());
   }
 
   // Handle non-secret config

@@ -38,6 +38,14 @@ export const gmailConfigSchema: ConfigField[] = [
     group: 'Authentication',
   },
   {
+    key: 'redirectBaseUrl',
+    label: 'OAuth Redirect Base URL',
+    type: 'text',
+    description: 'Override the base URL used for the OAuth redirect (e.g. http://commander.local:10003). Leave empty to use http://localhost:<port>. Google does not accept raw IPs — use a domain (you can map one in /etc/hosts).',
+    required: false,
+    group: 'Authentication',
+  },
+  {
     key: 'serviceAccountJson',
     label: 'Service Account JSON',
     type: 'textarea',
@@ -78,6 +86,7 @@ export interface GmailConfig {
   authMethod: 'oauth2' | 'service_account';
   clientId: string;
   clientSecret: string;
+  redirectBaseUrl?: string;
   refreshToken?: string;
   serviceAccountJson?: string;
   impersonateEmail?: string;

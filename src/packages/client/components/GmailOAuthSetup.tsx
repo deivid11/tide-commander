@@ -39,6 +39,9 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
     (integration.values.clientId as string) || ''
   );
   const [clientSecret, setClientSecret] = useState('');
+  const [redirectBaseUrl, setRedirectBaseUrl] = useState(
+    (integration.values.redirectBaseUrl as string) || ''
+  );
 
   // Service Account fields
   const [serviceAccountJson, setServiceAccountJson] = useState('');
@@ -165,6 +168,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
     try {
       const config: Record<string, unknown> = {
         authMethod: 'oauth2',
+        redirectBaseUrl: redirectBaseUrl.trim(),
         pollingIntervalMs: parseInt(pollingInterval) || 30000,
         defaultApprovalKeywords: approvalKeywords,
       };
@@ -360,7 +364,9 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
                 </a>
                 . Enable the Gmail API and (optionally) the Calendar API. Set the redirect URI to:{' '}
                 <code className="gmail-oauth-code">
-                  {apiUrl('/api/email/auth/callback')}
+                  {redirectBaseUrl.trim()
+                    ? `${redirectBaseUrl.trim().replace(/\/$/, '')}/api/email/auth/callback`
+                    : apiUrl('/api/email/auth/callback')}
                 </code>
               </p>
 
@@ -389,6 +395,25 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
                   onChange={(e) => setClientSecret(e.target.value)}
                   autoComplete="off"
                 />
+              </div>
+
+              <div className="gmail-oauth-field">
+                <label className="integration-field-label">
+                  OAuth Redirect Base URL
+                </label>
+                <input
+                  type="text"
+                  className="integration-field-input"
+                  value={redirectBaseUrl}
+                  placeholder="http://localhost:6200"
+                  onChange={(e) => setRedirectBaseUrl(e.target.value)}
+                  autoComplete="off"
+                />
+                <span className="integration-field-description">
+                  Override the base URL used to build the OAuth redirect (e.g. <code>http://commander.local:10003</code>).
+                  Leave empty to use the server&apos;s local address. Google does not accept raw IPs — use a domain
+                  (you can map one in <code>/etc/hosts</code>).
+                </span>
               </div>
             </>
           )}
