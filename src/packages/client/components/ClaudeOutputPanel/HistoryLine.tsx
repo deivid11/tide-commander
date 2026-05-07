@@ -16,6 +16,8 @@ import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { createMarkdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay } from './BossContext';
+import { parseWhatsAppMessage, WhatsAppMessageBubble } from './WhatsAppMessageBubble';
+import { parseEmailMessage, GmailMessageBubble } from './GmailMessageBubble';
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, ToolSearchInput, isToolSearchContent } from './ToolRenderers';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
@@ -901,6 +903,30 @@ export const HistoryLine = memo(function HistoryLine({
                 )}
               </span>
             )}
+          </span>
+        </div>
+      );
+    }
+
+    const whatsAppMsg = parseWhatsAppMessage(displayMessage);
+    if (whatsAppMsg) {
+      return (
+        <div className={`${className} history-user-whatsapp`}>
+          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+          <span className="history-content">
+            <WhatsAppMessageBubble msg={whatsAppMsg} />
+          </span>
+        </div>
+      );
+    }
+
+    const emailMsg = parseEmailMessage(displayMessage);
+    if (emailMsg) {
+      return (
+        <div className={`${className} history-user-gmail`}>
+          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+          <span className="history-content">
+            <GmailMessageBubble msg={emailMsg} />
           </span>
         </div>
       );

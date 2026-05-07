@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.88.0] - 2026-05-06
+
+### Added
+- **Database buildings now support SSH tunnels** — new SSH tunnel service manages jump-host forwarding for database connections, with encrypted credential storage (passwords, private keys, passphrases) at rest. The `SSHTunnelConfig` type (in `database-types.ts`) configures jump-host auth via password or key-based methods, local-port binding, and connection timeouts. Database connection pool factories (`getMySQLPool`, `getPgPool`, etc.) resolve endpoints through the tunnel when enabled. Server-side `test_database_connection_transient` WS handler lets you test unsaved connections with inline SSH config before persisting to a building. `buildingService.handleBuildingSync()` tears down tunnels when database buildings or their connections are deleted or materially changed. New builtin `explore-database` skill and `/api/database/*` REST routes expose database exploration
+- **WhatsApp message triggers** — new `whatsappTriggerHandler` registers as a real trigger-service handler with filtering by sender JID, body regex, direction (inbound/outbound/any), group/DM toggle, specific session ID, and opt-in status-update capture. Bridge emits events into trigger evaluation via `notifyTriggerSubscribers()`. Client renders incoming/outbound WhatsApp messages as chat bubbles (`WhatsAppMessageBubble`, `_whatsapp.scss`) instead of plain text
+- **Gmail message direction tagging** — `gmail-trigger-handler.ts` now extracts `email.direction` (outbound if SENT label, else inbound) and `email.labels` as trigger variables; direction appears in the LLM-facing prompt format. Client renders Gmail messages as collapsible email cards with quoted-thread tail hidden by default (`GmailMessageBubble`, `_gmail.scss`)
+- **Message bubble rendering in output panels** — both `OutputLine` and `HistoryLine` parse incoming WhatsApp and Gmail user prompts and render them as rich message bubbles, matching the integration's semantic intent
+- **Area context menu** — right-click on an area in 3D/2D/FlatView to open a context menu with Spawn Boss and Place Building actions, mirroring agent and building context menus
+
+### Changed
+- **History + live output chronological merge** — `VirtualizedOutputList` now sorts history and live outputs by canonical timestamp ascending (UUID as tiebreaker), then renders from a single merged array instead of concatenating separate blocks. Fixes timeline visibility when live events arrive before the latest persisted history entry. Stable per-item keys preserve virtualizer row-height caches across reorders
+- **Live output deduplication simplified** — `useHistoryLoader.ts` now dedupes solely by UUID presence in history; timestamp-based pruning removed because it silently killed optimistic UI updates when an earlier JSONL entry changed the latest history timestamp. Added `sortOutputsChronologically()` utility for explicit sorting
+- **Database connection UI overhaul** — `DatabaseConfigPanel` refactored with per-connection inline test results (idle/testing/success/error with 30s timeout), SSH config panel with auth method toggle (password vs. private key/file), and helper methods for cleaner updates. Connection host placeholder changes based on SSH state (127.0.0.1 when tunneling, localhost otherwise)
+- **Database building style default** — new database buildings now default to "filing-cabinet" style instead of "server-rack" for better visual distinction from boss/agent servers
+- **Agent card active-state styling** — `.aop-agent-card.active` now displays a full inset glow (tinted background + colored border + shadow) instead of minimal mixed color; `.active.boss` includes a gold tint overlay. Stopped cards gain the same glow treatment
+- **File path resolution fallbacks** — `files.ts` now implements `findFileWithFallbacks()` to recover stale absolute paths and relative-path targets by walking the path tail up the directory tree (bounded to 12 levels), with an LRU cache (max 500) to avoid re-searching the same request
+- **WhatsApp in trigger type selector** — `TriggerManagerPanel` now lists WhatsApp as a selectable trigger type
+- **Dependency updates** — added `ssh2` for SSH tunnel support
+
+### Fixed
+- **Agent card selection visibility** — active area cards now display clear orange highlight + shadow (previously faint blended color was hard to discern)
+
 ## [1.87.0] - 2026-05-05
 
 ### Added

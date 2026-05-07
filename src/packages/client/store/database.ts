@@ -4,7 +4,7 @@
  * Handles database building state: connections, queries, results, history.
  */
 
-import type { ClientMessage, QueryResult, QueryHistoryEntry, TableInfo, TableColumn, TableIndex, ForeignKey } from '../../shared/types';
+import type { ClientMessage, QueryResult, QueryHistoryEntry, TableInfo, TableColumn, TableIndex, ForeignKey, DatabaseConnection } from '../../shared/types';
 import type { StoreState, DatabaseBuildingState } from './types';
 
 // Default empty database state
@@ -26,6 +26,7 @@ function createEmptyDatabaseState(): DatabaseBuildingState {
 export interface DatabaseActions {
   // Connection management
   testDatabaseConnection(buildingId: string, connectionId: string): void;
+  testDatabaseConnectionTransient(requestId: string, connection: DatabaseConnection): void;
   setConnectionStatus(buildingId: string, connectionId: string, status: { connected: boolean; error?: string; serverVersion?: string }): void;
 
   // Database/Table listing
@@ -88,6 +89,13 @@ export function createDatabaseActions(
       getSendMessage()?.({
         type: 'test_database_connection',
         payload: { buildingId, connectionId },
+      });
+    },
+
+    testDatabaseConnectionTransient(requestId: string, connection: DatabaseConnection): void {
+      getSendMessage()?.({
+        type: 'test_database_connection_transient',
+        payload: { requestId, connection },
       });
     },
 

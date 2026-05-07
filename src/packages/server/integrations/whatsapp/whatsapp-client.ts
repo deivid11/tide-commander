@@ -108,6 +108,70 @@ export class WhatsAppClient {
     return Array.isArray(data) ? data : [];
   }
 
+  async syncChatMessages(
+    sessionId: string,
+    chatId: string,
+    count = 50,
+  ): Promise<{
+    sessionId: string;
+    chatId: string;
+    requestId?: string;
+    before: number;
+    after: number;
+    added: number;
+    arrivedInPayload?: number;
+    syncType?: number | null;
+    usedRealAnchor?: boolean;
+  }> {
+    return this.request<{
+      sessionId: string;
+      chatId: string;
+      requestId?: string;
+      before: number;
+      after: number;
+      added: number;
+      arrivedInPayload?: number;
+      syncType?: number | null;
+      usedRealAnchor?: boolean;
+    }>(
+      'POST',
+      `/api/sessions/${encodeURIComponent(sessionId)}/chats/${encodeURIComponent(chatId)}/sync-messages?count=${encodeURIComponent(String(count))}`,
+      {},
+    );
+  }
+
+  async syncContacts(sessionId: string): Promise<{
+    sessionId: string;
+    before: number;
+    after: number;
+    added: number;
+    collections?: string[];
+  }> {
+    return this.request<{
+      sessionId: string;
+      before: number;
+      after: number;
+      added: number;
+      collections?: string[];
+    }>(
+      'POST',
+      `/api/sessions/${encodeURIComponent(sessionId)}/sync-contacts`,
+      {},
+    );
+  }
+
+  async getChatMessages(
+    sessionId: string,
+    chatId: string,
+    limit = 50,
+  ): Promise<unknown[]> {
+    const data = await this.request<unknown[]>(
+      'GET',
+      `/api/sessions/${encodeURIComponent(sessionId)}/chats/${encodeURIComponent(chatId)}/messages?limit=${encodeURIComponent(String(limit))}`,
+    );
+    return Array.isArray(data) ? data : [];
+  }
+
   async sendMediaUrl(
     sessionId: string,
     to: string,

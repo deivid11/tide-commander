@@ -1,0 +1,358 @@
+// =============================================================================
+// Guake Terminal - Gmail email card
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Strip the parent .output-user / .history-user chrome for the same reason
+// the WhatsApp partial does — our card brings its own background, padding,
+// and shadow.
+.output-user-gmail,
+.history-user-gmail {
+  background: transparent !important;
+  border: none !important;
+  border-left: none !important;
+  padding: 4px 0 !important;
+  margin: 4px 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+
+  &::before,
+  &::after {
+    display: none !important;
+    content: none !important;
+  }
+
+  > .history-content {
+    display: block;
+    width: 100%;
+    color: inherit;
+  }
+}
+
+.gmail-bubble-row {
+  display: flex;
+  width: 100%;
+  margin: 4px 0;
+
+  &.gmail-outbound {
+    justify-content: flex-end;
+
+    .gmail-bubble {
+      background: color-mix(in srgb, var(--accent-blue) 10%, var(--bg-primary));
+      border-color: color-mix(in srgb, var(--accent-blue) 38%, transparent);
+    }
+  }
+
+  &.gmail-inbound {
+    justify-content: flex-start;
+
+    .gmail-bubble {
+      background: var(--msg-user-bg);
+      border-color: var(--msg-user-border);
+    }
+  }
+}
+
+.gmail-bubble {
+  width: min(92%, 720px);
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gmail-bubble-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.gmail-bubble-icon {
+  display: inline-flex;
+  align-items: center;
+  color: color-mix(in srgb, var(--accent-red) 70%, var(--text-primary));
+}
+
+.gmail-bubble-direction {
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-weight: 700;
+  font-size: 9.5px;
+  color: color-mix(in srgb, var(--accent-blue) 80%, var(--text-primary));
+}
+
+.gmail-bubble-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent-purple) 16%, transparent);
+  color: color-mix(in srgb, var(--accent-purple) 86%, var(--text-primary));
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.gmail-bubble-date {
+  margin-left: auto;
+  font-family: $font-mono;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.gmail-bubble-subject {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.gmail-bubble-people {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gmail-bubble-person {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.gmail-bubble-avatar {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--text-primary);
+}
+
+.gmail-bubble-avatar-from {
+  background: color-mix(in srgb, var(--accent-blue) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 55%, transparent);
+}
+
+.gmail-bubble-avatar-to {
+  background: color-mix(in srgb, var(--accent-cyan) 24%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 55%, transparent);
+}
+
+.gmail-bubble-arrow {
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+}
+
+.gmail-bubble-person-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.gmail-bubble-person-role {
+  font-size: 9px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.gmail-bubble-person-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gmail-bubble-person-email {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gmail-bubble-attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gmail-bubble-attachments-toggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: color-mix(in srgb, var(--accent-orange) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-orange) 35%, transparent);
+  color: color-mix(in srgb, var(--accent-orange) 85%, var(--text-primary));
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-orange) 22%, transparent);
+  }
+}
+
+.gmail-bubble-attachments-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-left: 4px;
+}
+
+.gmail-bubble-attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-family: $font-mono;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text-secondary);
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gmail-bubble-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-primary);
+  font-size: 12.5px;
+  line-height: 1.5;
+  border-top: 1px dashed color-mix(in srgb, var(--text-muted) 35%, transparent);
+  padding-top: 8px;
+}
+
+.gmail-bubble-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.gmail-bubble-link {
+  color: color-mix(in srgb, var(--accent-blue) 80%, var(--text-primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+
+  &:hover {
+    color: var(--accent-blue);
+  }
+}
+
+.gmail-bubble-more-btn {
+  margin-top: 6px;
+  display: inline-block;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 45%, transparent);
+  color: color-mix(in srgb, var(--accent-blue) 90%, var(--text-primary));
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-blue) 14%, transparent);
+  }
+}
+
+.gmail-bubble-quoted {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gmail-bubble-quoted-toggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
+  color: var(--text-muted);
+  font-size: 10.5px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-primary);
+    border-color: color-mix(in srgb, var(--text-muted) 60%, transparent);
+  }
+}
+
+.gmail-bubble-quoted-body {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 2px solid color-mix(in srgb, var(--text-muted) 35%, transparent);
+  background: color-mix(in srgb, var(--text-muted) 6%, transparent);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  line-height: 1.5;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.gmail-bubble-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 9.5px;
+  color: var(--text-muted);
+}
+
+.gmail-bubble-brand {
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-weight: 700;
+  font-size: 9px;
+  color: color-mix(in srgb, var(--accent-red) 65%, var(--text-primary));
+}
+
+.gmail-bubble-thread {
+  font-family: $font-mono;
+  font-size: 9.5px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+}

@@ -13,6 +13,24 @@ export const DATABASE_ENGINES: Record<DatabaseEngine, { label: string; icon: str
   mssql: { label: 'SQL Server', icon: '🔷', defaultPort: 1433 },
 };
 
+// SSH tunnel authentication method
+export type SSHAuthMethod = 'password' | 'privateKey';
+
+// SSH tunnel configuration (used to forward DB traffic through a jump host)
+export interface SSHTunnelConfig {
+  enabled: boolean;
+  host: string;                    // SSH server (jump host) hostname / IP
+  port: number;                    // SSH port (default 22)
+  username: string;                // SSH username
+  authMethod: SSHAuthMethod;       // 'password' or 'privateKey'
+  password?: string;               // Used when authMethod === 'password' OR as privateKey passphrase
+  privateKey?: string;             // PEM-formatted private key contents (inline)
+  privateKeyPath?: string;         // Path to a private key file on disk (alternative to inline)
+  passphrase?: string;             // Passphrase for an encrypted private key
+  localPort?: number;              // Optional fixed local forwarded port (auto-assigned if omitted)
+  keepaliveIntervalMs?: number;    // Optional keepalive (default 10000)
+  readyTimeoutMs?: number;         // Optional connect timeout (default 20000)
+}
 // Database connection configuration
 export interface DatabaseConnection {
   id: string;
@@ -31,6 +49,10 @@ export interface DatabaseConnection {
     cert?: string;                 // Client certificate
     key?: string;                  // Client key
   };
+  // Optional SSH tunnel: when ssh.enabled is true, traffic to host:port is forwarded
+  // through the SSH server. host/port still represent the DB target as seen FROM the
+  // SSH server (often 'localhost'/127.0.0.1 + the DB's native port).
+  ssh?: SSHTunnelConfig;
 }
 
 // Full database building configuration

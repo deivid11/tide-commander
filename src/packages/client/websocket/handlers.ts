@@ -858,14 +858,23 @@ export function handleServerMessage(message: ServerMessage): void {
     // ========================================================================
 
     case 'database_connection_result': {
-      const { buildingId, connectionId, success, error, serverVersion } = message.payload as {
+      const { buildingId, connectionId, requestId, success, error, serverVersion } = message.payload as {
         buildingId: string;
         connectionId: string;
+        requestId?: string;
         success: boolean;
         error?: string;
         serverVersion?: string;
       };
-      store.setConnectionStatus(buildingId, connectionId, { connected: success, error, serverVersion });
+      // Transient (unsaved) connection tests carry a requestId and no buildingId.
+      // Hand them off via a window event so the modal can resolve its pending test.
+      if (requestId) {
+        window.dispatchEvent(new CustomEvent('tide:db-test-result', {
+          detail: { requestId, connectionId, success, error, serverVersion },
+        }));
+      } else {
+        store.setConnectionStatus(buildingId, connectionId, { connected: success, error, serverVersion });
+      }
       console.log(`[WebSocket] Database connection ${success ? 'succeeded' : 'failed'}: ${connectionId}`);
       break;
     }

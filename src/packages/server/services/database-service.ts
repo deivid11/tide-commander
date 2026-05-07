@@ -20,6 +20,13 @@ import type {
   TableInfo,
 } from '../../shared/types.js';
 import { loadQueryHistory, saveQueryHistory } from '../data/index.js';
+import {
+  getOrCreateTunnel,
+  closeTunnel,
+  closeAllTunnels,
+  openTransientTunnel,
+  closeTunnelHandle,
+} from './ssh-tunnel-service.js';
 
 // Connection pool storage
 const mysqlPools = new Map<string, mysql.Pool>();
@@ -41,6 +48,26 @@ function getConnectionKey(connection: DatabaseConnection, database?: string): st
 }
 
 /**
+ * Resolve the effective network endpoint for a connection. When an SSH tunnel
+ * is enabled, this brings up (or reuses) the tunnel and returns the local
+ * forwarded host:port. Otherwise it returns the connection's own host:port.
+ */
+async function resolveEndpoint(
+  connection: DatabaseConnection
+): Promise<{ host: string; port: number }> {
+  if (!connection.ssh?.enabled) {
+    return { host: connection.host, port: connection.port };
+  }
+  const tunnel = await getOrCreateTunnel(
+    connection.id,
+    connection.ssh,
+    connection.host,
+    connection.port
+  );
+  return { host: tunnel.localHost, port: tunnel.localPort };
+}
+
+/**
  * Get or create a MySQL connection pool
  */
 async function getMySQLPool(connection: DatabaseConnection, database?: string): Promise<mysql.Pool> {
@@ -50,9 +77,10 @@ async function getMySQLPool(connection: DatabaseConnection, database?: string): 
     return mysqlPools.get(key)!;
   }
 
+  const endpoint = await resolveEndpoint(connection);
   const pool = mysql.createPool({
-    host: connection.host,
-    port: connection.port,
+    host: endpoint.host,
+    port: endpoint.port,
     user: connection.username,
     password: connection.password,
     database: database || connection.database,
@@ -83,9 +111,10 @@ async function getPgPool(connection: DatabaseConnection, database?: string): Pro
     return pgPools.get(key)!;
   }
 
+  const endpoint = await resolveEndpoint(connection);
   const pool = new pg.Pool({
-    host: connection.host,
-    port: connection.port,
+    host: endpoint.host,
+    port: endpoint.port,
     user: connection.username,
     password: connection.password,
     database: database || connection.database || 'postgres',
@@ -123,7 +152,8 @@ async function getOraclePool(connection: DatabaseConnection): Promise<oracledb.P
   // Format: host:port/serviceName
   // The service name comes from connection.database (e.g., ORCLPDB1)
   const serviceName = connection.database || 'ORCL';
-  const connectString = `${connection.host}:${connection.port}/${serviceName}`;
+  const endpoint = await resolveEndpoint(connection);
+  const connectString = `${endpoint.host}:${endpoint.port}/${serviceName}`;
 
   const pool = await oracledb.createPool({
     user: connection.username,
@@ -174,9 +204,10 @@ async function getMSSQLPool(connection: DatabaseConnection, database?: string): 
     mssqlPools.delete(key);
   }
 
+  const endpoint = await resolveEndpoint(connection);
   const config: mssql.config = {
-    server: connection.host,
-    port: connection.port,
+    server: endpoint.host,
+    port: endpoint.port,
     user: connection.username,
     password: connection.password,
     database: database || connection.database,
@@ -197,11 +228,42 @@ async function getMSSQLPool(connection: DatabaseConnection, database?: string): 
 }
 
 /**
- * Test a database connection
+ * Test a database connection. If the connection is transient (no persisted
+ * building owns it yet) any SSH tunnel opened during the test is torn down
+ * before returning.
  */
 export async function testConnection(
-  connection: DatabaseConnection
+  connection: DatabaseConnection,
+  options: { transient?: boolean } = {}
 ): Promise<{ success: boolean; error?: string; serverVersion?: string }> {
+  // When transient + SSH-enabled, run the entire test through a one-shot
+  // tunnel that's discarded immediately. Avoids leaving a tunnel open for an
+  // unsaved building.
+  if (options.transient && connection.ssh?.enabled) {
+    let handle;
+    try {
+      handle = await openTransientTunnel(
+        connection.ssh,
+        connection.host,
+        connection.port
+      );
+      const localizedConnection: DatabaseConnection = {
+        ...connection,
+        host: handle.localHost,
+        port: handle.localPort,
+        ssh: undefined,
+      };
+      return await testConnection(localizedConnection, { transient: false });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown SSH error';
+      return { success: false, error: `SSH tunnel failed: ${message}` };
+    } finally {
+      if (handle) {
+        try { await closeTunnelHandle(handle); } catch { /* ignore */ }
+      }
+    }
+  }
+
   try {
     if (connection.engine === 'mysql') {
       const pool = await getMySQLPool(connection);
@@ -1259,6 +1321,9 @@ export function clearHistory(buildingId: string): void {
  * Close all connection pools for a building/connection
  */
 export async function closeConnection(connectionId: string): Promise<void> {
+  // Tear down SSH tunnel first so subsequent pool ends don't try to reuse it
+  await closeTunnel(connectionId);
+
   // Close all pools that match this connection ID
   for (const [key, pool] of mysqlPools.entries()) {
     if (key.startsWith(connectionId + ':')) {
@@ -1324,6 +1389,10 @@ export async function closeAllConnections(): Promise<void> {
     await pool.close();
   }
   mssqlPools.clear();
+
+  // Tear down all active SSH tunnels last so pool .end()/close() can
+  // complete cleanly even if they need to talk to the server.
+  await closeAllTunnels();
 }
 
 /**

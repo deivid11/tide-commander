@@ -30,5 +30,5 @@ export interface AttachedFile {
 /**
  * Common pagination constants
  */
-export const MESSAGES_PER_PAGE = 90;
+export const MESSAGES_PER_PAGE = 45;
 export const DEFAULT_SCROLL_THRESHOLD = 100; // px from edge to trigger load more

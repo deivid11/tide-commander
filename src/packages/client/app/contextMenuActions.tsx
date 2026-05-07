@@ -157,6 +157,30 @@ export function buildContextMenuActions(
           );
         },
       });
+      actions.push({
+        id: 'spawn-boss-in-area',
+        label: 'Spawn Boss',
+        icon: <Icon name="crown" size={14} />,
+        onClick: () => {
+          window.dispatchEvent(
+            new CustomEvent('tide:open-boss-spawn-modal', {
+              detail: { areaId: target.id, position: { x: area.center.x, z: area.center.z } },
+            })
+          );
+        },
+      });
+      actions.push({
+        id: 'new-building-in-area',
+        label: 'Place Building',
+        icon: <Icon name="buildings" size={14} />,
+        onClick: () => {
+          window.dispatchEvent(
+            new CustomEvent('tide:building-create', {
+              detail: { position: { x: area.center.x, z: area.center.z } },
+            })
+          );
+        },
+      });
       actions.push({ id: 'divider-area-layer', label: '', divider: true, onClick: () => {} });
       actions.push({
         id: 'bring-to-front',

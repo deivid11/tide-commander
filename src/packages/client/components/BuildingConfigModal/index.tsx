@@ -379,7 +379,14 @@ export function BuildingConfigModal({
                     key={bt}
                     type="button"
                     className={`building-type-btn ${type === bt ? 'active' : ''}`}
-                    onClick={() => setType(bt)}
+                    onClick={() => {
+                      setType(bt);
+                      // Suggest the cylinder-stack visual for new database buildings,
+                      // but only if the user hasn't customized away from the default.
+                      if (bt === 'database' && style === 'server-rack') {
+                        setStyle('filing-cabinet');
+                      }
+                    }}
                     title={BUILDING_TYPES[bt].description}
                   >
                     <span className="building-type-icon"><Icon name={getBuildingTypeIcon(bt)} size={16} /></span>

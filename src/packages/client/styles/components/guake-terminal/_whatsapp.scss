@@ -1,0 +1,189 @@
+// =============================================================================
+// Guake Terminal - WhatsApp message bubble
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Strip the parent .output-user / .history-user chrome — the bubble brings
+// its own background, border, shadow, and gradient overlay, so the surrounding
+// "user message" container would otherwise render a redundant frame.
+.output-user-whatsapp,
+.history-user-whatsapp {
+  background: transparent !important;
+  border: none !important;
+  border-left: none !important;
+  padding: 4px 0 !important;
+  margin: 4px 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+
+  &::before,
+  &::after {
+    display: none !important;
+    content: none !important;
+  }
+
+  // history-content is a <span> (inline) — let it span full width so the
+  // flex row inside the bubble can right-align outbound messages properly.
+  > .history-content {
+    display: block;
+    width: 100%;
+    color: inherit;
+  }
+}
+
+.whatsapp-bubble-row {
+  display: flex;
+  width: 100%;
+  margin: 4px 0;
+
+  &.whatsapp-outbound {
+    justify-content: flex-end;
+
+    .whatsapp-bubble {
+      background: color-mix(in srgb, var(--accent-green) 18%, var(--bg-primary));
+      border-color: color-mix(in srgb, var(--accent-green) 55%, transparent);
+      border-bottom-right-radius: 4px;
+    }
+
+    .whatsapp-bubble-brand {
+      color: color-mix(in srgb, var(--accent-green) 80%, var(--text-primary));
+    }
+  }
+
+  &.whatsapp-inbound {
+    justify-content: flex-start;
+
+    .whatsapp-bubble {
+      background: var(--msg-user-bg);
+      border-color: var(--msg-user-border);
+      border-bottom-left-radius: 4px;
+    }
+
+    .whatsapp-bubble-brand {
+      color: var(--text-muted);
+    }
+  }
+}
+
+.whatsapp-bubble {
+  max-width: min(78%, 560px);
+  min-width: 180px;
+  padding: 8px 11px 6px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 12.5px;
+  line-height: 1.42;
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.whatsapp-bubble-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.whatsapp-bubble-icon {
+  display: inline-flex;
+  align-items: center;
+  color: color-mix(in srgb, var(--accent-green) 75%, var(--text-primary));
+}
+
+.whatsapp-bubble-phone {
+  font-weight: 600;
+  color: color-mix(in srgb, var(--accent-green) 70%, var(--text-primary));
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2px;
+}
+
+.whatsapp-bubble-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-blue) 18%, transparent);
+  color: color-mix(in srgb, var(--accent-blue) 85%, var(--text-primary));
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.whatsapp-bubble-session {
+  font-family: $font-mono;
+  font-size: 9.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text-muted);
+}
+
+.whatsapp-bubble-media {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent-orange) 14%, transparent);
+  color: color-mix(in srgb, var(--accent-orange) 85%, var(--text-primary));
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+.whatsapp-bubble-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-primary);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.whatsapp-bubble-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.whatsapp-bubble-link {
+  color: color-mix(in srgb, var(--accent-blue) 80%, var(--text-primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+
+  &:hover {
+    color: var(--accent-blue);
+  }
+}
+
+.whatsapp-bubble-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  font-size: 9.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.whatsapp-bubble-brand {
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-weight: 700;
+  font-size: 9px;
+}
+
+.whatsapp-bubble-time {
+  font-family: $font-mono;
+  font-size: 9.5px;
+}

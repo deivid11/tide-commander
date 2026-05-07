@@ -1154,6 +1154,7 @@ class Store
   // ============================================================================
 
   testDatabaseConnection(...args: Parameters<DatabaseActions['testDatabaseConnection']>) { return this.databaseActions.testDatabaseConnection(...args); }
+  testDatabaseConnectionTransient(...args: Parameters<DatabaseActions['testDatabaseConnectionTransient']>) { return this.databaseActions.testDatabaseConnectionTransient(...args); }
   setConnectionStatus(...args: Parameters<DatabaseActions['setConnectionStatus']>) { return this.databaseActions.setConnectionStatus(...args); }
   listDatabases(...args: Parameters<DatabaseActions['listDatabases']>) { return this.databaseActions.listDatabases(...args); }
   setDatabases(...args: Parameters<DatabaseActions['setDatabases']>) { return this.databaseActions.setDatabases(...args); }

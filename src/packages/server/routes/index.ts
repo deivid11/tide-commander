@@ -24,6 +24,7 @@ import integrationRouter from './integration-routes.js';
 import eventRouter from './event-routes.js';
 import workflowRouter from './workflow-routes.js';
 import sessionsRouter from './sessions.js';
+import databaseRouter from './database.js';
 import { getPlugins } from '../integrations/integration-registry.js';
 
 const router = Router();
@@ -52,6 +53,7 @@ router.use('/integrations', integrationRouter);
 router.use('/events', eventRouter);
 router.use('/workflows', workflowRouter);
 router.use('/sessions', sessionsRouter);
+router.use('/database', databaseRouter);
 // Integration plugin routes (e.g. /api/slack/*, /api/documents/*, /api/jira/*)
 // Uses lazy lookup so plugins can be registered after route setup
 router.use((req: Request, res: Response, next: NextFunction) => {

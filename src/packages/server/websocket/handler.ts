@@ -79,6 +79,7 @@ import {
 import { secretsService } from '../services/secrets-service.js';
 import {
   handleTestDatabaseConnection,
+  handleTestDatabaseConnectionTransient,
   handleListDatabases,
   handleListTables,
   handleGetTableSchema,
@@ -284,6 +285,7 @@ const messageHandlers = {
   boss_building_logs_start: handleBossBuildingLogsStart,
   boss_building_logs_stop: handleBossBuildingLogsStop,
   test_database_connection: handleTestDatabaseConnection,
+  test_database_connection_transient: handleTestDatabaseConnectionTransient,
   list_databases: handleListDatabases,
   execute_query: handleExecuteQuery,
   request_query_history: handleRequestQueryHistory,

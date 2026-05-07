@@ -10,6 +10,8 @@ import { getToolIconName, extractExecWrappedCommand, extractExecPayloadCommand, 
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay } from './BossContext';
+import { parseWhatsAppMessage, WhatsAppMessageBubble } from './WhatsAppMessageBubble';
+import { parseEmailMessage, GmailMessageBubble } from './GmailMessageBubble';
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, UnknownToolInput, ToolSearchInput, isToolSearchContent } from './ToolRenderers';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
@@ -399,6 +401,27 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               {renderUserPromptContent(subagentNotif.contentWithoutNotification, onImageClick, onFileClick)}
             </span>
           )}
+        </div>
+      );
+    }
+
+    // WhatsApp trigger payloads land as user prompts; render them as a chat bubble.
+    const whatsAppMsg = parseWhatsAppMessage(userMessage);
+    if (whatsAppMsg) {
+      return (
+        <div className="output-line output-user output-user-whatsapp">
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          <WhatsAppMessageBubble msg={whatsAppMsg} />
+        </div>
+      );
+    }
+
+    const emailMsg = parseEmailMessage(userMessage);
+    if (emailMsg) {
+      return (
+        <div className="output-line output-user output-user-gmail">
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          <GmailMessageBubble msg={emailMsg} />
         </div>
       );
     }

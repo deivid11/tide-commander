@@ -12,7 +12,7 @@ export type { ExternalEvent, TriggerHandler, TriggerDefinition };
 
 // ─── Trigger Enums ───
 
-export type TriggerType = 'webhook' | 'email' | 'slack' | 'jira' | 'cron';
+export type TriggerType = 'webhook' | 'email' | 'slack' | 'jira' | 'cron' | 'whatsapp';
 export type TriggerStatus = 'enabled' | 'disabled' | 'error';
 export type MatchMode = 'structural' | 'llm' | 'hybrid';
 export type ExtractionMode = 'structural' | 'llm';
@@ -114,7 +114,20 @@ export interface CronTrigger extends BaseTrigger {
   };
 }
 
-export type Trigger = WebhookTrigger | EmailTrigger | SlackTrigger | JiraTrigger | CronTrigger;
+export interface WhatsAppTrigger extends BaseTrigger {
+  type: 'whatsapp';
+  config: {
+    fromFilter?: string[];            // Substring match against sender JID (e.g. "5215512345678" or "@g.us")
+    bodyPattern?: string;             // Case-insensitive regex against message body
+    direction?: 'inbound' | 'outbound' | 'any'; // Default: 'any'
+    groupOnly?: boolean;              // Only fire on group messages
+    dmOnly?: boolean;                 // Only fire on 1:1 DMs
+    sessionId?: string;               // Restrict to a specific Baileys session id
+    includeStatuses?: boolean;        // If true, also fire for WhatsApp status (Story) updates and broadcast lists. Default false.
+  };
+}
+
+export type Trigger = WebhookTrigger | EmailTrigger | SlackTrigger | JiraTrigger | CronTrigger | WhatsAppTrigger;
 
 // ─── LLM Match Results ───
 

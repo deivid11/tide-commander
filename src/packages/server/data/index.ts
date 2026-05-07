@@ -405,6 +405,52 @@ export function getClaudeProjectDir(cwd: string): string {
 let buildingsCache: Building[] | null = null;
 let buildingsCacheMtime: number = 0;
 
+// Sensitive fields on a DatabaseConnection that should be encrypted at rest.
+// Kept as a typed list so adding a new sensitive field surfaces a compile error
+// instead of silently leaking plaintext.
+const DB_CONNECTION_SECRET_KEYS = ['password'] as const;
+const SSH_TUNNEL_SECRET_KEYS = ['password', 'privateKey', 'passphrase'] as const;
+
+function encryptIfPresent(value: string | undefined): string | undefined {
+  if (!value) return value;
+  if (isEncrypted(value)) return value;
+  try { return encryptValue(value); } catch { return value; }
+}
+
+function decryptIfEncrypted(value: string | undefined): string | undefined {
+  if (!value) return value;
+  if (!isEncrypted(value)) return value;
+  try { return decryptValue(value); } catch (err) {
+    log.error(' Failed to decrypt building credential:', err);
+    return '';
+  }
+}
+
+function transformBuildingCredentials(
+  buildings: Building[],
+  mode: 'encrypt' | 'decrypt'
+): Building[] {
+  const transform = mode === 'encrypt' ? encryptIfPresent : decryptIfEncrypted;
+  return buildings.map(b => {
+    if (b.type !== 'database' || !b.database?.connections?.length) return b;
+    const connections = b.database.connections.map(conn => {
+      const next = { ...conn };
+      for (const key of DB_CONNECTION_SECRET_KEYS) {
+        next[key] = transform(next[key]);
+      }
+      if (next.ssh) {
+        const ssh = { ...next.ssh };
+        for (const key of SSH_TUNNEL_SECRET_KEYS) {
+          ssh[key] = transform(ssh[key]);
+        }
+        next.ssh = ssh;
+      }
+      return next;
+    });
+    return { ...b, database: { ...b.database, connections } };
+  });
+}
+
 /**
  * Load buildings from disk (cached, invalidated by file mtime)
  */
@@ -423,7 +469,7 @@ export function loadBuildings(): Building[] {
 
   const data = safeReadJsonSync<{ buildings: Building[] }>(BUILDINGS_FILE, 'Buildings');
   if (data?.buildings) {
-    buildingsCache = data.buildings;
+    buildingsCache = transformBuildingCredentials(data.buildings, 'decrypt');
     try { buildingsCacheMtime = fs.statSync(BUILDINGS_FILE).mtimeMs; } catch { buildingsCacheMtime = 0; }
     log.log(` Loaded ${buildingsCache.length} buildings from ${BUILDINGS_FILE}`);
     return buildingsCache;
@@ -437,7 +483,9 @@ export function loadBuildings(): Building[] {
 export function saveBuildings(buildings: Building[]): void {
   ensureDataDir();
   try {
-    atomicWriteJsonSync(BUILDINGS_FILE, { buildings, savedAt: Date.now(), version: '1.0.0' });
+    const persisted = transformBuildingCredentials(buildings, 'encrypt');
+    atomicWriteJsonSync(BUILDINGS_FILE, { buildings: persisted, savedAt: Date.now(), version: '1.0.0' });
+    // Cache the in-memory (decrypted) view so callers keep working with plaintext
     buildingsCache = buildings;
     buildingsCacheMtime = fs.statSync(BUILDINGS_FILE).mtimeMs;
   } catch (err) {

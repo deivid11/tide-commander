@@ -9,7 +9,12 @@
  * service). The plugin's getTriggerHandler() still returns null.
  */
 
-import type { IntegrationContext } from '../../../shared/integration-types.js';
+import type {
+  IntegrationContext,
+  TriggerHandler,
+  TriggerDefinition,
+  ExternalEvent,
+} from '../../../shared/integration-types.js';
 import { loadConfig, WHATSAPP_API_KEY_SECRET } from './whatsapp-config.js';
 import { WhatsAppWsClient, type WhatsAppUpstreamEvent } from './whatsapp-ws-client.js';
 import { MessageDedupeCache } from './message-dedupe.js';
@@ -24,7 +29,7 @@ export interface WhatsAppMessageBridge {
 
 type MediaType = 'image' | 'video' | 'audio' | 'document' | 'sticker';
 
-interface NormalizedWhatsAppMessage {
+export interface NormalizedWhatsAppMessage {
   sessionId: string;
   from: string;
   fromName?: string;
@@ -35,6 +40,29 @@ interface NormalizedWhatsAppMessage {
   mediaType?: MediaType;
   mediaUrl?: string;
   direction: 'inbound' | 'outbound';
+  /**
+   * Original chat JID before participant override. For 1:1 DMs equals `from`.
+   * For groups, it's the @g.us JID. For status updates, it's `status@broadcast`.
+   * Used by the trigger handler to filter out non-message events (statuses,
+   * broadcasts) without consulting the upstream payload.
+   */
+  chatId: string;
+}
+
+// Module-level subscriber set fed by the in-process bridge whenever a normalized
+// WhatsApp message is broadcast. The trigger-service-facing handler below
+// registers its callback here, so subscribers stay attached even when the bridge
+// restarts (e.g. on config change).
+const triggerSubscribers = new Set<(msg: NormalizedWhatsAppMessage) => void>();
+
+function notifyTriggerSubscribers(payload: NormalizedWhatsAppMessage): void {
+  for (const cb of triggerSubscribers) {
+    try {
+      cb(payload);
+    } catch {
+      // Subscriber errors must not break the bridge — swallow.
+    }
+  }
 }
 
 // Dedupe cache config. The upstream whatsapp-api fires BOTH `message` and
@@ -137,6 +165,7 @@ export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppM
 
       if (!needsEnrichment) {
         ctx.broadcast({ type: 'whatsapp_message', payload });
+        notifyTriggerSubscribers(payload);
         return;
       }
 
@@ -144,9 +173,11 @@ export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppM
         const sanitized = sanitizeFromName(name, payload.from);
         if (sanitized) payload.fromName = sanitized;
         ctx.broadcast({ type: 'whatsapp_message', payload });
+        notifyTriggerSubscribers(payload);
       }, (err) => {
         ctx.log.warn(`WhatsApp contact lookup failed: ${err}`);
         ctx.broadcast({ type: 'whatsapp_message', payload });
+        notifyTriggerSubscribers(payload);
       });
     }
     // Other event types (message_ack, group_join, group_leave, hello, error) are
@@ -273,6 +304,7 @@ function normalizeBaileysMessage(
     mediaType,
     mediaUrl,
     direction,
+    chatId: remoteJid ?? from,
   };
 }
 
@@ -436,3 +468,114 @@ export function sanitizeFromName(
 
   return trimmed;
 }
+
+// ─── Trigger Service Handler ───
+// Real TriggerHandler that the trigger-service registers at boot. Subscribes to
+// the in-process bridge's notifyTriggerSubscribers stream so it keeps receiving
+// events across bridge restarts (config-change driven).
+
+interface WhatsAppTriggerConfig {
+  fromFilter?: string[];
+  bodyPattern?: string;
+  direction?: 'inbound' | 'outbound' | 'any';
+  groupOnly?: boolean;
+  dmOnly?: boolean;
+  sessionId?: string;
+  includeStatuses?: boolean;
+}
+
+// Chat IDs that represent non-message channels (status updates, broadcast
+// lists). The bridge surfaces them as messages because Baileys delivers
+// status posts via `messages.upsert`, but they're not 1:1 / group chats and
+// most triggers shouldn't fire on them.
+function isStatusOrBroadcastChat(chatId: string): boolean {
+  if (!chatId) return false;
+  if (chatId === 'status@broadcast') return true;
+  if (chatId.endsWith('@broadcast')) return true;
+  return false;
+}
+
+let triggerUnsubscribe: (() => void) | null = null;
+
+export const whatsappTriggerHandler: TriggerHandler = {
+  triggerType: 'whatsapp',
+
+  async startListening(onEvent) {
+    const cb = (msg: NormalizedWhatsAppMessage) => {
+      onEvent({
+        source: 'whatsapp',
+        type: 'message',
+        data: msg,
+        timestamp: msg.timestamp,
+      });
+    };
+    triggerSubscribers.add(cb);
+    triggerUnsubscribe = () => triggerSubscribers.delete(cb);
+  },
+
+  async stopListening() {
+    if (triggerUnsubscribe) {
+      triggerUnsubscribe();
+      triggerUnsubscribe = null;
+    }
+  },
+
+  structuralMatch(trigger: TriggerDefinition, event: ExternalEvent): boolean {
+    const msg = event.data as NormalizedWhatsAppMessage;
+    const cfg = trigger.config as WhatsAppTriggerConfig;
+
+    // Drop status updates and broadcast-list messages by default — they're
+    // surfaced through the same bridge as real messages but represent stories /
+    // broadcasts, not conversations. Opt-in via includeStatuses.
+    if (!cfg.includeStatuses && isStatusOrBroadcastChat(msg.chatId)) return false;
+
+    if (cfg.direction && cfg.direction !== 'any' && msg.direction !== cfg.direction) return false;
+    if (cfg.groupOnly && !msg.isGroup) return false;
+    if (cfg.dmOnly && msg.isGroup) return false;
+    if (cfg.sessionId && msg.sessionId !== cfg.sessionId) return false;
+
+    if (cfg.fromFilter?.length) {
+      const fromLower = msg.from.toLowerCase();
+      if (!cfg.fromFilter.some(f => fromLower.includes(f.toLowerCase()))) return false;
+    }
+
+    if (cfg.bodyPattern) {
+      try {
+        if (!new RegExp(cfg.bodyPattern, 'i').test(msg.body)) return false;
+      } catch {
+        return false;
+      }
+    }
+
+    return true;
+  },
+
+  extractVariables(trigger: TriggerDefinition, event: ExternalEvent): Record<string, string> {
+    const msg = event.data as NormalizedWhatsAppMessage;
+    void trigger;
+    return {
+      'whatsapp.from': msg.from,
+      'whatsapp.fromName': msg.fromName ?? '',
+      'whatsapp.body': msg.body,
+      'whatsapp.sessionId': msg.sessionId,
+      'whatsapp.chatId': msg.chatId,
+      'whatsapp.isGroup': String(msg.isGroup),
+      'whatsapp.groupName': msg.groupName ?? '',
+      'whatsapp.direction': msg.direction,
+      'whatsapp.mediaType': msg.mediaType ?? '',
+      'whatsapp.mediaUrl': msg.mediaUrl ?? '',
+      'whatsapp.timestamp': new Date(msg.timestamp).toISOString(),
+    };
+  },
+
+  formatEventForLLM(event: ExternalEvent): string {
+    const msg = event.data as NormalizedWhatsAppMessage;
+    const sender = msg.fromName ? `${msg.fromName} (${msg.from})` : msg.from;
+    const channel = msg.isGroup ? `group "${msg.groupName ?? msg.from}"` : 'DM';
+    const verb = msg.direction === 'outbound' ? 'sent' : 'received';
+    const media = msg.mediaType
+      ? `\n[${msg.mediaType} attachment${msg.mediaUrl ? ` ${msg.mediaUrl}` : ''}]`
+      : '';
+    return `WhatsApp message ${verb} in ${channel}\nFrom: ${sender}\nSession: ${msg.sessionId}\nTime: ${new Date(msg.timestamp).toISOString()}${media}\n\n${msg.body}`;
+  },
+};
