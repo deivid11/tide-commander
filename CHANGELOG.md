@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.88.1] - 2026-05-06
+
+### Fixed
+- **`ssh2` and `@types/ssh2` declared in `package.json`** — v1.88.0 added `ssh2` to `node_modules` locally without persisting it to `package.json`/`package-lock.json`, so the publish workflow's TypeScript build failed in CI with "Cannot find module 'ssh2'". This release adds the runtime dependency `ssh2@^1.17.0` and the dev dependency `@types/ssh2@^1.15.5` so `npm ci` in CI installs them and the build succeeds. No code changes versus v1.88.0 — purely a metadata fix to unblock the npm publish
+
 ## [1.88.0] - 2026-05-06
 
 ### Added
