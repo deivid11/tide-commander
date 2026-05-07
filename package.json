@@ -1,6 +1,6 @@
 {
   "name": "tide-commander",
-  "version": "1.88.0",
+  "version": "1.88.1",
   "description": "Visual multi-agent orchestrator and manager for Claude Code with 3D/2D interface",
   "repository": {
     "type": "git",
@@ -100,6 +100,7 @@
     "react-i18next": "^17.0.2",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "ssh2": "^1.17.0",
     "three": "^0.170.0",
     "unzip-stream": "^0.3.4",
     "ws": "^8.18.0"
@@ -120,6 +121,7 @@
     "@types/prismjs": "^1.26.5",
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
+    "@types/ssh2": "^1.15.5",
     "@types/three": "^0.170.0",
     "@types/unzip-stream": "^0.3.4",
     "@types/ws": "^8.5.13",
