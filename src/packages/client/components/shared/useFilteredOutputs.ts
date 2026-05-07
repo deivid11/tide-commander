@@ -145,6 +145,30 @@ interface UseFilteredOutputsOptions {
 }
 
 /**
+ * Sort live outputs by canonical 'created at' (timestamp) ascending, with
+ * uuid lex ascending as the explicit tiebreaker. Falls back to original
+ * insertion order for items that share both timestamp and uuid.
+ *
+ * Exported for tests and ad-hoc callers. The authoritative chronological sort
+ * for the rendered Guake list is performed in VirtualizedOutputList, which
+ * also merges history into the same time order — avoid calling this from
+ * additional layers so we keep a single source-of-truth ordering.
+ */
+export function sortOutputsChronologically(outputs: ClaudeOutput[]): ClaudeOutput[] {
+  const indexed = outputs.map((o, i) => ({ o, i }));
+  indexed.sort((a, b) => {
+    const ta = a.o.timestamp ?? 0;
+    const tb = b.o.timestamp ?? 0;
+    if (ta !== tb) return ta - tb;
+    const ua = a.o.uuid ?? '';
+    const ub = b.o.uuid ?? '';
+    if (ua !== ub) return ua < ub ? -1 : 1;
+    return a.i - b.i;
+  });
+  return indexed.map((x) => x.o);
+}
+
+/**
  * Hook to filter and enrich outputs based on view mode
  * - Advanced: show all outputs as-is
  * - Chat: show only user messages and final responses

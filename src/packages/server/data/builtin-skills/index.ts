@@ -17,6 +17,7 @@ import { streamingExec } from './streaming-exec.js';
 import { bitbucketPR } from './bitbucket-pr.js';
 import { pm2Logs } from './pm2-logs.js';
 import { createBuilding } from './create-building.js';
+import { exploreDatabase } from './explore-database.js';
 import { releasePipeline } from './release-pipeline.js';
 import { taskLabel } from './task-label.js';
 import { agentTracking } from './agent-tracking.js';
@@ -42,6 +43,7 @@ export const BUILTIN_SKILLS: BuiltinSkillDefinition[] = [
   bitbucketPR,
   pm2Logs,
   createBuilding,
+  exploreDatabase,
   releasePipeline,
   taskLabel,
   agentTracking,

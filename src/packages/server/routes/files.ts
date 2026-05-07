@@ -71,6 +71,119 @@ export function resolveAndValidateFilePath(
   return { ok: true, path: path.resolve(effectiveBase, rawPath) };
 }
 
+// Cache of (requested path → resolved absolute path) for successful fallback
+// resolutions. Avoids repeating the walk-up search for the same stale path.
+const resolvedPathCache = new Map<string, string>();
+const RESOLVED_CACHE_MAX = 500;
+
+function rememberResolution(key: string, found: string): void {
+  if (resolvedPathCache.size >= RESOLVED_CACHE_MAX) {
+    const firstKey = resolvedPathCache.keys().next().value;
+    if (firstKey !== undefined) resolvedPathCache.delete(firstKey);
+  }
+  resolvedPathCache.set(key, found);
+}
+
+/**
+ * Resolve a requested file path to an existing file on disk, with fallbacks.
+ * Tries (in order):
+ *   1. The path as resolved by resolveAndValidateFilePath()
+ *   2. A previously-cached resolution for the same requested key
+ *   3. The path's tail anchored at baseDir and each of its ancestors — recovers
+ *      stale absolute paths and relative paths that target an ancestor repo
+ *   4. The path's tail anchored at git's toplevel discovered from baseDir
+ * On miss, returns the absolute path requested AND the list of paths tried so
+ * the caller can surface a clear, debuggable error.
+ */
+function findFileWithFallbacks(
+  rawPath: string | undefined,
+  baseDir: string | undefined,
+):
+  | { ok: true; path: string }
+  | { ok: false; status: number; error: string; requested?: string; tried?: string[] } {
+  if (!rawPath) {
+    return { ok: false, status: 400, error: 'Missing path parameter' };
+  }
+  const resolution = resolveAndValidateFilePath(rawPath, baseDir);
+  if (!resolution.ok) {
+    return resolution;
+  }
+
+  const tried: string[] = [];
+  const seen = new Set<string>();
+  const tryCandidate = (p: string): string | null => {
+    if (seen.has(p)) return null;
+    seen.add(p);
+    tried.push(p);
+    try {
+      if (fs.existsSync(p) && !fs.statSync(p).isDirectory()) return p;
+    } catch { /* permission denied, broken symlink — keep trying */ }
+    return null;
+  };
+
+  const direct = tryCandidate(resolution.path);
+  if (direct) return { ok: true, path: direct };
+
+  const cached = resolvedPathCache.get(rawPath);
+  if (cached) {
+    const hit = tryCandidate(cached);
+    if (hit) return { ok: true, path: hit };
+    resolvedPathCache.delete(rawPath);
+  }
+
+  const absBase = baseDir && path.isAbsolute(baseDir) ? baseDir : null;
+  if (absBase) {
+    // Strip leading slashes so absolute and relative requested paths share one
+    // segment list. Walking the tail anchors `<a>/<b>/<c>` not just at baseDir
+    // but also at `<b>/<c>` and `<c>` against each ancestor — the file is
+    // found regardless of which slice of the path moved.
+    const tailSegments = rawPath.replace(/^\/+/, '').split(path.sep).filter(Boolean);
+    let cur = absBase;
+    // Bound the climb so a deep baseDir doesn't search the whole filesystem.
+    for (let depth = 0; depth < 12; depth++) {
+      for (let i = 0; i < tailSegments.length; i++) {
+        const candidate = path.join(cur, ...tailSegments.slice(i));
+        const hit = tryCandidate(candidate);
+        if (hit) {
+          rememberResolution(rawPath, hit);
+          return { ok: true, path: hit };
+        }
+      }
+      const parent = path.dirname(cur);
+      if (parent === cur) break;
+      cur = parent;
+    }
+
+    try {
+      if (fs.existsSync(absBase)) {
+        const gitTop = execSync('git rev-parse --show-toplevel', {
+          cwd: absBase,
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        }).trim();
+        if (gitTop) {
+          for (let i = 0; i < tailSegments.length; i++) {
+            const candidate = path.join(gitTop, ...tailSegments.slice(i));
+            const hit = tryCandidate(candidate);
+            if (hit) {
+              rememberResolution(rawPath, hit);
+              return { ok: true, path: hit };
+            }
+          }
+        }
+      }
+    } catch { /* baseDir is not in a git repo — skip */ }
+  }
+
+  return {
+    ok: false,
+    status: 404,
+    error: 'File not found',
+    requested: resolution.path,
+    tried,
+  };
+}
+
 // Prevent browser from caching git-related GET responses (status, diff, branch, etc.)
 // Without this, browsers may serve stale cached data — e.g. deleted files still appearing.
 router.use('/git-*path', (_req: Request, res: Response, next: import('express').NextFunction) => {
@@ -82,20 +195,18 @@ router.use('/git-*path', (_req: Request, res: Response, next: import('express').
 // GET /api/files/read - Read file contents
 router.get('/read', async (req: Request, res: Response) => {
   try {
-    const resolution = resolveAndValidateFilePath(
+    const resolution = findFileWithFallbacks(
       req.query.path as string | undefined,
       req.query.baseDir as string | undefined,
     );
     if (!resolution.ok) {
-      res.status(resolution.status).json({ error: resolution.error });
+      const body: Record<string, unknown> = { error: resolution.error };
+      if (resolution.requested) body.path = resolution.requested;
+      if (resolution.tried) body.triedRoots = resolution.tried;
+      res.status(resolution.status).json(body);
       return;
     }
     const filePath = resolution.path;
-
-    if (!fs.existsSync(filePath)) {
-      res.status(404).json({ error: 'File not found', path: filePath });
-      return;
-    }
 
     const stats = fs.statSync(filePath);
 
@@ -235,20 +346,18 @@ router.get('/exists', async (req: Request, res: Response) => {
 // GET /api/files/info - Get file info without content
 router.get('/info', async (req: Request, res: Response) => {
   try {
-    const resolution = resolveAndValidateFilePath(
+    const resolution = findFileWithFallbacks(
       req.query.path as string | undefined,
       req.query.baseDir as string | undefined,
     );
     if (!resolution.ok) {
-      res.status(resolution.status).json({ error: resolution.error });
+      const body: Record<string, unknown> = { error: resolution.error };
+      if (resolution.requested) body.path = resolution.requested;
+      if (resolution.tried) body.triedRoots = resolution.tried;
+      res.status(resolution.status).json(body);
       return;
     }
     const filePath = resolution.path;
-
-    if (!fs.existsSync(filePath)) {
-      res.status(404).json({ error: 'File not found', path: filePath });
-      return;
-    }
 
     const stats = fs.statSync(filePath);
 
@@ -276,21 +385,19 @@ router.get('/info', async (req: Request, res: Response) => {
 // GET /api/files/binary - Read binary file (for images, PDFs, downloads)
 router.get('/binary', async (req: Request, res: Response) => {
   try {
-    const resolution = resolveAndValidateFilePath(
+    const resolution = findFileWithFallbacks(
       req.query.path as string | undefined,
       req.query.baseDir as string | undefined,
     );
     if (!resolution.ok) {
-      res.status(resolution.status).json({ error: resolution.error });
+      const body: Record<string, unknown> = { error: resolution.error };
+      if (resolution.requested) body.path = resolution.requested;
+      if (resolution.tried) body.triedRoots = resolution.tried;
+      res.status(resolution.status).json(body);
       return;
     }
     const filePath = resolution.path;
     const download = req.query.download === 'true';
-
-    if (!fs.existsSync(filePath)) {
-      res.status(404).json({ error: 'File not found', path: filePath });
-      return;
-    }
 
     const stats = fs.statSync(filePath);
 

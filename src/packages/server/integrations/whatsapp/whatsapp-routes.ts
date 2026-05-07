@@ -221,6 +221,94 @@ export function createWhatsAppRoutes(ctx: IntegrationContext): Router {
     }
   });
 
+  // ─── POST /sessions/:sessionId/chats/:chatId/sync-messages — Force on-demand history sync for a chat ───
+  router.post(
+    '/sessions/:sessionId/chats/:chatId/sync-messages',
+    async (req: Request<{ sessionId: string; chatId: string }>, res: Response) => {
+      const built = getClient();
+      if ('error' in built) {
+        res.status(built.status).json({ error: built.error });
+        return;
+      }
+      const rawCount = typeof req.query.count === 'string' ? Number(req.query.count) : NaN;
+      const count = Number.isFinite(rawCount) && rawCount > 0 ? Math.floor(rawCount) : 50;
+      try {
+        const result = await built.client.syncChatMessages(
+          req.params.sessionId,
+          req.params.chatId,
+          count,
+        );
+        res.json({ success: true, data: result });
+      } catch (err) {
+        log.error(`WhatsApp syncChatMessages error: ${err}`);
+        res.status(502).json({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+  );
+
+  // ─── POST /sessions/:sessionId/sync-contacts — Force address-book resync via Baileys app-state ───
+  router.post(
+    '/sessions/:sessionId/sync-contacts',
+    async (req: Request<{ sessionId: string }>, res: Response) => {
+      const built = getClient();
+      if ('error' in built) {
+        res.status(built.status).json({ error: built.error });
+        return;
+      }
+      try {
+        const result = await built.client.syncContacts(req.params.sessionId);
+        res.json({ success: true, data: result });
+      } catch (err) {
+        log.error(`WhatsApp syncContacts error: ${err}`);
+        res.status(502).json({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+  );
+
+  // ─── GET /sessions/:sessionId/contacts — List contacts for a session ───
+  router.get(
+    '/sessions/:sessionId/contacts',
+    async (req: Request<{ sessionId: string }>, res: Response) => {
+      const built = getClient();
+      if ('error' in built) {
+        res.status(built.status).json({ error: built.error });
+        return;
+      }
+      try {
+        const result = await built.client.getContacts(req.params.sessionId);
+        res.json({ success: true, data: result });
+      } catch (err) {
+        log.error(`WhatsApp getContacts error: ${err}`);
+        res.status(502).json({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+  );
+
+  // ─── GET /sessions/:sessionId/chats/:chatId/messages — Fetch recent messages for a chat ───
+  router.get(
+    '/sessions/:sessionId/chats/:chatId/messages',
+    async (req: Request<{ sessionId: string; chatId: string }>, res: Response) => {
+      const built = getClient();
+      if ('error' in built) {
+        res.status(built.status).json({ error: built.error });
+        return;
+      }
+      const rawLimit = typeof req.query.limit === 'string' ? Number(req.query.limit) : NaN;
+      const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.floor(rawLimit) : 50;
+      try {
+        const result = await built.client.getChatMessages(
+          req.params.sessionId,
+          req.params.chatId,
+          limit,
+        );
+        res.json({ success: true, data: result });
+      } catch (err) {
+        log.error(`WhatsApp getChatMessages error: ${err}`);
+        res.status(502).json({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+  );
+
   // ─── POST /send-message — Send a text message via Baileys ───
   router.post('/send-message', async (req: Request, res: Response) => {
     const body = (req.body ?? {}) as { sessionId?: unknown; to?: unknown; message?: unknown };

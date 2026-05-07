@@ -78,12 +78,36 @@ const ESTIMATED_HEIGHTS = {
   default: 60,
 };
 
-function getEstimatedHeight(item: EnrichedHistoryMessage | EnrichedOutput): number {
-  if ('type' in item) {
-    return ESTIMATED_HEIGHTS[item.type as keyof typeof ESTIMATED_HEIGHTS] || ESTIMATED_HEIGHTS.default;
+// Tagged wrapper so the merged history+live array can be sorted while still
+// telling each renderer which component to use (HistoryLine vs OutputLine).
+type TaggedHistoryItem = { kind: 'history'; item: EnrichedHistoryMessage; originalIndex: number };
+type TaggedLiveItem = { kind: 'live'; item: EnrichedOutput; originalIndex: number };
+type TaggedItem = TaggedHistoryItem | TaggedLiveItem;
+
+/** Canonical 'created at' in epoch ms — bridges history's ISO strings and live's number ts. */
+function getCanonicalTimestampMs(tagged: TaggedItem): number {
+  if (tagged.kind === 'history') {
+    const ts = tagged.item.timestamp;
+    if (!ts) return 0;
+    const parsed = new Date(ts).getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
   }
-  // Live output
-  const output = item as EnrichedOutput;
+  return tagged.item.timestamp ?? 0;
+}
+
+function getCanonicalUuid(tagged: TaggedItem): string {
+  if (tagged.kind === 'history') {
+    return tagged.item.uuid ?? tagged.item.toolUseId ?? '';
+  }
+  return tagged.item.uuid ?? '';
+}
+
+function getEstimatedHeight(tagged: TaggedItem): number {
+  if (tagged.kind === 'history') {
+    const m = tagged.item;
+    return ESTIMATED_HEIGHTS[m.type as keyof typeof ESTIMATED_HEIGHTS] || ESTIMATED_HEIGHTS.default;
+  }
+  const output = tagged.item;
   if (output.isUserPrompt) return ESTIMATED_HEIGHTS.user;
   if (output.text?.startsWith('Using tool:')) return ESTIMATED_HEIGHTS.tool_use;
   if (output.text?.startsWith('Tool result:')) return ESTIMATED_HEIGHTS.tool_result;
@@ -178,14 +202,33 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   onPinCancel,
   isLoadingHistory,
 }: VirtualizedOutputListProps) {
-  // Combine history and live outputs into single array (memoized to avoid
-  // re-creating the array on every render, which would trigger virtualizer
-  // recalculations and cascade into unnecessary child re-renders)
-  const allItems = useMemo(
-    () => [...historyMessages, ...liveOutputs],
-    [historyMessages, liveOutputs]
-  );
-  const historyCount = historyMessages.length;
+  // Merge history + live into ONE chronologically sorted array. This is the
+  // single authoritative ordering for the rendered list — without it, history
+  // (server-sorted) and live outputs sit in separate concatenated blocks, so
+  // a live event whose timestamp predates the newest history entry visually
+  // appears AFTER it.
+  //
+  // Stable sort: ascending canonical timestamp, then uuid lex ascending,
+  // then original insertion order (history-block first, then live-block).
+  const allItems = useMemo<TaggedItem[]>(() => {
+    const tagged: TaggedItem[] = [];
+    for (let i = 0; i < historyMessages.length; i++) {
+      tagged.push({ kind: 'history', item: historyMessages[i], originalIndex: i });
+    }
+    for (let i = 0; i < liveOutputs.length; i++) {
+      tagged.push({ kind: 'live', item: liveOutputs[i], originalIndex: historyMessages.length + i });
+    }
+    tagged.sort((a, b) => {
+      const ta = getCanonicalTimestampMs(a);
+      const tb = getCanonicalTimestampMs(b);
+      if (ta !== tb) return ta - tb;
+      const ua = getCanonicalUuid(a);
+      const ub = getCanonicalUuid(b);
+      if (ua !== ub) return ua < ub ? -1 : 1;
+      return a.originalIndex - b.originalIndex;
+    });
+    return tagged;
+  }, [historyMessages, liveOutputs]);
 
   // Track if we're programmatically scrolling (to avoid triggering onUserScroll)
   const isProgrammaticScrollRef = useRef(false);
@@ -206,6 +249,19 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     estimateSize: (index) => getEstimatedHeight(allItems[index]),
     overscan: 25, // Render 25 items above/below viewport
     initialRect: { width: 500, height: 800 },
+    // Stable per-item key based on uuid (or content fallback) — survives reorders
+    // from the chronological merge so the virtualizer reuses cached row heights
+    // instead of treating every shift as a new item.
+    getItemKey: (index) => {
+      const tagged = allItems[index];
+      if (!tagged) return index;
+      if (tagged.kind === 'history') {
+        const m = tagged.item;
+        return `h:${m.uuid ?? m.toolUseId ?? `${m.type}:${m.timestamp}:${(m.content || '').slice(0, 32)}`}`;
+      }
+      const o = tagged.item;
+      return `o:${o.uuid ?? `${o.timestamp}:${(o.text || '').slice(0, 32)}`}`;
+    },
     measureElement: (element) => {
       // Measure actual rendered height for accurate positioning
       return element.getBoundingClientRect().height;
@@ -399,8 +455,9 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
       }}
     >
       {virtualItems.map((virtualRow) => {
-        const item = allItems[virtualRow.index];
-        const isHistory = virtualRow.index < historyCount;
+        const tagged = allItems[virtualRow.index];
+        if (!tagged) return null;
+        const isHistory = tagged.kind === 'history';
 
         return (
           <div
@@ -416,7 +473,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
             }}
           >
             <VirtualRow
-              item={item}
+              item={tagged.item}
               isHistory={isHistory}
               agentId={agentId}
               execTasks={execTasks}

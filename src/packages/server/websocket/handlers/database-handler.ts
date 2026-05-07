@@ -61,6 +61,48 @@ export async function handleTestDatabaseConnection(
 }
 
 /**
+ * Handle test_database_connection_transient message — for testing an unsaved
+ * connection (e.g. from the Create Database modal "Test Connection" button).
+ * The connection object is passed inline; no building lookup is performed.
+ * If SSH is enabled, a one-shot tunnel is brought up and torn down per call.
+ */
+export async function handleTestDatabaseConnectionTransient(
+  ctx: HandlerContext,
+  payload: { requestId: string; connection: DatabaseConnection }
+): Promise<void> {
+  const { requestId, connection } = payload;
+  if (!connection || !connection.id) {
+    ctx.sendToClient({
+      type: 'database_connection_result',
+      payload: {
+        buildingId: '',
+        connectionId: '',
+        requestId,
+        success: false,
+        error: 'Invalid connection payload',
+      },
+    });
+    return;
+  }
+
+  log.log(`Testing transient connection: ${connection.name} (${connection.engine})${connection.ssh?.enabled ? ' via SSH tunnel' : ''}`);
+
+  const result = await databaseService.testConnection(connection, { transient: true });
+
+  ctx.sendToClient({
+    type: 'database_connection_result',
+    payload: {
+      buildingId: '',
+      connectionId: connection.id,
+      requestId,
+      success: result.success,
+      error: result.error,
+      serverVersion: result.serverVersion,
+    },
+  });
+}
+
+/**
  * Handle list_databases message
  */
 export async function handleListDatabases(

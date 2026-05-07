@@ -67,6 +67,10 @@ export const gmailTriggerHandler: TriggerHandler = {
   extractVariables(trigger: TriggerDefinition, event: ExternalEvent): Record<string, string> {
     const msg = event.data as EmailMessage;
     void trigger;
+    const labels = msg.labels ?? [];
+    // Gmail tags sent messages with the SENT label. Anything else is treated
+    // as inbound (covers INBOX, drafts, all-mail, etc.).
+    const direction = labels.includes('SENT') ? 'outbound' : 'inbound';
     return {
       'email.from': msg.from,
       'email.to': msg.to.join(', '),
@@ -77,11 +81,15 @@ export const gmailTriggerHandler: TriggerHandler = {
       'email.date': new Date(msg.date).toISOString(),
       'email.hasAttachments': String(msg.hasAttachments),
       'email.attachments': msg.attachmentNames?.join(', ') || '',
+      'email.direction': direction,
+      'email.labels': labels.join(', '),
     };
   },
 
   formatEventForLLM(event: ExternalEvent): string {
     const msg = event.data as EmailMessage;
-    return `Email from ${msg.from}\nSubject: ${msg.subject}\nDate: ${new Date(msg.date).toISOString()}\n\n${msg.body}`;
+    const labels = msg.labels ?? [];
+    const direction = labels.includes('SENT') ? 'outbound' : 'inbound';
+    return `Email (${direction}) from ${msg.from}\nTo: ${msg.to.join(', ')}\nSubject: ${msg.subject}\nDate: ${new Date(msg.date).toISOString()}\n\n${msg.body}`;
   },
 };

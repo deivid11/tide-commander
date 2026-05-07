@@ -26,6 +26,7 @@ import {
 } from './whatsapp-config.js';
 import {
   createWhatsAppTriggerHandler,
+  whatsappTriggerHandler,
   type WhatsAppMessageBridge,
 } from './whatsapp-trigger-handler.js';
 import { whatsappSkill } from './whatsapp-skill.js';
@@ -133,9 +134,10 @@ export const whatsappPlugin: IntegrationPlugin = {
   },
 
   getTriggerHandler(): TriggerHandler | null {
-    // The TriggerHandler interface here is the trigger-service one.
-    // Our incoming-message bridge is in-process and not surfaced through it.
-    return null;
+    // Real trigger-service handler. Subscribes to the in-process bridge's
+    // notifyTriggerSubscribers stream so events flow into trigger evaluation
+    // even across bridge restarts.
+    return whatsappTriggerHandler;
   },
 
   getStatus(): IntegrationStatus {

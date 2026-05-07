@@ -631,8 +631,7 @@
 }
 
 .aop-agent-card {
-  // Selected accent: blend of accent-orange and text-muted (theme-aware)
-  --aop-selected: color-mix(in srgb, var(--accent-orange) 68%, var(--text-muted));
+  --aop-selected: var(--accent-orange);
 
   margin-bottom: 0;
   background: var(--bg-secondary);
@@ -715,11 +714,22 @@
   &.active {
     border-color: var(--aop-selected);
     border-left-color: var(--aop-selected);
+    background: color-mix(in srgb, var(--aop-selected) 22%, var(--bg-secondary));
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--aop-selected) 35%, transparent),
+      0 0 0 2px color-mix(in srgb, var(--aop-selected) 55%, transparent),
+      0 2px 8px color-mix(in srgb, var(--aop-selected) 28%, transparent);
+
+    .aop-agent-name {
+      color: var(--aop-selected);
+      font-weight: 700;
+    }
   }
 
   &.active.boss {
     border-color: color-mix(in srgb, #ffd700 58%, var(--aop-selected));
     border-left-color: #ffd700;
+    background: color-mix(in srgb, var(--aop-selected) 18%, color-mix(in srgb, #ffd700 12%, var(--bg-secondary)));
   }
 
   &.working,
@@ -779,6 +789,11 @@
   &.active.stopped {
     border-color: var(--aop-selected);
     border-left-color: var(--aop-selected);
+    background: color-mix(in srgb, var(--aop-selected) 22%, var(--bg-secondary));
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--aop-selected) 35%, transparent),
+      0 0 0 2px color-mix(in srgb, var(--aop-selected) 55%, transparent),
+      0 2px 8px color-mix(in srgb, var(--aop-selected) 28%, transparent);
   }
 
   // Two-finger scroll selector hover highlight

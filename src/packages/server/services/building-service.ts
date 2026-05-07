@@ -12,6 +12,7 @@ import { createLogger } from '../utils/index.js';
 import * as pm2Service from './pm2-service.js';
 import * as dockerService from './docker-service.js';
 import * as terminalService from './terminal-service.js';
+import * as databaseService from './database-service.js';
 
 const log = createLogger('BuildingService');
 const execAsync = promisify(exec);
@@ -1098,8 +1099,18 @@ export async function handleBuildingSync(
 ): Promise<void> {
   const oldBuildings = loadBuildings();
   const oldBuildingsMap = new Map(oldBuildings.map(b => [b.id, b]));
+  const newBuildingIds = new Set(newBuildings.map(b => b.id));
 
   log.log(`handleBuildingSync called with ${newBuildings.length} buildings`);
+
+  // Tear down database tunnels for buildings that were entirely deleted.
+  for (const oldBuilding of oldBuildings) {
+    if (newBuildingIds.has(oldBuilding.id)) continue;
+    if (oldBuilding.type !== 'database') continue;
+    for (const conn of oldBuilding.database?.connections || []) {
+      await databaseService.closeConnection(conn.id);
+    }
+  }
 
   for (const newBuilding of newBuildings) {
     const oldBuilding = oldBuildingsMap.get(newBuilding.id);
@@ -1135,6 +1146,36 @@ export async function handleBuildingSync(
           } else {
             log.error(`Failed to start PM2 process ${newPM2Name}: ${result.error}`);
           }
+        }
+      }
+    }
+
+    // Database connection changes — tear down tunnels for connections that
+    // were removed or whose SSH config materially changed.
+    if (oldBuilding && oldBuilding.type === 'database') {
+      const oldConns = oldBuilding.database?.connections || [];
+      const newConns = newBuilding.type === 'database'
+        ? (newBuilding.database?.connections || [])
+        : [];
+      const newConnsById = new Map(newConns.map(c => [c.id, c]));
+      for (const oldConn of oldConns) {
+        const fresh = newConnsById.get(oldConn.id);
+        if (!fresh) {
+          await databaseService.closeConnection(oldConn.id);
+          continue;
+        }
+        const oldKey = JSON.stringify({
+          ssh: oldConn.ssh ?? null,
+          host: oldConn.host,
+          port: oldConn.port,
+        });
+        const newKey = JSON.stringify({
+          ssh: fresh.ssh ?? null,
+          host: fresh.host,
+          port: fresh.port,
+        });
+        if (oldKey !== newKey) {
+          await databaseService.closeConnection(oldConn.id);
         }
       }
     }

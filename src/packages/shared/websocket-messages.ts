@@ -1113,12 +1113,23 @@ export interface TestDatabaseConnectionMessage extends WSMessage {
   };
 }
 
+// Test an unsaved database connection — full connection object passed inline.
+// Used by the "Test Connection" button before a building is persisted.
+export interface TestDatabaseConnectionTransientMessage extends WSMessage {
+  type: 'test_database_connection_transient';
+  payload: {
+    requestId: string;
+    connection: import('./database-types.js').DatabaseConnection;
+  };
+}
+
 // Test connection result (Server -> Client)
 export interface DatabaseConnectionResultMessage extends WSMessage {
   type: 'database_connection_result';
   payload: {
     buildingId: string;
     connectionId: string;
+    requestId?: string;            // Set when the test was a transient one
     success: boolean;
     error?: string;
     serverVersion?: string;
@@ -1639,6 +1650,7 @@ export type ClientMessage =
   | BossBuildingLogsStartMessage
   | BossBuildingLogsStopMessage
   | TestDatabaseConnectionMessage
+  | TestDatabaseConnectionTransientMessage
   | ListDatabasesMessage
   | ExecuteQueryMessage
   | RequestQueryHistoryMessage

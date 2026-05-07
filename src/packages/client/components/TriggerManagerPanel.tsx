@@ -25,6 +25,7 @@ const TRIGGER_TYPES: { value: TriggerType; label: string }[] = [
   { value: 'slack', label: 'Slack' },
   { value: 'email', label: 'Email' },
   { value: 'jira', label: 'Jira' },
+  { value: 'whatsapp', label: 'WhatsApp' },
 ];
 
 const MATCH_MODES: { value: MatchMode; label: string; desc: string }[] = [

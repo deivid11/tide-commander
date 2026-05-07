@@ -84,6 +84,8 @@ interface FlatViewProps {
   /** Open the floating BuildingActionPopup (boss/database/server etc.) anchored at the click. */
   onBuildingPopup?: (buildingId: string, screenPos: { x: number; y: number }) => void;
   onAreaClick?: (areaId: string) => void;
+  /** Open the global area context menu — mirrors the right-click area menu used by 2D/3D scenes. */
+  onAreaContextMenu?: (areaId: string, screenPos: { x: number; y: number }) => void;
   // Creation modal callbacks
   onOpenSpawnModal?: () => void;
   onOpenBossSpawnModal?: () => void;
@@ -1045,6 +1047,7 @@ export function FlatView({
   onBuildingClick,
   onBuildingDoubleClick,
   onBuildingPopup,
+  onAreaContextMenu,
   onOpenSpawnModal,
   onOpenBossSpawnModal,
   onOpenAreaModal,
@@ -2245,6 +2248,12 @@ export function FlatView({
                           gridRow: pos?.row,
                           gridColumn: pos?.col,
                         } as React.CSSProperties}
+                        onContextMenu={(e) => {
+                          if (!onAreaContextMenu) return;
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onAreaContextMenu(areaKey, { x: e.clientX, y: e.clientY });
+                        }}
                       >
                         <button
                           type="button"

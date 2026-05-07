@@ -62,18 +62,13 @@ function shouldKeepOutput(
   output: ClaudeOutput,
   historyUuidSet: Set<string>,
   latestHistoryTsByKey: Map<string, number>,
-  lastHistoryTimestamp: number
 ): boolean {
-  if (output.uuid && historyUuidSet.has(output.uuid)) {
-    return false;
-  }
-
+  // UUID-bearing live output: keep unless the same UUID is already in history.
+  // Pruning by timestamp here would silently kill optimistic chips/messages
+  // whenever an earlier already-persisted JSONL entry makes the latest history
+  // timestamp newer than this output's client-side timestamp.
   if (output.uuid) {
-    const outputTs = output.timestamp || 0;
-    if (lastHistoryTimestamp <= 0) {
-      return true;
-    }
-    return outputTs >= lastHistoryTimestamp - HISTORY_LIVE_DEDUP_WINDOW_MS;
+    return !historyUuidSet.has(output.uuid);
   }
 
   const outputType: 'user' | 'assistant' = output.isUserPrompt ? 'user' : 'assistant';
@@ -85,7 +80,7 @@ function shouldKeepOutput(
     return false;
   }
 
-  return outputTs > lastHistoryTimestamp;
+  return true;
 }
 
 export interface UseHistoryLoaderProps {
@@ -306,10 +301,6 @@ export function useHistoryLoader({
 
         // Handle output deduplication - always dedupe to avoid showing same message twice
         if (preservedOutputsSnapshot && preservedOutputsSnapshot.length > 0) {
-          // Use preserved snapshot for reconnect scenarios
-          const lastHistoryTimestamp = messages.length > 0
-            ? Math.max(...messages.map((m: HistoryMessage) => m.timestamp ? new Date(m.timestamp).getTime() : 0))
-            : 0;
           const historyUuidSet = new Set<string>();
           for (const m of messages) {
             if (typeof m.uuid === 'string' && m.uuid.length > 0) historyUuidSet.add(m.uuid);
@@ -328,7 +319,6 @@ export function useHistoryLoader({
             output,
             historyUuidSet,
             latestHistoryTsByKey,
-            lastHistoryTimestamp
           ));
 
           store.clearOutputs(selectedAgentId);
@@ -336,10 +326,6 @@ export function useHistoryLoader({
             store.addOutput(selectedAgentId, output);
           }
         } else if (messages.length > 0) {
-          // Dedupe current outputs against loaded history
-          const lastHistoryTimestamp = Math.max(
-            ...messages.map((m: HistoryMessage) => m.timestamp ? new Date(m.timestamp).getTime() : 0)
-          );
           const historyUuidSet = new Set<string>();
           for (const m of messages) {
             if (typeof m.uuid === 'string' && m.uuid.length > 0) historyUuidSet.add(m.uuid);
@@ -355,22 +341,13 @@ export function useHistoryLoader({
           }
 
           const currentOutputs = store.getOutputs(selectedAgentId);
-          const newerOutputs = currentOutputs.filter((output) => {
-            const keep = shouldKeepOutput(
-              output,
-              historyUuidSet,
-              latestHistoryTsByKey,
-              lastHistoryTimestamp
-            );
-            if (!keep) {
-              console.warn(`[HISTORY-DEDUP] Removing live output: uuid=${output.uuid || 'none'} ts=${output.timestamp} lastHistTs=${lastHistoryTimestamp} text="${output.text.slice(0, 80)}"`);
-            }
-            return keep;
-          });
+          const newerOutputs = currentOutputs.filter((output) => shouldKeepOutput(
+            output,
+            historyUuidSet,
+            latestHistoryTsByKey,
+          ));
 
           if (currentOutputs.length !== newerOutputs.length) {
-            console.warn(`[HISTORY-DEDUP] Cleared ${currentOutputs.length - newerOutputs.length}/${currentOutputs.length} overlapping outputs for agent ${selectedAgentId}`);
-            // Only clear/re-add if there are duplicates to remove
             store.clearOutputs(selectedAgentId);
             for (const output of newerOutputs) {
               store.addOutput(selectedAgentId, output);

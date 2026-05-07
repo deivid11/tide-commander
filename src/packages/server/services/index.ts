@@ -17,6 +17,7 @@ export * as subordinateContextService from './subordinate-context-service.js';
 export * as workPlanService from './work-plan-service.js';
 export * as secretsService from './secrets-service.js';
 export * as databaseService from './database-service.js';
+export * as sshTunnelService from './ssh-tunnel-service.js';
 export * as eventRetentionService from './event-retention-service.js';
 export * as triggerService from './trigger-service.js';
 export * as workflowService from './workflow-service.js';

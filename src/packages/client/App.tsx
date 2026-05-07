@@ -837,6 +837,13 @@ function AppContent() {
                 store.selectArea(areaId);
                 toolboxModal.open();
               }}
+              onAreaContextMenu={(areaId, screenPos) => {
+                const area = store.getState().areas.get(areaId);
+                const worldPos = area
+                  ? { x: area.center.x, z: area.center.z }
+                  : { x: 0, z: 0 };
+                contextMenu.open(screenPos, worldPos, { type: 'area', id: areaId });
+              }}
               // Creation modal callbacks
               onOpenSpawnModal={() => {
                 setSpawnPosition(null);
