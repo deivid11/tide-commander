@@ -1,13 +1,10 @@
 /**
  * WhatsApp message bubble renderer.
  *
- * Detects user prompts produced by the WhatsApp trigger handler's
- * promptTemplate (Spanish "Nuevo mensaje de WhatsApp …" format) and renders
- * them as a chat-style bubble instead of a wall of plain text. The trailing
- * "Revisa el contenido y procede según corresponda…" instruction is for the
- * agent's context and is intentionally hidden from the visual bubble — the
- * outgoing user prompt the agent receives is never modified, we only change
- * how that text is *displayed* to the human.
+ * Plain flex-column row → bubble. No position:absolute, no transform-for-layout,
+ * no margins outside the wrapper's border-box. Row height is fully content-
+ * determined; the virtualizer measures the wrapper via getBoundingClientRect
+ * (border-box) and that's all we rely on.
  */
 
 import React from 'react';
@@ -30,7 +27,6 @@ const FIELD_RE = (label: string) =>
   new RegExp(`^[ \\t]*${label}[ \\t]*:[ \\t]*(.*)$`, 'im');
 const URL_RE = /(https?:\/\/[^\s<>"'\)]+)/g;
 // Mexican mobile format: +52 1 NNN NNN NNNN — common for the user's region.
-// Falls back to "+<digits>" when format isn't recognized.
 const MX_MOBILE_RE = /^521(\d{3})(\d{3})(\d{4})$/;
 
 export function parseWhatsAppMessage(text: string): WhatsAppMessage | null {
@@ -38,16 +34,12 @@ export function parseWhatsAppMessage(text: string): WhatsAppMessage | null {
   const headerMatch = text.match(HEADER_RE);
   if (!headerMatch) return null;
 
-  // Body delimiter must exist — reject lookalikes that mention WhatsApp but
-  // don't actually carry a message body.
   const bodyMarkerIdx = text.search(/\n[ \t]*Mensaje\s*:[ \t]*\n?/);
   if (bodyMarkerIdx < 0) return null;
 
   const headerSection = text.slice(0, bodyMarkerIdx);
   let bodyAndTail = text.slice(bodyMarkerIdx).replace(/^\n[ \t]*Mensaje\s*:[ \t]*\n?/, '');
-
-  const trailRe = /\n+[ \t]*Revisa el contenido[\s\S]*$/i;
-  bodyAndTail = bodyAndTail.replace(trailRe, '');
+  bodyAndTail = bodyAndTail.replace(/\n+[ \t]*Revisa el contenido[\s\S]*$/i, '');
 
   const direction = headerMatch[1].toLowerCase() as 'inbound' | 'outbound';
   const rawFrom = (headerSection.match(FIELD_RE('De'))?.[1] ?? '').trim();
@@ -135,7 +127,7 @@ function renderBodyWithLinks(body: string): React.ReactNode[] {
       out.push(
         <a
           key={`${lineIdx}-l-${segIdx++}`}
-          className="whatsapp-bubble-link"
+          className="whatsapp-bubble__link"
           href={url}
           target="_blank"
           rel="noopener noreferrer"
@@ -160,40 +152,40 @@ interface WhatsAppMessageBubbleProps {
 export function WhatsAppMessageBubble({ msg }: WhatsAppMessageBubbleProps): React.ReactElement {
   const time = formatBubbleTime(msg.date);
   const sessionLabel = shortenSession(msg.session);
+  const dirLabel = msg.direction === 'outbound' ? 'enviado' : 'recibido';
+  const fromLabel = msg.phone || msg.rawFrom || '—';
 
   return (
-    <div className={`whatsapp-bubble-row whatsapp-${msg.direction}`}>
+    <div className={`whatsapp-row whatsapp-row--${msg.direction}`}>
       <div className="whatsapp-bubble" role="group" aria-label="WhatsApp message">
-        <div className="whatsapp-bubble-meta">
-          <span className="whatsapp-bubble-icon" aria-hidden="true">
+        <div className="whatsapp-bubble__header">
+          <span className="whatsapp-bubble__icon" aria-hidden="true">
             <Icon name="chat" size={11} weight="fill" />
           </span>
-          <span className="whatsapp-bubble-phone" title={msg.rawFrom}>
-            {msg.phone || msg.rawFrom || '—'}
-          </span>
+          <span className="whatsapp-bubble__phone" title={msg.rawFrom}>{fromLabel}</span>
           {msg.isGroup && (
-            <span className="whatsapp-bubble-badge whatsapp-bubble-badge-group">
+            <span className="whatsapp-bubble__badge">
               <Icon name="users" size={10} /> Grupo
             </span>
           )}
           {sessionLabel && (
-            <span className="whatsapp-bubble-session" title={msg.session}>{sessionLabel}</span>
+            <span className="whatsapp-bubble__session" title={msg.session}>{sessionLabel}</span>
           )}
         </div>
         {msg.media && (
-          <div className="whatsapp-bubble-media">
+          <div className="whatsapp-bubble__media">
             <Icon name="paperclip" size={11} />
             <span>{msg.media}</span>
           </div>
         )}
-        <div className="whatsapp-bubble-body">
+        <div className="whatsapp-bubble__body">
           {msg.body
             ? renderBodyWithLinks(msg.body)
-            : <span className="whatsapp-bubble-empty">—</span>}
+            : <span className="whatsapp-bubble__empty">—</span>}
         </div>
-        <div className="whatsapp-bubble-footer">
-          <span className="whatsapp-bubble-brand">WhatsApp · {msg.direction === 'outbound' ? 'enviado' : 'recibido'}</span>
-          {time && <span className="whatsapp-bubble-time">{time}</span>}
+        <div className="whatsapp-bubble__footer">
+          <span className="whatsapp-bubble__brand">WhatsApp · {dirLabel}</span>
+          {time && <span className="whatsapp-bubble__time">{time}</span>}
         </div>
       </div>
     </div>

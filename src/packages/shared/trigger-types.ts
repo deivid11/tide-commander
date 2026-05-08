@@ -87,8 +87,12 @@ export interface SlackTrigger extends BaseTrigger {
   config: {
     channelId?: string;               // Watch specific channel (null = DMs to bot)
     userFilter?: string[];            // Only trigger for messages from these Slack user IDs
+    excludeUserIds?: string[];        // Skip messages from these Slack user IDs (e.g., to ignore your own personal account on a shared workspace)
     messagePattern?: string;          // Regex to match message content
     threadTs?: string;                // Watch replies in a specific thread
+    dmOnly?: boolean;                 // Only fire on 1:1 DMs (channel ID starts with 'D')
+    excludeDms?: boolean;             // Skip 1:1 DMs (channel ID starts with 'D')
+    includeOwnMessages?: boolean;     // Include outbound messages (sent by this instance's bot/user). Default: false.
   };
 }
 

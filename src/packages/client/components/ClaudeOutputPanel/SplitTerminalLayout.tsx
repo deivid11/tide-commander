@@ -160,6 +160,12 @@ export const SplitTerminalLayout = memo(function SplitTerminalLayout(props: Spli
         onDrop={handleDrop}
       >
         <AgentTerminalPane
+          // key forces a full remount on agent switch so the selector hooks
+          // (useAgentOutputs, useHistoryLoader) re-run their useState
+          // initializers with the new agentId — without this the first render
+          // after switching reuses the previous agent's cached selector value
+          // and a freshly-keyed VirtualizedOutputList paints stale data.
+          key={activeAgentId}
           ref={paneRef}
           agentId={activeAgentId}
           agent={activeAgent}

@@ -58,3 +58,6 @@
 
 // Gmail email card renderer
 @forward 'gmail';
+
+// Slack message bubble renderer
+@forward 'slack';

@@ -123,6 +123,7 @@ interface SlackMessageRow {
   workflow_instance_id: string | null;
   raw_event: string | null;
   received_at: number;
+  integration_instance_id: string | null;
 }
 
 function slackRowToEvent(row: SlackMessageRow): SlackMessageEvent {
@@ -140,6 +141,7 @@ function slackRowToEvent(row: SlackMessageRow): SlackMessageEvent {
     workflowInstanceId: row.workflow_instance_id ?? undefined,
     rawEvent: fromJson(row.raw_event),
     receivedAt: row.received_at,
+    integrationInstanceId: row.integration_instance_id ?? 'default',
   };
 }
 
@@ -157,6 +159,7 @@ export function logSlackMessage(msg: SlackMessageEvent): number {
     workflow_instance_id: msg.workflowInstanceId ?? null,
     raw_event: toJson(msg.rawEvent),
     received_at: msg.receivedAt,
+    integration_instance_id: msg.integrationInstanceId ?? 'default',
   });
 }
 

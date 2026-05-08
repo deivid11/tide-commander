@@ -120,6 +120,8 @@ interface ResolveResult {
   extension: string;
 }
 
+type ResolutionStrategy = 'exact' | 'cached' | 'parent-walk' | 'git-root' | 'suffix-match';
+
 interface FileData {
   path: string;
   filename: string;
@@ -127,6 +129,13 @@ interface FileData {
   content: string;
   size: number;
   modified: string;
+  strategy?: ResolutionStrategy;
+}
+
+interface NotFoundDetail {
+  message: string;
+  triedRoots: string[];
+  requested?: string;
 }
 
 /**
@@ -203,6 +212,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const [fileData, setFileData] = useState<FileData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState<NotFoundDetail | null>(null);
+  const [copyPathStatus, setCopyPathStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [resolvedCandidates, setResolvedCandidates] = useState<ResolveResult[]>([]);
   const [directoryEntries, setDirectoryEntries] = useState<ResolveResult[]>([]);
   const [copyRichTextStatus, setCopyRichTextStatus] = useState<'idle' | 'copied' | 'error'>('idle');
@@ -460,7 +471,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
 
   const baseDirParam = searchRoot ? `&baseDir=${encodeURIComponent(searchRoot)}` : '';
 
-  const loadFileByPath = async (filePath: string): Promise<{ ok: boolean; data?: any; error?: string; isDirectory?: boolean }> => {
+  const loadFileByPath = async (filePath: string): Promise<{ ok: boolean; data?: any; error?: string; isDirectory?: boolean; triedRoots?: string[]; requested?: string }> => {
     const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
     const isPdfFile = PDF_EXTENSIONS.includes(ext);
     const isImageFile = IMAGE_EXTENSIONS.includes(ext);
@@ -474,7 +485,13 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
 
     if (!res.ok) {
       const isDir = data.error === 'Path is a directory';
-      return { ok: false, error: data.error, isDirectory: isDir };
+      return {
+        ok: false,
+        error: data.error,
+        isDirectory: isDir,
+        triedRoots: Array.isArray(data.triedRoots) ? data.triedRoots : undefined,
+        requested: typeof data.path === 'string' ? data.path : undefined,
+      };
     }
 
     if (isPdfFile || isImageFile) {
@@ -515,6 +532,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const loadFile = async () => {
     setLoading(true);
     setError(null);
+    setNotFound(null);
     setResolvedCandidates([]);
     setDirectoryEntries([]);
 
@@ -559,12 +577,31 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
         }
       }
 
-      // No fallback worked
-      setError(result.error || t('terminal:fileExplorer.failedToLoad'));
+      // No fallback worked — show structured "Tried N candidate locations" view
+      if (result.error === 'File not found' && (result.triedRoots?.length ?? 0) > 0) {
+        setNotFound({
+          message: result.error,
+          triedRoots: result.triedRoots ?? [],
+          requested: result.requested,
+        });
+      } else {
+        setError(result.error || t('terminal:fileExplorer.failedToLoad'));
+      }
     } catch (err: any) {
       setError(err.message || t('terminal:fileExplorer.failedToLoad'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCopyPath = async () => {
+    try {
+      await navigator.clipboard.writeText(notFound?.requested || effectivePath);
+      setCopyPathStatus('copied');
+    } catch {
+      setCopyPathStatus('error');
+    } finally {
+      window.setTimeout(() => setCopyPathStatus('idle'), 1500);
     }
   };
 
@@ -776,6 +813,18 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
               {getActionLabel()}
             </span>
             <span className="file-viewer-filename">{fileData?.filename || effectivePath.split('/').pop()}</span>
+            {fileData?.strategy && fileData.strategy !== 'exact' && (
+              <span
+                className={`file-viewer-strategy-badge file-viewer-strategy-${fileData.strategy}`}
+                title={
+                  fileData.strategy === 'suffix-match'
+                    ? `matched by suffix from ${searchRoot ?? 'agent cwd'}`
+                    : `resolved via ${fileData.strategy}`
+                }
+              >
+                {fileData.strategy}
+              </span>
+            )}
           </div>
           <div className="file-viewer-header-buttons">
             {isMarkdown && fileData && !showDiffView && !showUnifiedDiffView && !showHighlightView && (
@@ -853,8 +902,30 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
             <div className="file-viewer-loading">{t('terminal:fileExplorer.loadingFile')}</div>
           )}
 
-          {error && !resolvedCandidates.length && !directoryEntries.length && (
+          {error && !resolvedCandidates.length && !directoryEntries.length && !notFound && (
             <div className="file-viewer-error">{error}</div>
+          )}
+
+          {notFound && !resolvedCandidates.length && !directoryEntries.length && (
+            <div className="file-viewer-error file-viewer-not-found">
+              <div className="file-viewer-not-found-headline">
+                {`Tried ${notFound.triedRoots.length} candidate location${notFound.triedRoots.length === 1 ? '' : 's'}. None matched.`}
+              </div>
+              {notFound.requested && (
+                <div className="file-viewer-not-found-path">{notFound.requested}</div>
+              )}
+              <button
+                type="button"
+                className={`file-viewer-copy-html-btn ${copyPathStatus}`}
+                onClick={handleCopyPath}
+              >
+                {copyPathStatus === 'copied'
+                  ? t('common:status.copied')
+                  : copyPathStatus === 'error'
+                    ? t('common:status.error')
+                    : 'Copy path'}
+              </button>
+            </div>
           )}
 
           {resolvedCandidates.length > 0 && (

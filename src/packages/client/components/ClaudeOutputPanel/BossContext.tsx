@@ -521,7 +521,7 @@ export function DelegationBlock({ delegation, bossId, onFileClick, onBashClick }
         >
           <AgentProgressIndicator
             progress={matchingProgress}
-            defaultExpanded={matchingProgress.status === 'working'}
+            defaultExpanded={false}
             onAgentClick={(clickedAgentId) => {
               store.selectAgent(clickedAgentId);
               store.setTerminalOpen(true);

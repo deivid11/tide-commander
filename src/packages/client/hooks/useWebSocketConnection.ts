@@ -9,6 +9,7 @@
 import { useEffect } from 'react';
 import { store } from '../store';
 import { connect, setCallbacks } from '../websocket';
+import { runPostReconnectResync } from '../services/postReconnectResync';
 import {
   getWsConnected,
   setWsConnected,
@@ -44,6 +45,7 @@ export function useWebSocketConnection({
       onToast: showToast,
       onReconnect: () => {
         store.triggerReconnect();
+        void runPostReconnectResync();
       },
       onAgentNotification: (notification) => {
         showAgentNotification(notification);

@@ -9,8 +9,7 @@ import { store, ClaudeOutput } from '../../store';
 import { apiUrl, authFetch } from '../../utils/storage';
 import type { HistoryMessage } from './types';
 import { MESSAGES_PER_PAGE, SCROLL_THRESHOLD } from './types';
-
-const HISTORY_LIVE_DEDUP_WINDOW_MS = 120_000;
+import { dedupeOutputsAgainstHistory } from './historyDedup';
 
 // Maximum number of agents to keep cached history for (LRU eviction)
 const HISTORY_CACHE_MAX_AGENTS = 5;
@@ -50,38 +49,6 @@ export function evictHistoryCache(agentId: string): void {
   historyCache.delete(agentId);
 }
 
-function normalizeMessage(text: string): string {
-  return text.trim().replace(/\r\n/g, '\n');
-}
-
-function buildOutputHistoryKey(type: 'user' | 'assistant', content: string): string {
-  return `${type}:${normalizeMessage(content)}`;
-}
-
-function shouldKeepOutput(
-  output: ClaudeOutput,
-  historyUuidSet: Set<string>,
-  latestHistoryTsByKey: Map<string, number>,
-): boolean {
-  // UUID-bearing live output: keep unless the same UUID is already in history.
-  // Pruning by timestamp here would silently kill optimistic chips/messages
-  // whenever an earlier already-persisted JSONL entry makes the latest history
-  // timestamp newer than this output's client-side timestamp.
-  if (output.uuid) {
-    return !historyUuidSet.has(output.uuid);
-  }
-
-  const outputType: 'user' | 'assistant' = output.isUserPrompt ? 'user' : 'assistant';
-  const key = buildOutputHistoryKey(outputType, output.text);
-  const outputTs = output.timestamp || 0;
-  const historyTs = latestHistoryTsByKey.get(key);
-
-  if (historyTs !== undefined && Math.abs(outputTs - historyTs) <= HISTORY_LIVE_DEDUP_WINDOW_MS) {
-    return false;
-  }
-
-  return true;
-}
 
 export interface UseHistoryLoaderProps {
   selectedAgentId: string | null;
@@ -299,57 +266,22 @@ export function useHistoryLoader({
         });
         historyCacheEvict();
 
-        // Handle output deduplication - always dedupe to avoid showing same message twice
-        if (preservedOutputsSnapshot && preservedOutputsSnapshot.length > 0) {
-          const historyUuidSet = new Set<string>();
-          for (const m of messages) {
-            if (typeof m.uuid === 'string' && m.uuid.length > 0) historyUuidSet.add(m.uuid);
-            if (typeof m.toolUseId === 'string' && m.toolUseId.length > 0) historyUuidSet.add(m.toolUseId);
-          }
-          const latestHistoryTsByKey = new Map<string, number>();
-          for (const msg of messages) {
-            if (msg.type !== 'user' && msg.type !== 'assistant') continue;
-            const key = buildOutputHistoryKey(msg.type, msg.content);
-            const msgTs = msg.timestamp ? new Date(msg.timestamp).getTime() : 0;
-            const prev = latestHistoryTsByKey.get(key) ?? 0;
-            if (msgTs > prev) latestHistoryTsByKey.set(key, msgTs);
-          }
-
-          const newerOutputs = preservedOutputsSnapshot.filter((output) => shouldKeepOutput(
-            output,
-            historyUuidSet,
-            latestHistoryTsByKey,
-          ));
-
-          store.clearOutputs(selectedAgentId);
-          for (const output of newerOutputs) {
-            store.addOutput(selectedAgentId, output);
-          }
-        } else if (messages.length > 0) {
-          const historyUuidSet = new Set<string>();
-          for (const m of messages) {
-            if (typeof m.uuid === 'string' && m.uuid.length > 0) historyUuidSet.add(m.uuid);
-            if (typeof m.toolUseId === 'string' && m.toolUseId.length > 0) historyUuidSet.add(m.toolUseId);
-          }
-          const latestHistoryTsByKey = new Map<string, number>();
-          for (const msg of messages) {
-            if (msg.type !== 'user' && msg.type !== 'assistant') continue;
-            const key = buildOutputHistoryKey(msg.type, msg.content);
-            const msgTs = msg.timestamp ? new Date(msg.timestamp).getTime() : 0;
-            const prev = latestHistoryTsByKey.get(key) ?? 0;
-            if (msgTs > prev) latestHistoryTsByKey.set(key, msgTs);
-          }
-
-          const currentOutputs = store.getOutputs(selectedAgentId);
-          const newerOutputs = currentOutputs.filter((output) => shouldKeepOutput(
-            output,
-            historyUuidSet,
-            latestHistoryTsByKey,
-          ));
-
-          if (currentOutputs.length !== newerOutputs.length) {
+        // Handle output deduplication — always dedupe against the LIVE store
+        // (current outputs), never against the pre-fetch snapshot. The snapshot
+        // is captured at effect-fire time, before authFetch; any output that
+        // arrives via WS during the in-flight window (the optimistic prompt
+        // from `command_started`, an assistant chunk, a tool event) is in the
+        // live store at .then() time but NOT in the snapshot, and filtering
+        // the snapshot would silently delete it on clearOutputs+re-add. The
+        // snapshot is only used in the catch() block below for error recovery.
+        if (messages.length > 0 || (preservedOutputsSnapshot && preservedOutputsSnapshot.length > 0)) {
+          const dedupResult = dedupeOutputsAgainstHistory(
+            store.getOutputs(selectedAgentId),
+            messages,
+          );
+          if (dedupResult.changed) {
             store.clearOutputs(selectedAgentId);
-            for (const output of newerOutputs) {
+            for (const output of dedupResult.kept) {
               store.addOutput(selectedAgentId, output);
             }
           }

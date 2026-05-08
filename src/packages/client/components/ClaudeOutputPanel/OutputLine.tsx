@@ -12,6 +12,9 @@ import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay } from './BossContext';
 import { parseWhatsAppMessage, WhatsAppMessageBubble } from './WhatsAppMessageBubble';
 import { parseEmailMessage, GmailMessageBubble } from './GmailMessageBubble';
+import { parseSlackMessage, SlackMessageBubble } from './SlackMessageBubble';
+import { DelegationMessageCard, parseDelegationMessage } from './DelegationMessageCard';
+import { AgentChatMessageCard, parseAgentChatMessage } from './AgentChatMessageCard';
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, UnknownToolInput, ToolSearchInput, isToolSearchContent } from './ToolRenderers';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
@@ -405,6 +408,22 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       );
     }
 
+    // Agent-to-agent chat: "Message from agent <name> (<id>): <body>"
+    // — sender lookup + line-clamped body with Show more toggle.
+    const agentChatMsg = parseAgentChatMessage(userMessage);
+    if (agentChatMsg) {
+      return (
+        <div className="output-line output-user output-user-agent-chat">
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          <AgentChatMessageCard
+            senderName={agentChatMsg.senderName}
+            senderId={agentChatMsg.senderId}
+            body={agentChatMsg.body}
+          />
+        </div>
+      );
+    }
+
     // WhatsApp trigger payloads land as user prompts; render them as a chat bubble.
     const whatsAppMsg = parseWhatsAppMessage(userMessage);
     if (whatsAppMsg) {
@@ -412,6 +431,16 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         <div className="output-line output-user output-user-whatsapp">
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           <WhatsAppMessageBubble msg={whatsAppMsg} />
+        </div>
+      );
+    }
+
+    const slackMsg = parseSlackMessage(userMessage);
+    if (slackMsg) {
+      return (
+        <div className="output-line output-user output-user-slack">
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          <SlackMessageBubble msg={slackMsg} />
         </div>
       );
     }
@@ -445,6 +474,20 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         )}
       </div>
     );
+  }
+
+  // Compact card for boss-broadcast delegation messages ("📋 Task delegated from X:")
+  // — header always visible, body line-clamps to 5 with a Show more toggle.
+  if (output.isDelegation || text.startsWith('📋')) {
+    const delegationParsed = parseDelegationMessage(text);
+    if (delegationParsed) {
+      return (
+        <div className="output-line output-delegation-broadcast">
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          <DelegationMessageCard bossName={delegationParsed.bossName} body={delegationParsed.body} />
+        </div>
+      );
+    }
   }
 
   // Handle tool usage with nice formatting

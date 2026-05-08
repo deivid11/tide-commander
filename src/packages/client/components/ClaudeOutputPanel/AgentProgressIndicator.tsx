@@ -33,25 +33,7 @@ export function AgentProgressIndicator({
   onFileClick,
   onBashClick,
 }: AgentProgressIndicatorProps) {
-  // Track user-initiated collapse state separately from initial default
-  const [userCollapsed, setUserCollapsed] = useState<boolean | null>(null);
-
-  // Use explicit default on first render, then respect user toggles
-  const prevStatusRef = useRef(progress.status);
-  const isExpanded = userCollapsed !== null
-    ? !userCollapsed
-    : defaultExpanded;
-
-  // Reset user collapse preference when status changes (e.g., new task starts)
-  useEffect(() => {
-    if (prevStatusRef.current !== progress.status) {
-      // If transitioning from working to completed/failed, auto-expand to show result
-      if (prevStatusRef.current === 'working' && (progress.status === 'completed' || progress.status === 'failed')) {
-        setUserCollapsed(false);
-      }
-      prevStatusRef.current = progress.status;
-    }
-  }, [progress.status]);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   const statusColors: Record<string, string> = {
     working: '#4a9eff',
@@ -96,14 +78,28 @@ export function AgentProgressIndicator({
   };
 
   const handleToggle = () => {
-    setUserCollapsed(isExpanded);
+    setIsExpanded((prev) => !prev);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleToggle();
+    }
   };
 
   return (
     <div
       className={`agent-progress-indicator status-${progress.status} ${isExpanded ? 'expanded' : 'collapsed'}`}
     >
-      <div className="agent-progress-header" onClick={handleToggle}>
+      <div
+        className="agent-progress-header"
+        onClick={handleToggle}
+        onKeyDown={handleKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-expanded={isExpanded}
+      >
         <span className="agent-progress-status-icon" style={{ color: statusColors[progress.status] }}>
           <Icon name={statusIcons[progress.status]} size={14} />
         </span>

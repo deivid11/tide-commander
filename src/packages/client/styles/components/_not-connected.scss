@@ -45,6 +45,17 @@
   letter-spacing: -0.02em;
 }
 
+.not-connected-failing {
+  margin: -8px 0 18px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
 .not-connected-description {
   font-size: 0.95rem;
   line-height: 1.6;

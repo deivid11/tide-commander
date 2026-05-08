@@ -73,33 +73,110 @@ export function resolveAndValidateFilePath(
 
 // Cache of (requested path → resolved absolute path) for successful fallback
 // resolutions. Avoids repeating the walk-up search for the same stale path.
-const resolvedPathCache = new Map<string, string>();
+const resolvedPathCache = new Map<string, { path: string; strategy: ResolutionStrategy }>();
 const RESOLVED_CACHE_MAX = 500;
 
-function rememberResolution(key: string, found: string): void {
+function rememberResolution(key: string, found: string, strategy: ResolutionStrategy): void {
   if (resolvedPathCache.size >= RESOLVED_CACHE_MAX) {
     const firstKey = resolvedPathCache.keys().next().value;
     if (firstKey !== undefined) resolvedPathCache.delete(firstKey);
   }
-  resolvedPathCache.set(key, found);
+  resolvedPathCache.set(key, { path: found, strategy });
+}
+
+export type ResolutionStrategy =
+  | 'exact'
+  | 'cached'
+  | 'parent-walk'
+  | 'git-root'
+  | 'suffix-match';
+
+// Recursive-walk cache for suffix-match: rooted at an absolute directory, value
+// is the flat list of file absolute paths under that root. TTL keeps it warm
+// across rapid clicks but lets edits propagate. Keys evict on TTL only — small
+// LRU cap as a memory ceiling.
+const SUFFIX_WALK_TTL_MS = 30_000;
+const SUFFIX_WALK_MAX_ROOTS = 16;
+const SUFFIX_WALK_MAX_DEPTH = 6;
+const SUFFIX_WALK_IGNORE = new Set([
+  'node_modules', '.git', 'dist', 'build', 'vendor', '.next', 'target',
+  '.cache', '.turbo', '.venv', '__pycache__',
+]);
+
+interface SuffixWalkEntry { files: string[]; expiresAt: number }
+const suffixWalkCache = new Map<string, SuffixWalkEntry>();
+
+export function _resetSuffixWalkCacheForTests(): void {
+  suffixWalkCache.clear();
+}
+
+function listFilesShallow(root: string, depth: number): string[] {
+  if (depth > SUFFIX_WALK_MAX_DEPTH) return [];
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true });
+  } catch { return []; }
+  const out: string[] = [];
+  for (const e of entries) {
+    if (e.name.startsWith('.') && SUFFIX_WALK_IGNORE.has(e.name)) continue;
+    if (SUFFIX_WALK_IGNORE.has(e.name)) continue;
+    const full = path.join(root, e.name);
+    if (e.isDirectory()) {
+      out.push(...listFilesShallow(full, depth + 1));
+    } else if (e.isFile()) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+function getWalkedFiles(root: string, now: number = Date.now()): string[] {
+  const cached = suffixWalkCache.get(root);
+  if (cached && cached.expiresAt > now) return cached.files;
+  const files = listFilesShallow(root, 0);
+  if (suffixWalkCache.size >= SUFFIX_WALK_MAX_ROOTS) {
+    const firstKey = suffixWalkCache.keys().next().value;
+    if (firstKey !== undefined) suffixWalkCache.delete(firstKey);
+  }
+  suffixWalkCache.set(root, { files, expiresAt: now + SUFFIX_WALK_TTL_MS });
+  return files;
+}
+
+function findBySuffixMatch(rawPath: string, walkRoot: string): string | null {
+  const segments = rawPath.replace(/^\/+/, '').split(path.sep).filter(Boolean);
+  if (segments.length === 0) return null;
+  const files = getWalkedFiles(walkRoot);
+  if (files.length === 0) return null;
+
+  // Try the longest possible suffix first (most specific), shrinking down to
+  // basename. The first suffix length with a UNIQUE hit wins — ambiguous suffix
+  // means we'd guess wrong, so fall through.
+  for (let take = Math.min(segments.length, 4); take >= 1; take--) {
+    const suffix = path.sep + segments.slice(-take).join(path.sep);
+    const matches = files.filter(f => f.endsWith(suffix));
+    if (matches.length === 1) return matches[0];
+    if (matches.length > 1) continue;
+  }
+  return null;
 }
 
 /**
  * Resolve a requested file path to an existing file on disk, with fallbacks.
  * Tries (in order):
- *   1. The path as resolved by resolveAndValidateFilePath()
- *   2. A previously-cached resolution for the same requested key
- *   3. The path's tail anchored at baseDir and each of its ancestors — recovers
- *      stale absolute paths and relative paths that target an ancestor repo
- *   4. The path's tail anchored at git's toplevel discovered from baseDir
+ *   1. exact         — resolved by resolveAndValidateFilePath() (absolute or baseDir+path)
+ *   2. cached        — previously-resolved entry for the same requested key
+ *   3. parent-walk   — tail slices anchored at baseDir AND each ancestor up to /
+ *   4. git-root      — tail slices anchored at the git toplevel from baseDir
+ *   5. suffix-match  — last-resort: unique trailing-segment match within a
+ *                      depth-limited walk of baseDir, ignoring vendored dirs
  * On miss, returns the absolute path requested AND the list of paths tried so
  * the caller can surface a clear, debuggable error.
  */
-function findFileWithFallbacks(
+export function findFileWithFallbacks(
   rawPath: string | undefined,
   baseDir: string | undefined,
 ):
-  | { ok: true; path: string }
+  | { ok: true; path: string; strategy: ResolutionStrategy }
   | { ok: false; status: number; error: string; requested?: string; tried?: string[] } {
   if (!rawPath) {
     return { ok: false, status: 400, error: 'Missing path parameter' };
@@ -122,12 +199,12 @@ function findFileWithFallbacks(
   };
 
   const direct = tryCandidate(resolution.path);
-  if (direct) return { ok: true, path: direct };
+  if (direct) return { ok: true, path: direct, strategy: 'exact' };
 
   const cached = resolvedPathCache.get(rawPath);
   if (cached) {
-    const hit = tryCandidate(cached);
-    if (hit) return { ok: true, path: hit };
+    const hit = tryCandidate(cached.path);
+    if (hit) return { ok: true, path: hit, strategy: 'cached' };
     resolvedPathCache.delete(rawPath);
   }
 
@@ -145,8 +222,8 @@ function findFileWithFallbacks(
         const candidate = path.join(cur, ...tailSegments.slice(i));
         const hit = tryCandidate(candidate);
         if (hit) {
-          rememberResolution(rawPath, hit);
-          return { ok: true, path: hit };
+          rememberResolution(rawPath, hit, 'parent-walk');
+          return { ok: true, path: hit, strategy: 'parent-walk' };
         }
       }
       const parent = path.dirname(cur);
@@ -166,13 +243,27 @@ function findFileWithFallbacks(
             const candidate = path.join(gitTop, ...tailSegments.slice(i));
             const hit = tryCandidate(candidate);
             if (hit) {
-              rememberResolution(rawPath, hit);
-              return { ok: true, path: hit };
+              rememberResolution(rawPath, hit, 'git-root');
+              return { ok: true, path: hit, strategy: 'git-root' };
             }
           }
         }
       }
     } catch { /* baseDir is not in a git repo — skip */ }
+
+    // Last-resort suffix match: cheap depth-limited recursive walk, cached for
+    // 30s. Helps when the requested path's segments don't anchor anywhere via
+    // parent-walk (e.g. file moved between dirs while UI still cites old path).
+    try {
+      if (fs.existsSync(absBase)) {
+        const suffixHit = findBySuffixMatch(rawPath, absBase);
+        if (suffixHit) {
+          tried.push(`<suffix-match in ${absBase}>`);
+          rememberResolution(rawPath, suffixHit, 'suffix-match');
+          return { ok: true, path: suffixHit, strategy: 'suffix-match' };
+        }
+      }
+    } catch { /* walk failed entirely — fall through to 404 */ }
   }
 
   return {
@@ -232,6 +323,7 @@ router.get('/read', async (req: Request, res: Response) => {
       content,
       size: stats.size,
       modified: stats.mtime,
+      strategy: resolution.strategy,
     });
   } catch (err: any) {
     log.error(' Failed to read file:', err);
@@ -375,6 +467,7 @@ router.get('/info', async (req: Request, res: Response) => {
       extension,
       size: stats.size,
       modified: stats.mtime,
+      strategy: resolution.strategy,
     });
   } catch (err: any) {
     log.error(' Failed to get file info:', err);

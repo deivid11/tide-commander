@@ -126,6 +126,8 @@ export {
   useCustomAgentClassesArray,
   useCustomAgentClass,
   useReconnectCount,
+  useResyncInProgress,
+  useConnectionFailing,
   useHistoryRefreshTrigger,
   useMouseControls,
   useCameraSensitivity,
@@ -199,6 +201,8 @@ class Store
       lastSelectedAgentId: null,
       activities: [],
       isConnected: false,
+      resyncInProgress: false,
+      connectionFailing: false,
       areas: new Map(),
       activeTool: null,
       selectedAreaId: null,
@@ -382,6 +386,21 @@ class Store
 
   setConnected(isConnected: boolean): void {
     this.state.isConnected = isConnected;
+    if (isConnected) {
+      this.state.connectionFailing = false;
+    }
+    this.notify();
+  }
+
+  setResyncInProgress(value: boolean): void {
+    if (this.state.resyncInProgress === value) return;
+    this.state.resyncInProgress = value;
+    this.notify();
+  }
+
+  setConnectionFailing(value: boolean): void {
+    if (this.state.connectionFailing === value) return;
+    this.state.connectionFailing = value;
     this.notify();
   }
 

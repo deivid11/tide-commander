@@ -17,7 +17,7 @@ import {
   getIsConnecting, setIsConnecting,
   getReconnectAttempts, setReconnectAttempts,
   getReconnectTimeout, setReconnectTimeout,
-  maxReconnectAttempts,
+  failingThresholdAttempts,
   getHasConnectedBefore, setHasConnectedBefore,
   clearSessionState,
   setConnectFn,
@@ -172,7 +172,6 @@ export function connect(): void {
 async function openSocket(): Promise<void> {
   const candidates = getBackendUrls();
   const authToken = getAuthToken();
-  const defaultPort = typeof __SERVER_PORT__ !== 'undefined' ? __SERVER_PORT__ : 6200;
 
   // Resolve which HTTP base URL to use. With a configured list, probe in priority
   // order (last successful first) and pick the first reachable host.
@@ -180,23 +179,15 @@ async function openSocket(): Promise<void> {
   if (candidates.length > 0) {
     chosenHttpUrl = await pickReachableUrl(candidates, 3000);
     if (!chosenHttpUrl) {
-      // None of the configured URLs answered. Surface a toast and back off.
       setIsConnecting(false);
       const attempts = getReconnectAttempts();
-      if (attempts < maxReconnectAttempts) {
-        cb.onToast?.(
-          'warning',
-          'Disconnected',
-          `No backend URL reachable. Retrying… (attempt ${attempts}/${maxReconnectAttempts})`,
-        );
-        handleReconnectDelay();
-      } else {
-        cb.onToast?.(
-          'error',
-          'Connection Failed',
-          'None of the configured backend URLs are reachable.',
-        );
+      if (attempts === 1) {
+        cb.onToast?.('warning', 'Disconnected', 'No backend URL reachable. Retrying…');
       }
+      if (attempts >= failingThresholdAttempts) {
+        store.setConnectionFailing(true);
+      }
+      handleReconnectDelay();
       return;
     }
     setActiveBackendUrl(chosenHttpUrl);
@@ -275,12 +266,13 @@ async function openSocket(): Promise<void> {
     store.stopStatusPolling();
 
     const attempts = getReconnectAttempts();
-    if (attempts < maxReconnectAttempts) {
-      cb.onToast?.('warning', 'Disconnected', `Connection lost. Reconnecting... (attempt ${attempts + 1}/${maxReconnectAttempts})`);
-      handleReconnectDelay();
-    } else {
-      cb.onToast?.('error', 'Connection Failed', `Could not connect to server. Please check if the backend is running on port ${defaultPort}.`);
+    if (attempts === 1) {
+      cb.onToast?.('warning', 'Disconnected', 'Connection lost. Reconnecting…');
     }
+    if (attempts >= failingThresholdAttempts) {
+      store.setConnectionFailing(true);
+    }
+    handleReconnectDelay();
   };
 
   newSocket.onerror = () => {
@@ -291,9 +283,9 @@ async function openSocket(): Promise<void> {
   store.setSendMessage(sendMessage);
 }
 
-/** Schedule a reconnection with exponential backoff. */
+/** Schedule a reconnection with exponential backoff (250ms→8s). */
 function handleReconnectDelay(): void {
   const attempts = getReconnectAttempts();
-  const delay = Math.min(1000 * Math.pow(2, attempts - 1), 30000);
+  const delay = Math.min(250 * Math.pow(2, Math.max(0, attempts - 1)), 8000);
   setReconnectTimeout(setTimeout(connect, delay));
 }

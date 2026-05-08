@@ -186,6 +186,41 @@
   color: var(--accent-red);
 }
 
+.file-viewer-not-found {
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+  text-align: center;
+}
+
+.file-viewer-not-found-headline {
+  color: var(--text-primary);
+}
+
+.file-viewer-not-found-path {
+  color: var(--text-muted);
+  word-break: break-all;
+  font-size: 12px;
+}
+
+.file-viewer-strategy-badge {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-family: $font-mono;
+  background: var(--surface-2, rgba(255, 255, 255, 0.06));
+  color: var(--text-muted);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  text-transform: lowercase;
+}
+
+.file-viewer-strategy-suffix-match {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
 // Image preview in modal
 .file-viewer-image-wrapper {
   width: 100%;

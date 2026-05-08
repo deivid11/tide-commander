@@ -66,6 +66,8 @@ export interface SlackMessageEvent {
   workflowInstanceId?: string;
   rawEvent?: unknown;
   receivedAt: number;
+  /** Which Slack integration instance this message belongs to. Defaults to 'default' if missing. */
+  integrationInstanceId?: string;
 }
 
 // ─── Email Messages ───

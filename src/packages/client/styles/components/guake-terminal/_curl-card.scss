@@ -82,40 +82,40 @@
 .curl-card.curl-card--agent-message {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
+  gap: 3px;
+  padding: 6px 9px;
   border-left: 3px solid color-mix(in srgb, #5cc8ff 60%, transparent);
 
   .curl-agent-message-title {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 10px;
+    gap: 5px;
+    font-size: 9.5px;
     font-weight: 700;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
     text-transform: uppercase;
     color: #5cc8ff;
-    padding-bottom: 2px;
+    padding-bottom: 1px;
   }
 
   .curl-agent-message-icon {
-    font-size: 12px;
+    font-size: 11px;
     line-height: 1;
   }
 
   .curl-agent-message-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     min-width: 0;
   }
 
   .curl-agent-message-label {
     flex: 0 0 auto;
-    width: 44px;
-    font-size: 9px;
+    width: 28px;
+    font-size: 8.5px;
     font-weight: 700;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
     text-transform: uppercase;
     color: #5cc8ff;
     user-select: none;
@@ -124,13 +124,14 @@
   .curl-agent-message-name {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     min-width: 0;
     flex: 1 1 auto;
     color: var(--tool-use-text);
   }
 
   .curl-agent-message-name-text {
+    font-size: 11px;
     font-weight: 600;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -140,31 +141,447 @@
 
   .curl-agent-message-body {
     position: relative;
-    margin-top: 2px;
-    padding: 6px 10px 6px 14px;
+    margin-top: 1px;
+    padding: 4px 8px 4px 11px;
     background: color-mix(in srgb, #5cc8ff 8%, transparent);
     border-left: 2px solid color-mix(in srgb, #5cc8ff 45%, transparent);
-    border-radius: 3px;
+    border-radius: 4px;
     color: var(--tool-use-text);
-    font-size: 11px;
-    line-height: 1.45;
+    font-size: 10.5px;
+    line-height: 1.4;
     white-space: pre-wrap;
     word-break: break-word;
     overflow-wrap: anywhere;
   }
 
+  .curl-agent-message-body--collapsed {
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    line-clamp: 5;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 1.6em;
+      pointer-events: none;
+      background: linear-gradient(
+        to bottom,
+        transparent,
+        color-mix(in srgb, var(--tool-use-bg) 92%, #5cc8ff) 92%
+      );
+    }
+  }
+
   .curl-agent-message-quote-mark {
     display: inline-block;
-    margin-right: 4px;
+    margin-right: 3px;
     color: color-mix(in srgb, #5cc8ff 70%, transparent);
     font-family: Georgia, 'Times New Roman', serif;
-    font-size: 16px;
+    font-size: 13px;
     line-height: 1;
     vertical-align: -2px;
   }
 
   .curl-agent-message-text {
     color: var(--tool-use-text);
+  }
+
+  .curl-agent-message-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1px;
+  }
+
+  .curl-agent-message-more-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: 1px solid color-mix(in srgb, #5cc8ff 40%, transparent);
+    color: color-mix(in srgb, #5cc8ff 88%, var(--tool-use-text));
+    font-family: $font-mono;
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    line-height: 1;
+    padding: 2px 7px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+
+    &:hover {
+      background: color-mix(in srgb, #5cc8ff 14%, transparent);
+      color: #5cc8ff;
+      border-color: color-mix(in srgb, #5cc8ff 65%, transparent);
+    }
+
+    &:focus-visible {
+      outline: 2px solid color-mix(in srgb, #5cc8ff 55%, transparent);
+      outline-offset: 1px;
+    }
+  }
+}
+
+// Compact card for boss-broadcast delegation messages
+// ("📋 Task delegated from <bossName>:" outputs from boss-response-handler).
+// Shares the visual language of .curl-card--agent-message: tight padding, line
+// clamp on body, fade-out gradient, focusable Show more toggle. Header stays
+// visible at all times.
+.output-delegation-broadcast {
+  display: block;
+  padding: 0;
+  margin: 4px 0;
+}
+
+.delegation-message-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, #f0b866 30%, transparent);
+  border-left: 3px solid color-mix(in srgb, #f0b866 70%, transparent);
+  border-radius: $radius-md;
+  background: color-mix(in srgb, var(--tool-use-bg) 88%, var(--bg-primary, #111) 12%);
+  color: var(--tool-use-text);
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.5;
+
+  .delegation-message-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: color-mix(in srgb, #f0b866 92%, var(--tool-use-text));
+    padding-bottom: 1px;
+  }
+
+  .delegation-message-icon {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+    color: color-mix(in srgb, #f0b866 90%, var(--tool-use-text));
+  }
+
+  .delegation-message-title-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .delegation-message-boss-name {
+    color: color-mix(in srgb, #f0b866 100%, var(--tool-use-text));
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: 0.2px;
+  }
+
+  .delegation-message-body {
+    position: relative;
+    margin-top: 1px;
+    padding: 5px 9px 5px 11px;
+    background: color-mix(in srgb, #f0b866 6%, transparent);
+    border-left: 2px solid color-mix(in srgb, #f0b866 35%, transparent);
+    border-radius: 4px;
+    color: var(--tool-use-text);
+    font-size: 10.5px;
+    line-height: 1.45;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+
+    > * { margin-block: 4px; }
+    > :first-child { margin-top: 0; }
+    > :last-child { margin-bottom: 0; }
+
+    p { margin: 4px 0; }
+    pre {
+      margin: 4px 0;
+      padding: 6px 8px;
+      background: color-mix(in srgb, var(--bg-primary, #0c0c0c) 60%, transparent);
+      border-radius: 3px;
+      overflow-x: auto;
+      font-size: 10px;
+    }
+    code { font-size: 10px; }
+    ul, ol { margin: 4px 0; padding-left: 18px; }
+    li { margin: 2px 0; }
+  }
+
+  .delegation-message-body--collapsed {
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    line-clamp: 5;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    max-height: calc(1.45em * 5 + 12px);
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 1.6em;
+      pointer-events: none;
+      background: linear-gradient(
+        to bottom,
+        transparent,
+        color-mix(in srgb, var(--tool-use-bg) 92%, #f0b866) 92%
+      );
+    }
+  }
+
+  .delegation-message-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1px;
+  }
+
+  .delegation-message-more-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: 1px solid color-mix(in srgb, #f0b866 40%, transparent);
+    color: color-mix(in srgb, #f0b866 88%, var(--tool-use-text));
+    font-family: $font-mono;
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    line-height: 1;
+    padding: 2px 7px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+
+    &:hover {
+      background: color-mix(in srgb, #f0b866 14%, transparent);
+      color: #f0b866;
+      border-color: color-mix(in srgb, #f0b866 65%, transparent);
+    }
+
+    &:focus-visible {
+      outline: 2px solid color-mix(in srgb, #f0b866 55%, transparent);
+      outline-offset: 1px;
+    }
+  }
+}
+
+// Compact card for agent-to-agent chat messages received on a subordinate
+// terminal (user prompts that begin with "Message from agent X (id):"). Same
+// mechanics as the delegation card; cyan accent to match the sender-side
+// .curl-card--agent-message rendering.
+.output-user-agent-chat,
+.history-user-agent-chat {
+  background: transparent !important;
+  border: none !important;
+  border-left: none !important;
+  padding: 4px 0 !important;
+  margin: 4px 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+
+  &::before,
+  &::after {
+    display: none !important;
+    content: none !important;
+  }
+
+  > .history-content {
+    display: block;
+    width: 100%;
+    color: inherit;
+  }
+}
+
+.agent-chat-message-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, #5cc8ff 30%, transparent);
+  border-left: 3px solid color-mix(in srgb, #5cc8ff 70%, transparent);
+  border-radius: $radius-md;
+  background: color-mix(in srgb, var(--tool-use-bg) 88%, var(--bg-primary, #111) 12%);
+  color: var(--tool-use-text);
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.5;
+
+  .agent-chat-message-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: color-mix(in srgb, #5cc8ff 92%, var(--tool-use-text));
+    padding-bottom: 1px;
+    min-width: 0;
+  }
+
+  .agent-chat-message-icon {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+    color: color-mix(in srgb, #5cc8ff 90%, var(--tool-use-text));
+  }
+
+  .agent-chat-message-title-text {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .agent-chat-message-sender {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    text-transform: none;
+    letter-spacing: 0.2px;
+
+    strong {
+      font-weight: 700;
+      color: color-mix(in srgb, #5cc8ff 100%, var(--tool-use-text));
+    }
+
+    &.clickable-agent-name {
+      cursor: pointer;
+      transition: opacity 120ms ease;
+
+      &:hover {
+        opacity: 0.85;
+      }
+    }
+  }
+
+  .agent-chat-message-sender-name {
+    text-transform: none;
+    letter-spacing: 0.2px;
+    font-weight: 700;
+    color: color-mix(in srgb, #5cc8ff 100%, var(--tool-use-text));
+  }
+
+  .agent-chat-message-sender-id {
+    font-family: $font-mono;
+    font-size: 9px;
+    text-transform: none;
+    letter-spacing: 0;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--bg-primary, #0c0c0c) 60%, transparent);
+    color: var(--text-muted, #aaa);
+    border: 1px solid color-mix(in srgb, var(--tool-use-border) 25%, transparent);
+  }
+
+  .agent-chat-message-body {
+    position: relative;
+    margin-top: 1px;
+    padding: 5px 9px 5px 11px;
+    background: color-mix(in srgb, #5cc8ff 6%, transparent);
+    border-left: 2px solid color-mix(in srgb, #5cc8ff 35%, transparent);
+    border-radius: 4px;
+    color: var(--tool-use-text);
+    font-size: 10.5px;
+    line-height: 1.45;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+
+    > * { margin-block: 4px; }
+    > :first-child { margin-top: 0; }
+    > :last-child { margin-bottom: 0; }
+
+    p { margin: 4px 0; }
+    pre {
+      margin: 4px 0;
+      padding: 6px 8px;
+      background: color-mix(in srgb, var(--bg-primary, #0c0c0c) 60%, transparent);
+      border-radius: 3px;
+      overflow-x: auto;
+      font-size: 10px;
+    }
+    code { font-size: 10px; }
+    ul, ol { margin: 4px 0; padding-left: 18px; }
+    li { margin: 2px 0; }
+  }
+
+  .agent-chat-message-body--collapsed {
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    line-clamp: 5;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    max-height: calc(1.45em * 5 + 12px);
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 1.6em;
+      pointer-events: none;
+      background: linear-gradient(
+        to bottom,
+        transparent,
+        color-mix(in srgb, var(--tool-use-bg) 92%, #5cc8ff) 92%
+      );
+    }
+  }
+
+  .agent-chat-message-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1px;
+  }
+
+  .agent-chat-message-more-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: 1px solid color-mix(in srgb, #5cc8ff 40%, transparent);
+    color: color-mix(in srgb, #5cc8ff 88%, var(--tool-use-text));
+    font-family: $font-mono;
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    line-height: 1;
+    padding: 2px 7px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+
+    &:hover {
+      background: color-mix(in srgb, #5cc8ff 14%, transparent);
+      color: #5cc8ff;
+      border-color: color-mix(in srgb, #5cc8ff 65%, transparent);
+    }
+
+    &:focus-visible {
+      outline: 2px solid color-mix(in srgb, #5cc8ff 55%, transparent);
+      outline-offset: 1px;
+    }
   }
 }
 
