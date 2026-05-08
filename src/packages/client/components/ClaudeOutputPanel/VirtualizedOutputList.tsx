@@ -12,6 +12,9 @@ import { OutputLine } from './OutputLine';
 import type { EnrichedHistoryMessage, EditData } from './types';
 import type { ClaudeOutput } from '../../store';
 import type { ExecTask, Subagent } from '../../../shared/types';
+import { buildItemKey } from './virtualizedOutputKey';
+export { buildItemKey } from './virtualizedOutputKey';
+export type { TaggedItem, TaggedHistoryItem, TaggedLiveItem } from './virtualizedOutputKey';
 
 // Enriched output type from useFilteredOutputs
 type EnrichedOutput = ClaudeOutput & {
@@ -80,9 +83,12 @@ const ESTIMATED_HEIGHTS = {
 
 // Tagged wrapper so the merged history+live array can be sorted while still
 // telling each renderer which component to use (HistoryLine vs OutputLine).
-type TaggedHistoryItem = { kind: 'history'; item: EnrichedHistoryMessage; originalIndex: number };
-type TaggedLiveItem = { kind: 'live'; item: EnrichedOutput; originalIndex: number };
-type TaggedItem = TaggedHistoryItem | TaggedLiveItem;
+// (Type aliases re-exported above are the source of truth — the local copies
+// only narrow the live item to EnrichedOutput so render code can read tool
+// enrichment fields without an extra cast.)
+type _TaggedHistoryItem = { kind: 'history'; item: EnrichedHistoryMessage; originalIndex: number };
+type _TaggedLiveItem = { kind: 'live'; item: EnrichedOutput; originalIndex: number };
+type TaggedItem = _TaggedHistoryItem | _TaggedLiveItem;
 
 /** Canonical 'created at' in epoch ms — bridges history's ISO strings and live's number ts. */
 function getCanonicalTimestampMs(tagged: TaggedItem): number {
@@ -227,8 +233,21 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
       if (ua !== ub) return ua < ub ? -1 : 1;
       return a.originalIndex - b.originalIndex;
     });
-    return tagged;
-  }, [historyMessages, liveOutputs]);
+    // Defensive de-dup: collapse any items that resolve to the same
+    // virtualizer key. Without this, duplicate-key items (real-data dupes
+    // from the source, optimistic+history coexisting briefly) cause
+    // @tanstack/react-virtual to re-emit the same virtual row at multiple
+    // indices, which the user sees as stacked bubbles in one position.
+    const seen = new Set<string>();
+    const unique: TaggedItem[] = [];
+    for (const item of tagged) {
+      const key = buildItemKey(item, agentId);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(item);
+    }
+    return unique;
+  }, [historyMessages, liveOutputs, agentId]);
 
   // Track if we're programmatically scrolling (to avoid triggering onUserScroll)
   const isProgrammaticScrollRef = useRef(false);
@@ -249,18 +268,14 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     estimateSize: (index) => getEstimatedHeight(allItems[index]),
     overscan: 25, // Render 25 items above/below viewport
     initialRect: { width: 500, height: 800 },
-    // Stable per-item key based on uuid (or content fallback) — survives reorders
-    // from the chronological merge so the virtualizer reuses cached row heights
-    // instead of treating every shift as a new item.
+    // Stable per-item key — see buildItemKey above for the live/history bridge
+    // that prevents virtualizer remount when the optimistic prompt is replaced
+    // by its history version after a session-update fetch. agentId is part of
+    // the key so identical content across agents can never collide.
     getItemKey: (index) => {
       const tagged = allItems[index];
       if (!tagged) return index;
-      if (tagged.kind === 'history') {
-        const m = tagged.item;
-        return `h:${m.uuid ?? m.toolUseId ?? `${m.type}:${m.timestamp}:${(m.content || '').slice(0, 32)}`}`;
-      }
-      const o = tagged.item;
-      return `o:${o.uuid ?? `${o.timestamp}:${(o.text || '').slice(0, 32)}`}`;
+      return buildItemKey(tagged, agentId);
     },
     measureElement: (element) => {
       // Measure actual rendered height for accurate positioning

@@ -765,6 +765,18 @@ export function useReconnectCount(): number {
   );
 }
 
+export function useResyncInProgress(): boolean {
+  return useSelector(
+    useCallback((state: StoreState) => state.resyncInProgress, [])
+  );
+}
+
+export function useConnectionFailing(): boolean {
+  return useSelector(
+    useCallback((state: StoreState) => state.connectionFailing, [])
+  );
+}
+
 /**
  * Get the history refresh trigger counter.
  * Increments when an agent's session file updates or agent transitions to idle,

@@ -37,6 +37,7 @@ export const getReconnectTimeout = () => window.__tideWsState!.reconnectTimeout;
 export const setReconnectTimeout = (v: NodeJS.Timeout | null) => { window.__tideWsState!.reconnectTimeout = v; };
 
 export const maxReconnectAttempts = 10;
+export const failingThresholdAttempts = 5;
 
 // Use sessionStorage to persist connection state across HMR reloads
 const SESSION_STORAGE_KEY = 'tide_ws_has_connected';

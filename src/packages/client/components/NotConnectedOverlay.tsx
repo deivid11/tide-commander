@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useIsConnected } from '../store';
+import { store, useIsConnected, useResyncInProgress, useConnectionFailing } from '../store';
 import { reconnect } from '../websocket/connection';
 import {
   getBackendUrl,
@@ -19,6 +19,8 @@ const CONNECT_TIMEOUT_MS = 4000;
 export function NotConnectedOverlay() {
   const { t } = useTranslation(['config']);
   const isConnected = useIsConnected();
+  const resyncInProgress = useResyncInProgress();
+  const connectionFailing = useConnectionFailing();
   const [dismissed, setDismissed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [gracePeriod, setGracePeriod] = useState(true);
@@ -191,24 +193,37 @@ export function NotConnectedOverlay() {
     setDismissed(true);
   }, []);
 
-  if (isConnected || dismissed) return null;
-
-  // During reconnection grace period, show a small non-blocking toast
-  if (gracePeriod && reconnecting) {
+  if (isConnected && resyncInProgress && !dismissed) {
     return (
       <div className="reconnecting-toast">
         <span className="reconnecting-spinner" />
-        Reconnecting...
+        Reconnecting…
       </div>
     );
   }
 
-  if (gracePeriod) return null;
+  if (isConnected || dismissed) return null;
+
+  if (gracePeriod && reconnecting && !connectionFailing) {
+    return (
+      <div className="reconnecting-toast">
+        <span className="reconnecting-spinner" />
+        Reconnecting…
+      </div>
+    );
+  }
+
+  if (gracePeriod && !connectionFailing) return null;
 
   return (
     <div className="not-connected-overlay">
       <div className="not-connected-panel">
         <h2 className="not-connected-title">Tide Commander</h2>
+        {connectionFailing && (
+          <div className="not-connected-failing" role="alert" aria-live="polite">
+            Cannot reach server — retrying in the background.
+          </div>
+        )}
         <p className="not-connected-description">
           A visual multi-agent orchestrator for Claude Code and Codex.
           Deploy, control, and monitor your AI team from an RTS-inspired interface.

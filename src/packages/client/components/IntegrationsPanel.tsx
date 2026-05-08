@@ -6,6 +6,7 @@ import { apiUrl, authFetch } from '../utils/storage';
 const customComponents: Record<string, React.LazyExoticComponent<React.ComponentType<CustomSettingsProps>>> = {
   'gmail-oauth': lazy(() => import('./GmailOAuthSetup').then((m) => ({ default: m.GmailOAuthSetup }))),
   'google-oauth': lazy(() => import('./GoogleOAuthSetup').then((m) => ({ default: m.GoogleOAuthSetup }))),
+  'slack-multi-instance': lazy(() => import('./SlackMultiInstanceSetup').then((m) => ({ default: m.SlackMultiInstanceSetup }))),
 };
 
 interface CustomSettingsProps {
@@ -37,11 +38,10 @@ const INTEGRATION_DESCRIPTIONS: Record<string, string> = {
 const INTEGRATION_REQUIREMENTS: Record<string, string[]> = {
   gmail: ['Google Cloud Console project', 'OAuth 2.0 credentials (Client ID & Secret)', 'Gmail API enabled'],
   slack: [
-    'Slack App with Bot Token and App-Level Token (Socket Mode)',
-    'Enable Socket Mode in your app settings under "Socket Mode"',
-    'Enable Events in the "Event Subscriptions" section of your app config',
-    'Subscribe to bot events: message.channels, message.groups, message.im',
-    'Required Bot Token scopes: channels:history, channels:read, chat:write, groups:history, groups:read, im:history, im:read, users:read',
+    'Bot token (xoxb-) with App-Level Token for real-time Socket Mode, OR User token (xoxp-) for polling mode (~30-60s lag, no Slack app config needed)',
+    'For Socket Mode: enable Socket Mode + Event Subscriptions; subscribe to bot events message.channels, message.groups, message.im',
+    'Required scopes: channels:history, channels:read, chat:write, groups:history, groups:read, im:history, im:read, users:read',
+    'Polling mode (xoxp-) mirrors all channels/groups/DMs the user is a member of — supports xoxp- user tokens that cannot use Socket Mode',
   ],
   jira: ['Jira Cloud instance URL', 'API Token (from Atlassian account)', 'Account email address'],
   'google-calendar': ['Google Cloud Console project', 'OAuth 2.0 credentials', 'Calendar API enabled'],
@@ -489,6 +489,28 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab }: IntegrationsM
                         <span style={S.statusBadge(active.status.connected, !!active.status.error)}>
                           {active.status.error ? '\u2717 Error' : active.status.connected ? '\u2713 Connected' : '\u26A0 Not Configured'}
                         </span>
+                        {active.id === 'slack' && (() => {
+                          const mode = (active.values?.currentMode as string | undefined) || 'none';
+                          if (mode === 'none') return null;
+                          const label = mode === 'polling' ? 'Polling' : 'Socket';
+                          return (
+                            <span
+                              style={{
+                                marginLeft: 8,
+                                padding: '2px 8px',
+                                borderRadius: 4,
+                                fontSize: 11,
+                                fontWeight: 500,
+                                background: 'rgba(137, 180, 250, 0.15)',
+                                color: '#89b4fa',
+                                border: '1px solid rgba(137, 180, 250, 0.3)',
+                              }}
+                              title={mode === 'polling' ? 'Web API polling (xoxp- user token)' : 'Real-time Socket Mode (xoxb- bot token)'}
+                            >
+                              {label}
+                            </span>
+                          );
+                        })()}
                       </div>
                       <div style={S.description}>
                         {INTEGRATION_DESCRIPTIONS[active.id] || active.description}

@@ -145,6 +145,8 @@ export interface StoreState {
   lastSelectedAgentId: string | null; // Track last selected agent for Escape key behavior
   activities: Activity[];
   isConnected: boolean;
+  resyncInProgress: boolean;
+  connectionFailing: boolean;
   // Drawing areas
   areas: Map<string, DrawingArea>;
   activeTool: DrawingTool;

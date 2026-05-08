@@ -20,6 +20,9 @@ import { WhatsAppWsClient, type WhatsAppUpstreamEvent } from './whatsapp-ws-clie
 import { MessageDedupeCache } from './message-dedupe.js';
 import { ContactNameCache } from './contact-name-cache.js';
 import { WhatsAppClient } from './whatsapp-client.js';
+import { createLogger } from '../../utils/logger.js';
+
+const log = createLogger('WhatsAppTrigger');
 
 export interface WhatsAppMessageBridge {
   start(): void;
@@ -495,6 +498,15 @@ function isStatusOrBroadcastChat(chatId: string): boolean {
   return false;
 }
 
+// Drop presence/typing/group-system events that arrive through the bridge
+// with no body and no media — they fire the agent for nothing. Emoji-only
+// bodies and media-with-empty-caption are real content and pass through.
+export function isEmptyContentMessage(msg: NormalizedWhatsAppMessage): boolean {
+  const bodyEmpty = !msg.body || msg.body.trim().length === 0;
+  const noMedia = !msg.mediaType && !msg.mediaUrl;
+  return bodyEmpty && noMedia;
+}
+
 let triggerUnsubscribe: (() => void) | null = null;
 
 export const whatsappTriggerHandler: TriggerHandler = {
@@ -528,6 +540,11 @@ export const whatsappTriggerHandler: TriggerHandler = {
     // surfaced through the same bridge as real messages but represent stories /
     // broadcasts, not conversations. Opt-in via includeStatuses.
     if (!cfg.includeStatuses && isStatusOrBroadcastChat(msg.chatId)) return false;
+
+    if (isEmptyContentMessage(msg)) {
+      log.debug(`whatsapp.trigger.skipped reason=empty_content session=${msg.sessionId}`);
+      return false;
+    }
 
     if (cfg.direction && cfg.direction !== 'any' && msg.direction !== cfg.direction) return false;
     if (cfg.groupOnly && !msg.isGroup) return false;

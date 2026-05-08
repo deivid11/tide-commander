@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseEmailMessage } from '../GmailMessageBubble';
+import { parseEmailMessage, buildGmailMessageUrl } from '../GmailMessageBubble';
 
 const sampleOutbound = `Nuevo correo de Gmail (outbound).
 
@@ -85,5 +85,31 @@ describe('parseEmailMessage', () => {
     expect(parseEmailMessage('Manda un correo a David')).toBeNull();
     expect(parseEmailMessage('')).toBeNull();
     expect(parseEmailMessage('Nuevo correo de Gmail (inbound).')).toBeNull();
+  });
+});
+
+describe('buildGmailMessageUrl', () => {
+  it('builds a Gmail thread URL when thread is present', () => {
+    const parsed = parseEmailMessage(sampleInboundMinimal)!;
+    const url = buildGmailMessageUrl(parsed);
+    expect(url).toBe('https://mail.google.com/mail/u/0/#inbox/thread-id');
+  });
+
+  it('falls back to a search URL using subject + sender when thread is missing', () => {
+    const parsed = parseEmailMessage(sampleInboundMinimal)!;
+    const url = buildGmailMessageUrl({ ...parsed, thread: '' });
+    expect(url).toContain('https://mail.google.com/mail/u/0/?#search/');
+    expect(url).toContain(encodeURIComponent('from:noreply@example.com'));
+  });
+
+  it('returns null when neither thread nor subject/sender are available', () => {
+    const parsed = parseEmailMessage(sampleInboundMinimal)!;
+    const stripped = {
+      ...parsed,
+      thread: '',
+      subject: '',
+      from: { name: '', email: '', raw: '' },
+    };
+    expect(buildGmailMessageUrl(stripped)).toBeNull();
   });
 });

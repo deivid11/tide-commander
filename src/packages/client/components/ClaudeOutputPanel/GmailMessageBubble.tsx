@@ -143,6 +143,17 @@ function splitQuotedThread(body: string): { topBody: string; quotedBody: string 
   return { topBody: body, quotedBody: '' };
 }
 
+export function buildGmailMessageUrl(msg: EmailMessage): string | null {
+  if (msg.thread) {
+    return `https://mail.google.com/mail/u/0/#inbox/${encodeURIComponent(msg.thread)}`;
+  }
+  const subject = (msg.subject || '').trim();
+  const fromAddr = (msg.from.email || msg.from.raw || '').trim();
+  if (!subject && !fromAddr) return null;
+  const q = fromAddr ? `${subject} from:${fromAddr}` : subject;
+  return `https://mail.google.com/mail/u/0/?#search/${encodeURIComponent(q.trim())}`;
+}
+
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);
 }
@@ -242,6 +253,7 @@ export function GmailMessageBubble({ msg }: GmailMessageBubbleProps): React.Reac
   const visibleAttachments = attachmentsExpanded
     ? msg.uniqueAttachments
     : msg.uniqueAttachments.slice(0, 4);
+  const gmailUrl = msg.direction === 'inbound' ? buildGmailMessageUrl(msg) : null;
 
   return (
     <div className={`gmail-bubble-row gmail-${msg.direction}`}>
@@ -353,11 +365,25 @@ export function GmailMessageBubble({ msg }: GmailMessageBubbleProps): React.Reac
 
         <div className="gmail-bubble-footer">
           <span className="gmail-bubble-brand">Gmail</span>
-          {msg.thread && (
-            <span className="gmail-bubble-thread" title={`Thread ${msg.thread}`}>
-              #{msg.thread.slice(0, 8)}
-            </span>
-          )}
+          <div className="gmail-bubble-footer-right">
+            {gmailUrl && (
+              <a
+                className="gmail-bubble-open"
+                href={gmailUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Abrir en Gmail"
+              >
+                <Icon name="open-external" size={10} />
+                <span>Ver en Gmail</span>
+              </a>
+            )}
+            {msg.thread && (
+              <span className="gmail-bubble-thread" title={`Thread ${msg.thread}`}>
+                #{msg.thread.slice(0, 8)}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </div>

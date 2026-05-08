@@ -18,6 +18,8 @@ import { createMarkdownComponents } from './MarkdownComponents';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay } from './BossContext';
 import { parseWhatsAppMessage, WhatsAppMessageBubble } from './WhatsAppMessageBubble';
 import { parseEmailMessage, GmailMessageBubble } from './GmailMessageBubble';
+import { parseSlackMessage, SlackMessageBubble } from './SlackMessageBubble';
+import { AgentChatMessageCard, parseAgentChatMessage } from './AgentChatMessageCard';
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, ToolSearchInput, isToolSearchContent } from './ToolRenderers';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
@@ -908,6 +910,22 @@ export const HistoryLine = memo(function HistoryLine({
       );
     }
 
+    const agentChatMsg = parseAgentChatMessage(displayMessage);
+    if (agentChatMsg) {
+      return (
+        <div className={`${className} history-user-agent-chat`}>
+          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+          <span className="history-content">
+            <AgentChatMessageCard
+              senderName={agentChatMsg.senderName}
+              senderId={agentChatMsg.senderId}
+              body={agentChatMsg.body}
+            />
+          </span>
+        </div>
+      );
+    }
+
     const whatsAppMsg = parseWhatsAppMessage(displayMessage);
     if (whatsAppMsg) {
       return (
@@ -915,6 +933,18 @@ export const HistoryLine = memo(function HistoryLine({
           {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
           <span className="history-content">
             <WhatsAppMessageBubble msg={whatsAppMsg} />
+          </span>
+        </div>
+      );
+    }
+
+    const slackMsg = parseSlackMessage(displayMessage);
+    if (slackMsg) {
+      return (
+        <div className={`${className} history-user-slack`}>
+          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+          <span className="history-content">
+            <SlackMessageBubble msg={slackMsg} />
           </span>
         </div>
       );

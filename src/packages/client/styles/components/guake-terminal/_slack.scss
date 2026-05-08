@@ -1,0 +1,242 @@
+// =============================================================================
+// Guake Terminal - Slack message bubble
+//
+// Same plain-flow design as the WhatsApp bubble:
+//   - Wrapper strips parent .output-user / .history-user chrome.
+//   - .slack-row is a flex-COLUMN, content-sized; left/right alignment via
+//     align-items only, NO position:absolute, NO transform, NO margin escape.
+//   - Visual depth via inset shadow only.
+//   - Virtualizer measures the wrapper's border-box; padding lives inside it.
+// =============================================================================
+
+@use '../../variables' as *;
+
+:root {
+  --slack-inbound-bg: var(--msg-user-bg);
+  --slack-inbound-border: var(--msg-user-border);
+  --slack-outbound-bg: color-mix(in srgb, var(--accent-purple) 16%, var(--bg-primary));
+  --slack-outbound-border: color-mix(in srgb, var(--accent-purple) 50%, transparent);
+  --slack-accent: var(--accent-purple);
+
+  --slack-bubble-radius: 8px;
+  --slack-bubble-padding: 8px 12px;
+  --slack-row-padding: 8px 12px;
+  --slack-bubble-max-width: 70%;
+  --slack-bubble-min-width: 160px;
+}
+
+.output-user-slack,
+.history-user-slack {
+  background: transparent !important;
+  border: none !important;
+  border-left: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+
+  &::before,
+  &::after {
+    display: none !important;
+    content: none !important;
+  }
+
+  > .history-content {
+    display: block;
+    width: 100%;
+    color: inherit;
+  }
+}
+
+.slack-row {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: var(--slack-row-padding);
+}
+
+.slack-row--inbound  { align-items: flex-start; }
+.slack-row--outbound { align-items: flex-end; }
+
+.slack-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: var(--slack-bubble-max-width);
+  min-width: var(--slack-bubble-min-width);
+  padding: var(--slack-bubble-padding);
+  border-radius: var(--slack-bubble-radius);
+  border: 1px solid transparent;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  // Inset only — see WhatsApp partial for the rationale.
+  box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.10);
+
+  .slack-row--inbound & {
+    background: var(--slack-inbound-bg);
+    border-color: var(--slack-inbound-border);
+  }
+  .slack-row--outbound & {
+    background: var(--slack-outbound-bg);
+    border-color: var(--slack-outbound-border);
+  }
+}
+
+.slack-bubble__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.slack-bubble__avatar {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--slack-accent) 26%, transparent);
+  border: 1px solid color-mix(in srgb, var(--slack-accent) 55%, transparent);
+}
+
+.slack-bubble__person {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.slack-bubble__name {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slack-bubble__userid {
+  font-family: $font-mono;
+  font-size: 9.5px;
+  color: var(--text-muted);
+  letter-spacing: 0.2px;
+}
+
+.slack-bubble__channel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  background: color-mix(in srgb, var(--slack-accent) 18%, transparent);
+  color: color-mix(in srgb, var(--slack-accent) 90%, var(--text-primary));
+}
+
+.slack-bubble__channel--dm {
+  background: color-mix(in srgb, var(--accent-cyan) 18%, transparent);
+  color: color-mix(in srgb, var(--accent-cyan) 88%, var(--text-primary));
+}
+
+.slack-bubble__channel--group {
+  background: color-mix(in srgb, var(--accent-blue) 18%, transparent);
+  color: color-mix(in srgb, var(--accent-blue) 88%, var(--text-primary));
+}
+
+.slack-bubble__instance {
+  font-family: $font-mono;
+  font-size: 9.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.slack-bubble__attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.slack-bubble__attachment {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 500;
+  background: color-mix(in srgb, var(--accent-orange) 14%, transparent);
+  color: color-mix(in srgb, var(--accent-orange) 85%, var(--text-primary));
+  max-width: 100%;
+}
+
+.slack-bubble__attachment-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 360px;
+}
+
+.slack-bubble__body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-primary);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.slack-bubble__empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.slack-bubble__link {
+  color: color-mix(in srgb, var(--accent-blue) 80%, var(--text-primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+
+  &:hover { color: var(--accent-blue); }
+}
+
+.slack-bubble__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 9.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.slack-bubble__brand {
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-weight: 700;
+  font-size: 9px;
+  color: color-mix(in srgb, var(--slack-accent) 75%, var(--text-primary));
+}
+
+.slack-bubble__thread {
+  font-family: $font-mono;
+  font-size: 9.5px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--slack-accent) 12%, transparent);
+}

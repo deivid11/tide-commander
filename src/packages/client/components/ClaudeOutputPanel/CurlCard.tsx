@@ -1,8 +1,11 @@
-import React, { memo, useCallback, useState } from 'react';
+import React, { memo, useCallback, useId, useMemo, useState } from 'react';
 import { detectAgentFetch, detectAgentMessage, type ParsedCurl } from './curlParser';
 import { useAgent } from '../../store/selectors';
 import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
+
+const AGENT_MESSAGE_COLLAPSE_LINE_THRESHOLD = 5;
+const AGENT_MESSAGE_COLLAPSE_CHAR_THRESHOLD = 280;
 
 interface CurlCardProps {
   parsed: ParsedCurl;
@@ -82,26 +85,58 @@ function AgentMessageCard({
   rawCommand?: string;
 }) {
   const agent = useAgent(targetAgentId);
+  const [expanded, setExpanded] = useState(false);
+  const bodyId = useId();
+
+  const needsCollapse = useMemo(() => {
+    return message.split('\n').length > AGENT_MESSAGE_COLLAPSE_LINE_THRESHOLD
+      || message.length > AGENT_MESSAGE_COLLAPSE_CHAR_THRESHOLD;
+  }, [message]);
+
+  const collapsed = needsCollapse && !expanded;
+
+  const toggleExpanded = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpanded(v => !v);
+  }, []);
+
   return (
     <div className="curl-card curl-card--agent-message" title={rawCommand}>
       <div className="curl-agent-message-title">
-        <span className="curl-agent-message-icon"><Icon name="envelope-simple" size={14} /></span>
+        <span className="curl-agent-message-icon"><Icon name="envelope-simple" size={12} /></span>
         <span>Sending message to agent</span>
       </div>
       <div className="curl-agent-message-row">
         <span className="curl-agent-message-label">To</span>
         <span className="curl-agent-message-name">
-          {agent && <AgentIcon agent={agent} size={13} />}
+          {agent && <AgentIcon agent={agent} size={12} />}
           <span className="curl-agent-message-name-text">
             {agent ? agent.name : targetAgentId}
           </span>
           {!agent && <CopyButton value={targetAgentId} title="Copy ID" />}
         </span>
       </div>
-      <div className="curl-agent-message-body">
+      <div
+        id={bodyId}
+        className={`curl-agent-message-body${collapsed ? ' curl-agent-message-body--collapsed' : ''}`}
+      >
         <span className="curl-agent-message-quote-mark">“</span>
         <span className="curl-agent-message-text">{message}</span>
       </div>
+      {needsCollapse && (
+        <div className="curl-agent-message-footer">
+          <button
+            type="button"
+            className="curl-agent-message-more-btn"
+            onClick={toggleExpanded}
+            aria-expanded={expanded}
+            aria-controls={bodyId}
+          >
+            <span>{expanded ? 'Show less' : 'Show more'}</span>
+            <Icon name={expanded ? 'caret-up' : 'caret-down'} size={10} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
