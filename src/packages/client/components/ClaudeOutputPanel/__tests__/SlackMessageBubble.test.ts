@@ -96,4 +96,46 @@ describe('parseSlackMessage', () => {
     ))!;
     expect(out.direction).toBe('outbound');
   });
+
+  it('parses the new friendly Canal format `<name> (<id>)` and splits both fields', () => {
+    const friendly = sampleChannel.replace('Canal: C12345PUB', 'Canal: #navi (C12345PUB)');
+    const parsed = parseSlackMessage(friendly)!;
+    expect(parsed.channel).toBe('C12345PUB');
+    expect(parsed.channelName).toBe('#navi');
+    expect(parsed.channelKind).toBe('channel');
+  });
+
+  it('parses a DM friendly Canal label and keeps the dm classification', () => {
+    const friendly = sampleInbound.replace(
+      'Canal: D0789LHE1GE',
+      'Canal: DM con @luis (D0789LHE1GE)',
+    );
+    const parsed = parseSlackMessage(friendly)!;
+    expect(parsed.channel).toBe('D0789LHE1GE');
+    expect(parsed.channelName).toBe('DM con @luis');
+    expect(parsed.channelKind).toBe('dm');
+  });
+
+  it('parses a multi-party DM (mpim) friendly Canal label', () => {
+    const friendly = sampleChannel
+      .replace('Canal: C12345PUB', 'Canal: Grupo: @ana, @beto, +1 more (G98765GRP)');
+    const parsed = parseSlackMessage(friendly)!;
+    expect(parsed.channel).toBe('G98765GRP');
+    expect(parsed.channelName).toBe('Grupo: @ana, @beto, +1 more');
+    expect(parsed.channelKind).toBe('group');
+  });
+
+  it('keeps legacy bare-id Canal working — channel set, channelName empty', () => {
+    const parsed = parseSlackMessage(sampleInbound)!;
+    expect(parsed.channel).toBe('D0789LHE1GE');
+    expect(parsed.channelName).toBe('');
+  });
+
+  it('falls back to channelName-only when only a friendly label without parens is given', () => {
+    const friendly = sampleChannel.replace('Canal: C12345PUB', 'Canal: #navi');
+    const parsed = parseSlackMessage(friendly)!;
+    expect(parsed.channel).toBe('');
+    expect(parsed.channelName).toBe('#navi');
+    expect(parsed.channelKind).toBe('channel');
+  });
 });

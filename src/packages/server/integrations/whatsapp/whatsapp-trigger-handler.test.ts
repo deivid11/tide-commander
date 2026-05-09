@@ -3,6 +3,8 @@ import {
   sanitizeFromName,
   isEmptyContentMessage,
   whatsappTriggerHandler,
+  humanizeWhatsAppJid,
+  humanizeGroupJid,
   type NormalizedWhatsAppMessage,
 } from './whatsapp-trigger-handler.js';
 import type { ExternalEvent, TriggerDefinition } from '../../../shared/integration-types.js';
@@ -135,5 +137,141 @@ describe('whatsappTriggerHandler.structuralMatch', () => {
   it('passes an image with empty caption', () => {
     const msg = baseMsg({ body: '', mediaType: 'image', mediaUrl: 'https://x/y.jpg' });
     expect(whatsappTriggerHandler.structuralMatch(trigger, eventOf(msg))).toBe(true);
+  });
+});
+
+describe('humanizeWhatsAppJid', () => {
+  it('formats a Mexican mobile JID into +52 1 NNN NNN NNNN', () => {
+    expect(humanizeWhatsAppJid('5215512345678@s.whatsapp.net')).toBe('+52 1 551 234 5678');
+  });
+
+  it('strips the group-participant tag before formatting', () => {
+    // Group sender JIDs come as `<phone>-<grouptag>@g.us`. The user's screenshot
+    // showed digits being concatenated; we drop the `-tag` cleanly.
+    expect(humanizeWhatsAppJid('5215527271986-1386292220@g.us')).toBe('+52 1 552 727 1986');
+  });
+
+  it('falls back to +<digits> for unknown formats', () => {
+    expect(humanizeWhatsAppJid('123@s.whatsapp.net')).toBe('+123');
+  });
+
+  it('returns empty string for empty / unparseable input', () => {
+    expect(humanizeWhatsAppJid(undefined)).toBe('');
+    expect(humanizeWhatsAppJid('')).toBe('');
+    expect(humanizeWhatsAppJid('@s.whatsapp.net')).toBe('');
+  });
+});
+
+describe('humanizeGroupJid', () => {
+  it('returns Grupo <last4> for a group chat JID', () => {
+    expect(humanizeGroupJid('5215527271986-1386292220@g.us')).toBe('Grupo 2220');
+  });
+
+  it('returns empty string for empty input', () => {
+    expect(humanizeGroupJid(undefined)).toBe('');
+    expect(humanizeGroupJid('')).toBe('');
+  });
+});
+
+describe('whatsappTriggerHandler.extractVariables', () => {
+  const trigger: TriggerDefinition = {
+    id: 't', type: 'whatsapp', name: 'x', enabled: true, config: {},
+  } as unknown as TriggerDefinition;
+
+  function vars(msg: NormalizedWhatsAppMessage): Record<string, string> {
+    return whatsappTriggerHandler.extractVariables(trigger, {
+      source: 'whatsapp', type: 'message', data: msg, timestamp: msg.timestamp,
+    });
+  }
+
+  function baseMsg(overrides: Partial<NormalizedWhatsAppMessage> = {}): NormalizedWhatsAppMessage {
+    return {
+      sessionId: 's', from: '5215512345678@s.whatsapp.net', body: 'hi',
+      timestamp: Date.now(), isGroup: false, direction: 'inbound',
+      chatId: '5215512345678@s.whatsapp.net', ...overrides,
+    };
+  }
+
+  it('passes through fromName + groupName when upstream provides them', () => {
+    const v = vars(baseMsg({
+      fromName: 'Juan',
+      isGroup: true,
+      groupName: 'Equipo Producto',
+      chatId: '5215512345678-100@g.us',
+    }));
+    expect(v['whatsapp.fromName']).toBe('Juan');
+    expect(v['whatsapp.groupName']).toBe('Equipo Producto');
+  });
+
+  it('falls back to humanized JID when fromName is missing', () => {
+    const v = vars(baseMsg({ fromName: undefined }));
+    expect(v['whatsapp.fromName']).toBe('+52 1 551 234 5678');
+  });
+
+  it('falls back to humanized group label when groupName is missing on a group chat', () => {
+    const v = vars(baseMsg({
+      fromName: 'Juan',
+      isGroup: true,
+      groupName: undefined,
+      chatId: '5215512345678-1386292220@g.us',
+    }));
+    expect(v['whatsapp.groupName']).toBe('Grupo 2220');
+  });
+
+  it('keeps groupName empty for DMs even when groupName field is set', () => {
+    const v = vars(baseMsg({ fromName: 'Juan', isGroup: false, groupName: 'noise' }));
+    expect(v['whatsapp.groupName']).toBe('');
+  });
+
+  it('keeps the resolved fromName for OUTBOUND DMs (recipient JID is what we want to display)', () => {
+    // Regression: contact enrichment was inbound-only, so outbound DMs
+    // showed only the formatted phone instead of the recipient's contact
+    // name. payload.from on outbound DMs is the recipient's JID (Baileys
+    // key.remoteJid is always the chat counterparty), so the cache lookup
+    // is meaningful in both directions.
+    const msg = baseMsg({
+      isGroup: false,
+      direction: 'outbound',
+      fromName: 'Juan Perez',           // post-enrichment payload
+      from: '5215537230810@s.whatsapp.net',
+      chatId: '5215537230810@s.whatsapp.net',
+    });
+    const v = vars(msg);
+    expect(v['whatsapp.fromName']).toBe('Juan Perez');
+    expect(v['whatsapp.direction']).toBe('outbound');
+  });
+
+  it('keeps the resolved groupName for OUTBOUND group msgs (group subject is direction-independent)', () => {
+    // Regression: an early version of this fix only enriched inbound msgs, so
+    // outbound msgs to the Bolba group fell back to humanizeGroupJid even
+    // though the cache had the real subject. Bridge logic now enriches groups
+    // regardless of direction; this asserts extractVariables passes a
+    // resolver-supplied subject through on outbound too.
+    const msg = baseMsg({
+      isGroup: true,
+      direction: 'outbound',
+      groupName: 'Bolba', // post-enrichment payload
+      chatId: '120363426536125334@g.us',
+      from: '120363426536125334@g.us',
+    });
+    const v = vars(msg);
+    expect(v['whatsapp.groupName']).toBe('Bolba');
+    expect(v['whatsapp.direction']).toBe('outbound');
+  });
+
+  it('returns resolver-supplied groupName when the upstream payload had none', () => {
+    // Mirrors the bridge's enrichment flow: GroupNameCache resolves "Bolba",
+    // mutates payload.groupName before notifyTriggerSubscribers fires
+    // extractVariables.
+    const msg = baseMsg({
+      fromName: undefined,
+      isGroup: true,
+      groupName: undefined,
+      chatId: '120363426536125334@g.us',
+      from: '120363426536125334@g.us',
+    });
+    msg.groupName = 'Bolba'; // simulated post-enrichment mutation
+    const v = vars(msg);
+    expect(v['whatsapp.groupName']).toBe('Bolba');
   });
 });

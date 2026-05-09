@@ -14,6 +14,8 @@ export interface WhatsAppMessage {
   direction: 'inbound' | 'outbound';
   rawFrom: string;
   phone: string;
+  fromName: string;
+  groupName: string;
   session: string;
   isGroup: boolean;
   dateISO: string;
@@ -42,11 +44,13 @@ export function parseWhatsAppMessage(text: string): WhatsAppMessage | null {
   bodyAndTail = bodyAndTail.replace(/\n+[ \t]*Revisa el contenido[\s\S]*$/i, '');
 
   const direction = headerMatch[1].toLowerCase() as 'inbound' | 'outbound';
-  const rawFrom = (headerSection.match(FIELD_RE('De'))?.[1] ?? '').trim();
+  const deLine = (headerSection.match(FIELD_RE('De'))?.[1] ?? '').trim();
+  const { name: fromName, jid: rawFrom } = splitNameAndJid(deLine);
   const session = (headerSection.match(FIELD_RE('Sesión'))?.[1]
     ?? headerSection.match(FIELD_RE('Sesion'))?.[1]
     ?? '').trim();
-  const grupoVal = (headerSection.match(FIELD_RE('Grupo'))?.[1] ?? '').trim().toLowerCase();
+  const grupoLine = (headerSection.match(FIELD_RE('Grupo'))?.[1] ?? '').trim();
+  const { isGroup, groupName } = parseGroupField(grupoLine);
   const dateISO = (headerSection.match(FIELD_RE('Fecha'))?.[1] ?? '').trim();
   const media = (headerSection.match(FIELD_RE('Media'))?.[1] ?? '').trim();
   const body = bodyAndTail.replace(/^\n+/, '').replace(/\s+$/, '');
@@ -55,13 +59,40 @@ export function parseWhatsAppMessage(text: string): WhatsAppMessage | null {
     direction,
     rawFrom,
     phone: formatWhatsAppPhone(rawFrom),
+    fromName,
+    groupName,
     session,
-    isGroup: grupoVal === 'true' || grupoVal === 'sí' || grupoVal === 'si' || grupoVal === '1',
+    isGroup,
     dateISO,
     date: parseDate(dateISO),
     media,
     body,
   };
+}
+
+// Splits a `De:` line into a name + JID. The line may be `<jid>` alone (legacy),
+// `Name <jid>` (new template), or just a name with no JID. Returns empty
+// strings for missing pieces — never null, so the renderer can do simple
+// fallbacks.
+function splitNameAndJid(line: string): { name: string; jid: string } {
+  if (!line) return { name: '', jid: '' };
+  const angled = line.match(/^(.*?)\s*<([^>]+)>\s*$/);
+  if (angled) return { name: angled[1].trim(), jid: angled[2].trim() };
+  // No angle brackets — assume the whole line is a JID-ish identifier (legacy
+  // template) so existing screenshots keep parsing as before.
+  return { name: '', jid: line };
+}
+
+// Parses the `Grupo:` line — either `true|false` (legacy) or `<bool> <name>`
+// (new template). Returns the group flag and any trailing name token.
+function parseGroupField(value: string): { isGroup: boolean; groupName: string } {
+  const trimmed = value.trim();
+  if (!trimmed) return { isGroup: false, groupName: '' };
+  const m = trimmed.match(/^(\S+)\s*(.*)$/);
+  const head = (m?.[1] ?? '').toLowerCase();
+  const tail = (m?.[2] ?? '').trim();
+  const isGroup = head === 'true' || head === 'sí' || head === 'si' || head === '1';
+  return { isGroup, groupName: tail };
 }
 
 function formatWhatsAppPhone(raw: string): string {
@@ -145,6 +176,24 @@ function renderBodyWithLinks(body: string): React.ReactNode[] {
   return out;
 }
 
+// Build the bubble's primary/secondary header strings from the parsed message.
+// DM: primary = fromName (or phone fallback), secondary = phone if distinct.
+// Group: primary = `<groupName> · <fromName>`, secondary = phone if distinct.
+// When everything is empty, primary stays '' and the renderer falls back to '—'.
+export function composeIdentity(
+  msg: Pick<WhatsAppMessage, 'fromName' | 'groupName' | 'isGroup'>,
+  phoneLabel: string,
+): { primary: string; secondary: string } {
+  const fromName = msg.fromName?.trim() ?? '';
+  const groupName = msg.groupName?.trim() ?? '';
+  const sender = fromName || phoneLabel;
+  const primary = msg.isGroup
+    ? [groupName, sender].filter(Boolean).join(' · ')
+    : sender;
+  const secondary = primary && phoneLabel && !primary.includes(phoneLabel) ? phoneLabel : '';
+  return { primary, secondary };
+}
+
 interface WhatsAppMessageBubbleProps {
   msg: WhatsAppMessage;
 }
@@ -153,7 +202,8 @@ export function WhatsAppMessageBubble({ msg }: WhatsAppMessageBubbleProps): Reac
   const time = formatBubbleTime(msg.date);
   const sessionLabel = shortenSession(msg.session);
   const dirLabel = msg.direction === 'outbound' ? 'enviado' : 'recibido';
-  const fromLabel = msg.phone || msg.rawFrom || '—';
+  const phoneLabel = msg.phone || msg.rawFrom || '';
+  const { primary, secondary } = composeIdentity(msg, phoneLabel);
 
   return (
     <div className={`whatsapp-row whatsapp-row--${msg.direction}`}>
@@ -162,7 +212,12 @@ export function WhatsAppMessageBubble({ msg }: WhatsAppMessageBubbleProps): Reac
           <span className="whatsapp-bubble__icon" aria-hidden="true">
             <Icon name="chat" size={11} weight="fill" />
           </span>
-          <span className="whatsapp-bubble__phone" title={msg.rawFrom}>{fromLabel}</span>
+          <span className="whatsapp-bubble__phone" title={msg.rawFrom || msg.phone}>
+            {primary || '—'}
+          </span>
+          {secondary && (
+            <span className="whatsapp-bubble__session" title={msg.rawFrom}>{secondary}</span>
+          )}
           {msg.isGroup && (
             <span className="whatsapp-bubble__badge">
               <Icon name="users" size={10} /> Grupo

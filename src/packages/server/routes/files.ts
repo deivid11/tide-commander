@@ -9,6 +9,7 @@ import * as path from 'path';
 import { execSync, spawn } from 'child_process';
 import * as os from 'os';
 import { logger } from '../utils/logger.js';
+import { loadAreas } from '../data/index.js';
 
 const log = logger.files;
 
@@ -89,7 +90,53 @@ export type ResolutionStrategy =
   | 'cached'
   | 'parent-walk'
   | 'git-root'
-  | 'suffix-match';
+  | 'suffix-match'
+  | 'area-root'
+  | 'area-suffix-match';
+
+interface AreaDir { areaId: string; areaName: string; dir: string }
+const AREA_DIR_TTL_MS = 30_000;
+const AREA_DIR_MAX_AREAS = 5;
+const AREA_DIR_MAX_PER_AREA = 10;
+let areaDirCache: { entries: AreaDir[]; expiresAt: number } | null = null;
+
+export function _resetAreaDirCacheForTests(): void {
+  areaDirCache = null;
+}
+
+// Test seam: lets unit tests inject a deterministic area list without writing
+// to ~/.local/share/tide-commander/areas.json. Production code uses loadAreas().
+let areaLoaderForTests: (() => Array<{ id: string; name: string; directories?: string[] }>) | null = null;
+export function _setAreaLoaderForTests(fn: typeof areaLoaderForTests): void {
+  areaLoaderForTests = fn;
+  areaDirCache = null;
+}
+
+function getAreaDirs(now: number = Date.now()): AreaDir[] {
+  if (areaDirCache && areaDirCache.expiresAt > now) return areaDirCache.entries;
+  const entries: AreaDir[] = [];
+  let areas: Array<{ id: string; name: string; directories?: string[] }>;
+  try {
+    areas = areaLoaderForTests ? areaLoaderForTests() : loadAreas();
+  } catch { areas = []; }
+  let areaCount = 0;
+  for (const area of areas) {
+    if (areaCount >= AREA_DIR_MAX_AREAS) break;
+    const dirs = Array.isArray(area.directories) ? area.directories : [];
+    let perArea = 0;
+    for (const raw of dirs) {
+      if (perArea >= AREA_DIR_MAX_PER_AREA) break;
+      if (typeof raw !== 'string' || !raw.trim()) continue;
+      const abs = path.isAbsolute(raw) ? raw : null;
+      if (!abs) continue;
+      entries.push({ areaId: area.id, areaName: area.name, dir: abs.replace(/\/+$/, '') });
+      perArea++;
+    }
+    if (perArea > 0) areaCount++;
+  }
+  areaDirCache = { entries, expiresAt: now + AREA_DIR_TTL_MS };
+  return entries;
+}
 
 // Recursive-walk cache for suffix-match: rooted at an absolute directory, value
 // is the flat list of file absolute paths under that root. TTL keeps it warm
@@ -163,12 +210,13 @@ function findBySuffixMatch(rawPath: string, walkRoot: string): string | null {
 /**
  * Resolve a requested file path to an existing file on disk, with fallbacks.
  * Tries (in order):
- *   1. exact         — resolved by resolveAndValidateFilePath() (absolute or baseDir+path)
- *   2. cached        — previously-resolved entry for the same requested key
- *   3. parent-walk   — tail slices anchored at baseDir AND each ancestor up to /
- *   4. git-root      — tail slices anchored at the git toplevel from baseDir
- *   5. suffix-match  — last-resort: unique trailing-segment match within a
- *                      depth-limited walk of baseDir, ignoring vendored dirs
+ *   1. exact              — resolved by resolveAndValidateFilePath() (absolute or baseDir+path)
+ *   2. cached             — previously-resolved entry for the same requested key
+ *   3. parent-walk        — tail slices anchored at baseDir AND each ancestor up to /
+ *   4. git-root           — tail slices anchored at the git toplevel from baseDir
+ *   5. suffix-match       — depth-limited walk of baseDir, unique trailing-segment match
+ *   6. area-root          — verbatim join against each user-configured area directory
+ *   7. area-suffix-match  — same depth-limited walk but rooted at each area directory
  * On miss, returns the absolute path requested AND the list of paths tried so
  * the caller can surface a clear, debuggable error.
  */
@@ -176,7 +224,7 @@ export function findFileWithFallbacks(
   rawPath: string | undefined,
   baseDir: string | undefined,
 ):
-  | { ok: true; path: string; strategy: ResolutionStrategy }
+  | { ok: true; path: string; strategy: ResolutionStrategy; areaId?: string; areaName?: string }
   | { ok: false; status: number; error: string; requested?: string; tried?: string[] } {
   if (!rawPath) {
     return { ok: false, status: 400, error: 'Missing path parameter' };
@@ -263,7 +311,45 @@ export function findFileWithFallbacks(
           return { ok: true, path: suffixHit, strategy: 'suffix-match' };
         }
       }
-    } catch { /* walk failed entirely — fall through to 404 */ }
+    } catch { /* walk failed entirely — fall through to area strategies */ }
+  }
+
+  // Area strategies: try the user's configured area directories. Runs whether
+  // or not baseDir is set — area paths are independent. Capped to keep cold
+  // requests cheap (5 areas × 10 dirs).
+  const areaDirs = getAreaDirs();
+  const tailSegmentsForArea = rawPath.replace(/^\/+/, '').split(path.sep).filter(Boolean);
+
+  for (const { areaId, areaName, dir } of areaDirs) {
+    if (!fs.existsSync(dir)) continue;
+    // area-root: try the requested path joined verbatim against the area dir,
+    // plus every tail-slice (so partial-prefix paths still resolve).
+    for (let i = 0; i < tailSegmentsForArea.length; i++) {
+      const candidate = path.join(dir, ...tailSegmentsForArea.slice(i));
+      const hit = tryCandidate(candidate);
+      if (hit) {
+        rememberResolution(rawPath, hit, 'area-root');
+        return { ok: true, path: hit, strategy: 'area-root', areaId, areaName };
+      }
+    }
+  }
+
+  for (const { areaId, areaName, dir } of areaDirs) {
+    if (!fs.existsSync(dir)) continue;
+    try {
+      const suffixHit = findBySuffixMatch(rawPath, dir);
+      if (suffixHit) {
+        tried.push(`<area-suffix-match in ${dir}>`);
+        rememberResolution(rawPath, suffixHit, 'area-suffix-match');
+        return {
+          ok: true,
+          path: suffixHit,
+          strategy: 'area-suffix-match',
+          areaId,
+          areaName,
+        };
+      }
+    } catch { /* walk failed for this area — try next */ }
   }
 
   return {
@@ -324,6 +410,8 @@ router.get('/read', async (req: Request, res: Response) => {
       size: stats.size,
       modified: stats.mtime,
       strategy: resolution.strategy,
+      areaId: resolution.areaId,
+      areaName: resolution.areaName,
     });
   } catch (err: any) {
     log.error(' Failed to read file:', err);
@@ -468,6 +556,8 @@ router.get('/info', async (req: Request, res: Response) => {
       size: stats.size,
       modified: stats.mtime,
       strategy: resolution.strategy,
+      areaId: resolution.areaId,
+      areaName: resolution.areaName,
     });
   } catch (err: any) {
     log.error(' Failed to get file info:', err);

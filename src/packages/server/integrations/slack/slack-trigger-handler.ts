@@ -117,16 +117,31 @@ export const slackTriggerHandler: TriggerHandler = {
     const msg = event.data as SlackTriggerEventData;
     void trigger;
     const files = msg.files ?? [];
+    // Resolved channel label: `#name` / `DM con @user` / `Grupo: @a, @b…`.
+    // Falls back to the raw id when the resolver couldn't fetch metadata
+    // (network blip, missing scope, deleted channel).
+    const channelLabel = (msg as SlackTriggerEventData & { channelName?: string }).channelName || msg.channel;
     return {
       'slack.user': msg.userName,
+      // fromName/fromId are the boss-canonical names mirroring the Slack
+      // template the trigger renderer uses. Aliases for slack.user/userId so
+      // user-authored templates can pick whichever reads better.
+      'slack.fromName': msg.userName,
       'slack.userId': msg.userId,
+      'slack.fromId': msg.userId,
       'slack.message': msg.text,
+      'slack.body': msg.text,
       'slack.channel': msg.channel,
+      'slack.channelId': msg.channel,
+      'slack.channelName': channelLabel,
       'slack.threadTs': msg.threadTs || msg.ts,
       'slack.fileCount': String(files.length),
+      'slack.attachmentsCount': String(files.length),
       'slack.fileIds': files.map((f) => f.id).join(','),
       'slack.fileNames': files.map((f) => f.name ?? '').filter(Boolean).join(','),
+      'slack.attachmentsList': files.map((f) => f.name ?? '').filter(Boolean).join(','),
       'slack.instanceId': msg.instanceId,
+      'slack.instanceName': msg.instanceId,
     };
   },
 
@@ -137,7 +152,8 @@ export const slackTriggerHandler: TriggerHandler = {
       ? `\nAttachments (${files.length}): ${files.map((f) => `${f.name ?? f.id} [${f.mimetype ?? 'unknown'}]`).join(', ')}`
       : '';
     const instanceLine = msg.instanceId !== 'default' ? ` [Slack instance: ${msg.instanceId}]` : '';
-    return `Slack message from @${msg.userName} (${msg.userId}) in #${msg.channel}${instanceLine}:\n"${msg.text}"${filesLine}`;
+    const channelDisplay = (msg as SlackTriggerEventData & { channelName?: string }).channelName || msg.channel;
+    return `Slack message from @${msg.userName} (${msg.userId}) in ${channelDisplay} (${msg.channel})${instanceLine}:\n"${msg.text}"${filesLine}`;
   },
 };
 

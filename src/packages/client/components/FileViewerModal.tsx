@@ -120,7 +120,14 @@ interface ResolveResult {
   extension: string;
 }
 
-type ResolutionStrategy = 'exact' | 'cached' | 'parent-walk' | 'git-root' | 'suffix-match';
+type ResolutionStrategy =
+  | 'exact'
+  | 'cached'
+  | 'parent-walk'
+  | 'git-root'
+  | 'suffix-match'
+  | 'area-root'
+  | 'area-suffix-match';
 
 interface FileData {
   path: string;
@@ -130,6 +137,8 @@ interface FileData {
   size: number;
   modified: string;
   strategy?: ResolutionStrategy;
+  areaId?: string;
+  areaName?: string;
 }
 
 interface NotFoundDetail {
@@ -817,12 +826,15 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
               <span
                 className={`file-viewer-strategy-badge file-viewer-strategy-${fileData.strategy}`}
                 title={
-                  fileData.strategy === 'suffix-match'
-                    ? `matched by suffix from ${searchRoot ?? 'agent cwd'}`
-                    : `resolved via ${fileData.strategy}`
+                  fileData.areaName
+                    ? `matched in area: ${fileData.areaName}`
+                    : fileData.strategy === 'suffix-match'
+                      ? `matched by suffix from ${searchRoot ?? 'agent cwd'}`
+                      : `resolved via ${fileData.strategy}`
                 }
               >
                 {fileData.strategy}
+                {fileData.areaName ? ` · ${fileData.areaName}` : ''}
               </span>
             )}
           </div>

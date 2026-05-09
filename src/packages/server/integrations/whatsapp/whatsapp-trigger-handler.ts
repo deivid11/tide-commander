@@ -19,8 +19,10 @@ import { loadConfig, WHATSAPP_API_KEY_SECRET } from './whatsapp-config.js';
 import { WhatsAppWsClient, type WhatsAppUpstreamEvent } from './whatsapp-ws-client.js';
 import { MessageDedupeCache } from './message-dedupe.js';
 import { ContactNameCache } from './contact-name-cache.js';
+import { GroupNameCache } from './group-name-cache.js';
 import { WhatsAppClient } from './whatsapp-client.js';
 import { createLogger } from '../../utils/logger.js';
+import * as crypto from 'crypto';
 
 const log = createLogger('WhatsAppTrigger');
 
@@ -77,7 +79,7 @@ function notifyTriggerSubscribers(payload: NormalizedWhatsAppMessage): void {
 // duplicate toasts on the frontend.
 const DEDUPE_MAX_ENTRIES = 256;
 const DEDUPE_TTL_MS = 60_000;
-const CONTACT_NAME_TTL_MS = 5 * 60_000;
+const CONTACT_NAME_TTL_MS = 10 * 60_000;
 
 export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppMessageBridge {
   let client: WhatsAppWsClient | null = null;
@@ -91,6 +93,14 @@ export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppM
   // Lazily build a fetcher that picks up live config + secrets each call.
   // The upstream contacts list is what carries pushName — see the file header
   // for why this enrichment exists.
+  //
+  // syncContacts() runs first because the upstream's default /contacts only
+  // exposes a small "blocked + recently active" subset (~39 entries observed).
+  // syncContacts pulls every WhatsApp address-book tier (critical_unblock_low,
+  // regular_high, regular_low, critical_block, regular) — without it, most DM
+  // JIDs miss the cache and bubbles fall back to formatted phone. The cache's
+  // 10-min TTL throttles the sync to at most once per session per window;
+  // upstream returns added:0 quickly when nothing's new.
   const contactNames = new ContactNameCache({
     ttlMs: CONTACT_NAME_TTL_MS,
     fetchContacts: async (sessionId) => {
@@ -98,7 +108,26 @@ export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppM
       const apiKey = ctx.secrets.get(WHATSAPP_API_KEY_SECRET);
       if (!apiKey) return [];
       const wac = new WhatsAppClient(cfg.baseUrl, apiKey);
+      try {
+        await wac.syncContacts(sessionId);
+      } catch (err) {
+        ctx.log.warn(`WhatsApp syncContacts failed (continuing with cached list): ${err}`);
+      }
       return wac.getContacts(sessionId);
+    },
+  });
+
+  // Same idea but for group subjects: per-message webhook payloads from the
+  // upstream don't carry the group name, so we fetch the groups list once per
+  // session and cache it. See group-name-cache.ts header for the why.
+  const groupNames = new GroupNameCache({
+    ttlMs: CONTACT_NAME_TTL_MS,
+    fetchGroups: async (sessionId) => {
+      const cfg = loadConfig();
+      const apiKey = ctx.secrets.get(WHATSAPP_API_KEY_SECRET);
+      if (!apiKey) return [];
+      const wac = new WhatsAppClient(cfg.baseUrl, apiKey);
+      return wac.getGroups(sessionId);
     },
   });
 
@@ -128,6 +157,7 @@ export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppM
     }
     dedupe.clear();
     contactNames.clear();
+    groupNames.clear();
   }
 
   function isRunning(): boolean {
@@ -156,29 +186,56 @@ export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppM
       const payload = normalizeBaileysMessage(msg.sessionId, msg.event, msg.data, msg.ts, config.baseUrl);
       if (!payload) return;
 
-      // Enrich inbound DMs/groups whose fromName is still null. The upstream
-      // webhook payload doesn't include pushName (verified in
-      // whatsapp-api/src/webhookHandler.js sendBaileysMessage*Webhook), so
-      // we look it up via the contacts API. Async + cached + best-effort.
-      const needsEnrichment =
-        config.enrichContactName !== false &&
-        payload.direction === 'inbound' &&
+      // Enrich inbound DMs/groups in parallel:
+      //  - fromName from the upstream contacts list (pushName is stripped from
+      //    webhook payloads — see whatsapp-api/src/webhookHandler.js)
+      //  - groupName from the upstream groups list (group subject is also
+      //    absent from per-message webhooks — confirmed in trigger_events for
+      //    the Bolba group: groupName=NULL on every stored event)
+      const enrichContactCfg = config.enrichContactName !== false;
+      // For DMs, `payload.from` is the OTHER party's JID regardless of
+      // direction (Baileys sets key.remoteJid to the chat counterparty), so
+      // looking it up in contacts gives the right name in both inbound and
+      // outbound bubbles. Skipped for outbound groups because `payload.from`
+      // there is the group JID itself, not a participant — the lookup would
+      // be a guaranteed miss.
+      const needsContactEnrich =
+        enrichContactCfg &&
         !payload.fromName &&
-        !!payload.from;
+        !!payload.from &&
+        !(payload.isGroup && payload.direction === 'outbound');
+      const needsGroupEnrich =
+        enrichContactCfg &&
+        payload.isGroup &&
+        !payload.groupName &&
+        !!payload.chatId;
 
-      if (!needsEnrichment) {
+      if (!needsContactEnrich && !needsGroupEnrich) {
         ctx.broadcast({ type: 'whatsapp_message', payload });
         notifyTriggerSubscribers(payload);
         return;
       }
 
-      void contactNames.lookup(msg.sessionId, payload.from).then((name) => {
-        const sanitized = sanitizeFromName(name, payload.from);
-        if (sanitized) payload.fromName = sanitized;
-        ctx.broadcast({ type: 'whatsapp_message', payload });
-        notifyTriggerSubscribers(payload);
-      }, (err) => {
-        ctx.log.warn(`WhatsApp contact lookup failed: ${err}`);
+      const contactPromise = needsContactEnrich
+        ? contactNames.lookup(msg.sessionId, payload.from).then((name) => {
+            const sanitized = sanitizeFromName(name, payload.from);
+            if (sanitized) payload.fromName = sanitized;
+            log.debug(`whatsapp.enrich kind=contact resolved=${sanitized ? 'Y' : 'N'} jid=${hashJid(payload.from)}`);
+          }).catch((err) => {
+            ctx.log.warn(`WhatsApp contact lookup failed: ${err}`);
+          })
+        : Promise.resolve();
+      const groupPromise = needsGroupEnrich
+        ? groupNames.lookup(msg.sessionId, payload.chatId).then((name) => {
+            const trimmed = typeof name === 'string' ? name.trim() : '';
+            if (trimmed) payload.groupName = trimmed;
+            log.debug(`whatsapp.enrich kind=group resolved=${trimmed ? 'Y' : 'N'} jid=${hashJid(payload.chatId)}`);
+          }).catch((err) => {
+            ctx.log.warn(`WhatsApp group lookup failed: ${err}`);
+          })
+        : Promise.resolve();
+
+      void Promise.all([contactPromise, groupPromise]).then(() => {
         ctx.broadcast({ type: 'whatsapp_message', payload });
         notifyTriggerSubscribers(payload);
       });
@@ -472,6 +529,59 @@ export function sanitizeFromName(
   return trimmed;
 }
 
+/**
+ * Format a WhatsApp JID as a phone-style string when no display name is
+ * available. Strips the JID domain and any group-participant tag, then groups
+ * the digit run for Mexican mobiles (+52 1 NNN NNN NNNN), generic 12-digit
+ * MX (+52 NNN NNN NNNN), 11-digit US (+1 NNN NNN NNNN). Anything else falls
+ * back to '+<digits>'. Empty / unparseable input returns ''.
+ *
+ * Exported for unit testing.
+ */
+export function humanizeWhatsAppJid(jid: string | undefined): string {
+  if (!jid) return '';
+  const stripped = jid.replace(/@.*$/, '').split('-')[0];
+  const digits = stripped.replace(/\D/g, '');
+  if (!digits) return '';
+  if (/^521(\d{3})(\d{3})(\d{4})$/.test(digits)) {
+    const m = digits.match(/^521(\d{3})(\d{3})(\d{4})$/)!;
+    return `+52 1 ${m[1]} ${m[2]} ${m[3]}`;
+  }
+  if (digits.length === 12 && digits.startsWith('52')) {
+    return `+52 ${digits.slice(2, 5)} ${digits.slice(5, 8)} ${digits.slice(8)}`;
+  }
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `+1 ${digits.slice(1, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
+  }
+  return `+${digits}`;
+}
+
+/**
+ * Best-effort label for a group chat when the upstream payload does not carry
+ * the group subject. Renders as `Grupo <last4>` so the user gets *something*
+ * stable to recognize across messages from the same group.
+ *
+ * Exported for unit testing.
+ */
+export function humanizeGroupJid(chatId: string | undefined): string {
+  if (!chatId) return '';
+  const stripped = chatId.replace(/@.*$/, '');
+  const digits = stripped.replace(/\D/g, '');
+  if (!digits) return '';
+  return `Grupo ${digits.slice(-4)}`;
+}
+
+/**
+ * Short opaque hash of a JID for debug logging — keeps the JID off disk while
+ * still letting us correlate enrichment outcomes across log lines for the
+ * same chat. Uses 8 hex chars of SHA-1; cryptographic strength is not the
+ * point, just that it's not the JID itself.
+ */
+function hashJid(jid: string | undefined): string {
+  if (!jid) return '_';
+  return crypto.createHash('sha1').update(jid).digest('hex').slice(0, 8);
+}
+
 // ─── Trigger Service Handler ───
 // Real TriggerHandler that the trigger-service registers at boot. Subscribes to
 // the in-process bridge's notifyTriggerSubscribers stream so it keeps receiving
@@ -570,14 +680,18 @@ export const whatsappTriggerHandler: TriggerHandler = {
   extractVariables(trigger: TriggerDefinition, event: ExternalEvent): Record<string, string> {
     const msg = event.data as NormalizedWhatsAppMessage;
     void trigger;
+    const fromName = msg.fromName?.trim() || humanizeWhatsAppJid(msg.from);
+    const groupName = msg.isGroup
+      ? (msg.groupName?.trim() || humanizeGroupJid(msg.chatId))
+      : '';
     return {
       'whatsapp.from': msg.from,
-      'whatsapp.fromName': msg.fromName ?? '',
+      'whatsapp.fromName': fromName,
       'whatsapp.body': msg.body,
       'whatsapp.sessionId': msg.sessionId,
       'whatsapp.chatId': msg.chatId,
       'whatsapp.isGroup': String(msg.isGroup),
-      'whatsapp.groupName': msg.groupName ?? '',
+      'whatsapp.groupName': groupName,
       'whatsapp.direction': msg.direction,
       'whatsapp.mediaType': msg.mediaType ?? '',
       'whatsapp.mediaUrl': msg.mediaUrl ?? '',

@@ -15,7 +15,12 @@ export interface SlackMessage {
   rawFrom: string;
   fromName: string;
   fromUserId: string;
+  /** Raw text from the `Canal:` line — useful when callers want to display the unparsed value. */
+  channelRaw: string;
+  /** Resolved channel id (`Cxxx` / `Dxxx` / `Gxxx`) — empty when only a name was given. */
   channel: string;
+  /** Friendly channel label (`#navi`, `DM con @Luis`, `Grupo: …`) — empty when not present. */
+  channelName: string;
   channelKind: 'dm' | 'group' | 'channel';
   thread: string;
   instance: string;
@@ -29,6 +34,12 @@ const FIELD_RE = (label: string) =>
 const URL_RE = /(https?:\/\/[^\s<>"'\)]+)/g;
 // "@Display Name (UXXXXXX)" — Slack's user mention format.
 const SLACK_USER_RE = /^\s*@?\s*([^()]+?)\s*\(\s*(U[A-Z0-9]+)\s*\)\s*$/;
+// "<friendly label> (<channel id>)" — the new format produced when the
+// trigger template uses {{slack.channelName}} ({{slack.channelId}}).
+// Channel ids start with C/D/G in Slack.
+const SLACK_CHANNEL_RE = /^\s*(.+?)\s*\(\s*([CDG][A-Z0-9]{6,})\s*\)\s*$/;
+// Bare channel id by itself, no friendly label — legacy format.
+const SLACK_BARE_CHANNEL_RE = /^\s*([CDG][A-Z0-9]{6,})\s*$/;
 
 export function parseSlackMessage(text: string): SlackMessage | null {
   if (!text) return null;
@@ -48,13 +59,14 @@ export function parseSlackMessage(text: string): SlackMessage | null {
   // (outbound) marker is honored if the user's template includes it.
   const direction = (headerMatch[1]?.toLowerCase() === 'outbound' ? 'outbound' : 'inbound');
   const rawFrom = (headerSection.match(FIELD_RE('De'))?.[1] ?? '').trim();
-  const channel = (headerSection.match(FIELD_RE('Canal'))?.[1] ?? '').trim();
+  const channelRaw = (headerSection.match(FIELD_RE('Canal'))?.[1] ?? '').trim();
   const thread = (headerSection.match(FIELD_RE('Thread'))?.[1] ?? '').trim();
   const instance = (headerSection.match(FIELD_RE('Instancia'))?.[1] ?? '').trim();
   const attachmentsRaw = (headerSection.match(FIELD_RE('Adjuntos'))?.[1] ?? '').trim();
   const body = bodyAndTail.replace(/^\n+/, '').replace(/\s+$/, '');
 
   const { fromName, fromUserId } = parseSlackUser(rawFrom);
+  const { channel, channelName } = parseSlackChannel(channelRaw);
   const attachments = attachmentsRaw
     ? splitAttachments(attachmentsRaw)
     : [];
@@ -64,13 +76,27 @@ export function parseSlackMessage(text: string): SlackMessage | null {
     rawFrom,
     fromName,
     fromUserId,
+    channelRaw,
     channel,
-    channelKind: classifyChannel(channel),
+    channelName,
+    channelKind: classifyChannel(channel || channelName),
     thread,
     instance,
     attachments,
     body,
   };
+}
+
+function parseSlackChannel(raw: string): { channel: string; channelName: string } {
+  if (!raw) return { channel: '', channelName: '' };
+  const labeled = raw.match(SLACK_CHANNEL_RE);
+  if (labeled) return { channelName: labeled[1].trim(), channel: labeled[2].trim() };
+  const bare = raw.match(SLACK_BARE_CHANNEL_RE);
+  if (bare) return { channel: bare[1].trim(), channelName: '' };
+  // Fallback: a friendly label-only string with no parenthesised id (e.g.
+  // "#navi" or "DM con @luis") — treat the whole thing as the friendly name
+  // so the renderer can still show something useful.
+  return { channel: '', channelName: raw };
 }
 
 function parseSlackUser(raw: string): { fromName: string; fromUserId: string } {
@@ -118,11 +144,14 @@ function shortenThread(thread: string): string {
   return thread.length <= 12 ? thread : `${thread.slice(0, 10)}…`;
 }
 
-function channelLabel(channel: string, kind: SlackMessage['channelKind']): string {
-  if (!channel) return '—';
-  if (kind === 'dm') return 'DM';
-  if (kind === 'group') return `grupo · ${channel}`;
-  return `#${channel}`;
+function channelLabel(msg: SlackMessage): string {
+  // Friendly name wins when present — "#navi", "DM con @Luis", "Grupo: …".
+  if (msg.channelName) return msg.channelName;
+  // Legacy (id-only) format. Render a kind-specific fallback.
+  if (!msg.channel) return '—';
+  if (msg.channelKind === 'dm') return 'DM';
+  if (msg.channelKind === 'group') return `grupo · ${msg.channel}`;
+  return `#${msg.channel}`;
 }
 
 function initialsFor(name: string): string {
@@ -175,7 +204,8 @@ interface SlackMessageBubbleProps {
 export function SlackMessageBubble({ msg }: SlackMessageBubbleProps): React.ReactElement {
   const dirLabel = msg.direction === 'outbound' ? 'enviado' : 'recibido';
   const fromLabel = msg.fromName || msg.rawFrom || '—';
-  const channelTxt = channelLabel(msg.channel, msg.channelKind);
+  const channelTxt = channelLabel(msg);
+  const channelTooltip = msg.channel && msg.channelName ? `${msg.channelName} · ${msg.channel}` : (msg.channel || msg.channelName);
   const threadShort = shortenThread(msg.thread);
 
   return (
@@ -189,9 +219,12 @@ export function SlackMessageBubble({ msg }: SlackMessageBubbleProps): React.Reac
               <span className="slack-bubble__userid" title={msg.fromUserId}>{msg.fromUserId}</span>
             )}
           </div>
-          <span className={`slack-bubble__channel slack-bubble__channel--${msg.channelKind}`} title={msg.channel}>
+          <span className={`slack-bubble__channel slack-bubble__channel--${msg.channelKind}`} title={channelTooltip}>
             <Icon name={msg.channelKind === 'dm' ? 'chat' : 'announce'} size={10} />
             <span>{channelTxt}</span>
+            {msg.channelName && msg.channel && (
+              <span className="slack-bubble__channelid" title={msg.channel}>{msg.channel}</span>
+            )}
           </span>
           {msg.instance && (
             <span className="slack-bubble__instance" title={`Workspace: ${msg.instance}`}>{msg.instance}</span>
