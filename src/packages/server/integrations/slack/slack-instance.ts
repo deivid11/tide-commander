@@ -20,6 +20,7 @@ import type { SlackMessageEvent } from '../../../shared/event-types.js';
 import { instanceSecretKey, loadConfig, resolveAuthMode, updateConfig } from './slack-config.js';
 import { SlackPollingClient, asPollingWebClient, type SocketLikeMessageEvent } from './slack-polling-client.js';
 import { SlackWatermarkStore } from './slack-watermark-store.js';
+import { SlackNameCache } from './slack-name-cache.js';
 
 // ─── Public types (re-exported through slack-client.ts) ───
 
@@ -27,6 +28,13 @@ export interface SlackMessage {
   ts: string;
   threadTs?: string;
   channel: string;
+  /**
+   * Resolved channel display label — `#name` for public/private channels,
+   * `DM con @user` for 1:1 DMs, `Grupo: @a, @b…` for multi-party DMs. Empty
+   * string when the resolver couldn't fetch the metadata; consumers fall
+   * back to `channel` (the raw id) in that case.
+   */
+  channelName: string;
   userId: string;
   userName: string;
   text: string;
@@ -174,6 +182,13 @@ export class SlackInstance {
 
   private readonly userCache = new Map<string, SlackUser>();
   private readonly channelNameCache = new Map<string, string>();
+  /**
+   * TTL+LRU cache of resolved labels for the trigger template (separate from
+   * the unbounded `userCache` / `channelNameCache` above which back the
+   * SlackUser objects + raw conversation names). Lives per-instance, so the
+   * `default` and `personal` instances never share resolved names.
+   */
+  private readonly nameCache = new SlackNameCache();
   private readonly messageListeners = new Set<(message: SlackMessage) => void>();
   private readonly replyWaiters = new Set<ReplyWaiter>();
 
@@ -418,10 +433,17 @@ export class SlackInstance {
       try {
         const user = await this.resolveUser(userId);
         userName = user?.displayName || user?.name || userId;
+        // Prime the lightweight cache so the trigger pipeline + future
+        // resolveChannelLabel calls can hit it synchronously.
+        this.nameCache.primeUser(userId, userName);
       } catch {
         // Use userId as fallback
       }
     }
+
+    // Best-effort channel-label resolve. Empty string fallback lets consumers
+    // see the raw id when name metadata is unavailable.
+    const channelName = await this.resolveChannelLabel(event.channel).catch(() => '');
 
     const files = hasFiles
       ? (event.files as SlackFile[]).map((f) => normalizeSlackFile(f))
@@ -431,6 +453,7 @@ export class SlackInstance {
       ts: event.ts,
       threadTs: event.thread_ts,
       channel: event.channel,
+      channelName: channelName ?? '',
       userId,
       userName,
       text,
@@ -442,9 +465,11 @@ export class SlackInstance {
     const direction: SlackMessageEvent['direction'] = isOwnMessage ? 'outbound' : 'inbound';
 
     // Heartbeat: one line per dispatched message. PII-safe — only ids, ts,
-    // direction, file count. No message text, no usernames, no emails.
+    // direction, file count, and resolved-flag for name lookups (Y/N), no
+    // names/emails/text.
+    const resolvedFlag = `userResolved=${userName && userName !== userId ? 'Y' : 'N'} channelResolved=${channelName ? 'Y' : 'N'}`;
     this.ctx?.log.info(
-      `Slack[${this.id}] dispatch: channel=${event.channel} user=${userId || '-'} ts=${event.ts} direction=${direction} files=${files?.length ?? 0}${event.thread_ts && event.thread_ts !== event.ts ? ` thread=${event.thread_ts}` : ''}`,
+      `Slack[${this.id}] dispatch: channel=${event.channel} user=${userId || '-'} ts=${event.ts} direction=${direction} files=${files?.length ?? 0}${event.thread_ts && event.thread_ts !== event.ts ? ` thread=${event.thread_ts}` : ''} ${resolvedFlag}`,
     );
 
     this.ctx?.eventDb.logSlackMessage({
@@ -674,6 +699,80 @@ export class SlackInstance {
 
     this.userCache.set(userId, user);
     return user;
+  }
+
+  /**
+   * Resolve a channel id to a human-readable label for trigger templates and
+   * the Guake bubble. Cached via SlackNameCache (10 min TTL, LRU 500).
+   *   - public/private channels: `#name`
+   *   - 1:1 DM (im): `DM con @counterparty`
+   *   - multi-party DM (mpim): `Grupo: @user1, @user2, +N more`
+   * Returns the empty string when metadata can't be fetched — caller should
+   * fall back to the raw id.
+   */
+  async resolveChannelLabel(channelId: string): Promise<string> {
+    if (!channelId) return '';
+    const cached = this.nameCache.peekChannel(channelId);
+    if (cached !== undefined) return cached ?? '';
+
+    const label = await this.nameCache.lookupChannel(channelId, async () => {
+      if (!this.webClient) return null;
+      const info = await this.webClient.conversations.info({
+        channel: channelId,
+        include_num_members: false,
+      } as { channel: string; include_num_members?: boolean });
+      const ch = info.channel as Record<string, unknown> | undefined;
+      if (!ch) return null;
+
+      // Public/private channel → `#name`. Slack stores both kinds with `is_channel`
+      // / `is_group` flags + a `name` field.
+      const name = typeof ch.name === 'string' ? ch.name : undefined;
+      if (ch.is_im) {
+        const counterpartyId = typeof ch.user === 'string' ? ch.user : '';
+        if (!counterpartyId) return 'DM';
+        const counterparty = await this.resolveUserNameSafe(counterpartyId);
+        return counterparty ? `DM con @${counterparty}` : `DM con @${counterpartyId}`;
+      }
+      if (ch.is_mpim) {
+        // members may be returned via include_num_members or via a follow-up
+        // conversations.members call; mpim usually returns it inline.
+        const members = Array.isArray(ch.members) ? (ch.members as string[]) : [];
+        if (members.length === 0 && name) return `Grupo: ${name}`;
+        const labels = await Promise.all(
+          members.slice(0, 3).map(async (uid) => {
+            const n = await this.resolveUserNameSafe(uid);
+            return n ? `@${n}` : `@${uid}`;
+          }),
+        );
+        const more = members.length > 3 ? `, +${members.length - 3} more` : '';
+        return labels.length > 0 ? `Grupo: ${labels.join(', ')}${more}` : (name ? `Grupo: ${name}` : 'Grupo');
+      }
+      if (name) return `#${name}`;
+      return null;
+    });
+
+    return label ?? '';
+  }
+
+  /**
+   * Resolve a userId to its preferred display string (display_name → name →
+   * real_name) without throwing. Returns null when the lookup fails. Cached.
+   */
+  private async resolveUserNameSafe(userId: string): Promise<string | null> {
+    if (!userId) return null;
+    return this.nameCache.lookupUser(userId, async () => {
+      try {
+        const user = await this.resolveUser(userId);
+        return user?.displayName || user?.name || user?.realName || null;
+      } catch {
+        return null;
+      }
+    });
+  }
+
+  /** Test/diagnostic accessor for the per-instance name cache. */
+  getNameCache(): SlackNameCache {
+    return this.nameCache;
   }
 
   async findUserByEmail(email: string): Promise<SlackUser | null> {
@@ -958,10 +1057,17 @@ export class SlackInstance {
     const rawFiles = msg.files as SlackFile[] | undefined;
     const files = rawFiles?.length ? rawFiles.map(normalizeSlackFile) : undefined;
 
+    // Best-effort channel-name lookup. This path is the historical
+    // getChannelMessages / getThreadReplies API surface, used by skills not
+    // by the trigger pipeline; if the resolver fails we leave channelName
+    // empty and the caller falls back to `channel` (the raw id).
+    const channelName = await this.resolveChannelLabel(channel).catch(() => '');
+
     return {
       ts: msg.ts as string,
       threadTs: msg.thread_ts as string | undefined,
       channel,
+      channelName: channelName ?? '',
       userId,
       userName,
       text: (msg.text as string) || '',

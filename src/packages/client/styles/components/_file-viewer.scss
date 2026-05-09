@@ -221,6 +221,13 @@
   border-color: rgba(245, 158, 11, 0.3);
 }
 
+.file-viewer-strategy-area-root,
+.file-viewer-strategy-area-suffix-match {
+  background: rgba(99, 102, 241, 0.14);
+  color: #818cf8;
+  border-color: rgba(99, 102, 241, 0.32);
+}
+
 // Image preview in modal
 .file-viewer-image-wrapper {
   width: 100%;

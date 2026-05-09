@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.90.0] - 2026-05-08
+
+### Added
+- **Slack name cache** — new `SlackNameCache` infrastructure caches resolved user and channel display names (10 min TTL, LRU 500 per instance) so the trigger template can render `@David` / `#navi` / `DM con @Luis` / `Grupo: @a, @b…` instead of raw Slack IDs. One cache per `SlackInstance` (default vs. personal) prevents cross-instance name collisions. `slack-instance.ts` calls `resolveChannelLabel()` on message dispatch and enriches `SlackMessage.channelName`; the trigger handler exports new template variables (`slack.fromName`, `slack.fromId`, `slack.channelId`, `slack.channelName`, `slack.attachmentsCount`, `slack.attachmentsList`, `slack.instanceName`) alongside the legacy ones for backwards compatibility
+- **WhatsApp group name cache** — new `GroupNameCache` resolves Baileys group JIDs to their current subjects via the upstream `GET /api/sessions/:id/groups` endpoint. Per-message webhook payloads lack the group subject, so the cache batch-primes from the full groups list (10 min TTL per session) and enriches inbound/outbound group messages with `groupName`. Wired into `whatsapp-trigger-handler.ts` to run in parallel with contact-name enrichment
+- **WhatsApp contact sync in trigger handler** — `syncContacts()` now runs once per session (or on cache miss after TTL) before returning the contacts list, pulling all address-book tiers (critical/regular blocks + regular priority levels) instead of just the upstream's default ~39-entry subset. Ensures DM JIDs are name-enriched and bubbles render contact names instead of formatted phone numbers
+- **FileViewerModal area-based file resolution** — when exact/cached/parent-walk/git-root/suffix-match strategies miss, the resolver now tries user-configured area directories (capped to 5 areas × 10 dirs each, 30s cache) via two additional strategies: `area-root` (verbatim join against each area dir, with tail-slices) and `area-suffix-match` (suffix-walk rooted at each area). The modal displays resolution badges with area context (`area-root · <area name>`) so users can see which area provided the file
+
+### Changed
+- **Slack message bubbles render resolved channel names** — `SlackMessageBubble` parser now extracts friendly labels from the trigger template's `{{slack.channelName}} ({{slack.channelId}})` format and falls back to raw channel ID or a label-only string (e.g. bare `#navi` or `DM con @luis`) when available. The bubble prefers the friendly name, so the chat history looks human-readable even when the channel was deleted or renamed
+- **WhatsApp message bubbles enrich sender + group context** — `WhatsAppMessageBubble` parser now splits the `De:` line into `Name <jid>` (new template format) or bare `jid` (legacy), and parses `Grupo:` as `<bool> <name>` so the bubble can display contact names and group subjects. New `composeIdentity()` helper renders DM vs. group headers correctly (primary = contact name or phone, secondary = phone for DMs when distinct from primary). Outbound group messages now show the group subject
+- **File routes resolve & expose area metadata** — `/api/files/read` and `/api/files/info` now return `areaId` and `areaName` when a file was resolved via an area-based strategy, so the client can annotate the resolution badge and help users understand which configured area provided the match
+
+### Fixed
+- **WhatsApp message enrichment runs contact + group lookups in parallel** — contact name and group subject are now fetched concurrently instead of sequentially, halving latency on cache-miss enrichment. Both fail gracefully with best-effort fallbacks (phone formatting for missing contact names, `humanizeGroupJid()` for missing group subjects)
+
 ## [1.89.0] - 2026-05-07
 
 ### Added

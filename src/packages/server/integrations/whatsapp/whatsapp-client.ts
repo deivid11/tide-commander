@@ -33,6 +33,18 @@ export interface WhatsAppSendResult {
   [key: string]: unknown;
 }
 
+export interface WhatsAppGroupSummary {
+  /** Group JID, e.g. "120363426536125334@g.us". */
+  id: string;
+  /** Group subject as set by participants. Null when unknown to upstream. */
+  name: string | null;
+  isGroup?: boolean;
+  participantCount?: number;
+  /** Unix-seconds creation time. */
+  creation?: number;
+  [key: string]: unknown;
+}
+
 export interface WhatsAppContact {
   /** JID, e.g. "5215512345678@s.whatsapp.net" or "120363@g.us" */
   id: string;
@@ -104,6 +116,14 @@ export class WhatsAppClient {
     const data = await this.request<WhatsAppContact[]>(
       'GET',
       `/api/sessions/${encodeURIComponent(sessionId)}/contacts`,
+    );
+    return Array.isArray(data) ? data : [];
+  }
+
+  async getGroups(sessionId: string): Promise<WhatsAppGroupSummary[]> {
+    const data = await this.request<WhatsAppGroupSummary[]>(
+      'GET',
+      `/api/sessions/${encodeURIComponent(sessionId)}/groups`,
     );
     return Array.isArray(data) ? data : [];
   }

@@ -6,6 +6,8 @@ import {
   findFileWithFallbacks,
   resolveAndValidateFilePath,
   _resetSuffixWalkCacheForTests,
+  _resetAreaDirCacheForTests,
+  _setAreaLoaderForTests,
 } from './files';
 
 describe('resolveAndValidateFilePath', () => {
@@ -120,6 +122,8 @@ describe('findFileWithFallbacks', () => {
 
   beforeEach(() => {
     _resetSuffixWalkCacheForTests();
+    _resetAreaDirCacheForTests();
+    _setAreaLoaderForTests(() => []);
   });
 
   it('picks the agent.cwd copy over the git-root copy when both exist', () => {
@@ -167,6 +171,120 @@ describe('findFileWithFallbacks', () => {
       }
     } finally {
       fs.rmSync(fakeRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('resolves via area-root when baseDir is the wrong root', () => {
+    // Set up an area whose `directories[]` includes the actual project root,
+    // simulating the user's reported case (agent.cwd was wrong, area knew the
+    // right place).
+    const areaRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'tc-resolver-area-'));
+    const wrongCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'tc-resolver-wrongcwd-'));
+    const target = path.join(areaRoot, 'client/src/services/modelUtils/reportUtils.jsx');
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, 'export const r = 1;');
+
+    _setAreaLoaderForTests(() => [
+      { id: 'a1', name: 'My Project', directories: [areaRoot] },
+    ]);
+    try {
+      const result = findFileWithFallbacks(
+        'client/src/services/modelUtils/reportUtils.jsx',
+        wrongCwd,
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.path).toBe(target);
+        expect(result.strategy).toBe('area-root');
+        expect(result.areaId).toBe('a1');
+        expect(result.areaName).toBe('My Project');
+      }
+    } finally {
+      _setAreaLoaderForTests(null);
+      fs.rmSync(areaRoot, { recursive: true, force: true });
+      fs.rmSync(wrongCwd, { recursive: true, force: true });
+    }
+  });
+
+  it('resolves via area-suffix-match when leading segments do not match', () => {
+    const areaRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'tc-resolver-areasuffix-'));
+    const wrongCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'tc-resolver-wrongcwd2-'));
+    const target = path.join(areaRoot, 'deep/nested/UniqueAreaSuffixToken.tsx');
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, 'export {};');
+
+    _setAreaLoaderForTests(() => [
+      { id: 'a2', name: 'Other Project', directories: [areaRoot] },
+    ]);
+    try {
+      const result = findFileWithFallbacks(
+        'totally/wrong/prefix/UniqueAreaSuffixToken.tsx',
+        wrongCwd,
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.path).toBe(target);
+        expect(result.strategy).toBe('area-suffix-match');
+        expect(result.areaId).toBe('a2');
+        expect(result.areaName).toBe('Other Project');
+      }
+    } finally {
+      _setAreaLoaderForTests(null);
+      _resetSuffixWalkCacheForTests();
+      fs.rmSync(areaRoot, { recursive: true, force: true });
+      fs.rmSync(wrongCwd, { recursive: true, force: true });
+    }
+  });
+
+  it('does not synthesize a hit from area paths for ../../etc/passwd-style requests', () => {
+    // Area is an empty temp root. Suffix-match cannot escape it. Parent-walk
+    // candidates that resolve into /etc miss because the file does not exist.
+    const areaRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'tc-resolver-areasec-'));
+    _setAreaLoaderForTests(() => [
+      { id: 'sec', name: 'Sec', directories: [areaRoot] },
+    ]);
+    try {
+      const result = findFileWithFallbacks(
+        '../../../../etc/passwd-tide-no-such-file',
+        undefined,
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.status).toBe(404);
+        for (const candidate of result.tried ?? []) {
+          if (candidate.startsWith('<')) continue; // marker entries are safe
+          // No candidate should be a real /etc file path the resolver hit.
+          expect(candidate).not.toBe('/etc/passwd');
+        }
+      }
+    } finally {
+      _setAreaLoaderForTests(null);
+      _resetSuffixWalkCacheForTests();
+      fs.rmSync(areaRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('includes area paths in triedRoots when nothing matches', () => {
+    const areaRoot1 = fs.mkdtempSync(path.join(os.tmpdir(), 'tc-resolver-area-tr1-'));
+    const areaRoot2 = fs.mkdtempSync(path.join(os.tmpdir(), 'tc-resolver-area-tr2-'));
+    _setAreaLoaderForTests(() => [
+      { id: 'p1', name: 'P1', directories: [areaRoot1] },
+      { id: 'p2', name: 'P2', directories: [areaRoot2] },
+    ]);
+    try {
+      const result = findFileWithFallbacks('definitely/missing/file-x.ts', undefined);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        const tried = result.tried ?? [];
+        // area-root attempts add literal join candidates under each area dir.
+        expect(tried.some(c => c.startsWith(areaRoot1))).toBe(true);
+        expect(tried.some(c => c.startsWith(areaRoot2))).toBe(true);
+      }
+    } finally {
+      _setAreaLoaderForTests(null);
+      _resetSuffixWalkCacheForTests();
+      fs.rmSync(areaRoot1, { recursive: true, force: true });
+      fs.rmSync(areaRoot2, { recursive: true, force: true });
     }
   });
 
