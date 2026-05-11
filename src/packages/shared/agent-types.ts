@@ -290,6 +290,11 @@ export interface Agent {
   // Custom instructions appended to the agent's class system prompt
   customInstructions?: string;
 
+  // Per-agent persistent memory — agent's own notes/lessons/preferences.
+  // Maintained by the agent itself via /api/agents/:id/memory and injected
+  // into the system prompt by buildAppendedProjectInstructions().
+  memory?: string;
+
   // Global keyboard shortcut to open guake terminal for this agent (e.g. 'ctrl+1', 'alt+a')
   shortcut?: string;
 }

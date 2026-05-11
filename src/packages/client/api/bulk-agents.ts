@@ -11,6 +11,42 @@ export interface BulkActionResult {
   failed: string[];
 }
 
+export interface BulkSkillActionResult {
+  skillId: string;
+  /** Agents whose assignment actually changed (added on `add`, removed on `remove`). */
+  updated: string[];
+  /** For `add`: agents that already had the skill (no-op). */
+  alreadyHad?: string[];
+  /** For `remove`: agents that did not have the skill (no-op). */
+  didNotHave?: string[];
+  /** Agent IDs that could not be found. */
+  failed: string[];
+}
+
+export interface BulkAddSkillsPerSkill {
+  skillId: string;
+  skillName: string;
+  updated: string[];
+  alreadyHad: string[];
+  failed: string[];
+}
+export interface BulkAddSkillsResult {
+  skillIds: string[];
+  results: BulkAddSkillsPerSkill[];
+}
+
+export interface BulkRemoveSkillsPerSkill {
+  skillId: string;
+  skillName: string;
+  updated: string[];
+  didNotHave: string[];
+  failed: string[];
+}
+export interface BulkRemoveSkillsResult {
+  skillIds: string[];
+  results: BulkRemoveSkillsPerSkill[];
+}
+
 async function postBulkAction(endpoint: string, body: Record<string, unknown>): Promise<BulkActionResult> {
   const token = getAuthToken();
   const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
@@ -67,6 +103,40 @@ export async function bulkMoveToArea(agentIds: string[], areaId: string | null):
  * For Claude provider, optionally sets reasoning effort level too (pass `null` to clear
  * an existing effort back to default; omit/undefined leaves it unchanged).
  */
+/**
+ * Add one or more skills to multiple agents. Idempotent — agents that already
+ * have a given skill come back under that skill's `alreadyHad` list.
+ */
+export async function bulkAddSkills(agentIds: string[], skillIds: string[]): Promise<BulkAddSkillsResult> {
+  const token = getAuthToken();
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/bulk/skills/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Auth-Token': token },
+    body: JSON.stringify({ agentIds, skillIds }),
+  });
+  if (!response.ok) {
+    throw new Error(`Bulk add-skill failed: ${response.statusText}`);
+  }
+  return (await response.json()) as BulkAddSkillsResult;
+}
+
+/**
+ * Remove one or more skills from multiple agents. Idempotent — agents that
+ * didn't have a given skill come back under that skill's `didNotHave` list.
+ */
+export async function bulkRemoveSkills(agentIds: string[], skillIds: string[]): Promise<BulkRemoveSkillsResult> {
+  const token = getAuthToken();
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/bulk/skills/remove`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Auth-Token': token },
+    body: JSON.stringify({ agentIds, skillIds }),
+  });
+  if (!response.ok) {
+    throw new Error(`Bulk remove-skill failed: ${response.statusText}`);
+  }
+  return (await response.json()) as BulkRemoveSkillsResult;
+}
+
 export async function bulkChangeModel(
   agentIds: string[],
   provider: 'claude' | 'codex' | 'opencode',

@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.91.0] - 2026-05-11
+
+### Added
+- **Per-agent persistent memory (`agent-memory` skill)** — each agent now carries its own free-form memory string that is automatically injected into the system prompt under `## Agent Memory (Your Notes To Yourself)` so notes survive context clears, restarts, and reconnects. New built-in skill `agent-memory` documents the GET/PATCH/DELETE flow (read-modify-write convention since PATCH is full-replace), and new endpoints `GET/PATCH/DELETE /api/agents/:id/memory` let an agent curate the string itself. Agents are guided to record user preferences, project facts, lessons from corrections, debugging recipes, and external-system pointers — but not code that can be re-derived from the tree
+- **Bulk multi-skill assignment** — `BulkManageModal` can now add/remove multiple skills across many agents in a single action, with per-skill result breakdowns (`updated` / `alreadyHad` / `didNotHave` / `failed`). New API client helpers `bulkAddSkills` / `bulkRemoveSkills` call `/api/agents/bulk/skills/{add,remove}` and surface idempotent per-skill outcomes so the UI can show exactly which agents changed vs. were already in the desired state
+
+### Fixed
+- **`command-handler.test.ts` logger mock** — test mock for `../../utils/index.js` now exports the full `logger` factory tree (server/http/ws/claude/agent/files/boss) so `agent-service.ts`'s module-load-time `const log = logger.agent;` no longer throws when transitively imported through `backend.ts`. Unblocks the test suite after `backend.ts` started importing `agent-service.js` directly for memory injection
+
 ## [1.90.0] - 2026-05-08
 
 ### Added

@@ -38,14 +38,24 @@ vi.mock('../../services/index.js', () => ({
   },
 }));
 
-vi.mock('../../utils/index.js', () => ({
-  createLogger: vi.fn(() => ({
-    log: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-  })),
-  getCommanderBaseUrl: vi.fn(() => 'http://localhost:6200'),
-}));
+vi.mock('../../utils/index.js', () => {
+  const makeLog = () => ({ log: vi.fn(), error: vi.fn(), warn: vi.fn() });
+  return {
+    createLogger: vi.fn(() => makeLog()),
+    getCommanderBaseUrl: vi.fn(() => 'http://localhost:6200'),
+    generateId: vi.fn(() => 'test-id'),
+    sanitizeUnicode: vi.fn((s: string) => s),
+    logger: {
+      server: makeLog(),
+      http: makeLog(),
+      ws: makeLog(),
+      claude: makeLog(),
+      agent: makeLog(),
+      files: makeLog(),
+      boss: makeLog(),
+    },
+  };
+});
 
 vi.mock('../../auth/index.js', () => ({
   getAuthToken: vi.fn(() => null),

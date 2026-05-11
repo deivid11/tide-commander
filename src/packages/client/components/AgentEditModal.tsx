@@ -74,11 +74,12 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     return entries.filter(([key]) => key.toLowerCase().includes(query));
   }, [classSearch]);
 
-  // Get skills currently assigned to this agent
+  // Get skills currently assigned to this agent (directly, via class, or via '*' wildcard)
   const _currentAgentSkills = useMemo(() => {
     return allSkills.filter(s =>
       s.enabled && (
         s.assignedAgentIds.includes(agent.id) ||
+        s.assignedAgentClasses.includes('*') ||
         s.assignedAgentClasses.includes(agent.class)
       )
     );
@@ -135,10 +136,19 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     );
   }, [availableSkills, skillSearch]);
 
-  // Get skills that come from class assignment
+  // Get skills that come from class assignment (or the '*' wildcard).
+  // Both kinds are framework/class-level and not editable per-agent.
   const classBasedSkills = useMemo(() => {
-    return availableSkills.filter(s => s.assignedAgentClasses.includes(selectedClass));
+    return availableSkills.filter(s =>
+      s.assignedAgentClasses.includes('*') ||
+      s.assignedAgentClasses.includes(selectedClass)
+    );
   }, [availableSkills, selectedClass]);
+
+  // Subset of classBasedSkills that are wildcard-assigned (apply to every agent).
+  const wildcardSkills = useMemo(() => {
+    return availableSkills.filter(s => s.assignedAgentClasses.includes('*'));
+  }, [availableSkills]);
 
   // Toggle skill selection
   const toggleSkill = useCallback((skillId: string) => {
@@ -736,21 +746,34 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                   <div className="skills-empty">{t('terminal:spawn.noSkillsMatch', { query: skillSearch })}</div>
                 ) : (
                   filteredSkills.map(skill => {
+                    const isWildcard = wildcardSkills.includes(skill);
                     const isClassBased = classBasedSkills.includes(skill);
                     const isDirectlyAssigned = selectedSkillIds.has(skill.id);
                     const isActive = isDirectlyAssigned || isClassBased;
+                    // Wildcard and class-assigned skills are framework-level — can't be toggled per-agent.
+                    const isReadOnly = isClassBased;
 
                     return (
                       <button
                         key={skill.id}
-                        className={`skill-chip ${isActive ? 'selected' : ''} ${isClassBased ? 'class-based' : ''}`}
-                        onClick={() => !isClassBased && toggleSkill(skill.id)}
-                        title={isClassBased ? t('terminal:spawn.assignedViaClass') : skill.name}
+                        className={`skill-chip ${isActive ? 'selected' : ''} ${isReadOnly ? 'class-based' : ''}`}
+                        onClick={() => !isReadOnly && toggleSkill(skill.id)}
+                        title={
+                          isWildcard
+                            ? 'Applied to all agents (assigned via "*" wildcard — not editable per-agent)'
+                            : isClassBased
+                            ? t('terminal:spawn.assignedViaClass')
+                            : skill.name
+                        }
                       >
                         {isActive && <span className="skill-check"><Icon name="check" size={12} /></span>}
                         <span className="skill-chip-name">{skill.name}</span>
                         {skill.builtin && <span className="skill-chip-badge builtin">TC</span>}
-                        {isClassBased && <span className="skill-chip-badge">class</span>}
+                        {isWildcard ? (
+                          <span className="skill-chip-badge">all</span>
+                        ) : isClassBased ? (
+                          <span className="skill-chip-badge">class</span>
+                        ) : null}
                       </button>
                     );
                   })
