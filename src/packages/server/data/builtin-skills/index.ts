@@ -21,6 +21,7 @@ import { exploreDatabase } from './explore-database.js';
 import { releasePipeline } from './release-pipeline.js';
 import { taskLabel } from './task-label.js';
 import { agentTracking } from './agent-tracking.js';
+import { agentMemory } from './agent-memory.js';
 import { reportTaskToBoss } from './report-task-to-boss.js';
 import { bossInstructions } from './boss-instructions.js';
 import { workflowDesigner } from './workflow-designer.js';
@@ -47,6 +48,7 @@ export const BUILTIN_SKILLS: BuiltinSkillDefinition[] = [
   releasePipeline,
   taskLabel,
   agentTracking,
+  agentMemory,
   reportTaskToBoss,
   bossInstructions,
   workflowDesigner,

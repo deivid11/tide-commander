@@ -7,16 +7,20 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ModalPortal } from './shared/ModalPortal';
 import { Icon } from './Icon';
-import { useAgentsArray, useAreas } from '../store';
+import { useAgentsArray, useAreas, useSkillsArray } from '../store';
 import {
   bulkDeleteAgents,
   bulkStopAgents,
   bulkClearContext,
   bulkMoveToArea,
   bulkChangeModel,
+  bulkAddSkills,
+  bulkRemoveSkills,
   type BulkActionResult,
+  type BulkAddSkillsResult,
+  type BulkRemoveSkillsResult,
 } from '../api/bulk-agents';
-import type { Agent, DrawingArea } from '../../shared/types';
+import type { Agent, DrawingArea, Skill } from '../../shared/types';
 import { CLAUDE_MODELS, CODEX_MODELS, CLAUDE_EFFORTS, isDeprecatedClaudeModel, type ClaudeModel, type ClaudeEffort, type CodexModel } from '../../shared/agent-types';
 import '../styles/components/bulk-manage-modal.scss';
 
@@ -37,7 +41,8 @@ type IdleTimeFilter = 'any' | '>1h' | '>6h' | '>1d' | '>3d' | '>7d' | '>30d';
 type ProviderFilter = 'all' | 'claude' | 'codex' | 'opencode';
 type ModelFilter = 'all' | 'opus' | 'opus-4-7' | 'opus-4-6' | 'sonnet' | 'haiku';
 
-type ConfirmAction = 'delete' | 'clear-context' | 'change-model' | null;
+type ConfirmAction = 'delete' | 'clear-context' | 'change-model' | 'add-skill' | 'remove-skill' | null;
+type SkillPickerMode = 'add' | 'remove' | null;
 
 const IDLE_TIME_MS: Record<Exclude<IdleTimeFilter, 'any'>, number> = {
   '>1h': 60 * 60 * 1000,
@@ -67,6 +72,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
   const agents = useAgentsArray();
   const areasMap = useAreas();
   const areas = areasToArray(areasMap);
+  const skills = useSkillsArray();
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -83,13 +89,18 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
   const [moveAreaId, setMoveAreaId] = useState<string>('');
   const [modelProvider, setModelProvider] = useState<ModelProvider>('claude');
-  const [newClaudeModel, setNewClaudeModel] = useState<ClaudeModel>('sonnet');
+  const [newClaudeModel, setNewClaudeModel] = useState<ClaudeModel>('claude-opus-4-7');
   const [newCodexModel, setNewCodexModel] = useState<CodexModel>('gpt-5.3-codex');
   // 'default' represents "leave unchanged / use default"; other values are ClaudeEffort levels
-  const [newEffort, setNewEffort] = useState<ClaudeEffort | 'default'>('default');
+  const [newEffort, setNewEffort] = useState<ClaudeEffort | 'default'>('xHigh');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState(false);
+
+  // Skill picker state (multi-select)
+  const [skillPickerMode, setSkillPickerMode] = useState<SkillPickerMode>(null);
+  const [skillSearchQuery, setSkillSearchQuery] = useState('');
+  const [pendingSkillIds, setPendingSkillIds] = useState<Set<string>>(new Set());
 
   // Reset state when modal opens
   useEffect(() => {
@@ -98,6 +109,9 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
       setError(null);
       setSuccess(null);
       setConfirmAction(null);
+      setSkillPickerMode(null);
+      setSkillSearchQuery('');
+      setPendingSkillIds(new Set());
     }
   }, [isOpen]);
 
@@ -179,6 +193,85 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
     setSelectedIds(new Set());
   }, []);
 
+  // Skills available for the picker, filtered by mode and search query.
+  // - 'add': all enabled skills.
+  // - 'remove': only enabled skills currently assigned directly to ≥1 selected agent.
+  const pickerSkills = useMemo<Skill[]>(() => {
+    if (!skillPickerMode) return [];
+    const query = skillSearchQuery.toLowerCase().trim();
+    let base: Skill[];
+    if (skillPickerMode === 'add') {
+      base = skills.filter(s => s.enabled);
+    } else {
+      base = skills.filter(s => {
+        if (!s.enabled) return false;
+        for (const agentId of selectedIds) {
+          if (s.assignedAgentIds.includes(agentId)) return true;
+        }
+        return false;
+      });
+    }
+    if (!query) return base;
+    return base.filter(s =>
+      s.name.toLowerCase().includes(query) ||
+      s.description.toLowerCase().includes(query) ||
+      s.slug.toLowerCase().includes(query)
+    );
+  }, [skillPickerMode, skillSearchQuery, skills, selectedIds]);
+
+  const pendingSkillsList = useMemo<Skill[]>(
+    () => skills.filter(s => pendingSkillIds.has(s.id)),
+    [pendingSkillIds, skills]
+  );
+  const pendingSkillsLabel = useMemo(() => {
+    if (pendingSkillsList.length === 0) return '';
+    if (pendingSkillsList.length === 1) return `"${pendingSkillsList[0].name}"`;
+    if (pendingSkillsList.length <= 3) return pendingSkillsList.map(s => `"${s.name}"`).join(', ');
+    return `${pendingSkillsList.length} skills`;
+  }, [pendingSkillsList]);
+
+  // For 'remove-skill' confirm: how many (agent, skill) pairs would actually be
+  // affected, i.e. selected agents that have at least one of the pending skills
+  // directly assigned. Counts each pair, so an agent with 2 pending skills
+  // contributes 2.
+  const removeSkillAffectedPairs = useMemo(() => {
+    if (pendingSkillsList.length === 0) return 0;
+    let count = 0;
+    for (const agentId of selectedIds) {
+      for (const skill of pendingSkillsList) {
+        if (skill.assignedAgentIds.includes(agentId)) count++;
+      }
+    }
+    return count;
+  }, [pendingSkillsList, selectedIds]);
+
+  // Map of agentId -> sorted list of enabled skill chips that apply to that
+  // agent. Direct assignments are editable via Bulk Remove; wildcard ('*') and
+  // class-default assignments are framework/class-level and not removable per-agent.
+  type AgentSkillChip = { name: string; source: 'direct' | 'class' | 'wildcard' };
+  const skillsByAgent = useMemo(() => {
+    const map = new Map<string, AgentSkillChip[]>();
+    for (const agent of agents) {
+      const list: AgentSkillChip[] = [];
+      for (const skill of skills) {
+        if (!skill.enabled) continue;
+        const direct = skill.assignedAgentIds.includes(agent.id);
+        const wildcard = skill.assignedAgentClasses.includes('*');
+        const viaClass = skill.assignedAgentClasses.includes(agent.class);
+        if (direct) {
+          list.push({ name: skill.name, source: 'direct' });
+        } else if (wildcard) {
+          list.push({ name: skill.name, source: 'wildcard' });
+        } else if (viaClass) {
+          list.push({ name: skill.name, source: 'class' });
+        }
+      }
+      list.sort((a, b) => a.name.localeCompare(b.name));
+      map.set(agent.id, list);
+    }
+    return map;
+  }, [agents, skills]);
+
   // IDs of selected agents whose provider matches the chosen modelProvider
   const modelProviderSelectedIds = useMemo(() => {
     const agentById = new Map(agents.map(a => [a.id, a]));
@@ -195,6 +288,8 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
 
     try {
       let result: BulkActionResult | undefined;
+      let addResult: BulkAddSkillsResult | undefined;
+      let removeResult: BulkRemoveSkillsResult | undefined;
       let verb = '';
 
       if (action === 'change-model') {
@@ -210,6 +305,19 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
           : undefined;
         result = await bulkChangeModel(ids, modelProvider, model, effort);
         verb = 'Changed model for';
+      } else if (action === 'add-skill' || action === 'remove-skill') {
+        const ids = Array.from(selectedIds);
+        const skillIds = Array.from(pendingSkillIds);
+        if (ids.length === 0 || skillIds.length === 0) {
+          setActionInProgress(false);
+          setConfirmAction(null);
+          return;
+        }
+        if (action === 'add-skill') {
+          addResult = await bulkAddSkills(ids, skillIds);
+        } else {
+          removeResult = await bulkRemoveSkills(ids, skillIds);
+        }
       } else {
         const ids = Array.from(selectedIds);
         if (ids.length === 0) {
@@ -244,6 +352,24 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
         } else {
           setSuccess(`${verb} ${result.succeeded.length} agent(s)`);
         }
+      } else if (addResult) {
+        const skillCount = addResult.results.length;
+        const totalAdded = addResult.results.reduce((sum, r) => sum + r.updated.length, 0);
+        const totalAlready = addResult.results.reduce((sum, r) => sum + r.alreadyHad.length, 0);
+        const totalFailed = addResult.results.reduce((sum, r) => sum + r.failed.length, 0);
+        const alreadySuffix = totalAlready > 0 ? ` (${totalAlready} already assigned)` : '';
+        const failSuffix = totalFailed > 0 ? `, ${totalFailed} failed` : '';
+        setSuccess(`Added ${skillCount} skill(s): ${totalAdded} new assignment(s)${alreadySuffix}${failSuffix}`);
+        setPendingSkillIds(new Set());
+      } else if (removeResult) {
+        const skillCount = removeResult.results.length;
+        const totalRemoved = removeResult.results.reduce((sum, r) => sum + r.updated.length, 0);
+        const totalMissing = removeResult.results.reduce((sum, r) => sum + r.didNotHave.length, 0);
+        const totalFailed = removeResult.results.reduce((sum, r) => sum + r.failed.length, 0);
+        const missingSuffix = totalMissing > 0 ? ` (${totalMissing} weren't assigned)` : '';
+        const failSuffix = totalFailed > 0 ? `, ${totalFailed} failed` : '';
+        setSuccess(`Removed ${skillCount} skill(s): ${totalRemoved} assignment(s) removed${missingSuffix}${failSuffix}`);
+        setPendingSkillIds(new Set());
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Action failed');
@@ -251,17 +377,51 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
       setActionInProgress(false);
       setConfirmAction(null);
     }
-  }, [selectedIds, moveAreaId, modelProviderSelectedIds, modelProvider, newClaudeModel, newCodexModel, newEffort]);
+  }, [selectedIds, moveAreaId, modelProviderSelectedIds, modelProvider, newClaudeModel, newCodexModel, newEffort, pendingSkillIds]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       if (confirmAction) {
         setConfirmAction(null);
+      } else if (skillPickerMode) {
+        setSkillPickerMode(null);
+        setSkillSearchQuery('');
+        setPendingSkillIds(new Set());
       } else {
         onClose();
       }
     }
-  }, [confirmAction, onClose]);
+  }, [confirmAction, skillPickerMode, onClose]);
+
+  const openSkillPicker = useCallback((mode: 'add' | 'remove') => {
+    setSkillPickerMode(mode);
+    setSkillSearchQuery('');
+    setPendingSkillIds(new Set());
+    setError(null);
+    setSuccess(null);
+  }, []);
+
+  const closeSkillPicker = useCallback(() => {
+    setSkillPickerMode(null);
+    setSkillSearchQuery('');
+    setPendingSkillIds(new Set());
+  }, []);
+
+  const togglePendingSkill = useCallback((skillId: string) => {
+    setPendingSkillIds(prev => {
+      const next = new Set(prev);
+      if (next.has(skillId)) next.delete(skillId);
+      else next.add(skillId);
+      return next;
+    });
+  }, []);
+
+  const confirmSkillPick = useCallback(() => {
+    if (!skillPickerMode || pendingSkillIds.size === 0) return;
+    setConfirmAction(skillPickerMode === 'add' ? 'add-skill' : 'remove-skill');
+    setSkillPickerMode(null);
+    setSkillSearchQuery('');
+  }, [skillPickerMode, pendingSkillIds]);
 
   if (!isOpen) return null;
 
@@ -397,11 +557,13 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                     <th className="col-status">Status</th>
                     <th className="col-idle">Idle</th>
                     <th className="col-area">Area</th>
+                    <th className="col-skills">Skills</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredAgents.map(agent => {
                     const agentArea = getAgentArea(agent, areas);
+                    const agentSkills = skillsByAgent.get(agent.id) ?? [];
                     return (
                       <tr
                         key={agent.id}
@@ -433,6 +595,33 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                             <span className="bulk-area-none">--</span>
                           )}
                         </td>
+                        <td className="col-skills">
+                          {agentSkills.length === 0 ? (
+                            <span className="bulk-area-none">--</span>
+                          ) : (
+                            <div className="bulk-skill-chips">
+                              {agentSkills.map(chip => {
+                                const readOnly = chip.source !== 'direct';
+                                const tooltip =
+                                  chip.source === 'wildcard'
+                                    ? `${chip.name} — applied to all agents ('*' wildcard); not removable per-agent`
+                                    : chip.source === 'class'
+                                    ? `${chip.name} — applied to all "${agent.class}" agents via class default; not removable per-agent`
+                                    : chip.name;
+                                return (
+                                  <span key={chip.name} className="bulk-skill-chip" title={tooltip}>
+                                    {chip.name}
+                                    {readOnly && (
+                                      <span className="bulk-skill-chip-asterisk" aria-hidden="true">
+                                        *
+                                      </span>
+                                    )}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -440,6 +629,127 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
               </table>
             )}
           </div>
+
+          {/* Skill picker overlay */}
+          {skillPickerMode && (
+            <div className="bulk-confirm-overlay">
+              <div className="bulk-confirm-box" style={{ minWidth: 480, maxWidth: 640, textAlign: 'left' }}>
+                <p style={{ fontWeight: 600, marginBottom: 8 }}>
+                  {skillPickerMode === 'add'
+                    ? `Add skills to ${selectedIds.size} selected agent(s)`
+                    : `Remove skills from ${selectedIds.size} selected agent(s)`}
+                </p>
+                <input
+                  type="text"
+                  className="bulk-filter-search"
+                  placeholder="Search skills..."
+                  value={skillSearchQuery}
+                  onChange={e => setSkillSearchQuery(e.target.value)}
+                  autoFocus
+                  style={{ width: '100%', marginBottom: 8 }}
+                />
+                <div
+                  className="bulk-count-bar"
+                  style={{ padding: '4px 0', borderBottom: 'none', marginBottom: 4 }}
+                >
+                  <span className="bulk-count">
+                    {pendingSkillIds.size} of {pickerSkills.length} selected
+                  </span>
+                  <div className="bulk-select-controls">
+                    <button
+                      type="button"
+                      className="bulk-link-btn"
+                      onClick={() => setPendingSkillIds(new Set(pickerSkills.map(s => s.id)))}
+                      disabled={pickerSkills.length === 0}
+                    >
+                      Select all
+                    </button>
+                    <button
+                      type="button"
+                      className="bulk-link-btn"
+                      onClick={() => setPendingSkillIds(new Set())}
+                      disabled={pendingSkillIds.size === 0}
+                    >
+                      Select none
+                    </button>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    maxHeight: 320,
+                    overflowY: 'auto',
+                    border: '1px solid var(--border-color, #444)',
+                    borderRadius: 4,
+                    padding: 4,
+                    textAlign: 'left',
+                  }}
+                >
+                  {pickerSkills.length === 0 ? (
+                    <div className="bulk-empty" style={{ padding: 16 }}>
+                      {skillPickerMode === 'remove'
+                        ? 'None of the selected agents have a directly-assigned skill matching this filter.'
+                        : 'No skills match this search.'}
+                    </div>
+                  ) : (
+                    pickerSkills.map(skill => {
+                      const checked = pendingSkillIds.has(skill.id);
+                      return (
+                        <label
+                          key={skill.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 8,
+                            padding: '6px 8px',
+                            cursor: 'pointer',
+                            borderRadius: 4,
+                            textAlign: 'left',
+                            background: checked ? 'var(--accent-soft, #4a9eff20)' : 'transparent',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => togglePendingSkill(skill.id)}
+                            style={{ marginTop: 3 }}
+                          />
+                          <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                            <div style={{ fontWeight: 600 }}>
+                              {skill.name}
+                              {skill.builtin && (
+                                <span style={{ fontSize: 11, color: 'var(--text-muted, #888)', marginLeft: 6 }}>
+                                  (built-in)
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--text-secondary, #aaa)' }}>
+                              {skill.description}
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+                <div className="bulk-confirm-actions" style={{ marginTop: 12 }}>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={closeSkillPicker}
+                    disabled={actionInProgress}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={confirmSkillPick}
+                    disabled={pendingSkillIds.size === 0 || actionInProgress}
+                  >
+                    Continue ({pendingSkillIds.size})
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Confirmation overlay */}
           {confirmAction && (
@@ -473,6 +783,22 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                       so the new model takes effect.
                     </p>
                   </>
+                ) : confirmAction === 'add-skill' ? (
+                  <p>
+                    Add <strong>{pendingSkillsList.length}</strong> skill{pendingSkillsList.length === 1 ? '' : 's'} (<strong>{pendingSkillsLabel}</strong>) to <strong>{selectedIds.size}</strong> agent(s)?
+                    <br />
+                    <span style={{ fontSize: 12, color: 'var(--text-muted, #888)' }}>
+                      Idempotent — assignments that already exist will be skipped.
+                    </span>
+                  </p>
+                ) : confirmAction === 'remove-skill' ? (
+                  <p>
+                    Remove <strong>{pendingSkillsList.length}</strong> skill{pendingSkillsList.length === 1 ? '' : 's'} (<strong>{pendingSkillsLabel}</strong>) from up to <strong>{selectedIds.size}</strong> selected agent(s)?
+                    <br />
+                    <span style={{ fontSize: 12, color: 'var(--text-muted, #888)' }}>
+                      {removeSkillAffectedPairs} direct assignment(s) will be removed. Class-default and '*' wildcard assignments are not changed.
+                    </span>
+                  </p>
                 ) : (
                   <p>
                     {confirmAction === 'delete'
@@ -489,9 +815,13 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                     Cancel
                   </button>
                   <button
-                    className="btn btn-danger"
+                    className={`btn ${confirmAction === 'add-skill' ? 'btn-primary' : 'btn-danger'}`}
                     onClick={() => handleAction(confirmAction)}
-                    disabled={actionInProgress || (confirmAction === 'change-model' && modelProviderSelectedIds.length === 0)}
+                    disabled={
+                      actionInProgress ||
+                      (confirmAction === 'change-model' && modelProviderSelectedIds.length === 0) ||
+                      ((confirmAction === 'add-skill' || confirmAction === 'remove-skill') && pendingSkillIds.size === 0)
+                    }
                   >
                     {actionInProgress ? 'Working...' : 'Confirm'}
                   </button>
@@ -516,6 +846,20 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 onClick={() => setConfirmAction('clear-context')}
               >
                 Clear Context
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={selectedIds.size === 0 || actionInProgress}
+                onClick={() => openSkillPicker('add')}
+              >
+                Add Skill
+              </button>
+              <button
+                className="btn btn-secondary"
+                disabled={selectedIds.size === 0 || actionInProgress}
+                onClick={() => openSkillPicker('remove')}
+              >
+                Remove Skill
               </button>
             </div>
 

@@ -3,9 +3,9 @@
 
 // Bulk Manage Modal
 .bulk-manage-modal {
-  width: 900px;
-  max-width: 95vw;
-  max-height: 85vh;
+  width: 1280px;
+  max-width: 96vw;
+  max-height: 88vh;
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -251,6 +251,43 @@
   .col-area {
     width: 120px;
   }
+
+  .col-skills {
+    max-width: 360px;
+    white-space: normal;
+    overflow: hidden;
+  }
+}
+
+// Skill chips inside the agent table
+.bulk-skill-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.bulk-skill-chip {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 9px;
+  font-size: 10.5px;
+  line-height: 1.4;
+  background: rgba($accent-blue, 0.12);
+  border: 1px solid rgba($accent-blue, 0.35);
+  color: $text-secondary;
+  white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// Marker for skills the chip represents but can't be edited per-agent
+// (wildcard '*' or class-default assignments). Same blue chip, just a
+// small trailing asterisk so the user knows the assignment is fixed.
+.bulk-skill-chip-asterisk {
+  margin-left: 3px;
+  color: $accent-blue;
+  font-weight: 700;
 }
 
 // Status badges

@@ -8,7 +8,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { agentService, runtimeService, bossMessageService } from '../services/index.js';
+import { agentService, runtimeService, bossMessageService, skillService } from '../services/index.js';
 import { getClaudeProjectDir, loadAreas, saveAreas } from '../data/index.js';
 import { loadSession } from '../claude/session-loader.js';
 import { getAllCustomClasses } from '../services/custom-class-service.js';
@@ -676,6 +676,149 @@ router.post('/bulk/move-area', async (req: Request, res: Response) => {
   }
 });
 
+// Normalize body { skillId?: string; skillIds?: string[] } into a deduped array.
+// Accepts the legacy single-skill form so older callers keep working.
+function normalizeSkillIds(body: { skillId?: unknown; skillIds?: unknown }): string[] | null {
+  const list: string[] = [];
+  if (Array.isArray(body.skillIds)) {
+    for (const id of body.skillIds) {
+      if (typeof id === 'string' && id) list.push(id);
+    }
+  }
+  if (typeof body.skillId === 'string' && body.skillId) list.push(body.skillId);
+  const deduped = Array.from(new Set(list));
+  return deduped.length > 0 ? deduped : null;
+}
+
+// POST /api/agents/bulk/skills/add - Assign one or more skills to multiple agents (idempotent)
+router.post('/bulk/skills/add', (req: Request, res: Response) => {
+  try {
+    const { agentIds } = req.body as { agentIds?: string[] };
+    const skillIds = normalizeSkillIds(req.body ?? {});
+
+    if (!Array.isArray(agentIds) || agentIds.length === 0) {
+      res.status(400).json({ error: 'agentIds must be a non-empty array of strings' });
+      return;
+    }
+    if (!skillIds) {
+      res.status(400).json({ error: 'skillIds (or legacy skillId) is required' });
+      return;
+    }
+
+    for (const sid of skillIds) {
+      if (!skillService.getSkill(sid)) {
+        res.status(404).json({ error: `Skill not found: ${sid}` });
+        return;
+      }
+    }
+
+    const results: { skillId: string; skillName: string; updated: string[]; alreadyHad: string[]; failed: string[] }[] = [];
+    for (const sid of skillIds) {
+      const updated: string[] = [];
+      const alreadyHad: string[] = [];
+      const failed: string[] = [];
+      const initialSkill = skillService.getSkill(sid)!;
+      for (const agentId of agentIds) {
+        try {
+          const agent = agentService.getAgent(agentId);
+          if (!agent) {
+            failed.push(agentId);
+            continue;
+          }
+          // Re-fetch on each iteration: assignSkillToAgent replaces the skill object
+          // in the Map, so a captured outer reference goes stale.
+          const current = skillService.getSkill(sid);
+          const alreadyAssigned = current?.assignedAgentIds.includes(agentId) ?? false;
+          const result = skillService.assignSkillToAgent(sid, agentId);
+          if (!result) {
+            failed.push(agentId);
+            continue;
+          }
+          if (alreadyAssigned) alreadyHad.push(agentId);
+          else updated.push(agentId);
+        } catch (err) {
+          log.error(` Bulk add-skill failed for agent ${agentId} / skill ${sid}:`, err);
+          failed.push(agentId);
+        }
+      }
+      log.log(`Bulk add-skill ${initialSkill.name}: ${updated.length} added, ${alreadyHad.length} already had, ${failed.length} failed`);
+      results.push({ skillId: sid, skillName: initialSkill.name, updated, alreadyHad, failed });
+    }
+
+    // Legacy flat shape (kept for single-skill callers) + new shape.
+    const legacy = results.length === 1
+      ? { skillId: results[0].skillId, updated: results[0].updated, alreadyHad: results[0].alreadyHad, failed: results[0].failed }
+      : {};
+    res.json({ skillIds, results, ...legacy });
+  } catch (err: any) {
+    log.error(' Bulk add-skill failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/agents/bulk/skills/remove - Unassign one or more skills from multiple agents (idempotent)
+router.post('/bulk/skills/remove', (req: Request, res: Response) => {
+  try {
+    const { agentIds } = req.body as { agentIds?: string[] };
+    const skillIds = normalizeSkillIds(req.body ?? {});
+
+    if (!Array.isArray(agentIds) || agentIds.length === 0) {
+      res.status(400).json({ error: 'agentIds must be a non-empty array of strings' });
+      return;
+    }
+    if (!skillIds) {
+      res.status(400).json({ error: 'skillIds (or legacy skillId) is required' });
+      return;
+    }
+
+    for (const sid of skillIds) {
+      if (!skillService.getSkill(sid)) {
+        res.status(404).json({ error: `Skill not found: ${sid}` });
+        return;
+      }
+    }
+
+    const results: { skillId: string; skillName: string; updated: string[]; didNotHave: string[]; failed: string[] }[] = [];
+    for (const sid of skillIds) {
+      const updated: string[] = [];
+      const didNotHave: string[] = [];
+      const failed: string[] = [];
+      const initialSkill = skillService.getSkill(sid)!;
+      for (const agentId of agentIds) {
+        try {
+          const agent = agentService.getAgent(agentId);
+          if (!agent) {
+            failed.push(agentId);
+            continue;
+          }
+          const current = skillService.getSkill(sid);
+          const wasAssigned = current?.assignedAgentIds.includes(agentId) ?? false;
+          const result = skillService.unassignSkillFromAgent(sid, agentId);
+          if (!result) {
+            failed.push(agentId);
+            continue;
+          }
+          if (wasAssigned) updated.push(agentId);
+          else didNotHave.push(agentId);
+        } catch (err) {
+          log.error(` Bulk remove-skill failed for agent ${agentId} / skill ${sid}:`, err);
+          failed.push(agentId);
+        }
+      }
+      log.log(`Bulk remove-skill ${initialSkill.name}: ${updated.length} removed, ${didNotHave.length} didn't have, ${failed.length} failed`);
+      results.push({ skillId: sid, skillName: initialSkill.name, updated, didNotHave, failed });
+    }
+
+    const legacy = results.length === 1
+      ? { skillId: results[0].skillId, updated: results[0].updated, didNotHave: results[0].didNotHave, failed: results[0].failed }
+      : {};
+    res.json({ skillIds, results, ...legacy });
+  } catch (err: any) {
+    log.error(' Bulk remove-skill failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/agents/bulk/filters - Return available filter values
 router.get('/bulk/filters', (_req: Request, res: Response) => {
   try {
@@ -795,6 +938,51 @@ router.patch('/:id', (req: Request<{ id: string }>, res: Response) => {
     isBoss: updated.isBoss,
     ok: true,
   });
+});
+
+// ============================================================================
+// Agent Memory Routes — per-agent persistent notes injected into system prompt
+// ============================================================================
+
+// GET /api/agents/:id/memory - Read the agent's current memory string
+router.get('/:id/memory', (req: Request<{ id: string }>, res: Response) => {
+  const agent = agentService.getAgent(req.params.id);
+  if (!agent) {
+    res.status(404).json({ error: 'Agent not found' });
+    return;
+  }
+  const memory = typeof agent.memory === 'string' ? agent.memory : '';
+  res.json({ memory, length: memory.length });
+});
+
+// PATCH /api/agents/:id/memory - Replace the agent's memory (full replace).
+// Body: { memory: string }
+router.patch('/:id/memory', (req: Request<{ id: string }>, res: Response) => {
+  const { memory } = req.body as { memory?: unknown };
+  if (typeof memory !== 'string') {
+    res.status(400).json({ error: 'memory must be a string' });
+    return;
+  }
+
+  const updated = agentService.updateAgent(req.params.id, { memory }, false);
+  if (!updated) {
+    res.status(404).json({ error: 'Agent not found' });
+    return;
+  }
+
+  log.log(`Agent ${updated.name} (${updated.id}): memory updated (${memory.length} chars)`);
+  res.json({ ok: true, id: updated.id, length: memory.length });
+});
+
+// DELETE /api/agents/:id/memory - Clear the agent's memory
+router.delete('/:id/memory', (req: Request<{ id: string }>, res: Response) => {
+  const updated = agentService.updateAgent(req.params.id, { memory: '' }, false);
+  if (!updated) {
+    res.status(404).json({ error: 'Agent not found' });
+    return;
+  }
+  log.log(`Agent ${updated.name} (${updated.id}): memory cleared`);
+  res.json({ ok: true, id: updated.id });
 });
 
 // DELETE /api/agents/:id - Delete agent

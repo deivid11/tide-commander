@@ -16,6 +16,7 @@ import { createLogger, sanitizeUnicode } from '../utils/index.js';
 import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
 import { getSystemPrompt, isEchoPromptEnabled } from '../services/system-prompt-service.js';
 import { loadAreas } from '../data/index.js';
+import { getAgent } from '../services/agent-service.js';
 
 const log = createLogger('Backend');
 
@@ -62,6 +63,21 @@ export function buildAppendedProjectInstructions(config: BackendConfig): string 
       sections.push(
         `## Area-Level Prompt (${agentArea!.name})`,
         areaPrompt
+      );
+    }
+  }
+
+  // Per-agent persistent memory — the agent's own notes/lessons accumulated
+  // over time. Injected between the global system prompt and class instructions
+  // so the agent's self-curated context is visible before class-level rules.
+  if (config.agentId) {
+    const agent = getAgent(config.agentId);
+    const agentMemory = agent?.memory?.trim();
+    if (agentMemory) {
+      sections.push(
+        '## Agent Memory (Your Notes To Yourself)',
+        'The following are notes you have saved to your own persistent memory across conversations — past lessons, user preferences, project context, and references you have chosen to retain. Use them as authoritative context but verify before acting on stale-sounding facts. Update them via the `agent-memory` skill when you learn something worth keeping.',
+        agentMemory
       );
     }
   }
