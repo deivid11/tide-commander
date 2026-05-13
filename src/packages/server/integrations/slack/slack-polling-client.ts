@@ -222,9 +222,14 @@ export class SlackPollingClient {
   private readonly scheduler: PollingScheduler;
   private readonly now: () => number;
 
-  /** Pacer state: serializes outbound API calls through a promise chain. */
-  private rateGateChain: Promise<void> = Promise.resolve();
-  /** When > now(), all paced calls sleep until that wall-clock ms. Set on 429. */
+  /** Token-bucket rate limiter shared by every paced API call. Concurrent
+   *  workers really run in parallel — only the *rate* (tokens/sec) is capped.
+   *  Replaces the older serial promise-chain gate which silently nullified
+   *  the `concurrency` option (every paced call was forced to run one at a
+   *  time spaced by `minMsBetweenCalls`, so `concurrency: 8` behaved like
+   *  `concurrency: 1`). */
+  private bucket: TokenBucket | null = null;
+  /** When > now(), every paced call sleeps until that wall-clock ms. Set on 429. */
   private globalPauseUntil = 0;
 
   private running = false;
@@ -257,53 +262,45 @@ export class SlackPollingClient {
     this.minMsBetweenCalls = Math.max(0, opts.minMsBetweenCalls ?? 0);
     this.scheduler = opts.scheduler ?? DEFAULT_SCHEDULER;
     this.now = opts.now ?? Date.now;
+    if (this.minMsBetweenCalls > 0) {
+      // Tier 3 spec: ~50/min sustained with bursts up to ~5/sec. Refill rate
+      // = minMsBetweenCalls (e.g. 1200ms → 50/min). Burst capacity caps the
+      // initial flood from a cycle wake-up without us having to throttle every
+      // single call serially.
+      this.bucket = new TokenBucket({
+        capacity: 5,
+        refillIntervalMs: this.minMsBetweenCalls,
+        now: this.now,
+        globalPauseUntil: () => this.globalPauseUntil,
+        isRunning: () => this.running,
+      });
+    }
   }
 
   /**
    * Throttle gate for outbound Slack API calls. All calls (history + replies)
-   * go through here so the per-cycle burst is smeared across the cycle. When
-   * `minMsBetweenCalls` is 0 the gate is a no-op — used by tests.
+   * go through here. With `minMsBetweenCalls > 0` we acquire a token from the
+   * shared bucket; multiple workers can hold tokens concurrently up to the
+   * burst capacity, so `concurrency: 8` actually parallelizes (unlike the
+   * older serial promise-chain gate). With `minMsBetweenCalls === 0` we are
+   * in test mode and skip throttling entirely.
    *
-   * Honors `globalPauseUntil` set by 429 handlers so the entire client backs
-   * off when Slack tells us to.
+   * The bucket honors `globalPauseUntil` set by 429 handlers so the entire
+   * client backs off when Slack tells us to.
    */
   private async paceCall<T>(fn: () => Promise<T>): Promise<T> {
-    // Stop() was called while we were queued — bail without consuming the
-    // pacing slot or making the API call.
     if (!this.running) {
       throw new Error('SlackPollingClient stopped');
     }
-    if (this.minMsBetweenCalls === 0 && this.globalPauseUntil <= this.now()) {
+    if (!this.bucket) {
+      // Test mode: no throttling at all.
       return fn();
     }
-    const prev = this.rateGateChain;
-    let release!: () => void;
-    this.rateGateChain = new Promise<void>((r) => { release = r; });
-    await prev;
-
-    // Re-check after waiting on the gate — stop() could have fired meanwhile.
+    await this.bucket.acquire();
     if (!this.running) {
-      release();
       throw new Error('SlackPollingClient stopped');
     }
-
-    // Sleep through any global pause first.
-    const pauseRemainingMs = this.globalPauseUntil - this.now();
-    if (pauseRemainingMs > 0) {
-      await new Promise((r) => setTimeout(r, pauseRemainingMs));
-    }
-
-    try {
-      return await fn();
-    } finally {
-      // Release the gate after the min interval — the next paced call will
-      // unblock then. We don't await this; it's fire-and-forget.
-      if (this.minMsBetweenCalls > 0) {
-        setTimeout(release, this.minMsBetweenCalls);
-      } else {
-        release();
-      }
-    }
+    return fn();
   }
 
   /** Subscribe to fatal-error notifications (e.g. invalid_auth). */
@@ -527,8 +524,9 @@ export class SlackPollingClient {
     if (messages.length === 0) return 0;
 
     // Slack returns newest-first; dispatch in chronological order so trigger
-    // listeners and dedupe see them in real-world order.
-    const ordered = [...messages].sort((a, b) => parseFloat(a.ts) - parseFloat(b.ts));
+    // listeners and dedupe see them in real-world order. BigInt sort avoids
+    // the precision loss `parseFloat` had on Slack's 16-sig-fig timestamps.
+    const ordered = [...messages].sort((a, b) => tsCmp(a.ts, b.ts));
 
     let dispatched = 0;
     let highestTs = wm?.lastTs ?? '0';
@@ -536,7 +534,7 @@ export class SlackPollingClient {
     for (const msg of ordered) {
       // Defense-in-depth: never re-dispatch ts <= watermark even if the
       // server returned an unexpected row.
-      if (wm && parseFloat(msg.ts) <= parseFloat(wm.lastTs)) continue;
+      if (wm && tsLte(msg.ts, wm.lastTs)) continue;
 
       const event: SocketLikeMessageEvent = {
         ts: msg.ts,
@@ -555,7 +553,7 @@ export class SlackPollingClient {
         log.error(`dispatch error channel=${channelId} ts=${msg.ts}: ${describeErr(err)}`);
       }
 
-      if (parseFloat(msg.ts) > parseFloat(highestTs)) {
+      if (tsGt(msg.ts, highestTs)) {
         highestTs = msg.ts;
       }
 
@@ -570,7 +568,7 @@ export class SlackPollingClient {
       const parentTs = msg.ts;
       const replyCount = msg.reply_count ?? 0;
       const latestReply = msg.latest_reply;
-      const repliesAreNew = !!latestReply && parseFloat(latestReply) > parseFloat(wm?.lastTs ?? '0');
+      const repliesAreNew = !!latestReply && tsGt(latestReply, wm?.lastTs ?? '0');
       if (replyCount > 0 && repliesAreNew) {
         const oldestForReplies = wm?.lastTs ?? parentTs;
         try {
@@ -584,10 +582,10 @@ export class SlackPollingClient {
             (r): r is SlackHistoryMessage => !!r && typeof r.ts === 'string' && r.ts !== parentTs,
           );
           // conversations.replies returns oldest-first, but be defensive.
-          const orderedReplies = [...replies].sort((a, b) => parseFloat(a.ts) - parseFloat(b.ts));
+          const orderedReplies = [...replies].sort((a, b) => tsCmp(a.ts, b.ts));
           for (const reply of orderedReplies) {
             // Defense: skip ts already at or below the watermark (handles overlap).
-            if (wm && parseFloat(reply.ts) <= parseFloat(wm.lastTs)) continue;
+            if (wm && tsLte(reply.ts, wm.lastTs)) continue;
 
             const replyEvent: SocketLikeMessageEvent = {
               ts: reply.ts,
@@ -604,7 +602,7 @@ export class SlackPollingClient {
             } catch (err) {
               log.error(`dispatch error (reply) channel=${channelId} ts=${reply.ts}: ${describeErr(err)}`);
             }
-            if (parseFloat(reply.ts) > parseFloat(highestTs)) {
+            if (tsGt(reply.ts, highestTs)) {
               highestTs = reply.ts;
             }
           }
@@ -693,4 +691,133 @@ async function mapWithConcurrency<T>(
 /** Adapter so the production code can pass a real Slack WebClient. */
 export function asPollingWebClient(client: WebClient): PollingWebClient {
   return client as unknown as PollingWebClient;
+}
+
+// ─── Slack TS comparison helpers ───
+//
+// Slack timestamps are strings shaped like `XXXXXXXXXX.YYYYYY` — 10-digit
+// seconds + 6-digit microseconds. Using `parseFloat()` on them silently loses
+// precision in the last digits (JS doubles top out around 15–17 sig figs),
+// which can cause two adjacent timestamps to compare equal and a real message
+// to be silently dropped (`msg.ts <= wm.lastTs` accepting it as already-seen
+// and `msg.ts > highestTs` refusing to advance the watermark). We use BigInt
+// instead so the comparison is exact.
+
+function tsToBigInt(ts: string | undefined | null): bigint {
+  if (!ts) return 0n;
+  const dot = ts.indexOf('.');
+  const sec = dot === -1 ? ts : ts.slice(0, dot);
+  const micro = dot === -1 ? '' : ts.slice(dot + 1);
+  // Pad / truncate microseconds to exactly 6 digits so concatenation always
+  // produces a consistent-magnitude integer.
+  const microPadded = (micro + '000000').slice(0, 6);
+  try {
+    return BigInt(sec + microPadded);
+  } catch {
+    return 0n;
+  }
+}
+
+/** True if `a <= b`. */
+function tsLte(a: string | undefined, b: string | undefined): boolean {
+  return tsToBigInt(a) <= tsToBigInt(b);
+}
+
+/** True if `a > b`. */
+function tsGt(a: string | undefined, b: string | undefined): boolean {
+  return tsToBigInt(a) > tsToBigInt(b);
+}
+
+/** Compare two ts strings for Array.sort. Returns -1, 0, or 1. */
+function tsCmp(a: string, b: string): number {
+  const ab = tsToBigInt(a);
+  const bb = tsToBigInt(b);
+  return ab < bb ? -1 : ab > bb ? 1 : 0;
+}
+
+// ─── Token bucket rate limiter ───
+//
+// Refills `1` token every `refillIntervalMs` up to `capacity`. Workers
+// `acquire()` a token before making an API call; concurrent waiters are
+// served FIFO via an explicit queue so we don't get a thundering-herd of
+// setTimeouts all racing to take the next token. Honors `globalPauseUntil`
+// so 429s from any one call back the whole client off.
+
+interface TokenBucketOpts {
+  capacity: number;
+  refillIntervalMs: number;
+  now: () => number;
+  globalPauseUntil: () => number;
+  isRunning: () => boolean;
+}
+
+class TokenBucket {
+  private tokens: number;
+  private lastRefillMs: number;
+  private waiters: Array<() => void> = [];
+  private pumpScheduled = false;
+  private readonly capacity: number;
+  private readonly refillIntervalMs: number;
+  private readonly nowFn: () => number;
+  private readonly globalPauseUntilFn: () => number;
+  private readonly isRunningFn: () => boolean;
+
+  constructor(opts: TokenBucketOpts) {
+    this.capacity = Math.max(1, opts.capacity);
+    this.refillIntervalMs = Math.max(1, opts.refillIntervalMs);
+    this.nowFn = opts.now;
+    this.globalPauseUntilFn = opts.globalPauseUntil;
+    this.isRunningFn = opts.isRunning;
+    this.tokens = this.capacity;
+    this.lastRefillMs = opts.now();
+  }
+
+  private refillNow(): void {
+    const elapsed = this.nowFn() - this.lastRefillMs;
+    if (elapsed <= 0) return;
+    const gained = elapsed / this.refillIntervalMs;
+    if (gained > 0) {
+      this.tokens = Math.min(this.capacity, this.tokens + gained);
+      this.lastRefillMs = this.nowFn();
+    }
+  }
+
+  async acquire(): Promise<void> {
+    if (!this.isRunningFn()) throw new Error('SlackPollingClient stopped');
+    // Wait through any global 429 pause before consuming a token so the
+    // entire workspace honors Retry-After.
+    const pauseRemaining = this.globalPauseUntilFn() - this.nowFn();
+    if (pauseRemaining > 0) {
+      await new Promise<void>((r) => setTimeout(r, pauseRemaining));
+      if (!this.isRunningFn()) throw new Error('SlackPollingClient stopped');
+    }
+    this.refillNow();
+    if (this.tokens >= 1 && this.waiters.length === 0) {
+      this.tokens -= 1;
+      return;
+    }
+    return new Promise<void>((resolve) => {
+      this.waiters.push(resolve);
+      this.schedulePump();
+    });
+  }
+
+  private schedulePump(): void {
+    if (this.pumpScheduled) return;
+    this.pumpScheduled = true;
+    const needed = Math.max(0, 1 - this.tokens);
+    const waitMs = Math.max(10, Math.ceil(needed * this.refillIntervalMs));
+    setTimeout(() => {
+      this.pumpScheduled = false;
+      this.refillNow();
+      while (this.tokens >= 1 && this.waiters.length > 0) {
+        this.tokens -= 1;
+        const resolve = this.waiters.shift()!;
+        resolve();
+      }
+      if (this.waiters.length > 0) {
+        this.schedulePump();
+      }
+    }, waitMs);
+  }
 }

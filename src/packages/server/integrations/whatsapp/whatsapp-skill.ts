@@ -56,6 +56,18 @@ curl -s -X POST -H "X-Auth-Token: abcd" http://localhost:5174/api/whatsapp/send-
   -d '{"to":"5215532967210","mediaUrl":"https://example.com/cat.png","caption":"meow","type":"image"}'
 \`\`\`
 
+### 4. Read an attachment from an inbound WhatsApp trigger
+
+When your trigger fires from an inbound WhatsApp message that has media, Tide Commander downloads the bytes server-side and surfaces the local path in your prompt template under \`{{whatsapp.attachmentsBlock}}\` (and \`{{whatsapp.attachmentPath}}\` individually). The block looks like:
+
+\`\`\`
+[attachment: /tmp/tide-commander-uploads/triggers/whatsapp/<msgId>/<filename>  mimetype=image/jpeg  name=photo.jpg  size=124300]
+\`\`\`
+
+Use the **Read** tool directly on that path — do NOT try to fetch the original \`mediaUrl\` (it's an encrypted Meta CDN URL that you can't decrypt). Files older than 24 hours are swept automatically.
+
+If the line says \`[attachment-skipped: too-large …]\` or \`[attachment-skipped: fetch-failed …]\` instead, the bytes were not saved and you should respond accordingly (ask the user to re-send, or proceed without the attachment).
+
 ---
 
 ## Send a Text Message (full reference)

@@ -233,6 +233,22 @@ Disable the auto-ack by setting \`SLACK_REACT_ON_TRIGGER=false\` (accepts \`fals
 curl -s http://localhost:5174/api/slack/status
 \`\`\`
 
+## Reading Inbound Attachments from a Slack Trigger
+
+When a Slack message that fires your trigger carries file attachments (\`file_share\`, screenshots, PDFs, etc.), Tide Commander downloads the bytes server-side so you don't have to fetch them yourself. The local paths are surfaced in your prompt template under \`{{slack.attachmentsBlock}}\` (and \`{{slack.filePaths}}\` for a flat comma list).
+
+Each downloaded attachment renders as one line in the block:
+
+\`\`\`
+[attachment: /tmp/tide-commander-uploads/triggers/slack/<msgTs>-<fileId>/<filename>  mimetype=image/png  name=screenshot.png  size=124300]
+\`\`\`
+
+Use the **Read** tool directly on that absolute path — do NOT call the Slack file API yourself. Files older than 24 hours are swept automatically.
+
+If a file is too large (>25 MB) or the bot couldn't download it, the line becomes \`[attachment-skipped: too-large …]\` or \`[attachment-skipped: fetch-failed …]\` instead. In that case, surface the limitation to the user rather than silently ignoring the attachment.
+
+Per-message cap: at most 10 files are downloaded; additional files are emitted as \`[attachment-skipped: unsupported …]\`.
+
 ## Notes
 - Channel IDs look like \`C0123456789\`. Use the list channels endpoint to find them.
 - Thread timestamps look like \`1234567890.123456\`.

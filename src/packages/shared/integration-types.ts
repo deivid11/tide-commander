@@ -22,6 +22,41 @@ export interface ExternalEvent {
   timestamp: number;
 }
 
+// ─── Inbound Attachments (downloaded to local /tmp by attachment-downloader) ───
+
+/**
+ * A file downloaded locally from an inbound integration event (Slack file_share,
+ * WhatsApp media message, etc.) so agents can open it directly with the `Read`
+ * tool instead of fetching it themselves. Produced by
+ * `src/packages/server/services/attachment-downloader.ts` and exposed to
+ * trigger templates via per-source variables (e.g. `slack.attachmentsBlock`).
+ */
+export interface DownloadedAttachment {
+  /** Absolute path on the host where the file was saved (under /tmp/tide-commander-uploads/triggers/...). */
+  path: string;
+  /** Sanitized filename used on disk. Includes the extension. */
+  filename: string;
+  /** MIME type as reported by the integration, or `application/octet-stream` if unknown. */
+  mimetype: string;
+  /** Size in bytes of the bytes actually written to disk. */
+  size: number;
+  /** Original source URL the bytes were fetched from (for traceability / debugging). */
+  sourceUrl: string;
+}
+
+/**
+ * Reason a file from an inbound event was NOT downloaded (size cap, fetch
+ * error, etc.). Surfaced to agents in the same attachmentsBlock so they have
+ * context even when bytes weren't fetched.
+ */
+export interface SkippedAttachment {
+  reason: 'too-large' | 'fetch-failed' | 'unsupported';
+  filename?: string;
+  size?: number;
+  sourceUrl?: string;
+  detail?: string;
+}
+
 // ─── Config Field Schema (Generic Settings UI) ───
 
 export type ConfigFieldType = 'text' | 'password' | 'number' | 'boolean' | 'select' | 'textarea' | 'email' | 'url';

@@ -10,10 +10,12 @@
  */
 
 import type {
+  DownloadedAttachment,
   IntegrationContext,
   TriggerHandler,
   TriggerDefinition,
   ExternalEvent,
+  SkippedAttachment,
 } from '../../../shared/integration-types.js';
 import { loadConfig, WHATSAPP_API_KEY_SECRET } from './whatsapp-config.js';
 import { WhatsAppWsClient, type WhatsAppUpstreamEvent } from './whatsapp-ws-client.js';
@@ -22,6 +24,7 @@ import { ContactNameCache } from './contact-name-cache.js';
 import { GroupNameCache } from './group-name-cache.js';
 import { WhatsAppClient } from './whatsapp-client.js';
 import { createLogger } from '../../utils/logger.js';
+import { downloadAttachment, formatAttachmentLine, MAX_ATTACHMENT_BYTES } from '../../services/attachment-downloader.js';
 import * as crypto from 'crypto';
 
 const log = createLogger('WhatsAppTrigger');
@@ -52,6 +55,25 @@ export interface NormalizedWhatsAppMessage {
    * broadcasts) without consulting the upstream payload.
    */
   chatId: string;
+  /** Stable Baileys-side message id (`key.id` or top-level `id`). Needed to
+   *  build the upstream media-download URL. */
+  messageId?: string;
+  /** MIME type extracted from the matched Baileys media proto, when present. */
+  mediaMimetype?: string;
+  /** Size in bytes reported by Baileys (`fileLength`). */
+  mediaSize?: number;
+  /** Original filename (documents only — Baileys sets `fileName`). */
+  mediaFilename?: string;
+  /** Absolute path on disk after the media bytes were fetched via the upstream
+   *  proxy. Set by `handleEvent` AFTER `normalizeBaileysMessage` returns. */
+  mediaPath?: string;
+  /** Local copy of the downloaded media bytes, with metadata. Set alongside
+   *  `mediaPath` when the download succeeded. */
+  attachment?: DownloadedAttachment;
+  /** Reason the media was NOT downloaded (size cap, fetch failure). Surfaced
+   *  to triggers as an `[attachment-skipped: …]` line so the agent still gets
+   *  context. */
+  skippedAttachment?: SkippedAttachment;
 }
 
 // Module-level subscriber set fed by the in-process bridge whenever a normalized
@@ -210,7 +232,28 @@ export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppM
         !payload.groupName &&
         !!payload.chatId;
 
-      if (!needsContactEnrich && !needsGroupEnrich) {
+      // Media → download bytes via the upstream proxy (NOT the raw Baileys
+      // `mediaUrl`, which points at an encrypted Meta CDN). The upstream
+      // exposes `/api/sessions/<sid>/messages/<mid>/media?download=true`.
+      //
+      // We download for BOTH directions:
+      //  - inbound (`fromMe=false`): a contact sent media into our number.
+      //  - outbound (`fromMe=true`): the WhatsApp account itself originated
+      //    the media — this is the real-world case where David sends an
+      //    attachment from his own WA so Bolba can process it. The fact that
+      //    Baileys reports `fromMe=true` on messages we ourselves typed in
+      //    the WA app is exactly why filtering on direction was wrong.
+      //
+      // The only case where this is wasteful is Tide Commander itself sending
+      // media via `/api/whatsapp/send-media-url` (upstream echoes back the
+      // `message_create` with `fromMe=true` + mediaType). That's a localhost
+      // self-fetch that costs almost nothing, so we don't bother
+      // distinguishing it from the user-typing case.
+      const needsMediaDownload =
+        !!payload.mediaType &&
+        !!payload.messageId;
+
+      if (!needsContactEnrich && !needsGroupEnrich && !needsMediaDownload) {
         ctx.broadcast({ type: 'whatsapp_message', payload });
         notifyTriggerSubscribers(payload);
         return;
@@ -235,7 +278,64 @@ export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppM
           })
         : Promise.resolve();
 
-      void Promise.all([contactPromise, groupPromise]).then(() => {
+      const mediaPromise = needsMediaDownload
+        ? (async () => {
+            const apiKey = ctx.secrets.get(WHATSAPP_API_KEY_SECRET);
+            if (!apiKey) {
+              payload.skippedAttachment = {
+                reason: 'fetch-failed',
+                filename: payload.mediaFilename,
+                size: payload.mediaSize,
+                detail: 'whatsapp.apiKey secret missing',
+              };
+              return;
+            }
+            const base = config.baseUrl.replace(/\/+$/, '');
+            const downloadUrl = `${base}/api/sessions/${encodeURIComponent(payload.sessionId)}/messages/${encodeURIComponent(payload.messageId!)}/media?download=true`;
+            if (typeof payload.mediaSize === 'number' && payload.mediaSize > MAX_ATTACHMENT_BYTES) {
+              payload.skippedAttachment = {
+                reason: 'too-large',
+                filename: payload.mediaFilename,
+                size: payload.mediaSize,
+                sourceUrl: downloadUrl,
+              };
+              return;
+            }
+            try {
+              const result = await downloadAttachment({
+                source: 'whatsapp',
+                messageId: payload.messageId!,
+                url: downloadUrl,
+                headers: { 'X-API-Key': apiKey },
+                suggestedFilename: payload.mediaFilename,
+                mimetype: payload.mediaMimetype,
+                sizeHintBytes: payload.mediaSize,
+              });
+              if (result) {
+                payload.mediaPath = result.path;
+                payload.attachment = result;
+              } else {
+                payload.skippedAttachment = {
+                  reason: 'fetch-failed',
+                  filename: payload.mediaFilename,
+                  size: payload.mediaSize,
+                  sourceUrl: downloadUrl,
+                };
+              }
+            } catch (err) {
+              ctx.log.warn(`WhatsApp media download threw: ${err}`);
+              payload.skippedAttachment = {
+                reason: 'fetch-failed',
+                filename: payload.mediaFilename,
+                size: payload.mediaSize,
+                sourceUrl: downloadUrl,
+                detail: String(err),
+              };
+            }
+          })()
+        : Promise.resolve();
+
+      void Promise.all([contactPromise, groupPromise, mediaPromise]).then(() => {
         ctx.broadcast({ type: 'whatsapp_message', payload });
         notifyTriggerSubscribers(payload);
       });
@@ -339,10 +439,15 @@ function normalizeBaileysMessage(
     : undefined;
 
   // Body / media extraction
-  const { body, mediaType, mediaUrl: rawMediaUrl } = extractContent(d, message);
+  const { body, mediaType, mediaUrl: rawMediaUrl, mediaMimetype, mediaSize, mediaFilename } = extractContent(d, message);
 
   // Resolve relative mediaUrl against baseUrl
   const mediaUrl = rawMediaUrl ? resolveMediaUrl(rawMediaUrl, baseUrl) : undefined;
+
+  // Stable Baileys message id — needed to ask the upstream for the decrypted bytes.
+  const messageId =
+    pickString(d.id) ??
+    (key ? pickString(key.id) : undefined);
 
   // Timestamp resolution. Baileys messageTimestamp is in seconds; envelope `ts`
   // might already be ms. Heuristic: anything < 10^12 is treated as seconds.
@@ -365,6 +470,10 @@ function normalizeBaileysMessage(
     mediaUrl,
     direction,
     chatId: remoteJid ?? from,
+    messageId,
+    mediaMimetype,
+    mediaSize,
+    mediaFilename,
   };
 }
 
@@ -372,6 +481,9 @@ interface ContentSlice {
   body?: string;
   mediaType?: MediaType;
   mediaUrl?: string;
+  mediaMimetype?: string;
+  mediaSize?: number;
+  mediaFilename?: string;
 }
 
 function extractContent(envelope: Record<string, unknown>, message: Record<string, unknown> | undefined): ContentSlice {
@@ -381,16 +493,64 @@ function extractContent(envelope: Record<string, unknown>, message: Record<strin
   const directMediaUrl =
     pickString(envelope.mediaUrl) ??
     pickString((envelope.media as Record<string, unknown> | undefined)?.url);
-  if (directBody !== undefined || directMediaType || directMediaUrl) {
+
+  // 1a. The Baileys upstream we ship today emits a *flat* event shape where
+  // the media signal lives at `data.type` (e.g. "imageMessage") with no
+  // nested `message.imageMessage` proto, no `mediaUrl`, and `media: null`.
+  // Detect that case and surface mediaType so the downloader's
+  // `${baseUrl}/api/sessions/<sid>/messages/<mid>/media?download=true` URL
+  // gets constructed from sessionId+messageId. mimetype/filename/size are
+  // intentionally left undefined here — the downloader fills them from the
+  // proxy's response headers (Content-Type, Content-Disposition).
+  //
+  // Trigger conditions, in priority order:
+  //   1. `data.type` matches `*Message` (image/video/audio/document/sticker
+  //      and all known variants like pttMessage, documentWithCaptionMessage,
+  //      videoNoteMessage, etc.)
+  //   2. `data.hasMedia === true` regardless of how `data.type` is spelled.
+  // We default unknown variants to `document` (the catch-all "it's a file"
+  // category) so the download proceeds; the UI chip picks an icon from the
+  // mimetype the downloader fills in.
+  const flatType = pickString(envelope.type);
+  const flatHasMedia = pickBoolean(envelope.hasMedia) === true;
+  const flatTypeIsMessage = !!flatType && /Message$/i.test(flatType);
+  if (flatTypeIsMessage || (flatHasMedia && !directMediaType && !directMediaUrl)) {
+    return {
+      body: directBody,
+      mediaType: classifyFlatType(flatType),
+      mediaUrl: undefined,
+      mediaMimetype: undefined,
+      mediaFilename: undefined,
+      mediaSize: undefined,
+    };
+  }
+
+  // Short-circuit ONLY when the upstream pre-normalized actual media metadata
+  // at the top level. Earlier this branch also fired on `directBody` alone,
+  // which meant a Baileys envelope carrying `body='caption text'` + a real
+  // `message.imageMessage` proto was returned as text-only — the media
+  // extraction below was skipped and downstream `payload.mediaType` came back
+  // undefined. Fall through when only the body is set so the Baileys proto
+  // gets a chance to provide the media info.
+  if (directMediaType || directMediaUrl) {
+    const mediaObj = envelope.media as Record<string, unknown> | undefined;
     return {
       body: directBody,
       mediaType: directMediaType,
       mediaUrl: directMediaUrl,
+      mediaMimetype: pickString(envelope.mediaMimetype) ?? pickString(envelope.mimetype) ?? pickString(mediaObj?.mimetype),
+      mediaSize: pickNumber(envelope.mediaSize) ?? pickNumber(envelope.fileLength) ?? pickNumber(mediaObj?.size),
+      mediaFilename: pickString(envelope.mediaFilename) ?? pickString(envelope.fileName) ?? pickString(mediaObj?.fileName),
     };
   }
 
   // 2. Baileys `message` proto shape.
-  if (!message) return {};
+  if (!message) {
+    // No proto to inspect but we may still have a plain text body at the top
+    // level. Return it so the trigger gets *something*; mediaType remains
+    // unset which is correct.
+    return directBody !== undefined ? { body: directBody } : {};
+  }
 
   const conversation = pickString(message.conversation);
   if (conversation) return { body: conversation };
@@ -404,38 +564,57 @@ function extractContent(envelope: Record<string, unknown>, message: Record<strin
   const image = message.imageMessage as Record<string, unknown> | undefined;
   if (image) {
     return {
-      body: pickString(image.caption) ?? '',
+      body: pickString(image.caption) ?? directBody ?? '',
       mediaType: 'image',
       mediaUrl: pickString(image.url),
+      mediaMimetype: pickString(image.mimetype),
+      mediaSize: pickNumber(image.fileLength),
     };
   }
 
   const video = message.videoMessage as Record<string, unknown> | undefined;
   if (video) {
     return {
-      body: pickString(video.caption) ?? '',
+      body: pickString(video.caption) ?? directBody ?? '',
       mediaType: 'video',
       mediaUrl: pickString(video.url),
+      mediaMimetype: pickString(video.mimetype),
+      mediaSize: pickNumber(video.fileLength),
     };
   }
 
   const audio = message.audioMessage as Record<string, unknown> | undefined;
   if (audio) {
-    return { body: '', mediaType: 'audio', mediaUrl: pickString(audio.url) };
+    return {
+      body: directBody ?? '',
+      mediaType: 'audio',
+      mediaUrl: pickString(audio.url),
+      mediaMimetype: pickString(audio.mimetype),
+      mediaSize: pickNumber(audio.fileLength),
+    };
   }
 
   const doc = message.documentMessage as Record<string, unknown> | undefined;
   if (doc) {
     return {
-      body: pickString(doc.fileName) ?? pickString(doc.caption) ?? '',
+      body: pickString(doc.fileName) ?? pickString(doc.caption) ?? directBody ?? '',
       mediaType: 'document',
       mediaUrl: pickString(doc.url),
+      mediaMimetype: pickString(doc.mimetype),
+      mediaSize: pickNumber(doc.fileLength),
+      mediaFilename: pickString(doc.fileName) ?? pickString(doc.title),
     };
   }
 
   const sticker = message.stickerMessage as Record<string, unknown> | undefined;
   if (sticker) {
-    return { body: '', mediaType: 'sticker', mediaUrl: pickString(sticker.url) };
+    return {
+      body: directBody ?? '',
+      mediaType: 'sticker',
+      mediaUrl: pickString(sticker.url),
+      mediaMimetype: pickString(sticker.mimetype),
+      mediaSize: pickNumber(sticker.fileLength),
+    };
   }
 
   // Some Baileys variants nest the actual message under ephemeralMessage / viewOnceMessage.
@@ -449,7 +628,9 @@ function extractContent(envelope: Record<string, unknown>, message: Record<strin
     | undefined;
   if (viewOnce) return extractContent(envelope, viewOnce);
 
-  return {};
+  // Unknown proto shape (reaction, protocol, etc.) — preserve the top-level
+  // body so the trigger still receives the text.
+  return directBody !== undefined ? { body: directBody } : {};
 }
 
 function resolveMediaUrl(url: string, baseUrl: string): string {
@@ -469,6 +650,31 @@ function normalizeMediaType(value: string | undefined): MediaType | undefined {
   const v = value.toLowerCase();
   if (v === 'image' || v === 'video' || v === 'audio' || v === 'document' || v === 'sticker') return v;
   return undefined;
+}
+
+/**
+ * Map an upstream `data.type` (Baileys-style, suffixed `Message`) to one of
+ * the supported MediaType buckets. Known variants:
+ *   - imageMessage → image
+ *   - videoMessage, videoNoteMessage → video
+ *   - audioMessage, pttMessage → audio
+ *   - documentMessage, documentWithCaptionMessage → document
+ *   - stickerMessage → sticker
+ *   - any other `*Message` or unknown signal → document (catch-all "it's a file")
+ * Returns `'document'` as a safe default rather than `undefined` so the
+ * download predicate (`!!payload.mediaType && !!payload.messageId`) stays
+ * true and the proxy is given a chance to deliver the bytes.
+ */
+function classifyFlatType(type: string | undefined): MediaType {
+  const t = (type ?? '').toLowerCase();
+  if (t.startsWith('image')) return 'image';
+  if (t.startsWith('video')) return 'video';
+  if (t.startsWith('audio') || t.startsWith('ptt') || t.startsWith('voice')) return 'audio';
+  if (t.startsWith('sticker')) return 'sticker';
+  // documentMessage, documentWithCaptionMessage, and ANY other `*Message`
+  // variant we don't explicitly know about. Better to attempt the download
+  // and let the proxy decide than to silently skip an unknown media kind.
+  return 'document';
 }
 
 function pickString(value: unknown): string | undefined {
@@ -684,6 +890,19 @@ export const whatsappTriggerHandler: TriggerHandler = {
     const groupName = msg.isGroup
       ? (msg.groupName?.trim() || humanizeGroupJid(msg.chatId))
       : '';
+
+    // Build the attachments block (single line — WA messages carry at most one
+    // media payload). Use the downloaded local path when present; otherwise
+    // emit a `[attachment-skipped: …]` marker if we tried and failed.
+    let attachmentsBlock = '';
+    if (msg.attachment) {
+      attachmentsBlock = formatAttachmentLine(msg.attachment);
+    } else if (msg.skippedAttachment) {
+      const sk = msg.skippedAttachment;
+      const sizeMb = typeof sk.size === 'number' ? `${Math.round(sk.size / (1024 * 1024))}MB` : 'unknown';
+      attachmentsBlock = `[attachment-skipped: ${sk.reason} name=${sk.filename ?? 'unknown'} size=${sizeMb}${sk.detail ? ` detail=${sk.detail}` : ''}]`;
+    }
+
     return {
       'whatsapp.from': msg.from,
       'whatsapp.fromName': fromName,
@@ -695,6 +914,13 @@ export const whatsappTriggerHandler: TriggerHandler = {
       'whatsapp.direction': msg.direction,
       'whatsapp.mediaType': msg.mediaType ?? '',
       'whatsapp.mediaUrl': msg.mediaUrl ?? '',
+      // New: local path + metadata for inbound media, plus a ready-to-paste
+      // attachments block. Additive — old templates ignore these.
+      'whatsapp.attachmentPath': msg.attachment?.path ?? '',
+      'whatsapp.attachmentMime': msg.attachment?.mimetype ?? msg.mediaMimetype ?? '',
+      'whatsapp.attachmentName': msg.attachment?.filename ?? msg.mediaFilename ?? '',
+      'whatsapp.attachmentSize': msg.attachment ? String(msg.attachment.size) : (msg.mediaSize !== undefined ? String(msg.mediaSize) : ''),
+      'whatsapp.attachmentsBlock': attachmentsBlock,
       'whatsapp.timestamp': new Date(msg.timestamp).toISOString(),
     };
   },
@@ -704,9 +930,19 @@ export const whatsappTriggerHandler: TriggerHandler = {
     const sender = msg.fromName ? `${msg.fromName} (${msg.from})` : msg.from;
     const channel = msg.isGroup ? `group "${msg.groupName ?? msg.from}"` : 'DM';
     const verb = msg.direction === 'outbound' ? 'sent' : 'received';
-    const media = msg.mediaType
-      ? `\n[${msg.mediaType} attachment${msg.mediaUrl ? ` ${msg.mediaUrl}` : ''}]`
-      : '';
-    return `WhatsApp message ${verb} in ${channel}\nFrom: ${sender}\nSession: ${msg.sessionId}\nTime: ${new Date(msg.timestamp).toISOString()}${media}\n\n${msg.body}`;
+    // If we downloaded the media, surface the local path as the agent-facing
+    // attachment marker (it supersedes the raw mediaUrl). If we tried but
+    // failed, surface that explicitly so the agent doesn't silently miss it.
+    let mediaSuffix = '';
+    if (msg.attachment) {
+      mediaSuffix = `\n\n${formatAttachmentLine(msg.attachment)}`;
+    } else if (msg.skippedAttachment) {
+      const sk = msg.skippedAttachment;
+      const sizeMb = typeof sk.size === 'number' ? `${Math.round(sk.size / (1024 * 1024))}MB` : 'unknown';
+      mediaSuffix = `\n\n[attachment-skipped: ${sk.reason} name=${sk.filename ?? 'unknown'} size=${sizeMb}${sk.detail ? ` detail=${sk.detail}` : ''}]`;
+    } else if (msg.mediaType) {
+      mediaSuffix = `\n[${msg.mediaType} attachment${msg.mediaUrl ? ` ${msg.mediaUrl}` : ''}]`;
+    }
+    return `WhatsApp message ${verb} in ${channel}\nFrom: ${sender}\nSession: ${msg.sessionId}\nTime: ${new Date(msg.timestamp).toISOString()}\n\n${msg.body}${mediaSuffix}`;
   },
 };

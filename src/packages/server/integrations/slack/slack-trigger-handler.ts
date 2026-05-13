@@ -13,6 +13,7 @@ import * as slackClient from './slack-client.js';
 import type { SlackMessage } from './slack-client.js';
 import { listInstances } from './slack-instance.js';
 import { listInstanceMetas } from './slack-instance-manifest.js';
+import { formatAttachmentLine } from '../../services/attachment-downloader.js';
 
 /**
  * Trigger config recognised by `slack` triggers. `instanceId` is optional —
@@ -117,10 +118,28 @@ export const slackTriggerHandler: TriggerHandler = {
     const msg = event.data as SlackTriggerEventData;
     void trigger;
     const files = msg.files ?? [];
+    const downloaded = msg.attachmentPaths ?? [];
+    const skipped = msg.skippedAttachments ?? [];
     // Resolved channel label: `#name` / `DM con @user` / `Grupo: @a, @b…`.
     // Falls back to the raw id when the resolver couldn't fetch metadata
     // (network blip, missing scope, deleted channel).
     const channelLabel = (msg as SlackTriggerEventData & { channelName?: string }).channelName || msg.channel;
+
+    // Build the "attachments block" agents can ingest verbatim — one line per
+    // downloaded file with absolute path, plus a line per skipped file with
+    // the reason. Empty string when there are no attachments.
+    const blockLines: string[] = [];
+    for (const att of downloaded) {
+      blockLines.push(formatAttachmentLine(att));
+    }
+    for (const sk of skipped) {
+      const sizeMb = typeof sk.size === 'number' ? `${Math.round(sk.size / (1024 * 1024))}MB` : 'unknown';
+      blockLines.push(
+        `[attachment-skipped: ${sk.reason} name=${sk.filename ?? 'unknown'} size=${sizeMb}${sk.detail ? ` detail=${sk.detail}` : ''}]`,
+      );
+    }
+    const attachmentsBlock = blockLines.join('\n');
+
     return {
       'slack.user': msg.userName,
       // fromName/fromId are the boss-canonical names mirroring the Slack
@@ -140,6 +159,10 @@ export const slackTriggerHandler: TriggerHandler = {
       'slack.fileIds': files.map((f) => f.id).join(','),
       'slack.fileNames': files.map((f) => f.name ?? '').filter(Boolean).join(','),
       'slack.attachmentsList': files.map((f) => f.name ?? '').filter(Boolean).join(','),
+      // New: absolute paths and ready-to-paste attachments block. Additive —
+      // existing user templates that don't reference these vars keep working.
+      'slack.filePaths': downloaded.map((a) => a.path).join(','),
+      'slack.attachmentsBlock': attachmentsBlock,
       'slack.instanceId': msg.instanceId,
       'slack.instanceName': msg.instanceId,
     };
