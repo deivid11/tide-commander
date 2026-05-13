@@ -9,6 +9,7 @@
 
 import React from 'react';
 import { Icon } from '../Icon';
+import { renderBodyWithAttachments } from './AttachmentChip';
 
 export interface WhatsAppMessage {
   direction: 'inbound' | 'outbound';
@@ -27,7 +28,6 @@ export interface WhatsAppMessage {
 const HEADER_RE = /^[ \t]*Nuevo mensaje de WhatsApp\s*\((inbound|outbound)\)\.?\s*$/im;
 const FIELD_RE = (label: string) =>
   new RegExp(`^[ \\t]*${label}[ \\t]*:[ \\t]*(.*)$`, 'im');
-const URL_RE = /(https?:\/\/[^\s<>"'\)]+)/g;
 // Mexican mobile format: +52 1 NNN NNN NNNN — common for the user's region.
 const MX_MOBILE_RE = /^521(\d{3})(\d{3})(\d{4})$/;
 
@@ -142,39 +142,9 @@ function shortenSession(session: string): string {
   return `${session.slice(0, 8)}…`;
 }
 
-function renderBodyWithLinks(body: string): React.ReactNode[] {
-  const lines = body.split('\n');
-  const out: React.ReactNode[] = [];
-  lines.forEach((line, lineIdx) => {
-    let lastIdx = 0;
-    let match: RegExpExecArray | null;
-    URL_RE.lastIndex = 0;
-    let segIdx = 0;
-    while ((match = URL_RE.exec(line)) !== null) {
-      if (match.index > lastIdx) {
-        out.push(<span key={`${lineIdx}-t-${segIdx++}`}>{line.slice(lastIdx, match.index)}</span>);
-      }
-      const url = match[1];
-      out.push(
-        <a
-          key={`${lineIdx}-l-${segIdx++}`}
-          className="whatsapp-bubble__link"
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {url}
-        </a>,
-      );
-      lastIdx = URL_RE.lastIndex;
-    }
-    if (lastIdx < line.length) {
-      out.push(<span key={`${lineIdx}-t-${segIdx++}`}>{line.slice(lastIdx)}</span>);
-    }
-    if (lineIdx < lines.length - 1) out.push(<br key={`${lineIdx}-br`} />);
-  });
-  return out;
-}
+// Body renderer + attachment chip + preview modal all live in
+// `./AttachmentChip` — shared with SlackMessageBubble.tsx so the parser logic
+// stays in one place when new sources are added.
 
 // Build the bubble's primary/secondary header strings from the parsed message.
 // DM: primary = fromName (or phone fallback), secondary = phone if distinct.
@@ -235,7 +205,7 @@ export function WhatsAppMessageBubble({ msg }: WhatsAppMessageBubbleProps): Reac
         )}
         <div className="whatsapp-bubble__body">
           {msg.body
-            ? renderBodyWithLinks(msg.body)
+            ? renderBodyWithAttachments(msg.body, 'whatsapp-bubble__link')
             : <span className="whatsapp-bubble__empty">—</span>}
         </div>
         <div className="whatsapp-bubble__footer">

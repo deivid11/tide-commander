@@ -13,8 +13,10 @@ import { loadAreas } from '../data/index.js';
 
 const log = logger.files;
 
-// Get or create temp directory for tide-commander uploads
-const TEMP_DIR = path.join(os.tmpdir(), 'tide-commander-uploads');
+// Get or create temp directory for tide-commander uploads. Exported so other
+// modules (attachment-downloader, attachment-janitor) put their files under the
+// same root that Express already serves statically at `/uploads/`.
+export const TEMP_DIR = path.join(os.tmpdir(), 'tide-commander-uploads');
 if (!fs.existsSync(TEMP_DIR)) {
   fs.mkdirSync(TEMP_DIR, { recursive: true });
 }

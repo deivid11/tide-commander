@@ -435,6 +435,18 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                       if (type === 'webhook') updateField('config', { method: 'POST' });
                       else if (type === 'cron') updateField('config', { expression: '0 9 * * MON-FRI', timezone: 'UTC' });
                       else updateField('config', {});
+                      // Seed a sensible default promptTemplate for source types
+                      // that surface attachments — but ONLY when the user
+                      // hasn't typed anything yet, so we don't clobber custom
+                      // templates on type-toggle.
+                      const currentPrompt = (editingTrigger.promptTemplate ?? '').trim();
+                      if (!currentPrompt) {
+                        if (type === 'slack') {
+                          updateField('promptTemplate', 'Slack message from {{slack.user}} in {{slack.channelName}}:\n{{slack.message}}\n\n{{slack.attachmentsBlock}}');
+                        } else if (type === 'whatsapp') {
+                          updateField('promptTemplate', 'WhatsApp message from {{whatsapp.fromName}} ({{whatsapp.from}}):\n{{whatsapp.body}}\n\n{{whatsapp.attachmentsBlock}}');
+                        }
+                      }
                     }}
                   >
                     {TRIGGER_TYPES.map(t => (

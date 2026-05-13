@@ -9,6 +9,7 @@
 
 import React from 'react';
 import { Icon } from '../Icon';
+import { renderBodyWithAttachments } from './AttachmentChip';
 
 export interface SlackMessage {
   direction: 'inbound' | 'outbound';
@@ -31,7 +32,6 @@ export interface SlackMessage {
 const HEADER_RE = /^[ \t]*Nuevo mensaje de Slack(?:\s*\((inbound|outbound)\))?\.?\s*$/im;
 const FIELD_RE = (label: string) =>
   new RegExp(`^[ \\t]*${label}[ \\t]*:[ \\t]*(.*)$`, 'im');
-const URL_RE = /(https?:\/\/[^\s<>"'\)]+)/g;
 // "@Display Name (UXXXXXX)" — Slack's user mention format.
 const SLACK_USER_RE = /^\s*@?\s*([^()]+?)\s*\(\s*(U[A-Z0-9]+)\s*\)\s*$/;
 // "<friendly label> (<channel id>)" — the new format produced when the
@@ -163,39 +163,10 @@ function initialsFor(name: string): string {
   return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
-function renderBodyWithLinks(body: string): React.ReactNode[] {
-  const lines = body.split('\n');
-  const out: React.ReactNode[] = [];
-  lines.forEach((line, lineIdx) => {
-    let lastIdx = 0;
-    let match: RegExpExecArray | null;
-    URL_RE.lastIndex = 0;
-    let segIdx = 0;
-    while ((match = URL_RE.exec(line)) !== null) {
-      if (match.index > lastIdx) {
-        out.push(<span key={`${lineIdx}-t-${segIdx++}`}>{line.slice(lastIdx, match.index)}</span>);
-      }
-      const url = match[1];
-      out.push(
-        <a
-          key={`${lineIdx}-l-${segIdx++}`}
-          className="slack-bubble__link"
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {url}
-        </a>,
-      );
-      lastIdx = URL_RE.lastIndex;
-    }
-    if (lastIdx < line.length) {
-      out.push(<span key={`${lineIdx}-t-${segIdx++}`}>{line.slice(lastIdx)}</span>);
-    }
-    if (lineIdx < lines.length - 1) out.push(<br key={`${lineIdx}-br`} />);
-  });
-  return out;
-}
+// Body rendering (URL linkify + [attachment: …] chip + preview modal) is
+// delegated to the shared `./AttachmentChip` module so WhatsApp and Slack
+// bubbles produce the same chip UX. We pass our own link class so anchors
+// keep the Slack visual style.
 
 interface SlackMessageBubbleProps {
   msg: SlackMessage;
@@ -244,7 +215,7 @@ export function SlackMessageBubble({ msg }: SlackMessageBubbleProps): React.Reac
 
         <div className="slack-bubble__body">
           {msg.body
-            ? renderBodyWithLinks(msg.body)
+            ? renderBodyWithAttachments(msg.body, 'slack-bubble__link')
             : <span className="slack-bubble__empty">(sin texto)</span>}
         </div>
 

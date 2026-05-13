@@ -15,8 +15,14 @@ import * as os from 'node:os';
 import path from 'node:path';
 import { LogLevel, WebClient } from '@slack/web-api';
 import { SocketModeClient } from '@slack/socket-mode';
-import type { IntegrationContext, IntegrationStatus } from '../../../shared/integration-types.js';
+import type {
+  DownloadedAttachment,
+  IntegrationContext,
+  IntegrationStatus,
+  SkippedAttachment,
+} from '../../../shared/integration-types.js';
 import type { SlackMessageEvent } from '../../../shared/event-types.js';
+import { downloadAttachment, MAX_ATTACHMENT_BYTES } from '../../services/attachment-downloader.js';
 import { instanceSecretKey, loadConfig, resolveAuthMode, updateConfig } from './slack-config.js';
 import { SlackPollingClient, asPollingWebClient, type SocketLikeMessageEvent } from './slack-polling-client.js';
 import { SlackWatermarkStore } from './slack-watermark-store.js';
@@ -40,6 +46,13 @@ export interface SlackMessage {
   text: string;
   timestamp: number;
   files?: SlackFile[];
+  /** Locally-downloaded copies of `files` (skipping items beyond the per-message
+   *  cap or files that exceeded the 25 MB size cap). Populated by the
+   *  attachment downloader inside `dispatchInboundMessage`. */
+  attachmentPaths?: DownloadedAttachment[];
+  /** Files that were intentionally skipped (too-large, fetch failure). Surfaced
+   *  to trigger templates so the agent sees the context even without bytes. */
+  skippedAttachments?: SkippedAttachment[];
   /** True when the message was sent by this instance's bot/user (outbound). */
   isOwnMessage?: boolean;
 }
@@ -449,6 +462,22 @@ export class SlackInstance {
       ? (event.files as SlackFile[]).map((f) => normalizeSlackFile(f))
       : undefined;
 
+    // Download any attached files locally so triggered agents can read them
+    // directly with the Read tool (no need to re-fetch via Slack auth).
+    //
+    // We download regardless of direction. Earlier this branch had an
+    // `!isOwnMessage` filter, which broke the real-world case: when a Slack
+    // user uploads a file from their OWN workspace account (the one that
+    // owns the xoxp- token), Slack reports `direction='outbound'` and the
+    // attachment was silently skipped. Same root cause as the inbound-only
+    // filter that bit us on WhatsApp. If the bot itself (chat.postMessage
+    // with files) is the originator the echo lands here too — that self-
+    // fetch is benign and bounded by the 25 MB cap and the 24 h janitor.
+    const { attachmentPaths, skippedAttachments } =
+      files && files.length > 0
+        ? await this.downloadInboundFiles(event.ts, files)
+        : { attachmentPaths: undefined, skippedAttachments: undefined };
+
     const message: SlackMessage = {
       ts: event.ts,
       threadTs: event.thread_ts,
@@ -459,6 +488,8 @@ export class SlackInstance {
       text,
       timestamp: parseSlackTs(event.ts),
       files,
+      attachmentPaths,
+      skippedAttachments,
       isOwnMessage,
     };
 
@@ -523,6 +554,91 @@ export class SlackInstance {
       this.replyWaiters.delete(waiter);
       waiter.resolve(message);
     }
+  }
+
+  /**
+   * Download up to MAX_INBOUND_FILES_PER_MESSAGE files locally so triggered
+   * agents can read them with the Read tool. Files beyond the cap, or whose
+   * size hint exceeds the 25 MB cap, are recorded under `skippedAttachments`.
+   * Never throws.
+   */
+  private async downloadInboundFiles(
+    messageTs: string,
+    files: SlackFile[],
+  ): Promise<{ attachmentPaths?: DownloadedAttachment[]; skippedAttachments?: SkippedAttachment[] }> {
+    const MAX_INBOUND_FILES_PER_MESSAGE = 10;
+    const token = this.getSecret('SLACK_BOT_TOKEN');
+    if (!token) {
+      this.ctx?.log.warn(
+        `Slack[${this.id}] cannot download inbound files — SLACK_BOT_TOKEN not configured`,
+      );
+      return { attachmentPaths: undefined, skippedAttachments: undefined };
+    }
+
+    const downloaded: DownloadedAttachment[] = [];
+    const skipped: SkippedAttachment[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (i >= MAX_INBOUND_FILES_PER_MESSAGE) {
+        this.ctx?.log.info(
+          `Slack[${this.id}] skipping file ${i + 1}/${files.length} — exceeds per-message cap`,
+        );
+        skipped.push({
+          reason: 'unsupported',
+          filename: file.name,
+          size: file.size,
+          detail: 'per-message cap (10 files)',
+        });
+        continue;
+      }
+
+      const url = file.url_private_download ?? file.url_private;
+      if (!url) {
+        skipped.push({
+          reason: 'fetch-failed',
+          filename: file.name,
+          size: file.size,
+          detail: 'no url_private',
+        });
+        continue;
+      }
+
+      if (typeof file.size === 'number' && file.size > MAX_ATTACHMENT_BYTES) {
+        skipped.push({
+          reason: 'too-large',
+          filename: file.name,
+          size: file.size,
+          sourceUrl: url,
+        });
+        continue;
+      }
+
+      const result = await downloadAttachment({
+        source: 'slack',
+        messageId: `${messageTs}-${file.id}`,
+        url,
+        headers: { Authorization: `Bearer ${token}` },
+        suggestedFilename: file.name,
+        mimetype: file.mimetype,
+        sizeHintBytes: file.size,
+      });
+      if (result) {
+        downloaded.push(result);
+      } else {
+        skipped.push({
+          reason: 'fetch-failed',
+          filename: file.name,
+          size: file.size,
+          sourceUrl: url,
+        });
+      }
+    }
+
+    return {
+      attachmentPaths: downloaded.length > 0 ? downloaded : undefined,
+      skippedAttachments: skipped.length > 0 ? skipped : undefined,
+    };
   }
 
   // ─── Sending ───

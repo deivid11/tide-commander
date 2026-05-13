@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.92.0] - 2026-05-12
+
+### Added
+- **Attachment pipeline for Slack & WhatsApp triggers** — inbound messages with files (images, video, audio, documents) are now downloaded to `/tmp/tide-commander-uploads/triggers/{slack,whatsapp}/<msgId>/<file>` by a new `attachment-downloader` service and served back to the UI via the Express static mount at `/uploads/...`. A new `attachment-janitor` periodically prunes old uploads so the temp directory doesn't grow unbounded. The Slack and WhatsApp trigger handlers feed the downloader, and the trigger template now surfaces attachment paths/MIME types so agents can reference them in their workflow
+- **Clickable attachment chips in chat bubbles** — `SlackMessageBubble` and `WhatsAppMessageBubble` now render `[attachment: …]` markers as interactive `AttachmentChip` components. WhatsApp attachments additionally open a full preview modal (`WhatsAppAttachmentPreview`) that previews images, audio, and video inline and offers a "Open in new tab" affordance for other types
+- **Slack polling attachment support** — the polling client (xoxp- user-token mode) now resolves file references from Slack message payloads and hands them off to the attachment pipeline, matching what Socket Mode already provided
+- **Trigger manager panel surfaces attachment template variables** — `TriggerManagerPanel` lists the new `slack.attachmentsList` / `whatsapp.media` template tokens so users can build trigger prompts that reference downloaded files
+
+### Fixed
+- **WhatsAppAttachmentPreview no longer pulls the websocket layer into UI tests** — the component now imports `useModalClose` directly from `../../hooks/useModalClose` instead of the hooks barrel. Importing the barrel transitively loaded `websocket/state.ts`, whose top-level `window.__tideWsState` access broke the `SlackMessageBubble`/`WhatsAppMessageBubble` parser tests under Vitest's Node environment
+
 ## [1.91.0] - 2026-05-11
 
 ### Added
