@@ -34,6 +34,15 @@ export interface BaseTrigger {
   createdAt: number;
   updatedAt: number;
 
+  /**
+   * Optional per-trigger override of the global rate limit (default 10/min).
+   * Set to a high value (e.g. 120) for high-volume local sources like the
+   * personal WhatsApp / Slack bridges where the global cap is too restrictive
+   * for normal traffic. Set to 0 (or any value <= 0) to disable rate-limiting
+   * entirely for this trigger. Omit / undefined → use the global default.
+   */
+  rateLimitPerMinute?: number;
+
   // ─── Matching Strategy ───
 
   matchMode: MatchMode;               // How to evaluate if an event matches this trigger

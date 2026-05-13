@@ -25,6 +25,7 @@ import { GroupNameCache } from './group-name-cache.js';
 import { WhatsAppClient } from './whatsapp-client.js';
 import { createLogger } from '../../utils/logger.js';
 import { downloadAttachment, formatAttachmentLine, MAX_ATTACHMENT_BYTES } from '../../services/attachment-downloader.js';
+import { isWhisperAvailable, transcribeAudio } from '../../services/audio-transcription.js';
 import * as crypto from 'crypto';
 
 const log = createLogger('WhatsAppTrigger');
@@ -74,6 +75,10 @@ export interface NormalizedWhatsAppMessage {
    *  to triggers as an `[attachment-skipped: …]` line so the agent still gets
    *  context. */
   skippedAttachment?: SkippedAttachment;
+  /** Whisper transcription of an inbound audio attachment, when transcription
+   *  is enabled, whisper is installed, and the audio download succeeded.
+   *  Undefined for non-audio media and on transcription failure. */
+  audioTranscription?: string;
 }
 
 // Module-level subscriber set fed by the in-process bridge whenever a normalized
@@ -201,7 +206,14 @@ export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppM
     if (msg.type === 'event' && (msg.event === 'message' || msg.event === 'message_create')) {
       const messageId = extractMessageId(msg.data);
       if (dedupe.isDuplicate(msg.sessionId, messageId)) {
-        // Silent drop — duplicates are expected (upstream dual-fire).
+        // Duplicates are expected (upstream dual-fires `message_create`
+        // immediately followed by `message` for inbound DMs). Log at debug
+        // with the messageId hash so we can confirm in production when
+        // diagnosing rate-limit spikes — otherwise we silently drop and the
+        // operator has no visibility into how many duplicates are happening.
+        log.debug(
+          `dedup.drop session=${msg.sessionId} event=${msg.event} messageId=${messageId ?? 'unknown'}`,
+        );
         return;
       }
       const config = loadConfig();
@@ -331,6 +343,26 @@ export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppM
                 sourceUrl: downloadUrl,
                 detail: String(err),
               };
+            }
+
+            // Audio → whisper transcription. Runs inline so the trigger
+            // template renders with the transcription present (otherwise
+            // bolba/agents would fire with the audio file but no text). We
+            // gate on `mediaType==='audio'` (covers audioMessage / pttMessage
+            // / voiceNoteMessage via classifyFlatType) AND on whisper being
+            // installed — config.transcribeAudio defaults true but the probe
+            // is the real cutoff so machines without whisper just no-op.
+            if (
+              payload.mediaType === 'audio' &&
+              payload.attachment &&
+              config.transcribeAudio !== false &&
+              (await isWhisperAvailable())
+            ) {
+              const text = await transcribeAudio(payload.attachment.path, {
+                model: config.whisperModel || 'medium',
+                language: config.whisperLanguage?.trim() || undefined,
+              });
+              if (text) payload.audioTranscription = text;
             }
           })()
         : Promise.resolve();
@@ -494,27 +526,27 @@ function extractContent(envelope: Record<string, unknown>, message: Record<strin
     pickString(envelope.mediaUrl) ??
     pickString((envelope.media as Record<string, unknown> | undefined)?.url);
 
-  // 1a. The Baileys upstream we ship today emits a *flat* event shape where
-  // the media signal lives at `data.type` (e.g. "imageMessage") with no
-  // nested `message.imageMessage` proto, no `mediaUrl`, and `media: null`.
-  // Detect that case and surface mediaType so the downloader's
-  // `${baseUrl}/api/sessions/<sid>/messages/<mid>/media?download=true` URL
-  // gets constructed from sessionId+messageId. mimetype/filename/size are
-  // intentionally left undefined here — the downloader fills them from the
-  // proxy's response headers (Content-Type, Content-Disposition).
+  // 1a. Flat-event detection for the Baileys upstream we ship today. Triggers
+  // when EITHER:
+  //   (a) `data.hasMedia === true` (the upstream's explicit "has media" flag),
+  //       OR
+  //   (b) `data.type` is in a tight allowlist of known media-bearing Baileys
+  //       proto names.
   //
-  // Trigger conditions, in priority order:
-  //   1. `data.type` matches `*Message` (image/video/audio/document/sticker
-  //      and all known variants like pttMessage, documentWithCaptionMessage,
-  //      videoNoteMessage, etc.)
-  //   2. `data.hasMedia === true` regardless of how `data.type` is spelled.
-  // We default unknown variants to `document` (the catch-all "it's a file"
-  // category) so the download proceeds; the UI chip picks an icon from the
-  // mimetype the downloader fills in.
-  const flatType = pickString(envelope.type);
+  // We need both because the upstream isn't fully consistent: some media
+  // types arrive with `hasMedia: true` (images observed in the wild), others
+  // arrive with only the `type` field set and no `hasMedia` at all (documents
+  // in the regression David flagged on 2026-05-13).
+  //
+  // The allowlist is precise — it EXCLUDES text/non-media types
+  // (`extendedTextMessage`, `conversation`, `protocolMessage`,
+  // `senderKeyDistributionMessage`, `reactionMessage`, …) that bit us with
+  // the earlier `/Message$/` suffix matcher: those produced bogus
+  // `[attachment-skipped: fetch-failed]` markers for plain text messages.
   const flatHasMedia = pickBoolean(envelope.hasMedia) === true;
-  const flatTypeIsMessage = !!flatType && /Message$/i.test(flatType);
-  if (flatTypeIsMessage || (flatHasMedia && !directMediaType && !directMediaUrl)) {
+  const flatType = pickString(envelope.type);
+  const flatTypeIsKnownMedia = !!flatType && KNOWN_MEDIA_TYPES.has(flatType);
+  if ((flatHasMedia || flatTypeIsKnownMedia) && !directMediaType && !directMediaUrl) {
     return {
       body: directBody,
       mediaType: classifyFlatType(flatType),
@@ -651,6 +683,26 @@ function normalizeMediaType(value: string | undefined): MediaType | undefined {
   if (v === 'image' || v === 'video' || v === 'audio' || v === 'document' || v === 'sticker') return v;
   return undefined;
 }
+
+/**
+ * Tight allowlist of Baileys proto names that genuinely carry media bytes.
+ * Excludes text/control events (`extendedTextMessage`, `conversation`,
+ * `protocolMessage`, `senderKeyDistributionMessage`, `reactionMessage`, …)
+ * which were the false positives that broke text messages when we used a
+ * loose `/Message$/` suffix check. If the upstream emits a new media kind
+ * not in this list, add it here.
+ */
+const KNOWN_MEDIA_TYPES: Set<string> = new Set([
+  'imageMessage',
+  'videoMessage',
+  'audioMessage',
+  'documentMessage',
+  'documentWithCaptionMessage',
+  'stickerMessage',
+  'pttMessage',
+  'videoNoteMessage',
+  'voiceNoteMessage',
+]);
 
 /**
  * Map an upstream `data.type` (Baileys-style, suffixed `Message`) to one of
@@ -894,6 +946,9 @@ export const whatsappTriggerHandler: TriggerHandler = {
     // Build the attachments block (single line — WA messages carry at most one
     // media payload). Use the downloaded local path when present; otherwise
     // emit a `[attachment-skipped: …]` marker if we tried and failed.
+    // When an audio transcription is available we append it on its own line
+    // so existing templates referencing `{{whatsapp.attachmentsBlock}}` see
+    // both the file chip and the spoken text without any template edits.
     let attachmentsBlock = '';
     if (msg.attachment) {
       attachmentsBlock = formatAttachmentLine(msg.attachment);
@@ -901,6 +956,10 @@ export const whatsappTriggerHandler: TriggerHandler = {
       const sk = msg.skippedAttachment;
       const sizeMb = typeof sk.size === 'number' ? `${Math.round(sk.size / (1024 * 1024))}MB` : 'unknown';
       attachmentsBlock = `[attachment-skipped: ${sk.reason} name=${sk.filename ?? 'unknown'} size=${sizeMb}${sk.detail ? ` detail=${sk.detail}` : ''}]`;
+    }
+    if (msg.audioTranscription) {
+      const tline = `[audio transcription: ${msg.audioTranscription}]`;
+      attachmentsBlock = attachmentsBlock ? `${attachmentsBlock}\n${tline}` : tline;
     }
 
     return {
@@ -921,6 +980,10 @@ export const whatsappTriggerHandler: TriggerHandler = {
       'whatsapp.attachmentName': msg.attachment?.filename ?? msg.mediaFilename ?? '',
       'whatsapp.attachmentSize': msg.attachment ? String(msg.attachment.size) : (msg.mediaSize !== undefined ? String(msg.mediaSize) : ''),
       'whatsapp.attachmentsBlock': attachmentsBlock,
+      // Whisper transcription for audio messages. Empty string when
+      // transcription was disabled, whisper is missing, or the audio failed
+      // to transcribe — never undefined so template substitution is clean.
+      'whatsapp.audioTranscription': msg.audioTranscription ?? '',
       'whatsapp.timestamp': new Date(msg.timestamp).toISOString(),
     };
   },
@@ -942,6 +1005,9 @@ export const whatsappTriggerHandler: TriggerHandler = {
       mediaSuffix = `\n\n[attachment-skipped: ${sk.reason} name=${sk.filename ?? 'unknown'} size=${sizeMb}${sk.detail ? ` detail=${sk.detail}` : ''}]`;
     } else if (msg.mediaType) {
       mediaSuffix = `\n[${msg.mediaType} attachment${msg.mediaUrl ? ` ${msg.mediaUrl}` : ''}]`;
+    }
+    if (msg.audioTranscription) {
+      mediaSuffix += `\n[audio transcription: ${msg.audioTranscription}]`;
     }
     return `WhatsApp message ${verb} in ${channel}\nFrom: ${sender}\nSession: ${msg.sessionId}\nTime: ${new Date(msg.timestamp).toISOString()}\n\n${msg.body}${mediaSuffix}`;
   },

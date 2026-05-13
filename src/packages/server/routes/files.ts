@@ -877,6 +877,56 @@ router.post('/rename', (req: Request, res: Response) => {
   }
 });
 
+// POST /api/files/create - Create a new file or folder inside a target directory
+router.post('/create', (req: Request, res: Response) => {
+  try {
+    const { parentDir, name, isDirectory } = req.body as {
+      parentDir?: string;
+      name?: string;
+      isDirectory?: boolean;
+    };
+
+    const validatedParent = parentDir && ensureAbsoluteExistingPath(parentDir);
+    if (!validatedParent) {
+      res.status(400).json({ error: 'Invalid or missing parent directory' });
+      return;
+    }
+
+    const parentStats = fs.statSync(validatedParent);
+    if (!parentStats.isDirectory()) {
+      res.status(400).json({ error: 'Parent path is not a directory' });
+      return;
+    }
+
+    const nextName = (name || '').trim();
+    if (!nextName || nextName === '.' || nextName === '..') {
+      res.status(400).json({ error: 'Invalid name' });
+      return;
+    }
+    if (nextName.includes('/') || nextName.includes('\\')) {
+      res.status(400).json({ error: 'Name must not contain path separators' });
+      return;
+    }
+
+    const destinationPath = path.join(validatedParent, nextName);
+    if (fs.existsSync(destinationPath)) {
+      res.status(409).json({ error: 'Target already exists' });
+      return;
+    }
+
+    if (isDirectory) {
+      fs.mkdirSync(destinationPath);
+    } else {
+      fs.writeFileSync(destinationPath, '', { flag: 'wx' });
+    }
+
+    res.json({ success: true, path: destinationPath, isDirectory: !!isDirectory });
+  } catch (err: any) {
+    log.error(' Failed to create path:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/files/copy - Copy file/folder into target directory
 router.post('/copy', (req: Request, res: Response) => {
   try {
@@ -2962,10 +3012,10 @@ router.post('/git-fetch', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/files/delete - Delete a file from disk
+// POST /api/files/delete - Delete a file or (with recursive: true) a directory
 router.post('/delete', (req: Request, res: Response) => {
   try {
-    const filePath = (req.body as { path?: string }).path;
+    const { path: filePath, recursive } = req.body as { path?: string; recursive?: boolean };
     if (!filePath || typeof filePath !== 'string') {
       res.status(400).json({ error: 'Missing path parameter' });
       return;
@@ -2981,14 +3031,17 @@ router.post('/delete', (req: Request, res: Response) => {
 
     const stat = fs.statSync(filePath);
     if (stat.isDirectory()) {
-      res.status(400).json({ error: 'Cannot delete directories' });
-      return;
+      if (!recursive) {
+        res.status(400).json({ error: 'Pass recursive: true to delete directories' });
+        return;
+      }
+      fs.rmSync(filePath, { recursive: true, force: true });
+    } else {
+      fs.unlinkSync(filePath);
     }
-
-    fs.unlinkSync(filePath);
     res.json({ success: true });
   } catch (err: any) {
-    log.error(' Failed to delete file:', err);
+    log.error(' Failed to delete path:', err);
     res.status(500).json({ error: err.message });
   }
 });

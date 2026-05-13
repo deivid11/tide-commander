@@ -250,6 +250,26 @@ export const HistoryLine = memo(function HistoryLine({
     );
   }
 
+  // Render the /compact command stdout as a small "Context compacted" pill
+  // The /compact stdout arrives separately from <command-name>/compact</command-name>,
+  // wrapped in <local-command-stdout> with ANSI dim codes around the word "Compacted".
+  if (!hasBossContext && content.includes('<local-command-stdout>')) {
+    const stdoutMatch = content.match(/<local-command-stdout>([\s\S]*?)<\/local-command-stdout>/);
+    if (stdoutMatch) {
+      // Strip ANSI codes (both \x1b[..m and bare [..m forms) and trim
+      const stripped = stdoutMatch[1].replace(/\x1b?\[\d+m/g, '').trim();
+      if (stripped === 'Compacted') {
+        return (
+          <div className="output-line output-compacted-notice">
+            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
+            <span className="compacted-icon"><Icon name="archive" size={14} /></span>
+            <span className="compacted-label">{t('terminal:history.compactedLabel')}</span>
+          </div>
+        );
+      }
+    }
+  }
+
   // Hide local-command tags for utility commands in history
   if (
     !hasBossContext &&

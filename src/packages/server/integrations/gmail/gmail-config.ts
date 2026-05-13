@@ -108,6 +108,29 @@ export interface EmailAttachment {
   mimeType: string;
 }
 
+/** Structured metadata for a single Gmail attachment. Filled in
+ *  `parseGmailMessage` from the MIME parts and used by the trigger handler
+ *  to download the bytes via Gmail's `users.messages.attachments.get` API. */
+export interface EmailAttachmentMeta {
+  /** Gmail-internal attachment id (passed to attachments.get). */
+  attachmentId: string;
+  /** Filename as set in the MIME `Content-Disposition`. */
+  filename: string;
+  /** MIME type from the part header. */
+  mimeType: string;
+  /** Reported size in bytes (Gmail decoded length). */
+  size: number;
+}
+
+/** Result of persisting one inbound Gmail attachment to local /tmp. Stamped
+ *  onto `EmailMessage.attachments` after the download completes. */
+export interface DownloadedEmailAttachment extends EmailAttachmentMeta {
+  /** Absolute path on disk under /tmp/tide-commander-uploads/triggers/gmail/<msgId>/<filename>. */
+  path: string;
+  /** Actual bytes written. */
+  bytesOnDisk: number;
+}
+
 export interface EmailMessage {
   messageId: string;
   threadId: string;
@@ -123,6 +146,13 @@ export interface EmailMessage {
   labels?: string[];
   hasAttachments: boolean;
   attachmentNames?: string[];
+  /** Structured metadata for each attachment. Populated when parsing the
+   *  Gmail payload. The trigger handler uses these to fetch the bytes and
+   *  persist them locally. */
+  attachmentsMeta?: EmailAttachmentMeta[];
+  /** Local downloads (`attachmentsMeta` + on-disk path). Stamped by the
+   *  trigger handler after `downloadAttachment` succeeds. */
+  downloadedAttachments?: DownloadedEmailAttachment[];
 }
 
 export interface EmailThread {

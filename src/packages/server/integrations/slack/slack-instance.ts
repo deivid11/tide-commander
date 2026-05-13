@@ -342,6 +342,7 @@ export class SlackInstance {
       allowlistChannelIds,
       keepAllDms: config.pollingDmsAlways !== false,
       minMsBetweenCalls: config.pollingMinMsBetweenCalls ?? 1500,
+      useSearch: config.pollingUseSearch === true,
     });
 
     this.pollingClient.setOnFatalError((reason) => {

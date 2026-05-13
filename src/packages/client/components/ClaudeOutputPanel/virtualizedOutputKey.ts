@@ -33,7 +33,14 @@ export function buildItemKey(tagged: TaggedItem, agentId: string): string {
     return `${agentId}:h:s:${m.type}:${m.timestamp ?? ''}:${shortText(m.content)}`;
   }
   const o = tagged.item;
-  if (o.uuid) return `${agentId}:o:u:${o.uuid}`;
+  if (o.uuid) {
+    // Live output UUIDs are not guaranteed to be unique per rendered row:
+    // Claude streaming chunks reuse the assistant message UUID, and tool
+    // start/input rows can share a tool_use id. Add row-local discriminators
+    // so distinct live rows do not collide while merged streaming rows keep a
+    // stable key as their text grows.
+    return `${agentId}:o:u:${o.uuid}:${o.timestamp ?? 0}:${tagged.originalIndex}`;
+  }
   // Optimistic / no-uuid live: timestamp + text. Two optimistic adds with
   // the exact same text at the exact same Date.now() ms would still collide;
   // de-dup pass in VirtualizedOutputList catches that defensively.

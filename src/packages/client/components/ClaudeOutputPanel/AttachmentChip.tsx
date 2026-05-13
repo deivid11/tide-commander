@@ -16,6 +16,11 @@ import { WhatsAppAttachmentPreview } from './WhatsAppAttachmentPreview';
 // `parseAttachmentInner` so filenames with spaces (e.g. `report (1).pdf`)
 // survive — naive whitespace-splitting regexes lose them.
 const ATTACHMENT_RE = /\[attachment: (\/tmp\/tide-commander-uploads\/[^\]\n]+?)\]/g;
+// Backend may emit `[attachment-skipped: reason name=... size=...]` when the
+// download fails (404 from upstream, file too large, etc.). The agent prompt
+// keeps it for context, but the chat UI strips it before rendering: it adds
+// only noise for the human reader.
+const ATTACHMENT_SKIPPED_RE = /\[attachment-skipped:[^\]\n]*\]/g;
 const URL_RE = /(https?:\/\/[^\s<>"'\)]+)/g;
 
 export interface AttachmentFields {
@@ -147,6 +152,17 @@ export function AttachmentChip({ path, mimetype, filename, size }: AttachmentChi
  * (`whatsapp-bubble__link`, `slack-bubble__link`).
  */
 export function renderBodyWithAttachments(body: string, linkClassName: string): React.ReactNode[] {
+  // Strip `[attachment-skipped: …]` markers before rendering. The agent's
+  // prompt keeps them (useful context for the LLM) but the chat UI hides
+  // them — they're not actionable for the human reader. Also collapse any
+  // blank line left behind by the removal so we don't get a gap in the
+  // bubble body.
+  const cleaned = body
+    .replace(ATTACHMENT_SKIPPED_RE, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/^\s*\n/, '')
+    .replace(/\n\s*$/, '');
+
   const out: React.ReactNode[] = [];
   ATTACHMENT_RE.lastIndex = 0;
   let cursor = 0;
@@ -192,9 +208,9 @@ export function renderBodyWithAttachments(body: string, linkClassName: string): 
     });
   };
 
-  while ((match = ATTACHMENT_RE.exec(body)) !== null) {
+  while ((match = ATTACHMENT_RE.exec(cleaned)) !== null) {
     if (match.index > cursor) {
-      pushTextSegment(body.slice(cursor, match.index), `pre-${chipIdx}`);
+      pushTextSegment(cleaned.slice(cursor, match.index), `pre-${chipIdx}`);
     }
     const parsed = parseAttachmentInner(match[1]);
     out.push(
@@ -208,8 +224,8 @@ export function renderBodyWithAttachments(body: string, linkClassName: string): 
     );
     cursor = ATTACHMENT_RE.lastIndex;
   }
-  if (cursor < body.length) {
-    pushTextSegment(body.slice(cursor), `tail-${chipIdx}`);
+  if (cursor < cleaned.length) {
+    pushTextSegment(cleaned.slice(cursor), `tail-${chipIdx}`);
   }
   return out;
 }
