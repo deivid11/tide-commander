@@ -112,6 +112,50 @@ export interface PollingWebClient {
       response_metadata?: { next_cursor?: string };
     }>;
   };
+  /** Optional: only used when `useSearch` is enabled. The runtime
+   *  `WebClient` always has this method, but tests can omit it when they
+   *  don't exercise the search path. */
+  search?: {
+    messages: (args: {
+      query: string;
+      count?: number;
+      page?: number;
+      sort?: 'score' | 'timestamp';
+      sort_dir?: 'asc' | 'desc';
+    }) => Promise<SlackSearchResponse>;
+  };
+}
+
+/** Shape of a single match returned by `search.messages`. The `channel` field
+ *  is a nested object (id + flags), unlike `conversations.history` where
+ *  channel is just a string id — `pollViaSearch` adapts to that. */
+interface SlackSearchMatch {
+  type?: string;
+  ts: string;
+  thread_ts?: string;
+  user?: string;
+  username?: string;
+  text?: string;
+  subtype?: string;
+  files?: unknown[];
+  channel?: {
+    id?: string;
+    is_im?: boolean;
+    is_mpim?: boolean;
+    is_private?: boolean;
+    name?: string;
+  };
+}
+
+interface SlackSearchResponse {
+  ok?: boolean;
+  query?: string;
+  messages?: {
+    total?: number;
+    paging?: { count?: number; total?: number; page?: number; pages?: number };
+    pagination?: { total_count?: number; page?: number; per_page?: number; page_count?: number };
+    matches?: SlackSearchMatch[];
+  };
 }
 
 export interface SlackPollingClientOptions {
@@ -152,6 +196,22 @@ export interface SlackPollingClientOptions {
    * tests). Production default in SlackInstance is 1500ms (~40 req/min).
    */
   minMsBetweenCalls?: number;
+  /**
+   * When true, replace the per-channel `conversations.history` sweep with a
+   * single `search.messages?query=after:<yesterday>` call per cycle. Search
+   * returns ALL messages (top-level + thread replies + DMs + group threads)
+   * in one shot, fixing the long-standing "thread replies on old parents
+   * are silently missed" bug. The allowlist + keepAllDms filter still applies
+   * — matches whose channel is not in the allowlist (and not a DM when
+   * keepAllDms is true) are dropped post-fetch.
+   *
+   * Caveat: Slack's search index has ~10-30s indexing lag. For real-time
+   * mentions this mode is slightly slower than per-channel history; for
+   * "track every conversation" use cases it's strictly better.
+   *
+   * Requires `search:read` scope on the user (xoxp-) token.
+   */
+  useSearch?: boolean;
   /** Optional override for tests so we can stub timers. */
   scheduler?: PollingScheduler;
   /** Optional override for tests so we can step "now" manually. */
@@ -219,6 +279,7 @@ export class SlackPollingClient {
   private readonly allowlistChannelIds: Set<string>;
   private readonly keepAllDms: boolean;
   private readonly minMsBetweenCalls: number;
+  private readonly useSearch: boolean;
   private readonly scheduler: PollingScheduler;
   private readonly now: () => number;
 
@@ -260,6 +321,7 @@ export class SlackPollingClient {
     );
     this.keepAllDms = opts.keepAllDms !== false;
     this.minMsBetweenCalls = Math.max(0, opts.minMsBetweenCalls ?? 0);
+    this.useSearch = opts.useSearch === true;
     this.scheduler = opts.scheduler ?? DEFAULT_SCHEDULER;
     this.now = opts.now ?? Date.now;
     if (this.minMsBetweenCalls > 0) {
@@ -385,6 +447,27 @@ export class SlackPollingClient {
     if (!this.running) return;
     this.cycleCount += 1;
     const cycleStart = this.now();
+
+    // Search-mode: one `search.messages` call replaces the entire per-channel
+    // history sweep. Covers thread replies for old parents that history would
+    // miss. Done in its own branch so the legacy per-channel path stays
+    // intact for tokens without `search:read` scope.
+    if (this.useSearch) {
+      try {
+        const { dispatched, pages } = await this.pollViaSearch();
+        const elapsed = this.now() - cycleStart;
+        log.log(
+          `cycle=${this.cycleCount} via=search pages=${pages} dispatched=${dispatched} elapsedMs=${elapsed}`,
+        );
+      } catch (err) {
+        if (isInvalidAuthError(err)) {
+          this.handleFatal(`invalid_auth on search.messages (cycle=${this.cycleCount})`);
+          return;
+        }
+        log.warn(`search-mode cycle failed (cycle=${this.cycleCount}): ${describeErr(err)}`);
+      }
+      return;
+    }
 
     // Refresh channel list on first cycle and every N cycles after.
     if (this.cycleCount === 1 || this.cycleCount % this.channelListRefreshEveryNCycles === 0) {
@@ -633,6 +716,132 @@ export class SlackPollingClient {
     }
 
     return dispatched;
+  }
+
+  /**
+   * Search-mode cycle: pull every message (channels + DMs + thread replies)
+   * since "yesterday" with a single `search.messages` call (paginated). Each
+   * match is filtered against the allowlist (and keepAllDms for DMs), checked
+   * against the per-channel watermark, then dispatched. Watermark advances
+   * per channel just like the legacy path so a switch back to per-channel
+   * polling stays correct.
+   *
+   * Why "yesterday" and not the global watermark? Slack search's date
+   * operators are day-precision only (`after:YYYY-MM-DD`). We pick a 1-day
+   * lookback to make sure we always overlap with the last-seen ts. The
+   * per-channel watermark filter drops duplicates so we never re-dispatch.
+   */
+  private async pollViaSearch(): Promise<{ dispatched: number; pages: number }> {
+    if (!this.webClient.search) {
+      log.error('useSearch=true but webClient has no `search.messages` method; bailing.');
+      return { dispatched: 0, pages: 0 };
+    }
+    const searchApi = this.webClient.search;
+    // Slack's date operators want YYYY-MM-DD. Use UTC; mismatched local TZ
+    // would shift the boundary by ≤1 day which is harmless (watermark filter
+    // dedupes anyway).
+    const yesterday = new Date(this.now() - 24 * 60 * 60 * 1000);
+    const y = yesterday.getUTCFullYear();
+    const m = String(yesterday.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(yesterday.getUTCDate()).padStart(2, '0');
+    const query = `after:${y}-${m}-${d}`;
+
+    let dispatched = 0;
+    let page = 1;
+    const MAX_PAGES = 10; // ~1000 messages per cycle ceiling
+    // Track highest seen ts per channel so we advance watermark at the end.
+    const highestByChannel = new Map<string, string>();
+
+    while (page <= MAX_PAGES) {
+      if (!this.running) break;
+      let res: SlackSearchResponse;
+      try {
+        res = await this.paceCall(() => searchApi.messages({
+          query,
+          count: 100,
+          page,
+          sort: 'timestamp',
+          sort_dir: 'asc',
+        }));
+      } catch (err) {
+        if (isInvalidAuthError(err)) throw err;
+        if (isRateLimitedError(err)) {
+          const seconds = readRetryAfter(err) ?? 60;
+          const until = this.now() + seconds * 1000;
+          if (until > this.globalPauseUntil) this.globalPauseUntil = until;
+          log.warn(`429 on search.messages page=${page}, deferred ${seconds}s`);
+          break;
+        }
+        log.warn(`search.messages page=${page} failed: ${describeErr(err)}`);
+        break;
+      }
+
+      const matches = res.messages?.matches ?? [];
+      if (matches.length === 0) break;
+
+      for (const match of matches) {
+        const channelId = match.channel?.id;
+        if (!channelId || !match.ts || typeof match.ts !== 'string') continue;
+
+        // Allowlist filter: respect the same rule as the legacy path so the
+        // user's "only these channels + DMs" config still gates everything.
+        if (this.allowlistChannelIds.size > 0) {
+          const isDm =
+            !!match.channel?.is_im || channelId.startsWith('D');
+          const allowed =
+            this.allowlistChannelIds.has(channelId) ||
+            (this.keepAllDms && isDm);
+          if (!allowed) continue;
+        }
+
+        // Watermark filter: drop anything we've already dispatched. Each
+        // channel keeps its own watermark so a switch back to per-channel
+        // polling later picks up exactly where search left off.
+        const wm = this.watermarkStore.get(channelId);
+        if (wm && tsLte(match.ts, wm.lastTs)) continue;
+        const seen = highestByChannel.get(channelId);
+        if (seen && tsLte(match.ts, seen)) continue;
+
+        const event: SocketLikeMessageEvent = {
+          ts: match.ts,
+          thread_ts: match.thread_ts,
+          channel: channelId,
+          user: match.user,
+          text: match.text,
+          subtype: match.subtype,
+          files: Array.isArray(match.files) ? match.files : undefined,
+        };
+        try {
+          await this.dispatch(event);
+          dispatched += 1;
+        } catch (err) {
+          log.error(`dispatch error (search) channel=${channelId} ts=${match.ts}: ${describeErr(err)}`);
+        }
+        if (!seen || tsGt(match.ts, seen)) {
+          highestByChannel.set(channelId, match.ts);
+        }
+      }
+
+      // Pagination control. Slack returns `pagination.page_count` or the
+      // legacy `paging.pages`; bail when we're past the last page or when
+      // matches < count (no more left).
+      const total = res.messages?.pagination?.page_count
+        ?? res.messages?.paging?.pages
+        ?? page;
+      if (matches.length < 100) break;
+      if (page >= total) break;
+      page += 1;
+    }
+
+    // Persist per-channel watermarks for everything we dispatched this cycle.
+    for (const [channelId, highest] of highestByChannel) {
+      const existing = this.watermarkStore.get(channelId)?.lastTs;
+      if (!existing || tsGt(highest, existing)) {
+        await this.watermarkStore.set(channelId, highest);
+      }
+    }
+
+    return { dispatched, pages: page };
   }
 
   private handleFatal(reason: string): void {

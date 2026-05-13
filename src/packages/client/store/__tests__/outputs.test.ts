@@ -101,6 +101,73 @@ describe('Output Store Actions', () => {
       expect(state.agentOutputs.get('agent-1')).toHaveLength(1);
     });
 
+    it('merges streaming chunks with the same UUID', () => {
+      const { state, actions } = createMockStore();
+
+      actions.addOutput('agent-1', makeOutput({
+        text: 'Hello',
+        isStreaming: true,
+        timestamp: 100,
+        uuid: 'stream-uuid',
+      }));
+      actions.addOutput('agent-1', makeOutput({
+        text: ' world',
+        isStreaming: true,
+        timestamp: 200,
+        uuid: 'stream-uuid',
+      }));
+
+      const outputs = state.agentOutputs.get('agent-1')!;
+      expect(outputs).toHaveLength(1);
+      expect(outputs[0].text).toBe('Hello world');
+      expect(outputs[0].isStreaming).toBe(true);
+      expect(outputs[0].timestamp).toBe(100);
+    });
+
+    it('replaces an accumulated streaming message with its final same-UUID text', () => {
+      const { state, actions } = createMockStore();
+
+      actions.addOutput('agent-1', makeOutput({
+        text: 'Hel',
+        isStreaming: true,
+        timestamp: 100,
+        uuid: 'stream-uuid',
+      }));
+      actions.addOutput('agent-1', makeOutput({
+        text: 'lo',
+        isStreaming: true,
+        timestamp: 200,
+        uuid: 'stream-uuid',
+      }));
+      actions.addOutput('agent-1', makeOutput({
+        text: 'Hello.',
+        isStreaming: false,
+        timestamp: 300,
+        uuid: 'stream-uuid',
+      }));
+
+      const outputs = state.agentOutputs.get('agent-1')!;
+      expect(outputs).toHaveLength(1);
+      expect(outputs[0].text).toBe('Hello.');
+      expect(outputs[0].isStreaming).toBe(false);
+      expect(outputs[0].timestamp).toBe(100);
+    });
+
+    it('allows different non-streaming tool rows with the same UUID', () => {
+      const { state, actions } = createMockStore();
+
+      actions.addOutput('agent-1', makeOutput({
+        text: 'Using tool: Bash',
+        uuid: 'toolu-1',
+      }));
+      actions.addOutput('agent-1', makeOutput({
+        text: 'Tool input: {"command":"npm test"}',
+        uuid: 'toolu-1',
+      }));
+
+      expect(state.agentOutputs.get('agent-1')).toHaveLength(2);
+    });
+
     it('allows different UUIDs with same text', () => {
       const { state, actions } = createMockStore();
 

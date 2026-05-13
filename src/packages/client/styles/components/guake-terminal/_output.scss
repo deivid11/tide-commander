@@ -1087,6 +1087,33 @@
   }
 }
 
+// /compact command notice — small pill showing context was compacted
+.output-compacted-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  margin: 4px 0;
+  background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+  border-left: 2px solid var(--accent-cyan);
+  border-radius: $radius-sm;
+  font-size: 11px;
+  width: fit-content;
+
+  .compacted-icon {
+    color: var(--accent-cyan);
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .compacted-label {
+    color: var(--accent-cyan);
+    font-weight: 500;
+    font-style: italic;
+    letter-spacing: 0.2px;
+  }
+}
+
 // Expandable subagent result content
 .subagent-result-section {
   width: 100%;

@@ -10,6 +10,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Icon } from '../Icon';
+import { renderBodyWithAttachments } from './AttachmentChip';
 
 export interface EmailAddress {
   name: string;
@@ -330,7 +331,7 @@ export function GmailMessageBubble({ msg }: GmailMessageBubbleProps): React.Reac
 
         <div className="gmail-bubble-body">
           {msg.topBody
-            ? renderTextWithLinks(topPreview, 'top')
+            ? renderBodyWithAttachments(topPreview, 'gmail-bubble-link')
             : <span className="gmail-bubble-empty">(cuerpo vacío)</span>}
           {topNeedsCollapse && (
             <button

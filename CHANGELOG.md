@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.93.0] - 2026-05-13
+
+### Added
+- **Audio transcription service** — new `audio-transcription.ts` service transcribes audio attachments arriving from triggers (Slack voice notes, WhatsApp PTT, Gmail audio attachments) so agents receive readable text instead of raw audio paths. Wired into the trigger pipeline via `trigger-service.ts` and exposed through `trigger-types.ts`
+- **Gmail attachment + audio support** — `gmail-client.ts` and `gmail-trigger-handler.ts` now download Gmail attachments through the existing attachment pipeline and run audio attachments through the transcription service. `gmail-config.ts` exposes the new toggles
+- **Slack polling-client message enrichment** — the polling client gained ~200 lines of message-enrichment logic for thread/reply normalization, user resolution, and channel-name caching parity with Socket Mode. `slack-config.ts` exposes the new tunables
+- **WhatsApp media transcription + config knobs** — `whatsapp-trigger-handler.ts` runs PTT/voice attachments through the transcription service; `whatsapp-config.ts` exposes new options for enabling/disabling per-instance
+- **FileExplorerPanel quality-of-life upgrades** — ~270 lines of panel improvements (scoped here so users don't need to dig the diff): better browsing, area-aware navigation
+- **Output store keying upgrades** — `virtualizedOutputKey.ts` + `store/outputs.ts` gained more deterministic key derivation with new test coverage in `VirtualizedOutputListKey.test.ts` and `outputs.test.ts` (+5 new tests; total 535)
+
+### Changed
+- **Trigger files route** — `routes/files.ts` reworked file resolution to better surface attachment paths and area metadata for downstream consumers
+- **Gmail message bubble + AttachmentChip** — minor rendering tweaks for Gmail-specific attachment metadata
+- **Terminal output styling** — `_output.scss` adds styling hooks for the enriched output entries
+
 ## [1.92.0] - 2026-05-12
 
 ### Added

@@ -570,9 +570,13 @@ export async function fireTrigger(
     return;
   }
 
-  // Rate limit check
-  if (!checkRateLimit(id)) {
-    log.warn(`Trigger ${trigger.name} rate-limited (>${RATE_LIMIT_MAX}/min)`);
+  // Rate limit check. Per-trigger `rateLimitPerMinute` overrides the global
+  // default (10/min). Set to 0 / negative to disable entirely for this
+  // trigger (used by high-volume local sources like personal WA/Slack).
+  const effectiveLimit =
+    typeof trigger.rateLimitPerMinute === 'number' ? trigger.rateLimitPerMinute : RATE_LIMIT_MAX;
+  if (effectiveLimit > 0 && !checkRateLimit(id, effectiveLimit)) {
+    log.warn(`Trigger ${trigger.name} rate-limited (>${effectiveLimit}/min)`);
     return;
   }
 
@@ -668,7 +672,7 @@ export async function fireTrigger(
 
 // ─── Rate Limiting ───
 
-function checkRateLimit(triggerId: string): boolean {
+function checkRateLimit(triggerId: string, limit: number = RATE_LIMIT_MAX): boolean {
   const now = Date.now();
   let timestamps = rateLimitMap.get(triggerId);
 
@@ -683,7 +687,7 @@ function checkRateLimit(triggerId: string): boolean {
     timestamps.shift();
   }
 
-  if (timestamps.length >= RATE_LIMIT_MAX) {
+  if (timestamps.length >= limit) {
     return false;
   }
 

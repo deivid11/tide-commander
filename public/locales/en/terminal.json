@@ -602,7 +602,8 @@
     "contextLabel": "Context",
     "percentFree": "{{percent}}% free",
     "msgsLabel": "msgs: {{tokens}}k",
-    "clickForContextStats": "Click for context stats"
+    "clickForContextStats": "Click for context stats",
+    "compactedLabel": "Context compacted"
   },
   "controls": {
     "title": "Controls",

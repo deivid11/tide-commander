@@ -65,6 +65,40 @@ describe('VirtualizedOutputList buildItemKey — uniqueness', () => {
     expect(buildItemKey(live, AGENT_A)).not.toBe(buildItemKey(history, AGENT_A));
   });
 
+  it('same-uuid live tool rows get different keys', () => {
+    const usingTool = liveItem({
+      text: 'Using tool: Bash',
+      isStreaming: false,
+      timestamp: 1_000_000_500,
+      uuid: 'toolu-uuid-xyz',
+    }, 3);
+    const toolInput = liveItem({
+      text: 'Tool input: {"command":"npm test"}',
+      isStreaming: false,
+      timestamp: 1_000_000_501,
+      uuid: 'toolu-uuid-xyz',
+    }, 4);
+
+    expect(buildItemKey(usingTool, AGENT_A)).not.toBe(buildItemKey(toolInput, AGENT_A));
+  });
+
+  it('same live streaming row keeps its key when text accumulates', () => {
+    const firstChunk = liveItem({
+      text: 'Hel',
+      isStreaming: true,
+      timestamp: 1_000_000_500,
+      uuid: 'stream-uuid-xyz',
+    }, 7);
+    const accumulated = liveItem({
+      text: 'Hello world',
+      isStreaming: true,
+      timestamp: 1_000_000_500,
+      uuid: 'stream-uuid-xyz',
+    }, 7);
+
+    expect(buildItemKey(firstChunk, AGENT_A)).toBe(buildItemKey(accumulated, AGENT_A));
+  });
+
   it('different prompts produce different keys', () => {
     const a = liveItem({
       text: 'first prompt',

@@ -416,12 +416,23 @@ function parseGmailMessage(msg: gmail_v1.Schema$Message): EmailMessage {
   }
   extractParts(msg.payload);
 
-  // Check attachments
+  // Check attachments — capture filename AND the metadata we need to fetch
+  // the bytes later via gmail.users.messages.attachments.get.
   const attachmentNames: string[] = [];
+  const attachmentsMeta: import('./gmail-config.js').EmailAttachmentMeta[] = [];
   function findAttachments(payload: gmail_v1.Schema$MessagePart | undefined): void {
     if (!payload) return;
     if (payload.filename && payload.filename.length > 0) {
       attachmentNames.push(payload.filename);
+      const attachmentId = payload.body?.attachmentId;
+      if (attachmentId) {
+        attachmentsMeta.push({
+          attachmentId,
+          filename: payload.filename,
+          mimeType: payload.mimeType || 'application/octet-stream',
+          size: payload.body?.size ?? 0,
+        });
+      }
     }
     if (payload.parts) {
       for (const part of payload.parts) {
@@ -446,7 +457,90 @@ function parseGmailMessage(msg: gmail_v1.Schema$Message): EmailMessage {
     labels: msg.labelIds || undefined,
     hasAttachments: attachmentNames.length > 0,
     attachmentNames: attachmentNames.length > 0 ? attachmentNames : undefined,
+    attachmentsMeta: attachmentsMeta.length > 0 ? attachmentsMeta : undefined,
   };
+}
+
+/**
+ * Download a single Gmail attachment by id and persist it to disk under
+ * `<TEMP_DIR>/triggers/gmail/<messageId>/<sanitized-filename>`. Mirrors what
+ * the WA/Slack pipelines do with `attachment-downloader.downloadAttachment`,
+ * but Gmail's binary doesn't come from a URL — it comes from the SDK call
+ * `gmail.users.messages.attachments.get` which returns base64url-encoded
+ * bytes. Hard 25 MB cap, idempotent, never throws.
+ */
+export async function downloadGmailAttachment(
+  messageId: string,
+  meta: { attachmentId: string; filename: string; mimeType: string; size: number },
+): Promise<{ path: string; bytesOnDisk: number; filename: string; mimeType: string } | null> {
+  if (!gmail) {
+    ctx?.log.warn('Gmail not authenticated — skipping attachment download');
+    return null;
+  }
+  // Lazy-import the shared cap + temp root so we keep one source of truth.
+  const { MAX_ATTACHMENT_BYTES, TRIGGER_ATTACHMENT_ROOT } = await import(
+    '../../services/attachment-downloader.js'
+  );
+  if (meta.size > MAX_ATTACHMENT_BYTES) {
+    ctx?.log.warn(
+      `Gmail attachment ${meta.filename} (${meta.size}B) exceeds cap; skipping`,
+    );
+    return null;
+  }
+
+  const path = await import('path');
+  const fs = await import('fs/promises');
+
+  // Sanitize segments the same way attachment-downloader does — strip
+  // path separators / `..` / control chars so a hostile filename can't
+  // escape the trigger dir.
+  const safe = (s: string): string =>
+    s.replace(/[\\/\x00-\x1f\x7f]/g, '_').replace(/\.{2,}/g, '_').slice(0, 200) || 'file';
+  const targetDir = path.join(TRIGGER_ATTACHMENT_ROOT, 'gmail', safe(messageId));
+  const finalName = safe(meta.filename) || 'file';
+  const targetPath = path.join(targetDir, finalName);
+
+  // Idempotency: if a file with the expected size already lives at the
+  // target path, skip the network round-trip.
+  try {
+    const st = await fs.stat(targetPath);
+    if (st.isFile() && (meta.size === 0 || st.size === meta.size)) {
+      return { path: targetPath, bytesOnDisk: st.size, filename: finalName, mimeType: meta.mimeType };
+    }
+  } catch { /* not cached */ }
+
+  await fs.mkdir(targetDir, { recursive: true });
+
+  let res: { data: { data?: string | null; size?: number | null } };
+  try {
+    res = await gmail.users.messages.attachments.get({
+      userId: 'me',
+      messageId,
+      id: meta.attachmentId,
+    });
+  } catch (err) {
+    ctx?.log.warn(`Gmail attachments.get failed for ${meta.filename}: ${err}`);
+    return null;
+  }
+  const b64 = res.data?.data;
+  if (!b64) {
+    ctx?.log.warn(`Gmail attachment ${meta.filename} returned empty data`);
+    return null;
+  }
+  const buf = Buffer.from(b64, 'base64url');
+  if (buf.byteLength > MAX_ATTACHMENT_BYTES) {
+    ctx?.log.warn(
+      `Gmail attachment ${meta.filename} decoded to ${buf.byteLength}B (exceeds cap)`,
+    );
+    return null;
+  }
+  try {
+    await fs.writeFile(targetPath, buf);
+  } catch (err) {
+    ctx?.log.warn(`Gmail attachment write failed for ${targetPath}: ${err}`);
+    return null;
+  }
+  return { path: targetPath, bytesOnDisk: buf.byteLength, filename: finalName, mimeType: meta.mimeType };
 }
 
 export async function getThread(threadId: string): Promise<EmailThread> {

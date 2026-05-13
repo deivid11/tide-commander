@@ -69,6 +69,17 @@ export interface SlackConfig {
   pollingDmsAlways?: boolean;
 
   /**
+   * If true, polling uses a single `search.messages?query=after:<yesterday>`
+   * call per cycle instead of one `conversations.history` per channel. Search
+   * returns ALL messages including thread replies on old parents, fixing the
+   * "thread replies are missed" bug. Allowlist + DM filter still apply
+   * post-fetch. Requires `search:read` scope on the xoxp- token. Default
+   * false — the legacy per-channel path stays the safe default for tokens
+   * without search scope.
+   */
+  pollingUseSearch?: boolean;
+
+  /**
    * If true, messages sent by the connected account itself are still logged +
    * broadcast (with `direction: 'outbound'`). Useful for personal-token (xoxp-)
    * instances that want to mirror sent + received traffic. Triggers do NOT
@@ -94,6 +105,7 @@ const DEFAULT_CONFIG: SlackConfig = {
   pollingChannelAllowlist: '',
   pollingDmsAlways: true,
   pollingMinMsBetweenCalls: 1500,
+  pollingUseSearch: false,
   mirrorOwnMessages: false,
   currentMode: 'none',
 };
@@ -269,6 +281,14 @@ export const slackConfigSchema: ConfigField[] = [
     group: 'Polling',
   },
   {
+    key: 'pollingUseSearch',
+    label: 'Use search.messages (catches thread replies)',
+    type: 'boolean',
+    description: 'When on, polling uses a single search.messages call per cycle instead of one conversations.history per channel. Catches replies on old threads that the per-channel sweep misses. Allowlist + DM filter still apply. Requires the user (xoxp-) token to have the search:read scope. Default off.',
+    defaultValue: false,
+    group: 'Polling',
+  },
+  {
     key: 'mirrorOwnMessages',
     label: 'Mirror messages I send too',
     type: 'boolean',
@@ -325,6 +345,7 @@ export function getConfigValues(
     pollingChannelAllowlist: config.pollingChannelAllowlist ?? '',
     pollingDmsAlways: config.pollingDmsAlways ?? true,
     pollingMinMsBetweenCalls: config.pollingMinMsBetweenCalls ?? 1500,
+    pollingUseSearch: config.pollingUseSearch ?? false,
     mirrorOwnMessages: config.mirrorOwnMessages ?? false,
     currentMode: config.currentMode ?? 'none',
     // Mask secret values for UI display
@@ -376,6 +397,9 @@ export async function setConfigValues(
   }
   if (typeof values.pollingMinMsBetweenCalls === 'number' && Number.isFinite(values.pollingMinMsBetweenCalls)) {
     updates.pollingMinMsBetweenCalls = Math.max(0, values.pollingMinMsBetweenCalls);
+  }
+  if (typeof values.pollingUseSearch === 'boolean') {
+    updates.pollingUseSearch = values.pollingUseSearch;
   }
   if (typeof values.mirrorOwnMessages === 'boolean') {
     updates.mirrorOwnMessages = values.mirrorOwnMessages;

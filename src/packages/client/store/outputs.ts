@@ -18,6 +18,18 @@ function enforceOutputBufferLimits(outputs: AgentOutput[]): AgentOutput[] {
   return outputs.slice(-MAX_OUTPUTS_PER_AGENT);
 }
 
+function isSameOutputEvent(a: AgentOutput, b: AgentOutput): boolean {
+  return a.uuid === b.uuid
+    && a.text === b.text
+    && a.isStreaming === b.isStreaming
+    && a.isUserPrompt === b.isUserPrompt
+    && a.isDelegation === b.isDelegation
+    && a.subagentName === b.subagentName
+    && a.toolName === b.toolName
+    && a.toolOutput === b.toolOutput
+    && a.isError === b.isError;
+}
+
 export interface OutputActions {
   addOutput(agentId: string, output: AgentOutput): void;
   clearOutputs(agentId: string): void;
@@ -51,16 +63,50 @@ export function createOutputActions(
       setState((s) => {
         const currentOutputs = s.agentOutputs.get(agentId) || [];
 
-          // DEDUPLICATION: Use message UUID if available, otherwise skip dedup
-        // This ensures reliable message delivery without false positives
+        // DEDUPLICATION: UUIDs identify a message/tool block, not always a
+        // single WebSocket output. Claude text deltas reuse the same UUID, so
+        // streaming chunks must be merged instead of dropped.
         if (output.uuid) {
-          // Check if we already have this exact message UUID (indicates a resend)
-          const isDuplicate = currentOutputs.some(existing =>
-            existing.uuid === output.uuid
-          );
-          if (isDuplicate) {
-            // Message already delivered - skip
-            return;
+          const existingIndex = currentOutputs.findIndex(existing => existing.uuid === output.uuid);
+          if (existingIndex >= 0) {
+            const existing = currentOutputs[existingIndex];
+
+            if (existing.isStreaming || output.isStreaming) {
+              const updatedOutputs = [...currentOutputs];
+              updatedOutputs[existingIndex] = output.isStreaming
+                ? {
+                    ...existing,
+                    text: existing.text + output.text,
+                    isStreaming: true,
+                    skillUpdate: output.skillUpdate ?? existing.skillUpdate,
+                    subagentName: output.subagentName ?? existing.subagentName,
+                    toolName: output.toolName ?? existing.toolName,
+                    toolInput: output.toolInput ?? existing.toolInput,
+                    toolOutput: output.toolOutput ?? existing.toolOutput,
+                    isError: output.isError ?? existing.isError,
+                  }
+                : {
+                    ...existing,
+                    ...output,
+                    // Keep the original timestamp so the in-progress row does
+                    // not jump to the end again when the final message arrives.
+                    timestamp: existing.timestamp,
+                  };
+
+              const limitedOutputs = enforceOutputBufferLimits(updatedOutputs);
+              const newAgentOutputs = new Map(s.agentOutputs);
+              newAgentOutputs.set(agentId, limitedOutputs);
+              s.agentOutputs = newAgentOutputs;
+              return;
+            }
+
+            if (isSameOutputEvent(existing, output)) {
+              // Exact resend - skip.
+              return;
+            }
+            // Same UUID with different non-streaming text is valid for tool
+            // blocks such as "Using tool:" followed by "Tool input:".
+            // Fall through and append it as a distinct output row.
           }
         }
 

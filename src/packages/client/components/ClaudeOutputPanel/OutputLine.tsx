@@ -201,7 +201,7 @@ function TimestampWithMeta({ output, timeStr, debugHash, agentId }: { output: Cl
 }
 
 export const OutputLine = memo(function OutputLine({ output, agentId, execTasks = [], subagents, onImageClick, onFileClick, onBashClick, onViewMarkdown }: OutputLineProps) {
-  const { t } = useTranslation(['tools', 'common']);
+  const { t } = useTranslation(['tools', 'common', 'terminal']);
   const hideCost = useHideCost();
   const settings = useSettings();
   const [expandedExecTasks, setExpandedExecTasks] = useState<Set<string>>(new Set());
@@ -1077,6 +1077,23 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
 
   if (isContextOutput) {
     return null;
+  }
+
+  // Render the /compact command stdout as a small "Context compacted" pill
+  if (text.includes('<local-command-stdout>')) {
+    const stdoutMatch = text.match(/<local-command-stdout>([\s\S]*?)<\/local-command-stdout>/);
+    if (stdoutMatch) {
+      const stripped = stdoutMatch[1].replace(/\x1b?\[\d+m/g, '').trim();
+      if (stripped === 'Compacted') {
+        return (
+          <div className="output-line output-compacted-notice">
+            <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+            <span className="compacted-icon"><Icon name="archive" size={14} /></span>
+            <span className="compacted-label">{t('terminal:history.compactedLabel')}</span>
+          </div>
+        );
+      }
+    }
   }
 
   // Hide local-command tags for utility commands

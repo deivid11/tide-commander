@@ -50,6 +50,7 @@ import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
 import { Icon } from '../Icon';
 import { GitFileHistoryModal } from '../GitFileHistoryModal';
+import { ConfirmModal } from '../shared/ConfirmModal';
 
 // Constants
 import { EXTENSION_TO_LANGUAGE } from './constants';
@@ -57,6 +58,14 @@ import { EXTENSION_TO_LANGUAGE } from './constants';
 interface RenameDialogState {
   isOpen: boolean;
   node: TreeNode | null;
+  value: string;
+  submitting: boolean;
+}
+
+interface CreateDialogState {
+  isOpen: boolean;
+  parentDir: string;
+  isDirectory: boolean;
   value: string;
   submitting: boolean;
 }
@@ -220,6 +229,11 @@ export function FileExplorerPanel({
     position: { x: number; y: number };
     node: TreeNode;
   } | null>(null);
+  const [treeRootContextMenu, setTreeRootContextMenu] = useState<{
+    isOpen: boolean;
+    position: { x: number; y: number };
+    parentDir: string;
+  } | null>(null);
   const [fileClipboard, setFileClipboard] = useState<{
     sourcePath: string;
     isDirectory: boolean;
@@ -236,6 +250,14 @@ export function FileExplorerPanel({
     value: '',
     submitting: false,
   });
+  const [createDialog, setCreateDialog] = useState<CreateDialogState>({
+    isOpen: false,
+    parentDir: '',
+    isDirectory: false,
+    value: '',
+    submitting: false,
+  });
+  const [deleteConfirm, setDeleteConfirm] = useState<{ node: TreeNode } | null>(null);
 
   // File tabs state
   const [openTabs, setOpenTabs] = useState<FileTab[]>([]);
@@ -268,6 +290,7 @@ export function FileExplorerPanel({
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const createInputRef = useRef<HTMLInputElement>(null);
 
   // -------------------------------------------------------------------------
   // STORAGE PERSISTENCE
@@ -357,6 +380,14 @@ export function FileExplorerPanel({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [renameDialog.isOpen]);
+
+  useEffect(() => {
+    if (!createDialog.isOpen) return;
+    const timer = window.setTimeout(() => {
+      createInputRef.current?.focus();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [createDialog.isOpen]);
 
   // -------------------------------------------------------------------------
   // SEARCH
@@ -848,6 +879,17 @@ export function FileExplorerPanel({
     });
   }, []);
 
+  const handleTreeRootContextMenu = useCallback((event: React.MouseEvent) => {
+    if (event.defaultPrevented) return;
+    if (!currentFolder) return;
+    event.preventDefault();
+    setTreeRootContextMenu({
+      isOpen: true,
+      position: { x: event.clientX, y: event.clientY },
+      parentDir: currentFolder,
+    });
+  }, [currentFolder]);
+
   const handleOpenRenameDialog = useCallback((node: TreeNode) => {
     setRenameDialog({
       isOpen: true,
@@ -860,6 +902,107 @@ export function FileExplorerPanel({
   const handleCloseRenameDialog = useCallback(() => {
     setRenameDialog({ isOpen: false, node: null, value: '', submitting: false });
   }, []);
+
+  const handleOpenCreateDialog = useCallback((parentDir: string, isDirectory: boolean) => {
+    if (!parentDir) return;
+    setCreateDialog({
+      isOpen: true,
+      parentDir,
+      isDirectory,
+      value: '',
+      submitting: false,
+    });
+  }, []);
+
+  const handleCloseCreateDialog = useCallback(() => {
+    setCreateDialog({ isOpen: false, parentDir: '', isDirectory: false, value: '', submitting: false });
+  }, []);
+
+  const handleOpenDeleteConfirm = useCallback((node: TreeNode) => {
+    setDeleteConfirm({ node });
+  }, []);
+
+  const handleConfirmDelete = useCallback(async () => {
+    const node = deleteConfirm?.node;
+    if (!node) return;
+
+    try {
+      const res = await authFetch(apiUrl('/api/files/delete'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: node.path, recursive: node.isDirectory }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        showToast('error', 'Delete Failed', data.error || 'Unable to delete item');
+        return;
+      }
+
+      // Close any open tabs that match this path (file or anything inside the deleted dir).
+      setOpenTabs((prev) => prev.filter((tab) => tab.path !== node.path && !tab.path.startsWith(`${node.path}/`)));
+      if (activeTabPath === node.path || activeTabPath?.startsWith(`${node.path}/`)) {
+        setActiveTabPath(null);
+        clearFile();
+      }
+      if (selectedPath === node.path || selectedPath?.startsWith(`${node.path}/`)) {
+        setSelectedPath(null);
+      }
+
+      const parentDir = getParentDir(node.path);
+      await reloadDirectory(parentDir);
+      await loadGitStatus();
+      showToast('success', node.isDirectory ? 'Folder Deleted' : 'File Deleted', node.name);
+    } catch (err) {
+      console.error('[FileExplorer] Delete failed:', err);
+      showToast('error', 'Delete Failed', 'Unable to delete item');
+    }
+  }, [deleteConfirm, activeTabPath, selectedPath, getParentDir, reloadDirectory, loadGitStatus, showToast, clearFile]);
+
+  const handleSubmitCreate = useCallback(async () => {
+    const { parentDir, isDirectory, value } = createDialog;
+    const nextName = value.trim();
+    if (!parentDir || !nextName) {
+      handleCloseCreateDialog();
+      return;
+    }
+    if (nextName.includes('/') || nextName.includes('\\')) {
+      showToast('error', 'Invalid Name', 'Name must not contain path separators');
+      return;
+    }
+
+    setCreateDialog((prev) => ({ ...prev, submitting: true }));
+
+    try {
+      const res = await authFetch(apiUrl('/api/files/create'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parentDir, name: nextName, isDirectory }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast('error', 'Create Failed', data.error || 'Unable to create item');
+        setCreateDialog((prev) => ({ ...prev, submitting: false }));
+        return;
+      }
+
+      const createdPath = data.path as string;
+      const nextExpandedPaths = new Set(expandedPaths);
+      nextExpandedPaths.add(parentDir);
+
+      await reloadDirectory(parentDir);
+      setExpandedPaths(nextExpandedPaths);
+      await loadGitStatus();
+      setSelectedPath(createdPath);
+      showToast('success', isDirectory ? 'Folder Created' : 'File Created', nextName);
+      handleCloseCreateDialog();
+    } catch (err) {
+      console.error('[FileExplorer] Create failed:', err);
+      showToast('error', 'Create Failed', 'Unable to create item');
+      setCreateDialog((prev) => ({ ...prev, submitting: false }));
+    }
+  }, [createDialog, expandedPaths, reloadDirectory, setExpandedPaths, loadGitStatus, showToast, handleCloseCreateDialog]);
 
   const handleRenamePath = useCallback(async () => {
     const node = renameDialog.node;
@@ -1020,8 +1163,22 @@ export function FileExplorerPanel({
   const fileTreeContextActions = useMemo((): ContextMenuAction[] => {
     if (!fileTreeContextMenu) return [];
     const node = fileTreeContextMenu.node;
+    const targetDir = node.isDirectory ? node.path : getParentDir(node.path);
 
     const actions: ContextMenuAction[] = [
+      {
+        id: 'create-file',
+        label: node.isDirectory ? 'New File...' : 'New File Here...',
+        icon: <Icon name="file-text" size={14} />,
+        onClick: () => handleOpenCreateDialog(targetDir, false),
+      },
+      {
+        id: 'create-folder',
+        label: node.isDirectory ? 'New Folder...' : 'New Folder Here...',
+        icon: <Icon name="folder" size={14} />,
+        onClick: () => handleOpenCreateDialog(targetDir, true),
+      },
+      { id: 'divider-create', label: '', divider: true, onClick: () => {} },
       {
         id: 'rename',
         label: node.isDirectory ? 'Rename Folder' : 'Rename File',
@@ -1062,8 +1219,38 @@ export function FileExplorerPanel({
       );
     }
 
+    actions.push(
+      { id: 'divider-delete', label: '', divider: true, onClick: () => {} },
+      {
+        id: 'delete',
+        label: node.isDirectory ? 'Delete Folder' : 'Delete File',
+        icon: <Icon name="trash" size={14} />,
+        danger: true,
+        onClick: () => handleOpenDeleteConfirm(node),
+      },
+    );
+
     return actions;
-  }, [fileTreeContextMenu, fileClipboard, handleOpenRenameDialog, handleCopyNode, handlePasteNode, handleCopyPath, handleOpenGitHistory, t]);
+  }, [fileTreeContextMenu, fileClipboard, getParentDir, handleOpenCreateDialog, handleOpenRenameDialog, handleCopyNode, handlePasteNode, handleCopyPath, handleOpenGitHistory, handleOpenDeleteConfirm, t]);
+
+  const treeRootContextActions = useMemo((): ContextMenuAction[] => {
+    if (!treeRootContextMenu) return [];
+    const parentDir = treeRootContextMenu.parentDir;
+    return [
+      {
+        id: 'create-file-root',
+        label: 'New File...',
+        icon: <Icon name="file-text" size={14} />,
+        onClick: () => handleOpenCreateDialog(parentDir, false),
+      },
+      {
+        id: 'create-folder-root',
+        label: 'New Folder...',
+        icon: <Icon name="folder" size={14} />,
+        onClick: () => handleOpenCreateDialog(parentDir, true),
+      },
+    ];
+  }, [treeRootContextMenu, handleOpenCreateDialog]);
 
   // Reveal a file in the tree by expanding all parent directories
   const handleRevealInTree = useCallback(async (filePath: string) => {
@@ -1617,7 +1804,10 @@ export function FileExplorerPanel({
           )}
 
           {/* Tree Content */}
-          <div className="file-explorer-tree-content">
+          <div
+            className="file-explorer-tree-content"
+            onContextMenu={viewMode === 'files' ? handleTreeRootContextMenu : undefined}
+          >
             {viewMode === 'compare' ? (
               <BranchComparison
                 compareResult={compareResult}
@@ -1840,11 +2030,89 @@ export function FileExplorerPanel({
         />
       )}
 
+      {treeRootContextMenu && (
+        <ContextMenu
+          isOpen={treeRootContextMenu.isOpen}
+          position={treeRootContextMenu.position}
+          worldPosition={{ x: 0, z: 0 }}
+          actions={treeRootContextActions}
+          onClose={() => setTreeRootContextMenu(null)}
+        />
+      )}
+
+      {createDialog.isOpen && (
+        <div className="file-explorer-rename-overlay" onClick={handleCloseCreateDialog}>
+          <div className="file-explorer-rename-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="file-explorer-rename-title">
+              New {createDialog.isDirectory ? 'Folder' : 'File'}
+            </div>
+            <div className="file-explorer-rename-path" title={createDialog.parentDir}>
+              {createDialog.parentDir}
+            </div>
+            <input
+              ref={createInputRef}
+              type="text"
+              className="file-explorer-rename-input"
+              placeholder={createDialog.isDirectory ? 'folder name' : 'file name'}
+              value={createDialog.value}
+              onChange={(e) => setCreateDialog((prev) => ({ ...prev, value: e.target.value }))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void handleSubmitCreate();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  handleCloseCreateDialog();
+                }
+              }}
+              disabled={createDialog.submitting}
+            />
+            <div className="file-explorer-rename-actions">
+              <button
+                className="file-explorer-rename-btn"
+                onClick={handleCloseCreateDialog}
+                disabled={createDialog.submitting}
+              >
+                Cancel
+              </button>
+              <button
+                className="file-explorer-rename-btn primary"
+                onClick={() => { void handleSubmitCreate(); }}
+                disabled={createDialog.submitting || !createDialog.value.trim()}
+              >
+                {createDialog.submitting ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <GitFileHistoryModal
         isOpen={gitHistoryModal.open}
         filePath={gitHistoryModal.path}
         cwd={gitHistoryModal.cwd}
         onClose={() => setGitHistoryModal(prev => ({ ...prev, open: false }))}
+      />
+
+      <ConfirmModal
+        isOpen={!!deleteConfirm}
+        title={deleteConfirm?.node.isDirectory ? 'Delete Folder' : 'Delete File'}
+        message={
+          deleteConfirm ? (
+            <>
+              Permanently delete <strong>{deleteConfirm.node.name}</strong>?
+            </>
+          ) : ''
+        }
+        note={deleteConfirm?.node.isDirectory
+          ? 'The folder and everything inside it will be removed from disk.'
+          : 'The file will be removed from disk.'
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => { void handleConfirmDelete(); }}
+        onClose={() => setDeleteConfirm(null)}
       />
     </div>
   );
