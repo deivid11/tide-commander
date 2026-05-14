@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.95.0] - 2026-05-14
+
+### Added
+- Automated Bitbucket PR review integration:
+  - Webhook receiver supports Bitbucket signature (`X-Hub-Signature`) alongside GitHub (`X-Hub-Signature-256`) with raw-body HMAC verification
+  - LRU dedupe cache (1024 entries / 10min TTL) keyed by `triggerId:requestUuid` to prevent duplicate webhook delivery from firing twice
+  - Author-loop guard skips events authored by `BITBUCKET_BOT_USERNAME` on comment/approve/changes-request events
+  - `bitbucket-pr-review` skill with 9 native Bitbucket Cloud REST API actions (diff, diffstat, inline comments, summary comment, approve/unapprove, native request-changes/unrequest-changes, list comments)
+  - `bitbucket-reviewer` agent class with a 9-step reviewer system prompt covering idempotency, diff truncation, prioritized analysis, and exactly-one verdict (approve XOR request-changes)
+  - Per-repo trigger configuration in TriggerManagerPanel with workspace/repo-slug/events/HMAC-secret fields
+  - Setup documentation at `docs/bitbucket-pr-review.md` including nginx reverse-proxy example for VPN-to-internal forwarding
+
 ## [1.94.0] - 2026-05-14
 
 ### Added
