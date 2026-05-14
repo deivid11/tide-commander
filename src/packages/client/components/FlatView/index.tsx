@@ -116,6 +116,7 @@ interface ChatViewProps {
   onNavigateForward: () => void;
   agentInfoOpen: boolean;
   onToggleAgentInfo: () => void;
+  onHeaderContextMenu: (position: { x: number; y: number }) => void;
 }
 
 const TERMINAL_VIEW_MODES: TerminalViewMode[] = ['simple', 'chat', 'advanced'];
@@ -206,6 +207,7 @@ const ChatView = React.memo(function ChatView({
   onNavigateForward,
   agentInfoOpen,
   onToggleAgentInfo,
+  onHeaderContextMenu,
 }: ChatViewProps) {
   const agent = useAgent(agentId);
   const buildings = useBuildings();
@@ -529,6 +531,11 @@ const ChatView = React.memo(function ChatView({
           type="button"
           className={`flat-terminal-wrapper__header-main ${agentInfoOpen ? 'flat-terminal-wrapper__header-main--active' : ''}`}
           onClick={onToggleAgentInfo}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onHeaderContextMenu({ x: e.clientX, y: e.clientY });
+          }}
           title={agentInfoOpen ? 'Hide agent info' : 'Show agent info'}
           aria-pressed={agentInfoOpen}
         >
@@ -2200,6 +2207,10 @@ export function FlatView({
             onNavigateForward={handleNavigateForward}
             agentInfoOpen={agentInfoOpen}
             onToggleAgentInfo={handleToggleAgentInfo}
+            onHeaderContextMenu={(position) => {
+              if (!selectedAgentId) return;
+              setEmptyAgentContextMenu({ agentId: selectedAgentId, position });
+            }}
           />
         ) : (
           <div className="flat-chat flat-chat--empty">
