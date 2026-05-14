@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.94.0] - 2026-05-14
+
+### Added
+- **FlatView header right-click context menu** — `FlatView` agent terminal header now supports `onContextMenu` (right-click), surfacing the empty-agent context menu at the cursor for the currently selected agent. Lets users perform agent actions without clearing the chat selection first
+
 ## [1.93.0] - 2026-05-13
 
 ### Added
