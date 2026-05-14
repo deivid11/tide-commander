@@ -15,6 +15,8 @@ import { gitCaptain } from './git-captain.js';
 import { serverLogs } from './server-logs.js';
 import { streamingExec } from './streaming-exec.js';
 import { bitbucketPR } from './bitbucket-pr.js';
+import { bitbucketPRReview } from './bitbucket-pr-review.js';
+import { bitbucketReviewer } from './bitbucket-reviewer.js';
 import { pm2Logs } from './pm2-logs.js';
 import { createBuilding } from './create-building.js';
 import { exploreDatabase } from './explore-database.js';
@@ -42,6 +44,8 @@ export const BUILTIN_SKILLS: BuiltinSkillDefinition[] = [
   serverLogs,
   streamingExec,
   bitbucketPR,
+  bitbucketPRReview,
+  bitbucketReviewer,
   pm2Logs,
   createBuilding,
   exploreDatabase,

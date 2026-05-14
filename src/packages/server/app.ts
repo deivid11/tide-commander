@@ -58,6 +58,25 @@ export function createApp(): Express {
 
   // Middleware
   app.use(cors());
+
+  // Webhook routes need the raw request bytes for HMAC signature verification.
+  // Bitbucket and GitHub compute the signature over the exact bytes they send,
+  // so re-serializing via JSON.stringify(req.body) can produce a different
+  // digest (key ordering / whitespace) and falsely reject valid deliveries.
+  // The path-scoped JSON parser below runs first; it parses the body AND
+  // stashes the raw buffer on req.rawBody. Once req._body is set, the global
+  // express.json that follows is a no-op for these requests, so the raw
+  // buffer is only retained for webhook deliveries — not every JSON request.
+  app.use(
+    '/api/triggers/webhook',
+    express.json({
+      limit: '50mb',
+      verify: (req, _res, buf) => {
+        (req as Request & { rawBody?: Buffer }).rawBody = buf;
+      },
+    }),
+  );
+
   app.use(express.json({ limit: '50mb' })); // Increased for audio uploads (STT)
 
   // Request logging & timing

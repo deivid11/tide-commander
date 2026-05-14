@@ -21,11 +21,22 @@ type PanelView = 'list' | 'edit';
 
 const TRIGGER_TYPES: { value: TriggerType; label: string }[] = [
   { value: 'webhook', label: 'Webhook' },
+  { value: 'bitbucket', label: 'Bitbucket' },
   { value: 'cron', label: 'Cron' },
   { value: 'slack', label: 'Slack' },
   { value: 'email', label: 'Email' },
   { value: 'jira', label: 'Jira' },
   { value: 'whatsapp', label: 'WhatsApp' },
+];
+
+const BITBUCKET_EVENT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'pullrequest:created', label: 'PR created' },
+  { value: 'pullrequest:updated', label: 'PR updated' },
+  { value: 'pullrequest:approved', label: 'PR approved' },
+  { value: 'pullrequest:unapproved', label: 'PR unapproved' },
+  { value: 'pullrequest:fulfilled', label: 'PR merged' },
+  { value: 'pullrequest:rejected', label: 'PR declined' },
+  { value: 'pullrequest:comment_created', label: 'PR comment created' },
 ];
 
 const MATCH_MODES: { value: MatchMode; label: string; desc: string }[] = [
@@ -294,8 +305,21 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
 
   // ─── Agents list for dropdown ───
   const agentsList = useMemo(() => {
-    return Array.from(agents.values()).map(a => ({ id: a.id, name: a.name }));
+    return Array.from(agents.values()).map(a => ({ id: a.id, name: a.name, class: a.class }));
   }, [agents]);
+
+  // ─── Copy-to-clipboard with brief "Copied!" feedback ───
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const copyToClipboard = useCallback((value: string, key: string) => {
+    if (!value) return;
+    navigator.clipboard.writeText(value).then(
+      () => {
+        setCopiedKey(key);
+        setTimeout(() => setCopiedKey(prev => (prev === key ? null : prev)), 1500);
+      },
+      () => setError('Failed to copy to clipboard'),
+    );
+  }, []);
 
   if (!isOpen) return null;
 
@@ -434,6 +458,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                       // Reset config for new type
                       if (type === 'webhook') updateField('config', { method: 'POST' });
                       else if (type === 'cron') updateField('config', { expression: '0 9 * * MON-FRI', timezone: 'UTC' });
+                      else if (type === 'bitbucket') updateField('config', { workspace: '', repoSlug: '', events: ['pullrequest:created', 'pullrequest:updated'] });
                       else updateField('config', {});
                       // Seed a sensible default promptTemplate for source types
                       // that surface attachments — but ONLY when the user
@@ -464,7 +489,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                   >
                     <option value="">Select agent...</option>
                     {agentsList.map(a => (
-                      <option key={a.id} value={a.id}>{a.name}</option>
+                      <option key={a.id} value={a.id}>{a.name} ({a.class})</option>
                     ))}
                   </select>
                 </div>
@@ -527,6 +552,113 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                   )}
                 </div>
               )}
+
+              {editingTrigger.type === 'bitbucket' && (() => {
+                const cfg = (editingTrigger as any).config || {};
+                const selectedEvents: string[] = Array.isArray(cfg.events) ? cfg.events : [];
+                const webhookUrl = isEditing && editingTrigger.id
+                  ? `${window.location.origin}/api/triggers/webhook/${editingTrigger.id}`
+                  : '';
+                const toggleEvent = (eventKey: string) => {
+                  const next = selectedEvents.includes(eventKey)
+                    ? selectedEvents.filter(e => e !== eventKey)
+                    : [...selectedEvents, eventKey];
+                  updateConfig('events', next);
+                };
+                return (
+                  <div style={styles.section}>
+                    <h4 style={styles.sectionTitle}>Bitbucket Config</h4>
+                    <div style={styles.row}>
+                      <div style={styles.field}>
+                        <label style={styles.label}>Workspace</label>
+                        <input
+                          style={styles.input}
+                          value={cfg.workspace || ''}
+                          onChange={e => updateConfig('workspace', e.target.value)}
+                          placeholder="tide"
+                        />
+                      </div>
+                      <div style={styles.field}>
+                        <label style={styles.label}>Repository slug</label>
+                        <input
+                          style={styles.input}
+                          value={cfg.repoSlug || ''}
+                          onChange={e => updateConfig('repoSlug', e.target.value)}
+                          placeholder="wind"
+                        />
+                      </div>
+                    </div>
+
+                    <div style={styles.field}>
+                      <label style={styles.label}>Events</label>
+                      <div style={styles.checkboxGrid}>
+                        {BITBUCKET_EVENT_OPTIONS.map(opt => {
+                          const checked = selectedEvents.includes(opt.value);
+                          return (
+                            <label key={opt.value} style={styles.checkboxLabel}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleEvent(opt.value)}
+                              />
+                              <span>{opt.label}</span>
+                              <code style={styles.checkboxCode}>{opt.value}</code>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div style={styles.field}>
+                      <label style={styles.label}>HMAC secret</label>
+                      <div style={styles.inlineRow}>
+                        <input
+                          style={{ ...styles.input, flex: 1 }}
+                          type="password"
+                          value={cfg.secret || ''}
+                          onChange={e => updateConfig('secret', e.target.value || undefined)}
+                          placeholder="Shared secret used to validate Bitbucket signature"
+                        />
+                        <button
+                          type="button"
+                          style={styles.smallBtn}
+                          onClick={() => copyToClipboard(cfg.secret || '', 'bitbucket-secret')}
+                          disabled={!cfg.secret}
+                        >
+                          {copiedKey === 'bitbucket-secret' ? 'Copied!' : 'Copy'}
+                        </button>
+                      </div>
+                      <span style={styles.llmMeta}>
+                        Paste the same secret into Bitbucket's webhook configuration.
+                      </span>
+                    </div>
+
+                    {webhookUrl && (
+                      <div style={styles.webhookUrl}>
+                        <label style={styles.label}>Webhook URL</label>
+                        <div style={styles.inlineRow}>
+                          <code style={{ ...styles.code, flex: 1 }}>{webhookUrl}</code>
+                          <button
+                            type="button"
+                            style={styles.smallBtn}
+                            onClick={() => copyToClipboard(webhookUrl, 'bitbucket-url')}
+                          >
+                            {copiedKey === 'bitbucket-url' ? 'Copied!' : 'Copy'}
+                          </button>
+                        </div>
+                        <span style={styles.llmMeta}>
+                          In Bitbucket: Repository settings → Webhooks → Add webhook, then paste this URL and the secret above.
+                        </span>
+                      </div>
+                    )}
+                    {!webhookUrl && (
+                      <span style={styles.llmMeta}>
+                        Save the trigger to reveal its webhook URL.
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
 
               {editingTrigger.type === 'cron' && (() => {
                 const cronConfig = (editingTrigger as any).config || {};
@@ -858,6 +990,10 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                     || (editingTrigger.type === 'cron'
                       && !!(editingTrigger as any).config?.runOnce
                       && !(editingTrigger as any).config?.runAt)
+                    || (editingTrigger.type === 'bitbucket'
+                      && (!(editingTrigger as any).config?.workspace
+                        || !(editingTrigger as any).config?.repoSlug
+                        || !((editingTrigger as any).config?.events?.length)))
                   }
                 >
                   {loading ? 'Saving...' : (isEditing ? 'Update' : 'Create')}
@@ -1066,6 +1202,30 @@ const styles: Record<string, React.CSSProperties> = {
   },
   webhookUrl: {
     marginTop: '8px',
+  },
+  inlineRow: {
+    display: 'flex',
+    gap: '6px',
+    alignItems: 'center',
+  },
+  checkboxGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: '6px 12px',
+  },
+  checkboxLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: '12px',
+    color: '#cdd6f4',
+    cursor: 'pointer',
+  },
+  checkboxCode: {
+    fontSize: '10px',
+    color: '#6c7086',
+    background: 'transparent',
+    padding: 0,
   },
   code: {
     background: '#313244',

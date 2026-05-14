@@ -926,8 +926,10 @@ function createWebhookHandler(): TriggerHandler {
     },
 
     structuralMatch(trigger: TriggerDefinition, _event: ExternalEvent): boolean {
-      // Webhook triggers always structurally match (the route already filters by triggerId)
-      return trigger.type === 'webhook';
+      // Used as the fallback handler for both `webhook` and `bitbucket` triggers
+      // — the central webhook receiver (POST /api/triggers/webhook/:id) already
+      // filtered by triggerId, so structural match is trivially true for either.
+      return trigger.type === 'webhook' || trigger.type === 'bitbucket';
     },
 
     extractVariables(trigger: TriggerDefinition, event: ExternalEvent): Record<string, string> {
@@ -938,7 +940,7 @@ function createWebhookHandler(): TriggerHandler {
 
       // Extract fields from payload if configured
       const extractFields = trigger.config.extractFields as string[] | undefined;
-      if (trigger.type === 'webhook' && extractFields && event.data) {
+      if ((trigger.type === 'webhook' || trigger.type === 'bitbucket') && extractFields && event.data) {
         const payload = event.data as Record<string, unknown>;
         variables['payload'] = JSON.stringify(payload);
 
