@@ -12,7 +12,7 @@ export type { ExternalEvent, TriggerHandler, TriggerDefinition };
 
 // ─── Trigger Enums ───
 
-export type TriggerType = 'webhook' | 'email' | 'slack' | 'jira' | 'cron' | 'whatsapp';
+export type TriggerType = 'webhook' | 'email' | 'slack' | 'jira' | 'cron' | 'whatsapp' | 'bitbucket';
 export type TriggerStatus = 'enabled' | 'disabled' | 'error';
 export type MatchMode = 'structural' | 'llm' | 'hybrid';
 export type ExtractionMode = 'structural' | 'llm';
@@ -140,7 +140,17 @@ export interface WhatsAppTrigger extends BaseTrigger {
   };
 }
 
-export type Trigger = WebhookTrigger | EmailTrigger | SlackTrigger | JiraTrigger | CronTrigger | WhatsAppTrigger;
+export interface BitbucketTrigger extends BaseTrigger {
+  type: 'bitbucket';
+  config: {
+    workspace: string;                // Bitbucket workspace slug (e.g. "tide")
+    repoSlug: string;                 // Repository slug within the workspace (e.g. "wind")
+    events: string[];                 // Bitbucket event keys (e.g. "pullrequest:created", "pullrequest:updated")
+    secret?: string;                  // Optional HMAC secret used to validate webhook signature
+  };
+}
+
+export type Trigger = WebhookTrigger | EmailTrigger | SlackTrigger | JiraTrigger | CronTrigger | WhatsAppTrigger | BitbucketTrigger;
 
 // ─── LLM Match Results ───
 

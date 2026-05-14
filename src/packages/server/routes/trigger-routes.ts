@@ -16,15 +16,32 @@
  */
 
 import { Router, Request, Response } from 'express';
-import * as crypto from 'crypto';
 import * as triggerService from '../services/trigger-service.js';
 import * as cronService from '../services/cron-service.js';
 import type { ServerMessage } from '../../shared/types.js';
 import type { ExternalEvent } from '../../shared/trigger-types.js';
 import { createLogger } from '../utils/logger.js';
+import {
+  detectWebhookProvider,
+  verifyHmacSignature,
+  getWebhookHmacPayload,
+  GITHUB_SIGNATURE_HEADER,
+  BITBUCKET_SIGNATURE_HEADER,
+  BITBUCKET_EVENT_HEADER,
+} from './webhook-signatures.js';
+import { WebhookDedupeCache } from './webhook-dedupe.js';
+import { isBitbucketAuthorLoop } from './bitbucket-author-loop.js';
 
 const log = createLogger('TriggerRoutes');
 const router = Router();
+
+// Process-wide dedupe cache for webhook deliveries. Bitbucket retries reuse
+// the same X-Request-UUID across attempts; the cache short-circuits retries
+// before they hit triggerService.fireTrigger.
+const webhookDedupeCache = new WebhookDedupeCache({
+  maxEntries: 1024,
+  ttlMs: 10 * 60_000,
+});
 
 let broadcastFn: ((message: ServerMessage) => void) | null = null;
 
@@ -119,41 +136,80 @@ router.post('/webhook/:triggerId', async (req: Request<{ triggerId: string }>, r
     return;
   }
 
-  if (trigger.type !== 'webhook') {
-    res.status(400).json({ error: 'Not a webhook trigger' });
+  // Both `webhook` and `bitbucket` route through this handler — the signature,
+  // dedupe, and author-loop helpers are header-driven (auto-detect Bitbucket
+  // vs GitHub via X-Event-Key vs X-GitHub-Event), so they work for either type.
+  if (trigger.type !== 'webhook' && trigger.type !== 'bitbucket') {
+    res.status(400).json({ error: 'Not a webhook-receivable trigger', triggerType: trigger.type });
     return;
   }
 
   // Validate HMAC secret if configured
   if (trigger.config.secret) {
-    const signature = req.headers['x-hub-signature-256'] as string
-      || req.headers['x-webhook-secret'] as string;
+    const provider = detectWebhookProvider(req.headers as Record<string, unknown>);
+    const githubSig = req.headers[GITHUB_SIGNATURE_HEADER] as string | undefined;
+    const bitbucketSig = req.headers[BITBUCKET_SIGNATURE_HEADER] as string | undefined;
+    const plainSecret = req.headers['x-webhook-secret'] as string | undefined;
 
-    if (!signature) {
+    // Pick the signature whose header matches the detected provider — falls back
+    // to whichever HMAC header is present, then to the plain X-Webhook-Secret.
+    const hmacSig = provider === 'bitbucket' ? bitbucketSig
+      : provider === 'github' ? githubSig
+        : (githubSig || bitbucketSig);
+
+    if (!hmacSig && !plainSecret) {
       res.status(401).json({ error: 'Missing signature' });
       return;
     }
 
-    // GitHub-style HMAC-SHA256 validation
-    if (req.headers['x-hub-signature-256']) {
-      const hmac = crypto.createHmac('sha256', trigger.config.secret);
-      hmac.update(JSON.stringify(req.body));
-      const expectedSig = `sha256=${hmac.digest('hex')}`;
-
-      if (!crypto.timingSafeEqual(
-        Buffer.from(signature),
-        Buffer.from(expectedSig)
-      )) {
+    if (hmacSig) {
+      // GitHub and Bitbucket Cloud both use HMAC-SHA256 with the `sha256=` prefix.
+      // Hash the raw request bytes captured by the webhook-scoped JSON parser
+      // (see app.ts) — re-serializing req.body would risk a false reject on
+      // key reordering / whitespace differences.
+      const { payload, usedFallback } = getWebhookHmacPayload(
+        req as Request<{ triggerId: string }> & { rawBody?: Buffer },
+      );
+      if (usedFallback) {
+        log.warn(`Webhook trigger ${triggerId}: rawBody unavailable, falling back to JSON.stringify — signature may not match`);
+      }
+      const valid = verifyHmacSignature(trigger.config.secret, hmacSig, payload);
+      if (!valid) {
+        log.warn(`Webhook trigger ${triggerId} rejected: invalid HMAC signature (provider=${provider ?? 'unknown'})`);
         res.status(401).json({ error: 'Invalid signature' });
         return;
       }
     } else {
       // Direct comparison for X-Webhook-Secret
-      if (signature !== trigger.config.secret) {
+      if (plainSecret !== trigger.config.secret) {
         res.status(401).json({ error: 'Invalid secret' });
         return;
       }
     }
+  }
+
+  // Idempotency: short-circuit Bitbucket retry deliveries (same X-Request-UUID
+  // is reused across attempts). GitHub uses X-GitHub-Delivery for the same
+  // purpose — we accept either header so the cache covers both providers.
+  const requestUuid = (req.headers['x-request-uuid']
+    || req.headers['x-github-delivery']) as string | undefined;
+  if (webhookDedupeCache.isDuplicate(triggerId, requestUuid)) {
+    const attempt = req.headers['x-attempt-number'] as string | undefined;
+    log.log(`Webhook trigger ${triggerId} deduped: requestUuid=${requestUuid} attempt=${attempt ?? 'n/a'}`);
+    res.json({ deduped: true });
+    return;
+  }
+
+  // Author-loop guard: when the bot itself acted on a PR, Bitbucket fires a
+  // matching webhook back to us. Skip the route to avoid an agent reviewing
+  // its own activity. Only applies to Bitbucket events where the actor is
+  // separable from the PR author (comments, approvals, change requests).
+  const eventKey = req.headers[BITBUCKET_EVENT_HEADER] as string | undefined;
+  const botIdentifier = process.env.BITBUCKET_BOT_USERNAME;
+  if (isBitbucketAuthorLoop(eventKey, req.body, botIdentifier)) {
+    log.log(`Webhook trigger ${triggerId} skipped by author-loop-guard: eventKey=${eventKey} bot=${botIdentifier}`);
+    res.json({ skipped: 'author-loop-guard' });
+    return;
   }
 
   // Extract fields from payload
@@ -163,8 +219,14 @@ router.post('/webhook/:triggerId', async (req: Request<{ triggerId: string }>, r
     payload: JSON.stringify(req.body),
   };
 
-  if (trigger.config.extractFields && req.body) {
-    for (const fieldPath of trigger.config.extractFields) {
+  // `extractFields` is declared on WebhookTrigger.config but is conceptually
+  // generic: same-shape JSON-path extraction works for any header-receivable
+  // type. Read through the union via a structural cast (mirrors the fallback
+  // handler in trigger-service.ts) so a `bitbucket` trigger configured with
+  // `extractFields` still gets its fields interpolated.
+  const extractFields = (trigger.config as { extractFields?: unknown }).extractFields;
+  if (Array.isArray(extractFields) && req.body) {
+    for (const fieldPath of extractFields as string[]) {
       const value = getNestedValue(req.body, fieldPath);
       if (value !== undefined) {
         variables[fieldPath] = typeof value === 'string' ? value : JSON.stringify(value);
