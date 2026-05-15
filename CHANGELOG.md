@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.96.0] - 2026-05-15
+
+### Added
+- **Buildings REST API** — full lifecycle and control surface at `/api/buildings`:
+  - `GET /` and `GET /:id` list and fetch buildings with database/SSH credentials redacted
+  - `POST /`, `PATCH /:id`, `DELETE /:id` (with `?cleanup=false` opt-out) create, partially update, and remove buildings. The server assigns `id`, `createdAt`, `lastActivity`, and initial `status`; client-supplied values for those fields are stripped
+  - `POST /:id/command` runs `start`/`stop`/`restart`/`healthCheck`/`logs`/`delete` against PM2, Docker, terminal, or custom-command buildings
+  - `GET /:id/logs?lines=&service=` returns a one-shot logs snapshot (capped at 5000 lines) for PM2, Docker (with optional compose service tag), or custom-command buildings
+  - `POST /:id/sync-status` forces a PM2/Docker/Terminal status refresh and broadcasts the result
+  - `POST /:id/subordinates` and `POST /boss/:id/command` (`start_all`/`stop_all`/`restart_all`) drive boss buildings
+  - `GET /docker/containers` lists adoptable containers and compose projects for `mode: 'existing'` Docker buildings
+- **Service-layer building CRUD** — `building-service` gains `createBuilding`, `updateBuilding`, `deleteBuilding`, `assignSubordinates`, `getBuildingLogs`, and a pure `validateBuilding` schema validator. Per-building reconciliation extracted into a shared `reconcileBuilding` helper used by both REST PATCH and the existing `sync_buildings` WebSocket flow
+- **`create-building` skill rewrite** — replaced direct `jq` edits of `buildings.json` with curl examples against the new REST API. Adds previously-undocumented examples for `link`, `monitor`, `folder`, custom-command servers, Docker `container`/`compose` modes, PostgreSQL/SQLite/SQL Server, SSH-tunneled databases, and PM2 cluster/restart options
+- 26 new tests in `routes/buildings.test.ts` covering validation, CRUD, command routing, secret redaction, boss controls, and subordinate cleanup on delete
+
+### Changed
+- **Buildings WebSocket protocol** — removed the never-implemented `create_building`, `update_building`, and `delete_building` client→server messages (handlers were no-ops). The REST API replaces them; the existing `sync_buildings` flow used by the UI is unchanged and now shares reconciliation code with the REST PATCH path
+
 ## [1.95.0] - 2026-05-14
 
 ### Added

@@ -6,667 +6,704 @@ const BT3 = '```';
 export const createBuilding: BuiltinSkillDefinition = {
   slug: 'create-building',
   name: 'Create Building',
-  description: 'Create and manage buildings and areas in Tide Commander with full control over configuration and placement',
-  allowedTools: ['Bash(jq:*)', 'Bash(curl:*)', 'Bash(cat:*)'],
+  description: 'Create, configure, control, and inspect buildings in Tide Commander via the /api/buildings REST API',
+  allowedTools: ['Bash(curl:*)', 'Bash(jq:*)'],
   content: `# Create Building Skill
 
-This skill enables you to create, configure, and manage buildings in Tide Commander's battlefield.
+This skill manages buildings in Tide Commander's battlefield through the
+REST API. The server validates input, assigns IDs, encrypts credentials,
+broadcasts updates to connected clients, and reconciles PM2 / Docker /
+Terminal runtime state. **Do not edit ${BT}buildings.json${BT} directly** — the
+server is the authority for that file.
 
-## IMPORTANT: Use PM2 Mode for All Server Buildings
+## API Calling Convention
 
-**Always use PM2 mode when possible** - it provides:
-- Auto-restart on crash
-- CPU/memory/PID tracking
-- Port auto-detection
-- Process persistence across restarts
-- Unified log streaming
-- Status monitoring
-
-Only use custom commands if PM2 cannot handle your use case.
-
-## Step 1: Explore Existing Buildings First
-
-Before creating a new building, ALWAYS examine existing ones for patterns and positioning:
+Every call uses the standard scaffolding from your system prompt:
 
 ${BT3}bash
-# List all buildings with their main properties
-jq '.buildings | map({name, type, cwd, "pm2_script": .pm2.script, status})' ~/.local/share/tide-commander/buildings.json
-
-# View a specific building's full config (use as template)
-jq '.buildings[] | select(.name == "Navi Back")' ~/.local/share/tide-commander/buildings.json
-
-# See all PM2 configurations
-jq '.buildings[] | select(.pm2.enabled == true) | {name, cwd, pm2}' ~/.local/share/tide-commander/buildings.json
-
-# See all boss buildings and their subordinates
-jq '.buildings[] | select(.type == "boss") | {name, subordinateBuildingIds}' ~/.local/share/tide-commander/buildings.json
-
-# Find buildings listening on specific ports
-jq '.buildings[] | select(.pm2.env.PORT != null) | {name, port: .pm2.env.PORT}' ~/.local/share/tide-commander/buildings.json
-
-# Count buildings by type
-jq '[.buildings[].type] | group_by(.) | map({type: .[0], count: length})' ~/.local/share/tide-commander/buildings.json
-
-# List all areas with positions (to know where to place buildings)
-jq '.areas | map({name, center, width, height})' ~/.local/share/tide-commander/areas.json
+curl -s -X <METHOD> -H "X-Auth-Token: <TOKEN>" \\
+  http://localhost:5174/api/buildings<path> \\
+  -H "Content-Type: application/json" -d '<json-body>'
 ${BT3}
 
-## Step 2: Create the Building
+The substitutions on every call:
+- ${BT}<METHOD>${BT} — HTTP verb (GET, POST, PATCH, DELETE)
+- ${BT}<path>${BT} — endpoint path (begins with ${BT}/${BT})
+- ${BT}<json-body>${BT} — JSON body (omit for GET/DELETE)
+- ${BT}<TOKEN>${BT} — the auth token from your system prompt
+- **No exclamation marks** anywhere in the command — bash history expansion will corrupt it.
 
-### Building Types
+## Endpoint Reference
 
-- **server**: PM2-managed service with start/stop/restart and log streaming
-- **database**: Database connection (MySQL 3306, PostgreSQL 5432, Oracle 1521)
-- **docker**: Docker container/compose management (container, compose, or existing mode)
-- **link**: Quick URL shortcuts
-- **folder**: Opens file explorer at configured path
-- **boss**: Manages group of subordinate buildings with unified controls
-- **monitor**: System metrics display
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET    | ${BT}/api/buildings${BT}                            | List all buildings (secrets redacted) |
+| GET    | ${BT}/api/buildings/:id${BT}                        | Get one building (secrets redacted) |
+| POST   | ${BT}/api/buildings${BT}                            | Create a building |
+| PATCH  | ${BT}/api/buildings/:id${BT}                        | Partial update |
+| DELETE | ${BT}/api/buildings/:id?cleanup=false${BT}          | Delete (default: tear down PM2/Docker/etc.) |
+| POST   | ${BT}/api/buildings/:id/command${BT}                | ${BT}{"command":"start|stop|restart|healthCheck|logs|delete"}${BT} |
+| GET    | ${BT}/api/buildings/:id/logs?lines=200&service=foo${BT} | Snapshot logs (PM2/Docker/custom) |
+| POST   | ${BT}/api/buildings/:id/sync-status${BT}            | Force PM2/Docker status refresh |
+| POST   | ${BT}/api/buildings/:id/subordinates${BT}           | ${BT}{"subordinateBuildingIds":[...]}${BT} (boss only) |
+| POST   | ${BT}/api/buildings/boss/:id/command${BT}           | ${BT}{"command":"start_all|stop_all|restart_all"}${BT} |
+| GET    | ${BT}/api/buildings/docker/containers${BT}          | List adoptable Docker containers and compose projects |
 
-### Building Styles
+The server assigns ${BT}id${BT}, ${BT}createdAt${BT}, ${BT}lastActivity${BT}, and initial
+${BT}status${BT}. Do not send them. POST returns the full building (201). PATCH
+returns the merged building. DELETE returns ${BT}{"deleted":true}${BT}.
 
-server-rack, tower, dome, pyramid, desktop, filing-cabinet, satellite, crystal, factory, command-center
+Validation failures return ${BT}400${BT} with ${BT}{"error":"Validation failed","errors":[...]}${BT}.
 
-## Real Examples from Existing Buildings
-
-### Bun/Node.js Service (Navi Back - Port 8008)
+## Step 1: Inspect what's there
 
 ${BT3}bash
-jq '.buildings += [{
-  "name": "Navi Back",
-  "type": "server",
-  "style": "server-rack",
-  "color": "#2a4a3a",
-  "position": {"x": 9.66, "z": -7.87},
-  "cwd": "/home/riven/d/navi/back",
-  "pm2": {
-    "enabled": true,
-    "script": "/home/riven/.bun/bin/bun",
-    "args": "run dev",
-    "interpreter": "none",
-    "env": {"PORT": "8008"}
-  },
-  "scale": 0.75,
-  "id": "building_1707471234567_navi_back",
-  "status": "stopped",
-  "createdAt": 1707471234567,
-  "lastActivity": 1707471234567
-}]' ~/.local/share/tide-commander/buildings.json > /tmp/b.json && mv /tmp/b.json ~/.local/share/tide-commander/buildings.json
+# List all buildings — filter with jq for readability
+curl -s -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  | jq '.buildings | map({id, name, type, status, cwd})'
+
+# One building's full config
+curl -s -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings/<id>
+
+# All PM2 buildings
+curl -s -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  | jq '.buildings[] | select(.pm2.enabled == true) | {name, port: .pm2.env.PORT, status}'
+
+# Existing Docker containers ready to be adopted (mode "existing")
+curl -s -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings/docker/containers \\
+  | jq '.containers | map({id: .id[0:12], name, image, status})'
 ${BT3}
 
-Key: Full path to Bun binary, interpreter "none", PORT via env var.
+## Step 2: Building schema
 
-### Symfony Service (MDO Back - Port 7200)
+These fields are accepted by ${BT}POST /api/buildings${BT}. ${BT}name${BT}, ${BT}type${BT}, and
+${BT}position${BT} are always required. Style defaults per type if omitted.
 
-${BT3}bash
-jq '.buildings += [{
-  "name": "MDO back",
-  "type": "server",
-  "style": "server-rack",
-  "color": "#2a3a3a",
-  "position": {"x": -11.67, "z": 2.55},
-  "cwd": "/home/riven/d/mdo/back",
-  "pm2": {
-    "enabled": true,
-    "script": "symfony",
-    "args": "server:start --allow-http --port=7200",
-    "interpreter": "none"
-  },
-  "scale": 0.75,
-  "id": "building_1769553740335_mdo_back",
-  "status": "stopped",
-  "createdAt": 1769553740335
-}]' ~/.local/share/tide-commander/buildings.json > /tmp/b.json && mv /tmp/b.json ~/.local/share/tide-commander/buildings.json
+${BT3}typescript
+{
+  name: string,                                       // Display name
+  type: 'server'|'link'|'database'|'docker'|'monitor'|'folder'|'boss'|'terminal',
+  position: { x: number, z: number },
+  style?: 'server-rack'|'tower'|'dome'|'pyramid'|'desktop'
+        | 'filing-cabinet'|'satellite'|'crystal'|'factory'|'command-center',
+  color?: string,                                     // Hex (e.g. "#4a90d9")
+  scale?: number,                                     // ~0.5 small, 1.0 large
+  cwd?: string,                                       // Working directory
+  pm2?:    { ... },                                   // Server type — see below
+  docker?: { ... },                                   // Docker type — see below
+  database?: { connections: [...] },                  // Database type
+  terminal?: { ... },                                 // Terminal type
+  folderPath?: string,                                // Folder type — required
+  urls?: [{ label, url }],                            // Link type — required
+  commands?: { start, stop, restart, healthCheck, logs },  // Non-PM2 server custom commands
+  subordinateBuildingIds?: string[],                  // Boss type
+}
 ${BT3}
 
-**Symfony-Specific Instructions:**
-- Script: "symfony" (requires Symfony CLI installed and in PATH)
-- Args: "server:start --allow-http --port=XXXX --no-tls"
-- --allow-http: Allows HTTP (use for dev). Remove for HTTPS
-- --no-tls: Disable TLS (useful for local dev behind proxy)
-- **IMPORTANT: Do NOT use --daemon flag** - PM2 needs the process to run in foreground. The --daemon flag causes Symfony to fork and exit, which PM2 interprets as a crash
-- Port goes in args, not env vars
-- PM2 auto-detects port from startup output
-- Note: Symfony server opens an extra port (42421 in example) for the server monitor
-- Tip: If PM2 shows "errored", check if a Symfony daemon is already running with: symfony server:status. Stop it with: symfony server:stop
+### PM2 sub-schema (server buildings)
 
-### PHP Built-in Server (Example - Port 7205)
-
-${BT3}bash
-jq '.buildings += [{
-  "name": "My PHP App",
-  "type": "server",
-  "style": "server-rack",
-  "color": "#2a3a4a",
-  "position": {"x": 0.77, "z": 3.96},
-  "cwd": "/home/riven/d/myapp",
-  "pm2": {
-    "enabled": true,
-    "script": "php",
-    "args": "-S 0.0.0.0:7205 -t public",
-    "interpreter": "none"
-  },
-  "scale": 0.75,
-  "id": "building_1770769766821_myapp",
-  "status": "stopped",
-  "createdAt": 1770769766821
-}]' ~/.local/share/tide-commander/buildings.json > /tmp/b.json && mv /tmp/b.json ~/.local/share/tide-commander/buildings.json
+${BT3}typescript
+pm2: {
+  enabled: true,
+  script: string,                                     // REQUIRED
+  args?: string,
+  interpreter?: ''|'node'|'bun'|'python3'|'python'|'java'|'php'|'bash'|'none',
+  interpreterArgs?: string,
+  env?: Record<string, string>,
+  instances?: number,                                 // Cluster mode (default 1)
+  autorestart?: boolean,                              // Default true
+  maxRestarts?: number,                               // Default 10
+  name?: string,                                      // Custom PM2 app name
+}
 ${BT3}
 
-**PHP Server-Specific Instructions:**
-- Script: "php" (built-in web server, no extra tools needed)
-- Args: "-S 0.0.0.0:PORT -t DOCROOT"
-- -S: Start server on address:port
-- -t: Document root directory
-- Use 0.0.0.0 to listen on all interfaces (accessible from network)
-- Port goes in args after -S flag
+### Docker sub-schema
 
-### Maven Java Project (Pagamento)
+${BT3}typescript
+docker: {
+  enabled: true,
+  mode: 'container' | 'compose' | 'existing',
 
-${BT3}bash
-jq '.buildings += [{
-  "name": "Pagamento",
-  "type": "server",
-  "style": "server-rack",
-  "color": "#3a2a3a",
-  "position": {"x": -11.85, "z": 9.59},
-  "cwd": "/home/riven/d/pagamento",
-  "pm2": {
-    "enabled": true,
-    "script": "mvn",
-    "args": "spring-boot:run -Dspring-boot.run.fork=false -Dspring-boot.run.profiles=dev",
-    "interpreter": "none"
-  },
-  "scale": 0.75,
-  "id": "building_1769555952700_pagamento",
-  "status": "stopped",
-  "createdAt": 1769555952700
-}]' ~/.local/share/tide-commander/buildings.json > /tmp/b.json && mv /tmp/b.json ~/.local/share/tide-commander/buildings.json
+  // mode === 'container' (REQUIRED: image)
+  image?: string,
+  containerName?: string,
+  ports?: string[],                                   // ["3000:3000"]
+  volumes?: string[],                                 // ["/host:/container"]
+  env?: Record<string, string>,
+  network?: string,
+  command?: string,
+  restart?: 'no'|'always'|'unless-stopped'|'on-failure',
+  pull?: 'always'|'missing'|'never',
+
+  // mode === 'compose' (REQUIRED: composePath)
+  composePath?: string,                               // Relative to cwd
+  services?: string[],
+  composeProject?: string,
+
+  // mode === 'existing' (REQUIRED: containerName from /docker/containers)
+}
 ${BT3}
 
-Key: Script "mvn" (Maven), PM2 auto-detects port from Spring Boot logs.
+### Database connection sub-schema
 
-### Shell Script Binary (ActiveMQ)
-
-${BT3}bash
-jq '.buildings += [{
-  "name": "ActiveMQ",
-  "type": "server",
-  "style": "filing-cabinet",
-  "color": "#2a2a4a",
-  "position": {"x": -7.30, "z": -0.15},
-  "cwd": "/opt/apache-activemq-6.2.0",
-  "pm2": {
-    "enabled": true,
-    "script": "./bin/activemq",
-    "args": "console",
-    "interpreter": "bash"
-  },
-  "scale": 0.5,
-  "id": "building_1769556341280_activemq",
-  "status": "stopped",
-  "createdAt": 1769556341280
-}]' ~/.local/share/tide-commander/buildings.json > /tmp/b.json && mv /tmp/b.json ~/.local/share/tide-commander/buildings.json
+${BT3}typescript
+database: {
+  activeConnectionId?: string,
+  activeDatabase?: string,
+  connections: [{
+    id: string,
+    name: string,
+    engine: 'mysql'|'postgresql'|'oracle'|'sqlite'|'mssql',
+    host: string,                                     // omit for sqlite
+    port: number,                                     // omit for sqlite
+    username?: string,
+    password?: string,                                // Encrypted at rest
+    database?: string,                                // Service/PDB name for Oracle
+    filepath?: string,                                // REQUIRED for sqlite
+    ssl?: boolean,
+    sslConfig?: { rejectUnauthorized, ca, cert, key },
+    ssh?: {                                           // Optional SSH tunnel
+      enabled: true,
+      host, port, username,
+      authMethod: 'password'|'privateKey',
+      password?, privateKey?, privateKeyPath?, passphrase?,
+      localPort?, keepaliveIntervalMs?, readyTimeoutMs?,
+    },
+  }],
+}
 ${BT3}
 
-Key: Relative path script, interpreter "bash" for shell scripts.
+### Terminal sub-schema
 
-### Concurrently (Tide Commander itself - Client + Server)
-
-${BT3}bash
-jq '.buildings += [{
-  "name": "Tide Commander",
-  "type": "server",
-  "style": "command-center",
-  "color": "#6a4a9a",
-  "position": {"x": 6.57, "z": 10.80},
-  "cwd": "/home/riven/d/tide-commander",
-  "pm2": {
-    "enabled": true,
-    "script": "/home/riven/.bun/bin/bun",
-    "args": "run dev",
-    "interpreter": "none",
-    "env": {"PORT": "5174", "LISTEN_ALL_INTERFACES": "1"}
-  },
-  "scale": 1.0,
-  "id": "building_1707471234571_tide_commander",
-  "status": "stopped",
-  "createdAt": 1707471234571
-}]' ~/.local/share/tide-commander/buildings.json > /tmp/b.json && mv /tmp/b.json ~/.local/share/tide-commander/buildings.json
+${BT3}typescript
+terminal: {
+  enabled: true,                                      // REQUIRED for type 'terminal'
+  shell?: string,                                     // Defaults to $SHELL or bash
+  port?: number,                                      // Auto-assigned from 7681+
+  args?: string,                                      // Extra ttyd args
+  saveSession?: boolean,                              // tmux-backed persistence
+  sessionName?: string,
+}
 ${BT3}
 
-Key: Full bun path, multiple env vars, uses concurrently internally.
+Default ports: MySQL 3306, PostgreSQL 5432, Oracle 1521, SQL Server 1433.
 
-### Bun Frontend with Port in Args (MDO Front - Port 6200)
+## Step 3: Create the building
 
-${BT3}bash
-jq '.buildings += [{
-  "name": "MDO front",
-  "type": "server",
-  "style": "desktop",
-  "color": "#3a3a4a",
-  "position": {"x": -9.5, "z": 2.55},
-  "cwd": "/home/riven/d/mdo/front",
-  "pm2": {
-    "enabled": true,
-    "script": "bun",
-    "args": "dev --port 6200",
-    "interpreter": "none"
-  },
-  "scale": 0.75,
-  "id": "building_1769553790570_mdo_front",
-  "status": "stopped",
-  "createdAt": 1769553790570
-}]' ~/.local/share/tide-commander/buildings.json > /tmp/b.json && mv /tmp/b.json ~/.local/share/tide-commander/buildings.json
-${BT3}
-
-**Bun with Port in Args:**
-- Script: "bun" (short name, assumes bun is in PATH)
-- Args: "dev --port XXXX" passes port directly to the dev server
-- No env var needed when the framework CLI accepts --port flag
-- Works with frameworks like Vite, Next.js, Nuxt where ${BT}bun dev --port${BT} is supported
-- Alternative: Use full path ${BT}/home/riven/.bun/bin/bun${BT} if bun is not in PATH
-
-### Vite + Bun Frontend (Wind Front - Port 6205)
+### Bun/Node service with PM2
 
 ${BT3}bash
-jq '.buildings += [{
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
   "name": "Wind Front",
   "type": "server",
   "style": "desktop",
   "color": "#4a3a2a",
   "position": {"x": -3.5, "z": -8.0},
-  "cwd": "/home/riven/d/wind/front",
+  "cwd": "/home/user/projects/wind/front",
   "pm2": {
     "enabled": true,
-    "script": "/home/riven/.bun/bin/bun",
+    "script": "/home/user/.bun/bin/bun",
     "args": "run dev",
     "interpreter": "none",
     "env": {"PORT": "6205"}
   },
-  "scale": 0.75,
-  "id": "building_1707471234572_wind_front",
-  "status": "stopped",
-  "createdAt": 1707471234572
-}]' ~/.local/share/tide-commander/buildings.json > /tmp/b.json && mv /tmp/b.json ~/.local/share/tide-commander/buildings.json
+  "scale": 0.75
+}'
 ${BT3}
 
-**Vite Frontend Configuration:**
-- Script: Full path to bun binary (or "npm" if using npm)
-- Args: "run dev" (Vite dev server command)
-- **IMPORTANT: Update vite.config.mjs to read PORT env var:**
-  - Add to server config: ${BT}port: parseInt(process.env.PORT || "6205", 10)${BT}
-  - Add: ${BT}host: true${BT} to allow network access
-  - Set ${BT}open: false${BT} to prevent auto-opening browser
-- Port passed via env var, not args
-- Tip: Check config with: cat vite.config.mjs | grep -A 5 "server:"
+For Vite frontends, the project's ${BT}vite.config.*${BT} must honour ${BT}process.env.PORT${BT}
+(otherwise PM2 sets the var but Vite ignores it).
 
-### Boss Building (Navi - Manages Back & Front)
+### Bun with port passed in args (no env var needed)
 
 ${BT3}bash
-jq '.buildings += [{
-  "name": "Navi",
-  "type": "boss",
-  "style": "command-center",
-  "color": "#4a4a6a",
-  "position": {"x": 11.36, "z": -9.77},
-  "cwd": "/home/riven/d/navi",
-  "commands": {},
-  "subordinateBuildingIds": [
-    "building_1707471234567_navi_back",
-    "building_1707471234568_navi_front"
-  ],
-  "scale": 0.6,
-  "id": "building_1707471234570_navi_boss",
-  "status": "running",
-  "createdAt": 1707471234570
-}]' ~/.local/share/tide-commander/buildings.json > /tmp/b.json && mv /tmp/b.json ~/.local/share/tide-commander/buildings.json
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
+  "name": "MDO Front",
+  "type": "server",
+  "position": {"x": -9.5, "z": 2.55},
+  "cwd": "/home/user/projects/mdo/front",
+  "pm2": { "enabled": true, "script": "bun", "args": "dev --port 6200", "interpreter": "none" }
+}'
 ${BT3}
 
-Key: subordinateBuildingIds must contain exact IDs of existing buildings.
-
-### Docker Existing Container (Postgres 18)
+### Symfony service (port in args, no --daemon)
 
 ${BT3}bash
-jq '.buildings += [{
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
+  "name": "MDO Back",
+  "type": "server",
+  "position": {"x": -11.67, "z": 2.55},
+  "cwd": "/home/user/projects/mdo/back",
+  "pm2": {
+    "enabled": true,
+    "script": "symfony",
+    "args": "server:start --allow-http --port=7200",
+    "interpreter": "none"
+  }
+}'
+${BT3}
+
+**Symfony notes:** never use ${BT}--daemon${BT} — Symfony forks and exits, PM2 marks it errored.
+If PM2 shows errored with "already running", stop the external daemon first:
+${BT}symfony server:stop${BT} from the project directory, then ${BT}POST .../command { start }${BT}.
+
+### PHP built-in server
+
+${BT3}bash
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
+  "name": "Laravel App",
+  "type": "server",
+  "position": {"x": 0.77, "z": 3.96},
+  "cwd": "/home/user/projects/laravel-app",
+  "pm2": { "enabled": true, "script": "php", "args": "-S 0.0.0.0:7205 -t public", "interpreter": "none" }
+}'
+${BT3}
+
+### Maven / Spring Boot
+
+${BT3}bash
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
+  "name": "Pagamento",
+  "type": "server",
+  "position": {"x": -11.85, "z": 9.59},
+  "cwd": "/home/user/projects/pagamento",
+  "pm2": {
+    "enabled": true, "script": "mvn", "interpreter": "none",
+    "args": "spring-boot:run -Dspring-boot.run.fork=false -Dspring-boot.run.profiles=dev"
+  }
+}'
+${BT3}
+
+### Shell-script server (ActiveMQ)
+
+${BT3}bash
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
+  "name": "ActiveMQ",
+  "type": "server",
+  "style": "filing-cabinet",
+  "position": {"x": -7.30, "z": -0.15},
+  "cwd": "/opt/apache-activemq-6.2.0",
+  "pm2": { "enabled": true, "script": "./bin/activemq", "args": "console", "interpreter": "bash" }
+}'
+${BT3}
+
+### Custom-command server (no PM2)
+
+For servers where PM2 doesn't fit, define ${BT}commands${BT} directly. Each command runs in
+${BT}cwd${BT}. Status transitions happen on command completion.
+
+${BT3}bash
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
+  "name": "Legacy Service",
+  "type": "server",
+  "position": {"x": 5, "z": 5},
+  "cwd": "/srv/legacy",
+  "commands": {
+    "start":       "./bin/start.sh",
+    "stop":        "./bin/stop.sh",
+    "restart":     "./bin/restart.sh",
+    "healthCheck": "curl -fs http://localhost:9000/health",
+    "logs":        "tail -n 200 /srv/legacy/log/app.log"
+  }
+}'
+${BT3}
+
+### Docker — new container
+
+${BT3}bash
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
+  "name": "Redis",
+  "type": "docker",
+  "style": "dome",
+  "position": {"x": -8, "z": -3},
+  "cwd": "/home/user/projects/tide-commander",
+  "docker": {
+    "enabled": true,
+    "mode": "container",
+    "image": "redis:7-alpine",
+    "ports": ["6379:6379"],
+    "restart": "unless-stopped"
+  }
+}'
+${BT3}
+
+### Docker — compose project
+
+${BT3}bash
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
+  "name": "App Stack",
+  "type": "docker",
+  "position": {"x": -10, "z": 0},
+  "cwd": "/home/user/projects/app",
+  "docker": {
+    "enabled": true,
+    "mode": "compose",
+    "composePath": "docker-compose.yml",
+    "services": ["web", "worker"]
+  }
+}'
+${BT3}
+
+### Docker — adopt existing container
+
+First discover ${BT}containerName${BT}:
+
+${BT3}bash
+curl -s -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings/docker/containers \\
+  | jq '.containers | map({name, image, status})'
+${BT3}
+
+Then adopt:
+
+${BT3}bash
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
   "name": "Postgres 18",
   "type": "docker",
   "style": "dome",
   "color": "#336699",
   "position": {"x": -11.49, "z": -2.31},
-  "cwd": "/home/riven/d/tide-commander",
-  "docker": {
-    "enabled": true,
-    "mode": "existing",
-    "containerId": "fc1e2a1e0481",
-    "containerName": "postgres18"
-  },
-  "scale": 0.6,
-  "id": "building_1707471234569_postgres",
-  "status": "stopped",
-  "createdAt": 1707471234569
-}]' ~/.local/share/tide-commander/buildings.json > /tmp/b.json && mv /tmp/b.json ~/.local/share/tide-commander/buildings.json
+  "cwd": "/home/user/projects/tide-commander",
+  "docker": { "enabled": true, "mode": "existing", "containerName": "postgres18" }
+}'
 ${BT3}
 
-Key: mode "existing" = monitor-only (won't delete container if building removed). Get containerId from "docker ps -a".
+Mode ${BT}existing${BT} is monitor-only: deleting the building never removes the container.
 
-### Database Building (MySQL)
+### Database — MySQL
 
 ${BT3}bash
-jq '.buildings += [{
-  "name": "MySql",
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
+  "name": "MySQL",
   "type": "database",
   "style": "dome",
   "position": {"x": -9.78, "z": -0.34},
-  "cwd": "/home/riven/d/tide-commander",
-  "commands": {},
   "database": {
     "connections": [{
-      "id": "conn_1769620529754_db",
-      "name": "Connection 1",
+      "id": "conn_mysql_prod",
+      "name": "Primary",
       "engine": "mysql",
       "host": "localhost",
       "port": 3306,
       "username": "root",
       "password": "root"
     }],
-    "activeConnectionId": "conn_1769620529754_db"
-  },
-  "id": "building_1769620533827_mysql",
-  "status": "stopped",
-  "createdAt": 1769620533827
-}]' ~/.local/share/tide-commander/buildings.json > /tmp/b.json && mv /tmp/b.json ~/.local/share/tide-commander/buildings.json
+    "activeConnectionId": "conn_mysql_prod"
+  }
+}'
 ${BT3}
 
-Key: Engines: mysql, postgresql, oracle. Each with host/port/username/password.
-
-### Database Building (Oracle)
+### Database — PostgreSQL
 
 ${BT3}bash
-jq '.buildings += [{
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
+  "name": "Postgres",
+  "type": "database",
+  "position": {"x": -8, "z": -0.34},
+  "database": {
+    "connections": [{
+      "id": "conn_pg_dev",
+      "name": "Dev",
+      "engine": "postgresql",
+      "host": "localhost",
+      "port": 5432,
+      "username": "postgres",
+      "password": "postgres",
+      "database": "appdb"
+    }]
+  }
+}'
+${BT3}
+
+### Database — Oracle
+
+${BT3}bash
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
   "name": "Oracle",
   "type": "database",
   "style": "factory",
-  "position": {"x": -8.0, "z": -0.34},
-  "cwd": "/home/riven/d/tide-commander",
-  "commands": {},
+  "position": {"x": -7, "z": -0.34},
   "database": {
     "connections": [{
-      "id": "conn_1769624485179_oracle",
-      "name": "Connection 1",
+      "id": "conn_ora_dev",
+      "name": "Dev",
       "engine": "oracle",
       "host": "127.0.0.1",
       "port": 1521,
-      "username": "MY_USER",
-      "password": "my_password",
+      "username": "APP_USER",
+      "password": "secret",
       "database": "ORCLPDB1"
-    }],
-    "activeConnectionId": "conn_1769624485179_oracle"
-  },
-  "id": "building_1769624489000_oracle",
-  "status": "stopped",
-  "createdAt": 1769624489000
-}]' ~/.local/share/tide-commander/buildings.json > /tmp/b.json && mv /tmp/b.json ~/.local/share/tide-commander/buildings.json
+    }]
+  }
+}'
 ${BT3}
 
-**Oracle-Specific:**
-- Engine: "oracle", default port: 1521
-- ${BT}database${BT} field: the PDB/service name (e.g., "ORCLPDB1")
-- Host: typically 127.0.0.1 for local Oracle XE/Docker instances
-
-### Terminal Building (ttyd Web Terminal)
+### Database — SQLite
 
 ${BT3}bash
-jq '.buildings += [{
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
+  "name": "Local Cache",
+  "type": "database",
+  "position": {"x": -6, "z": -0.34},
+  "database": {
+    "connections": [{
+      "id": "conn_sqlite",
+      "name": "cache.db",
+      "engine": "sqlite",
+      "filepath": "/home/user/projects/app/cache.db"
+    }]
+  }
+}'
+${BT3}
+
+### Database — with SSH tunnel
+
+${BT3}bash
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
+  "name": "Prod MySQL via Bastion",
+  "type": "database",
+  "position": {"x": -5, "z": -0.34},
+  "database": {
+    "connections": [{
+      "id": "conn_prod_via_ssh",
+      "name": "Prod",
+      "engine": "mysql",
+      "host": "10.0.0.5",
+      "port": 3306,
+      "username": "appuser",
+      "password": "secret",
+      "ssh": {
+        "enabled": true,
+        "host": "bastion.example.com",
+        "port": 22,
+        "username": "ops",
+        "authMethod": "privateKey",
+        "privateKeyPath": "/home/user/.ssh/bastion_ed25519"
+      }
+    }]
+  }
+}'
+${BT3}
+
+The ${BT}host${BT}/${BT}port${BT} are as seen *from the SSH server*. The server allocates a
+local forwarded port automatically unless you set ${BT}ssh.localPort${BT}.
+
+### Terminal (ttyd web shell)
+
+${BT3}bash
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
   "name": "Dev Terminal",
   "type": "terminal",
   "style": "desktop",
   "color": "#a855f7",
-  "position": {"x": -8.0, "z": 1.5},
-  "cwd": "/home/riven/d/my-project",
-  "terminal": {
-    "enabled": true,
-    "shell": "/bin/zsh",
-    "saveSession": true
-  },
-  "id": "building_1707471234569_devterm",
-  "status": "stopped",
-  "createdAt": 1707471234569
-}]' ~/.local/share/tide-commander/buildings.json > /tmp/b.json && mv /tmp/b.json ~/.local/share/tide-commander/buildings.json
+  "position": {"x": -8, "z": 1.5},
+  "cwd": "/home/user/projects/my-project",
+  "terminal": { "enabled": true, "shell": "/bin/zsh", "saveSession": true }
+}'
 ${BT3}
 
-Key: Requires ${BT}ttyd${BT} installed. ${BT}saveSession: true${BT} uses tmux for session persistence (requires ${BT}tmux${BT}). Port auto-assigned from 7681+. Click running terminal building to open in browser.
+Requires ${BT}ttyd${BT} installed; ${BT}saveSession: true${BT} also needs ${BT}tmux${BT}.
 
-## Step 3: Verify
+### Folder shortcut
 
 ${BT3}bash
-# Validate JSON
-jq empty ~/.local/share/tide-commander/buildings.json && echo "Valid JSON"
-
-# Count buildings
-jq '.buildings | length' ~/.local/share/tide-commander/buildings.json
-
-# Check the new building
-jq '.buildings[-1] | {name, type, status}' ~/.local/share/tide-commander/buildings.json
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
+  "name": "Projects",
+  "type": "folder",
+  "style": "filing-cabinet",
+  "position": {"x": 8, "z": -2},
+  "folderPath": "/home/user/projects"
+}'
 ${BT3}
 
-## Framework-Specific Configuration
+### Link shortcut
 
-### Symfony (PHP Framework)
-
-**Requirements:**
-- Symfony CLI must be installed and in PATH
-- Use "server:start" command (Symfony local web server)
-
-**Configuration:**
 ${BT3}bash
-"pm2": {
-  "enabled": true,
-  "script": "symfony",
-  "args": "server:start --allow-http --port=7200",
-  "interpreter": "none"
-}
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
+  "name": "Docs",
+  "type": "link",
+  "style": "tower",
+  "position": {"x": 10, "z": 0},
+  "urls": [{"label": "Internal Wiki", "url": "https://wiki.example.com"}]
+}'
 ${BT3}
 
-**Key Options:**
-- server:start: Start the Symfony local web server (runs in foreground - required for PM2)
-- --allow-http: Allow HTTP (remove for production/HTTPS)
-- --no-tls: Disable TLS certificate generation
-- --port=XXXX: Listening port
-- **NEVER use --daemon**: This forks the process and PM2 loses track of it
-- Extra ports: Symfony opens additional monitoring ports (e.g., 42421)
-- Auto-detects port from startup logs
+### Monitor
 
-**Debugging Symfony with PM2:**
 ${BT3}bash
-# Check if symfony CLI is installed
-symfony --version
-
-# Check if a daemon is already running (common cause of PM2 "errored" status)
-cd /path/to/symfony/project && symfony server:status
-
-# Stop any existing daemon before PM2 can manage it
-cd /path/to/symfony/project && symfony server:stop
-
-# Run manually to debug issues (foreground - same as PM2 will run it)
-cd /path/to/symfony/project && symfony server:start --allow-http --port=7200
-
-# View PM2 logs
-pm2 logs [building_name_from_pm2_list]
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
+  "name": "Host Metrics",
+  "type": "monitor",
+  "style": "satellite",
+  "position": {"x": 12, "z": 4}
+}'
 ${BT3}
 
-### PHP Built-in Server
+### Boss building
 
-**Requirements:**
-- PHP installed and in PATH
-- No extra tools needed
+Subordinates must already exist. Get their IDs from a ${BT}GET /api/buildings${BT} list first.
 
-**Configuration:**
 ${BT3}bash
-"pm2": {
-  "enabled": true,
-  "script": "php",
-  "args": "-S 0.0.0.0:7205 -t public",
-  "interpreter": "none"
-}
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings \\
+  -H "Content-Type: application/json" -d '{
+  "name": "Navi",
+  "type": "boss",
+  "style": "command-center",
+  "position": {"x": 11.36, "z": -9.77},
+  "subordinateBuildingIds": ["building_..._navi_back", "building_..._navi_front"]
+}'
 ${BT3}
 
-**Key Options:**
-- -S address:port: Bind server to address and port
-- 0.0.0.0: Listen on all interfaces (accessible from network)
-- localhost: Only accessible locally
-- -t docroot: Document root (where index.php is)
+To change the subordinate list later:
 
-**Ideal for:**
-- Laravel projects (document root: "public")
-- Custom PHP apps
-- Quick prototypes
-- Development only (not production-grade)
+${BT3}bash
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" \\
+  http://localhost:5174/api/buildings/<boss-id>/subordinates \\
+  -H "Content-Type: application/json" \\
+  -d '{"subordinateBuildingIds": ["<id1>", "<id2>"]}'
+${BT3}
 
-## Lessons Learned from Real Deployments
+## Step 4: Control buildings
 
-### Symfony Server with PM2
-- **Problem**: Symfony server with ${BT}--daemon${BT} forks to background and exits immediately. PM2 sees the parent exit and marks the process as "errored" or "stopped"
-- **Solution**: Do NOT use ${BT}--daemon${BT} flag. PM2 must be the process manager, so Symfony must run in foreground: ${BT}server:start --allow-http --port=7200${BT}
-- **Debugging**: If PM2 shows "errored" with "already running" in logs, a Symfony daemon is running outside PM2. Stop it first: ${BT}cd /project/dir && symfony server:stop${BT}, then restart via PM2
-- **Port Monitoring**: Opens main port + monitor port (e.g., 7205 + 42421)
+### Start / stop / restart
 
-### Vite Configuration for Environment Variables
-- **Problem**: PORT env var set in PM2 but Vite ignores it (uses hardcoded port)
-- **Solution**: Update vite.config.mjs to read PORT from process.env:
-  - ${BT3}javascript
-  - server: {
-  -   port: parseInt(process.env.PORT || "6205", 10),
-  -   open: false,
-  -   host: true,
-  - }
-  - ${BT3}
-- **Verification**: ${BT}ss -tlnp | grep PORT_NUMBER${BT} shows process listening
-- **Tip**: Set ${BT}open: false${BT} to prevent browser pop-ups in headless environments
+${BT3}bash
+# Start a single building
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" \\
+  http://localhost:5174/api/buildings/<id>/command \\
+  -H "Content-Type: application/json" -d '{"command":"start"}'
 
-### Binary Corruption Issues
-- **Problem**: Bun binary shows "cannot execute binary file" errors
-- **Solution**: Reinstall with ${BT}curl -fsSL https://bun.sh/install | bash${BT}
-- **Verification**: ${BT}bun --version${BT} returns version number
+# Stop
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" \\
+  http://localhost:5174/api/buildings/<id>/command \\
+  -H "Content-Type: application/json" -d '{"command":"stop"}'
 
-## PM2 Configuration Rules
+# Restart
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" \\
+  http://localhost:5174/api/buildings/<id>/command \\
+  -H "Content-Type: application/json" -d '{"command":"restart"}'
+${BT3}
 
-1. **Always use PM2 mode** for server buildings (pm2.enabled: true)
-2. **Script paths**:
-   - Full path for binaries not in PATH: /home/riven/.bun/bin/bun
-   - Short name for PATH tools: symfony, php, mvn, node, bun
-   - Relative path for project scripts: ./bin/activemq
-3. **Interpreter values**:
-   - "none": Direct binary execution (most common - php, mvn, symfony, bun)
-   - "bash": Shell scripts needing interpretation
-   - "node": Explicitly running a .js file
-4. **Port strategy**:
-   - Vite/Node apps: set via env var (PORT)
-   - PHP/Symfony/Java: set via args (--port=XXXX or -S ADDR:PORT)
-   - PM2 auto-detects ports from console output
-5. **Special cases**:
-   - Symfony: Do NOT use --daemon (PM2 needs foreground process)
-   - Vite: Update vite.config.mjs to read PORT env var
-   - Full bun path: Use /home/riven/.bun/bin/bun (not just "bun")
+Response: ${BT}{"success": true|false, "error?": "..."}${BT}. Status updates broadcast to
+the UI separately — the response only confirms the command was dispatched.
 
-## Important Notes
+### Health check
 
-- File: ~/.local/share/tide-commander/buildings.json
-- IDs must be unique: building_<timestamp>_<name>
-- Scale: 0.5 (small), 0.75 (normal), 1.0 (large)
-- Always validate JSON after modifications
-- Refresh Tide Commander UI to see new buildings
-- Check "pm2 list" to verify building started correctly
-- Position buildings inside their designated area (check areas.json for coordinates)
+${BT3}bash
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" \\
+  http://localhost:5174/api/buildings/<id>/command \\
+  -H "Content-Type: application/json" -d '{"command":"healthCheck"}'
+${BT3}
 
----
+For PM2 buildings this checks the process is ${BT}online${BT}. For Docker buildings it
+checks ${BT}status === 'running'${BT} and health check passing. For custom-command
+buildings it runs ${BT}commands.healthCheck${BT}.
 
-## Area Management
+### Refresh status without running a command
 
-Areas are project zones on the battlefield that group agents and buildings. File: ~/.local/share/tide-commander/areas.json
+${BT3}bash
+# Pulls the latest PM2/Docker/Terminal status now, updates the building, broadcasts
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" \\
+  http://localhost:5174/api/buildings/<id>/sync-status
+${BT3}
 
-### Area Schema (DrawingArea)
+### Boss controls (start_all / stop_all / restart_all)
 
-**CRITICAL: Follow this schema exactly. Incorrect fields will crash the application.**
+${BT3}bash
+curl -s -X POST -H "X-Auth-Token: <TOKEN>" \\
+  http://localhost:5174/api/buildings/boss/<boss-id>/command \\
+  -H "Content-Type: application/json" -d '{"command":"start_all"}'
+${BT3}
 
-${BT3}typescript
+## Step 5: Inspect logs
+
+${BT3}bash
+# Snapshot the last 200 lines (default), works for PM2, Docker, and custom-command buildings
+curl -s -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings/<id>/logs
+
+# Last N lines (capped at 5000)
+curl -s -H "X-Auth-Token: <TOKEN>" "http://localhost:5174/api/buildings/<id>/logs?lines=500"
+
+# Compose-specific service
+curl -s -H "X-Auth-Token: <TOKEN>" \\
+  "http://localhost:5174/api/buildings/<id>/logs?lines=200&service=web"
+${BT3}
+
+Response: ${BT}{"source": "pm2"|"docker"|"custom"|"none", "logs": "...", "lines": N}${BT}.
+
+Live tail-following is **not** exposed over REST — the UI uses WebSocket
+streaming for that. Use the snapshot endpoint for debugging.
+
+## Step 6: Update or delete
+
+${BT3}bash
+# Partial update — only send the fields that change
+curl -s -X PATCH -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings/<id> \\
+  -H "Content-Type: application/json" -d '{"position": {"x": 5.0, "z": -2.5}}'
+
+# Change a PM2 env var (the server will restart the process if it was running)
+curl -s -X PATCH -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings/<id> \\
+  -H "Content-Type: application/json" \\
+  -d '{"pm2": {"enabled": true, "script": "bun", "args": "run dev", "env": {"PORT": "6206"}}}'
+
+# Delete (default: tears down PM2 process, Docker container, terminal, DB tunnel)
+curl -s -X DELETE -H "X-Auth-Token: <TOKEN>" http://localhost:5174/api/buildings/<id>
+
+# Delete record only, leave runtime artefacts (e.g. when adopting elsewhere)
+curl -s -X DELETE -H "X-Auth-Token: <TOKEN>" \\
+  "http://localhost:5174/api/buildings/<id>?cleanup=false"
+${BT3}
+
+PATCH triggers reconciliation: if you change ${BT}pm2.script${BT}, ${BT}pm2.args${BT},
+${BT}pm2.env${BT}, ${BT}cwd${BT}, or anything the PM2 process name derives from, the running
+process is removed and restarted (if it was online). Docker container changes
+behave the same way. DB tunnel SSH/host/port changes close the tunnel.
+
+## Validation
+
+Validation errors come back as ${BT}400${BT} with a list:
+
+${BT3}json
 {
-  "id": string,                    // Unique ID (e.g., "my-project-area")
-  "name": string,                  // Display name
-  "type": "rectangle" | "circle",  // REQUIRED - shape type
-  "center": { "x": number, "z": number },  // REQUIRED - center position (NOT flat x/z)
-  "width": number,                 // Rectangle only - width in world units
-  "height": number,                // Rectangle only - height in world units (NOT "depth")
-  "radius": number,                // Circle only - radius in world units
-  "color": string,                 // Hex color (e.g., "#4a90d9")
-  "zIndex": number,                // Stacking order (0 = bottom, higher = on top)
-  "assignedAgentIds": string[],    // Agent IDs assigned to this area
-  "directories": string[],        // Associated directory paths
-  "prompt": string                 // Optional - area-level system prompt for assigned agents
+  "error": "Validation failed",
+  "errors": [
+    "pm2.script is required when pm2.enabled is true",
+    "position is required ({x: number, z: number})"
+  ]
 }
 ${BT3}
 
-**Common mistakes to avoid:**
-- Do NOT use flat ${BT}"x"${BT} and ${BT}"z"${BT} at root level — use ${BT}"center": {"x": ..., "z": ...}${BT}
-- Do NOT use ${BT}"depth"${BT} — use ${BT}"height"${BT}
-- Do NOT omit ${BT}"type"${BT} — always specify ${BT}"rectangle"${BT} or ${BT}"circle"${BT}
+Cross-building checks (e.g. dangling ${BT}subordinateBuildingIds${BT}) also fail at 400.
 
-### Create a Rectangle Area
+## Conventions and tips
 
-${BT3}bash
-jq '.areas += [{
-  "id": "my-project-area",
-  "name": "My Project",
-  "type": "rectangle",
-  "center": {"x": 0, "z": 0},
-  "width": 12,
-  "height": 10,
-  "color": "#4a90d9",
-  "zIndex": 0,
-  "assignedAgentIds": [],
-  "directories": []
-}]' ~/.local/share/tide-commander/areas.json > /tmp/a.json && mv /tmp/a.json ~/.local/share/tide-commander/areas.json
-${BT3}
-
-### Create a Circle Area
-
-${BT3}bash
-jq '.areas += [{
-  "id": "ops-area",
-  "name": "Operations",
-  "type": "circle",
-  "center": {"x": 10, "z": -5},
-  "radius": 6,
-  "color": "#d94a4a",
-  "zIndex": 0,
-  "assignedAgentIds": [],
-  "directories": []
-}]' ~/.local/share/tide-commander/areas.json > /tmp/a.json && mv /tmp/a.json ~/.local/share/tide-commander/areas.json
-${BT3}
-
-### List Existing Areas
-
-${BT3}bash
-jq '.areas | map({id, name, type, center, width, height, radius})' ~/.local/share/tide-commander/areas.json
-${BT3}
-
-### Assign Agents to an Area
-
-${BT3}bash
-jq '(.areas[] | select(.id == "my-project-area")).assignedAgentIds += ["agent-id-here"]' ~/.local/share/tide-commander/areas.json > /tmp/a.json && mv /tmp/a.json ~/.local/share/tide-commander/areas.json
-${BT3}
-
-### Add Area-Level Prompt
-
-${BT3}bash
-jq '(.areas[] | select(.id == "my-project-area")).prompt = "Always run tests before committing"' ~/.local/share/tide-commander/areas.json > /tmp/a.json && mv /tmp/a.json ~/.local/share/tide-commander/areas.json
-${BT3}
-
-### Verify
-
-${BT3}bash
-jq empty ~/.local/share/tide-commander/areas.json && echo "Valid JSON"
-jq '.areas | length' ~/.local/share/tide-commander/areas.json
-${BT3}
+- **IDs** are server-assigned: ${BT}building_<timestamp>_<name-slug>${BT}. Don't pass them on POST.
+- **${BT}status${BT}** is also server-managed — agents don't set it. Use the command
+  endpoint to change runtime state.
+- **${BT}scale${BT}** is a free number; typical values 0.5 / 0.75 / 1.0 are guidance, not a constraint.
+- **Position** should fall inside the building's intended area. Inspect zones
+  with ${BT}curl /api/areas | jq '.[] | {id, name, center, width, height, radius}'${BT}.
+- **Credentials** (DB passwords, SSH keys) are encrypted at rest. Send plaintext
+  in the body; GET responses return ${BT}hasPassword: true${BT} flags instead of the value.
+- **${BT}buildings.json${BT}** is server-owned. Reading it directly is fine; writing it
+  is not — your edits will be overwritten by the next client sync.
 `,
 };

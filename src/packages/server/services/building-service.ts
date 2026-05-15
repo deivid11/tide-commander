@@ -6,9 +6,17 @@
 
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import type { Building, ServerMessage, BuildingStatus } from '../../shared/types.js';
+import type {
+  Building,
+  BuildingStatus,
+  BuildingStyle,
+  BuildingType,
+  DatabaseEngine,
+  PM2Interpreter,
+  ServerMessage,
+} from '../../shared/types.js';
 import { loadBuildings, saveBuildings } from '../data/index.js';
-import { createLogger } from '../utils/index.js';
+import { createLogger, generateId } from '../utils/index.js';
 import * as pm2Service from './pm2-service.js';
 import * as dockerService from './docker-service.js';
 import * as terminalService from './terminal-service.js';
@@ -24,6 +32,15 @@ export interface BuildingCommandResult {
   success: boolean;
   error?: string;
   logs?: string;
+}
+
+export type CrudResult<T> =
+  | { ok: true; building: T }
+  | { ok: false; status: number; errors: string[] };
+
+export interface ValidationResult {
+  ok: boolean;
+  errors: string[];
 }
 
 /**
@@ -1090,6 +1107,104 @@ export function cleanupAllTerminals(): void {
 }
 
 /**
+ * Reconcile runtime state for a single building when its config changes.
+ * Handles PM2 rename/restart, Docker rename/restart, and database tunnel teardown.
+ * Shared by handleBuildingSync (full sync from client) and updateBuilding (REST patch).
+ */
+async function reconcileBuilding(oldBuilding: Building, newBuilding: Building): Promise<void> {
+  if (newBuilding.pm2?.enabled && oldBuilding.pm2?.enabled) {
+    const oldPM2Name = pm2Service.getPM2Name(oldBuilding);
+    const newPM2Name = pm2Service.getPM2Name(newBuilding);
+    const nameChanged = oldPM2Name !== newPM2Name;
+    const configChanged = hasPM2ConfigChanged(oldBuilding, newBuilding);
+
+    if (nameChanged || configChanged) {
+      const changeType = nameChanged ? 'name' : 'config';
+      log.log(`Building ${newBuilding.id}: PM2 ${changeType} changed`);
+
+      const oldStatus = await pm2Service.getStatus(oldBuilding);
+      const wasRunning = oldStatus?.status === 'online';
+
+      await pm2Service.deleteProcess(oldBuilding);
+      log.log(`Deleted old PM2 process: ${oldPM2Name}`);
+
+      if (wasRunning) {
+        const result = await pm2Service.startProcess(newBuilding);
+        if (result.success) {
+          log.log(`Started PM2 process with new ${changeType}: ${newPM2Name}`);
+        } else {
+          log.error(`Failed to start PM2 process ${newPM2Name}: ${result.error}`);
+        }
+      }
+    }
+  }
+
+  // Database connection changes — tear down tunnels for connections that
+  // were removed or whose SSH config materially changed.
+  if (oldBuilding.type === 'database') {
+    const oldConns = oldBuilding.database?.connections || [];
+    const newConns = newBuilding.type === 'database'
+      ? (newBuilding.database?.connections || [])
+      : [];
+    const newConnsById = new Map(newConns.map(c => [c.id, c]));
+    for (const oldConn of oldConns) {
+      const fresh = newConnsById.get(oldConn.id);
+      if (!fresh) {
+        await databaseService.closeConnection(oldConn.id);
+        continue;
+      }
+      const oldKey = JSON.stringify({
+        ssh: oldConn.ssh ?? null,
+        host: oldConn.host,
+        port: oldConn.port,
+      });
+      const newKey = JSON.stringify({
+        ssh: fresh.ssh ?? null,
+        host: fresh.host,
+        port: fresh.port,
+      });
+      if (oldKey !== newKey) {
+        await databaseService.closeConnection(oldConn.id);
+      }
+    }
+  }
+
+  if (newBuilding.docker?.enabled && oldBuilding.docker?.enabled) {
+    const oldContainerName = dockerService.getContainerName(oldBuilding);
+    const newContainerName = dockerService.getContainerName(newBuilding);
+    const nameChanged = oldContainerName !== newContainerName;
+    const configChanged = hasDockerConfigChanged(oldBuilding, newBuilding);
+
+    if (nameChanged || configChanged) {
+      const changeType = nameChanged ? 'name' : 'config';
+      log.log(`Building ${newBuilding.id}: Docker ${changeType} changed`);
+
+      const oldStatus = await dockerService.getStatus(oldBuilding);
+      const wasRunning = oldStatus?.status === 'running';
+
+      if (oldBuilding.docker.mode === 'compose') {
+        await dockerService.composeDown(oldBuilding);
+      } else {
+        await dockerService.removeContainer(oldBuilding);
+      }
+      log.log(`Removed old Docker container: ${oldContainerName}`);
+
+      if (wasRunning) {
+        const result = newBuilding.docker.mode === 'compose'
+          ? await dockerService.composeUp(newBuilding)
+          : await dockerService.startContainer(newBuilding);
+
+        if (result.success) {
+          log.log(`Started Docker container with new ${changeType}: ${newContainerName}`);
+        } else {
+          log.error(`Failed to start Docker container ${newContainerName}: ${result.error}`);
+        }
+      }
+    }
+  }
+}
+
+/**
  * Handle building sync - detect PM2/Docker name/config changes and update processes
  * Called when buildings are synced from the client
  */
@@ -1114,108 +1229,390 @@ export async function handleBuildingSync(
 
   for (const newBuilding of newBuildings) {
     const oldBuilding = oldBuildingsMap.get(newBuilding.id);
-
-    // Check if this is a PM2-enabled building
-    if (oldBuilding && newBuilding.pm2?.enabled && oldBuilding.pm2?.enabled) {
-      const oldPM2Name = pm2Service.getPM2Name(oldBuilding);
-      const newPM2Name = pm2Service.getPM2Name(newBuilding);
-      const nameChanged = oldPM2Name !== newPM2Name;
-      const configChanged = hasPM2ConfigChanged(oldBuilding, newBuilding);
-
-      log.log(`Building ${newBuilding.name}: nameChanged=${nameChanged}, configChanged=${configChanged}`);
-      log.log(`  Old args: "${oldBuilding.pm2?.args}", New args: "${newBuilding.pm2?.args}"`);
-      log.log(`  Old script: "${oldBuilding.pm2?.script}", New script: "${newBuilding.pm2?.script}"`);
-
-      if (nameChanged || configChanged) {
-        const changeType = nameChanged ? 'name' : 'config';
-        log.log(`Building ${newBuilding.id}: PM2 ${changeType} changed`);
-
-        // Check if the old process is running
-        const oldStatus = await pm2Service.getStatus(oldBuilding);
-        const wasRunning = oldStatus?.status === 'online';
-
-        // Delete the old PM2 process
-        await pm2Service.deleteProcess(oldBuilding);
-        log.log(`Deleted old PM2 process: ${oldPM2Name}`);
-
-        // If it was running, start the new one with updated config
-        if (wasRunning) {
-          const result = await pm2Service.startProcess(newBuilding);
-          if (result.success) {
-            log.log(`Started PM2 process with new ${changeType}: ${newPM2Name}`);
-          } else {
-            log.error(`Failed to start PM2 process ${newPM2Name}: ${result.error}`);
-          }
-        }
-      }
+    if (oldBuilding) {
+      await reconcileBuilding(oldBuilding, newBuilding);
     }
+  }
+}
 
-    // Database connection changes — tear down tunnels for connections that
-    // were removed or whose SSH config materially changed.
-    if (oldBuilding && oldBuilding.type === 'database') {
-      const oldConns = oldBuilding.database?.connections || [];
-      const newConns = newBuilding.type === 'database'
-        ? (newBuilding.database?.connections || [])
-        : [];
-      const newConnsById = new Map(newConns.map(c => [c.id, c]));
-      for (const oldConn of oldConns) {
-        const fresh = newConnsById.get(oldConn.id);
-        if (!fresh) {
-          await databaseService.closeConnection(oldConn.id);
-          continue;
-        }
-        const oldKey = JSON.stringify({
-          ssh: oldConn.ssh ?? null,
-          host: oldConn.host,
-          port: oldConn.port,
-        });
-        const newKey = JSON.stringify({
-          ssh: fresh.ssh ?? null,
-          host: fresh.host,
-          port: fresh.port,
-        });
-        if (oldKey !== newKey) {
-          await databaseService.closeConnection(oldConn.id);
-        }
-      }
+// ============================================================================
+// Validation & CRUD (Phase 1 - REST API support)
+// ============================================================================
+
+const VALID_TYPES: ReadonlySet<BuildingType> = new Set<BuildingType>([
+  'server', 'link', 'database', 'docker', 'monitor', 'folder', 'boss', 'terminal',
+]);
+
+const VALID_STYLES: ReadonlySet<BuildingStyle> = new Set<BuildingStyle>([
+  'server-rack', 'tower', 'dome', 'pyramid', 'desktop',
+  'filing-cabinet', 'satellite', 'crystal', 'factory', 'command-center',
+]);
+
+const VALID_INTERPRETERS: ReadonlySet<PM2Interpreter> = new Set<PM2Interpreter>([
+  '', 'node', 'bun', 'python3', 'python', 'java', 'php', 'bash', 'none',
+]);
+
+const VALID_DOCKER_MODES: ReadonlySet<'container' | 'compose' | 'existing'> = new Set([
+  'container', 'compose', 'existing',
+]);
+
+const VALID_DB_ENGINES: ReadonlySet<DatabaseEngine> = new Set<DatabaseEngine>([
+  'mysql', 'postgresql', 'oracle', 'sqlite', 'mssql',
+]);
+
+const DEFAULT_STYLE_BY_TYPE: Record<BuildingType, BuildingStyle> = {
+  server: 'server-rack',
+  link: 'tower',
+  database: 'dome',
+  docker: 'crystal',
+  monitor: 'satellite',
+  folder: 'filing-cabinet',
+  boss: 'command-center',
+  terminal: 'desktop',
+};
+
+function generateBuildingId(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 40);
+  return `building_${Date.now()}_${slug || generateId()}`;
+}
+
+/**
+ * Pure schema validator. Does not consult other buildings (cross-building
+ * checks like dangling boss subordinates happen in createBuilding/updateBuilding).
+ */
+export function validateBuilding(input: Partial<Building>): ValidationResult {
+  const errors: string[] = [];
+
+  if (typeof input.name !== 'string' || !input.name.trim()) {
+    errors.push('name is required (non-empty string)');
+  }
+
+  if (!input.type || !VALID_TYPES.has(input.type)) {
+    errors.push(`type must be one of: ${[...VALID_TYPES].join(', ')}`);
+  }
+
+  if (input.style && !VALID_STYLES.has(input.style)) {
+    errors.push(`style must be one of: ${[...VALID_STYLES].join(', ')}`);
+  }
+
+  if (!input.position
+      || typeof input.position.x !== 'number'
+      || typeof input.position.z !== 'number') {
+    errors.push('position is required ({x: number, z: number})');
+  }
+
+  if (input.pm2?.enabled) {
+    if (!input.pm2.script || typeof input.pm2.script !== 'string') {
+      errors.push('pm2.script is required when pm2.enabled is true');
     }
+    if (input.pm2.interpreter !== undefined && !VALID_INTERPRETERS.has(input.pm2.interpreter)) {
+      const allowed = [...VALID_INTERPRETERS].filter(i => i).join(', ');
+      errors.push(`pm2.interpreter must be one of: ${allowed} (or "" for auto-detect)`);
+    }
+  }
 
-    // Check if this is a Docker-enabled building
-    if (oldBuilding && newBuilding.docker?.enabled && oldBuilding.docker?.enabled) {
-      const oldContainerName = dockerService.getContainerName(oldBuilding);
-      const newContainerName = dockerService.getContainerName(newBuilding);
-      const nameChanged = oldContainerName !== newContainerName;
-      const configChanged = hasDockerConfigChanged(oldBuilding, newBuilding);
+  if (input.docker?.enabled) {
+    if (!input.docker.mode || !VALID_DOCKER_MODES.has(input.docker.mode)) {
+      errors.push(`docker.mode must be one of: ${[...VALID_DOCKER_MODES].join(', ')}`);
+    }
+    if (input.docker.mode === 'container' && !input.docker.image) {
+      errors.push('docker.image is required when docker.mode is "container"');
+    }
+    if (input.docker.mode === 'compose' && !input.docker.composePath) {
+      errors.push('docker.composePath is required when docker.mode is "compose"');
+    }
+    if (input.docker.mode === 'existing' && !input.docker.containerName) {
+      errors.push('docker.containerName is required when docker.mode is "existing"');
+    }
+  }
 
-      if (nameChanged || configChanged) {
-        const changeType = nameChanged ? 'name' : 'config';
-        log.log(`Building ${newBuilding.id}: Docker ${changeType} changed`);
-
-        // Check if the old container is running
-        const oldStatus = await dockerService.getStatus(oldBuilding);
-        const wasRunning = oldStatus?.status === 'running';
-
-        // Remove the old container
-        if (oldBuilding.docker.mode === 'compose') {
-          await dockerService.composeDown(oldBuilding);
-        } else {
-          await dockerService.removeContainer(oldBuilding);
+  if (input.type === 'database') {
+    const conns = input.database?.connections;
+    if (!Array.isArray(conns) || conns.length === 0) {
+      errors.push('database.connections must be a non-empty array for database buildings');
+    } else {
+      for (const conn of conns) {
+        const label = conn.id || conn.name || '(unnamed)';
+        if (!conn.id) errors.push(`database.connection ${label}: id is required`);
+        if (!conn.name) errors.push(`database.connection ${label}: name is required`);
+        if (!conn.engine || !VALID_DB_ENGINES.has(conn.engine)) {
+          errors.push(`database.connection ${label}: engine must be one of ${[...VALID_DB_ENGINES].join(', ')}`);
         }
-        log.log(`Removed old Docker container: ${oldContainerName}`);
-
-        // If it was running, start the new one with updated config
-        if (wasRunning) {
-          const result = newBuilding.docker.mode === 'compose'
-            ? await dockerService.composeUp(newBuilding)
-            : await dockerService.startContainer(newBuilding);
-
-          if (result.success) {
-            log.log(`Started Docker container with new ${changeType}: ${newContainerName}`);
-          } else {
-            log.error(`Failed to start Docker container ${newContainerName}: ${result.error}`);
+        if (conn.engine === 'sqlite') {
+          if (!conn.filepath) {
+            errors.push(`database.connection ${label}: filepath is required for sqlite`);
           }
+        } else if (conn.engine) {
+          if (!conn.host) errors.push(`database.connection ${label}: host is required for ${conn.engine}`);
+          if (typeof conn.port !== 'number') errors.push(`database.connection ${label}: port must be a number for ${conn.engine}`);
         }
       }
     }
   }
+
+  if (input.type === 'terminal' && !input.terminal?.enabled) {
+    errors.push('terminal.enabled must be true for terminal buildings');
+  }
+
+  if (input.type === 'folder' && !input.folderPath) {
+    errors.push('folderPath is required for folder buildings');
+  }
+
+  if (input.type === 'link' && (!input.urls || input.urls.length === 0)) {
+    errors.push('urls is required (non-empty array) for link buildings');
+  }
+
+  return { ok: errors.length === 0, errors };
+}
+
+/**
+ * Create a new building. Server assigns id, createdAt, and initial status.
+ * Validates schema and cross-building references (boss subordinates).
+ */
+export async function createBuilding(
+  input: Partial<Building>,
+  broadcast: BroadcastFn
+): Promise<CrudResult<Building>> {
+  const validation = validateBuilding(input);
+  if (!validation.ok) {
+    return { ok: false, status: 400, errors: validation.errors };
+  }
+
+  const buildings = loadBuildings();
+
+  if (input.type === 'boss' && input.subordinateBuildingIds?.length) {
+    const existingIds = new Set(buildings.map(b => b.id));
+    const dangling = input.subordinateBuildingIds.filter(id => !existingIds.has(id));
+    if (dangling.length > 0) {
+      return {
+        ok: false,
+        status: 400,
+        errors: [`subordinateBuildingIds reference unknown buildings: ${dangling.join(', ')}`],
+      };
+    }
+  }
+
+  const now = Date.now();
+  const building: Building = {
+    ...(input as Building),
+    id: generateBuildingId(input.name!),
+    createdAt: now,
+    lastActivity: now,
+    status: 'stopped',
+    style: input.style || DEFAULT_STYLE_BY_TYPE[input.type!],
+  };
+
+  buildings.push(building);
+  saveBuildings(buildings);
+
+  broadcast({ type: 'building_created', payload: building });
+  log.log(`Created building ${building.name} (${building.id})`);
+
+  return { ok: true, building };
+}
+
+/**
+ * Update an existing building. Strips server-managed fields from the patch,
+ * runs the same validation as create, and reconciles runtime state
+ * (PM2 / Docker / DB tunnels) if relevant fields changed.
+ */
+export async function updateBuilding(
+  id: string,
+  patch: Partial<Building>,
+  broadcast: BroadcastFn
+): Promise<CrudResult<Building>> {
+  const buildings = loadBuildings();
+  const idx = buildings.findIndex(b => b.id === id);
+  if (idx === -1) {
+    return { ok: false, status: 404, errors: [`Building not found: ${id}`] };
+  }
+
+  const oldBuilding = buildings[idx];
+
+  // Strip server-managed fields from the patch — clients cannot change them.
+  const safePatch = { ...patch };
+  delete safePatch.id;
+  delete safePatch.createdAt;
+  delete safePatch.pm2Status;
+  delete safePatch.dockerStatus;
+  delete safePatch.terminalStatus;
+
+  const newBuilding: Building = {
+    ...oldBuilding,
+    ...safePatch,
+    id: oldBuilding.id,
+    createdAt: oldBuilding.createdAt,
+    lastActivity: Date.now(),
+  };
+
+  const validation = validateBuilding(newBuilding);
+  if (!validation.ok) {
+    return { ok: false, status: 400, errors: validation.errors };
+  }
+
+  if (newBuilding.type === 'boss' && newBuilding.subordinateBuildingIds?.length) {
+    const existingIds = new Set(buildings.map(b => b.id));
+    const dangling = newBuilding.subordinateBuildingIds.filter(sid => !existingIds.has(sid));
+    if (dangling.length > 0) {
+      return {
+        ok: false,
+        status: 400,
+        errors: [`subordinateBuildingIds reference unknown buildings: ${dangling.join(', ')}`],
+      };
+    }
+  }
+
+  buildings[idx] = newBuilding;
+  saveBuildings(buildings);
+
+  try {
+    await reconcileBuilding(oldBuilding, newBuilding);
+  } catch (err) {
+    log.error(`Reconcile failed for building ${id}:`, err);
+  }
+
+  broadcast({ type: 'building_updated', payload: newBuilding });
+  log.log(`Updated building ${newBuilding.name} (${newBuilding.id})`);
+
+  return { ok: true, building: newBuilding };
+}
+
+/**
+ * Delete a building. By default runs runtime cleanup (PM2 delete, Docker rm,
+ * terminal teardown, DB tunnel close) before removing from the list.
+ * Pass { cleanup: false } to skip cleanup (caller takes responsibility for orphan processes).
+ * Also removes the deleted ID from any boss building's subordinate list.
+ */
+export async function deleteBuilding(
+  id: string,
+  broadcast: BroadcastFn,
+  opts: { cleanup?: boolean } = {}
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const buildings = loadBuildings();
+  const idx = buildings.findIndex(b => b.id === id);
+  if (idx === -1) {
+    return { ok: false, status: 404, error: `Building not found: ${id}` };
+  }
+
+  const building = buildings[idx];
+
+  if (opts.cleanup !== false) {
+    try {
+      await executeCommand(id, 'delete', broadcast);
+    } catch (err) {
+      log.error(`Cleanup during delete failed for ${building.name}:`, err);
+    }
+
+    if (building.type === 'database') {
+      for (const conn of building.database?.connections || []) {
+        try {
+          await databaseService.closeConnection(conn.id);
+        } catch (err) {
+          log.error(`Failed to close DB connection ${conn.id}:`, err);
+        }
+      }
+    }
+  }
+
+  buildings.splice(idx, 1);
+
+  // Drop dangling subordinate references in remaining boss buildings.
+  for (const b of buildings) {
+    if (b.type === 'boss' && b.subordinateBuildingIds?.includes(id)) {
+      b.subordinateBuildingIds = b.subordinateBuildingIds.filter(sid => sid !== id);
+    }
+  }
+
+  saveBuildings(buildings);
+  broadcast({ type: 'building_deleted', payload: { id } });
+  log.log(`Deleted building ${building.name} (${id})`);
+
+  return { ok: true };
+}
+
+/**
+ * Assign / replace the subordinates of a boss building.
+ * Validates that the building is a boss and that all subordinate IDs exist.
+ */
+export async function assignSubordinates(
+  bossId: string,
+  subordinateBuildingIds: string[],
+  broadcast: BroadcastFn
+): Promise<CrudResult<Building>> {
+  const buildings = loadBuildings();
+  const idx = buildings.findIndex(b => b.id === bossId);
+  if (idx === -1) {
+    return { ok: false, status: 404, errors: [`Building not found: ${bossId}`] };
+  }
+  if (buildings[idx].type !== 'boss') {
+    return { ok: false, status: 400, errors: [`Building ${bossId} is not a boss building`] };
+  }
+
+  const existingIds = new Set(buildings.map(b => b.id));
+  const dangling = subordinateBuildingIds.filter(sid => !existingIds.has(sid));
+  if (dangling.length > 0) {
+    return {
+      ok: false,
+      status: 400,
+      errors: [`subordinateBuildingIds reference unknown buildings: ${dangling.join(', ')}`],
+    };
+  }
+
+  buildings[idx] = {
+    ...buildings[idx],
+    subordinateBuildingIds: [...subordinateBuildingIds],
+    lastActivity: Date.now(),
+  };
+  saveBuildings(buildings);
+
+  broadcast({ type: 'building_updated', payload: buildings[idx] });
+  return { ok: true, building: buildings[idx] };
+}
+
+/**
+ * Snapshot logs for a building. Returns logs as a string and the source
+ * ('pm2' | 'docker' | 'custom' | 'none') so the caller can label them.
+ */
+export async function getBuildingLogs(
+  id: string,
+  lines: number = 200,
+  service?: string
+): Promise<
+  | { ok: true; source: 'pm2' | 'docker' | 'custom' | 'none'; logs: string }
+  | { ok: false; status: number; error: string }
+> {
+  const building = getBuilding(id);
+  if (!building) {
+    return { ok: false, status: 404, error: `Building not found: ${id}` };
+  }
+
+  if (building.pm2?.enabled) {
+    const logs = await pm2Service.getLogs(building, lines);
+    return { ok: true, source: 'pm2', logs };
+  }
+
+  if (building.docker?.enabled) {
+    const logs = await dockerService.getLogs(building, lines, service);
+    return { ok: true, source: 'docker', logs };
+  }
+
+  const customLogsCmd = building.commands?.logs;
+  if (customLogsCmd) {
+    try {
+      const { stdout, stderr } = await execAsync(customLogsCmd, {
+        cwd: building.cwd,
+        maxBuffer: 1024 * 1024,
+        timeout: 15000,
+      });
+      return { ok: true, source: 'custom', logs: stdout + (stderr ? `\n${stderr}` : '') };
+    } catch (err: any) {
+      return { ok: true, source: 'custom', logs: `Error running logs command: ${err.message}` };
+    }
+  }
+
+  return { ok: true, source: 'none', logs: '' };
 }

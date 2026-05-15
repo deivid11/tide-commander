@@ -5,7 +5,7 @@ import type {
   CustomAgentClass,
 } from './agent-types.js';
 import type {
-  Building, BuildingStatus, ExistingDockerContainer, ExistingComposeProject,
+  Building, ExistingDockerContainer, ExistingComposeProject,
 } from './building-types.js';
 import type {
   QueryResult, QueryHistoryEntry, TableColumn, TableIndex, ForeignKey, TableInfo,
@@ -413,24 +413,6 @@ export interface BuildingLogsMessage extends WSMessage {
 export interface SyncBuildingsMessage extends WSMessage {
   type: 'sync_buildings';
   payload: Building[];
-}
-
-// Create building message (Client -> Server)
-export interface CreateBuildingMessage extends WSMessage {
-  type: 'create_building';
-  payload: Omit<Building, 'id' | 'createdAt' | 'status'> & { status?: BuildingStatus };
-}
-
-// Update building message (Client -> Server)
-export interface UpdateBuildingMessage extends WSMessage {
-  type: 'update_building';
-  payload: { id: string; updates: Partial<Building> };
-}
-
-// Delete building message (Client -> Server)
-export interface DeleteBuildingMessage extends WSMessage {
-  type: 'delete_building';
-  payload: { id: string };
 }
 
 // Building command message (Client -> Server) - start/stop/restart/logs/delete
@@ -1611,9 +1593,6 @@ export type ClientMessage =
   | UpdateAgentPropertiesMessage
   | SyncAreasMessage
   | SyncBuildingsMessage
-  | CreateBuildingMessage
-  | UpdateBuildingMessage
-  | DeleteBuildingMessage
   | BuildingCommandMessage
   | PM2LogsStartMessage
   | PM2LogsStopMessage
