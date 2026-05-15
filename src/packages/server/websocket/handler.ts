@@ -18,7 +18,7 @@ import {
 } from '../services/index.js';
 import { loadAreas, loadBuildings } from '../data/index.js';
 import { logger } from '../utils/index.js';
-import { setNotificationBroadcast, setExecBroadcast, setFocusAgentBroadcast, setAgentsBroadcast, setTriggerBroadcast } from '../routes/index.js';
+import { setNotificationBroadcast, setExecBroadcast, setFocusAgentBroadcast, setAgentsBroadcast, setTriggerBroadcast, setBuildingsBroadcast } from '../routes/index.js';
 import { validateWebSocketAuth, isAuthEnabled } from '../auth/index.js';
 import { incrementWsSent, incrementWsReceived, setWsClientsCount } from '../routes/perf.js';
 import type { HandlerContext, MessageHandler } from './handlers/types.js';
@@ -246,9 +246,6 @@ const messageHandlers = {
   update_agent_properties: handleUpdateAgentProperties,
   sync_areas: handleSyncAreas,
   sync_buildings: handleSyncBuildings,
-  create_building: noopHandler,
-  update_building: noopHandler,
-  delete_building: noopHandler,
   building_command: handleBuildingCommand,
   pm2_logs_start: handlePM2LogsStart,
   pm2_logs_stop: handlePM2LogsStop,
@@ -425,6 +422,7 @@ export function init(server: HttpServer): WebSocketServer {
   setFocusAgentBroadcast(broadcast);
   setAgentsBroadcast(broadcast);
   setTriggerBroadcast(broadcast);
+  setBuildingsBroadcast(broadcast);
 
   log.log('Handler initialized');
   return wss;
