@@ -1,12 +1,13 @@
 /**
- * FileViewer - File content viewer with syntax highlighting
+ * FileViewer - File content viewer
  *
- * Displays file content with CodeMirror 6 (read-only) for text files.
- * Supports text files, images, PDFs, and binary downloads.
- * Markdown files can be rendered or viewed as source code.
+ * Markdown and PlantUML files open in a rendered preview by default with an
+ * Edit button that swaps in the embedded CodeMirror editor.
+ * Other text files always open directly in the editor.
+ * Images, PDFs, and binary files have their own dedicated viewers.
  */
 
-import React, { useEffect, useRef, memo, useState, useCallback, lazy, Suspense } from 'react';
+import React, { memo, useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -21,21 +22,7 @@ import { SearchBar } from './SearchBar';
 import { KeybindingsHelp } from './KeybindingsHelp';
 import { Icon } from '../Icon';
 
-// CodeMirror imports for read-only viewer
-import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
-import { defaultKeymap } from '@codemirror/commands';
-import { syntaxHighlighting, defaultHighlightStyle, bracketMatching, foldGutter, foldKeymap } from '@codemirror/language';
-import { search, searchKeymap, highlightSelectionMatches, openSearchPanel } from '@codemirror/search';
-import { oneDark } from '@codemirror/theme-one-dark';
-import { getLanguageExtension } from './cm-languages';
-
-// Lazy-load the editor to avoid loading CodeMirror until needed
 const LazyEmbeddedEditor = lazy(() => import('./EmbeddedEditor').then(m => ({ default: m.EmbeddedEditor })));
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
 
 const MARKDOWN_EXTENSIONS = ['.md', '.mdx', '.markdown'];
 const MARKDOWN_RENDER_STORAGE_KEY = 'file-viewer-markdown-render';
@@ -43,13 +30,73 @@ const PLANTUML_EXTENSIONS = ['.puml', '.plantuml', '.iuml', '.pu'];
 const PLANTUML_RENDER_STORAGE_KEY = 'file-viewer-plantuml-render';
 const PLANTUML_RENDER_ENDPOINT = 'https://kroki.io/plantuml/svg';
 
-// ============================================================================
-// SUB-COMPONENTS
-// ============================================================================
+function isMarkdownFile(extension: string): boolean {
+  return MARKDOWN_EXTENSIONS.includes(extension.toLowerCase());
+}
 
-/**
- * Header component for file viewer
- */
+function isPlantUmlFile(extension: string): boolean {
+  return PLANTUML_EXTENSIONS.includes(extension.toLowerCase());
+}
+
+function useMarkdownRenderPreference(): [boolean, () => void] {
+  const [renderMarkdown, setRenderMarkdown] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem(MARKDOWN_RENDER_STORAGE_KEY);
+      return stored === null ? true : stored === 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleRender = useCallback(() => {
+    setRenderMarkdown((prev) => {
+      const newValue = !prev;
+      try {
+        localStorage.setItem(MARKDOWN_RENDER_STORAGE_KEY, String(newValue));
+      } catch {
+        // ignore
+      }
+      return newValue;
+    });
+  }, []);
+
+  return [renderMarkdown, toggleRender];
+}
+
+function usePlantUmlRenderPreference(): [boolean, () => void] {
+  const [renderPlantUml, setRenderPlantUml] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem(PLANTUML_RENDER_STORAGE_KEY);
+      return stored === null ? true : stored === 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleRender = useCallback(() => {
+    setRenderPlantUml((prev) => {
+      const newValue = !prev;
+      try {
+        localStorage.setItem(PLANTUML_RENDER_STORAGE_KEY, String(newValue));
+      } catch {
+        // ignore
+      }
+      return newValue;
+    });
+  }, []);
+
+  return [renderPlantUml, toggleRender];
+}
+
+function toSvgDataUrl(svg: string): string {
+  const bytes = new TextEncoder().encode(svg);
+  let binary = '';
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return `data:image/svg+xml;base64,${window.btoa(binary)}`;
+}
+
 function FileViewerHeader({
   file,
   rightContent,
@@ -154,189 +201,6 @@ function FileViewerHeader({
   );
 }
 
-/**
- * Hook to manage markdown render preference (persisted to localStorage)
- */
-function useMarkdownRenderPreference(): [boolean, () => void] {
-  const [renderMarkdown, setRenderMarkdown] = useState<boolean>(() => {
-    try {
-      const stored = localStorage.getItem(MARKDOWN_RENDER_STORAGE_KEY);
-      // Default to true (render markdown) if not set
-      return stored === null ? true : stored === 'true';
-    } catch {
-      return true;
-    }
-  });
-
-  const toggleRender = useCallback(() => {
-    setRenderMarkdown((prev) => {
-      const newValue = !prev;
-      try {
-        localStorage.setItem(MARKDOWN_RENDER_STORAGE_KEY, String(newValue));
-      } catch {
-        // Ignore localStorage errors
-      }
-      return newValue;
-    });
-  }, []);
-
-  return [renderMarkdown, toggleRender];
-}
-
-/**
- * Check if file is a markdown file
- */
-function isMarkdownFile(extension: string): boolean {
-  return MARKDOWN_EXTENSIONS.includes(extension.toLowerCase());
-}
-
-/**
- * Check if file is a PlantUML file
- */
-function isPlantUmlFile(extension: string): boolean {
-  return PLANTUML_EXTENSIONS.includes(extension.toLowerCase());
-}
-
-/**
- * Hook to manage PlantUML render preference (persisted to localStorage)
- */
-function usePlantUmlRenderPreference(): [boolean, () => void] {
-  const [renderPlantUml, setRenderPlantUml] = useState<boolean>(() => {
-    try {
-      const stored = localStorage.getItem(PLANTUML_RENDER_STORAGE_KEY);
-      return stored === null ? true : stored === 'true';
-    } catch {
-      return true;
-    }
-  });
-
-  const toggleRender = useCallback(() => {
-    setRenderPlantUml((prev) => {
-      const newValue = !prev;
-      try {
-        localStorage.setItem(PLANTUML_RENDER_STORAGE_KEY, String(newValue));
-      } catch {
-        // Ignore localStorage errors
-      }
-      return newValue;
-    });
-  }, []);
-
-  return [renderPlantUml, toggleRender];
-}
-
-function toSvgDataUrl(svg: string): string {
-  const bytes = new TextEncoder().encode(svg);
-  let binary = '';
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return `data:image/svg+xml;base64,${window.btoa(binary)}`;
-}
-
-/**
- * Text file viewer using CodeMirror 6 in read-only mode.
- * Uses CM's built-in search (Ctrl+F / Cmd+F) instead of a custom search bar.
- */
-function TextFileViewer({ file, onRevealInTree, scrollToLine, onSearchStateChange: _onSearchStateChange, editMode, onToggleEdit }: { file: FileData; onRevealInTree?: (path: string) => void; scrollToLine?: number; onSearchStateChange?: (isSearchActive: boolean) => void; editMode?: boolean; onToggleEdit?: () => void }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<EditorView | null>(null);
-
-  // Create / recreate the read-only CodeMirror instance when file changes
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const langExt = getLanguageExtension(file.extension);
-
-    const extensions: import('@codemirror/state').Extension[] = [
-      EditorState.readOnly.of(true),
-      lineNumbers(),
-      highlightActiveLineGutter(),
-      foldGutter(),
-      drawSelection(),
-      bracketMatching(),
-      highlightActiveLine(),
-      highlightSelectionMatches(),
-      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-      oneDark,
-      search({ top: true }),
-      keymap.of([
-        ...defaultKeymap,
-        ...searchKeymap,
-        ...foldKeymap,
-      ]),
-    ];
-
-    if (langExt) {
-      extensions.push(langExt);
-    }
-
-    const state = EditorState.create({
-      doc: file.content,
-      extensions,
-    });
-
-    const view = new EditorView({
-      state,
-      parent: containerRef.current,
-    });
-
-    viewRef.current = view;
-
-    return () => {
-      view.destroy();
-      viewRef.current = null;
-    };
-  }, [file.path, file.content, file.extension]);
-
-  // Scroll to target line when scrollToLine changes
-  useEffect(() => {
-    const view = viewRef.current;
-    if (!view || !scrollToLine) return;
-
-    requestAnimationFrame(() => {
-      const line = view.state.doc.line(Math.min(scrollToLine, view.state.doc.lines));
-      view.dispatch({
-        effects: EditorView.scrollIntoView(line.from, { y: 'center' }),
-      });
-    });
-  }, [scrollToLine]);
-
-  // Handle Ctrl+F on the wrapper since read-only CM may not always have focus
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-      e.preventDefault();
-      e.stopPropagation();
-      const view = viewRef.current;
-      if (view) {
-        view.focus();
-        openSearchPanel(view);
-        // Ensure the search input gets focus after the panel renders
-        requestAnimationFrame(() => {
-          const input = view.dom.querySelector<HTMLInputElement>('.cm-search input[main-field]');
-          if (input) input.focus();
-        });
-      }
-    }
-  }, []);
-
-  return (
-    <>
-      <FileViewerHeader file={file} onRevealInTree={onRevealInTree} editMode={editMode} onToggleEdit={onToggleEdit} />
-      <div
-        className="file-viewer-content-wrapper file-viewer-cm-readonly"
-        ref={containerRef}
-        tabIndex={0}
-        onKeyDown={handleKeyDown}
-      />
-    </>
-  );
-}
-
-/**
- * Markdown file viewer with render toggle
- * Supports vim/less-style keyboard navigation via useLessNavigation hook
- */
 function MarkdownFileViewer({
   file,
   onRevealInTree,
@@ -361,7 +225,6 @@ function MarkdownFileViewer({
   const [copyMarkdownStatus, setCopyMarkdownStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyOriginalStatus, setCopyOriginalStatus] = useState<'idle' | 'copied' | 'error'>('idle');
 
-  // Setup less-style keyboard navigation
   const navigation = useLessNavigation({
     containerRef: contentRef as React.RefObject<HTMLDivElement>,
     isEnabled: true,
@@ -369,7 +232,6 @@ function MarkdownFileViewer({
   });
 
   useEffect(() => {
-    // Apply syntax highlighting when showing source code
     if (!renderMarkdown && codeRef.current) {
       const lang = getLanguageForExtension(file.extension);
       ensureLanguageLoaded(lang).then(() => {
@@ -380,10 +242,8 @@ function MarkdownFileViewer({
     }
   }, [file, renderMarkdown]);
 
-  // Copy as rich text (for pasting into Word, Docs with formatting)
   const handleCopyRichText = useCallback(async () => {
     if (!markdownContentRef.current) {
-      console.error('Copy Rich Text: markdown content ref is not available');
       setCopyRichTextStatus('error');
       setTimeout(() => setCopyRichTextStatus('idle'), 2000);
       return;
@@ -394,20 +254,16 @@ function MarkdownFileViewer({
       const html = inlineStylesForRichCopy(rawHtml);
       const plainText = markdownContentRef.current.innerText;
       await copyRichContentToClipboard(html, plainText);
-
       setCopyRichTextStatus('copied');
       setTimeout(() => setCopyRichTextStatus('idle'), 2000);
-    } catch (err) {
-      console.error('Copy Rich Text failed:', err);
+    } catch {
       setCopyRichTextStatus('error');
       setTimeout(() => setCopyRichTextStatus('idle'), 2000);
     }
   }, []);
 
-  // Copy as HTML tags (for pasting into Google Docs source, HTML editors)
   const handleCopyHtml = useCallback(async () => {
     if (!markdownContentRef.current) {
-      console.error('Copy HTML: markdown content ref is not available');
       setCopyHtmlStatus('error');
       setTimeout(() => setCopyHtmlStatus('idle'), 2000);
       return;
@@ -418,14 +274,12 @@ function MarkdownFileViewer({
       await copyTextToClipboard(html);
       setCopyHtmlStatus('copied');
       setTimeout(() => setCopyHtmlStatus('idle'), 2000);
-    } catch (err) {
-      console.error('Copy HTML failed:', err);
+    } catch {
       setCopyHtmlStatus('error');
       setTimeout(() => setCopyHtmlStatus('idle'), 2000);
     }
   }, []);
 
-  // Copy as markdown source
   const handleCopyMarkdown = useCallback(async () => {
     try {
       await copyTextToClipboard(file.content);
@@ -437,7 +291,6 @@ function MarkdownFileViewer({
     }
   }, [file.content]);
 
-  // Copy original file content (plain text)
   const handleCopyOriginal = useCallback(async () => {
     try {
       await copyTextToClipboard(file.content);
@@ -512,11 +365,9 @@ function MarkdownFileViewer({
             </pre>
           </div>
         )}
-        {/* Scroll position indicator */}
         <div className="file-viewer-scroll-indicator" title={`Line ${navigation.currentLine}/${navigation.totalLines}`}>
           {navigation.scrollPercentage === 100 ? 'END' : navigation.scrollPercentage === 0 ? 'TOP' : `${navigation.scrollPercentage}%`}
         </div>
-        {/* Search bar */}
         {navigation.searchActive && (
           <SearchBar
             query={navigation.searchQuery}
@@ -529,16 +380,11 @@ function MarkdownFileViewer({
           />
         )}
       </div>
-      {/* Keybindings help overlay */}
       {navigation.helpActive && <KeybindingsHelp onClose={navigation.toggleHelp} />}
     </>
   );
 }
 
-/**
- * PlantUML file viewer with diagram render toggle
- * Supports vim/less-style keyboard navigation via useLessNavigation hook
- */
 function PlantUmlFileViewer({
   file,
   onRevealInTree,
@@ -561,7 +407,6 @@ function PlantUmlFileViewer({
   const [isRendering, setIsRendering] = useState(false);
   const [renderError, setRenderError] = useState<string | null>(null);
 
-  // Setup less-style keyboard navigation
   const navigation = useLessNavigation({
     containerRef: contentRef as React.RefObject<HTMLDivElement>,
     isEnabled: true,
@@ -674,11 +519,9 @@ function PlantUmlFileViewer({
             </pre>
           </div>
         )}
-        {/* Scroll position indicator */}
         <div className="file-viewer-scroll-indicator" title={`Line ${navigation.currentLine}/${navigation.totalLines}`}>
           {navigation.scrollPercentage === 100 ? 'END' : navigation.scrollPercentage === 0 ? 'TOP' : `${navigation.scrollPercentage}%`}
         </div>
-        {/* Search bar */}
         {navigation.searchActive && (
           <SearchBar
             query={navigation.searchQuery}
@@ -691,15 +534,11 @@ function PlantUmlFileViewer({
           />
         )}
       </div>
-      {/* Keybindings help overlay */}
       {navigation.helpActive && <KeybindingsHelp onClose={navigation.toggleHelp} />}
     </>
   );
 }
 
-/**
- * Image file viewer
- */
 function ImageFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTree?: (path: string) => void }) {
   const { t } = useTranslation(['common', 'terminal']);
   const handleDownload = () => {
@@ -737,9 +576,6 @@ function ImageFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInT
   );
 }
 
-/**
- * PDF file viewer
- */
 function PdfFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTree?: (path: string) => void }) {
   const { t } = useTranslation(['common', 'terminal']);
   const handleDownload = () => {
@@ -777,9 +613,6 @@ function PdfFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTre
   );
 }
 
-/**
- * Binary file viewer (download only)
- */
 function BinaryFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTree?: (path: string) => void }) {
   const { t } = useTranslation(['terminal', 'common']);
   const handleDownload = () => {
@@ -791,7 +624,6 @@ function BinaryFileViewer({ file, onRevealInTree }: { file: FileData; onRevealIn
     }
   };
 
-  // Get icon based on extension
   const getIcon = () => {
     const ext = file.extension.toLowerCase();
     if (['.xlsx', '.xls'].includes(ext)) return <Icon name="dashboard" size={48} />;
@@ -826,31 +658,48 @@ function BinaryFileViewer({ file, onRevealInTree }: { file: FileData; onRevealIn
   );
 }
 
-// ============================================================================
-// FILE VIEWER COMPONENT
-// ============================================================================
-
-function FileViewerComponent({ file, loading, error, onRevealInTree, scrollToLine, onSearchStateChange, onFileEdited }: FileViewerProps) {
+function FileViewerComponent({ file, loading, error, onRevealInTree, onFileEdited }: FileViewerProps) {
   const { t } = useTranslation(['terminal', 'common']);
-  // Global markdown render preference (persisted to localStorage)
   const [renderMarkdown, toggleRenderMarkdown] = useMarkdownRenderPreference();
   const [renderPlantUml, toggleRenderPlantUml] = usePlantUmlRenderPreference();
   const [editMode, setEditMode] = useState(false);
-  useEffect(() => { setEditMode(false); }, [file?.path]);
-  const handleSave = useCallback(async (newContent: string) => { if (!file) return; const resp = await authFetch(apiUrl('/api/files/write'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: file.path, content: newContent }) }); if (!resp.ok) { const errData = await resp.json().catch(() => ({ error: 'Save failed' })); throw new Error(errData.error || 'Save failed'); } }, [file]);
-  const toggleEdit = useCallback(() => { setEditMode(prev => { if (prev && file) { onFileEdited?.(file.path); } return !prev; }); }, [file, onFileEdited]);
 
-  // Loading state
+  useEffect(() => {
+    setEditMode(false);
+  }, [file?.path]);
+
+  const handleSave = useCallback(async (newContent: string) => {
+    if (!file) return;
+    const resp = await authFetch(apiUrl('/api/files/write'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: file.path, content: newContent }),
+    });
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({ error: 'Save failed' }));
+      throw new Error(errData.error || 'Save failed');
+    }
+  }, [file]);
+
+  const toggleEdit = useCallback(() => {
+    setEditMode((prev) => {
+      if (prev && file) onFileEdited?.(file.path);
+      return !prev;
+    });
+  }, [file, onFileEdited]);
+
+  const handlePlainEditorClose = useCallback(() => {
+    if (file) onFileEdited?.(file.path);
+  }, [file, onFileEdited]);
+
   if (loading) {
     return <div className="file-viewer-placeholder">{t('common:status.loading')}</div>;
   }
 
-  // Error state
   if (error) {
     return <div className="file-viewer-placeholder error">{error}</div>;
   }
 
-  // Empty state
   if (!file) {
     return (
       <div className="file-viewer-placeholder">
@@ -860,18 +709,18 @@ function FileViewerComponent({ file, loading, error, onRevealInTree, scrollToLin
     );
   }
 
-  // Render based on file type
   const fileType = file.fileType || 'text';
   const isMarkdown = fileType === 'text' && isMarkdownFile(file.extension);
   const isPlantUml = fileType === 'text' && isPlantUmlFile(file.extension);
+  const hasRenderablePreview = isMarkdown || isPlantUml;
 
-  // Edit mode — show embedded editor for text files
-  if (editMode && fileType === 'text' && file.content != null) {
+  if (hasRenderablePreview && editMode && file.content != null) {
     return (
       <div className="file-viewer-content">
         <FileViewerHeader file={file} onRevealInTree={onRevealInTree} editMode onToggleEdit={toggleEdit} />
         <Suspense fallback={<div className="file-viewer-placeholder">{t('common:status.loading')}</div>}>
           <LazyEmbeddedEditor
+            key={file.path}
             content={file.content}
             extension={file.extension}
             onSave={handleSave}
@@ -882,9 +731,26 @@ function FileViewerComponent({ file, loading, error, onRevealInTree, scrollToLin
     );
   }
 
+  if (fileType === 'text' && !hasRenderablePreview && file.content != null) {
+    return (
+      <div className="file-viewer-content">
+        <FileViewerHeader file={file} onRevealInTree={onRevealInTree} />
+        <Suspense fallback={<div className="file-viewer-placeholder">{t('common:status.loading')}</div>}>
+          <LazyEmbeddedEditor
+            key={file.path}
+            content={file.content}
+            extension={file.extension}
+            onSave={handleSave}
+            onCancel={handlePlainEditorClose}
+          />
+        </Suspense>
+      </div>
+    );
+  }
+
   return (
     <div className="file-viewer-content">
-      {fileType === 'text' && isMarkdown && (
+      {isMarkdown && (
         <MarkdownFileViewer
           file={file}
           onRevealInTree={onRevealInTree}
@@ -894,7 +760,7 @@ function FileViewerComponent({ file, loading, error, onRevealInTree, scrollToLin
           onToggleEdit={toggleEdit}
         />
       )}
-      {fileType === 'text' && isPlantUml && !isMarkdown && (
+      {isPlantUml && !isMarkdown && (
         <PlantUmlFileViewer
           file={file}
           onRevealInTree={onRevealInTree}
@@ -904,7 +770,6 @@ function FileViewerComponent({ file, loading, error, onRevealInTree, scrollToLin
           onToggleEdit={toggleEdit}
         />
       )}
-      {fileType === 'text' && !isMarkdown && !isPlantUml && <TextFileViewer file={file} onRevealInTree={onRevealInTree} scrollToLine={scrollToLine} onSearchStateChange={onSearchStateChange} editMode={editMode} onToggleEdit={toggleEdit} />}
       {fileType === 'image' && <ImageFileViewer file={file} onRevealInTree={onRevealInTree} />}
       {fileType === 'pdf' && <PdfFileViewer file={file} onRevealInTree={onRevealInTree} />}
       {fileType === 'binary' && <BinaryFileViewer file={file} onRevealInTree={onRevealInTree} />}
@@ -912,17 +777,10 @@ function FileViewerComponent({ file, loading, error, onRevealInTree, scrollToLin
   );
 }
 
-/**
- * Memoized FileViewer component
- * Prevents unnecessary re-renders when file hasn't changed
- */
 export const FileViewer = memo(FileViewerComponent, (prev, next) => {
-  // Re-render only if file, loading, error, or scrollToLine changed
   if (prev.loading !== next.loading) return false;
   if (prev.error !== next.error) return false;
-  if (prev.scrollToLine !== next.scrollToLine) return false;
 
-  // Deep compare file object
   if (prev.file === null && next.file === null) return true;
   if (prev.file === null || next.file === null) return false;
 

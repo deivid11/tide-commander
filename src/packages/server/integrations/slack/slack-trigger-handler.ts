@@ -13,6 +13,7 @@ import * as slackClient from './slack-client.js';
 import type { SlackMessage } from './slack-client.js';
 import { listInstances } from './slack-instance.js';
 import { listInstanceMetas } from './slack-instance-manifest.js';
+import { loadConfig } from './slack-config.js';
 import { formatAttachmentLine } from '../../services/attachment-downloader.js';
 
 /**
@@ -43,8 +44,12 @@ export interface SlackTriggerEventData extends SlackMessage {
 
 const unsubscribers: Array<() => void> = [];
 
-/** Env toggle: set SLACK_REACT_ON_TRIGGER=false (or 0/no/off) to disable the auto-:eyes: ack. */
-function reactOnTriggerEnabled(): boolean {
+/**
+ * Global kill-switch: `SLACK_REACT_ON_TRIGGER=false` (or 0/no/off) disables the
+ * auto-:eyes: ack across every instance regardless of per-instance config.
+ * Defaults to enabled when unset.
+ */
+function envAllowsReact(): boolean {
   const raw = (process.env.SLACK_REACT_ON_TRIGGER ?? '').toLowerCase().trim();
   if (!raw) return true;
   return !['false', '0', 'no', 'off'].includes(raw);
@@ -54,7 +59,7 @@ export const slackTriggerHandler: TriggerHandler = {
   triggerType: 'slack',
 
   async startListening(onEvent) {
-    const autoReact = reactOnTriggerEnabled();
+    const envOn = envAllowsReact();
 
     // Subscribe to every instance the manifest knows about. Unknown instances
     // (created later via the UI) are auto-created with `getInstance()` when
@@ -66,7 +71,10 @@ export const slackTriggerHandler: TriggerHandler = {
 
     for (const inst of allInstances) {
       const off = inst.onMessage((message: SlackMessage) => {
-        if (autoReact) {
+        // Per-instance toggle is read fresh on each message so flipping the
+        // checkbox in the UI takes effect without restarting the trigger.
+        const perInstance = loadConfig(inst.id).reactOnTrigger ?? true;
+        if (envOn && perInstance) {
           // Use the instance-specific reaction so it posts as the right account.
           inst.addReaction({ channel: message.channel, ts: message.ts, name: 'eyes' })
             .catch(() => { /* swallow */ });

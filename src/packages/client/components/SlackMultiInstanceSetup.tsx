@@ -57,6 +57,7 @@ interface InstanceValues {
   pollingMinMsBetweenCalls: number;
   currentMode: string;
   mirrorOwnMessages: boolean;
+  reactOnTrigger: boolean;
   SLACK_BOT_TOKEN: string;
   SLACK_APP_TOKEN: string;
 }
@@ -421,6 +422,22 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
                 <span style={S.fieldDesc}>
                   Capture your outgoing messages alongside incoming ones (logged as <code>direction:outbound</code>).
                   Recommended for personal (xoxp-) tokens. Triggers do not fire on your own messages — that would loop.
+                </span>
+              </div>
+
+              <div style={S.field}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={values.reactOnTrigger}
+                    onChange={(e) => setField('reactOnTrigger', e.target.checked)}
+                  />
+                  <span style={S.fieldLabel}>Auto-react with 👀 on trigger</span>
+                </label>
+                <span style={S.fieldDesc}>
+                  When a Slack trigger fires on an incoming message, react with <code>:eyes:</code> as an
+                  "I saw it, working on it" ack. Turn off for accounts where the reaction is noisy.
+                  The server env <code>SLACK_REACT_ON_TRIGGER=false</code> still disables it across all instances.
                 </span>
               </div>
 

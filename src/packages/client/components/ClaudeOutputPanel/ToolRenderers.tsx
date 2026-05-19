@@ -565,6 +565,124 @@ export function ExitPlanModeInput({ content }: ExitPlanModeInputProps) {
   }
 }
 
+function extractTaskTitle(item: unknown): string | null {
+  if (typeof item === 'string') {
+    const trimmed = item.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (item && typeof item === 'object') {
+    const o = item as Record<string, unknown>;
+    const candidate = o.description ?? o.title ?? o.name ?? o.prompt ?? o.content;
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }
+  }
+  return null;
+}
+
+interface TaskCreateInputProps {
+  content: string;
+}
+
+export function TaskCreateInput({ content }: TaskCreateInputProps) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    const trimmed = content.trim();
+    if (!trimmed) return null;
+    return (
+      <div className="task-tool-input">
+        <div className="task-tool-row task-tool-row-create">
+          <span className="task-tool-status-icon">☐</span>
+          <span className="task-tool-content">{trimmed}</span>
+        </div>
+      </div>
+    );
+  }
+
+  const items: unknown[] = (() => {
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed && typeof parsed === 'object') {
+      const o = parsed as Record<string, unknown>;
+      if (Array.isArray(o.tasks)) return o.tasks;
+      if (Array.isArray(o.todos)) return o.todos;
+      return [parsed];
+    }
+    if (typeof parsed === 'string') return [parsed];
+    return [];
+  })();
+
+  const titles = items
+    .map(extractTaskTitle)
+    .filter((title): title is string => typeof title === 'string');
+
+  if (titles.length === 0) {
+    return <pre className="output-input-content">{content}</pre>;
+  }
+
+  return (
+    <div className="task-tool-input">
+      {titles.map((title, idx) => (
+        <div key={idx} className="task-tool-row task-tool-row-create">
+          <span className="task-tool-status-icon">☐</span>
+          <span className="task-tool-content">{title}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function taskStatusIcon(status: string): string {
+  switch (status) {
+    case 'pending': return '☐';
+    case 'in_progress': return '►';
+    case 'completed': return '✓';
+    case 'cancelled': return '⊘';
+    default: return '•';
+  }
+}
+
+interface TaskUpdateInputProps {
+  content: string;
+}
+
+export function TaskUpdateInput({ content }: TaskUpdateInputProps) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return <pre className="output-input-content">{content}</pre>;
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return <pre className="output-input-content">{content}</pre>;
+  }
+
+  const o = parsed as Record<string, unknown>;
+  const rawTaskId = o.taskId ?? o.task_id ?? o.id;
+  const taskId = (typeof rawTaskId === 'string' || typeof rawTaskId === 'number') ? String(rawTaskId) : null;
+  const status = typeof o.status === 'string' ? o.status : '';
+  const description = typeof o.description === 'string'
+    ? o.description
+    : (typeof o.title === 'string' ? o.title : '');
+
+  const failed = description ? /\bfail(ed|ure|s)?\b/i.test(description) : false;
+  const statusClass = failed ? 'failed' : (status ? status.replace(/\s+/g, '_') : 'unknown');
+  const displayText = description.trim() || (status ? `status: ${status}` : '(no description)');
+
+  return (
+    <div className="task-tool-input">
+      <div className={`task-tool-row task-tool-row-update task-tool-row-${statusClass}`}>
+        <span className="task-tool-status-icon">{taskStatusIcon(status)}</span>
+        {taskId && <span className="task-tool-id">#{taskId}</span>}
+        <span className="task-tool-content">{displayText}</span>
+      </div>
+    </div>
+  );
+}
+
 interface UnknownToolInputProps {
   toolName: string;
   content: string;

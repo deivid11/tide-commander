@@ -166,6 +166,10 @@ export function Tooltip({
         onMouseLeave={hideTooltip}
         onFocus={showTooltip}
         onBlur={hideTooltip}
+        // Hide on pointerdown so clicks that open a modal/popup dismiss the
+        // tooltip immediately — mouseleave doesn't fire when the cursor stays
+        // put and a modal pops up on top.
+        onPointerDown={hideTooltip}
         style={triggerStyle ?? { display: 'inline-flex' }}
       >
         {children}

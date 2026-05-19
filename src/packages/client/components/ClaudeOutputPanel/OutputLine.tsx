@@ -15,7 +15,7 @@ import { parseEmailMessage, GmailMessageBubble } from './GmailMessageBubble';
 import { parseSlackMessage, SlackMessageBubble } from './SlackMessageBubble';
 import { DelegationMessageCard, parseDelegationMessage } from './DelegationMessageCard';
 import { AgentChatMessageCard, parseAgentChatMessage } from './AgentChatMessageCard';
-import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, UnknownToolInput, ToolSearchInput, isToolSearchContent } from './ToolRenderers';
+import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, UnknownToolInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, isToolSearchContent } from './ToolRenderers';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
 import { renderContentWithImages, renderUserPromptContent } from './contentRendering';
@@ -570,6 +570,40 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
           <ExitPlanModeInput content={exitPlanContent} />
+        </div>
+      );
+    }
+
+    const taskCreateContent = (
+      toolName === 'TaskCreate' && payloadToolInput !== undefined
+        ? (typeof payloadToolInput === 'string' ? payloadToolInput : JSON.stringify(payloadToolInput))
+        : undefined
+    );
+    if (toolName === 'TaskCreate' && taskCreateContent) {
+      return (
+        <div className={`output-line output-tool-use output-task-inline ${isStreaming ? 'output-streaming' : ''}`}>
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
+          <span className="output-tool-name">{displayToolName}</span>
+          <TaskCreateInput content={taskCreateContent} />
+        </div>
+      );
+    }
+
+    const taskUpdateContent = (
+      toolName === 'TaskUpdate' && payloadToolInput && typeof payloadToolInput === 'object'
+        ? JSON.stringify(payloadToolInput)
+        : undefined
+    );
+    if (toolName === 'TaskUpdate' && taskUpdateContent) {
+      return (
+        <div className={`output-line output-tool-use output-task-inline ${isStreaming ? 'output-streaming' : ''}`}>
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
+          <span className="output-tool-name">{displayToolName}</span>
+          <TaskUpdateInput content={taskUpdateContent} />
         </div>
       );
     }
