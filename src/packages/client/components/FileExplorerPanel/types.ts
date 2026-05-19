@@ -157,8 +157,6 @@ export interface FileViewerProps {
   loading: boolean;
   error: string | null;
   onRevealInTree?: (path: string) => void;
-  scrollToLine?: number;
-  onSearchStateChange?: (isSearchActive: boolean) => void;
   onFileEdited?: (path: string) => void;
 }
 

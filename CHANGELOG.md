@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.97.0] - 2026-05-18
+
+### Added
+- **Inline `TaskCreate` / `TaskUpdate` tool renderers** — `ToolRenderers.tsx` exports new `TaskCreateInput` and `TaskUpdateInput` components that turn raw MCP task-tool payloads into a checkbox-style list (☐ pending, ► in_progress, ✓ completed, ⊘ cancelled, plus a red `failed` variant detected from the description). Both `HistoryLine` and `OutputLine` wire these in so the agent's task-tracking activity reads as a live checklist inside the terminal output. ~95 lines of new SCSS in `_tools.scss` cover color-coded rows, the pulsing in-progress icon, and the strike-through for completed/cancelled. New icon mappings for `TaskCreate` / `TaskUpdate` added in `outputRendering.ts`
+- **Slack per-instance `reactOnTrigger` toggle** — each Slack instance now has its own "Auto-react with 👀 on trigger" checkbox in `SlackMultiInstanceSetup`. The handler re-reads the per-instance value on every message (no restart required when flipping the toggle) and the global `SLACK_REACT_ON_TRIGGER` env still acts as a kill-switch across all instances. `slack-config.ts` exposes the field via the schema with a default of `true`
+
+### Changed
+- **`FileExplorerPanel` / `FileViewer` rework** — ~390 lines of restructuring in `FileViewer.tsx` plus accompanying tweaks in `FileExplorerPanel/index.tsx` and `types.ts`; preparatory cleanup that drops two unused locals and leaves the panel ready for upcoming editor work
+
+### Fixed
+- **Empty-chat fade-in reveal** — `AgentTerminalPane` now flips `historyFadeIn` to `true` as soon as the pane has any rendered items, so an optimistic prompt sent into an empty chat appears immediately instead of waiting for the history-loader/scroll-stabilization pass that never fires on a fresh pane
+- **Tooltip dismissal on click** — `shared/Tooltip` listens for `pointerdown` and hides on press, so clicks that open a modal or popup no longer leave the tooltip stranded on screen (mouseleave doesn't fire when the cursor stays put and a modal pops up over it)
+
 ## [1.96.0] - 2026-05-15
 
 ### Added

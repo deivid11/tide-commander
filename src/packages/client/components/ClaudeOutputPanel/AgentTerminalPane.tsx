@@ -676,6 +676,19 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     return () => cancelAnimationFrame(rafId);
   }, [historyLoader.historyLoadVersion, isOpen, pinToBottom, historyLoader.fetchingHistory]);
 
+  // Empty-chat sends can receive the optimistic live prompt while the normal
+  // pin/fade path is still waiting on a history load or a zero-height scroll
+  // stabilization pass. Reveal immediately once this pane has real content.
+  const renderedItemCount = dedupedHistory.length + dedupedOutputs.length;
+  useEffect(() => {
+    if (historyFadeIn) return;
+    if (isAgentSwitching) return;
+    if (renderedItemCount === 0) return;
+
+    pendingFadeInRef.current = false;
+    setHistoryFadeIn(true);
+  }, [historyFadeIn, isAgentSwitching, renderedItemCount]);
+
   // ── Escape key for search ──
   useEffect(() => {
     if (!search.searchMode) return;

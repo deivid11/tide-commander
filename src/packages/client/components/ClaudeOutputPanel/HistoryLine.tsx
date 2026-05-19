@@ -20,7 +20,7 @@ import { parseWhatsAppMessage, WhatsAppMessageBubble } from './WhatsAppMessageBu
 import { parseEmailMessage, GmailMessageBubble } from './GmailMessageBubble';
 import { parseSlackMessage, SlackMessageBubble } from './SlackMessageBubble';
 import { AgentChatMessageCard, parseAgentChatMessage } from './AgentChatMessageCard';
-import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, ToolSearchInput, isToolSearchContent } from './ToolRenderers';
+import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, isToolSearchContent } from './ToolRenderers';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
 import { highlightText, renderContentWithImages, renderUserPromptContent } from './contentRendering';
@@ -543,6 +543,30 @@ export const HistoryLine = memo(function HistoryLine({
         );
       }
 
+      if (toolName === 'TaskCreate' && toolInputContent) {
+        return (
+          <div className={`output-line output-tool-use output-tool-simple output-task-inline`}>
+            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
+            <span className="output-tool-name">{displayToolName}</span>
+            <TaskCreateInput content={toolInputContent} />
+          </div>
+        );
+      }
+
+      if (toolName === 'TaskUpdate' && toolInputContent) {
+        return (
+          <div className={`output-line output-tool-use output-tool-simple output-task-inline`}>
+            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
+            <span className="output-tool-name">{displayToolName}</span>
+            <TaskUpdateInput content={toolInputContent} />
+          </div>
+        );
+      }
+
       return (
         <>
           <div
@@ -754,6 +778,38 @@ export const HistoryLine = memo(function HistoryLine({
           </div>
           <div className="output-line output-tool-input">
             <TodoWriteInput content={toolInputContent} />
+          </div>
+        </>
+      );
+    }
+
+    if (toolName === 'TaskCreate' && toolInputContent) {
+      return (
+        <>
+          <div className="output-line output-tool-use">
+            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
+            <span className="output-tool-name">{displayToolName}</span>
+          </div>
+          <div className="output-line output-tool-input">
+            <TaskCreateInput content={toolInputContent} />
+          </div>
+        </>
+      );
+    }
+
+    if (toolName === 'TaskUpdate' && toolInputContent) {
+      return (
+        <>
+          <div className="output-line output-tool-use">
+            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
+            <span className="output-tool-name">{displayToolName}</span>
+          </div>
+          <div className="output-line output-tool-input">
+            <TaskUpdateInput content={toolInputContent} />
           </div>
         </>
       );

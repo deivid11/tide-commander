@@ -1068,6 +1068,101 @@
 }
 
 // =============================================================================
+// TaskCreate / TaskUpdate Tool Input - Inline on "Using tool:" line
+// =============================================================================
+
+.output-task-inline {
+  flex-wrap: wrap;
+
+  .task-tool-input {
+    flex-basis: 100%;
+    margin-top: 4px;
+  }
+}
+
+.task-tool-input {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.task-tool-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 3px 10px;
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.4;
+  border-radius: $radius-sm;
+  color: $text-primary;
+
+  .task-tool-status-icon {
+    flex-shrink: 0;
+    width: 14px;
+    text-align: center;
+    font-size: 12px;
+    color: $text-muted;
+  }
+
+  .task-tool-id {
+    flex-shrink: 0;
+    color: $text-muted;
+    font-weight: 500;
+    opacity: 0.85;
+  }
+
+  .task-tool-content {
+    flex: 1;
+    word-break: break-word;
+  }
+}
+
+.task-tool-row-create {
+  .task-tool-status-icon {
+    color: $text-muted;
+  }
+  .task-tool-content {
+    color: $text-primary;
+  }
+}
+
+.task-tool-row-pending {
+  .task-tool-status-icon { color: $text-muted; }
+  .task-tool-content    { color: $text-primary; }
+}
+
+.task-tool-row-in_progress {
+  background: rgba($accent-blue, 0.06);
+  .task-tool-status-icon {
+    color: $accent-blue;
+    animation: pulse-icon 1.5s ease-in-out infinite;
+  }
+  .task-tool-content { color: $accent-blue; font-weight: 500; }
+}
+
+.task-tool-row-completed {
+  .task-tool-status-icon { color: $accent-green; }
+  .task-tool-content     { color: $text-muted; text-decoration: line-through; opacity: 0.8; }
+}
+
+.task-tool-row-cancelled {
+  .task-tool-status-icon { color: $text-muted; }
+  .task-tool-content     { color: $text-muted; text-decoration: line-through; opacity: 0.7; }
+}
+
+.task-tool-row-failed {
+  background: rgba($accent-red, 0.07);
+  .task-tool-status-icon { color: $accent-red; }
+  .task-tool-content     { color: $accent-red; font-weight: 500; }
+}
+
+.task-tool-row-unknown {
+  .task-tool-status-icon { color: $text-muted; }
+  .task-tool-content     { color: $text-primary; }
+}
+
+// =============================================================================
 // AskUserQuestion Tool Input - Inline on "Using tool:" line
 // =============================================================================
 

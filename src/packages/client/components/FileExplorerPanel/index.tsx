@@ -211,7 +211,7 @@ export function FileExplorerPanel({
   const [hasRestoredState, setHasRestoredState] = useState(false);
   const [treePanelCollapsed, setTreePanelCollapsed] = useState(false);
   const [stagingPaths, setStagingPaths] = useState<Set<string>>(new Set());
-  const [isFileSearchActive, setIsFileSearchActive] = useState(false);
+  const [isFileSearchActive] = useState(false);
   const [gitHistoryOpen, setGitHistoryOpen] = useState(false);
   const [gitHistoryHeight, setGitHistoryHeight] = useState(250);
   const gitHistoryResizeRef = useRef<{ startY: number; startHeight: number } | null>(null);
@@ -271,7 +271,7 @@ export function FileExplorerPanel({
   const [canNavigateTabForward, setCanNavigateTabForward] = useState(false);
 
   // Line number to scroll to (from file:line search)
-  const [scrollToLine, setScrollToLine] = useState<number | undefined>(undefined);
+  const [, setScrollToLine] = useState<number | undefined>(undefined);
 
   // Merge/conflict state
   const [mergingBranch, setMergingBranch] = useState<string | null>(null);
@@ -1947,7 +1947,7 @@ export function FileExplorerPanel({
                   language={EXTENSION_TO_LANGUAGE[selectedFile.extension] || 'plaintext'}
                 />
               ) : (
-                <FileViewer file={selectedFile} loading={fileLoading} error={fileError} onRevealInTree={handleRevealInTree} scrollToLine={scrollToLine} onSearchStateChange={setIsFileSearchActive} onFileEdited={loadFile} />
+                <FileViewer file={selectedFile} loading={fileLoading} error={fileError} onRevealInTree={handleRevealInTree} onFileEdited={loadFile} />
               )}
             </>
           )}
