@@ -26,6 +26,7 @@ import workflowRouter from './workflow-routes.js';
 import sessionsRouter from './sessions.js';
 import databaseRouter from './database.js';
 import buildingsRouter, { setBroadcast as setBuildingsBroadcast } from './buildings.js';
+import skillsRouter, { setBroadcast as setSkillsBroadcast } from './skills.js';
 import { getPlugins } from '../integrations/integration-registry.js';
 
 const router = Router();
@@ -56,6 +57,7 @@ router.use('/workflows', workflowRouter);
 router.use('/sessions', sessionsRouter);
 router.use('/database', databaseRouter);
 router.use('/buildings', buildingsRouter);
+router.use('/skills', skillsRouter);
 // Integration plugin routes (e.g. /api/slack/*, /api/documents/*, /api/jira/*)
 // Uses lazy lookup so plugins can be registered after route setup
 router.use((req: Request, res: Response, next: NextFunction) => {
@@ -75,6 +77,6 @@ router.use('/config', raw({ type: 'application/zip', limit: '100mb' }), configRo
 router.use('/', permissionsRouter);
 
 // Export the broadcast setters for WebSocket handler to use
-export { setNotificationBroadcast, setExecBroadcast, setFocusAgentBroadcast, setAgentsBroadcast, setTriggerBroadcast, setBuildingsBroadcast };
+export { setNotificationBroadcast, setExecBroadcast, setFocusAgentBroadcast, setAgentsBroadcast, setTriggerBroadcast, setBuildingsBroadcast, setSkillsBroadcast };
 
 export default router;
