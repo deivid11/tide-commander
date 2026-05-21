@@ -15,6 +15,9 @@ import type { Agent, PermissionRequest } from '../../../shared/types';
 import type { AttachedFile } from './types';
 import { Icon } from '../Icon';
 import { getPendingMessagesForAgent, removePendingMessageForAgent } from '../../websocket/send';
+import { useMessageQueue, type QueuedMessage } from '../../hooks/useMessageQueue';
+import { useAgentStatusTransition } from '../../hooks/useAgentStatusTransition';
+import { QueuedMessagesBar } from './QueuedMessagesBar';
 
 /**
  * Isolated elapsed timer component — owns its own 1-second setInterval so the
@@ -269,6 +272,50 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   // re-rendering the entire TerminalInputArea every second.
   const lastPrompt = useLastPrompt(selectedAgentId);
   const isWorking = selectedAgent.status === 'working';
+
+  const messageQueue = useMessageQueue(selectedAgentId);
+  const sendQueuedMessage = useCallback((entry: QueuedMessage) => {
+    if (!selectedAgentId) return;
+    try {
+      store.sendCommand(selectedAgentId, entry.text);
+      messageQueue.clearError(entry.id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'send failed';
+      messageQueue.markError(entry.id, msg);
+    }
+  }, [selectedAgentId, messageQueue]);
+
+  useAgentStatusTransition({
+    status: selectedAgent.status,
+    onLeaveWorking: () => {
+      const next = messageQueue.drainOne();
+      if (next) sendQueuedMessage(next);
+    },
+  });
+
+  useEffect(() => {
+    if (isWorking) return;
+    if (messageQueue.queue.length === 0) return;
+    if (selectedAgent.status === 'working') return;
+    const timer = setTimeout(() => {
+      const next = messageQueue.drainOne();
+      if (next) sendQueuedMessage(next);
+    }, 500);
+    return () => clearTimeout(timer);
+    // Intentionally depend on selectedAgentId only; we want this to fire when
+    // an agent is mounted with a non-empty queue and is idle.
+  }, [selectedAgentId]);
+
+  const handleEnforceQueued = useCallback((id: string) => {
+    const entry = messageQueue.queue.find((m) => m.id === id);
+    if (!entry) return;
+    messageQueue.removeById(id);
+    sendQueuedMessage(entry);
+  }, [messageQueue, sendQueuedMessage]);
+
+  const handleDeleteQueued = useCallback((id: string) => {
+    messageQueue.removeById(id);
+  }, [messageQueue]);
 
   const focusGuakeInputContainer = useCallback(() => {
     const container = inputContainerRef.current;
@@ -586,6 +633,21 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     const isMobile = window.innerWidth <= 768;
 
     if (e.key === 'Enter') {
+      if (e.altKey && e.shiftKey) {
+        const text = command.trim();
+        if (!text || !selectedAgentId) {
+          e.preventDefault();
+          return;
+        }
+        e.preventDefault();
+        messageQueue.enqueue(text);
+        setCommand('');
+        setForceTextarea(false);
+        setPastedTexts(new Map());
+        resetPastedCount();
+        return;
+      }
+
       // On mobile: Enter adds newline
       // On desktop: Shift+Enter adds newline, Enter sends
       if (isMobile) {
@@ -886,6 +948,13 @@ export const TerminalInputArea = memo(function TerminalInputArea({
           </div>
         </div>
       )}
+
+      <QueuedMessagesBar
+        queue={messageQueue.queue}
+        isWorking={isWorking}
+        onEnforce={handleEnforceQueued}
+        onDelete={handleDeleteQueued}
+      />
 
       <div className={`guake-input-wrapper ${selectedAgent.status === 'working' ? 'has-stop-btn is-working' : ''} ${showCompletion ? 'is-completed' : ''}`}>
         <div

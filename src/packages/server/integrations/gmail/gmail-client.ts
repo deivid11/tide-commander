@@ -461,6 +461,133 @@ function parseGmailMessage(msg: gmail_v1.Schema$Message): EmailMessage {
   };
 }
 
+export class GmailAttachmentNotAuthenticatedError extends Error {
+  constructor() { super('Gmail not authenticated'); this.name = 'GmailAttachmentNotAuthenticatedError'; }
+}
+export class GmailAttachmentNotFoundError extends Error {
+  constructor() { super('attachment not found'); this.name = 'GmailAttachmentNotFoundError'; }
+}
+export class GmailAttachmentTooLargeError extends Error {
+  constructor(public bytes: number, public cap: number) {
+    super(`attachment too large (${bytes} > ${cap})`);
+    this.name = 'GmailAttachmentTooLargeError';
+  }
+}
+
+export async function dumpGmailMessageParts(
+  messageId: string,
+): Promise<{
+  found: boolean;
+  parts: Array<{ partId: string; mimeType: string; filename: string; attachmentId: string | null; size: number; depth: number }>;
+} | null> {
+  if (!gmail) throw new GmailAttachmentNotAuthenticatedError();
+  let res: { data: gmail_v1.Schema$Message };
+  try {
+    res = await gmail.users.messages.get({
+      userId: 'me',
+      id: messageId,
+      format: 'full',
+    });
+  } catch (err) {
+    const e = err as { code?: number; status?: number };
+    if (e.code === 404 || e.status === 404) return null;
+    throw err;
+  }
+  const out: Array<{ partId: string; mimeType: string; filename: string; attachmentId: string | null; size: number; depth: number }> = [];
+  function walk(part: gmail_v1.Schema$MessagePart | undefined, depth: number): void {
+    if (!part) return;
+    out.push({
+      partId: part.partId ?? '',
+      mimeType: part.mimeType ?? '',
+      filename: part.filename ?? '',
+      attachmentId: part.body?.attachmentId ?? null,
+      size: part.body?.size ?? 0,
+      depth,
+    });
+    if (part.parts) for (const p of part.parts) walk(p, depth + 1);
+  }
+  walk(res.data.payload ?? undefined, 0);
+  return { found: true, parts: out };
+}
+
+export async function resolveGmailAttachmentPart(
+  messageId: string,
+  identifier: string,
+  filenameHint?: string,
+): Promise<{ realAttachmentId: string; filename: string; mimeType: string; size: number; partId: string } | null> {
+  if (!gmail) throw new GmailAttachmentNotAuthenticatedError();
+  let res: { data: gmail_v1.Schema$Message };
+  try {
+    res = await gmail.users.messages.get({
+      userId: 'me',
+      id: messageId,
+      format: 'full',
+    });
+  } catch (err) {
+    const e = err as { code?: number; status?: number };
+    if (e.code === 404 || e.status === 404) return null;
+    throw err;
+  }
+
+  type AttPart = { realAttachmentId: string; filename: string; mimeType: string; size: number; partId: string };
+  const candidates: AttPart[] = [];
+  function walk(part: gmail_v1.Schema$MessagePart | undefined): void {
+    if (!part) return;
+    const attId = part.body?.attachmentId;
+    if (attId) {
+      candidates.push({
+        realAttachmentId: attId,
+        filename: part.filename || '',
+        mimeType: part.mimeType || 'application/octet-stream',
+        size: part.body?.size ?? 0,
+        partId: part.partId ?? '',
+      });
+    }
+    if (part.parts) for (const p of part.parts) walk(p);
+  }
+  walk(res.data.payload ?? undefined);
+
+  const id = identifier.trim();
+  const norm = (s: string): string => s.normalize('NFC').toLowerCase().trim();
+  const hint = filenameHint ? norm(filenameHint) : undefined;
+
+  for (const c of candidates) if (c.realAttachmentId === id) return c;
+  for (const c of candidates) if (c.partId === id) return c;
+  if (hint) {
+    for (const c of candidates) if (norm(c.filename) === hint) return c;
+  }
+  for (const c of candidates) if (norm(c.filename) === norm(id)) return c;
+  return null;
+}
+
+export async function fetchGmailAttachmentBuffer(
+  messageId: string,
+  attachmentId: string,
+): Promise<{ buffer: Buffer; size: number }> {
+  if (!gmail) throw new GmailAttachmentNotAuthenticatedError();
+  const { MAX_ATTACHMENT_BYTES } = await import('../../services/attachment-downloader.js');
+
+  let res: { data: { data?: string | null; size?: number | null } };
+  try {
+    res = await gmail.users.messages.attachments.get({
+      userId: 'me',
+      messageId,
+      id: attachmentId,
+    });
+  } catch (err) {
+    const e = err as { code?: number; status?: number; message?: string };
+    if (e.code === 404 || e.status === 404) throw new GmailAttachmentNotFoundError();
+    throw err;
+  }
+  const b64 = res.data?.data;
+  if (!b64) throw new GmailAttachmentNotFoundError();
+  const buf = Buffer.from(b64, 'base64url');
+  if (buf.byteLength > MAX_ATTACHMENT_BYTES) {
+    throw new GmailAttachmentTooLargeError(buf.byteLength, MAX_ATTACHMENT_BYTES);
+  }
+  return { buffer: buf, size: buf.byteLength };
+}
+
 /**
  * Download a single Gmail attachment by id and persist it to disk under
  * `<TEMP_DIR>/triggers/gmail/<messageId>/<sanitized-filename>`. Mirrors what
@@ -477,7 +604,6 @@ export async function downloadGmailAttachment(
     ctx?.log.warn('Gmail not authenticated — skipping attachment download');
     return null;
   }
-  // Lazy-import the shared cap + temp root so we keep one source of truth.
   const { MAX_ATTACHMENT_BYTES, TRIGGER_ATTACHMENT_ROOT } = await import(
     '../../services/attachment-downloader.js'
   );
@@ -491,17 +617,12 @@ export async function downloadGmailAttachment(
   const path = await import('path');
   const fs = await import('fs/promises');
 
-  // Sanitize segments the same way attachment-downloader does — strip
-  // path separators / `..` / control chars so a hostile filename can't
-  // escape the trigger dir.
   const safe = (s: string): string =>
     s.replace(/[\\/\x00-\x1f\x7f]/g, '_').replace(/\.{2,}/g, '_').slice(0, 200) || 'file';
   const targetDir = path.join(TRIGGER_ATTACHMENT_ROOT, 'gmail', safe(messageId));
   const finalName = safe(meta.filename) || 'file';
   const targetPath = path.join(targetDir, finalName);
 
-  // Idempotency: if a file with the expected size already lives at the
-  // target path, skip the network round-trip.
   try {
     const st = await fs.stat(targetPath);
     if (st.isFile() && (meta.size === 0 || st.size === meta.size)) {
@@ -511,36 +632,21 @@ export async function downloadGmailAttachment(
 
   await fs.mkdir(targetDir, { recursive: true });
 
-  let res: { data: { data?: string | null; size?: number | null } };
+  let buffer: Buffer;
   try {
-    res = await gmail.users.messages.attachments.get({
-      userId: 'me',
-      messageId,
-      id: meta.attachmentId,
-    });
+    const fetched = await fetchGmailAttachmentBuffer(messageId, meta.attachmentId);
+    buffer = fetched.buffer;
   } catch (err) {
     ctx?.log.warn(`Gmail attachments.get failed for ${meta.filename}: ${err}`);
     return null;
   }
-  const b64 = res.data?.data;
-  if (!b64) {
-    ctx?.log.warn(`Gmail attachment ${meta.filename} returned empty data`);
-    return null;
-  }
-  const buf = Buffer.from(b64, 'base64url');
-  if (buf.byteLength > MAX_ATTACHMENT_BYTES) {
-    ctx?.log.warn(
-      `Gmail attachment ${meta.filename} decoded to ${buf.byteLength}B (exceeds cap)`,
-    );
-    return null;
-  }
   try {
-    await fs.writeFile(targetPath, buf);
+    await fs.writeFile(targetPath, buffer);
   } catch (err) {
     ctx?.log.warn(`Gmail attachment write failed for ${targetPath}: ${err}`);
     return null;
   }
-  return { path: targetPath, bytesOnDisk: buf.byteLength, filename: finalName, mimeType: meta.mimeType };
+  return { path: targetPath, bytesOnDisk: buffer.byteLength, filename: finalName, mimeType: meta.mimeType };
 }
 
 export async function getThread(threadId: string): Promise<EmailThread> {

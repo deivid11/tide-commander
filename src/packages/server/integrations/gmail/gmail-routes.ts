@@ -5,12 +5,48 @@
  */
 
 import { Router, Request, Response } from 'express';
+import * as path from 'path';
+import * as fsp from 'fs/promises';
 import * as gmailClient from './gmail-client.js';
+import {
+  GmailAttachmentNotAuthenticatedError,
+  GmailAttachmentNotFoundError,
+  GmailAttachmentTooLargeError,
+} from './gmail-client.js';
 import { createLogger } from '../../utils/logger.js';
 
 const log = createLogger('GmailRoutes');
 
 const router = Router();
+
+const SAVE_PATH_WHITELIST = ['/home/riven/obsidian', '/home/riven/d', '/tmp'];
+
+function sanitizeFilename(name: string): string | null {
+  if (typeof name !== 'string') return null;
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+  if (/[/\\]/.test(trimmed)) return null;
+  if (/[\x00-\x1f]/.test(trimmed)) return null;
+  const cleaned = trimmed.slice(0, 200);
+  return cleaned.length > 0 ? cleaned : null;
+}
+
+function isWithinWhitelist(absPath: string): boolean {
+  const resolved = path.resolve(absPath);
+  return SAVE_PATH_WHITELIST.some((root) => {
+    const rootResolved = path.resolve(root);
+    return resolved === rootResolved || resolved.startsWith(rootResolved + path.sep);
+  });
+}
+
+function buildContentDisposition(filename: string): string {
+  const asciiFallback = filename
+    .replace(/[^\x20-\x7e]/g, '_')
+    .replace(/"/g, "'")
+    .slice(0, 200) || 'attachment';
+  const encoded = encodeURIComponent(filename);
+  return `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`;
+}
 
 // POST /api/email/send — Send an email
 router.post('/send', async (req: Request, res: Response) => {
@@ -225,5 +261,154 @@ router.post('/polling/stop', (req: Request, res: Response) => {
     res.status(500).json({ error: `Failed to stop polling: ${err instanceof Error ? err.message : err}` });
   }
 });
+
+router.get(
+  '/messages/:messageId/parts',
+  async (req: Request<{ messageId: string }>, res: Response) => {
+    const messageId = (req.params.messageId ?? '').trim();
+    if (!messageId) {
+      res.status(400).json({ error: 'invalid messageId' });
+      return;
+    }
+    try {
+      const dump = await gmailClient.dumpGmailMessageParts(messageId);
+      if (!dump) {
+        res.status(404).json({ error: 'message not found' });
+        return;
+      }
+      res.json(dump);
+    } catch (err) {
+      if (err instanceof GmailAttachmentNotAuthenticatedError) {
+        res.status(503).json({ error: 'Gmail not authenticated' });
+        return;
+      }
+      log.error(`Gmail message parts dump error: ${err}`);
+      res.status(500).json({ error: 'failed to dump message' });
+    }
+  },
+);
+
+router.post(
+  '/messages/:messageId/attachments/:attachmentId/download',
+  async (req: Request<{ messageId: string; attachmentId: string }>, res: Response) => {
+    const messageId = (req.params.messageId ?? '').trim();
+    const attachmentId = (req.params.attachmentId ?? '').trim();
+    if (!messageId) {
+      res.status(400).json({ error: 'invalid messageId' });
+      return;
+    }
+    if (!attachmentId) {
+      res.status(400).json({ error: 'invalid attachmentId' });
+      return;
+    }
+
+    const savePathRaw = typeof req.query.savePath === 'string' ? req.query.savePath : undefined;
+    const filenameOverrideRaw = typeof req.query.filename === 'string' ? req.query.filename : undefined;
+
+    let filenameOverride: string | null = null;
+    if (filenameOverrideRaw !== undefined) {
+      filenameOverride = sanitizeFilename(filenameOverrideRaw);
+      if (!filenameOverride) {
+        res.status(400).json({ error: 'invalid filename' });
+        return;
+      }
+    }
+
+    let resolvedSavePath: string | null = null;
+    if (savePathRaw) {
+      if (!path.isAbsolute(savePathRaw)) {
+        res.status(400).json({ error: 'savePath outside whitelist' });
+        return;
+      }
+      resolvedSavePath = path.resolve(savePathRaw);
+      if (!isWithinWhitelist(resolvedSavePath)) {
+        res.status(400).json({ error: 'savePath outside whitelist' });
+        return;
+      }
+    }
+
+    try {
+      const part = await gmailClient.resolveGmailAttachmentPart(
+        messageId,
+        attachmentId,
+        filenameOverrideRaw,
+      );
+      if (!part) {
+        res.status(404).json({ error: 'attachment not found' });
+        return;
+      }
+
+      const resolvedMime = part.mimeType || 'application/octet-stream';
+      const metaFilename = sanitizeFilename(part.filename) ?? 'attachment';
+      const resolvedFilename = filenameOverride ?? metaFilename;
+
+      const { buffer, size } = await gmailClient.fetchGmailAttachmentBuffer(messageId, part.realAttachmentId);
+
+      if (!resolvedSavePath) {
+        res.setHeader('Content-Type', resolvedMime);
+        res.setHeader('Content-Disposition', buildContentDisposition(resolvedFilename));
+        res.setHeader('Content-Length', String(size));
+        res.status(200).send(buffer);
+        return;
+      }
+
+      let targetPath: string;
+      let targetDir: string;
+      let isDir = false;
+      try {
+        const st = await fsp.stat(resolvedSavePath);
+        isDir = st.isDirectory();
+      } catch {
+        const raw = savePathRaw ?? '';
+        isDir = raw.endsWith('/') || raw.endsWith(path.sep);
+      }
+
+      if (isDir) {
+        targetDir = resolvedSavePath;
+        targetPath = path.join(resolvedSavePath, resolvedFilename);
+      } else {
+        const baseFromPath = path.basename(resolvedSavePath);
+        const safeBase = filenameOverride ?? sanitizeFilename(baseFromPath);
+        if (!safeBase) {
+          res.status(400).json({ error: 'invalid filename' });
+          return;
+        }
+        targetDir = path.dirname(resolvedSavePath);
+        targetPath = path.join(targetDir, safeBase);
+      }
+
+      if (!isWithinWhitelist(targetPath) || !isWithinWhitelist(targetDir)) {
+        res.status(400).json({ error: 'savePath outside whitelist' });
+        return;
+      }
+
+      try {
+        await fsp.mkdir(targetDir, { recursive: true });
+        await fsp.writeFile(targetPath, buffer);
+      } catch (err) {
+        log.error(`Gmail attachment write failed for ${targetPath}: ${err}`);
+        res.status(500).json({ error: 'failed to write attachment' });
+        return;
+      }
+
+      res.json({ ok: true, path: targetPath, size });
+    } catch (err) {
+      if (err instanceof GmailAttachmentNotAuthenticatedError) {
+        res.status(503).json({ error: 'Gmail not authenticated' });
+        return;
+      }
+      if (err instanceof GmailAttachmentNotFoundError) {
+        res.status(404).json({ error: 'attachment not found' });
+        return;
+      }
+      if (err instanceof GmailAttachmentTooLargeError) {
+        res.status(413).json({ error: 'attachment too large' });
+        return;
+      }
+      log.error(`Gmail attachment download error: ${err}`);
+      res.status(500).json({ error: 'failed to download attachment' });
+    }
+  },
+);
 
 export default router;

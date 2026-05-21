@@ -191,6 +191,33 @@ export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppM
     return client !== null;
   }
 
+  function persist(payload: NormalizedWhatsAppMessage): void {
+    try {
+      ctx.eventDb.logWhatsAppMessage({
+        sessionId: payload.sessionId,
+        messageId: payload.messageId,
+        chatId: payload.chatId,
+        isGroup: payload.isGroup,
+        groupName: payload.groupName,
+        fromJid: payload.from,
+        fromName: payload.fromName,
+        direction: payload.direction,
+        body: payload.body,
+        messageType: payload.mediaType ?? 'text',
+        mediaMimetype: payload.mediaMimetype,
+        mediaSize: payload.mediaSize,
+        mediaFilename: payload.mediaFilename,
+        mediaPath: payload.mediaPath,
+        audioTranscription: payload.audioTranscription,
+        rawEvent: payload,
+        timestamp: payload.timestamp,
+        receivedAt: Date.now(),
+      });
+    } catch (err) {
+      ctx.log.warn(`WhatsApp logWhatsAppMessage failed: ${err}`);
+    }
+  }
+
   function extractMessageId(data: unknown): string | undefined {
     if (!data || typeof data !== 'object') return undefined;
     const d = data as Record<string, unknown>;
@@ -266,6 +293,7 @@ export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppM
         !!payload.messageId;
 
       if (!needsContactEnrich && !needsGroupEnrich && !needsMediaDownload) {
+        persist(payload);
         ctx.broadcast({ type: 'whatsapp_message', payload });
         notifyTriggerSubscribers(payload);
         return;
@@ -368,6 +396,7 @@ export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppM
         : Promise.resolve();
 
       void Promise.all([contactPromise, groupPromise, mediaPromise]).then(() => {
+        persist(payload);
         ctx.broadcast({ type: 'whatsapp_message', payload });
         notifyTriggerSubscribers(payload);
       });

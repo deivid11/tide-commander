@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Icon } from '../Icon';
 import { TaskListView } from '../shared/TaskListView';
+import { store } from '../../store';
 import type { DiffLine, EditData, TodoItem } from './types';
 
 // ============================================================================
@@ -454,10 +455,29 @@ interface AskQuestion {
 
 interface AskQuestionInputProps {
   content: string;
+  /** Optional map of question text → user's picked answer label(s). When provided,
+   *  the matching option is highlighted green. Used by history rendering to fold
+   *  the tool_result back into the question block. */
+  answers?: Record<string, string>;
+  /** When set, render an interactive UI (clickable options, free-text input,
+   *  Submit/Decline buttons) instead of the static display. Used live when a
+   *  matching agent-prompt is pending. */
+  pendingPromptId?: string;
 }
 
-export function AskQuestionInput({ content }: AskQuestionInputProps) {
+function normalizePickedLabels(raw: string | undefined): string[] {
+  if (!raw) return [];
+  // multiSelect answers come as ", "-joined or array-stringified.
+  return raw.split(/,\s*/).map((s) => s.trim()).filter(Boolean);
+}
+
+export function AskQuestionInput({ content, answers, pendingPromptId }: AskQuestionInputProps) {
   const [expandedOption, setExpandedOption] = useState<number | null>(null);
+
+  // Interactive state — only used when pendingPromptId is set
+  const [picks, setPicks] = useState<Record<string, string | string[]>>({});
+  const [freeText, setFreeText] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
 
   try {
     const input = JSON.parse(content);
@@ -467,46 +487,155 @@ export function AskQuestionInput({ content }: AskQuestionInputProps) {
       return <pre className="output-input-content">{content}</pre>;
     }
 
+    const interactive = Boolean(pendingPromptId);
+
+    // For interactive mode, treat the local `picks` state as the source of
+    // truth for which option is highlighted. After the user submits, the
+    // prompt resolves and `interactive` flips to false — but we want the
+    // picks to STAY visible until the server-side tool_result enrichment
+    // catches up. So local `picks` take precedence over `answers` whenever
+    // the user has actually touched them.
+    const localPicksFor = (q: AskQuestion): string[] | null => {
+      const a = picks[q.question];
+      if (a === undefined) return null;
+      return Array.isArray(a) ? a : [a];
+    };
+    const isAnsweredQ = (q: AskQuestion): boolean => {
+      const local = localPicksFor(q);
+      if (local !== null) return local.length > 0;
+      return normalizePickedLabels(answers?.[q.question]).length > 0;
+    };
+    const pickedLabelsFor = (q: AskQuestion): string[] => {
+      const local = localPicksFor(q);
+      if (local !== null) return local;
+      return normalizePickedLabels(answers?.[q.question]);
+    };
+
+    function pickOption(q: AskQuestion, label: string) {
+      setPicks((prev) => {
+        const next = { ...prev };
+        if (q.multiSelect) {
+          const cur = Array.isArray(prev[q.question]) ? (prev[q.question] as string[]) : [];
+          next[q.question] = cur.includes(label) ? cur.filter((l) => l !== label) : [...cur, label];
+        } else {
+          next[q.question] = label;
+        }
+        return next;
+      });
+    }
+    function applyFreeText(q: AskQuestion) {
+      const text = freeText[q.question]?.trim();
+      if (!text) return;
+      setPicks((prev) => ({ ...prev, [q.question]: text }));
+    }
+    async function submit() {
+      if (!pendingPromptId) return;
+      setSubmitting(true);
+      await store.respondToAgentPrompt(pendingPromptId, true, { answers: picks });
+      store.resolveAgentPromptLocal(pendingPromptId, true);
+    }
+    async function decline() {
+      if (!pendingPromptId) return;
+      setSubmitting(true);
+      await store.respondToAgentPrompt(pendingPromptId, false, { reason: 'User declined to answer' });
+      store.resolveAgentPromptLocal(pendingPromptId, false);
+    }
+
+    const answeredCount = questions.filter(isAnsweredQ).length;
+    const allAnswered = answeredCount === questions.length;
+
     return (
-      <div className="ask-question-input">
-        {questions.map((q, qIdx) => (
-          <div key={qIdx} className="ask-question-block">
-            <div className="ask-question-header">
-              {q.header && <span className="ask-question-badge">{q.header}</span>}
-              <span className="ask-question-text">{q.question}</span>
-              {q.multiSelect && <span className="ask-question-multi">multi</span>}
-            </div>
-            {q.options && q.options.length > 0 && (
-              <div className="ask-question-options">
-                {q.options.map((opt, oIdx) => {
-                  const globalIdx = qIdx * 100 + oIdx;
-                  const isExpanded = expandedOption === globalIdx;
-                  return (
-                    <div
-                      key={oIdx}
-                      className={`ask-question-option ${isExpanded ? 'expanded' : ''}`}
-                      onClick={() => setExpandedOption(isExpanded ? null : globalIdx)}
-                    >
-                      <div className="ask-option-row">
-                        <span className="ask-option-number">{oIdx + 1}</span>
-                        <span className="ask-option-label">{opt.label}</span>
-                        {opt.markdown && (
-                          <span className="ask-option-preview-hint"><Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
+      <div className={`ask-question-input ${interactive ? 'is-interactive' : ''}`}>
+        {questions.map((q, qIdx) => {
+          const pickedLabels = pickedLabelsFor(q);
+          const isAnswered = pickedLabels.length > 0;
+          return (
+            <div key={qIdx} className={`ask-question-block ${isAnswered ? 'answered' : ''}`}>
+              <div className="ask-question-header">
+                {q.header && <span className="ask-question-badge">{q.header}</span>}
+                <span className="ask-question-text">{q.question}</span>
+                {q.multiSelect && <span className="ask-question-multi">multi</span>}
+                {isAnswered && !interactive && <span className="ask-question-answered-tag">answered</span>}
+              </div>
+              {q.options && q.options.length > 0 && (
+                <div className="ask-question-options">
+                  {q.options.map((opt, oIdx) => {
+                    const globalIdx = qIdx * 100 + oIdx;
+                    const isExpanded = expandedOption === globalIdx;
+                    const isPicked = pickedLabels.includes(opt.label);
+                    return (
+                      <div
+                        key={oIdx}
+                        className={`ask-question-option ${isExpanded ? 'expanded' : ''} ${isPicked ? 'picked' : ''}`}
+                        onClick={() => {
+                          if (interactive) {
+                            if (!submitting) pickOption(q, opt.label);
+                          } else {
+                            setExpandedOption(isExpanded ? null : globalIdx);
+                          }
+                        }}
+                      >
+                        <div className="ask-option-row">
+                          <span className="ask-option-number">{oIdx + 1}</span>
+                          <span className="ask-option-label">{opt.label}</span>
+                          {isPicked && <span className="ask-option-pick-mark" aria-label="user picked">✓</span>}
+                          {opt.markdown && !interactive && (
+                            <span className="ask-option-preview-hint"><Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
+                          )}
+                        </div>
+                        {opt.description && (
+                          <div className="ask-option-desc">{opt.description}</div>
+                        )}
+                        {opt.markdown && isExpanded && !interactive && (
+                          <pre className="ask-option-markdown">{opt.markdown}</pre>
                         )}
                       </div>
-                      {opt.description && (
-                        <div className="ask-option-desc">{opt.description}</div>
-                      )}
-                      {opt.markdown && isExpanded && (
-                        <pre className="ask-option-markdown">{opt.markdown}</pre>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              )}
+              {interactive && (
+                <div className="ask-question-freetext">
+                  <input
+                    type="text"
+                    placeholder="Or type your own answer…"
+                    value={freeText[q.question] ?? ''}
+                    onChange={(e) => setFreeText((p) => ({ ...p, [q.question]: e.target.value }))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyFreeText(q); } }}
+                    disabled={submitting}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => applyFreeText(q)}
+                    disabled={submitting || !(freeText[q.question] ?? '').trim()}
+                  >
+                    Use
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {interactive && (
+          <div className="ask-question-actions">
+            <span className={`ask-question-progress ${allAnswered ? 'complete' : ''}`}>
+              {allAnswered
+                ? 'All questions answered'
+                : `${answeredCount} of ${questions.length} answered`}
+            </span>
+            <button className="ask-question-btn deny" onClick={decline} disabled={submitting}>
+              <Icon name="close" size={12} /> Decline
+            </button>
+            <button
+              className="ask-question-btn approve"
+              onClick={submit}
+              disabled={submitting || !allAnswered}
+              title={allAnswered ? 'Submit answers' : `${questions.length - answeredCount} unanswered`}
+            >
+              <Icon name="check" size={12} /> Submit answers
+            </button>
           </div>
-        ))}
+        )}
       </div>
     );
   } catch {
@@ -515,15 +644,70 @@ export function AskQuestionInput({ content }: AskQuestionInputProps) {
 }
 
 // ============================================================================
+// AskUserQuestion Tool Result — render the user's picked answers
+// ============================================================================
+// The CLI returns a textual summary like:
+//   Your questions have been answered: "Q1"="A1", "Q2"="A2[, A3]". You can ...
+// We parse the Q=A pairs and render each as a "Q → A" row so the user can see
+// what THEY picked (history was just dumping the raw string).
+
+interface AskQuestionResultProps {
+  content: string;
+}
+
+export function AskQuestionResult({ content }: AskQuestionResultProps) {
+  // Match all "Quoted question"="Quoted answer" pairs.
+  // Answers may include escaped quotes/commas; we use a lazy match until the
+  // next `"=` or end of the answer-list segment.
+  const pairs: Array<{ q: string; a: string }> = [];
+  const re = /"((?:[^"\\]|\\.)*)"\s*=\s*"((?:[^"\\]|\\.)*)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(content)) !== null) {
+    pairs.push({ q: m[1] ?? '', a: m[2] ?? '' });
+  }
+  if (pairs.length === 0) {
+    return <pre className="output-result-content">{content}</pre>;
+  }
+  return (
+    <div className="ask-question-result">
+      <div className="ask-question-result-header">
+        <Icon name="check" size={12} />
+        <span>Your answers</span>
+      </div>
+      <ul className="ask-question-result-list">
+        {pairs.map((p, i) => (
+          <li key={i} className="ask-question-result-row">
+            <span className="ask-question-result-q">{p.q}</span>
+            <span className="ask-question-result-arrow">→</span>
+            <span className="ask-question-result-a">{p.a}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ============================================================================
 // ExitPlanMode Tool Input Component
 // ============================================================================
 
 interface ExitPlanModeInputProps {
   content: string;
+  /** When set, render Approve/Reject buttons that POST the user's decision to
+   *  the matching agent-prompt (same id). Used live to fold the interactive
+   *  bottom panel into this inline chip. */
+  pendingPromptId?: string;
+  /** When provided, an "Open in modal" button appears next to the Show/Hide
+   *  toggle so the user can read long plans with full viewport space. */
+  onViewMarkdown?: (markdown: string) => void;
 }
 
-export function ExitPlanModeInput({ content }: ExitPlanModeInputProps) {
-  const [expanded, setExpanded] = useState(false);
+export function ExitPlanModeInput({ content, pendingPromptId, onViewMarkdown }: ExitPlanModeInputProps) {
+  const interactive = Boolean(pendingPromptId);
+  // Auto-expand when the plan is awaiting interactive approval so the user
+  // can read it without an extra click.
+  const [expanded, setExpanded] = useState(interactive);
+  const [submitting, setSubmitting] = useState(false);
 
   try {
     const input = JSON.parse(content);
@@ -536,10 +720,23 @@ export function ExitPlanModeInput({ content }: ExitPlanModeInputProps) {
     const headingMatch = plan.match(/^#+\s+(.+)$/m);
     const preview = (headingMatch?.[1] || plan.split('\n').find((line: string) => line.trim().length > 0) || 'Plan ready').trim();
 
+    async function approve() {
+      if (!pendingPromptId) return;
+      setSubmitting(true);
+      await store.respondToAgentPrompt(pendingPromptId, true);
+      store.resolveAgentPromptLocal(pendingPromptId, true);
+    }
+    async function reject() {
+      if (!pendingPromptId) return;
+      setSubmitting(true);
+      await store.respondToAgentPrompt(pendingPromptId, false, { reason: 'User rejected the plan' });
+      store.resolveAgentPromptLocal(pendingPromptId, false);
+    }
+
     return (
-      <div className="plan-tool-input">
+      <div className={`plan-tool-input ${interactive ? 'is-interactive' : ''}`}>
         <div className="plan-tool-header">
-          <span className="plan-tool-title"><Icon name="map" size={13} /> Plan</span>
+          <span className="plan-tool-title"><Icon name="map" size={13} /> Plan{interactive && ' — awaiting approval'}</span>
           <button
             type="button"
             className="plan-tool-toggle"
@@ -547,6 +744,23 @@ export function ExitPlanModeInput({ content }: ExitPlanModeInputProps) {
             title={expanded ? 'Collapse plan' : 'Expand plan'}
           >
             <Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} /> {expanded ? 'Hide' : 'Show'}
+          </button>
+          <button
+            type="button"
+            className="plan-tool-toggle plan-tool-modal-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              // Prefer the prop-drilled handler when available, but always
+              // also fire a global custom event so the modal opens even if
+              // the parent chain didn't plumb onViewMarkdown through.
+              if (onViewMarkdown) onViewMarkdown(plan);
+              try {
+                window.dispatchEvent(new CustomEvent('tide:viewMarkdown', { detail: { content: plan } }));
+              } catch { /* environments without CustomEvent */ }
+            }}
+            title="Open plan in modal"
+          >
+            <Icon name="fullscreen" size={11} /> Open
           </button>
         </div>
         {expanded ? (
@@ -557,6 +771,16 @@ export function ExitPlanModeInput({ content }: ExitPlanModeInputProps) {
           </div>
         ) : (
           <div className="plan-tool-collapsed-preview">{preview}</div>
+        )}
+        {interactive && (
+          <div className="plan-tool-actions">
+            <button className="ask-question-btn deny" onClick={reject} disabled={submitting}>
+              <Icon name="close" size={12} /> Reject
+            </button>
+            <button className="ask-question-btn approve" onClick={approve} disabled={submitting}>
+              <Icon name="check" size={12} /> Approve plan
+            </button>
+          </div>
         )}
       </div>
     );
@@ -646,9 +870,12 @@ function taskStatusIcon(status: string): string {
 
 interface TaskUpdateInputProps {
   content: string;
+  /** Optional task subject from the matching TaskCreate. When provided, the
+   *  chip shows the task name instead of a generic "status: …" string. */
+  subject?: string;
 }
 
-export function TaskUpdateInput({ content }: TaskUpdateInputProps) {
+export function TaskUpdateInput({ content, subject }: TaskUpdateInputProps) {
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
@@ -670,7 +897,13 @@ export function TaskUpdateInput({ content }: TaskUpdateInputProps) {
 
   const failed = description ? /\bfail(ed|ure|s)?\b/i.test(description) : false;
   const statusClass = failed ? 'failed' : (status ? status.replace(/\s+/g, '_') : 'unknown');
-  const displayText = description.trim() || (status ? `status: ${status}` : '(no description)');
+  // Prefer the looked-up task subject when available so each row reads like
+  // "✓ Wire Tailwind + Vitest config" instead of "✓ status: completed".
+  const trimmedDescription = description.trim();
+  const subjectFromEnrichment = subject?.trim();
+  const displayText = subjectFromEnrichment
+    || trimmedDescription
+    || (status ? `status: ${status}` : '(no description)');
 
   return (
     <div className="task-tool-input">
@@ -678,8 +911,69 @@ export function TaskUpdateInput({ content }: TaskUpdateInputProps) {
         <span className="task-tool-status-icon">{taskStatusIcon(status)}</span>
         {taskId && <span className="task-tool-id">#{taskId}</span>}
         <span className="task-tool-content">{displayText}</span>
+        {subjectFromEnrichment && trimmedDescription && trimmedDescription !== subjectFromEnrichment && (
+          <span className="task-tool-note">— {trimmedDescription}</span>
+        )}
       </div>
     </div>
+  );
+}
+
+import type { BashMemoryKind, BashMemoryCommandInfo, BashMemoryResponseInfo } from '../../utils/outputRendering';
+
+interface MemoryOpInputProps {
+  info: BashMemoryCommandInfo;
+  response?: BashMemoryResponseInfo;
+}
+
+function memoryKindIcon(kind: BashMemoryKind): string {
+  switch (kind) {
+    case 'read':  return '🧠';
+    case 'save':  return '💾';
+    case 'clear': return '🗑️';
+  }
+}
+
+function memoryKindLabel(kind: BashMemoryKind, failed: boolean): string {
+  if (failed) {
+    switch (kind) {
+      case 'read':  return 'Failed reading memory';
+      case 'save':  return 'Failed saving memory';
+      case 'clear': return 'Failed clearing memory';
+    }
+  }
+  switch (kind) {
+    case 'read':  return 'Reading memory';
+    case 'save':  return 'Saved memory';
+    case 'clear': return 'Cleared memory';
+  }
+}
+
+export function MemoryOpInput({ info, response }: MemoryOpInputProps) {
+  const failed = response?.failed ?? false;
+  const length = info.kind === 'save' ? (response?.length ?? info.bodyLength) : undefined;
+  const shortId = info.agentId.length > 8 ? info.agentId.slice(0, 8) : info.agentId;
+  const stateClass = failed ? 'failed' : info.kind;
+
+  return (
+    <span className={`memory-op-inline memory-op-${stateClass}`} title={info.commandBody}>
+      <span className="memory-op-icon" aria-hidden>{memoryKindIcon(info.kind)}</span>
+      <span className="memory-op-label">{memoryKindLabel(info.kind, failed)}</span>
+      <span className="memory-op-sep">·</span>
+      <span className="memory-op-agent">agent {shortId}</span>
+      {typeof length === 'number' && (
+        <>
+          <span className="memory-op-sep">·</span>
+          <span className="memory-op-length">{length.toLocaleString()} chars</span>
+        </>
+      )}
+      {failed && (
+        <>
+          <span className="memory-op-sep">·</span>
+          <span className="memory-op-error">error</span>
+        </>
+      )}
+    </span>
   );
 }
 

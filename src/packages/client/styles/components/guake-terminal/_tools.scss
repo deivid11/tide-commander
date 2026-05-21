@@ -293,6 +293,85 @@
   white-space: nowrap;
 }
 
+.output-tool-param.bash-memory-param {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.memory-op-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  border-radius: 4px;
+  padding: 1px 8px;
+  flex-shrink: 0;
+
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-secondary) 28%, transparent);
+
+  &.memory-op-read {
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+    border-color: color-mix(in srgb, var(--text-secondary) 28%, transparent);
+  }
+
+  &.memory-op-save {
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 13%, transparent);
+    border-color: color-mix(in srgb, var(--accent-green) 36%, transparent);
+  }
+
+  &.memory-op-clear {
+    color: var(--accent-red, #ef4444);
+    background: color-mix(in srgb, var(--accent-red, #ef4444) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent-red, #ef4444) 32%, transparent);
+  }
+
+  &.memory-op-failed {
+    color: var(--accent-red, #ef4444);
+    background: color-mix(in srgb, var(--accent-red, #ef4444) 14%, transparent);
+    border-color: color-mix(in srgb, var(--accent-red, #ef4444) 42%, transparent);
+  }
+}
+
+.memory-op-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.memory-op-label {
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.memory-op-sep {
+  opacity: 0.55;
+  font-weight: 400;
+}
+
+.memory-op-agent {
+  font-family: var(--font-mono, monospace);
+  opacity: 0.85;
+}
+
+.memory-op-length {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.95;
+}
+
+.memory-op-error {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 10px;
+}
+
 .bash-search-shell {
   color: var(--text-muted);
   opacity: 0.9;
@@ -1072,11 +1151,15 @@
 // =============================================================================
 
 .output-task-inline {
-  flex-wrap: wrap;
+  // Allow the chip to stay on a single line. The TaskUpdate input fits next
+  // to "Dudas  TaskUpdate" rather than wrapping below as a sub-block.
+  flex-wrap: nowrap;
 
   .task-tool-input {
-    flex-basis: 100%;
-    margin-top: 4px;
+    // No flex-basis so the input flows inline next to agent badge + tool name.
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-top: 0;
   }
 }
 
@@ -1088,14 +1171,15 @@
 
 .task-tool-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
-  padding: 3px 10px;
+  padding: 2px 10px;
   font-family: $font-mono;
   font-size: 11px;
   line-height: 1.4;
   border-radius: $radius-sm;
   color: $text-primary;
+  min-width: 0;
 
   .task-tool-status-icon {
     flex-shrink: 0;
@@ -1110,12 +1194,34 @@
     color: $text-muted;
     font-weight: 500;
     opacity: 0.85;
+    font-size: 10px;
   }
 
   .task-tool-content {
     flex: 1;
-    word-break: break-word;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
+
+  .task-tool-note {
+    flex-shrink: 1;
+    color: $text-muted;
+    font-size: 10px;
+    opacity: 0.7;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+// TaskUpdate rows are single-line summaries; let the row breathe a tiny bit
+// more horizontally and remove the per-row background so it sits flush with
+// the parent output line.
+.task-tool-row-update {
+  padding-left: 0;
+  padding-right: 0;
+  background: transparent !important;
 }
 
 .task-tool-row-create {
@@ -1319,11 +1425,21 @@
 .plan-tool-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   padding: 6px 10px;
   background: rgba($bg-tertiary, 0.6);
   border-bottom: 1px solid $border-color;
   border-radius: $radius-sm $radius-sm 0 0;
+
+  // Push the toggle/Open buttons to the right; title stays flush-left.
+  .plan-tool-title { margin-right: auto; }
+}
+
+.plan-tool-modal-btn {
+  // Visually distinct from the Show/Hide toggle so users can spot it.
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .plan-tool-title {
@@ -1473,6 +1589,158 @@
   &.expanded {
     background: rgba(var(--accent-purple-rgb, 167, 139, 250), 0.06);
     border-left-color: var(--accent-purple, #a78bfa);
+  }
+
+  // User's picked option for an answered AskUserQuestion — render in green so
+  // the choice the user made stands out from the other (rejected) options.
+  &.picked {
+    background: rgba(70, 200, 130, 0.12);
+    border-left-color: #6fd49a;
+    .ask-option-number {
+      background: rgba(70, 200, 130, 0.25);
+      color: #b3f0cf;
+    }
+    .ask-option-label {
+      color: #d9ffe9;
+    }
+  }
+}
+
+.ask-option-pick-mark {
+  color: #6fd49a;
+  font-weight: 700;
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.ask-question-answered-tag {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6fd49a;
+  background: rgba(70, 200, 130, 0.14);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.ask-question-block.answered {
+  // soften unpicked options when the question has been resolved
+  .ask-question-option:not(.picked) {
+    opacity: 0.55;
+  }
+}
+
+// Interactive mode — when an agent-prompt is pending, the inline tool_use
+// chip becomes the answer panel. Free-text input below each question and a
+// Submit/Decline row at the bottom.
+.ask-question-input.is-interactive {
+  .ask-question-option {
+    border: 1px solid rgba(150, 170, 200, 0.18);
+    border-radius: 6px;
+    margin: 3px 0;
+    background: rgba(40, 48, 64, 0.55);
+    &:hover {
+      background: rgba(60, 75, 105, 0.7);
+    }
+    &.picked {
+      background: rgba(70, 200, 130, 0.18);
+      border-color: rgba(70, 200, 130, 0.45);
+    }
+  }
+}
+
+.ask-question-freetext {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+
+  input {
+    flex: 1;
+    background: rgba(20, 25, 35, 0.85);
+    border: 1px solid rgba(150, 170, 200, 0.2);
+    border-radius: 5px;
+    color: inherit;
+    padding: 5px 9px;
+    font-size: 12px;
+    font-family: $font-mono;
+    &:focus { outline: none; border-color: #6f8fff; }
+  }
+  button {
+    background: rgba(111, 143, 255, 0.18);
+    border: 1px solid rgba(111, 143, 255, 0.35);
+    color: #d8dee9;
+    border-radius: 5px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: $font-mono;
+    &:hover:not(:disabled) { background: rgba(111, 143, 255, 0.3); }
+    &:disabled { opacity: 0.5; cursor: not-allowed; }
+  }
+}
+
+.ask-question-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(120, 140, 180, 0.2);
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(to top, rgba(20, 25, 35, 0.98) 70%, rgba(20, 25, 35, 0) 100%);
+}
+.ask-question-progress {
+  flex: 1;
+  font-size: 11px;
+  color: #9aa3b8;
+  &.complete { color: #b3f0cf; }
+}
+.ask-question-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-family: $font-mono;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.12s, border-color 0.12s, opacity 0.12s;
+
+  &.approve {
+    background: rgba(70, 200, 130, 0.18);
+    border-color: rgba(70, 200, 130, 0.45);
+    color: #b3f0cf;
+    &:hover:not(:disabled) { background: rgba(70, 200, 130, 0.3); }
+    &:disabled { opacity: 0.45; cursor: not-allowed; }
+  }
+  &.deny {
+    background: rgba(255, 100, 100, 0.12);
+    border-color: rgba(255, 100, 100, 0.35);
+    color: #ffb3b3;
+    &:hover:not(:disabled) { background: rgba(255, 100, 100, 0.22); }
+    &:disabled { opacity: 0.45; cursor: not-allowed; }
+  }
+}
+
+// ExitPlanMode interactive actions (Approve / Reject)
+.plan-tool-input.is-interactive {
+  border: 1px solid rgba(192, 132, 252, 0.4);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: rgba(40, 30, 60, 0.4);
+
+  .plan-tool-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(192, 132, 252, 0.25);
   }
 }
 

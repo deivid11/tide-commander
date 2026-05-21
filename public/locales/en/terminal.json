@@ -36,6 +36,16 @@
     "searchResultsTitle": "Search Results:",
     "searchResultsCount": "{{count}} results"
   },
+  "queue": {
+    "queued": "queued",
+    "show": "Show",
+    "enforce": "Send now",
+    "delete": "Delete",
+    "tooltip": "{{count}} message(s) queued — will send when agent is idle",
+    "modal": {
+      "title": "Queued message"
+    }
+  },
   "input": {
     "placeholder": "Message {{agent}}...",
     "placeholderDefault": "Type a message...",

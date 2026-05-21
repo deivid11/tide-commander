@@ -2,6 +2,7 @@ import type { Agent, ServerMessage } from '../../../shared/types.js';
 import { agentService } from '../../services/index.js';
 import { setupBossListeners } from './boss-listeners.js';
 import { setupPermissionListeners } from './permission-listeners.js';
+import { setupAgentPromptListeners } from './agent-prompt-listeners.js';
 import { setupRuntimeListeners } from './runtime-listeners.js';
 import { setupSkillListeners } from './skill-listeners.js';
 
@@ -33,6 +34,7 @@ export function setupServiceListeners(ctx: ServiceListenerContext): void {
 
   setupRuntimeListeners(ctx);
   setupPermissionListeners(ctx);
+  setupAgentPromptListeners(ctx);
   setupBossListeners(ctx);
   setupSkillListeners(ctx);
 }

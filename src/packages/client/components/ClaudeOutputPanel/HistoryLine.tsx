@@ -6,11 +6,11 @@ import React, { memo, useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useHideCost, useSettings } from '../../store';
+import { useHideCost, useSettings, useAgentPrompts } from '../../store';
 import { store } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
@@ -20,7 +20,7 @@ import { parseWhatsAppMessage, WhatsAppMessageBubble } from './WhatsAppMessageBu
 import { parseEmailMessage, GmailMessageBubble } from './GmailMessageBubble';
 import { parseSlackMessage, SlackMessageBubble } from './SlackMessageBubble';
 import { AgentChatMessageCard, parseAgentChatMessage } from './AgentChatMessageCard';
-import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, isToolSearchContent } from './ToolRenderers';
+import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, AskQuestionResult, ExitPlanModeInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, MemoryOpInput, isToolSearchContent } from './ToolRenderers';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
 import { highlightText, renderContentWithImages, renderUserPromptContent } from './contentRendering';
@@ -92,7 +92,15 @@ export const HistoryLine = memo(function HistoryLine({
   const [sessionExpanded, setSessionExpanded] = useState(false);
   const hideCost = useHideCost();
   const settings = useSettings();
-  const { type, content: rawContent, toolName, timestamp, _bashOutput, _bashCommand } = message;
+  const { type, content: rawContent, toolName, toolUseId, timestamp, _bashOutput, _bashCommand, _askQuestionAnswers, _taskSubject } = message;
+
+  // If this tool_use has a pending agent-prompt awaiting human input, surface
+  // the interactive UI inline (Approve/Reject for ExitPlanMode, option picker
+  // for AskUserQuestion). Matches by tool_use_id.
+  const pendingAgentPrompts = useAgentPrompts(agentId);
+  const matchingPendingPrompt = toolUseId
+    ? pendingAgentPrompts.find((p) => p.id === toolUseId)
+    : undefined;
   const content = filterCostText(rawContent, hideCost);
   const { toggle: toggleTTS, speaking } = useTTS();
   const markdownComponents = createMarkdownComponents({ onFileClick: onFileClick ? (path) => onFileClick(path) : undefined });
@@ -395,6 +403,8 @@ export const HistoryLine = memo(function HistoryLine({
       const bashTrackingStatusCommand = isBashTool && bashCommand ? parseBashTrackingStatusCommand(bashCommand) : null;
       const bashTaskLabelCommand = !bashTrackingStatusCommand && isBashTool && bashCommand ? parseBashTaskLabelCommand(bashCommand) : null;
       const bashReportTaskCommand = isBashTool && bashCommand ? parseBashReportTaskCommand(bashCommand) : null;
+      const bashMemoryCommand = isBashTool && bashCommand && !bashTrackingStatusCommand && !bashTaskLabelCommand && !bashReportTaskCommand ? parseBashMemoryCommand(bashCommand) : null;
+      const bashMemoryResponse = bashMemoryCommand ? parseMemoryResponseInfo(_bashOutput) : undefined;
       const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
       const bashCurlParsed = (
         isBashTool
@@ -403,6 +413,7 @@ export const HistoryLine = memo(function HistoryLine({
         && !bashNotificationCommand
         && !bashTaskLabelCommand
         && !bashReportTaskCommand
+        && !bashMemoryCommand
         && !bashSearchCommand
         && !isCurlExecCommand
         && looksLikeCurl(bashCommand)
@@ -524,7 +535,11 @@ export const HistoryLine = memo(function HistoryLine({
               {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
               <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
               <span className="output-tool-name">{displayToolName}</span>
-              <AskQuestionInput content={toolInputContent} />
+              <AskQuestionInput
+                content={toolInputContent}
+                answers={_askQuestionAnswers}
+                pendingPromptId={matchingPendingPrompt?.id}
+              />
             </div>
           );
         }
@@ -538,7 +553,7 @@ export const HistoryLine = memo(function HistoryLine({
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
-            <ExitPlanModeInput content={toolInputContent} />
+            <ExitPlanModeInput content={toolInputContent} pendingPromptId={matchingPendingPrompt?.id} onViewMarkdown={onViewMarkdown} />
           </div>
         );
       }
@@ -562,7 +577,7 @@ export const HistoryLine = memo(function HistoryLine({
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
-            <TaskUpdateInput content={toolInputContent} />
+            <TaskUpdateInput content={toolInputContent} subject={_taskSubject} />
           </div>
         );
       }
@@ -641,6 +656,14 @@ export const HistoryLine = memo(function HistoryLine({
                 {bashReportTaskCommand.summary && (
                   <span className="bash-report-task-summary">{bashReportTaskCommand.summary}</span>
                 )}
+              </span>
+            ) : isBashTool && bashMemoryCommand ? (
+              <span
+                className="output-tool-param bash-command bash-memory-param"
+                onClick={handleBashClick}
+                style={{ cursor: 'pointer' }}
+              >
+                <MemoryOpInput info={bashMemoryCommand} response={bashMemoryResponse} />
               </span>
             ) : isBashTool && bashSearchCommand ? (
               <span
@@ -809,7 +832,7 @@ export const HistoryLine = memo(function HistoryLine({
             <span className="output-tool-name">{displayToolName}</span>
           </div>
           <div className="output-line output-tool-input">
-            <TaskUpdateInput content={toolInputContent} />
+            <TaskUpdateInput content={toolInputContent} subject={_taskSubject} />
           </div>
         </>
       );
@@ -826,7 +849,7 @@ export const HistoryLine = memo(function HistoryLine({
             <span className="output-tool-name">{displayToolName}</span>
           </div>
           <div className="output-line output-tool-input">
-            <ExitPlanModeInput content={toolInputContent} />
+            <ExitPlanModeInput content={toolInputContent} pendingPromptId={matchingPendingPrompt?.id} onViewMarkdown={onViewMarkdown} />
           </div>
         </>
       );
@@ -885,7 +908,10 @@ export const HistoryLine = memo(function HistoryLine({
   }
 
   if (type === 'tool_result') {
-    // Hide tool results in simple view (matches live output filtering)
+    // Hide tool results in simple view (matches live output filtering).
+    // AskUserQuestion tool_results are now folded into the tool_use block
+    // (see AgentTerminalPane.enrichHistory) so we don't render them
+    // standalone here either.
     if (simpleView) return null;
 
     const isError = content.toLowerCase().includes('error') || content.toLowerCase().includes('failed');
@@ -907,6 +933,16 @@ export const HistoryLine = memo(function HistoryLine({
             </div>
             <pre className="bash-output-content" dangerouslySetInnerHTML={{ __html: ansiToHtml(content) }} />
           </div>
+        </div>
+      );
+    }
+
+    // AskUserQuestion tool_result: render the picked answers as styled Q → A rows.
+    if (toolName === 'AskUserQuestion' || toolName === 'AskFollowupQuestion') {
+      return (
+        <div className={`output-line output-tool-result ${isError ? 'is-error' : ''}`}>
+          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+          <AskQuestionResult content={content} />
         </div>
       );
     }

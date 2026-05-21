@@ -1,0 +1,124 @@
+@use '../variables' as *;
+
+.whatsapp-hub-modal {
+  position: relative;
+  width: min(520px, 92vw);
+  background: $bg-primary;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid $border-color;
+    background: $bg-secondary;
+
+    h2 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: $text-primary;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: $text-muted;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: $radius-sm;
+
+      &:hover {
+        background: rgba($text-primary, 0.08);
+        color: $text-primary;
+      }
+    }
+  }
+
+  &__icon {
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .modal-body {
+    padding: 14px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  &__intro {
+    margin: 0;
+    color: $text-secondary;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  &__options {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &__option {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 12px;
+    background: $bg-secondary;
+    border: 1px solid $border-color;
+    border-radius: $radius-sm;
+    color: $text-primary;
+    cursor: pointer;
+    text-align: left;
+    transition: background 120ms ease, border-color 120ms ease;
+
+    &:hover {
+      background: rgba($text-primary, 0.05);
+      border-color: $accent-cyan;
+    }
+
+    &:focus-visible {
+      outline: 1px solid $accent-cyan;
+      outline-offset: 2px;
+    }
+  }
+
+  &__option-icon {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: rgba($accent-cyan, 0.12);
+    color: $accent-cyan;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &__option-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  &__option-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  &__option-desc {
+    font-size: 11px;
+    color: $text-muted;
+    line-height: 1.4;
+  }
+}

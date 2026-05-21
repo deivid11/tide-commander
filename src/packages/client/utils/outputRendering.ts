@@ -843,6 +843,135 @@ export function parseBashReportTaskCommand(command: string): BashReportTaskComma
   };
 }
 
+export type BashMemoryKind = 'read' | 'save' | 'clear';
+
+export interface BashMemoryCommandInfo {
+  shellPrefix?: string;
+  commandBody: string;
+  kind: BashMemoryKind;
+  agentId: string;
+  bodyLength?: number;
+}
+
+export interface BashMemoryResponseInfo {
+  length?: number;
+  failed: boolean;
+}
+
+const MEMORY_URL_RE = /\/api\/agents\/([a-zA-Z0-9_-]+)\/memory\b/;
+
+export function parseBashMemoryCommand(command: string): BashMemoryCommandInfo | null {
+  const trimmed = command.trim();
+  if (!trimmed) return null;
+
+  let shellPrefix: string | undefined;
+  let commandBody = trimmed;
+
+  const shellWrapped = trimmed.match(/^(\S+)\s+-lc\s+([\s\S]+)$/);
+  if (shellWrapped) {
+    shellPrefix = `${shellWrapped[1]} -lc`;
+    commandBody = stripWrappingQuotes(shellWrapped[2].trim());
+  }
+
+  if (!/\bcurl\b/.test(commandBody)) return null;
+  const urlMatch = commandBody.match(MEMORY_URL_RE);
+  if (!urlMatch) return null;
+
+  const agentId = urlMatch[1];
+  const methodMatch = commandBody.match(/(?:-X|--request)\s+(?:["']?)(GET|POST|PATCH|PUT|DELETE)(?:["']?)/i);
+  const method = methodMatch ? methodMatch[1].toUpperCase() : 'GET';
+
+  let kind: BashMemoryKind;
+  if (method === 'PATCH' || method === 'PUT' || method === 'POST') kind = 'save';
+  else if (method === 'DELETE') kind = 'clear';
+  else kind = 'read';
+
+  let bodyLength: number | undefined;
+  if (kind === 'save') {
+    bodyLength = extractMemoryBodyLength(commandBody);
+  }
+
+  return {
+    shellPrefix,
+    commandBody,
+    kind,
+    agentId,
+    bodyLength,
+  };
+}
+
+function extractMemoryBodyLength(commandBody: string): number | undefined {
+  const heredocMatch = commandBody.match(/<<\s*['"]?(\w+)['"]?\s*\r?\n([\s\S]*?)\r?\n\1\b/);
+  const heredocPayload = heredocMatch?.[2];
+
+  let rawPayload: string | undefined;
+  if (heredocPayload) {
+    rawPayload = heredocPayload.trim();
+  } else {
+    const inlineMatch = commandBody.match(/-d\s+((['"])([\s\S]*?)\2)/);
+    if (inlineMatch) {
+      rawPayload = stripWrappingQuotes(inlineMatch[1]).replace(/\\"/g, '"');
+    }
+  }
+
+  if (!rawPayload) return undefined;
+
+  try {
+    const parsed = JSON.parse(rawPayload);
+    if (parsed && typeof parsed === 'object' && typeof (parsed as { memory?: unknown }).memory === 'string') {
+      return (parsed as { memory: string }).memory.length;
+    }
+  } catch {
+    // Best-effort: extract "memory":"..." with a forgiving regex, count chars after un-escaping JSON sequences.
+    const memMatch = rawPayload.match(/"memory"\s*:\s*"([\s\S]*?)"\s*[,}]/);
+    if (memMatch) {
+      const escaped = memMatch[1];
+      try {
+        const decoded = JSON.parse(`"${escaped}"`);
+        if (typeof decoded === 'string') return decoded.length;
+      } catch {
+        return escaped.length;
+      }
+    }
+  }
+  return undefined;
+}
+
+export function parseMemoryResponseInfo(output: string | undefined | null): BashMemoryResponseInfo {
+  if (!output) return { failed: false };
+  const trimmed = output.trim();
+  if (!trimmed) return { failed: false };
+
+  if (/HTTP\/\d\.\d\s+(4|5)\d\d/.test(trimmed)) {
+    return { failed: true };
+  }
+
+  const firstBrace = trimmed.indexOf('{');
+  const lastBrace = trimmed.lastIndexOf('}');
+  if (firstBrace === -1 || lastBrace <= firstBrace) {
+    return { failed: /\berror\b/i.test(trimmed) || /"ok"\s*:\s*false/.test(trimmed) };
+  }
+
+  const jsonSlice = trimmed.slice(firstBrace, lastBrace + 1);
+  try {
+    const parsed = JSON.parse(jsonSlice);
+    if (parsed && typeof parsed === 'object') {
+      const obj = parsed as { ok?: unknown; length?: unknown; error?: unknown };
+      const failed = obj.ok === false || typeof obj.error === 'string';
+      const length = typeof obj.length === 'number' ? obj.length : undefined;
+      return { length, failed };
+    }
+  } catch {
+    const lengthMatch = jsonSlice.match(/"length"\s*:\s*(\d+)/);
+    const failed = /"ok"\s*:\s*false/.test(jsonSlice) || /"error"\s*:\s*"/.test(jsonSlice);
+    return {
+      length: lengthMatch ? Number.parseInt(lengthMatch[1], 10) : undefined,
+      failed,
+    };
+  }
+  return { failed: false };
+}
+
 /**
  * Parse tool name from "Using tool: ToolName" format
  */

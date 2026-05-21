@@ -70,6 +70,66 @@ export interface SlackMessageEvent {
   integrationInstanceId?: string;
 }
 
+// ─── WhatsApp Messages ───
+
+export type WhatsAppMessageType =
+  | 'text'
+  | 'image'
+  | 'audio'
+  | 'video'
+  | 'document'
+  | 'sticker'
+  | 'location'
+  | 'contact'
+  | 'reaction'
+  | 'unknown';
+
+export interface WhatsAppMessageEvent {
+  id?: number;
+  sessionId: string;
+  messageId?: string;
+  chatId: string;
+  isGroup: boolean;
+  groupName?: string;
+  fromJid: string;
+  fromName?: string;
+  direction: MessageDirection;
+  body: string;
+  messageType: WhatsAppMessageType;
+  mediaMimetype?: string;
+  mediaSize?: number;
+  mediaFilename?: string;
+  mediaPath?: string;
+  audioTranscription?: string;
+  agentId?: string;
+  workflowInstanceId?: string;
+  rawEvent?: unknown;
+  timestamp: number;
+  receivedAt: number;
+}
+
+export interface WhatsAppChatSummary {
+  chatId: string;
+  lastTimestamp: number;
+  lastMessagePreview: string;
+  lastMessageType: WhatsAppMessageType;
+  lastDirection: MessageDirection;
+  messageCount: number;
+  isGroup: boolean;
+  groupName?: string;
+  fromName?: string;
+  unreadCount: number;
+}
+
+export interface WhatsAppChatsResponse {
+  chats: WhatsAppChatSummary[];
+}
+
+export interface WhatsAppMessagesResponse {
+  messages: WhatsAppMessageEvent[];
+  nextCursor: string | null;
+}
+
 // ─── Email Messages ───
 
 export interface EmailMessageEvent {

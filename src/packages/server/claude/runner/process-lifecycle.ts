@@ -93,6 +93,9 @@ export class RunnerProcessLifecycle {
       LANG: 'en_US.UTF-8',
       LC_ALL: 'en_US.UTF-8',
       TIDE_SERVER: `http://localhost:${process.env.TIDE_PORT || process.env.PORT || 5174}`,
+      // Used by the MCP permission-prompt server (see backend.ts) to route
+      // AskUserQuestion / ExitPlanMode back to this agent's UI thread.
+      TIDE_AGENT_ID: agentId,
       ...extraEnv,
     };
 

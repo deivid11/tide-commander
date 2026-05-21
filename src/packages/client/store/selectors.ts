@@ -11,6 +11,7 @@ import type {
   DrawingTool,
   Building,
   PermissionRequest,
+  AgentPrompt,
   DelegationDecision,
   Skill,
   CustomAgentClass,
@@ -444,6 +445,27 @@ export function usePermissionRequests(): Map<string, PermissionRequest> {
   return useSelector(
     useCallback((state: StoreState) => state.permissionRequests, []),
     shallowMapEqual
+  );
+}
+
+/**
+ * Get pending AskUserQuestion / ExitPlanMode prompts for a single agent.
+ * Empty array when nothing is pending — safe to use directly in conditional renders.
+ */
+export function useAgentPrompts(agentId: string | null | undefined): AgentPrompt[] {
+  const emptyArray = useRef<AgentPrompt[]>([]);
+  return useSelector(
+    useCallback(
+      (state: StoreState) => {
+        if (!agentId) return emptyArray.current;
+        const filtered: AgentPrompt[] = [];
+        for (const p of state.agentPrompts.values()) {
+          if (p.agentId === agentId && p.status === 'pending') filtered.push(p);
+        }
+        return filtered.length === 0 ? emptyArray.current : filtered;
+      },
+      [agentId]
+    )
   );
 }
 

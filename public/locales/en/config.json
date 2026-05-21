@@ -15,7 +15,9 @@
     "systemPrompt": "System Prompt",
     "whatsapp": "WhatsApp Integration",
     "whatsappNotifications": "WhatsApp Notifications",
+    "whatsappHistory": "WhatsApp History",
     "data": "Data",
+    "integrations": "Integrations",
     "experimental": "Experimental",
     "about": "About",
     "sky": "Sky Color"
@@ -310,6 +312,12 @@
     "placeholder": "Enter your global system prompt here...\n\nExamples:\n- Coding style guidelines\n- Team communication rules\n- Project-wide conventions\n- Security best practices",
     "confirmClear": "Are you sure you want to clear the system prompt?"
   },
+  "integrations": {
+    "whatsapp": {
+      "title": "WhatsApp",
+      "description": "Local WhatsApp (Baileys) integration."
+    }
+  },
   "whatsapp": {
     "title": "WhatsApp Integration",
     "description": "Configure the local WhatsApp (Baileys) integration. The backend talks to a local server (default port 3007) using an API key.",
@@ -390,6 +398,42 @@
       "sessionDeleteFailed": "Failed to delete the WhatsApp session.",
       "qrFetchFailed": "Failed to fetch the pairing QR code.",
       "testSendFailed": "Failed to send the test message."
+    }
+  },
+  "whatsappHistory": {
+    "title": "WhatsApp History",
+    "description": "Browse persisted WhatsApp conversations and inspect their message history.",
+    "openButton": "Open History",
+    "chats": "Chats",
+    "session": "Session",
+    "noSessions": "No sessions",
+    "refresh": "Refresh",
+    "loadingChats": "Loading chats...",
+    "loadingMessages": "Loading messages...",
+    "loadingOlder": "Loading older messages...",
+    "loadOlder": "Load older messages",
+    "emptyChats": "No conversations yet.",
+    "emptyMessages": "No messages with these filters.",
+    "selectChat": "Select a chat to view its history.",
+    "direction": "Direction",
+    "type": "Type",
+    "directionValues": {
+      "all": "All",
+      "inbound": "Inbound",
+      "outbound": "Outbound"
+    },
+    "typeValues": {
+      "all": "All",
+      "text": "Text",
+      "image": "Image",
+      "audio": "Audio",
+      "video": "Video",
+      "document": "Document",
+      "sticker": "Sticker",
+      "location": "Location",
+      "contact": "Contact",
+      "reaction": "Reaction",
+      "unknown": "Unknown"
     }
   },
   "whatsappNotifications": {

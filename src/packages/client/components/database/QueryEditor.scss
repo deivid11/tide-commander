@@ -271,6 +271,101 @@
   }
 }
 
+.query-editor-autocomplete {
+  position: absolute;
+  z-index: 5;
+  width: min(360px, calc(100% - 16px));
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: $border-color;
+    border-radius: 3px;
+
+    &:hover {
+      background: $text-muted;
+    }
+  }
+
+  &__item {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 30px;
+    padding: 6px 8px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: $text-primary;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover,
+    &--selected {
+      background: rgba($accent-blue, 0.18);
+    }
+  }
+
+  &__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: $text-muted;
+  }
+
+  &__main {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  &__label {
+    min-width: 0;
+    overflow: hidden;
+    color: $text-primary;
+    font-family: $font-mono;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__source {
+    min-width: 0;
+    overflow: hidden;
+    color: $text-muted;
+    font-family: $font-mono;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__detail {
+    max-width: 110px;
+    overflow: hidden;
+    color: $accent-cyan;
+    font-family: $font-mono;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
 @keyframes spin {
   from {
     transform: rotate(0deg);

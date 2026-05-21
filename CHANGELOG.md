@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.98.0] - 2026-05-21
+
+### Added
+- **WhatsApp history + hub** — full WhatsApp browsing surface inside the UI: `WhatsAppHub/` modal lists conversations, `WhatsAppHistory/` renders message threads, backed by a new `/api/whatsapp/history` endpoint set in `whatsapp-routes.ts` and a new `007_whatsapp_messages.sql` migration that persists incoming messages. Client API in `api/whatsapp-history.ts`, types in `shared/whatsapp-types.ts`, styles in `whatsapp-history.scss` and `whatsapp-hub-modal.scss`. `whatsapp-trigger-handler.ts` now writes inbound messages to the new table so the hub has data to display.
+- **Agent prompt subsystem** — agents can now raise interactive prompts to the user from server-side via `services/agent-prompt-service.ts`, surfaced over WebSocket by `agent-prompt-listeners.ts`, exposed at `routes/agent-prompt.ts` (`/api/agent-prompt` and `/api/agent-prompt/:id/respond`), stored client-side in `store/agentPrompts.ts`, and rendered inside the terminal by the new `AgentPromptCard.tsx` (with `_agent-prompt.scss` styling). The server build now also copies `permission-prompt-server.mjs` into the dist folder so the agent-prompt server is shipped with the package.
+- **Queued messages bar** — `ClaudeOutputPanel/QueuedMessagesBar.tsx` shows messages typed while an agent is working, with delete/force-send affordances. New `hooks/useMessageQueue.ts` powers the queue, `TerminalInputArea` enqueues into it, and an idle-mount effect drains one queued message when the agent becomes idle. Styled via `_queued-messages.scss`.
+- **Database query editor autocomplete** — new `database/QueryEditorAutocomplete.tsx` surfaces table/column suggestions inside the SQL editor; `QueryEditor.tsx` integrates the popover and ~95 lines of supporting SCSS land in `QueryEditor.scss`.
+- **Expanded tool renderers (~380 lines)** — `ToolRenderers.tsx` gains substantial new rendering paths used by the new agent-prompt and queue features, with terminal-input chrome (~69 lines in `TerminalInputArea.tsx`) and new icon mappings in `outputRendering.ts` (+129).
+- **Gmail integration enhancements** — `gmail-client.ts` (+158) and `gmail-routes.ts` (+185 new) expand the Gmail surface (additional endpoints + client capabilities used by triggers/history).
+- **Trigger + webhook hardening** — `trigger-routes.ts` (+93) and `webhook-signatures.ts` (+28) extend the trigger pipeline with new behavior, covered by added test cases in `webhook-signatures.test.ts` (+23).
+- **Server data event queries (+248)** — `data/event-queries.ts` adds new query helpers consumed by the agent-prompt and WhatsApp paths.
+- **Tmux helper utilities** — `claude/runner/tmux-helper.ts` (+15), `process-lifecycle.ts` (+3), `stdout-pipeline.ts` (+8), and `backend.ts` (+47) refine the Claude runner's tmux integration.
+- **Agent status transition hook** — `hooks/useAgentStatusTransition.ts` centralizes UI transitions when an agent flips between idle/working/blocked states.
+- **Translations** — `public/locales/en/config.json` (+44) and `public/locales/en/terminal.json` (+10) add strings for all the new UI surfaces (WhatsApp hub, agent prompts, queued messages, autocomplete).
+
+### Changed
+- **`ToolRenderers.tsx` reorg** — beyond the additions above, the renderer registry was reorganized so the new agent-prompt/queue paths plug in cleanly alongside the existing TaskCreate/TaskUpdate/AskUserQuestion handlers.
+- **Config + integration status panels** — `ConfigSection.tsx` (+65/-) and `IntegrationStatusPanel.tsx` (+41) gain controls for the new WhatsApp/Agent-Prompt surfaces; `TriggerManagerPanel.tsx` (+107) exposes the new template variables and webhook options.
+- **Client store** — `store/index.ts`, `store/selectors.ts`, `store/types.ts` extended for agent prompts + queued messages bookkeeping; `useFilteredOutputs.ts` updated accordingly.
+
+### Fixed
+- **TerminalInputArea react-hooks/exhaustive-deps directive** — removed an `eslint-disable-next-line react-hooks/exhaustive-deps` whose rule isn't loaded in the project's ESLint config (the explanatory comment above the deps array still documents intent).
+- **Unused `AgentPromptResponse` import** — removed an unused `AgentPromptResponse` type import in `shared/websocket-messages.ts`.
+
 ## [1.97.0] - 2026-05-18
 
 ### Added

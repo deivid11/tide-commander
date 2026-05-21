@@ -16,6 +16,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import * as crypto from 'crypto';
 import * as triggerService from '../services/trigger-service.js';
 import * as cronService from '../services/cron-service.js';
 import type { ServerMessage } from '../../shared/types.js';
@@ -28,9 +29,11 @@ import {
   GITHUB_SIGNATURE_HEADER,
   BITBUCKET_SIGNATURE_HEADER,
   BITBUCKET_EVENT_HEADER,
+  JIRA_SIGNATURE_HEADER,
 } from './webhook-signatures.js';
 import { WebhookDedupeCache } from './webhook-dedupe.js';
 import { isBitbucketAuthorLoop } from './bitbucket-author-loop.js';
+import { jiraTriggerHandler } from '../integrations/jira/jira-trigger-handler.js';
 
 const log = createLogger('TriggerRoutes');
 const router = Router();
@@ -136,37 +139,39 @@ router.post('/webhook/:triggerId', async (req: Request<{ triggerId: string }>, r
     return;
   }
 
-  // Both `webhook` and `bitbucket` route through this handler — the signature,
-  // dedupe, and author-loop helpers are header-driven (auto-detect Bitbucket
-  // vs GitHub via X-Event-Key vs X-GitHub-Event), so they work for either type.
-  if (trigger.type !== 'webhook' && trigger.type !== 'bitbucket') {
+  if (trigger.type !== 'webhook' && trigger.type !== 'bitbucket' && trigger.type !== 'jira') {
     res.status(400).json({ error: 'Not a webhook-receivable trigger', triggerType: trigger.type });
     return;
   }
 
-  // Validate HMAC secret if configured
+  // Jira fails closed when no secret is configured: classic Cloud webhooks are
+  // unsigned, so the `?secret=<shared>` query-string is the only auth path —
+  // leaving it empty would let anyone fire the trigger by URL guess.
+  if (trigger.type === 'jira' && !trigger.config.secret) {
+    log.warn(`Webhook trigger ${triggerId} rejected: Jira trigger has no secret configured`);
+    res.status(401).json({ error: 'Jira trigger requires a configured secret' });
+    return;
+  }
+
   if (trigger.config.secret) {
     const provider = detectWebhookProvider(req.headers as Record<string, unknown>);
     const githubSig = req.headers[GITHUB_SIGNATURE_HEADER] as string | undefined;
     const bitbucketSig = req.headers[BITBUCKET_SIGNATURE_HEADER] as string | undefined;
+    const jiraSig = req.headers[JIRA_SIGNATURE_HEADER] as string | undefined;
     const plainSecret = req.headers['x-webhook-secret'] as string | undefined;
+    const querySecret = typeof req.query.secret === 'string' ? req.query.secret : undefined;
 
-    // Pick the signature whose header matches the detected provider — falls back
-    // to whichever HMAC header is present, then to the plain X-Webhook-Secret.
     const hmacSig = provider === 'bitbucket' ? bitbucketSig
       : provider === 'github' ? githubSig
-        : (githubSig || bitbucketSig);
+        : provider === 'jira' ? jiraSig
+          : (githubSig || bitbucketSig || jiraSig);
 
-    if (!hmacSig && !plainSecret) {
+    if (!hmacSig && !plainSecret && !querySecret) {
       res.status(401).json({ error: 'Missing signature' });
       return;
     }
 
     if (hmacSig) {
-      // GitHub and Bitbucket Cloud both use HMAC-SHA256 with the `sha256=` prefix.
-      // Hash the raw request bytes captured by the webhook-scoped JSON parser
-      // (see app.ts) — re-serializing req.body would risk a false reject on
-      // key reordering / whitespace differences.
       const { payload, usedFallback } = getWebhookHmacPayload(
         req as Request<{ triggerId: string }> & { rawBody?: Buffer },
       );
@@ -180,10 +185,13 @@ router.post('/webhook/:triggerId', async (req: Request<{ triggerId: string }>, r
         return;
       }
     } else {
-      // Direct comparison for X-Webhook-Secret
-      if (plainSecret !== trigger.config.secret) {
+      const candidate = plainSecret ?? querySecret ?? '';
+      if (!constantTimeEqual(candidate, trigger.config.secret)) {
         res.status(401).json({ error: 'Invalid secret' });
         return;
+      }
+      if (querySecret && trigger.type === 'jira') {
+        log.warn(`Webhook trigger ${triggerId}: Jira ?secret= fallback used (no HMAC) — Cloud classic webhooks are unsigned, prefer Cloud Signed Webhooks when possible`);
       }
     }
   }
@@ -212,12 +220,39 @@ router.post('/webhook/:triggerId', async (req: Request<{ triggerId: string }>, r
     return;
   }
 
-  // Extract fields from payload
   const variables: Record<string, string> = {
     'trigger.name': trigger.name,
     timestamp: new Date().toISOString(),
     payload: JSON.stringify(req.body),
   };
+
+  if (trigger.type === 'jira') {
+    const event: ExternalEvent = {
+      source: 'jira',
+      type: (req.body && typeof req.body === 'object' && 'webhookEvent' in req.body
+        ? String((req.body as Record<string, unknown>).webhookEvent ?? 'jira')
+        : 'jira'),
+      data: normalizeJiraPayload(req.body),
+      timestamp: Date.now(),
+    };
+
+    if (!jiraTriggerHandler.structuralMatch(trigger, event)) {
+      res.json({ fired: false, reason: 'structural-mismatch' });
+      return;
+    }
+
+    Object.assign(variables, jiraTriggerHandler.extractVariables(trigger, event));
+
+    try {
+      await triggerService.fireTrigger(triggerId, variables, { rawPayload: event.data });
+      res.json({ fired: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to fire trigger';
+      log.error(`Webhook trigger ${triggerId} failed:`, err);
+      res.status(500).json({ error: message });
+    }
+    return;
+  }
 
   // `extractFields` is declared on WebhookTrigger.config but is conceptually
   // generic: same-shape JSON-path extraction works for any header-receivable
@@ -361,6 +396,32 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   }
 
   return current;
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
+
+/**
+ * Reshape Jira Server / Data Center payloads into the Cloud shape the trigger
+ * handler reads. Server fires events like `issue_updated` via
+ * `issue_event_type_name`; Cloud uses `webhookEvent: "jira:issue_updated"`.
+ * Cloud nests the issue under `issue`; Server does too, so no key rewrite —
+ * we just synthesize a `webhookEvent` when missing so the handler's filter
+ * by event type works against both variants without per-shape branching.
+ */
+function normalizeJiraPayload(body: unknown): Record<string, unknown> {
+  if (!body || typeof body !== 'object') return {};
+  const src = body as Record<string, unknown>;
+  if (src.webhookEvent || !src.issue_event_type_name) return src;
+  const eventName = String(src.issue_event_type_name);
+  const synthesized = eventName.startsWith('comment_')
+    ? eventName
+    : `jira:${eventName.startsWith('issue_') ? eventName : `issue_${eventName}`}`;
+  return { ...src, webhookEvent: synthesized };
 }
 
 export default router;

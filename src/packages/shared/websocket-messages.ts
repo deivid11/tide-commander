@@ -12,6 +12,7 @@ import type {
 } from './database-types.js';
 import type {
   ClaudeEvent, DrawingArea, Skill, PermissionRequest, PermissionResponse,
+  AgentPrompt,
   AgentNotification, Secret,
   SkillUpdateData,
 } from './common-types.js';
@@ -606,6 +607,25 @@ export interface PermissionResolvedMessage extends WSMessage {
 export interface PermissionResponseMessage extends WSMessage {
   type: 'permission_response';
   payload: PermissionResponse;
+}
+
+// ============================================================================
+// Agent Prompt Messages (AskUserQuestion / ExitPlanMode via MCP perm-prompt)
+// ============================================================================
+
+// Server -> Client: a new prompt is awaiting human input
+export interface AgentPromptRequestMessage extends WSMessage {
+  type: 'agent_prompt_request';
+  payload: AgentPrompt;
+}
+
+// Server -> Client: prompt has been resolved (either via UI response or timeout/cancel)
+export interface AgentPromptResolvedMessage extends WSMessage {
+  type: 'agent_prompt_resolved';
+  payload: {
+    requestId: string;
+    approved: boolean;
+  };
 }
 
 // ============================================================================
@@ -1504,6 +1524,8 @@ export type ServerMessage =
   | BuildingLogsMessage
   | PermissionRequestMessage
   | PermissionResolvedMessage
+  | AgentPromptRequestMessage
+  | AgentPromptResolvedMessage
   | DelegationDecisionMessage
   | BossSubordinatesUpdatedMessage
   | DelegationHistoryMessage

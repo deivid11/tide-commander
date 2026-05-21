@@ -1075,6 +1075,20 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
     setResponseModalContent(content);
   }, []);
 
+  // Listen for `tide:viewMarkdown` events dispatched by inline buttons (e.g.
+  // the "Open" button on the ExitPlanMode plan chip). Avoids prop-drilling
+  // through all the panel/list/line layers that may not all wire the handler.
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ content?: string }>).detail;
+      if (detail && typeof detail.content === 'string' && detail.content) {
+        setResponseModalContent(detail.content);
+      }
+    };
+    window.addEventListener('tide:viewMarkdown', handler);
+    return () => window.removeEventListener('tide:viewMarkdown', handler);
+  }, []);
+
   const toggleAgentInfo = useCallback(() => {
     setAgentInfoOpen(prev => !prev);
   }, []);

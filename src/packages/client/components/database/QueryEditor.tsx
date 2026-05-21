@@ -9,7 +9,16 @@ import React, { useRef, useCallback, KeyboardEvent, useMemo, useEffect, useState
 import { useTranslation } from 'react-i18next';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-sql';
+import type { TableColumn, TableInfo } from '../../../shared/types';
 import { Icon } from '../Icon';
+import {
+  buildQueryAutocomplete,
+  getTextareaCaretCoordinates,
+  QueryEditorAutocomplete,
+  type QueryAutocompletePosition,
+  type QueryAutocompleteSchema,
+  type QueryAutocompleteSuggestion,
+} from './QueryEditorAutocomplete';
 import './QueryEditor.scss';
 
 export type ExecuteMode = 'all' | 'cursor';
@@ -21,6 +30,9 @@ interface QueryEditorProps {
   isExecuting: boolean;
   disabled?: boolean;
   autoFocus?: boolean;
+  tables?: TableInfo[];
+  tableSchemas?: Map<string, { columns: TableColumn[] }>;
+  onRequestTableSchema?: (tableName: string) => void;
 }
 
 /** Split SQL text into individual statements, respecting quotes and comments. */
@@ -103,11 +115,16 @@ export const QueryEditor: React.FC<QueryEditorProps> = ({
   isExecuting,
   disabled,
   autoFocus = true,
+  tables = [],
+  tableSchemas,
+  onRequestTableSchema,
 }) => {
   const { t } = useTranslation(['terminal']);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const highlightRef = useRef<HTMLPreElement>(null);
   const resizingRef = useRef(false);
+  const schemaRequestsRef = useRef<Set<string>>(new Set());
 
   const LS_KEY = 'query-editor-height';
   const MIN_HEIGHT = 80;
@@ -123,6 +140,10 @@ export const QueryEditor: React.FC<QueryEditorProps> = ({
     } catch { /* ignore */ }
     return 150;
   });
+  const [cursorPosition, setCursorPosition] = useState(0);
+  const [caretPosition, setCaretPosition] = useState<QueryAutocompletePosition | null>(null);
+  const [autocompleteOpen, setAutocompleteOpen] = useState(false);
+  const [selectedAutocompleteIndex, setSelectedAutocompleteIndex] = useState(0);
 
   // Persist height to localStorage
   const saveHeight = useCallback((h: number) => {
@@ -179,46 +200,24 @@ export const QueryEditor: React.FC<QueryEditorProps> = ({
       highlightRef.current.scrollLeft = textarea.scrollLeft;
       highlightRef.current.scrollTop = textarea.scrollTop;
     }
+    setCursorPosition(textarea.selectionStart);
   }, []);
+
+  const updateCursorState = useCallback((textarea: HTMLTextAreaElement, openAutocomplete = true) => {
+    setCursorPosition(textarea.selectionStart);
+    if (openAutocomplete && !disabled) {
+      setAutocompleteOpen(true);
+    }
+  }, [disabled]);
+
+  useEffect(() => {
+    schemaRequestsRef.current.clear();
+  }, [tables]);
 
   // Check if editor has multiple statements
   const hasMultipleQueries = useMemo(() => {
     return splitQueries(query).length > 1;
   }, [query]);
-
-  // Handle keyboard shortcuts
-  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
-    // Ctrl/Cmd + Shift + Enter to execute all
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'Enter') {
-      e.preventDefault();
-      if (!disabled && !isExecuting) {
-        onExecute('all');
-      }
-      return;
-    }
-
-    // Ctrl/Cmd + Enter to execute at cursor
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
-      if (!disabled && !isExecuting) {
-        onExecute('cursor');
-      }
-    }
-
-    // Tab for indentation
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const target = e.currentTarget;
-      const start = target.selectionStart;
-      const end = target.selectionEnd;
-      const newValue = query.substring(0, start) + '  ' + query.substring(end);
-      onChange(newValue);
-      // Restore cursor position
-      setTimeout(() => {
-        target.selectionStart = target.selectionEnd = start + 2;
-      }, 0);
-    }
-  }, [query, onChange, onExecute, disabled, isExecuting]);
 
   // Highlight SQL code
   const highlightedCode = useMemo(() => {
@@ -240,6 +239,154 @@ export const QueryEditor: React.FC<QueryEditorProps> = ({
   const getCursorPos = useCallback(() => {
     return textareaRef.current?.selectionStart ?? 0;
   }, []);
+
+  const autocompleteSchemas = useMemo(() => {
+    const schemas = new Map<string, QueryAutocompleteSchema>();
+    tableSchemas?.forEach((schema, tableName) => {
+      schemas.set(tableName, { columns: schema.columns });
+    });
+    return schemas;
+  }, [tableSchemas]);
+
+  const autocomplete = useMemo(() => buildQueryAutocomplete({
+    query,
+    cursorPosition,
+    tables,
+    tableSchemas: autocompleteSchemas,
+  }), [query, cursorPosition, tables, autocompleteSchemas]);
+
+  useEffect(() => {
+    setSelectedAutocompleteIndex(0);
+  }, [autocomplete.suggestions]);
+
+  useEffect(() => {
+    if (disabled || !onRequestTableSchema) return;
+
+    autocomplete.missingSchemaTables.forEach((tableName) => {
+      if (schemaRequestsRef.current.has(tableName)) return;
+      schemaRequestsRef.current.add(tableName);
+      onRequestTableSchema(tableName);
+    });
+  }, [autocomplete.missingSchemaTables, disabled, onRequestTableSchema]);
+
+  useEffect(() => {
+    if (autocomplete.suggestions.length === 0 && autocomplete.missingSchemaTables.length === 0) {
+      setAutocompleteOpen(false);
+    }
+  }, [autocomplete.missingSchemaTables.length, autocomplete.suggestions.length]);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    const editor = editorRef.current;
+    if (!textarea || !editor) return;
+
+    const coordinates = getTextareaCaretCoordinates(textarea, cursorPosition);
+    const maxLeft = Math.max(8, editor.clientWidth - 280);
+    const maxTop = Math.max(8, editor.clientHeight - 42);
+    setCaretPosition({
+      left: Math.min(Math.max(coordinates.left, 8), maxLeft),
+      top: Math.min(Math.max(coordinates.top + coordinates.lineHeight + 2, 8), maxTop),
+    });
+  }, [query, cursorPosition, editorHeight]);
+
+  const handleSelectAutocomplete = useCallback((suggestion: QueryAutocompleteSuggestion) => {
+    const nextQuery = `${query.slice(0, suggestion.replaceStart)}${suggestion.insertText}${query.slice(suggestion.replaceEnd)}`;
+    const nextCursorPosition = suggestion.replaceStart + suggestion.insertText.length;
+    onChange(nextQuery);
+    setAutocompleteOpen(false);
+
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      textarea.selectionStart = nextCursorPosition;
+      textarea.selectionEnd = nextCursorPosition;
+      updateCursorState(textarea, false);
+    });
+  }, [query, onChange, updateCursorState]);
+
+  const visibleAutocomplete = !disabled
+    && autocompleteOpen
+    && autocomplete.suggestions.length > 0
+    && caretPosition !== null;
+
+  // Handle keyboard shortcuts
+  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Ctrl/Cmd + Shift + Enter to execute all
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'Enter') {
+      e.preventDefault();
+      if (!disabled && !isExecuting) {
+        onExecute('all');
+      }
+      return;
+    }
+
+    // Ctrl/Cmd + Enter to execute at cursor
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      if (!disabled && !isExecuting) {
+        onExecute('cursor');
+      }
+      return;
+    }
+
+    if (visibleAutocomplete) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedAutocompleteIndex((prev) =>
+          Math.min(prev + 1, autocomplete.suggestions.length - 1)
+        );
+        return;
+      }
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedAutocompleteIndex((prev) => Math.max(prev - 1, 0));
+        return;
+      }
+
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        const suggestion = autocomplete.suggestions[selectedAutocompleteIndex] ?? autocomplete.suggestions[0];
+        if (suggestion) {
+          handleSelectAutocomplete(suggestion);
+        }
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setAutocompleteOpen(false);
+        return;
+      }
+    }
+
+    // Tab for indentation
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const target = e.currentTarget;
+      const start = target.selectionStart;
+      const end = target.selectionEnd;
+      const newValue = query.substring(0, start) + '  ' + query.substring(end);
+      onChange(newValue);
+      // Restore cursor position
+      setTimeout(() => {
+        target.selectionStart = target.selectionEnd = start + 2;
+        updateCursorState(target, false);
+      }, 0);
+    }
+  }, [
+    autocomplete.suggestions,
+    disabled,
+    handleSelectAutocomplete,
+    isExecuting,
+    onChange,
+    onExecute,
+    query,
+    selectedAutocompleteIndex,
+    updateCursorState,
+    visibleAutocomplete,
+  ]);
 
   return (
     <div className="query-editor">
@@ -295,7 +442,7 @@ export const QueryEditor: React.FC<QueryEditorProps> = ({
         </div>
 
         {/* Editor container with highlight overlay */}
-        <div className="query-editor__editor" style={{ height: editorHeight }}>
+        <div ref={editorRef} className="query-editor__editor" style={{ height: editorHeight }}>
           {/* Syntax highlighted background */}
           <pre
             ref={highlightRef}
@@ -309,8 +456,17 @@ export const QueryEditor: React.FC<QueryEditorProps> = ({
             ref={textareaRef}
             className="query-editor__textarea"
             value={query}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => {
+              onChange(e.target.value);
+              updateCursorState(e.target);
+            }}
             onKeyDown={handleKeyDown}
+            onKeyUp={(e) => updateCursorState(e.currentTarget)}
+            onClick={(e) => updateCursorState(e.currentTarget)}
+            onFocus={(e) => updateCursorState(e.currentTarget)}
+            onBlur={() => {
+              window.setTimeout(() => setAutocompleteOpen(false), 120);
+            }}
             onScroll={handleScroll}
             placeholder={disabled ? t('terminal:database.selectDbPlaceholder') : t('terminal:database.enterQueryPlaceholder')}
             disabled={disabled}
@@ -319,6 +475,14 @@ export const QueryEditor: React.FC<QueryEditorProps> = ({
             autoCorrect="off"
             autoCapitalize="off"
             data-cursor-pos={getCursorPos()}
+          />
+          <QueryEditorAutocomplete
+            open={visibleAutocomplete}
+            position={caretPosition}
+            suggestions={autocomplete.suggestions}
+            selectedIndex={selectedAutocompleteIndex}
+            onHover={setSelectedAutocompleteIndex}
+            onSelect={handleSelectAutocomplete}
           />
         </div>
       </div>
