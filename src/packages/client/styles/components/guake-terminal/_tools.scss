@@ -1632,6 +1632,21 @@
   }
 }
 
+// Awaiting-answer banner — gives the user an unmistakable signal that the
+// chip is interactive (vs read-only history).
+.ask-question-pending-banner {
+  background: rgba(111, 143, 255, 0.18);
+  color: #a8bbff;
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  display: inline-block;
+}
+
 // Interactive mode — when an agent-prompt is pending, the inline tool_use
 // chip becomes the answer panel. Free-text input below each question and a
 // Submit/Decline row at the bottom.

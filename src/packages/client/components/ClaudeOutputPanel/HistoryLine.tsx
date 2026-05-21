@@ -92,15 +92,15 @@ export const HistoryLine = memo(function HistoryLine({
   const [sessionExpanded, setSessionExpanded] = useState(false);
   const hideCost = useHideCost();
   const settings = useSettings();
-  const { type, content: rawContent, toolName, toolUseId, timestamp, _bashOutput, _bashCommand, _askQuestionAnswers, _taskSubject } = message;
-
-  // If this tool_use has a pending agent-prompt awaiting human input, surface
-  // the interactive UI inline (Approve/Reject for ExitPlanMode, option picker
-  // for AskUserQuestion). Matches by tool_use_id.
+  const { type, content: rawContent, toolName, toolUseId, timestamp, _bashOutput, _bashCommand, _askQuestionAnswers, _taskSubject, _pendingPromptId } = message;
+  // `_pendingPromptId` is enriched by AgentTerminalPane.enrichHistory from the
+  // pending agent-prompts map. We still keep a defensive fallback via the
+  // store hook here in case a future call site renders HistoryLine outside the
+  // pane's enrichment path.
   const pendingAgentPrompts = useAgentPrompts(agentId);
-  const matchingPendingPrompt = toolUseId
-    ? pendingAgentPrompts.find((p) => p.id === toolUseId)
-    : undefined;
+  const matchingPendingPrompt = _pendingPromptId
+    ? { id: _pendingPromptId }
+    : (toolUseId ? pendingAgentPrompts.find((p) => p.id === toolUseId) : undefined);
   const content = filterCostText(rawContent, hideCost);
   const { toggle: toggleTTS, speaking } = useTTS();
   const markdownComponents = createMarkdownComponents({ onFileClick: onFileClick ? (path) => onFileClick(path) : undefined });

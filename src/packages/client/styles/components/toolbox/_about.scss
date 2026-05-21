@@ -338,6 +338,146 @@
   }
 }
 
+// Auto-update (npm global) panel
+.about-autoupdate {
+  margin-bottom: 12px;
+  padding: 10px;
+  background: $bg-secondary;
+  border-radius: $radius-md;
+  border: 1px solid $border-color;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.about-autoupdate-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: $text-secondary;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.about-autoupdate-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.about-autoupdate-versions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: $font-mono;
+  font-size: 12px;
+}
+
+.about-autoupdate-current {
+  color: $text-secondary;
+}
+
+.about-autoupdate-arrow {
+  color: $text-secondary;
+}
+
+.about-autoupdate-latest {
+  color: $accent-green;
+  font-weight: 600;
+}
+
+.about-autoupdate-devnote {
+  font-size: 11px;
+  color: $text-secondary;
+  line-height: 1.4;
+}
+
+.about-autoupdate-manualhint {
+  font-size: 10px;
+  color: $text-secondary;
+}
+
+.about-autoupdate-manualcmd {
+  margin: 0;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $text-primary;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.about-autoupdate-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.about-autoupdate-confirm-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.about-autoupdate-confirm-body {
+  font-size: 11px;
+  color: $text-secondary;
+  line-height: 1.4;
+}
+
+.about-autoupdate-confirm-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.about-autoupdate-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.about-autoupdate-stream-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.about-autoupdate-output {
+  margin: 0;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  font-size: 10px;
+  color: $text-primary;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.about-autoupdate-success-hint {
+  font-size: 11px;
+  color: $accent-green;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.about-autoupdate-newversion {
+  font-family: $font-mono;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.about-autoupdate-stream-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 // Recent releases list
 .about-releases {
   margin-top: 10px;
