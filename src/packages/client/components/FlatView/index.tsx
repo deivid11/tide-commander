@@ -49,6 +49,73 @@ import {
 import './FlatView.scss';
 
 // ============================================================================
+// Column resizer hook — drag the divider between the agents list and the
+// chat pane. Persists the middle column width to localStorage so it survives
+// reloads. Mirrors the useBottomTerminalResize pattern.
+// ============================================================================
+
+const FLAT_MIDDLE_WIDTH_KEY = 'tide-flat-middle-width';
+const FLAT_MIDDLE_MIN_WIDTH = 240;
+const FLAT_MIDDLE_MAX_WIDTH = 900;
+const FLAT_MIDDLE_DEFAULT_WIDTH = 420;
+
+function readSavedMiddleWidth(): number {
+  try {
+    const raw = localStorage.getItem(FLAT_MIDDLE_WIDTH_KEY);
+    if (!raw) return FLAT_MIDDLE_DEFAULT_WIDTH;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return FLAT_MIDDLE_DEFAULT_WIDTH;
+    return Math.max(FLAT_MIDDLE_MIN_WIDTH, Math.min(FLAT_MIDDLE_MAX_WIDTH, parsed));
+  } catch {
+    return FLAT_MIDDLE_DEFAULT_WIDTH;
+  }
+}
+
+interface FlatColumnResize {
+  width: number;
+  onResizeStart: (e: React.MouseEvent) => void;
+}
+
+function useFlatColumnResize(): FlatColumnResize {
+  const [width, setWidth] = useState<number>(() => readSavedMiddleWidth());
+  const dragRef = useRef<{ startX: number; startW: number } | null>(null);
+
+  const onResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragRef.current = { startX: e.clientX, startW: width };
+    let lastWidth = width;
+    const prevUserSelect = document.body.style.userSelect;
+    const prevCursor = document.body.style.cursor;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (!dragRef.current) return;
+      const dx = moveEvent.clientX - dragRef.current.startX;
+      lastWidth = Math.max(
+        FLAT_MIDDLE_MIN_WIDTH,
+        Math.min(FLAT_MIDDLE_MAX_WIDTH, dragRef.current.startW + dx),
+      );
+      setWidth(lastWidth);
+    };
+
+    const onMouseUp = () => {
+      dragRef.current = null;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.userSelect = prevUserSelect;
+      document.body.style.cursor = prevCursor;
+      try { localStorage.setItem(FLAT_MIDDLE_WIDTH_KEY, String(lastWidth)); } catch { /* ignore */ }
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, [width]);
+
+  return { width, onResizeStart };
+}
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -317,6 +384,11 @@ const ChatView = React.memo(function ChatView({
   // Shared resizer — same hook the Guake bottom panel uses, so the persisted
   // height is kept in sync across both surfaces.
   const { height: embeddedHeight, onResizeStart: handleEmbeddedResizeStart } = useBottomTerminalResize();
+
+  // Column resizer — drag the divider between the agents list (.flat-middle)
+  // and the chat pane (.flat-right). Persists to localStorage as a px width
+  // for the middle column. Mirrors the useBottomTerminalResize pattern.
+  const { width: middleWidth, onResizeStart: handleColumnResizeStart } = useFlatColumnResize();
 
   // Side panels (git / area buildings) — reuse the Guake components, persist
   // open-state to the same STORAGE_KEYS so the toggle survives a view swap.
@@ -1376,9 +1448,18 @@ export function FlatView({
     });
   }, [emptyChatGroups]);
 
+  // Compose the grid columns. We override the SCSS default (`1fr 1fr` /
+  // `minmax(...) 1fr` on wide screens) with explicit px widths so the drag
+  // handle controls them. When the inspector is open we keep the 320px
+  // right rail. The 6px middle column is the draggable divider.
+  const flatViewGridStyle = showInspector
+    ? { gridTemplateColumns: `${middleWidth}px 6px 1fr 320px` }
+    : { gridTemplateColumns: `${middleWidth}px 6px 1fr` };
+
   return (
     <div
       className={`flat-view ${showInspector ? 'flat-view--with-inspector' : ''}`}
+      style={flatViewGridStyle}
     >
       {/* Middle Column - Agents overview. The former in-view SidebarMenu was
           removed because the floating left-side FAB menu (settings/spotlight/
@@ -1421,6 +1502,16 @@ export function FlatView({
           />
         </div>
       </div>
+
+      {/* Draggable divider between agents list and chat. Sits as its own grid
+          column so the layout stays a pure grid (no overlay tricks). */}
+      <div
+        className="flat-view__col-divider"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize agents list"
+        onMouseDown={handleColumnResizeStart}
+      />
 
       {/* Right Column - Chat/Details */}
       <div className="flat-right">

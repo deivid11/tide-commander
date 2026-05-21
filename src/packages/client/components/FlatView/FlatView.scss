@@ -49,7 +49,10 @@ $middle-min-width: 280px;
 
 .flat-view {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  // Default fallback when no inline style is applied (e.g. narrow viewport
+  // media query below overrides this). At runtime FlatView sets an inline
+  // grid-template-columns including the draggable divider track.
+  grid-template-columns: 1fr 6px 1fr;
   height: 100%;
   width: 100%;
   background: $bg-primary;
@@ -59,13 +62,51 @@ $middle-min-width: 280px;
   // width:36 → ~52px + breathing room).
   padding-left: 64px;
   box-sizing: border-box;
-  transition: grid-template-columns 0.25s ease;
+  // Transition removed: would jank the live drag. Re-add if you want
+  // animated changes for view-mode swaps.
 
-  // When the inspector is open, add a 3rd column that pushes the other
-  // columns left (no overlay). Mid column keeps its width; right column
-  // shares the remaining space with the inspector.
+  // When the inspector is open, add a 3rd content column (the divider is
+  // still a track in the inline style, so this fallback also includes it).
   &--with-inspector {
-    grid-template-columns: 1fr 1fr 320px;
+    grid-template-columns: 1fr 6px 1fr 320px;
+  }
+}
+
+// Draggable divider sitting between .flat-middle and .flat-right. Pure CSS
+// hover affordance — width stays 6px so the hit area is comfortable without
+// stealing layout space.
+.flat-view__col-divider {
+  background: transparent;
+  cursor: col-resize;
+  position: relative;
+  user-select: none;
+  transition: background 0.15s ease;
+  z-index: 5;
+
+  // Thin visible 1px line down the middle so users can locate the handle.
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    background: var(--border-color, rgba(255, 255, 255, 0.08));
+    transition: background 0.15s ease;
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-purple) 22%, transparent);
+    &::before {
+      background: var(--accent-purple);
+    }
+  }
+
+  &:active {
+    background: color-mix(in srgb, var(--accent-purple) 35%, transparent);
+    &::before {
+      background: var(--accent-purple);
+    }
   }
 }
 
@@ -1444,26 +1485,19 @@ $middle-min-width: 280px;
 
 @media (max-width: 1024px) {
   .flat-view {
-    grid-template-columns: 1fr;
+    // Narrow viewport: single column, no divider needed. Use !important so we
+    // win over the inline grid-template-columns style set by FlatView.
+    grid-template-columns: 1fr !important;
 
     &--with-inspector {
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr !important;
     }
   }
 
   .flat-right,
-  .flat-inspector {
+  .flat-inspector,
+  .flat-view__col-divider {
     display: none;
-  }
-}
-
-@media (min-width: 1400px) {
-  .flat-view {
-    grid-template-columns: minmax($middle-min-width, 400px) 1fr;
-
-    &--with-inspector {
-      grid-template-columns: minmax($middle-min-width, 400px) 1fr 360px;
-    }
   }
 }
 
