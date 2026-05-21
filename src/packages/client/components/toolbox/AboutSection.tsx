@@ -1,8 +1,14 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppUpdate } from '../../hooks/useAppUpdate';
 import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
 import { Icon } from '../Icon';
+import {
+  fetchInstallInfo,
+  startSelfUpdate,
+  type InstallInfo,
+  type SelfUpdateEvent,
+} from '../../api/system-update';
 
 // Theme selector component
 export function ThemeSelector() {
@@ -43,6 +49,208 @@ export function ThemeSelector() {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+type UpdateUiPhase = 'idle' | 'confirm' | 'running' | 'success' | 'failed';
+
+function AutoUpdatePanel() {
+  const { t } = useTranslation(['config']);
+  const [installInfo, setInstallInfo] = useState<InstallInfo | null>(null);
+  const [phase, setPhase] = useState<UpdateUiPhase>('idle');
+  const [output, setOutput] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [newVersion, setNewVersion] = useState<string | null>(null);
+  const abortRef = useRef<(() => void) | null>(null);
+  const outputRef = useRef<HTMLPreElement | null>(null);
+
+  const refreshInstallInfo = useCallback(async () => {
+    try {
+      const info = await fetchInstallInfo();
+      setInstallInfo(info);
+    } catch {
+      setInstallInfo(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshInstallInfo();
+  }, [refreshInstallInfo]);
+
+  // Auto-scroll the install log
+  useEffect(() => {
+    if (outputRef.current) {
+      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+    }
+  }, [output]);
+
+  const handleStart = useCallback(() => {
+    setPhase('confirm');
+  }, []);
+
+  const handleCancel = useCallback(() => {
+    setPhase('idle');
+  }, []);
+
+  const handleConfirm = useCallback(() => {
+    setPhase('running');
+    setOutput('');
+    setError(null);
+    setNewVersion(null);
+
+    const stop = startSelfUpdate(
+      (event: SelfUpdateEvent) => {
+        switch (event.type) {
+          case 'start':
+            setOutput((prev) => prev + `${event.message}\n`);
+            break;
+          case 'stdout':
+            setOutput((prev) => prev + event.chunk);
+            break;
+          case 'stderr':
+            setOutput((prev) => prev + event.chunk);
+            break;
+          case 'error':
+            setError(event.message);
+            if (event.suggestedManualCommand) {
+              setOutput((prev) => prev + `\n\nSuggested manual command: ${event.suggestedManualCommand}\n`);
+            }
+            break;
+          case 'done':
+            if (event.success) {
+              setNewVersion(event.newVersion);
+              setPhase('success');
+            } else {
+              setPhase('failed');
+            }
+            break;
+        }
+      },
+      (err) => {
+        // Stream closed. If we already moved to success/failed, don't override.
+        if (err) {
+          setError((prev) => prev ?? err.message);
+        }
+        setPhase((prev) => {
+          if (prev === 'running') {
+            // Server killed itself after success — treat as success if no error captured
+            return error ? 'failed' : 'success';
+          }
+          return prev;
+        });
+      },
+    );
+
+    abortRef.current = stop;
+  }, [error]);
+
+  const handleClose = useCallback(() => {
+    abortRef.current?.();
+    abortRef.current = null;
+    setPhase('idle');
+    void refreshInstallInfo();
+  }, [refreshInstallInfo]);
+
+  // Decide what to render
+  if (!installInfo) {
+    return null;
+  }
+
+  // Dev mode — show a small informational note instead of the button
+  if (!installInfo.isGlobalInstall) {
+    return (
+      <div className="about-autoupdate">
+        <div className="about-autoupdate-title">{t('config:about.autoUpdateTitle')}</div>
+        <div className="about-autoupdate-devnote">{t('config:about.autoUpdateDevMode')}</div>
+      </div>
+    );
+  }
+
+  // Global install but not npm — show manual command
+  if (!installInfo.autoUpdateSupported) {
+    return (
+      <div className="about-autoupdate">
+        <div className="about-autoupdate-title">{t('config:about.autoUpdateTitle')}</div>
+        <div className="about-autoupdate-devnote">
+          {t('config:about.autoUpdatePackageManagerNotice', { pm: installInfo.packageManager })}
+        </div>
+        {installInfo.suggestedManualCommand && (
+          <>
+            <div className="about-autoupdate-manualhint">{t('config:about.autoUpdateManualCommand')}</div>
+            <pre className="about-autoupdate-manualcmd">{installInfo.suggestedManualCommand}</pre>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // npm global install — full update flow
+  if (!installInfo.updateAvailable && phase === 'idle') {
+    // Up to date: nothing extra to render here (the existing About update widget handles it)
+    return null;
+  }
+
+  return (
+    <div className="about-autoupdate">
+      <div className="about-autoupdate-title">{t('config:about.autoUpdateTitle')}</div>
+
+      {phase === 'idle' && installInfo.updateAvailable && (
+        <div className="about-autoupdate-row">
+          <span className="about-autoupdate-versions">
+            <span className="about-autoupdate-current">{installInfo.currentVersion}</span>
+            <span className="about-autoupdate-arrow">→</span>
+            <span className="about-autoupdate-latest">{installInfo.latestVersion}</span>
+          </span>
+          <button className="about-update-btn download" onClick={handleStart}>
+            {t('config:about.autoUpdateButton')}
+          </button>
+        </div>
+      )}
+
+      {phase === 'confirm' && (
+        <div className="about-autoupdate-confirm">
+          <div className="about-autoupdate-confirm-title">{t('config:about.autoUpdateConfirmTitle')}</div>
+          <div className="about-autoupdate-confirm-body">{t('config:about.autoUpdateConfirmBody')}</div>
+          <div className="about-autoupdate-confirm-actions">
+            <button className="about-update-btn changelog" onClick={handleCancel}>
+              {t('config:about.autoUpdateCancel')}
+            </button>
+            <button className="about-update-btn download" onClick={handleConfirm}>
+              {t('config:about.autoUpdateConfirm')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {(phase === 'running' || phase === 'success' || phase === 'failed') && (
+        <div className="about-autoupdate-stream">
+          <div className="about-autoupdate-stream-title">
+            {phase === 'running' && t('config:about.autoUpdateRunning')}
+            {phase === 'success' && t('config:about.autoUpdateSuccess')}
+            {phase === 'failed' && t('config:about.autoUpdateFailed')}
+          </div>
+          <pre ref={outputRef} className="about-autoupdate-output">{output || '...'}</pre>
+          {phase === 'success' && (
+            <div className="about-autoupdate-success-hint">
+              {newVersion && (
+                <div className="about-autoupdate-newversion">v{newVersion}</div>
+              )}
+              <div>{t('config:about.autoUpdateRestartHint')}</div>
+            </div>
+          )}
+          {phase === 'failed' && error && (
+            <div className="about-update-error">{error}</div>
+          )}
+          {(phase === 'success' || phase === 'failed') && (
+            <div className="about-autoupdate-stream-actions">
+              <button className="about-update-btn changelog" onClick={handleClose}>
+                {t('config:about.autoUpdateClose')}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -108,6 +316,9 @@ export function AboutSection() {
           )}
         </div>
       </div>
+
+      {/* Self-update from npm global (desktop/CLI). Renders only when relevant. */}
+      <AutoUpdatePanel />
 
       {/* Update Section */}
       <div className="about-update">

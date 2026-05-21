@@ -541,7 +541,22 @@
     "principle4": "Transparent agent communication",
     "specialThanks": "Special Thanks",
     "kenneyCredit": "for the agent character models",
-    "claudeCodeCredit": "by Anthropic, the AI backbone"
+    "claudeCodeCredit": "by Anthropic, the AI backbone",
+    "autoUpdateTitle": "Auto-update",
+    "autoUpdateButton": "Update now",
+    "autoUpdateRunning": "Installing update...",
+    "autoUpdateConfirmTitle": "Update Tide Commander?",
+    "autoUpdateConfirmBody": "This will run npm install -g tide-commander@latest and then close the server. You will need to relaunch tide-commander from your terminal.",
+    "autoUpdateConfirm": "Yes, update",
+    "autoUpdateCancel": "Cancel",
+    "autoUpdateClose": "Close",
+    "autoUpdateOutput": "Install log",
+    "autoUpdateSuccess": "Update installed.",
+    "autoUpdateRestartHint": "Please restart Tide Commander from your terminal (run: tide-commander).",
+    "autoUpdateFailed": "Update failed.",
+    "autoUpdateDevMode": "Auto-update is unavailable in dev mode.",
+    "autoUpdateManualCommand": "Run this in your terminal to update manually:",
+    "autoUpdatePackageManagerNotice": "Auto-update only supports npm-installed globals. Detected: {{pm}}."
   },
   "shortcuts": {
     "pressKeys": "Press keys...",

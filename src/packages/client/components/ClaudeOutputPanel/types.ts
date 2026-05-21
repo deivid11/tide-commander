@@ -137,4 +137,9 @@ export interface EnrichedHistoryMessage {
   // "Task #N created successfully: <subject>"). When present, the chip can
   // show the task name instead of just "status: completed".
   _taskSubject?: string;
+  // For AskUserQuestion / ExitPlanMode tool_use: the matching pending
+  // agent-prompt id (= toolUseId). When set, the chip renders an interactive
+  // UI inline so the user can answer/approve. Computed in AgentTerminalPane so
+  // HistoryLine doesn't have to subscribe to the agentPrompts store itself.
+  _pendingPromptId?: string;
 }

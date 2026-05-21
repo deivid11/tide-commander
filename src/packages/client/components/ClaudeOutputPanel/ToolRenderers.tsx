@@ -545,7 +545,12 @@ export function AskQuestionInput({ content, answers, pendingPromptId }: AskQuest
     const allAnswered = answeredCount === questions.length;
 
     return (
-      <div className={`ask-question-input ${interactive ? 'is-interactive' : ''}`}>
+      <div className={`ask-question-input ${interactive ? 'is-interactive' : ''}`} data-pending-prompt-id={pendingPromptId || ''}>
+        {interactive && (
+          <div className="ask-question-pending-banner">
+            Awaiting your answer{pendingPromptId ? ` · ${pendingPromptId.slice(-6)}` : ''}
+          </div>
+        )}
         {questions.map((q, qIdx) => {
           const pickedLabels = pickedLabelsFor(q);
           const isAnswered = pickedLabels.length > 0;

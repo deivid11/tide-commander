@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.99.0] - 2026-05-21
+
+### Added
+- **In-UI self-update** — Tide Commander can now update itself from the About section in Settings. New `services/self-update-service.ts` detects the install location (npm / pnpm / yarn / bun global vs dev-mode) and shells out to the right `<pm> install -g tide-commander@latest`. Exposed via REST in the new `routes/system.ts` (`GET /api/system/install-info` and `POST /api/system/self-update`), mounted under `/api/system/` in `routes/index.ts`. Client API in `api/system-update.ts` streams `start` / `stdout` / `stderr` / `error` / `done` events for a live install log. New `AutoUpdatePanel` in `AboutSection.tsx` adds a confirm dialog, an auto-scrolling install log, success / failure / dev-mode states, package-manager-mismatch fallback ("Auto-update only supports npm-installed globals. Detected: <pm>"), and a manual-command fallback for unsupported PMs. ~140 lines of new SCSS in `_about.scss` style the panel; ~17 new translation strings in `public/locales/en/config.json`.
+- **Interactive agent-prompt chips on tool_use messages** — pending `AskUserQuestion` / `AskFollowupQuestion` / `ExitPlanMode` agent-prompts are now indexed at the pane level by their `toolUseId` and attached to the matching `tool_use` history message as `_pendingPromptId`. `AgentTerminalPane.tsx` does the indexing and threading through `enrichHistory`; `HistoryLine.tsx`, `ToolRenderers.tsx`, and `types.ts` consume the new field so each chip can flip into interactive mode and let the user respond inline. Adds ~15 lines of supporting SCSS in `_tools.scss`.
+
 ## [1.98.0] - 2026-05-21
 
 ### Added

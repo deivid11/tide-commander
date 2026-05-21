@@ -30,9 +30,12 @@ import {
   useExecTasks,
   useSubagentsMapForAgent,
   usePermissionRequests,
+  useAgentPrompts,
+  store,
   type ClaudeOutput,
 } from '../../store';
-import type { Agent } from '../../../shared/types';
+import { apiUrl, authFetch } from '../../utils/storage';
+import type { Agent, AgentPrompt } from '../../../shared/types';
 import type { AttachedFile } from '../shared/outputTypes';
 
 // Types
@@ -236,6 +239,12 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // ── Terminal input ──
   const terminalInput = useTerminalInput({ selectedAgentId: agentId });
 
+  // Pending agent-prompts (AskUserQuestion / ExitPlanMode awaiting human input).
+  // Read here at the pane level so enrichHistory can attach _pendingPromptId to
+  // matching tool_use messages — far more reliable than each HistoryLine
+  // subscribing to the agent-prompts map individually.
+  const pendingAgentPrompts = useAgentPrompts(agentId);
+
   // ── Filtered & deduped history ──
   const filteredHistory = useMemo((): EnrichedHistoryMessage[] => {
     const { history } = historyLoader;
@@ -296,6 +305,13 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       }
     }
 
+    // Index pending agent-prompts by their toolUseId so the matching tool_use
+    // chip can advertise its `_pendingPromptId` and flip into interactive mode.
+    const pendingPromptByToolUseId = new Map<string, string>();
+    for (const p of pendingAgentPrompts) {
+      pendingPromptByToolUseId.set(p.id, p.id);
+    }
+
     const enrichHistory = (messages: typeof history): EnrichedHistoryMessage[] => {
       const out: EnrichedHistoryMessage[] = [];
       for (const msg of messages) {
@@ -321,7 +337,13 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
         if (msg.type === 'tool_use' && (msg.toolName === 'AskUserQuestion' || msg.toolName === 'AskFollowupQuestion') && msg.toolUseId) {
           const resultText = toolResultMap.get(msg.toolUseId);
           const answers = resultText ? parseAskAnswers(resultText) : undefined;
-          out.push({ ...msg, _askQuestionAnswers: answers });
+          const pendingPromptId = pendingPromptByToolUseId.get(msg.toolUseId);
+          out.push({ ...msg, _askQuestionAnswers: answers, _pendingPromptId: pendingPromptId });
+          continue;
+        }
+        if (msg.type === 'tool_use' && msg.toolName === 'ExitPlanMode' && msg.toolUseId) {
+          const pendingPromptId = pendingPromptByToolUseId.get(msg.toolUseId);
+          out.push({ ...msg, _pendingPromptId: pendingPromptId });
           continue;
         }
         if (msg.type === 'tool_use' && msg.toolName === 'TaskUpdate') {
@@ -338,7 +360,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     };
 
     return enrichHistory(history);
-  }, [historyLoader.history]);
+  }, [historyLoader.history, pendingAgentPrompts]);
 
   const filteredOutputs = useFilteredOutputsWithLogging({ outputs: displayOutputs, viewMode });
 
@@ -647,6 +669,34 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     pendingFadeInRef.current = true;
     setPinToBottom(true);
   }, [agentId, reconnectCount]);
+
+  // Hydrate pending agent-prompts (AskUserQuestion / ExitPlanMode awaiting a
+  // human response) on mount and WS reconnect. The server holds these in
+  // memory and re-broadcasts on new events, but a fresh page load has an
+  // empty client store — without this fetch the inline interactive UI is
+  // missing after refresh and the user can't answer the question.
+  // Re-run when history finishes loading so newly-mounted chips get hydrated.
+  useEffect(() => {
+    if (!agentId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const url = apiUrl(`/api/agent-prompt/pending?agentId=${encodeURIComponent(agentId)}`);
+        const res = await authFetch(url);
+        if (!res.ok) {
+          console.warn('[agent-prompt hydrate] non-ok', res.status, url);
+          return;
+        }
+        const prompts = await res.json() as AgentPrompt[];
+        if (cancelled) return;
+        console.log('[agent-prompt hydrate]', { agentId, count: prompts.length, ids: prompts.map((p) => p.id) });
+        for (const p of prompts) store.addAgentPrompt(p);
+      } catch (err) {
+        console.error('[agent-prompt hydrate] failed', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [agentId, reconnectCount, historyLoader.historyLoadVersion]);
 
   useEffect(() => {
     if (historyLoader.fetchingHistory) {
