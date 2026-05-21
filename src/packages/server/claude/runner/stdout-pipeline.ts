@@ -218,6 +218,14 @@ export class RunnerStdoutPipeline {
         }
         if (event.permissionDenials && event.permissionDenials.length > 0) {
           for (const denial of event.permissionDenials) {
+            // Suppress the "[System] Permission denied" line for the two tools
+            // routed through our MCP perm-prompt server (AskUserQuestion,
+            // ExitPlanMode). For those, the user rejecting via the inline UI
+            // already conveys the outcome; surfacing the CLI's generic denial
+            // is just noise that looks like a system error.
+            if (denial.toolName === 'AskUserQuestion' || denial.toolName === 'AskFollowupQuestion' || denial.toolName === 'ExitPlanMode') {
+              continue;
+            }
             const denialSummary = this.formatPermissionDenialSummary(denial.toolName, denial.toolInput);
             this.callbacks.onOutput(agentId, `[System] Permission denied: ${denialSummary}`, false, undefined, event.uuid);
           }

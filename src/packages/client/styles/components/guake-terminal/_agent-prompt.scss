@@ -1,0 +1,298 @@
+// =============================================================================
+// Agent Prompt Card — inline UI for AskUserQuestion / ExitPlanMode prompts
+// forwarded from the MCP permission-prompt server. Lives directly above the
+// terminal input so the user can answer the agent without leaving the pane.
+// =============================================================================
+
+.agent-prompt-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(20, 25, 35, 0.85);
+  border-top: 1px solid rgba(120, 140, 180, 0.18);
+  // Cap height so long prompts (4 questions × 4 options) don't push the
+  // submit row off-screen. Inner content scrolls; the action row remains
+  // visible because it's outside the scroll container in the JSX.
+  max-height: min(75vh, 720px);
+  overflow-y: auto;
+  // Stick the action row to the bottom when the user scrolls inside.
+  scroll-padding-bottom: 60px;
+}
+
+.agent-prompt-card {
+  border: 1px solid rgba(120, 140, 180, 0.25);
+  border-radius: 8px;
+  background: rgba(28, 34, 46, 0.95);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--text-primary, #d8dee9);
+  font-size: 13px;
+
+  &.askuserquestion {
+    border-left: 3px solid #6f8fff;
+  }
+  &.exitplanmode {
+    border-left: 3px solid #c084fc;
+  }
+}
+
+.agent-prompt-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #e8edf6;
+}
+.agent-prompt-title { flex: 1; }
+.agent-prompt-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(111, 143, 255, 0.18);
+  color: #a8bbff;
+}
+.agent-prompt-toggle {
+  background: transparent;
+  border: 1px solid rgba(150, 170, 200, 0.3);
+  color: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  &:hover { background: rgba(150, 170, 200, 0.1); }
+}
+
+.agent-prompt-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.agent-prompt-question {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.agent-prompt-question-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.agent-prompt-question-tag {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(111, 143, 255, 0.18);
+  color: #a8bbff;
+}
+.agent-prompt-question-text {
+  font-size: 13px;
+  color: #e8edf6;
+  flex: 1;
+}
+.agent-prompt-multi {
+  font-size: 11px;
+  color: #9aa3b8;
+}
+
+.agent-prompt-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.agent-prompt-option {
+  text-align: left;
+  border: 1px solid rgba(150, 170, 200, 0.2);
+  background: rgba(40, 48, 64, 0.7);
+  color: inherit;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: background 0.12s, border-color 0.12s;
+  &:hover:not(:disabled) {
+    background: rgba(60, 75, 105, 0.8);
+    border-color: rgba(150, 170, 200, 0.4);
+  }
+  &.selected {
+    background: rgba(111, 143, 255, 0.22);
+    border-color: #6f8fff;
+  }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+.agent-prompt-option-label {
+  font-weight: 600;
+  font-size: 13px;
+  color: #f0f4ff;
+}
+.agent-prompt-option-desc {
+  font-size: 11px;
+  color: #9aa3b8;
+}
+
+.agent-prompt-freetext {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+
+  input {
+    flex: 1;
+    background: rgba(20, 25, 35, 0.85);
+    border: 1px solid rgba(150, 170, 200, 0.2);
+    border-radius: 5px;
+    color: inherit;
+    padding: 6px 9px;
+    font-size: 12px;
+    &:focus { outline: none; border-color: #6f8fff; }
+  }
+  button {
+    background: rgba(111, 143, 255, 0.18);
+    border: 1px solid rgba(111, 143, 255, 0.35);
+    color: #d8dee9;
+    border-radius: 5px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    &:hover:not(:disabled) { background: rgba(111, 143, 255, 0.3); }
+    &:disabled { opacity: 0.5; cursor: not-allowed; }
+  }
+}
+
+.agent-prompt-plan {
+  // Let the plan grow up to most of the bar's available height before
+  // scrolling internally. The bar's own cap (75vh) still bounds the parent.
+  max-height: min(60vh, 560px);
+  min-height: 200px;
+  overflow-y: auto;
+  background: rgba(20, 25, 35, 0.6);
+  border: 1px solid rgba(150, 170, 200, 0.15);
+  border-radius: 6px;
+  padding: 12px 16px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #d8dee9;
+}
+
+// ExitPlanMode card lays out vertically with the plan body taking the bulk
+// of the space — without min-height it collapses to ~150px which feels tiny.
+.agent-prompt-card.exitplanmode {
+  min-height: 300px;
+}
+
+.agent-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  // Pinned to the bottom of the scrolling card body so it stays visible no
+  // matter how far the user scrolls through the questions.
+  position: sticky;
+  bottom: 0;
+  margin: 8px -14px -12px; // bleed into card padding so the background covers full width
+  padding: 10px 14px;
+  background: linear-gradient(to top, rgba(28, 34, 46, 1) 70%, rgba(28, 34, 46, 0) 100%);
+  border-top: 1px solid rgba(120, 140, 180, 0.2);
+}
+
+.agent-prompt-progress {
+  flex: 1;
+  font-size: 11px;
+  color: #9aa3b8;
+  &.complete { color: #b3f0cf; }
+}
+
+.agent-prompt-answered-mark {
+  display: inline-block;
+  margin-left: 6px;
+  color: #6fd49a;
+  font-size: 11px;
+}
+
+// AskUserQuestion tool_result — render the user's picked answers prettily.
+.ask-question-result {
+  flex: 1;
+  background: rgba(70, 200, 130, 0.06);
+  border: 1px solid rgba(70, 200, 130, 0.3);
+  border-left: 3px solid #6fd49a;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 2px 0;
+}
+.ask-question-result-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6fd49a;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+.ask-question-result-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ask-question-result-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.ask-question-result-q {
+  color: #9aa3b8;
+  flex: 1;
+  min-width: 0;
+}
+.ask-question-result-arrow {
+  color: #6fd49a;
+  font-weight: 700;
+}
+.ask-question-result-a {
+  color: #f0f4ff;
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-prompt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.12s, border-color 0.12s, opacity 0.12s;
+
+  &.approve {
+    background: rgba(70, 200, 130, 0.18);
+    border-color: rgba(70, 200, 130, 0.45);
+    color: #b3f0cf;
+    &:hover:not(:disabled) { background: rgba(70, 200, 130, 0.3); }
+    &:disabled { opacity: 0.45; cursor: not-allowed; }
+  }
+  &.deny {
+    background: rgba(255, 100, 100, 0.12);
+    border-color: rgba(255, 100, 100, 0.35);
+    color: #ffb3b3;
+    &:hover:not(:disabled) { background: rgba(255, 100, 100, 0.22); }
+    &:disabled { opacity: 0.45; cursor: not-allowed; }
+  }
+}

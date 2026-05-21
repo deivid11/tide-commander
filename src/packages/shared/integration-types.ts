@@ -123,6 +123,7 @@ export interface IntegrationContext {
   eventDb: {
     logTriggerFire: (...args: unknown[]) => unknown;
     logSlackMessage: (...args: unknown[]) => unknown;
+    logWhatsAppMessage: (...args: unknown[]) => unknown;
     logEmailMessage: (...args: unknown[]) => unknown;
     logApprovalEvent: (...args: unknown[]) => unknown;
     logDocumentGeneration: (...args: unknown[]) => unknown;

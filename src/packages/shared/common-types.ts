@@ -169,6 +169,33 @@ export interface PermissionResponse {
 }
 
 // ============================================================================
+// Agent Prompt Types
+// ============================================================================
+// Mirrors the `--permission-prompt-tool` MCP flow: when a bypass-mode agent
+// calls AskUserQuestion or ExitPlanMode, the prompt is routed through the UI
+// for a real human response instead of being silently auto-answered.
+
+export type AgentPromptTool = 'AskUserQuestion' | 'ExitPlanMode';
+
+export interface AgentPrompt {
+  id: string;
+  agentId: string;
+  tool: AgentPromptTool;
+  input: Record<string, unknown>; // questions[] for AskUserQuestion, { plan, planFilePath } for ExitPlanMode
+  status: 'pending' | 'answered' | 'cancelled';
+  timestamp: number;
+}
+
+export interface AgentPromptResponse {
+  requestId: string;
+  approved: boolean;
+  // AskUserQuestion only: keyed by question text, value is the chosen option label
+  // (or array of labels for multiSelect, or free-text string).
+  answers?: Record<string, string | string[]>;
+  reason?: string;
+}
+
+// ============================================================================
 // Agent Notification Types
 // ============================================================================
 

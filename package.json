@@ -1,6 +1,6 @@
 {
   "name": "tide-commander",
-  "version": "1.97.0",
+  "version": "1.98.0",
   "description": "Visual multi-agent orchestrator and manager for Claude Code with 3D/2D interface",
   "repository": {
     "type": "git",
@@ -25,7 +25,7 @@
     "docs:preview": "npm --prefix src/packages/landing run preview",
     "docs:install": "npm --prefix src/packages/landing install",
     "build": "npm run build:types && vite build && npm run build:server",
-    "build:server": "tsc -p tsconfig.server.json && cp -r src/packages/server/data/migrations dist/src/packages/server/data/",
+    "build:server": "tsc -p tsconfig.server.json && cp -r src/packages/server/data/migrations dist/src/packages/server/data/ && cp src/packages/server/claude/permission-prompt-server.mjs dist/src/packages/server/claude/",
     "preview": "vite preview",
     "setup": "tsx src/packages/server/setup.ts",
     "lint": "eslint src/",

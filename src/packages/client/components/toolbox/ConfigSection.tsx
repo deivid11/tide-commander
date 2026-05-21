@@ -13,6 +13,8 @@ import { IntegrationStatusPanel } from './IntegrationStatusPanel';
 import { SystemPromptModal } from '../SystemPromptModal';
 import { WhatsAppConfigModal } from '../WhatsAppConfigModal';
 import { WhatsAppNotificationsModal } from '../WhatsAppNotificationsModal';
+import { WhatsAppHistoryPanel } from '../WhatsAppHistory/WhatsAppHistoryPanel';
+import { WhatsAppHubModal } from '../WhatsAppHub/WhatsAppHubModal';
 import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath, fetchTmuxModeSetting, updateTmuxModeSetting } from '../../api/system-settings';
 import { BUILTIN_AGENT_NAMES } from '../../scene/config';
 import { Icon } from '../Icon';
@@ -196,10 +198,8 @@ const SETTINGS_SECTIONS = [
   { id: 'animations', title: 'Animations', keywords: ['idle', 'working', 'animation', 'walk', 'run', 'sprint', 'jump', 'sit', 'crouch'] },
   { id: 'secrets', title: 'Secrets', keywords: ['secrets', 'api', 'key', 'password', 'credentials', 'env', 'environment'] },
   { id: 'systemPrompt', title: 'System Prompt', keywords: ['system', 'prompt', 'global', 'instructions', 'ai', 'agent', 'rules', 'guidelines'] },
-  { id: 'whatsapp', title: 'WhatsApp Integration', keywords: ['whatsapp', 'message', 'sms', 'integration', 'notification', 'baileys'] },
-  { id: 'whatsappNotifications', title: 'WhatsApp Notifications', keywords: ['whatsapp', 'notification', 'notifications', 'messages', 'status', 'toggle', 'filter', 'event', 'subscribe', 'plan', 'error', 'spawned', 'stopped'] },
   { id: 'data', title: 'Data', keywords: ['export', 'import', 'backup', 'restore', 'save', 'load', 'json'] },
-  { id: 'integrations', title: 'Integrations', keywords: ['integrations', 'plugins', 'gmail', 'slack', 'jira', 'calendar', 'docx', 'email', 'config', 'setup'] },
+  { id: 'integrations', title: 'Integrations', keywords: ['integrations', 'integraciones', 'plugins', 'gmail', 'slack', 'jira', 'calendar', 'docx', 'email', 'whatsapp', 'notifications', 'notification', 'baileys', 'history', 'historial', 'chat', 'messages', 'inbox', 'config', 'setup'] },
   { id: 'workflows', title: 'Workflows', keywords: ['workflow', 'automation', 'state machine', 'editor', 'actions', 'transitions', 'pipeline'] },
   { id: 'triggers', title: 'Triggers', keywords: ['trigger', 'event', 'webhook', 'cron', 'slack', 'email', 'jira', 'matching', 'fire'] },
   { id: 'monitoring', title: 'Monitoring', keywords: ['monitoring', 'logs', 'triggers', 'events', 'history', 'workflow', 'traces', 'audit', 'timeline'] },
@@ -237,6 +237,8 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
   const [isSystemPromptModalOpen, setIsSystemPromptModalOpen] = useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [isWhatsAppNotificationsModalOpen, setIsWhatsAppNotificationsModalOpen] = useState(false);
+  const [isWhatsAppHistoryOpen, setIsWhatsAppHistoryOpen] = useState(false);
+  const [isWhatsAppHubOpen, setIsWhatsAppHubOpen] = useState(false);
   const [codexBinaryPath, setCodexBinaryPathState] = useState('');
   const [codexBinaryPathDirty, setCodexBinaryPathDirty] = useState(false);
 
@@ -293,6 +295,8 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
     if (!matchingSections) return true;
     return matchingSections.includes(sectionId);
   };
+
+  const anyIntegrationsMatch = shouldShowSection('integrations');
 
   const customAgentNames = state.settings.customAgentNames || [];
   const effectiveNames = customAgentNames.length > 0 ? customAgentNames : BUILTIN_AGENT_NAMES;
@@ -775,43 +779,23 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       </CollapsibleSection>
       )}
 
-      {shouldShowSection('whatsapp') && (
-      <CollapsibleSection title={t('config:sections.whatsapp')} storageKey="whatsapp" defaultOpen={false} forceOpen={isSearching && shouldShowSection('whatsapp')}>
-        <div className="config-row">
-          <span className="config-label"><HighlightText text={t('config:whatsapp.title')} query={searchQuery} /></span>
-          <button
-            className="config-button"
-            onClick={() => setIsWhatsAppModalOpen(true)}
-          >
-            {t('config:whatsapp.editConfig')}
-          </button>
-        </div>
-      </CollapsibleSection>
-      )}
-
-      {shouldShowSection('whatsappNotifications') && (
-      <CollapsibleSection title={t('config:sections.whatsappNotifications')} storageKey="whatsappNotifications" defaultOpen={false} forceOpen={isSearching && shouldShowSection('whatsappNotifications')}>
-        <div className="config-row">
-          <span className="config-label"><HighlightText text={t('config:whatsappNotifications.title')} query={searchQuery} /></span>
-          <button
-            className="config-button"
-            onClick={() => setIsWhatsAppNotificationsModalOpen(true)}
-          >
-            {t('config:whatsappNotifications.editButton')}
-          </button>
-        </div>
-      </CollapsibleSection>
-      )}
-
       {shouldShowSection('data') && (
       <CollapsibleSection title={t('config:sections.data')} storageKey="data" defaultOpen={false} forceOpen={isSearching && shouldShowSection('data')}>
         <DataSection />
       </CollapsibleSection>
       )}
 
-      {shouldShowSection('integrations') && (
-      <CollapsibleSection title="Integrations" storageKey="integrations" defaultOpen={false} forceOpen={isSearching && shouldShowSection('integrations')}>
-        <IntegrationStatusPanel onOpenModal={(id) => onOpenIntegrationsModal?.(id)} />
+      {anyIntegrationsMatch && (
+      <CollapsibleSection title={t('config:sections.integrations')} storageKey="integrations" defaultOpen={false} forceOpen={isSearching && anyIntegrationsMatch}>
+        <IntegrationStatusPanel
+          onOpenModal={(id) => {
+            if (id === 'whatsapp') {
+              setIsWhatsAppHubOpen(true);
+            } else {
+              onOpenIntegrationsModal?.(id);
+            }
+          }}
+        />
       </CollapsibleSection>
       )}
 
@@ -912,6 +896,19 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
     <WhatsAppNotificationsModal
       isOpen={isWhatsAppNotificationsModalOpen}
       onClose={() => setIsWhatsAppNotificationsModalOpen(false)}
+    />
+
+    <WhatsAppHistoryPanel
+      isOpen={isWhatsAppHistoryOpen}
+      onClose={() => setIsWhatsAppHistoryOpen(false)}
+    />
+
+    <WhatsAppHubModal
+      isOpen={isWhatsAppHubOpen}
+      onClose={() => setIsWhatsAppHubOpen(false)}
+      onOpenConfig={() => setIsWhatsAppModalOpen(true)}
+      onOpenNotifications={() => setIsWhatsAppNotificationsModalOpen(true)}
+      onOpenHistory={() => setIsWhatsAppHistoryOpen(true)}
     />
     </>
   );

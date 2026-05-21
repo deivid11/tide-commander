@@ -145,6 +145,20 @@ export function spawnInTmux(
     fullCmd = `${sttyPrefix}${executable} ${escapedArgs} > '${logFile}' 2> '${stderrFile}'`;
   }
 
+  // Env vars to push into the new tmux session. We use `-e KEY=VAL` on
+  // `new-session` because tmux's session env is inherited from the *tmux
+  // server*, not the new-session client — and the server may have been
+  // started long ago with a stale env (missing newer Tide Commander vars like
+  // TIDE_AGENT_ID). `-e` overrides on a per-session basis. We only push the
+  // Tide-specific keys; everything else falls back to the server env.
+  const envFlags: string[] = [];
+  for (const key of ['TIDE_SERVER', 'TIDE_AGENT_ID', 'AUTH_TOKEN']) {
+    const val = options.env[key];
+    if (val !== undefined && val !== '') {
+      envFlags.push('-e', `${key}=${val}`);
+    }
+  }
+
   // Spawn the tmux session
   const launcherProcess = spawn(
     'tmux',
@@ -154,6 +168,7 @@ export function spawnInTmux(
       '-s', sessionName,  // session name
       '-x', '200',        // width
       '-y', '50',         // height
+      ...envFlags,        // per-session env (overrides stale tmux-server env)
       '--', 'sh', '-c', fullCmd,
     ],
     {

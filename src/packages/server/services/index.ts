@@ -7,6 +7,7 @@ export * as agentService from './agent-service.js';
 export * as claudeService from './claude-service.js';
 export * as runtimeService from './runtime-service.js';
 export * as permissionService from './permission-service.js';
+export * as agentPromptService from './agent-prompt-service.js';
 export * as bossService from './boss-service.js';
 export * as skillService from './skill-service.js';
 export * as customClassService from './custom-class-service.js';

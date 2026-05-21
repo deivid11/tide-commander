@@ -8,6 +8,7 @@ const INTEGRATION_ICONS: Record<string, string> = {
   jira: '\uD83D\uDCCB',
   'google-calendar': '\uD83D\uDCC5',
   docx: '\uD83D\uDCC4',
+  whatsapp: '\uD83D\uDCF1',
 };
 
 interface IntegrationStatusPanelProps {
@@ -44,7 +45,7 @@ export function IntegrationStatusPanel({ onOpenModal }: IntegrationStatusPanelPr
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {integrations.map((integration) => {
         const icon = INTEGRATION_ICONS[integration.id] || '\uD83D\uDD0C';
         const hasError = !!integration.status.error;
@@ -59,20 +60,29 @@ export function IntegrationStatusPanel({ onOpenModal }: IntegrationStatusPanelPr
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
-              padding: '6px 8px',
-              borderRadius: 6,
+              gap: 6,
+              padding: '3px 8px',
+              borderRadius: 4,
               background: 'var(--surface-1, #181825)',
               border: '1px solid var(--border, #313244)',
-              fontSize: 13,
+              fontSize: 12,
+              minHeight: 26,
             }}
           >
-            <span style={{ fontSize: 15, flexShrink: 0 }}>{icon}</span>
-            <span style={{ flex: 1, color: 'var(--text-primary, #cdd6f4)', fontWeight: 500 }}>
+            <span style={{ fontSize: 13, flexShrink: 0 }}>{icon}</span>
+            <span style={{
+              flex: 1,
+              minWidth: 0,
+              color: 'var(--text-primary, #cdd6f4)',
+              fontWeight: 500,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}>
               {integration.name}
             </span>
-            <span style={{ color: statusColor, fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap' }}>
-              {statusIcon} {statusText}
+            <span style={{ color: statusColor, fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap' }} title={statusText}>
+              {statusIcon}
             </span>
             <button
               onClick={() => onOpenModal(integration.id)}
@@ -81,11 +91,12 @@ export function IntegrationStatusPanel({ onOpenModal }: IntegrationStatusPanelPr
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
-                padding: '2px 4px',
-                fontSize: 14,
+                padding: '1px 3px',
+                fontSize: 12,
                 color: 'var(--text-secondary, #a6adc8)',
-                borderRadius: 4,
+                borderRadius: 3,
                 flexShrink: 0,
+                lineHeight: 1,
               }}
               onMouseEnter={(e) => { (e.target as HTMLElement).style.color = 'var(--text-primary, #cdd6f4)'; }}
               onMouseLeave={(e) => { (e.target as HTMLElement).style.color = 'var(--text-secondary, #a6adc8)'; }}
@@ -100,11 +111,11 @@ export function IntegrationStatusPanel({ onOpenModal }: IntegrationStatusPanelPr
         style={{
           background: 'none',
           border: '1px dashed var(--border, #313244)',
-          borderRadius: 6,
-          padding: '6px 8px',
+          borderRadius: 4,
+          padding: '3px 8px',
           cursor: 'pointer',
           color: 'var(--text-secondary, #a6adc8)',
-          fontSize: 12,
+          fontSize: 11,
           textAlign: 'center',
           marginTop: 2,
         }}

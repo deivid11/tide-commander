@@ -439,6 +439,18 @@ export function handleServerMessage(message: ServerMessage): void {
       break;
     }
 
+    case 'agent_prompt_request': {
+      const prompt = message.payload as import('../../shared/types').AgentPrompt;
+      store.addAgentPrompt(prompt);
+      break;
+    }
+
+    case 'agent_prompt_resolved': {
+      const { requestId, approved } = message.payload as { requestId: string; approved: boolean };
+      store.resolveAgentPromptLocal(requestId, approved);
+      break;
+    }
+
     // ========================================================================
     // Boss Agent Messages
     // ========================================================================

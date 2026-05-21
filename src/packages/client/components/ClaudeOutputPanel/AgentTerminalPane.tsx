@@ -50,12 +50,16 @@ import {
   parseBashTaskLabelCommand,
   parseBashNotificationCommand,
   parseBashReportTaskCommand,
+  parseBashMemoryCommand,
 } from '../../utils/outputRendering';
 
 // Components
 import { SearchBar } from './TerminalHeader';
 import { TerminalInputArea } from './TerminalInputArea';
 import { VirtualizedOutputList } from './VirtualizedOutputList';
+// AgentPromptCard import removed — interactive prompt UI now renders inline
+// in the matching tool_use chip via AskQuestionInput / ExitPlanModeInput
+// when a pending agent-prompt is present.
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -206,6 +210,11 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     );
   }, [agentId, permissionRequests]);
 
+  // Pending interactive prompts are now consumed by OutputLine itself (it
+  // calls useAgentPrompts directly to find the prompt matching its tool_use
+  // chip). We keep the import here only because removing it would also
+  // require touching imports across many call sites.
+
   // ── Refs ──
   const outputScrollRef = useRef<HTMLDivElement>(null);
   const terminalInputRef = useRef<HTMLInputElement>(null);
@@ -252,8 +261,37 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
           || parseBashTaskLabelCommand(bashCommand)
           || parseBashNotificationCommand(bashCommand)
           || parseBashReportTaskCommand(bashCommand)
+          || parseBashMemoryCommand(bashCommand)
         )) {
           suppressedToolResultIds.add(msg.toolUseId);
+        }
+      }
+    }
+
+    // Parse the CLI's AskUserQuestion result string ("Q1"="A1", "Q2"="A2, A3")
+    // into a question→answer map so the tool_use block can highlight picks.
+    function parseAskAnswers(resultText: string): Record<string, string> {
+      const out: Record<string, string> = {};
+      const re = /"((?:[^"\\]|\\.)*)"\s*=\s*"((?:[^"\\]|\\.)*)"/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(resultText)) !== null) {
+        if (m[1] !== undefined && m[2] !== undefined) out[m[1]] = m[2];
+      }
+      return out;
+    }
+
+    // Build a Task #N → subject index from prior TaskCreate results. The CLI
+    // returns content like: "Task #3 created successfully: Wire Tailwind ...".
+    // We use this to render TaskUpdate chips with the task subject instead of
+    // a meaningless "status: completed" string.
+    const taskIdToSubject = new Map<string, string>();
+    const TASK_CREATE_RE = /^Task\s+#(\d+)\s+created\s+successfully:\s*(.+)$/m;
+    for (const msg of history) {
+      if (msg.type === 'tool_result' && msg.toolName === 'TaskCreate') {
+        const text = typeof msg.content === 'string' ? msg.content : '';
+        const m = TASK_CREATE_RE.exec(text);
+        if (m && m[1] && m[2]) {
+          taskIdToSubject.set(m[1], m[2].trim());
         }
       }
     }
@@ -264,6 +302,12 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
         if (msg.type === 'tool_result' && msg.toolUseId && suppressedToolResultIds.has(msg.toolUseId)) {
           continue;
         }
+        // AskUserQuestion tool_result is now folded into the tool_use chip
+        // (the question block shows the user's pick highlighted) — suppress
+        // the standalone result row so we don't render the answers twice.
+        if (msg.type === 'tool_result' && (msg.toolName === 'AskUserQuestion' || msg.toolName === 'AskFollowupQuestion')) {
+          continue;
+        }
         if (msg.type === 'tool_use' && msg.toolName === 'Bash' && msg.toolUseId) {
           const bashOutput = toolResultMap.get(msg.toolUseId);
           let bashCommand: string | undefined;
@@ -272,6 +316,20 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
             bashCommand = input.command;
           } catch { /* ignore */ }
           out.push({ ...msg, _bashOutput: bashOutput, _bashCommand: bashCommand });
+          continue;
+        }
+        if (msg.type === 'tool_use' && (msg.toolName === 'AskUserQuestion' || msg.toolName === 'AskFollowupQuestion') && msg.toolUseId) {
+          const resultText = toolResultMap.get(msg.toolUseId);
+          const answers = resultText ? parseAskAnswers(resultText) : undefined;
+          out.push({ ...msg, _askQuestionAnswers: answers });
+          continue;
+        }
+        if (msg.type === 'tool_use' && msg.toolName === 'TaskUpdate') {
+          const ti = (msg.toolInput || {}) as Record<string, unknown>;
+          const rawId = ti.taskId ?? ti.task_id ?? ti.id;
+          const id = (typeof rawId === 'string' || typeof rawId === 'number') ? String(rawId) : undefined;
+          const subject = id ? taskIdToSubject.get(id) : undefined;
+          out.push({ ...msg, _taskSubject: subject });
           continue;
         }
         out.push(msg as EnrichedHistoryMessage);
@@ -819,6 +877,12 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
           {/* Subordinate progress indicators now render inline within each DelegationBlock */}
         </div>
       </div>
+
+      {/* Interactive agent prompts (AskUserQuestion / ExitPlanMode) now render
+          inline inside the matching tool_use chip in the output stream — see
+          OutputLine.tsx + AskQuestionInput/ExitPlanModeInput's interactive mode.
+          We keep the lookup wired (pendingAgentPrompts) so it stays referenced
+          if we ever need a fallback panel. */}
 
       {/* Terminal input */}
       <TerminalInputArea

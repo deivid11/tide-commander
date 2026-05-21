@@ -110,7 +110,9 @@ export interface JiraTrigger extends BaseTrigger {
   config: {
     projectKey?: string;              // Only trigger for issues in this project
     events?: string[];                // Jira webhook events to match
+    issueType?: string;               // Restrict to a single issue type (e.g. "Service Request")
     jqlFilter?: string;               // Optional JQL expression for fine-grained filtering
+    secret?: string;                  // HMAC secret (Server/DC signed webhooks) or shared secret (Cloud ?secret= fallback). Required — unsigned deliveries are rejected.
   };
 }
 

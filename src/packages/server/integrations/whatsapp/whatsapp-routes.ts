@@ -8,6 +8,11 @@
 
 import { Router, Request, Response } from 'express';
 import type { IntegrationContext } from '../../../shared/integration-types.js';
+import type {
+  WhatsAppChatsResponse,
+  WhatsAppMessagesResponse,
+  WhatsAppMessageType,
+} from '../../../shared/event-types.js';
 import { createLogger } from '../../utils/logger.js';
 import { WhatsAppClient } from './whatsapp-client.js';
 import {
@@ -17,6 +22,10 @@ import {
   type WhatsAppConfig,
 } from './whatsapp-config.js';
 import { syncBridge } from './index.js';
+import {
+  getWhatsAppChatsList,
+  getWhatsAppMessagesByChatPaged,
+} from '../../data/event-queries.js';
 import {
   getConfig as getNotificationConfig,
   updateConfig as updateNotificationConfig,
@@ -438,6 +447,94 @@ export function createWhatsAppRoutes(ctx: IntegrationContext): Router {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
+
+  // ─── GET /chats/:sessionId — chat summaries ───
+  router.get('/chats/:sessionId', (req: Request<{ sessionId: string }>, res: Response) => {
+    const sessionId = req.params.sessionId.trim();
+    if (!sessionId) {
+      res.status(400).json({ error: 'sessionId is required' });
+      return;
+    }
+    try {
+      const chats = getWhatsAppChatsList(sessionId);
+      const body: WhatsAppChatsResponse = { chats };
+      res.json(body);
+    } catch (err) {
+      log.error(`WhatsApp chats list error: ${err}`);
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // ─── GET /chats/:sessionId/:chatId/messages — paged history ───
+  router.get(
+    '/chats/:sessionId/:chatId/messages',
+    (req: Request<{ sessionId: string; chatId: string }>, res: Response) => {
+      const sessionId = req.params.sessionId.trim();
+      const chatId = req.params.chatId.trim();
+      if (!sessionId || !chatId) {
+        res.status(400).json({ error: 'sessionId and chatId are required' });
+        return;
+      }
+
+      const cursorRaw = req.query.cursor;
+      let cursor: number | undefined;
+      if (typeof cursorRaw === 'string' && cursorRaw.length > 0) {
+        const parsed = Number(cursorRaw);
+        if (!Number.isFinite(parsed)) {
+          res.status(400).json({ error: 'invalid cursor' });
+          return;
+        }
+        cursor = parsed;
+      }
+
+      const limitRaw = req.query.limit;
+      let limit: number | undefined;
+      if (typeof limitRaw === 'string' && limitRaw.length > 0) {
+        const parsed = Number(limitRaw);
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+          res.status(400).json({ error: 'invalid limit' });
+          return;
+        }
+        limit = parsed;
+      }
+
+      const directionRaw = req.query.direction;
+      let direction: 'inbound' | 'outbound' | undefined;
+      if (typeof directionRaw === 'string' && directionRaw.length > 0) {
+        if (directionRaw !== 'inbound' && directionRaw !== 'outbound') {
+          res.status(400).json({ error: 'invalid direction' });
+          return;
+        }
+        direction = directionRaw;
+      }
+
+      const typeRaw = req.query.type;
+      const allowedTypes: WhatsAppMessageType[] = [
+        'text', 'image', 'audio', 'video', 'document',
+        'sticker', 'location', 'contact', 'reaction', 'unknown',
+      ];
+      let type: WhatsAppMessageType | undefined;
+      if (typeof typeRaw === 'string' && typeRaw.length > 0) {
+        if (!(allowedTypes as string[]).includes(typeRaw)) {
+          res.status(400).json({ error: 'invalid type' });
+          return;
+        }
+        type = typeRaw as WhatsAppMessageType;
+      }
+
+      try {
+        const page = getWhatsAppMessagesByChatPaged(sessionId, chatId, { cursor, limit, direction, type });
+        const body: WhatsAppMessagesResponse = {
+          messages: page.messages,
+          nextCursor: page.nextCursor === null ? null : String(page.nextCursor),
+        };
+        res.json(body);
+      } catch (err) {
+        log.error(`WhatsApp messages page error: ${err}`);
+        res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+  );
 
   return router;
 }

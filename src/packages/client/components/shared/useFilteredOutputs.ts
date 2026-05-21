@@ -39,7 +39,13 @@ export function isSimpleViewOutput(text: string | undefined): boolean {
 
   // HIDE tool input/result details
   if (text.startsWith('Tool input:')) return false;
-  if (text.startsWith('Tool result:')) return false;
+  if (text.startsWith('Tool result:')) {
+    // EXCEPTION: AskUserQuestion result carries the user's actual answers,
+    // which are otherwise invisible. The CLI formats the answer line with the
+    // unique prefix "Your questions have been answered:".
+    if (text.includes('Your questions have been answered:')) return true;
+    return false;
+  }
   if (text.startsWith('Bash output:')) return false; // Hide bash output in simple view (shown via modal)
 
   // HIDE stats and system messages

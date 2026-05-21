@@ -2,12 +2,18 @@
  * Webhook signature verification for incoming HMAC-SHA256 webhooks.
  *
  * Detects provider by header presence:
- *   - GitHub-style:    `X-GitHub-Event` + `X-Hub-Signature-256`
- *   - Bitbucket Cloud: `X-Event-Key`    + `X-Hub-Signature` (note: different header)
+ *   - GitHub-style:    `X-GitHub-Event`                 + `X-Hub-Signature-256`
+ *   - Bitbucket Cloud: `X-Event-Key`                    + `X-Hub-Signature`
+ *   - Jira (Cloud signed / Server signed plugins):
+ *                      `X-Atlassian-Webhook-Identifier` + `X-Hub-Signature`
  *
- * Both providers use the same algorithm (HMAC-SHA256, hex-encoded, with the
+ * All providers use the same algorithm (HMAC-SHA256, hex-encoded, with the
  * `sha256=` prefix); only the header name differs. The trigger's per-instance
- * secret is reused across both — the trigger config doesn't distinguish.
+ * secret is reused across all — the trigger config doesn't distinguish.
+ *
+ * Jira Cloud's classic admin webhooks don't sign payloads. For that case the
+ * caller falls back to a `?secret=<shared>` query-string check rather than
+ * HMAC; the helpers here cover the signed paths only.
  *
  * Body source: HMAC is computed over the *raw* request bytes captured by the
  * scoped `express.json({ verify })` middleware in app.ts. Re-serializing via
@@ -20,21 +26,27 @@
 
 import * as crypto from 'crypto';
 
-export type WebhookProvider = 'github' | 'bitbucket' | null;
+export type WebhookProvider = 'github' | 'bitbucket' | 'jira' | null;
 
 export const GITHUB_SIGNATURE_HEADER = 'x-hub-signature-256';
 export const BITBUCKET_SIGNATURE_HEADER = 'x-hub-signature';
+export const JIRA_SIGNATURE_HEADER = 'x-hub-signature';
 export const GITHUB_EVENT_HEADER = 'x-github-event';
 export const BITBUCKET_EVENT_HEADER = 'x-event-key';
+export const JIRA_WEBHOOK_ID_HEADER = 'x-atlassian-webhook-identifier';
 
 /**
- * Detect provider by event-key header. Bitbucket sends `X-Event-Key`,
- * GitHub sends `X-GitHub-Event`. Either header can appear in lowercase
- * via Node's normalization. Returns null when neither is present.
+ * Detect provider by identifying header. Bitbucket sends `X-Event-Key`,
+ * GitHub sends `X-GitHub-Event`, Jira sends `X-Atlassian-Webhook-Identifier`.
+ * Headers arrive lowercased via Node's normalization. Bitbucket wins over
+ * Jira when both are somehow present (Jira-from-Bitbucket is implausible;
+ * either way the HMAC step still gates dispatch). Returns null when no
+ * identifying header is present.
  */
 export function detectWebhookProvider(headers: Record<string, unknown>): WebhookProvider {
   if (headers[BITBUCKET_EVENT_HEADER]) return 'bitbucket';
   if (headers[GITHUB_EVENT_HEADER]) return 'github';
+  if (headers[JIRA_WEBHOOK_ID_HEADER]) return 'jira';
   return null;
 }
 

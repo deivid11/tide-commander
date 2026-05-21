@@ -4,10 +4,11 @@
  * Each integration calls these instead of writing raw SQL.
  */
 
-import { insertOne, queryMany, queryOne, execute } from './event-db.js';
+import { insertOne, queryMany, queryOne, execute, getDb } from './event-db.js';
 import type {
   TriggerFireEvent,
   SlackMessageEvent,
+  WhatsAppMessageEvent,
   EmailMessageEvent,
   ApprovalEvent,
   DocumentGenerationEvent,
@@ -161,6 +162,216 @@ export function logSlackMessage(msg: SlackMessageEvent): number {
     received_at: msg.receivedAt,
     integration_instance_id: msg.integrationInstanceId ?? 'default',
   });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WHATSAPP MESSAGES
+// ═══════════════════════════════════════════════════════════════
+
+interface WhatsAppMessageRow {
+  id: number;
+  session_id: string;
+  message_id: string | null;
+  chat_id: string;
+  is_group: number;
+  group_name: string | null;
+  from_jid: string;
+  from_name: string | null;
+  direction: string;
+  body: string;
+  message_type: string;
+  media_mimetype: string | null;
+  media_size: number | null;
+  media_filename: string | null;
+  media_path: string | null;
+  audio_transcription: string | null;
+  agent_id: string | null;
+  workflow_instance_id: string | null;
+  raw_event: string | null;
+  timestamp: number;
+  received_at: number;
+}
+
+function whatsappRowToEvent(row: WhatsAppMessageRow): WhatsAppMessageEvent {
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    messageId: row.message_id ?? undefined,
+    chatId: row.chat_id,
+    isGroup: row.is_group === 1,
+    groupName: row.group_name ?? undefined,
+    fromJid: row.from_jid,
+    fromName: row.from_name ?? undefined,
+    direction: row.direction as WhatsAppMessageEvent['direction'],
+    body: row.body,
+    messageType: row.message_type as WhatsAppMessageEvent['messageType'],
+    mediaMimetype: row.media_mimetype ?? undefined,
+    mediaSize: row.media_size ?? undefined,
+    mediaFilename: row.media_filename ?? undefined,
+    mediaPath: row.media_path ?? undefined,
+    audioTranscription: row.audio_transcription ?? undefined,
+    agentId: row.agent_id ?? undefined,
+    workflowInstanceId: row.workflow_instance_id ?? undefined,
+    rawEvent: fromJson(row.raw_event),
+    timestamp: row.timestamp,
+    receivedAt: row.received_at,
+  };
+}
+
+const WHATSAPP_INSERT_SQL = `
+  INSERT OR IGNORE INTO whatsapp_messages (
+    session_id, message_id, chat_id, is_group, group_name,
+    from_jid, from_name, direction, body, message_type,
+    media_mimetype, media_size, media_filename, media_path, audio_transcription,
+    agent_id, workflow_instance_id, raw_event, timestamp, received_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`;
+
+export function logWhatsAppMessage(msg: WhatsAppMessageEvent): number {
+  const stmt = getDb().prepare(WHATSAPP_INSERT_SQL);
+  const result = stmt.run(
+    msg.sessionId,
+    msg.messageId ?? null,
+    msg.chatId,
+    msg.isGroup ? 1 : 0,
+    msg.groupName ?? null,
+    msg.fromJid,
+    msg.fromName ?? null,
+    msg.direction,
+    msg.body,
+    msg.messageType,
+    msg.mediaMimetype ?? null,
+    msg.mediaSize ?? null,
+    msg.mediaFilename ?? null,
+    msg.mediaPath ?? null,
+    msg.audioTranscription ?? null,
+    msg.agentId ?? null,
+    msg.workflowInstanceId ?? null,
+    toJson(msg.rawEvent),
+    msg.timestamp,
+    msg.receivedAt,
+  );
+  return Number(result.lastInsertRowid);
+}
+
+export function getWhatsAppMessagesByChat(
+  sessionId: string,
+  chatId: string,
+  limit = 50,
+): WhatsAppMessageEvent[] {
+  const rows = queryMany<WhatsAppMessageRow>(
+    `SELECT * FROM whatsapp_messages
+     WHERE session_id = ? AND chat_id = ?
+     ORDER BY timestamp DESC
+     LIMIT ?`,
+    [sessionId, chatId, limit],
+  );
+  return rows.map(whatsappRowToEvent);
+}
+
+export interface WhatsAppMessagesPageOptions {
+  cursor?: number;
+  limit?: number;
+  direction?: 'inbound' | 'outbound';
+  type?: WhatsAppMessageEvent['messageType'];
+}
+
+export function getWhatsAppMessagesByChatPaged(
+  sessionId: string,
+  chatId: string,
+  opts: WhatsAppMessagesPageOptions = {},
+): { messages: WhatsAppMessageEvent[]; nextCursor: number | null } {
+  const limit = Math.min(Math.max(1, opts.limit ?? 50), 200);
+  const clauses: string[] = ['session_id = ?', 'chat_id = ?'];
+  const params: unknown[] = [sessionId, chatId];
+
+  if (typeof opts.cursor === 'number' && Number.isFinite(opts.cursor)) {
+    clauses.push('timestamp < ?');
+    params.push(opts.cursor);
+  }
+  if (opts.direction) {
+    clauses.push('direction = ?');
+    params.push(opts.direction);
+  }
+  if (opts.type) {
+    clauses.push('message_type = ?');
+    params.push(opts.type);
+  }
+
+  params.push(limit + 1);
+  const rows = queryMany<WhatsAppMessageRow>(
+    `SELECT * FROM whatsapp_messages
+     WHERE ${clauses.join(' AND ')}
+     ORDER BY timestamp DESC
+     LIMIT ?`,
+    params,
+  );
+
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const nextCursor = hasMore ? page[page.length - 1].timestamp : null;
+  return { messages: page.map(whatsappRowToEvent), nextCursor };
+}
+
+interface WhatsAppChatSummaryRow {
+  chat_id: string;
+  last_ts: number;
+  msg_count: number;
+  body: string;
+  message_type: string;
+  direction: string;
+  is_group: number;
+  group_name: string | null;
+  from_name: string | null;
+}
+
+export function getWhatsAppChatsList(sessionId: string): Array<{
+  chatId: string;
+  lastTimestamp: number;
+  lastMessagePreview: string;
+  lastMessageType: WhatsAppMessageEvent['messageType'];
+  lastDirection: WhatsAppMessageEvent['direction'];
+  messageCount: number;
+  isGroup: boolean;
+  groupName?: string;
+  fromName?: string;
+  unreadCount: number;
+}> {
+  const rows = queryMany<WhatsAppChatSummaryRow>(
+    `SELECT
+       wm.chat_id     AS chat_id,
+       wm.timestamp   AS last_ts,
+       agg.msg_count  AS msg_count,
+       wm.body        AS body,
+       wm.message_type AS message_type,
+       wm.direction   AS direction,
+       wm.is_group    AS is_group,
+       wm.group_name  AS group_name,
+       wm.from_name   AS from_name
+     FROM whatsapp_messages wm
+     INNER JOIN (
+       SELECT chat_id, MAX(timestamp) AS last_ts, COUNT(*) AS msg_count
+       FROM whatsapp_messages
+       WHERE session_id = ?
+       GROUP BY chat_id
+     ) agg ON agg.chat_id = wm.chat_id AND agg.last_ts = wm.timestamp
+     WHERE wm.session_id = ?
+     ORDER BY wm.timestamp DESC`,
+    [sessionId, sessionId],
+  );
+
+  return rows.map((row) => ({
+    chatId: row.chat_id,
+    lastTimestamp: row.last_ts,
+    lastMessagePreview: row.body.length > 100 ? `${row.body.slice(0, 100)}…` : row.body,
+    lastMessageType: row.message_type as WhatsAppMessageEvent['messageType'],
+    lastDirection: row.direction as WhatsAppMessageEvent['direction'],
+    messageCount: row.msg_count,
+    isGroup: row.is_group === 1,
+    groupName: row.group_name ?? undefined,
+    fromName: row.from_name ?? undefined,
+    unreadCount: 0,
+  }));
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -906,6 +1117,41 @@ export function querySlackMessages(opts: {
   );
 
   return { messages: rows.map(slackRowToEvent), total };
+}
+
+export function queryWhatsAppMessages(opts: {
+  sessionId?: string;
+  chatId?: string;
+  direction?: string;
+  messageType?: string;
+  workflowInstanceId?: string;
+  agentId?: string;
+  since?: number;
+  limit?: number;
+}): { messages: WhatsAppMessageEvent[]; total: number } {
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  if (opts.sessionId) { conditions.push('session_id = ?'); params.push(opts.sessionId); }
+  if (opts.chatId) { conditions.push('chat_id = ?'); params.push(opts.chatId); }
+  if (opts.direction) { conditions.push('direction = ?'); params.push(opts.direction); }
+  if (opts.messageType) { conditions.push('message_type = ?'); params.push(opts.messageType); }
+  if (opts.workflowInstanceId) { conditions.push('workflow_instance_id = ?'); params.push(opts.workflowInstanceId); }
+  if (opts.agentId) { conditions.push('agent_id = ?'); params.push(opts.agentId); }
+  if (opts.since) { conditions.push('timestamp >= ?'); params.push(opts.since); }
+
+  const where = conditions.length > 0 ? ' WHERE ' + conditions.join(' AND ') : '';
+
+  const countRow = queryOne<{ count: number }>(`SELECT COUNT(*) as count FROM whatsapp_messages${where}`, params);
+  const total = countRow?.count ?? 0;
+
+  const dataParams = [...params, opts.limit ?? 50];
+  const rows = queryMany<WhatsAppMessageRow>(
+    `SELECT * FROM whatsapp_messages${where} ORDER BY timestamp DESC LIMIT ?`,
+    dataParams,
+  );
+
+  return { messages: rows.map(whatsappRowToEvent), total };
 }
 
 export function queryEmailMessages(opts: {

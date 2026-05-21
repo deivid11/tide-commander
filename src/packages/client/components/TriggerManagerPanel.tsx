@@ -29,6 +29,19 @@ const TRIGGER_TYPES: { value: TriggerType; label: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp' },
 ];
 
+type TypeFilter = 'all' | TriggerType;
+
+const TYPE_TAB_DEFS: { value: TypeFilter; label: string; icon: string }[] = [
+  { value: 'all',       label: 'All',       icon: '◎' },
+  { value: 'webhook',   label: 'Webhook',   icon: '🪝' },
+  { value: 'bitbucket', label: 'Bitbucket', icon: '🪣' },
+  { value: 'cron',      label: 'Cron',      icon: '⏰' },
+  { value: 'slack',     label: 'Slack',     icon: '💬' },
+  { value: 'email',     label: 'Email',     icon: '✉️' },
+  { value: 'jira',      label: 'Jira',      icon: '🎫' },
+  { value: 'whatsapp',  label: 'WhatsApp',  icon: '📱' },
+];
+
 const BITBUCKET_EVENT_OPTIONS: { value: string; label: string }[] = [
   { value: 'pullrequest:created', label: 'PR created' },
   { value: 'pullrequest:updated', label: 'PR updated' },
@@ -93,6 +106,9 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
 
   // Cron validation
   const [cronNextFires, setCronNextFires] = useState<string[]>([]);
+
+  // Type-filter tab selection (persisted across the session)
+  const [selectedType, setSelectedType] = useState<TypeFilter>('all');
 
   // ─── Data Loading ───
 
@@ -308,6 +324,23 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
     return Array.from(agents.values()).map(a => ({ id: a.id, name: a.name, class: a.class }));
   }, [agents]);
 
+  // ─── Per-type counts for the tab bar ───
+  const typeCounts = useMemo(() => {
+    const counts: Record<TypeFilter, number> = {
+      all: triggers.length,
+      webhook: 0, bitbucket: 0, cron: 0, slack: 0, email: 0, jira: 0, whatsapp: 0,
+    };
+    for (const t of triggers) {
+      if (t.type in counts) counts[t.type as TriggerType] += 1;
+    }
+    return counts;
+  }, [triggers]);
+
+  const filteredTriggers = useMemo(() => {
+    if (selectedType === 'all') return triggers;
+    return triggers.filter(t => t.type === selectedType);
+  }, [triggers, selectedType]);
+
   // ─── Copy-to-clipboard with brief "Copied!" feedback ───
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const copyToClipboard = useCallback((value: string, key: string) => {
@@ -351,10 +384,34 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
         {/* List View */}
         {view === 'list' && (
           <div style={styles.content}>
+            <div style={styles.tabBar} role="tablist" aria-label="Filter triggers by type">
+              {TYPE_TAB_DEFS.map(tab => {
+                const count = typeCounts[tab.value];
+                const active = selectedType === tab.value;
+                return (
+                  <button
+                    key={tab.value}
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setSelectedType(tab.value)}
+                    style={{ ...styles.tab, ...(active ? styles.tabActive : {}) }}
+                    title={`${tab.label} (${count})`}
+                  >
+                    <span style={styles.tabIcon}>{tab.icon}</span>
+                    <span style={styles.tabLabel}>{tab.label}</span>
+                    <span style={{ ...styles.tabBadge, ...(active ? styles.tabBadgeActive : {}) }}>{count}</span>
+                  </button>
+                );
+              })}
+            </div>
             {triggers.length === 0 ? (
               <div style={styles.empty}>No triggers configured. Create one to get started.</div>
+            ) : filteredTriggers.length === 0 ? (
+              <div style={styles.empty}>
+                No {selectedType} triggers configured yet.
+              </div>
             ) : (
-              triggers.map(trigger => (
+              filteredTriggers.map(trigger => (
                 <div
                   key={trigger.id}
                   style={{
@@ -1060,6 +1117,54 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#f38ba8',
     padding: '8px 20px',
     fontSize: '13px',
+  },
+  tabBar: {
+    display: 'flex',
+    gap: '4px',
+    marginBottom: '12px',
+    paddingBottom: '8px',
+    borderBottom: '1px solid #313244',
+    flexWrap: 'wrap',
+  },
+  tab: {
+    background: 'transparent',
+    border: '1px solid transparent',
+    borderRadius: '6px',
+    padding: '6px 10px',
+    color: '#a6adc8',
+    cursor: 'pointer',
+    fontSize: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    transition: 'background 0.12s, color 0.12s, border-color 0.12s',
+  },
+  tabActive: {
+    background: '#1e3a5f',
+    borderColor: '#89b4fa',
+    color: '#cdd6f4',
+  },
+  tabIcon: {
+    fontSize: '13px',
+    lineHeight: 1,
+  },
+  tabLabel: {
+    fontWeight: 500,
+  },
+  tabBadge: {
+    background: '#313244',
+    color: '#a6adc8',
+    borderRadius: '10px',
+    padding: '1px 7px',
+    fontSize: '10px',
+    fontWeight: 600,
+    minWidth: '16px',
+    textAlign: 'center' as const,
+    lineHeight: '14px',
+  },
+  tabBadgeActive: {
+    background: '#89b4fa',
+    color: '#1e1e2e',
   },
   triggerCard: {
     background: '#181825',

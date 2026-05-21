@@ -7,6 +7,7 @@ import { Router, raw, Request, Response, NextFunction } from 'express';
 import agentsRouter, { setBroadcast as setAgentsBroadcast } from './agents.js';
 import filesRouter from './files.js';
 import permissionsRouter from './permissions.js';
+import agentPromptRouter from './agent-prompt.js';
 import notificationsRouter, { setBroadcast as setNotificationBroadcast } from './notifications.js';
 import execRouter, { setBroadcast as setExecBroadcast } from './exec.js';
 import focusAgentRouter, { setBroadcast as setFocusAgentBroadcast } from './focus-agent.js';
@@ -75,6 +76,8 @@ router.use((req: Request, res: Response, next: NextFunction) => {
 router.use('/config', raw({ type: 'application/zip', limit: '100mb' }), configRouter);
 // Permission routes are mounted at root level since they're called as /api/permission-request
 router.use('/', permissionsRouter);
+// Agent prompt routes — root-level: /api/agent-prompt and /api/agent-prompt/:id/respond
+router.use('/', agentPromptRouter);
 
 // Export the broadcast setters for WebSocket handler to use
 export { setNotificationBroadcast, setExecBroadcast, setFocusAgentBroadcast, setAgentsBroadcast, setTriggerBroadcast, setBuildingsBroadcast, setSkillsBroadcast };

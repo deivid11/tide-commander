@@ -128,4 +128,13 @@ export interface EnrichedHistoryMessage {
   _bashOutput?: string; // Linked tool_result content for Bash tools
   _bashCommand?: string; // Full bash command for display
   _editData?: EditData; // For Edit tool diffs
+  // For AskUserQuestion tool_use: the user's picks resolved from the matching
+  // tool_result. Key is the question text, value is the chosen option label
+  // (or "label1, label2" for multiSelect).
+  _askQuestionAnswers?: Record<string, string>;
+  // For TaskUpdate tool_use: the subject of the task referenced by taskId,
+  // looked up from the prior TaskCreate result (which has the form
+  // "Task #N created successfully: <subject>"). When present, the chip can
+  // show the task name instead of just "status: completed".
+  _taskSubject?: string;
 }

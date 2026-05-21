@@ -6,6 +6,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import { fileURLToPath } from 'node:url';
 import type {
   CLIBackend,
   BackendConfig,
@@ -38,6 +39,47 @@ function writePromptToFile(prompt: string, agentId?: string): string {
   fs.writeFileSync(promptPath, prompt, 'utf-8');
   log.log(` Wrote prompt (${prompt.length} chars) to ${promptPath}`);
   return promptPath;
+}
+
+// Headless permission-prompt MCP server. Resolves AskUserQuestion and
+// ExitPlanMode (which would otherwise dead-lock waiting for a TUI dialog in a
+// non-interactive Claude CLI subprocess) by auto-answering / auto-approving
+// via the documented `--permission-prompt-tool` MCP hook.
+const PERMISSION_PROMPT_SERVER_BASENAME = 'permission-prompt-server.mjs';
+// CLI tool reference shape: `mcp__<server-name-in-mcp-config>__<tool-name>`.
+const PERMISSION_PROMPT_TOOL = 'mcp__tideperm__permission_prompt';
+
+/**
+ * Write the per-process mcp-config and return its path. The config registers
+ * one stdio MCP server (`tideperm`) that runs the bundled permission-prompt
+ * server script — same shape the SDK uses for permission_prompt_tool_name,
+ * but invoked through the CLI so the agent still bills against Claude Code,
+ * not the Anthropic API.
+ */
+function getPermissionPromptMcpConfigPath(): string {
+  const tideDataDir = path.join(os.homedir(), '.tide-commander');
+  if (!fs.existsSync(tideDataDir)) {
+    fs.mkdirSync(tideDataDir, { recursive: true });
+  }
+
+  // Resolve the bundled server script. In dev (tsx) it lives next to this
+  // file; in the prebuilt bundle the .mjs is copied alongside the .js by
+  // `npm run build:server` (see package.json).
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const serverScriptPath = path.join(here, PERMISSION_PROMPT_SERVER_BASENAME);
+
+  const config = {
+    mcpServers: {
+      tideperm: {
+        command: 'node',
+        args: [serverScriptPath],
+      },
+    },
+  };
+
+  const configPath = path.join(tideDataDir, 'permission-prompt-mcp.json');
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  return configPath;
 }
 
 export function buildAppendedProjectInstructions(config: BackendConfig): string {
@@ -127,6 +169,11 @@ export class ClaudeBackend implements CLIBackend {
     // Permission mode - bypass for autonomous agents, interactive uses hooks
     if (config.permissionMode === 'bypass') {
       args.push('--dangerously-skip-permissions');
+      // Route AskUserQuestion / ExitPlanMode through our auto-answer MCP server
+      // so the agent doesn't dead-lock on TUI-only dialogs.
+      const mcpConfigPath = getPermissionPromptMcpConfigPath();
+      args.push('--mcp-config', mcpConfigPath);
+      args.push('--permission-prompt-tool', PERMISSION_PROMPT_TOOL);
     } else if (config.permissionMode === 'interactive') {
       // For interactive mode, configure the PreToolUse hook to ask for permission
       // The hook script calls the Tide Commander server which shows UI for approval

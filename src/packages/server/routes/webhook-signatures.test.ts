@@ -21,6 +21,10 @@ describe('detectWebhookProvider', () => {
     expect(detectWebhookProvider({ 'x-github-event': 'pull_request' })).toBe('github');
   });
 
+  it('identifies Jira by X-Atlassian-Webhook-Identifier header', () => {
+    expect(detectWebhookProvider({ 'x-atlassian-webhook-identifier': 'abc-123' })).toBe('jira');
+  });
+
   it('prefers Bitbucket when both headers are somehow present', () => {
     // Sanity: an attacker forging both wins as Bitbucket. Either way the
     // signature path will fail since they're hashed identically.
@@ -30,9 +34,28 @@ describe('detectWebhookProvider', () => {
     })).toBe('bitbucket');
   });
 
+  it('prefers Bitbucket over Jira when both identifying headers are present', () => {
+    expect(detectWebhookProvider({
+      'x-event-key': 'pullrequest:created',
+      'x-atlassian-webhook-identifier': 'abc-123',
+    })).toBe('bitbucket');
+  });
+
   it('returns null when neither identifying header is present', () => {
     expect(detectWebhookProvider({})).toBeNull();
     expect(detectWebhookProvider({ 'x-webhook-secret': 'abc' })).toBeNull();
+  });
+});
+
+describe('Jira signed payloads', () => {
+  it('verifies a Cloud-signed-webhook payload (HMAC-SHA256 over raw bytes, X-Hub-Signature header)', () => {
+    const secret = 'jira-shared-secret';
+    const providerBytes = Buffer.from(
+      '{"webhookEvent":"jira:issue_updated","issue":{"key":"SD-42"}}',
+      'utf-8',
+    );
+    const sig = sign(secret, providerBytes);
+    expect(verifyHmacSignature(secret, sig, providerBytes)).toBe(true);
   });
 });
 

@@ -21,6 +21,7 @@ import { createOutputActions, type OutputActions } from './outputs';
 import { createAreaActions, type AreaActions } from './areas';
 import { createBuildingActions, type BuildingActions } from './buildings';
 import { createPermissionActions, type PermissionActions } from './permissions';
+import { createAgentPromptActions, type AgentPromptActions } from './agentPrompts';
 import { createDelegationActions, type DelegationActions } from './delegation';
 import { createSkillActions, type SkillActions } from './skills';
 import { createExecTaskActions, type ExecTaskActions } from './execTasks';
@@ -100,6 +101,7 @@ export {
   useSelectedBuildingIds,
   useBuildingLogs,
   usePermissionRequests,
+  useAgentPrompts,
   useDelegationHistory,
   usePendingDelegation,
   useLastDelegationReceived,
@@ -185,6 +187,7 @@ class Store
   private areaActions: AreaActions;
   private buildingActions: BuildingActions;
   private permissionActions: PermissionActions;
+  private agentPromptActions: AgentPromptActions;
   private delegationActions: DelegationActions;
   private skillActions: SkillActions;
   private execTaskActions: ExecTaskActions;
@@ -232,6 +235,7 @@ class Store
       explorerAreaId: null as string | null,
       contextModalAgentId: null,
       permissionRequests: new Map(),
+      agentPrompts: new Map(),
       delegationHistories: new Map(),
       pendingDelegation: null,
       lastDelegationReceived: new Map(),
@@ -281,6 +285,7 @@ class Store
     this.areaActions = createAreaActions(getState, setState, notify, getSendMessage);
     this.buildingActions = createBuildingActions(getState, setState, notify, getSendMessage);
     this.permissionActions = createPermissionActions(getState, setState, notify, getSendMessage);
+    this.agentPromptActions = createAgentPromptActions(getState, setState, notify);
     this.delegationActions = createDelegationActions(getState, setState, notify, getSendMessage);
     this.skillActions = createSkillActions(getState, setState, notify, getSendMessage);
     this.execTaskActions = createExecTaskActions(getState, setState, notify);
@@ -1082,6 +1087,14 @@ class Store
   respondToPermissionRequest(...args: Parameters<PermissionActions['respondToPermissionRequest']>) { return this.permissionActions.respondToPermissionRequest(...args); }
   getPendingPermissionsForAgent(...args: Parameters<PermissionActions['getPendingPermissionsForAgent']>) { return this.permissionActions.getPendingPermissionsForAgent(...args); }
   clearAllPermissions(...args: Parameters<PermissionActions['clearAllPermissions']>) { return this.permissionActions.clearAllPermissions(...args); }
+
+  // ============================================================================
+  // Agent Prompt Actions (AskUserQuestion / ExitPlanMode via MCP perm-prompt)
+  // ============================================================================
+  addAgentPrompt(...args: Parameters<AgentPromptActions['addAgentPrompt']>) { return this.agentPromptActions.addAgentPrompt(...args); }
+  resolveAgentPromptLocal(...args: Parameters<AgentPromptActions['resolveAgentPromptLocal']>) { return this.agentPromptActions.resolveAgentPromptLocal(...args); }
+  respondToAgentPrompt(...args: Parameters<AgentPromptActions['respondToAgentPrompt']>) { return this.agentPromptActions.respondToAgentPrompt(...args); }
+  getPendingAgentPromptsForAgent(...args: Parameters<AgentPromptActions['getPendingAgentPromptsForAgent']>) { return this.agentPromptActions.getPendingAgentPromptsForAgent(...args); }
 
   // ============================================================================
   // Delegation Actions (delegated)

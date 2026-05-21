@@ -5,9 +5,10 @@
  * connection management, and query history.
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Building } from '../../../shared/types';
+import type { TableColumn } from '../../../shared/types';
 import { store, useDatabaseState, useQueryResults, useQueryHistory, useExecutingQuery } from '../../store';
 import { DatabaseSidebar } from './DatabaseSidebar';
 import { QueryEditor, splitQueries, getQueryAtCursor, type ExecuteMode } from './QueryEditor';
@@ -132,6 +133,23 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
     ?? storedState.current.database
     ?? building.database?.activeDatabase;
   const activeConnection = connections.find(c => c.id === activeConnectionId);
+  const activeTablesKey = activeConnectionId && activeDatabase
+    ? `${activeConnectionId}:${activeDatabase}`
+    : '';
+  const activeTables = activeTablesKey ? dbState.tables.get(activeTablesKey) ?? [] : [];
+  const activeTableSchemas = useMemo(() => {
+    const schemas = new Map<string, { columns: TableColumn[] }>();
+    if (!activeConnectionId || !activeDatabase) return schemas;
+
+    activeTables.forEach((table) => {
+      const schema = dbState.tableSchemas.get(`${activeConnectionId}:${activeDatabase}:${table.name}`);
+      if (schema) {
+        schemas.set(table.name, { columns: schema.columns });
+      }
+    });
+
+    return schemas;
+  }, [activeConnectionId, activeDatabase, activeTables, dbState.tableSchemas]);
 
   // Tab handlers
   const handleOpenTab = useCallback((connectionId: string, database: string) => {
@@ -389,6 +407,13 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
             onExecute={handleExecuteQuery}
             isExecuting={isExecuting}
             disabled={!activeConnectionId || !activeDatabase}
+            tables={activeTables}
+            tableSchemas={activeTableSchemas}
+            onRequestTableSchema={(tableName) => {
+              if (activeConnectionId && activeDatabase) {
+                store.getTableSchema(building.id, activeConnectionId, activeDatabase, tableName);
+              }
+            }}
           />
 
           {/* Results/History Tabs */}

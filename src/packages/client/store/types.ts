@@ -208,6 +208,8 @@ export interface StoreState {
   contextModalAgentId: string | null;
   // Permission requests (interactive permission mode)
   permissionRequests: Map<string, PermissionRequest>;
+  // Pending AskUserQuestion / ExitPlanMode prompts routed via the MCP perm-prompt server
+  agentPrompts: Map<string, import('../../shared/types').AgentPrompt>;
   // Boss delegation history (per boss agent)
   delegationHistories: Map<string, DelegationDecision[]>;
   // Pending delegation (when boss is deciding)

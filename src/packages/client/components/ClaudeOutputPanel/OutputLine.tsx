@@ -4,9 +4,9 @@
 
 import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useHideCost, useSettings, ClaudeOutput, store } from '../../store';
+import { useHideCost, useSettings, ClaudeOutput, store, useAgentPrompts } from '../../store';
 import { filterCostText } from '../../utils/formatting';
-import { getToolIconName, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { getToolIconName, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay } from './BossContext';
@@ -15,7 +15,7 @@ import { parseEmailMessage, GmailMessageBubble } from './GmailMessageBubble';
 import { parseSlackMessage, SlackMessageBubble } from './SlackMessageBubble';
 import { DelegationMessageCard, parseDelegationMessage } from './DelegationMessageCard';
 import { AgentChatMessageCard, parseAgentChatMessage } from './AgentChatMessageCard';
-import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, ExitPlanModeInput, UnknownToolInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, isToolSearchContent } from './ToolRenderers';
+import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, AskQuestionResult, ExitPlanModeInput, UnknownToolInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, MemoryOpInput, isToolSearchContent } from './ToolRenderers';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
 import { renderContentWithImages, renderUserPromptContent } from './contentRendering';
@@ -212,6 +212,13 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   const payloadToolName = output.toolName;
   const payloadToolInput = output.toolInput;
   const payloadToolOutput = output.toolOutput;
+
+  // Pending agent-prompts for this agent (AskUserQuestion / ExitPlanMode that
+  // need a human response). Matched to this output line via toolUseId (= output.uuid).
+  const pendingAgentPrompts = useAgentPrompts(agentId);
+  const matchingPendingPrompt = output.uuid
+    ? pendingAgentPrompts.find((p) => p.id === output.uuid)
+    : undefined;
 
   // Fallback to extracted key param if available, otherwise try to extract from payload
   let toolKeyParamOrFallback = _toolKeyParam;
@@ -551,7 +558,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
-          <AskQuestionInput content={askQuestionContent} />
+          <AskQuestionInput content={askQuestionContent} pendingPromptId={matchingPendingPrompt?.id} />
         </div>
       );
     }
@@ -569,7 +576,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
-          <ExitPlanModeInput content={exitPlanContent} />
+          <ExitPlanModeInput content={exitPlanContent} pendingPromptId={matchingPendingPrompt?.id} onViewMarkdown={onViewMarkdown} />
         </div>
       );
     }
@@ -751,6 +758,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const bashTrackingStatusCommand = isBashTool && bashCommand ? parseBashTrackingStatusCommand(bashCommand) : null;
     const bashTaskLabelCommand = !bashTrackingStatusCommand && isBashTool && bashCommand ? parseBashTaskLabelCommand(bashCommand) : null;
     const bashReportTaskCommand = isBashTool && bashCommand ? parseBashReportTaskCommand(bashCommand) : null;
+    const bashMemoryCommand = isBashTool && bashCommand && !bashTrackingStatusCommand && !bashTaskLabelCommand && !bashReportTaskCommand ? parseBashMemoryCommand(bashCommand) : null;
+    const bashMemoryResponse = bashMemoryCommand ? parseMemoryResponseInfo(_bashOutput || (typeof payloadToolOutput === 'string' ? payloadToolOutput : undefined)) : undefined;
     const bashCurlParsed = (
       isBashTool
       && bashCommand
@@ -758,6 +767,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       && !bashNotificationCommand
       && !bashTaskLabelCommand
       && !bashReportTaskCommand
+      && !bashMemoryCommand
       && !bashSearchCommand
       && !isCurlExecCommand
       && looksLikeCurl(bashCommand)
@@ -894,6 +904,14 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 {bashReportTaskCommand.summary && (
                   <span className="bash-report-task-summary">{bashReportTaskCommand.summary}</span>
                 )}
+              </span>
+            ) : bashMemoryCommand ? (
+              <span
+                className="output-tool-param bash-command bash-memory-param"
+                onClick={handleBashClick}
+                style={{ cursor: 'pointer' }}
+              >
+                <MemoryOpInput info={bashMemoryCommand} response={bashMemoryResponse} />
               </span>
             ) : bashSearchCommand ? (
               <span
@@ -1072,6 +1090,14 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   if (text.startsWith('Tool result:')) {
     const resultText = text.replace('Tool result:', '').trim();
     const isError = resultText.toLowerCase().includes('error') || resultText.toLowerCase().includes('failed');
+    if (output.toolName === 'AskUserQuestion' || output.toolName === 'AskFollowupQuestion') {
+      return (
+        <div className={`output-line output-tool-result ${isError ? 'is-error' : ''}`}>
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          <AskQuestionResult content={resultText} />
+        </div>
+      );
+    }
     return (
       <div className={`output-line output-tool-result ${isError ? 'is-error' : ''}`}>
         <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
