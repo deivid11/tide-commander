@@ -84,6 +84,8 @@ Options:
       --generate-auth-token
                         Generate a secure AUTH_TOKEN automatically
   -f, --foreground      Run in foreground (default is background)
+      --no-daemon       Alias for --foreground; runs the server attached to the
+                        current terminal so logs print here and Ctrl+C stops it.
       --lines <n>       Number of log lines for logs command (default: 100)
       --follow          Follow logs stream (like tail -f)
   -h, --help            Show this help message
@@ -169,6 +171,7 @@ function parseArgs(argv: string[]): CliOptions {
         break;
       case '-f':
       case '--foreground':
+      case '--no-daemon':
         if (options.command === 'logs') {
           options.follow = true;
         } else {
@@ -894,6 +897,30 @@ async function main(): Promise<void> {
       authEnabled: Boolean(process.env.AUTH_TOKEN),
     });
   }
+
+  {
+    const cyan = '\x1b[36m';
+    const dim = '\x1b[2m';
+    const reset = '\x1b[0m';
+    const port = process.env.PORT || '6200';
+    const host = process.env.HOST || 'localhost';
+    const protocol = process.env.HTTPS === '1' ? 'https' : 'http';
+    console.log(`${cyan}🌊 Running in foreground${reset} ${dim}(${protocol}://${host}:${port} — press Ctrl+C to stop)${reset}`);
+  }
+
+  // Forward shutdown signals to the child so the server stops cleanly and the
+  // PID file is removed by child.on('exit') below. Without this, Ctrl+C in a
+  // raw terminal can race the parent's default SIGINT handler and leak the PID.
+  const forwardSignal = (signal: NodeJS.Signals) => {
+    try {
+      child.kill(signal);
+    } catch {
+      // child may already be gone — let exit handler do the cleanup
+    }
+  };
+  process.on('SIGINT', () => forwardSignal('SIGINT'));
+  process.on('SIGTERM', () => forwardSignal('SIGTERM'));
+  process.on('SIGHUP', () => forwardSignal('SIGHUP'));
 
   child.on('exit', (code, signal) => {
     clearPidFile();

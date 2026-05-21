@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.100.0] - 2026-05-21
+
+### Added
+- **`--no-daemon` CLI flag** — alias for `--foreground` so `tide-commander --no-daemon` runs the server attached to the current terminal, prints logs in place, and stops on Ctrl+C. Matches the convention used by other daemons (postgres, redis, k3s, etc.).
+- **Foreground startup banner** — when running with `--foreground` / `--no-daemon`, the CLI now prints a one-line cyan banner with the resolved protocol/host/port and the "press Ctrl+C to stop" hint, so it's obvious the server is attached and where it's serving.
+
+### Fixed
+- **Foreground PID-file leak on Ctrl+C** — the foreground parent now forwards `SIGINT` / `SIGTERM` / `SIGHUP` to the child server process, so the child's exit handler runs and removes the PID file. Previously, Ctrl+C in a raw terminal could race the parent's default SIGINT handler and leak the PID, leaving the next start convinced an instance was already running.
+
 ## [1.99.0] - 2026-05-21
 
 ### Added
