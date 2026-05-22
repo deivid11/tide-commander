@@ -8,6 +8,9 @@ export interface WhatsAppChatSummary {
   lastMessageType: WhatsAppMessageType;
   lastDirection: MessageDirection;
   messageCount: number;
+  isGroup: boolean;
+  groupName?: string;
+  fromName?: string;
   unreadCount: number;
 }
 
