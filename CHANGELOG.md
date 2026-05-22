@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.102.0] - 2026-05-22
+
+### Added
+- **AskUserQuestion answer recap in history** — when an `AskUserQuestion` chip is rendered in history (non-interactive) mode, it now surfaces the picked answer(s) under a "Your answer" / "Your answers" label. Free-text "Other" answers that didn't match any listed option are tagged as `custom`, so they're visible at a glance instead of being hidden by the option-highlight-only rendering.
+- **FlatView area folder chips** — each area card now lists its `area.directories` as clickable folder chips; clicking opens the file explorer scoped to that folder via `store.openFileExplorerForAreaFolder(areaKey, dir)`. Lets users jump into an area's folders without first selecting a building.
+- **FlatView building chips adopt building-type colors** — building chips now read `BUILDING_TYPES[building.type].color` and apply it to both the icon and a CSS custom property (`--building-type-color`) so each type is visually distinct in the area card.
+- **FlatView markdown response modal** — `handleViewMarkdown` (previously a no-op) now opens `AgentResponseModalWrapper` with the markdown content, parity with the dashboard view.
+
+### Changed
+- ~110 lines of supporting SCSS in `FlatView.scss` and `_tools.scss` style the new folder chips, building-type-colored chips, and AskQuestion answer recap surface.
+
 ## [1.101.0] - 2026-05-21
 
 ### Added

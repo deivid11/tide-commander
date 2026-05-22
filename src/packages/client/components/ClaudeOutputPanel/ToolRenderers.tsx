@@ -599,6 +599,31 @@ export function AskQuestionInput({ content, answers, pendingPromptId }: AskQuest
                   })}
                 </div>
               )}
+              {/* Always surface the picked answer(s) in history mode so a
+                  free-text "Other" answer is visible — option highlighting
+                  alone misses anything that didn't match a listed label. */}
+              {isAnswered && !interactive && pickedLabels.length > 0 && (
+                <div className="ask-question-picked">
+                  <span className="ask-question-picked-label">
+                    {q.multiSelect || pickedLabels.length > 1 ? 'Your answers' : 'Your answer'}
+                  </span>
+                  {pickedLabels.map((label, i) => {
+                    const matchesOption = q.options?.some((o) => o.label === label) ?? false;
+                    return (
+                      <span
+                        key={i}
+                        className={`ask-question-picked-value ${matchesOption ? '' : 'ask-question-picked-value--custom'}`}
+                        title={matchesOption ? `Selected option: ${label}` : `Custom answer: ${label}`}
+                      >
+                        <span className="ask-question-picked-text">{label}</span>
+                        {!matchesOption && (
+                          <span className="ask-question-picked-custom-tag">custom</span>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
               {interactive && (
                 <div className="ask-question-freetext">
                   <input
