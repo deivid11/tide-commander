@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.101.0] - 2026-05-21
+
+### Added
+- **Group-chat awareness in WhatsApp history** — `WhatsAppChatSummary` gains `isGroup`, `groupName`, and `fromName`. `ChatList` now renders group chats with their group name and `ChatMessages` surfaces the originating sender for each message in a group thread. ~13 lines of new SCSS in `whatsapp-history.scss` style the group-chat affordances.
+
 ## [1.100.0] - 2026-05-21
 
 ### Added

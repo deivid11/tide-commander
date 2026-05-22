@@ -64,6 +64,10 @@ export function ChatList({
           const icon = messageTypeIcon(chat.lastMessageType);
           const previewBase = chat.lastMessagePreview || `[${chat.lastMessageType}]`;
           const isSelected = chat.chatId === selectedChatId;
+          const formattedJid = formatChatId(chat.chatId);
+          const resolvedName = chat.isGroup ? chat.groupName : chat.fromName;
+          const displayName = resolvedName || formattedJid;
+          const showJidSubtitle = !!resolvedName && resolvedName !== formattedJid;
           return (
             <li
               key={chat.chatId}
@@ -75,13 +79,18 @@ export function ChatList({
                 onClick={() => onSelect(chat.chatId)}
               >
                 <div className="whatsapp-history-chatlist__row">
-                  <span className="whatsapp-history-chatlist__name">
-                    {formatChatId(chat.chatId)}
+                  <span className="whatsapp-history-chatlist__name" title={chat.chatId}>
+                    {displayName}
                   </span>
                   <span className="whatsapp-history-chatlist__time">
                     {formatRelativeTime(chat.lastTimestamp, now)}
                   </span>
                 </div>
+                {showJidSubtitle && (
+                  <div className="whatsapp-history-chatlist__row whatsapp-history-chatlist__row--jid">
+                    <span className="whatsapp-history-chatlist__jid">{formattedJid}</span>
+                  </div>
+                )}
                 <div className="whatsapp-history-chatlist__row whatsapp-history-chatlist__row--secondary">
                   <span className="whatsapp-history-chatlist__preview">
                     {chat.lastDirection === 'outbound' && (

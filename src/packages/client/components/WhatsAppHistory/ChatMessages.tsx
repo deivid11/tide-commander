@@ -1,9 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { WhatsAppMessageEvent } from '../../../shared/event-types';
 import { MessageBubble } from './MessageBubble';
 import { ChatFilters, type DirectionFilter, type TypeFilter } from './ChatFilters';
 import { formatChatId } from './format';
+
+const AUTO_LOAD_THRESHOLD_PX = 80;
 
 interface ChatMessagesProps {
   chatId: string | null;
@@ -35,14 +37,49 @@ export function ChatMessages({
   const { t } = useTranslation(['config']);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastChatIdRef = useRef<string | null>(null);
+  const initialScrolledRef = useRef(false);
+  const prependAnchorRef = useRef<number | null>(null);
 
+  // Reset the "first scroll-to-bottom done" flag whenever chat changes.
   useEffect(() => {
-    if (!scrollRef.current) return;
     if (lastChatIdRef.current !== chatId) {
       lastChatIdRef.current = chatId;
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      initialScrolledRef.current = false;
     }
+  }, [chatId]);
+
+  // After messages first arrive for a chat, scroll to the bottom (newest).
+  useLayoutEffect(() => {
+    if (!scrollRef.current) return;
+    if (initialScrolledRef.current) return;
+    if (messages.length === 0) return;
+    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    initialScrolledRef.current = true;
   }, [chatId, messages.length]);
+
+  // When older messages are prepended via Load-more, preserve the visual
+  // anchor so the viewport doesn't jump.
+  useLayoutEffect(() => {
+    if (!scrollRef.current) return;
+    if (prependAnchorRef.current === null) return;
+    const diff = scrollRef.current.scrollHeight - prependAnchorRef.current;
+    prependAnchorRef.current = null;
+    if (diff > 0) scrollRef.current.scrollTop += diff;
+  }, [messages.length]);
+
+  const triggerLoadMore = useCallback(() => {
+    if (!hasMore || loadingMore || loading) return;
+    if (scrollRef.current) {
+      prependAnchorRef.current = scrollRef.current.scrollHeight;
+    }
+    onLoadMore();
+  }, [hasMore, loadingMore, loading, onLoadMore]);
+
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (!initialScrolledRef.current) return;
+    const el = e.currentTarget;
+    if (el.scrollTop <= AUTO_LOAD_THRESHOLD_PX) triggerLoadMore();
+  }, [triggerLoadMore]);
 
   if (!chatId) {
     return (
@@ -67,13 +104,17 @@ export function ChatMessages({
         />
       </div>
 
-      <div className="whatsapp-history-messages__scroll" ref={scrollRef}>
+      <div
+        className="whatsapp-history-messages__scroll"
+        ref={scrollRef}
+        onScroll={handleScroll}
+      >
         {hasMore && (
           <div className="whatsapp-history-messages__load-more-row">
             <button
               type="button"
               className="whatsapp-history-messages__load-more"
-              onClick={onLoadMore}
+              onClick={triggerLoadMore}
               disabled={loadingMore || loading}
             >
               {loadingMore
