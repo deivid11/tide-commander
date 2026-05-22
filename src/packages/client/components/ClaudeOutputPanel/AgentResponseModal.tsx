@@ -5,7 +5,7 @@
  * markdown source text. Allows users to view and copy the raw markdown.
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Agent } from '../../../shared/types';
 import { useModalClose } from '../../hooks';
@@ -26,9 +26,26 @@ export function AgentResponseModal({
   onClose,
 }: AgentResponseModalProps) {
   const { t } = useTranslation(['tools', 'common', 'terminal']);
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(content);
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopyStatus('copied');
+    } catch {
+      setCopyStatus('error');
+    }
   }, [content]);
+
+  useEffect(() => {
+    if (copyStatus === 'idle') return;
+    const id = setTimeout(() => setCopyStatus('idle'), 1500);
+    return () => clearTimeout(id);
+  }, [copyStatus]);
+
+  useEffect(() => {
+    if (!isOpen) setCopyStatus('idle');
+  }, [isOpen]);
 
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
 
@@ -64,8 +81,22 @@ export function AgentResponseModal({
         </div>
 
         <div className="modal-footer agent-response-modal-footer">
-          <button className="btn btn-primary" onClick={handleCopy}>
-            {t('common:buttons.copy')}
+          <button
+            className={`btn btn-primary agent-response-copy-btn agent-response-copy-btn--${copyStatus}`}
+            onClick={handleCopy}
+            disabled={!content}
+          >
+            <Icon
+              name={copyStatus === 'copied' ? 'check' : copyStatus === 'error' ? 'cross' : 'copy'}
+              size={14}
+            />
+            <span>
+              {copyStatus === 'copied'
+                ? t('common:buttons.copied', { defaultValue: 'Copied' })
+                : copyStatus === 'error'
+                  ? t('common:buttons.copyFailed', { defaultValue: 'Copy failed' })
+                  : t('common:buttons.copy')}
+            </span>
           </button>
           <button className="btn btn-secondary" onClick={onClose}>
             {t('common:buttons.close')}

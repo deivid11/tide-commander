@@ -3,11 +3,11 @@
  * Using CSS variables directly for theme support
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Components } from 'react-markdown';
 import { store } from '../../store';
 import { decodeTideFileHref } from '../../utils/outputRendering';
-import { highlightCode, isLanguageSupported } from '../FileExplorerPanel/syntaxHighlighting';
+import { highlightCode, isLanguageSupported, ensureLanguageLoaded } from '../FileExplorerPanel/syntaxHighlighting';
 
 interface MarkdownComponentOptions {
   onFileClick?: (path: string) => void;
@@ -62,6 +62,46 @@ function isLikelyFileText(value: string): boolean {
   if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmed)) return false;
   if (looksLikeUrl(trimmed)) return false;
   return trimmed.includes('.') && (trimmed.includes('/') || /^[A-Za-z0-9._-]+\.[A-Za-z0-9._-]+$/.test(trimmed));
+}
+
+function CodeBlock({ language, codeText, className }: { language: string; codeText: string; className?: string }) {
+  const [highlighted, setHighlighted] = useState<string | null>(() =>
+    isLanguageSupported(language) ? highlightCode(codeText, language) : null,
+  );
+
+  useEffect(() => {
+    if (isLanguageSupported(language)) {
+      setHighlighted(highlightCode(codeText, language));
+      return;
+    }
+    let cancelled = false;
+    ensureLanguageLoaded(language).then((ok) => {
+      if (cancelled || !ok) return;
+      setHighlighted(highlightCode(codeText, language));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [language, codeText]);
+
+  if (highlighted !== null) {
+    return (
+      <code
+        className={className}
+        style={{ background: 'none', padding: 0, fontSize: '12px', lineHeight: 1.5 }}
+        dangerouslySetInnerHTML={{ __html: highlighted }}
+      />
+    );
+  }
+
+  return (
+    <code
+      className={className}
+      style={{ background: 'none', padding: 0, color: 'var(--text-primary)', fontSize: '12px', lineHeight: 1.5 }}
+    >
+      {codeText}
+    </code>
+  );
 }
 
 // Create markdown components that use CSS variables directly
@@ -127,15 +167,8 @@ export const createMarkdownComponents = ({ onFileClick }: MarkdownComponentOptio
       const language = className?.replace('language-', '') ?? '';
       const codeText = getNodeText(children);
 
-      if (language && isLanguageSupported(language)) {
-        const highlighted = highlightCode(codeText, language);
-        return (
-          <code
-            className={className}
-            style={{ background: 'none', padding: 0, fontSize: '12px', lineHeight: 1.5 }}
-            dangerouslySetInnerHTML={{ __html: highlighted }}
-          />
-        );
+      if (language) {
+        return <CodeBlock language={language} codeText={codeText} className={className} />;
       }
 
       return (

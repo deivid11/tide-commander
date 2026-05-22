@@ -855,6 +855,39 @@ export const HistoryLine = memo(function HistoryLine({
       );
     }
 
+    // Special rendering for AskUserQuestion / AskFollowupQuestion - render the
+    // question card in advanced mode too. Without this, the input falls through
+    // to the default raw-JSON `<pre>` which is unreadable when the question
+    // includes long descriptions and previews. We reuse the same component used
+    // by simple mode for visual parity.
+    if ((toolName === 'AskUserQuestion' || toolName === 'AskFollowupQuestion') && toolInputContent) {
+      let hasQuestions = false;
+      try {
+        const parsed = JSON.parse(toolInputContent);
+        hasQuestions = Array.isArray(parsed.questions) && parsed.questions.length > 0;
+      } catch { /* not valid JSON */ }
+
+      if (hasQuestions) {
+        return (
+          <>
+            <div className="output-line output-tool-use">
+              {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+              {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+              <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
+              <span className="output-tool-name">{displayToolName}</span>
+            </div>
+            <div className="output-line output-tool-input">
+              <AskQuestionInput
+                content={toolInputContent}
+                answers={_askQuestionAnswers}
+                pendingPromptId={matchingPendingPrompt?.id}
+              />
+            </div>
+          </>
+        );
+      }
+    }
+
     // Special rendering for ToolSearch - formatted query/selection display
     if (toolName === 'ToolSearch' && toolInputContent) {
       return (
@@ -886,6 +919,143 @@ export const HistoryLine = memo(function HistoryLine({
           </div>
         </>
       );
+    }
+
+    // Special rendering for Bash - show the same parsed chips (tracking, notify,
+    // task-label, report-task, memory, search, curl) and a syntax-highlighted
+    // command line in advanced mode. Falls back to raw JSON only when there is
+    // no command we can pull out — the default rendering below handles that.
+    if (toolName === 'Bash' && toolInputContent) {
+      const bashKeyParam = extractToolKeyParam('Bash', toolInputContent);
+      const bashCommand = _bashCommand || bashKeyParam || '';
+      if (bashCommand) {
+        const bashSearchCommand = parseBashSearchCommand(bashCommand);
+        const bashNotificationCommand = parseBashNotificationCommand(bashCommand);
+        const bashTrackingStatusCommand = parseBashTrackingStatusCommand(bashCommand);
+        const bashTaskLabelCommand = !bashTrackingStatusCommand ? parseBashTaskLabelCommand(bashCommand) : null;
+        const bashReportTaskCommand = parseBashReportTaskCommand(bashCommand);
+        const bashMemoryCommand = !bashTrackingStatusCommand && !bashTaskLabelCommand && !bashReportTaskCommand
+          ? parseBashMemoryCommand(bashCommand)
+          : null;
+        const bashMemoryResponse = bashMemoryCommand ? parseMemoryResponseInfo(_bashOutput) : undefined;
+        const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
+        const bashCurlParsed = (
+          !bashTrackingStatusCommand
+          && !bashNotificationCommand
+          && !bashTaskLabelCommand
+          && !bashReportTaskCommand
+          && !bashMemoryCommand
+          && !bashSearchCommand
+          && !isCurlExecCommand
+          && looksLikeCurl(bashCommand)
+        ) ? (() => { try { return parseCurlCommand(bashCommand); } catch { return null; } })() : null;
+
+        const handleBashClick = onBashClick
+          ? () => onBashClick(bashCommand, _bashOutput || t('tools:display.noOutputAvailable'))
+          : undefined;
+
+        const chip = bashTrackingStatusCommand ? (() => {
+          const status = bashTrackingStatusCommand.trackingStatus;
+          const detail = bashTrackingStatusCommand.trackingStatusDetail;
+          const description = t(`terminal:trackingStatus.${status}`, { defaultValue: '' }) as string;
+          const tooltipParts = [description || t('terminal:trackingStatus.label', { defaultValue: 'Tracking status' }), detail].filter(Boolean) as string[];
+          return (
+            <span
+              className={`output-tool-param bash-command bash-tracking-param status-${status}`}
+              onClick={handleBashClick}
+              title={tooltipParts.join(' — ')}
+              style={handleBashClick ? { cursor: 'pointer' } : undefined}
+            >
+              <span className={`bash-tracking-chip status-${status}`}>
+                <span className="bash-tracking-icon"><Icon name={getTrackingStatusIconName(status)} size={13} /></span>
+                <span className="bash-tracking-status">{status}</span>
+              </span>
+              {detail && <span className="bash-tracking-detail">{detail}</span>}
+            </span>
+          );
+        })() : bashNotificationCommand ? (
+          <span
+            className="output-tool-param bash-command bash-notify-param"
+            onClick={handleBashClick}
+            title={bashNotificationCommand.commandBody}
+            style={handleBashClick ? { cursor: 'pointer' } : undefined}
+          >
+            <span className="bash-notify-chip">
+              <span className="bash-notify-icon"><Icon name="bell" size={12} /></span>
+              <span className="bash-notify-label">notify</span>
+            </span>
+            {bashNotificationCommand.title && <span className="bash-notify-title">{bashNotificationCommand.title}</span>}
+            {bashNotificationCommand.message && <span className="bash-notify-message">{bashNotificationCommand.message}</span>}
+          </span>
+        ) : bashTaskLabelCommand ? (
+          <span
+            className="output-tool-param bash-command bash-task-label-param"
+            onClick={handleBashClick}
+            title={bashTaskLabelCommand.commandBody}
+            style={handleBashClick ? { cursor: 'pointer' } : undefined}
+          >
+            <span className="bash-task-label-chip"><Icon name="task" size={12} /> task</span>
+            <span className="bash-task-label-value">{bashTaskLabelCommand.taskLabel}</span>
+          </span>
+        ) : bashReportTaskCommand ? (
+          <span
+            className="output-tool-param bash-command bash-report-task-param"
+            onClick={handleBashClick}
+            title={bashReportTaskCommand.commandBody}
+            style={handleBashClick ? { cursor: 'pointer' } : undefined}
+          >
+            <span className={`bash-report-task-chip ${bashReportTaskCommand.status === 'failed' ? 'status-failed' : 'status-completed'}`}>
+              <Icon name={bashReportTaskCommand.status === 'failed' ? 'failure' : 'success'} size={12} /> report
+            </span>
+            {bashReportTaskCommand.summary && <span className="bash-report-task-summary">{bashReportTaskCommand.summary}</span>}
+          </span>
+        ) : bashMemoryCommand ? (
+          <span
+            className="output-tool-param bash-command bash-memory-param"
+            onClick={handleBashClick}
+            style={handleBashClick ? { cursor: 'pointer' } : undefined}
+          >
+            <MemoryOpInput info={bashMemoryCommand} response={bashMemoryResponse} />
+          </span>
+        ) : bashSearchCommand ? (
+          <span
+            className="output-tool-param bash-command bash-search-param"
+            onClick={handleBashClick}
+            title={bashSearchCommand.commandBody}
+            style={handleBashClick ? { cursor: 'pointer' } : undefined}
+          >
+            {bashSearchCommand.shellPrefix && <span className="bash-search-shell">{bashSearchCommand.shellPrefix}</span>}
+            <span className="bash-search-chip">search</span>
+            <span className="bash-search-term">{bashSearchCommand.searchTerm}</span>
+          </span>
+        ) : bashCurlParsed ? (
+          <div className="output-tool-param bash-curl-param">
+            <CurlCard parsed={bashCurlParsed} rawCommand={bashCommand} />
+          </div>
+        ) : (
+          <pre
+            className="output-input-content bash-command"
+            onClick={handleBashClick}
+            style={handleBashClick ? { cursor: 'pointer' } : undefined}
+            title={handleBashClick ? t('tools:display.clickToViewOutput') : undefined}
+            dangerouslySetInnerHTML={{ __html: highlightCode(bashCommand, 'bash') }}
+          />
+        );
+
+        return (
+          <>
+            <div className="output-line output-tool-use">
+              {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+              {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+              <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
+              <span className="output-tool-name">{displayToolName}</span>
+            </div>
+            <div className="output-line output-tool-input">
+              {chip}
+            </div>
+          </>
+        );
+      }
     }
 
     // Default tool rendering

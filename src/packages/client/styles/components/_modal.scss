@@ -1189,6 +1189,32 @@
   background: $bg-secondary;
 }
 
+// Copy button feedback states — green on success, red on failure, then
+// reverts to idle after the timeout in AgentResponseModal.
+.agent-response-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background-color $transition-fast, border-color $transition-fast, color $transition-fast;
+
+  &--copied {
+    background: rgba(70, 200, 130, 0.18) !important;
+    border-color: rgba(70, 200, 130, 0.55) !important;
+    color: #6fd49a !important;
+  }
+
+  &--error {
+    background: rgba(220, 80, 80, 0.18) !important;
+    border-color: rgba(220, 80, 80, 0.55) !important;
+    color: #ef8a8a !important;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
 // Database Panel Modal - sized to match commander-view
 .database-panel-modal {
   width: 100%;
