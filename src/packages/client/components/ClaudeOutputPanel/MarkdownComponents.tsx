@@ -88,7 +88,7 @@ function CodeBlock({ language, codeText, className }: { language: string; codeTe
     return (
       <code
         className={className}
-        style={{ background: 'none', padding: 0, fontSize: '12px', lineHeight: 1.5 }}
+        style={{ background: 'none', padding: 0, border: 'none', boxShadow: 'none', fontSize: '12px', lineHeight: 1.5 }}
         dangerouslySetInnerHTML={{ __html: highlighted }}
       />
     );
@@ -97,7 +97,7 @@ function CodeBlock({ language, codeText, className }: { language: string; codeTe
   return (
     <code
       className={className}
-      style={{ background: 'none', padding: 0, color: 'var(--text-primary)', fontSize: '12px', lineHeight: 1.5 }}
+      style={{ background: 'none', padding: 0, border: 'none', boxShadow: 'none', color: 'var(--text-primary)', fontSize: '12px', lineHeight: 1.5 }}
     >
       {codeText}
     </code>

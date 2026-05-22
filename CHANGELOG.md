@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.103.1] - 2026-05-22
+
+### Fixed
+- **Inline `<code>` borders/shadows in markdown blocks** — added `border: none` and `box-shadow: none` to inline-styled `<code>` elements in `MarkdownComponents.tsx` and to the matching rule in `_output.scss`. Some themes were applying a residual border and box-shadow to inline code that the new `CodeBlock` component picked up; they now render flat against the surrounding markdown surface.
+
 ## [1.103.0] - 2026-05-22
 
 ### Added
