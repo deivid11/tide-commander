@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.103.0] - 2026-05-22
+
+### Added
+- **Advanced-mode renderers for `AskUserQuestion` / `AskFollowupQuestion` and `Bash` tool calls** — these tool inputs used to fall through to raw `<pre>` JSON in advanced output mode, which was unreadable for long question payloads and noisy Bash invocations. `HistoryLine` now renders the same `AskQuestionInput` card used in simple mode (with pending-prompt + answer wiring) and the same Bash chip surface (tracking / notify / task-label / report-task / memory / search / curl parsing, plus a syntax-highlighted command line). Falls back to raw JSON only when the input has no parseable command/questions.
+- **Markdown code-block on-demand language loading** — `MarkdownComponents` now wraps fenced code blocks in a new `CodeBlock` component that calls `ensureLanguageLoaded(language)` for languages not yet bundled, then re-renders highlighted output once the language pack resolves. Unsupported / failed-to-load languages fall back to a plain-styled `<code>`.
+- **`AgentResponseModal` copy button feedback** — the copy button now reports its outcome inline for 1.5s ("Copied" with a check icon on success, "Copy failed" with a cross on clipboard error) and is disabled when there is no content to copy. The status resets when the modal closes.
+
+### Changed
+- ~26 lines of new SCSS in `_modal.scss` style the copy-button success/error states.
+
 ## [1.102.0] - 2026-05-22
 
 ### Added
