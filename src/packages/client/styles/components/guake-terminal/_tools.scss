@@ -1632,6 +1632,72 @@
   }
 }
 
+// Picked-answer row — always visible after the user has answered (history
+// mode only). Surfaces free-text "Other" answers that don't match any of the
+// listed option labels, and gives matched picks an explicit text summary
+// instead of relying solely on the green option highlight.
+.ask-question-picked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  margin-top: 6px;
+  background: rgba(70, 200, 130, 0.07);
+  border-left: 2px solid #6fd49a;
+  border-radius: 0 4px 4px 0;
+  font-size: 12px;
+}
+
+.ask-question-picked-label {
+  color: #6fd49a;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.ask-question-picked-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: rgba(70, 200, 130, 0.15);
+  border: 1px solid rgba(70, 200, 130, 0.32);
+  border-radius: 4px;
+  color: #d9ffe9;
+  max-width: 100%;
+  overflow: hidden;
+
+  // Custom (free-text "Other") answers — different palette so they're
+  // visibly distinct from a picked-from-options answer.
+  &--custom {
+    background: rgba(120, 180, 230, 0.12);
+    border-color: rgba(120, 180, 230, 0.34);
+    color: #dbeaff;
+  }
+}
+
+.ask-question-picked-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ask-question-picked-custom-tag {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #b6d4f5;
+  background: rgba(120, 180, 230, 0.2);
+  border-radius: 3px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+}
+
 // Awaiting-answer banner — gives the user an unmistakable signal that the
 // chip is interactive (vs read-only history).
 .ask-question-pending-banner {

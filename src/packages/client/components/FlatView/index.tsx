@@ -22,6 +22,7 @@ import { ConfirmModal } from '../shared/ConfirmModal';
 import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../../shared/types';
 import type { Agent } from '../../../shared/types';
 import type { Building } from '../../../shared/building-types';
+import { BUILDING_TYPES } from '../../../shared/building-types';
 import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
 import { getBuildingTypeIcon } from '../DashboardView/utils';
@@ -37,7 +38,7 @@ import { AgentDebugPanel } from '../ClaudeOutputPanel/AgentDebugPanel';
 import { AreaBuildingsPanel } from '../ClaudeOutputPanel/AreaBuildingsPanel';
 import { GuakeGitPanel } from '../ClaudeOutputPanel/GuakeGitPanel';
 import { agentDebugger } from '../../services/agentDebugger';
-import { ContextConfirmModal, ImageModal, BashModal, AgentInfoModal, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
+import { ContextConfirmModal, ImageModal, BashModal, AgentInfoModal, AgentResponseModalWrapper, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
 import { useKeyboardHeight } from '../ClaudeOutputPanel/useKeyboardHeight';
 import { useBottomTerminalResize } from '../ClaudeOutputPanel/useBottomTerminalResize';
 import { ThemeSelector } from '../ClaudeOutputPanel/ThemeSelector';
@@ -1066,6 +1067,7 @@ export function FlatView({
   // Modal state for terminal integration (owned by parent, shown over everything)
   const [imageModal, setImageModal] = useState<{ url: string; name: string } | null>(null);
   const [bashModal, setBashModal] = useState<BashModalState | null>(null);
+  const [responseModalContent, setResponseModalContent] = useState<string | null>(null);
   // Clear-subordinates confirmation modal — reuses the same modal component
   // the 3D overlay uses, so the two views share one source of truth for the
   // destructive action's UX.
@@ -1357,8 +1359,8 @@ export function FlatView({
     store.setFileViewerPath(path, editData);
   }, []);
 
-  const handleViewMarkdown = useCallback((_content: string) => {
-    // No markdown modal wired in this view yet; no-op keeps the pane happy.
+  const handleViewMarkdown = useCallback((content: string) => {
+    setResponseModalContent(content);
   }, []);
 
   const handleRequestClearSubordinates = useCallback((agentId: string, count: number) => {
@@ -2371,13 +2373,38 @@ export function FlatView({
                             );
                           })}
                         </div>
+                        {group.area.directories.length > 0 && (
+                          <div className="flat-map-area-card__folders" role="group" aria-label={`${group.area.name} folders`}>
+                            {group.area.directories.map(dir => {
+                              const dirLabel = dir.split('/').filter(Boolean).pop() || dir;
+                              return (
+                                <button
+                                  key={dir}
+                                  type="button"
+                                  className="flat-map-folder-chip"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    store.openFileExplorerForAreaFolder(areaKey, dir);
+                                  }}
+                                  title={`Open in file explorer: ${dir}`}
+                                >
+                                  <Icon name="folder-open" size={12} />
+                                  <span className="flat-map-folder-chip__name">{dirLabel}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                         {group.buildings.length > 0 && (
                           <div className="flat-map-area-card__buildings">
-                            {group.buildings.map(building => (
+                            {group.buildings.map(building => {
+                              const typeColor = BUILDING_TYPES[building.type]?.color;
+                              return (
                               <button
                                 key={building.id}
                                 type="button"
                                 className={`flat-map-building-chip flat-map-building-chip--${building.status}`}
+                                style={typeColor ? ({ '--building-type-color': typeColor } as React.CSSProperties) : undefined}
                                 onClick={(e) => {
                                   if (onBuildingPopup) {
                                     // Anchor the popup at the chip's right edge so it
@@ -2402,14 +2429,19 @@ export function FlatView({
                                 }}
                                 title={`${building.name} · ${building.type} · ${building.status}`}
                               >
-                                <Icon name={getBuildingTypeIcon(building.type)} size={12} />
+                                <Icon
+                                  name={getBuildingTypeIcon(building.type)}
+                                  size={12}
+                                  color={typeColor}
+                                />
                                 <span className="flat-map-building-chip__name">{building.name}</span>
                                 <span
                                   className="flat-map-building-chip__dot"
                                   style={{ backgroundColor: getBuildingStatusColor(building.status) }}
                                 />
                               </button>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -2536,6 +2568,11 @@ export function FlatView({
           onClose={() => setBashModal(null)}
         />
       )}
+      <AgentResponseModalWrapper
+        agent={selectedAgentId ? agents.find((a) => a.id === selectedAgentId) ?? null : null}
+        content={responseModalContent}
+        onClose={() => setResponseModalContent(null)}
+      />
       {clearSubsModal && (
         <ContextConfirmModal
           action="clear-subordinates"

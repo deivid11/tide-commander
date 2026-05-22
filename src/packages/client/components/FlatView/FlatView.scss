@@ -766,6 +766,47 @@ body.flat-splitter-dragging {
   padding-top: 6px;
 }
 
+.flat-map-area-card__folders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px 8px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.05);
+  margin-top: 2px;
+}
+
+.flat-map-folder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  cursor: pointer;
+  color: $text-secondary;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: $text-primary;
+  }
+
+  &__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
 .flat-map-building-chip {
   display: inline-flex;
   align-items: center;
@@ -773,6 +814,7 @@ body.flat-splitter-dragging {
   padding: 3px 7px;
   background: rgba(255, 255, 255, 0.025);
   border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-left: 2px solid var(--building-type-color, rgba(255, 255, 255, 0.08));
   border-radius: 8px;
   cursor: pointer;
   color: $text-secondary;
@@ -786,6 +828,7 @@ body.flat-splitter-dragging {
   &:hover {
     background: rgba(255, 255, 255, 0.07);
     border-color: rgba(255, 255, 255, 0.18);
+    border-left-color: var(--building-type-color, rgba(255, 255, 255, 0.18));
     color: $text-primary;
   }
 
@@ -1975,7 +2018,8 @@ body.flat-splitter-dragging {
   // Collapsed: just the header tile is visible.
   .flat-map-area-card--collapsed {
     .flat-map-area-card__agents,
-    .flat-map-area-card__buildings {
+    .flat-map-area-card__buildings,
+    .flat-map-area-card__folders {
       display: none;
     }
   }
