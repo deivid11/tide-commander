@@ -333,6 +333,7 @@
     "copyRichText": "Rich Text kopieren",
     "copyRichTextTitle": "Als Rich Text kopieren (zum Einfügen in Word, Docs usw.)",
     "copyHtml": "HTML kopieren",
+    "openInFileExplorer": "Im Dateimanager öffnen",
     "copyHtmlTitle": "Als HTML-Tags kopieren (für Google Docs, HTML-Editoren)",
     "copyMarkdown": "Markdown kopieren",
     "copyMarkdownTitle": "Als Markdown-Quelltext kopieren",
@@ -900,6 +901,7 @@
     "errorCopy": "Fehler",
     "copyRichText": "Rich Text kopieren",
     "copyHtml": "HTML kopieren",
+    "openInFileExplorer": "Im Dateimanager öffnen",
     "originalHead": "Original (HEAD)",
     "modifiedContent": "Geänderter Inhalt",
     "modifiedWorking": "Geändert (Arbeitsverzeichnis)"

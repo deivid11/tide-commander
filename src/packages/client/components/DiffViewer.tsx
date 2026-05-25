@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { highlightCode, ensureLanguageLoaded } from './FileExplorerPanel/syntaxHighlighting';
 import { copyRichContentToClipboard, copyTextToClipboard, inlineStylesForRichCopy } from '../utils/clipboard';
+import { revealInFileExplorer } from '../api/files';
 import { Tooltip } from './shared/Tooltip';
 import { Icon } from './Icon';
 
@@ -11,6 +12,7 @@ interface DiffViewerProps {
   originalContent: string;
   modifiedContent: string;
   filename: string;
+  filePath?: string;
   language: string;
   /** Start in "Modified Only" view mode */
   initialModifiedOnly?: boolean;
@@ -253,7 +255,7 @@ function calculateTargetScroll(
 
 const MARKDOWN_EXTENSIONS = ['.md', '.mdx', '.markdown'];
 
-export function DiffViewer({ originalContent, modifiedContent, filename, language, initialModifiedOnly = false }: DiffViewerProps) {
+export function DiffViewer({ originalContent, modifiedContent, filename, filePath, language, initialModifiedOnly = false }: DiffViewerProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
@@ -265,6 +267,7 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyHtmlStatus, setCopyHtmlStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyMarkdownStatus, setCopyMarkdownStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [revealStatus, setRevealStatus] = useState<'idle' | 'opening' | 'error'>('idle');
   const [viewOnlyModified, setViewOnlyModified] = useState(initialModifiedOnly);
   const [langReady, setLangReady] = useState(0);
 
@@ -338,6 +341,20 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
       setTimeout(() => setCopyMarkdownStatus('idle'), 2000);
     }
   }, [modifiedContent]);
+
+  const handleRevealInFileExplorer = useCallback(async () => {
+    if (!filePath || revealStatus === 'opening') return;
+
+    try {
+      setRevealStatus('opening');
+      await revealInFileExplorer(filePath);
+      setRevealStatus('idle');
+    } catch (err) {
+      console.error('Open in file explorer failed:', err);
+      setRevealStatus('error');
+      setTimeout(() => setRevealStatus('idle'), 2000);
+    }
+  }, [filePath, revealStatus]);
 
   const { leftLines, rightLines, alignments, changeBlocks } = useMemo(
     () => computeDiff(originalContent, modifiedContent, language),
@@ -540,6 +557,7 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
   const [currentHunkIndex, setCurrentHunkIndex] = useState(0);
 
   const LINE_HEIGHT = 20; // Must match CSS
+  const openExplorerLabel = t('terminal:diffViewer.openInFileExplorer');
 
   // Intelligent scroll synchronization
   const handleScroll = useCallback((source: 'left' | 'right') => {
@@ -681,6 +699,17 @@ export function DiffViewer({ originalContent, modifiedContent, filename, languag
           {stats.removed > 0 && <span className="diff-stat removed">-{stats.removed}</span>}
         </div>
         <div className="diff-viewer-actions">
+          <Tooltip content={openExplorerLabel} position="bottom">
+            <button
+              className={`diff-copy-btn ${revealStatus === 'error' ? 'error' : ''}`}
+              onClick={handleRevealInFileExplorer}
+              disabled={!filePath || revealStatus === 'opening'}
+              title={openExplorerLabel}
+              aria-label={openExplorerLabel}
+            >
+              <Icon name="folder-open" size={12} />
+            </button>
+          </Tooltip>
           {!isNewFile && !isDeletedFile && (
             <Tooltip content={viewOnlyModified ? 'Show diff view' : 'View only modified'} position="bottom">
               <button

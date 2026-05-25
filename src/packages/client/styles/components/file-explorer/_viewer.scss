@@ -378,7 +378,8 @@
   }
 }
 
-.file-viewer-open-editor-btn {
+.file-viewer-open-editor-btn,
+.file-viewer-reveal-explorer-btn {
   background: transparent;
   border: 1px solid $border-color;
   color: $text-muted;

@@ -333,6 +333,7 @@
     "copyRichText": "复制富文本",
     "copyRichTextTitle": "复制为富文本（粘贴到 Word、Docs 等）",
     "copyHtml": "复制 HTML",
+    "openInFileExplorer": "在文件管理器中打开",
     "copyHtmlTitle": "复制为 HTML 标签（用于 Google Docs、HTML 编辑器）",
     "copyMarkdown": "复制 Markdown",
     "copyMarkdownTitle": "复制为 Markdown 源码",
@@ -900,6 +901,7 @@
     "errorCopy": "错误",
     "copyRichText": "复制富文本",
     "copyHtml": "复制 HTML",
+    "openInFileExplorer": "在文件管理器中打开",
     "originalHead": "原始 (HEAD)",
     "modifiedContent": "修改后的内容",
     "modifiedWorking": "修改后 (工作区)"

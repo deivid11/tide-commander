@@ -469,11 +469,21 @@ export function FileExplorerPanel({
   // Listen for fileViewerPath from store
   useEffect(() => {
     if (state.fileViewerPath && isOpen) {
-      loadFile(state.fileViewerPath);
-      setSelectedPath(state.fileViewerPath);
+      const path = state.fileViewerPath;
+
+      if (state.fileViewerRevealInTree) {
+        const filename = path.split('/').pop() || path;
+        const extension = path.substring(path.lastIndexOf('.')).toLowerCase();
+        // Open as a tab AND reveal in tree (expand ancestors, select, scroll).
+        openFileInTab(path, filename, extension);
+        void handleRevealInTree(path);
+      } else {
+        loadFile(path);
+        setSelectedPath(path);
+      }
       store.clearFileViewerPath();
     }
-  }, [state.fileViewerPath, isOpen, loadFile]);
+  }, [state.fileViewerPath, state.fileViewerRevealInTree, isOpen, loadFile]);
 
   // Auto-select git tab if there are changes (only if storage restore didn't load a saved view mode)
   useEffect(() => {
@@ -1922,6 +1932,7 @@ export function FileExplorerPanel({
                 originalContent={commitDiff.beforeContent}
                 modifiedContent={commitDiff.afterContent}
                 filename={commitDiff.filename}
+                filePath={commitDiff.filePath}
                 language={EXTENSION_TO_LANGUAGE[commitDiff.extension] || 'plaintext'}
               />
             </>
@@ -1944,6 +1955,7 @@ export function FileExplorerPanel({
                   originalContent={originalContent}
                   modifiedContent={selectedFile.content}
                   filename={selectedFile.filename}
+                  filePath={selectedFile.path}
                   language={EXTENSION_TO_LANGUAGE[selectedFile.extension] || 'plaintext'}
                 />
               ) : (

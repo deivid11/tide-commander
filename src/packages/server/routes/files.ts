@@ -6,8 +6,9 @@
 import { Router, Request, Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync, spawn } from 'child_process';
+import { execFile, execSync, spawn } from 'child_process';
 import * as os from 'os';
+import { pathToFileURL } from 'url';
 import { logger } from '../utils/logger.js';
 import { loadAreas } from '../data/index.js';
 
@@ -72,6 +73,92 @@ export function resolveAndValidateFilePath(
     };
   }
   return { ok: true, path: path.resolve(effectiveBase, rawPath) };
+}
+
+function isPathInsideRoot(targetPath: string, rootPath: string): boolean {
+  const relativePath = path.relative(rootPath, targetPath);
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+}
+
+function validateRevealPath(rawPath: unknown): { ok: true; path: string } | { ok: false; status: number; error: string } {
+  if (typeof rawPath !== 'string' || rawPath.trim() === '') {
+    return { ok: false, status: 400, error: 'Missing path parameter' };
+  }
+
+  if (!path.isAbsolute(rawPath)) {
+    return { ok: false, status: 400, error: 'Path must be absolute' };
+  }
+
+  let realPath: string;
+  try {
+    realPath = fs.realpathSync(rawPath);
+  } catch {
+    return { ok: false, status: 404, error: 'File not found' };
+  }
+
+  const allowedRoots = [process.cwd(), os.homedir()]
+    .filter(Boolean)
+    .map(rootPath => {
+      try {
+        return fs.realpathSync(rootPath);
+      } catch {
+        return path.resolve(rootPath);
+      }
+    });
+
+  if (!allowedRoots.some(rootPath => isPathInsideRoot(realPath, rootPath))) {
+    return { ok: false, status: 400, error: 'Path is outside allowed roots' };
+  }
+
+  return { ok: true, path: realPath };
+}
+
+function execFileAsync(command: string, args: string[], timeout: number = 5000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, { timeout, windowsHide: true }, (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+async function revealPathInFileExplorer(filePath: string): Promise<string> {
+  if (process.platform === 'darwin') {
+    await execFileAsync('open', ['-R', filePath]);
+    return 'open -R';
+  }
+
+  if (process.platform === 'win32') {
+    await execFileAsync('explorer.exe', [`/select,${filePath}`]);
+    return 'explorer.exe /select';
+  }
+
+  if (process.platform === 'linux') {
+    const fileUri = pathToFileURL(filePath).toString();
+    try {
+      await execFileAsync('dbus-send', [
+        '--session',
+        '--dest=org.freedesktop.FileManager1',
+        '--type=method_call',
+        '/org/freedesktop/FileManager1',
+        'org.freedesktop.FileManager1.ShowItems',
+        `array:string:${fileUri}`,
+        'string:',
+      ], 3000);
+      return 'org.freedesktop.FileManager1.ShowItems';
+    } catch (err) {
+      log.warn(' FileManager1 reveal failed, falling back to xdg-open:', err);
+      const stat = fs.statSync(filePath);
+      const directoryPath = stat.isDirectory() ? filePath : path.dirname(filePath);
+      await execFileAsync('xdg-open', [directoryPath]);
+      return 'xdg-open';
+    }
+  }
+
+  throw new Error(`Unsupported platform: ${process.platform}`);
 }
 
 // Cache of (requested path → resolved absolute path) for successful fallback
@@ -2650,6 +2737,28 @@ router.post('/open-in-editor', async (req: Request, res: Response) => {
   } catch (err: any) {
     log.error(' Failed to open in editor:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/files/reveal - Reveal a file in the system file explorer
+router.post('/reveal', async (req: Request, res: Response) => {
+  try {
+    const validation = validateRevealPath((req.body as { path?: unknown })?.path);
+    if (!validation.ok) {
+      res.status(validation.status).json({ error: validation.error });
+      return;
+    }
+
+    const method = await revealPathInFileExplorer(validation.path);
+    res.json({ success: true, method });
+  } catch (err: any) {
+    log.error(' Failed to reveal file in explorer:', err);
+    const message = err?.message || 'Failed to reveal file in explorer';
+    if (message.startsWith('Unsupported platform:')) {
+      res.status(500).json({ error: message });
+      return;
+    }
+    res.status(500).json({ error: message });
   }
 });
 

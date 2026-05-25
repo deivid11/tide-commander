@@ -172,6 +172,7 @@ export function GitFileHistoryModal({ isOpen, onClose, filePath, cwd }: GitFileH
         originalContent={diff.originalContent}
         modifiedContent={diff.modifiedContent}
         filename={diff.filename || filename}
+        filePath={filePath}
         language={diff.language}
       />
     );

@@ -359,6 +359,7 @@
     "copyHtml": "Copy HTML",
     "copyHtmlTitle": "Copy as HTML tags (for Google Docs, HTML editors)",
     "copyMarkdown": "Copy Markdown",
+    "openInFileExplorer": "Open in file explorer",
     "copyMarkdownTitle": "Copy as markdown source",
     "copyOriginal": "Copy Original",
     "copyOriginalTitle": "Copy original file content",
@@ -974,6 +975,7 @@
     "copyRichText": "Copy Rich Text",
     "copyHtml": "Copy HTML",
     "copyMarkdown": "Copy Markdown",
+    "openInFileExplorer": "Open in file explorer",
     "originalHead": "Original (HEAD)",
     "modifiedContent": "Modified Content",
     "modifiedWorking": "Modified (Working)"

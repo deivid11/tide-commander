@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.104.0] - 2026-05-25
+
+### Added
+- **"Open in file explorer" (reveal in OS file manager)** — file and diff viewers can now reveal a file in the host OS file manager. New client API `client/api/files.ts` (`revealInFileExplorer(path)`) calls a new `POST /api/files/reveal` endpoint in `routes/files.ts` (+111 lines) that opens the platform file manager at the target path. Wired into `FileViewer`, `FileViewerModal`, `DiffViewer`, `GitFileHistoryModal`, and `GuakeGitPanel`, with supporting store + `_file-viewer.scss` / `_diff-viewer.scss` / `_viewer.scss` changes. Adds an `openInFileExplorer` string across all 10 locale `terminal.json` files.
+- **Codex `thread.started` → `init` event** — the Codex JSON event parser now emits an `init` event (carrying `sessionId` from `thread_id` and `model`) when a Codex thread starts, instead of swallowing the envelope. The parser also now reads `thread_id` and `model` off the event envelope. Improves Codex session/model tracking parity with the Claude backend.
+
+### Fixed
+- **Codex live output hidden after a notification curl** — the notification-curl suppression gate in `RunnerStdoutPipeline` is now scoped to the `opencode` backend only. Codex shares the same runner but starts a fresh process per turn, so applying the gate there could hide subsequent live output until a history refresh.
+
 ## [1.103.1] - 2026-05-22
 
 ### Fixed

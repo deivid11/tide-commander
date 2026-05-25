@@ -4,9 +4,9 @@ import { RunnerInternalEventBus } from './internal-events.js';
 import { RunnerStdoutPipeline } from './stdout-pipeline.js';
 
 describe('RunnerStdoutPipeline', () => {
-  function createPipeline() {
+  function createPipeline(backendName = 'test-backend') {
     const backend: CLIBackend = {
-      name: 'test-backend',
+      name: backendName,
       buildArgs: vi.fn(() => []),
       parseEvent: vi.fn(() => null),
       extractSessionId: vi.fn(() => null),
@@ -95,7 +95,7 @@ describe('RunnerStdoutPipeline', () => {
   });
 
   it('suppresses output-producing events after notification curl', () => {
-    const { callbacks, pipeline } = createPipeline();
+    const { callbacks, pipeline } = createPipeline('opencode');
 
     (pipeline as any).handleEvent('agent-3', {
       type: 'tool_start',
@@ -136,7 +136,7 @@ describe('RunnerStdoutPipeline', () => {
   });
 
   it('allows passthrough events after notification curl and resets on init', () => {
-    const { callbacks, pipeline } = createPipeline();
+    const { callbacks, pipeline } = createPipeline('opencode');
 
     (pipeline as any).handleEvent('agent-4', {
       type: 'tool_start',
@@ -174,5 +174,44 @@ describe('RunnerStdoutPipeline', () => {
     expect(callbacks.onError).toHaveBeenCalledWith('agent-4', 'still surfaced');
     expect(callbacks.onOutput).toHaveBeenCalledWith('agent-4', 'Session started: session-456 (gpt-test)');
     expect(callbacks.onOutput).toHaveBeenCalledWith('agent-4', 'emitted after reset', undefined, undefined, undefined);
+  });
+
+  it('does not apply notification suppression to codex backends', () => {
+    const { callbacks, pipeline } = createPipeline('codex');
+
+    (pipeline as any).handleEvent('agent-5', {
+      type: 'tool_start',
+      toolName: 'Bash',
+      toolInput: { command: 'curl -s http://localhost:5174/api/notify' },
+    } satisfies StandardEvent);
+    (pipeline as any).handleEvent('agent-5', {
+      type: 'text',
+      text: 'future codex output stays live',
+      isStreaming: false,
+    } satisfies StandardEvent);
+    (pipeline as any).handleEvent('agent-5', {
+      type: 'tool_start',
+      toolName: 'Read',
+      toolInput: { file_path: 'src/packages/server/codex/json-event-parser.ts' },
+    } satisfies StandardEvent);
+
+    expect(callbacks.onOutput).toHaveBeenCalledWith(
+      'agent-5',
+      'future codex output stays live',
+      false,
+      undefined,
+      undefined,
+    );
+    expect(callbacks.onOutput).toHaveBeenCalledWith(
+      'agent-5',
+      'Using tool: Read',
+      false,
+      undefined,
+      undefined,
+      {
+        toolName: 'Read',
+        toolInput: { file_path: 'src/packages/server/codex/json-event-parser.ts' },
+      },
+    );
   });
 });

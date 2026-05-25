@@ -121,6 +121,44 @@
   }
 }
 
+.file-viewer-modal .file-viewer-reveal-explorer-btn {
+  background: transparent;
+  border: 1px solid var(--bg-tertiary);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  flex: 0 0 auto;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  &.success {
+    background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+  }
+
+  &.error {
+    background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+  }
+}
+
 .file-viewer-path {
   padding: 8px 16px;
   font-family: $font-mono;
@@ -147,6 +185,7 @@
   overflow: auto;
   min-height: 0;
   scrollbar-width: thin;
+  position: relative;
 
   &::-webkit-scrollbar {
     width: 4px;

@@ -333,6 +333,7 @@
     "copyRichText": "रिच टेक्स्ट कॉपी करें",
     "copyRichTextTitle": "रिच टेक्स्ट के रूप में कॉपी करें (Word, Docs आदि में पेस्ट करें)",
     "copyHtml": "HTML कॉपी करें",
+    "openInFileExplorer": "फ़ाइल एक्सप्लोरर में खोलें",
     "copyHtmlTitle": "HTML टैग के रूप में कॉपी करें (Google Docs, HTML संपादकों के लिए)",
     "copyMarkdown": "Markdown कॉपी करें",
     "copyMarkdownTitle": "Markdown स्रोत के रूप में कॉपी करें",
@@ -900,6 +901,7 @@
     "errorCopy": "त्रुटि",
     "copyRichText": "रिच टेक्स्ट कॉपी करें",
     "copyHtml": "HTML कॉपी करें",
+    "openInFileExplorer": "फ़ाइल एक्सप्लोरर में खोलें",
     "originalHead": "मूल (HEAD)",
     "modifiedContent": "संशोधित सामग्री",
     "modifiedWorking": "संशोधित (Working)"

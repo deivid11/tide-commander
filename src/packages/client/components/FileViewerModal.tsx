@@ -6,10 +6,13 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { DiffViewer } from './DiffViewer';
 import { apiUrl, authFetch, getAuthToken } from '../utils/storage';
 import { copyRichContentToClipboard, copyTextToClipboard, inlineStylesForRichCopy } from '../utils/clipboard';
+import { revealInFileExplorer } from '../api/files';
+import { store } from '../store';
 import { useModalClose } from '../hooks';
 import { parseFilePathReference, resolveAgentFilePath } from '../utils/filePaths';
 import { ModalPortal } from './shared/ModalPortal';
 import { getLanguageForExtension, ensureLanguageLoaded, Prism } from './FileExplorerPanel/syntaxHighlighting';
+import { Icon } from './Icon';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
 
@@ -229,6 +232,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const [copyHtmlStatus, setCopyHtmlStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyMarkdownStatus, setCopyMarkdownStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyOriginalStatus, setCopyOriginalStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [revealStatus, setRevealStatus] = useState<'idle' | 'opening' | 'success' | 'error'>('idle');
   const [fetchedUnifiedDiff, setFetchedUnifiedDiff] = useState<string | null>(null);
   const [fetchedOriginalContent, setFetchedOriginalContent] = useState<string | null>(null);
   const [languageReady, setLanguageReady] = useState(false);
@@ -751,6 +755,35 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     }
   }, [fileData]);
 
+  const handleRevealInFileExplorer = useCallback(async () => {
+    if (!fileData?.path || revealStatus === 'opening') return;
+
+    try {
+      setRevealStatus('opening');
+      await revealInFileExplorer(fileData.path);
+      setRevealStatus('success');
+      setTimeout(() => setRevealStatus('idle'), 2000);
+    } catch (err) {
+      console.error('Open in file explorer failed:', err);
+      setRevealStatus('error');
+      setTimeout(() => setRevealStatus('idle'), 2000);
+    }
+  }, [fileData?.path, revealStatus]);
+
+  const handleOpenInExplorerPanel = useCallback(() => {
+    const path = fileData?.path;
+    if (!path) return;
+
+    // Pick a folder root for the panel: prefer the agent cwd (searchRoot) when
+    // it actually contains the file, else fall back to the file's parent dir.
+    let folderRoot = searchRoot && (path === searchRoot || path.startsWith(`${searchRoot}/`))
+      ? searchRoot
+      : path.substring(0, path.lastIndexOf('/')) || '/';
+
+    store.revealFileInExplorer(path, folderRoot);
+    onClose();
+  }, [fileData?.path, searchRoot, onClose]);
+
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'error'>('idle');
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
@@ -803,6 +836,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const authToken = getAuthToken();
   const imageUrl = isImage ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}${baseDirParam}${authToken ? `&token=${encodeURIComponent(authToken)}` : ''}`) : null;
   const pdfUrl = isPdf ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}${baseDirParam}`) : null;
+  const openInFileExplorerLabel = t('terminal:fileExplorer.openInFileExplorer');
 
   if (!isOpen) return null;
 
@@ -839,6 +873,36 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
             )}
           </div>
           <div className="file-viewer-header-buttons">
+            {fileData && (
+              <button
+                type="button"
+                className="file-viewer-reveal-explorer-btn"
+                onClick={handleOpenInExplorerPanel}
+                disabled={!fileData.path}
+                title={t('terminal:fileExplorer.revealInTree')}
+                aria-label={t('terminal:fileExplorer.revealInTree')}
+              >
+                <Icon name="tree" size={14} />
+              </button>
+            )}
+            {fileData && (
+              <button
+                type="button"
+                className={`file-viewer-reveal-explorer-btn ${revealStatus}`}
+                onClick={handleRevealInFileExplorer}
+                disabled={!fileData.path || revealStatus === 'opening'}
+                title={openInFileExplorerLabel}
+                aria-label={openInFileExplorerLabel}
+              >
+                {revealStatus === 'success' ? (
+                  <Icon name="check" size={14} />
+                ) : revealStatus === 'error' ? (
+                  <Icon name="cross" size={14} />
+                ) : (
+                  <Icon name="folder-open" size={14} />
+                )}
+              </button>
+            )}
             {isMarkdown && fileData && !showDiffView && !showUnifiedDiffView && !showHighlightView && (
               <>
                 <button
@@ -1010,6 +1074,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                 originalContent={effectiveOriginal!}
                 modifiedContent={fileData.content}
                 filename={fileData.filename}
+                filePath={fileData.path || effectivePath}
                 language={language}
               />
             ) : showUnifiedDiffView ? (
