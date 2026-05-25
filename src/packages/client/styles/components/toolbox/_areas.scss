@@ -126,9 +126,12 @@
 }
 
 .color-picker-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 24px);
   gap: 6px;
-  flex-wrap: wrap;
+  max-height: 174px;
+  overflow-y: auto;
+  padding: 2px;
 }
 
 .color-swatch {
@@ -136,11 +139,18 @@
   height: 24px;
   border-radius: $radius-sm;
   border: 2px solid transparent;
+  padding: 0;
+  appearance: none;
   cursor: pointer;
   transition: all $transition-fast;
 
   &:hover {
     transform: scale(1.1);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent-blue;
+    outline-offset: 2px;
   }
 
   &.selected {

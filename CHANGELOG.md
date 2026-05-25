@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.105.0] - 2026-05-25
+
+### Added
+- **Expanded area color palette** — `AREA_COLORS` gains ~52 new options (mid-tone reds, oranges, yellows, greens, teals, blues, purples, pinks, plus muted neutrals like slate, steel, ochre, and stone), giving areas far more distinct color choices in the editor.
+- **Random boss class** — `BossSpawnModal` now honors the global `DEFAULT_AGENT_CLASS = 'random'` preference: when set, a freshly opened boss-spawn modal picks a random visual class (excluding `boss` so it actually varies). The boss role itself stays guaranteed server-side via the `isBoss` flag + boss-instructions skill, so only the visual/behavioral class is randomized.
+
+### Changed
+- **Accessible area color swatches** — `AreaEditor` color swatches are now real `<button>` elements with `aria-label`, `aria-pressed`, and a `title` tooltip instead of plain `<div>`s, so the color picker is keyboard- and screen-reader-navigable. Supporting `_areas.scss` tweaks included.
+
 ## [1.104.0] - 2026-05-25
 
 ### Added
