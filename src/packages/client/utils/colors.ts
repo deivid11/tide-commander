@@ -96,6 +96,70 @@ export const AREA_COLORS: string[] = [
   '#6e1a33', // dark rose
   '#14566e', // dark aqua
   '#4f5e1a', // dark lime/olive
+
+  // Mid-tone reds and oranges
+  '#f87171', // salmon
+  '#ef4444', // ruby
+  '#dc2626', // crimson
+  '#b91c1c', // garnet
+  '#fb923c', // tangerine
+  '#f97316', // pumpkin
+  '#ea580c', // burnt orange
+  '#c2410c', // rust
+
+  // Mid-tone yellows and greens
+  '#fbbf24', // amber
+  '#f59e0b', // goldenrod
+  '#eab308', // sunflower
+  '#ca8a04', // mustard
+  '#84cc16', // chartreuse
+  '#65a30d', // leaf
+  '#22c55e', // grass
+  '#16a34a', // forest
+
+  // Mid-tone teals and blues
+  '#10b981', // emerald
+  '#059669', // jade
+  '#14b8a6', // teal
+  '#0d9488', // deep teal
+  '#06b6d4', // cyan
+  '#0891b2', // ocean
+  '#38bdf8', // azure
+  '#0284c7', // cerulean
+  '#3b82f6', // royal blue
+  '#2563eb', // cobalt
+  '#6366f1', // indigo
+  '#4f46e5', // iris
+
+  // Mid-tone purples and pinks
+  '#8b5cf6', // amethyst
+  '#7c3aed', // violet
+  '#a855f7', // purple
+  '#9333ea', // grape
+  '#d946ef', // fuchsia
+  '#c026d3', // orchid
+  '#ec4899', // magenta
+  '#db2777', // raspberry
+  '#f43f5e', // rose
+  '#e11d48', // deep rose
+
+  // Neutrals and muted accents
+  '#94a3b8', // slate
+  '#64748b', // steel
+  '#475569', // blue gray
+  '#334155', // charcoal blue
+  '#a3a3a3', // neutral gray
+  '#737373', // graphite
+  '#525252', // dark graphite
+  '#404040', // charcoal
+  '#a16207', // ochre
+  '#854d0e', // umber
+  '#78716c', // stone
+  '#57534e', // dark stone
+  '#0f766e', // pine teal
+  '#155e75', // deep cyan
+  '#1d4ed8', // deep blue
+  '#6d28d9', // deep violet
 ];
 
 /**

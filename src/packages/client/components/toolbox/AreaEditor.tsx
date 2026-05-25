@@ -184,11 +184,15 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
         <div className="area-editor-label">{t('config:areas.color')}</div>
         <div className="color-picker-row">
           {AREA_COLORS.map((color) => (
-            <div
+            <button
+              type="button"
               key={color}
               className={`color-swatch ${area.color === color ? 'selected' : ''}`}
               style={{ backgroundColor: color }}
               onClick={() => handleColorSelect(color)}
+              aria-label={`Set area color ${color}`}
+              aria-pressed={area.color === color}
+              title={color}
             />
           ))}
         </div>

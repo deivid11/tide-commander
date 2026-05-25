@@ -94,19 +94,35 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
   // Default skill slugs that should be pre-selected for new boss agents
   const DEFAULT_SKILL_SLUGS = ['full-notifications', 'streaming-exec', 'task-label', 'report-task-to-boss', 'send-message-to-agent'];
 
-  // Initialize default skills once per open event
+  // Initialize default skills and (optionally) a random class once per open event
   useEffect(() => {
     const didJustOpen = isOpen && !wasOpenRef.current;
-    if (didJustOpen && availableSkills.length > 0) {
-      const defaultSkillIds = availableSkills
-        .filter(s => DEFAULT_SKILL_SLUGS.includes(s.slug))
-        .map(s => s.id);
-      if (defaultSkillIds.length > 0) {
-        setSelectedSkillIds(new Set(defaultSkillIds));
+    if (didJustOpen) {
+      if (availableSkills.length > 0) {
+        const defaultSkillIds = availableSkills
+          .filter(s => DEFAULT_SKILL_SLUGS.includes(s.slug))
+          .map(s => s.id);
+        if (defaultSkillIds.length > 0) {
+          setSelectedSkillIds(new Set(defaultSkillIds));
+        }
+      }
+
+      // Honor the "random class" default-class preference for bosses too.
+      // The boss ROLE is guaranteed server-side via the isBoss flag + the
+      // always-added boss-instructions skill (see spawn_boss_agent handler),
+      // so only the visual/behavioral class is randomized here. 'boss' is
+      // excluded from the pool so the class actually varies from the default.
+      const defaultClassPref = getStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS);
+      if (defaultClassPref === 'random') {
+        const builtInIds = (Object.keys(AGENT_CLASSES) as AgentClass[]).filter(id => id !== 'boss');
+        const allClassIds: AgentClass[] = [...builtInIds, ...customClasses.map(c => c.id)];
+        if (allClassIds.length > 0) {
+          setSelectedClass(allClassIds[Math.floor(Math.random() * allClassIds.length)]);
+        }
       }
     }
     wasOpenRef.current = isOpen;
-  }, [isOpen, availableSkills]);
+  }, [isOpen, availableSkills, customClasses]);
 
   // Toggle skill selection
   const toggleSkill = useCallback((skillId: string) => {
