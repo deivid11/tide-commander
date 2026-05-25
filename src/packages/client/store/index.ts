@@ -229,6 +229,7 @@ class Store
       shortcuts: this.loadShortcuts(),
       mouseControls: this.loadMouseControls(),
       fileViewerPath: null,
+      fileViewerRevealInTree: false,
       fileViewerSearchRoot: null,
       fileViewerEditData: null,
       explorerFolderPath: null,
@@ -692,6 +693,19 @@ class Store
     this.state.fileViewerPath = null;
     this.state.fileViewerEditData = null;
     this.state.fileViewerSearchRoot = null;
+    this.state.fileViewerRevealInTree = false;
+    this.notify();
+  }
+
+  // Open the file-explorer-panel rooted at `folderRoot` and reveal `filePath`
+  // in its tree (expand all ancestors, select, scroll into view).
+  revealFileInExplorer(filePath: string, folderRoot: string): void {
+    this.state.explorerFolderPath = folderRoot;
+    this.state.explorerAreaId = null;
+    this.state.fileViewerPath = filePath;
+    this.state.fileViewerRevealInTree = true;
+    this.state.fileViewerEditData = null;
+    this.state.fileViewerSearchRoot = folderRoot;
     this.notify();
   }
 
@@ -1234,7 +1248,7 @@ declare global {
 }
 
 // Increment this when Store class has breaking changes that require fresh instance
-const STORE_VERSION = 1;
+const STORE_VERSION = 2;
 
 // Singleton store instance - persisted on window for HMR
 function getOrCreateStore(): Store {

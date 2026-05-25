@@ -333,6 +333,7 @@
     "copyRichText": "リッチテキストをコピー",
     "copyRichTextTitle": "リッチテキストとしてコピー (Word、Docsなどに貼り付け)",
     "copyHtml": "HTMLをコピー",
+    "openInFileExplorer": "ファイルエクスプローラーで開く",
     "copyHtmlTitle": "HTMLタグとしてコピー (Google Docs、HTMLエディタ用)",
     "copyMarkdown": "Markdownをコピー",
     "copyMarkdownTitle": "Markdownソースとしてコピー",
@@ -900,6 +901,7 @@
     "errorCopy": "エラー",
     "copyRichText": "リッチテキストをコピー",
     "copyHtml": "HTMLをコピー",
+    "openInFileExplorer": "ファイルエクスプローラーで開く",
     "originalHead": "オリジナル (HEAD)",
     "modifiedContent": "変更後の内容",
     "modifiedWorking": "変更後 (作業中)"

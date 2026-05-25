@@ -333,6 +333,7 @@
     "copyRichText": "Копировать форматированный текст",
     "copyRichTextTitle": "Копировать как форматированный текст (вставить в Word, Docs и т.д.)",
     "copyHtml": "Копировать HTML",
+    "openInFileExplorer": "Открыть в файловом менеджере",
     "copyHtmlTitle": "Копировать как HTML-теги (для Google Docs, HTML-редакторов)",
     "copyMarkdown": "Копировать Markdown",
     "copyMarkdownTitle": "Копировать как исходный Markdown",
@@ -900,6 +901,7 @@
     "errorCopy": "Ошибка",
     "copyRichText": "Копировать форматированный текст",
     "copyHtml": "Копировать HTML",
+    "openInFileExplorer": "Открыть в файловом менеджере",
     "originalHead": "Оригинал (HEAD)",
     "modifiedContent": "Изменённое содержимое",
     "modifiedWorking": "Изменённый (рабочий)"

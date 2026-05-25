@@ -333,6 +333,7 @@
     "copyRichText": "Copier le texte enrichi",
     "copyRichTextTitle": "Copier en texte enrichi (coller dans Word, Docs, etc.)",
     "copyHtml": "Copier le HTML",
+    "openInFileExplorer": "Ouvrir dans l'explorateur de fichiers",
     "copyHtmlTitle": "Copier en balises HTML (pour Google Docs, éditeurs HTML)",
     "copyMarkdown": "Copier le Markdown",
     "copyMarkdownTitle": "Copier en source Markdown",
@@ -900,6 +901,7 @@
     "errorCopy": "Erreur",
     "copyRichText": "Copier le texte enrichi",
     "copyHtml": "Copier le HTML",
+    "openInFileExplorer": "Ouvrir dans l'explorateur de fichiers",
     "originalHead": "Original (HEAD)",
     "modifiedContent": "Contenu modifié",
     "modifiedWorking": "Modifié (en cours)"

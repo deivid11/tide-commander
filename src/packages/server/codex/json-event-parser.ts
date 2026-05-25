@@ -58,6 +58,8 @@ interface CodexTokenCountInfo {
 
 interface CodexEventEnvelope {
   type?: string;
+  thread_id?: string;
+  model?: string;
   item?: CodexItem;
   usage?: CodexUsage;
   payload?: CodexResponsePayload;
@@ -202,6 +204,8 @@ function parseEnvelope(value: unknown): CodexEventEnvelope | undefined {
   if (!isObject(value)) return undefined;
   return {
     type: asString(value.type),
+    thread_id: asString(value.thread_id),
+    model: asString(value.model),
     item: parseItem(value.item),
     usage: parseUsage(value.usage),
     payload: parseResponsePayload(value.payload),
@@ -307,8 +311,16 @@ export class CodexJsonEventParser {
       return this.parseTurnCompleted(event.usage);
     }
 
+    if (event.type === 'thread.started') {
+      return [{
+        type: 'init',
+        sessionId: event.thread_id || '',
+        model: event.model || 'codex',
+      }];
+    }
+
     // Informational envelope events that don't need terminal display
-    if (event.type === 'turn.started' || event.type === 'thread.started') {
+    if (event.type === 'turn.started') {
       return [];
     }
 

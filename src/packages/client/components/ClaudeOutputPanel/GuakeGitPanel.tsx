@@ -902,6 +902,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                 originalContent={modalState.data.originalContent}
                 modifiedContent={modalState.data.modifiedContent}
                 filename={modalState.data.fileName}
+                filePath={modalState.data.filePath}
                 language={modalState.data.language}
               />
             ) : (
@@ -909,6 +910,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                 originalContent=""
                 modifiedContent={modalState.data.content}
                 filename={modalState.data.fileName}
+                filePath={modalState.data.filePath}
                 language={modalState.data.language}
                 initialModifiedOnly
               />

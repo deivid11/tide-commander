@@ -119,10 +119,15 @@
   transition: all $transition-fast;
   white-space: nowrap;
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: rgba($dracula-cyan, 0.15);
     border-color: $dracula-cyan;
     color: $dracula-cyan;
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
   }
 
   &.copied {

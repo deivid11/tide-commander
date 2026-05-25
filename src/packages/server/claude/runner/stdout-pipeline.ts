@@ -173,9 +173,11 @@ export class RunnerStdoutPipeline {
         if ((event.toolName === 'Task' || event.toolName === 'Agent') && event.subagentName) {
           this.activeSubagentName.set(agentId, event.subagentName);
         }
-        // Detect notification curl — mark agent so the top-level gate in handleEvent
-        // suppresses all subsequent agentic loop turns (text, tools, status flips).
-        if (event.toolName === 'Bash' && this.isNotificationCurl(event.toolInput)) {
+        // Detect OpenCode notification curl — mark agent so the top-level gate
+        // in handleEvent suppresses subsequent agentic loop turns. Codex uses
+        // this shared runner but starts a fresh process per turn, so applying
+        // this gate there can hide future live output until a history refresh.
+        if (this.backend.name === 'opencode' && event.toolName === 'Bash' && this.isNotificationCurl(event.toolInput)) {
           this.notificationSent.add(agentId);
           log.log(`[tool_start] Notification detected for agent ${agentId.slice(0, 4)} - will suppress subsequent turns`);
         }

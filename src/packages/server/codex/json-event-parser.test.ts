@@ -388,13 +388,18 @@ describe('CodexJsonEventParser', () => {
     expect(events).toHaveLength(0);
   });
 
-  it('silently ignores thread.started', () => {
+  it('maps thread.started to init for runner lifecycle reset', () => {
     const parser = new CodexJsonEventParser();
     const events = parser.parseEvent({
       type: 'thread.started',
       thread_id: '019c9bf5-4abe-7c92-817c-e04d3bc4ca97',
     });
-    expect(events).toHaveLength(0);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: 'init',
+      sessionId: '019c9bf5-4abe-7c92-817c-e04d3bc4ca97',
+      model: 'codex',
+    });
   });
 
   it('silently ignores event_msg.turn_aborted', () => {

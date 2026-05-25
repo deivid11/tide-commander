@@ -187,6 +187,8 @@ export interface StoreState {
   mouseControls: MouseControlsState;
   // File viewer path (to open files from other components)
   fileViewerPath: string | null;
+  // When true, the explorer panel should also reveal/select the path in its tree.
+  fileViewerRevealInTree: boolean;
   // File viewer search root for fallback file resolution (agent cwd)
   fileViewerSearchRoot: string | null;
   // File viewer edit data for diff view (old_string, new_string from Edit tool)

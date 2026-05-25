@@ -16,6 +16,7 @@ import { formatFileSize } from './fileUtils';
 import { highlightElement, getLanguageForExtension, ensureLanguageLoaded } from './syntaxHighlighting';
 import { apiUrl, authFetch } from '../../utils/storage';
 import { copyRichContentToClipboard, copyTextToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
+import { revealInFileExplorer } from '../../api/files';
 import { useStore } from '../../store';
 import { useLessNavigation } from '../../hooks/useLessNavigation';
 import { SearchBar } from './SearchBar';
@@ -112,6 +113,7 @@ function FileViewerHeader({
 }) {
   const { t } = useTranslation(['terminal', 'common']);
   const [openEditorStatus, setOpenEditorStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [revealStatus, setRevealStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const language = file.fileType === 'text' ? getLanguageForExtension(file.extension) : file.extension.slice(1).toUpperCase();
 
   const { settings } = useStore();
@@ -145,6 +147,22 @@ function FileViewerHeader({
     }
   };
 
+  const handleRevealInFileExplorer = async () => {
+    if (!file.path) return;
+
+    try {
+      await revealInFileExplorer(file.path);
+      setRevealStatus('success');
+      setTimeout(() => setRevealStatus('idle'), 2000);
+    } catch (err) {
+      console.error('Error opening file explorer:', err);
+      setRevealStatus('error');
+      setTimeout(() => setRevealStatus('idle'), 2000);
+    }
+  };
+
+  const openInFileExplorerLabel = t('terminal:fileExplorer.openInFileExplorer');
+
   return (
     <div className="file-viewer-header">
       <div className="file-viewer-header-left">
@@ -166,6 +184,21 @@ function FileViewerHeader({
             </svg>
           </button>
         )}
+        <button
+          className={`file-viewer-reveal-explorer-btn ${revealStatus}`}
+          onClick={handleRevealInFileExplorer}
+          disabled={!file.path}
+          title={openInFileExplorerLabel}
+          aria-label={openInFileExplorerLabel}
+        >
+          {revealStatus === 'success' ? (
+            <Icon name="check" size={14} />
+          ) : revealStatus === 'error' ? (
+            <Icon name="cross" size={14} />
+          ) : (
+            <Icon name="folder-open" size={14} />
+          )}
+        </button>
         <button
           className={`file-viewer-open-editor-btn ${openEditorStatus}`}
           onClick={handleOpenInEditor}

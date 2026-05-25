@@ -333,6 +333,7 @@
     "copyRichText": "Copiar Texto Formatado",
     "copyRichTextTitle": "Copiar como texto formatado (colar no Word, Docs, etc.)",
     "copyHtml": "Copiar HTML",
+    "openInFileExplorer": "Abrir no explorador de arquivos",
     "copyHtmlTitle": "Copiar como tags HTML (para Google Docs, editores HTML)",
     "copyMarkdown": "Copiar Markdown",
     "copyMarkdownTitle": "Copiar como codigo-fonte markdown",
@@ -900,6 +901,7 @@
     "errorCopy": "Erro",
     "copyRichText": "Copiar Texto Formatado",
     "copyHtml": "Copiar HTML",
+    "openInFileExplorer": "Abrir no explorador de arquivos",
     "originalHead": "Original (HEAD)",
     "modifiedContent": "Conteudo Modificado",
     "modifiedWorking": "Modificado (Working)"
