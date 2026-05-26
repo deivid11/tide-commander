@@ -377,6 +377,14 @@ export class CodexJsonEventParser {
       return [];
     }
 
+    // patch_apply_begin / patch_apply_end: Silent. Each apply_patch is also
+    // emitted as a custom_tool_call (+ custom_tool_call_output) sharing the same
+    // call_id, which already renders the Edit/diff. These progress events would
+    // only duplicate it — or, when unhandled, dump raw JSON via the fallback.
+    if (payloadType === 'patch_apply_begin' || payloadType === 'patch_apply_end') {
+      return [];
+    }
+
     return [this.buildUnknownEventFallback(`Unhandled Codex event_msg type: ${payloadType}`, payload)];
   }
 
@@ -537,7 +545,12 @@ export class CodexJsonEventParser {
     }
 
     if (item.type === 'command_execution') {
-      const toolName = 'Bash';
+      // A command that is purely a file read (e.g. `sed -n '280,520p' file`,
+      // `cat file`, `head -n N file`) renders as a single Read row — with a line
+      // range so the file modal highlights those lines — instead of a redundant
+      // Bash row plus an inferred Read row.
+      const pureRead = this.inferPureReadFromCommand(item.command);
+      const toolName = pureRead ? 'Read' : 'Bash';
       if (item.id) {
         this.activeToolByItemId.set(item.id, toolName);
       }
@@ -545,13 +558,21 @@ export class CodexJsonEventParser {
         {
           type: 'tool_start',
           toolName,
-          toolInput: this.buildCommandExecutionToolInput(item),
+          toolInput: pureRead ?? this.buildCommandExecutionToolInput(item),
         },
       ];
     }
 
     if (item.type === 'collab_tool_call') {
       return this.parseCollabToolStarted(item);
+    }
+
+    // file_change start is in-progress and carries no diff yet. The actual
+    // Edit/Write rows are emitted from item.completed (parseFileChange) once the
+    // change lands. Suppress the start event so it doesn't dump a raw
+    // "[codex-event] Unhandled Codex item.started type: file_change" debug line.
+    if (item.type === 'file_change') {
+      return [];
     }
 
     return [this.buildUnknownEventFallback(`Unhandled Codex item.started type: ${item.type}`, item)];
@@ -570,8 +591,13 @@ export class CodexJsonEventParser {
       return [{ type: 'thinking', text: item.text, isStreaming: false }];
     }
 
-    if (item.type === 'agent_message' && item.text) {
-      const sanitized = sanitizeCodexMessageText(item.text);
+    // Handle agent_message regardless of whether `text` is present. An empty
+    // agent_message (text:"" or missing) must be suppressed — NOT allowed to
+    // fall through to buildUnknownEventFallback, which would dump a raw
+    // "[codex-event] Unhandled Codex item.completed type: agent_message" debug
+    // line into the terminal.
+    if (item.type === 'agent_message') {
+      const sanitized = sanitizeCodexMessageText(item.text ?? '');
       if (sanitized.hadTurnAborted) {
         if (!hasLoggedTurnAbortedLiveWarning) {
           log.warn('Filtered <turn_aborted> markers from Codex agent messages (suppressing repeat logs)');
@@ -580,6 +606,7 @@ export class CodexJsonEventParser {
           log.debug(`Filtered <turn_aborted> marker from Codex agent_message${item.id ? ` (itemId=${item.id})` : ''}`);
         }
       }
+      // Empty message → render nothing (no empty bubble, no raw debug line).
       if (!sanitized.text) return [];
       return [{ type: 'text', text: sanitized.text, isStreaming: false }];
     }
@@ -602,6 +629,17 @@ export class CodexJsonEventParser {
       const toolName = item.id ? (this.activeToolByItemId.get(item.id) ?? 'Bash') : 'Bash';
       if (item.id) {
         this.activeToolByItemId.delete(item.id);
+      }
+      // Pure-read commands were mapped to a Read tool at item.started — emit a
+      // single Read result and skip the inferred-tool/Bash duplication.
+      if (toolName === 'Read') {
+        return [
+          {
+            type: 'tool_result',
+            toolName: 'Read',
+            toolOutput: this.buildCommandExecutionToolOutput(item),
+          },
+        ];
       }
       const inferredToolEvents = this.buildInferredToolEvents(item);
       return [
@@ -856,6 +894,54 @@ export class CodexJsonEventParser {
       return `Command status: ${item.status}`;
     }
     return '';
+  }
+
+  /**
+   * If `command` is a single, side-effect-free file read, return a Read tool
+   * input (file_path plus an optional offset/limit line range) so it renders as
+   * one Read row whose modal highlights the read lines. Returns null for
+   * anything that writes, edits, pipes, or chains commands — those keep the
+   * normal Bash + inferred-tool rendering.
+   */
+  private inferPureReadFromCommand(command?: string): Record<string, unknown> | null {
+    if (!command) return null;
+    const shell = this.extractShellCommand(command).trim();
+    if (!shell) return null;
+    // Reject pipes, chains, redirects, and in-place edits — not a pure read.
+    if (/[;&|]|>>?/.test(shell)) return null;
+    if (/\b(?:sed\s+-i|perl\s+-pi|tee|apply_patch)\b/.test(shell)) return null;
+
+    const toRead = (rawFile: string, offset?: number, limit?: number): Record<string, unknown> | null => {
+      const normalized = this.normalizeCandidatePath(rawFile);
+      if (!normalized) return null;
+      const uiPath = this.normalizePathForUi(normalized) ?? normalized;
+      const input: Record<string, unknown> = { file_path: uiPath };
+      if (offset !== undefined) input.offset = offset;
+      if (limit !== undefined) input.limit = limit;
+      return input;
+    };
+
+    // sed -n '280,520p' FILE → highlight lines 280..520
+    let m = shell.match(/^sed\s+-n\s+['"]?(\d+),(\d+)p['"]?\s+(.+)$/);
+    if (m) {
+      const start = parseInt(m[1], 10);
+      const end = parseInt(m[2], 10);
+      if (end < start) return null;
+      return toRead(m[3].trim(), start, end - start + 1);
+    }
+    // head -n N FILE → first N lines
+    m = shell.match(/^head\s+(?:-n\s*)?(\d+)\s+(\S+)$/);
+    if (m) {
+      return toRead(m[2].trim(), 1, parseInt(m[1], 10));
+    }
+    // cat FILE → whole file (no precise range to highlight).
+    // (tail is intentionally left as Bash: its range is counted from EOF, so we
+    // can't map it to a stable 1-based highlight.)
+    m = shell.match(/^cat\s+(\S+)$/);
+    if (m) {
+      return toRead(m[1].trim());
+    }
+    return null;
   }
 
   private buildInferredToolEvents(item: CodexItem): RuntimeEvent[] {

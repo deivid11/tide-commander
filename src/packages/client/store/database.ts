@@ -41,6 +41,12 @@ export interface DatabaseActions {
 
   // Query execution
   executeQuery(buildingId: string, connectionId: string, database: string, query: string, limit?: number): void;
+  /**
+   * Like executeQuery, but returns a promise that resolves with the QueryResult
+   * (success OR error) once the server replies. Lets callers run statements
+   * strictly sequentially (await one before sending the next).
+   */
+  executeQueryAndWait(buildingId: string, connectionId: string, database: string, query: string, limit?: number): Promise<QueryResult>;
   executeSilentQuery(buildingId: string, connectionId: string, database: string, query: string, requestId?: string): void;
   setSilentQueryResult(buildingId: string, result: { query: string; requestId?: string; success: boolean; affectedRows?: number; error?: string }): void;
   setQueryResult(buildingId: string, result: QueryResult): void;
@@ -68,6 +74,11 @@ export function createDatabaseActions(
   notify: () => void,
   getSendMessage: () => ((msg: ClientMessage) => void) | null
 ): DatabaseActions {
+  // Pending resolvers for awaitable query execution (FIFO per building).
+  // executeQueryAndWait pushes a resolver here; setQueryResult shifts and
+  // resolves the oldest one when a query_result arrives for that building.
+  const pendingQueryResolvers = new Map<string, Array<(result: QueryResult) => void>>();
+
   // Helper to ensure database state exists for a building
   const ensureDatabaseState = (buildingId: string): void => {
     const state = getState();
@@ -217,6 +228,16 @@ export function createDatabaseActions(
       });
     },
 
+    executeQueryAndWait(buildingId: string, connectionId: string, database: string, query: string, limit: number = 1000): Promise<QueryResult> {
+      return new Promise<QueryResult>((resolve) => {
+        const queue = pendingQueryResolvers.get(buildingId) ?? [];
+        queue.push(resolve);
+        pendingQueryResolvers.set(buildingId, queue);
+        // Reuse executeQuery so UI state (executingQuery, result list) updates identically.
+        actions.executeQuery(buildingId, connectionId, database, query, limit);
+      });
+    },
+
     executeSilentQuery(buildingId: string, connectionId: string, database: string, query: string, requestId?: string): void {
       // Execute query without updating UI - no query result shown
       getSendMessage()?.({
@@ -259,6 +280,15 @@ export function createDatabaseActions(
         }
       });
       notify();
+
+      // Resolve the oldest pending executeQueryAndWait caller for this building,
+      // so sequential "run all" can proceed to the next statement.
+      const queue = pendingQueryResolvers.get(buildingId);
+      if (queue && queue.length > 0) {
+        const resolveNext = queue.shift();
+        if (queue.length === 0) pendingQueryResolvers.delete(buildingId);
+        resolveNext?.(result);
+      }
     },
 
     setExecutingQuery(buildingId: string, executing: boolean): void {

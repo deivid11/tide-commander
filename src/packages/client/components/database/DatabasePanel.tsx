@@ -277,17 +277,22 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
         store.executeQuery(building.id, activeConnectionId, activeDatabase, stmt);
       }
     } else {
-      // Run all: split and execute each statement sequentially
+      // Run all: split and execute each statement STRICTLY SEQUENTIALLY.
       const stmts = splitQueries(query);
       if (stmts.length <= 1) {
         store.executeQuery(building.id, activeConnectionId, activeDatabase, query.trim());
       } else {
-        // Execute statements one by one with small delays so each result appears separately
-        stmts.forEach((stmt, i) => {
-          setTimeout(() => {
-            store.executeQuery(building.id, activeConnectionId!, activeDatabase!, stmt.sql);
-          }, i * 150);
-        });
+        // Each statement must fully complete (await its result) before the next
+        // one starts. executeQueryAndWait resolves on success OR error, so a
+        // failing statement surfaces its error in the results panel and the loop
+        // still continues one statement at a time, preserving order.
+        const connectionId = activeConnectionId;
+        const database = activeDatabase;
+        void (async () => {
+          for (const stmt of stmts) {
+            await store.executeQueryAndWait(building.id, connectionId, database, stmt.sql);
+          }
+        })();
       }
     }
   }, [building.id, activeConnectionId, activeDatabase, query, isExecuting]);

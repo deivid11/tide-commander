@@ -228,6 +228,41 @@ describe('CodexJsonEventParser', () => {
     });
   });
 
+  it('renders a sed line-range read as a single Read row with offset/limit (no Bash dup)', () => {
+    const parser = new CodexJsonEventParser();
+    const command = '/usr/bin/zsh -lc "sed -n \'280,520p\' src/main/java/Foo.java"';
+
+    const started = parser.parseEvent({
+      type: 'item.started',
+      item: { id: 'cmd_read', type: 'command_execution', command, status: 'in_progress' },
+    });
+    const completed = parser.parseEvent({
+      type: 'item.completed',
+      item: { id: 'cmd_read', type: 'command_execution', command, aggregated_output: '...lines...', exit_code: 0, status: 'completed' },
+    });
+
+    // Single Read tool_start with a highlight range — not a Bash row.
+    expect(started).toHaveLength(1);
+    expect(started[0]).toMatchObject({
+      type: 'tool_start',
+      toolName: 'Read',
+      toolInput: { file_path: './src/main/java/Foo.java', offset: 280, limit: 241 },
+    });
+    // Single Read result, no inferred-Read duplicate.
+    expect(completed).toHaveLength(1);
+    expect(completed[0]).toMatchObject({ type: 'tool_result', toolName: 'Read' });
+    expect(completed.filter((e) => e.type === 'tool_start')).toHaveLength(0);
+  });
+
+  it('keeps non-read commands (and writes) as Bash', () => {
+    const parser = new CodexJsonEventParser();
+    const started = parser.parseEvent({
+      type: 'item.started',
+      item: { id: 'cmd_rg', type: 'command_execution', command: '/usr/bin/zsh -lc "rg -n foo src"', status: 'in_progress' },
+    });
+    expect(started[0]).toMatchObject({ type: 'tool_start', toolName: 'Bash' });
+  });
+
   it('infers append edit from printf redirect command', () => {
     const parser = new CodexJsonEventParser();
     const events = parser.parseEvent({
@@ -424,6 +459,32 @@ describe('CodexJsonEventParser', () => {
     expect(events).toHaveLength(0);
   });
 
+  it('silently ignores event_msg.patch_apply_end (rendered via custom_tool_call)', () => {
+    const parser = new CodexJsonEventParser();
+    const events = parser.parseEvent({
+      type: 'event_msg',
+      payload: {
+        type: 'patch_apply_end',
+        call_id: 'call_b3UDLWRt0skpb3NWfEsBITDm',
+        stdout: 'Success. Updated the following files:\nM src/Foo.java\n',
+        success: true,
+        changes: { '/repo/src/Foo.java': { type: 'update', unified_diff: '@@ -1 +1 @@\n-a\n+b\n' } },
+        status: 'completed',
+      },
+    });
+    // No "[codex-event] Unhandled Codex event_msg type: patch_apply_end" dump.
+    expect(events).toHaveLength(0);
+  });
+
+  it('silently ignores event_msg.patch_apply_begin', () => {
+    const parser = new CodexJsonEventParser();
+    const events = parser.parseEvent({
+      type: 'event_msg',
+      payload: { type: 'patch_apply_begin', call_id: 'call_b3UDLWRt0skpb3NWfEsBITDm' },
+    });
+    expect(events).toHaveLength(0);
+  });
+
   it('maps response_item.reasoning summary to thinking event', () => {
     const parser = new CodexJsonEventParser();
     const events = parser.parseEvent({
@@ -521,6 +582,35 @@ describe('CodexJsonEventParser', () => {
         status: 'completed',
       },
     });
+    expect(events).toHaveLength(0);
+  });
+
+  it('suppresses empty agent_message instead of dumping a raw debug line', () => {
+    const parser = new CodexJsonEventParser();
+    const events = parser.parseEvent({
+      type: 'item.completed',
+      item: {
+        id: 'item_37',
+        type: 'agent_message',
+        text: '',
+      },
+    });
+    // No "[codex-event] Unhandled Codex item.completed type: agent_message" line.
+    expect(events).toHaveLength(0);
+  });
+
+  it('suppresses in-progress item.started file_change (rendered on completion)', () => {
+    const parser = new CodexJsonEventParser();
+    const events = parser.parseEvent({
+      type: 'item.started',
+      item: {
+        id: 'item_46',
+        type: 'file_change',
+        status: 'in_progress',
+        changes: [{ path: '/repo/src/Foo.java', kind: 'add' }],
+      },
+    });
+    // No "[codex-event] Unhandled Codex item.started type: file_change" line.
     expect(events).toHaveLength(0);
   });
 
