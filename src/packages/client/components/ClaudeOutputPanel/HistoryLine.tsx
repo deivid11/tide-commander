@@ -9,7 +9,7 @@ import remarkGfm from 'remark-gfm';
 import { useHideCost, useSettings, useAgentPrompts } from '../../store';
 import { store } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
-import { filterCostText } from '../../utils/formatting';
+import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
 import { getToolIconName, extractToolKeyParam, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
@@ -139,8 +139,10 @@ export const HistoryLine = memo(function HistoryLine({
 
   // Show all messages including utility slash commands
 
-  // Empty assistant message placeholder
-  if (type === 'assistant' && !content.trim()) {
+  // Empty assistant message placeholder. Also treat empty Codex content
+  // payloads (e.g. [{"type":"output_text","text":""}]) as empty so they render
+  // as a clean placeholder instead of raw JSON.
+  if (type === 'assistant' && (!content.trim() || isEmptyCodexPayloadText(content))) {
     return (
       <div className="output-line output-empty-message">
         {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}

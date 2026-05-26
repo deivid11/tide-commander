@@ -54,22 +54,63 @@ type DelegationPayload = {
   confidence: 'high' | 'medium' | 'low';
 };
 
-function broadcastDelegationError(
+// Shared hint appended to every block parse error so the boss can self-correct.
+const JSON_BLOCK_HINT =
+  'Ensure the block is strictly valid JSON: no trailing commas, no unescaped quotes, no raw garbled/replacement characters, and every \\u escape followed by EXACTLY 4 hex digits.';
+
+function describeParseError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Surface a parse failure for a fenced boss block back to the user/boss terminal
+ * instead of swallowing it silently. `blockType` (e.g. "Delegation", "Spawn",
+ * "Work-plan") becomes the visible "<blockType> parse error" prefix.
+ */
+function broadcastBlockParseError(
   broadcast: BroadcastFn,
   bossId: string,
   bossName: string,
+  blockType: string,
   message: string
 ): void {
   broadcast({
     type: 'output',
     payload: {
       agentId: bossId,
-      text: `Delegation parse error (${bossName}): ${message}`,
+      text: `${blockType} parse error (${bossName}): ${message}`,
       isStreaming: false,
       timestamp: Date.now(),
       isDelegation: true,
     },
   });
+}
+
+function broadcastDelegationError(
+  broadcast: BroadcastFn,
+  bossId: string,
+  bossName: string,
+  message: string
+): void {
+  broadcastBlockParseError(broadcast, bossId, bossName, 'Delegation', message);
+}
+
+/**
+ * Re-parse a fenced block's body to recover the underlying JSON.parse error
+ * message. Returns undefined when the fence is absent or the JSON is actually
+ * valid (i.e. the failure was a validation issue, not a syntax error).
+ */
+function diagnoseFencedJsonError(resultText: string, fence: string): string | undefined {
+  const match = resultText.match(new RegExp('```' + fence + '\\s*([\\s\\S]*?)```'));
+  if (!match) return undefined;
+  const body = match[1].trim();
+  if (!body) return 'block body is empty';
+  try {
+    JSON.parse(body);
+    return undefined;
+  } catch (err) {
+    return describeParseError(err);
+  }
 }
 
 function extractDelegationBlocks(resultText: string): string[] {
@@ -149,13 +190,15 @@ function extractJsonSegments(text: string): string[] {
   return segments;
 }
 
-function parseDelegationBlockToArray(block: string): unknown[] {
+function parseDelegationBlockToArray(block: string): { items: unknown[]; parseError?: string } {
   const direct = block.trim();
-  if (!direct) return [];
+  if (!direct) return { items: [] };
   try {
     const parsed = JSON.parse(direct);
-    return Array.isArray(parsed) ? parsed : [parsed];
-  } catch {
+    return { items: Array.isArray(parsed) ? parsed : [parsed] };
+  } catch (err) {
+    // Keep the original syntax error so we can surface it if nothing parses.
+    const parseError = describeParseError(err);
     const parsedSegments: unknown[] = [];
     for (const segment of extractJsonSegments(block)) {
       try {
@@ -169,7 +212,10 @@ function parseDelegationBlockToArray(block: string): unknown[] {
         // Continue trying subsequent JSON-like segments.
       }
     }
-    return parsedSegments;
+    return {
+      items: parsedSegments,
+      parseError: parsedSegments.length === 0 ? parseError : undefined,
+    };
   }
 }
 
@@ -248,10 +294,13 @@ export function parseBossDelegation(
   let anyParsed = false;
   for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
     const block = blocks[blockIndex];
-    const parsedItems = parseDelegationBlockToArray(block);
+    const { items: parsedItems, parseError } = parseDelegationBlockToArray(block);
 
     if (parsedItems.length === 0) {
-      const message = `block #${blockIndex + 1} has no valid JSON object/array`;
+      const detail = parseError
+        ? `JSON.parse failed: ${parseError}. ${JSON_BLOCK_HINT}`
+        : `no valid JSON object/array found. ${JSON_BLOCK_HINT}`;
+      const message = `block #${blockIndex + 1}: ${detail}`;
       log.error(`Failed to parse delegation JSON from boss ${bossName}: ${message}`);
       broadcastDelegationError(broadcast, agentId, bossName, message);
       continue;
@@ -490,7 +539,9 @@ export async function parseBossSpawn(
       }
     }
   } catch (err) {
-    log.error(` Failed to parse spawn JSON from boss ${bossName}:`, err);
+    const message = `JSON.parse failed: ${describeParseError(err)}. ${JSON_BLOCK_HINT}`;
+    log.error(` Failed to parse spawn JSON from boss ${bossName}: ${message}`);
+    broadcastBlockParseError(broadcast, bossId, bossName, 'Spawn', message);
   }
 }
 
@@ -503,10 +554,23 @@ export function parseBossWorkPlan(
   resultText: string,
   broadcast: BroadcastFn
 ): void {
-  log.log(` Boss ${bossName} checking for work-plan block: ${resultText.includes('```work-plan')}`);
+  const hasWorkPlanFence = resultText.includes('```work-plan');
+  log.log(` Boss ${bossName} checking for work-plan block: ${hasWorkPlanFence}`);
 
   const workPlanDraft = workPlanService.parseWorkPlanBlock(resultText);
-  if (!workPlanDraft) return;
+  if (!workPlanDraft) {
+    // A fence was present but parsing/validation failed — surface it instead of
+    // dropping the work plan silently.
+    if (hasWorkPlanFence) {
+      const parseError = diagnoseFencedJsonError(resultText, 'work-plan');
+      const message = parseError
+        ? `JSON.parse failed: ${parseError}. ${JSON_BLOCK_HINT}`
+        : 'work-plan JSON parsed but is missing required fields (expected "name" and a "phases" array).';
+      log.error(` Failed to parse work-plan from boss ${bossName}: ${message}`);
+      broadcastBlockParseError(broadcast, bossId, bossName, 'Work-plan', message);
+    }
+    return;
+  }
 
   log.log(` Boss ${bossName} work-plan match found! Creating plan: "${workPlanDraft.name}"`);
 

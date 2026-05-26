@@ -5,7 +5,7 @@
 import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHideCost, useSettings, ClaudeOutput, store, useAgentPrompts } from '../../store';
-import { filterCostText } from '../../utils/formatting';
+import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
 import { getToolIconName, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
@@ -1295,6 +1295,13 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         </div>
       );
     }
+  }
+
+  // Defensive net: a Codex assistant message whose body is an empty content
+  // payload (e.g. [{"type":"output_text","text":""}]) should never render as
+  // raw JSON. The server normally strips these, so drop the line entirely.
+  if (isClaudeMessage && !isStreaming && isEmptyCodexPayloadText(text)) {
+    return null;
   }
 
   const outputRoleLabel = isClaudeMessage ? assistantRoleLabel : (isSystemMessage ? t('tools:display.system') : null);

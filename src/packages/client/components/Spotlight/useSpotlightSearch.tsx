@@ -414,9 +414,10 @@ export function useSpotlightSearch({
       return suggested;
     }
 
-    const lowerQuery = query.toLowerCase();
+    const lowerQuery = query.trim().toLowerCase();
 
-    // Search each category
+    // Search each category (retrieval — per-category limits and the building
+    // fuzzy-noise filter are preserved; ranking happens afterwards).
     const matchedAgents = agentFuse.search(query).slice(0, 8);
     const matchedCommands = commandFuse.search(query).slice(0, 3);
     const matchedAreas = areaFuse.search(query).slice(0, 2);
@@ -431,13 +432,55 @@ export function useSpotlightSearch({
       })
       .slice(0, 4);
 
-    // Combine results
-    const finalResults: SearchResult[] = [];
+    // ---- Match-quality ranking ------------------------------------------------
+    // Match QUALITY is the primary sort key; entity-type weight is only a modest
+    // tiebreaker. This lets a strong (exact / prefix / whole-word) match on a
+    // building or db-server outrank a weak fuzzy match on an agent, while agents
+    // still win whenever the query genuinely matches an agent name best.
 
-    const prioritizedAgents: SearchResult[] = [];
-    const remainingAgents: SearchResult[] = [];
+    // Per-entity base weight — agents biased highest. Deliberately small so it
+    // can only break ties WITHIN a match-quality tier, never jump across tiers.
+    const TYPE_WEIGHT: Record<SearchResult['type'], number> = {
+      agent: 5,
+      building: 4,
+      command: 3,
+      area: 2,
+      'modified-file': 1,
+    };
 
-    // Agents - check for matching files and user queries
+    // Tiered match quality (higher = better):
+    //   6 exact title  ·  5 prefix  ·  4 whole-word  ·  3 title substring
+    //   2 other-field substring  ·  1 fuzzy/subsequence only.
+    const matchTier = (item: SearchResult): number => {
+      if (!lowerQuery) return 1;
+      const title = item.title.toLowerCase();
+      if (title === lowerQuery) return 6;
+      if (title.startsWith(lowerQuery)) return 5;
+      if (title.split(/[^a-z0-9]+/i).includes(lowerQuery)) return 4;
+      if (title.includes(lowerQuery)) return 3;
+      const haystack = `${(item.subtitle || '')} ${(item._searchText || '')} ${(item.matchedText || '')}`.toLowerCase();
+      if (haystack.includes(lowerQuery)) return 2;
+      return 1; // matched only by Fuse fuzzy/subsequence, no literal substring
+    };
+
+    // combinedScore = tier*100 (dominant, gaps of 100) + typeWeight*5 (≤25) +
+    // fuse refinement (<4). The weight/refinement terms only reorder items that
+    // already share the same match tier.
+    const scoreOf = (item: SearchResult, fuseScore: number | undefined): number => {
+      const refine = (1 - Math.min(1, fuseScore ?? 1)) * 4; // [0, 4)
+      return matchTier(item) * 100 + (TYPE_WEIGHT[item.type] ?? 0) * 5 + refine;
+    };
+
+    type Scored = { item: SearchResult; score: number };
+    const scoredByCategory = new Map<SearchResult['type'], Scored[]>();
+    const pushScored = (item: SearchResult, fuseScore: number | undefined) => {
+      const arr = scoredByCategory.get(item.type);
+      const entry = { item, score: scoreOf(item, fuseScore) };
+      if (arr) arr.push(entry);
+      else scoredByCategory.set(item.type, [entry]);
+    };
+
+    // Agents - check for matching files and user queries (enrichment preserved)
     for (const r of matchedAgents) {
       const item = { ...r.item };
       // Find files that match the query
@@ -470,54 +513,36 @@ export function useSpotlightSearch({
           }
         }
       }
-      const lowerTitle = item.title.toLowerCase();
-      if (lowerTitle === lowerQuery || lowerTitle.startsWith(lowerQuery)) {
-        prioritizedAgents.push(item);
-      } else {
-        remainingAgents.push(item);
-      }
+      pushScored(item, r.score);
     }
 
-    // Within each group, surface the most recently active agents first.
-    const byRecency = (a: SearchResult, b: SearchResult) => (a.timeAway ?? Number.POSITIVE_INFINITY) - (b.timeAway ?? Number.POSITIVE_INFINITY);
-    prioritizedAgents.sort(byRecency);
-    remainingAgents.sort(byRecency);
+    for (const r of matchedBuildings) pushScored(r.item, r.score);
+    for (const r of matchedCommands) pushScored(r.item, r.score);
+    for (const r of matchedAreas) pushScored(r.item, r.score);
+    for (const r of matchedModifiedFiles) pushScored(r.item, r.score);
 
-    // If agent name is an exact/prefix match, prioritize it ahead of infrastructure hits.
-    for (const item of prioritizedAgents) {
-      finalResults.push(item);
+    // Sort WITHIN each category by combined score; agents break exact ties by
+    // recency (most-recently-active first), matching prior behavior.
+    for (const [type, arr] of scoredByCategory) {
+      arr.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        if (type === 'agent') {
+          return (a.item.timeAway ?? Number.POSITIVE_INFINITY) - (b.item.timeAway ?? Number.POSITIVE_INFINITY);
+        }
+        return 0;
+      });
     }
 
-    // Buildings (servers and bosses)
-    for (const r of matchedBuildings) {
-      finalResults.push(r.item);
-    }
-
-    // Remaining agents
-    for (const item of remainingAgents) {
-      finalResults.push(item);
-    }
-
-    // Commands
-    for (const r of matchedCommands) {
-      finalResults.push(r.item);
-    }
-
-    // Areas
-    for (const r of matchedAreas) {
-      finalResults.push(r.item);
-    }
-
-    // Modified files
-    for (const r of matchedModifiedFiles) {
-      finalResults.push(r.item);
-    }
-
-    // Sort by categoryOrder so the flat array index matches the visual render order.
-    // Stable sort preserves the relative order within each category.
-    const categoryIndex: Record<string, number> = {};
-    categoryOrder.forEach((cat, i) => { categoryIndex[cat] = i; });
-    finalResults.sort((a, b) => (categoryIndex[a.type] ?? 999) - (categoryIndex[b.type] ?? 999));
+    // Order category BLOCKS by their strongest member's score so the category
+    // holding the best match renders first. Each category stays contiguous, so
+    // SpotlightResults still shows exactly one header per category. The flat
+    // index therefore matches the visual render order (needed for keyboard nav).
+    const finalResults: SearchResult[] = [];
+    Array.from(scoredByCategory.values())
+      .sort((a, b) => (b[0]?.score ?? -1) - (a[0]?.score ?? -1))
+      .forEach((arr) => {
+        for (const s of arr) finalResults.push(s.item);
+      });
 
     return finalResults;
   }, [query, agentFuse, commandFuse, areaFuse, modifiedFileFuse, buildingFuse, commands, agentResults, areaResults, buildingResults]);

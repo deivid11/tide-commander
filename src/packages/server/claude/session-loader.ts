@@ -265,8 +265,12 @@ function extractCodexContentSegments(content: unknown): string[] {
   }
 
   const segments: string[] = [];
+  let sawUnrecognizedBlock = false;
   for (const block of content) {
-    if (!isObject(block)) continue;
+    if (!isObject(block)) {
+      sawUnrecognizedBlock = true;
+      continue;
+    }
     const type = block.type;
 
     if (type === 'input_text' || type === 'output_text' || type === 'text') {
@@ -281,10 +285,21 @@ function extractCodexContentSegments(content: unknown): string[] {
       segments.push(normalizeCodexImageReference(block.image_url));
       continue;
     }
+
+    // A block shape we don't know how to render cleanly.
+    sawUnrecognizedBlock = true;
   }
 
   if (segments.length > 0) {
     return segments;
+  }
+
+  // Only fall back to a raw stringified dump when the array contained block
+  // shapes we didn't recognize. An array of recognized-but-empty blocks
+  // (e.g. a Codex agent_message with empty output_text) must resolve to nothing
+  // rather than rendering raw JSON like [{"type":"output_text","text":""}].
+  if (!sawUnrecognizedBlock) {
+    return [];
   }
 
   const fallback = sanitizeCodexMessageText(normalizeTextContent(content));
@@ -305,6 +320,60 @@ interface NormalizedCodexToolCall {
   toolInput: Record<string, unknown>;
 }
 
+/** Unwrap a `/bin/zsh -lc "<cmd>"` wrapper to the inner shell command. */
+function extractCodexShellCommand(command: string): string {
+  const doubleQuoted = command.match(/-lc\s+"([\s\S]*)"$/);
+  if (doubleQuoted) {
+    return doubleQuoted[1]
+      .replace(/\\"/g, '"')
+      .replace(/\\`/g, '`')
+      .replace(/\\\$/g, '$')
+      .replace(/\\\\/g, '\\');
+  }
+  const singleQuoted = command.match(/-lc\s+'([\s\S]*)'$/);
+  if (singleQuoted) return singleQuoted[1];
+  return command;
+}
+
+/**
+ * If a Codex exec_command is a single, side-effect-free file read
+ * (`sed -n 'A,Bp' file`, `cat file`, `head -n N file`),
+ * return a Read tool input (file_path + optional offset/limit line range) so the
+ * reloaded row renders as one Read entry whose modal highlights the read lines —
+ * matching the live parser and avoiding a redundant Bash row. Returns null for
+ * anything that writes, edits, pipes, or chains commands.
+ */
+function inferCodexPureRead(command: string | undefined): Record<string, unknown> | null {
+  if (!command) return null;
+  const shell = extractCodexShellCommand(command).trim();
+  if (!shell) return null;
+  if (/[;&|]|>>?/.test(shell)) return null;
+  if (/\b(?:sed\s+-i|perl\s+-pi|tee|apply_patch)\b/.test(shell)) return null;
+
+  const toRead = (rawFile: string, offset?: number, limit?: number): Record<string, unknown> | null => {
+    const file = rawFile.trim().replace(/^['"]|['"]$/g, '');
+    if (!file || file === '/' || file.startsWith('-')) return null;
+    const input: Record<string, unknown> = { file_path: file };
+    if (offset !== undefined) input.offset = offset;
+    if (limit !== undefined) input.limit = limit;
+    return input;
+  };
+
+  let m = shell.match(/^sed\s+-n\s+['"]?(\d+),(\d+)p['"]?\s+(.+)$/);
+  if (m) {
+    const start = parseInt(m[1], 10);
+    const end = parseInt(m[2], 10);
+    if (end < start) return null;
+    return toRead(m[3], start, end - start + 1);
+  }
+  m = shell.match(/^head\s+(?:-n\s*)?(\d+)\s+(\S+)$/);
+  if (m) return toRead(m[2], 1, parseInt(m[1], 10));
+  // cat FILE → whole file. (tail stays Bash: its range is counted from EOF.)
+  m = shell.match(/^cat\s+(\S+)$/);
+  if (m) return toRead(m[1]);
+  return null;
+}
+
 function normalizeCodexFunctionToolCall(
   rawToolName: string,
   rawToolInput: Record<string, unknown>
@@ -315,6 +384,14 @@ function normalizeCodexFunctionToolCall(
   if (rawToolName === 'exec_command') {
     const cmd = typeof rawToolInput.cmd === 'string' ? rawToolInput.cmd : undefined;
     const command = typeof rawToolInput.command === 'string' ? rawToolInput.command : cmd;
+
+    // Pure file reads render as a single Read row (with a highlighted line
+    // range) rather than a Bash row — matching the live parser.
+    const pureRead = inferCodexPureRead(command);
+    if (pureRead) {
+      return { toolName: 'Read', toolInput: pureRead };
+    }
+
     return {
       toolName: 'Bash',
       toolInput: {
@@ -360,6 +437,50 @@ function normalizeCodexEventFallbackText(eventType: string, payload: unknown): s
   }
 
   return `[codex-event] ${eventType}\n${serialized}`;
+}
+
+/**
+ * A single file changed by a Codex apply_patch, taken from the matching
+ * `event_msg.patch_apply_end` event (which carries a clean unified diff).
+ */
+interface CodexPatchFileChange {
+  path: string;
+  unifiedDiff?: string;
+  kind?: string; // 'add' | 'update' | 'delete'
+}
+
+/**
+ * Pre-scan Codex session entries for `patch_apply_end` events and index their
+ * per-file unified diffs by call_id. `patch_apply_end` arrives AFTER the
+ * matching `apply_patch` custom_tool_call, so we collect it up front and then
+ * attach the real diff to the rendered Edit rows — giving the file-viewer modal
+ * a clean side-by-side / unified diff instead of the raw patch text.
+ */
+function collectCodexPatchApplyDiffs(entries: unknown[]): Map<string, CodexPatchFileChange[]> {
+  const byCallId = new Map<string, CodexPatchFileChange[]>();
+  for (const entry of entries) {
+    if (!isObject(entry) || entry.type !== 'event_msg') continue;
+    const payload = entry.payload;
+    if (!isObject(payload) || payload.type !== 'patch_apply_end') continue;
+    const callId = typeof payload.call_id === 'string' ? payload.call_id : undefined;
+    if (!callId) continue;
+    const changes = payload.changes;
+    if (!isObject(changes)) continue;
+
+    const fileChanges: CodexPatchFileChange[] = [];
+    for (const [filePath, change] of Object.entries(changes)) {
+      if (!isObject(change)) continue;
+      fileChanges.push({
+        path: filePath,
+        unifiedDiff: typeof change.unified_diff === 'string' ? change.unified_diff : undefined,
+        kind: typeof change.type === 'string' ? change.type : undefined,
+      });
+    }
+    if (fileChanges.length > 0) {
+      byCallId.set(callId, fileChanges);
+    }
+  }
+  return byCallId;
 }
 
 function findCodexSessionFile(sessionId: string): string | null {
@@ -998,7 +1119,8 @@ function stripCodexInjectedUserMessage(content: string): string {
 function parseCodexEntryMessages(
   entry: any,
   messages: SessionMessage[],
-  toolUseIdToName: Map<string, string>
+  toolUseIdToName: Map<string, string>,
+  patchDiffsByCallId?: Map<string, CodexPatchFileChange[]>
 ): void {
   if (entry.type === 'event_msg' && isObject(entry.payload)) {
     const payload = entry.payload as Record<string, unknown>;
@@ -1046,6 +1168,14 @@ function parseCodexEntryMessages(
 
     // task_started: Skip. Envelope event with no user-facing content.
     if (payload.type === 'task_started') {
+      return;
+    }
+
+    // patch_apply_begin / patch_apply_end: Skip. Each apply_patch is also stored
+    // as a custom_tool_call (+ custom_tool_call_output) with the same call_id,
+    // which already renders the Edit/diff row. Rendering these too would
+    // duplicate it (or dump raw JSON through the fallback below).
+    if (payload.type === 'patch_apply_begin' || payload.type === 'patch_apply_end') {
       return;
     }
 
@@ -1097,6 +1227,18 @@ function parseCodexEntryMessages(
   if (payloadType === 'function_call') {
     const rawToolName = typeof payload.name === 'string' ? payload.name : 'unknown';
     const toolUseId = typeof payload.call_id === 'string' ? payload.call_id : undefined;
+
+    // write_stdin feeds keystrokes to (or just polls) an interactive exec
+    // session — the call itself is noise (chars is usually empty), producing
+    // rows of bare "write_stdin". Skip the tool_use row, but attribute its
+    // output to Bash so any interactive output still renders as terminal output.
+    if (rawToolName === 'write_stdin') {
+      if (toolUseId) {
+        toolUseIdToName.set(toolUseId, 'Bash');
+      }
+      return;
+    }
+
     const rawToolInput = parseFunctionCallArguments(payload.arguments);
     const { toolName, toolInput } = normalizeCodexFunctionToolCall(rawToolName, rawToolInput);
     if (toolUseId) {
@@ -1171,8 +1313,38 @@ function parseCodexEntryMessages(
 
     // Normalize: apply_patch -> Edit for consistent UI rendering
     const toolName = rawToolName === 'apply_patch' ? 'Edit' : rawToolName;
-    const toolInput: Record<string, unknown> = {};
 
+    // Preferred path: the matching patch_apply_end gave us a clean unified diff
+    // per file. Emit one Edit row per changed file so clicking opens the
+    // file-viewer modal with a real side-by-side / unified diff.
+    const patchFiles = rawToolName === 'apply_patch' && callId
+      ? patchDiffsByCallId?.get(callId)
+      : undefined;
+    if (patchFiles && patchFiles.length > 0) {
+      if (callId) {
+        toolUseIdToName.set(callId, 'Edit');
+      }
+      patchFiles.forEach((file, idx) => {
+        const toolInput: Record<string, unknown> = { file_path: file.path };
+        if (file.unifiedDiff) toolInput.unified_diff = file.unifiedDiff;
+        if (file.kind === 'add') toolInput.operation = 'create';
+        else if (file.kind === 'delete') toolInput.operation = 'delete';
+        messages.push({
+          type: 'tool_use',
+          content: JSON.stringify(toolInput, null, 2),
+          timestamp: entry.timestamp,
+          uuid: `${entry.timestamp}-tool-use-custom-${idx}`,
+          toolName: 'Edit',
+          toolInput,
+          toolUseId: callId,
+        });
+      });
+      return;
+    }
+
+    // Fallback (older sessions without patch_apply_end): keep the raw patch text
+    // so the modal can at least show the change and resolve the file path.
+    const toolInput: Record<string, unknown> = {};
     if (rawToolName === 'apply_patch' && rawInput) {
       // Extract file path from patch for clickable display
       const fileMatch = rawInput.match(/\*\*\* (?:Update|Add|Delete) File: (.+)/);
@@ -1463,17 +1635,31 @@ async function parseSessionMessages(
     crlfDelay: Infinity,
   });
 
-  for await (const line of rl) {
-    if (!line.trim()) continue;
-    try {
-      const entry = JSON.parse(line);
-      if (resolved.provider === 'claude') {
-        parseClaudeEntryMessages(entry, messages, toolUseIdToName);
-      } else {
-        parseCodexEntryMessages(entry, messages, toolUseIdToName);
+  if (resolved.provider === 'claude') {
+    for await (const line of rl) {
+      if (!line.trim()) continue;
+      try {
+        parseClaudeEntryMessages(JSON.parse(line), messages, toolUseIdToName);
+      } catch {
+        // Skip invalid/incomplete lines
       }
-    } catch {
-      // Skip invalid/incomplete lines
+    }
+  } else {
+    // Codex: buffer entries first so we can pre-scan patch_apply_end events
+    // (which arrive AFTER the apply_patch call) and attach their real unified
+    // diffs to the Edit rows for a clean diff modal.
+    const entries: unknown[] = [];
+    for await (const line of rl) {
+      if (!line.trim()) continue;
+      try {
+        entries.push(JSON.parse(line));
+      } catch {
+        // Skip invalid/incomplete lines
+      }
+    }
+    const patchDiffsByCallId = collectCodexPatchApplyDiffs(entries);
+    for (const entry of entries) {
+      parseCodexEntryMessages(entry, messages, toolUseIdToName, patchDiffsByCallId);
     }
   }
 

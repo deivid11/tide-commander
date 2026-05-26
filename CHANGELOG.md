@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.106.0] - 2026-05-26
+
+### Added
+- **Codex pure-read rows on session reload** — when reloading history, a Codex `exec_command` that is a single side-effect-free file read (`sed -n 'A,Bp' file`, `cat file`, `head -n N file`, including `/bin/zsh -lc "…"` wrappers) now renders as one `Read` row with a highlighted line range instead of a redundant `Bash` row, matching the live parser. Anything that writes, edits, pipes, or chains commands stays a `Bash` row.
+- **Spotlight match-quality ranking** — Spotlight results are now ranked by a tiered match quality (exact title → prefix → whole-word → title substring → other-field substring → fuzzy) as the dominant sort key, with a small per-entity-type weight as a tiebreaker. A strong match on a building or db-server can now outrank a weak fuzzy match on an agent, while agents still win when the query genuinely matches an agent name best.
+- **Sequential "Run all" in the database panel** — running multiple SQL statements now awaits each statement's result before sending the next via a new `executeQueryAndWait` store action (resolves on success OR error). Replaces the previous `setTimeout`-staggered fire-and-forget approach, so statements execute in strict order and a failing statement surfaces its error without derailing the rest.
+
+### Changed
+- **Boss strict-JSON block rules** — `boss-instructions` now spells out hard requirements for `delegation` / `work-plan` / `spawn` / `analysis-request` blocks (valid JSON only, no trailing commas/comments/single quotes, no literal U+FFFD, well-formed `\uXXXX` escapes, prefer plain ASCII). `boss-response-handler` surfaces a visible parse-error message naming the problem so the boss can correct and re-send.
+
+### Fixed
+- **Empty Codex message payloads no longer render as raw JSON** — content-block arrays whose text fields are all empty (e.g. `[{"type":"output_text","text":""}]`) now resolve to nothing instead of dumping raw JSON. `session-loader` only falls back to a stringified dump when it sees a genuinely unrecognized block shape, and a defensive client-side `isEmptyCodexPayloadText` net in `formatting.ts` (used by `HistoryLine` / `OutputLine`) catches any that slip through.
+
 ## [1.105.0] - 2026-05-25
 
 ### Added

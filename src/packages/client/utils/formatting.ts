@@ -91,3 +91,40 @@ export function filterCostText(text: string | undefined, hideCost: boolean): str
     .replace(/[^\S\n]+/g, ' ')  // normalize whitespace but preserve newlines
     .trim();
 }
+
+/**
+ * Detects a Codex message body that serialized to a content-block array whose
+ * text fields are all empty (e.g. `[{"type":"output_text","text":""}]`).
+ *
+ * Such payloads occasionally reach the terminal/history when a Codex
+ * agent_message resolves to nothing; they must render as an empty message
+ * (or be dropped), never as raw JSON. This is a defensive client-side net —
+ * the server normally strips these before they reach us.
+ */
+export function isEmptyCodexPayloadText(text: string | undefined): boolean {
+  if (!text) return false;
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('[')) return false;
+  // Cheap pre-check before attempting JSON.parse.
+  if (
+    !trimmed.includes('output_text') &&
+    !trimmed.includes('input_text') &&
+    !trimmed.includes('"text"')
+  ) {
+    return false;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed) || parsed.length === 0) return false;
+    return parsed.every((block) => {
+      if (!block || typeof block !== 'object' || Array.isArray(block)) return false;
+      const type = (block as { type?: unknown }).type;
+      const blockText = (block as { text?: unknown }).text;
+      const isTextBlock = type === 'output_text' || type === 'input_text' || type === 'text';
+      return isTextBlock && (typeof blockText !== 'string' || blockText.trim().length === 0);
+    });
+  } catch {
+    return false;
+  }
+}

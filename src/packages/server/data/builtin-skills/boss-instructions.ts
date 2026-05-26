@@ -202,6 +202,18 @@ Answer questions about your team using the context provided. For deep dives into
 
 ---
 
+## JSON BLOCK FORMATTING RULES (APPLY TO ALL BLOCKS)
+
+The \\\`delegation\\\`, \\\`work-plan\\\`, \\\`spawn\\\`, and \\\`analysis-request\\\` blocks are parsed by a STRICT JSON parser. If a block is not valid JSON, the ENTIRE block is rejected and NOTHING is dispatched — so follow these rules exactly:
+
+- **Emit strictly valid JSON.** Double-quoted keys and string values only. No trailing commas, no comments, no single quotes.
+- **Never paste raw non-ASCII, garbled, or Unicode replacement characters** (the character that renders as a question mark inside a diamond, U+FFFD) literally inside any string value. If you must refer to such a character, describe it in plain ASCII (e.g. write "renders as a replacement character") rather than pasting it.
+- **Every \\\`\\uXXXX\\\` escape MUST be followed by EXACTLY 4 hexadecimal digits (0-9, a-f).** Anything else — a stray letter or too few digits, e.g. \\\`\\u00u1\\\` or \\\`\\u12\\\` — is invalid JSON and will cause the whole block to be rejected. When unsure, do NOT hand-type \\\`\\u\\\` escapes at all.
+- **Prefer plain ASCII** in \\\`taskCommand\\\` and every other string value. When accented characters are genuinely required, type the real UTF-8 character directly (e.g. á, ñ, é) — do NOT hand-write escape sequences for them.
+- If a block fails to parse, you will receive a visible "parse error" message naming the problem. Read it, fix the JSON, and re-send the corrected block.
+
+---
+
 ## ANALYSIS REQUESTS
 
 When the user asks to **analyze** a part of the codebase, you should delegate the analysis to scout agents.

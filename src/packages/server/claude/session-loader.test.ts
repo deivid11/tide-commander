@@ -80,6 +80,94 @@ describe('session-loader codex normalization', () => {
     });
   });
 
+  it('maps a sed line-range exec_command to a Read tool with offset/limit on reload', async () => {
+    const sessionId = 'session-sed-read';
+    const sessionDir = path.join(tempHomeDir, '.codex', 'sessions', '2026', '05', '25');
+    fs.mkdirSync(sessionDir, { recursive: true });
+    const sessionFile = path.join(sessionDir, `run-${sessionId}.jsonl`);
+
+    const entryToolUse = {
+      timestamp: '2026-05-25T00:00:00.000Z',
+      type: 'response_item',
+      payload: {
+        type: 'function_call',
+        name: 'exec_command',
+        call_id: 'call-read',
+        arguments: JSON.stringify({ cmd: "sed -n '280,520p' src/main/java/Foo.java", workdir: '/repo' }),
+      },
+    };
+    const entryToolResult = {
+      timestamp: '2026-05-25T00:00:01.000Z',
+      type: 'response_item',
+      payload: { type: 'function_call_output', call_id: 'call-read', output: '...lines...' },
+    };
+
+    fs.writeFileSync(
+      sessionFile,
+      `${JSON.stringify(entryToolUse)}\n${JSON.stringify(entryToolResult)}\n`,
+      'utf8'
+    );
+
+    const { loadSession } = await import('./session-loader.js');
+    const history = await loadSession('/workspace/project', sessionId, 20, 0);
+
+    expect(history).not.toBeNull();
+    const toolUse = history!.messages.find((m) => m.type === 'tool_use');
+    expect(toolUse).toMatchObject({
+      type: 'tool_use',
+      toolName: 'Read',
+      toolInput: { file_path: 'src/main/java/Foo.java', offset: 280, limit: 241 },
+      toolUseId: 'call-read',
+    });
+    // The result correlates to the Read tool, not Bash.
+    const toolResult = history!.messages.find((m) => m.type === 'tool_result');
+    expect(toolResult).toMatchObject({ type: 'tool_result', toolName: 'Read' });
+  });
+
+  it('suppresses empty write_stdin rows and attributes their output to Bash', async () => {
+    const sessionId = 'session-write-stdin';
+    const sessionDir = path.join(tempHomeDir, '.codex', 'sessions', '2026', '02', '07');
+    fs.mkdirSync(sessionDir, { recursive: true });
+    const sessionFile = path.join(sessionDir, `run-${sessionId}.jsonl`);
+
+    const writeStdinCall = {
+      timestamp: '2026-02-07T00:00:00.000Z',
+      type: 'response_item',
+      payload: {
+        type: 'function_call',
+        name: 'write_stdin',
+        call_id: 'call-stdin-1',
+        arguments: JSON.stringify({ session_id: 32358, chars: '', yield_time_ms: 30000 }),
+      },
+    };
+    const writeStdinOutput = {
+      timestamp: '2026-02-07T00:00:01.000Z',
+      type: 'response_item',
+      payload: {
+        type: 'function_call_output',
+        call_id: 'call-stdin-1',
+        output: 'Process exited with code 0\nOutput:\nbuild ok\n',
+      },
+    };
+
+    fs.writeFileSync(
+      sessionFile,
+      `${JSON.stringify(writeStdinCall)}\n${JSON.stringify(writeStdinOutput)}\n`,
+      'utf8'
+    );
+
+    const { loadSession } = await import('./session-loader.js');
+    const history = await loadSession('/workspace/project', sessionId, 20, 0);
+
+    expect(history).not.toBeNull();
+    // No bare "write_stdin" tool_use row.
+    expect(history!.messages.some((m) => m.type === 'tool_use' && m.toolName === 'write_stdin')).toBe(false);
+    expect(history!.messages.some((m) => m.toolName === 'write_stdin')).toBe(false);
+    // Its output is preserved, attributed to Bash.
+    const toolResult = history!.messages.find((m) => m.type === 'tool_result');
+    expect(toolResult).toMatchObject({ type: 'tool_result', toolName: 'Bash', toolUseId: 'call-stdin-1' });
+  });
+
   it('normalizes codex image user_message content without base64 blobs', async () => {
     const sessionId = 'session-image123';
     const sessionDir = path.join(tempHomeDir, '.codex', 'sessions', '2026', '02', '07');
@@ -222,6 +310,71 @@ describe('session-loader codex normalization', () => {
 
     expect(history).not.toBeNull();
     expect(history?.messages).toHaveLength(0);
+  });
+
+  it('enriches apply_patch Edit rows with the unified diff from patch_apply_end', async () => {
+    const sessionId = 'session-apply-patch';
+    const sessionDir = path.join(tempHomeDir, '.codex', 'sessions', '2026', '05', '25');
+    fs.mkdirSync(sessionDir, { recursive: true });
+    const sessionFile = path.join(sessionDir, `run-${sessionId}.jsonl`);
+
+    const customToolCall = {
+      timestamp: '2026-05-25T00:00:00.000Z',
+      type: 'response_item',
+      payload: {
+        type: 'custom_tool_call',
+        name: 'apply_patch',
+        call_id: 'call-patch-1',
+        input: '*** Begin Patch\n*** Update File: src/Foo.java\n@@\n-old\n+new\n*** End Patch',
+      },
+    };
+    const patchApplyEnd = {
+      timestamp: '2026-05-25T00:00:00.100Z',
+      type: 'event_msg',
+      payload: {
+        type: 'patch_apply_end',
+        call_id: 'call-patch-1',
+        success: true,
+        changes: {
+          '/repo/src/Foo.java': { type: 'update', unified_diff: '@@ -1 +1 @@\n-old\n+new\n' },
+        },
+        status: 'completed',
+      },
+    };
+    const customToolCallOutput = {
+      timestamp: '2026-05-25T00:00:00.200Z',
+      type: 'response_item',
+      payload: {
+        type: 'custom_tool_call_output',
+        call_id: 'call-patch-1',
+        output: '{"output":"Success. Updated the following files:\\nM src/Foo.java\\n"}',
+      },
+    };
+
+    fs.writeFileSync(
+      sessionFile,
+      `${JSON.stringify(customToolCall)}\n${JSON.stringify(patchApplyEnd)}\n${JSON.stringify(customToolCallOutput)}\n`,
+      'utf8'
+    );
+
+    const { loadSession } = await import('./session-loader.js');
+    const history = await loadSession('/workspace/project', sessionId, 20, 0);
+
+    expect(history).not.toBeNull();
+    // One Edit tool_use (enriched with unified_diff) + one tool_result.
+    // The patch_apply_end event itself must NOT produce a standalone message.
+    const toolUses = history!.messages.filter((m) => m.type === 'tool_use');
+    expect(toolUses).toHaveLength(1);
+    expect(toolUses[0]).toMatchObject({
+      toolName: 'Edit',
+      toolInput: {
+        file_path: '/repo/src/Foo.java',
+        unified_diff: '@@ -1 +1 @@\n-old\n+new\n',
+      },
+      toolUseId: 'call-patch-1',
+    });
+    // No raw "[codex-event] ... patch_apply_end" dump anywhere.
+    expect(history!.messages.some((m) => m.content.includes('patch_apply_end'))).toBe(false);
   });
 
   it('keeps unknown codex response_item payloads via fallback assistant message', async () => {
