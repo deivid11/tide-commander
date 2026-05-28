@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.110.1] - 2026-05-28
+
+### Fixed
+- **Per-agent config now persists across restarts** — `StoredAgent` and `toStoredAgents` in `data/index.ts` now serialize the `shortcut` (global keyboard shortcut), `customInstructions` (extra system-prompt instructions), and `memory` (agent's persistent notes) fields. Previously these were held in memory only and lost on server restart.
+
 ## [1.110.0] - 2026-05-28
 
 ### Added
