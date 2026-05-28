@@ -19,18 +19,47 @@ export interface CalendarStatus {
   error?: string;
 }
 
+export interface CalendarEventTime {
+  /** ISO 8601 datetime — present for timed events. */
+  dateTime?: string;
+  /** YYYY-MM-DD — present for all-day events. */
+  date?: string;
+  /** IANA timezone, when Google provides one (e.g. "America/Mexico_City"). */
+  timeZone?: string;
+}
+
 export interface CalendarEvent {
   eventId: string;
   summary: string;
   description?: string;
+  /** Flattened convenience: `start.dateTime || start.date || ''`. */
   startDateTime: string;
+  /** Flattened convenience: `end.dateTime || end.date || ''`. */
   endDateTime: string;
+  /** Raw structured start (with optional timeZone). */
+  start: CalendarEventTime;
+  /** Raw structured end (with optional timeZone). */
+  end: CalendarEventTime;
   attendees: EventAttendee[];
   location?: string;
   htmlLink: string;
   status: string;
   created: string;
   updated: string;
+  /** Calendar this event came from. Useful when listing across multiple calendars. */
+  calendarId: string;
+  /** Human-readable name of the source calendar (e.g. "Personal", "Work"). */
+  calendarSummary?: string;
+  /** Background color of the source calendar (from calendarList), for UI coloring. */
+  calendarBackgroundColor?: string;
+}
+
+export interface CalendarListEntry {
+  id: string;
+  summary: string;
+  primary: boolean;
+  accessRole: string;
+  backgroundColor?: string;
 }
 
 export interface EventAttendee {
@@ -135,7 +164,7 @@ export async function createEvent(params: CreateEventParams): Promise<CalendarEv
     },
   });
 
-  const event = mapGoogleEvent(result.data);
+  const event = mapGoogleEvent(result.data, { calendarId });
 
   // Log to SQLite
   ctx?.eventDb.logCalendarAction({
@@ -178,7 +207,7 @@ export async function updateEvent(
     requestBody,
   });
 
-  const event = mapGoogleEvent(result.data);
+  const event = mapGoogleEvent(result.data, { calendarId });
 
   ctx?.eventDb.logCalendarAction({
     eventId: event.eventId,
@@ -235,33 +264,104 @@ export async function getEvent(
   if (!calendarApi) throw new Error('Google Calendar not configured');
 
   const config = loadConfig();
+  const targetCalendarId = calendarId || config.calendarId || 'primary';
   const result = await calendarApi.events.get({
-    calendarId: calendarId || config.calendarId || 'primary',
+    calendarId: targetCalendarId,
     eventId,
   });
 
-  return mapGoogleEvent(result.data);
+  return mapGoogleEvent(result.data, { calendarId: targetCalendarId });
 }
 
 export async function listEvents(params: {
   timeMin?: string;
   timeMax?: string;
   maxResults?: number;
+  /** Single calendar (retained for backwards compatibility). Ignored when `calendarIds` is set. */
   calendarId?: string;
+  /** Multiple calendars — results are merged and re-sorted by start time. */
+  calendarIds?: string[];
 }): Promise<CalendarEvent[]> {
   if (!calendarApi) throw new Error('Google Calendar not configured');
+  const api = calendarApi;
 
   const config = loadConfig();
-  const result = await calendarApi.events.list({
-    calendarId: params.calendarId || config.calendarId || 'primary',
-    timeMin: params.timeMin,
-    timeMax: params.timeMax,
-    maxResults: params.maxResults || 50,
-    singleEvents: true,
-    orderBy: 'startTime',
-  });
 
-  return (result.data.items || []).map(mapGoogleEvent);
+  // Resolve target calendar list. Multi-calendar takes precedence over single.
+  const targets: string[] = params.calendarIds && params.calendarIds.length > 0
+    ? params.calendarIds
+    : [params.calendarId || config.calendarId || 'primary'];
+
+  // Look up calendar metadata (summary + color) once so each event can report its source.
+  const metadata = await getCalendarMetadata(targets);
+
+  const perCalendarResults = await Promise.all(
+    targets.map(async (calendarId) => {
+      const result = await api.events.list({
+        calendarId,
+        timeMin: params.timeMin,
+        timeMax: params.timeMax,
+        maxResults: params.maxResults || 50,
+        singleEvents: true,
+        orderBy: 'startTime',
+      });
+      const meta = metadata.get(calendarId);
+      return (result.data.items || []).map((item) =>
+        mapGoogleEvent(item, {
+          calendarId,
+          calendarSummary: meta?.summary,
+          calendarBackgroundColor: meta?.backgroundColor,
+        }),
+      );
+    }),
+  );
+
+  const merged = perCalendarResults.flat();
+  merged.sort((a, b) => a.startDateTime.localeCompare(b.startDateTime));
+  return merged;
+}
+
+/**
+ * List calendars visible to the authenticated user, including ones shared from
+ * other Google accounts. Mirrors `calendarList.list` with `minAccessRole: reader`
+ * so we only surface calendars whose events can actually be read.
+ */
+export async function listCalendars(): Promise<CalendarListEntry[]> {
+  if (!calendarApi) throw new Error('Google Calendar not configured');
+
+  const result = await calendarApi.calendarList.list({ minAccessRole: 'reader' });
+  return (result.data.items || []).map((item) => ({
+    id: item.id || '',
+    summary: item.summary || '',
+    primary: Boolean(item.primary),
+    accessRole: item.accessRole || '',
+    backgroundColor: item.backgroundColor || undefined,
+  }));
+}
+
+interface CalendarMeta {
+  summary: string;
+  backgroundColor?: string;
+}
+
+/** Best-effort lookup of summary + color for a set of calendar IDs. Failures fall back to empty. */
+async function getCalendarMetadata(calendarIds: string[]): Promise<Map<string, CalendarMeta>> {
+  const map = new Map<string, CalendarMeta>();
+  if (!calendarApi || calendarIds.length === 0) return map;
+  try {
+    const list = await calendarApi.calendarList.list({ minAccessRole: 'reader' });
+    for (const item of list.data.items || []) {
+      if (item.id) {
+        map.set(item.id, {
+          summary: item.summary || '',
+          backgroundColor: item.backgroundColor || undefined,
+        });
+      }
+    }
+  } catch {
+    // Permission/network failure — leave metadata blank rather than failing the whole listEvents call.
+  }
+  return map;
 }
 
 // ─── Working Days Calculation ───
@@ -368,13 +468,28 @@ export async function handleAuthCallback(code: string): Promise<void> {
   ctx.log.info(`Google Calendar OAuth complete. Calendar initialized.`);
 }
 
-function mapGoogleEvent(data: calendar_v3.Schema$Event): CalendarEvent {
+function mapGoogleEvent(
+  data: calendar_v3.Schema$Event,
+  source?: { calendarId: string; calendarSummary?: string; calendarBackgroundColor?: string },
+): CalendarEvent {
+  const start: CalendarEventTime = {
+    dateTime: data.start?.dateTime || undefined,
+    date: data.start?.date || undefined,
+    timeZone: data.start?.timeZone || undefined,
+  };
+  const end: CalendarEventTime = {
+    dateTime: data.end?.dateTime || undefined,
+    date: data.end?.date || undefined,
+    timeZone: data.end?.timeZone || undefined,
+  };
   return {
     eventId: data.id || '',
     summary: data.summary || '',
     description: data.description || undefined,
-    startDateTime: data.start?.dateTime || data.start?.date || '',
-    endDateTime: data.end?.dateTime || data.end?.date || '',
+    startDateTime: start.dateTime || start.date || '',
+    endDateTime: end.dateTime || end.date || '',
+    start,
+    end,
     attendees: (data.attendees || []).map((a) => ({
       email: a.email || '',
       displayName: a.displayName || undefined,
@@ -385,5 +500,8 @@ function mapGoogleEvent(data: calendar_v3.Schema$Event): CalendarEvent {
     status: data.status || '',
     created: data.created || '',
     updated: data.updated || '',
+    calendarId: source?.calendarId || '',
+    calendarSummary: source?.calendarSummary,
+    calendarBackgroundColor: source?.calendarBackgroundColor,
   };
 }

@@ -53,13 +53,22 @@ export function initSkills(): void {
       // If this builtin skill was previously persisted, restore its assignments
       const storedVersion = storedSkillMap.get(builtinId);
       if (storedVersion && (storedVersion.assignedAgentIds.length > 0 || storedVersion.assignedAgentClasses.length > 0)) {
+        // Drop stale '*' from stored if the source no longer wildcards. Earlier
+        // builds shipped a few builtins with assignedAgentClasses=['*'] which
+        // force-applied them to every agent and made them un-toggleable; once
+        // those source defaults were removed, the persisted '*' kept resurfacing
+        // through the union below.
+        const sanitizedStoredClasses = builtinSkill.assignedAgentClasses.includes('*')
+          ? storedVersion.assignedAgentClasses
+          : storedVersion.assignedAgentClasses.filter(c => c !== '*');
+
         // Merge persisted assignments with fresh builtin definition
         const restoredSkill: Skill = {
           ...builtinSkill,
           assignedAgentIds: storedVersion.assignedAgentIds,
           assignedAgentClasses: Array.from(new Set([
             ...builtinSkill.assignedAgentClasses,
-            ...storedVersion.assignedAgentClasses,
+            ...sanitizedStoredClasses,
           ])),
           enabled: storedVersion.enabled, // Also restore enabled state
         };

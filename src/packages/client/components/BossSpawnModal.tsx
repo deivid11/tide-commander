@@ -92,7 +92,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
   }, [customClasses, selectedClass, skills]);
 
   // Default skill slugs that should be pre-selected for new boss agents
-  const DEFAULT_SKILL_SLUGS = ['full-notifications', 'streaming-exec', 'task-label', 'report-task-to-boss', 'send-message-to-agent'];
+  const DEFAULT_SKILL_SLUGS = ['full-notifications', 'streaming-exec', 'task-label', 'report-task-to-boss', 'agent-tracking', 'agent-memory', 'send-message-to-agent'];
 
   // Initialize default skills and (optionally) a random class once per open event
   useEffect(() => {

@@ -20,7 +20,9 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import * as readline from 'readline';
 import type { Agent } from '../../shared/types.js';
+import { getClaudeProjectDir } from '../data/index.js';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('ClaudeUsage');
@@ -50,12 +52,57 @@ export interface ClaudeUsageSnapshot {
   cliHint: string;
 }
 
+export interface ClaudeTokenTotals {
+  input: number;
+  cacheCreation: number;
+  cacheRead: number;
+  output: number;
+  total: number;
+}
+
+export interface ClaudeUsageByAgentEntry {
+  agentId: string;
+  agentName: string;
+  sessionId: string;
+  model: string | null;
+  cwd: string;
+  requestCount: number;
+  firstTimestamp: string | null;
+  lastTimestamp: string | null;
+  tokens: ClaudeTokenTotals;
+  percent: number;
+}
+
+export interface ClaudeUsageByAgentSummary {
+  provider: 'claude';
+  fetchedAt: number;
+  since: string | null;
+  until: string | null;
+  source: 'claude-jsonl';
+  totalTokens: number;
+  entries: ClaudeUsageByAgentEntry[];
+}
+
 const STATS_CACHE_PATH = path.join(os.homedir(), '.claude', 'stats-cache.json');
 
 interface StatsCacheFile {
   version?: number;
   lastComputedDate?: string;
   dailyActivity?: DailyActivityEntry[];
+}
+
+interface JsonlUsage {
+  input_tokens?: unknown;
+  cache_creation_input_tokens?: unknown;
+  cache_read_input_tokens?: unknown;
+  output_tokens?: unknown;
+}
+
+interface SessionUsageAccumulator {
+  requestIds: Set<string>;
+  firstTimestamp: string | null;
+  lastTimestamp: string | null;
+  tokens: ClaudeTokenTotals;
 }
 
 function readStatsCache(): StatsCacheFile | null {
@@ -67,6 +114,127 @@ function readStatsCache(): StatsCacheFile | null {
     log.warn(`Failed to read stats cache at ${STATS_CACHE_PATH}: ${err}`);
     return null;
   }
+}
+
+function toPositiveInteger(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? Math.round(value)
+    : 0;
+}
+
+function parseBoundary(value: unknown): number | null {
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  const asNumber = Number(value);
+  if (Number.isFinite(asNumber)) return asNumber;
+  const asDate = Date.parse(value);
+  return Number.isFinite(asDate) ? asDate : null;
+}
+
+function normalizeBoundary(value: unknown): string | null {
+  const ms = parseBoundary(value);
+  return ms === null ? null : new Date(ms).toISOString();
+}
+
+function findClaudeSessionFile(agent: Agent): string | null {
+  if (!agent.sessionId) return null;
+
+  const directPath = path.join(getClaudeProjectDir(agent.cwd), `${agent.sessionId}.jsonl`);
+  if (fs.existsSync(directPath)) {
+    return directPath;
+  }
+
+  const projectsDir = path.join(os.homedir(), '.claude', 'projects');
+  try {
+    if (!fs.existsSync(projectsDir)) return null;
+    for (const entry of fs.readdirSync(projectsDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const candidate = path.join(projectsDir, entry.name, `${agent.sessionId}.jsonl`);
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+  } catch (err) {
+    log.warn(`Failed to search Claude session files: ${err}`);
+  }
+
+  return null;
+}
+
+function usageFromJsonLine(line: string): { requestId: string; timestamp: string; usage: JsonlUsage } | null {
+  if (!line.includes('"usage"') || !line.includes('"requestId"')) return null;
+
+  try {
+    const parsed = JSON.parse(line) as Record<string, any>;
+    const requestId = typeof parsed.requestId === 'string' ? parsed.requestId : '';
+    if (!requestId || requestId === '<synthetic>') return null;
+
+    const timestamp = typeof parsed.timestamp === 'string' ? parsed.timestamp : '';
+    if (!timestamp) return null;
+
+    const usage = parsed.message?.usage ?? parsed.usage;
+    if (!usage || typeof usage !== 'object') return null;
+
+    return { requestId, timestamp, usage };
+  } catch {
+    return null;
+  }
+}
+
+function addUsage(acc: SessionUsageAccumulator, requestId: string, timestamp: string, usage: JsonlUsage): void {
+  if (acc.requestIds.has(requestId)) return;
+
+  const input = toPositiveInteger(usage.input_tokens);
+  const cacheCreation = toPositiveInteger(usage.cache_creation_input_tokens);
+  const cacheRead = toPositiveInteger(usage.cache_read_input_tokens);
+  const output = toPositiveInteger(usage.output_tokens);
+  const total = input + cacheCreation + cacheRead + output;
+  if (total <= 0) return;
+
+  acc.requestIds.add(requestId);
+  acc.tokens.input += input;
+  acc.tokens.cacheCreation += cacheCreation;
+  acc.tokens.cacheRead += cacheRead;
+  acc.tokens.output += output;
+  acc.tokens.total += total;
+
+  if (!acc.firstTimestamp || timestamp < acc.firstTimestamp) {
+    acc.firstTimestamp = timestamp;
+  }
+  if (!acc.lastTimestamp || timestamp > acc.lastTimestamp) {
+    acc.lastTimestamp = timestamp;
+  }
+}
+
+async function scanSessionUsage(filePath: string, sinceMs: number | null, untilMs: number | null): Promise<SessionUsageAccumulator> {
+  const acc: SessionUsageAccumulator = {
+    requestIds: new Set(),
+    firstTimestamp: null,
+    lastTimestamp: null,
+    tokens: {
+      input: 0,
+      cacheCreation: 0,
+      cacheRead: 0,
+      output: 0,
+      total: 0,
+    },
+  };
+
+  const stream = fs.createReadStream(filePath, { encoding: 'utf-8' });
+  const lines = readline.createInterface({ input: stream, crlfDelay: Infinity });
+
+  for await (const line of lines) {
+    const parsed = usageFromJsonLine(line);
+    if (!parsed) continue;
+
+    const timestampMs = Date.parse(parsed.timestamp);
+    if (!Number.isFinite(timestampMs)) continue;
+    if (sinceMs !== null && timestampMs < sinceMs) continue;
+    if (untilMs !== null && timestampMs > untilMs) continue;
+
+    addUsage(acc, parsed.requestId, parsed.timestamp, parsed.usage);
+  }
+
+  return acc;
 }
 
 function todayString(): string {
@@ -99,5 +267,59 @@ export function buildClaudeUsageSnapshot(agent: Agent): ClaudeUsageSnapshot {
     recentDays,
     statsCacheLastComputed: cache?.lastComputedDate ?? null,
     cliHint: 'Run /usage inside this agent\'s terminal to see live weekly and session rate-limit gauges (those live in the Claude Code TUI and aren\'t exposed as a non-interactive command).',
+  };
+}
+
+export async function buildClaudeUsageByAgentSummary(
+  agents: Agent[],
+  opts: { since?: unknown; until?: unknown } = {}
+): Promise<ClaudeUsageByAgentSummary> {
+  const sinceMs = parseBoundary(opts.since);
+  const untilMs = parseBoundary(opts.until);
+  const entries: ClaudeUsageByAgentEntry[] = [];
+
+  for (const agent of agents) {
+    if (agent.provider !== 'claude' || !agent.sessionId) continue;
+
+    const sessionFile = findClaudeSessionFile(agent);
+    if (!sessionFile) continue;
+
+    try {
+      const usage = await scanSessionUsage(sessionFile, sinceMs, untilMs);
+      if (usage.tokens.total <= 0) continue;
+
+      entries.push({
+        agentId: agent.id,
+        agentName: agent.name,
+        sessionId: agent.sessionId,
+        model: agent.model ?? null,
+        cwd: agent.cwd,
+        requestCount: usage.requestIds.size,
+        firstTimestamp: usage.firstTimestamp,
+        lastTimestamp: usage.lastTimestamp,
+        tokens: usage.tokens,
+        percent: 0,
+      });
+    } catch (err) {
+      log.warn(`Failed to scan Claude usage for agent ${agent.name} (${agent.id}): ${err}`);
+    }
+  }
+
+  entries.sort((a, b) => b.tokens.total - a.tokens.total);
+  const totalTokens = entries.reduce((sum, entry) => sum + entry.tokens.total, 0);
+  for (const entry of entries) {
+    entry.percent = totalTokens > 0
+      ? Number(((entry.tokens.total / totalTokens) * 100).toFixed(1))
+      : 0;
+  }
+
+  return {
+    provider: 'claude',
+    fetchedAt: Date.now(),
+    since: normalizeBoundary(opts.since),
+    until: normalizeBoundary(opts.until),
+    source: 'claude-jsonl',
+    totalTokens,
+    entries,
   };
 }

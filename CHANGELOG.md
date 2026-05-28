@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.106.3] - 2026-05-28
+
+### Added
+- **Claude Code usage panel** — new `claude-usage-service` reads `~/.claude/stats-cache.json` (the same daily activity file the CLI's interactive `/usage` panel reads) and combines it with Tide's own per-agent session/context tallies, exposed via a new server route and `claude-usage` client API. `TerminalModals` renders an `AgentUsageChartSection` with a pie of token usage by agent over the current local day, plus a `cliHint` pointing at `/usage` in the CLI for live weekly/session rate-limit gauges (those can't be read non-interactively).
+- **Agent info modal styling** — full new SCSS partial `_agent-info-modal.scss` (~200 lines) backing the agent info / usage modal layout.
+- **Google Calendar integration improvements** — additional config + skill + route + client surface area, with a new `calendar-client.test.ts` covering the client behavior.
+
+### Fixed
+- **Built-in skills `agent-memory` / `agent-tracking` / `task-label` are toggleable again** — those three skills previously declared `assignedAgentClasses: ['*']`, which force-applied them to every agent and made them read-only in the agent edit modal (chip badged `all`, no click handler). The wildcard is removed from the three source definitions, and `agent-memory` / `agent-tracking` are added to `SpawnModal` and `BossSpawnModal` `DEFAULT_SKILL_SLUGS` so newly-spawned agents still get them ticked by default — but the user can untick them at spawn time and toggle them off later from the edit modal. `task-label` was already in the spawn defaults; nothing changes for it functionally on new spawns.
+- **Migration strips stale `'*'` from previously-persisted built-in skill assignments** — the `initSkills` merge in `skill-service` was unioning the source `assignedAgentClasses` with the stored set, which meant once `'*'` had been persisted by an earlier build it kept resurfacing on restart even after the source definition no longer included it. The merge now drops `'*'` from the stored set when the current source definition doesn't include it, so existing installations clean themselves up on the next server start.
+
 ## [1.106.2] - 2026-05-28
 
 ### Fixed

@@ -15,14 +15,16 @@ import { getDataDir } from '../../data/index.js';
 
 export interface CalendarConfig {
   enabled: boolean;
-  calendarId: string;           // Default: 'primary'
-  holidays: string[];           // ISO date strings (e.g. "2024-12-25")
-  urgentThreshold: number;      // Working days threshold for isUrgent flag
+  calendarId: string;             // Default: 'primary'
+  additionalCalendarIds: string[]; // Extra calendars listed alongside `calendarId` when no override is passed
+  holidays: string[];              // ISO date strings (e.g. "2024-12-25")
+  urgentThreshold: number;         // Working days threshold for isUrgent flag
 }
 
 const DEFAULT_CONFIG: CalendarConfig = {
   enabled: false,
   calendarId: 'primary',
+  additionalCalendarIds: [],
   holidays: [],
   urgentThreshold: 2,
 };
@@ -129,6 +131,14 @@ export const calendarConfigSchema: ConfigField[] = [
     group: 'Defaults',
   },
   {
+    key: 'additionalCalendarIds',
+    label: 'Additional Calendar IDs',
+    type: 'textarea',
+    description: 'Extra calendar IDs to include when listing events (one per line). Useful for calendars shared from other accounts — paste the calendar address (e.g. user@gmail.com or the long ...@group.calendar.google.com ID). Discover IDs via GET /api/calendar/calendars.',
+    placeholder: 'personal@gmail.com\nteam@group.calendar.google.com',
+    group: 'Defaults',
+  },
+  {
     key: 'holidays',
     label: 'Holidays',
     type: 'textarea',
@@ -153,6 +163,7 @@ export function getConfigValues(secrets: { get: (key: string) => string | undefi
   return {
     enabled: config.enabled,
     calendarId: config.calendarId,
+    additionalCalendarIds: config.additionalCalendarIds.join('\n'),
     holidays: config.holidays.join('\n'),
     urgentThreshold: config.urgentThreshold,
     GOOGLE_CLIENT_ID: secrets.get('GOOGLE_CLIENT_ID') ? '********' : '',
@@ -184,6 +195,19 @@ export async function setConfigValues(
   if (typeof values.enabled === 'boolean') updates.enabled = values.enabled;
   if (typeof values.calendarId === 'string') updates.calendarId = values.calendarId || 'primary';
   if (typeof values.urgentThreshold === 'number') updates.urgentThreshold = values.urgentThreshold;
+
+  // Parse additional calendar IDs textarea (newline-separated; drops blanks)
+  if (typeof values.additionalCalendarIds === 'string') {
+    updates.additionalCalendarIds = values.additionalCalendarIds
+      .split('\n')
+      .map((id: string) => id.trim())
+      .filter((id: string) => id.length > 0);
+  } else if (Array.isArray(values.additionalCalendarIds)) {
+    updates.additionalCalendarIds = (values.additionalCalendarIds as unknown[])
+      .filter((id): id is string => typeof id === 'string')
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
+  }
 
   // Parse holidays textarea (newline-separated ISO dates)
   if (typeof values.holidays === 'string') {

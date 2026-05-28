@@ -54,6 +54,7 @@ export const googleCalendarPlugin: IntegrationPlugin = {
       return {
         enabled: config.enabled,
         calendarId: config.calendarId,
+        additionalCalendarIds: config.additionalCalendarIds.join('\n'),
         holidays: config.holidays.join('\n'),
         urgentThreshold: config.urgentThreshold,
         GOOGLE_CLIENT_ID: '',

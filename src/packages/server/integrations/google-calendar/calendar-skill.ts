@@ -28,7 +28,38 @@ Optional fields: \`location\`, \`calendarId\` (default: primary), \`agentId\` (f
 curl -s "http://localhost:5174/api/calendar/events?timeMin=$(date -u +%Y-%m-%dT%H:%M:%SZ)&maxResults=10"
 \`\`\`
 
-Query params: \`timeMin\`, \`timeMax\` (ISO 8601), \`maxResults\`, \`calendarId\`.
+Query params: \`timeMin\`, \`timeMax\` (ISO 8601), \`maxResults\`, \`calendarId\`, \`calendarIds\`.
+
+### Multi-calendar listing
+
+Pass \`calendarIds\` as a CSV to query several calendars in one shot. Results are
+merged and re-sorted by start time, and each event carries \`calendarId\` plus a
+\`calendarSummary\` so you can tell where it came from.
+
+\`\`\`bash
+curl -s "http://localhost:5174/api/calendar/events?calendarIds=primary,personal@gmail.com&maxResults=20"
+\`\`\`
+
+When neither \`calendarId\` nor \`calendarIds\` is supplied, the route defaults to
+the configured \`calendarId\` plus every entry in \`additionalCalendarIds\` from
+the integration config — so you usually don't need to pass anything to see
+shared calendars (like a "Personal" calendar shared from a Gmail account).
+
+## List Visible Calendars
+
+\`\`\`bash
+curl -s "http://localhost:5174/api/calendar/calendars"
+\`\`\`
+
+Returns calendars the OAuth-connected account can read, including ones shared
+from other Google accounts. Use the \`id\` field as a value for \`calendarId\` /
+\`calendarIds\` or to populate \`additionalCalendarIds\` in the integration config.
+
+Response shape:
+
+\`\`\`json
+{ "calendars": [{ "id": "primary", "summary": "Work", "primary": true, "accessRole": "owner", "backgroundColor": "#9fe1e7" }] }
+\`\`\`
 
 ## Get a Single Event
 
@@ -68,5 +99,6 @@ Optional: \`startDate\` (default: today), \`holidays\` (array of ISO dates to ov
 - Attendees receive Google Calendar invitations automatically.
 - The event link (\`htmlLink\`) in the response can be shared in Slack or email.
 - Auth headers are added automatically by the system.
+- Config field \`additionalCalendarIds\` (newline-separated in the settings UI, array on disk) defines extra calendars that get queried by default when no \`calendarId\`/\`calendarIds\` is provided — handy for shared calendars from other Google accounts.
 `,
 };
