@@ -5,7 +5,7 @@ export const taskLabel: BuiltinSkillDefinition = {
   name: 'Task Label',
   description: 'Generate a brief task label and mark thinking status at the start of every turn',
   allowedTools: ['Bash(curl:*)'],
-  assignedAgentClasses: ['*'],
+  assignedAgentClasses: [],
   content: `# Task Label + Thinking Status (MANDATORY - Execute FIRST)
 
 **IMPORTANT: Every new turn begins with a single PATCH that (a) sets a brief task label and (b) flips your tracking status to \`thinking\`. This makes the UI show a typing indicator while you plan/think before any real work happens.**

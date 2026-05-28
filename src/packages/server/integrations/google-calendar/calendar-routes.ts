@@ -6,6 +6,7 @@
 
 import { Router, Request, Response } from 'express';
 import * as calendarClient from './calendar-client.js';
+import { loadConfig } from './calendar-config.js';
 import { createLogger } from '../../utils/logger.js';
 
 const log = createLogger('CalendarRoutes');
@@ -43,19 +44,52 @@ router.post('/events', async (req: Request, res: Response) => {
 });
 
 // GET /api/calendar/events — List events
+// Resolution order for calendars to query:
+//   1. ?calendarIds=a,b,c  (CSV, explicit override)
+//   2. ?calendarId=a       (single, retained for back-compat)
+//   3. config.calendarId + config.additionalCalendarIds (default fan-out)
 router.get('/events', async (req: Request, res: Response) => {
   try {
+    const calendarIdsParam = req.query.calendarIds as string | undefined;
+    const calendarIdParam = req.query.calendarId as string | undefined;
+
+    let calendarIds: string[] | undefined;
+    if (calendarIdsParam) {
+      calendarIds = calendarIdsParam
+        .split(',')
+        .map((id) => id.trim())
+        .filter((id) => id.length > 0);
+    } else if (!calendarIdParam) {
+      // No explicit caller-supplied calendar → default to config fan-out (primary + additionals).
+      const config = loadConfig();
+      const defaults = [config.calendarId || 'primary', ...config.additionalCalendarIds];
+      // Dedupe while preserving order so the primary stays first.
+      calendarIds = Array.from(new Set(defaults));
+    }
+
     const events = await calendarClient.listEvents({
       timeMin: req.query.timeMin as string | undefined,
       timeMax: req.query.timeMax as string | undefined,
       maxResults: req.query.maxResults ? parseInt(req.query.maxResults as string, 10) : undefined,
-      calendarId: req.query.calendarId as string | undefined,
+      calendarId: calendarIdParam,
+      calendarIds,
     });
 
     res.json({ events });
   } catch (err) {
     log.error(`Calendar list events error: ${err}`);
     res.status(500).json({ error: `Failed to list events: ${err instanceof Error ? err.message : err}` });
+  }
+});
+
+// GET /api/calendar/calendars — List calendars visible to the authenticated user
+router.get('/calendars', async (_req: Request, res: Response) => {
+  try {
+    const calendars = await calendarClient.listCalendars();
+    res.json({ calendars });
+  } catch (err) {
+    log.error(`Calendar list calendars error: ${err}`);
+    res.status(500).json({ error: `Failed to list calendars: ${err instanceof Error ? err.message : err}` });
   }
 });
 

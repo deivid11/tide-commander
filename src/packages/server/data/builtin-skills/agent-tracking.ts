@@ -5,7 +5,7 @@ export const agentTracking: BuiltinSkillDefinition = {
   name: 'Agent Tracking',
   description: 'Let agents keep tracking status updated through work completion',
   allowedTools: ['Bash(curl:*)'],
-  assignedAgentClasses: ['*'],
+  assignedAgentClasses: [],
   content: `# Agent Tracking Status (MANDATORY)
 
 **Every turn MUST end with a tracking-status PATCH curl as your final tool call. No exceptions — not for tiny replies, not for questions, not for refusals. Skipping it leaves the user's board stuck on stale \`thinking\` or \`working\`.**

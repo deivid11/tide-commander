@@ -5,7 +5,7 @@ export const agentMemory: BuiltinSkillDefinition = {
   name: 'Agent Memory',
   description: 'Save important notes, lessons, preferences, and context to your persistent agent memory. Use proactively whenever you learn something worth remembering across conversations.',
   allowedTools: ['Bash(curl:*)'],
-  assignedAgentClasses: ['*'],
+  assignedAgentClasses: [],
   content: `# Agent Memory (Your Own Persistent Notes)
 
 You have a **per-agent persistent memory string** that is automatically injected into your system prompt on every turn under the section \`## Agent Memory (Your Notes To Yourself)\`. It survives across conversations, restarts, and context resets. It is yours — only you (and the user via UI) edit it.

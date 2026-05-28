@@ -9,6 +9,24 @@ import './styles/main.scss';
 // Initialize theme from localStorage before React renders
 initializeTheme();
 
+// Recover from stale Vite chunk references after the server has been rebuilt
+// while this tab was idle. Vite emits `vite:preloadError` when a hashed
+// asset (e.g. a lazy-loaded CSS file) is no longer on disk; without a
+// handler the rejection bubbles into Suspense and crashes the ErrorBoundary.
+// The sessionStorage guard is cleared once App renders successfully, so a
+// future genuine preload error will still trigger one reload.
+const PRELOAD_RELOAD_KEY = 'tide:preload-reloaded';
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault();
+  if (!sessionStorage.getItem(PRELOAD_RELOAD_KEY)) {
+    sessionStorage.setItem(PRELOAD_RELOAD_KEY, String(Date.now()));
+    window.location.reload();
+  }
+});
+window.addEventListener('load', () => {
+  setTimeout(() => sessionStorage.removeItem(PRELOAD_RELOAD_KEY), 5000);
+});
+
 // Prevent horizontal trackpad overscroll from triggering browser back/forward navigation.
 // CSS overscroll-behavior alone is insufficient on some platforms (e.g. Chrome on Linux).
 // Only block horizontal swipes that land on the scene canvas — all other elements

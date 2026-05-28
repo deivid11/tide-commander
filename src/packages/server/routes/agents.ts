@@ -20,7 +20,7 @@ import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js
 import { clearDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
 import { OpencodeBackend } from '../opencode/backend.js';
 import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled } from '../services/system-prompt-service.js';
-import { buildClaudeUsageSnapshot } from '../services/claude-usage-service.js';
+import { buildClaudeUsageByAgentSummary, buildClaudeUsageSnapshot } from '../services/claude-usage-service.js';
 import { getBackupStatus, setBackupEnabled } from '../services/backup-service.js';
 import type { ServerMessage } from '../../shared/types.js';
 
@@ -335,6 +335,25 @@ router.get('/status', async (_req: Request, res: Response) => {
   } catch (err: any) {
     log.error(' Failed to get agent status:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/agents/usage-by-agent - Claude JSONL usage totals grouped by agent
+//
+// This mirrors the incident-analysis accounting: assistant messages are
+// deduped by Claude requestId and total tokens include input, cache creation,
+// cache read, and output tokens.
+router.get('/usage-by-agent', async (req: Request, res: Response) => {
+  try {
+    const agents = agentService.getAllAgents();
+    const summary = await buildClaudeUsageByAgentSummary(agents, {
+      since: req.query.since,
+      until: req.query.until,
+    });
+    res.json(summary);
+  } catch (err: any) {
+    log.error(' Failed to build usage-by-agent summary:', err);
+    res.status(500).json({ error: err?.message ?? 'Failed to build usage summary' });
   }
 });
 
