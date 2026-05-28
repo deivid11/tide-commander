@@ -84,6 +84,37 @@ function writeManifest(m: ManifestFile): void {
   cached = m;
 }
 
+// ─── Change events ───
+//
+// Consumers (e.g. the trigger handler) need to know when an instance is added
+// or removed so they can attach/detach per-instance listeners without waiting
+// for an integration restart. Kept intentionally tiny — a Set of callbacks
+// instead of pulling in Node's EventEmitter.
+
+export type SlackInstanceChange =
+  | { type: 'added'; id: string; meta: SlackInstanceMeta }
+  | { type: 'removed'; id: string };
+
+type ChangeListener = (change: SlackInstanceChange) => void;
+
+const changeListeners = new Set<ChangeListener>();
+
+/**
+ * Register a listener for instance-added / instance-removed events. Returns an
+ * unsubscribe function. Listener errors are swallowed so one bad subscriber
+ * can't break the manifest mutation path.
+ */
+export function onInstanceChange(listener: ChangeListener): () => void {
+  changeListeners.add(listener);
+  return () => { changeListeners.delete(listener); };
+}
+
+function emitChange(change: SlackInstanceChange): void {
+  for (const l of changeListeners) {
+    try { l(change); } catch { /* swallow */ }
+  }
+}
+
 // ─── Public API ───
 
 /** All instances, in display order. `default` always first if present. */
@@ -131,6 +162,7 @@ export function addInstance(id: string, label: string): SlackInstanceMeta {
   };
   m.instances.push(meta);
   writeManifest(m);
+  emitChange({ type: 'added', id: meta.id, meta });
   return meta;
 }
 
@@ -163,9 +195,15 @@ export function removeInstance(id: string): void {
   writeManifest(m);
   // Drop the per-instance config file too.
   deleteConfig(id);
+  emitChange({ type: 'removed', id });
 }
 
 /** Reset cache — for tests. */
 export function resetManifestCache(): void {
   cached = null;
+}
+
+/** Drop all change-listeners — for tests that need a clean slate. */
+export function resetManifestListeners(): void {
+  changeListeners.clear();
 }

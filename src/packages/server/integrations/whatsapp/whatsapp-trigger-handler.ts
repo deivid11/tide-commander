@@ -884,6 +884,16 @@ function hashJid(jid: string | undefined): string {
 // the in-process bridge's notifyTriggerSubscribers stream so it keeps receiving
 // events across bridge restarts (config-change driven).
 
+/**
+ * Trigger config recognised by `whatsapp` triggers.
+ *
+ * Chat-id filters (`excludeChatIds`, `chatIdAllowlist`) are matched as LITERAL
+ * JID strings against `msg.chatId` — no regex, no prefix matching. Use the
+ * full canonical JID, e.g. `5215512345678@s.whatsapp.net` for a DM or
+ * `120363248688514495@g.us` for a group. Both filters are evaluated EARLY
+ * (before `fromFilter` / `bodyPattern`) so muted/archived chats short-circuit
+ * before the more expensive checks.
+ */
 interface WhatsAppTriggerConfig {
   fromFilter?: string[];
   bodyPattern?: string;
@@ -892,6 +902,10 @@ interface WhatsAppTriggerConfig {
   dmOnly?: boolean;
   sessionId?: string;
   includeStatuses?: boolean;
+  /** Literal JIDs (full canonical form) whose messages must NOT fire the trigger. */
+  excludeChatIds?: string[];
+  /** When set + non-empty, only messages whose `chatId` is in this list fire. Literal JIDs. */
+  chatIdAllowlist?: string[];
 }
 
 // Chat IDs that represent non-message channels (status updates, broadcast
@@ -947,6 +961,12 @@ export const whatsappTriggerHandler: TriggerHandler = {
     // surfaced through the same bridge as real messages but represent stories /
     // broadcasts, not conversations. Opt-in via includeStatuses.
     if (!cfg.includeStatuses && isStatusOrBroadcastChat(msg.chatId)) return false;
+
+    // Chat-id filters run BEFORE empty-content / fromFilter / bodyPattern so
+    // muted/archived chats short-circuit the cheapest way possible. Match is
+    // an exact JID compare — no normalization, no prefix.
+    if (cfg.excludeChatIds?.length && cfg.excludeChatIds.includes(msg.chatId)) return false;
+    if (cfg.chatIdAllowlist?.length && !cfg.chatIdAllowlist.includes(msg.chatId)) return false;
 
     if (isEmptyContentMessage(msg)) {
       log.debug(`whatsapp.trigger.skipped reason=empty_content session=${msg.sessionId}`);

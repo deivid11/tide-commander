@@ -138,6 +138,72 @@ describe('whatsappTriggerHandler.structuralMatch', () => {
     const msg = baseMsg({ body: '', mediaType: 'image', mediaUrl: 'https://x/y.jpg' });
     expect(whatsappTriggerHandler.structuralMatch(trigger, eventOf(msg))).toBe(true);
   });
+
+  it('drops messages whose chatId is in excludeChatIds', () => {
+    const muted = '120363248688514495@g.us';
+    const trig = {
+      ...trigger,
+      config: { excludeChatIds: [muted] },
+    } as unknown as TriggerDefinition;
+    expect(whatsappTriggerHandler.structuralMatch(trig, eventOf(baseMsg({ chatId: muted })))).toBe(false);
+  });
+
+  it('still passes a message in a non-excluded chat when excludeChatIds is set', () => {
+    const trig = {
+      ...trigger,
+      config: { excludeChatIds: ['120363248688514495@g.us'] },
+    } as unknown as TriggerDefinition;
+    const msg = baseMsg({ chatId: '5215527271986-1386292220@g.us' });
+    expect(whatsappTriggerHandler.structuralMatch(trig, eventOf(msg))).toBe(true);
+  });
+
+  it('exclude match is exact — a prefix collision must NOT trigger the filter', () => {
+    // Real bug guard: if we ever switched to startsWith / includes the bad way,
+    // every chat sharing a digit prefix would silently get dropped.
+    const trig = {
+      ...trigger,
+      config: { excludeChatIds: ['120363248688514495@g.us'] },
+    } as unknown as TriggerDefinition;
+    const msg = baseMsg({ chatId: '120363248688514495999@g.us' });
+    expect(whatsappTriggerHandler.structuralMatch(trig, eventOf(msg))).toBe(true);
+  });
+
+  it('chatIdAllowlist drops a chatId not in the list', () => {
+    const trig = {
+      ...trigger,
+      config: { chatIdAllowlist: ['5215527271986-1386292220@g.us'] },
+    } as unknown as TriggerDefinition;
+    const msg = baseMsg({ chatId: '5219999999999@s.whatsapp.net' });
+    expect(whatsappTriggerHandler.structuralMatch(trig, eventOf(msg))).toBe(false);
+  });
+
+  it('chatIdAllowlist passes a chatId IN the list', () => {
+    const allowed = '5215527271986-1386292220@g.us';
+    const trig = {
+      ...trigger,
+      config: { chatIdAllowlist: [allowed] },
+    } as unknown as TriggerDefinition;
+    expect(whatsappTriggerHandler.structuralMatch(trig, eventOf(baseMsg({ chatId: allowed })))).toBe(true);
+  });
+
+  it('empty excludeChatIds / chatIdAllowlist arrays behave as if absent', () => {
+    const trig = {
+      ...trigger,
+      config: { excludeChatIds: [], chatIdAllowlist: [] },
+    } as unknown as TriggerDefinition;
+    expect(whatsappTriggerHandler.structuralMatch(trig, eventOf(baseMsg({ body: 'hi' })))).toBe(true);
+  });
+
+  it('excludeChatIds short-circuits BEFORE bodyPattern (no regex evaluation on excluded chats)', () => {
+    // If a future refactor moves bodyPattern above excludeChatIds we want the
+    // test to catch it — a malformed regex on a muted chat must still be safe.
+    const muted = '120363248688514495@g.us';
+    const trig = {
+      ...trigger,
+      config: { excludeChatIds: [muted], bodyPattern: '(' /* invalid regex */ },
+    } as unknown as TriggerDefinition;
+    expect(whatsappTriggerHandler.structuralMatch(trig, eventOf(baseMsg({ chatId: muted })))).toBe(false);
+  });
 });
 
 describe('humanizeWhatsAppJid', () => {

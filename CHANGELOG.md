@@ -2,7 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.108.0] - 2026-05-28
+## [1.109.0] - 2026-05-28
+
+### Added
+- **Dynamic Slack instance wiring for triggers** — `slack-instance-manifest` now exposes an `onInstanceChange` listener API and emits `{ type: 'added' | 'removed', id, meta? }` from `addInstance` / `removeInstance`. `slack-trigger-handler.startListening` seeds subscriptions from `listInstanceMetas()` AND subscribes to the manifest so instances created at runtime via `POST /api/slack/instances` are wired automatically (and `DELETE` ones get their `onMessage` listener torn down). Per-instance unsubscribers are tracked in a `Map<instanceId, off>` for individual detach; `stopListening` removes the manifest hook plus every per-instance listener so post-stop manifest changes don't resurrect subscriptions. Subscribe is idempotent — a redundant `added` for an already-wired id keeps a single listener. Fixes the case where triggers configured for a Slack instance added AFTER server start silently never fired.
+- **`excludeChatIds` + `chatIdAllowlist` on WhatsApp triggers** — `WhatsAppTriggerConfig` accepts two new literal-JID arrays. Both are evaluated EARLY in `structuralMatch` (after the status/broadcast check, before `isEmptyContent` / `fromFilter` / `bodyPattern`) so muted/archived chats short-circuit before the expensive checks. Match is exact via `Array.includes` — no normalization, no prefix matching. Lets a trigger drop a hand-curated list of noisy / archived chats (e.g. 56 JIDs from a personal archived-chats file) without rewriting the body-pattern regex.
+- **`excludeChannelIds` + `channelIdAllowlist` on Slack triggers** — symmetric to the WhatsApp filters. `SlackTriggerConfig` accepts two new literal-channel-id arrays evaluated EARLY in `structuralMatch` (after `instanceId` / `channelId`, before `userFilter` / `messagePattern`). Exact match via `Array.includes`. Lets a trigger drop bot-noisy channels (jirabot, soporte_commander, `*-errors` streams) or allow-list a curated set without touching the message regex.
+
+
 
 ### Added
 - **Trigger multi-agent fan-out with per-agent delivery dedup** — `BaseTrigger` gains optional `agentIds?: string[]` alongside the legacy `agentId`; a trigger now delivers the same interpolated message to the de-duplicated union of `agentId` + `agentIds`. `fireTrigger` walks every target agent, reserves a per-agent dedup slot synchronously (before any `await`) keyed by `${agentId}\0${sourceType}\0${sourceId}`, and writes one `trigger_events` row per delivery. The dedup map (`DELIVERY_DEDUP_TTL_MS = 10 min`) absorbs polling lag between integration instances so the same physical Slack/email message hits each subscribed agent exactly once — even when two Slack instances (personal + bot) both see a shared-channel message, or overlapping triggers target the same agent. Sources without a stable id (cron, manual fires) skip dedup. New `TriggerFireOptions.dedupeSourceType` / `dedupeSourceId` plumbed through `evaluateEvent`.
