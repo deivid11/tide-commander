@@ -31,6 +31,12 @@ export interface CachedContactName {
 
 export interface ContactLite {
   id: string;
+  /**
+   * LID JID for this contact (e.g. "153996203434060@lid"), when upstream
+   * supplies the Baileys LID↔phone mapping. We index the resolved name under
+   * BOTH `id` and `lid` so an inbound message addressed by LID still hits.
+   */
+  lid?: string | null;
   name?: string | null;
   pushname?: string | null;
 }
@@ -105,9 +111,15 @@ export class ContactNameCache {
     const t = this.now();
     for (const c of contacts) {
       if (!c?.id) continue;
-      const key = this.cacheKey(sessionId, c.id);
       const name = pickName(c);
-      this.entries.set(key, { name, ts: t });
+      this.entries.set(this.cacheKey(sessionId, c.id), { name, ts: t });
+      // Also index under the LID so an inbound message addressed by LID
+      // (`<id>@lid`) resolves to the same address-book name. WhatsApp routes
+      // some accounts by LID instead of the phone JID — without this the
+      // lookup misses and the UI falls back to the raw LID digits.
+      if (typeof c.lid === 'string' && c.lid) {
+        this.entries.set(this.cacheKey(sessionId, c.lid), { name, ts: t });
+      }
     }
   }
 

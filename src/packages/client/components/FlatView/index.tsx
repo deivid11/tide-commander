@@ -118,6 +118,9 @@ interface ChatViewProps {
   agentInfoOpen: boolean;
   onToggleAgentInfo: () => void;
   onHeaderContextMenu: (position: { x: number; y: number }) => void;
+  /** Open the building context menu for an area-shortcut button — mirrors the
+   * right-click menu on the empty-state map's building chips. */
+  onBuildingContextMenu: (buildingId: string, position: { x: number; y: number }) => void;
 }
 
 const TERMINAL_VIEW_MODES: TerminalViewMode[] = ['simple', 'chat', 'advanced'];
@@ -209,6 +212,7 @@ const ChatView = React.memo(function ChatView({
   agentInfoOpen,
   onToggleAgentInfo,
   onHeaderContextMenu,
+  onBuildingContextMenu,
 }: ChatViewProps) {
   const agent = useAgent(agentId);
   const buildings = useBuildings();
@@ -979,6 +983,11 @@ const ChatView = React.memo(function ChatView({
                     if (!tb.hasUrl) store.sendBuildingCommand(tb.id, 'start');
                     setEmbeddedTerminalBuildingId(tb.id);
                   }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onBuildingContextMenu(tb.id, { x: e.clientX, y: e.clientY });
+                  }}
                 >
                   <Icon name="terminal" size={14} />
                 </button>
@@ -995,6 +1004,11 @@ const ChatView = React.memo(function ChatView({
                 className="flat-terminal-wrapper__building-btn"
                 title={`Open logs: ${sb.name}`}
                 onClick={() => onOpenBuilding(sb.id)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onBuildingContextMenu(sb.id, { x: e.clientX, y: e.clientY });
+                }}
               >
                 <Icon name="scroll" size={14} />
               </button>
@@ -1010,6 +1024,11 @@ const ChatView = React.memo(function ChatView({
                 className="flat-terminal-wrapper__building-btn"
                 title={`Open database: ${db.name}`}
                 onClick={() => onOpenBuilding(db.id)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onBuildingContextMenu(db.id, { x: e.clientX, y: e.clientY });
+                }}
               >
                 <Icon name="hard-drives" size={14} />
               </button>
@@ -2212,6 +2231,9 @@ export function FlatView({
             onHeaderContextMenu={(position) => {
               if (!selectedAgentId) return;
               setEmptyAgentContextMenu({ agentId: selectedAgentId, position });
+            }}
+            onBuildingContextMenu={(buildingId, position) => {
+              setBuildingContextMenu({ buildingId, position });
             }}
           />
         ) : (

@@ -566,6 +566,20 @@ export function updateAgent(id: string, updates: Partial<Agent>, updateActivity 
     normalizedUpdates.latestTodos = undefined;
   }
 
+  // When an agent goes idle (process finished / run complete) clear any *transient*
+  // tracking status so the board doesn't show a phantom 'working'/'thinking' agent.
+  // Only 'working' (longer-running work) and 'thinking' (start-of-turn) are transient;
+  // meaningful end-of-turn statuses the agent intentionally set (need-review, blocked,
+  // can-clear-context, waiting-subordinates) are preserved. We skip this when the same
+  // update explicitly carries a trackingStatus, so an agent can set a terminal status
+  // and go idle in one call without us clobbering it.
+  if (enteredIdleState && !hasExplicitTrackingStatus
+      && (agent.trackingStatus === 'working' || agent.trackingStatus === 'thinking')) {
+    normalizedUpdates.trackingStatus = null;
+    normalizedUpdates.trackingStatusDetail = undefined;
+    normalizedUpdates.trackingStatusTimestamp = undefined;
+  }
+
   // Only update lastActivity for real activity (not position changes, etc.)
   if (updateActivity) {
     Object.assign(agent, normalizedUpdates, { lastActivity: Date.now() });

@@ -124,6 +124,84 @@ describe('agent-service context limits', () => {
     expect(agent.codexModel).toBe('gpt-5.3-codex');
   });
 
+  const loadOneIdleAgent = (id: string) => {
+    mockLoadAgents.mockReturnValue([
+      {
+        id,
+        name: id,
+        class: 'default',
+        status: 'idle',
+        cwd: '/tmp/project',
+        provider: 'claude',
+      },
+    ]);
+  };
+
+  it('clears a stale "working" tracking status when an agent goes idle', async () => {
+    loadOneIdleAgent('stuck-working');
+    const agentService = await import('./agent-service.js');
+    agentService.initAgents();
+
+    // Start a turn: entering working sets trackingStatus='working'.
+    const working = agentService.updateAgent('stuck-working', { status: 'working' });
+    expect(working?.trackingStatus).toBe('working');
+
+    // Process finishes without an end-of-turn PATCH → board would be stuck on 'working'.
+    const updated = agentService.updateAgent('stuck-working', { status: 'idle' });
+
+    expect(updated?.status).toBe('idle');
+    expect(updated?.trackingStatus).toBeNull();
+    expect(updated?.trackingStatusDetail).toBeUndefined();
+    expect(updated?.trackingStatusTimestamp).toBeUndefined();
+  });
+
+  it('clears a start-of-turn "thinking" tracking status when an agent goes idle', async () => {
+    loadOneIdleAgent('stuck-thinking');
+    const agentService = await import('./agent-service.js');
+    agentService.initAgents();
+
+    agentService.updateAgent('stuck-thinking', { status: 'working' });
+    // Start-of-turn label skill sets 'thinking'.
+    agentService.updateAgent('stuck-thinking', { trackingStatus: 'thinking', trackingStatusDetail: 'planning' });
+
+    const updated = agentService.updateAgent('stuck-thinking', { status: 'idle' });
+
+    expect(updated?.status).toBe('idle');
+    expect(updated?.trackingStatus).toBeNull();
+  });
+
+  it('preserves a meaningful end-of-turn tracking status when an agent goes idle', async () => {
+    loadOneIdleAgent('needs-review');
+    const agentService = await import('./agent-service.js');
+    agentService.initAgents();
+
+    agentService.updateAgent('needs-review', { status: 'working' });
+    // Agent ends its turn properly with a terminal status before the process exits.
+    agentService.updateAgent('needs-review', { trackingStatus: 'need-review', trackingStatusDetail: 'PR ready' });
+
+    const updated = agentService.updateAgent('needs-review', { status: 'idle' });
+
+    expect(updated?.status).toBe('idle');
+    expect(updated?.trackingStatus).toBe('need-review');
+    expect(updated?.trackingStatusDetail).toBe('PR ready');
+  });
+
+  it('does not clobber an explicit terminal tracking status set in the same idle update', async () => {
+    loadOneIdleAgent('idle-with-status');
+    const agentService = await import('./agent-service.js');
+    agentService.initAgents();
+
+    agentService.updateAgent('idle-with-status', { status: 'working' });
+
+    const updated = agentService.updateAgent('idle-with-status', {
+      status: 'idle',
+      trackingStatus: 'can-clear-context',
+    });
+
+    expect(updated?.status).toBe('idle');
+    expect(updated?.trackingStatus).toBe('can-clear-context');
+  });
+
   it('prefers Codex estimated_token_count from the TUI log over rollout last_token_usage', async () => {
     mockLoadAgents.mockReturnValue([]);
     mockReaddirSync.mockImplementation(((rootDir: string) => {

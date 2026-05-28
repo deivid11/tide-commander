@@ -155,6 +155,11 @@ describe('humanizeWhatsAppJid', () => {
     expect(humanizeWhatsAppJid('123@s.whatsapp.net')).toBe('+123');
   });
 
+  it('renders a LID as "WhatsApp user <last4>" — never as a phone number', () => {
+    // A LID is opaque, not dialable — "+153996203434060" was the bug.
+    expect(humanizeWhatsAppJid('153996203434060@lid')).toBe('WhatsApp user 4060');
+  });
+
   it('returns empty string for empty / unparseable input', () => {
     expect(humanizeWhatsAppJid(undefined)).toBe('');
     expect(humanizeWhatsAppJid('')).toBe('');
