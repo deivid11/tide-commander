@@ -59,19 +59,20 @@ router.get('/files/:fileId/content', async (req: Request<{ fileId: string }>, re
   }
 });
 
-// POST /api/drive/files — Create a new file
+// POST /api/drive/files — Create a new file. Either `content` (UTF-8 string) or `filePath` (absolute host path) is required.
 router.post('/files', async (req: Request, res: Response) => {
   try {
-    const { name, content, mimeType, folderId, description, agentId, workflowInstanceId } = req.body;
+    const { name, content, filePath, mimeType, folderId, description, agentId, workflowInstanceId } = req.body;
 
-    if (!name || content === undefined) {
-      res.status(400).json({ error: 'name and content are required' });
+    if (!name || (content === undefined && !filePath)) {
+      res.status(400).json({ error: 'name and either `content` or `filePath` are required' });
       return;
     }
 
     const file = await driveClient.createFile({
       name,
       content,
+      filePath,
       mimeType,
       folderId,
       description,

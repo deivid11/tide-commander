@@ -34,7 +34,10 @@ export interface DriveFile {
 
 export interface CreateFileParams {
   name: string;
-  content: string;
+  /** Either `content` (UTF-8 string) or `filePath` (absolute local path read from disk) must be provided. */
+  content?: string;
+  /** Absolute path on the host filesystem. When set, the file is streamed from disk — supports binary uploads (PDF/PNG/etc). */
+  filePath?: string;
   mimeType?: string;
   folderId?: string;
   description?: string;
@@ -393,6 +396,9 @@ export async function getFileContent(fileId: string, exportMimeType?: string): P
 
 export async function createFile(params: CreateFileParams): Promise<DriveFile> {
   if (!driveApi) throw new Error('Google Drive not configured');
+  if (params.content === undefined && !params.filePath) {
+    throw new Error('createFile requires either `content` or `filePath`');
+  }
 
   const config = loadConfig();
   const folderId = params.folderId || config.defaultFolderId;
@@ -412,15 +418,21 @@ export async function createFile(params: CreateFileParams): Promise<DriveFile> {
   // describe the SOURCE format (plain text by default, or HTML if the content
   // looks like HTML so Docs preserves formatting).
   let mediaMimeType = mimeType;
-  if (googleDocType) {
+  if (googleDocType && params.content !== undefined) {
     fileMetadata.mimeType = googleDocType;
     const looksLikeHtml = /^\s*<(!doctype|html|body|div|h[1-6]|p|ul|ol|table)\b/i.test(params.content);
     mediaMimeType = looksLikeHtml ? 'text/html' : 'text/plain';
   }
 
+  // Build the upload stream — from disk if filePath is set, otherwise from the inline string content
+  const fsModule = await import('fs');
+  const body = params.filePath
+    ? fsModule.createReadStream(params.filePath)
+    : Readable.from(params.content as string);
+
   const media = {
     mimeType: mediaMimeType,
-    body: Readable.from(params.content),
+    body,
   };
 
   const result = await driveApi.files.create({

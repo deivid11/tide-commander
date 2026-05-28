@@ -91,6 +91,7 @@ $radius-xl: 12px;
 
   // Message colors (user/assistant)
   --msg-user-bg: color-mix(in srgb, #{$accent-cyan} 8%, transparent);
+  --msg-user-highlight-bg: var(--msg-user-bg);
   --msg-user-border: #{$accent-cyan};
   --msg-user-text: #{$text-primary};
   --msg-assistant-bg: color-mix(in srgb, #{$accent-green} 8%, transparent);

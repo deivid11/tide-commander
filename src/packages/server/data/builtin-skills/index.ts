@@ -20,6 +20,7 @@ import { bitbucketReviewer } from './bitbucket-reviewer.js';
 import { pm2Logs } from './pm2-logs.js';
 import { createBuilding } from './create-building.js';
 import { exploreDatabase } from './explore-database.js';
+import { conversationHistory } from './conversation-history.js';
 import { releasePipeline } from './release-pipeline.js';
 import { taskLabel } from './task-label.js';
 import { agentTracking } from './agent-tracking.js';
@@ -49,6 +50,7 @@ export const BUILTIN_SKILLS: BuiltinSkillDefinition[] = [
   pm2Logs,
   createBuilding,
   exploreDatabase,
+  conversationHistory,
   releasePipeline,
   taskLabel,
   agentTracking,

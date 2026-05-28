@@ -1293,6 +1293,18 @@
   transition: all 0.15s ease;
   border-radius: 2px;
 
+  > .output-user:not(.output-user-whatsapp):not(.output-user-gmail):not(.output-user-slack) {
+    background: linear-gradient(
+      to right,
+      var(--msg-user-highlight-bg),
+      color-mix(in srgb, var(--msg-user-highlight-bg) 90%, transparent)
+    );
+  }
+
+  > .history-user:not(.history-user-whatsapp):not(.history-user-gmail):not(.history-user-slack) {
+    background: var(--msg-user-highlight-bg);
+  }
+
   &.message-selected {
     background: linear-gradient(
       to right,

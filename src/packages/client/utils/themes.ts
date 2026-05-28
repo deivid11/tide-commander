@@ -27,6 +27,7 @@ export interface ThemeColors {
   accentYellow: string;       // h5, emphasis
   // Message-specific colors (for creative theming)
   msgUserBg: string;          // User message background
+  msgUserHighlightBg?: string;// Optional normal outgoing message background
   msgUserBorder: string;      // User message border
   msgUserText: string;        // User message text/label
   msgAssistantBg: string;     // Assistant message background
@@ -560,8 +561,9 @@ const abyssTheme: Theme = {
     accentClaudeLight: '#50b878',
     accentPink: '#a85880',             // Dusty rose
     accentYellow: '#b8a840',           // Dim gold
-    // Messages: User messages pop with a purple border instead of red fill
+    // Messages: User messages keep a dark base; normal outgoing rows get a subtle violet fill
     msgUserBg: '#181c24',
+    msgUserHighlightBg: 'rgba(128, 96, 176, 0.14)',
     msgUserBorder: '#6a4e96',
     msgUserText: '#d0d4dc',
     msgAssistantBg: '#12161e',
@@ -974,6 +976,7 @@ export function applyTheme(theme: Theme): void {
   root.style.setProperty('--accent-yellow', colors.accentYellow);
   // Message colors
   root.style.setProperty('--msg-user-bg', colors.msgUserBg);
+  root.style.setProperty('--msg-user-highlight-bg', colors.msgUserHighlightBg ?? colors.msgUserBg);
   root.style.setProperty('--msg-user-border', colors.msgUserBorder);
   root.style.setProperty('--msg-user-text', colors.msgUserText);
   root.style.setProperty('--msg-assistant-bg', colors.msgAssistantBg);
