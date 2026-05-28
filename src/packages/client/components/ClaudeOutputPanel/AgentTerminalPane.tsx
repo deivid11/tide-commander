@@ -114,6 +114,13 @@ export interface AgentTerminalPaneProps {
   onFileClick: (path: string, editData?: { oldString?: string; newString?: string; operation?: string; unifiedDiff?: string; highlightRange?: { offset: number; limit: number }; targetLine?: number }) => void;
   onBashClick: (command: string, output: string) => void;
   onViewMarkdown: (content: string) => void;
+  /**
+   * Fired when a Bash tool_use in dedupedHistory becomes linked to its
+   * tool_result for the first time. The parent uses this to resolve a
+   * currently-open "Running..." bash modal whose live look-ahead window
+   * has already passed by the time the tool_result lands in the JSONL.
+   */
+  onLiveBashResultLinked?: (command: string, output: string) => void;
 
   // ── Keyboard height handler (parent owns, shared) ──
   keyboard: {
@@ -182,6 +189,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     onFileClick,
     onBashClick,
     onViewMarkdown,
+    onLiveBashResultLinked,
     keyboard,
     canSwipeClose,
     onSwipeCloseOffsetChange,
@@ -420,6 +428,25 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
     return result;
   }, [filteredHistory]);
+
+  // Notify the parent the first time a Bash tool_use in dedupedHistory gains
+  // its tool_result link (_bashOutput). Lets the parent close out a still-open
+  // "Running..." bash modal whose live look-ahead window already passed by
+  // the time the JSONL session refresh delivers the matching tool_result.
+  const reportedBashToolUseIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    reportedBashToolUseIdsRef.current = new Set();
+  }, [agentId]);
+  useEffect(() => {
+    if (!onLiveBashResultLinked) return;
+    for (const msg of dedupedHistory) {
+      if (msg.type !== 'tool_use' || msg.toolName !== 'Bash') continue;
+      if (!msg.toolUseId || !msg._bashCommand || !msg._bashOutput) continue;
+      if (reportedBashToolUseIdsRef.current.has(msg.toolUseId)) continue;
+      reportedBashToolUseIdsRef.current.add(msg.toolUseId);
+      onLiveBashResultLinked(msg._bashCommand, msg._bashOutput);
+    }
+  }, [dedupedHistory, onLiveBashResultLinked]);
 
   // Remove live outputs that duplicate history
   const dedupedOutputs = useMemo(() => {
