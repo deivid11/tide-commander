@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.107.1] - 2026-05-28
+
+### Added
+- **Claude Opus 4.8 support** — new selectable model `claude-opus-4-8` plus the Tide Commander 1M-context variant `claude-opus-4-8[1m]`. The spawn/bulk/boss modals expose "Opus 4.8 [1M]" as the headline Opus choice (1M token context window), and the boss-instructions `spawn` schema lists the new IDs as valid `model` values. `ClaudeBackend` translates `[1m]`-suffixed labels to the bare CLI model ID (`claude-opus-4-8[1m]` → `claude-opus-4-8`), and `llm-matcher-service` resolves both the bare and `[1m]` aliases.
+
+### Changed
+- **`opus` short-alias now maps to 4.8** — the legacy `opus` model name (used by older agents and CLI passthrough) now resolves to `claude-opus-4-8` in `llm-matcher-service`. The 200K-only IDs (`claude-opus-4-8`, `claude-opus-4-7`) are marked `deprecated` in the picker so the 1M variants surface as the default Opus choice; the IDs themselves remain valid for existing agents and explicit selection.
+- **Provider docs reference Opus 4.8** — `getting-started/providers.mdx` updated to reflect the new default Opus version.
+
 ## [1.106.3] - 2026-05-28
 
 ### Added

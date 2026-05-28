@@ -429,7 +429,7 @@ You can ONLY spawn new agents when the user EXPLICITLY requests it.
   "name": "<Agent Name>",
   "class": "<agent class slug>",
   "cwd": "<optional working directory>",
-  "model": "<optional: claude-opus-4-7 | claude-sonnet-4-6 | claude-haiku-4-5 | etc.>",
+  "model": "<optional: claude-opus-4-8[1m] | opus[1m] | claude-opus-4-8 | claude-opus-4-7 | claude-sonnet-4-6 | claude-haiku-4-5 | etc.>",
   "effort": "<optional: low | medium | high | xHigh | max>",
   "initialSkillIds": ["<optional skill-id-1>", "<skill-id-2>"],
   "provider": "<optional: claude | codex | opencode>",

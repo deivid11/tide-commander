@@ -42,12 +42,12 @@ Tide Commander supports three AI coding CLI providers. Each agent you spawn is b
   <TabItem label="Models">
     | Model | Label | Context | Best for |
     |-------|-------|---------|---------|
-    | `opus[1m]` | Opus \[1M\] | 1M tokens | Very long tasks, large codebases |
-    | `claude-opus-4-7` | Opus 4.7 | 200K tokens | Complex reasoning, flagship quality |
+    | `claude-opus-4-8[1m]` | Opus 4.8 \[1M\] | 1M tokens | Latest Opus — most capable, flagship quality, very long tasks |
+    | `opus[1m]` | Opus 4.7 \[1M\] | 1M tokens | Previous Opus generation with 1M context |
     | `sonnet` | Sonnet | 200K tokens | Balanced speed and quality |
     | `haiku` | Haiku | 200K tokens | Fast, lightweight tasks |
 
-    The default selection in the Spawn dialog is **Opus \[1M\]**.
+    The default selection in the Spawn dialog is **Opus 4.8 \[1M\]**. Plain (200K) `claude-opus-4-8` and `claude-opus-4-7` IDs remain valid for agents that explicitly need the smaller window, but the picker surfaces the 1M variants by default.
   </TabItem>
   <TabItem label="Effort levels">
     Effort controls how much reasoning Claude applies before responding:

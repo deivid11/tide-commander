@@ -82,7 +82,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     search: false,
   });
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
-  const [selectedModel, setSelectedModel] = useState<ClaudeModel>('opus[1m]'); // Default to Opus 1M
+  const [selectedModel, setSelectedModel] = useState<ClaudeModel>('claude-opus-4-8[1m]'); // Default to latest Opus with 1M context
   const [selectedEffort, setSelectedEffort] = useState<ClaudeEffort | undefined>('xHigh'); // Default: xHigh (extra high reasoning)
   const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>('gpt-5.3-codex');
   const [opencodeModel, setOpencodeModel] = useState<string>('minimax/MiniMax-M1-80k');
@@ -362,10 +362,10 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     }
   }, [selectedClass]);
 
-  // Boss class should default to the latest Opus
+  // Boss class should default to the latest Opus with 1M context
   useEffect(() => {
     if (selectedClass === 'boss') {
-      setSelectedModel('claude-opus-4-7');
+      setSelectedModel('claude-opus-4-8[1m]');
     }
   }, [selectedClass]);
 
