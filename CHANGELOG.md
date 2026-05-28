@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.108.0] - 2026-05-28
+
+### Added
+- **Trigger multi-agent fan-out with per-agent delivery dedup** — `BaseTrigger` gains optional `agentIds?: string[]` alongside the legacy `agentId`; a trigger now delivers the same interpolated message to the de-duplicated union of `agentId` + `agentIds`. `fireTrigger` walks every target agent, reserves a per-agent dedup slot synchronously (before any `await`) keyed by `${agentId}\0${sourceType}\0${sourceId}`, and writes one `trigger_events` row per delivery. The dedup map (`DELIVERY_DEDUP_TTL_MS = 10 min`) absorbs polling lag between integration instances so the same physical Slack/email message hits each subscribed agent exactly once — even when two Slack instances (personal + bot) both see a shared-channel message, or overlapping triggers target the same agent. Sources without a stable id (cron, manual fires) skip dedup. New `TriggerFireOptions.dedupeSourceType` / `dedupeSourceId` plumbed through `evaluateEvent`.
+- **Google Calendar `meetingUrl` on events** — `CalendarEvent` gains `hangoutLink` (Google's legacy field) and `meetingUrl` (best join URL: `hangoutLink`, else a `conferenceData.entryPoints` `video` URI). Surfaces the join link for Google Meet AND Zoom/Teams/Webex events that publish a video entry point.
+- **`trigger-service` unit tests** — new `trigger-service.test.ts` covers fan-out resolution, per-agent dedup behavior, and TTL expiry.
+
+### Changed
+- **Slack search-mode polling now newest-first with early-stop** — `pollViaSearch` switches `sort_dir` from `asc` to `desc` and collects matches into a pending list dispatched chronologically at the end of the cycle. Each cycle remembers `lastSearchMaxTs`; subsequent cycles stop paging the moment a page's oldest match falls under `lastSearchMaxTs − 5 min` overlap. Result: steady-state cost drops to ~1 page per cycle instead of paging the full day window every tick, and busy accounts (where the newest messages used to sit on the LAST page and could be silently dropped past `MAX_PAGES`) no longer lose recent messages. The 5-minute overlap is well above Slack's ~10–30s search-index lag, and the per-channel watermark dedupes the overlap so nothing dispatches twice. New `seenKeys` set per cycle defends against the same `${channel}:${ts}` appearing on overlapping pages — replaces the previous max-based gate that was incorrect under desc paging (the running max IS the first match).
+
 ## [1.107.1] - 2026-05-28
 
 ### Added
