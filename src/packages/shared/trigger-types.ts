@@ -24,19 +24,7 @@ export interface BaseTrigger {
   name: string;
   description?: string;
   type: TriggerType;
-  agentId: string;                    // Primary agent to fire (kept for back-compat)
-  /**
-   * Fan-out: additional agents that should ALSO receive this trigger's
-   * message. The effective delivery set is the de-duplicated union of
-   * `agentId` + `agentIds`, so every "subscribed" agent gets the event. When
-   * omitted/empty, only `agentId` fires (legacy single-agent behavior).
-   *
-   * Per-agent dedup (see fireTrigger) guarantees the same physical source
-   * message never hits the same agent twice — e.g. when two Slack instances
-   * (personal + bot) both see a shared-channel message, or two overlapping
-   * triggers target the same agent.
-   */
-  agentIds?: string[];
+  agentId: string;                    // Which agent to fire
   promptTemplate: string;             // Message sent to agent, supports {{variable}} interpolation
   enabled: boolean;
   status: TriggerStatus;
@@ -208,15 +196,6 @@ export interface TriggerFireOptions {
   llmExtractResult?: LLMExtractResult;
   workflowInstanceId?: string;
   matcherExecutions?: MatcherExecution[];
-  /**
-   * Stable identity of the source event (e.g. Slack message ts, email id).
-   * Used for per-agent delivery dedup so the same physical message — seen by
-   * multiple integration instances or matched by overlapping triggers — never
-   * reaches the same agent twice. Omit for sources without a stable id (cron,
-   * manual fires): those skip dedup.
-   */
-  dedupeSourceType?: string;
-  dedupeSourceId?: string;
 }
 
 // ─── Trigger Listener (pub-sub) ───

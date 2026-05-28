@@ -163,7 +163,7 @@ export interface SlackPollingClientOptions {
   watermarkStore: SlackWatermarkStore;
   /** Called for every new message (shape matches Socket Mode). */
   dispatch: MessageDispatcher;
-  /** Default poll interval (seconds). Clamped to [10, 600]. */
+  /** Default poll interval (seconds). Clamped to [5, 600]. */
   intervalSec: number;
   /** Per-channel backfill cap, in messages, on first sight. */
   backfillMessageCap: number;
@@ -317,7 +317,7 @@ export class SlackPollingClient {
     this.webClient = opts.webClient;
     this.watermarkStore = opts.watermarkStore;
     this.dispatch = opts.dispatch;
-    this.intervalMs = clamp(opts.intervalSec, 10, 600) * 1000;
+    this.intervalMs = clamp(opts.intervalSec, 5, 600) * 1000;
     this.backfillMessageCap = Math.max(1, opts.backfillMessageCap);
     this.backfillSeconds = Math.max(60, opts.backfillSeconds);
     this.concurrency = clamp(opts.concurrency, 1, 8);

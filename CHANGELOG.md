@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.109.1] - 2026-05-28
+
+### Removed
+- **Trigger multi-agent fan-out (reverted from v1.108.0)** — `BaseTrigger.agentIds?: string[]`, `TriggerFireOptions.dedupeSourceType` / `dedupeSourceId`, the per-agent `deliveryDedupMap` in `trigger-service`, and `trigger-service.test.ts` are removed. The fan-out approach was abandoned in favor of two per-instance Slack triggers with per-agent filters (e.g. Soporte excludes david, Bolba includes own DMs), which already deliver the same physical message to each subscribed agent without a fan-out primitive. v1.109.0's new `excludeChannelIds` / `channelIdAllowlist` (Slack) and `excludeChatIds` / `chatIdAllowlist` (WhatsApp) are what make this pattern ergonomic. No back-compat shim — `agentIds` was only a few hours old and not used in any persisted config.
+
+### Changed
+- **Slack polling-interval lower bound lowered to 5s** (was 10s) — `slack-config.ts` and `slack-polling-client.ts` clamp `pollingIntervalSec` to `[5, 600]`. The schema description now notes that in search mode (`pollingUseSearch`), Slack's ~10–30s search-index lag is the real latency floor, so sub-10s values mostly add API calls without delivering faster — useful only for the per-channel polling path.
+
 ## [1.109.0] - 2026-05-28
 
 ### Added
