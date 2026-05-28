@@ -134,6 +134,60 @@ async function makeStore(): Promise<SlackWatermarkStore> {
   return store;
 }
 
+interface SearchMatch {
+  ts: string;
+  channel: { id: string; is_im?: boolean; is_mpim?: boolean; is_private?: boolean };
+  user?: string;
+  text?: string;
+  thread_ts?: string;
+}
+
+/**
+ * Build a mock PollingWebClient that serves `search.messages` from an
+ * in-memory universe of matches, paginating with the same count/sort_dir the
+ * client requests. `conversations.*` are inert stubs (search mode never calls
+ * them). Exposes `calls` (every search.messages invocation) and `addMatch` so
+ * tests can simulate new messages arriving between cycles.
+ */
+function buildSearchMockClient(initial: SearchMatch[]) {
+  const universe: SearchMatch[] = [...initial];
+  const calls: { method: string; args: { count?: number; page?: number; sort_dir?: string } }[] = [];
+
+  const client: PollingWebClient = {
+    conversations: {
+      list: vi.fn(async () => ({ channels: [] })),
+      history: vi.fn(async () => ({ messages: [] })),
+      replies: vi.fn(async () => ({ messages: [] })),
+    },
+    search: {
+      messages: vi.fn(async (args) => {
+        calls.push({ method: 'search', args });
+        const desc = [...universe].sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
+        const ordered = args.sort_dir === 'asc' ? desc.reverse() : desc;
+        const count = args.count ?? 100;
+        const page = args.page ?? 1;
+        const start = (page - 1) * count;
+        const pageMatches = ordered.slice(start, start + count);
+        const pages = Math.max(1, Math.ceil(ordered.length / count));
+        return {
+          ok: true,
+          messages: {
+            total: ordered.length,
+            paging: { count, total: ordered.length, page, pages },
+            matches: pageMatches,
+          },
+        };
+      }),
+    },
+  };
+
+  return {
+    client,
+    calls,
+    addMatch: (m: SearchMatch) => { universe.push(m); },
+  };
+}
+
 // ─── Tests ───
 
 describe('SlackPollingClient', () => {
@@ -613,6 +667,122 @@ describe('SlackPollingClient', () => {
     // Second cycle should NOT refresh again (large N).
     await polling.runOnce();
     expect(calls.filter((c) => c.method === 'list').length).toBe(1);
+    await polling.stop();
+  });
+});
+
+describe('SlackPollingClient (search mode)', () => {
+  it('dispatches chronologically (newest-first fetch, asc dispatch) and advances watermark', async () => {
+    const dispatched: SocketLikeMessageEvent[] = [];
+    const store = await makeStore();
+    const { scheduler } = createManualScheduler();
+    const { client } = buildSearchMockClient([
+      { ts: '1700000003.000003', channel: { id: 'C1' }, user: 'U1', text: 'third' },
+      { ts: '1700000001.000001', channel: { id: 'C1' }, user: 'U1', text: 'first' },
+      { ts: '1700000002.000002', channel: { id: 'C1' }, user: 'U1', text: 'second' },
+    ]);
+
+    const polling = new SlackPollingClient({
+      webClient: client,
+      watermarkStore: store,
+      dispatch: (e) => { dispatched.push(e); },
+      intervalSec: 30,
+      backfillMessageCap: 5,
+      backfillSeconds: 24 * 60 * 60,
+      concurrency: 1,
+      channelListRefreshEveryNCycles: 999,
+      useSearch: true,
+      scheduler,
+    });
+
+    await polling.start();
+    await polling.runOnce();
+
+    expect(dispatched.map((m) => m.ts)).toEqual([
+      '1700000001.000001',
+      '1700000002.000002',
+      '1700000003.000003',
+    ]);
+    expect(store.get('C1')?.lastTs).toBe('1700000003.000003');
+    await polling.stop();
+  });
+
+  it('applies allowlist + keepAllDms and does not re-dispatch on a quiet next cycle', async () => {
+    const dispatched: SocketLikeMessageEvent[] = [];
+    const store = await makeStore();
+    const { scheduler } = createManualScheduler();
+    const { client } = buildSearchMockClient([
+      { ts: '1700000010.000010', channel: { id: 'C_keep' }, user: 'U1', text: 'a' },
+      { ts: '1700000011.000011', channel: { id: 'C_skip' }, user: 'U1', text: 'no' },
+      { ts: '1700000012.000012', channel: { id: 'D_dm', is_im: true }, user: 'U2', text: 'dm' },
+    ]);
+
+    const polling = new SlackPollingClient({
+      webClient: client,
+      watermarkStore: store,
+      dispatch: (e) => { dispatched.push(e); },
+      intervalSec: 30,
+      backfillMessageCap: 5,
+      backfillSeconds: 24 * 60 * 60,
+      concurrency: 1,
+      channelListRefreshEveryNCycles: 999,
+      allowlistChannelIds: ['C_keep'],
+      keepAllDms: true,
+      useSearch: true,
+      scheduler,
+    });
+
+    await polling.start();
+    await polling.runOnce();
+    expect(dispatched.map((m) => m.channel).sort()).toEqual(['C_keep', 'D_dm']);
+
+    // Nothing new arrived: a second cycle must not re-dispatch.
+    await polling.runOnce();
+    expect(dispatched.length).toBe(2);
+    await polling.stop();
+  });
+
+  it('stops paging early once a page crosses back past the overlap floor', async () => {
+    const dispatched: SocketLikeMessageEvent[] = [];
+    const store = await makeStore();
+    const { scheduler } = createManualScheduler();
+    // 150 messages spaced 10s apart → a 25-min span (wider than the 5-min
+    // overlap window) so the early-stop boundary actually triggers.
+    const base = 1_700_000_000;
+    const initial: SearchMatch[] = [];
+    for (let i = 0; i < 150; i++) {
+      initial.push({ ts: `${base + i * 10}.000000`, channel: { id: 'C_big' }, user: 'U1', text: `m${i}` });
+    }
+    const harness = buildSearchMockClient(initial);
+
+    const polling = new SlackPollingClient({
+      webClient: harness.client,
+      watermarkStore: store,
+      dispatch: (e) => { dispatched.push(e); },
+      intervalSec: 30,
+      backfillMessageCap: 5,
+      backfillSeconds: 24 * 60 * 60,
+      concurrency: 1,
+      channelListRefreshEveryNCycles: 999,
+      useSearch: true,
+      scheduler,
+    });
+
+    await polling.start();
+    await polling.runOnce(); // first cycle: no floor yet → pages the full window
+    expect(dispatched.length).toBe(150);
+    const firstCycleCalls = harness.calls.length;
+    expect(firstCycleCalls).toBe(2); // 100 + 50
+
+    // One new message arrives, newer than everything.
+    harness.addMatch({ ts: `${base + 150 * 10}.000000`, channel: { id: 'C_big' }, user: 'U1', text: 'newest' });
+    await polling.runOnce();
+
+    // Only the new message is dispatched (the rest are below the watermark)…
+    expect(dispatched.length).toBe(151);
+    expect(dispatched[150].text).toBe('newest');
+    // …and the cycle fetched exactly ONE page before the floor stopped it.
+    expect(harness.calls.length - firstCycleCalls).toBe(1);
     await polling.stop();
   });
 });

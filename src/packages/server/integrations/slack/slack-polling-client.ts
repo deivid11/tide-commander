@@ -301,6 +301,13 @@ export class SlackPollingClient {
   private channelBackoffUntil = new Map<string, number>();
   /** ChannelId set known from the most recent list refresh. */
   private knownChannels = new Set<string>();
+  /**
+   * Search-mode only: the newest message `ts` observed in the previous search
+   * cycle (dispatched or not). Lets the next cycle stop paging as soon as it
+   * crosses back past this (minus an overlap window) instead of re-paging the
+   * full day window every tick. null until the first search cycle completes.
+   */
+  private lastSearchMaxTs: string | null = null;
   /** Set when we've hit a fatal auth error so the loop self-stops. */
   private fatalError: string | null = null;
   /** Optional callback the wrapper can subscribe to for fatal errors. */
@@ -719,17 +726,31 @@ export class SlackPollingClient {
   }
 
   /**
-   * Search-mode cycle: pull every message (channels + DMs + thread replies)
-   * since "yesterday" with a single `search.messages` call (paginated). Each
-   * match is filtered against the allowlist (and keepAllDms for DMs), checked
-   * against the per-channel watermark, then dispatched. Watermark advances
-   * per channel just like the legacy path so a switch back to per-channel
-   * polling stays correct.
+   * Search-mode cycle: pull recent messages (channels + DMs + thread replies)
+   * with `search.messages`. Each match is filtered against the allowlist (and
+   * keepAllDms for DMs), checked against the per-channel watermark, collected,
+   * then dispatched in chronological order. Watermark advances per channel
+   * just like the legacy path so a switch back to per-channel polling stays
+   * correct.
    *
-   * Why "yesterday" and not the global watermark? Slack search's date
-   * operators are day-precision only (`after:YYYY-MM-DD`). We pick a 1-day
-   * lookback to make sure we always overlap with the last-seen ts. The
-   * per-channel watermark filter drops duplicates so we never re-dispatch.
+   * Ordering: results are fetched NEWEST-first (`sort_dir: 'desc'`) so the
+   * freshest messages land on page 1 and we can stop paging the instant we
+   * cross back into already-seen territory. The previous asc ordering forced
+   * every cycle to page through the entire day window to reach the new
+   * messages (which sat on the LAST page), and on busy accounts (more than
+   * MAX_PAGES×count msgs/day) the newest messages were never reached at all —
+   * a latency sink and a silent drop. Because we now page newest→oldest we
+   * collect candidates then sort ascending before dispatch so trigger
+   * listeners + thread ordering still see real-world order.
+   *
+   * Early-stop boundary: `after:<yesterday>` (day-precision, the finest Slack
+   * search supports) is the absolute floor that bounds a cold-start/first
+   * cycle. After the first cycle we additionally stop paging once a page's
+   * oldest match is older than (last cycle's newest ts − OVERLAP). The overlap
+   * re-scans recent history every tick so messages Slack's search index
+   * surfaces late (documented ~10-30s lag) are still caught; the per-channel
+   * watermark dedupes the overlap so nothing dispatches twice. Net effect:
+   * steady-state cycles cost ~1 page instead of paging the whole day.
    */
   private async pollViaSearch(): Promise<{ dispatched: number; pages: number }> {
     if (!this.webClient.search) {
@@ -746,11 +767,28 @@ export class SlackPollingClient {
     const d = String(yesterday.getUTCDate()).padStart(2, '0');
     const query = `after:${y}-${m}-${d}`;
 
-    let dispatched = 0;
+    // Stop paging once we reach messages older than (last cycle's newest −
+    // overlap). 5 min is well above Slack's ~10-30s index lag, so late-indexed
+    // messages are still re-scanned; watermark dedup keeps them from
+    // re-dispatching. floorBig = 0n on the first cycle ⇒ no early stop ⇒ full
+    // backfill of the day window.
+    const OVERLAP_MICROS = 5n * 60n * 1_000_000n; // 5 minutes in packed-ts units
+    const floorBig = this.lastSearchMaxTs
+      ? tsToBigInt(this.lastSearchMaxTs) - OVERLAP_MICROS
+      : 0n;
+
     let page = 1;
     const MAX_PAGES = 10; // ~1000 messages per cycle ceiling
+    let cycleMaxTs: string | null = null;
+    // Collected new events; dispatched chronologically after paging.
+    const pending: SocketLikeMessageEvent[] = [];
     // Track highest seen ts per channel so we advance watermark at the end.
     const highestByChannel = new Map<string, string>();
+    // Exact `${channel}:${ts}` keys collected this cycle — defends against the
+    // same match appearing on overlapping pages. (Must NOT gate on the running
+    // per-channel max: we fetch newest-first, so the max is the FIRST match and
+    // a max-based gate would drop every older message in the cycle.)
+    const seenKeys = new Set<string>();
 
     while (page <= MAX_PAGES) {
       if (!this.running) break;
@@ -761,7 +799,7 @@ export class SlackPollingClient {
           count: 100,
           page,
           sort: 'timestamp',
-          sort_dir: 'asc',
+          sort_dir: 'desc',
         }));
       } catch (err) {
         if (isInvalidAuthError(err)) throw err;
@@ -779,9 +817,17 @@ export class SlackPollingClient {
       const matches = res.messages?.matches ?? [];
       if (matches.length === 0) break;
 
+      let oldestOnPageTs: string | null = null;
       for (const match of matches) {
         const channelId = match.channel?.id;
         if (!channelId || !match.ts || typeof match.ts !== 'string') continue;
+
+        // Track newest (for next cycle's floor) and oldest (for early-stop)
+        // across ALL matches, before any allowlist/watermark filtering — the
+        // boundary must reflect everything the index returned, not just what
+        // we chose to dispatch.
+        if (!cycleMaxTs || tsGt(match.ts, cycleMaxTs)) cycleMaxTs = match.ts;
+        if (!oldestOnPageTs || tsCmp(match.ts, oldestOnPageTs) < 0) oldestOnPageTs = match.ts;
 
         // Allowlist filter: respect the same rule as the legacy path so the
         // user's "only these channels + DMs" config still gates everything.
@@ -794,15 +840,16 @@ export class SlackPollingClient {
           if (!allowed) continue;
         }
 
-        // Watermark filter: drop anything we've already dispatched. Each
-        // channel keeps its own watermark so a switch back to per-channel
-        // polling later picks up exactly where search left off.
+        // Watermark filter: drop anything we've already dispatched in a prior
+        // cycle. Each channel keeps its own watermark so a switch back to
+        // per-channel polling later picks up exactly where search left off.
         const wm = this.watermarkStore.get(channelId);
         if (wm && tsLte(match.ts, wm.lastTs)) continue;
-        const seen = highestByChannel.get(channelId);
-        if (seen && tsLte(match.ts, seen)) continue;
+        const key = `${channelId}:${match.ts}`;
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
 
-        const event: SocketLikeMessageEvent = {
+        pending.push({
           ts: match.ts,
           thread_ts: match.thread_ts,
           channel: channelId,
@@ -810,17 +857,16 @@ export class SlackPollingClient {
           text: match.text,
           subtype: match.subtype,
           files: Array.isArray(match.files) ? match.files : undefined,
-        };
-        try {
-          await this.dispatch(event);
-          dispatched += 1;
-        } catch (err) {
-          log.error(`dispatch error (search) channel=${channelId} ts=${match.ts}: ${describeErr(err)}`);
-        }
-        if (!seen || tsGt(match.ts, seen)) {
+        });
+        const curMax = highestByChannel.get(channelId);
+        if (!curMax || tsGt(match.ts, curMax)) {
           highestByChannel.set(channelId, match.ts);
         }
       }
+
+      // Early stop: this page has paged back past the overlap floor, so every
+      // remaining (older) match was already seen in a prior cycle.
+      if (oldestOnPageTs && tsToBigInt(oldestOnPageTs) <= floorBig) break;
 
       // Pagination control. Slack returns `pagination.page_count` or the
       // legacy `paging.pages`; bail when we're past the last page or when
@@ -833,12 +879,32 @@ export class SlackPollingClient {
       page += 1;
     }
 
+    // Dispatch chronologically (search returned newest-first) so trigger
+    // listeners and thread ordering see messages in real-world order.
+    pending.sort((a, b) => tsCmp(a.ts, b.ts));
+    let dispatched = 0;
+    for (const event of pending) {
+      if (!this.running) break;
+      try {
+        await this.dispatch(event);
+        dispatched += 1;
+      } catch (err) {
+        log.error(`dispatch error (search) channel=${event.channel} ts=${event.ts}: ${describeErr(err)}`);
+      }
+    }
+
     // Persist per-channel watermarks for everything we dispatched this cycle.
     for (const [channelId, highest] of highestByChannel) {
       const existing = this.watermarkStore.get(channelId)?.lastTs;
       if (!existing || tsGt(highest, existing)) {
         await this.watermarkStore.set(channelId, highest);
       }
+    }
+
+    // Remember the newest ts the index returned so the next cycle can stop
+    // paging early once it crosses back past it (minus the overlap window).
+    if (cycleMaxTs && (!this.lastSearchMaxTs || tsGt(cycleMaxTs, this.lastSearchMaxTs))) {
+      this.lastSearchMaxTs = cycleMaxTs;
     }
 
     return { dispatched, pages: page };

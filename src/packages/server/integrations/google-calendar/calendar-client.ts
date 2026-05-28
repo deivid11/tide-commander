@@ -43,6 +43,10 @@ export interface CalendarEvent {
   attendees: EventAttendee[];
   location?: string;
   htmlLink: string;
+  /** Google Meet link (Google's legacy `hangoutLink` field), when the event has Meet. */
+  hangoutLink?: string;
+  /** Best video-conference join URL: `hangoutLink`, else a conferenceData video entry point. */
+  meetingUrl?: string;
   status: string;
   created: string;
   updated: string;
@@ -482,6 +486,13 @@ function mapGoogleEvent(
     date: data.end?.date || undefined,
     timeZone: data.end?.timeZone || undefined,
   };
+  // Surface the meeting join link. Google Meet populates `hangoutLink`; other
+  // providers (Zoom, Teams, Webex) show up as a "video" entry point in conferenceData.
+  const hangoutLink = data.hangoutLink || undefined;
+  const videoEntry = data.conferenceData?.entryPoints?.find(
+    (e) => e.entryPointType === 'video' && e.uri,
+  );
+  const meetingUrl = hangoutLink || videoEntry?.uri || undefined;
   return {
     eventId: data.id || '',
     summary: data.summary || '',
@@ -497,6 +508,8 @@ function mapGoogleEvent(
     })),
     location: data.location || undefined,
     htmlLink: data.htmlLink || '',
+    hangoutLink,
+    meetingUrl,
     status: data.status || '',
     created: data.created || '',
     updated: data.updated || '',

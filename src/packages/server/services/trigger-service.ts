@@ -35,6 +35,15 @@ const rateLimitMap = new Map<string, number[]>();
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
 const RATE_LIMIT_MAX = 10; // 10 per minute per trigger
 
+// Per-agent delivery dedup: key `${agentId}\0${sourceType}\0${sourceId}` ->
+// expiry ms. Guarantees the same physical source message never reaches the
+// same agent twice within the window — covers two integration instances both
+// seeing a shared message (e.g. Slack personal + bot) and overlapping triggers
+// that target the same agent. TTL is generous to absorb polling lag between
+// instances.
+const deliveryDedupMap = new Map<string, number>();
+const DELIVERY_DEDUP_TTL_MS = 10 * 60_000; // 10 minutes
+
 // Debounced persistence
 const PERSIST_DEBOUNCE_MS = 2000;
 let persistTimer: NodeJS.Timeout | null = null;
@@ -414,6 +423,8 @@ async function evaluateEvent(handler: TriggerHandler, event: ExternalEvent): Pro
         llmMatchResult: llmResult,
         llmExtractResult: llmExtractResult,
         matcherExecutions,
+        dedupeSourceType: sourceType,
+        dedupeSourceId: sourceId,
       });
     } catch (err) {
       log.error(`Error evaluating trigger ${trigger.name} for event:`, err);
@@ -557,6 +568,58 @@ export async function testMatch(triggerId: string, event: ExternalEvent): Promis
   };
 }
 
+// ─── Fan-out + Delivery Dedup ───
+
+/**
+ * The de-duplicated, ordered set of agents a trigger delivers to: the primary
+ * `agentId` first, then any extra `agentIds`. Blanks/dupes are dropped.
+ */
+function resolveTargetAgents(trigger: Trigger): string[] {
+  const candidates = [trigger.agentId, ...(((trigger as { agentIds?: string[] }).agentIds) ?? [])];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of candidates) {
+    const aid = (raw ?? '').trim();
+    if (!aid || seen.has(aid)) continue;
+    seen.add(aid);
+    result.push(aid);
+  }
+  return result;
+}
+
+/** Compose the per-agent dedup key, or null when the source has no stable id. */
+function deliveryDedupKey(agentId: string, sourceType?: string, sourceId?: string): string | null {
+  if (!sourceId) return null;
+  return `${agentId} ${sourceType ?? ''} ${sourceId}`;
+}
+
+function isDuplicateDelivery(agentId: string, sourceType?: string, sourceId?: string): boolean {
+  const key = deliveryDedupKey(agentId, sourceType, sourceId);
+  if (!key) return false;
+  const expiry = deliveryDedupMap.get(key);
+  if (expiry && expiry > Date.now()) return true;
+  if (expiry) deliveryDedupMap.delete(key); // expired
+  return false;
+}
+
+function markDelivered(agentId: string, sourceType?: string, sourceId?: string): void {
+  const key = deliveryDedupKey(agentId, sourceType, sourceId);
+  if (!key) return;
+  const now = Date.now();
+  deliveryDedupMap.set(key, now + DELIVERY_DEDUP_TTL_MS);
+  // Opportunistic prune so the map can't grow unbounded on high-volume sources.
+  if (deliveryDedupMap.size > 5000) {
+    for (const [k, exp] of deliveryDedupMap) {
+      if (exp <= now) deliveryDedupMap.delete(k);
+    }
+  }
+}
+
+function releaseDelivery(agentId: string, sourceType?: string, sourceId?: string): void {
+  const key = deliveryDedupKey(agentId, sourceType, sourceId);
+  if (key) deliveryDedupMap.delete(key);
+}
+
 // ─── Fire Trigger ───
 
 export async function fireTrigger(
@@ -582,91 +645,127 @@ export async function fireTrigger(
 
   const startTime = Date.now();
 
-  // Interpolate prompt template
+  // Interpolate prompt template once — every subscribed agent gets the same
+  // message.
   const interpolatedPrompt = interpolateTemplate(trigger.promptTemplate, variables);
 
-  // Log fire event to SQLite
-  let eventId: number;
-  try {
-    eventId = insertOne('trigger_events', {
-      trigger_id: trigger.id,
-      trigger_name: trigger.name,
-      trigger_type: trigger.type,
-      agent_id: trigger.agentId,
-      workflow_instance_id: opts?.workflowInstanceId || null,
-      fired_at: startTime,
-      variables: JSON.stringify(variables),
-      payload: opts?.rawPayload ? JSON.stringify(opts.rawPayload) : null,
-      match_mode: trigger.matchMode,
-      llm_match_result: opts?.llmMatchResult ? JSON.stringify(opts.llmMatchResult) : null,
-      llm_extract_result: opts?.llmExtractResult ? JSON.stringify(opts.llmExtractResult) : null,
-      status: 'fired',
-      error: null,
-      duration_ms: null,
-    });
-
-    // Log matcher executions linked to this trigger event
-    if (opts?.matcherExecutions && eventId > 0) {
-      logMatcherExecutions(eventId, trigger.id, opts.matcherExecutions);
-    }
-  } catch (err) {
-    log.error('Failed to log trigger fire to SQLite:', err);
-    eventId = -1;
+  // Resolve the de-duplicated set of subscribed agents: the primary `agentId`
+  // plus any fan-out `agentIds`. Each gets the message.
+  const targetAgents = resolveTargetAgents(trigger);
+  if (targetAgents.length === 0) {
+    log.warn(`Trigger ${trigger.name} has no target agent; skipping fire`);
+    return;
   }
 
-  // Send command to agent
-  try {
-    // Dynamic import to avoid circular dependencies
-    const { sendCommand } = await import('./runtime-service.js');
-    await sendCommand(trigger.agentId, interpolatedPrompt);
+  // Dynamic import to avoid circular dependencies.
+  const { sendCommand } = await import('./runtime-service.js');
 
-    // Update trigger state
-    const updated = {
+  let anyDelivered = false;
+  let firstError: string | undefined;
+  let matchersLogged = false;
+
+  for (const agentId of targetAgents) {
+    // Per-agent dedup: never deliver the same physical source message to the
+    // same agent twice (e.g. a shared Slack channel seen by both the personal
+    // and bot instances, or two overlapping triggers targeting one agent).
+    // Reserve the slot SYNCHRONOUSLY (before any await) so two concurrent
+    // events for the same message can't both pass the check.
+    if (isDuplicateDelivery(agentId, opts?.dedupeSourceType, opts?.dedupeSourceId)) {
+      log.log(
+        `Trigger ${trigger.name}: skipping duplicate delivery to agent ${agentId} (source=${opts?.dedupeSourceType ?? '-'}:${opts?.dedupeSourceId ?? '-'})`,
+      );
+      continue;
+    }
+    markDelivered(agentId, opts?.dedupeSourceType, opts?.dedupeSourceId);
+
+    // Log one fire row per delivered agent so history reflects each delivery.
+    let eventId = -1;
+    try {
+      eventId = insertOne('trigger_events', {
+        trigger_id: trigger.id,
+        trigger_name: trigger.name,
+        trigger_type: trigger.type,
+        agent_id: agentId,
+        workflow_instance_id: opts?.workflowInstanceId || null,
+        fired_at: startTime,
+        variables: JSON.stringify(variables),
+        payload: opts?.rawPayload ? JSON.stringify(opts.rawPayload) : null,
+        match_mode: trigger.matchMode,
+        llm_match_result: opts?.llmMatchResult ? JSON.stringify(opts.llmMatchResult) : null,
+        llm_extract_result: opts?.llmExtractResult ? JSON.stringify(opts.llmExtractResult) : null,
+        status: 'fired',
+        error: null,
+        duration_ms: null,
+      });
+
+      // Link matcher executions once — they describe the match, not a per-agent
+      // delivery — to the first event row created this fire.
+      if (!matchersLogged && opts?.matcherExecutions && eventId > 0) {
+        logMatcherExecutions(eventId, trigger.id, opts.matcherExecutions);
+        matchersLogged = true;
+      }
+    } catch (err) {
+      log.error('Failed to log trigger fire to SQLite:', err);
+      eventId = -1;
+    }
+
+    try {
+      await sendCommand(agentId, interpolatedPrompt);
+      anyDelivered = true;
+
+      if (eventId > 0) {
+        try {
+          execute(
+            'UPDATE trigger_events SET status = ?, duration_ms = ? WHERE id = ?',
+            ['delivered', Date.now() - startTime, eventId],
+          );
+        } catch { /* best effort */ }
+      }
+
+      emit('trigger_fired', { triggerId: id, agentId, timestamp: startTime });
+      log.log(`Fired trigger ${trigger.name} -> agent ${agentId}`);
+
+      // Route to workflow instances waiting for this trigger (per agent).
+      try {
+        const { handleTrigger } = await import('./workflow-executor.js');
+        await handleTrigger({
+          triggerId: id,
+          triggerData: variables as Record<string, unknown>,
+          agentId,
+        });
+      } catch { /* workflow routing is best-effort */ }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      firstError = firstError ?? errorMsg;
+      // Release the dedup reservation so a later retry (another instance's view
+      // of the same message) can still attempt delivery.
+      releaseDelivery(agentId, opts?.dedupeSourceType, opts?.dedupeSourceId);
+
+      if (eventId > 0) {
+        try {
+          execute(
+            'UPDATE trigger_events SET status = ?, error = ?, duration_ms = ? WHERE id = ?',
+            ['failed', errorMsg, Date.now() - startTime, eventId],
+          );
+        } catch { /* best effort */ }
+      }
+
+      emit('trigger_error', { triggerId: id, error: errorMsg });
+      log.error(`Failed to fire trigger ${trigger.name} -> agent ${agentId}:`, err);
+    }
+  }
+
+  // Update trigger aggregate state once per fire (not per agent). A fire where
+  // every agent was a duplicate is a successful no-op — leave state untouched.
+  if (anyDelivered) {
+    updateTrigger(id, {
       lastFiredAt: startTime,
       fireCount: trigger.fireCount + 1,
       status: 'enabled' as const,
       lastError: undefined,
-    };
-    updateTrigger(id, updated);
-
-    // Update event status in SQLite
-    if (eventId > 0) {
-      try {
-        execute(
-          'UPDATE trigger_events SET status = ?, duration_ms = ? WHERE id = ?',
-          ['delivered', Date.now() - startTime, eventId]
-        );
-      } catch { /* best effort */ }
-    }
-
-    emit('trigger_fired', { triggerId: id, agentId: trigger.agentId, timestamp: startTime });
-    log.log(`Fired trigger ${trigger.name} -> agent ${trigger.agentId}`);
-
-    // Route to workflow instances that are waiting for this trigger
-    try {
-      const { handleTrigger } = await import('./workflow-executor.js');
-      await handleTrigger({
-        triggerId: id,
-        triggerData: variables as Record<string, unknown>,
-        agentId: trigger.agentId,
-      });
-    } catch { /* workflow routing is best-effort */ }
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-    updateTrigger(id, { status: 'error', lastError: errorMsg });
-
-    // Update event status in SQLite
-    if (eventId > 0) {
-      try {
-        execute(
-          'UPDATE trigger_events SET status = ?, error = ?, duration_ms = ? WHERE id = ?',
-          ['failed', errorMsg, Date.now() - startTime, eventId]
-        );
-      } catch { /* best effort */ }
-    }
-
-    emit('trigger_error', { triggerId: id, error: errorMsg });
-    log.error(`Failed to fire trigger ${trigger.name}:`, err);
+    });
+  } else if (firstError) {
+    updateTrigger(id, { status: 'error', lastError: firstError });
   }
 }
 
