@@ -7,6 +7,9 @@ import { Router, Request, Response } from 'express';
 import {
   queryTriggerEvents,
   querySlackMessages,
+  queryWhatsAppMessages,
+  queryConversationHistory,
+  listConversations,
   queryEmailMessages,
   queryApprovalEvents,
   queryDocumentGenerations,
@@ -59,6 +62,44 @@ router.get('/slack', (req: Request, res: Response) => {
     workflowInstanceId: qs(req.query.workflowInstanceId),
     agentId: qs(req.query.agentId),
     since: qn(req.query.since),
+    limit: qn(req.query.limit) ?? 50,
+  });
+  res.json(result);
+});
+
+// ─── WhatsApp Messages ───
+
+router.get('/whatsapp', (req: Request, res: Response) => {
+  const result = queryWhatsAppMessages({
+    sessionId: qs(req.query.sessionId),
+    chatId: qs(req.query.chatId),
+    direction: qs(req.query.direction),
+    messageType: qs(req.query.messageType),
+    workflowInstanceId: qs(req.query.workflowInstanceId),
+    agentId: qs(req.query.agentId),
+    since: qn(req.query.since),
+    limit: qn(req.query.limit) ?? 50,
+  });
+  res.json(result);
+});
+
+// ─── Conversation History (unified Slack + WhatsApp transcript) ───
+
+router.get('/conversations', (req: Request, res: Response) => {
+  const result = queryConversationHistory({
+    source: qs(req.query.source) as 'slack' | 'whatsapp' | 'both' | undefined,
+    contact: qs(req.query.contact),
+    agentId: qs(req.query.agentId),
+    since: qn(req.query.since),
+    until: qn(req.query.until),
+    limit: qn(req.query.limit) ?? 50,
+  });
+  res.json(result);
+});
+
+router.get('/conversations/contacts', (req: Request, res: Response) => {
+  const result = listConversations({
+    source: qs(req.query.source) as 'slack' | 'whatsapp' | 'both' | undefined,
     limit: qn(req.query.limit) ?? 50,
   });
   res.json(result);

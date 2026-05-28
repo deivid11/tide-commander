@@ -1294,6 +1294,242 @@ export function queryJiraLogs(opts: {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// CONVERSATION HISTORY (unified Slack + WhatsApp transcript)
+// ═══════════════════════════════════════════════════════════════
+//
+// Read-only helpers that merge the slack_messages and whatsapp_messages
+// tables into a single, normalized, chronological transcript. Used by the
+// `conversation-history` built-in skill via GET /api/events/conversations.
+
+/** A single message normalized across Slack and WhatsApp sources. */
+export interface ConversationMessage {
+  source: 'slack' | 'whatsapp';
+  id: number;
+  /** Slack channel_id or WhatsApp chat_id. */
+  conversationId: string;
+  /** Slack channel_name or WhatsApp group_name (if any). */
+  conversationName?: string;
+  /** WhatsApp only — true for group chats. */
+  isGroup?: boolean;
+  /** Display name of the sender (Slack user_name, WhatsApp from_name|from_jid). */
+  sender: string;
+  /** 'inbound' (received) or 'outbound' (sent by us/an agent). */
+  direction: string;
+  /** Message text. For non-text WhatsApp items, a synthetic placeholder is used. */
+  text: string;
+  /** WhatsApp message_type (text, image, audio, ...). Undefined for Slack. */
+  messageType?: string;
+  /** Epoch milliseconds. Slack received_at or WhatsApp timestamp. */
+  timestamp: number;
+  /** ISO-8601 rendering of `timestamp` for convenient display. */
+  time: string;
+  /** Agent that handled the message, if any. */
+  agentId?: string;
+}
+
+/** Summary of one conversation (channel/chat) for ID discovery. */
+export interface ConversationSummary {
+  source: 'slack' | 'whatsapp';
+  conversationId: string;
+  conversationName?: string;
+  isGroup?: boolean;
+  messageCount: number;
+  lastTimestamp: number;
+  lastTime: string;
+}
+
+export type ConversationSource = 'slack' | 'whatsapp' | 'both';
+
+function normalizeSource(source: string | undefined): ConversationSource {
+  return source === 'slack' || source === 'whatsapp' ? source : 'both';
+}
+
+/** Build a readable text body for a WhatsApp row, accounting for media/transcriptions. */
+function whatsappBodyToText(row: WhatsAppMessageRow): string {
+  let text = row.body ?? '';
+  if (text.trim().length === 0 && row.message_type && row.message_type !== 'text') {
+    text = `[${row.message_type}${row.media_filename ? `: ${row.media_filename}` : ''}]`;
+  }
+  if (row.audio_transcription) {
+    const t = `(transcription: ${row.audio_transcription})`;
+    text = text.trim().length > 0 ? `${text}\n${t}` : t;
+  }
+  return text;
+}
+
+/**
+ * Retrieve a unified, chronological (oldest→newest) conversation transcript
+ * across Slack and WhatsApp. The newest `limit` messages within the optional
+ * time range are selected, then returned in ascending order for readability.
+ */
+export function queryConversationHistory(opts: {
+  source?: ConversationSource;
+  /** Match a channel/chat/contact: exact id OR partial name match (case-insensitive). */
+  contact?: string;
+  agentId?: string;
+  /** Epoch ms lower bound (inclusive). */
+  since?: number;
+  /** Epoch ms upper bound (inclusive). */
+  until?: number;
+  /** Max messages across both sources (default 50, capped at 500). */
+  limit?: number;
+}): { source: ConversationSource; count: number; messages: ConversationMessage[] } {
+  const source = normalizeSource(opts.source);
+  const limit = Math.min(Math.max(1, opts.limit ?? 50), 500);
+  const collected: ConversationMessage[] = [];
+
+  if (source === 'slack' || source === 'both') {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    if (opts.contact) {
+      conditions.push('(channel_id = ? OR channel_name LIKE ? OR user_name LIKE ?)');
+      params.push(opts.contact, `%${opts.contact}%`, `%${opts.contact}%`);
+    }
+    if (opts.agentId) { conditions.push('agent_id = ?'); params.push(opts.agentId); }
+    if (opts.since !== undefined) { conditions.push('received_at >= ?'); params.push(opts.since); }
+    if (opts.until !== undefined) { conditions.push('received_at <= ?'); params.push(opts.until); }
+    const where = conditions.length > 0 ? ' WHERE ' + conditions.join(' AND ') : '';
+    const rows = queryMany<SlackMessageRow>(
+      `SELECT * FROM slack_messages${where} ORDER BY received_at DESC LIMIT ?`,
+      [...params, limit],
+    );
+    for (const r of rows) {
+      collected.push({
+        source: 'slack',
+        id: r.id,
+        conversationId: r.channel_id,
+        conversationName: r.channel_name ?? undefined,
+        sender: r.user_name,
+        direction: r.direction,
+        text: r.text,
+        timestamp: r.received_at,
+        time: new Date(r.received_at).toISOString(),
+        agentId: r.agent_id ?? undefined,
+      });
+    }
+  }
+
+  if (source === 'whatsapp' || source === 'both') {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    if (opts.contact) {
+      conditions.push('(chat_id = ? OR group_name LIKE ? OR from_name LIKE ?)');
+      params.push(opts.contact, `%${opts.contact}%`, `%${opts.contact}%`);
+    }
+    if (opts.agentId) { conditions.push('agent_id = ?'); params.push(opts.agentId); }
+    if (opts.since !== undefined) { conditions.push('timestamp >= ?'); params.push(opts.since); }
+    if (opts.until !== undefined) { conditions.push('timestamp <= ?'); params.push(opts.until); }
+    const where = conditions.length > 0 ? ' WHERE ' + conditions.join(' AND ') : '';
+    const rows = queryMany<WhatsAppMessageRow>(
+      `SELECT * FROM whatsapp_messages${where} ORDER BY timestamp DESC LIMIT ?`,
+      [...params, limit],
+    );
+    for (const r of rows) {
+      collected.push({
+        source: 'whatsapp',
+        id: r.id,
+        conversationId: r.chat_id,
+        conversationName: r.group_name ?? undefined,
+        isGroup: r.is_group === 1,
+        sender: r.from_name ?? r.from_jid,
+        direction: r.direction,
+        text: whatsappBodyToText(r),
+        messageType: r.message_type,
+        timestamp: r.timestamp,
+        time: new Date(r.timestamp).toISOString(),
+        agentId: r.agent_id ?? undefined,
+      });
+    }
+  }
+
+  // Newest-first across both sources, cap to limit, then flip to chronological order.
+  collected.sort((a, b) => b.timestamp - a.timestamp);
+  const capped = collected.slice(0, limit);
+  capped.reverse();
+  return { source, count: capped.length, messages: capped };
+}
+
+/**
+ * List conversations (Slack channels and WhatsApp chats) with message counts,
+ * ordered by most-recent activity. Useful for discovering the ids/names to pass
+ * as the `contact` filter to queryConversationHistory.
+ */
+export function listConversations(opts: {
+  source?: ConversationSource;
+  limit?: number;
+}): { source: ConversationSource; conversations: ConversationSummary[] } {
+  const source = normalizeSource(opts.source);
+  const limit = Math.min(Math.max(1, opts.limit ?? 50), 200);
+  const out: ConversationSummary[] = [];
+
+  if (source === 'slack' || source === 'both') {
+    const rows = queryMany<{
+      channel_id: string;
+      channel_name: string | null;
+      msg_count: number;
+      last_ts: number;
+    }>(
+      `SELECT channel_id,
+              MAX(channel_name) AS channel_name,
+              COUNT(*)          AS msg_count,
+              MAX(received_at)  AS last_ts
+       FROM slack_messages
+       GROUP BY channel_id
+       ORDER BY last_ts DESC
+       LIMIT ?`,
+      [limit],
+    );
+    for (const r of rows) {
+      out.push({
+        source: 'slack',
+        conversationId: r.channel_id,
+        conversationName: r.channel_name ?? undefined,
+        messageCount: r.msg_count,
+        lastTimestamp: r.last_ts,
+        lastTime: new Date(r.last_ts).toISOString(),
+      });
+    }
+  }
+
+  if (source === 'whatsapp' || source === 'both') {
+    const rows = queryMany<{
+      chat_id: string;
+      group_name: string | null;
+      from_name: string | null;
+      is_group: number;
+      msg_count: number;
+      last_ts: number;
+    }>(
+      `SELECT chat_id,
+              MAX(group_name) AS group_name,
+              MAX(from_name)  AS from_name,
+              MAX(is_group)   AS is_group,
+              COUNT(*)        AS msg_count,
+              MAX(timestamp)  AS last_ts
+       FROM whatsapp_messages
+       GROUP BY chat_id
+       ORDER BY last_ts DESC
+       LIMIT ?`,
+      [limit],
+    );
+    for (const r of rows) {
+      out.push({
+        source: 'whatsapp',
+        conversationId: r.chat_id,
+        conversationName: r.group_name ?? r.from_name ?? undefined,
+        isGroup: r.is_group === 1,
+        messageCount: r.msg_count,
+        lastTimestamp: r.last_ts,
+        lastTime: new Date(r.last_ts).toISOString(),
+      });
+    }
+  }
+
+  out.sort((a, b) => b.lastTimestamp - a.lastTimestamp);
+  return { source, conversations: out.slice(0, limit) };
+}
+
+// ═══════════════════════════════════════════════════════════════
 // WORKFLOW TIMELINE (merged chronological view)
 // ═══════════════════════════════════════════════════════════════
 

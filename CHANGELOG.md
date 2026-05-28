@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.110.0] - 2026-05-28
+
+### Added
+- **Conversation History built-in skill** — new `conversation-history` builtin skill that retrieves recent Slack and WhatsApp conversation history from the local SQLite event store (read-only SELECTs). Agents can list channels/chats and pull a clean chronological transcript filtered by source, contact/channel/chat, limit, and time range.
+- **Conversation history API endpoints** — new routes under `/api/events`: `GET /whatsapp` (raw WhatsApp messages), `GET /conversations` (unified chronological Slack + WhatsApp transcript), and `GET /conversations/contacts` (list Slack channels + WhatsApp chats for id/name discovery). Backed by new `queryWhatsAppMessages`, `queryConversationHistory`, and `listConversations` query functions in `event-queries.ts`.
+
+### Changed
+- **Google Drive integration** — refinements to `drive-client.ts` and `drive-routes.ts`.
+- **Guake terminal theming** — updated output styles and a new theme variable for the terminal output panel.
+
 ## [1.109.1] - 2026-05-28
 
 ### Removed
