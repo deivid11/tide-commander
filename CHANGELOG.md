@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.106.2] - 2026-05-28
+
+### Fixed
+- **Live "Running..." bash modal stuck after a session refresh** — when a bash tool_use's `tool_result` arrived via JSONL session refresh *after* the live look-ahead window had already closed, the open bash modal stayed in `isLive: true` with no resolved output. `AgentTerminalPane` now emits `onLiveBashResultLinked(command, output)` the first time a `Bash` tool_use in `dedupedHistory` gains its `_bashOutput` link, threaded through `SplitTerminalLayout` to `GuakeOutputPanel`, which swaps the matching live modal to the resolved output and clears `isLive`. The reported-id set is keyed by tool_use id and reset on `agentId` change so it never fires twice per result.
+
 ## [1.106.1] - 2026-05-28
 
 ### Added

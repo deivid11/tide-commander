@@ -1071,6 +1071,16 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
     setBashModal({ command, output, isLive });
   }, []);
 
+  // Called by AgentTerminalPane when a Bash tool_use in dedupedHistory first
+  // gains its tool_result link. If a live "Running..." bash modal matches the
+  // command, swap in the resolved output and drop out of live state.
+  const handleLiveBashResultLinked = useCallback((command: string, output: string) => {
+    setBashModal((prev) => {
+      if (!prev || !prev.isLive || prev.command !== command) return prev;
+      return { command, output, isLive: false };
+    });
+  }, []);
+
   const handleViewMarkdown = useCallback((content: string) => {
     setResponseModalContent(content);
   }, []);
@@ -1624,6 +1634,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
             onFileClick={handleFileClick}
             onBashClick={handleBashClick}
             onViewMarkdown={handleViewMarkdown}
+            onLiveBashResultLinked={handleLiveBashResultLinked}
             keyboard={keyboard}
             canSwipeClose={
               isMobileWidth

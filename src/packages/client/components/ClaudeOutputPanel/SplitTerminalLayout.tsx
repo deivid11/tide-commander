@@ -38,6 +38,8 @@ interface SplitTerminalLayoutProps {
   onFileClick: (path: string, editData?: { oldString?: string; newString?: string; operation?: string; unifiedDiff?: string; highlightRange?: { offset: number; limit: number }; targetLine?: number }) => void;
   onBashClick: (command: string, output: string) => void;
   onViewMarkdown: (content: string) => void;
+  /** Forwarded to each pane so a live "Running..." bash modal can resolve once the tool_result lands. */
+  onLiveBashResultLinked?: (command: string, output: string) => void;
   /** Keyboard handler from parent */
   keyboard: {
     handleInputFocus: () => void;
@@ -95,6 +97,7 @@ export const SplitTerminalLayout = memo(function SplitTerminalLayout(props: Spli
     onFileClick,
     onBashClick,
     onViewMarkdown,
+    onLiveBashResultLinked,
     keyboard,
     canSwipeClose,
     onSwipeCloseOffsetChange,
@@ -175,6 +178,7 @@ export const SplitTerminalLayout = memo(function SplitTerminalLayout(props: Spli
           onFileClick={onFileClick}
           onBashClick={onBashClick}
           onViewMarkdown={onViewMarkdown}
+          onLiveBashResultLinked={onLiveBashResultLinked}
           keyboard={keyboard}
           canSwipeClose={canSwipeClose}
           onSwipeCloseOffsetChange={onSwipeCloseOffsetChange}
@@ -231,6 +235,7 @@ export const SplitTerminalLayout = memo(function SplitTerminalLayout(props: Spli
                   onFileClick={onFileClick}
                   onBashClick={onBashClick}
                   onViewMarkdown={onViewMarkdown}
+                  onLiveBashResultLinked={onLiveBashResultLinked}
                   keyboard={keyboard}
                   hasModalOpen={hasModalOpen}
                 />
