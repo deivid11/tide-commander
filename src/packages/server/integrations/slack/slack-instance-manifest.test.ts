@@ -6,10 +6,13 @@ import {
   addInstance,
   getInstanceMeta,
   listInstanceMetas,
+  onInstanceChange,
   removeInstance,
   renameInstance,
   resetManifestCache,
+  resetManifestListeners,
   validateInstanceId,
+  type SlackInstanceChange,
 } from './slack-instance-manifest.js';
 import { saveConfig, deleteConfig } from './slack-config.js';
 
@@ -25,6 +28,7 @@ const TRACKED_FILES = [
 
 function wipeState(): void {
   resetManifestCache();
+  resetManifestListeners();
   const dir = getDataDir();
   for (const f of TRACKED_FILES) {
     const p = path.join(dir, f);
@@ -110,5 +114,23 @@ describe('slack-instance-manifest', () => {
     deleteConfig('personal'); // no-op when not present
     wipeState();
     expect(listInstanceMetas().map((i) => i.id)).toEqual(['default']);
+  });
+
+  it('onInstanceChange fires on addInstance and removeInstance', () => {
+    const events: SlackInstanceChange[] = [];
+    const off = onInstanceChange((e) => events.push(e));
+
+    addInstance('personal', 'Personal');
+    removeInstance('personal');
+
+    off();
+
+    // After unsubscribing, further changes must not produce more events.
+    addInstance('alpha', 'Alpha');
+
+    expect(events).toEqual([
+      { type: 'added', id: 'personal', meta: expect.objectContaining({ id: 'personal', label: 'Personal' }) },
+      { type: 'removed', id: 'personal' },
+    ]);
   });
 });

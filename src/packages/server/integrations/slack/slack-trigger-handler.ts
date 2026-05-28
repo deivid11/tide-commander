@@ -2,23 +2,46 @@
  * Slack Trigger Handler
  * Implements TriggerHandler for 'slack' type triggers.
  *
- * Multi-instance: subscribes to onMessage on EVERY known Slack instance and
- * propagates the source instanceId through the ExternalEvent payload so
- * triggers can scope themselves to a specific Slack connection (or accept
- * any).
+ * Multi-instance, with DYNAMIC wiring:
+ *   - At `startListening`, seeds an `onMessage` subscription for every instance
+ *     the manifest currently knows about (via `listInstanceMetas()` +
+ *     `getInstance(id)` — idempotent, no connection required to register the
+ *     callback).
+ *   - Also subscribes to `onInstanceChange` from the manifest, so instances
+ *     added at runtime via `POST /api/slack/instances` are wired automatically,
+ *     and instances deleted via `DELETE /api/slack/instances/:id` get their
+ *     subscription torn down — without restarting the trigger handler.
+ *   - Unsubscribers are tracked in a `Map<instanceId, off>` so individual
+ *     instances can be detached without affecting the others.
+ *   - `stopListening` removes the manifest hook and every per-instance listener,
+ *     so post-stop manifest changes do NOT resurrect subscriptions.
+ *
+ * The source `instanceId` is propagated through the ExternalEvent payload so
+ * triggers can scope themselves to a specific Slack connection (or accept any).
  */
 
 import type { TriggerHandler, TriggerDefinition, ExternalEvent } from '../../../shared/integration-types.js';
 import * as slackClient from './slack-client.js';
 import type { SlackMessage } from './slack-client.js';
-import { listInstances } from './slack-instance.js';
-import { listInstanceMetas } from './slack-instance-manifest.js';
+import { getInstance, type SlackInstance } from './slack-instance.js';
+import { listInstanceMetas, onInstanceChange } from './slack-instance-manifest.js';
 import { loadConfig } from './slack-config.js';
 import { formatAttachmentLine } from '../../services/attachment-downloader.js';
 
 /**
  * Trigger config recognised by `slack` triggers. `instanceId` is optional —
  * triggers without it match messages from ANY instance.
+ *
+ * Channel-id filters (`excludeChannelIds`, `channelIdAllowlist`) are matched
+ * as LITERAL Slack channel ids against `msg.channel` — no regex, no prefix.
+ * Use the canonical Slack id: `C…` for public/private channels, `G…` for
+ * legacy private groups, `D…` for 1:1 DMs (e.g. `C06UCC5FFST`, `D0AMP833LDQ`).
+ * Both filters are evaluated EARLY (before `userFilter` / `messagePattern`)
+ * so muted/noisy channels short-circuit before the more expensive checks.
+ *
+ * Distinct from the single-value `channelId` — that one is back-compat for
+ * legacy "fire only on this channel" triggers; the new array filters compose
+ * with it and with each other.
  */
 interface SlackTriggerConfig {
   channelId?: string;
@@ -34,6 +57,10 @@ interface SlackTriggerConfig {
   excludeDms?: boolean;
   /** Include outbound (own) messages. Default false — own messages are skipped. */
   includeOwnMessages?: boolean;
+  /** Literal Slack channel ids whose messages must NOT fire the trigger. */
+  excludeChannelIds?: string[];
+  /** When set + non-empty, only messages whose `channel` is in this list fire. Literal channel ids. */
+  channelIdAllowlist?: string[];
 }
 
 /** ExternalEvent.data shape for Slack — message + the instance it came from. */
@@ -42,7 +69,14 @@ export interface SlackTriggerEventData extends SlackMessage {
   instanceId: string;
 }
 
-const unsubscribers: Array<() => void> = [];
+/**
+ * Per-instance `onMessage` unsubscribers, keyed by instance id. We track them
+ * individually so an instance removed at runtime (DELETE /api/slack/instances/:id)
+ * can be detached without tearing down everyone else's subscription.
+ */
+const instanceUnsubscribers = new Map<string, () => void>();
+/** Unsubscribe from manifest add/remove events while the handler is active. */
+let manifestUnsubscribe: (() => void) | null = null;
 
 /**
  * Global kill-switch: `SLACK_REACT_ON_TRIGGER=false` (or 0/no/off) disables the
@@ -55,48 +89,83 @@ function envAllowsReact(): boolean {
   return !['false', '0', 'no', 'off'].includes(raw);
 }
 
+/**
+ * Subscribe to `onMessage` for a single instance. Idempotent — calling twice
+ * for the same id keeps the original subscription. Returns nothing; the
+ * unsubscribe callback is stashed in `instanceUnsubscribers`.
+ */
+function subscribeInstance(
+  inst: SlackInstance,
+  onEvent: (event: ExternalEvent) => void,
+  envOn: boolean,
+): void {
+  if (instanceUnsubscribers.has(inst.id)) return;
+
+  const off = inst.onMessage((message: SlackMessage) => {
+    // Per-instance toggle is read fresh on each message so flipping the
+    // checkbox in the UI takes effect without restarting the trigger.
+    const perInstance = loadConfig(inst.id).reactOnTrigger ?? true;
+    if (envOn && perInstance) {
+      // Use the instance-specific reaction so it posts as the right account.
+      inst.addReaction({ channel: message.channel, ts: message.ts, name: 'eyes' })
+        .catch(() => { /* swallow */ });
+    }
+
+    const eventData: SlackTriggerEventData = { ...message, instanceId: inst.id };
+    onEvent({
+      source: 'slack',
+      type: 'message',
+      data: eventData,
+      timestamp: Date.now(),
+    });
+  });
+  instanceUnsubscribers.set(inst.id, off);
+}
+
+/** Detach an instance's listener. No-op when not subscribed. */
+function unsubscribeInstance(id: string): void {
+  const off = instanceUnsubscribers.get(id);
+  if (!off) return;
+  try { off(); } catch { /* ignore */ }
+  instanceUnsubscribers.delete(id);
+}
+
 export const slackTriggerHandler: TriggerHandler = {
   triggerType: 'slack',
 
   async startListening(onEvent) {
     const envOn = envAllowsReact();
 
-    // Subscribe to every instance the manifest knows about. Unknown instances
-    // (created later via the UI) are auto-created with `getInstance()` when
-    // reconnect runs, but we re-subscribe on each integration shutdown/init
-    // cycle so adding a brand-new instance via /instances triggers re-init.
-    const ids = listInstanceMetas().map((m) => m.id);
-    const idSet = new Set(ids);
-    const allInstances = listInstances().filter((i) => idSet.has(i.id));
-
-    for (const inst of allInstances) {
-      const off = inst.onMessage((message: SlackMessage) => {
-        // Per-instance toggle is read fresh on each message so flipping the
-        // checkbox in the UI takes effect without restarting the trigger.
-        const perInstance = loadConfig(inst.id).reactOnTrigger ?? true;
-        if (envOn && perInstance) {
-          // Use the instance-specific reaction so it posts as the right account.
-          inst.addReaction({ channel: message.channel, ts: message.ts, name: 'eyes' })
-            .catch(() => { /* swallow */ });
-        }
-
-        const eventData: SlackTriggerEventData = { ...message, instanceId: inst.id };
-        onEvent({
-          source: 'slack',
-          type: 'message',
-          data: eventData,
-          timestamp: Date.now(),
-        });
-      });
-      unsubscribers.push(off);
+    // Seed: subscribe to every instance the manifest already knows about.
+    // `getInstance()` is lazy + idempotent — it returns the existing instance
+    // when present, or creates one if the registry hasn't seen this id yet
+    // (which is fine because `onMessage` only registers a callback; no
+    // connection is required for the listener to be in place once the
+    // instance connects later).
+    for (const meta of listInstanceMetas()) {
+      subscribeInstance(getInstance(meta.id), onEvent, envOn);
     }
+
+    // Wire dynamically when a new instance shows up (POST /api/slack/instances)
+    // or detach when one is deleted. This is what makes triggers configured for
+    // instances created AFTER server start actually fire.
+    manifestUnsubscribe = onInstanceChange((change) => {
+      if (change.type === 'added') {
+        subscribeInstance(getInstance(change.id), onEvent, envOn);
+      } else {
+        unsubscribeInstance(change.id);
+      }
+    });
   },
 
   async stopListening() {
-    for (const off of unsubscribers) {
-      try { off(); } catch { /* ignore */ }
+    if (manifestUnsubscribe) {
+      try { manifestUnsubscribe(); } catch { /* ignore */ }
+      manifestUnsubscribe = null;
     }
-    unsubscribers.length = 0;
+    for (const id of Array.from(instanceUnsubscribers.keys())) {
+      unsubscribeInstance(id);
+    }
   },
 
   structuralMatch(trigger: TriggerDefinition, event: ExternalEvent): boolean {
@@ -105,6 +174,13 @@ export const slackTriggerHandler: TriggerHandler = {
 
     if (config.instanceId && msg.instanceId !== config.instanceId) return false;
     if (config.channelId && msg.channel !== config.channelId) return false;
+
+    // Channel-id filters run BEFORE userFilter / messagePattern so muted/noisy
+    // channels short-circuit the cheapest way possible. Match is exact —
+    // no normalization, no prefix.
+    if (config.excludeChannelIds?.length && config.excludeChannelIds.includes(msg.channel)) return false;
+    if (config.channelIdAllowlist?.length && !config.channelIdAllowlist.includes(msg.channel)) return false;
+
     if (config.dmOnly && !msg.channel.startsWith('D')) return false;
     if (config.excludeDms && msg.channel.startsWith('D')) return false;
     if (msg.isOwnMessage && !config.includeOwnMessages) return false;
