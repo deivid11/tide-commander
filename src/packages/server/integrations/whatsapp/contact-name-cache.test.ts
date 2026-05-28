@@ -88,6 +88,19 @@ describe('ContactNameCache', () => {
     expect(fetchContacts).toHaveBeenCalledTimes(2);
   });
 
+  it('resolves an inbound LID to the contact name when upstream supplies lid', async () => {
+    const fetchContacts = vi.fn(async (_sessionId: string): Promise<ContactLite[]> => [
+      { id: '5215512345678@s.whatsapp.net', lid: '153996203434060@lid', name: 'Memo', pushname: null },
+    ]);
+    const cache = new ContactNameCache({ fetchContacts });
+
+    // Inbound message addressed by LID still resolves to the address-book name.
+    expect(await cache.lookup('main', '153996203434060@lid')).toBe('Memo');
+    // The phone JID resolves to the same name from the single fetch.
+    expect(await cache.lookup('main', '5215512345678@s.whatsapp.net')).toBe('Memo');
+    expect(fetchContacts).toHaveBeenCalledTimes(1);
+  });
+
   it('clear() empties cache and inflight tracking', async () => {
     const fetchContacts = vi.fn(async () => [{ id: 'jid@s.whatsapp.net', name: 'X', pushname: null }]);
     const cache = new ContactNameCache({ fetchContacts });

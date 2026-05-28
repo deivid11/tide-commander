@@ -68,10 +68,18 @@ function mediaIcon(mediaType: WhatsAppMessagePayload['mediaType']): string {
 // '5215532967210@s.whatsapp.net' -> '+5215532967210'
 // '5215555555555@g.us'           -> '+5215555555555'
 // 'someone@lid'                  -> 'someone'
+// '153996203434060@lid'          -> 'WhatsApp user 4060'
+// A LID is an opaque WhatsApp identifier, not a dialable number — a numeric
+// LID must NOT be rendered as '+<digits>' (that's what made David's brother
+// show as '+153996203434060'). Mirror the server's humanizeWhatsAppJid label.
 function formatJid(from: string): string {
   if (!from) return '';
   const at = from.indexOf('@');
   const local = at >= 0 ? from.slice(0, at) : from;
+  if (from.endsWith('@lid')) {
+    const lidDigits = local.replace(/\D/g, '');
+    return lidDigits ? `WhatsApp user ${lidDigits.slice(-4)}` : local;
+  }
   if (/^\d+$/.test(local)) return `+${local}`;
   return local;
 }

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.106.1] - 2026-05-28
+
+### Added
+- **Building right-click menu on FlatView terminal-bar shortcuts** — the terminal, server-logs, and database shortcut buttons that sit above the chat terminal now respond to right-click by opening the existing building context menu (same one the empty-state map chips use), so a quick right-click on a shortcut gives the full building action menu instead of forcing a navigate-and-right-click.
+
+### Fixed
+- **WhatsApp LID JIDs no longer rendered as phone numbers** — `@lid` JIDs are opaque internal identifiers, not dialable numbers. `humanizeWhatsAppJid` (server) and `formatJid` (in `WhatsAppMessageToast`) now emit `WhatsApp user <last4>` for `@lid` inputs instead of `+<digits>` (which made a contact like 'Memo' show up as `+153996203434060`).
+- **Address-book name lookup misses for LID-addressed contacts** — `ContactNameCache` now indexes resolved contact names under both the phone JID and the LID JID (new `ContactLite.lid` / `WhatsAppContact.lid` field), so inbound messages addressed by LID still resolve to the saved address-book name.
+- **Phantom 'working'/'thinking' status when an agent goes idle** — `updateAgent` now clears transient tracking statuses (`working`, `thinking`) when an agent enters the idle state, so the tracking board no longer shows a stuck typing/working indicator for a process that has actually finished. Meaningful end-of-turn statuses (`need-review`, `blocked`, `can-clear-context`, `waiting-subordinates`) are preserved, and an explicit `trackingStatus` in the same update is never clobbered.
+
 ## [1.106.0] - 2026-05-26
 
 ### Added

@@ -823,10 +823,20 @@ export function sanitizeFromName(
  * MX (+52 NNN NNN NNNN), 11-digit US (+1 NNN NNN NNNN). Anything else falls
  * back to '+<digits>'. Empty / unparseable input returns ''.
  *
+ * `@lid` JIDs are a special case: a LID is an opaque WhatsApp-internal
+ * identifier, NOT a dialable phone number, so formatting it as "+<digits>" is
+ * misleading (David saw "+153996203434060" for his brother 'Memo'). Emit a
+ * distinct, stable "WhatsApp user <last4>" label instead so it never
+ * masquerades as a phone number.
+ *
  * Exported for unit testing.
  */
 export function humanizeWhatsAppJid(jid: string | undefined): string {
   if (!jid) return '';
+  if (jid.endsWith('@lid')) {
+    const lidDigits = jid.replace(/@.*$/, '').replace(/\D/g, '');
+    return lidDigits ? `WhatsApp user ${lidDigits.slice(-4)}` : '';
+  }
   const stripped = jid.replace(/@.*$/, '').split('-')[0];
   const digits = stripped.replace(/\D/g, '');
   if (!digits) return '';

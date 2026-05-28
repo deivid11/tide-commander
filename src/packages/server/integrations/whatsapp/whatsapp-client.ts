@@ -48,6 +48,14 @@ export interface WhatsAppGroupSummary {
 export interface WhatsAppContact {
   /** JID, e.g. "5215512345678@s.whatsapp.net" or "120363@g.us" */
   id: string;
+  /**
+   * Linked-ID (LID) JID for this contact, when the upstream exposes the
+   * Baileys LID↔phone mapping (e.g. "153996203434060@lid"). WhatsApp addresses
+   * some accounts by LID instead of their phone JID in `key.remoteJid`, so we
+   * need this to resolve an inbound LID back to the address-book name. Null/
+   * absent when upstream doesn't supply it.
+   */
+  lid?: string | null;
   /** Display name preferred for UI; null when the user hasn't set one. */
   name: string | null;
   /** Push name (the value the contact set on their own WhatsApp profile). */
