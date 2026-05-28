@@ -33,7 +33,7 @@ export interface SlackConfig {
   // ─── Polling-mode controls (also surfaced via the schema) ───
   /** User-selected mode. `auto` (default) infers from token prefix. */
   authMode?: SlackAuthMode;
-  /** Polling interval in seconds. Clamped to [10, 600]. */
+  /** Polling interval in seconds. Clamped to [5, 600]. */
   pollingIntervalSec?: number;
   /** First-sight backfill cap, in messages, per channel. */
   pollingBackfillMessageCap?: number;
@@ -246,7 +246,7 @@ export const slackConfigSchema: ConfigField[] = [
     key: 'pollingIntervalSec',
     label: 'Polling Interval (seconds)',
     type: 'number',
-    description: 'How often to poll Slack for new messages (polling mode only). Default 45s. Range 10-600.',
+    description: 'How often to poll Slack for new messages (polling mode only). Default 45s. Range 5-600. Note: in search mode (pollingUseSearch) Slack\'s ~10-30s search-index lag is the real latency floor, so values below ~10s mostly add API calls without delivering faster.',
     defaultValue: 45,
     group: 'Polling',
   },
