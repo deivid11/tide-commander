@@ -144,28 +144,37 @@ export const CODEX_MODELS: Record<CodexModel, { label: string; description: stri
 
 // Claude Model - which AI model to use.
 // Short names ('sonnet' | 'opus' | 'haiku') are legacy aliases for the CLI's
-// latest-of-family resolution. Explicit IDs (e.g. 'claude-opus-4-7') are
-// preferred for new agents so we pin a specific version.
+// latest-of-family resolution. Explicit IDs (e.g. 'claude-opus-4-8') are
+// preferred for new agents so we pin a specific version. The '[1m]' suffix
+// is a Tide Commander label meaning "run this Opus version with the 1M-token
+// context beta header"; it translates to the bare model ID on the CLI side.
 export type ClaudeModel =
   | 'sonnet'
   | 'opus'
   | 'haiku'
+  | 'claude-opus-4-8'
   | 'claude-opus-4-7'
   | 'claude-opus-4-6'
+  | 'claude-opus-4-8[1m]'
   | 'opus[1m]';
 
 export const CLAUDE_MODELS: Record<ClaudeModel, { label: string; description: string; icon: string; contextWindow: number; deprecated?: boolean }> = {
   sonnet: { label: 'Sonnet', description: 'Balanced performance and cost (recommended)', icon: '⚡', contextWindow: 200000 },
-  'opus[1m]': { label: 'Opus [1M]', description: 'Opus with 1M token context window — best for very long tasks', icon: '🧠', contextWindow: 1000000 },
-  'claude-opus-4-7': { label: 'Opus 4.7', description: 'Latest Opus — most capable, highest cost', icon: '🧠', contextWindow: 200000 },
-  opus: { label: 'Opus (legacy)', description: 'Legacy alias — prefer Opus 4.7', icon: '🧠', contextWindow: 200000, deprecated: true },
-  'claude-opus-4-6': { label: 'Opus 4.6', description: 'Previous Opus generation (retained for existing agents)', icon: '🧠', contextWindow: 200000, deprecated: true },
+  'claude-opus-4-8[1m]': { label: 'Opus 4.8 [1M]', description: 'Latest Opus with 1M token context window — most capable, best for very long tasks', icon: '🧠', contextWindow: 1000000 },
+  'opus[1m]': { label: 'Opus 4.7 [1M]', description: 'Previous Opus generation with 1M token context window', icon: '🧠', contextWindow: 1000000 },
   haiku: { label: 'Haiku', description: 'Fast and economical', icon: '🚀', contextWindow: 200000 },
+  // Plain (200K) Opus IDs are kept as valid model values for existing agents
+  // and CLI passthrough, but hidden from the "new agent" picker in favor of
+  // the 1M variants above.
+  'claude-opus-4-8': { label: 'Opus 4.8 (200K)', description: 'Latest Opus, 200K context window (1M variant preferred)', icon: '🧠', contextWindow: 200000, deprecated: true },
+  'claude-opus-4-7': { label: 'Opus 4.7 (200K)', description: 'Previous Opus generation, 200K context window (1M variant preferred)', icon: '🧠', contextWindow: 200000, deprecated: true },
+  opus: { label: 'Opus (legacy)', description: 'Legacy alias — prefer Opus 4.8 [1M]', icon: '🧠', contextWindow: 200000, deprecated: true },
+  'claude-opus-4-6': { label: 'Opus 4.6', description: 'Older Opus generation (retained for existing agents)', icon: '🧠', contextWindow: 200000, deprecated: true },
 };
 
 // Claude Effort Level - how much reasoning effort Claude puts into responses.
 // 'xHigh' (extra high) sits between 'high' and 'max' and is supported from
-// Opus 4.7 onward.
+// Opus 4.7 onward (including Opus 4.8).
 export type ClaudeEffort = 'low' | 'medium' | 'high' | 'xHigh' | 'max';
 
 export const CLAUDE_EFFORTS: Record<ClaudeEffort, { label: string; description: string; icon: string }> = {

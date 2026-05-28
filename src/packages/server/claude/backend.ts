@@ -204,10 +204,13 @@ export class ClaudeBackend implements CLIBackend {
     }
 
     // Model selection
-    // 'opus[1m]' is a Tide Commander label representing Opus 4.7 with the
-    // 1M-token context beta; translate to the CLI-accepted model ID.
+    // '[1m]'-suffixed IDs are Tide Commander labels representing an Opus model
+    // run with the 1M-token context beta header; translate to the CLI-accepted
+    // bare model ID. 'opus[1m]' is the legacy label for Opus 4.7 1M.
     if (config.model) {
-      const cliModel = config.model === 'opus[1m]' ? 'claude-opus-4-7' : config.model;
+      let cliModel: string = config.model;
+      if (config.model === 'opus[1m]') cliModel = 'claude-opus-4-7';
+      else if (config.model === 'claude-opus-4-8[1m]') cliModel = 'claude-opus-4-8';
       args.push('--model', cliModel);
     }
 

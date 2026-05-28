@@ -39,7 +39,7 @@ export interface BulkManageModalProps {
 type StatusFilter = 'all' | 'idle' | 'working' | 'error' | 'stopped';
 type IdleTimeFilter = 'any' | '>1h' | '>6h' | '>1d' | '>3d' | '>7d' | '>30d';
 type ProviderFilter = 'all' | 'claude' | 'codex' | 'opencode';
-type ModelFilter = 'all' | 'opus' | 'opus-4-7' | 'opus-4-6' | 'sonnet' | 'haiku';
+type ModelFilter = 'all' | 'opus' | 'opus-4-8-1m' | 'opus-4-8' | 'opus-4-7-1m' | 'opus-4-7' | 'opus-4-6' | 'sonnet' | 'haiku';
 
 type ConfirmAction = 'delete' | 'clear-context' | 'change-model' | 'add-skill' | 'remove-skill' | null;
 type SkillPickerMode = 'add' | 'remove' | null;
@@ -89,7 +89,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
   const [moveAreaId, setMoveAreaId] = useState<string>('');
   const [modelProvider, setModelProvider] = useState<ModelProvider>('claude');
-  const [newClaudeModel, setNewClaudeModel] = useState<ClaudeModel>('claude-opus-4-7');
+  const [newClaudeModel, setNewClaudeModel] = useState<ClaudeModel>('claude-opus-4-8[1m]');
   const [newCodexModel, setNewCodexModel] = useState<CodexModel>('gpt-5.3-codex');
   // 'default' represents "leave unchanged / use default"; other values are ClaudeEffort levels
   const [newEffort, setNewEffort] = useState<ClaudeEffort | 'default'>('xHigh');
@@ -147,6 +147,9 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
       if (modelFilter !== 'all') {
         const agentModel = agent.model || 'sonnet';
         const matchesFilter =
+          modelFilter === 'opus-4-8-1m' ? agentModel === 'claude-opus-4-8[1m]' :
+          modelFilter === 'opus-4-8' ? agentModel === 'claude-opus-4-8' :
+          modelFilter === 'opus-4-7-1m' ? agentModel === 'opus[1m]' :
           modelFilter === 'opus-4-7' ? agentModel === 'claude-opus-4-7' :
           modelFilter === 'opus-4-6' ? agentModel === 'claude-opus-4-6' :
           agentModel === modelFilter;
@@ -495,7 +498,10 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 className="bulk-filter-select"
               >
                 <option value="all">All Models</option>
-                <option value="opus-4-7">Opus 4.7</option>
+                <option value="opus-4-8-1m">Opus 4.8 [1M]</option>
+                <option value="opus-4-7-1m">Opus 4.7 [1M]</option>
+                <option value="opus-4-8">Opus 4.8 (200K)</option>
+                <option value="opus-4-7">Opus 4.7 (200K)</option>
                 <option value="opus-4-6">Opus 4.6</option>
                 <option value="opus">Opus (legacy)</option>
                 <option value="sonnet">Sonnet</option>
