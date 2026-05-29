@@ -73,9 +73,32 @@ Response shape:
 
 Status codes:
 - \`200\` + \`status: "collapse-initiated"\` — \`/compact\` dispatched
+- \`200\` + \`status: "queued"\` — agent was busy; \`/compact\` is queued and will fire automatically when the agent next goes idle (only when you pass \`waitForIdle: true\` in the body)
 - \`404\` + \`status: "not-found"\` — agent id doesn't exist
-- \`409\` + \`status: "busy"\` + \`currentStatus\` — agent isn't idle (Claude rejects slash commands mid-turn); retry once it goes idle
+- \`409\` + \`status: "busy"\` + \`currentStatus\` — agent isn't idle and \`waitForIdle\` was not set; retry once it goes idle
 - \`500\` + \`status: "error"\` — runtime error sending the command
+
+### Auto-collapse from inside your OWN turn (\`waitForIdle\`)
+
+When the agent calling this endpoint is the SAME agent being collapsed — e.g. a
+cron-driven end-of-flow step that wraps up by collapsing its own context — the
+target is by definition still \`working\` at the time of the request, so the
+default behavior returns \`409 busy\`. Opt into queueing by passing
+\`waitForIdle: true\`:
+
+\`\`\`bash
+curl -s -X POST http://localhost:5174/api/agents/YOUR_AGENT_ID/collapse-context \\
+  -H "Content-Type: application/json" \\
+  -d '{"waitForIdle": true}'
+\`\`\`
+
+Response is \`200 + {"status": "queued"}\` — the \`/compact\` is held in an
+in-process queue and dispatched the first time the agent's status transitions
+to \`idle\`. Coalesced: stacking multiple \`waitForIdle\` calls for the same
+agent results in a single drained \`/compact\`, not N.
+
+Use this for the final step of any agent's autonomous flow when you want the
+next turn to start with a compressed context.
 
 **When to use which endpoint:**
 - \`/message\` — deliver content / instructions to an agent (what you usually want)

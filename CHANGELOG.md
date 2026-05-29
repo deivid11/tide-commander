@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.110.4] - 2026-05-29
+
+### Added
+- **`waitForIdle` option on `POST /api/agents/:id/collapse-context`** — accepts `{"waitForIdle": true}` in the body. When the target agent is busy, the `/compact` is held in an in-process queue and dispatched the first time the agent transitions to `idle`. Solves the auto-collapse case: an agent invoking the endpoint against ITSELF from inside its own turn is by definition `working`, so the default behavior returned `409 busy`; with `waitForIdle: true` the response is `200 + {status: "queued"}` and the collapse fires automatically once the current turn finishes. Coalesced — N `waitForIdle` calls for the same agent drain into a single `/compact`. Per-agent isolation: each pending entry drains only when its own agent goes idle. Drain errors are logged and the entry is cleared (no infinite retry loop).
+- **`runtimeService.collapseAgentContext(agentId, opts)` accepts `{waitForIdle?: boolean}`** — REST route, WS handler, and the new factory share the same path. New `CollapseContextResult` variant: `{status: "queued"}`.
+
+### Changed
+- **Collapse-context logic factored into a testable module** (`services/collapse-context.ts`) — a factory `createCollapseContextService(deps)` owns the pending-collapse Set and the lazy `agentService.subscribe` listener. Runtime-service wires the real deps; tests use a fake event bus to exercise queue/drain/coalesce in isolation. New `collapse-context.test.ts` covers 13 specs across sync paths, the queue lifecycle, multi-agent independence, and drain-error tolerance.
+- **`Send Message to Agent` skill** — new "Auto-collapse from inside your OWN turn (`waitForIdle`)" section with the exact curl example; status-code list now documents `200 + status:"queued"`.
+
 ## [1.110.3] - 2026-05-29
 
 ### Added

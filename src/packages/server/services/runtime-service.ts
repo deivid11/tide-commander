@@ -284,37 +284,56 @@ export async function sendSilentCommand(agentId: string, command: string): Promi
 }
 
 /**
- * Result of a `collapseAgentContext` call. Discriminated by `status` so callers
- * (WS handler + REST route) can map each case to the right user-facing response
- * without duplicating the check.
- */
-export type CollapseContextResult =
-  | { status: 'collapse-initiated' }
-  | { status: 'not-found' }
-  | { status: 'busy'; currentStatus: string }
-  | { status: 'error'; error: string };
-
-/**
  * Send Claude Code's `/compact` slash command to collapse an agent's context.
  * Only fires when the agent exists AND is idle — the CLI rejects slash commands
- * mid-turn, and we want a clean, predictable result instead of partial state.
+ * mid-turn. Pass `waitForIdle: true` to queue the `/compact` for when the agent
+ * next goes idle (the main use case is an agent auto-collapsing its OWN context
+ * at the end of a turn — by definition still `working` when it makes the call).
  *
  * Callers: WS `collapse_context` handler, REST `POST /api/agents/:id/collapse-context`.
  * Plain `/message` cannot carry slash commands (they're sent as message body, not
  * intercepted by the CLI) — this helper is the only correct path.
+ *
+ * Backed by a small in-module queue + a one-shot agent-event subscriber; see
+ * `./collapse-context.ts` for the unit-testable factory.
  */
-export async function collapseAgentContext(agentId: string): Promise<CollapseContextResult> {
-  const agent = agentService.getAgent(agentId);
-  if (!agent) return { status: 'not-found' };
-  if (agent.status !== 'idle') {
-    return { status: 'busy', currentStatus: agent.status };
-  }
-  try {
-    await commandExecution.sendCommand(agentId, '/compact');
-    return { status: 'collapse-initiated' };
-  } catch (err) {
-    return { status: 'error', error: err instanceof Error ? err.message : String(err) };
-  }
+import { createCollapseContextService, type CollapseContextResult, type CollapseContextOptions } from './collapse-context.js';
+
+export type { CollapseContextResult, CollapseContextOptions } from './collapse-context.js';
+
+let collapseService: ReturnType<typeof createCollapseContextService> | null = null;
+function getCollapseService(): ReturnType<typeof createCollapseContextService> {
+  if (collapseService) return collapseService;
+  collapseService = createCollapseContextService({
+    getAgent: (id) => {
+      const a = agentService.getAgent(id);
+      return a ? { id: a.id, status: a.status as string } : undefined;
+    },
+    sendCommand: (id, cmd) => commandExecution.sendCommand(id, cmd),
+    subscribe: (listener) =>
+      agentService.subscribe((event, data) => {
+        // agentService emits agent objects on 'updated' — narrow to the
+        // { id, status } slice the collapse-context module cares about.
+        if (event === 'updated' && data && typeof data !== 'string') {
+          listener(event, { id: (data as { id: string }).id, status: (data as { status: string }).status });
+        } else {
+          listener(event, typeof data === 'string' ? data : undefined);
+        }
+      }),
+    log: {
+      info: (m) => log.log(m),
+      warn: (m) => log.warn(m),
+      error: (m) => log.error(m),
+    },
+  });
+  return collapseService;
+}
+
+export async function collapseAgentContext(
+  agentId: string,
+  opts?: CollapseContextOptions,
+): Promise<CollapseContextResult> {
+  return getCollapseService().collapse(agentId, opts);
 }
 
 export async function stopAgent(agentId: string): Promise<void> {

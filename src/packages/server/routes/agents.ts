@@ -1203,14 +1203,27 @@ router.post('/:id/message', async (req: Request<{ id: string }>, res: Response) 
 // to the agent's runner. Use case: any agent (including the same agent via a
 // scheduled cron) auto-collapsing its own context. Plain /message can't carry
 // slash commands; this is the only correct path.
+//
+// Body (optional):
+//   { "waitForIdle": true }  — if the agent is currently busy, queue the
+//     /compact and fire it automatically the first time the agent goes idle.
+//     The main use case is the SAME agent calling this from inside its own
+//     turn (e.g. end-of-flow cron step) — by definition still `working` when
+//     the request lands. Default false keeps the existing 409-busy behavior.
 router.post('/:id/collapse-context', async (req: Request<{ id: string }>, res: Response) => {
   try {
     const agentId = req.params.id;
-    const result = await runtimeService.collapseAgentContext(agentId);
+    const body = (req.body ?? {}) as { waitForIdle?: boolean };
+    const waitForIdle = body.waitForIdle === true;
+    const result = await runtimeService.collapseAgentContext(agentId, { waitForIdle });
     switch (result.status) {
       case 'collapse-initiated':
         log.log(`API collapse-context dispatched for agent ${agentId}`);
         res.status(200).json({ success: true, agentId, status: 'collapse-initiated' });
+        return;
+      case 'queued':
+        log.log(`API collapse-context queued for agent ${agentId} (waiting for idle)`);
+        res.status(200).json({ success: true, agentId, status: 'queued' });
         return;
       case 'not-found':
         res.status(404).json({ success: false, agentId, status: 'not-found', error: `Agent not found: ${agentId}` });
