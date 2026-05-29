@@ -319,10 +319,19 @@ export async function handleCollapseContext(
   ctx: HandlerContext,
   payload: { agentId: string }
 ): Promise<void> {
+  // WS path never opts into waitForIdle — the UI button only makes sense when
+  // the agent is already idle. Default behavior (409-equivalent activity msg
+  // for busy) is preserved.
   const result = await runtimeService.collapseAgentContext(payload.agentId);
   switch (result.status) {
     case 'collapse-initiated':
       ctx.sendActivity(payload.agentId, 'Context collapse initiated');
+      return;
+    case 'queued':
+      // Not reachable from this path (we don't pass waitForIdle), but the
+      // exhaustive switch keeps the type system honest if a future caller
+      // flips the flag here.
+      ctx.sendActivity(payload.agentId, 'Context collapse queued — will fire when agent is idle');
       return;
     case 'busy':
       ctx.sendActivity(payload.agentId, 'Cannot collapse context while agent is busy');
