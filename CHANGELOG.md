@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.110.3] - 2026-05-29
+
+### Added
+- **`POST /api/agents/:id/collapse-context` REST endpoint** — sends Claude Code's `/compact` slash command to any agent (including the same agent invoking it via a cron / end-of-flow step). `POST /api/agents/:id/message` cannot deliver slash commands (the leading `/` is passed through as message body instead of being intercepted by the CLI), so this dedicated endpoint is the only correct path. Logic was factored into a new `runtimeService.collapseAgentContext(agentId)` helper returning a discriminated `CollapseContextResult` (`collapse-initiated | not-found | busy + currentStatus | error + error`); the existing WS `collapse_context` handler was refactored to share the same helper so REST and WS now have identical semantics. Status codes: `200` (initiated), `404` (agent not found), `409` (agent busy — Claude rejects slash commands mid-turn), `500` (runtime error). Documented in the `send-message-to-agent` built-in skill alongside the existing `/message` endpoint.
+
+### Changed
+- **`Send Message to Agent` skill gains a "Collapsing an Agent's Context" section** — documents the new `/collapse-context` endpoint, response shape, status codes, and the explicit `/message` vs `/collapse-context` decision rule for inter-agent automation.
+
 ## [1.110.2] - 2026-05-28
 
 ### Fixed

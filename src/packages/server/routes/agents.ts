@@ -1199,6 +1199,36 @@ router.post('/:id/message', async (req: Request<{ id: string }>, res: Response) 
   }
 });
 
+// POST /api/agents/:id/collapse-context — Send Claude Code's /compact slash command
+// to the agent's runner. Use case: any agent (including the same agent via a
+// scheduled cron) auto-collapsing its own context. Plain /message can't carry
+// slash commands; this is the only correct path.
+router.post('/:id/collapse-context', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const agentId = req.params.id;
+    const result = await runtimeService.collapseAgentContext(agentId);
+    switch (result.status) {
+      case 'collapse-initiated':
+        log.log(`API collapse-context dispatched for agent ${agentId}`);
+        res.status(200).json({ success: true, agentId, status: 'collapse-initiated' });
+        return;
+      case 'not-found':
+        res.status(404).json({ success: false, agentId, status: 'not-found', error: `Agent not found: ${agentId}` });
+        return;
+      case 'busy':
+        res.status(409).json({ success: false, agentId, status: 'busy', currentStatus: result.currentStatus, error: 'Cannot collapse context while agent is busy' });
+        return;
+      case 'error':
+        log.error(` Failed to collapse context for ${agentId}: ${result.error}`);
+        res.status(500).json({ success: false, agentId, status: 'error', error: result.error });
+        return;
+    }
+  } catch (err: any) {
+    log.error(' Failed to collapse context (route):', err);
+    res.status(500).json({ error: err?.message || 'Failed to collapse context' });
+  }
+});
+
 // POST /api/agents/:id/report-task - Subordinate reports task completion to its boss
 router.post('/:id/report-task', async (req: Request<{ id: string }>, res: Response) => {
   try {

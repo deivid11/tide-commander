@@ -283,6 +283,40 @@ export async function sendSilentCommand(agentId: string, command: string): Promi
   await commandExecution.sendSilentCommand(agentId, command);
 }
 
+/**
+ * Result of a `collapseAgentContext` call. Discriminated by `status` so callers
+ * (WS handler + REST route) can map each case to the right user-facing response
+ * without duplicating the check.
+ */
+export type CollapseContextResult =
+  | { status: 'collapse-initiated' }
+  | { status: 'not-found' }
+  | { status: 'busy'; currentStatus: string }
+  | { status: 'error'; error: string };
+
+/**
+ * Send Claude Code's `/compact` slash command to collapse an agent's context.
+ * Only fires when the agent exists AND is idle — the CLI rejects slash commands
+ * mid-turn, and we want a clean, predictable result instead of partial state.
+ *
+ * Callers: WS `collapse_context` handler, REST `POST /api/agents/:id/collapse-context`.
+ * Plain `/message` cannot carry slash commands (they're sent as message body, not
+ * intercepted by the CLI) — this helper is the only correct path.
+ */
+export async function collapseAgentContext(agentId: string): Promise<CollapseContextResult> {
+  const agent = agentService.getAgent(agentId);
+  if (!agent) return { status: 'not-found' };
+  if (agent.status !== 'idle') {
+    return { status: 'busy', currentStatus: agent.status };
+  }
+  try {
+    await commandExecution.sendCommand(agentId, '/compact');
+    return { status: 'collapse-initiated' };
+  } catch (err) {
+    return { status: 'error', error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export async function stopAgent(agentId: string): Promise<void> {
   await commandExecution.stopAgent(agentId);
 }
