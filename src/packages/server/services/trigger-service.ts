@@ -734,6 +734,11 @@ function startCronJob(trigger: CronTrigger): void {
     return;
   }
 
+  // Seed the new job's same-minute guard with the persisted `lastFiredAt`. Without
+  // this, every `fireTrigger` re-enters `updateTrigger` → re-arms the cron → a
+  // fresh job with `lastFired: null` polls and fires a SECOND time in the same
+  // minute. Reading from the persisted trigger record also defends against
+  // pm2/server restarts within the same minute as the last fire.
   const job = cronService.schedule(
     trigger.config.expression,
     trigger.config.timezone,
@@ -745,7 +750,8 @@ function startCronJob(trigger: CronTrigger): void {
       };
 
       void fireTrigger(trigger.id, variables);
-    }
+    },
+    { initialLastFired: trigger.lastFiredAt ?? null },
   );
 
   cronJobs.set(trigger.id, job);

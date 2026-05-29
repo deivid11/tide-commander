@@ -226,7 +226,28 @@ export function scheduleOnce(runAtIso: string, callback: () => void): CronJob {
   return job;
 }
 
-export function schedule(expression: string, timezone: string, callback: () => void): CronJob {
+export interface ScheduleOptions {
+  /**
+   * Seed value for `job.lastFired`. When set, the same-minute guard in the
+   * interval check kicks in immediately — preventing a freshly-armed job
+   * from re-firing in the very minute that triggered its (re)arming.
+   *
+   * Two real-world cases this defends against:
+   *   1. A trigger fires, `fireTrigger` calls `updateTrigger({lastFiredAt})`,
+   *      which re-arms the cron job. Without this seed, the new job's
+   *      `lastFired === null` and the same minute's poll fires a second time.
+   *   2. The server restarts inside the same minute it last fired. The
+   *      persisted `trigger.lastFiredAt` keeps the new job from firing twice.
+   */
+  initialLastFired?: number | null;
+}
+
+export function schedule(
+  expression: string,
+  timezone: string,
+  callback: () => void,
+  options?: ScheduleOptions,
+): CronJob {
   const id = `cron_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
   const job: CronJob = {
@@ -235,7 +256,7 @@ export function schedule(expression: string, timezone: string, callback: () => v
     timezone,
     callback,
     timer: null,
-    lastFired: null,
+    lastFired: options?.initialLastFired ?? null,
   };
 
   // Check at interval whether it's time to fire

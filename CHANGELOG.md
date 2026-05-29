@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.110.2] - 2026-05-28
+
+### Fixed
+- **Cron triggers double-firing on every slot** — `cron-service.schedule` now accepts an optional `ScheduleOptions.initialLastFired` and seeds `job.lastFired` from it (defaults to `null`, preserving back-compat). `trigger-service.startCronJob` passes `{ initialLastFired: trigger.lastFiredAt ?? null }` so the same-minute guard trips on the re-arm path: a fire → `fireTrigger` → `updateTrigger({lastFiredAt})` → `stopCronJob` + `startCronJob` cycle previously produced a fresh job with `lastFired: null` that the next interval poll re-fired in the same minute. Reading from the persisted record means a pm2/server restart inside the same minute as the last fire is also blocked from re-firing. New `cron-service.test.ts` (5 specs) and `trigger-service.test.ts` (2 specs) cover the wiring + same-minute guard behavior with fake timers.
+
 ## [1.110.1] - 2026-05-28
 
 ### Fixed
