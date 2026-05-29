@@ -36,6 +36,7 @@ interface ConfigSectionProps {
   searchQuery?: string;
   onOpenIntegrationsModal?: (integrationId?: string) => void;
   onOpenMonitoringModal?: () => void;
+  onOpenStatisticsModal?: () => void;
   onOpenWorkflowEditor?: () => void;
   onOpenTriggerManager?: () => void;
 }
@@ -203,6 +204,7 @@ const SETTINGS_SECTIONS = [
   { id: 'workflows', title: 'Workflows', keywords: ['workflow', 'automation', 'state machine', 'editor', 'actions', 'transitions', 'pipeline'] },
   { id: 'triggers', title: 'Triggers', keywords: ['trigger', 'event', 'webhook', 'cron', 'slack', 'email', 'jira', 'matching', 'fire'] },
   { id: 'monitoring', title: 'Monitoring', keywords: ['monitoring', 'logs', 'triggers', 'events', 'history', 'workflow', 'traces', 'audit', 'timeline'] },
+  { id: 'statistics', title: 'Statistics', keywords: ['statistics', 'stats', 'usage', 'tokens', 'token', 'claude', 'chart', 'graph', 'pie', 'cost'] },
   { id: 'experimental', title: 'Experimental', keywords: ['experimental', '2d', 'view', 'voice', 'assistant', 'speech', 'tts', 'text to speech', 'echo', 'prompt', 'duplicate'] },
   { id: 'about', title: 'About', keywords: ['about', 'version', 'update', 'credits', 'github', 'releases'] },
 ];
@@ -221,7 +223,7 @@ const LANGUAGE_OPTIONS: { value: string; label: string; icon: string }[] = [
   { value: 'it', label: 'Italiano', icon: '🇮🇹' },
 ];
 
-export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegrationsModal, onOpenMonitoringModal, onOpenWorkflowEditor, onOpenTriggerManager }: ConfigSectionProps) {
+export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegrationsModal, onOpenMonitoringModal, onOpenStatisticsModal, onOpenWorkflowEditor, onOpenTriggerManager }: ConfigSectionProps) {
   const { t } = useTranslation(['config', 'common']);
   const state = useStore();
   const customClasses = useCustomAgentClassesArray();
@@ -842,6 +844,22 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
             onClick={() => onOpenMonitoringModal?.()}
           >
             Open Monitoring & Logs
+          </button>
+        </div>
+      </CollapsibleSection>
+      )}
+
+      {shouldShowSection('statistics') && (
+      <CollapsibleSection title="Statistics" storageKey="statistics" defaultOpen={false} forceOpen={isSearching && shouldShowSection('statistics')}>
+        <div className="config-row">
+          <span className="config-label"><HighlightText text="View token usage charts and system-wide agent statistics" query={searchQuery} /></span>
+        </div>
+        <div className="config-row">
+          <button
+            className="config-button"
+            onClick={() => onOpenStatisticsModal?.()}
+          >
+            Open Statistics
           </button>
         </div>
       </CollapsibleSection>

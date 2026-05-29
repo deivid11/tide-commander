@@ -21,6 +21,7 @@ const AgentEditModal = React.lazy(() => import('./AgentEditModal').then(m => ({ 
 const RestoreArchivedAreaModal = React.lazy(() => import('./RestoreArchivedAreaModal').then(m => ({ default: m.RestoreArchivedAreaModal })));
 const IntegrationsPanel = React.lazy(() => import('./IntegrationsPanel').then(m => ({ default: m.IntegrationsPanel })));
 const MonitoringModal = React.lazy(() => import('./MonitoringModal').then(m => ({ default: m.MonitoringModal })));
+const StatisticsModal = React.lazy(() => import('./StatisticsModal').then(m => ({ default: m.StatisticsModal })));
 const WorkflowEditorPanel = React.lazy(() => import('./WorkflowEditorPanel').then(m => ({ default: m.WorkflowEditorPanel })));
 const TriggerManagerPanel = React.lazy(() => import('./TriggerManagerPanel').then(m => ({ default: m.TriggerManagerPanel })));
 
@@ -38,6 +39,7 @@ interface AppModalsProps {
   skillsModal: UseModalState;
   integrationsModal: UseModalState<string | undefined>;
   monitoringModal: UseModalState;
+  statisticsModal: UseModalState;
   workflowEditorModal: UseModalState;
   triggerManagerModal: UseModalState;
   buildingModal: UseModalState<string | null>;
@@ -94,6 +96,7 @@ export function AppModals({
   skillsModal,
   integrationsModal,
   monitoringModal,
+  statisticsModal,
   workflowEditorModal,
   triggerManagerModal,
   buildingModal,
@@ -143,6 +146,7 @@ export function AppModals({
         onOpenAreaExplorer={onOpenAreaExplorer}
         onOpenIntegrationsModal={(id) => integrationsModal.open(id)}
         onOpenMonitoringModal={() => monitoringModal.open()}
+        onOpenStatisticsModal={() => statisticsModal.open()}
         onOpenWorkflowEditor={() => workflowEditorModal.open()}
         onOpenTriggerManager={() => triggerManagerModal.open()}
       />
@@ -343,6 +347,12 @@ export function AppModals({
       <MonitoringModal
         isOpen={monitoringModal.isOpen}
         onClose={monitoringModal.close}
+      />
+
+      {/* Statistics Modal */}
+      <StatisticsModal
+        isOpen={statisticsModal.isOpen}
+        onClose={statisticsModal.close}
       />
 
       {/* Workflow Editor */}

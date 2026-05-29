@@ -49,5 +49,35 @@ EOF
 - Always prefix messages with your identity so the receiver knows who sent it
 - Use heredoc syntax (\`-d @- <<'EOF'\`) to avoid JSON escaping problems
 - Keep messages simple - avoid special characters like backslashes or nested quotes
-- Works with all agent types including boss agents`,
+- Works with all agent types including boss agents
+
+## Collapsing an Agent's Context (\`/compact\`)
+
+\`POST /api/agents/AGENT_ID/message\` cannot deliver Claude Code slash commands —
+the slash is passed through as message body instead of being intercepted by the
+CLI. For that, use the dedicated endpoint:
+
+\`\`\`bash
+curl -s -X POST http://localhost:5174/api/agents/AGENT_ID/collapse-context
+\`\`\`
+
+This sends Claude Code's \`/compact\` slash command to the agent's runner, which
+compresses its conversation history. Works for ANY agent including yourself
+(auto-collapse from a cron or end-of-flow step).
+
+Response shape:
+
+\`\`\`json
+{ "success": true, "agentId": "AGENT_ID", "status": "collapse-initiated" }
+\`\`\`
+
+Status codes:
+- \`200\` + \`status: "collapse-initiated"\` — \`/compact\` dispatched
+- \`404\` + \`status: "not-found"\` — agent id doesn't exist
+- \`409\` + \`status: "busy"\` + \`currentStatus\` — agent isn't idle (Claude rejects slash commands mid-turn); retry once it goes idle
+- \`500\` + \`status: "error"\` — runtime error sending the command
+
+**When to use which endpoint:**
+- \`/message\` — deliver content / instructions to an agent (what you usually want)
+- \`/collapse-context\` — trigger the \`/compact\` slash command (the only path that works for slash commands; \`/message\` will not)`,
 };

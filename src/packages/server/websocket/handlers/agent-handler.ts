@@ -311,23 +311,31 @@ export function handleRequestSessionHistory(
 }
 
 /**
- * Handle collapse_context message - sends /compact command to collapse context
+ * Handle collapse_context message - sends /compact command to collapse context.
+ * Thin wrapper around runtimeService.collapseAgentContext that maps each
+ * discriminated result back to the WS activity stream.
  */
 export async function handleCollapseContext(
   ctx: HandlerContext,
   payload: { agentId: string }
 ): Promise<void> {
-  const agent = agentService.getAgent(payload.agentId);
-  if (agent && agent.status === 'idle') {
-    try {
-      await runtimeService.sendCommand(payload.agentId, '/compact');
+  const result = await runtimeService.collapseAgentContext(payload.agentId);
+  switch (result.status) {
+    case 'collapse-initiated':
       ctx.sendActivity(payload.agentId, 'Context collapse initiated');
-    } catch (err) {
-      log.error(` Failed to collapse context: ${err}`);
+      return;
+    case 'busy':
+      ctx.sendActivity(payload.agentId, 'Cannot collapse context while agent is busy');
+      return;
+    case 'not-found':
+      // No agent → no activity stream to write to; quietly drop (the UI shouldn't
+      // be able to reach this state, and logging keeps the breadcrumb).
+      log.warn(`collapse_context for unknown agent ${payload.agentId}`);
+      return;
+    case 'error':
+      log.error(` Failed to collapse context: ${result.error}`);
       ctx.sendActivity(payload.agentId, 'Failed to collapse context');
-    }
-  } else {
-    ctx.sendActivity(payload.agentId, 'Cannot collapse context while agent is busy');
+      return;
   }
 }
 

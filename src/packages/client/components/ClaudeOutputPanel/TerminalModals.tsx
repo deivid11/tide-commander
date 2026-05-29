@@ -27,8 +27,6 @@ import type { Agent } from '../../../shared/types';
 import { useModalClose } from '../../hooks';
 import { ModalPortal } from '../shared/ModalPortal';
 import { fetchAgentInjectedPrompt } from '../../api/agent-prompt';
-import { fetchClaudeUsageByAgent, type ClaudeUsageByAgentEntry, type ClaudeUsageByAgentSummary } from '../../api/claude-usage';
-import { formatTokens } from '../../utils/formatting';
 import { Icon } from '../Icon';
 
 // Image modal props
@@ -520,51 +518,6 @@ function formatDateTime(timestamp?: number): string {
   }
 }
 
-function formatIsoDateTime(timestamp: string | null): string {
-  if (!timestamp) return 'N/A';
-  try {
-    return new Date(timestamp).toLocaleString();
-  } catch {
-    return 'N/A';
-  }
-}
-
-const USAGE_CHART_COLORS = [
-  '#6ab8c8',
-  '#c89a5a',
-  '#9a80c0',
-  '#5cb88a',
-  '#c85a5a',
-  '#c87a9a',
-  '#c8c87a',
-  '#5a8fd4',
-  '#d45a5a',
-  '#8a6fbf',
-];
-
-function getLocalDayStart(): number {
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
-  return dayStart.getTime();
-}
-
-function buildUsagePieGradient(entries: ClaudeUsageByAgentEntry[], totalTokens: number): string {
-  if (entries.length === 0 || totalTokens <= 0) {
-    return 'conic-gradient(rgba(50, 50, 62, 0.95) 0deg 360deg)';
-  }
-
-  let current = 0;
-  const segments = entries.map((entry, index) => {
-    const start = current;
-    const degrees = (entry.tokens.total / totalTokens) * 360;
-    current += degrees;
-    const color = USAGE_CHART_COLORS[index % USAGE_CHART_COLORS.length];
-    return `${color} ${start.toFixed(2)}deg ${current.toFixed(2)}deg`;
-  });
-
-  return `conic-gradient(${segments.join(', ')})`;
-}
-
 interface InjectedPromptSectionProps {
   agentId: string;
 }
@@ -689,133 +642,6 @@ function InjectedPromptSection({ agentId }: InjectedPromptSectionProps) {
   );
 }
 
-interface AgentUsageChartSectionProps {
-  selectedAgentId: string;
-}
-
-function AgentUsageChartSection({ selectedAgentId }: AgentUsageChartSectionProps) {
-  const { t } = useTranslation(['terminal', 'common']);
-  const [summary, setSummary] = React.useState<ClaudeUsageByAgentSummary | null>(null);
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const dayStart = React.useMemo(() => getLocalDayStart(), []);
-
-  const load = React.useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await fetchClaudeUsageByAgent({ since: dayStart, until: Date.now() });
-      setSummary(result);
-    } catch (err: any) {
-      setError(err?.message || 'Error');
-    } finally {
-      setLoading(false);
-    }
-  }, [dayStart]);
-
-  React.useEffect(() => {
-    void load();
-  }, [load]);
-
-  const entries = summary?.entries ?? [];
-  const totalTokens = summary?.totalTokens ?? 0;
-  const selectedEntry = entries.find((entry) => entry.agentId === selectedAgentId) ?? null;
-  const pieGradient = React.useMemo(() => buildUsagePieGradient(entries, totalTokens), [entries, totalTokens]);
-
-  return (
-    <section className="agent-info-section agent-info-usage-section">
-      <div className="agent-info-usage-header">
-        <div>
-          <h4>{t('terminal:agentInfo.usageByAgent', { defaultValue: 'Claude usage today' })}</h4>
-          <span className="agent-info-usage-subtitle">
-            {t('terminal:agentInfo.usageByAgentSubtitle', {
-              defaultValue: 'Input + cache creation + cache read + output tokens',
-            })}
-          </span>
-        </div>
-        <button
-          type="button"
-          className="agent-info-usage-refresh"
-          onClick={load}
-          disabled={loading}
-          title={t('terminal:agentInfo.usageRefresh', { defaultValue: 'Refresh usage' })}
-        >
-          <Icon name="refresh" size={13} />
-        </button>
-      </div>
-
-      {loading && !summary && (
-        <div className="agent-info-empty">{t('terminal:agentInfo.usageLoading', { defaultValue: 'Loading usage...' })}</div>
-      )}
-
-      {!loading && error && (
-        <div className="agent-info-empty error">{t('terminal:agentInfo.usageError', { defaultValue: 'Failed to load usage: {{error}}', error })}</div>
-      )}
-
-      {!error && summary && entries.length === 0 && (
-        <div className="agent-info-empty">{t('terminal:agentInfo.usageEmpty', { defaultValue: 'No Claude token usage found for today.' })}</div>
-      )}
-
-      {!error && summary && entries.length > 0 && (
-        <div className="agent-info-usage-layout">
-          <div className="agent-info-usage-chart-wrap">
-            <div
-              className="agent-info-usage-pie"
-              style={{ background: pieGradient }}
-              role="img"
-              aria-label={t('terminal:agentInfo.usagePieLabel', {
-                defaultValue: 'Claude token usage by agent',
-              })}
-            >
-              <div className="agent-info-usage-pie-hole">
-                <strong>{formatTokens(totalTokens)}</strong>
-                <span>{t('terminal:agentInfo.usageTotal', { defaultValue: 'total' })}</span>
-              </div>
-            </div>
-            {selectedEntry && (
-              <div className="agent-info-usage-selected">
-                <span>{t('terminal:agentInfo.usageSelectedAgent', { defaultValue: 'This agent' })}</span>
-                <strong>{formatTokens(selectedEntry.tokens.total)} ({selectedEntry.percent}%)</strong>
-              </div>
-            )}
-          </div>
-
-          <div className="agent-info-usage-list">
-            {entries.map((entry, index) => (
-              <div
-                key={entry.agentId}
-                className={`agent-info-usage-row ${entry.agentId === selectedAgentId ? 'active' : ''}`}
-                title={`${entry.agentName}: ${entry.tokens.total.toLocaleString()} tokens`}
-              >
-                <span className="agent-info-usage-swatch" style={{ backgroundColor: USAGE_CHART_COLORS[index % USAGE_CHART_COLORS.length] }} />
-                <div className="agent-info-usage-row-main">
-                  <div className="agent-info-usage-row-name">{entry.agentName}</div>
-                  <div className="agent-info-usage-row-meta">
-                    {entry.requestCount.toLocaleString()} {t('terminal:agentInfo.usageRequests', { defaultValue: 'requests' })}
-                    {' / '}
-                    {entry.percent}%
-                  </div>
-                </div>
-                <strong>{formatTokens(entry.tokens.total)}</strong>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {!error && summary && entries.length > 0 && (
-        <div className="agent-info-usage-footnote">
-          {t('terminal:agentInfo.usageWindow', {
-            defaultValue: 'Window: {{since}} to {{until}}',
-            since: formatIsoDateTime(summary.since),
-            until: formatIsoDateTime(summary.until),
-          })}
-        </div>
-      )}
-    </section>
-  );
-}
-
 export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
@@ -930,8 +756,6 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
             </section>
 
             <InjectedPromptSection agentId={agent.id} />
-
-            <AgentUsageChartSection selectedAgentId={agent.id} />
 
             <section className="agent-info-section">
               <h4>{t('terminal:agentInfo.diagnostics')}</h4>
