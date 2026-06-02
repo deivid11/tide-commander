@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.110.5] - 2026-06-02
+
+### Changed
+- **`GET /api/agents/usage-by-agent` now rolls up subagent token usage** — `claude-usage-service.ts` walks `<projectDir>/<sessionId>/subagents/**/agent-*.jsonl` in addition to the parent session JSONL, summing both Task/Agent tool spawns and Workflow-tool fan-out runs into each agent's totals. Previously the endpoint reported only the parent-session tokens, which understated cost for boss agents and any agent running multi-agent workflows. Each `ClaudeUsageByAgentEntry` now exposes `subagentTokens: ClaudeTokenTotals` and `subagentRequestCount: number` alongside the existing `tokens` field (which is the rolled-up total). Performance: an mtime fast-path in `scanFileIntoAccumulator` skips files whose `mtime < since` so windowed queries don't pay for cold history. Client type in `client/api/claude-usage.ts` mirrored. Existing `StatisticsModal` chart automatically reflects the new totals via the unchanged `entry.tokens.total` field.
+
 ## [1.110.4] - 2026-05-29
 
 ### Added

@@ -67,9 +67,15 @@ export interface ClaudeUsageByAgentEntry {
   model: string | null;
   cwd: string;
   requestCount: number;
+  // Of the requestCount above, how many were attributable to subagent JSONLs
+  // (Task/Agent tool spawns and Workflow-tool fan-outs).
+  subagentRequestCount: number;
   firstTimestamp: string | null;
   lastTimestamp: string | null;
+  // Rolled-up totals: parent session + every subagent JSONL underneath.
   tokens: ClaudeTokenTotals;
+  // Breakdown of the subagent contribution included in `tokens` above.
+  subagentTokens: ClaudeTokenTotals;
   percent: number;
 }
 
@@ -135,23 +141,59 @@ function normalizeBoundary(value: unknown): string | null {
   return ms === null ? null : new Date(ms).toISOString();
 }
 
-function findClaudeSessionFile(agent: Agent): string | null {
+interface SessionJsonlPaths {
+  main: string;
+  // Every `agent-*.jsonl` under `<projectDir>/<sessionId>/subagents/**`.
+  // Covers both Task/Agent tool spawns (flat under subagents/) and Workflow
+  // tool runs (nested under subagents/workflows/<runId>/).
+  subagents: string[];
+}
+
+function collectSubagentJsonlPaths(projectDir: string, sessionId: string): string[] {
+  const root = path.join(projectDir, sessionId, 'subagents');
+  if (!fs.existsSync(root)) return [];
+  const results: string[] = [];
+  const queue: string[] = [root];
+  while (queue.length > 0) {
+    const dir = queue.shift()!;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (err) {
+      log.warn(`Failed to read subagent dir ${dir}: ${err}`);
+      continue;
+    }
+    for (const e of entries) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        queue.push(full);
+      } else if (e.isFile() && e.name.startsWith('agent-') && e.name.endsWith('.jsonl')) {
+        results.push(full);
+      }
+    }
+  }
+  return results;
+}
+
+function findClaudeSessionFile(agent: Agent): SessionJsonlPaths | null {
   if (!agent.sessionId) return null;
 
-  const directPath = path.join(getClaudeProjectDir(agent.cwd), `${agent.sessionId}.jsonl`);
-  if (fs.existsSync(directPath)) {
-    return directPath;
-  }
+  const tryProjectDir = (projectDir: string): SessionJsonlPaths | null => {
+    const main = path.join(projectDir, `${agent.sessionId}.jsonl`);
+    if (!fs.existsSync(main)) return null;
+    return { main, subagents: collectSubagentJsonlPaths(projectDir, agent.sessionId!) };
+  };
+
+  const direct = tryProjectDir(getClaudeProjectDir(agent.cwd));
+  if (direct) return direct;
 
   const projectsDir = path.join(os.homedir(), '.claude', 'projects');
   try {
     if (!fs.existsSync(projectsDir)) return null;
     for (const entry of fs.readdirSync(projectsDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
-      const candidate = path.join(projectsDir, entry.name, `${agent.sessionId}.jsonl`);
-      if (fs.existsSync(candidate)) {
-        return candidate;
-      }
+      const found = tryProjectDir(path.join(projectsDir, entry.name));
+      if (found) return found;
     }
   } catch (err) {
     log.warn(`Failed to search Claude session files: ${err}`);
@@ -205,8 +247,8 @@ function addUsage(acc: SessionUsageAccumulator, requestId: string, timestamp: st
   }
 }
 
-async function scanSessionUsage(filePath: string, sinceMs: number | null, untilMs: number | null): Promise<SessionUsageAccumulator> {
-  const acc: SessionUsageAccumulator = {
+function createAccumulator(): SessionUsageAccumulator {
+  return {
     requestIds: new Set(),
     firstTimestamp: null,
     lastTimestamp: null,
@@ -218,6 +260,25 @@ async function scanSessionUsage(filePath: string, sinceMs: number | null, untilM
       total: 0,
     },
   };
+}
+
+async function scanFileIntoAccumulator(
+  filePath: string,
+  acc: SessionUsageAccumulator,
+  sinceMs: number | null,
+  untilMs: number | null,
+): Promise<void> {
+  // Fast-path: if `since` is set and the file hasn't been touched since then,
+  // no line in it can be within the window — skip the read entirely. Safe
+  // because Claude appends to these files; mtime tracks the latest line.
+  if (sinceMs !== null) {
+    try {
+      const stat = fs.statSync(filePath);
+      if (stat.mtimeMs < sinceMs) return;
+    } catch {
+      return;
+    }
+  }
 
   const stream = fs.createReadStream(filePath, { encoding: 'utf-8' });
   const lines = readline.createInterface({ input: stream, crlfDelay: Infinity });
@@ -233,8 +294,6 @@ async function scanSessionUsage(filePath: string, sinceMs: number | null, untilM
 
     addUsage(acc, parsed.requestId, parsed.timestamp, parsed.usage);
   }
-
-  return acc;
 }
 
 function todayString(): string {
@@ -281,12 +340,33 @@ export async function buildClaudeUsageByAgentSummary(
   for (const agent of agents) {
     if (agent.provider !== 'claude' || !agent.sessionId) continue;
 
-    const sessionFile = findClaudeSessionFile(agent);
-    if (!sessionFile) continue;
+    const paths = findClaudeSessionFile(agent);
+    if (!paths) continue;
 
     try {
-      const usage = await scanSessionUsage(sessionFile, sinceMs, untilMs);
-      if (usage.tokens.total <= 0) continue;
+      const mainAcc = createAccumulator();
+      await scanFileIntoAccumulator(paths.main, mainAcc, sinceMs, untilMs);
+
+      const subAcc = createAccumulator();
+      for (const subPath of paths.subagents) {
+        await scanFileIntoAccumulator(subPath, subAcc, sinceMs, untilMs);
+      }
+
+      const combinedTotal = mainAcc.tokens.total + subAcc.tokens.total;
+      if (combinedTotal <= 0) continue;
+
+      const combinedTokens: ClaudeTokenTotals = {
+        input: mainAcc.tokens.input + subAcc.tokens.input,
+        cacheCreation: mainAcc.tokens.cacheCreation + subAcc.tokens.cacheCreation,
+        cacheRead: mainAcc.tokens.cacheRead + subAcc.tokens.cacheRead,
+        output: mainAcc.tokens.output + subAcc.tokens.output,
+        total: combinedTotal,
+      };
+
+      const earliest = (a: string | null, b: string | null): string | null =>
+        a && b ? (a < b ? a : b) : (a ?? b);
+      const latest = (a: string | null, b: string | null): string | null =>
+        a && b ? (a > b ? a : b) : (a ?? b);
 
       entries.push({
         agentId: agent.id,
@@ -294,10 +374,12 @@ export async function buildClaudeUsageByAgentSummary(
         sessionId: agent.sessionId,
         model: agent.model ?? null,
         cwd: agent.cwd,
-        requestCount: usage.requestIds.size,
-        firstTimestamp: usage.firstTimestamp,
-        lastTimestamp: usage.lastTimestamp,
-        tokens: usage.tokens,
+        requestCount: mainAcc.requestIds.size + subAcc.requestIds.size,
+        subagentRequestCount: subAcc.requestIds.size,
+        firstTimestamp: earliest(mainAcc.firstTimestamp, subAcc.firstTimestamp),
+        lastTimestamp: latest(mainAcc.lastTimestamp, subAcc.lastTimestamp),
+        tokens: combinedTokens,
+        subagentTokens: { ...subAcc.tokens },
         percent: 0,
       });
     } catch (err) {
