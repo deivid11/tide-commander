@@ -51,9 +51,13 @@ export interface ClaudeUsageByAgentEntry {
   model: string | null;
   cwd: string;
   requestCount: number;
+  subagentRequestCount: number;
   firstTimestamp: string | null;
   lastTimestamp: string | null;
+  // Rolled-up total: parent session + every subagent JSONL underneath.
   tokens: ClaudeTokenTotals;
+  // Subagent portion of `tokens` above (Task/Agent tool spawns + Workflow runs).
+  subagentTokens: ClaudeTokenTotals;
   percent: number;
 }
 
