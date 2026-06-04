@@ -380,21 +380,27 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   }, [totalSize, shouldAutoScroll, pinToBottom, scrollToBottom]);
 
   // Detect scroll to top for loading more history
+  const lastScrollTopRef = useRef(0);
   const handleScroll = useCallback(() => {
     if (!scrollContainerRef.current) return;
 
     const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    const prevScrollTop = lastScrollTopRef.current;
+    lastScrollTopRef.current = scrollTop;
 
     // If the user scrolls while we are pinning, cancel pin mode (so we don't fight them).
     if (pinToBottom && !isProgrammaticScrollRef.current) {
       onPinCancel?.();
     }
 
-    // Check if user scrolled up (not at bottom)
-    // BUT: Don't trigger during grace period after agent switch, as this would
-    // incorrectly disable auto-scroll before history even loads
+    // Disable auto-scroll only on a genuine UPWARD user scroll (scrollTop
+    // decreased). When new content grows under the viewport, isAtBottom goes
+    // false without scrollTop decreasing — treating that as "user scrolled up"
+    // is what made the view jump up off the latest agent message/reasoning.
+    // Also skip during the post-agent-switch grace period and programmatic scrolls.
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 150;
-    if (!isAtBottom && !isProgrammaticScrollRef.current && !agentSwitchGraceRef.current && onUserScroll) {
+    const scrolledUp = scrollTop < prevScrollTop - 1;
+    if (!isAtBottom && scrolledUp && !isProgrammaticScrollRef.current && !agentSwitchGraceRef.current && onUserScroll) {
       onUserScroll();
     }
 

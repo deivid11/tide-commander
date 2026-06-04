@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.111.2] - 2026-06-04
+
+### Fixed
+- **Output panel no longer jumps up when new content arrives** — `AgentTerminalPane.tsx` and `VirtualizedOutputList.tsx` now disable auto-scroll only on a genuine upward user scroll (`scrollTop` actually decreased). Previously, content growing under the viewport (a new agent message or reasoning completion) made the at-bottom check momentarily false without the user scrolling, which incorrectly disabled auto-scroll and jumped the view off the latest message. Tracks the last observed `scrollTop` to distinguish a real upward scroll from the bottom drifting away.
+
 ## [1.111.1] - 2026-06-04
 
 ### Added
