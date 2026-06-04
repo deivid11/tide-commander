@@ -114,9 +114,37 @@ function FileViewerHeader({
   const { t } = useTranslation(['terminal', 'common']);
   const [openEditorStatus, setOpenEditorStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [revealStatus, setRevealStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [copyAllStatus, setCopyAllStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const language = file.fileType === 'text' ? getLanguageForExtension(file.extension) : file.extension.slice(1).toUpperCase();
 
+  // Copy-all / download are only meaningful for text files (images/PDF/binary
+  // expose their own Download button and carry no textual content).
+  const canCopyOrDownloadText = file.fileType === 'text' && file.content != null;
+
   const { settings } = useStore();
+
+  const handleCopyAll = async () => {
+    try {
+      await copyTextToClipboard(file.content);
+      setCopyAllStatus('copied');
+      setTimeout(() => setCopyAllStatus('idle'), 2000);
+    } catch {
+      setCopyAllStatus('error');
+      setTimeout(() => setCopyAllStatus('idle'), 2000);
+    }
+  };
+
+  const handleDownloadTextFile = () => {
+    const blob = new Blob([file.content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = file.filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
   const handleOpenInEditor = async () => {
     setOpenEditorStatus('loading');
@@ -183,6 +211,28 @@ function FileViewerHeader({
               <path d="M11.013 1.427a1.75 1.75 0 012.474 0l1.086 1.086a1.75 1.75 0 010 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 01-.927-.928l.929-3.25a1.75 1.75 0 01.445-.758l8.61-8.61zm1.414 1.06a.25.25 0 00-.354 0L3.463 11.1a.25.25 0 00-.064.108l-.558 1.953 1.953-.558a.25.25 0 00.108-.064l8.61-8.61a.25.25 0 000-.354l-1.086-1.086z" />
             </svg>
           </button>
+        )}
+        {canCopyOrDownloadText && (
+          <>
+            <button
+              className={`file-viewer-copy-html-btn ${copyAllStatus}`}
+              onClick={handleCopyAll}
+              title={t('terminal:fileExplorer.copyAllTitle')}
+            >
+              {copyAllStatus === 'copied'
+                ? t('terminal:fileExplorer.copied')
+                : copyAllStatus === 'error'
+                  ? t('terminal:fileExplorer.copyError')
+                  : t('terminal:fileExplorer.copyAll')}
+            </button>
+            <button
+              className="file-viewer-download-btn"
+              onClick={handleDownloadTextFile}
+              title={t('terminal:fileExplorer.downloadFileTitle')}
+            >
+              {t('common:buttons.download')}
+            </button>
+          </>
         )}
         <button
           className={`file-viewer-reveal-explorer-btn ${revealStatus}`}

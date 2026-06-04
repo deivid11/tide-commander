@@ -41,6 +41,7 @@ import { agentDebugger } from '../../services/agentDebugger';
 import { ContextConfirmModal, ImageModal, BashModal, AgentInfoModal, AgentResponseModalWrapper, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
 import { useKeyboardHeight } from '../ClaudeOutputPanel/useKeyboardHeight';
 import { useBottomTerminalResize } from '../ClaudeOutputPanel/useBottomTerminalResize';
+import { useSidePanelResize } from '../ClaudeOutputPanel/useSidePanelResize';
 import { ThemeSelector } from '../ClaudeOutputPanel/ThemeSelector';
 import { useGitBranches } from '../ClaudeOutputPanel/useGitBranch';
 import { SingleAgentPanel } from '../UnitPanel/SingleAgentPanel';
@@ -418,6 +419,10 @@ const ChatView = React.memo(function ChatView({
   // height is kept in sync across both surfaces.
   const { height: embeddedHeight, onResizeStart: handleEmbeddedResizeStart } = useBottomTerminalResize();
 
+  // Side-panel width — same shared hook + persisted width the Guake terminal
+  // uses, so the git/buildings panels resize identically across both views.
+  const { sidePanelWidth, handleSidePanelResizeStart } = useSidePanelResize();
+
   // Side panels (git / area buildings) — reuse the Guake components, persist
   // open-state to the same STORAGE_KEYS so the toggle survives a view swap.
   const [gitPanelOpen, setGitPanelOpen] = useState<boolean>(() =>
@@ -530,6 +535,11 @@ const ChatView = React.memo(function ChatView({
     <div
       ref={wrapperRef}
       className={`flat-terminal-wrapper ${gitPanelOpen || buildingsPanelOpen || debugPanelOpen ? 'flat-terminal-wrapper--with-side-panel' : ''}`}
+      // Clamp to 70% of the (often narrow) Flat chat column so the side panel
+      // can't overflow it and push the resize handle off the left edge. Panel
+      // width, chat margin, and handle position all read this one var, so they
+      // stay in sync. The Guake terminal is full-width and uses the raw px.
+      style={{ '--guake-side-panel-width': `min(${sidePanelWidth}px, 70%)` } as React.CSSProperties}
     >
       <div className="flat-terminal-wrapper__header">
         <button
@@ -1041,7 +1051,9 @@ const ChatView = React.memo(function ChatView({
       </div>
       {/* Side panels — reuse the same GuakeGitPanel / AreaBuildingsPanel the
           3D view uses, so the feature set stays aligned. They position
-          absolutely against the .flat-terminal-wrapper (position: relative). */}
+          absolutely against the .flat-terminal-wrapper (position: relative).
+          The git panel renders its own resize handle (glued to its left edge)
+          via onResizeStart, so it can't detach from the panel in this layout. */}
       {gitPanelOpen && (
         <GuakeGitPanel
           agentId={agentId}
@@ -1050,6 +1062,7 @@ const ChatView = React.memo(function ChatView({
           branchInfoMap={areaBranches}
           fetchRemote={fetchGitRemote}
           fetchingDirs={gitFetchingDirs}
+          onResizeStart={(e) => handleSidePanelResizeStart(e, 'right')}
         />
       )}
       {buildingsPanelOpen && (

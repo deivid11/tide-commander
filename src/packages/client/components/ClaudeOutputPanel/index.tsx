@@ -37,10 +37,8 @@ import {
   apiUrl,
   authFetch,
   getStorageBoolean,
-  getStorageNumber,
   getStorageString,
   setStorageBoolean,
-  setStorageNumber,
 } from '../../utils/storage';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import {
@@ -63,6 +61,7 @@ import type { ViewMode } from './types';
 import { useKeyboardHeight } from './useKeyboardHeight';
 import { useBottomTerminalResize } from './useBottomTerminalResize';
 import { useTerminalResize } from './useTerminalResize';
+import { useSidePanelResize } from './useSidePanelResize';
 import { useMobileOverviewResize } from './useMobileOverviewResize';
 import { useSwipeNavigation } from './useSwipeNavigation';
 import { useGitBranches } from './useGitBranch';
@@ -441,42 +440,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   const { mobileOverviewHeight, handleResizeMouseDown: handleOverviewResizeMouseDown, handleResizeTouchStart: handleOverviewResizeTouchStart } = useMobileOverviewResize();
   const keyboard = useKeyboardHeight();
 
-  // Side panel width (shared by overview, git, buildings, debug panels)
-  const [sidePanelWidth, setSidePanelWidth] = useState(() => {
-    const saved = getStorageNumber(STORAGE_KEYS.SIDE_PANEL_WIDTH, 420);
-    return Math.max(280, Math.min(700, saved));
-  });
-  const sidePanelResizeRef = useRef<{ startX: number; startW: number } | null>(null);
-
-  const handleSidePanelResizeStart = useCallback((e: React.MouseEvent, side: 'left' | 'right') => {
-    e.preventDefault();
-    sidePanelResizeRef.current = { startX: e.clientX, startW: sidePanelWidth };
-    document.body.style.cursor = 'ew-resize';
-    document.body.style.userSelect = 'none';
-    store.setTerminalResizing(true);
-    let lastWidth = sidePanelWidth;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      if (!sidePanelResizeRef.current) return;
-      const dx = moveEvent.clientX - sidePanelResizeRef.current.startX;
-      // For left-side panels (overview): dragging right = shrink, dragging left = grow
-      // For right-side panels (git/buildings): dragging left = grow, dragging right = shrink
-      const delta = side === 'left' ? -dx : dx;
-      lastWidth = Math.max(280, Math.min(700, sidePanelResizeRef.current.startW + delta));
-      setSidePanelWidth(lastWidth);
-    };
-    const onMouseUp = () => {
-      sidePanelResizeRef.current = null;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      store.setTerminalResizing(false);
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      setStorageNumber(STORAGE_KEYS.SIDE_PANEL_WIDTH, lastWidth);
-    };
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  }, [sidePanelWidth]);
+  // Side panel width (shared by overview, git, buildings, debug panels).
+  // Extracted into a hook so FlatView reuses the same drag/persist behavior.
+  const { sidePanelWidth, handleSidePanelResizeStart } = useSidePanelResize();
 
   // Ref for the AgentTerminalPane (exposes per-agent scroll, history, search, input)
   const paneRef = useRef<AgentTerminalPaneHandle>(null);

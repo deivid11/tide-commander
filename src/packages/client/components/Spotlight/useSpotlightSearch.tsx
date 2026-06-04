@@ -12,7 +12,7 @@ import { store, useAgents, useAreas, useBuildings, useFileChanges } from '../../
 import { formatShortcut } from '../../store/shortcuts';
 import type { Agent, DrawingArea } from '../../../shared/types';
 import type { SearchResult, UseSpotlightSearchOptions, SpotlightSearchState } from './types';
-import { getFileIconFromPath } from './utils';
+import { getFileIconFromPath, getRecentAgentIds, recordRecentAgent, recentAgentRank } from './utils';
 import { Icon, type IconName } from '../Icon';
 import { AgentIcon } from '../AgentIcon';
 
@@ -72,6 +72,11 @@ export function useSpotlightSearch({
 
   // Get shortcuts for display
   const shortcuts = store.getShortcuts();
+
+  // MRU list of agents recently selected from Spotlight (newest first).
+  // Re-read from localStorage every time the modal opens so a fresh selection
+  // is reflected on the next open. Used as the primary recency sort key below.
+  const recentAgentIds = useMemo(() => (isOpen ? getRecentAgentIds() : []), [isOpen]);
 
   // Build command results
   const commands: SearchResult[] = useMemo(() => {
@@ -186,8 +191,11 @@ export function useSpotlightSearch({
         _searchText: searchableText,
         _modifiedFiles: uniqueFiles,
         _userQueries: userQueries,
+        _agentId: agent.id,
         action: () => {
           onCloseRef.current();
+          // Remember this pick so it floats to the top on the next Spotlight open.
+          recordRecentAgent(agent.id);
           store.selectAgent(agent.id);
           if (store.getState().viewMode !== 'flat') {
             store.requestTerminalExpand();
@@ -391,9 +399,12 @@ export function useSpotlightSearch({
       // Show buildings first (servers/bosses) - most likely what user wants to access quickly
       suggested.push(...buildingResults);
 
-      // Show all agents, sorted by time away (shortest idle first = finished more recently)
+      // Show all agents: recently-used-in-Spotlight first (MRU), then by time away
+      // (shortest idle first = finished more recently) for everything else.
       const sortedAgents = [...agentResults].sort((a, b) => {
-        // Sort by timeAway ascending (agents idle shorter appear first)
+        const rankA = recentAgentRank(a._agentId, recentAgentIds);
+        const rankB = recentAgentRank(b._agentId, recentAgentIds);
+        if (rankA !== rankB) return rankA - rankB;
         const timeA = a.timeAway ?? 0;
         const timeB = b.timeAway ?? 0;
         return timeA - timeB;
@@ -521,31 +532,48 @@ export function useSpotlightSearch({
     for (const r of matchedAreas) pushScored(r.item, r.score);
     for (const r of matchedModifiedFiles) pushScored(r.item, r.score);
 
-    // Sort WITHIN each category by combined score; agents break exact ties by
-    // recency (most-recently-active first), matching prior behavior.
+    // Sort WITHIN each category. For AGENTS the user wants matching agents to
+    // surface most-recently-USED first: relevance TIER stays the primary key
+    // (an exact/prefix match still ranks above a weaker fuzzy match), but WITHIN
+    // the same tier we boost by recency. Agents recently selected from Spotlight
+    // (MRU) float to the top, then by recent activity (smallest timeAway). Fuse
+    // score is only the final tiebreaker. Non-agent categories keep the plain
+    // combined-score ordering.
     for (const [type, arr] of scoredByCategory) {
-      arr.sort((a, b) => {
-        if (b.score !== a.score) return b.score - a.score;
-        if (type === 'agent') {
-          return (a.item.timeAway ?? Number.POSITIVE_INFINITY) - (b.item.timeAway ?? Number.POSITIVE_INFINITY);
-        }
-        return 0;
-      });
+      if (type === 'agent') {
+        arr.sort((a, b) => {
+          const tierA = matchTier(a.item);
+          const tierB = matchTier(b.item);
+          if (tierB !== tierA) return tierB - tierA;
+          const rankA = recentAgentRank(a.item._agentId, recentAgentIds);
+          const rankB = recentAgentRank(b.item._agentId, recentAgentIds);
+          if (rankA !== rankB) return rankA - rankB;
+          const awayA = a.item.timeAway ?? Number.POSITIVE_INFINITY;
+          const awayB = b.item.timeAway ?? Number.POSITIVE_INFINITY;
+          if (awayA !== awayB) return awayA - awayB;
+          return b.score - a.score;
+        });
+      } else {
+        arr.sort((a, b) => b.score - a.score);
+      }
     }
 
     // Order category BLOCKS by their strongest member's score so the category
     // holding the best match renders first. Each category stays contiguous, so
     // SpotlightResults still shows exactly one header per category. The flat
     // index therefore matches the visual render order (needed for keyboard nav).
+    // Use the category's MAX score (not arr[0]) so the recency-based reordering
+    // of agents above cannot change which category block ranks first.
+    const blockScore = (arr: Scored[]): number => arr.reduce((max, s) => Math.max(max, s.score), -1);
     const finalResults: SearchResult[] = [];
     Array.from(scoredByCategory.values())
-      .sort((a, b) => (b[0]?.score ?? -1) - (a[0]?.score ?? -1))
+      .sort((a, b) => blockScore(b) - blockScore(a))
       .forEach((arr) => {
         for (const s of arr) finalResults.push(s.item);
       });
 
     return finalResults;
-  }, [query, agentFuse, commandFuse, areaFuse, modifiedFileFuse, buildingFuse, commands, agentResults, areaResults, buildingResults]);
+  }, [query, agentFuse, commandFuse, areaFuse, modifiedFileFuse, buildingFuse, commands, agentResults, areaResults, buildingResults, recentAgentIds]);
 
   // Clamp selected index to valid range
   useEffect(() => {

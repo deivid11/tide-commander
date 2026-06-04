@@ -18,6 +18,63 @@ export function buildOutputHistoryKey(type: 'user' | 'assistant', content: strin
   return `${type}:${normalizeMessage(content)}`;
 }
 
+/**
+ * Stable identity key for a history message, used to dedupe overlapping
+ * pagination pages. Prefers the session uuid; falls back to type+toolUseId, then
+ * a type/timestamp/content composite for entries the session file didn't tag.
+ */
+export function historyMessageKey(m: HistoryMessage): string {
+  if (typeof m.uuid === 'string' && m.uuid.length > 0) return `u:${m.uuid}`;
+  if (typeof m.toolUseId === 'string' && m.toolUseId.length > 0) return `t:${m.type}:${m.toolUseId}`;
+  return `c:${m.type}:${m.timestamp}:${normalizeMessage(m.content)}`;
+}
+
+/**
+ * Merge a freshly-fetched OLDER page in front of the existing history.
+ *
+ * The server paginates by offset-from-end against the *current* message count
+ * (see loadSession: `endIndex = totalCount - offset`). When the session grows
+ * between page loads — the agent keeps working, or a history-refresh fires — the
+ * offset the client sends drifts, so the fetched "older" page can:
+ *   1. overlap messages already on screen (duplicates), and
+ *   2. when growth exceeds a page, reach into the NEWER/live region, returning
+ *      messages that are actually newer than what's loaded.
+ *
+ * To keep older messages strictly above current ones with no interleaving we
+ * therefore: drop any fetched message already present (dedupe by key) AND drop
+ * any whose timestamp is newer than the current oldest loaded message (those
+ * belong to the live region, not older history). The survivors are prepended in
+ * order. Gaps the drift introduces are filled by the next scroll-up page; the
+ * caller advances the offset by the fetched page size so it can't stall even
+ * when an entire page is dropped here.
+ */
+export function mergeOlderHistoryPage(
+  olderPage: HistoryMessage[],
+  existing: HistoryMessage[],
+): HistoryMessage[] {
+  const existingKeys = new Set<string>();
+  for (const m of existing) existingKeys.add(historyMessageKey(m));
+
+  // Oldest currently-loaded timestamp; fetched messages newer than this are not
+  // older-history and must not be prepended above it.
+  const oldestTs = existing.length > 0 ? Date.parse(existing[0].timestamp) : Number.POSITIVE_INFINITY;
+
+  const seen = new Set<string>();
+  const prepend: HistoryMessage[] = [];
+  for (const m of olderPage) {
+    const key = historyMessageKey(m);
+    if (seen.has(key) || existingKeys.has(key)) continue;
+    const ts = Date.parse(m.timestamp);
+    // Only filter when both timestamps are valid; otherwise fall back to key
+    // dedupe so messages with missing/odd timestamps are still merged.
+    if (Number.isFinite(ts) && Number.isFinite(oldestTs) && ts > oldestTs) continue;
+    seen.add(key);
+    prepend.push(m);
+  }
+
+  return [...prepend, ...existing];
+}
+
 export function shouldKeepOutput(
   output: ClaudeOutput,
   historyUuidSet: Set<string>,

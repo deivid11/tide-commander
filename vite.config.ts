@@ -92,6 +92,40 @@ export default defineConfig({
       'react-markdown', 'remark-gfm',
       'i18next', 'react-i18next', 'i18next-http-backend', 'i18next-browser-languagedetector',
       'fuse.js',
+      // CodeMirror: pre-bundle ALL entry points used by the file viewer/editor
+      // (EmbeddedEditor.tsx + cm-languages.ts) at startup. If these are left to
+      // lazy discovery, opening the editor triggers a mid-session dependency
+      // re-optimization + page reload, which can leave two copies of
+      // @codemirror/state loaded and break instanceof checks
+      // ("Unrecognized extension value in extension set"). Listing them here
+      // forces a single, consistent optimized bundle.
+      '@codemirror/state', '@codemirror/view', '@codemirror/commands',
+      '@codemirror/language', '@codemirror/autocomplete', '@codemirror/search',
+      '@codemirror/theme-one-dark',
+      '@codemirror/lang-javascript', '@codemirror/lang-python', '@codemirror/lang-html',
+      '@codemirror/lang-css', '@codemirror/lang-json', '@codemirror/lang-markdown',
+      '@codemirror/lang-sql', '@codemirror/lang-rust', '@codemirror/lang-cpp',
+      '@codemirror/lang-java', '@codemirror/lang-php', '@codemirror/lang-xml',
+      '@codemirror/lang-yaml',
+      '@codemirror/legacy-modes/mode/clike', '@codemirror/legacy-modes/mode/ruby',
+      '@codemirror/legacy-modes/mode/swift', '@codemirror/legacy-modes/mode/shell',
+      '@codemirror/legacy-modes/mode/toml', '@codemirror/legacy-modes/mode/go',
+      '@codemirror/legacy-modes/mode/groovy', '@codemirror/legacy-modes/mode/lua',
+      '@codemirror/legacy-modes/mode/perl', '@codemirror/legacy-modes/mode/r',
+      '@codemirror/legacy-modes/mode/haskell', '@codemirror/legacy-modes/mode/clojure',
+      '@codemirror/legacy-modes/mode/erlang', '@codemirror/legacy-modes/mode/dockerfile',
+      '@codemirror/legacy-modes/mode/diff', '@codemirror/legacy-modes/mode/powershell',
+      '@codemirror/legacy-modes/mode/nginx', '@codemirror/legacy-modes/mode/d',
+      '@codemirror/legacy-modes/mode/elm', '@codemirror/legacy-modes/mode/julia',
+      '@codemirror/legacy-modes/mode/mllike', '@codemirror/legacy-modes/mode/vb',
+      '@codemirror/legacy-modes/mode/properties', '@codemirror/legacy-modes/mode/cmake',
+      '@codemirror/legacy-modes/mode/pascal', '@codemirror/legacy-modes/mode/cobol',
+      '@codemirror/legacy-modes/mode/fortran', '@codemirror/legacy-modes/mode/tcl',
+      '@codemirror/legacy-modes/mode/sass', '@codemirror/legacy-modes/mode/stylus',
+      '@codemirror/legacy-modes/mode/wast', '@codemirror/legacy-modes/mode/stex',
+      '@codemirror/legacy-modes/mode/protobuf', '@codemirror/legacy-modes/mode/gas',
+      '@codemirror/legacy-modes/mode/verilog', '@codemirror/legacy-modes/mode/vhdl',
+      '@codemirror/legacy-modes/mode/crystal',
     ],
     exclude: [],
   },

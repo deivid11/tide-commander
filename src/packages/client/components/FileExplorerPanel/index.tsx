@@ -853,6 +853,14 @@ export function FileExplorerPanel({
     });
   };
 
+  // Close every open tab at once (mirrors handleCloseTab's "no tabs left" branch).
+  const handleCloseAllTabs = useCallback(() => {
+    setOpenTabs([]);
+    setActiveTabPath(null);
+    setSelectedPath(null);
+    clearFile();
+  }, [clearFile]);
+
   const handleFolderSelect = (folder: FolderInfo) => {
     setShowFolderSelector(false);
     if (folder.areaId !== areaId) {
@@ -1946,6 +1954,7 @@ export function FileExplorerPanel({
                 activeTabPath={activeTabPath}
                 onSelectTab={handleSelectTab}
                 onCloseTab={handleCloseTab}
+                onCloseAllTabs={handleCloseAllTabs}
                 onShowGitHistory={handleShowGitHistoryForPath}
               />
 

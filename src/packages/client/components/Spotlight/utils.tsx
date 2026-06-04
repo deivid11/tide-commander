@@ -71,6 +71,46 @@ export function formatRelativeTime(timestamp: number): string {
 }
 
 /**
+ * MRU (most-recently-used) tracking for agents selected from Spotlight.
+ * Persisted in localStorage so recently-used agents can be floated to the top
+ * of Spotlight results across reloads. Stored newest-first, capped in length.
+ */
+const RECENT_AGENTS_STORAGE_KEY = 'tide-commander:spotlight-recent-agents';
+const RECENT_AGENTS_MAX = 15;
+
+/** Read the recent-agent MRU list (newest first). Safe if storage is unavailable. */
+export function getRecentAgentIds(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_AGENTS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Record an agent as most-recently-used (moves it to the front of the MRU list). */
+export function recordRecentAgent(agentId: string): void {
+  try {
+    const next = [agentId, ...getRecentAgentIds().filter((id) => id !== agentId)].slice(0, RECENT_AGENTS_MAX);
+    localStorage.setItem(RECENT_AGENTS_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // Ignore storage failures (private mode, quota) — the MRU boost is a nicety.
+  }
+}
+
+/**
+ * Rank of an agent within the MRU list used as an ascending recency sort key:
+ * 0 = most recently used, higher = older, POSITIVE_INFINITY = never selected.
+ */
+export function recentAgentRank(agentId: string | undefined, recentIds: string[]): number {
+  if (!agentId) return Number.POSITIVE_INFINITY;
+  const idx = recentIds.indexOf(agentId);
+  return idx === -1 ? Number.POSITIVE_INFINITY : idx;
+}
+
+/**
  * Get type label for display
  */
 export function getTypeLabel(type: string): string {

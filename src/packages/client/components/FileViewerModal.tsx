@@ -232,6 +232,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const [copyHtmlStatus, setCopyHtmlStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyMarkdownStatus, setCopyMarkdownStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyOriginalStatus, setCopyOriginalStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [copyAllStatus, setCopyAllStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [revealStatus, setRevealStatus] = useState<'idle' | 'opening' | 'success' | 'error'>('idle');
   const [fetchedUnifiedDiff, setFetchedUnifiedDiff] = useState<string | null>(null);
   const [fetchedOriginalContent, setFetchedOriginalContent] = useState<string | null>(null);
@@ -755,6 +756,38 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     }
   }, [fileData]);
 
+  const handleCopyAll = useCallback(async () => {
+    if (!fileData) {
+      setCopyAllStatus('error');
+      setTimeout(() => setCopyAllStatus('idle'), 2000);
+      return;
+    }
+
+    try {
+      await copyTextToClipboard(fileData.content);
+      setCopyAllStatus('copied');
+      setTimeout(() => setCopyAllStatus('idle'), 2000);
+    } catch {
+      setCopyAllStatus('error');
+      setTimeout(() => setCopyAllStatus('idle'), 2000);
+    }
+  }, [fileData]);
+
+  // Client-side download of the in-memory text content as a Blob. Images/PDFs
+  // keep using the server-backed handleDownload below (they carry no content).
+  const handleDownloadTextFile = useCallback(() => {
+    if (!fileData) return;
+    const blob = new Blob([fileData.content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileData.filename || effectivePath.split('/').pop() || 'download';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, [fileData, effectivePath]);
+
   const handleRevealInFileExplorer = useCallback(async () => {
     if (!fileData?.path || revealStatus === 'opening') return;
 
@@ -934,6 +967,26 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                   {copyOriginalStatus === 'copied' ? t('common:status.copied') : copyOriginalStatus === 'error' ? t('common:status.error') : t('terminal:fileExplorer.copyOriginal')}
                 </button>
               </>
+            )}
+            {fileData && !isImage && !isPdf && !isMarkdown && (
+              <button
+                type="button"
+                className={`file-viewer-copy-html-btn ${copyAllStatus}`}
+                onClick={handleCopyAll}
+                title={t('terminal:fileExplorer.copyAllTitle')}
+              >
+                {copyAllStatus === 'copied' ? t('common:status.copied') : copyAllStatus === 'error' ? t('common:status.error') : t('terminal:fileExplorer.copyAll')}
+              </button>
+            )}
+            {fileData && !isImage && !isPdf && (
+              <button
+                type="button"
+                className="file-viewer-copy-html-btn"
+                onClick={handleDownloadTextFile}
+                title={t('terminal:fileExplorer.downloadFileTitle')}
+              >
+                {t('common:buttons.download')}
+              </button>
             )}
             {(isImage || isPdf) && fileData ? (
               <button

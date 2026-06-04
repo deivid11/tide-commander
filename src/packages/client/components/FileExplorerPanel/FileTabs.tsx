@@ -108,6 +108,7 @@ function FileTabsComponent({
   activeTabPath,
   onSelectTab,
   onCloseTab,
+  onCloseAllTabs,
   onShowGitHistory,
 }: FileTabsProps) {
   const { t } = useTranslation(['terminal']);
@@ -128,7 +129,7 @@ function FileTabsComponent({
     const tab = contextMenu.tab;
     const canShowHistory = !!onShowGitHistory && isRealFileTab(tab);
 
-    return [
+    const actions: ContextMenuAction[] = [
       {
         id: 'git-history',
         label: t('terminal:fileExplorer.showGitHistory') ?? 'Show Git History',
@@ -139,7 +140,22 @@ function FileTabsComponent({
         },
       },
     ];
-  }, [contextMenu, onShowGitHistory, t]);
+
+    if (onCloseAllTabs) {
+      actions.push(
+        { id: 'divider-close-all', label: '', divider: true, onClick: () => {} },
+        {
+          id: 'close-all-tabs',
+          label: t('terminal:fileExplorer.closeAllTabs') ?? 'Close all tabs',
+          icon: <Icon name="cross" size={14} />,
+          danger: true,
+          onClick: () => onCloseAllTabs(),
+        },
+      );
+    }
+
+    return actions;
+  }, [contextMenu, onShowGitHistory, onCloseAllTabs, t]);
 
   if (tabs.length === 0) {
     return null;
@@ -177,6 +193,7 @@ export const FileTabs = memo(FileTabsComponent, (prev, next) => {
   if (prev.activeTabPath !== next.activeTabPath) return false;
   if (prev.tabs.length !== next.tabs.length) return false;
   if (prev.onShowGitHistory !== next.onShowGitHistory) return false;
+  if (prev.onCloseAllTabs !== next.onCloseAllTabs) return false;
 
   for (let i = 0; i < prev.tabs.length; i++) {
     if (prev.tabs[i].path !== next.tabs[i].path) return false;

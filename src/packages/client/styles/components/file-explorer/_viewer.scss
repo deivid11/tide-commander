@@ -245,6 +245,14 @@
   margin-left: 16px;
   display: flex;
   align-items: center;
+
+  // Keep the inline Copy all / Download buttons spaced like the icon buttons
+  // that already carry their own margin-right. Scoped to direct children so the
+  // markdown viewer's gapped .file-viewer-header-buttons row is unaffected.
+  > .file-viewer-copy-html-btn,
+  > .file-viewer-download-btn {
+    margin-right: 4px;
+  }
 }
 
 .file-viewer-header-buttons {

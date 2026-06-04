@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { store } from '../store';
-import { matchesShortcut, matchesShortcutString } from '../store/shortcuts';
+import { matchesShortcut, matchesShortcutString, parseShortcutString } from '../store/shortcuts';
 import type { SceneManager } from '../scene/SceneManager';
 import { closeTopModal } from './useModalStack';
 import type { UseModalState, UseModalStateWithId } from './index';
@@ -78,6 +78,35 @@ export function useKeyboardShortcuts({
         } else {
           store.deselectAll();
           sceneRef.current?.refreshSelectionVisuals();
+        }
+      }
+
+      // Per-agent terminal shortcut — must be globally accessible and open the
+      // guake terminal from anywhere (scene, terminal, while typing in an input).
+      // Checked before the built-in shortcuts so a user-defined agent shortcut is
+      // never shadowed by a colliding default. We still avoid hijacking plain
+      // typing: a shortcut with no real modifier (ctrl/alt/meta) only fires when
+      // no input/textarea is focused.
+      {
+        const matchedAgent = Array.from(currentState.agents.values()).find((agent) => {
+          const shortcut = (agent as AgentWithShortcut).shortcut?.trim();
+          return shortcut ? matchesShortcutString(e, shortcut) : false;
+        }) as AgentWithShortcut | undefined;
+
+        if (matchedAgent) {
+          const parsed = parseShortcutString(matchedAgent.shortcut);
+          const hasModifier = !!(parsed && (parsed.modifiers.ctrl || parsed.modifiers.alt || parsed.modifiers.meta));
+          if (hasModifier || !isInputFocused) {
+            e.preventDefault();
+            e.stopPropagation();
+            // Stop other document capture-phase listeners (scene/terminal) from
+            // also acting on this key.
+            e.stopImmediatePropagation();
+            store.selectAgent(matchedAgent.id);
+            store.setTerminalOpen(true);
+            sceneRef.current?.refreshSelectionVisuals();
+            return;
+          }
         }
       }
 
@@ -282,21 +311,6 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      if (!isInputFocused) {
-        const matchedAgent = Array.from(currentState.agents.values()).find((agent) => {
-          const shortcut = (agent as AgentWithShortcut).shortcut?.trim();
-          return shortcut ? matchesShortcutString(e, shortcut) : false;
-        }) as AgentWithShortcut | undefined;
-
-        if (matchedAgent) {
-          e.preventDefault();
-          e.stopPropagation();
-          store.selectAgent(matchedAgent.id);
-          store.setTerminalOpen(true);
-          sceneRef.current?.refreshSelectionVisuals();
-          return;
-        }
-      }
     };
 
     // Use capture phase to ensure global shortcuts work regardless of which element has focus

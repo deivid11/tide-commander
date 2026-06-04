@@ -61,7 +61,8 @@ function isLikelyFileText(value: string): boolean {
   if (!trimmed) return false;
   if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmed)) return false;
   if (looksLikeUrl(trimmed)) return false;
-  return trimmed.includes('.') && (trimmed.includes('/') || /^[A-Za-z0-9._-]+\.[A-Za-z0-9._-]+$/.test(trimmed));
+  // Allow Unicode letters/marks so bare accented filenames (e.g. informe-análisis.pdf) qualify.
+  return trimmed.includes('.') && (trimmed.includes('/') || /^[\p{L}\p{M}\p{N}._-]+\.[\p{L}\p{M}\p{N}._-]+$/u.test(trimmed));
 }
 
 function CodeBlock({ language, codeText, className }: { language: string; codeText: string; className?: string }) {

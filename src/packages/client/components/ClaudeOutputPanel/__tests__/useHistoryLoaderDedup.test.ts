@@ -21,6 +21,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   dedupeOutputsAgainstHistory,
+  mergeOlderHistoryPage,
   shouldKeepOutput,
 } from '../historyDedup';
 import type { HistoryMessage } from '../types';
@@ -158,6 +159,58 @@ describe('dedupeOutputsAgainstHistory — v3 regression', () => {
     const { kept, changed } = dedupeOutputsAgainstHistory([], []);
     expect(kept).toEqual([]);
     expect(changed).toBe(false);
+  });
+});
+
+describe('mergeOlderHistoryPage — scroll-up pagination ordering', () => {
+  const msg = (
+    content: string,
+    ts: number,
+    uuid?: string,
+    type: HistoryMessage['type'] = 'user',
+  ): HistoryMessage => ({ type, content, timestamp: new Date(ts).toISOString(), uuid });
+
+  it('prepends a non-overlapping older page in chronological order', () => {
+    const existing = [msg('m3', 3000, 'u3'), msg('m4', 4000, 'u4')];
+    const older = [msg('m1', 1000, 'u1'), msg('m2', 2000, 'u2')];
+    expect(mergeOlderHistoryPage(older, existing).map((m) => m.uuid)).toEqual(['u1', 'u2', 'u3', 'u4']);
+  });
+
+  it('drops boundary duplicates when the older page overlaps existing (offset drift)', () => {
+    const existing = [msg('m3', 3000, 'u3'), msg('m4', 4000, 'u4'), msg('m5', 5000, 'u5')];
+    const older = [msg('m1', 1000, 'u1'), msg('m2', 2000, 'u2'), msg('m3', 3000, 'u3'), msg('m4', 4000, 'u4')];
+    expect(mergeOlderHistoryPage(older, existing).map((m) => m.uuid)).toEqual(['u1', 'u2', 'u3', 'u4', 'u5']);
+  });
+
+  it('drops messages NEWER than the oldest loaded so current messages never interleave above older ones', () => {
+    // The bug: offset drift makes the "older" page reach into the live/newer
+    // region, returning u5/u6 (newer than the oldest loaded u3). They must not
+    // be prepended above older history.
+    const existing = [msg('m3', 3000, 'u3'), msg('m4', 4000, 'u4')];
+    const older = [msg('m1', 1000, 'u1'), msg('m2', 2000, 'u2'), msg('m5', 5000, 'u5'), msg('m6', 6000, 'u6')];
+    expect(mergeOlderHistoryPage(older, existing).map((m) => m.uuid)).toEqual(['u1', 'u2', 'u3', 'u4']);
+  });
+
+  it('falls back to key dedupe when timestamps are missing/unparseable', () => {
+    const existing = [msg('m3', 3000, 'u3')];
+    const older: HistoryMessage[] = [
+      { type: 'user', content: 'm1', timestamp: 'not-a-date', uuid: 'u1' },
+      msg('m3', 3000, 'u3'), // duplicate by uuid
+    ];
+    expect(mergeOlderHistoryPage(older, existing).map((m) => m.uuid)).toEqual(['u1', 'u3']);
+  });
+
+  it('dedupes uuid-less messages via the type/timestamp/content composite key', () => {
+    const existing = [msg('same', 3000)];
+    const older = [msg('older', 1000), msg('same', 3000)];
+    expect(mergeOlderHistoryPage(older, existing).map((m) => m.content)).toEqual(['older', 'same']);
+  });
+
+  it('returns existing unchanged when the whole older page is dropped (no stall data corruption)', () => {
+    const existing = [msg('m3', 3000, 'u3'), msg('m4', 4000, 'u4')];
+    // Everything is either already present or newer than the oldest loaded.
+    const older = [msg('m3', 3000, 'u3'), msg('m9', 9000, 'u9')];
+    expect(mergeOlderHistoryPage(older, existing).map((m) => m.uuid)).toEqual(['u3', 'u4']);
   });
 });
 
