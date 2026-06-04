@@ -77,6 +77,8 @@ import TerminalEmbed from './components/TerminalEmbed';
 // Import scene lifecycle to ensure it initializes
 import './app/sceneLifecycle';
 
+const HIDE_ORGANIZE_BUTTON = import.meta.env.VITE_HIDE_ORGANIZE_BUTTON === '1';
+
 function AppContent() {
   const { t } = useTranslation(['common', 'notifications']);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -783,7 +785,7 @@ function AppContent() {
         <div className="fab-workspace-wrapper">
           <WorkspaceSwitcher />
         </div>
-        {(viewMode === '2d' || viewMode === '3d') && (
+        {!HIDE_ORGANIZE_BUTTON && (viewMode === '2d' || viewMode === '3d') && (
           <button
             className="fab-spawn-btn fab-spawn-organize-btn"
             disabled={isOrganizing}
@@ -1052,7 +1054,7 @@ function AppContent() {
           onNewBuilding={handleNewBuilding}
           onNewArea={handleNewArea}
           onOrganizeAll={handleOrganizeAll}
-          canOrganize={viewMode === '2d' || viewMode === '3d'}
+          canOrganize={!HIDE_ORGANIZE_BUTTON && (viewMode === '2d' || viewMode === '3d')}
           isOrganizing={isOrganizing}
           mobileView={mobileView}
         />

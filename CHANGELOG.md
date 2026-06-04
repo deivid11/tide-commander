@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.111.1] - 2026-06-04
+
+### Added
+- **`VITE_HIDE_ORGANIZE_BUTTON` env flag** — set to `1` to hide the "Auto-organize all agents" sparkle button from both the desktop FAB and the mobile FAB menu. Opt-in; default behavior unchanged. Useful for users who accidentally trigger the organize-all action.
+
 ## [1.111.0] - 2026-06-03
 
 ### Added
