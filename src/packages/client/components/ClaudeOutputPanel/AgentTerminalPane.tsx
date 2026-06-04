@@ -600,6 +600,9 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const isUserScrolledUpRef = useRef(false);
   const agentSwitchGraceRef = useRef(false);
+  // Last observed scrollTop, so we can tell a genuine upward user scroll from
+  // the bottom drifting away because new content grew under the viewport.
+  const lastScrollTopRef = useRef(0);
 
   const handleUserScrollUp = useCallback(() => {
     if (agentSwitchGraceRef.current) return;
@@ -635,12 +638,22 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     if (keyboard.keyboardScrollLockRef.current) return;
 
     const { scrollTop, scrollHeight, clientHeight } = outputScrollRef.current;
+    const prevScrollTop = lastScrollTopRef.current;
+    lastScrollTopRef.current = scrollTop;
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 150;
+    // A genuine upward move (scrollTop decreased) means the user left the
+    // bottom. Content growing under the viewport (a new agent message or
+    // reasoning completion) makes isAtBottom momentarily false WITHOUT scrollTop
+    // decreasing — that must NOT disable auto-scroll, else the view jumps up.
+    const scrolledUp = scrollTop < prevScrollTop - 1;
 
     if (!agentSwitchGraceRef.current) {
-      isUserScrolledUpRef.current = !isAtBottom;
       if (isAtBottom) {
+        isUserScrolledUpRef.current = false;
         setShouldAutoScroll(true);
+      } else if (scrolledUp) {
+        isUserScrolledUpRef.current = true;
+        setShouldAutoScroll(false);
       }
     }
 
