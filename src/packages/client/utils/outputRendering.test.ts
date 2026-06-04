@@ -73,6 +73,20 @@ describe('linkifyFilePathsForMarkdown', () => {
     expect(output).not.toContain('tide-file://https');
   });
 
+  it('linkifies absolute paths with accented folders and a .pdf extension', () => {
+    const path = '/home/riven/obsidian/Default/Proyectos/OPM/Operación/2026-06-02-ospei-2710-divergencia-saldos-inbursa.pdf';
+    const output = linkifyFilePathsForMarkdown(path);
+    // The full path (including the accented "Operación" segment) must be the link label.
+    expect(output).toContain(`[${path}](tide-file://`);
+    expect(output).toContain(encodeURIComponent(path));
+  });
+
+  it('linkifies backtick-wrapped accented paths', () => {
+    const input = '- `docs/Operación/informe-análisis.md`';
+    const output = linkifyFilePathsForMarkdown(input);
+    expect(output).toContain('[`docs/Operación/informe-análisis.md`](tide-file://');
+  });
+
   it('linkifies backtick-wrapped file paths from history markdown', () => {
     const input = [
       '### Added',

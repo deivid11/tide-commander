@@ -9,7 +9,7 @@ import { store, ClaudeOutput } from '../../store';
 import { apiUrl, authFetch } from '../../utils/storage';
 import type { HistoryMessage } from './types';
 import { MESSAGES_PER_PAGE, SCROLL_THRESHOLD } from './types';
-import { dedupeOutputsAgainstHistory } from './historyDedup';
+import { dedupeOutputsAgainstHistory, mergeOlderHistoryPage } from './historyDedup';
 
 // Maximum number of agents to keep cached history for (LRU eviction)
 const HISTORY_CACHE_MAX_AGENTS = 5;
@@ -119,6 +119,11 @@ export function useHistoryLoader({
   // Track history length in a ref to avoid dependency issues in loadMoreHistory
   const historyLengthRef = useRef(0);
 
+  // Server offset for the NEXT older page. Advances by each fetched page size
+  // (NOT the deduped length) so pagination can't stall when the server's
+  // offset-from-end drifts and a whole page overlaps what we already have.
+  const paginationOffsetRef = useRef(0);
+
   // Track loading/hasMore state in refs for scroll handler (avoid stale closures)
   const loadingMoreRef = useRef(false);
   const hasMoreRef = useRef(false);
@@ -144,11 +149,15 @@ export function useHistoryLoader({
     if (!selectedAgentId || !hasSessionId) {
       setHistory([]);
       historyLengthRef.current = 0;
+      paginationOffsetRef.current = 0;
       setHasMore(false);
       hasMoreRef.current = false;
       setTotalCount(0);
       setLoadingHistory(false);
       setFetchingHistory(false);
+      // Invalidate any in-flight pagination (loadMoreHistory) so a late
+      // older-page fetch can't prepend onto the now-cleared history.
+      fetchSeqRef.current += 1;
       // Treat clearing as a completed "load" for downstream effects
       setHistoryLoadVersion((v) => v + 1);
       prevHasSessionIdRef.current = false;
@@ -212,6 +221,7 @@ export function useHistoryLoader({
         historyCacheTouch(selectedAgentId);
         setHistory(cached.messages);
         historyLengthRef.current = cached.messages.length;
+        paginationOffsetRef.current = cached.messages.length;
         setHasMore(cached.hasMore);
         hasMoreRef.current = cached.hasMore;
         setTotalCount(cached.totalCount);
@@ -220,6 +230,7 @@ export function useHistoryLoader({
         // the previous agent's conversation (which can also cause scroll glitches).
         setHistory([]);
         historyLengthRef.current = 0;
+        paginationOffsetRef.current = 0;
         setHasMore(false);
         hasMoreRef.current = false;
         setTotalCount(0);
@@ -249,6 +260,8 @@ export function useHistoryLoader({
         const subagents = Array.isArray(data.subagents) ? data.subagents : [];
         setHistory(messages);
         historyLengthRef.current = messages.length;
+        // Next older page starts just before the messages we just loaded.
+        paginationOffsetRef.current = messages.length;
         const hasMoreValue = data.hasMore || false;
         setHasMore(hasMoreValue);
         hasMoreRef.current = hasMoreValue;
@@ -301,6 +314,7 @@ export function useHistoryLoader({
         console.error('Failed to load history:', err);
         setHistory([]);
         historyLengthRef.current = 0;
+        paginationOffsetRef.current = 0;
         setHasMore(false);
         hasMoreRef.current = false;
         setTotalCount(0);
@@ -344,21 +358,46 @@ export function useHistoryLoader({
 
     loadingMoreRef.current = true;
     setLoadingMore(true);
-    // Use ref instead of state to avoid stale closure
-    const currentOffset = historyLengthRef.current;
+    // Server offset for the next older page. Advancing-offset (not history
+    // length) so we keep marching toward older messages even if a page is fully
+    // deduped/dropped due to the server's offset-from-end drifting.
+    const currentOffset = paginationOffsetRef.current;
+    // Snapshot the fetch token so a concurrent agent switch / history refresh
+    // (both bump fetchSeqRef) invalidates this in-flight older-page load and
+    // prevents prepending a stale page onto a different agent's history.
+    const startFetchSeq = fetchSeqRef.current;
 
     try {
       const res = await authFetch(apiUrl(`/api/agents/${selectedAgentId}/history?limit=${MESSAGES_PER_PAGE}&offset=${currentOffset}`));
       const data = await res.json();
+
+      // Drop stale completions: the agent switched or history reloaded while
+      // this page was in flight, so prepending it would interleave messages
+      // from a different snapshot.
+      if (!isMountedRef.current) {
+        loadingMoreRef.current = false;
+        return;
+      }
+      if (startFetchSeq !== fetchSeqRef.current) {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+        return;
+      }
+
       const subagents = Array.isArray(data.subagents) ? data.subagents : [];
       if (subagents.length > 0) {
         store.hydrateSubagentsFromHistory(selectedAgentId, subagents);
       }
 
       if (data.messages && data.messages.length > 0) {
-        if (!isMountedRef.current) return;
+        // Advance by the fetched page size (raw, before dedup) so the offset
+        // always progresses toward older messages and never re-fetches the same
+        // window forever when a page is dropped by the dedupe/timestamp guards.
+        paginationOffsetRef.current = currentOffset + data.messages.length;
         setHistory((prev) => {
-          const newHistory = [...data.messages, ...prev];
+          // Dedupe overlapping pages (offset drift) so older messages stay
+          // above current ones in order, with no duplicates or interleaving.
+          const newHistory = mergeOlderHistoryPage(data.messages, prev);
           historyLengthRef.current = newHistory.length;
           return newHistory;
         });
@@ -405,6 +444,7 @@ export function useHistoryLoader({
   const clearHistory = useCallback(() => {
     setHistory([]);
     historyLengthRef.current = 0;
+    paginationOffsetRef.current = 0;
     if (selectedAgentId) historyCache.delete(selectedAgentId);
   }, [selectedAgentId]);
 
@@ -433,6 +473,7 @@ export function useHistoryLoader({
       if (data.messages && data.messages.length > 0) {
         setHistory(data.messages);
         historyLengthRef.current = data.messages.length;
+        paginationOffsetRef.current = data.messages.length;
       }
 
       hasMoreRef.current = false;

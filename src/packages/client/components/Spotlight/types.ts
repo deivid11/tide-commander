@@ -27,6 +27,7 @@ export interface SearchResult {
   _searchText?: string;
   _modifiedFiles?: string[];
   _userQueries?: string[];
+  _agentId?: string; // Raw agent id (agent results only) — used for recency/MRU ranking
 }
 
 // Props for the main Spotlight component

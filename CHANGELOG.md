@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.111.0] - 2026-06-03
+
+### Added
+- **Resizable Claude output side panel** — new `useSidePanelResize.ts` hook lets the side panel in `ClaudeOutputPanel` be dragged to a custom width, with the chosen size persisted.
+- **File viewer "Copy all" and "Download" actions** — the file viewer (`FileViewer.tsx`, `FileViewerModal.tsx`, `FileTabs.tsx`) gains a button to copy the entire file contents to the clipboard and a button to download the file. New `closeAllTabs` action to close every open file tab at once.
+- **Spotlight recent-agents (MRU) ranking** — agents selected from Spotlight are tracked in a localStorage-backed most-recently-used list and floated to the top of results across reloads (`Spotlight/utils.tsx`, `useSpotlightSearch.tsx`).
+- **History dedup module** — extracted `historyDedup.ts` with dedicated coverage (`useHistoryLoaderDedup.test.ts`) to remove duplicate entries when loading conversation history.
+- Localized strings for the new viewer/tab actions across all 10 supported languages.
+
+### Changed
+- **`useHistoryLoader.ts` / `ClaudeOutputPanel/index.tsx`** refactored to use the new history-dedup helper, slimming the panel component.
+- Output rendering (`outputRendering.ts`) and Markdown components updated, with added test coverage.
+- Guake terminal and git-panel styling refinements (`_base.scss`, `_git-panel.scss`, `GuakeGitPanel.tsx`).
+- Keyboard shortcuts (`useKeyboardShortcuts.ts`) and FlatView updates to support the new panel/tab interactions.
+- `vite.config.ts` build configuration tweaks.
+
 ## [1.110.5] - 2026-06-02
 
 ### Changed

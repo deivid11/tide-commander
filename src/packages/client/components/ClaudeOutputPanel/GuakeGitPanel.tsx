@@ -36,6 +36,10 @@ interface GuakeGitPanelProps {
   branchInfoMap: Map<string, BranchInfo>;
   fetchRemote: (dir: string) => Promise<void>;
   fetchingDirs: Set<string>;
+  // When provided, renders a drag-to-resize handle glued to the panel's own
+  // left edge. Used by surfaces (e.g. FlatView) where a sibling handle can't
+  // reliably sit at the panel edge. Mouse-down starts the resize drag.
+  onResizeStart?: (e: React.MouseEvent) => void;
 }
 
 interface RepoStatus {
@@ -177,7 +181,7 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onC
 // MAIN COMPONENT
 // ==========================================================================
 
-export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRemote, fetchingDirs }: GuakeGitPanelProps) {
+export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRemote, fetchingDirs, onResizeStart }: GuakeGitPanelProps) {
   const { t: _t } = useTranslation(['terminal', 'common']);
   const areas = useAreas();
 
@@ -921,6 +925,13 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     )}
 
     <div className="guake-git-panel">
+      {onResizeStart && (
+        <div
+          className="guake-side-panel-resize right guake-git-panel__resize"
+          onMouseDown={onResizeStart}
+          title="Drag to resize"
+        />
+      )}
       <div className="guake-git-header">
         <div className="guake-git-title">
           <div className="guake-git-tabs">

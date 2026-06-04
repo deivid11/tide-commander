@@ -134,28 +134,50 @@
   // No transition - show instantly
 }
 
-// Horizontal resize handle for side panels
+// Horizontal resize handle for side panels.
+// Centered on the panel edge with a persistent grip line so the drag affordance
+// is actually visible — without it the handle was a transparent 5px strip that
+// users couldn't find or grab.
 .guake-side-panel-resize {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 5px;
+  width: 8px;
   cursor: ew-resize;
   z-index: 202;
   background: transparent;
   transition: background 0.15s ease;
 
+  // Always-visible grip line down the middle of the hit area.
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    background: rgba($dracula-cyan, 0.4);
+    transition: background 0.15s ease, width 0.15s ease;
+  }
+
+  // Offset by half the width so the grip line sits exactly on the panel edge.
   &.left {
-    left: calc(var(--guake-side-panel-width) - 2px);
+    left: calc(var(--guake-side-panel-width) - 4px);
   }
 
   &.right {
-    right: calc(var(--guake-side-panel-width) - 2px);
+    right: calc(var(--guake-side-panel-width) - 4px);
   }
 
   &:hover,
   &:active {
-    background: rgba($dracula-cyan, 0.3);
+    background: rgba($dracula-cyan, 0.18);
+
+    &::before {
+      width: 3px;
+      background: $dracula-cyan;
+    }
   }
 }
 

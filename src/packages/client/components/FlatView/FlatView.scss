@@ -1608,8 +1608,10 @@ body.flat-splitter-dragging {
   }
 
   // ── Hide features that don't apply in embedded view ──
+  // NOTE: .guake-side-panel-resize is intentionally NOT hidden — FlatView now
+  // wires its own working side-panel resize handle (useSidePanelResize), so the
+  // git/buildings panel is drag-resizable here just like the Guake terminal.
   .guake-handle,
-  .guake-side-panel-resize,
   .atp-resize-handle {
     display: none;
   }

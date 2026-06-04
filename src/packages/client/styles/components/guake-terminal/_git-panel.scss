@@ -26,6 +26,17 @@
   overflow: hidden;
 }
 
+// In-panel resize handle: rendered as a child of .guake-git-panel and pinned to
+// the panel's own left edge, so it can never visually detach from the panel.
+// (An edge-relative sibling handle depends on the container width matching
+// --guake-side-panel-width, which isn't guaranteed in narrower layouts like the
+// Flat view.) Sits just inside the panel; the panel's overflow:hidden keeps it
+// from being clipped, and z-index keeps it grabbable above the panel content.
+.guake-git-panel__resize.guake-side-panel-resize.right {
+  left: 0;
+  right: auto;
+}
+
 .guake-git-header {
   display: flex;
   justify-content: space-between;
