@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.112.0] - 2026-06-05
+
+### Added
+- **Daily Claude usage breakdown** — new `GET /api/agents/usage-by-day` endpoint (`claude-usage-service.ts` `buildClaudeUsageByDaySummary`) groups Claude JSONL token usage by local day, with per-agent totals (`tokens`, `requestCount`) inside each day. Accepts `since` / `until` / `days` query params. Client helper `fetchClaudeUsageByDay()` and matching types added in `client/api/claude-usage.ts`.
+- **Per-day usage view in the Statistics modal** — `StatisticsModal.tsx` gains a daily breakdown (with styling in `statistics-modal.scss`) showing token usage per day and the contributing agents.
+
+### Changed
+- **`parseBoundary` now accepts numeric timestamps** as well as strings, so the usage endpoints handle epoch-millis query params directly.
+
 ## [1.111.2] - 2026-06-04
 
 ### Fixed

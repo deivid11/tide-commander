@@ -71,6 +71,29 @@ export interface ClaudeUsageByAgentSummary {
   entries: ClaudeUsageByAgentEntry[];
 }
 
+export interface ClaudeUsageByDayAgentEntry {
+  agentId: string;
+  agentName: string;
+  tokens: ClaudeTokenTotals;
+  requestCount: number;
+}
+
+export interface ClaudeUsageByDayEntry {
+  date: string;
+  totalTokens: number;
+  requestCount: number;
+  agents: ClaudeUsageByDayAgentEntry[];
+}
+
+export interface ClaudeUsageByDaySummary {
+  provider: 'claude';
+  fetchedAt: number;
+  since: string | null;
+  until: string | null;
+  source: 'claude-jsonl';
+  days: ClaudeUsageByDayEntry[];
+}
+
 export async function fetchClaudeUsage(agentId: string): Promise<ClaudeUsageSnapshot> {
   const response = await authFetch(apiUrl(`/api/agents/${encodeURIComponent(agentId)}/usage`));
   if (!response.ok) {
@@ -103,4 +126,24 @@ export async function fetchClaudeUsageByAgent(opts: { since?: number; until?: nu
     throw new Error(message);
   }
   return (await response.json()) as ClaudeUsageByAgentSummary;
+}
+
+export async function fetchClaudeUsageByDay(opts: { since?: number; until?: number; days?: number } = {}): Promise<ClaudeUsageByDaySummary> {
+  const params = new URLSearchParams();
+  if (typeof opts.since === 'number') params.set('since', String(opts.since));
+  if (typeof opts.until === 'number') params.set('until', String(opts.until));
+  if (typeof opts.days === 'number') params.set('days', String(opts.days));
+  const query = params.toString();
+  const response = await authFetch(apiUrl(`/api/agents/usage-by-day${query ? `?${query}` : ''}`));
+  if (!response.ok) {
+    let message = `Failed to fetch daily usage summary: ${response.status}`;
+    try {
+      const body = await response.json();
+      if (body?.error) message = body.error;
+    } catch {
+      // ignore parse errors — fall back to the status line
+    }
+    throw new Error(message);
+  }
+  return (await response.json()) as ClaudeUsageByDaySummary;
 }
