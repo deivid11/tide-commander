@@ -89,6 +89,29 @@ export interface ClaudeUsageByAgentSummary {
   entries: ClaudeUsageByAgentEntry[];
 }
 
+export interface ClaudeUsageByDayAgentEntry {
+  agentId: string;
+  agentName: string;
+  tokens: ClaudeTokenTotals;
+  requestCount: number;
+}
+
+export interface ClaudeUsageByDayEntry {
+  date: string;
+  totalTokens: number;
+  requestCount: number;
+  agents: ClaudeUsageByDayAgentEntry[];
+}
+
+export interface ClaudeUsageByDaySummary {
+  provider: 'claude';
+  fetchedAt: number;
+  since: string | null;
+  until: string | null;
+  source: 'claude-jsonl';
+  days: ClaudeUsageByDayEntry[];
+}
+
 const STATS_CACHE_PATH = path.join(os.homedir(), '.claude', 'stats-cache.json');
 
 interface StatsCacheFile {
@@ -111,6 +134,16 @@ interface SessionUsageAccumulator {
   tokens: ClaudeTokenTotals;
 }
 
+interface DailyUsageBucket {
+  requestCount: number;
+  tokens: ClaudeTokenTotals;
+}
+
+interface DailyUsageAccumulator {
+  requestIds: Set<string>;
+  buckets: Map<string, DailyUsageBucket>;
+}
+
 function readStatsCache(): StatsCacheFile | null {
   try {
     if (!fs.existsSync(STATS_CACHE_PATH)) return null;
@@ -129,6 +162,7 @@ function toPositiveInteger(value: unknown): number {
 }
 
 function parseBoundary(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value !== 'string' || value.trim() === '') return null;
   const asNumber = Number(value);
   if (Number.isFinite(asNumber)) return asNumber;
@@ -247,26 +281,88 @@ function addUsage(acc: SessionUsageAccumulator, requestId: string, timestamp: st
   }
 }
 
+function createTokenTotals(): ClaudeTokenTotals {
+  return {
+    input: 0,
+    cacheCreation: 0,
+    cacheRead: 0,
+    output: 0,
+    total: 0,
+  };
+}
+
 function createAccumulator(): SessionUsageAccumulator {
   return {
     requestIds: new Set(),
     firstTimestamp: null,
     lastTimestamp: null,
-    tokens: {
-      input: 0,
-      cacheCreation: 0,
-      cacheRead: 0,
-      output: 0,
-      total: 0,
-    },
+    tokens: createTokenTotals(),
   };
 }
 
-async function scanFileIntoAccumulator(
+function createDailyAccumulator(): DailyUsageAccumulator {
+  return {
+    requestIds: new Set(),
+    buckets: new Map(),
+  };
+}
+
+function addTokenTotals(target: ClaudeTokenTotals, source: ClaudeTokenTotals): void {
+  target.input += source.input;
+  target.cacheCreation += source.cacheCreation;
+  target.cacheRead += source.cacheRead;
+  target.output += source.output;
+  target.total += source.total;
+}
+
+function localDateKey(timestampMs: number): string {
+  const d = new Date(timestampMs);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function startOfLocalDay(timestampMs: number): number {
+  const d = new Date(timestampMs);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function addUsageToDailyAccumulator(acc: DailyUsageAccumulator, requestId: string, timestamp: string, usage: JsonlUsage): void {
+  if (acc.requestIds.has(requestId)) return;
+
+  const timestampMs = Date.parse(timestamp);
+  if (!Number.isFinite(timestampMs)) return;
+
+  const input = toPositiveInteger(usage.input_tokens);
+  const cacheCreation = toPositiveInteger(usage.cache_creation_input_tokens);
+  const cacheRead = toPositiveInteger(usage.cache_read_input_tokens);
+  const output = toPositiveInteger(usage.output_tokens);
+  const total = input + cacheCreation + cacheRead + output;
+  if (total <= 0) return;
+
+  acc.requestIds.add(requestId);
+
+  const date = localDateKey(timestampMs);
+  const bucket = acc.buckets.get(date) ?? {
+    requestCount: 0,
+    tokens: createTokenTotals(),
+  };
+  bucket.requestCount += 1;
+  bucket.tokens.input += input;
+  bucket.tokens.cacheCreation += cacheCreation;
+  bucket.tokens.cacheRead += cacheRead;
+  bucket.tokens.output += output;
+  bucket.tokens.total += total;
+  acc.buckets.set(date, bucket);
+}
+
+async function scanFileUsageRecords(
   filePath: string,
-  acc: SessionUsageAccumulator,
   sinceMs: number | null,
   untilMs: number | null,
+  onRecord: (requestId: string, timestamp: string, usage: JsonlUsage) => void,
 ): Promise<void> {
   // Fast-path: if `since` is set and the file hasn't been touched since then,
   // no line in it can be within the window — skip the read entirely. Safe
@@ -292,8 +388,30 @@ async function scanFileIntoAccumulator(
     if (sinceMs !== null && timestampMs < sinceMs) continue;
     if (untilMs !== null && timestampMs > untilMs) continue;
 
-    addUsage(acc, parsed.requestId, parsed.timestamp, parsed.usage);
+    onRecord(parsed.requestId, parsed.timestamp, parsed.usage);
   }
+}
+
+async function scanFileIntoAccumulator(
+  filePath: string,
+  acc: SessionUsageAccumulator,
+  sinceMs: number | null,
+  untilMs: number | null,
+): Promise<void> {
+  await scanFileUsageRecords(filePath, sinceMs, untilMs, (requestId, timestamp, usage) => {
+    addUsage(acc, requestId, timestamp, usage);
+  });
+}
+
+async function scanFileIntoDailyAccumulator(
+  filePath: string,
+  acc: DailyUsageAccumulator,
+  sinceMs: number | null,
+  untilMs: number | null,
+): Promise<void> {
+  await scanFileUsageRecords(filePath, sinceMs, untilMs, (requestId, timestamp, usage) => {
+    addUsageToDailyAccumulator(acc, requestId, timestamp, usage);
+  });
 }
 
 function todayString(): string {
@@ -403,5 +521,103 @@ export async function buildClaudeUsageByAgentSummary(
     source: 'claude-jsonl',
     totalTokens,
     entries,
+  };
+}
+
+function parseDays(value: unknown): number {
+  const parsed = typeof value === 'string' ? Number(value) : value;
+  if (typeof parsed !== 'number' || !Number.isFinite(parsed)) return 14;
+  return Math.max(2, Math.min(60, Math.round(parsed)));
+}
+
+function buildDayKeys(sinceMs: number, untilMs: number): string[] {
+  const keys: string[] = [];
+  const untilDay = startOfLocalDay(untilMs);
+  for (let cursor = startOfLocalDay(sinceMs); cursor <= untilDay; cursor += 24 * 60 * 60 * 1000) {
+    keys.push(localDateKey(cursor));
+  }
+  return keys;
+}
+
+export async function buildClaudeUsageByDaySummary(
+  agents: Agent[],
+  opts: { since?: unknown; until?: unknown; days?: unknown } = {}
+): Promise<ClaudeUsageByDaySummary> {
+  const untilMs = parseBoundary(opts.until) ?? Date.now();
+  const sinceMs = parseBoundary(opts.since) ?? (startOfLocalDay(untilMs) - ((parseDays(opts.days) - 1) * 24 * 60 * 60 * 1000));
+  const agentBuckets = new Map<string, { agentId: string; agentName: string; buckets: Map<string, DailyUsageBucket> }>();
+
+  for (const agent of agents) {
+    if (agent.provider !== 'claude' || !agent.sessionId) continue;
+
+    const paths = findClaudeSessionFile(agent);
+    if (!paths) continue;
+
+    try {
+      const mainAcc = createDailyAccumulator();
+      await scanFileIntoDailyAccumulator(paths.main, mainAcc, sinceMs, untilMs);
+
+      const subAcc = createDailyAccumulator();
+      for (const subPath of paths.subagents) {
+        await scanFileIntoDailyAccumulator(subPath, subAcc, sinceMs, untilMs);
+      }
+
+      const buckets = new Map<string, DailyUsageBucket>();
+      const mergeBucket = (date: string, source: DailyUsageBucket) => {
+        const target = buckets.get(date) ?? {
+          requestCount: 0,
+          tokens: createTokenTotals(),
+        };
+        target.requestCount += source.requestCount;
+        addTokenTotals(target.tokens, source.tokens);
+        buckets.set(date, target);
+      };
+
+      for (const [date, bucket] of mainAcc.buckets) mergeBucket(date, bucket);
+      for (const [date, bucket] of subAcc.buckets) mergeBucket(date, bucket);
+
+      const agentTotal = [...buckets.values()].reduce((sum, bucket) => sum + bucket.tokens.total, 0);
+      if (agentTotal <= 0) continue;
+
+      agentBuckets.set(agent.id, {
+        agentId: agent.id,
+        agentName: agent.name,
+        buckets,
+      });
+    } catch (err) {
+      log.warn(`Failed to scan Claude daily usage for agent ${agent.name} (${agent.id}): ${err}`);
+    }
+  }
+
+  const days = buildDayKeys(sinceMs, untilMs).map((date) => {
+    const dayAgents: ClaudeUsageByDayAgentEntry[] = [];
+    for (const agentUsage of agentBuckets.values()) {
+      const bucket = agentUsage.buckets.get(date);
+      if (!bucket || bucket.tokens.total <= 0) continue;
+      dayAgents.push({
+        agentId: agentUsage.agentId,
+        agentName: agentUsage.agentName,
+        tokens: { ...bucket.tokens },
+        requestCount: bucket.requestCount,
+      });
+    }
+
+    dayAgents.sort((a, b) => b.tokens.total - a.tokens.total);
+
+    return {
+      date,
+      totalTokens: dayAgents.reduce((sum, entry) => sum + entry.tokens.total, 0),
+      requestCount: dayAgents.reduce((sum, entry) => sum + entry.requestCount, 0),
+      agents: dayAgents,
+    };
+  });
+
+  return {
+    provider: 'claude',
+    fetchedAt: Date.now(),
+    since: normalizeBoundary(sinceMs),
+    until: normalizeBoundary(untilMs),
+    source: 'claude-jsonl',
+    days,
   };
 }

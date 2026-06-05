@@ -1,7 +1,7 @@
 @use '../variables' as *;
 
 .statistics-modal {
-  width: min(860px, calc(100vw - 32px));
+  width: min(980px, calc(100vw - 32px));
   max-height: min(82vh, 740px);
   overflow: hidden;
 }
@@ -38,6 +38,9 @@
 .statistics-modal__body {
   max-height: calc(min(82vh, 740px) - 50px);
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .statistics-panel {
@@ -220,4 +223,98 @@
 
 .statistics-panel__footnote {
   margin-top: 12px;
+}
+
+.statistics-line-chart {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 240px);
+  gap: 14px;
+  align-items: start;
+
+  @media (max-width: 820px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.statistics-line-chart__svg {
+  width: 100%;
+  min-height: 230px;
+  border: 1px solid rgba($dracula-current, 0.7);
+  border-radius: $radius-sm;
+  background: rgba($dracula-bg-darker, 0.35);
+}
+
+.statistics-line-chart__grid {
+  stroke: rgba($dracula-current, 0.52);
+  stroke-width: 1;
+}
+
+.statistics-line-chart__axis {
+  stroke: rgba($dracula-comment, 0.62);
+  stroke-width: 1;
+}
+
+.statistics-line-chart__axis-label {
+  fill: $dracula-comment;
+  font-family: $font-mono;
+  font-size: 10px;
+}
+
+.statistics-line-chart__line {
+  opacity: 0.88;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.4));
+}
+
+.statistics-line-chart__line--total {
+  opacity: 1;
+}
+
+.statistics-line-chart__point {
+  stroke: rgba($dracula-bg-darker, 0.92);
+  stroke-width: 1.5;
+}
+
+.statistics-line-chart__legend {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-height: 260px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.statistics-line-chart__legend-item {
+  min-height: 34px;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid rgba($dracula-current, 0.62);
+  border-radius: $radius-sm;
+  background: rgba($dracula-bg-darker, 0.32);
+  color: $dracula-fg;
+  font-family: $font-mono;
+  font-size: 11px;
+
+  span:not(.statistics-line-chart__legend-swatch) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    color: $dracula-comment;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+}
+
+.statistics-line-chart__legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba($dracula-bg-darker, 0.9);
 }
