@@ -229,6 +229,7 @@
     "byStatus": "ステータス別",
     "byName": "名前別",
     "searchAgents": "エージェントを検索...",
+    "searchArea": "エリアを検索...",
     "areas": "エリア",
     "noAgentsDeployed": "配置済みエージェントなし",
     "noAgentsMatch": "フィルターに一致するエージェントなし",

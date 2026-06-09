@@ -152,6 +152,8 @@ export type ClaudeModel =
   | 'sonnet'
   | 'opus'
   | 'haiku'
+  | 'claude-fable-5'
+  | 'claude-fable-5[1m]'
   | 'claude-opus-4-8'
   | 'claude-opus-4-7'
   | 'claude-opus-4-6'
@@ -160,12 +162,14 @@ export type ClaudeModel =
 
 export const CLAUDE_MODELS: Record<ClaudeModel, { label: string; description: string; icon: string; contextWindow: number; deprecated?: boolean }> = {
   sonnet: { label: 'Sonnet', description: 'Balanced performance and cost (recommended)', icon: '⚡', contextWindow: 200000 },
+  'claude-fable-5[1m]': { label: 'Fable 5 [1M]', description: 'Most powerful, most intelligent Claude model — new tier above Opus, 1M token context window', icon: '🪄', contextWindow: 1000000 },
   'claude-opus-4-8[1m]': { label: 'Opus 4.8 [1M]', description: 'Latest Opus with 1M token context window — most capable, best for very long tasks', icon: '🧠', contextWindow: 1000000 },
   'opus[1m]': { label: 'Opus 4.7 [1M]', description: 'Previous Opus generation with 1M token context window', icon: '🧠', contextWindow: 1000000 },
   haiku: { label: 'Haiku', description: 'Fast and economical', icon: '🚀', contextWindow: 200000 },
   // Plain (200K) Opus IDs are kept as valid model values for existing agents
   // and CLI passthrough, but hidden from the "new agent" picker in favor of
   // the 1M variants above.
+  'claude-fable-5': { label: 'Fable 5 (200K)', description: 'Fable 5, 200K context window (1M variant preferred)', icon: '🪄', contextWindow: 200000, deprecated: true },
   'claude-opus-4-8': { label: 'Opus 4.8 (200K)', description: 'Latest Opus, 200K context window (1M variant preferred)', icon: '🧠', contextWindow: 200000, deprecated: true },
   'claude-opus-4-7': { label: 'Opus 4.7 (200K)', description: 'Previous Opus generation, 200K context window (1M variant preferred)', icon: '🧠', contextWindow: 200000, deprecated: true },
   opus: { label: 'Opus (legacy)', description: 'Legacy alias — prefer Opus 4.8 [1M]', icon: '🧠', contextWindow: 200000, deprecated: true },

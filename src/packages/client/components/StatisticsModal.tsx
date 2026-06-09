@@ -50,6 +50,18 @@ interface UsageLineSeries {
   isTotal?: boolean;
 }
 
+interface UsageLineHover {
+  id: string;
+  date: string;
+  name: string;
+  color: string;
+  value: number;
+  total: number;
+  peak: number;
+  x: number;
+  y: number;
+}
+
 function getLocalDayStart(): number {
   const dayStart = new Date();
   dayStart.setHours(0, 0, 0, 0);
@@ -139,22 +151,31 @@ function getNiceMaxValue(value: number): number {
   return niceNormalized * magnitude;
 }
 
-function pointsForSeries(values: number[], maxValue: number): string {
+function getPointPosition(valuesLength: number, index: number, value: number, maxValue: number): { x: number; y: number } {
   const plotLeft = LINE_CHART_PADDING.left;
   const plotTop = LINE_CHART_PADDING.top;
   const plotWidth = LINE_CHART_WIDTH - LINE_CHART_PADDING.left - LINE_CHART_PADDING.right;
   const plotHeight = LINE_CHART_HEIGHT - LINE_CHART_PADDING.top - LINE_CHART_PADDING.bottom;
+  const x = valuesLength <= 1
+    ? plotLeft + (plotWidth / 2)
+    : plotLeft + ((index / (valuesLength - 1)) * plotWidth);
+  const y = plotTop + plotHeight - ((value / maxValue) * plotHeight);
+  return { x, y };
+}
 
+function pointsForSeries(values: number[], maxValue: number): string {
   return values.map((value, index) => {
-    const x = values.length <= 1
-      ? plotLeft + (plotWidth / 2)
-      : plotLeft + ((index / (values.length - 1)) * plotWidth);
-    const y = plotTop + plotHeight - ((value / maxValue) * plotHeight);
+    const { x, y } = getPointPosition(values.length, index, value, maxValue);
     return `${x.toFixed(2)},${y.toFixed(2)}`;
   }).join(' ');
 }
 
+function truncateChartLabel(value: string, maxLength = 28): string {
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}...`;
+}
+
 function DailyUsageLineChart({ summary }: { summary: ClaudeUsageByDaySummary }) {
+  const [hover, setHover] = React.useState<UsageLineHover | null>(null);
   const days = summary.days;
   const series = buildUsageLineSeries(summary);
   const maxDataValue = Math.max(1, ...series.flatMap((line) => line.values));
@@ -165,6 +186,14 @@ function DailyUsageLineChart({ summary }: { summary: ClaudeUsageByDaySummary }) 
   const plotHeight = LINE_CHART_HEIGHT - LINE_CHART_PADDING.top - LINE_CHART_PADDING.bottom;
   const yTicks = [0, 0.5, 1];
   const labelEvery = Math.max(1, Math.ceil(days.length / 5));
+  const tooltipWidth = 190;
+  const tooltipHeight = 86;
+  const tooltipX = hover
+    ? Math.min(Math.max(hover.x + 12, 8), LINE_CHART_WIDTH - tooltipWidth - 8)
+    : 0;
+  const tooltipY = hover
+    ? Math.min(Math.max(hover.y - tooltipHeight - 10, 8), LINE_CHART_HEIGHT - tooltipHeight - 8)
+    : 0;
 
   return (
     <div className="statistics-line-chart">
@@ -174,6 +203,7 @@ function DailyUsageLineChart({ summary }: { summary: ClaudeUsageByDaySummary }) 
         role="img"
         aria-label="Daily Claude token usage by agent"
         preserveAspectRatio="xMidYMid meet"
+        onMouseLeave={() => setHover(null)}
       >
         {yTicks.map((tick) => {
           const y = plotTop + plotHeight - (tick * plotHeight);
@@ -218,23 +248,84 @@ function DailyUsageLineChart({ summary }: { summary: ClaudeUsageByDaySummary }) 
         ))}
 
         {series.map((line) => line.values.map((value, index) => {
-          const x = days.length <= 1
-            ? plotLeft + (plotWidth / 2)
-            : plotLeft + ((index / (days.length - 1)) * plotWidth);
-          const y = plotTop + plotHeight - ((value / maxValue) * plotHeight);
+          const { x, y } = getPointPosition(days.length, index, value, maxValue);
+          const pointHover: UsageLineHover = {
+            id: `${line.id}-${days[index]?.date}`,
+            date: days[index]?.date ?? '',
+            name: line.name,
+            color: line.color,
+            value,
+            total: line.total,
+            peak: line.peak,
+            x,
+            y,
+          };
           return (
-            <circle
-              key={`${line.id}-${days[index]?.date}`}
-              className="statistics-line-chart__point"
-              cx={x}
-              cy={y}
-              r={line.isTotal ? 3.4 : 2.6}
-              fill={line.color}
-            >
-              <title>{`${line.name} ${days[index]?.date}: ${value.toLocaleString()} tokens`}</title>
-            </circle>
+            <g key={`${line.id}-${days[index]?.date}`}>
+              <circle
+                className="statistics-line-chart__point"
+                cx={x}
+                cy={y}
+                r={line.isTotal ? 3.4 : 2.6}
+                fill={line.color}
+              />
+              <circle
+                className="statistics-line-chart__point-hit"
+                cx={x}
+                cy={y}
+                r={10}
+                tabIndex={0}
+                role="button"
+                aria-label={`${line.name} ${days[index]?.date}: ${value.toLocaleString()} tokens`}
+                onMouseEnter={() => setHover(pointHover)}
+                onFocus={() => setHover(pointHover)}
+                onBlur={() => setHover(null)}
+              />
+            </g>
           );
         }))}
+
+        {hover && (
+          <g className="statistics-line-chart__tooltip">
+            <line
+              className="statistics-line-chart__hover-line"
+              x1={hover.x}
+              y1={plotTop}
+              x2={hover.x}
+              y2={plotTop + plotHeight}
+            />
+            <circle
+              className="statistics-line-chart__hover-point"
+              cx={hover.x}
+              cy={hover.y}
+              r={5}
+              fill={hover.color}
+            />
+            <rect
+              className="statistics-line-chart__tooltip-box"
+              x={tooltipX}
+              y={tooltipY}
+              width={tooltipWidth}
+              height={tooltipHeight}
+              rx={6}
+            />
+            <text className="statistics-line-chart__tooltip-title" x={tooltipX + 10} y={tooltipY + 18}>
+              {formatChartDate(hover.date)}
+            </text>
+            <text className="statistics-line-chart__tooltip-name" x={tooltipX + 10} y={tooltipY + 34}>
+              {truncateChartLabel(hover.name)}
+            </text>
+            <text className="statistics-line-chart__tooltip-value" x={tooltipX + 10} y={tooltipY + 52}>
+              Daily: {formatTokens(hover.value)}
+            </text>
+            <text className="statistics-line-chart__tooltip-meta" x={tooltipX + 10} y={tooltipY + 68}>
+              Peak: {formatTokens(hover.peak)}
+            </text>
+            <text className="statistics-line-chart__tooltip-meta" x={tooltipX + 100} y={tooltipY + 68}>
+              Total: {formatTokens(hover.total)}
+            </text>
+          </g>
+        )}
       </svg>
 
       <div className="statistics-line-chart__legend">

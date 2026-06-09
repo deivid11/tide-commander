@@ -214,6 +214,10 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   const [sortMode, setSortMode] = useState<SortMode>(savedConfig.sortMode);
   const [filterMode, setFilterMode] = useState<FilterMode>(savedConfig.filterMode);
   const [searchQuery, setSearchQuery] = useState('');
+  // Quick "search area" filter — narrows the list to agents whose area name
+  // matches. Focused with Ctrl/Cmd+L and cleared automatically once an agent
+  // is selected.
+  const [areaSearchQuery, setAreaSearchQuery] = useState('');
   const [groupByArea, setGroupByArea] = useState(savedConfig.groupByArea);
   const [sameAreaOnly, setSameAreaOnly] = useState(savedConfig.sameAreaOnly);
   const [visibleAreaIds, setVisibleAreaIds] = useState<Set<string> | null>(
@@ -244,6 +248,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     name: string;
   } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const areaSearchInputRef = useRef<HTMLInputElement>(null);
   const internalAgentListRef = useRef<HTMLDivElement>(null);
   const agentListRef = externalAgentListRef || internalAgentListRef;
   const hasCenteredActiveRef = useRef(false);
@@ -258,6 +263,8 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   const onSelectAgentRef = useRef(onSelectAgent);
   useEffect(() => { onSelectAgentRef.current = onSelectAgent; }, [onSelectAgent]);
   const handleCardSelect = useCallback((agentId: string) => {
+    // Selecting an agent dismisses the transient "search area" filter.
+    setAreaSearchQuery('');
     onSelectAgentRef.current(agentId);
   }, []);
   const handleCardClearContext = useCallback((agentId: string) => {
@@ -297,7 +304,8 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     return () => document.removeEventListener('mousedown', handleClick);
   }, [areaFilterOpen]);
 
-  // Focus overview search with Alt+Shift+F when panel is open.
+  // Focus overview search with Alt+Shift+F, or the "search area" input with
+  // Ctrl/Cmd+L, when the panel is open.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const isFocusSearchShortcut = event.altKey
@@ -305,6 +313,18 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         && !event.ctrlKey
         && !event.metaKey
         && event.code === 'KeyF';
+
+      const isFocusAreaSearchShortcut = (event.ctrlKey || event.metaKey)
+        && !event.altKey
+        && !event.shiftKey
+        && event.code === 'KeyL';
+
+      if (isFocusAreaSearchShortcut) {
+        event.preventDefault();
+        areaSearchInputRef.current?.focus();
+        areaSearchInputRef.current?.select();
+        return;
+      }
 
       if (!isFocusSearchShortcut) return;
       event.preventDefault();
@@ -418,6 +438,11 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         const aAreaId = agentToAreaId.get(a.id) ?? null;
         if (aAreaId !== activeAreaId) return false;
       }
+      if (areaSearchQuery.trim()) {
+        const aq = areaSearchQuery.toLowerCase().trim();
+        const areaName = agentAreaInfo.get(a.id)?.name?.toLowerCase() ?? '';
+        if (!areaName.includes(aq)) return false;
+      }
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
 
@@ -452,7 +477,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     });
 
     return [result, contexts] as const;
-  }, [agents, filterMode, searchQuery, sameAreaOnly, agentToAreaId, activeAgentId, fileChanges]);
+  }, [agents, filterMode, searchQuery, areaSearchQuery, agentAreaInfo, sameAreaOnly, agentToAreaId, activeAgentId, fileChanges]);
 
   // Sort agents within groups — uses stable ordering to prevent scroll-jumping.
   // A full re-sort only happens when the agent set changes (add/remove) or when
@@ -876,8 +901,33 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
               e.preventDefault();
               onSelectAgent(filteredAgents[0].id);
               setSearchQuery('');
+              setAreaSearchQuery('');
             }}
             className="search-input"
+          />
+          <input
+            ref={areaSearchInputRef}
+            type="text"
+            placeholder={t('terminal:overview.searchArea')}
+            value={areaSearchQuery}
+            onChange={e => setAreaSearchQuery(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                setAreaSearchQuery('');
+                areaSearchInputRef.current?.blur();
+                return;
+              }
+              if (e.key !== 'Enter') return;
+              if (e.nativeEvent.isComposing) return;
+              if (areaSearchQuery.trim().length === 0) return;
+              if (filteredAgents.length === 0) return;
+
+              e.preventDefault();
+              onSelectAgent(filteredAgents[0].id);
+              setAreaSearchQuery('');
+            }}
+            className="search-input area-search-input"
           />
           <button className="close-btn" onClick={onClose} title={t('common:buttons.close')}>
             <Icon name="close" size={14} />

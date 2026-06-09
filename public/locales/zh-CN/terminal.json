@@ -229,6 +229,7 @@
     "byStatus": "按状态",
     "byName": "按名称",
     "searchAgents": "搜索代理...",
+    "searchArea": "搜索区域...",
     "areas": "区域",
     "noAgentsDeployed": "未部署代理",
     "noAgentsMatch": "没有匹配的代理",

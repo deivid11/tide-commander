@@ -229,6 +229,7 @@
     "byStatus": "Por Status",
     "byName": "Por Nome",
     "searchAgents": "Pesquisar agentes...",
+    "searchArea": "Pesquisar área...",
     "areas": "Areas",
     "noAgentsDeployed": "Nenhum agente implantado",
     "noAgentsMatch": "Nenhum agente corresponde aos filtros",

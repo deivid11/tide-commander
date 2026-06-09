@@ -249,6 +249,7 @@
     "byStatus": "By Status",
     "byName": "By Name",
     "searchAgents": "Search agents...",
+    "searchArea": "Search area...",
     "areas": "Areas",
     "noAgentsDeployed": "No agents deployed",
     "noAgentsMatch": "No agents match filters",

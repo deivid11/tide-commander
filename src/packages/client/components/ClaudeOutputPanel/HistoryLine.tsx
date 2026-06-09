@@ -10,7 +10,7 @@ import { useHideCost, useSettings, useAgentPrompts } from '../../store';
 import { store } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
@@ -29,7 +29,7 @@ import { ansiToHtml } from '../../utils/ansiToHtml';
 import { Icon } from '../Icon';
 import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
 import type { EnrichedHistoryMessage, EditData } from './types';
-import type { Subagent } from '../../../shared/types';
+import type { ExecTask, Subagent } from '../../../shared/types';
 import { SubagentInline } from './SubagentInline';
 
 /** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
@@ -57,6 +57,7 @@ interface HistoryLineProps {
    * HistoryLine as the sole renderer of the Task chip.
    */
   subagents?: Map<string, Subagent>;
+  execTasks?: ExecTask[];
   onImageClick?: (url: string, name: string) => void;
   onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
   onBashClick?: (command: string, output: string) => void;
@@ -82,6 +83,7 @@ export const HistoryLine = memo(function HistoryLine({
   highlight,
   simpleView,
   subagents,
+  execTasks = [],
   onImageClick,
   onFileClick,
   onBashClick,
@@ -408,6 +410,33 @@ export const HistoryLine = memo(function HistoryLine({
       const bashMemoryCommand = isBashTool && bashCommand && !bashTrackingStatusCommand && !bashTaskLabelCommand && !bashReportTaskCommand ? parseBashMemoryCommand(bashCommand) : null;
       const bashMemoryResponse = bashMemoryCommand ? parseMemoryResponseInfo(_bashOutput) : undefined;
       const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
+      const bashTimestampMs = timestamp ? new Date(timestamp).getTime() : 0;
+      const execInnerCommand = isCurlExecCommand ? extractExecPayloadCommand(bashCommand) : null;
+      const matchingExecTasks = isCurlExecCommand && execTasks.length > 0
+        ? (() => {
+            if (execInnerCommand) {
+              const commandMatches = execTasks.filter((task) => task.command === execInnerCommand);
+              if (commandMatches.length > 0) {
+                const mostRecent = commandMatches.reduce((latest, current) =>
+                  current.startedAt > latest.startedAt ? current : latest
+                );
+                return [mostRecent];
+              }
+            }
+
+            const tasksAfterBash = execTasks.filter(
+              (task) => task.startedAt >= bashTimestampMs && task.startedAt <= bashTimestampMs + 5000
+            );
+            if (tasksAfterBash.length > 0) {
+              const mostRecent = tasksAfterBash.reduce((latest, current) =>
+                current.startedAt > latest.startedAt ? current : latest
+              );
+              return [mostRecent];
+            }
+
+            return [];
+          })()
+        : [];
       const bashCurlParsed = (
         isBashTool
         && bashCommand
@@ -499,7 +528,7 @@ export const HistoryLine = memo(function HistoryLine({
       // Check if this is a curl exec command and try to parse the exec output
       let execTaskOutput: { output: string[] } | null = null;
 
-      if (isCurlExecCommand && _bashOutput) {
+      if (isCurlExecCommand && matchingExecTasks.length === 0 && _bashOutput) {
         const outputLines = extractExecTaskOutputLines(_bashOutput);
         if (outputLines && outputLines.length > 0) {
           execTaskOutput = {
@@ -702,6 +731,51 @@ export const HistoryLine = memo(function HistoryLine({
               )
             )}
           </div>
+          {matchingExecTasks.length > 0 && (
+            <div className="exec-task-output-container">
+              {matchingExecTasks.map((task) => {
+                const isExpanded = expandedExecTasks.has(task.taskId);
+                const lastLines = task.output.slice(-6);
+                const isCollapsed = task.output.length > 6;
+                const displayLines = isExpanded ? task.output : lastLines;
+
+                return (
+                  <div key={task.taskId} className={`exec-task-inline status-${task.status}`}>
+                    {isCollapsed && (
+                      <div
+                        className="exec-task-toggle"
+                        onClick={() =>
+                          setExpandedExecTasks((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(task.taskId)) {
+                              next.delete(task.taskId);
+                            } else {
+                              next.add(task.taskId);
+                            }
+                            return next;
+                          })
+                        }
+                      >
+                        <span className="exec-task-toggle-arrow"><Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
+                        <span className="exec-task-toggle-text">
+                          {isExpanded ? t('tools:skills.hide') : t('tools:skills.showAll', { count: task.output.length })}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="exec-task-inline-terminal">
+                      <pre className="exec-task-inline-output">
+                        {displayLines.map((line, idx) => (
+                          <div key={idx} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
+                        ))}
+                        {task.status === 'running' && <span className="exec-task-cursor">▌</span>}
+                      </pre>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {/* Render exec task output for curl exec commands */}
           {isCurlExecCommand && execTaskOutput && (
             <div className="exec-task-output-container">

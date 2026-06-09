@@ -758,9 +758,24 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     let stableFrames = 0;
     let lastScrollHeight = -1;
 
+    // Require the content height to hold steady for several consecutive frames
+    // before releasing the pin. The virtualizer measures real row heights across
+    // many frames after an agent switch; ending on the FIRST coincidentally
+    // stable frame let late growth land the view a few lines short of the bottom.
+    const REQUIRED_STABLE_FRAMES = 4;
+
     const isAtBottom = () => {
       const { scrollTop, scrollHeight, clientHeight } = container;
       return scrollHeight - scrollTop - clientHeight <= 2;
+    };
+
+    const endPin = () => {
+      // Deterministic final snap to the true bottom before releasing the pin, in
+      // case a last measurement frame grew the content past where the per-frame
+      // enforce loop left it.
+      container.scrollTop = container.scrollHeight;
+      setPinToBottom(false);
+      rafId = null;
     };
 
     const tick = () => {
@@ -777,15 +792,16 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
       lastScrollHeight = currentScrollHeight;
 
-      if (stableFrames >= 1) {
-        setPinToBottom(false);
-        rafId = null;
+      if (stableFrames >= REQUIRED_STABLE_FRAMES) {
+        endPin();
         return;
       }
 
-      if (now - start > 1500) {
-        setPinToBottom(false);
-        rafId = null;
+      // Safety cap: don't pin forever for content that keeps growing (e.g. async
+      // images/markdown). Post-pin streaming auto-scroll then follows further
+      // growth as long as the user hasn't scrolled up.
+      if (now - start > 3000) {
+        endPin();
         return;
       }
 
