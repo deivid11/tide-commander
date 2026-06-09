@@ -518,7 +518,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
               <div className="spawn-field">
                 <label className="spawn-label">{t('common:labels.model')}</label>
                 {selectedProvider === 'claude' ? (
-                  <div className="spawn-select-row">
+                  <div className="spawn-select-row spawn-select-row--wrap">
                     {(Object.keys(CLAUDE_MODELS) as ClaudeModel[])
                       // Hide deprecated models in the edit picker unless the
                       // agent is already using one (so users can still see the

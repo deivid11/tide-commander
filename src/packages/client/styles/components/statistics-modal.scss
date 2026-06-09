@@ -274,6 +274,69 @@
   stroke-width: 1.5;
 }
 
+.statistics-line-chart__point-hit {
+  fill: transparent;
+  cursor: pointer;
+  outline: none;
+
+  &:focus {
+    stroke: rgba($dracula-cyan, 0.72);
+    stroke-width: 1.5;
+  }
+}
+
+.statistics-line-chart__tooltip {
+  pointer-events: none;
+}
+
+.statistics-line-chart__hover-line {
+  stroke: rgba($dracula-cyan, 0.3);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.statistics-line-chart__hover-point {
+  stroke: rgba($dracula-bg-darker, 0.95);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 5px rgba($dracula-cyan, 0.35));
+}
+
+.statistics-line-chart__tooltip-box {
+  fill: rgba($dracula-bg-darker, 0.96);
+  stroke: rgba($dracula-current, 0.9);
+  stroke-width: 1;
+  filter: drop-shadow(0 5px 12px rgba(0, 0, 0, 0.42));
+}
+
+.statistics-line-chart__tooltip-title,
+.statistics-line-chart__tooltip-name,
+.statistics-line-chart__tooltip-value,
+.statistics-line-chart__tooltip-meta {
+  font-family: $font-mono;
+}
+
+.statistics-line-chart__tooltip-title {
+  fill: $dracula-comment;
+  font-size: 10px;
+}
+
+.statistics-line-chart__tooltip-name {
+  fill: $dracula-fg;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.statistics-line-chart__tooltip-value {
+  fill: $dracula-cyan;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.statistics-line-chart__tooltip-meta {
+  fill: $dracula-comment;
+  font-size: 10px;
+}
+
 .statistics-line-chart__legend {
   display: flex;
   flex-direction: column;

@@ -568,7 +568,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
               <div className="spawn-field">
                 <label className="spawn-label">{t('common:labels.model')}</label>
                 {selectedProvider === 'claude' ? (
-                  <div className="spawn-select-row">
+                  <div className="spawn-select-row spawn-select-row--wrap">
                     {(Object.keys(CLAUDE_MODELS) as ClaudeModel[])
                       .filter((model) => !CLAUDE_MODELS[model].deprecated)
                       .map((model) => (

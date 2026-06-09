@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.113.0] - 2026-06-09
+
+### Added
+- **Fable 5 model support** — new `claude-fable-5` and `claude-fable-5[1m]` entries in the `ClaudeModel` registry (`agent-types.ts`), surfaced in the new-agent picker (1M variant) with the 200K variant kept as a deprecated/valid value. `llm-matcher-service.ts` maps `fable`, `fable-5`, `fable5`, and the full IDs to `claude-fable-5`. Wired through `AgentEditModal`, `BossSpawnModal`, `BulkManageModal`, boss instructions, the Claude backend, and the landing-page providers doc.
+- **Inline streaming-exec output in history** — `HistoryLine.tsx` now links a `curl /api/exec` command to its matching `ExecTask`(s) (new `execTasks` prop + `extractExecPayloadCommand` helper), so streamed command output is shown inline with the originating call.
+- **"Search area" quick filter in the agent overview** — `AgentOverviewPanel.tsx` adds an area-name filter focused with Ctrl/Cmd+L and auto-cleared once an agent is selected.
+- Localized string added for the new UI across all 10 supported languages.
+
+### Changed
+- **Statistics modal enhancements** — additional breakdown/UI in `StatisticsModal.tsx` with matching styles (`statistics-modal.scss`).
+- Overview-panel and modal styling refinements (`_overview-panel.scss`, `_modal.scss`); minor `AgentTerminalPane.tsx` / `VirtualizedOutputList.tsx` updates to support the inline exec output.
+
 ## [1.112.0] - 2026-06-05
 
 ### Added

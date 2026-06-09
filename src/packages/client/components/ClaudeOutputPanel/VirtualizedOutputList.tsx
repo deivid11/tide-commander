@@ -162,6 +162,7 @@ const VirtualRow = memo(function VirtualRow({
           simpleView={simpleView}
           highlight={searchHighlight}
           subagents={subagents}
+          execTasks={execTasks}
           onImageClick={onImageClick}
           onFileClick={onFileClick}
           onBashClick={onBashClick}

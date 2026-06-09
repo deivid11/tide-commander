@@ -286,13 +286,18 @@
   }
 }
 
-// Model chips row — wraps when chips are too wide to fit in a single line
+// Model chips row — even grid that wraps as more models are added.
+// Using a grid (instead of flex-wrap) keeps every chip the same width and
+// prevents the last row from stretching when the chip count isn't a multiple
+// of the column count.
 .spawn-select-row--wrap {
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 6px;
 
   .spawn-select-btn {
-    flex: 1 1 auto;
-    min-width: 100px;
+    flex: none;
+    min-width: 0;
   }
 }
 

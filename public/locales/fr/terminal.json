@@ -229,6 +229,7 @@
     "byStatus": "Par statut",
     "byName": "Par nom",
     "searchAgents": "Rechercher des agents...",
+    "searchArea": "Rechercher une zone...",
     "areas": "Zones",
     "noAgentsDeployed": "Aucun agent déployé",
     "noAgentsMatch": "Aucun agent ne correspond aux filtres",

@@ -152,6 +152,18 @@
       }
     }
 
+    // "Search area" input — a distinct purple accent separates it from the
+    // agents search sitting right beside it.
+    .area-search-input {
+      &:focus {
+        border-color: var(--accent-purple, #bd93f9);
+      }
+
+      &:hover {
+        border-color: color-mix(in srgb, var(--accent-purple, #bd93f9) 40%, transparent);
+      }
+    }
+
     .close-btn {
       background: transparent;
       border: none;
