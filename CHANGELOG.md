@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.114.0] - 2026-06-10
+
+### Added
+- **Spotlight tabs** — All / Agents / Buildings / Areas / Commands tabs with Tab-key cycling and persistence (last active tab and last query are restored on reopen). The query is pre-selected on open so typing immediately replaces it.
+- **Spotlight "Areas" tab** — groups agents by their drawing area with section headers (color dot + name + count), ordered identically to the Agent Overview panel via a new shared `makeAgentOverviewComparator`.
+- **Spotlight enhancements** — colored status chip (with pulsing animation for working agents) on agent results; clickable port links on building results; ports and status are also searchable.
+- **File drag-and-drop on the input container** — dragging files onto the Guake input area attaches them with a cyan highlight ring; dragging files onto the embedded shell terminal inserts the shell-quoted path(s) instead of uploading.
+- **PM2 log modal: process controls** — Restart and Stop buttons wired to `POST /api/buildings/:id/command` with success/error feedback; live process status badge and exposed port links in the header; spinner loading state while first logs arrive.
+- **ContextViewModal scrollable layout** — `max-height: 90dvh` with flex column so header/footer stay reachable on small screens when the context breakdown is tall.
+
 ## [1.113.0] - 2026-06-09
 
 ### Added
