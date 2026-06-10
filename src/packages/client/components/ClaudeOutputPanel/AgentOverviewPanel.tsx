@@ -22,6 +22,7 @@ import {
 import { getToolIconName, formatTimestamp } from '../../utils/outputRendering';
 import { STORAGE_KEYS, getStorage, setStorage } from '../../utils/storage';
 import { getClassConfig } from '../../utils/classConfig';
+import { makeAgentOverviewComparator } from './agentOverviewSort';
 import type { Agent, Subagent, DrawingArea } from '../../../shared/types';
 import type { ToolExecution, ClaudeOutput } from '../../store/types';
 import type { TwoFingerSelectorState } from '../../hooks/useTwoFingerSelector';
@@ -392,6 +393,20 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     return map;
   }, [agents, areas]);
 
+  // Map agent -> area name for the area SEARCH path only. Unlike agentAreaInfo
+  // (used for badge display, which excludes archived areas), this includes
+  // archived (disabled) areas so the area search matches across ALL areas,
+  // regardless of their enabled/disabled state.
+  const agentAreaSearchName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const agent of agents) {
+      const area = store.getAreaForAgent(agent.id);
+      if (!area) continue;
+      map.set(agent.id, area.name);
+    }
+    return map;
+  }, [agents, areas]);
+
   // Group tool executions by agent
   const toolsByAgent = useMemo(() => {
     const map = new Map<string, ToolExecution[]>();
@@ -440,7 +455,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       }
       if (areaSearchQuery.trim()) {
         const aq = areaSearchQuery.toLowerCase().trim();
-        const areaName = agentAreaInfo.get(a.id)?.name?.toLowerCase() ?? '';
+        const areaName = agentAreaSearchName.get(a.id)?.toLowerCase() ?? '';
         if (!areaName.includes(aq)) return false;
       }
       if (searchQuery) {
@@ -477,7 +492,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     });
 
     return [result, contexts] as const;
-  }, [agents, filterMode, searchQuery, areaSearchQuery, agentAreaInfo, sameAreaOnly, agentToAreaId, activeAgentId, fileChanges]);
+  }, [agents, filterMode, searchQuery, areaSearchQuery, agentAreaSearchName, sameAreaOnly, agentToAreaId, activeAgentId, fileChanges]);
 
   // Sort agents within groups — uses stable ordering to prevent scroll-jumping.
   // A full re-sort only happens when the agent set changes (add/remove) or when
@@ -525,39 +540,13 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
 
     let sorted: Agent[];
     if (needsFullSort || bucketChanged || sortMode === 'recent') {
-      // Full sort
-      sorted = [...list].sort((a, b) => {
-        const aIsBoss = !!(a.isBoss || a.class === 'boss');
-        const bIsBoss = !!(b.isBoss || b.class === 'boss');
-        if (aIsBoss !== bIsBoss) return aIsBoss ? -1 : 1;
-
-        if (sortMode === 'name') return a.name.localeCompare(b.name);
-        if (sortMode === 'status') {
-          const statusOrder = ['working', 'waiting_input', 'waiting_permission', 'error', 'idle', 'stopped'];
-          const statusCmp = statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
-          if (statusCmp !== 0) return statusCmp;
-
-          const aUnread = agentsWithUnseenOutput.has(a.id);
-          const bUnread = agentsWithUnseenOutput.has(b.id);
-          if (aUnread !== bUnread) return aUnread ? -1 : 1;
-
-          if (a.status === 'working' && b.status === 'working') {
-            return a.name.localeCompare(b.name);
-          }
-
-          if (a.status === 'idle' && b.status === 'idle') {
-            const aHasTask = !!a.taskLabel;
-            const bHasTask = !!b.taskLabel;
-            if (aHasTask !== bHasTask) return aHasTask ? -1 : 1;
-            return (b.lastActivity || 0) - (a.lastActivity || 0);
-          }
-
-          return (b.lastActivity || 0) - (a.lastActivity || 0);
-        }
-        const aTime = (toolsByAgent.get(a.id) || [])[0]?.timestamp || a.lastActivity || 0;
-        const bTime = (toolsByAgent.get(b.id) || [])[0]?.timestamp || b.lastActivity || 0;
-        return bTime - aTime;
-      });
+      // Full sort — shared with the Spotlight "Areas" tab via makeAgentOverviewComparator
+      // so both surfaces order agents identically.
+      sorted = [...list].sort(makeAgentOverviewComparator({
+        sortMode,
+        agentsWithUnseenOutput,
+        getLatestToolTimestamp: (id) => (toolsByAgent.get(id) || [])[0]?.timestamp,
+      }));
     } else {
       // Stable: reuse previous order
       const agentMap = new Map(list.map(a => [a.id, a]));

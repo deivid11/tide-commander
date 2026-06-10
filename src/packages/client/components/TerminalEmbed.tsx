@@ -111,6 +111,67 @@ function execCommandFallback(text: string): void {
   document.body.removeChild(ta);
 }
 
+/**
+ * Convert a dropped file:// URI to a filesystem path. Returns the input
+ * unchanged if it is not a file URI.
+ */
+function fileUriToPath(uri: string): string {
+  if (!uri.startsWith('file://')) return uri;
+  try {
+    // URL().pathname drops the (usually empty) host and keeps the decoded path.
+    return decodeURIComponent(new URL(uri).pathname);
+  } catch {
+    return decodeURIComponent(uri.replace(/^file:\/\/[^/]*/, ''));
+  }
+}
+
+/**
+ * Extract dropped file path(s) from a drag event's dataTransfer.
+ * Prefers text/uri-list (OS file managers expose the real path there as a
+ * file:// URI), then text/plain, then falls back to bare file names.
+ */
+function extractDroppedPaths(dt: DataTransfer): string[] {
+  const paths: string[] = [];
+
+  const uriList = dt.getData('text/uri-list');
+  if (uriList) {
+    for (const line of uriList.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue; // '#' lines are comments
+      paths.push(fileUriToPath(trimmed));
+    }
+  }
+
+  if (paths.length === 0) {
+    const text = dt.getData('text/plain');
+    if (text) {
+      for (const line of text.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (trimmed) paths.push(fileUriToPath(trimmed));
+      }
+    }
+  }
+
+  // Last resort: the browser exposes file names but not real paths for File objects.
+  if (paths.length === 0 && dt.files && dt.files.length > 0) {
+    for (const file of Array.from(dt.files)) paths.push(file.name);
+  }
+
+  return paths;
+}
+
+/** Quote a path for the shell when it contains characters that need escaping. */
+function shellQuotePath(p: string): string {
+  if (/^[A-Za-z0-9_@%+=:,./-]+$/.test(p)) return p;
+  return `'${p.replace(/'/g, `'\\''`)}'`;
+}
+
+/** True when a drag carries files (so we should treat it as a path drop). */
+function dragHasFiles(dt: DataTransfer | null): boolean {
+  if (!dt) return false;
+  return dt.types.includes('Files') || dt.types.includes('text/uri-list');
+}
+
 const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: TerminalEmbedProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -142,6 +203,31 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
     log('useEffect fired', { visible, init: initRef.current, hasContainer: !!containerRef.current, terminalUrl });
     if (!visible || initRef.current || !containerRef.current) return;
     initRef.current = true;
+
+    // File drop → insert the dropped path(s) into the shell, like a normal
+    // terminal. Capture-phase listeners on the container intercept the drop
+    // before xterm's internal handlers and before the event can bubble up to
+    // the Guake panel's file-upload handler, so dropping on the shell terminal
+    // types the path instead of attaching the file to the agent.
+    const dropEl = containerRef.current;
+    const handleDropDragOver = (ev: DragEvent) => {
+      if (!dragHasFiles(ev.dataTransfer)) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy';
+    };
+    const handleFileDrop = (ev: DragEvent) => {
+      if (!ev.dataTransfer) return;
+      const paths = extractDroppedPaths(ev.dataTransfer);
+      if (paths.length === 0) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      sendInput(paths.map(shellQuotePath).join(' ') + ' ');
+      termRef.current?.focus();
+    };
+    dropEl.addEventListener('dragenter', handleDropDragOver, true);
+    dropEl.addEventListener('dragover', handleDropDragOver, true);
+    dropEl.addEventListener('drop', handleFileDrop, true);
 
     let destroyed = false;
     let term: Terminal | null = null;
@@ -401,6 +487,9 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
       initRef.current = false;
       debouncedFit?.cancel();
       resizeObs?.disconnect();
+      dropEl.removeEventListener('dragenter', handleDropDragOver, true);
+      dropEl.removeEventListener('dragover', handleDropDragOver, true);
+      dropEl.removeEventListener('drop', handleFileDrop, true);
       if (handleContextMenu) containerRef.current?.removeEventListener('contextmenu', handleContextMenu);
       if (ws && ws.readyState <= WebSocket.OPEN) ws.close();
       wsRef.current = null;

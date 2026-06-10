@@ -152,6 +152,13 @@
     box-shadow: 0 0 0 2px rgba($dracula-purple, 0.12);
   }
 
+  // Highlight while a file is being dragged directly over the input container
+  &.file-drag-over {
+    border-color: rgba($dracula-cyan, 0.7);
+    background: rgba($dracula-cyan, 0.08);
+    box-shadow: 0 0 0 2px rgba($dracula-cyan, 0.18);
+  }
+
   // Working state - single animated bar using GPU-composited transform
   .is-working & {
     --border-color: rgba($dracula-comment, 0.25);

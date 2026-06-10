@@ -812,6 +812,60 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     }
   };
 
+  // ── File drop directly on the input container ───────────────────────────────
+  // The container previously relied on the file-drop handler attached to the far
+  // outer `.guake-terminal` ancestor, but that delegated drop is not reliably
+  // delivered when the drop lands on the editable <input>/<textarea> (the
+  // intermediate SplitTerminalLayout only preventDefaults dragover for agent-id
+  // drags). Handling drop on the container itself — with its own dragover
+  // preventDefault so it is a valid drop target — makes it work, and matches the
+  // established agent behavior (upload + attach as a chip, same as paste).
+  const dropDragCounter = useRef(0);
+  const [isFileDragOver, setIsFileDragOver] = useState(false);
+
+  const handleInputDragEnter = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return; // ignore agent-id / text drags
+    e.preventDefault();
+    e.stopPropagation();
+    dropDragCounter.current++;
+    setIsFileDragOver(true);
+  };
+
+  const handleInputDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault(); // mark the container as a valid drop target
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleInputDragLeave = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dropDragCounter.current--;
+    if (dropDragCounter.current <= 0) {
+      dropDragCounter.current = 0;
+      setIsFileDragOver(false);
+    }
+  };
+
+  const handleInputDrop = async (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    e.stopPropagation(); // don't let the outer .guake-terminal handler upload again
+    dropDragCounter.current = 0;
+    setIsFileDragOver(false);
+
+    const files = e.dataTransfer.files;
+    if (!files.length) return;
+    for (const file of Array.from(files)) {
+      const attached = await uploadFileWithProgress(file);
+      if (attached) {
+        setAttachedFiles((prev) => [...prev, attached]);
+      }
+    }
+  };
+
   return (
     <>
       {/* Permission requests bar */}
@@ -1010,9 +1064,13 @@ export const TerminalInputArea = memo(function TerminalInputArea({
             />
             <div
               ref={inputContainerRef}
-              className="guake-input-container"
+              className={`guake-input-container ${isFileDragOver ? 'file-drag-over' : ''}`}
               tabIndex={-1}
               onAuxClick={handleContainerAuxClick}
+              onDragEnter={handleInputDragEnter}
+              onDragOver={handleInputDragOver}
+              onDragLeave={handleInputDragLeave}
+              onDrop={handleInputDrop}
             >
               <button
                 className="guake-attach-btn"

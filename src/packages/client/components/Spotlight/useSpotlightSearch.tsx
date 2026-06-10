@@ -8,16 +8,40 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Fuse from 'fuse.js';
-import { store, useAgents, useAreas, useBuildings, useFileChanges } from '../../store';
+import { store, useAgents, useAreas, useBuildings, useFileChanges, useToolExecutions, useAgentsWithUnseenOutput } from '../../store';
 import { formatShortcut } from '../../store/shortcuts';
+import { makeAgentOverviewComparator, type AgentSortMode } from '../ClaudeOutputPanel/agentOverviewSort';
+import { STORAGE_KEYS, getStorage, setStorage, getStorageString, setStorageString } from '../../utils/storage';
 import type { Agent, DrawingArea } from '../../../shared/types';
-import type { SearchResult, UseSpotlightSearchOptions, SpotlightSearchState } from './types';
+import type { SearchResult, UseSpotlightSearchOptions, SpotlightSearchState, SpotlightTab, SpotlightAreaSection } from './types';
+import { SPOTLIGHT_TABS } from './types';
 import { getFileIconFromPath, getRecentAgentIds, recordRecentAgent, recentAgentRank } from './utils';
 import { Icon, type IconName } from '../Icon';
 import { AgentIcon } from '../AgentIcon';
 
 // Category display order - must match SpotlightResults rendering
 const categoryOrder = ['command', 'agent', 'building', 'area', 'modified-file'];
+
+// Load the persisted tab, falling back to 'all' for unknown/legacy values.
+function loadPersistedTab(): SpotlightTab {
+  const stored = getStorage<SpotlightTab>(STORAGE_KEYS.SPOTLIGHT_TAB, 'all');
+  return SPOTLIGHT_TABS.includes(stored) ? stored : 'all';
+}
+
+// The last query is remembered so reopening Spotlight restores it (pre-selected,
+// so typing immediately replaces it — handled in the Spotlight container).
+function loadPersistedQuery(): string {
+  return getStorageString(STORAGE_KEYS.SPOTLIGHT_QUERY, '');
+}
+
+// Read the Agent Overview panel's persisted sort mode so the Spotlight "Areas"
+// tab orders agents the same way the overview currently shows them.
+function getOverviewSortMode(): AgentSortMode {
+  const cfg = getStorage<{ sortMode?: string }>(STORAGE_KEYS.AOP_CONFIG, {});
+  return cfg.sortMode === 'name' || cfg.sortMode === 'status' || cfg.sortMode === 'recent'
+    ? cfg.sortMode
+    : 'recent';
+}
 
 export function useSpotlightSearch({
   isOpen,
@@ -36,6 +60,9 @@ export function useSpotlightSearch({
   const areas = useAreas();
   const buildings = useBuildings();
   const fileChanges = useFileChanges();
+  // Used to order agents in the "Areas" tab exactly like the Agent Overview panel.
+  const toolExecutions = useToolExecutions();
+  const agentsWithUnseenOutput = useAgentsWithUnseenOutput();
 
   // Stabilize callback props via refs to remove them from useMemo dependency arrays.
   // Actions inside search results capture these via ref so the data arrays don't
@@ -59,16 +86,45 @@ export function useSpotlightSearch({
   const onOpenMonitoringModalRef = useRef(onOpenMonitoringModal);
   onOpenMonitoringModalRef.current = onOpenMonitoringModal;
 
-  const [query, setQuery] = useState('');
+  const [query, setQueryState] = useState<string>(loadPersistedQuery);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  // Last-used tab restored from localStorage so reopening starts where the user left off.
+  const [activeTab, setActiveTabState] = useState<SpotlightTab>(loadPersistedTab);
 
-  // Reset state when opening
+  // Persisting query setter so the last search is remembered across opens.
+  const setQuery = useCallback((value: string) => {
+    setQueryState(value);
+    setStorageString(STORAGE_KEYS.SPOTLIGHT_QUERY, value);
+  }, []);
+
+  // On open, restore the last query (the Spotlight container pre-selects it so
+  // typing replaces it) and reset the highlighted row. The active tab is kept.
   useEffect(() => {
     if (isOpen) {
-      setQuery('');
+      setQueryState(loadPersistedQuery());
       setSelectedIndex(0);
     }
   }, [isOpen]);
+
+  // Persisting tab setter. Used by the tab bar and Tab-key cycling.
+  const setActiveTab = useCallback((tab: SpotlightTab) => {
+    setActiveTabState(tab);
+    setStorage(STORAGE_KEYS.SPOTLIGHT_TAB, tab);
+  }, []);
+
+  // Cycle forward (1) or backward (-1) through the tabs, wrapping around.
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+  const cycleTab = useCallback((direction: 1 | -1) => {
+    const idx = SPOTLIGHT_TABS.indexOf(activeTabRef.current);
+    const next = SPOTLIGHT_TABS[(idx + direction + SPOTLIGHT_TABS.length) % SPOTLIGHT_TABS.length];
+    setActiveTab(next);
+  }, [setActiveTab]);
+
+  // Switching tabs changes the visible list — reset the highlighted row.
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [activeTab]);
 
   // Get shortcuts for display
   const shortcuts = store.getShortcuts();
@@ -150,11 +206,13 @@ export function useSpotlightSearch({
         userQueries.push(agent.lastAssignedTask);
       }
 
-      // Build subtitle with basic info
-      const subtitle = `${agent.class} • ${agent.status} • ${agent.cwd}`;
+      // Build subtitle with basic info. Status is shown as a colored chip
+      // (see _status below), so it is omitted from the subtitle text to avoid
+      // duplication — but kept in the searchable text so it stays findable.
+      const subtitle = `${agent.class} • ${agent.cwd}`;
 
-      // Build searchable text including file names and user queries
-      let searchableText = `${agent.name} ${subtitle}`;
+      // Build searchable text including status, file names and user queries
+      let searchableText = `${agent.name} ${agent.class} ${agent.status} ${agent.cwd}`;
 
       // Add file names to searchable text
       if (fileNames.length > 0) {
@@ -192,6 +250,7 @@ export function useSpotlightSearch({
         _modifiedFiles: uniqueFiles,
         _userQueries: userQueries,
         _agentId: agent.id,
+        _status: agent.status,
         action: () => {
           onCloseRef.current();
           // Remember this pick so it floats to the top on the next Spotlight open.
@@ -222,6 +281,72 @@ export function useSpotlightSearch({
     }));
   }, [isOpen, areas]);
 
+  // ---- "Areas" tab data ----------------------------------------------------
+  // Map agentId -> its agent SearchResult so each area's agent list can reuse the
+  // exact same result objects (and their select actions) built above.
+  const agentResultById = useMemo(() => {
+    const map = new Map<string, SearchResult>();
+    for (const r of agentResults) {
+      if (r._agentId) map.set(r._agentId, r);
+    }
+    return map;
+  }, [agentResults]);
+
+  // Group agents by the (non-archived) area they sit in, using the same
+  // position-based membership rule the Agent Overview panel uses.
+  const agentsByAreaId = useMemo(() => {
+    const map = new Map<string, Agent[]>();
+    if (!isOpen) return map;
+    for (const agent of agents.values()) {
+      const area = store.getAreaForAgent(agent.id);
+      if (!area || area.archived) continue;
+      const list = map.get(area.id);
+      if (list) list.push(agent);
+      else map.set(area.id, [agent]);
+    }
+    return map;
+  }, [isOpen, agents, areas]);
+
+  // Latest tool-execution timestamp per agent (newest first), mirroring the
+  // AgentOverviewPanel's toolsByAgent[0] lookup used by its 'recent' sort.
+  const latestToolTimestamp = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const exec of toolExecutions) {
+      if (!map.has(exec.agentId)) map.set(exec.agentId, exec.timestamp);
+    }
+    return map;
+  }, [toolExecutions]);
+
+  // Build the per-area sections shown in the "Areas" tab. Each area's agents are
+  // ordered identically to the Agent Overview panel ('recent' mode).
+  const areaSections: SpotlightAreaSection[] = useMemo(() => {
+    if (!isOpen) return [];
+    const q = query.trim().toLowerCase();
+    const comparator = makeAgentOverviewComparator({
+      sortMode: getOverviewSortMode(),
+      agentsWithUnseenOutput,
+      getLatestToolTimestamp: (id) => latestToolTimestamp.get(id),
+    });
+
+    const candidateAreas = Array.from(areas.values())
+      .filter((area) => !area.archived)
+      .filter((area) => (q ? area.name.toLowerCase().includes(q) : true))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+    const sections: SpotlightAreaSection[] = [];
+    for (const area of candidateAreas) {
+      const areaAgents = (agentsByAreaId.get(area.id) || []).slice().sort(comparator);
+      const agentResultsForArea = areaAgents
+        .map((a) => agentResultById.get(a.id))
+        .filter((r): r is SearchResult => !!r);
+      // No query: hide empty areas to reduce noise. With a query: keep
+      // name-matched areas visible even when they currently hold no agents.
+      if (!q && agentResultsForArea.length === 0) continue;
+      sections.push({ areaId: area.id, areaName: area.name, areaColor: area.color, agents: agentResultsForArea });
+    }
+    return sections;
+  }, [isOpen, query, areas, agentsByAreaId, agentResultById, agentsWithUnseenOutput, latestToolTimestamp]);
+
   // Build building results (server, boss, and database buildings)
   const buildingResults: SearchResult[] = useMemo(() => {
     if (!isOpen) return [];
@@ -242,8 +367,14 @@ export function useSpotlightSearch({
           subtitle += ` • ${building.cwd}`;
         }
 
-        // Build search text including database connection details
+        // Auto-detected listening ports (servers) — shown as clickable links.
+        const ports = building.pm2Status?.ports || [];
+
+        // Build search text including database connection details and ports
         let searchText = `${building.name} ${building.type} ${building.status} ${building.cwd || ''} ${building.pm2?.name || ''}`;
+        if (ports.length > 0) {
+          searchText += ` ${ports.join(' ')}`;
+        }
         if (building.type === 'database' && building.database?.connections) {
           for (const conn of building.database.connections) {
             searchText += ` ${conn.name} ${conn.engine} ${conn.host} ${conn.database || ''} mysql postgresql sql`;
@@ -255,6 +386,7 @@ export function useSpotlightSearch({
           type: 'building' as const,
           title: building.name,
           subtitle,
+          _ports: ports,
           icon: (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <Icon name="status-pending" size={10} weight="fill" color={statusColor} />
@@ -390,8 +522,8 @@ export function useSpotlightSearch({
     [buildingResults]
   );
 
-  // Compute search results
-  const results = useMemo(() => {
+  // Compute the full (All-tab) search results
+  const allResults = useMemo(() => {
     if (!query.trim()) {
       // Show recent/suggested items when no query - prioritize buildings, then agents
       const suggested: SearchResult[] = [];
@@ -575,6 +707,25 @@ export function useSpotlightSearch({
     return finalResults;
   }, [query, agentFuse, commandFuse, areaFuse, modifiedFileFuse, buildingFuse, commands, agentResults, areaResults, buildingResults, recentAgentIds]);
 
+  // Filter the flat result list to the active tab. 'all' shows everything;
+  // 'buildings'/'commands' filter by type; 'areas' is the flattened agent list
+  // from the area sections (used for keyboard navigation + Enter).
+  const results = useMemo(() => {
+    switch (activeTab) {
+      case 'agents':
+        return allResults.filter((r) => r.type === 'agent');
+      case 'buildings':
+        return allResults.filter((r) => r.type === 'building');
+      case 'commands':
+        return allResults.filter((r) => r.type === 'command');
+      case 'areas':
+        return areaSections.flatMap((s) => s.agents);
+      case 'all':
+      default:
+        return allResults;
+    }
+  }, [activeTab, allResults, areaSections]);
+
   // Clamp selected index to valid range
   useEffect(() => {
     if (selectedIndex >= results.length) {
@@ -668,6 +819,10 @@ export function useSpotlightSearch({
     selectedIndex,
     setSelectedIndex,
     results,
+    activeTab,
+    setActiveTab,
+    cycleTab,
+    areaSections,
     handleKeyDown,
     highlightMatch,
   };

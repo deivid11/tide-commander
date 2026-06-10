@@ -6,6 +6,7 @@
 import React, { memo } from 'react';
 import type { SearchResult } from './types';
 import { formatDuration, getTypeLabel } from './utils';
+import { getAgentStatusColor } from '../../utils/colors';
 
 interface SpotlightItemProps {
   result: SearchResult;
@@ -30,6 +31,10 @@ export const SpotlightItem = memo(function SpotlightItem({
     (result.matchedFiles && result.matchedFiles.length > 0) ||
     result.matchedQuery;
 
+  // Colored status chip for agent results.
+  const statusColor = result._status ? getAgentStatusColor(result._status) : undefined;
+  const ports = result.type === 'building' ? result._ports : undefined;
+
   return (
     <div
       className={`spotlight-item ${isSelected ? 'selected' : ''} ${result.activityText ? 'has-activity' : ''}`}
@@ -42,9 +47,18 @@ export const SpotlightItem = memo(function SpotlightItem({
         {result.icon}
       </span>
       <div className="spotlight-item-content">
-        {/* Main header: Title + Type Badge */}
+        {/* Main header: Title + Status chip + Type Badge */}
         <div className="spotlight-item-header">
           <span className="spotlight-item-title">{highlightMatch(result.title, query)}</span>
+          {result._status && statusColor && (
+            <span
+              className={`spotlight-item-agent-status${result._status === 'working' ? ' spotlight-item-agent-status--working' : ''}`}
+              style={{ color: statusColor, background: `${statusColor}1f`, borderColor: `${statusColor}55` }}
+            >
+              {result._status === 'working' && <span className="spotlight-working-dot" aria-hidden="true" />}
+              {result._status.replace(/_/g, ' ')}
+            </span>
+          )}
           <span className={`spotlight-item-type ${result.type}`} aria-label={getTypeLabel(result.type)}>
             {getTypeLabel(result.type)}
           </span>
@@ -53,6 +67,25 @@ export const SpotlightItem = memo(function SpotlightItem({
         {/* Subtitle/Path info */}
         {result.subtitle && (
           <span className="spotlight-item-subtitle">{highlightMatch(result.subtitle, query)}</span>
+        )}
+
+        {/* Building listening ports — open http://localhost:<port> in a new tab */}
+        {ports && ports.length > 0 && (
+          <span className="spotlight-item-ports">
+            {ports.map((port) => (
+              <a
+                key={port}
+                className="spotlight-port-link"
+                href={`http://localhost:${port}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`http://localhost:${port}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                :{port}
+              </a>
+            ))}
+          </span>
         )}
 
         {/* Activity/Summary text - most important context */}

@@ -10,6 +10,21 @@ import type { IconName } from '../Icon';
 // Search result types
 export type SearchResultType = 'agent' | 'command' | 'area' | 'modified-file' | 'building';
 
+// Result-grouping tabs shown at the top of the palette. Order defines the
+// forward Tab-cycle order (All -> Agents -> Buildings -> Areas -> Commands -> All).
+export type SpotlightTab = 'all' | 'agents' | 'buildings' | 'areas' | 'commands';
+
+export const SPOTLIGHT_TABS: readonly SpotlightTab[] = ['all', 'agents', 'buildings', 'areas', 'commands'];
+
+// One area section rendered in the "Areas" tab: the area plus the agents that
+// belong to it, ordered exactly the way the Agent Overview panel orders them.
+export interface SpotlightAreaSection {
+  areaId: string;
+  areaName: string;
+  areaColor: string;
+  agents: SearchResult[];
+}
+
 export interface SearchResult {
   id: string;
   type: SearchResultType;
@@ -28,6 +43,8 @@ export interface SearchResult {
   _modifiedFiles?: string[];
   _userQueries?: string[];
   _agentId?: string; // Raw agent id (agent results only) — used for recency/MRU ranking
+  _status?: string; // Raw agent status (agent results only) — rendered as a colored chip
+  _ports?: number[]; // Auto-detected listening ports (building results only) — rendered as links
 }
 
 // Props for the main Spotlight component
@@ -68,8 +85,16 @@ export interface SpotlightSearchState {
   selectedIndex: number;
   setSelectedIndex: (value: number | ((prev: number) => number)) => void;
 
-  // Results
+  // Results (already filtered to the active tab)
   results: SearchResult[];
+
+  // Tab state
+  activeTab: SpotlightTab;
+  setActiveTab: (tab: SpotlightTab) => void;
+  cycleTab: (direction: 1 | -1) => void;
+
+  // Area sections rendered when the "Areas" tab is active
+  areaSections: SpotlightAreaSection[];
 
   // Navigation handlers
   handleKeyDown: (e: React.KeyboardEvent) => void;

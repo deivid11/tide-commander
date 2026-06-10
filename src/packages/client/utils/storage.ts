@@ -37,6 +37,10 @@ export const STORAGE_KEYS = {
   COMMANDER_TAB: 'commander-active-tab',
   COMMANDER_FILTERS: 'commander-filters',
 
+  // Spotlight
+  SPOTLIGHT_TAB: 'tide-spotlight-tab',
+  SPOTLIGHT_QUERY: 'tide-spotlight-query',
+
   // Spawn/CWD
   LAST_CWD: 'tide-last-cwd',
   DEFAULT_AGENT_CLASS: 'tide-default-agent-class',

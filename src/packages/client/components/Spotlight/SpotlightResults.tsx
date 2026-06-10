@@ -5,19 +5,21 @@
 
 import React, { forwardRef, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { SearchResult } from './types';
+import type { SearchResult, SpotlightTab, SpotlightAreaSection } from './types';
 import { SpotlightItem } from './SpotlightItem';
 
 interface SpotlightResultsProps {
   results: SearchResult[];
   selectedIndex: number;
   query: string;
+  activeTab: SpotlightTab;
+  areaSections: SpotlightAreaSection[];
   highlightMatch: (text: string, searchQuery: string) => React.ReactNode;
   onSelectIndex: (index: number) => void;
 }
 
 export const SpotlightResults = forwardRef<HTMLDivElement, SpotlightResultsProps>(function SpotlightResults(
-  { results, selectedIndex, query, highlightMatch, onSelectIndex },
+  { results, selectedIndex, query, activeTab, areaSections, highlightMatch, onSelectIndex },
   ref
 ) {
   const { t } = useTranslation(['terminal']);
@@ -92,6 +94,51 @@ export const SpotlightResults = forwardRef<HTMLDivElement, SpotlightResultsProps
       selectedEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   }, [selectedIndex, ref]);
+
+  // "Areas" tab: render each area as a section header with its agents listed
+  // underneath. The flat index assigned to each agent matches the flattened
+  // `results` array (areaSections.flatMap(s => s.agents)) used for keyboard nav.
+  if (activeTab === 'areas') {
+    if (areaSections.length === 0) {
+      return (
+        <div className="spotlight-results" ref={ref}>
+          <div className="spotlight-empty">{t('terminal:spotlight.noResults')}</div>
+        </div>
+      );
+    }
+    let flatIndex = 0;
+    return (
+      <div className="spotlight-results" ref={ref}>
+        {areaSections.map((section) => (
+          <div key={section.areaId}>
+            <div className="spotlight-category-header spotlight-area-section-header">
+              <span className="spotlight-area-dot" style={{ background: section.areaColor }} aria-hidden="true" />
+              <span className="spotlight-area-name">{section.areaName}</span>
+              <span className="spotlight-area-count">{section.agents.length}</span>
+            </div>
+            {section.agents.length === 0 ? (
+              <div className="spotlight-area-empty">{t('terminal:spotlight.noAgentsInArea')}</div>
+            ) : (
+              section.agents.map((result) => {
+                const index = flatIndex++;
+                return (
+                  <SpotlightItem
+                    key={result.id}
+                    result={result}
+                    isSelected={index === selectedIndex}
+                    query={query}
+                    highlightMatch={highlightMatch}
+                    onClick={() => result.action()}
+                    onMouseEnter={() => { if (mouseHasMoved.current) onSelectIndex(index); }}
+                  />
+                );
+              })
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (results.length === 0) {
     return (
