@@ -31,6 +31,10 @@ interface LogViewerModalProps {
   onClear: () => void;
   emptyMessage?: string;
   streamingIndicatorLabel?: string;
+  /** Extra info rendered in the header (e.g. process status / exposed ports). */
+  headerInfo?: React.ReactNode;
+  /** When true and there are no log lines yet, show a spinner instead of a blank area. */
+  isLoading?: boolean;
   extraToolbar?: React.ReactNode;
   extraFooter?: React.ReactNode;
   modalClassName?: string;
@@ -46,6 +50,8 @@ export function LogViewerModal({
   onClear,
   emptyMessage,
   streamingIndicatorLabel,
+  headerInfo,
+  isLoading,
   extraToolbar,
   extraFooter,
   modalClassName,
@@ -330,6 +336,7 @@ export function LogViewerModal({
                 {streamingIndicatorLabel || t('terminal:logs.live')}
               </span>
             )}
+            {headerInfo}
           </div>
           <div className="header-right">
             <span className="line-count">{t('terminal:logs.lines', { count: lines.length })}</span>
@@ -510,7 +517,14 @@ export function LogViewerModal({
         >
           {lines.length === 0 ? (
             <div className="logs-empty">
-              {emptyMessage || (isStreaming ? t('terminal:logs.waitingForLogs') : t('terminal:logs.noLogs'))}
+              {isLoading || isStreaming ? (
+                <div className="logs-loading">
+                  <span className="logs-loading-spinner" aria-hidden="true"></span>
+                  <span>{emptyMessage || (isLoading ? t('terminal:logs.loadingLogs') : t('terminal:logs.waitingForLogs'))}</span>
+                </div>
+              ) : (
+                <span>{emptyMessage || t('terminal:logs.noLogs')}</span>
+              )}
             </div>
           ) : (
             <div className="logs-lines">

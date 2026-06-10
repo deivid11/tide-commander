@@ -119,6 +119,61 @@
   }
 }
 
+// Result-grouping tabs bar (All / Buildings / Areas / Commands)
+.spotlight-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border-bottom: 1px solid $border-color;
+  background: rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+}
+
+.spotlight-tab {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: $text-muted;
+  font-family: $font-family;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+
+  &:hover {
+    color: $text-secondary;
+    background: rgba($accent-blue, 0.08);
+  }
+
+  &.active {
+    color: $accent-blue;
+    background: rgba($accent-blue, 0.15);
+    border-color: rgba($accent-blue, 0.3);
+  }
+}
+
+.spotlight-tabs-hint {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+
+  kbd {
+    background: rgba($accent-blue, 0.12);
+    border: 1px solid rgba($accent-blue, 0.25);
+    border-radius: 3px;
+    padding: 1px 4px;
+    font-family: $font-mono;
+    font-size: 8px;
+    color: $accent-blue;
+    font-weight: 500;
+  }
+}
+
 // Results section with improved scrolling
 .spotlight-results {
   flex: 1;
@@ -171,6 +226,50 @@
     border-top: none;
     background: transparent;
   }
+}
+
+// "Areas" tab section header — area color dot + name + agent count
+.spotlight-area-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: none;
+  letter-spacing: 0.2px;
+  font-size: 10px;
+  color: $text-secondary;
+}
+
+.spotlight-area-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+
+.spotlight-area-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spotlight-area-count {
+  font-size: 8px;
+  color: $text-muted;
+  background: rgba($text-muted, 0.15);
+  border-radius: 8px;
+  padding: 0 6px;
+  font-weight: 600;
+}
+
+.spotlight-area-empty {
+  padding: 6px 14px;
+  font-size: 9px;
+  font-style: italic;
+  color: $text-muted;
+  opacity: 0.75;
 }
 
 // Individual result item - IntelliJ inspired
@@ -457,6 +556,74 @@
     background: rgba($accent-red, 0.15);
     color: $accent-red;
     border-color: rgba($accent-red, 0.2);
+  }
+}
+
+// Colored agent status chip in the result header (color set inline per status)
+.spotlight-item-agent-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 7px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+// Working agents get a pulsing glow + a breathing dot so they stand out.
+.spotlight-item-agent-status--working {
+  animation: spotlight-working-pulse 1.4s ease-in-out infinite;
+}
+
+.spotlight-working-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+  animation: spotlight-working-dot 1.4s ease-in-out infinite;
+}
+
+@keyframes spotlight-working-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(74, 158, 255, 0); }
+  50% { box-shadow: 0 0 7px 0 currentColor; }
+}
+
+@keyframes spotlight-working-dot {
+  0%, 100% { opacity: 0.35; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+// Building listening-port links (open http://localhost:<port>)
+.spotlight-item-ports {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin-top: 1px;
+}
+
+.spotlight-port-link {
+  font-size: 8px;
+  font-family: $font-mono;
+  font-weight: 600;
+  color: $accent-cyan;
+  background: rgba($accent-cyan, 0.12);
+  border: 1px solid rgba($accent-cyan, 0.25);
+  border-radius: 3px;
+  padding: 0 5px;
+  text-decoration: none;
+  transition: all 0.12s ease;
+
+  &:hover {
+    background: rgba($accent-cyan, 0.22);
+    border-color: rgba($accent-cyan, 0.45);
+    text-decoration: underline;
   }
 }
 

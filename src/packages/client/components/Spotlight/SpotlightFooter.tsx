@@ -18,6 +18,9 @@ export const SpotlightFooter = memo(function SpotlightFooter() {
         <span className="spotlight-footer-hint">
           <kbd>Enter</kbd> {t('terminal:spotlight.select')}
         </span>
+        <span className="spotlight-footer-hint">
+          <kbd>Tab</kbd> {t('terminal:spotlight.switchTabs')}
+        </span>
       </div>
       <div className="spotlight-footer-right">
         <span className="spotlight-footer-hint">

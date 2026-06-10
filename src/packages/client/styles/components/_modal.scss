@@ -1070,11 +1070,33 @@
 .context-view-modal {
   width: 520px;
   max-width: 95vw;
+  // Cap the modal to the viewport and let only the body scroll, so the header
+  // (title + Refresh) and footer (Close) stay reachable when the content —
+  // context breakdown + Claude usage + 7-day chart — is taller than the
+  // screen (the bug on mobile, where the centered modal overflowed off both
+  // edges with no way to reach Close). The flex column pins header/footer.
+  // Desktop content fits within this height, so the layout is unchanged there.
+  max-height: 90vh;
+  max-height: 90dvh;
+  display: flex;
+  flex-direction: column;
 
   .modal-header {
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-shrink: 0;
+  }
+
+  .modal-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .modal-footer {
+    flex-shrink: 0;
   }
 }
 

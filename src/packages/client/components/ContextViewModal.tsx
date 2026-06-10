@@ -153,7 +153,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
   return (
     <ModalPortal>
       <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
-        <div className="modal context-view-modal" style={{ maxWidth: '520px' }}>
+        <div className="modal context-view-modal">
         <div className="modal-header" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ flex: 1 }}>{t('terminal:context.contextWindow', { name: agent.name })}</span>
           {onRefresh && (

@@ -80,6 +80,71 @@
           }
         }
       }
+
+      // Live process status badge (online / stopped / errored / ...)
+      .pm2-status-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.1rem 0.45rem;
+        border-radius: $radius-sm;
+        font-size: 0.65rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        background: rgba($text-muted, 0.18);
+        color: $text-secondary;
+        border: 1px solid transparent;
+
+        &.status-online,
+        &.status-running {
+          background: rgba($accent-green, 0.15);
+          color: $accent-green;
+          border-color: rgba($accent-green, 0.4);
+        }
+
+        &.status-errored,
+        &.status-error {
+          background: rgba($accent-red, 0.15);
+          color: $accent-red;
+          border-color: rgba($accent-red, 0.4);
+        }
+
+        &.status-stopping,
+        &.status-starting {
+          background: rgba($accent-yellow, 0.15);
+          color: $accent-yellow;
+          border-color: rgba($accent-yellow, 0.4);
+        }
+      }
+
+      // Exposed listening ports
+      .pm2-ports-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.1rem 0.45rem;
+        border-radius: $radius-sm;
+        font-size: 0.7rem;
+        font-family: $font-mono;
+        color: $text-secondary;
+        background: $bg-tertiary;
+        border: 1px solid $border-color;
+
+        .pm2-port-link {
+          color: $accent-blue;
+          text-decoration: none;
+          font-weight: 600;
+          padding: 0 0.15rem;
+          border-radius: 3px;
+          transition: all 0.15s;
+
+          &:hover {
+            color: $text-primary;
+            background: rgba($accent-blue, 0.2);
+            text-decoration: underline;
+          }
+        }
+      }
     }
 
     .header-right {
@@ -161,6 +226,41 @@
           background: rgba($accent-red, 0.15);
           color: $accent-red;
           border-color: $accent-red;
+        }
+      }
+
+      &:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+
+        &:hover {
+          background: $bg-secondary;
+          color: $text-secondary;
+          border-color: $border-color;
+        }
+      }
+    }
+
+    // PM2 process action buttons (restart / stop) grouped with a divider
+    .pm2-process-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding-left: 0.5rem;
+      margin-left: 0.25rem;
+      border-left: 1px solid $border-color;
+
+      .pm2-action-feedback {
+        font-size: 0.72rem;
+        font-weight: 600;
+        white-space: nowrap;
+
+        &.success {
+          color: $accent-green;
+        }
+
+        &.error {
+          color: $accent-red;
         }
       }
     }
@@ -364,6 +464,26 @@
       height: 100%;
       color: $text-muted;
       font-size: 0.9rem;
+
+      .logs-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .logs-loading-spinner {
+        width: 28px;
+        height: 28px;
+        border: 3px solid rgba($text-muted, 0.25);
+        border-top-color: $accent-blue;
+        border-radius: 50%;
+        animation: logs-spin 0.8s linear infinite;
+      }
+
+      @keyframes logs-spin {
+        to { transform: rotate(360deg); }
+      }
     }
 
     .logs-lines {

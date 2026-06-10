@@ -13,6 +13,7 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import type { SpotlightProps } from './types';
 import { useSpotlightSearch } from './useSpotlightSearch';
 import { SpotlightInput } from './SpotlightInput';
+import { SpotlightTabs } from './SpotlightTabs';
 import { SpotlightResults } from './SpotlightResults';
 import { SpotlightFooter } from './SpotlightFooter';
 
@@ -35,28 +36,46 @@ export function Spotlight({
   const resultsRef = useRef<HTMLDivElement>(null);
   const resultsLengthRef = useRef(0);
 
-  const { query, setQuery, selectedIndex, setSelectedIndex, results, handleKeyDown, highlightMatch } =
-    useSpotlightSearch({
-      isOpen,
-      onClose,
-      onOpenSpawnModal,
-      onOpenCommanderView,
-      onOpenToolbox,
-      onOpenFileExplorer,
-      onOpenPM2LogsModal,
-      onOpenBossLogsModal,
-      onOpenDatabasePanel,
-      onOpenMonitoringModal,
-    });
+  const {
+    query,
+    setQuery,
+    selectedIndex,
+    setSelectedIndex,
+    results,
+    activeTab,
+    setActiveTab,
+    cycleTab,
+    areaSections,
+    handleKeyDown,
+    highlightMatch,
+  } = useSpotlightSearch({
+    isOpen,
+    onClose,
+    onOpenSpawnModal,
+    onOpenCommanderView,
+    onOpenToolbox,
+    onOpenFileExplorer,
+    onOpenPM2LogsModal,
+    onOpenBossLogsModal,
+    onOpenDatabasePanel,
+    onOpenMonitoringModal,
+  });
 
   resultsLengthRef.current = results.length;
+
+  // Keep the latest cycleTab in a ref so the window-level keydown handler can
+  // cycle tabs without re-subscribing on every render.
+  const cycleTabRef = useRef(cycleTab);
+  cycleTabRef.current = cycleTab;
 
   // Focus input when opening
   useEffect(() => {
     if (isOpen) {
-      // Focus input after a small delay to ensure modal is rendered
+      // Focus input after a small delay to ensure modal is rendered, and select
+      // the restored last query so the user can immediately type over it.
       setTimeout(() => {
         inputRef.current?.focus();
+        inputRef.current?.select();
       }, 50);
     }
   }, [isOpen]);
@@ -104,6 +123,16 @@ export function Spotlight({
         e.stopPropagation();
         e.stopImmediatePropagation();
         onClose();
+        return;
+      }
+
+      // Tab cycles result tabs (Shift+Tab goes backward). Intercept before the
+      // browser moves focus away from the search input.
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        cycleTabRef.current(e.shiftKey ? -1 : 1);
         return;
       }
 
@@ -160,11 +189,15 @@ export function Spotlight({
           onResetSelection={handleResetSelection}
         />
 
+        <SpotlightTabs activeTab={activeTab} onSelect={setActiveTab} />
+
         <SpotlightResults
           ref={resultsRef}
           results={results}
           selectedIndex={selectedIndex}
           query={query}
+          activeTab={activeTab}
+          areaSections={areaSections}
           highlightMatch={highlightMatch}
           onSelectIndex={setSelectedIndex}
         />
