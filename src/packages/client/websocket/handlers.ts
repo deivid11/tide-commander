@@ -4,6 +4,7 @@
 
 import type { Agent, ServerMessage, DelegationDecision, CustomAgentClass, Subagent } from '../../shared/types';
 import { store } from '../store';
+import { noteServerTimestamp } from '../store/outputs';
 import { perf } from '../utils/profiling';
 import { debugLog } from '../services/agentDebugger';
 import { cb } from './callbacks';
@@ -131,6 +132,7 @@ export function handleServerMessage(message: ServerMessage): void {
         message: string;
         timestamp: number;
       };
+      noteServerTimestamp(activity.timestamp);
       store.addActivity(activity);
       break;
     }
@@ -200,6 +202,7 @@ export function handleServerMessage(message: ServerMessage): void {
         uuid: output.uuid,
         toolName: output.toolName,
       }, 'ws:output');
+      noteServerTimestamp(output.timestamp);
       store.addOutput(output.agentId, {
         text: output.text,
         isStreaming: output.isStreaming,

@@ -7,81 +7,50 @@ export const gitCaptain: BuiltinSkillDefinition = {
   allowedTools: ['Bash(git:*)', 'Bash(npm:*)', 'Read', 'Edit', 'Grep', 'Glob'],
   content: `# Git Captain
 
-A comprehensive Git workflow skill for version management, changelogs, tagging, and safe collaboration.
+Git workflow skill: version management, changelogs, tagging, safe collaboration.
 
 ## Core Principles
 
-1. **Never force push** to shared branches (main, master, develop)
-2. **Never auto-resolve conflicts** - always report them to the user
-3. **Always verify** the current branch before operations
-4. **Always show diffs** before committing
-5. **Keep changelogs organized** and human-readable
-6. **NEVER add Co-Authored-By trailers** to commits - commits are purely yours, no AI attribution
-
----
+1. Never force push to shared branches (main, master, develop)
+2. Never auto-resolve conflicts — report them to the user
+3. Verify the current branch before operations
+4. Show diffs before committing
+5. Keep changelogs organized and human-readable
+6. NEVER add Co-Authored-By trailers — commits are purely yours, no AI attribution
 
 ## Workflow: Upload Changes (Commit, Version, Changelog, Tag)
 
-When asked to "upload changes", "release", "bump version", or similar:
+For "upload changes", "release", "bump version", or similar:
 
-### Step 1: Check Current State
-
+**1. Check state** — list any untracked/changed files for the user:
 \`\`\`bash
-# Check we're on the right branch and have no conflicts
 git status
 git branch --show-current
 \`\`\`
 
-If there are untracked files or changes, list them for the user.
-
-### Step 2: Pull Latest Changes First
-
+**2. Pull first** to avoid conflicts:
 \`\`\`bash
-# Always pull before pushing to avoid conflicts
 git pull --rebase origin $(git branch --show-current)
 \`\`\`
+On conflicts: STOP, report the conflicting files, and tell the user to resolve manually, then run \`git add <files>\` and \`git rebase --continue\`.
 
-**If conflicts occur:** STOP immediately and report to user:
-> "Merge conflicts detected. Please resolve these manually:
-> [list conflicting files]
-> After resolving, run \`git add <files>\` and \`git rebase --continue\`"
-
-### Step 3: Review Changes
-
+**3. Review changes** and summarize for the user:
 \`\`\`bash
-# Show what will be committed
 git diff --stat
 git diff
 \`\`\`
 
-Present a summary of changes to the user.
-
-### Step 4: Determine Version Bump
-
-Ask the user or infer from changes:
-- **patch** (0.0.X): Bug fixes, small changes
-- **minor** (0.X.0): New features, non-breaking changes
-- **major** (X.0.0): Breaking changes, major rewrites
-
-Read current version from \`package.json\`:
+**4. Determine version bump** (ask the user or infer): patch (0.0.X) bug fixes/small changes; minor (0.X.0) new features, non-breaking; major (X.0.0) breaking changes/major rewrites. Read current version:
 \`\`\`bash
 cat package.json | grep '"version"'
 \`\`\`
 
-### Step 5: Update Version
-
+**5. Update version** (or edit package.json manually if npm is unavailable):
 \`\`\`bash
-# Use npm version (updates package.json and creates git tag)
 npm version <patch|minor|major> --no-git-tag-version
 \`\`\`
 
-Or manually edit package.json if npm is not available.
-
-### Step 6: Update Changelog
-
-Look for \`CHANGELOG.md\` in the project root. If it doesn't exist, create one.
-
-**Changelog Format:**
+**6. Update changelog** — \`CHANGELOG.md\` in project root; create if missing:
 \`\`\`markdown
 # Changelog
 
@@ -90,55 +59,27 @@ All notable changes to this project will be documented in this file.
 ## [X.Y.Z] - YYYY-MM-DD
 
 ### Added
-- New feature descriptions
-
 ### Changed
-- Changes to existing functionality
-
 ### Fixed
-- Bug fixes
-
 ### Removed
-- Removed features
-
 ### Security
-- Security-related changes
-
 ### Deprecated
-- Features that will be removed in future versions
 \`\`\`
+Categorize commits: \`feat:\`/\`add:\` → Added; \`fix:\`/\`bugfix:\` → Fixed; \`change:\`/\`update:\`/\`refactor:\` → Changed; \`remove:\`/\`delete:\` → Removed; \`security:\` → Security; \`deprecate:\` → Deprecated. Summarize from \`git log --oneline -20\`.
 
-**How to categorize commits:**
-- \`feat:\` or \`add:\` -> Added
-- \`fix:\` or \`bugfix:\` -> Fixed
-- \`change:\` or \`update:\` or \`refactor:\` -> Changed
-- \`remove:\` or \`delete:\` -> Removed
-- \`security:\` -> Security
-- \`deprecate:\` -> Deprecated
-
-Read recent commits to summarize:
+**7. Stage and commit:**
 \`\`\`bash
-git log --oneline -20
-\`\`\`
-
-### Step 7: Stage and Commit
-
-\`\`\`bash
-# Stage all changes including version and changelog
 git add package.json CHANGELOG.md
 git add -A  # or specific files
 
-# Create commit with conventional format
 git commit -m "chore(release): v<VERSION>
 
 - Summary of main changes
 - Another change"
 \`\`\`
 
-### Step 8: Create Tag
-
+**8. Create annotated tag:**
 \`\`\`bash
-# Create annotated tag
 git tag -a v<VERSION> -m "Release v<VERSION>
 
 Highlights:
@@ -146,99 +87,30 @@ Highlights:
 - Another highlight"
 \`\`\`
 
-### Step 9: Push Changes and Tags
-
+**9. Push commits and tag:**
 \`\`\`bash
-# Push commits
 git push origin $(git branch --show-current)
-
-# Push tags
 git push origin v<VERSION>
 \`\`\`
 
-### Step 10: Create GitHub Release
-
-After pushing the tag, create a GitHub release to make it visible in the "Releases" tab:
-
+**10. Create GitHub release** (makes it visible in the Releases tab):
 \`\`\`bash
-# Create GitHub release with notes
 gh release create v<VERSION> --notes "<RELEASE_NOTES>"
 \`\`\`
-
-**Release notes format:**
-\`\`\`markdown
-## Highlights
-
-### ✨ Feature Name
-Brief description of what was added.
-
-### 🐛 Bug Fixes
-Description of bugs fixed.
-
-## Changes
-- Bullet point of changes
-- Another change
-
-## Technical Details
-- Technical implementation note
-- Architecture changes
-\`\`\`
-
----
+Notes format: \`## Highlights\` (feature/fix subsections), \`## Changes\` (bullets), \`## Technical Details\` (implementation/architecture notes).
 
 ## Workflow: Download Changes (Pull/Sync)
 
-When asked to "pull", "sync", "download changes", or "update from remote":
+For "pull", "sync", "download changes", "update from remote":
 
-### Step 1: Stash Local Changes (if any)
-
-\`\`\`bash
-git status
-# If there are uncommitted changes:
-git stash push -m "Auto-stash before pull $(date +%Y%m%d-%H%M%S)"
-\`\`\`
-
-### Step 2: Fetch and Pull
-
-\`\`\`bash
-git fetch origin
-git pull --rebase origin $(git branch --show-current)
-\`\`\`
-
-### Step 3: Handle Conflicts
-
-**If conflicts occur:** STOP and report to user:
-
-> "Merge conflicts detected during pull. The following files have conflicts:
->
-> [list files from \`git diff --name-only --diff-filter=U\`]
->
-> **Do not attempt to auto-resolve.** Please:
-> 1. Open each file and look for \`<<<<<<<\`, \`=======\`, \`>>>>>>>\` markers
-> 2. Decide which changes to keep
-> 3. Remove the conflict markers
-> 4. Run \`git add <resolved-files>\`
-> 5. Run \`git rebase --continue\`
->
-> If you want to abort: \`git rebase --abort\`"
-
-### Step 4: Restore Stashed Changes
-
-\`\`\`bash
-# If we stashed earlier
-git stash pop
-\`\`\`
-
-If stash pop causes conflicts, report to user.
-
----
+1. \`git status\`; if uncommitted changes exist: \`git stash push -m "Auto-stash before pull $(date +%Y%m%d-%H%M%S)"\`
+2. \`git fetch origin\` then \`git pull --rebase origin $(git branch --show-current)\`
+3. On conflicts: STOP and report files from \`git diff --name-only --diff-filter=U\`. Do NOT auto-resolve. Tell the user to: open each file and resolve the \`<<<<<<<\` / \`=======\` / \`>>>>>>>\` markers, run \`git add <resolved-files>\`, then \`git rebase --continue\` (abort with \`git rebase --abort\`).
+4. If stashed earlier: \`git stash pop\` (report any pop conflicts to the user).
 
 ## Workflow: Check Status
 
-When asked about git status, branch info, or repository state:
-
 \`\`\`bash
-# Comprehensive status check
 echo "=== Branch ===" && git branch -vv
 echo ""
 echo "=== Status ===" && git status -sb
@@ -248,31 +120,13 @@ echo ""
 echo "=== Remote ===" && git remote -v
 \`\`\`
 
----
-
 ## Safety Rules
 
-1. **NEVER run these commands without explicit user permission:**
-   - \`git push --force\` or \`git push -f\`
-   - \`git reset --hard\`
-   - \`git clean -fd\`
-   - \`git checkout .\` (discards all changes)
-   - \`git branch -D\` (force delete branch)
+1. NEVER without explicit user permission: \`git push --force\` / \`git push -f\`, \`git reset --hard\`, \`git clean -fd\`, \`git checkout .\` (discards all changes), \`git branch -D\` (force delete branch).
+2. ALWAYS stop and report: merge/rebase conflicts, rejected push, branch behind remote by many commits (>10).
+3. Before destructive operations: confirm branch name before pushing, show diff before committing, list files before \`git add -A\`.
 
-2. **ALWAYS stop and report to user when:**
-   - Merge conflicts are detected
-   - Rebase conflicts occur
-   - Push is rejected
-   - Branch is behind remote by many commits (>10)
-
-3. **ALWAYS verify before destructive operations:**
-   - Confirm branch name before pushing
-   - Show diff before committing
-   - List files before \`git add -A\`
-
----
-
-## Quick Reference Commands
+## Quick Reference
 
 | Action | Command |
 |--------|---------|
@@ -288,18 +142,7 @@ echo "=== Remote ===" && git remote -v
 | Create branch | \`git checkout -b <name>\` |
 | Switch branch | \`git checkout <name>\` |
 
----
+## Version Guidelines
 
-## Version Number Guidelines
-
-- **0.x.x** - Pre-release, API may change
-- **1.0.0** - First stable release
-- **x.Y.0** - New features added (backwards compatible)
-- **x.x.Z** - Bug fixes only
-
-When in doubt about version type, ask the user:
-> "What type of release is this?
-> - **patch** (bug fixes only)
-> - **minor** (new features, no breaking changes)
-> - **major** (breaking changes)"`,
+0.x.x pre-release (API may change); 1.0.0 first stable; x.Y.0 new backwards-compatible features; x.x.Z bug fixes only. When in doubt, ask the user: patch (bug fixes only) / minor (new features, no breaking changes) / major (breaking changes).`,
 };

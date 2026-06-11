@@ -7,54 +7,27 @@ export const bitbucketPR: BuiltinSkillDefinition = {
   allowedTools: ['Bash(curl:*)', 'Bash(git:*)', 'Read', 'Grep', 'Glob'],
   content: `# Bitbucket Pull Request Creator
 
-Create pull requests on Bitbucket Cloud using curl API requests with API token authentication (Basic auth).
+Create pull requests on Bitbucket Cloud via curl with API token authentication (HTTP Basic). Bitbucket deprecated App Passwords in September 2025; existing app passwords are disabled on June 9, 2026 — use API tokens with scopes.
 
-> **Note:** Bitbucket deprecated App Passwords in September 2025. This skill uses the new API tokens with scopes.
-> All existing app passwords will be disabled on June 9, 2026.
+## Required Secrets (Tide Commander Toolbox > Secrets)
 
-## Required Secrets
+- \`BITBUCKET_EMAIL\` — Atlassian account email
+- \`BITBUCKET_TOKEN\` — Bitbucket API token with repo and PR scopes
 
-This skill requires the following secrets to be configured in Tide Commander's Toolbox > Secrets:
+**Create a token:** Bitbucket > Settings (cog) > Personal settings > Atlassian account settings > **Security** tab > **Create and manage API tokens** > **Create API token with scopes** > name + expiry > select **Bitbucket** as the app > minimum scopes:
+- \`read:repository:bitbucket\` (view repo info/branches), \`write:repository:bitbucket\` (push branches)
+- \`read:pullrequest:bitbucket\` (view PRs), \`write:pullrequest:bitbucket\` (create/merge/approve/decline/comment)
 
-| Secret Key | Description |
-|------------|-------------|
-| \`BITBUCKET_EMAIL\` | Your Atlassian account email address |
-| \`BITBUCKET_TOKEN\` | Bitbucket API token with repo and PR scopes |
+Copy the token immediately (shown only once); store as \`BITBUCKET_TOKEN\`, plus your email as \`BITBUCKET_EMAIL\`.
 
-**Setting up a Bitbucket API Token:**
-1. Go to Bitbucket > Settings (cog icon) > Personal settings > Atlassian account settings
-2. Select the **Security** tab
-3. Click **Create and manage API tokens**
-4. Click **Create API token with scopes**
-5. Give it a name and expiry date, then select **Next**
-6. Select **Bitbucket** as the app and continue
-7. Choose these scopes (minimum required):
-   - \`read:repository:bitbucket\` - View repo info and branches
-   - \`write:repository:bitbucket\` - Push branches
-   - \`read:pullrequest:bitbucket\` - View pull requests
-   - \`write:pullrequest:bitbucket\` - Create, merge, approve, decline, comment on PRs
-8. Review and click **Create token**
-9. Copy the token immediately (it is only shown once)
-10. Add it to Tide Commander secrets as \`BITBUCKET_TOKEN\`
-11. Also add your Atlassian email as \`BITBUCKET_EMAIL\`
-
-**Authentication format:** Bitbucket API tokens use HTTP Basic auth. The curl header is built as:
-\`\`\`
-Authorization: Basic <base64 of EMAIL:TOKEN>
-\`\`\`
-
-In curl commands, use the \`-u\` flag with the secret placeholders:
+**Auth format:** HTTP Basic — \`Authorization: Basic <base64 of EMAIL:TOKEN>\`. In curl, use \`-u\` with the secret placeholders:
 \`\`\`bash
 curl -s -u "{{BITBUCKET_EMAIL}}:{{BITBUCKET_TOKEN}}" ...
 \`\`\`
 
----
-
 ## IMPORTANT: All API Calls Must Use Streaming Exec
 
-**Secret placeholders like \`{{BITBUCKET_EMAIL}}\` and \`{{BITBUCKET_TOKEN}}\` are ONLY replaced when commands are executed through the Streaming Exec API (\`/api/exec\`).** Running curl commands directly via Bash will NOT replace the placeholders and will result in authentication failures.
-
-**Every curl command that uses \`{{SECRET}}\` placeholders MUST be wrapped in a Streaming Exec call:**
+Secret placeholders \`{{BITBUCKET_EMAIL}}\` / \`{{BITBUCKET_TOKEN}}\` are ONLY replaced when commands run through the Streaming Exec API (\`/api/exec\`). Direct Bash curl sends raw placeholders and fails auth — a 401 most likely means curl ran outside \`/api/exec\`. Wrap every curl that uses \`{{SECRET}}\` placeholders, and also git push / other long-running operations:
 
 \`\`\`bash
 curl -s -X POST http://localhost:5174/api/exec \\
@@ -62,191 +35,35 @@ curl -s -X POST http://localhost:5174/api/exec \\
   -d '{"agentId":"YOUR_AGENT_ID","command":"curl -s -u \\"{{BITBUCKET_EMAIL}}:{{BITBUCKET_TOKEN}}\\" https://api.bitbucket.org/2.0/repositories/$WORKSPACE/$REPO_SLUG/pullrequests"}'
 \`\`\`
 
-This also applies to git push and other long-running operations:
+## Variables
 
-\`\`\`bash
-curl -s -X POST http://localhost:5174/api/exec \\
-  -H "Content-Type: application/json" \\
-  -d '{"agentId":"YOUR_AGENT_ID","command":"git push -u origin feature-branch"}'
-\`\`\`
+| Variable | Source | Used in |
+|----------|--------|---------|
+| \`WORKSPACE\`, \`REPO_SLUG\` | extracted from git remote URL | all API URLs |
+| \`SOURCE_BRANCH\` | \`git branch --show-current\` | creating PR |
+| \`TARGET_BRANCH\` | user input or default (main/master/dev) | creating PR |
+| \`PR_TITLE\`, \`PR_DESCRIPTION\` | user input or context | creating PR |
+| \`PR_ID\` | extracted from create-PR API response | merge/approve/decline URLs |
+| \`{{BITBUCKET_EMAIL}}\` / \`{{BITBUCKET_TOKEN}}\` | secrets | \`-u\` flag in all curls |
 
-**If you get a 401 Unauthorized error, the most likely cause is running curl directly instead of through /api/exec.**
-
----
-
-## Key Variables Reference
-
-Before making any API calls, agents must gather and set these shell variables:
-
-| Variable | Source | Example | Used In |
-|----------|--------|---------|---------|
-| \`WORKSPACE\` | Extract from git remote URL | \`mycompany\` | All API URLs |
-| \`REPO_SLUG\` | Extract from git remote URL | \`my-project\` | All API URLs |
-| \`SOURCE_BRANCH\` | \`git branch --show-current\` | \`feature/new-ui\` | Creating PR |
-| \`TARGET_BRANCH\` | User input or default | \`main\` | Creating PR |
-| \`PR_TITLE\` | User input | \`feat: Add new feature\` | Creating PR |
-| \`PR_ID\` | Extract from API response | \`42\` | Merge/Approve/Decline |
-| \`{{BITBUCKET_EMAIL}}\` | Secret (Toolbox > Secrets) | \`user@example.com\` | All curl requests (-u flag) |
-| \`{{BITBUCKET_TOKEN}}\` | Secret (Toolbox > Secrets) | \`ATATT3x...\` | All curl requests (-u flag) |
-
-**How to extract workspace/repo from remote:**
 \`\`\`bash
 REMOTE_URL=$(git remote get-url origin)
-# HTTPS: https://bitbucket.org/WORKSPACE/REPO.git
-# SSH: git@bitbucket.org:WORKSPACE/REPO.git
+# HTTPS: https://bitbucket.org/WORKSPACE/REPO.git — SSH: git@bitbucket.org:WORKSPACE/REPO.git
 WORKSPACE=$(echo "$REMOTE_URL" | sed -E 's|.*[:/]([^/]+)/[^/]+\\.git$|\\1|')
 REPO_SLUG=$(echo "$REMOTE_URL" | sed -E 's|.*[:/][^/]+/([^/]+)\\.git$|\\1|')
 \`\`\`
 
-**How to extract PR_ID from create response:**
-\`\`\`bash
-# From create PR response, extract the PR ID
-PR_ID=$(echo "$RESPONSE" | grep -o '"id": [0-9]*' | head -1 | grep -o '[0-9]*')
-\`\`\`
-
----
+Never hardcode placeholders: use bash variables (\`$WORKSPACE\`, \`$REPO_SLUG\`, \`$PR_ID\`) in URLs; \`{{...}}\` is for secrets only.
 
 ## Workflow: Create Pull Request
 
-When asked to "create PR", "make pull request", "submit for review" on Bitbucket:
-
-### Step 1: Gather Information & Set Variables
-
-First, collect the required information and set shell variables:
-
+1. **Set variables** — extract \`WORKSPACE\`/\`REPO_SLUG\` as above; \`SOURCE_BRANCH=$(git branch --show-current)\`; pick \`TARGET_BRANCH\`; run \`git status\` to check for unpushed commits.
+2. **Push the branch:** \`git push -u origin $(git branch --show-current)\`
+3. **Gather PR details** (ask user or infer from context): title, description (markdown), target branch (usually \`main\`/\`master\`), optional reviewers (Bitbucket account IDs).
+4. **MANDATORY — confirm before submitting:** present source branch, target branch, title, description, and reviewers to the user and wait for explicit approval (e.g. "yes", "go ahead"). Do NOT proceed without it.
+5. **Create the PR:**
 \`\`\`bash
-# Get current branch
-SOURCE_BRANCH=$(git branch --show-current)
-echo "Source branch: $SOURCE_BRANCH"
-
-# Get remote URL to extract workspace/repo
-REMOTE_URL=$(git remote get-url origin)
-echo "Remote URL: $REMOTE_URL"
-
-# Extract workspace and repo slug from remote URL
-# From HTTPS: https://bitbucket.org/WORKSPACE/REPO.git → WORKSPACE and REPO
-# From SSH: git@bitbucket.org:WORKSPACE/REPO.git → WORKSPACE and REPO
-WORKSPACE=$(echo "$REMOTE_URL" | sed -E 's|.*[:/]([^/]+)/[^/]+\\.git$|\\1|')
-REPO_SLUG=$(echo "$REMOTE_URL" | sed -E 's|.*[:/][^/]+/([^/]+)\\.git$|\\1|')
-TARGET_BRANCH="main"  # Or "master", "dev", etc.
-
-echo "Workspace: $WORKSPACE"
-echo "Repo: $REPO_SLUG"
-echo "Target branch: $TARGET_BRANCH"
-
-# Check for unpushed commits
-git status
-\`\`\`
-
-**Variables set by agent before API calls:**
-- \`WORKSPACE\`: Bitbucket workspace (extracted from remote URL)
-- \`REPO_SLUG\`: Repository name (extracted from remote URL)
-- \`SOURCE_BRANCH\`: Current branch being merged
-- \`TARGET_BRANCH\`: Destination branch (main, master, dev, etc.)
-- \`PR_ID\`: From previous API call response (for merge/approve/decline operations)
-
-### Step 2: Ensure Branch is Pushed
-
-\`\`\`bash
-# Push current branch to remote
-git push -u origin $(git branch --show-current)
-\`\`\`
-
-### Step 3: Gather PR Details
-
-Ask the user for (or infer from context):
-- **Title**: Brief description of the change
-- **Description**: Detailed explanation
-- **Target branch**: Usually \`main\` or \`master\`
-- **Reviewers**: Optional, Bitbucket account IDs
-
-### Step 4: Confirm with User Before Submitting
-
-**MANDATORY:** Before sending the API request, present a summary to the user and wait for explicit approval:
-
-- **Source branch:** \`$SOURCE_BRANCH\`
-- **Target branch:** \`$TARGET_BRANCH\`
-- **Title:** The PR title
-- **Description:** The PR description
-- **Reviewers:** If any
-
-Do NOT proceed until the user explicitly confirms (e.g., "yes", "go ahead", "send it").
-
-### Step 5: Create the Pull Request
-
-\`\`\`bash
-curl -s -X POST \\
-  -u "{{BITBUCKET_EMAIL}}:{{BITBUCKET_TOKEN}}" \\
-  -H "Content-Type: application/json" \\
-  "https://api.bitbucket.org/2.0/repositories/{workspace}/{repo_slug}/pullrequests" \\
-  -d '{
-    "title": "PR_TITLE",
-    "description": "PR_DESCRIPTION",
-    "source": {
-      "branch": {
-        "name": "SOURCE_BRANCH"
-      }
-    },
-    "destination": {
-      "branch": {
-        "name": "TARGET_BRANCH"
-      }
-    },
-    "close_source_branch": true
-  }'
-\`\`\`
-
-**Replace placeholders:**
-- \`{workspace}\`: Bitbucket workspace (e.g., "mycompany")
-- \`{repo_slug}\`: Repository name (e.g., "my-project")
-- \`PR_TITLE\`: Title of the PR
-- \`PR_DESCRIPTION\`: Description in markdown
-- \`SOURCE_BRANCH\`: Your feature branch
-- \`TARGET_BRANCH\`: Usually "main" or "master"
-
-### Step 6: Parse Response & Extract PR ID
-
-On success, extract the PR ID and URL from the response:
-
-\`\`\`bash
-# Save response to variable
 RESPONSE=$(curl -s -X POST \\
-  -u "{{BITBUCKET_EMAIL}}:{{BITBUCKET_TOKEN}}" \\
-  -H "Content-Type: application/json" \\
-  "https://api.bitbucket.org/2.0/repositories/$WORKSPACE/$REPO_SLUG/pullrequests" \\
-  -d '{...}')
-
-# Extract PR ID from response (needed for merge/approve/decline)
-PR_ID=$(echo "$RESPONSE" | grep -o '"id": [0-9]*' | head -1 | grep -o '[0-9]*')
-
-# Extract PR URL
-PR_URL=$(echo "$RESPONSE" | grep -o '"href": "https://bitbucket.org[^"]*' | sed 's/"href": "//')
-
-echo "PR ID: $PR_ID"
-echo "PR URL: $PR_URL"
-\`\`\`
-
-**For subsequent operations (merge, approve, decline), use:**
-- \`$PR_ID\` to reference the created PR in later API calls
-- Replace \`{pr_id}\` in URLs with the actual PR ID value
-
-Report the PR URL to the user.
-
----
-
-## Complete Example Script
-
-\`\`\`bash
-# Variables (gather these first)
-WORKSPACE="myworkspace"
-REPO_SLUG="myrepo"
-SOURCE_BRANCH=$(git branch --show-current)
-TARGET_BRANCH="main"
-PR_TITLE="feat: Add new feature"
-PR_DESCRIPTION="## Summary\\n\\n- Added X\\n- Fixed Y\\n\\n## Testing\\n\\n- Ran unit tests"
-
-# Create PR using Basic auth (API token)
-curl -s -X POST \\
   -u "{{BITBUCKET_EMAIL}}:{{BITBUCKET_TOKEN}}" \\
   -H "Content-Type: application/json" \\
   "https://api.bitbucket.org/2.0/repositories/$WORKSPACE/$REPO_SLUG/pullrequests" \\
@@ -254,178 +71,60 @@ curl -s -X POST \\
 {
   "title": "$PR_TITLE",
   "description": "$PR_DESCRIPTION",
-  "source": {
-    "branch": {
-      "name": "$SOURCE_BRANCH"
-    }
-  },
-  "destination": {
-    "branch": {
-      "name": "$TARGET_BRANCH"
-    }
-  },
+  "source": { "branch": { "name": "$SOURCE_BRANCH" } },
+  "destination": { "branch": { "name": "$TARGET_BRANCH" } },
   "close_source_branch": true
 }
 EOF
-)"
+)")
 \`\`\`
-
----
+6. **Parse the response**, then report the PR URL to the user:
+\`\`\`bash
+PR_ID=$(echo "$RESPONSE" | grep -o '"id": [0-9]*' | head -1 | grep -o '[0-9]*')
+PR_URL=$(echo "$RESPONSE" | grep -o '"href": "https://bitbucket.org[^"]*' | sed 's/"href": "//')
+\`\`\`
+Use \`$PR_ID\` in place of \`{pr_id}\` in subsequent merge/approve/decline calls.
 
 ## Add Reviewers
 
-To add reviewers, include them in the request:
-
+Include in the create body:
 \`\`\`json
-{
-  "title": "PR Title",
-  "reviewers": [
-    {"account_id": "557058:12345678-1234-1234-1234-123456789012"},
-    {"account_id": "557058:abcdefgh-abcd-abcd-abcd-abcdefghijkl"}
-  ],
-  ...
-}
+{ "title": "PR Title", "reviewers": [ {"account_id": "557058:12345678-1234-1234-1234-123456789012"} ], ... }
 \`\`\`
+Find account IDs: \`GET https://api.bitbucket.org/2.0/workspaces/$WORKSPACE/members\`
 
-**Find reviewer account IDs:**
-\`\`\`bash
-# List workspace members
-curl -s -u "{{BITBUCKET_EMAIL}}:{{BITBUCKET_TOKEN}}" \\
-  "https://api.bitbucket.org/2.0/workspaces/$WORKSPACE/members"
-\`\`\`
+## Other Endpoints
 
----
+Base URL: \`https://api.bitbucket.org/2.0/repositories/{workspace}/{repo_slug}\`. All calls use \`-u "{{BITBUCKET_EMAIL}}:{{BITBUCKET_TOKEN}}"\` via /api/exec; POSTs with a body also need \`-H "Content-Type: application/json"\`.
 
-## Other Useful API Endpoints
+| Action | Method + Path | Body |
+|--------|---------------|------|
+| Create PR | POST \`/pullrequests\` | see workflow |
+| List open PRs | GET \`/pullrequests?state=OPEN\` | — |
+| Get PR | GET \`/pullrequests/$PR_ID\` | — |
+| Approve | POST \`/pullrequests/$PR_ID/approve\` | — |
+| Merge | POST \`/pullrequests/$PR_ID/merge\` | \`{"merge_strategy":"squash","close_source_branch":true,"message":"Merged PR: Title"}\` |
+| Decline | POST \`/pullrequests/$PR_ID/decline\` | — |
+| Comment | POST \`/pullrequests/$PR_ID/comments\` | \`{"content":{"raw":"Your comment here"}}\` |
 
-### List Open PRs
-
-\`\`\`bash
-curl -s -u "{{BITBUCKET_EMAIL}}:{{BITBUCKET_TOKEN}}" \\
-  "https://api.bitbucket.org/2.0/repositories/$WORKSPACE/$REPO_SLUG/pullrequests?state=OPEN"
-\`\`\`
-
-### Get PR Details
-
-\`\`\`bash
-curl -s -u "{{BITBUCKET_EMAIL}}:{{BITBUCKET_TOKEN}}" \\
-  "https://api.bitbucket.org/2.0/repositories/$WORKSPACE/$REPO_SLUG/pullrequests/$PR_ID"
-\`\`\`
-
-### Approve a PR
-
-\`\`\`bash
-curl -s -X POST \\
-  -u "{{BITBUCKET_EMAIL}}:{{BITBUCKET_TOKEN}}" \\
-  "https://api.bitbucket.org/2.0/repositories/$WORKSPACE/$REPO_SLUG/pullrequests/$PR_ID/approve"
-\`\`\`
-
-### Merge a PR
-
-\`\`\`bash
-curl -s -X POST \\
-  -u "{{BITBUCKET_EMAIL}}:{{BITBUCKET_TOKEN}}" \\
-  -H "Content-Type: application/json" \\
-  "https://api.bitbucket.org/2.0/repositories/$WORKSPACE/$REPO_SLUG/pullrequests/$PR_ID/merge" \\
-  -d '{
-    "merge_strategy": "squash",
-    "close_source_branch": true,
-    "message": "Merged PR: Title"
-  }'
-\`\`\`
-
-**Merge strategies:**
-- \`merge_commit\`: Standard merge
-- \`squash\`: Squash all commits
-- \`fast_forward\`: Fast-forward if possible
-
-### Decline a PR
-
-\`\`\`bash
-curl -s -X POST \\
-  -u "{{BITBUCKET_EMAIL}}:{{BITBUCKET_TOKEN}}" \\
-  "https://api.bitbucket.org/2.0/repositories/$WORKSPACE/$REPO_SLUG/pullrequests/$PR_ID/decline"
-\`\`\`
-
-### Add Comment to PR
-
-\`\`\`bash
-curl -s -X POST \\
-  -u "{{BITBUCKET_EMAIL}}:{{BITBUCKET_TOKEN}}" \\
-  -H "Content-Type: application/json" \\
-  "https://api.bitbucket.org/2.0/repositories/$WORKSPACE/$REPO_SLUG/pullrequests/$PR_ID/comments" \\
-  -d '{
-    "content": {
-      "raw": "Your comment here"
-    }
-  }'
-\`\`\`
-
----
+Merge strategies: \`merge_commit\` (standard), \`squash\` (squash all commits), \`fast_forward\` (fast-forward if possible).
 
 ## Error Handling
 
-Common errors and solutions:
-
-| HTTP Code | Meaning | Solution |
-|-----------|---------|----------|
-| 401 | Unauthorized | Check BITBUCKET_EMAIL and BITBUCKET_TOKEN secrets are valid and not expired |
-| 403 | Forbidden | Token lacks required scopes (check repo and PR scopes) |
+| HTTP | Meaning | Solution |
+|------|---------|----------|
+| 401 | Unauthorized | Check secrets are valid/not expired; confirm curl ran via /api/exec |
+| 403 | Forbidden | Token lacks required repo/PR scopes |
 | 404 | Not Found | Check workspace/repo slug |
 | 400 | Bad Request | Check JSON payload format |
 | 409 | Conflict | PR already exists for this branch |
 
-**Debug requests:**
-\`\`\`bash
-# Add -v for verbose output
-curl -v -X POST ...
-\`\`\`
-
----
-
-## Agent Variable Management
-
-When implementing PR workflows, agents should:
-
-1. **Initialize variables from git repo:**
-   - Extract \`WORKSPACE\` and \`REPO_SLUG\` from remote URL
-   - Get \`SOURCE_BRANCH\` from \`git branch --show-current\`
-
-2. **Collect from user/context:**
-   - Ask for \`TARGET_BRANCH\` (default: main)
-   - Ask for \`PR_TITLE\` and \`PR_DESCRIPTION\`
-
-3. **Extract from API responses:**
-   - After creating PR, extract \`PR_ID\` from response JSON
-   - Use \`PR_ID\` in subsequent operations (merge, approve, decline)
-
-4. **Never hardcode placeholders:**
-   - Use bash variable substitution: \`$WORKSPACE\`, \`$REPO_SLUG\`, \`$PR_ID\`
-   - Secret placeholders only: \`{{BITBUCKET_EMAIL}}\` and \`{{BITBUCKET_TOKEN}}\`
+Debug with \`curl -v\`.
 
 ## Safety Rules
 
-1. **NEVER commit credentials** to the repository - always use \`{{SECRET}}\` placeholders
-2. **ALWAYS verify** the target branch before creating PR
-3. **ALWAYS push** the source branch before creating PR
-4. **CHECK** for existing PRs before creating duplicates
-5. **REQUIRE EXPLICIT USER APPROVAL** before creating a PR - show the user the title, description, source branch, target branch, and reviewers, then wait for their explicit confirmation before sending the API request
-6. **CONFIRM** with user before merging or declining PRs
-7. **SET VARIABLES** - Extract workspace/repo from git, PR_ID from API responses, before using in URLs
-
----
-
-## Quick Reference
-
-| Action | Endpoint | Method |
-|--------|----------|--------|
-| Create PR | \`/pullrequests\` | POST |
-| List PRs | \`/pullrequests\` | GET |
-| Get PR | \`/pullrequests/{id}\` | GET |
-| Approve | \`/pullrequests/{id}/approve\` | POST |
-| Merge | \`/pullrequests/{id}/merge\` | POST |
-| Decline | \`/pullrequests/{id}/decline\` | POST |
-| Comment | \`/pullrequests/{id}/comments\` | POST |
-
-Base URL: \`https://api.bitbucket.org/2.0/repositories/{workspace}/{repo_slug}\``,
+1. NEVER commit credentials — always use \`{{SECRET}}\` placeholders.
+2. ALWAYS verify the target branch and push the source branch before creating a PR.
+3. CHECK for existing PRs before creating duplicates.
+4. REQUIRE explicit user approval before creating a PR (workflow step 4), and confirm with the user before merging or declining.`,
 };

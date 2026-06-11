@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.114.1] - 2026-06-10
+
+### Fixed
+- **Mobile message ordering** — user prompts are now stamped in the server's time domain (`serverNow()` + `noteServerTimestamp()`), preventing clock-skew on mobile devices from sorting the user's own prompt below agent responses.
+
+### Changed
+- **Builtin skills trimmed** — all 22 built-in skill definitions reduced to remove redundant content, lowering token overhead per agent turn.
+
 ## [1.114.0] - 2026-06-10
 
 ### Added
