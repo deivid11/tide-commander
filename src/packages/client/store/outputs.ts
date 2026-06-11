@@ -30,6 +30,32 @@ function isSameOutputEvent(a: AgentOutput, b: AgentOutput): boolean {
     && a.isError === b.isError;
 }
 
+// ─── Server clock alignment ──────────────────────────────────────────────────
+// Agent/response outputs are timestamped by the SERVER, but optimistic
+// client-side items (the user's own prompt) are stamped with the local clock.
+// On mobile the device clock can differ from the server's by seconds, which
+// makes the optimistic user prompt sort AFTER the server-stamped agent
+// responses — it appears at the bottom while the later replies float above it.
+// We estimate the server↔client offset from server-stamped outputs and stamp
+// optimistic items in the server's time domain so the chronological merge sort
+// (VirtualizedOutputList) stays correct regardless of device-clock skew.
+let serverClockOffsetMs = 0;
+let hasServerClockSample = false;
+
+/** Record a known server timestamp (epoch ms) to refine the clock offset. */
+export function noteServerTimestamp(serverTimestampMs: number | undefined): void {
+  if (typeof serverTimestampMs !== 'number' || !Number.isFinite(serverTimestampMs) || serverTimestampMs <= 0) return;
+  // Network latency makes the sample slightly old, which is negligible next to
+  // the multi-second device-clock skew this corrects. Last-write-wins is fine.
+  serverClockOffsetMs = serverTimestampMs - Date.now();
+  hasServerClockSample = true;
+}
+
+/** Best estimate of the server's 'now' in epoch ms (falls back to local clock). */
+export function serverNow(): number {
+  return hasServerClockSample ? Date.now() + serverClockOffsetMs : Date.now();
+}
+
 export interface OutputActions {
   addOutput(agentId: string, output: AgentOutput): void;
   clearOutputs(agentId: string): void;
@@ -146,7 +172,10 @@ export function createOutputActions(
       this.addOutput(agentId, {
         text: command,
         isStreaming: false,
-        timestamp: Date.now(),
+        // Stamp in the server's time domain so the optimistic prompt stays
+        // correctly ordered against server-timestamped agent responses, even
+        // when this device's clock differs from the server's (e.g. on mobile).
+        timestamp: serverNow(),
         isUserPrompt: true,
       });
     },

@@ -9,15 +9,7 @@ export const exploreDatabase: BuiltinSkillDefinition = {
   allowedTools: ['Bash(curl:*)', 'Bash(jq:*)'],
   content: `# Explore Database Skill
 
-This skill lets you inspect any **database building** in Tide Commander through the
-internal HTTP API. You can list connections, list databases/tables, read schemas,
-and execute SQL — all without leaving the curl pattern.
-
-All endpoints live under \`/api/database/\` and use the same auth header as every
-other Tide Commander skill (\`X-Auth-Token\`). Passwords are never returned by the
-API; responses include a \`hasPassword\` boolean instead.
-
----
+Inspect any **database building** via the internal HTTP API: list connections, browse databases/tables, read schemas, execute SQL. All endpoints live under \`/api/database/\` and use the standard \`X-Auth-Token\` auth header. Engines: **mysql, postgresql, oracle, sqlite, mssql**. SSH tunnels are applied automatically when configured on the connection. Passwords are never returned — \`hasPassword: true\` is the only signal; never log credentials.
 
 ## Endpoint Reference
 
@@ -33,78 +25,38 @@ API; responses include a \`hasPassword\` boolean instead.
 | \`/api/database/buildings/{buildingId}/connections/{connectionId}/query\` | POST | Run SQL — body \`{database, query, limit?, recordHistory?}\` |
 | \`/api/database/buildings/{buildingId}/history\` | GET | Recent query history (\`?limit=N\`) |
 
-Engines supported: **mysql, postgresql, oracle, sqlite, mssql**. SSH tunnels are
-applied automatically when configured on the connection.
-
----
-
-## Step 1: Discover database buildings
+## Workflow
 
 ${BT3}bash
-# List all DB buildings + their connections (redacted)
-curl -s http://localhost:5174/api/database/buildings | jq
-
-# Compact view: just id/name/engine of each connection
+# 1) Discover buildings + connections; activeConnectionId hints at the user's usual one
 curl -s http://localhost:5174/api/database/buildings \\
-  | jq '.buildings[] | {id, name, conns: [.connections[] | {id, engine, host, port, database}]}'
-${BT3}
+  | jq '.buildings[] | {id, name, activeConnectionId, conns: [.connections[] | {id, engine, host, port, database}]}'
 
-Pick the **buildingId** and **connectionId** you want to explore. The \`activeConnectionId\`
-field hints at the one the user typically works with.
+CONN=http://localhost:5174/api/database/buildings/BUILDING_ID/connections/CONNECTION_ID
 
-## Step 2: Verify the connection
-
-Always run a test before any heavy query — it brings up SSH tunnels and validates
-credentials cheaply.
-
-${BT3}bash
-curl -s -X POST http://localhost:5174/api/database/buildings/BUILDING_ID/connections/CONNECTION_ID/test
+# 2) Always test before heavy queries — brings up SSH tunnels, validates credentials cheaply
+curl -s -X POST $CONN/test
 # → {"success":true,"serverVersion":"8.0.36"} or {"success":false,"error":"..."}
-${BT3}
 
-## Step 3: Browse databases and tables
+# 3) Browse
+curl -s $CONN/databases | jq
+curl -s $CONN/databases/MY_DB/tables | jq '.tables | map(.name)'
 
-${BT3}bash
-# List databases on the server
-curl -s http://localhost:5174/api/database/buildings/BUILDING_ID/connections/CONNECTION_ID/databases | jq
+# 4) Table schema → { database, table, columns, indexes, foreignKeys }; use /columns for the lean version
+curl -s $CONN/databases/MY_DB/tables/users/schema | jq
 
-# List tables/views in a specific database
-curl -s http://localhost:5174/api/database/buildings/BUILDING_ID/connections/CONNECTION_ID/databases/MY_DB/tables | jq
-
-# Compact: just names
-curl -s http://localhost:5174/api/database/buildings/BUILDING_ID/connections/CONNECTION_ID/databases/MY_DB/tables \\
-  | jq '.tables | map(.name)'
-${BT3}
-
-For Oracle, "database" means **schema/owner** (e.g. \`SCOTT\`, \`HR\`). For SQLite the
-"database" is the file path or \`main\`.
-
-## Step 4: Inspect a table's schema
-
-${BT3}bash
-curl -s http://localhost:5174/api/database/buildings/BUILDING_ID/connections/CONNECTION_ID/databases/MY_DB/tables/users/schema | jq
-${BT3}
-
-Returns \`{ database, table, columns, indexes, foreignKeys }\`. Use this to
-discover columns before writing a SELECT.
-
-## Step 5: Run SQL
-
-${BT3}bash
-# Read query — limit defaults to 1000, capped at 10000
-curl -s -X POST http://localhost:5174/api/database/buildings/BUILDING_ID/connections/CONNECTION_ID/query \\
-  -H "Content-Type: application/json" \\
+# 5) Run SQL
+curl -s -X POST $CONN/query -H "Content-Type: application/json" \\
   -d '{"database":"MY_DB","query":"SELECT id, email FROM users WHERE created_at > NOW() - INTERVAL 1 DAY","limit":50}'
 
-# Persist into the building's query history (visible in the UI)
-curl -s -X POST http://localhost:5174/api/database/buildings/BUILDING_ID/connections/CONNECTION_ID/query \\
-  -H "Content-Type: application/json" \\
+# Mutations execute too — affectedRows is reported instead of rows.
+# recordHistory:true persists the query into the building's history (visible in the UI):
+curl -s -X POST $CONN/query -H "Content-Type: application/json" \\
   -d '{"database":"MY_DB","query":"SELECT COUNT(*) AS n FROM users","recordHistory":true}'
 
-# Mutating statements work too — affectedRows is reported instead of rows
-curl -s -X POST http://localhost:5174/api/database/buildings/BUILDING_ID/connections/CONNECTION_ID/query \\
-  -H "Content-Type: application/json" \\
-  -d '{"database":"MY_DB","query":"UPDATE users SET active = 1 WHERE id = 42"}'
+# 6) History — only queries run with recordHistory:true (or executed via the UI) appear
+curl -s "http://localhost:5174/api/database/buildings/BUILDING_ID/history?limit=20" \\
+  | jq '.history[] | {executedAt, status, duration, query}'
 ${BT3}
 
 **Response shape (success):**
@@ -119,60 +71,13 @@ ${BT3}json
 }
 ${BT3}
 
-**Response shape (error):** \`{ "status": "error", "error": "...", "errorCode": "..." }\`
-The HTTP status is \`400\` for SQL errors and \`500\` only for unexpected failures.
+**Response shape (error):** \`{ "status": "error", "error": "...", "errorCode": "..." }\` — HTTP \`400\` for SQL errors, \`500\` only for unexpected failures.
 
-## Step 6: Review history
+## Rules
 
-${BT3}bash
-curl -s "http://localhost:5174/api/database/buildings/BUILDING_ID/history?limit=20" | jq '.history[] | {executedAt, status, duration, query}'
-${BT3}
-
-Only queries explicitly run with \`recordHistory:true\` (or executed via the UI)
-appear here.
-
----
-
-## Important Rules
-
-1. **LIMIT is automatic.** SELECTs without a LIMIT/TOP/FETCH clause are wrapped
-   server-side using the \`limit\` body field (default 1000, max 10000). You don't
-   need to add it manually for safety, but you can.
-2. **One query per request.** The execute endpoint runs a single statement; do
-   not send multi-statement scripts.
-3. **Mutations are real.** \`UPDATE\`, \`DELETE\`, \`DROP\`, etc. execute against the
-   live connection — confirm the building/connection IDs before destructive ops.
-4. **Engine quirks:**
-   - Oracle: pass the **schema name** as \`{database}\`.
-   - SQLite: typically \`main\`. Pragma queries work as raw SQL.
-   - SQL Server: \`TOP n\` is auto-injected for SELECTs without it.
-5. **Never log credentials.** Connection objects from the API never include
-   passwords — \`hasPassword: true\` is the only signal.
-
-## Example Workflow
-
-${BT3}bash
-# 1) Find DB buildings and pick one
-curl -s http://localhost:5174/api/database/buildings \\
-  | jq '.buildings[] | {id, name, activeConnectionId}'
-
-# 2) Verify
-curl -s -X POST http://localhost:5174/api/database/buildings/building_xxx/connections/conn_yyy/test
-
-# 3) Pick a database, list its tables
-curl -s http://localhost:5174/api/database/buildings/building_xxx/connections/conn_yyy/databases | jq
-curl -s http://localhost:5174/api/database/buildings/building_xxx/connections/conn_yyy/databases/app_prod/tables \\
-  | jq '.tables | map(.name)'
-
-# 4) Inspect a table
-curl -s http://localhost:5174/api/database/buildings/building_xxx/connections/conn_yyy/databases/app_prod/tables/orders/schema \\
-  | jq '.columns | map({name, type, primaryKey, nullable})'
-
-# 5) Run an exploratory query
-curl -s -X POST http://localhost:5174/api/database/buildings/building_xxx/connections/conn_yyy/query \\
-  -H "Content-Type: application/json" \\
-  -d '{"database":"app_prod","query":"SELECT status, COUNT(*) c FROM orders GROUP BY status"}' \\
-  | jq '.rows'
-${BT3}
+1. **LIMIT is automatic.** SELECTs without a LIMIT/TOP/FETCH clause are wrapped server-side using the \`limit\` body field (default 1000, max 10000); adding one manually is optional.
+2. **One query per request.** The execute endpoint runs a single statement — no multi-statement scripts.
+3. **Mutations are real.** \`UPDATE\`, \`DELETE\`, \`DROP\`, etc. execute against the live connection — confirm building/connection IDs before destructive ops.
+4. **Engine quirks:** Oracle — \`{database}\` is the **schema/owner** (e.g. \`SCOTT\`, \`HR\`). SQLite — \`{database}\` is typically \`main\` (or the file path); pragma queries work as raw SQL. SQL Server — \`TOP n\` is auto-injected for SELECTs without it.
 `,
 };

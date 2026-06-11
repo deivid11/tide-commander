@@ -7,72 +7,31 @@ export const streamingExec: BuiltinSkillDefinition = {
   allowedTools: ['Bash(curl:*)'],
   content: `# Streaming Command Execution
 
-Use this endpoint for commands that are long-running, noisy, or operationally important so users can see live progress in the terminal.
+Route long-running, noisy, or operationally important commands through \`POST /api/exec\` so the user sees live progress in the terminal "Running Tasks" section; you receive the full output when the command completes.
 
-## When to Use Streaming Exec
+**Use for:** builds (\`npm run build\`, \`cargo build\`, \`make\`), test suites (\`npm test\`, \`pytest\`, \`jest\`), dev servers (\`npm run dev\`, \`bun run dev\`), package installs (\`npm install\`, \`pip install\`), docker/container commands (\`docker build\`, \`docker compose up\`, \`docker logs\`), long git/network ops (\`git clone\`, \`git fetch\`, \`git push\`) — anything expected to run longer than a couple seconds.
 
-Use \`/api/exec\` for commands like:
-- Build commands (\`npm run build\`, \`cargo build\`, \`make\`)
-- Test suites (\`npm test\`, \`pytest\`, \`jest\`)
-- Development servers (\`npm run dev\`, \`bun run dev\`)
-- Package installations (\`npm install\`, \`pip install\`)
-- Docker and container commands (\`docker build\`, \`docker compose up\`, \`docker logs\`)
-- Long git/network operations (\`git clone\`, \`git fetch\`, \`git push\`)
-- Any command expected to run longer than a couple seconds
+**Don't use for:** near-instant inspection commands (\`cat\`, \`grep\`, \`rg\`, \`sed\`, \`head\`, \`tail\`, \`ls\`, \`pwd\`, \`stat\`, \`git status\`, \`git diff\`, \`git log -n 5\`) — run those directly with normal shell tools.
 
-## When Not to Use Streaming Exec
+## Request
 
-For near-instant local commands, run them directly with normal shell tools. Examples:
-- Fast reads/searches (\`cat\`, \`grep\`, \`rg\`, \`sed\`, \`head\`, \`tail\`)
-- Quick filesystem checks (\`ls\`, \`pwd\`, \`stat\`)
-- Short git inspection (\`git status\`, \`git diff\`, \`git log -n 5\`)
+Body only — wrap with the scaffolding from the API Calling Convention above:
 
-Rule of thumb: if it is effectively instant and only used for quick inspection, do not route it through \`/api/exec\`.
-
-## Endpoint
-
-\`POST /api/exec\`
-
-**Body shape:**
 \`\`\`json
-{"agentId":"YOUR_AGENT_ID","command":"YOUR_COMMAND"}
+{"agentId":"YOUR_AGENT_ID","command":"npm run build"}
 \`\`\`
 
-## Parameters
+- \`agentId\` (required): your agent ID from the system prompt
+- \`command\` (required): the shell command to execute
+- \`cwd\` (optional): working directory; defaults to your agent's current directory
 
-- \`agentId\`: Your agent ID from the system prompt (required)
-- \`command\`: The shell command to execute (required)
-- \`cwd\`: Working directory (optional, defaults to your current directory)
+Wrap indefinitely-running commands (like dev servers) with \`timeout\`: \`{"agentId":"YOUR_AGENT_ID","command":"timeout 30 npm run dev"}\`
 
-## Examples (body only — wrap with the scaffolding from the API Calling Convention above)
+## Response (JSON, returned when the command completes)
 
-- **Build project:** \`{"agentId":"YOUR_AGENT_ID","command":"npm run build"}\`
-- **Run tests:** \`{"agentId":"YOUR_AGENT_ID","command":"npm test"}\`
-- **Install dependencies:** \`{"agentId":"YOUR_AGENT_ID","command":"npm install"}\`
-- **Start dev server (with timeout):** \`{"agentId":"YOUR_AGENT_ID","command":"timeout 30 npm run dev"}\`
-
-## Response Format
-
-The endpoint returns JSON when the command completes:
 \`\`\`json
-{
-  "success": true,
-  "taskId": "abc123",
-  "exitCode": 0,
-  "output": "Full command output...",
-  "duration": 12345
-}
+{"success": true, "taskId": "abc123", "exitCode": 0, "output": "Full command output...", "duration": 12345}
 \`\`\`
 
-\`success\` is always \`true\` if the command executed (even with non-zero exit code).
-Check \`exitCode\` to determine if the command itself passed (0) or failed (non-zero).
-A non-zero exit code (e.g. test failures) is a normal result you should analyze, not an error.
-
-## Important Notes
-
-1. The user will see streaming output in the terminal "Running Tasks" section
-2. You will receive the final output when the command completes
-3. Use \`timeout\` command wrapper for commands that run indefinitely (like dev servers)
-4. The command runs in your agent's working directory by default
-5. Non-zero exit codes mean the command failed (e.g. test failures), not the API. Always check \`output\` to understand what happened`,
+\`success\` is \`true\` whenever the command executed, even with a non-zero exit code. A non-zero \`exitCode\` means the command itself failed (e.g. test failures) — a normal result to analyze via \`output\`, not an API error.`,
 };

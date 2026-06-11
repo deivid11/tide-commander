@@ -7,33 +7,24 @@ export const reportTaskToBoss: BuiltinSkillDefinition = {
   allowedTools: ['Bash(curl:*)'],
   content: `# Report Task to Boss (MANDATORY for delegated tasks)
 
-**If a boss delegated work to you, you MUST call this endpoint before you stop. Notifications do NOT substitute — only report-task closes the delegation. Skipping it hangs the boss's progress indicator forever.**
+If a boss delegated this work, you MUST call report-task before ending the turn. Chat messages and notifications do NOT substitute — only this call closes the delegation; skipping it hangs the boss's progress indicator forever.
 
 ## You Owe a Report When
 - The task starts with \`[DELEGATED TASK from boss\`
-- Your agent has a \`bossId\` set
-- The assignment mentions a boss by name or ID
-
-Treat this as a hard gate before your final tool call.
+- Your agent has a \`bossId\` set, or the assignment names a boss
 
 ## Endpoint
 
-\`POST /api/agents/YOUR_AGENT_ID/report-task\`
+\`POST /api/agents/YOUR_AGENT_ID/report-task\` — YOUR own ID (the reporting agent), not the boss's
 
-**Body:**
 \`\`\`json
-{"summary": "What was done and the result", "status": "completed"}
+{"summary":"What was done and the result (for failures, explain why)","status":"completed"}
 \`\`\`
 
-## Parameters
-- \`YOUR_AGENT_ID\` — YOUR own ID (the reporting agent, not the boss)
-- \`summary\` — concise outcome; for failures explain why
-- \`status\` — \`"completed"\` or \`"failed"\`
+\`status\` is \`"completed"\` or \`"failed"\`.
 
 ## Rules
-- Call AFTER all work is done, never before
-- Trivial tasks still require a report
-- Do not replace it with a chat message or notification — the boss routing system needs the report-task call
-- Send BEFORE the tracking-status update (tracking is always the final curl)
-- Safe to call late if you forgot — send it anyway before ending the turn`,
+- Call AFTER all work is done, never before; trivial tasks still require it
+- It is the FIRST of the end-of-turn curls: report-task → notification → tracking PATCH → final response text
+- Forgot it? Send it as soon as you notice, even late`,
 };
