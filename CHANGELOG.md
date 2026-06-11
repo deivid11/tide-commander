@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.115.1] - 2026-06-11
+
+### Fixed
+- **Gmail HTML body fallback preserves URLs** — when an email has no `text/plain` part, the gmail integration used to strip every tag from the HTML, discarding `href` attributes along the way. Magic-link / login emails (Anthropic, Slack, Notion, etc.) reached email-triggered agents with the anchor text but no URL. The fallback now drops `<style>`/`<script>` blocks, rewrites `<a href="URL">text</a>` to `text (URL)`, preserves block-element line breaks, and decodes common HTML entities.
+
+### Added
+- **`toFilter` for email triggers** — email trigger definitions can now match the recipient address (mirrors the existing `fromFilter`), making it easy to route only mail addressed to a specific alias.
+
 ## [1.115.0] - 2026-06-11
 
 ### Added

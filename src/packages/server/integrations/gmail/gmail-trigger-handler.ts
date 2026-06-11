@@ -11,6 +11,7 @@ import { formatAttachmentLine } from '../../services/attachment-downloader.js';
 
 interface EmailTriggerConfig {
   fromFilter?: string[];
+  toFilter?: string[];
   subjectPattern?: string;
   threadId?: string;
   requiredApprovals?: {
@@ -111,6 +112,11 @@ export const gmailTriggerHandler: TriggerHandler = {
     if (config.fromFilter?.length) {
       const fromLower = msg.from.toLowerCase();
       if (!config.fromFilter.some(f => fromLower.includes(f.toLowerCase()))) return false;
+    }
+
+    if (config.toFilter?.length) {
+      const toAddresses = msg.to.map(t => t.toLowerCase());
+      if (!config.toFilter.some(f => toAddresses.some(t => t.includes(f.toLowerCase())))) return false;
     }
 
     if (config.subjectPattern) {
