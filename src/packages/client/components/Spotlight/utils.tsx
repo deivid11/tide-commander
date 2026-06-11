@@ -72,42 +72,61 @@ export function formatRelativeTime(timestamp: number): string {
 
 /**
  * MRU (most-recently-used) tracking for agents selected from Spotlight.
- * Persisted in localStorage so recently-used agents can be floated to the top
- * of Spotlight results across reloads. Stored newest-first, capped in length.
+ * Persisted in localStorage as { [agentId]: epochMs } so an explicit Spotlight
+ * pick contributes to an agent's "recently used" recency even when that agent has
+ * no recent server-side activity. Capped to the most-recent entries.
  */
 const RECENT_AGENTS_STORAGE_KEY = 'tide-commander:spotlight-recent-agents';
 const RECENT_AGENTS_MAX = 15;
 
-/** Read the recent-agent MRU list (newest first). Safe if storage is unavailable. */
-export function getRecentAgentIds(): string[] {
+/**
+ * Read the map of agentId -> last-selected timestamp (epoch ms). Safe if storage
+ * is unavailable. Legacy values (a plain id array from older builds) are ignored
+ * — recency cleanly falls back to server activity until new selections are made.
+ */
+export function getRecentAgentTimes(): Record<string, number> {
   try {
     const raw = localStorage.getItem(RECENT_AGENTS_STORAGE_KEY);
-    if (!raw) return [];
+    if (!raw) return {};
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const out: Record<string, number> = {};
+    for (const [id, ts] of Object.entries(parsed)) {
+      if (typeof id === 'string' && typeof ts === 'number') out[id] = ts;
+    }
+    return out;
   } catch {
-    return [];
+    return {};
   }
 }
 
-/** Record an agent as most-recently-used (moves it to the front of the MRU list). */
+/** Record an agent as just-used from Spotlight (stamps it with the current time). */
 export function recordRecentAgent(agentId: string): void {
   try {
-    const next = [agentId, ...getRecentAgentIds().filter((id) => id !== agentId)].slice(0, RECENT_AGENTS_MAX);
-    localStorage.setItem(RECENT_AGENTS_STORAGE_KEY, JSON.stringify(next));
+    const times = getRecentAgentTimes();
+    times[agentId] = Date.now();
+    // Keep only the most-recent entries so the map cannot grow unbounded.
+    const trimmed = Object.entries(times)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, RECENT_AGENTS_MAX);
+    localStorage.setItem(RECENT_AGENTS_STORAGE_KEY, JSON.stringify(Object.fromEntries(trimmed)));
   } catch {
     // Ignore storage failures (private mode, quota) — the MRU boost is a nicety.
   }
 }
 
 /**
- * Rank of an agent within the MRU list used as an ascending recency sort key:
- * 0 = most recently used, higher = older, POSITIVE_INFINITY = never selected.
+ * Absolute "recently used" timestamp for an agent (epoch ms): the later of its
+ * server-side last activity and its last explicit Spotlight selection. Higher =
+ * more recent. Used as the descending sort key for the empty-query agent list.
  */
-export function recentAgentRank(agentId: string | undefined, recentIds: string[]): number {
-  if (!agentId) return Number.POSITIVE_INFINITY;
-  const idx = recentIds.indexOf(agentId);
-  return idx === -1 ? Number.POSITIVE_INFINITY : idx;
+export function agentRecency(
+  agentId: string | undefined,
+  lastActivity: number | undefined,
+  recentTimes: Record<string, number>
+): number {
+  const selected = agentId ? recentTimes[agentId] ?? 0 : 0;
+  return Math.max(lastActivity ?? 0, selected);
 }
 
 /**

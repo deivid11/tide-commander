@@ -7,6 +7,7 @@ import React, { memo } from 'react';
 import type { SearchResult } from './types';
 import { formatDuration, getTypeLabel } from './utils';
 import { getAgentStatusColor } from '../../utils/colors';
+import { Icon } from '../Icon';
 
 interface SpotlightItemProps {
   result: SearchResult;
@@ -57,6 +58,12 @@ export const SpotlightItem = memo(function SpotlightItem({
             >
               {result._status === 'working' && <span className="spotlight-working-dot" aria-hidden="true" />}
               {result._status.replace(/_/g, ' ')}
+            </span>
+          )}
+          {result._taskLabel && (
+            <span className="spotlight-item-task-label" title={result._taskLabel}>
+              <Icon name="task" size={9} aria-hidden />
+              {highlightMatch(result._taskLabel, query)}
             </span>
           )}
           <span className={`spotlight-item-type ${result.type}`} aria-label={getTypeLabel(result.type)}>

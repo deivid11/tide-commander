@@ -2,19 +2,17 @@
  * Claude Usage Service
  *
  * Surfaces the same data the Claude Code CLI shows in its `/usage` slash
- * command panel — but assembled from sources we can read non-interactively.
- *
- * The CLI's interactive `/usage` panel pulls weekly/session rate-limit
- * percentages from Anthropic's API at runtime. That request can't be replayed
- * server-side without driving the CLI's React TUI through a real PTY (the
- * slash-command interception only fires on real keystrokes; piping `/usage\r`
- * into stdin gets sent to the model as plain text instead). So this service
- * returns what's reliably available locally:
+ * command panel — assembled from local sources plus the same Anthropic
+ * endpoint the CLI's TUI queries for its rate-limit gauges:
  *   - per-agent session totals (tokens + context) from Tide's own tracking
  *   - daily activity history from `~/.claude/stats-cache.json` (the file the
  *     CLI populates as it runs — same cache `/usage` reads from)
- * and a `cliHint` string the frontend can display so the user knows where to
- * look for the live rate-limit gauges.
+ *   - live session/weekly rate-limit gauges from
+ *     `https://api.anthropic.com/api/oauth/usage`, authenticated with the
+ *     CLI's own OAuth token in `~/.claude/.credentials.json`
+ * When the rate-limit fetch fails (no credentials, expired token, offline),
+ * the snapshot still carries the local data and a `cliHint` string the
+ * frontend shows as fallback.
  */
 
 import * as fs from 'fs';
@@ -42,6 +40,18 @@ export interface ClaudeUsageSession {
   lastActivity: number;
 }
 
+export interface ClaudeRateLimitWindow {
+  utilization: number;   // 0-100 percent used
+  resetsAt: string;      // ISO timestamp when the window resets
+}
+
+export interface ClaudeRateLimits {
+  fiveHour: ClaudeRateLimitWindow | null;       // "Current session" in the CLI
+  sevenDay: ClaudeRateLimitWindow | null;       // "Current week (all models)"
+  sevenDayOpus: ClaudeRateLimitWindow | null;   // "Current week (Opus only)"
+  sevenDaySonnet: ClaudeRateLimitWindow | null; // "Current week (Sonnet only)"
+}
+
 export interface ClaudeUsageSnapshot {
   provider: 'claude';
   fetchedAt: number;
@@ -49,6 +59,8 @@ export interface ClaudeUsageSnapshot {
   today: DailyActivityEntry | null;
   recentDays: DailyActivityEntry[];   // newest first, capped at 14 entries
   statsCacheLastComputed: string | null;
+  rateLimits: ClaudeRateLimits | null;
+  rateLimitsError: string | null;
   cliHint: string;
 }
 
@@ -113,6 +125,9 @@ export interface ClaudeUsageByDaySummary {
 }
 
 const STATS_CACHE_PATH = path.join(os.homedir(), '.claude', 'stats-cache.json');
+const CREDENTIALS_PATH = path.join(os.homedir(), '.claude', '.credentials.json');
+const OAUTH_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
+const OAUTH_USAGE_TIMEOUT_MS = 5_000;
 
 interface StatsCacheFile {
   version?: number;
@@ -414,6 +429,72 @@ async function scanFileIntoDailyAccumulator(
   });
 }
 
+function parseRateLimitWindow(value: unknown): ClaudeRateLimitWindow | null {
+  if (!value || typeof value !== 'object') return null;
+  const window = value as Record<string, unknown>;
+  if (typeof window.utilization !== 'number' || !Number.isFinite(window.utilization)) return null;
+  if (typeof window.resets_at !== 'string' || window.resets_at === '') return null;
+  return {
+    utilization: window.utilization,
+    resetsAt: window.resets_at,
+  };
+}
+
+/**
+ * Fetch the live session/weekly rate-limit gauges — the data behind the
+ * progress bars in the CLI's `/usage` panel — using the OAuth token the CLI
+ * keeps in `~/.claude/.credentials.json`. Returns the gauges or an error
+ * string (never throws); the caller folds either into the snapshot.
+ */
+async function fetchClaudeRateLimits(): Promise<{ rateLimits: ClaudeRateLimits | null; error: string | null }> {
+  let accessToken: string;
+  try {
+    if (!fs.existsSync(CREDENTIALS_PATH)) {
+      return { rateLimits: null, error: 'No Claude CLI credentials found' };
+    }
+    const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf-8'));
+    const oauth = credentials?.claudeAiOauth;
+    if (!oauth || typeof oauth.accessToken !== 'string' || oauth.accessToken === '') {
+      return { rateLimits: null, error: 'Claude CLI credentials are missing an OAuth token' };
+    }
+    if (typeof oauth.expiresAt === 'number' && oauth.expiresAt <= Date.now()) {
+      return { rateLimits: null, error: 'Claude CLI OAuth token has expired — run any Claude session to refresh it' };
+    }
+    accessToken = oauth.accessToken;
+  } catch (err) {
+    log.warn(`Failed to read Claude credentials at ${CREDENTIALS_PATH}: ${err}`);
+    return { rateLimits: null, error: 'Failed to read Claude CLI credentials' };
+  }
+
+  try {
+    const response = await fetch(OAUTH_USAGE_URL, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'anthropic-beta': 'oauth-2025-04-20',
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(OAUTH_USAGE_TIMEOUT_MS),
+    });
+    if (!response.ok) {
+      return { rateLimits: null, error: `Anthropic usage endpoint returned ${response.status}` };
+    }
+    const body = await response.json() as Record<string, unknown>;
+    return {
+      rateLimits: {
+        fiveHour: parseRateLimitWindow(body.five_hour),
+        sevenDay: parseRateLimitWindow(body.seven_day),
+        sevenDayOpus: parseRateLimitWindow(body.seven_day_opus),
+        sevenDaySonnet: parseRateLimitWindow(body.seven_day_sonnet),
+      },
+      error: null,
+    };
+  } catch (err: any) {
+    log.warn(`Failed to fetch Claude rate limits: ${err}`);
+    const reason = err?.name === 'TimeoutError' ? 'request timed out' : (err?.message ?? 'request failed');
+    return { rateLimits: null, error: `Could not reach Anthropic usage endpoint (${reason})` };
+  }
+}
+
 function todayString(): string {
   const d = new Date();
   const yyyy = d.getFullYear();
@@ -422,13 +503,14 @@ function todayString(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-export function buildClaudeUsageSnapshot(agent: Agent): ClaudeUsageSnapshot {
+export async function buildClaudeUsageSnapshot(agent: Agent): Promise<ClaudeUsageSnapshot> {
   const cache = readStatsCache();
   const all = cache?.dailyActivity ?? [];
   // The cache writes oldest-first; sort newest-first for display.
   const sortedDesc = [...all].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   const today = sortedDesc.find((e) => e.date === todayString()) ?? null;
   const recentDays = sortedDesc.slice(0, 14);
+  const { rateLimits, error: rateLimitsError } = await fetchClaudeRateLimits();
 
   return {
     provider: 'claude',
@@ -443,7 +525,9 @@ export function buildClaudeUsageSnapshot(agent: Agent): ClaudeUsageSnapshot {
     today,
     recentDays,
     statsCacheLastComputed: cache?.lastComputedDate ?? null,
-    cliHint: 'Run /usage inside this agent\'s terminal to see live weekly and session rate-limit gauges (those live in the Claude Code TUI and aren\'t exposed as a non-interactive command).',
+    rateLimits,
+    rateLimitsError,
+    cliHint: 'Run /usage inside this agent\'s terminal to see live weekly and session rate-limit gauges.',
   };
 }
 

@@ -43,6 +43,8 @@ export interface SearchResult {
   _modifiedFiles?: string[];
   _userQueries?: string[];
   _agentId?: string; // Raw agent id (agent results only) — used for recency/MRU ranking
+  _lastActivity?: number; // Raw agent lastActivity epoch ms (agent results only) — recency sort key
+  _taskLabel?: string; // Brief task label (agent results only) — rendered as a chip in the header
   _status?: string; // Raw agent status (agent results only) — rendered as a colored chip
   _ports?: number[]; // Auto-detected listening ports (building results only) — rendered as links
 }

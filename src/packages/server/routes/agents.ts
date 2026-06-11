@@ -1034,10 +1034,10 @@ router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
 
 // GET /api/agents/:id/usage - Claude usage snapshot for a single agent
 //
-// Mirrors what the Claude CLI's `/usage` slash command would surface — but
-// assembled from local data we can read non-interactively. See
-// services/claude-usage-service.ts for the rationale and source list.
-router.get('/:id/usage', (req: Request<{ id: string }>, res: Response) => {
+// Mirrors what the Claude CLI's `/usage` slash command surfaces: local agent
+// stats plus the live rate-limit gauges fetched with the CLI's own OAuth
+// credentials. See services/claude-usage-service.ts for the source list.
+router.get('/:id/usage', async (req: Request<{ id: string }>, res: Response) => {
   const agent = agentService.getAgent(req.params.id);
   if (!agent) {
     res.status(404).json({ error: 'Agent not found' });
@@ -1051,7 +1051,7 @@ router.get('/:id/usage', (req: Request<{ id: string }>, res: Response) => {
     return;
   }
   try {
-    const snapshot = buildClaudeUsageSnapshot(agent);
+    const snapshot = await buildClaudeUsageSnapshot(agent);
     res.json(snapshot);
   } catch (err: any) {
     log.error('Failed to build Claude usage snapshot:', err);

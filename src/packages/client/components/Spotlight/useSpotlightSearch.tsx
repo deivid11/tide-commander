@@ -15,7 +15,7 @@ import { STORAGE_KEYS, getStorage, setStorage, getStorageString, setStorageStrin
 import type { Agent, DrawingArea } from '../../../shared/types';
 import type { SearchResult, UseSpotlightSearchOptions, SpotlightSearchState, SpotlightTab, SpotlightAreaSection } from './types';
 import { SPOTLIGHT_TABS } from './types';
-import { getFileIconFromPath, getRecentAgentIds, recordRecentAgent, recentAgentRank } from './utils';
+import { getFileIconFromPath, getRecentAgentTimes, recordRecentAgent, agentRecency } from './utils';
 import { Icon, type IconName } from '../Icon';
 import { AgentIcon } from '../AgentIcon';
 
@@ -129,10 +129,10 @@ export function useSpotlightSearch({
   // Get shortcuts for display
   const shortcuts = store.getShortcuts();
 
-  // MRU list of agents recently selected from Spotlight (newest first).
-  // Re-read from localStorage every time the modal opens so a fresh selection
-  // is reflected on the next open. Used as the primary recency sort key below.
-  const recentAgentIds = useMemo(() => (isOpen ? getRecentAgentIds() : []), [isOpen]);
+  // Map of agentId -> last Spotlight-selection time (epoch ms). Re-read from
+  // localStorage every time the modal opens so a fresh selection is reflected on
+  // the next open. Combined with agent.lastActivity into a single recency key.
+  const recentAgentTimes = useMemo(() => (isOpen ? getRecentAgentTimes() : {}), [isOpen]);
 
   // Build command results
   const commands: SearchResult[] = useMemo(() => {
@@ -211,8 +211,11 @@ export function useSpotlightSearch({
       // duplication — but kept in the searchable text so it stays findable.
       const subtitle = `${agent.class} • ${agent.cwd}`;
 
-      // Build searchable text including status, file names and user queries
+      // Build searchable text including status, task label, file names and user queries
       let searchableText = `${agent.name} ${agent.class} ${agent.status} ${agent.cwd}`;
+      if (agent.taskLabel) {
+        searchableText += ` ${agent.taskLabel}`;
+      }
 
       // Add file names to searchable text
       if (fileNames.length > 0) {
@@ -250,6 +253,8 @@ export function useSpotlightSearch({
         _modifiedFiles: uniqueFiles,
         _userQueries: userQueries,
         _agentId: agent.id,
+        _lastActivity: agent.lastActivity,
+        _taskLabel: agent.taskLabel,
         _status: agent.status,
         action: () => {
           onCloseRef.current();
@@ -531,15 +536,14 @@ export function useSpotlightSearch({
       // Show buildings first (servers/bosses) - most likely what user wants to access quickly
       suggested.push(...buildingResults);
 
-      // Show all agents: recently-used-in-Spotlight first (MRU), then by time away
-      // (shortest idle first = finished more recently) for everything else.
+      // Show all agents most-recently-used first. Recency = the later of the
+      // agent's server-side last activity and its last explicit Spotlight pick,
+      // so an agent the user is actively working with — or just opened — floats
+      // to the top, newest first.
       const sortedAgents = [...agentResults].sort((a, b) => {
-        const rankA = recentAgentRank(a._agentId, recentAgentIds);
-        const rankB = recentAgentRank(b._agentId, recentAgentIds);
-        if (rankA !== rankB) return rankA - rankB;
-        const timeA = a.timeAway ?? 0;
-        const timeB = b.timeAway ?? 0;
-        return timeA - timeB;
+        const recA = agentRecency(a._agentId, a._lastActivity, recentAgentTimes);
+        const recB = agentRecency(b._agentId, b._lastActivity, recentAgentTimes);
+        return recB - recA;
       });
       suggested.push(...sortedAgents);
 
@@ -667,22 +671,18 @@ export function useSpotlightSearch({
     // Sort WITHIN each category. For AGENTS the user wants matching agents to
     // surface most-recently-USED first: relevance TIER stays the primary key
     // (an exact/prefix match still ranks above a weaker fuzzy match), but WITHIN
-    // the same tier we boost by recency. Agents recently selected from Spotlight
-    // (MRU) float to the top, then by recent activity (smallest timeAway). Fuse
-    // score is only the final tiebreaker. Non-agent categories keep the plain
-    // combined-score ordering.
+    // the same tier we order by recency (the later of last activity and last
+    // Spotlight pick, newest first). Fuse score is only the final tiebreaker.
+    // Non-agent categories keep the plain combined-score ordering.
     for (const [type, arr] of scoredByCategory) {
       if (type === 'agent') {
         arr.sort((a, b) => {
           const tierA = matchTier(a.item);
           const tierB = matchTier(b.item);
           if (tierB !== tierA) return tierB - tierA;
-          const rankA = recentAgentRank(a.item._agentId, recentAgentIds);
-          const rankB = recentAgentRank(b.item._agentId, recentAgentIds);
-          if (rankA !== rankB) return rankA - rankB;
-          const awayA = a.item.timeAway ?? Number.POSITIVE_INFINITY;
-          const awayB = b.item.timeAway ?? Number.POSITIVE_INFINITY;
-          if (awayA !== awayB) return awayA - awayB;
+          const recA = agentRecency(a.item._agentId, a.item._lastActivity, recentAgentTimes);
+          const recB = agentRecency(b.item._agentId, b.item._lastActivity, recentAgentTimes);
+          if (recB !== recA) return recB - recA;
           return b.score - a.score;
         });
       } else {
@@ -705,7 +705,7 @@ export function useSpotlightSearch({
       });
 
     return finalResults;
-  }, [query, agentFuse, commandFuse, areaFuse, modifiedFileFuse, buildingFuse, commands, agentResults, areaResults, buildingResults, recentAgentIds]);
+  }, [query, agentFuse, commandFuse, areaFuse, modifiedFileFuse, buildingFuse, commands, agentResults, areaResults, buildingResults, recentAgentTimes]);
 
   // Filter the flat result list to the active tab. 'all' shows everything;
   // 'buildings'/'commands' filter by type; 'areas' is the flattened agent list

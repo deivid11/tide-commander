@@ -1260,6 +1260,14 @@
     "noActivityToday": "No activity recorded yet today.",
     "recentDays": "Last 7 days",
     "refresh": "Refresh usage data",
-    "error": "Could not load usage: {{message}}"
+    "error": "Could not load usage: {{message}}",
+    "limits": "Plan limits",
+    "currentSession": "Current session",
+    "currentWeekAll": "Current week (all models)",
+    "currentWeekOpus": "Current week (Opus only)",
+    "currentWeekSonnet": "Current week (Sonnet only)",
+    "percentUsed": "{{percent}}% used",
+    "resets": "Resets {{time}}",
+    "limitsError": "Live limits unavailable: {{message}}"
   }
 }
