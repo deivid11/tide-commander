@@ -9,7 +9,7 @@ import type { Agent, ContextStats } from '../../shared/types';
 import { useModalClose } from '../hooks';
 import { ModalPortal } from './shared/ModalPortal';
 import { Icon } from './Icon';
-import { fetchClaudeUsage, type ClaudeUsageSnapshot } from '../api/claude-usage';
+import { fetchClaudeUsage, type ClaudeRateLimitWindow, type ClaudeUsageSnapshot } from '../api/claude-usage';
 
 interface ContextViewModalProps {
   agent: Agent;
@@ -393,6 +393,20 @@ function formatActivityDate(isoDate: string): string {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+// Format a rate-limit reset timestamp the way the CLI's /usage tab does:
+// time-of-day for same-day resets, "Jun 15, 1pm" style otherwise, with the
+// local IANA timezone appended.
+function formatResetTime(isoTimestamp: string): string {
+  const date = new Date(isoTimestamp);
+  if (Number.isNaN(date.getTime())) return isoTimestamp;
+  const now = new Date();
+  const time = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const sameDay = date.toDateString() === now.toDateString();
+  const datePart = sameDay ? time : `${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${time}`;
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return timeZone ? `${datePart} (${timeZone})` : datePart;
+}
+
 function ClaudeUsageSection({ snapshot, loading, error, onRefresh }: ClaudeUsageSectionProps) {
   const { t } = useTranslation(['terminal', 'common']);
 
@@ -400,6 +414,21 @@ function ClaudeUsageSection({ snapshot, loading, error, onRefresh }: ClaudeUsage
   const peakMessages = snapshot
     ? snapshot.recentDays.reduce((max, d) => Math.max(max, d.messageCount), 0)
     : 0;
+
+  // Rate-limit gauges in the CLI's /usage display order; absent windows
+  // (e.g. no Opus bucket on this plan) are skipped.
+  const rateLimitWindows: Array<{ key: string; label: string; window: ClaudeRateLimitWindow }> = [];
+  if (snapshot?.rateLimits) {
+    const candidates = [
+      { key: 'fiveHour', label: t('terminal:usage.currentSession'), window: snapshot.rateLimits.fiveHour },
+      { key: 'sevenDay', label: t('terminal:usage.currentWeekAll'), window: snapshot.rateLimits.sevenDay },
+      { key: 'sevenDayOpus', label: t('terminal:usage.currentWeekOpus'), window: snapshot.rateLimits.sevenDayOpus },
+      { key: 'sevenDaySonnet', label: t('terminal:usage.currentWeekSonnet'), window: snapshot.rateLimits.sevenDaySonnet },
+    ];
+    for (const candidate of candidates) {
+      if (candidate.window) rateLimitWindows.push({ ...candidate, window: candidate.window });
+    }
+  }
 
   return (
     <div
@@ -511,6 +540,31 @@ function ClaudeUsageSection({ snapshot, loading, error, onRefresh }: ClaudeUsage
             </div>
           </div>
 
+          {/* Rate-limit gauges — same data the CLI's /usage tab renders */}
+          {rateLimitWindows.length > 0 && (
+            <div style={{
+              marginBottom: '12px',
+              padding: '10px 12px',
+              background: 'var(--bg-secondary)',
+              borderRadius: '6px',
+            }}>
+              <div style={{
+                fontSize: '11px',
+                color: 'var(--text-secondary)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '8px',
+              }}>
+                {t('terminal:usage.limits')}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {rateLimitWindows.map(({ key, label, window }) => (
+                  <RateLimitGauge key={key} label={label} window={window} />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Today */}
           <div style={{
             marginBottom: '12px',
@@ -599,20 +653,66 @@ function ClaudeUsageSection({ snapshot, loading, error, onRefresh }: ClaudeUsage
             </div>
           )}
 
-          {/* CLI hint — explains why rate-limit gauges aren't here */}
-          <div style={{
-            padding: '8px 12px',
-            background: 'rgba(74, 158, 255, 0.06)',
-            border: '1px solid rgba(74, 158, 255, 0.2)',
-            borderRadius: '6px',
-            fontSize: '11px',
-            color: 'var(--text-secondary)',
-            lineHeight: 1.5,
-          }}>
-            {snapshot.cliHint}
-          </div>
+          {/* CLI hint — fallback when the live rate-limit fetch failed */}
+          {rateLimitWindows.length === 0 && (
+            <div style={{
+              padding: '8px 12px',
+              background: 'rgba(74, 158, 255, 0.06)',
+              border: '1px solid rgba(74, 158, 255, 0.2)',
+              borderRadius: '6px',
+              fontSize: '11px',
+              color: 'var(--text-secondary)',
+              lineHeight: 1.5,
+            }}>
+              {snapshot.rateLimitsError && (
+                <div style={{ marginBottom: '4px' }}>
+                  {t('terminal:usage.limitsError', { message: snapshot.rateLimitsError })}
+                </div>
+              )}
+              {snapshot.cliHint}
+            </div>
+          )}
         </>
       )}
+    </div>
+  );
+}
+
+function RateLimitGauge({ label, window }: { label: string; window: ClaudeRateLimitWindow }) {
+  const { t } = useTranslation(['terminal']);
+  const percent = Math.max(0, Math.min(100, window.utilization));
+  const color = getUsedPercentColor(percent);
+
+  return (
+    <div>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        fontSize: '12px',
+        marginBottom: '4px',
+      }}>
+        <span style={{ fontWeight: 500 }}>{label}</span>
+        <span style={{ color, fontVariantNumeric: 'tabular-nums' }}>
+          {t('terminal:usage.percentUsed', { percent: Math.round(percent) })}
+        </span>
+      </div>
+      <div style={{
+        height: '10px',
+        background: 'var(--bg-tertiary)',
+        borderRadius: '5px',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          width: `${percent}%`,
+          height: '100%',
+          background: color,
+          transition: 'width 0.3s ease',
+        }} />
+      </div>
+      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '3px' }}>
+        {t('terminal:usage.resets', { time: formatResetTime(window.resetsAt) })}
+      </div>
     </div>
   );
 }

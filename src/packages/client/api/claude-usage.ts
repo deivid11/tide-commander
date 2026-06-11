@@ -3,10 +3,10 @@
  * `src/packages/server/routes/agents.ts` (`GET /api/agents/:id/usage`).
  *
  * Returns the snapshot the server assembles from local data sources (agent
- * tracking + ~/.claude/stats-cache.json). The CLI's interactive `/usage`
- * panel pulls live rate-limit gauges from Anthropic's API; that part isn't
- * scrapeable non-interactively, so the snapshot includes a `cliHint` we
- * surface in the modal instead.
+ * tracking + ~/.claude/stats-cache.json) plus the live session/weekly
+ * rate-limit gauges fetched from Anthropic with the CLI's own OAuth
+ * credentials — the same data the CLI's `/usage` panel shows. When that
+ * fetch fails, `rateLimits` is null and `cliHint` is shown as fallback.
  */
 
 import { authFetch, apiUrl } from '../utils/storage';
@@ -26,6 +26,18 @@ export interface ClaudeUsageSession {
   lastActivity: number;
 }
 
+export interface ClaudeRateLimitWindow {
+  utilization: number;   // 0-100 percent used
+  resetsAt: string;      // ISO timestamp when the window resets
+}
+
+export interface ClaudeRateLimits {
+  fiveHour: ClaudeRateLimitWindow | null;       // "Current session" in the CLI
+  sevenDay: ClaudeRateLimitWindow | null;       // "Current week (all models)"
+  sevenDayOpus: ClaudeRateLimitWindow | null;   // "Current week (Opus only)"
+  sevenDaySonnet: ClaudeRateLimitWindow | null; // "Current week (Sonnet only)"
+}
+
 export interface ClaudeUsageSnapshot {
   provider: 'claude';
   fetchedAt: number;
@@ -33,6 +45,8 @@ export interface ClaudeUsageSnapshot {
   today: DailyActivityEntry | null;
   recentDays: DailyActivityEntry[];
   statsCacheLastComputed: string | null;
+  rateLimits: ClaudeRateLimits | null;
+  rateLimitsError: string | null;
   cliHint: string;
 }
 

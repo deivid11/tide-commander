@@ -599,6 +599,37 @@
   50% { opacity: 1; transform: scale(1.15); }
 }
 
+// Brief task-label chip in the result header (agent results only)
+.spotlight-item-task-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 220px;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: $accent-purple;
+  background: rgba($accent-purple, 0.15);
+  border: 1px solid rgba($accent-purple, 0.25);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+
+  svg {
+    flex-shrink: 0;
+    opacity: 0.85;
+  }
+
+  .spotlight-highlight {
+    background: rgba($accent-purple, 0.35);
+    color: color.adjust($accent-purple, $lightness: 15%);
+    font-weight: 700;
+  }
+}
+
 // Building listening-port links (open http://localhost:<port>)
 .spotlight-item-ports {
   display: flex;

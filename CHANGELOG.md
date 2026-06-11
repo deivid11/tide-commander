@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.115.0] - 2026-06-11
+
+### Added
+- **Live rate-limit gauges in usage modal** — the Context/Usage modal now fetches real-time plan limits (current session, current week all/Opus/Sonnet) directly from Anthropic using the CLI's own OAuth credentials, rendering the same gauges shown in the CLI's `/usage` panel. Falls back to the CLI hint when the fetch fails.
+- **Task label chip in Spotlight** — agent results in Spotlight now display the agent's current task label as a small chip, making it easy to see what each agent is doing at a glance; task labels are also searchable.
+- **Improved Spotlight agent recency sort** — agents now sort by the later of their server-side `lastActivity` and their last explicit Spotlight pick, so actively-working agents and recently-opened agents always float to the top.
+
 ## [1.114.1] - 2026-06-10
 
 ### Fixed
