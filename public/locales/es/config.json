@@ -188,6 +188,10 @@
     "2dView": "Modo de vista 2D",
     "voiceAssistant": "Asistente de voz",
     "tts": "Texto a voz",
+    "webSpeechSTT": "Web Speech STT (Navegador)",
+    "ttsHint": "Voz a texto basado en Whisper (transcripción en el servidor)",
+    "webSpeechSTTHint": "Voz a texto nativo del navegador vía Web Speech API (Chromium / Safari)",
+    "webSpeechSTTUnsupported": "No soportado en este navegador. Prueba Chrome, Edge o Safari.",
     "echoPrompt": "Echo Prompt",
     "hint": "Estas funciones son experimentales y pueden cambiar"
   },

@@ -46,6 +46,7 @@
     "stopOperation": "Остановить текущую операцию (Esc)",
     "stop": "Стоп",
     "voiceInput": "Голосовой ввод (Whisper)",
+    "voiceInputErrorTitle": "Ошибка голосового ввода",
     "stopRecording": "Остановить запись",
     "transcribing": "Расшифровка..."
   },

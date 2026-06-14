@@ -46,6 +46,7 @@
     "stopOperation": "Ferma operazione corrente (Esc)",
     "stop": "Ferma",
     "voiceInput": "Input vocale (Whisper)",
+    "voiceInputErrorTitle": "Errore input vocale",
     "stopRecording": "Ferma registrazione",
     "transcribing": "Trascrizione..."
   },

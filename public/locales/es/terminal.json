@@ -46,6 +46,7 @@
     "stopOperation": "Detener operacion actual (Esc)",
     "stop": "Detener",
     "voiceInput": "Entrada de voz (Whisper)",
+    "voiceInputErrorTitle": "Error de entrada de voz",
     "stopRecording": "Detener grabacion",
     "transcribing": "Transcribiendo..."
   },

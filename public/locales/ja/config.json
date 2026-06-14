@@ -188,6 +188,10 @@
     "2dView": "2Dビューモード",
     "voiceAssistant": "音声アシスタント",
     "tts": "テキスト読み上げ",
+    "webSpeechSTT": "Web Speech STT (ブラウザ)",
+    "ttsHint": "Whisperベースの音声認識（サーバー側の文字起こし）",
+    "webSpeechSTTHint": "Web Speech APIによるブラウザネイティブの音声認識 (Chromium / Safari)",
+    "webSpeechSTTUnsupported": "このブラウザではサポートされていません。Chrome、Edge、または Safari をお試しください。",
     "echoPrompt": "Echo Prompt",
     "hint": "これらの機能は実験的であり、変更される可能性があります"
   },
