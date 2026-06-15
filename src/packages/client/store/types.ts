@@ -120,6 +120,9 @@ export interface Settings {
   tabTitle?: string;
   // tmux process persistence (server-synced)
   tmuxMode: boolean;
+  // Experimental: run Claude agents as the real interactive TUI inside tmux,
+  // reconstructing the conversation from the session transcript (server-synced)
+  interactiveMode: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -136,6 +139,7 @@ export const DEFAULT_SETTINGS: Settings = {
   vibrationIntensity: 1,
   tabTitle: '',
   tmuxMode: false,
+  interactiveMode: false,
 };
 
 // Store state

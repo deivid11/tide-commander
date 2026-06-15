@@ -297,3 +297,54 @@ export function setTmuxIdleTimeoutMs(timeoutMs: number): void {
     throw error;
   }
 }
+
+// ============================================================================
+// Interactive (TUI) Mode Setting
+// ============================================================================
+//
+// Experimental: when enabled, Claude agents are launched as the real
+// interactive `claude` TUI inside a tmux session (no `--print`), driven by
+// `tmux send-keys`, with the conversation reconstructed by tailing the session
+// transcript JSONL. This is distinct from the (headless) tmux mode above, which
+// still runs `claude --print` inside tmux for process persistence.
+
+const INTERACTIVE_MODE_FILE = path.join(DATA_DIR, 'interactive-mode-setting.json');
+
+interface InteractiveModeSetting {
+  enabled: boolean;
+  updatedAt: number;
+}
+
+/**
+ * Check if experimental interactive-TUI mode is enabled.
+ */
+export function isInteractiveModeEnabled(): boolean {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(INTERACTIVE_MODE_FILE)) {
+      const data: InteractiveModeSetting = JSON.parse(fs.readFileSync(INTERACTIVE_MODE_FILE, 'utf-8'));
+      return data.enabled;
+    }
+  } catch (error: any) {
+    log.error(` Failed to load interactive mode setting: ${error.message}`);
+  }
+  return false;
+}
+
+/**
+ * Enable/disable experimental interactive-TUI mode.
+ */
+export function setInteractiveModeEnabled(enabled: boolean): void {
+  ensureDataDir();
+  const data: InteractiveModeSetting = {
+    enabled,
+    updatedAt: Date.now(),
+  };
+  try {
+    fs.writeFileSync(INTERACTIVE_MODE_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    log.log(` Interactive mode setting updated: enabled=${enabled}`);
+  } catch (error: any) {
+    log.error(` Failed to save interactive mode setting: ${error.message}`);
+    throw error;
+  }
+}

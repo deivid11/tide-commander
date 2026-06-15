@@ -238,7 +238,7 @@ function getCodeLanguage(className: string | undefined): string | undefined {
  *  - all other code blocks and inline code keep rendering normally
  */
 const MARKDOWN_COMPONENTS: Components = {
-  code({ node, className, children, ...rest }) {
+  code({ node: _node, className, children, ...rest }) {
     if (getCodeLanguage(className) === 'plantuml') {
       return <PlantUmlDiagram source={extractCodeText(children).replace(/\n$/, '')} />;
     }

@@ -17,7 +17,7 @@ import {
   useAreas,
   useBuildings,
 } from '../../store/selectors';
-import { store } from '../../store';
+import { store, useSettings } from '../../store';
 import { ConfirmModal } from '../shared/ConfirmModal';
 import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../../shared/types';
 import type { Agent } from '../../../shared/types';
@@ -34,6 +34,7 @@ import { getAgentStatusColor, getBuildingStatusColor } from '../../utils/colors'
 import { getDisplayContextInfo } from '../../utils/context';
 import { AgentOverviewPanel } from '../ClaudeOutputPanel/AgentOverviewPanel';
 import { AgentTerminalPane, type AgentTerminalPaneHandle } from '../ClaudeOutputPanel/AgentTerminalPane';
+import AgentClassicTerminal from './AgentClassicTerminal';
 import { AgentDebugPanel } from '../ClaudeOutputPanel/AgentDebugPanel';
 import { AreaBuildingsPanel } from '../ClaudeOutputPanel/AreaBuildingsPanel';
 import { GuakeGitPanel } from '../ClaudeOutputPanel/GuakeGitPanel';
@@ -217,8 +218,23 @@ const ChatView = React.memo(function ChatView({
 }: ChatViewProps) {
   const agent = useAgent(agentId);
   const buildings = useBuildings();
+  const settings = useSettings();
   const paneRef = useRef<AgentTerminalPaneHandle>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // "Classic TUI" view: only offered when interactive-TUI mode is enabled and
+  // this is a Claude agent that has a session (i.e. a tc-int-<agentId> tmux
+  // session exists). Toggles a local, per-agent embedded-terminal view.
+  const classicTuiAvailable =
+    !!settings.interactiveMode && (agent?.provider ?? 'claude') === 'claude' && !!agent?.sessionId;
+  const [classicTuiOpen, setClassicTuiOpen] = useState(false);
+  // Reset when switching agents or when it stops being available.
+  useEffect(() => {
+    setClassicTuiOpen(false);
+  }, [agentId]);
+  useEffect(() => {
+    if (!classicTuiAvailable && classicTuiOpen) setClassicTuiOpen(false);
+  }, [classicTuiAvailable, classicTuiOpen]);
 
   // Mouse back/forward button gestures for agent history navigation — mirrors
   // the 3D ClaudeOutputPanel so the Flat view responds to the same physical
@@ -618,11 +634,14 @@ const ChatView = React.memo(function ChatView({
                 key={mode}
                 type="button"
                 className={`flat-terminal-wrapper__view-mode-btn ${
-                  terminalViewMode === mode ? 'flat-terminal-wrapper__view-mode-btn--active' : ''
+                  !classicTuiOpen && terminalViewMode === mode ? 'flat-terminal-wrapper__view-mode-btn--active' : ''
                 }`}
-                onClick={() => onTerminalViewModeChange(mode)}
+                onClick={() => {
+                  setClassicTuiOpen(false);
+                  onTerminalViewModeChange(mode);
+                }}
                 title={TERMINAL_VIEW_MODE_DESCRIPTIONS[mode]}
-                aria-pressed={terminalViewMode === mode}
+                aria-pressed={!classicTuiOpen && terminalViewMode === mode}
               >
                 <span className="flat-terminal-wrapper__view-mode-icon" aria-hidden="true">
                   {TERMINAL_VIEW_MODE_ICONS[mode]}
@@ -632,6 +651,24 @@ const ChatView = React.memo(function ChatView({
                 </span>
               </button>
             ))}
+            {classicTuiAvailable && (
+              <button
+                type="button"
+                className={`flat-terminal-wrapper__view-mode-btn ${
+                  classicTuiOpen ? 'flat-terminal-wrapper__view-mode-btn--active' : ''
+                }`}
+                onClick={() => setClassicTuiOpen((open) => !open)}
+                title="Classic TUI — attach to the live interactive claude session in a terminal"
+                aria-pressed={classicTuiOpen}
+              >
+                <span className="flat-terminal-wrapper__view-mode-icon" aria-hidden="true">
+                  <Icon name="terminal" size={13} />
+                </span>
+                <span className="flat-terminal-wrapper__view-mode-label">
+                  Classic TUI
+                </span>
+              </button>
+            )}
           </div>
           {/* Applicable guake-actions — back/forward, search, clear-context, more-menu */}
           <div className="flat-terminal-wrapper__actions" role="group" aria-label="Terminal actions">
@@ -810,19 +847,23 @@ const ChatView = React.memo(function ChatView({
           </button>
         </div>
       </div>
-      <AgentTerminalPane
-        ref={paneRef}
-        agentId={agentId}
-        agent={agent}
-        viewMode={terminalViewMode}
-        isOpen={true}
-        onImageClick={onImageClick}
-        onFileClick={onFileClick}
-        onBashClick={onBashClick}
-        onViewMarkdown={onViewMarkdown}
-        keyboard={keyboard}
-        hasModalOpen={false}
-      />
+      {classicTuiOpen && classicTuiAvailable ? (
+        <AgentClassicTerminal agentId={agentId} />
+      ) : (
+        <AgentTerminalPane
+          ref={paneRef}
+          agentId={agentId}
+          agent={agent}
+          viewMode={terminalViewMode}
+          isOpen={true}
+          onImageClick={onImageClick}
+          onFileClick={onFileClick}
+          onBashClick={onBashClick}
+          onViewMarkdown={onViewMarkdown}
+          keyboard={keyboard}
+          hasModalOpen={false}
+        />
+      )}
       {embeddedTerminalBuilding && (
         <>
           <div

@@ -20,6 +20,7 @@ import { setupTerminalWsProxy } from './services/terminal-proxy.js';
 import { initIntegrations, shutdownIntegrations, getIntegrationTriggerHandlers } from './integrations/integration-registry.js';
 import { initBackupService, shutdownBackupService } from './services/backup-service.js';
 import { initAttachmentJanitor, shutdownAttachmentJanitor } from './services/attachment-janitor.js';
+import { stopAllAgentTerminals, sweepAllAgentTtyds } from './services/agent-terminal-service.js';
 import type { IntegrationContext } from '../shared/integration-types.js';
 
 // Configuration
@@ -75,6 +76,8 @@ async function main(): Promise<void> {
   agentService.initAgents();
   agentService.initSessionHistory();
   runtimeService.init();
+  // Clean up any agent terminal viewers orphaned by a prior instance.
+  sweepAllAgentTtyds();
   bossService.init();
   skillService.initSkills();
   customClassService.initCustomClasses();
@@ -251,6 +254,7 @@ async function main(): Promise<void> {
       buildingService.stopDockerStatusPolling();
       buildingService.stopTerminalStatusPolling();
       buildingService.cleanupAllTerminals();
+      stopAllAgentTerminals();
       await databaseService.closeAllConnections();
       await runtimeService.shutdown();
       agentService.shutdownSessionHistory();

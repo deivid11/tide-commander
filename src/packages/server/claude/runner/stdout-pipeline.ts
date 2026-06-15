@@ -121,6 +121,16 @@ export class RunnerStdoutPipeline {
     }
   }
 
+  /**
+   * Inject an already-normalized StandardEvent into the same fan-out path the
+   * stdout/JSON parser uses (activity + event bus, onEvent/onOutput callbacks,
+   * turn-state tracking). Used by the interactive-TUI runner, which reconstructs
+   * events from the session transcript JSONL instead of a stdout JSON stream.
+   */
+  emitStandardEvent(agentId: string, event: StandardEvent): void {
+    this.handleEvent(agentId, event);
+  }
+
   private handleEvent(agentId: string, event: StandardEvent): void {
     // After notification is sent, suppress output-producing events from the agentic loop.
     // This prevents status flickering (working → idle → working) caused by OpenCode

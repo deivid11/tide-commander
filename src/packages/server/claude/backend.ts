@@ -29,7 +29,7 @@ const toolUseIdToName: Map<string, string> = new Map();
  * Write prompt content to a temp file for use with --system-prompt-file / --append-system-prompt-file
  * This avoids issues with multiline prompts and shell escaping
  */
-function writePromptToFile(prompt: string, agentId?: string): string {
+export function writePromptToFile(prompt: string, agentId?: string): string {
   const tideDataDir = path.join(os.homedir(), '.tide-commander', 'prompts');
   if (!fs.existsSync(tideDataDir)) {
     fs.mkdirSync(tideDataDir, { recursive: true });

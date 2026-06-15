@@ -270,7 +270,10 @@ export function listAgentTmuxSessions(): string[] {
     return out
       .split('\n')
       .map((s) => s.trim())
-      .filter((name) => name.startsWith('tc-'))
+      // Headless sessions only — exclude interactive-TUI sessions (tc-int-*),
+      // which are owned by the InteractiveClaudeRunner and must not be swept
+      // by the headless/codex/opencode orphan cleanup.
+      .filter((name) => name.startsWith('tc-') && !name.startsWith('tc-int-'))
       .map((name) => name.slice('tc-'.length));
   } catch {
     return [];
@@ -478,6 +481,191 @@ export function isTmuxPaneCommandAlive(agentId: string, expectedCommand: string)
     }
   }
   return false;
+}
+
+// ---------------------------------------------------------------------------
+// Interactive-TUI mode (experimental)
+// ---------------------------------------------------------------------------
+//
+// Unlike the headless tmux mode above (which runs `claude --print` and redirects
+// its stream-json stdout to a log file), interactive mode runs the real `claude`
+// TUI directly in the tmux pane. The pane PTY *is* the program's terminal, so
+// there is no stdout redirection and no `(cat;cat)|` stdin pipeline — input is
+// delivered with paste-buffer + Enter and output is reconstructed elsewhere by
+// tailing the session transcript JSONL.
+//
+// A distinct `tc-int-` session prefix keeps these sessions from colliding with
+// the headless `tc-` watchdog / orphan sweep.
+
+const INTERACTIVE_PREFIX = 'tc-int-';
+
+/** Canonical tmux session name for an interactive-TUI agent. */
+export function interactiveTmuxSessionName(agentId: string): string {
+  return `${INTERACTIVE_PREFIX}${agentId}`;
+}
+
+/** Public probe so callers can gate interactive mode on tmux being installed. */
+export function isTmuxAvailable(): boolean {
+  return isTmuxInstalled();
+}
+
+/**
+ * Spawn the interactive `claude` TUI inside a tmux session.
+ *
+ * The pane runs `claude` directly (no shell wrapper, no stdout redirect): the
+ * TUI owns the pane PTY, which is what paste-buffer / send-keys write to.
+ * Returns the short-lived tmux launcher ChildProcess and the session name.
+ */
+export function spawnInTmuxInteractive(
+  executable: string,
+  args: string[],
+  options: {
+    agentId: string;
+    cwd: string;
+    env: Record<string, string | undefined>;
+  },
+): { launcherProcess: ChildProcess; sessionName: string } {
+  const sessionName = interactiveTmuxSessionName(options.agentId);
+
+  // Kill any stale session with the same name (ignore errors)
+  try {
+    execSync(`tmux kill-session -t ${sessionName} 2>/dev/null`, { stdio: 'ignore' });
+  } catch {
+    // no existing session — that's fine
+  }
+
+  // Per-session env overrides (same rationale as spawnInTmux): the tmux server's
+  // env may be stale, so push the Tide-specific keys explicitly.
+  const envFlags: string[] = [];
+  for (const key of ['TIDE_SERVER', 'TIDE_AGENT_ID', 'AUTH_TOKEN']) {
+    const val = options.env[key];
+    if (val !== undefined && val !== '') {
+      envFlags.push('-e', `${key}=${val}`);
+    }
+  }
+
+  const launcherProcess = spawn(
+    'tmux',
+    [
+      'new-session',
+      '-d',               // detached
+      '-s', sessionName,  // session name
+      '-x', '220',        // width
+      '-y', '50',         // height
+      ...envFlags,
+      '--', executable, ...args,
+    ],
+    {
+      cwd: options.cwd,
+      env: options.env as NodeJS.ProcessEnv,
+      detached: true,
+      stdio: ['ignore', 'ignore', 'ignore'],
+    },
+  );
+  launcherProcess.unref();
+
+  log.log(`Spawned interactive tmux session ${sessionName}: ${executable} ${args.join(' ')}`);
+  return { launcherProcess, sessionName };
+}
+
+/**
+ * Deliver a prompt to the interactive TUI: bracketed-paste the text (so a
+ * multi-line prompt lands in the composer as one block and embedded newlines
+ * can't auto-submit), pause briefly, then send a separate Enter to submit.
+ */
+export function sendPromptToTmuxInteractive(agentId: string, text: string): boolean {
+  const sessionName = interactiveTmuxSessionName(agentId);
+  const tmpFile = path.join(os.tmpdir(), `tc-int-stdin-${agentId}.tmp`);
+  const bufferName = `tc-int-input-${agentId}`;
+  try {
+    // No trailing newline: the explicit Enter below is what submits.
+    fs.writeFileSync(tmpFile, text);
+    // -p: bracketed paste (TUI treats embedded LFs as literal newlines, not submit)
+    // -r: don't translate the buffer's LFs to CR
+    // -d: delete the buffer after pasting
+    // The inline `sleep` gives the TUI a beat to ingest the paste / exit
+    // bracketed-paste mode before the submit keypress.
+    execSync(
+      `tmux load-buffer -b ${bufferName} ${tmpFile} && ` +
+      `tmux paste-buffer -b ${bufferName} -t ${sessionName} -p -r -d && ` +
+      `sleep 0.15 && tmux send-keys -t ${sessionName} Enter`,
+      { stdio: 'ignore', timeout: 8000 },
+    );
+    try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
+    return true;
+  } catch (err) {
+    log.error(`Failed to send prompt to interactive tmux session ${sessionName}:`, err);
+    try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
+    return false;
+  }
+}
+
+/** Check whether an interactive-TUI tmux session exists. */
+export function hasInteractiveTmuxSession(agentId: string): boolean {
+  const sessionName = interactiveTmuxSessionName(agentId);
+  try {
+    execSync(`tmux has-session -t ${sessionName} 2>/dev/null`, { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Kill an interactive-TUI tmux session. */
+export function killInteractiveTmuxSession(agentId: string): void {
+  const sessionName = interactiveTmuxSessionName(agentId);
+  try {
+    execSync(`tmux kill-session -t ${sessionName} 2>/dev/null`, { stdio: 'ignore' });
+    log.log(`Killed interactive tmux session ${sessionName}`);
+  } catch {
+    // already gone
+  }
+}
+
+/** Cancel the current turn in the interactive TUI by sending Escape. */
+export function interruptInteractiveTmuxSession(agentId: string): boolean {
+  const sessionName = interactiveTmuxSessionName(agentId);
+  try {
+    execSync(`tmux send-keys -t ${sessionName} Escape`, { stdio: 'ignore', timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * List interactive-TUI tmux sessions, returning bare agent IDs (prefix stripped).
+ * Used at startup to sweep orphaned sessions whose owning agent is gone.
+ */
+export function listInteractiveTmuxSessions(): string[] {
+  try {
+    const out = execSync(
+      `tmux list-sessions -F '#{session_name}' 2>/dev/null`,
+      { encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] },
+    );
+    return out
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((name) => name.startsWith(INTERACTIVE_PREFIX))
+      .map((name) => name.slice(INTERACTIVE_PREFIX.length));
+  } catch {
+    return [];
+  }
+}
+
+/** Get the PID running inside an interactive-TUI session's active pane. */
+export function getInteractiveTmuxPanePid(agentId: string): number | undefined {
+  const sessionName = interactiveTmuxSessionName(agentId);
+  try {
+    const output = execSync(
+      `tmux list-panes -t ${sessionName} -F '#{pane_pid}'`,
+      { encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] },
+    ).trim();
+    const pid = parseInt(output.split('\n')[0], 10);
+    return Number.isFinite(pid) ? pid : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 // ---------------------------------------------------------------------------

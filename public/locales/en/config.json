@@ -30,6 +30,7 @@
     "fpsLimit": "FPS Limit",
     "powerSaving": "Power Saving",
     "tmuxMode": "Tmux Process Persistence",
+    "interactiveMode": "Interactive TUI Mode (Experimental)",
     "tts": "Text-to-Speech",
     "stt": "Speech-to-Text",
     "externalEditor": "External Editor",
