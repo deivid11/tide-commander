@@ -384,6 +384,41 @@ export async function sendEmail(params: {
 
 // ─── Reading ───
 
+/**
+ * Fallback HTML→text conversion used when the message has no `text/plain` part.
+ * The previous version stripped every tag, which discarded `href` attributes —
+ * so login/magic-link emails (Anthropic, Slack, Notion, etc.) reached the
+ * agent with the anchor text but no URL. We now inline the URL next to the
+ * anchor text and drop `<style>`/`<script>` blocks so the body isn't polluted
+ * with CSS.
+ */
+function htmlToTextPreservingLinks(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(
+      /<a\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
+      (_m, url, text) => {
+        const cleanText = String(text).replace(/<[^>]+>/g, '').trim();
+        if (!cleanText || cleanText === url) return url;
+        return `${cleanText} (${url})`;
+      },
+    )
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|h[1-6]|li|tr|table)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_m, code) => String.fromCharCode(parseInt(code, 10)))
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function parseGmailMessage(msg: gmail_v1.Schema$Message): EmailMessage {
   const headers = msg.payload?.headers || [];
   const getHeader = (name: string) => headers.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value || '';
@@ -450,7 +485,7 @@ function parseGmailMessage(msg: gmail_v1.Schema$Message): EmailMessage {
     to,
     cc,
     subject,
-    body: body || (bodyHtml ? bodyHtml.replace(/<[^>]+>/g, '') : ''),
+    body: body || (bodyHtml ? htmlToTextPreservingLinks(bodyHtml) : ''),
     bodyHtml: bodyHtml || undefined,
     date,
     inReplyTo,
