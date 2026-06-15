@@ -375,6 +375,8 @@
     "diagram": "Diagram",
     "renderingDiagram": "Rendering diagram...",
     "couldNotRender": "Could not render diagram",
+    "diagramRenderedVia": "Rendered via {{host}}",
+    "diagramExternalNote": "The diagram source is sent to {{host}} (an external server) to be rendered. Point PLANTUML_RENDER_ENDPOINT at a self-hosted instance to keep it private.",
     "failedToLoad": "Failed to load file",
     "failedToLoadImage": "Failed to load image",
     "failedToLoadPdf": "Failed to load PDF",

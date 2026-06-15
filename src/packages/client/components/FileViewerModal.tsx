@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
+import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { PlantUmlDiagram } from './PlantUmlDiagram';
 import * as pdfjsLib from 'pdfjs-dist';
 import { DiffViewer } from './DiffViewer';
 import { apiUrl, authFetch, getAuthToken } from '../utils/storage';
@@ -218,6 +220,42 @@ function reconstructOriginalFromUnifiedDiff(currentContent: string, diffText: st
 const MARKDOWN_EXTENSIONS = ['.md', '.mdx', '.markdown'];
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico', '.svg'];
 const PDF_EXTENSIONS = ['.pdf'];
+
+/** Flatten react-markdown code children into the raw fenced-block text. */
+function extractCodeText(children: React.ReactNode): string {
+  if (typeof children === 'string') return children;
+  if (Array.isArray(children)) return children.map(extractCodeText).join('');
+  return children == null ? '' : String(children);
+}
+
+function getCodeLanguage(className: string | undefined): string | undefined {
+  return /language-(\w+)/.exec(className || '')?.[1];
+}
+
+/**
+ * Markdown renderer overrides for the file viewer:
+ *  - fenced ```plantuml blocks render as actual diagrams (PlantUmlDiagram)
+ *  - all other code blocks and inline code keep rendering normally
+ */
+const MARKDOWN_COMPONENTS: Components = {
+  code({ node, className, children, ...rest }) {
+    if (getCodeLanguage(className) === 'plantuml') {
+      return <PlantUmlDiagram source={extractCodeText(children).replace(/\n$/, '')} />;
+    }
+    return <code className={className} {...rest}>{children}</code>;
+  },
+  pre({ children }) {
+    // PlantUmlDiagram renders its own block container, so unwrap the <pre> for
+    // plantuml blocks to avoid invalid <pre><div> nesting. Other blocks keep <pre>.
+    const child = Array.isArray(children) ? children[0] : children;
+    const childClass =
+      React.isValidElement<{ className?: string }>(child) ? child.props.className : undefined;
+    if (getCodeLanguage(childClass) === 'plantuml') {
+      return <>{children}</>;
+    }
+    return <pre>{children}</pre>;
+  },
+};
 
 export function FileViewerModal({ isOpen, onClose, filePath, action, editData, searchRoot }: FileViewerModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
@@ -1167,7 +1205,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
               </pre>
             ) : isMarkdown ? (
               <div className="file-viewer-markdown markdown-content" ref={markdownContentRef}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{fileData.content}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>{fileData.content}</ReactMarkdown>
               </div>
             ) : (
               <pre className={`file-viewer-code file-viewer-code-lines language-${language}`}>
