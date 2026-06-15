@@ -18,7 +18,7 @@ import { AgentChatMessageCard, parseAgentChatMessage } from './AgentChatMessageC
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, AskQuestionResult, ExitPlanModeInput, UnknownToolInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, MemoryOpInput, isToolSearchContent } from './ToolRenderers';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
-import { renderContentWithImages, renderUserPromptContent } from './contentRendering';
+import { renderContentWithImages, renderUserPromptContent, highlightText } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
@@ -50,6 +50,10 @@ interface OutputLineProps {
   onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
   onBashClick?: (command: string, output: string) => void;
   onViewMarkdown?: (content: string) => void;
+  // Active global-find query. When set, assistant content is rendered as plain
+  // text with the match highlighted (no markdown), mirroring HistoryLine so find
+  // results look identical for live outputs and history (esp. in simple mode).
+  highlight?: string;
 }
 
 // Generate a short debug hash for an output (for debugging duplicates)
@@ -200,7 +204,7 @@ function TimestampWithMeta({ output, timeStr, debugHash, agentId }: { output: Cl
   );
 }
 
-export const OutputLine = memo(function OutputLine({ output, agentId, execTasks = [], subagents, onImageClick, onFileClick, onBashClick, onViewMarkdown }: OutputLineProps) {
+export const OutputLine = memo(function OutputLine({ output, agentId, execTasks = [], subagents, onImageClick, onFileClick, onBashClick, onViewMarkdown, highlight }: OutputLineProps) {
   const { t } = useTranslation(['tools', 'common', 'terminal']);
   const hideCost = useHideCost();
   const settings = useSettings();
@@ -1328,14 +1332,16 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             <>
               <Icon name={subagentSuccess ? 'status-success' : 'status-error'} size={14} weight="fill" color={subagentSuccess ? '#4ade80' : '#f87171'} />
               {' '}
-              {renderContentWithImages(subagentDisplayText, onImageClick, onFileClick)}
+              {highlight ? highlightText(subagentDisplayText, highlight) : renderContentWithImages(subagentDisplayText, onImageClick, onFileClick)}
             </>
           ) : isSystemMessage && systemEmoji ? (
             <>
               <Icon name={systemIconName} size={14} />
               {' '}
-              {renderContentWithImages(`[System]${systemRest}`, onImageClick, onFileClick)}
+              {highlight ? highlightText(`[System]${systemRest}`, highlight) : renderContentWithImages(`[System]${systemRest}`, onImageClick, onFileClick)}
             </>
+          ) : highlight ? (
+            <div>{highlightText(text, highlight)}</div>
           ) : (
             renderContentWithImages(text, onImageClick, onFileClick)
           )}

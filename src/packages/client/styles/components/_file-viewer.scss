@@ -822,3 +822,72 @@
     }
   }
 }
+
+// PlantUML diagrams rendered inside markdown (```plantuml fenced blocks)
+.plantuml-diagram {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow-x: auto;
+
+  .plantuml-diagram-image {
+    max-width: 100%;
+    height: auto;
+    background: #fff; // PlantUML SVGs assume a light backdrop
+    border-radius: 4px;
+  }
+
+  .plantuml-diagram-note {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    cursor: help;
+  }
+}
+
+.plantuml-diagram-loading {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+
+  .plantuml-diagram-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.18);
+    border-top-color: var(--accent-blue);
+    border-radius: 50%;
+    animation: plantuml-spin 0.8s linear infinite;
+  }
+}
+
+@keyframes plantuml-spin {
+  to { transform: rotate(360deg); }
+}
+
+.plantuml-diagram-error {
+  .plantuml-diagram-error-msg {
+    color: var(--accent-red);
+    font-size: 0.8rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .plantuml-diagram-source {
+    width: 100%;
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 0.78rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}
