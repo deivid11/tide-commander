@@ -164,6 +164,41 @@ export async function updateTmuxModeSetting(enabled: boolean): Promise<void> {
 }
 
 /**
+ * Get the current experimental interactive-TUI mode setting
+ */
+export async function fetchInteractiveModeSetting(): Promise<boolean> {
+  const token = getAuthToken();
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/interactive-mode`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch interactive mode setting: ${response.statusText}`);
+  }
+  const data = await response.json();
+  return data.enabled || false;
+}
+
+/**
+ * Update the experimental interactive-TUI mode setting
+ */
+export async function updateInteractiveModeSetting(enabled: boolean): Promise<void> {
+  const token = getAuthToken();
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/interactive-mode`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ enabled }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update interactive mode setting: ${response.statusText}`);
+  }
+}
+
+/**
  * Backup scheduler status returned by the backend.
  */
 export interface BackupStatus {

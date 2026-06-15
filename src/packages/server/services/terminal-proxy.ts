@@ -16,6 +16,7 @@ import type { Server as HttpServer, IncomingMessage } from 'http';
 import type { Socket } from 'net';
 import httpProxy from 'http-proxy';
 import { isTerminalRunning, getTerminalStatus } from './terminal-service.js';
+import { getAgentTerminalPort } from './agent-terminal-service.js';
 import { loadBuildings } from '../data/index.js';
 import { isAuthEnabled, validateToken, extractTokenFromWebSocket } from '../auth/index.js';
 import { createLogger } from '../utils/index.js';
@@ -132,12 +133,21 @@ function extractBuildingId(url: string): string | null {
 }
 
 /**
- * Get the ttyd target URL for a building
+ * Get the ttyd target URL for a terminal id.
+ *
+ * Two kinds of ids share the /api/terminal/<id>/ path:
+ *  - `agent-<agentId>` → a per-agent interactive-TUI terminal (Classic TUI view)
+ *  - everything else    → a building terminal
  */
-function getTargetUrl(buildingId: string): string | null {
-  if (!isTerminalRunning(buildingId)) return null;
+function getTargetUrl(id: string): string | null {
+  if (id.startsWith('agent-')) {
+    const port = getAgentTerminalPort(id.slice('agent-'.length));
+    return port ? `http://127.0.0.1:${port}` : null;
+  }
+
+  if (!isTerminalRunning(id)) return null;
   const buildings = loadBuildings();
-  const building = buildings.find(b => b.id === buildingId);
+  const building = buildings.find(b => b.id === id);
   if (!building) return null;
 
   const status = getTerminalStatus(building);

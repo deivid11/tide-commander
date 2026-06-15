@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.116.0] - 2026-06-15
+
+### Added
+- **Classic TUI view in FlatView** — when Interactive Mode is enabled, a "Classic TUI" button appears in the FlatView toolbar for Claude agents with an active session, letting you attach directly to the live `tc-int-<agentId>` tmux session in an embedded terminal panel.
+- **Interactive session backend** — new `agent-terminal-service.ts` and `src/packages/server/claude/interactive/` module manage the lifecycle of interactive Claude TUI sessions; `tmux-helper.ts` extended with interactive attach/detach support.
+- **Agent terminal API** — `GET /api/agents/:id/terminal` endpoint streams the interactive terminal session to the client via `agent-terminal.ts`.
+
+### Fixed
+- Unused `node` parameter in `FileViewerModal.tsx` PlantUML renderer renamed to `_node` to satisfy ESLint.
+
 ## [1.115.1] - 2026-06-11
 
 ### Fixed

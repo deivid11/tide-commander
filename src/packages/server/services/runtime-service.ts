@@ -32,6 +32,9 @@ import {
 } from './runtime-command-execution.js';
 import { createRuntimeEventHandlers } from './runtime-events.js';
 import { createRuntimeStatusSync } from './runtime-status-sync.js';
+import { isInteractiveModeEnabled } from './system-prompt-service.js';
+import { isTmuxAvailable } from '../claude/runner/tmux-helper.js';
+import { InteractiveClaudeRunner } from '../claude/interactive/interactive-runner.js';
 import {
   getActiveSubagentByToolUseId as getTrackedSubagentByToolUseId,
   getActiveSubagentsForAgent as getTrackedSubagentsForAgent,
@@ -201,13 +204,28 @@ const STATUS_POLL_INTERVAL = 20000;
 let statusPollTimer: NodeJS.Timeout | null = null;
 
 export function init(): void {
-  runners.set('claude', runtimeProviders.claude.createRunner({
+  const claudeCallbacks = {
     onEvent: runtimeEvents.handleEvent,
     onOutput: runtimeEvents.handleOutput,
     onSessionId: runtimeEvents.handleSessionId,
     onComplete: runtimeEvents.handleComplete,
     onError: runtimeEvents.handleError,
-  }));
+  };
+  // Experimental interactive-TUI mode: when enabled (and tmux is available),
+  // Claude agents run as the real `claude` TUI inside tmux with the conversation
+  // reconstructed from the session transcript JSONL. Falls back to the headless
+  // runner if tmux is missing.
+  const interactiveEnabled = isInteractiveModeEnabled();
+  if (interactiveEnabled && !isTmuxAvailable()) {
+    log.error(' Interactive mode is enabled but tmux is not installed — falling back to headless Claude runner');
+  }
+  const useInteractive = interactiveEnabled && isTmuxAvailable();
+  runners.set('claude', useInteractive
+    ? new InteractiveClaudeRunner(claudeCallbacks)
+    : runtimeProviders.claude.createRunner(claudeCallbacks));
+  if (useInteractive) {
+    log.log(' Claude runtime using EXPERIMENTAL interactive-TUI mode (tmux)');
+  }
   runners.set('codex', runtimeProviders.codex.createRunner({
     onEvent: runtimeEvents.handleEvent,
     onOutput: runtimeEvents.handleOutput,

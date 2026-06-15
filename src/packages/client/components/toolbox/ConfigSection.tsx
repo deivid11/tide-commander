@@ -15,7 +15,7 @@ import { WhatsAppConfigModal } from '../WhatsAppConfigModal';
 import { WhatsAppNotificationsModal } from '../WhatsAppNotificationsModal';
 import { WhatsAppHistoryPanel } from '../WhatsAppHistory/WhatsAppHistoryPanel';
 import { WhatsAppHubModal } from '../WhatsAppHub/WhatsAppHubModal';
-import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath, fetchTmuxModeSetting, updateTmuxModeSetting } from '../../api/system-settings';
+import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath, fetchTmuxModeSetting, updateTmuxModeSetting, fetchInteractiveModeSetting, updateInteractiveModeSetting } from '../../api/system-settings';
 import { BUILTIN_AGENT_NAMES } from '../../scene/config';
 import { Icon } from '../Icon';
 import type {
@@ -188,7 +188,7 @@ function HighlightText({ text, query }: { text: string; query: string }) {
 
 // Define searchable settings configuration (English keywords for search matching)
 const SETTINGS_SECTIONS = [
-  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title', 'tmux', 'process persistence'] },
+  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title', 'tmux', 'process persistence', 'interactive', 'tui', 'terminal', 'experimental', 'claude'] },
   { id: 'agentNames', title: 'Agent Names', keywords: ['agent', 'names', 'custom', 'characters', 'rename'] },
   { id: 'defaultClass', title: 'Default Spawn Class', keywords: ['default', 'class', 'spawn', 'agent', 'scout', 'builder', 'random'] },
   { id: 'appearance', title: 'Appearance', keywords: ['theme', 'appearance', 'color', 'dark', 'light', 'style', 'look'] },
@@ -263,6 +263,15 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
     fetchTmuxModeSetting().then((enabled) => {
       if (enabled !== state.settings.tmuxMode) {
         store.updateSettings({ tmuxMode: enabled });
+      }
+    }).catch(() => { /* ignore fetch errors on mount */ });
+  }, []);
+
+  // Sync experimental interactive-TUI mode setting from server on mount
+  useEffect(() => {
+    fetchInteractiveModeSetting().then((enabled) => {
+      if (enabled !== state.settings.interactiveMode) {
+        store.updateSettings({ interactiveMode: enabled });
       }
     }).catch(() => { /* ignore fetch errors on mount */ });
   }, []);
@@ -442,6 +451,17 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
               await updateTmuxModeSetting(checked);
             } catch (err) {
               console.error('Failed to sync tmux mode setting to server:', err);
+            }
+          }} />
+        </div>
+        <div className="config-row">
+          <span className="config-label" title="Experimental: run Claude agents as the real interactive `claude` TUI inside tmux, reconstructing the conversation from the session transcript (requires tmux). Takes effect on server restart."><HighlightText text={t('config:general.interactiveMode')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
+          <Toggle checked={state.settings.interactiveMode} onChange={async (checked) => {
+            store.updateSettings({ interactiveMode: checked });
+            try {
+              await updateInteractiveModeSetting(checked);
+            } catch (err) {
+              console.error('Failed to sync interactive mode setting to server:', err);
             }
           }} />
         </div>

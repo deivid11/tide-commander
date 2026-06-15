@@ -19,7 +19,8 @@ import { truncateOrEmpty } from '../utils/string.js';
 import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js';
 import { clearDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
 import { OpencodeBackend } from '../opencode/backend.js';
-import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled } from '../services/system-prompt-service.js';
+import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled, isInteractiveModeEnabled, setInteractiveModeEnabled } from '../services/system-prompt-service.js';
+import { startAgentTerminal, stopAgentTerminal } from '../services/agent-terminal-service.js';
 import { buildClaudeUsageByAgentSummary, buildClaudeUsageByDaySummary, buildClaudeUsageSnapshot } from '../services/claude-usage-service.js';
 import { getBackupStatus, setBackupEnabled } from '../services/backup-service.js';
 import type { ServerMessage } from '../../shared/types.js';
@@ -1020,6 +1021,38 @@ router.delete('/:id/memory', (req: Request<{ id: string }>, res: Response) => {
   res.json({ ok: true, id: updated.id });
 });
 
+// POST /api/agents/:id/terminal - Start (or reuse) a ttyd attached to the
+// agent's interactive-TUI tmux session (Classic TUI view). Returns the proxy URL.
+router.post('/:id/terminal', async (req: Request<{ id: string }>, res: Response) => {
+  const agent = agentService.getAgent(req.params.id);
+  if (!agent) {
+    res.status(404).json({ error: 'Agent not found' });
+    return;
+  }
+  if (!isInteractiveModeEnabled()) {
+    res.status(400).json({ error: 'Interactive mode is not enabled' });
+    return;
+  }
+  try {
+    const result = await startAgentTerminal(req.params.id);
+    if (!result.success) {
+      res.status(409).json({ error: result.error });
+      return;
+    }
+    res.json({ url: result.url });
+  } catch (err: any) {
+    log.error(' Failed to start agent terminal:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/agents/:id/terminal - Stop the agent's ttyd viewer (the tmux
+// session is left running).
+router.delete('/:id/terminal', (req: Request<{ id: string }>, res: Response) => {
+  stopAgentTerminal(req.params.id);
+  res.json({ ok: true });
+});
+
 // DELETE /api/agents/:id - Delete agent
 router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
   const deleted = agentService.deleteAgent(req.params.id);
@@ -1493,6 +1526,34 @@ router.post('/system-settings/tmux-mode', (req: Request, res: Response) => {
     res.json({ success: true, enabled });
   } catch (err: any) {
     log.error(' Failed to set tmux mode setting:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/system-settings/interactive-mode - Get experimental interactive-TUI mode setting
+router.get('/system-settings/interactive-mode', (_req: Request, res: Response) => {
+  try {
+    const enabled = isInteractiveModeEnabled();
+    res.json({ enabled });
+  } catch (err: any) {
+    log.error(' Failed to get interactive mode setting:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/system-settings/interactive-mode - Update experimental interactive-TUI mode setting
+router.post('/system-settings/interactive-mode', (req: Request, res: Response) => {
+  try {
+    const { enabled } = req.body;
+    if (typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'enabled must be a boolean' });
+      return;
+    }
+    setInteractiveModeEnabled(enabled);
+    log.log(` Interactive mode setting updated: enabled=${enabled}`);
+    res.json({ success: true, enabled });
+  } catch (err: any) {
+    log.error(' Failed to set interactive mode setting:', err);
     res.status(500).json({ error: err.message });
   }
 });

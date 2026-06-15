@@ -2244,6 +2244,32 @@ body.flat-splitter-dragging {
 // the statusbar, mirroring the Guake terminal's bottom split panel area.
 // ============================================================================
 
+// "Classic TUI" view — the embedded xterm/ttyd terminal attached to an
+// interactive agent's tmux session, filling the main content area in place of
+// the message pane.
+.flat-classic-terminal {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+  background: #1a1a2e;
+
+  .guake-bottom-terminal-embed {
+    flex: 1 1 auto;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+  }
+
+  &--message {
+    align-items: center;
+    justify-content: center;
+    color: $text-muted;
+    font-size: 13px;
+  }
+}
+
 .flat-bottom-panel {
   display: flex;
   flex-direction: column;
