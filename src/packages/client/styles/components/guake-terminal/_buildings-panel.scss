@@ -350,6 +350,17 @@
 
   .guake-buildings-header {
     padding: 8px 12px;
+    gap: 8px;
+  }
+
+  // Keep the add/close buttons pinned and fully visible; the title yields.
+  .guake-buildings-title {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .guake-buildings-header-actions {
+    flex-shrink: 0;
   }
 
   .guake-building-item {

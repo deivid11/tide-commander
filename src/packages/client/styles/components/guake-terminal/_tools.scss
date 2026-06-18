@@ -2904,3 +2904,132 @@
     text-overflow: ellipsis;
   }
 }
+
+// ============================================================================
+// Task Notification card — pretty rendering of <task-notification> blocks that
+// the harness injects when a background task / async subagent finishes.
+// ============================================================================
+.task-notification {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  margin: 6px 0;
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  border-left: 3px solid var(--text-muted);
+  background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+
+  &.no-toggle { cursor: default; }
+  &:not(.no-toggle) {
+    cursor: pointer;
+    &:hover { background: color-mix(in srgb, var(--bg-tertiary) 65%, transparent); }
+  }
+
+  &--error {
+    border-left-color: var(--accent-red);
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent-red) 10%, var(--bg-secondary) 90%),
+      var(--bg-secondary)
+    );
+  }
+
+  &--completed {
+    border-left-color: var(--accent-green);
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent-green) 8%, var(--bg-secondary) 92%),
+      var(--bg-secondary)
+    );
+  }
+
+  &--info {
+    border-left-color: var(--accent-cyan);
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent-cyan) 8%, var(--bg-secondary) 92%),
+      var(--bg-secondary)
+    );
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  &__icon {
+    flex-shrink: 0;
+    display: inline-flex;
+
+    .task-notification--error & { color: var(--accent-red); }
+    .task-notification--completed & { color: var(--accent-green); }
+    .task-notification--info & { color: var(--accent-cyan); }
+  }
+
+  &__label {
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+
+  &__title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__id {
+    font-size: 10px;
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
+    padding: 1px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.3px;
+    flex-shrink: 0;
+  }
+
+  &__stats {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  &__stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    color: var(--text-muted);
+
+    svg { opacity: 0.8; }
+  }
+
+  &__toggle {
+    flex-shrink: 0;
+    display: inline-flex;
+    color: var(--text-muted);
+  }
+
+  &__body {
+    font-size: 12px;
+    color: var(--text-secondary);
+    border-top: 1px solid color-mix(in srgb, var(--text-muted) 18%, transparent);
+    padding-top: 6px;
+
+    p:first-child { margin-top: 0; }
+    p:last-child { margin-bottom: 0; }
+  }
+}

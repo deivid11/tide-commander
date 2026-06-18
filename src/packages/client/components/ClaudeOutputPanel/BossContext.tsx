@@ -242,6 +242,65 @@ export function parseSubagentNotification(content: string): ParsedSubagentNotifi
 }
 
 // ============================================================================
+// Task Notification Parsing (background task / async subagent completion)
+// ============================================================================
+
+export interface ParsedTaskNotification {
+  hasNotification: boolean;
+  taskId: string;
+  status: string;
+  summary: string;
+  result: string;
+  outputFile: string;
+  tokens?: number;
+  toolUses?: number;
+  durationMs?: number;
+  contentWithoutNotification: string;
+}
+
+/** Extract the inner text of the first `<tag>...</tag>` found in `source`. */
+function extractXmlTag(source: string, tag: string): string {
+  const m = source.match(new RegExp(`<${tag}>\\s*([\\s\\S]*?)\\s*</${tag}>`));
+  return m ? m[1].trim() : '';
+}
+
+/**
+ * Parse a harness-injected `<task-notification>` block. These arrive as user
+ * messages when a background task (async agent or shell command) finishes and
+ * would otherwise render as a wall of raw XML in the terminal.
+ */
+export function parseTaskNotification(content: string): ParsedTaskNotification {
+  const match = content.match(/<task-notification>\s*([\s\S]*?)\s*<\/task-notification>/);
+  if (!match) {
+    return { hasNotification: false, taskId: '', status: '', summary: '', result: '', outputFile: '', contentWithoutNotification: content };
+  }
+
+  const body = match[1];
+  const taskId = extractXmlTag(body, 'task-id');
+  const status = extractXmlTag(body, 'status') || 'completed';
+  const summary = extractXmlTag(body, 'summary');
+  const result = extractXmlTag(body, 'result');
+  const outputFile = extractXmlTag(body, 'output-file');
+
+  const usageBlock = extractXmlTag(body, 'usage');
+  const parseUsageNum = (tag: string): number | undefined => {
+    const raw = extractXmlTag(usageBlock, tag);
+    if (!raw) return undefined;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const tokens = parseUsageNum('subagent_tokens');
+  const toolUses = parseUsageNum('tool_uses');
+  const durationMs = parseUsageNum('duration_ms');
+
+  const contentWithoutNotification = content
+    .replace(/<task-notification>\s*[\s\S]*?<\/task-notification>\s*/g, '')
+    .trim();
+
+  return { hasNotification: true, taskId, status, summary, result, outputFile, tokens, toolUses, durationMs, contentWithoutNotification };
+}
+
+// ============================================================================
 // Delegation Block Parsing
 // ============================================================================
 
@@ -762,6 +821,99 @@ export function SubagentNotificationDisplay({ agentId, status }: SubagentNotific
       </span>
       {cleanMessage && (
         <span className="subagent-notification__message" title={statusMessage}>{cleanMessage}</span>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Task Notification Component (background task / async subagent completion)
+// ============================================================================
+
+interface TaskNotificationDisplayProps {
+  taskId: string;
+  status: string;
+  summary: string;
+  result: string;
+  tokens?: number;
+  toolUses?: number;
+  durationMs?: number;
+}
+
+/** Compact token count, e.g. 30792 → "30.8k", 950 → "950". */
+function formatTokenCount(n: number): string {
+  if (n >= 10000) return `${Math.round(n / 1000)}k`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+/** Humanize a duration in ms, e.g. 95796 → "1m 36s", 6960 → "7s". */
+function formatTaskDuration(ms: number): string {
+  const totalSec = Math.round(ms / 1000);
+  if (totalSec < 60) return `${totalSec}s`;
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return s ? `${m}m ${s}s` : `${m}m`;
+}
+
+export function TaskNotificationDisplay({ taskId, status, summary, result, tokens, toolUses, durationMs }: TaskNotificationDisplayProps) {
+  const normalized = status.toLowerCase();
+  const isError = ['failed', 'error', 'errored', 'killed', 'cancelled', 'canceled', 'timeout'].includes(normalized);
+  const isCompleted = ['completed', 'success', 'succeeded', 'done'].includes(normalized);
+  const stateKind = isError ? 'error' : isCompleted ? 'completed' : 'info';
+
+  const body = (result || '').trim();
+  const preview = body ? truncateMarkdownPreview(body, PREVIEW_CHAR_LIMIT) : null;
+  const canExpand = preview?.truncated ?? false;
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const toggle = (e: React.MouseEvent) => {
+    if (!canExpand) return;
+    e.stopPropagation();
+    setIsExpanded(v => !v);
+  };
+
+  const bodyText = preview && preview.truncated && !isExpanded ? preview.text : body;
+  const title = summary || (isError ? 'Background task failed' : 'Background task completed');
+
+  const stats: Array<{ icon: IconName; text: string }> = [];
+  if (typeof toolUses === 'number') stats.push({ icon: 'tool', text: `${toolUses} ${toolUses === 1 ? 'tool' : 'tools'}` });
+  if (typeof tokens === 'number') stats.push({ icon: 'sparkle', text: formatTokenCount(tokens) });
+  if (typeof durationMs === 'number') stats.push({ icon: 'hourglass', text: formatTaskDuration(durationMs) });
+
+  return (
+    <div
+      className={`task-notification task-notification--${stateKind}${canExpand ? '' : ' no-toggle'}${isExpanded ? ' expanded' : ''}`}
+      onClick={canExpand ? toggle : undefined}
+      role={canExpand ? 'button' : undefined}
+      tabIndex={canExpand ? 0 : undefined}
+    >
+      <div className="task-notification__head">
+        <span className="task-notification__icon"><Icon name={isError ? 'failure' : 'success'} size={14} /></span>
+        <span className="task-notification__label">Task</span>
+        <span className="task-notification__title">{title}</span>
+        {taskId && <span className="task-notification__id">{taskId.slice(0, 8)}</span>}
+        {stats.length > 0 && (
+          <span className="task-notification__stats">
+            {stats.map((s, i) => (
+              <span className="task-notification__stat" key={i}>
+                <Icon name={s.icon} size={10} /> {s.text}
+              </span>
+            ))}
+          </span>
+        )}
+        {canExpand && (
+          <span className="task-notification__toggle" aria-label={isExpanded ? 'Collapse' : 'Expand'}>
+            <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} />
+          </span>
+        )}
+      </div>
+      {bodyText && (
+        <div className={`task-notification__body markdown-content${isExpanded ? ' is-expanded' : ''}`}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={defaultMarkdownComponents}>
+            {bodyText}
+          </ReactMarkdown>
+        </div>
       )}
     </div>
   );

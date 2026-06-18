@@ -13,6 +13,7 @@ interface UseKeyboardShortcutsOptions {
   commanderModal: UseModalState;
   explorerModal: UseModalStateWithId;
   spotlightModal: UseModalState;
+  recentsModal: UseModalState;
   sessionFinderModal: UseModalState;
   deleteConfirmModal: UseModalState;
   onRequestBuildingDelete: () => void;
@@ -30,6 +31,7 @@ export function useKeyboardShortcuts({
   commanderModal,
   explorerModal,
   spotlightModal,
+  recentsModal,
   sessionFinderModal,
   deleteConfirmModal,
   onRequestBuildingDelete,
@@ -224,6 +226,19 @@ export function useKeyboardShortcuts({
         return;
       }
 
+      // Toggle Recents overlay (Ctrl+L / Cmd+L). Ctrl+L is the browser
+      // address-bar shortcut, so we must preventDefault when we handle it.
+      // Let the embedded terminal (Ctrl+L = clear screen) and code editor keep
+      // the combo by bailing when focus is inside them.
+      const recentsShortcut = shortcuts.find(s => s.id === 'toggle-recents');
+      if (matchesShortcut(e, recentsShortcut) || ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === 'KeyL')) {
+        if (target.closest('.guake-bottom-terminal-embed') || target.closest('.cm-editor')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        recentsModal.toggle();
+        return;
+      }
+
       // Open Session Finder (Ctrl+Shift+F)
       const sessionFinderShortcut = shortcuts.find(s => s.id === 'open-session-finder');
       if (matchesShortcut(e, sessionFinderShortcut)) {
@@ -317,5 +332,5 @@ export function useKeyboardShortcuts({
     // This is necessary because the canvas doesn't naturally receive keyboard events
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [sceneRef, spawnModal, commanderModal, explorerModal, spotlightModal, sessionFinderModal, deleteConfirmModal, onRequestBuildingDelete, onOpenDatabasePanel, onCloseDatabasePanel, databasePanelOpen]);
+  }, [sceneRef, spawnModal, commanderModal, explorerModal, spotlightModal, recentsModal, sessionFinderModal, deleteConfirmModal, onRequestBuildingDelete, onOpenDatabasePanel, onCloseDatabasePanel, databasePanelOpen]);
 }

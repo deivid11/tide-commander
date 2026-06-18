@@ -32,9 +32,7 @@ import {
 } from './runtime-command-execution.js';
 import { createRuntimeEventHandlers } from './runtime-events.js';
 import { createRuntimeStatusSync } from './runtime-status-sync.js';
-import { isInteractiveModeEnabled } from './system-prompt-service.js';
-import { isTmuxAvailable } from '../claude/runner/tmux-helper.js';
-import { InteractiveClaudeRunner } from '../claude/interactive/interactive-runner.js';
+import { ClaudeRunnerRouter } from '../runtime/claude-runner-router.js';
 import {
   getActiveSubagentByToolUseId as getTrackedSubagentByToolUseId,
   getActiveSubagentsForAgent as getTrackedSubagentsForAgent,
@@ -211,21 +209,11 @@ export function init(): void {
     onComplete: runtimeEvents.handleComplete,
     onError: runtimeEvents.handleError,
   };
-  // Experimental interactive-TUI mode: when enabled (and tmux is available),
-  // Claude agents run as the real `claude` TUI inside tmux with the conversation
-  // reconstructed from the session transcript JSONL. Falls back to the headless
-  // runner if tmux is missing.
-  const interactiveEnabled = isInteractiveModeEnabled();
-  if (interactiveEnabled && !isTmuxAvailable()) {
-    log.error(' Interactive mode is enabled but tmux is not installed — falling back to headless Claude runner');
-  }
-  const useInteractive = interactiveEnabled && isTmuxAvailable();
-  runners.set('claude', useInteractive
-    ? new InteractiveClaudeRunner(claudeCallbacks)
-    : runtimeProviders.claude.createRunner(claudeCallbacks));
-  if (useInteractive) {
-    log.log(' Claude runtime using EXPERIMENTAL interactive-TUI mode (tmux)');
-  }
+  // Claude agents can run headless (`--print`) or in the experimental
+  // interactive-TUI mode. The router picks per-launch from the LIVE setting
+  // (no restart needed to switch), and keeps each agent on the runner that owns
+  // its session. Falls back to headless when tmux is unavailable.
+  runners.set('claude', new ClaudeRunnerRouter(claudeCallbacks));
   runners.set('codex', runtimeProviders.codex.createRunner({
     onEvent: runtimeEvents.handleEvent,
     onOutput: runtimeEvents.handleOutput,
