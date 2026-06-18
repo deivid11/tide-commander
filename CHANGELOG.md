@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.117.0] - 2026-06-18
+
+### Added
+- **Recents overlay** — new `RecentsOverlay` modal tracks and surfaces recently accessed agents and buildings, wired into App.tsx with its own modal stack entry and keyboard shortcut.
+- **Mobile-friendly guake terminal panels** — SCSS overhaul for the git, buildings, debug, tracking-board, and tools panels (`_git-panel.scss`, `_buildings-panel.scss`, `_debug-panel.scss`, `_tracking-board.scss`, `_tools.scss`) with responsive layouts for small screens.
+- **BossContext panel** — new `BossContext.tsx` component renders boss agent context and delegation state in the output panel.
+- **Claude runner router** — `claude-runner-router.ts` abstracts routing between runner backends in the server runtime.
+
+### Changed
+- `HistoryLine` and `OutputLine` updated with additional display metadata and layout tweaks.
+- Keyboard shortcuts extended with Recents overlay binding.
+- `runtime-service.ts` simplified by delegating to the new runner router.
+
 ## [1.116.0] - 2026-06-15
 
 ### Added

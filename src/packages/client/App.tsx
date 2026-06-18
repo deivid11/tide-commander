@@ -47,6 +47,8 @@ import { MobileFabMenu } from './components/MobileFabMenu';
 import { MobileBottomMenu } from './components/MobileBottomMenu';
 import { FloatingActionButtons } from './components/FloatingActionButtons';
 import { AppModals } from './components/AppModals';
+import { RecentsOverlay } from './components/Recents/RecentsOverlay';
+import { recordRecentAgent, recordRecentBuilding } from './components/Spotlight/utils';
 const IframeModal = React.lazy(() => import('./components/IframeModal').then(m => ({ default: m.IframeModal })));
 import { NotConnectedOverlay } from './components/NotConnectedOverlay';
 import { OnboardingModal } from './components/OnboardingModal';
@@ -92,6 +94,7 @@ function AppContent() {
   const commanderModal = useModalState();
   const deleteConfirmModal = useModalState();
   const spotlightModal = useModalState();
+  const recentsModal = useModalState();
   const sessionFinderModal = useModalState();
   const controlsModal = useModalState();
   const skillsModal = useModalState();
@@ -347,6 +350,7 @@ function AppContent() {
     commanderModal,
     explorerModal,
     spotlightModal,
+    recentsModal,
     sessionFinderModal,
     deleteConfirmModal,
     onRequestBuildingDelete: () => setPendingBuildingDelete('selected'),
@@ -363,6 +367,7 @@ function AppContent() {
   useModalStackRegistration('commander-modal', commanderModal.isOpen, commanderModal.close);
   useModalStackRegistration('delete-confirm-modal', deleteConfirmModal.isOpen, deleteConfirmModal.close);
   useModalStackRegistration('spotlight-modal', spotlightModal.isOpen, spotlightModal.close);
+  useModalStackRegistration('recents-modal', recentsModal.isOpen, recentsModal.close);
   useModalStackRegistration('session-finder-modal', sessionFinderModal.isOpen, sessionFinderModal.close);
   useModalStackRegistration('controls-modal', controlsModal.isOpen, controlsModal.close);
   useModalStackRegistration('skills-modal', skillsModal.isOpen, skillsModal.close);
@@ -611,6 +616,7 @@ function AppContent() {
       if (!detail?.buildingId) return;
       const building = store.getState().buildings.get(detail.buildingId);
       if (!building) return;
+      recordRecentBuilding(detail.buildingId);
 
       if (building.type === 'server' && building.pm2?.enabled) {
         setPm2LogsModalBuildingId(detail.buildingId);
@@ -757,6 +763,28 @@ function AppContent() {
     store.deselectAll();
   }, []);
 
+  // Open/focus a building from the Recents overlay — mirrors the building
+  // double-click / scene-click routing and records the access for recency.
+  const handleOpenRecentBuilding = useCallback((buildingId: string) => {
+    const building = store.getState().buildings.get(buildingId);
+    if (!building) return;
+    recordRecentBuilding(buildingId);
+    store.selectBuilding(buildingId);
+    if (building.type === 'server' && building.pm2?.enabled) {
+      setPm2LogsModalBuildingId(buildingId);
+    } else if (building.type === 'boss') {
+      setBossLogsModalBuildingId(buildingId);
+    } else if (building.type === 'database') {
+      setDatabasePanelBuildingId(buildingId);
+    } else if (building.type === 'folder' && building.folderPath) {
+      store.openFileExplorer(building.folderPath);
+    } else if (building.type === 'terminal' && building.terminalStatus?.url) {
+      setTerminalModalBuildingId(buildingId);
+    } else {
+      buildingModal.open(buildingId);
+    }
+  }, [buildingModal]);
+
   return (
     <div className={`app ${terminalOpen ? 'terminal-open' : ''} ${isDrawingMode ? 'drawing-mode' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''} mobile-view-${mobileView} view-mode-${viewMode}`}>
       {/* Not Connected Overlay */}
@@ -809,8 +837,9 @@ function AppContent() {
           <React.Suspense fallback={null}>
           {viewMode === 'flat' ? (
             <FlatView
-              onAgentClick={(agentId) => store.selectAgent(agentId)}
+              onAgentClick={(agentId) => { recordRecentAgent(agentId); store.selectAgent(agentId); }}
               onAgentDoubleClick={(agentId) => {
+                recordRecentAgent(agentId);
                 if (window.innerWidth <= 768) {
                   store.openTerminalOnMobile(agentId);
                   return;
@@ -818,8 +847,9 @@ function AppContent() {
                 store.selectAgent(agentId);
                 store.setTerminalOpen(true);
               }}
-              onBuildingClick={(buildingId) => store.selectBuilding(buildingId)}
+              onBuildingClick={(buildingId) => { recordRecentBuilding(buildingId); store.selectBuilding(buildingId); }}
               onBuildingDoubleClick={(buildingId) => {
+                recordRecentBuilding(buildingId);
                 const building = store.getState().buildings.get(buildingId);
                 if (building?.type === 'server' && building.pm2?.enabled) {
                   setPm2LogsModalBuildingId(buildingId);
@@ -1403,6 +1433,13 @@ function AppContent() {
           }
         />
       </div>
+
+      {/* Recents overlay (Ctrl+L / Cmd+L) */}
+      <RecentsOverlay
+        isOpen={recentsModal.isOpen}
+        onClose={recentsModal.close}
+        onOpenBuilding={handleOpenRecentBuilding}
+      />
 
       {/* All Modals */}
       <AppModals

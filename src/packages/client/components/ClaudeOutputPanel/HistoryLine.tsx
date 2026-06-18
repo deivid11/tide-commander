@@ -15,7 +15,7 @@ import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { createMarkdownComponents } from './MarkdownComponents';
-import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay } from './BossContext';
+import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay, parseTaskNotification, TaskNotificationDisplay } from './BossContext';
 import { parseWhatsAppMessage, WhatsAppMessageBubble } from './WhatsAppMessageBubble';
 import { parseEmailMessage, GmailMessageBubble } from './GmailMessageBubble';
 import { parseSlackMessage, SlackMessageBubble } from './SlackMessageBubble';
@@ -1241,6 +1241,36 @@ export const HistoryLine = memo(function HistoryLine({
               status={taskReportParsed.status}
               summary={taskReportParsed.summary}
             />
+          </span>
+        </div>
+      );
+    }
+
+    // Check for <task-notification> blocks (background task / async subagent completion)
+    const taskNotif = parseTaskNotification(displayMessage.trim());
+    if (taskNotif.hasNotification) {
+      return (
+        <div className={className}>
+          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+          <span className="history-content">
+            <TaskNotificationDisplay
+              taskId={taskNotif.taskId}
+              status={taskNotif.status}
+              summary={taskNotif.summary}
+              result={taskNotif.result}
+              tokens={taskNotif.tokens}
+              toolUses={taskNotif.toolUses}
+              durationMs={taskNotif.durationMs}
+            />
+            {taskNotif.contentWithoutNotification && (
+              <span className="user-prompt-text">
+                {highlight ? (
+                  <div>{highlightText(taskNotif.contentWithoutNotification, highlight)}</div>
+                ) : (
+                  renderUserPromptContent(taskNotif.contentWithoutNotification, onImageClick, onFileClick)
+                )}
+              </span>
+            )}
           </span>
         </div>
       );

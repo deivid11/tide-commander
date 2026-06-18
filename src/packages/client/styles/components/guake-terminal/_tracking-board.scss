@@ -40,6 +40,27 @@
       }
     }
   }
+
+  // Full-width overlay on mobile so it's usable and the close button is reachable.
+  .guake-tracking-board-panel {
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 100%;
+    border-left: none;
+    border-right: none;
+    border-bottom: 2px solid color-mix(in srgb, var(--accent-cyan) 55%, var(--border-color));
+    z-index: 205;
+  }
+
+  .guake-tracking-board-header {
+    padding: 8px 12px;
+  }
+
+  .guake-tracking-board-close {
+    width: 36px;
+    height: 36px;
+  }
 }
 
 .guake-tracking-board-panel {

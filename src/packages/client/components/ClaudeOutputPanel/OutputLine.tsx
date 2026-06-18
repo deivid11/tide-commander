@@ -9,7 +9,7 @@ import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting'
 import { getToolIconName, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
-import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay } from './BossContext';
+import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay, parseTaskNotification, TaskNotificationDisplay } from './BossContext';
 import { parseWhatsAppMessage, WhatsAppMessageBubble } from './WhatsAppMessageBubble';
 import { parseEmailMessage, GmailMessageBubble } from './GmailMessageBubble';
 import { parseSlackMessage, SlackMessageBubble } from './SlackMessageBubble';
@@ -399,6 +399,30 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             status={taskReportParsed.status}
             summary={taskReportParsed.summary}
           />
+        </div>
+      );
+    }
+
+    // Check for <task-notification> blocks (background task / async subagent completion)
+    const taskNotif = parseTaskNotification(userMessage.trim());
+    if (taskNotif.hasNotification) {
+      return (
+        <div className="output-line output-user">
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          <TaskNotificationDisplay
+            taskId={taskNotif.taskId}
+            status={taskNotif.status}
+            summary={taskNotif.summary}
+            result={taskNotif.result}
+            tokens={taskNotif.tokens}
+            toolUses={taskNotif.toolUses}
+            durationMs={taskNotif.durationMs}
+          />
+          {taskNotif.contentWithoutNotification && (
+            <span className="history-content user-prompt-text">
+              {renderUserPromptContent(taskNotif.contentWithoutNotification, onImageClick, onFileClick)}
+            </span>
+          )}
         </div>
       );
     }

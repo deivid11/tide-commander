@@ -740,3 +740,40 @@
     }
   }
 }
+
+// =============================================================================
+// Mobile responsive - full width overlay
+// =============================================================================
+
+@media (max-width: 768px) {
+  .guake-terminal.with-debug-panel .guake-content {
+    margin-right: 0;
+  }
+
+  .agent-debug-panel {
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 100%;
+    border-left: none;
+    border-bottom: 2px solid $dracula-purple;
+    z-index: 205;
+
+    .agent-debug-header {
+      padding: 8px 12px;
+
+      .close-btn {
+        min-width: 36px;
+        min-height: 36px;
+        padding: 6px 10px;
+      }
+    }
+
+    // Let the filter / action / stats rows wrap instead of overflowing off-screen.
+    .agent-debug-controls,
+    .agent-debug-actions,
+    .agent-debug-stats {
+      flex-wrap: wrap;
+    }
+  }
+}

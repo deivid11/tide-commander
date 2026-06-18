@@ -130,6 +130,46 @@ export function agentRecency(
 }
 
 /**
+ * MRU tracking for buildings opened/focused, mirroring the agent MRU above.
+ * Buildings have no reliable server-side "user opened it" signal, so a
+ * localStorage timestamp recorded on each open is the recency source the
+ * Recents (Ctrl+L) overlay sorts by. Capped to the most-recent entries.
+ */
+const RECENT_BUILDINGS_STORAGE_KEY = 'tide-commander:recents-recent-buildings';
+const RECENT_BUILDINGS_MAX = 25;
+
+/** Read the map of buildingId -> last-opened timestamp (epoch ms). Safe if storage is unavailable. */
+export function getRecentBuildingTimes(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(RECENT_BUILDINGS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const out: Record<string, number> = {};
+    for (const [id, ts] of Object.entries(parsed)) {
+      if (typeof id === 'string' && typeof ts === 'number') out[id] = ts;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** Record a building as just-opened/focused (stamps it with the current time). */
+export function recordRecentBuilding(buildingId: string): void {
+  try {
+    const times = getRecentBuildingTimes();
+    times[buildingId] = Date.now();
+    const trimmed = Object.entries(times)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, RECENT_BUILDINGS_MAX);
+    localStorage.setItem(RECENT_BUILDINGS_STORAGE_KEY, JSON.stringify(Object.fromEntries(trimmed)));
+  } catch {
+    // Ignore storage failures (private mode, quota) — recency is a nicety.
+  }
+}
+
+/**
  * Get type label for display
  */
 export function getTypeLabel(type: string): string {

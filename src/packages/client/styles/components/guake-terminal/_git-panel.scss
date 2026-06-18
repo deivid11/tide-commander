@@ -856,6 +856,38 @@
 
   .guake-git-header {
     padding: 8px 12px;
+    gap: 8px;
+  }
+
+  // Keep the action buttons (refresh, view toggles, and crucially the close
+  // button) fully visible: they must never shrink or be clipped by the panel's
+  // overflow:hidden. The tabs area yields/scrolls instead so close stays reachable.
+  .guake-git-title {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .guake-git-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+  }
+
+  .guake-git-tab {
+    flex-shrink: 0;
+  }
+
+  .guake-git-header-actions {
+    flex-shrink: 0;
+  }
+
+  // Larger touch targets on mobile
+  .guake-git-fetch-btn,
+  .guake-git-view-toggle,
+  .guake-git-refresh,
+  .guake-git-close {
+    padding: 8px;
   }
 
   .guake-git-file {

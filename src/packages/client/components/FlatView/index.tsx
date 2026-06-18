@@ -26,6 +26,7 @@ import { BUILDING_TYPES } from '../../../shared/building-types';
 import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
 import { getBuildingTypeIcon } from '../DashboardView/utils';
+import { getAreaLogoUrl } from '../../api/area-logos';
 import { TaskProgressDots } from '../shared/TaskProgressDots';
 import { SubordinateProgressDots } from '../shared/SubordinateProgressDots';
 import { AgentHoverTooltip } from '../shared/AgentHoverTooltip';
@@ -2344,6 +2345,15 @@ export function FlatView({
                           onAreaContextMenu(areaKey, { x: e.clientX, y: e.clientY });
                         }}
                       >
+                        {group.area.logo?.filename && (
+                          <img
+                            className="flat-map-area-card__logo"
+                            src={getAreaLogoUrl(group.area.logo.filename)}
+                            alt=""
+                            aria-hidden="true"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
+                        )}
                         <button
                           type="button"
                           className="flat-map-area-card__header"
