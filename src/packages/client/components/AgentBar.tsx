@@ -10,6 +10,7 @@ import {
   useCustomAgentClassesArray,
   useSettings,
   useAgentsWithUnseenOutput,
+  usePinnedAgentIds,
 } from '../store';
 import type { Agent, DrawingArea, CustomAgentClass } from '../../shared/types';
 import { formatIdleTime } from '../utils/formatting';
@@ -46,6 +47,7 @@ interface AgentBarItemProps {
   isTouchInput: boolean;
   isTouchDragEnabled: boolean;
   isSelected: boolean;
+  isPinned: boolean;
   hasUnseenOutput: boolean;
   isDragging: boolean;
   isDragOver: boolean;
@@ -65,13 +67,14 @@ interface AgentBarItemProps {
   onHoverEnter: (agent: Agent) => void;
   onHoverLeave: () => void;
   onItemRef: (agentId: string, el: HTMLDivElement | null) => void;
+  onTogglePin: (agentId: string, e: React.MouseEvent) => void;
 }
 
 const AgentBarItem = memo(function AgentBarItem({
-  agent, currentIndex, agentIndex, isTouchInput, isTouchDragEnabled, isSelected, hasUnseenOutput,
+  agent, currentIndex, agentIndex, isTouchInput, isTouchDragEnabled, isSelected, isPinned, hasUnseenOutput,
   isDragging, isDragOver, customClasses: _customClasses,
   onDragStart, onDragEnd, onDragOver, onDragEnter, onDragLeave, onDrop,
-  onAgentClick, onAgentDoubleClick, onTouchStart, onTouchMove, onTouchEnd, onTouchCancel, onHoverEnter, onHoverLeave, onItemRef,
+  onAgentClick, onAgentDoubleClick, onTouchStart, onTouchMove, onTouchEnd, onTouchCancel, onHoverEnter, onHoverLeave, onItemRef, onTogglePin,
 }: AgentBarItemProps) {
   const canDrag = !isTouchInput || isTouchDragEnabled;
 
@@ -125,6 +128,17 @@ const AgentBarItem = memo(function AgentBarItem({
         )}
       </div>
       <span className="agent-bar-hotkey" title={`Ctrl+${currentIndex + 1}`}>^{currentIndex + 1}</span>
+      <button
+        type="button"
+        className={`agent-bar-pin${isPinned ? ' pinned' : ''}`}
+        title={isPinned ? 'Unpin from quick-select bar' : 'Pin to quick-select bar'}
+        aria-label={isPinned ? 'Unpin agent' : 'Pin agent'}
+        onClick={(e) => { e.stopPropagation(); onTogglePin(agent.id, e); }}
+        onDoubleClick={(e) => e.stopPropagation()}
+        draggable={false}
+      >
+        📌
+      </button>
     </div>
   );
 });
@@ -139,6 +153,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
   const settings = useSettings();
   const customClasses = useCustomAgentClassesArray();
   const agentsWithUnseenOutput = useAgentsWithUnseenOutput();
+  const pinnedAgentIds = usePinnedAgentIds();
   const [activeWorkspace] = useWorkspaceFilter();
   const [hasPendingHmrChanges, setHasPendingHmrChanges] = useState(false);
 
@@ -362,6 +377,11 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
     } else {
       agentItemRefs.current.delete(agentId);
     }
+  }, []);
+
+  const pinnedSet = useMemo(() => new Set(pinnedAgentIds), [pinnedAgentIds]);
+  const handleTogglePin = useCallback((agentId: string) => {
+    store.togglePinnedAgent(agentId);
   }, []);
 
   // Drag and drop handlers (stabilized with refs)
@@ -710,6 +730,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
                     isTouchInput={isTouchInput}
                     isTouchDragEnabled={touchDragEnabledAgentId === agent.id}
                     isSelected={selectedAgentIds.has(agent.id)}
+                    isPinned={pinnedSet.has(agent.id)}
                     hasUnseenOutput={agentsWithUnseenOutput.has(agent.id)}
                     isDragging={draggedAgent?.id === agent.id}
                     isDragOver={dragOverIndex === agentIndex}
@@ -729,6 +750,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
                     onHoverEnter={setHoveredAgent}
                     onHoverLeave={handleHoverLeave}
                     onItemRef={handleItemRef}
+                    onTogglePin={handleTogglePin}
                   />
                 );
               })}

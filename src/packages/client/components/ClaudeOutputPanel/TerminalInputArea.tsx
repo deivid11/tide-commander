@@ -6,7 +6,7 @@
 
 import React, { useRef, useEffect, useState, useCallback, memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useSettings, useLastPrompt } from '../../store';
+import { store, useSettings, useLastPrompt, usePinnedAgentIds } from '../../store';
 import { PermissionRequestInline } from './PermissionRequest';
 import { getImageWebUrl } from './contentRendering';
 import { PastedTextChip } from './PastedTextChip';
@@ -272,6 +272,8 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   // re-rendering the entire TerminalInputArea every second.
   const lastPrompt = useLastPrompt(selectedAgentId);
   const isWorking = selectedAgent.status === 'working';
+  const pinnedAgentIds = usePinnedAgentIds();
+  const isPinned = pinnedAgentIds.includes(selectedAgentId);
 
   const messageQueue = useMessageQueue(selectedAgentId);
   const sendQueuedMessage = useCallback((entry: QueuedMessage) => {
@@ -1072,6 +1074,15 @@ export const TerminalInputArea = memo(function TerminalInputArea({
               onDragLeave={handleInputDragLeave}
               onDrop={handleInputDrop}
             >
+              <button
+                type="button"
+                className={`guake-pin-btn ${isPinned ? 'pinned' : ''}`}
+                onClick={() => store.togglePinnedAgent(selectedAgentId)}
+                title={isPinned ? 'Unpin this agent from the quick-select bar' : 'Pin this agent to the quick-select bar'}
+                aria-pressed={isPinned}
+              >
+                <Icon name="pin" size={14} />
+              </button>
               <button
                 className="guake-attach-btn"
                 onClick={() => fileInputRef.current?.click()}

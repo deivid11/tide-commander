@@ -59,6 +59,50 @@ describe('parseAgentChatMessage', () => {
   });
 });
 
+describe('parseAgentChatMessage — inbound /message identity prefix', () => {
+  it('parses "From <Name> (<id>). <body>"', () => {
+    const parsed = parseAgentChatMessage('From Lucario (mx3ahan8). C1 FROZEN - accepted in full');
+    expect(parsed).not.toBeNull();
+    expect(parsed!.senderName).toBe('Lucario');
+    expect(parsed!.senderId).toBe('mx3ahan8');
+    expect(parsed!.body).toBe('C1 FROZEN - accepted in full');
+  });
+
+  it('parses the optional "Message from <Name> (<id>). <body>" prefix', () => {
+    const parsed = parseAgentChatMessage('Message from Sandlash (tjwe0cq0). Ratata - outstanding turn');
+    expect(parsed).not.toBeNull();
+    expect(parsed!.senderName).toBe('Sandlash');
+    expect(parsed!.senderId).toBe('tjwe0cq0');
+    expect(parsed!.body).toBe('Ratata - outstanding turn');
+  });
+
+  it('captures multi-word sender names and multi-paragraph bodies', () => {
+    const parsed = parseAgentChatMessage('From TC BOSS (dsq2oet7). First line.\n\nSecond paragraph with detail.');
+    expect(parsed).not.toBeNull();
+    expect(parsed!.senderName).toBe('TC BOSS');
+    expect(parsed!.senderId).toBe('dsq2oet7');
+    expect(parsed!.body).toBe('First line.\n\nSecond paragraph with detail.');
+  });
+
+  it('strips an optional leading "agent " keyword from the name', () => {
+    const parsed = parseAgentChatMessage('Message from agent Pikachu (abc123xy). pika');
+    expect(parsed).not.toBeNull();
+    expect(parsed!.senderName).toBe('Pikachu');
+    expect(parsed!.senderId).toBe('abc123xy');
+    expect(parsed!.body).toBe('pika');
+  });
+
+  it('does not treat ordinary prose as an agent message', () => {
+    // Uppercase / too-short parenthetical → not an agent id shape
+    expect(parseAgentChatMessage('From Paris (FR). Bonjour from the capital.')).toBeNull();
+    expect(parseAgentChatMessage('From Tokyo (jp). Konnichiwa.')).toBeNull();
+    // No body after the period
+    expect(parseAgentChatMessage('From Lucario (mx3ahan8).')).toBeNull();
+    // No parenthetical id at all
+    expect(parseAgentChatMessage('From the build server it finished cleanly.')).toBeNull();
+  });
+});
+
 describe('shouldCollapseAgentChatBody', () => {
   it('does not collapse short bodies', () => {
     expect(shouldCollapseAgentChatBody(SHORT_BODY)).toBe(false);

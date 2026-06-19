@@ -90,6 +90,9 @@ export const STORAGE_KEYS = {
   // Agent notifications
   UNSEEN_AGENTS: 'tide-unseen-agents',
 
+  // Pinned agents (quick-select thumbnail bar above the terminal input)
+  PINNED_AGENTS: 'tide-pinned-agents',
+
   // Pending messages (queued when offline)
   PENDING_MESSAGES: 'tide-pending-messages',
 } as const;
