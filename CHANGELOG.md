@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.118.1] - 2026-06-19
+
+### Changed
+- **Browser extension sidepanel** — layout and style refinements to `sidepanel.html` and `sidepanel.css`.
+
 ## [1.118.0] - 2026-06-19
 
 ### Added

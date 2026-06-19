@@ -53,7 +53,6 @@
         </div>
         <button class="icon-btn" id="refresh" title="Reload history">⟳</button>
       </div>
-      <div class="hd-row agent-meta" id="agent-meta" hidden></div>
       <div class="hd-row">
         <button class="btn pick" id="pick" title="Pick a DOM element to attach its context">⊹ Pick</button>
         <button class="btn shot" id="shot" title="Screenshot a DOM element and send the image">📷 Screenshot</button>
@@ -112,34 +111,40 @@
     <div class="pinbar" id="pinbar" hidden title="Pinned agents — click a thumbnail to select"></div>
 
     <footer class="composer">
-      <button class="icon-btn attach" id="attach" title="Attach files (images or documents)">📎</button>
-      <input type="file" id="fileInput" multiple hidden />
-      <button class="icon-btn pin-toggle" id="pin-toggle" title="Pin this agent" aria-pressed="false" hidden>📌</button>
-      <textarea id="input" rows="2" placeholder="Message the agent…  (Enter to send, Shift+Enter for newline)"></textarea>
-      <button class="btn primary" id="send">Send</button>
+      <div class="composer-row">
+        <button class="icon-btn attach" id="attach" title="Attach files (images or documents)">📎</button>
+        <input type="file" id="fileInput" multiple hidden />
+        <button class="icon-btn pin-toggle" id="pin-toggle" title="Pin this agent" aria-pressed="false" hidden>📌</button>
+        <textarea id="input" rows="2" placeholder="Message the agent…  (Enter to send, Shift+Enter for newline)"></textarea>
+        <button class="btn primary" id="send">Send</button>
+      </div>
+
+      <!-- Selected agent's available context (area · context used · status) —
+           moved out of the header to sit right under the input. -->
+      <div class="agent-meta" id="agent-meta" hidden></div>
+
+      <!-- Available context to send with the next message — inside the composer,
+           directly BELOW the input row. -->
+      <div class="ctx" id="ctx" hidden>
+        <img id="ctx-img" alt="" />
+        <div class="ctx-meta">
+          <div class="ctx-sel" id="ctx-sel"></div>
+          <div class="ctx-tag" id="ctx-tag"></div>
+        </div>
+        <button class="icon-btn" id="ctx-clear" title="Remove attached element">✕</button>
+      </div>
+
+      <div class="netctx" id="netctx" hidden>
+        <span class="netctx-icon">🌐</span>
+        <div class="netctx-meta">
+          <div class="netctx-line" id="netctx-line"></div>
+          <div class="netctx-sub" id="netctx-sub"></div>
+        </div>
+        <button class="icon-btn" id="netctx-clear" title="Remove attached request">✕</button>
+      </div>
+
+      <div class="attachments" id="attachments" hidden></div>
     </footer>
-
-    <!-- Available context to be sent with the next message — shown below the
-         input so it sits right next to what you're typing. -->
-    <div class="ctx" id="ctx" hidden>
-      <img id="ctx-img" alt="" />
-      <div class="ctx-meta">
-        <div class="ctx-sel" id="ctx-sel"></div>
-        <div class="ctx-tag" id="ctx-tag"></div>
-      </div>
-      <button class="icon-btn" id="ctx-clear" title="Remove attached element">✕</button>
-    </div>
-
-    <div class="netctx" id="netctx" hidden>
-      <span class="netctx-icon">🌐</span>
-      <div class="netctx-meta">
-        <div class="netctx-line" id="netctx-line"></div>
-        <div class="netctx-sub" id="netctx-sub"></div>
-      </div>
-      <button class="icon-btn" id="netctx-clear" title="Remove attached request">✕</button>
-    </div>
-
-    <div class="attachments" id="attachments" hidden></div>
 
     <div class="lightbox" id="lightbox" hidden>
       <img id="lightbox-img" alt="Preview" />

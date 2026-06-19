@@ -627,7 +627,13 @@ html, body {
   margin-bottom: 5px;
 }
 
-.composer { display: flex; align-items: flex-end; gap: 6px; padding: 8px; border-top: 1px solid var(--border); background: var(--panel); }
+.composer { display: flex; flex-direction: column; align-items: stretch; gap: 7px; padding: 8px; border-top: 1px solid var(--border); background: var(--panel); }
+/* The actual input line (attach · pin · textarea · send). */
+.composer-row { display: flex; align-items: flex-end; gap: 6px; }
+/* Context blocks live inside the composer, above the input row — render them as
+   contained chips rather than full-width bars with a top divider. */
+.composer .ctx, .composer .netctx { border-top: none; border: 1px solid var(--border); border-radius: 7px; }
+.composer .attachments { border-top: none; background: transparent; padding: 0; }
 .composer .icon-btn.attach { height: 32px; font-size: 14px; }
 /* Quick pin/unpin of the currently-open agent. Dim (grayscale) when unpinned,
  * lit accent-tinted when pinned, so its state is obvious at a glance. */
