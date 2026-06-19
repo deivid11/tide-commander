@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.118.0] - 2026-06-19
+
+### Added
+- **Pinned agents bar** — agents can now be pinned to a persistent quick-select bar (`PinnedAgentsBar.tsx`); pin/unpin button added to each `AgentBarItem` with a `usePinnedAgentIds` selector.
+- **Browser extension** — initial `browser-extension/` module for capturing browser-side errors and events.
+- **Browser error service** — `browser-error-service.ts` receives and stores browser errors forwarded from the extension.
+- **New trigger routes** — `trigger-routes.ts` extended with 69 lines of new trigger endpoint logic.
+- **Mobile-friendly guake input** — `_input.scss` overhauled (+171 lines) for responsive terminal input on small screens.
+
+### Changed
+- `agentChatMessageParser.ts` updated with additional parsing logic; new tests added in `AgentChatMessageCard.test.ts`.
+- `App.tsx` wired to pinned agents state and updated agent-click handler.
+
 ## [1.117.0] - 2026-06-18
 
 ### Added

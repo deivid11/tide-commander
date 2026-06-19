@@ -1,0 +1,215 @@
+/* theme.css — loaded last. Three jobs:
+ *   1. Vibrant dark palette  (html[data-theme="dark"], the default)
+ *   2. Optional light palette (html[data-theme="light"])
+ *   3. "Agent is working" animations (selector + agent rows)
+ * Kept separate from sidepanel.css so the base palette there stays untouched. */
+
+/* ===================================================================
+ * 1. Vibrant dark — punchier accents + slightly brighter text, without
+ *    disturbing the void background. Wins over sidepanel.css :root via
+ *    the attribute selector's higher specificity.
+ * =================================================================== */
+html[data-theme="dark"] {
+  --text: #c6ccd6;
+  --term-fg: #c6ccd6;
+  --accent: #4aa6f0;
+  --ok: #46cf83;
+  --danger: #ef5d5d;
+  --term-green: #46cf83;
+  --term-cyan: #3fd4cc;
+  --term-yellow: #e8ce54;
+  --term-purple: #b189f0;
+  --term-orange: #f2995c;
+  --user-border: #8160db;
+  --assistant-border: #2fb8b8;
+}
+html[data-theme="dark"] body { background: radial-gradient(120% 80% at 50% -10%, #0d1018 0%, var(--bg) 60%); }
+html[data-theme="dark"] .btn.primary { box-shadow: 0 0 14px -4px color-mix(in srgb, var(--accent) 75%, transparent); }
+html[data-theme="dark"] .btn.primary:hover { box-shadow: 0 0 18px -3px color-mix(in srgb, var(--accent) 90%, transparent); }
+html[data-theme="dark"] .dot.ok { box-shadow: 0 0 9px color-mix(in srgb, var(--ok) 65%, transparent); }
+html[data-theme="dark"] .combo-item.sel { text-shadow: 0 0 10px color-mix(in srgb, var(--term-cyan) 45%, transparent); }
+
+/* ===================================================================
+ * 2. Light theme — flips the palette and the few hard-coded surfaces
+ *    that live in sidepanel.css (chat bg, message bubbles, code blocks).
+ * =================================================================== */
+html[data-theme="light"] {
+  --bg: #f3f6fa;
+  --panel: #ffffff;
+  --panel-2: #e9eef4;
+  --text: #1c222b;
+  --muted: #515b69;
+  --faint: #8b94a2;
+  --border: #d3dae3;
+  --accent: #1f7fd6;
+  --ok: #1f9d57;
+  --danger: #d83b3b;
+  --user: #eaf0fb;
+  --user-border: #7b5cd0;
+  --user-text: #1c222b;
+  --assistant: #f1f4f8;
+  --assistant-border: #1f9d9d;
+  --term-fg: #1c222b;
+  --term-green: #12924f;
+  --term-cyan: #0f8f8f;
+  --term-yellow: #9a7b12;
+  --term-purple: #6f47cc;
+  --term-orange: #c2622a;
+  --term-dim: #8b94a2;
+}
+html[data-theme="light"] body { background: var(--bg); }
+html[data-theme="light"] .chat { background: linear-gradient(180deg, #eef2f7 0%, #e6ebf2 60%); box-shadow: none; }
+html[data-theme="light"] .hd { box-shadow: 0 2px 10px rgba(20, 30, 50, 0.08); }
+html[data-theme="light"] .combo-pop { box-shadow: 0 12px 30px rgba(30, 40, 60, 0.18); }
+html[data-theme="light"] .msg.user .utext { background: #eaf0fb; border-color: #cfd8ee; }
+html[data-theme="light"] .msg.assistant .md,
+html[data-theme="light"] .msg.assistant.streaming .body { background: #ffffff; border-color: #dde3ea; color: #252b33; }
+html[data-theme="light"] .md strong { color: #10203f; }
+html[data-theme="light"] .md pre.cb { background: #f1f4f8; border-color: #dde3ea; }
+html[data-theme="light"] .md pre.cb code { color: #1f7a45; }
+html[data-theme="light"] .btn.primary { color: #ffffff; }
+html[data-theme="light"] * { scrollbar-color: rgba(120, 130, 145, 0.55) transparent; }
+html[data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(120, 130, 145, 0.45); }
+html[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: rgba(120, 130, 145, 0.7); }
+html[data-theme="light"] .tchip { background: #eef2f7; }
+
+/* ===================================================================
+ * 3. "Agent is working" animations — both on the selector (header combo)
+ *    and on each agent row in the dropdown.
+ * =================================================================== */
+
+/* Header combo: pulsing avatar glow + bouncing typing dots in place of the caret */
+.combo.working .combo-av,
+.combo-item.working .ci-av { animation: tcGlow 1.5s ease-in-out infinite; border-radius: 5px; }
+.combo.working .combo-input {
+  border-color: color-mix(in srgb, var(--ok) 55%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ok) 22%, transparent),
+              0 0 12px -3px color-mix(in srgb, var(--ok) 45%, transparent);
+}
+.combo-typing {
+  position: absolute; right: 7px; top: 50%; transform: translateY(-50%);
+  display: none; gap: 3px; align-items: center; pointer-events: none;
+}
+.combo.working .combo-typing { display: flex; }
+.combo.working .combo-caret { opacity: 0; }
+.combo-typing i,
+.ci-typing i {
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--ok); box-shadow: 0 0 6px var(--ok);
+  animation: tcBounce 1s infinite ease-in-out;
+}
+.combo-typing i:nth-child(2), .ci-typing i:nth-child(2) { animation-delay: 0.15s; }
+.combo-typing i:nth-child(3), .ci-typing i:nth-child(3) { animation-delay: 0.3s; }
+
+/* Dropdown row: soft highlight + its own typing dots */
+.combo-item.working { background: color-mix(in srgb, var(--ok) 9%, transparent); }
+.ci-typing { display: inline-flex; gap: 3px; align-items: center; flex: none; }
+
+@keyframes tcBounce {
+  0%, 80%, 100% { transform: translateY(0) scale(0.85); opacity: 0.45; }
+  40% { transform: translateY(-4px) scale(1); opacity: 1; }
+}
+@keyframes tcGlow {
+  0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+  50% { filter: drop-shadow(0 0 5px var(--ok)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .combo-typing i, .ci-typing i,
+  .combo.working .combo-av, .combo-item.working .ci-av,
+  .combo.working .combo-av::after { animation: none !important; }
+}
+
+/* ===================================================================
+ * Card wrapper fix — now that the full per-type renderers exist, the
+ * legacy .msg-card box double-wraps them. Make it a bare passthrough and
+ * restore the two card bodies that are also `.md` (so the generic
+ * `.msg-card .md` reset in sidepanel.css doesn't strip their styling).
+ * =================================================================== */
+.msg-card { background: transparent !important; border: none !important; padding: 0 !important; }
+.msg-card .agent-chat-message-body {
+  background: color-mix(in srgb, var(--term-cyan) 7%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--term-cyan) 35%, transparent);
+  padding: 5px 9px; border-radius: 4px;
+}
+.msg-card .task-notification__body {
+  border-top: 1px solid color-mix(in srgb, var(--faint) 25%, transparent);
+  padding-top: 6px;
+}
+
+/* ===================================================================
+ * Reusable sliding toggle — used by "Auto send errors" (.err-auto) and the
+ * page-context control (.pgctx). The real <input type="checkbox"> stays
+ * (JS reads .checked); it's just hidden and rendered as a sliding switch.
+ * =================================================================== */
+.err-auto, .pgctx { gap: 6px; }
+.switch-input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+.switch {
+  width: 28px; height: 16px; border-radius: 9px; flex: none; position: relative;
+  background: var(--panel-2); border: 1px solid var(--border);
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+.switch::after {
+  content: ""; position: absolute; top: 1px; left: 1px;
+  width: 12px; height: 12px; border-radius: 50%; background: var(--faint);
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+.switch-input:checked + .switch { background: color-mix(in srgb, var(--ok) 40%, transparent); border-color: var(--ok); }
+.switch-input:checked + .switch::after { transform: translateX(12px); background: var(--ok); box-shadow: 0 0 6px color-mix(in srgb, var(--ok) 60%, transparent); }
+.switch-input:focus-visible + .switch { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+.switch-text { color: var(--muted); font-size: 10.5px; }
+
+/* ===================================================================
+ * Lightbox — click the attached-element preview (#ctx-img) to enlarge it.
+ * =================================================================== */
+.ctx img { cursor: zoom-in; }
+.lightbox {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; cursor: zoom-out;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(2px);
+  animation: lbFade 0.14s ease;
+}
+.lightbox img {
+  max-width: 100%; max-height: 100%; object-fit: contain;
+  border-radius: 6px; border: 1px solid var(--border);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.6);
+  animation: lbZoom 0.16s ease;
+}
+@keyframes lbFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lbZoom { from { transform: scale(0.94); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* ===================================================================
+ * Resize handle — drag or scroll it to resize the composer/input (and
+ * thereby the chat, which fills the remaining space).
+ * =================================================================== */
+.resize-handle {
+  flex: 0 0 auto; height: 18px; cursor: ns-resize;
+  display: flex; align-items: center; justify-content: center;
+  /* Distinct tone + a border on BOTH sides so it reads as its own bar,
+   * not as part of the composer's chrome (that was why it "disappeared"). */
+  background: var(--panel-2);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  touch-action: none; user-select: none;
+  transition: background 0.15s ease;
+}
+.resize-handle::before {
+  content: ""; width: 52px; height: 4px; border-radius: 2px;
+  /* Visible at rest (accent-tinted), so the handle is always discoverable. */
+  background: color-mix(in srgb, var(--accent) 60%, var(--border));
+  transition: background 0.15s ease, width 0.15s ease, box-shadow 0.15s ease;
+}
+.resize-handle:hover { background: color-mix(in srgb, var(--accent) 12%, var(--panel-2)); }
+.resize-handle.dragging { background: color-mix(in srgb, var(--accent) 18%, var(--panel-2)); }
+.resize-handle:hover::before,
+.resize-handle.dragging::before {
+  background: var(--accent); width: 68px;
+  box-shadow: 0 0 8px -1px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+
+/* Make the resize deterministic: the composer keeps whatever height the input
+ * is given (never shrinks), and the chat absorbs the difference. */
+.composer { flex: 0 0 auto; }
+.chat { min-height: 0; }
+.composer textarea { min-height: 38px; }

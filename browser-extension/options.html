@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="src/options.css" />
+    <title>Error Trigger — Settings</title>
+  </head>
+  <body>
+    <main class="wrap">
+      <h1>Tide Commander — Error Trigger</h1>
+      <p class="sub">Capture browser errors, chat with the agent assigned to a page, and pick DOM elements as context.</p>
+
+      <section class="card">
+        <h2>Commanders</h2>
+        <p class="sub">Each Tide Commander server you connect to (by IP/host + optional token). The <strong>active</strong> one is the default; per-page agent assignment is remembered automatically from the chat panel.</p>
+        <div id="commanders"></div>
+        <button class="btn" id="addCommander" type="button">+ Add commander</button>
+        <label style="margin-top:14px">Default agent id (optional)
+          <input type="text" id="defaultAgentId" placeholder="blank → server picks its first agent" />
+          <small class="hint">Used when a page has no specific agent assigned yet.</small>
+        </label>
+      </section>
+
+      <section class="card">
+        <h2>Capture</h2>
+        <label class="check"><input type="checkbox" id="enabled" /> Extension enabled</label>
+        <label class="check"><input type="checkbox" id="autoSend" /> Auto-send errors to the agent</label>
+        <label class="check"><input type="checkbox" id="captureScreenshots" /> Attach a screenshot at error time</label>
+        <hr />
+        <label class="check"><input type="checkbox" id="captureNetwork" /> Network errors (4xx / 5xx / failures)</label>
+        <label class="check"><input type="checkbox" id="captureJs" /> Uncaught JS errors + promise rejections</label>
+        <label class="check"><input type="checkbox" id="captureConsole" /> console.error calls</label>
+        <label class="check"><input type="checkbox" id="captureResource" /> Failed resource loads (img/script/css)</label>
+        <label>Send on occurrence counts (thresholds)
+          <input type="text" id="thresholds" placeholder="1,10,100,1000" />
+          <small class="hint">Comma-separated. The agent fires when a deduped error hits one of these counts.</small>
+        </label>
+      </section>
+
+      <section class="card">
+        <h2>Origins allowlist</h2>
+        <p class="sub">Only pages whose origin matches a line below are captured. <code>*</code> is a wildcard; <code>*</code> alone allows everything (not recommended).</p>
+        <textarea id="allowlist" rows="4" placeholder="http://localhost:*&#10;http://127.0.0.1:*"></textarea>
+      </section>
+
+      <section class="card">
+        <h2>Redaction</h2>
+        <label class="check"><input type="checkbox" id="redact" /> Redact secrets before sending (Bearer tokens, JWTs, sensitive keys)</label>
+        <label>Sensitive key names
+          <input type="text" id="redactKeys" placeholder="authorization,cookie,token,password,secret" />
+        </label>
+      </section>
+
+      <div class="actions">
+        <button class="btn primary" id="save" type="button">Save</button>
+        <span id="status" class="status"></span>
+      </div>
+    </main>
+    <script src="src/options.js"></script>
+  </body>
+</html>

@@ -59,6 +59,7 @@ import {
 // Components
 import { SearchBar } from './TerminalHeader';
 import { TerminalInputArea } from './TerminalInputArea';
+import { PinnedAgentsBar } from './PinnedAgentsBar';
 import { VirtualizedOutputList } from './VirtualizedOutputList';
 // AgentPromptCard import removed — interactive prompt UI now renders inline
 // in the matching tool_use chip via AskQuestionInput / ExitPlanModeInput
@@ -989,6 +990,9 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
           OutputLine.tsx + AskQuestionInput/ExitPlanModeInput's interactive mode.
           We keep the lookup wired (pendingAgentPrompts) so it stays referenced
           if we ever need a fallback panel. */}
+
+      {/* Pinned-agent quick-select strip, directly above the composer */}
+      <PinnedAgentsBar activeAgentId={agentId} />
 
       {/* Terminal input */}
       <TerminalInputArea

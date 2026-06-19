@@ -1,0 +1,303 @@
+/* renderers.css — styles for the custom content renderers ported from the
+ * Guake terminal (see src/renderers.js). Uses the Abyss palette variables
+ * defined in sidepanel.css. Cards render inside a bare .msg.msg-card wrapper. */
+
+.msg-card { max-width: 100%; }
+.msg-card .tc-card-rest { margin-top: 6px; }
+
+/* clamp/expand shared by collapsible cards */
+.tc-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  position: relative;
+}
+.tc-clamp::after {
+  content: "";
+  position: absolute; left: 0; right: 0; bottom: 0; height: 1.5em;
+  background: linear-gradient(to bottom, transparent, var(--bg));
+  pointer-events: none;
+}
+.tc-toggleable { cursor: pointer; }
+
+/* image / file references inside markdown bodies */
+.img-ref { display: inline-flex; align-items: center; gap: 5px; vertical-align: middle; color: var(--term-cyan); text-decoration: none; max-width: 100%; }
+.img-ref img { max-height: 120px; max-width: 100%; border-radius: 5px; border: 1px solid var(--border); display: block; }
+.img-ref span { font-size: 10.5px; color: var(--muted); }
+.file-ref { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--border); color: var(--term-cyan); font-size: 11px; }
+.file-ref i { font-style: normal; }
+
+/* attachment chip (WhatsApp/Slack/Gmail bodies) */
+.attachment-chip { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 11px; background: color-mix(in srgb, var(--accent) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); color: var(--text); font-size: 11px; vertical-align: middle; max-width: 100%; }
+.attachment-chip i { font-style: normal; flex: none; }
+.attachment-chip__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+.attachment-chip__size { color: var(--faint); font-size: 10px; }
+
+/* ── task notification ─────────────────────────────────────────────── */
+.task-notification {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 8px 11px; border-radius: 6px; font-family: var(--mono);
+  border-left: 3px solid var(--faint);
+  background: color-mix(in srgb, var(--panel-2) 50%, transparent);
+}
+.task-notification.tc-toggleable:hover { background: color-mix(in srgb, var(--panel-2) 70%, transparent); }
+.task-notification--error { border-left-color: var(--danger); background: linear-gradient(90deg, color-mix(in srgb, var(--danger) 12%, var(--panel) 88%), var(--panel)); }
+.task-notification--completed { border-left-color: var(--ok); background: linear-gradient(90deg, color-mix(in srgb, var(--ok) 9%, var(--panel) 91%), var(--panel)); }
+.task-notification--info { border-left-color: var(--term-cyan); background: linear-gradient(90deg, color-mix(in srgb, var(--term-cyan) 9%, var(--panel) 91%), var(--panel)); }
+.task-notification__head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.task-notification__icon { flex: none; font-weight: 700; }
+.task-notification--error .task-notification__icon { color: var(--danger); }
+.task-notification--completed .task-notification__icon { color: var(--ok); }
+.task-notification--info .task-notification__icon { color: var(--term-cyan); }
+.task-notification__label { font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); flex: none; }
+.task-notification__title { font-size: 12px; font-weight: 600; color: var(--text); flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.task-notification__id { font-size: 10px; color: var(--faint); background: color-mix(in srgb, var(--panel-2) 70%, transparent); padding: 1px 6px; border-radius: 3px; flex: none; }
+.task-notification__stats { display: inline-flex; align-items: center; gap: 9px; flex: none; }
+.task-notification__stat { font-size: 10px; color: var(--faint); }
+.task-notification__toggle { flex: none; color: var(--faint); font-size: 10px; }
+.task-notification__body { font-size: 11.5px; color: var(--muted); border-top: 1px solid color-mix(in srgb, var(--faint) 25%, transparent); padding-top: 6px; }
+
+/* ── subagent notification ─────────────────────────────────────────── */
+.subagent-notification { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 6px 11px; border-radius: 6px; font-family: var(--mono); font-size: 12px; border-left: 3px solid var(--faint); background: color-mix(in srgb, var(--panel-2) 50%, transparent); }
+.subagent-notification--error { border-left-color: var(--danger); }
+.subagent-notification--completed { border-left-color: var(--ok); }
+.subagent-notification--info { border-left-color: var(--term-cyan); }
+.subagent-notification__icon { flex: none; }
+.subagent-notification__label { font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); flex: none; }
+.subagent-notification__id { font-size: 10px; color: var(--faint); background: color-mix(in srgb, var(--panel-2) 70%, transparent); padding: 1px 6px; border-radius: 3px; flex: none; }
+.subagent-notification__status { font-weight: 600; font-size: 11px; flex: none; }
+.subagent-notification--error .subagent-notification__status { color: var(--danger); }
+.subagent-notification--completed .subagent-notification__status { color: var(--ok); }
+.subagent-notification--info .subagent-notification__status { color: var(--term-cyan); }
+.subagent-notification__message { font-size: 11px; color: var(--muted); opacity: 0.85; flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── agent → agent chat card ───────────────────────────────────────── */
+.agent-chat-message-card {
+  display: flex; flex-direction: column; gap: 3px; padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, var(--term-cyan) 30%, transparent);
+  border-left: 3px solid color-mix(in srgb, var(--term-cyan) 70%, transparent);
+  border-radius: 7px; background: color-mix(in srgb, var(--term-cyan) 6%, var(--panel)); font-family: var(--mono);
+}
+.agent-chat-message-title { display: flex; align-items: center; gap: 6px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--term-cyan); }
+.agent-chat-message-icon { flex: none; }
+.agent-chat-message-title-text { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.agent-chat-message-sender-name { text-transform: none; font-weight: 700; color: var(--term-cyan); }
+.agent-chat-message-sender-id { font-size: 9px; text-transform: none; padding: 1px 5px; border-radius: 3px; background: color-mix(in srgb, var(--bg) 60%, transparent); color: var(--faint); border: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.agent-chat-message-body { margin-top: 1px; padding: 5px 9px; background: color-mix(in srgb, var(--term-cyan) 6%, transparent); border-left: 2px solid color-mix(in srgb, var(--term-cyan) 35%, transparent); border-radius: 4px; font-size: 11px; }
+.agent-chat-message-footer { display: flex; justify-content: flex-end; }
+.agent-chat-message-more-btn { background: transparent; border: 1px solid color-mix(in srgb, var(--term-cyan) 40%, transparent); color: var(--term-cyan); font-family: var(--mono); font-size: 9.5px; font-weight: 600; padding: 1px 8px; border-radius: 9px; cursor: pointer; }
+.agent-chat-message-more-btn:hover { background: color-mix(in srgb, var(--term-cyan) 12%, transparent); }
+
+/* ── delegated task / task report ──────────────────────────────────── */
+.delegated-task-message, .task-report-header { display: flex; flex-direction: column; gap: 4px; padding: 6px 9px; border-radius: 6px; font-family: var(--mono); border-left: 3px solid var(--user-border); background: color-mix(in srgb, var(--panel-2) 55%, transparent); }
+.delegated-task-message.tc-toggleable:hover, .task-report-header.tc-toggleable:hover { background: color-mix(in srgb, var(--panel-2) 72%, transparent); }
+.task-report-header.status-completed { border-left-color: var(--ok); }
+.task-report-header.status-failed { border-left-color: var(--danger); }
+.delegated-task-message-badge, .task-report-badge { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.delegated-task-message-icon, .task-report-icon { flex: none; }
+.delegated-task-message-chip { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--user-text); background: color-mix(in srgb, var(--user-border) 35%, transparent); padding: 1px 7px; border-radius: 9px; }
+.delegated-task-message-label, .task-report-label { font-size: 11px; color: var(--text); flex: 1 1 auto; min-width: 0; }
+.delegated-task-message-from { color: var(--faint); }
+.delegated-task-message-label strong, .task-report-label strong { color: var(--term-cyan); }
+.delegated-task-message-id, .task-report-id { font-size: 10px; color: var(--faint); background: color-mix(in srgb, var(--panel-2) 70%, transparent); padding: 1px 6px; border-radius: 3px; flex: none; }
+.delegated-task-message-toggle, .task-report-toggle { flex: none; color: var(--faint); font-size: 10px; }
+.delegated-task-message-command, .task-report-summary { font-size: 11px; color: var(--muted); }
+
+/* ── delegation / work-plan cards (assistant) ──────────────────────── */
+.tc-delegation-card { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; padding: 7px 10px; border-radius: 6px; border-left: 3px solid var(--term-orange); background: color-mix(in srgb, var(--term-orange) 8%, var(--panel)); font-family: var(--mono); }
+.tc-delegation-card__head { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.tc-delegation-card__icon { color: var(--term-orange); }
+.tc-delegation-card__label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700; }
+.tc-delegation-card__agent { color: var(--term-cyan); }
+.tc-delegation-card__conf { margin-left: auto; font-size: 9px; padding: 1px 6px; border-radius: 8px; text-transform: uppercase; background: color-mix(in srgb, var(--panel-2) 70%, transparent); color: var(--faint); }
+.tc-conf--high { color: var(--ok); } .tc-conf--low { color: var(--danger); }
+.tc-delegation-card__task { font-size: 11px; color: var(--muted); }
+.tc-delegation-card__reason { font-size: 10.5px; color: var(--faint); font-style: italic; }
+.tc-workplan-card { display: flex; flex-direction: column; gap: 5px; margin: 6px 0; padding: 8px 11px; border-radius: 6px; border-left: 3px solid var(--term-purple); background: color-mix(in srgb, var(--term-purple) 9%, var(--panel)); font-family: var(--mono); }
+.tc-workplan-card__head { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text); }
+.tc-workplan-card__desc { font-size: 11px; color: var(--muted); }
+.tc-workplan-phase { border-top: 1px solid color-mix(in srgb, var(--faint) 22%, transparent); padding-top: 4px; }
+.tc-workplan-phase__name { font-size: 11px; font-weight: 600; color: var(--term-cyan); }
+.tc-workplan-phase__exec { font-size: 9px; color: var(--faint); text-transform: uppercase; }
+.tc-workplan-tasks { list-style: none; margin: 3px 0 0; padding-left: 0; }
+.tc-workplan-tasks li { font-size: 10.5px; color: var(--muted); margin: 2px 0; }
+.tc-workplan-task__cls { font-size: 9px; text-transform: uppercase; color: var(--term-green); margin-right: 5px; }
+.tc-workplan-task__agent { color: var(--term-cyan); }
+
+/* ── WhatsApp bubble ───────────────────────────────────────────────── */
+.whatsapp-row { display: flex; flex-direction: column; width: 100%; }
+.whatsapp-row--inbound { align-items: flex-start; }
+.whatsapp-row--outbound { align-items: flex-end; }
+.whatsapp-bubble { display: flex; flex-direction: column; gap: 4px; max-width: 88%; min-width: 140px; padding: 8px 11px; border-radius: 8px; border: 1px solid var(--border); font-size: 12px; line-height: 1.45; color: var(--text); background: var(--user); box-shadow: inset 0 -1px 1px rgba(0,0,0,0.12); }
+.whatsapp-row--outbound .whatsapp-bubble { background: color-mix(in srgb, var(--ok) 16%, var(--bg)); border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
+.whatsapp-bubble__header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 10.5px; color: var(--faint); }
+.whatsapp-bubble__icon { color: color-mix(in srgb, var(--ok) 75%, var(--text)); }
+.whatsapp-bubble__phone { font-weight: 600; color: color-mix(in srgb, var(--ok) 70%, var(--text)); }
+.whatsapp-bubble__badge { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 18%, transparent); color: color-mix(in srgb, var(--accent) 85%, var(--text)); font-size: 9.5px; font-weight: 600; }
+.whatsapp-bubble__session { font-size: 9.5px; padding: 1px 5px; border-radius: 4px; background: color-mix(in srgb, var(--faint) 18%, transparent); color: var(--faint); }
+.whatsapp-bubble__media { display: inline-flex; align-items: center; align-self: flex-start; gap: 5px; padding: 3px 8px; border-radius: 6px; background: color-mix(in srgb, var(--term-orange) 16%, transparent); color: color-mix(in srgb, var(--term-orange) 85%, var(--text)); font-size: 10.5px; }
+.whatsapp-bubble__body { white-space: pre-wrap; word-break: break-word; color: var(--text); }
+.whatsapp-bubble__empty { color: var(--faint); font-style: italic; }
+.whatsapp-bubble__footer { display: flex; justify-content: space-between; gap: 8px; font-size: 9.5px; color: var(--faint); }
+.whatsapp-bubble__brand { text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; font-size: 9px; }
+.whatsapp-bubble a, .slack-bubble a, .gmail-bubble a { color: var(--accent); text-decoration: underline; word-break: break-all; }
+
+/* ── Slack bubble ──────────────────────────────────────────────────── */
+.slack-row { display: flex; flex-direction: column; width: 100%; }
+.slack-row--inbound { align-items: flex-start; }
+.slack-row--outbound { align-items: flex-end; }
+.slack-bubble { display: flex; flex-direction: column; gap: 5px; max-width: 92%; min-width: 150px; padding: 8px 11px; border-radius: 8px; border: 1px solid var(--border); font-size: 12px; color: var(--text); background: var(--assistant); box-shadow: inset 0 -1px 1px rgba(0,0,0,0.12); }
+.slack-bubble__header { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.slack-bubble__avatar { flex: none; width: 22px; height: 22px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 700; background: color-mix(in srgb, var(--term-purple) 35%, var(--panel-2)); color: var(--user-text); }
+.slack-bubble__person { display: flex; flex-direction: column; min-width: 0; }
+.slack-bubble__name { font-weight: 600; font-size: 11.5px; color: var(--text); }
+.slack-bubble__userid { font-size: 9px; color: var(--faint); }
+.slack-bubble__channel { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; padding: 1px 7px; border-radius: 9px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: color-mix(in srgb, var(--accent) 85%, var(--text)); }
+.slack-bubble__channel i { font-style: normal; }
+.slack-bubble__channelid { font-size: 8.5px; opacity: 0.7; }
+.slack-bubble__instance { font-size: 9px; color: var(--faint); margin-left: auto; }
+.slack-bubble__attachments { display: flex; flex-wrap: wrap; gap: 5px; }
+.slack-bubble__attachment { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); }
+.slack-bubble__body { white-space: pre-wrap; word-break: break-word; color: var(--text); }
+.slack-bubble__empty { color: var(--faint); font-style: italic; }
+.slack-bubble__footer { display: flex; justify-content: space-between; gap: 8px; font-size: 9.5px; color: var(--faint); }
+.slack-bubble__brand { text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; font-size: 9px; }
+
+/* ── Gmail bubble ──────────────────────────────────────────────────── */
+.gmail-bubble-row { display: flex; flex-direction: column; width: 100%; }
+.gmail-bubble { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--border); border-left: 3px solid var(--danger); font-size: 12px; color: var(--text); background: var(--assistant); }
+.gmail-bubble-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 10px; color: var(--faint); }
+.gmail-bubble-icon { color: var(--danger); }
+.gmail-bubble-direction { text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700; }
+.gmail-bubble-label { padding: 1px 6px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: color-mix(in srgb, var(--accent) 85%, var(--text)); font-size: 9px; }
+.gmail-bubble-date { margin-left: auto; }
+.gmail-bubble-subject { font-size: 13px; font-weight: 600; color: var(--text); }
+.gmail-bubble-people { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gmail-bubble-person { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.gmail-bubble-avatar { flex: none; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 700; color: var(--user-text); }
+.gmail-bubble-avatar-from { background: color-mix(in srgb, var(--danger) 40%, var(--panel-2)); }
+.gmail-bubble-avatar-to { background: color-mix(in srgb, var(--accent) 40%, var(--panel-2)); }
+.gmail-bubble-person-text { display: flex; flex-direction: column; min-width: 0; }
+.gmail-bubble-person-role { font-size: 8.5px; text-transform: uppercase; color: var(--faint); }
+.gmail-bubble-person-name { font-size: 11px; font-weight: 600; color: var(--text); }
+.gmail-bubble-person-email { font-size: 9px; color: var(--faint); }
+.gmail-bubble-arrow { color: var(--faint); }
+.gmail-bubble-attachments { display: flex; flex-direction: column; gap: 4px; }
+.gmail-bubble-attachments-label { font-size: 10px; color: var(--muted); }
+.gmail-bubble-attachments-list { display: flex; flex-wrap: wrap; gap: 5px; }
+.gmail-bubble-attachment-chip { font-size: 10px; padding: 1px 7px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); }
+.gmail-bubble-body { white-space: pre-wrap; word-break: break-word; color: var(--text); font-size: 11.5px; }
+.gmail-bubble-empty { color: var(--faint); font-style: italic; }
+.gmail-bubble-more-btn, .gmail-bubble-quoted-toggle { align-self: flex-start; background: transparent; border: none; color: var(--accent); font-family: var(--mono); font-size: 10px; cursor: pointer; padding: 0; }
+.gmail-bubble-quoted-body { margin: 4px 0 0; padding: 4px 9px; border-left: 2px solid var(--faint); color: var(--muted); font-size: 11px; white-space: pre-wrap; }
+.gmail-bubble-footer { display: flex; justify-content: space-between; gap: 8px; font-size: 9.5px; color: var(--faint); }
+.gmail-bubble-brand { text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; font-size: 9px; }
+
+/* ============================================================================
+ * Interactive agent prompt — AskUserQuestion / ExitPlanMode (renderAgentPrompt).
+ * Mirrors the Guake terminal's AgentPromptCard so the side panel can answer
+ * blocking questions / approve plans inline.
+ * ========================================================================== */
+.agent-prompt-card {
+  margin: 6px 0; padding: 9px 11px; border-radius: 8px;
+  background: color-mix(in srgb, var(--term-purple) 8%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--term-purple) 38%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--term-purple) 10%, transparent),
+              0 6px 18px -10px color-mix(in srgb, var(--term-purple) 60%, transparent);
+  display: flex; flex-direction: column; gap: 8px;
+  animation: apCardIn 0.18s ease;
+}
+@keyframes apCardIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.agent-prompt-card.busy { opacity: 0.7; pointer-events: none; }
+
+.agent-prompt-header { display: flex; align-items: center; gap: 7px; }
+.agent-prompt-icon { font-size: 13px; }
+.agent-prompt-title { font-weight: 700; font-size: 12px; color: var(--text); }
+.agent-prompt-badge {
+  margin-left: auto; font-size: 9.5px; font-weight: 600; padding: 1px 7px; border-radius: 9px;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
+}
+.agent-prompt-toggle {
+  margin-left: auto; background: transparent; border: none; color: var(--accent);
+  font-family: var(--mono); font-size: 10px; cursor: pointer; padding: 0;
+}
+.agent-prompt-empty { color: var(--faint); font-style: italic; font-size: 11px; }
+
+.agent-prompt-questions { display: flex; flex-direction: column; gap: 9px; }
+.agent-prompt-question {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 7px 8px; border-radius: 6px;
+  background: color-mix(in srgb, var(--panel-2) 60%, transparent);
+  border: 1px solid transparent;
+}
+.agent-prompt-question.answered { border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.agent-prompt-question-header { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.agent-prompt-question-tag {
+  font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;
+  padding: 1px 6px; border-radius: 7px; color: var(--term-cyan);
+  background: color-mix(in srgb, var(--term-cyan) 16%, transparent);
+}
+.agent-prompt-question-text { font-size: 11.5px; font-weight: 600; color: var(--text); }
+.agent-prompt-multi { font-size: 9px; color: var(--faint); }
+.agent-prompt-answered-mark { display: none; margin-left: auto; color: var(--ok); font-weight: 700; }
+.agent-prompt-question.answered .agent-prompt-answered-mark { display: inline; }
+
+.agent-prompt-options { display: flex; flex-direction: column; gap: 5px; }
+.agent-prompt-option {
+  display: flex; flex-direction: column; gap: 2px; text-align: left; cursor: pointer;
+  padding: 6px 9px; border-radius: 6px; font-family: inherit;
+  background: var(--panel); border: 1px solid var(--border); color: var(--text);
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.agent-prompt-option:hover:not(:disabled) { border-color: var(--accent); }
+.agent-prompt-option.selected {
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, var(--panel));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ok) 35%, transparent);
+}
+.agent-prompt-option.selected .agent-prompt-option-label::after { content: " ✓"; color: var(--ok); }
+.agent-prompt-option:disabled { cursor: default; }
+.agent-prompt-option-label { font-size: 11.5px; font-weight: 600; }
+.agent-prompt-option-desc { font-size: 10px; color: var(--muted); line-height: 1.35; }
+
+.agent-prompt-freetext { display: flex; gap: 5px; }
+.agent-prompt-freetext-input {
+  flex: 1; min-width: 0; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-family: inherit;
+  background: var(--panel); border: 1px solid var(--border); color: var(--text);
+}
+.agent-prompt-freetext-input:focus { outline: none; border-color: var(--accent); }
+.agent-prompt-freetext-use {
+  flex: none; padding: 4px 10px; border-radius: 6px; font-size: 10.5px; cursor: pointer; font-family: inherit;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+}
+.agent-prompt-freetext-use:disabled { opacity: 0.5; cursor: default; }
+
+.agent-prompt-plan {
+  max-height: 320px; overflow: auto; padding: 8px 10px; border-radius: 6px;
+  background: var(--panel-2); border: 1px solid var(--border); font-size: 11.5px;
+}
+
+.agent-prompt-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.agent-prompt-progress { font-size: 10px; color: var(--muted); margin-right: auto; }
+.agent-prompt-progress.complete { color: var(--ok); }
+.agent-prompt-error { font-size: 10px; color: var(--danger); width: 100%; }
+.agent-prompt-btn {
+  display: inline-flex; align-items: center; gap: 4px; cursor: pointer; font-family: inherit;
+  padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 600;
+  border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+  transition: background 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+}
+.agent-prompt-btn.deny:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+.agent-prompt-btn.approve {
+  background: color-mix(in srgb, var(--ok) 22%, var(--panel-2));
+  border-color: color-mix(in srgb, var(--ok) 55%, var(--border));
+}
+.agent-prompt-btn.approve:hover:not(:disabled) { background: color-mix(in srgb, var(--ok) 34%, var(--panel-2)); }
+.agent-prompt-btn:disabled { opacity: 0.45; cursor: default; }
+
+.agent-prompt-card.resolved {
+  background: color-mix(in srgb, var(--ok) 8%, var(--panel));
+  border-color: color-mix(in srgb, var(--ok) 35%, var(--border));
+}
+.agent-prompt-resolved { font-size: 11px; font-weight: 600; color: var(--ok); }

@@ -9,6 +9,9 @@
   "background_color": "#0a0a0f",
   "theme_color": "#4ecdc4",
   "orientation": "any",
+  "protocol_handlers": [
+    { "protocol": "web+tidecmd", "url": "/?deeplink=%s" }
+  ],
   "icons": [
     {
       "src": "/assets/icons/icon-192.png",

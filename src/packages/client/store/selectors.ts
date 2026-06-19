@@ -192,6 +192,16 @@ export function useLastSelectedAgentId(): string | null {
 }
 
 /**
+ * Get pinned agent IDs (quick-select bar). Only re-renders when the list changes.
+ */
+export function usePinnedAgentIds(): string[] {
+  return useSelector(
+    useCallback((state: StoreState) => state.pinnedAgentIds, []),
+    shallowArrayEqual
+  );
+}
+
+/**
  * Get selected agents as array. Only re-renders when selection or agents change.
  */
 export function useSelectedAgents(): Agent[] {

@@ -297,11 +297,41 @@ function AppContent() {
   // - agentId=<id>
   // - agentName=<name>
   // - openTerminal=1|true|yes (defaults to true when agentId/agentName is present)
+  //
+  // Also accepts the installed-PWA custom protocol `web+tidecmd:` (registered via
+  // protocol_handlers in public/manifest.json → /?deeplink=%s). The handler hands
+  // us the full scheme URL in ?deeplink=; we unwrap it and treat its payload as
+  // the same agentId/agentName/openTerminal params. Both forms are accepted:
+  //   web+tidecmd:?agentId=<id>&agentName=<name>&openTerminal=1
+  //   web+tidecmd:agent/<id>
   useEffect(() => {
     if (deepLinkHandledRef.current) return;
     if (typeof window === 'undefined') return;
 
     const params = new URLSearchParams(window.location.search);
+
+    const deeplink = params.get('deeplink');
+    if (deeplink) {
+      try {
+        const payload = deeplink.replace(/^web\+tidecmd:/i, '');
+        // path form: agent/<id>
+        const pathMatch = payload.match(/^\/*agent\/([^/?#]+)/i);
+        if (pathMatch && !params.get('agentId')) {
+          params.set('agentId', decodeURIComponent(pathMatch[1]));
+        }
+        // query form: …?agentId=…&agentName=…&openTerminal=…
+        const qIdx = payload.indexOf('?');
+        const qs = qIdx >= 0 ? payload.slice(qIdx + 1) : pathMatch ? '' : payload.replace(/^[/]+/, '');
+        const dp = new URLSearchParams(qs);
+        for (const key of ['agentId', 'agentName', 'openTerminal'] as const) {
+          const val = dp.get(key);
+          if (val != null && !params.get(key)) params.set(key, val);
+        }
+      } catch {
+        // ignore a malformed deeplink payload
+      }
+    }
+
     const rawAgentId = params.get('agentId')?.trim();
     const rawAgentName = params.get('agentName')?.trim();
     if (!rawAgentId && !rawAgentName) return;
@@ -336,6 +366,7 @@ function AppContent() {
     params.delete('agentId');
     params.delete('agentName');
     params.delete('openTerminal');
+    params.delete('deeplink');
     const nextQuery = params.toString();
     const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash}`;
     window.history.replaceState({}, document.title, nextUrl);
