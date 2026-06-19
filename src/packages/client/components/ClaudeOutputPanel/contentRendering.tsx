@@ -226,21 +226,52 @@ export function renderContentWithImages(
  * this renders text with pre-wrap so pasted content keeps its formatting.
  * Still supports [Image: path] and [File: path] references.
  */
+// Matches <file path="...">...</file> and <folder path="...">...</folder> blocks
+// injected server-side by expandFileMentions(). These carry the full file/folder
+// content for Claude but should render as compact chips in the chat history.
+const FILE_MENTION_BLOCK_RE = /<(file|folder) path="([^"]+)">([\s\S]*?)<\/\1>/g;
+
 export function renderUserPromptContent(
   content: string,
   onImageClick?: (url: string, name: string) => void,
   onFileClick?: (path: string) => void
 ): React.ReactNode {
+  // Strip <file> / <folder> context blocks from the display text and collect as chips
+  const mentionChips: Array<{ path: string; type: 'file' | 'dir' }> = [];
+  FILE_MENTION_BLOCK_RE.lastIndex = 0;
+  let displayContent = content.replace(FILE_MENTION_BLOCK_RE, (_, tag, filePath) => {
+    mentionChips.push({ path: filePath, type: tag === 'folder' ? 'dir' : 'file' });
+    return '';
+  });
+  // Remove blank lines left by the extraction
+  displayContent = displayContent.replace(/^\s*\n+/, '').replace(/\n{3,}/g, '\n\n').trim();
+
+  const chipNodes: React.ReactNode[] = mentionChips.map((chip) => {
+    const name = chip.path.split('/').pop() || chip.path;
+    return (
+      <span
+        key={chip.path}
+        className={`file-mention-chip ${chip.type === 'dir' ? 'is-dir' : ''}`}
+        title={chip.path}
+        style={{ cursor: chip.type === 'file' ? 'pointer' : 'default' }}
+        onClick={chip.type === 'file' ? () => onFileClick?.(chip.path) : undefined}
+      >
+        <span className="file-mention-chip__icon">{chip.type === 'dir' ? '📁' : '📄'}</span>
+        <span className="file-mention-chip__name">{name}</span>
+      </span>
+    );
+  });
+
   // Pattern to match [Image: /path/to/image.png] or [File: /path/to/file.pdf]
   const combinedPattern = /\[(Image|File):\s*([^\]]+)\]/g;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match;
 
-  while ((match = combinedPattern.exec(content)) !== null) {
+  while ((match = combinedPattern.exec(displayContent)) !== null) {
     // Add text before the match
     if (match.index > lastIndex) {
-      const textBefore = content.slice(lastIndex, match.index);
+      const textBefore = displayContent.slice(lastIndex, match.index);
       parts.push(
         <span key={`text-${lastIndex}`} className="user-prompt-text">
           {textBefore}
@@ -285,8 +316,8 @@ export function renderUserPromptContent(
   }
 
   // Add remaining text after last match
-  if (lastIndex < content.length) {
-    const textAfter = content.slice(lastIndex);
+  if (lastIndex < displayContent.length) {
+    const textAfter = displayContent.slice(lastIndex);
     parts.push(
       <span key={`text-${lastIndex}`} className="user-prompt-text">
         {textAfter}
@@ -294,10 +325,17 @@ export function renderUserPromptContent(
     );
   }
 
-  // If no images found, just return the text
-  if (parts.length === 0) {
-    return <span className="user-prompt-text">{content}</span>;
+  // If no images/text found, just return the text
+  if (parts.length === 0 && chipNodes.length === 0) {
+    return <span className="user-prompt-text">{displayContent}</span>;
   }
 
-  return <>{parts}</>;
+  // Chips go first (above the text), matching how they appear in the input area
+  if (chipNodes.length === 0) return <>{parts}</>;
+  return (
+    <>
+      <span className="user-prompt-mention-chips">{chipNodes}</span>
+      {parts.length > 0 && <span className="user-prompt-text-block">{parts}</span>}
+    </>
+  );
 }
