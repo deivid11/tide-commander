@@ -2,15 +2,19 @@
  * Tests for Command Handler
  *
  * Covers: buildCustomAgentConfig, handleSendCommand (/clear, boss routing, regular routing),
- * boss command tracking, agent identity headers
+ * boss command tracking, agent identity headers, expandFileMentions
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterAll, beforeAll, describe, it, expect, vi, beforeEach } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import {
   buildCustomAgentConfig,
   getLastBossCommand,
   setLastBossCommand,
   handleSendCommand,
+  expandFileMentions,
 } from './command-handler.js';
 
 // Mock all service dependencies
@@ -252,5 +256,81 @@ describe('Command Handler', () => {
       // Should fall back to sending raw command
       expect(runtimeService.sendCommand).toHaveBeenCalledWith('boss-1', 'do stuff');
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// expandFileMentions — uses real temp filesystem (no fs mock needed)
+// ---------------------------------------------------------------------------
+
+describe('expandFileMentions', () => {
+  let tmpDir: string;
+
+  beforeAll(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tc-expand-test-'));
+    // Create files
+    fs.writeFileSync(path.join(tmpDir, 'hello.ts'), 'export const greeting = "hello";');
+    fs.writeFileSync(path.join(tmpDir, 'README.md'), '# Project\nDocs here.');
+    // Create a sub-directory with files
+    const subDir = path.join(tmpDir, 'src');
+    fs.mkdirSync(subDir);
+    fs.writeFileSync(path.join(subDir, 'index.ts'), 'export default {}');
+  });
+
+  afterAll(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('returns command unchanged when there are no mention tokens', async () => {
+    const cmd = 'revisa este código y dime qué hace';
+    expect(await expandFileMentions(cmd, tmpDir)).toBe(cmd);
+  });
+
+  it('expands [@file:path] by injecting file content before the user text', async () => {
+    const result = await expandFileMentions('[@file:hello.ts]\nexplica el archivo', tmpDir);
+    expect(result).toContain('<file path="hello.ts">');
+    expect(result).toContain('export const greeting = "hello";');
+    expect(result).toContain('</file>');
+    expect(result).toContain('explica el archivo');
+  });
+
+  it('places file context before the user message', async () => {
+    const result = await expandFileMentions('[@file:hello.ts]\nque hace esto?', tmpDir);
+    const fileIdx = result.indexOf('<file path=');
+    const textIdx = result.indexOf('que hace esto?');
+    expect(fileIdx).toBeLessThan(textIdx);
+  });
+
+  it('expands multiple [@file:] tokens', async () => {
+    const result = await expandFileMentions(
+      '[@file:hello.ts]\n[@file:README.md]\ncompara ambos',
+      tmpDir,
+    );
+    expect(result).toContain('<file path="hello.ts">');
+    expect(result).toContain('<file path="README.md">');
+    expect(result).toContain('# Project');
+    expect(result).toContain('compara ambos');
+  });
+
+  it('leaves unreadable file token as-is rather than throwing', async () => {
+    const result = await expandFileMentions('[@file:no-existe.ts]\nexplica', tmpDir);
+    // Token stays in the string; function does not throw
+    expect(result).toContain('[@file:no-existe.ts]');
+    expect(result).toContain('explica');
+  });
+
+  it('expands [@folder:path] to a directory listing', async () => {
+    const result = await expandFileMentions('[@folder:src]\nexplora la carpeta', tmpDir);
+    expect(result).toContain('<folder path="src">');
+    expect(result).toContain('</folder>');
+    expect(result).toContain('explora la carpeta');
+    // Should list the file inside the folder
+    expect(result).toContain('index.ts');
+  });
+
+  it('handles command with only a mention and no user text', async () => {
+    const result = await expandFileMentions('[@file:hello.ts]', tmpDir);
+    expect(result).toContain('<file path="hello.ts">');
+    expect(result).toContain('export const greeting');
   });
 });

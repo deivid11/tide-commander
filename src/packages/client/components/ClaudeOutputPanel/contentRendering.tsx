@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm';
 import { createMarkdownComponents } from './MarkdownComponents';
 import { getApiBaseUrl } from '../../utils/storage';
 import { linkifyFilePathsForMarkdown } from '../../utils/outputRendering';
+import { extractFileMentionBlocks } from '../../utils/fileMentions';
 import i18n from '../../i18n';
 
 /**
@@ -226,25 +227,12 @@ export function renderContentWithImages(
  * this renders text with pre-wrap so pasted content keeps its formatting.
  * Still supports [Image: path] and [File: path] references.
  */
-// Matches <file path="...">...</file> and <folder path="...">...</folder> blocks
-// injected server-side by expandFileMentions(). These carry the full file/folder
-// content for Claude but should render as compact chips in the chat history.
-const FILE_MENTION_BLOCK_RE = /<(file|folder) path="([^"]+)">([\s\S]*?)<\/\1>/g;
-
 export function renderUserPromptContent(
   content: string,
   onImageClick?: (url: string, name: string) => void,
   onFileClick?: (path: string) => void
 ): React.ReactNode {
-  // Strip <file> / <folder> context blocks from the display text and collect as chips
-  const mentionChips: Array<{ path: string; type: 'file' | 'dir' }> = [];
-  FILE_MENTION_BLOCK_RE.lastIndex = 0;
-  let displayContent = content.replace(FILE_MENTION_BLOCK_RE, (_, tag, filePath) => {
-    mentionChips.push({ path: filePath, type: tag === 'folder' ? 'dir' : 'file' });
-    return '';
-  });
-  // Remove blank lines left by the extraction
-  displayContent = displayContent.replace(/^\s*\n+/, '').replace(/\n{3,}/g, '\n\n').trim();
+  const { displayContent, chips: mentionChips } = extractFileMentionBlocks(content);
 
   const chipNodes: React.ReactNode[] = mentionChips.map((chip) => {
     const name = chip.path.split('/').pop() || chip.path;
