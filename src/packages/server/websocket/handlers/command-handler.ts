@@ -3,6 +3,8 @@
  * Handles sending commands to agents (both regular and boss agents)
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
 import { agentService, runtimeService, skillService, customClassService } from '../../services/index.js';
 import { createLogger, getCommanderBaseUrl } from '../../utils/index.js';
 import { getAuthToken } from '../../auth/index.js';
@@ -10,6 +12,65 @@ import { handleRequestContextStats } from './agent-handler.js';
 import type { HandlerContext } from './types.js';
 
 const log = createLogger('CommandHandler');
+
+const IGNORED_DIRS = new Set(['.git', 'node_modules', 'dist', '.next', '__pycache__', '.cache', 'coverage', '.claude']);
+
+function listDirFiles(dirPath: string, relPath: string, maxDepth = 2): string[] {
+  const items: string[] = [];
+  function walk(dir: string, rel: string, depth: number) {
+    if (depth > maxDepth) return;
+    let entries: fs.Dirent[];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      if (IGNORED_DIRS.has(entry.name)) continue;
+      const entryRel = rel ? `${rel}/${entry.name}` : entry.name;
+      items.push(entry.isDirectory() ? `  [dir]  ${entryRel}/` : `  [file] ${entryRel}`);
+      if (entry.isDirectory()) walk(path.join(dir, entry.name), entryRel, depth + 1);
+    }
+  }
+  walk(dirPath, relPath, 0);
+  return items;
+}
+
+export async function expandFileMentions(command: string, cwd: string): Promise<string> {
+  const FILE_RE = /\[@file:([^\]]+)\]/g;
+  const FOLDER_RE = /\[@folder:([^\]]+)\]/g;
+
+  const fileMatches = [...command.matchAll(FILE_RE)];
+  const folderMatches = [...command.matchAll(FOLDER_RE)];
+  if (fileMatches.length === 0 && folderMatches.length === 0) return command;
+
+  const contextParts: string[] = [];
+  let clean = command;
+
+  for (const match of fileMatches) {
+    const relPath = match[1].trim();
+    const fullPath = path.join(cwd, relPath);
+    try {
+      const content = await fs.promises.readFile(fullPath, 'utf-8');
+      contextParts.push(`<file path="${relPath}">\n${content}\n</file>`);
+      clean = clean.replace(match[0], '');
+    } catch {
+      // leave token as-is if file can't be read
+    }
+  }
+
+  for (const match of folderMatches) {
+    const relPath = match[1].trim();
+    const fullPath = path.join(cwd, relPath);
+    try {
+      const entries = listDirFiles(fullPath, relPath, 2);
+      contextParts.push(`<folder path="${relPath}">\n${entries.join('\n')}\n</folder>`);
+      clean = clean.replace(match[0], '');
+    } catch {
+      // leave token as-is if folder can't be read
+    }
+  }
+
+  const userText = clean.trim();
+  if (contextParts.length === 0) return command;
+  return contextParts.join('\n\n') + (userText ? `\n\n${userText}` : '');
+}
 
 /**
  * Track last boss commands for delegation parsing
@@ -150,11 +211,14 @@ export async function handleSendCommand(
     return;
   }
 
+  // Expand [@file:path] and [@folder:path] mentions by injecting file content
+  const finalCommand = await expandFileMentions(command, agent.cwd);
+
   // If this is a boss agent, handle differently
   if (agent.isBoss || agent.class === 'boss') {
-    await handleBossCommand(ctx, agentId, command, agent.name, buildBossMessage);
+    await handleBossCommand(ctx, agentId, finalCommand, agent.name, buildBossMessage);
   } else {
-    await handleRegularAgentCommand(ctx, agentId, command, agent);
+    await handleRegularAgentCommand(ctx, agentId, finalCommand, agent);
   }
 }
 
