@@ -619,3 +619,167 @@
     background: rgba($dracula-red, 0.15);
   }
 }
+
+// =============================================================================
+// File mention chips — shown above the input when the user tags @files
+// =============================================================================
+
+.guake-file-mentions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 5px 14px;
+  background: rgba($dracula-bg-darker, 0.95);
+  border-top: 1px solid rgba($dracula-comment, 0.15);
+}
+
+.file-mention-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px 2px 6px;
+  background: rgba($dracula-green, 0.10);
+  border: 1px solid rgba($dracula-green, 0.30);
+  border-radius: $radius-md;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $dracula-green;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba($dracula-green, 0.18);
+    border-color: rgba($dracula-green, 0.55);
+  }
+
+  &.is-dir {
+    background: rgba($dracula-cyan, 0.10);
+    border-color: rgba($dracula-cyan, 0.30);
+    color: $dracula-cyan;
+
+    &:hover {
+      background: rgba($dracula-cyan, 0.18);
+      border-color: rgba($dracula-cyan, 0.55);
+    }
+  }
+}
+
+.file-mention-chip__icon {
+  display: flex;
+  align-items: center;
+  opacity: 0.8;
+}
+
+.file-mention-chip__name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-mention-chip__remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: inherit;
+  opacity: 0.55;
+  font-size: 13px;
+  line-height: 1;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: opacity $transition-fast;
+  flex-shrink: 0;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+// =============================================================================
+// File mention autocomplete dropdown
+// =============================================================================
+
+.file-mention-dropdown {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: $dracula-bg-darker;
+  border: 1px solid rgba($dracula-cyan, 0.35);
+  border-radius: $radius-md;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
+  z-index: 500;
+  overflow: hidden;
+  max-height: 280px;
+  display: flex;
+  flex-direction: column;
+}
+
+.file-mention-dropdown__list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.file-mention-dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-family: $font-mono;
+  font-size: 12px;
+  color: $dracula-fg;
+  transition: background $transition-fast;
+
+  &:hover,
+  &.is-selected {
+    background: rgba($dracula-cyan, 0.12);
+  }
+
+  &.is-selected {
+    .file-mention-dropdown__name {
+      color: $dracula-cyan;
+    }
+  }
+}
+
+.file-mention-dropdown__icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: $dracula-comment;
+  width: 14px;
+}
+
+.file-mention-dropdown__name {
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.file-mention-dropdown__path {
+  color: $dracula-comment;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.file-mention-dropdown__hint {
+  padding: 4px 12px;
+  font-family: $font-mono;
+  font-size: 10px;
+  color: $dracula-comment;
+  border-top: 1px solid rgba($dracula-comment, 0.15);
+  background: rgba($dracula-bg, 0.5);
+}

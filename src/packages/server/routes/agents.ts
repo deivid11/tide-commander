@@ -16,7 +16,7 @@ import { getAllCustomClasses } from '../services/custom-class-service.js';
 import { createLogger } from '../utils/logger.js';
 import { withAgentContext } from '../utils/log-context.js';
 import { truncateOrEmpty } from '../utils/string.js';
-import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js';
+import { buildCustomAgentConfig, expandFileMentions } from '../websocket/handlers/command-handler.js';
 import { clearDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
 import { OpencodeBackend } from '../opencode/backend.js';
 import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled, isInteractiveModeEnabled, setInteractiveModeEnabled } from '../services/system-prompt-service.js';
@@ -1207,6 +1207,59 @@ router.get('/:id/search', async (req: Request<{ id: string }>, res: Response) =>
   }
 });
 
+// GET /api/agents/:id/files?q=search — list files/folders in agent cwd for @ mention autocomplete
+router.get('/:id/files', (req: Request<{ id: string }>, res: Response) => {
+  const { q = '' } = req.query as { q?: string };
+  const agent = agentService.getAgent(req.params.id);
+
+  if (!agent) {
+    res.status(404).json({ error: 'Agent not found' });
+    return;
+  }
+
+  const cwd = agent.cwd;
+  const query = String(q).toLowerCase().trim();
+  const IGNORED = new Set([
+    '.git', 'node_modules', 'dist', '.next', '__pycache__', '.cache',
+    'coverage', '.claude', '.idea', '.vscode', 'build', 'out', '.turbo', '.nx',
+  ]);
+
+  const results: Array<{ path: string; name: string; type: 'file' | 'dir' }> = [];
+  const MAX_RESULTS = 60;
+  const MAX_DEPTH = 6;
+
+  function walk(dir: string, relBase: string, depth: number) {
+    if (results.length >= MAX_RESULTS || depth > MAX_DEPTH) return;
+    let entries: import('fs').Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (results.length >= MAX_RESULTS) break;
+      if (IGNORED.has(entry.name)) continue;
+      const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
+      if (!query || entry.name.toLowerCase().includes(query) || relPath.toLowerCase().includes(query)) {
+        results.push({ path: relPath, name: entry.name, type: entry.isDirectory() ? 'dir' : 'file' });
+      }
+      if (entry.isDirectory()) {
+        walk(path.join(dir, entry.name), relPath, depth + 1);
+      }
+    }
+  }
+
+  walk(cwd, '', 0);
+
+  // Directories first, then alphabetical within each group
+  results.sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+    return a.path.localeCompare(b.path);
+  });
+
+  res.json({ files: results });
+});
+
 // POST /api/agents/:id/message - Send a message/command to an agent
 router.post('/:id/message', async (req: Request<{ id: string }>, res: Response) => {
   try {
@@ -1226,14 +1279,16 @@ router.post('/:id/message', async (req: Request<{ id: string }>, res: Response) 
 
     log.log(`API message to agent ${agent.name}: "${message.slice(0, 50)}${message.length > 50 ? '...' : ''}"`);
 
+    const expandedMessage = await expandFileMentions(message, agent.cwd);
+
     // Handle boss agents with their special context building
     if (agent.isBoss || agent.class === 'boss') {
-      const { message: bossMessage, systemPrompt } = await bossMessageService.buildBossMessage(agentId, message);
+      const { message: bossMessage, systemPrompt } = await bossMessageService.buildBossMessage(agentId, expandedMessage);
       await runtimeService.sendCommand(agentId, bossMessage, systemPrompt);
     } else {
       // Regular agents get custom agent config (identity header, class instructions, skills)
       const customAgentConfig = buildCustomAgentConfig(agentId, agent.class);
-      await runtimeService.sendCommand(agentId, message, undefined, undefined, customAgentConfig);
+      await runtimeService.sendCommand(agentId, expandedMessage, undefined, undefined, customAgentConfig);
     }
 
     res.status(200).json({
