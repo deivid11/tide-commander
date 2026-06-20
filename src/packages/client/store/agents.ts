@@ -72,6 +72,9 @@ export interface AgentActions {
   selectMultiple(agentIds: string[]): void;
   deselectAll(): void;
 
+  // Pinning (quick-select thumbnail bar)
+  togglePinnedAgent(agentId: string): void;
+
   // Commands
   spawnAgent(
     name: string,
@@ -142,7 +145,8 @@ export function createAgentActions(
   setState: (updater: (state: StoreState) => void) => void,
   notify: () => void,
   getSendMessage: () => ((msg: ClientMessage) => void) | null,
-  saveUnseenAgents?: () => void
+  saveUnseenAgents?: () => void,
+  savePinnedAgents?: () => void
 ): AgentActions {
   return {
     setAgents(agentList: Agent[]): void {
@@ -371,6 +375,18 @@ export function createAgentActions(
       setState((state) => {
         state.selectedAgentIds = new Set();
       });
+      notify();
+    },
+
+    togglePinnedAgent(agentId: string): void {
+      if (!agentId) return;
+      setState((state) => {
+        // New array reference so selectors detect the change.
+        const next = state.pinnedAgentIds.filter((id) => id !== agentId);
+        if (next.length === state.pinnedAgentIds.length) next.push(agentId);
+        state.pinnedAgentIds = next;
+      });
+      if (savePinnedAgents) savePinnedAgents();
       notify();
     },
 

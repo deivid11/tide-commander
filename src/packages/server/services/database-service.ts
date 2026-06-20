@@ -778,12 +778,12 @@ export async function getTableSchema(
             SELECT cols.COLUMN_NAME, cols.TABLE_NAME, cols.OWNER
             FROM ALL_CONSTRAINTS cons
             JOIN ALL_CONS_COLUMNS cols ON cons.CONSTRAINT_NAME = cols.CONSTRAINT_NAME AND cons.OWNER = cols.OWNER
-            WHERE cons.CONSTRAINT_TYPE = 'P' AND cons.TABLE_NAME = :table AND cons.OWNER = :owner
+            WHERE cons.CONSTRAINT_TYPE = 'P' AND cons.TABLE_NAME = :tname AND cons.OWNER = :owner
           ) pk ON c.COLUMN_NAME = pk.COLUMN_NAME AND c.TABLE_NAME = pk.TABLE_NAME AND c.OWNER = pk.OWNER
           LEFT JOIN ALL_COL_COMMENTS cc ON c.COLUMN_NAME = cc.COLUMN_NAME AND c.TABLE_NAME = cc.TABLE_NAME AND c.OWNER = cc.OWNER
-          WHERE c.TABLE_NAME = :table AND c.OWNER = :owner
+          WHERE c.TABLE_NAME = :tname AND c.OWNER = :owner
           ORDER BY c.COLUMN_ID
-        `, { table: table.toUpperCase(), owner: database.toUpperCase() }, execOptions);
+        `, { tname: table.toUpperCase(), owner: database.toUpperCase() }, execOptions);
 
         for (const col of columnResult.rows || []) {
           columns.push({
@@ -811,9 +811,9 @@ export async function getTableSchema(
             i.INDEX_TYPE as TYPE
           FROM ALL_INDEXES i
           JOIN ALL_IND_COLUMNS ic ON i.INDEX_NAME = ic.INDEX_NAME AND i.OWNER = ic.INDEX_OWNER
-          WHERE i.TABLE_NAME = :table AND i.OWNER = :owner
+          WHERE i.TABLE_NAME = :tname AND i.OWNER = :owner
           GROUP BY i.INDEX_NAME, i.UNIQUENESS, i.INDEX_TYPE
-        `, { table: table.toUpperCase(), owner: database.toUpperCase() }, execOptions);
+        `, { tname: table.toUpperCase(), owner: database.toUpperCase() }, execOptions);
 
         for (const idx of indexResult.rows || []) {
           indexes.push({
@@ -842,9 +842,9 @@ export async function getTableSchema(
           JOIN ALL_CONS_COLUMNS cols ON c.CONSTRAINT_NAME = cols.CONSTRAINT_NAME AND c.OWNER = cols.OWNER
           JOIN ALL_CONSTRAINTS r_cons ON c.R_CONSTRAINT_NAME = r_cons.CONSTRAINT_NAME AND c.R_OWNER = r_cons.OWNER
           JOIN ALL_CONS_COLUMNS r_cols ON r_cons.CONSTRAINT_NAME = r_cols.CONSTRAINT_NAME AND r_cons.OWNER = r_cols.OWNER
-          WHERE c.CONSTRAINT_TYPE = 'R' AND c.TABLE_NAME = :table AND c.OWNER = :owner
+          WHERE c.CONSTRAINT_TYPE = 'R' AND c.TABLE_NAME = :tname AND c.OWNER = :owner
           GROUP BY c.CONSTRAINT_NAME, r_cons.TABLE_NAME, c.DELETE_RULE
-        `, { table: table.toUpperCase(), owner: database.toUpperCase() }, execOptions);
+        `, { tname: table.toUpperCase(), owner: database.toUpperCase() }, execOptions);
 
         for (const fk of fkResult.rows || []) {
           foreignKeys.push({
