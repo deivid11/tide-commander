@@ -320,10 +320,46 @@
   }
 
   .guake-attach-btn,
+  .guake-pin-btn,
   .guake-send-btn,
   .guake-expand-btn {
     align-self: flex-end;
     margin-bottom: 2px;
+  }
+}
+
+// Pin-this-agent button - left side of input, before attach
+.guake-pin-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  min-height: 40px;
+  background: transparent;
+  border: none;
+  color: rgba($dracula-comment, 0.7);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+
+  &:hover {
+    color: var(--accent-cyan);
+    background: rgba($dracula-cyan, 0.08);
+  }
+
+  &:active {
+    background: rgba($dracula-cyan, 0.15);
+  }
+
+  // Pinned: lit up so it's obvious the current agent is on the quick-select bar
+  &.pinned {
+    color: $dracula-green;
+
+    &:hover {
+      color: $dracula-green;
+      background: rgba($dracula-green, 0.12);
+    }
   }
 }
 
@@ -654,4 +690,139 @@
       box-shadow: 0 0 0 2px rgba($dracula-cyan, 0.2);
     }
   }
+}
+
+// =============================================================================
+// Pinned agents quick-select bar (above the terminal input)
+// =============================================================================
+.pinned-agents-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  // Generous vertical padding gives the chips breathing room between the chat
+  // above and the composer below; the extra top room also keeps the floating ×
+  // badge from being clipped by the horizontal scroll container.
+  padding: 13px 12px 13px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  border-top: 1px solid rgba($dracula-comment, 0.22);
+  background: rgba($dracula-bg, 0.55);
+
+  &::-webkit-scrollbar { height: 6px; }
+  &::-webkit-scrollbar-thumb { background: rgba($dracula-comment, 0.4); border-radius: 3px; }
+}
+
+// Rounded pill chips — mirrors the browser-extension cockpit's pinned bar.
+.pinned-agent {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  max-width: 150px;
+  padding: 4px 10px 4px 5px;
+  border: 1px solid rgba($dracula-comment, 0.45);
+  border-radius: 8px;
+  background: rgba($dracula-current, 0.5);
+  color: $dracula-fg;
+  font-size: 11px;
+  font-family: inherit;
+  line-height: 1.5;
+  cursor: pointer;
+  transition: border-color $transition-fast, background $transition-fast, color $transition-fast;
+
+  &:hover {
+    border-color: var(--accent-cyan);
+  }
+
+  &.active {
+    border-color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 16%, rgba($dracula-current, 0.5));
+    color: $dracula-cyan;
+  }
+
+  &.working .pinned-agent-av {
+    animation: pinned-agent-pulse 1.1s ease-in-out infinite;
+  }
+
+  // Expanding ring around the avatar while the agent works (extension style).
+  &.working .pinned-agent-av::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 7px;
+    border: 1.5px solid $dracula-green;
+    opacity: 0.5;
+    animation: pinned-agent-ring 1.1s ease-out infinite;
+  }
+}
+
+.pinned-agent-av {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  img {
+    border-radius: 5px;
+    object-fit: cover;
+  }
+}
+
+.pinned-agent-status {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid rgba($dracula-bg, 0.9);
+}
+
+.pinned-agent-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Floating × badge at the top-right corner, revealed on hover (extension style).
+.pinned-agent-unpin {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1px solid rgba($dracula-comment, 0.6);
+  background: $dracula-bg;
+  font-size: 10px;
+  line-height: 1;
+  color: $dracula-comment;
+  z-index: 2;
+
+  &:hover {
+    border-color: $dracula-red;
+    color: $dracula-red;
+  }
+}
+
+.pinned-agent:hover .pinned-agent-unpin {
+  display: flex;
+}
+
+@keyframes pinned-agent-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+@keyframes pinned-agent-ring {
+  0% { transform: scale(0.85); opacity: 0.55; }
+  100% { transform: scale(1.35); opacity: 0; }
 }

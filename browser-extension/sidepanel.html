@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="src/sidepanel.css" />
+    <link rel="stylesheet" href="src/renderers.css" />
+    <link rel="stylesheet" href="src/theme.css" />
+    <title>Tide Commander Chat</title>
+  </head>
+  <body>
+    <header class="hd">
+      <div class="hd-row">
+        <span class="dot" id="ws-dot" title="WebSocket"></span>
+        <select id="commander" class="sel grow" title="Commander"></select>
+        <button class="icon-btn" id="theme-toggle" title="Toggle light / dark theme">🌙</button>
+        <button class="icon-btn" id="open-options" title="Settings">⚙</button>
+        <button class="icon-btn close" id="close-panel" title="Close chat">✕</button>
+      </div>
+      <div class="hd-row">
+        <span class="origin grow" id="origin" title="Active page">—</span>
+        <label class="pgctx" title="Prepend the current page URL + title to each message">
+          <input type="checkbox" id="pgctx" class="switch-input" />
+          <span class="switch" aria-hidden="true"></span>
+          <span class="switch-text">📍 page</span>
+        </label>
+        <label class="pgctx" title="Include the element's computed CSS styles when sending a picked element to the agent">
+          <input type="checkbox" id="incstyles" class="switch-input" />
+          <span class="switch" aria-hidden="true"></span>
+          <span class="switch-text">🎨 styles</span>
+        </label>
+        <label class="pgctx" title="Include request/response headers when sending a network request to the agent">
+          <input type="checkbox" id="incheaders" class="switch-input" />
+          <span class="switch" aria-hidden="true"></span>
+          <span class="switch-text">🧾 headers</span>
+        </label>
+      </div>
+      <div class="hd-row">
+        <div class="combo" id="agentCombo">
+          <span class="combo-av" id="agentAv"></span>
+          <input class="combo-input" id="agentInput" type="text" placeholder="Search agents…" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" title="Assigned agent — type to search" />
+          <span class="combo-typing" id="agentTyping" aria-hidden="true" title="Agent is working…"><i></i><i></i><i></i></span>
+          <span class="combo-caret" id="agentCaret">▾</span>
+          <div class="combo-pop" id="agentPop" hidden>
+            <div class="combo-tools">
+              <select class="combo-area" id="agentArea" title="Filter by area">
+                <option value="">All areas</option>
+              </select>
+              <button class="combo-sort" id="agentSort" type="button" title="Toggle sort: name / last active">↓ A–Z</button>
+            </div>
+            <div class="combo-list" id="agentList"></div>
+          </div>
+        </div>
+        <button class="icon-btn" id="refresh" title="Reload history">⟳</button>
+      </div>
+      <div class="hd-row">
+        <button class="btn pick" id="pick" title="Pick a DOM element to attach its context">⊹ Pick</button>
+        <button class="btn shot" id="shot" title="Screenshot a DOM element and send the image">📷 Screenshot</button>
+      </div>
+    </header>
+
+    <section class="errpanel collapsed" id="errpanel">
+      <div class="errpanel-hd">
+        <button class="err-toggle" id="err-toggle" aria-expanded="false" title="Show captured errors">
+          <span class="err-caret">▸</span>
+          <span class="err-title">Errors</span>
+          <span class="err-count" id="err-count">0</span>
+        </button>
+        <label class="err-auto" title="Auto-send captured errors to the agent">
+          <input type="checkbox" id="err-autosend" class="switch-input" />
+          <span class="switch" aria-hidden="true"></span>
+          <span class="switch-text">Auto send errors</span>
+        </label>
+        <button class="err-clear" id="err-clear" title="Clear all captured errors">Clear errors</button>
+      </div>
+      <div class="errpanel-body" id="err-body" hidden>
+        <div class="err-list" id="err-list"></div>
+        <div class="err-empty" id="err-empty" hidden>No errors captured yet.</div>
+      </div>
+    </section>
+
+    <section class="netpanel collapsed" id="netpanel">
+      <div class="netpanel-hd">
+        <button class="net-toggle" id="net-toggle" aria-expanded="false" title="Show captured network requests">
+          <span class="net-caret">▸</span>
+          <span class="net-title">Network</span>
+          <span class="net-count" id="net-count">0</span>
+        </button>
+        <input class="net-filter" id="net-filter" type="text" placeholder="filter method / url / status" autocomplete="off" spellcheck="false" />
+        <button class="net-clear" id="net-clear" title="Clear captured requests">Clear</button>
+      </div>
+      <div class="netpanel-body" id="net-body" hidden>
+        <div class="net-list" id="net-list"></div>
+        <div class="net-empty" id="net-empty" hidden>No requests captured yet for this page.</div>
+      </div>
+    </section>
+
+    <div class="chat" id="chat">
+      <div class="hint" id="hint">Pick an agent for this page, then chat. Use ⊹ Pick or right-click any element to attach it as context.</div>
+    </div>
+
+    <div class="working-bar" id="working-bar" hidden>
+      <span class="working-av" id="working-av"></span>
+      <span class="working-text" id="working-text">working…</span>
+      <span class="working-eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+      <button class="working-stop" id="working-stop" title="Stop the agent (Esc)">■ Stop</button>
+    </div>
+
+    <div class="resize-handle" id="resize-handle" title="Drag or scroll to resize the input / chat"></div>
+
+    <div class="pinbar" id="pinbar" hidden title="Pinned agents — click a thumbnail to select"></div>
+
+    <footer class="composer">
+      <div class="composer-row">
+        <button class="icon-btn attach" id="attach" title="Attach files (images or documents)">📎</button>
+        <input type="file" id="fileInput" multiple hidden />
+        <button class="icon-btn pin-toggle" id="pin-toggle" title="Pin this agent" aria-pressed="false" hidden>📌</button>
+        <textarea id="input" rows="2" placeholder="Message the agent…  (Enter to send, Shift+Enter for newline)"></textarea>
+        <button class="btn primary" id="send">Send</button>
+      </div>
+
+      <!-- Selected agent's available context (area · context used · status) —
+           moved out of the header to sit right under the input. -->
+      <div class="agent-meta" id="agent-meta" hidden></div>
+
+      <!-- Available context to send with the next message — inside the composer,
+           directly BELOW the input row. -->
+      <div class="ctx" id="ctx" hidden>
+        <img id="ctx-img" alt="" />
+        <div class="ctx-meta">
+          <div class="ctx-sel" id="ctx-sel"></div>
+          <div class="ctx-tag" id="ctx-tag"></div>
+        </div>
+        <button class="icon-btn" id="ctx-clear" title="Remove attached element">✕</button>
+      </div>
+
+      <div class="netctx" id="netctx" hidden>
+        <span class="netctx-icon">🌐</span>
+        <div class="netctx-meta">
+          <div class="netctx-line" id="netctx-line"></div>
+          <div class="netctx-sub" id="netctx-sub"></div>
+        </div>
+        <button class="icon-btn" id="netctx-clear" title="Remove attached request">✕</button>
+      </div>
+
+      <div class="attachments" id="attachments" hidden></div>
+    </footer>
+
+    <div class="lightbox" id="lightbox" hidden>
+      <img id="lightbox-img" alt="Preview" />
+    </div>
+
+    <script src="src/renderers.js"></script>
+    <script src="src/sidepanel.js"></script>
+  </body>
+</html>

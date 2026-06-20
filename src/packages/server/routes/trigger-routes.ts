@@ -19,6 +19,7 @@ import { Router, Request, Response } from 'express';
 import * as crypto from 'crypto';
 import * as triggerService from '../services/trigger-service.js';
 import * as cronService from '../services/cron-service.js';
+import * as browserErrorService from '../services/browser-error-service.js';
 import type { ServerMessage } from '../../shared/types.js';
 import type { ExternalEvent } from '../../shared/trigger-types.js';
 import { createLogger } from '../utils/logger.js';
@@ -120,6 +121,74 @@ router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
   }
 
   res.json({ deleted: true });
+});
+
+// ─── Browser Console Error Trigger ───
+
+// Ingestion endpoint for the companion browser extension (see browser-extension/).
+// Auth is the standard X-Auth-Token (applied globally to /api). The extension
+// POSTs a deduped error brief; we route it to an agent for investigation.
+router.post('/browser-error', async (req: Request, res: Response) => {
+  try {
+    const result = await browserErrorService.handleBrowserError(req.body);
+
+    if (result.deduped) {
+      res.json({ deduped: true, agentId: result.agentId, fingerprint: result.fingerprint });
+      return;
+    }
+    if (result.ignored) {
+      res.json({ ignored: true, reason: result.reason, fingerprint: result.fingerprint });
+      return;
+    }
+    if (!result.delivered) {
+      res.status(result.status ?? 400).json({ error: result.reason ?? 'Not delivered' });
+      return;
+    }
+
+    res.json({
+      delivered: true,
+      agentId: result.agentId,
+      agentName: result.agentName,
+      fingerprint: result.fingerprint,
+      screenshotSaved: Boolean(result.screenshotPath),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to handle browser error';
+    log.error('browser-error handler failed:', err);
+    res.status(500).json({ error: message });
+  }
+});
+
+// Save a cropped screenshot of a DOM element (extension "Screenshot" button) so
+// the agent can Read it. Returns the absolute path the agent should open.
+router.post('/element-screenshot', (req: Request, res: Response) => {
+  const { image, selector } = req.body || {};
+  if (!image || typeof image !== 'string') {
+    res.status(400).json({ error: 'image (data URL) required' });
+    return;
+  }
+  const result = browserErrorService.saveElementScreenshot(image, typeof selector === 'string' ? selector : undefined);
+  if (!result.ok) {
+    res.status(400).json({ error: result.error ?? 'Failed to save image' });
+    return;
+  }
+  res.json({ ok: true, path: result.path });
+});
+
+// Save an arbitrary document the user attached in the extension composer (any
+// mime type) so the agent can Read it. Returns the absolute path.
+router.post('/attachment', (req: Request, res: Response) => {
+  const { dataUrl, filename } = req.body || {};
+  if (!dataUrl || typeof dataUrl !== 'string') {
+    res.status(400).json({ error: 'dataUrl (data URL) required' });
+    return;
+  }
+  const result = browserErrorService.saveAttachment(dataUrl, typeof filename === 'string' ? filename : undefined);
+  if (!result.ok) {
+    res.status(400).json({ error: result.error ?? 'Failed to save attachment' });
+    return;
+  }
+  res.json({ ok: true, path: result.path });
 });
 
 // ─── Webhook Ingestion ───

@@ -85,6 +85,7 @@ export {
   useAgent,
   useSelectedAgentIds,
   useLastSelectedAgentId,
+  usePinnedAgentIds,
   useSelectedAgents,
   useBossAgents,
   useSubordinateAgents,
@@ -266,6 +267,7 @@ class Store
       splitPaneAgentIds: this.loadSplitPaneAgentIds(),
       splitOrientation: this.loadSplitOrientation(),
       agentsWithUnseenOutput: this.loadUnseenAgents(),
+      pinnedAgentIds: this.loadPinnedAgents(),
       commanderExpandRequest: null,
       latestNotificationAgentId: null,
       ...DEFAULT_WORKFLOW_STATE,
@@ -281,7 +283,7 @@ class Store
     const getListenerCount = () => this.listeners.size;
 
     // Create domain actions
-    this.agentActions = createAgentActions(getState, setState, notify, getSendMessage, () => this.saveUnseenAgents());
+    this.agentActions = createAgentActions(getState, setState, notify, getSendMessage, () => this.saveUnseenAgents(), () => this.savePinnedAgents());
     this.outputActions = createOutputActions(getState, setState, notify, getListenerCount);
     this.areaActions = createAreaActions(getState, setState, notify, getSendMessage);
     this.buildingActions = createBuildingActions(getState, setState, notify, getSendMessage);
@@ -367,6 +369,15 @@ class Store
   private saveUnseenAgents(): void {
     const array = Array.from(this.state.agentsWithUnseenOutput);
     setStorage(STORAGE_KEYS.UNSEEN_AGENTS, array);
+  }
+
+  private loadPinnedAgents(): string[] {
+    const stored = getStorage<string[]>(STORAGE_KEYS.PINNED_AGENTS, []);
+    return Array.isArray(stored) ? stored : [];
+  }
+
+  private savePinnedAgents(): void {
+    setStorage(STORAGE_KEYS.PINNED_AGENTS, this.state.pinnedAgentIds);
   }
 
   // ============================================================================
@@ -944,6 +955,7 @@ class Store
   addToSelection(...args: Parameters<AgentActions['addToSelection']>) { return this.agentActions.addToSelection(...args); }
   selectMultiple(...args: Parameters<AgentActions['selectMultiple']>) { return this.agentActions.selectMultiple(...args); }
   deselectAll(...args: Parameters<AgentActions['deselectAll']>) { return this.agentActions.deselectAll(...args); }
+  togglePinnedAgent(...args: Parameters<AgentActions['togglePinnedAgent']>) { return this.agentActions.togglePinnedAgent(...args); }
   spawnAgent(...args: Parameters<AgentActions['spawnAgent']>) { return this.agentActions.spawnAgent(...args); }
   createDirectoryAndSpawn(...args: Parameters<AgentActions['createDirectoryAndSpawn']>) { return this.agentActions.createDirectoryAndSpawn(...args); }
   sendCommand(...args: Parameters<AgentActions['sendCommand']>) { return this.agentActions.sendCommand(...args); }
