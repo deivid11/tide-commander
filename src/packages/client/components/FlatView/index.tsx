@@ -36,6 +36,7 @@ import { getDisplayContextInfo } from '../../utils/context';
 import { AgentOverviewPanel } from '../ClaudeOutputPanel/AgentOverviewPanel';
 import { AgentTerminalPane, type AgentTerminalPaneHandle } from '../ClaudeOutputPanel/AgentTerminalPane';
 import AgentClassicTerminal from './AgentClassicTerminal';
+import { PlanLimitsTooltip } from './PlanLimitsTooltip';
 import { AgentDebugPanel } from '../ClaudeOutputPanel/AgentDebugPanel';
 import { AreaBuildingsPanel } from '../ClaudeOutputPanel/AreaBuildingsPanel';
 import { GuakeGitPanel } from '../ClaudeOutputPanel/GuakeGitPanel';
@@ -982,38 +983,60 @@ const ChatView = React.memo(function ChatView({
             </span>
           );
         })}
-        <span
-          className="flat-terminal-wrapper__context"
-          onClick={() => store.setContextModalAgentId(agentId)}
-          title={
+        <PlanLimitsTooltip
+          agentId={agentId}
+          disabled={(agent?.provider ?? 'claude') !== 'claude'}
+          contextSummary={
             contextHasData
-              ? `Context usage: ${contextUsedK}k / ${contextLimitK}k tokens (${contextUsedPercentDisplay}% used). Click to view stats.`
-              : 'Click to fetch context stats'
+              ? `Context: ${contextUsedK}k / ${contextLimitK}k tokens (${contextUsedPercentDisplay}% used)`
+              : undefined
           }
         >
-          <span className="flat-terminal-wrapper__context-icon">
-            <Icon name="dashboard" size={12} />
-          </span>
-          <span className="flat-terminal-wrapper__context-label">Ctx:</span>
-          <span className="flat-terminal-wrapper__context-bar">
-            <span
-              className="flat-terminal-wrapper__context-bar-fill"
-              style={{ width: `${contextUsedPercent}%`, backgroundColor: contextColor }}
-            />
-          </span>
           <span
-            className="flat-terminal-wrapper__context-tokens"
-            style={{ color: contextColor }}
+            className="flat-terminal-wrapper__context"
+            tabIndex={0}
+            role="button"
+            onClick={() => store.setContextModalAgentId(agentId)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                store.setContextModalAgentId(agentId);
+              }
+            }}
+            // Native title only for non-Claude agents; Claude agents get the
+            // richer plan-limits tooltip from PlanLimitsTooltip instead.
+            title={
+              (agent?.provider ?? 'claude') !== 'claude'
+                ? (contextHasData
+                    ? `Context usage: ${contextUsedK}k / ${contextLimitK}k tokens (${contextUsedPercentDisplay}% used). Click to view stats.`
+                    : 'Click to fetch context stats')
+                : undefined
+            }
           >
-            {contextUsedK}k/{contextLimitK}k
-          </span>
-          <span className="flat-terminal-wrapper__context-free">({contextFreePercentDisplay}% free)</span>
-          {!contextHasData && (
-            <span className="flat-terminal-wrapper__context-warning" title="No context stats yet">
-              <Icon name="warn" size={12} />
+            <span className="flat-terminal-wrapper__context-icon">
+              <Icon name="dashboard" size={12} />
             </span>
-          )}
-        </span>
+            <span className="flat-terminal-wrapper__context-label">Ctx:</span>
+            <span className="flat-terminal-wrapper__context-bar">
+              <span
+                className="flat-terminal-wrapper__context-bar-fill"
+                style={{ width: `${contextUsedPercent}%`, backgroundColor: contextColor }}
+              />
+            </span>
+            <span
+              className="flat-terminal-wrapper__context-tokens"
+              style={{ color: contextColor }}
+            >
+              {contextUsedK}k/{contextLimitK}k
+            </span>
+            <span className="flat-terminal-wrapper__context-free">({contextFreePercentDisplay}% free)</span>
+            {!contextHasData && (
+              <span className="flat-terminal-wrapper__context-warning" title="No context stats yet">
+                <Icon name="warn" size={12} />
+              </span>
+            )}
+          </span>
+        </PlanLimitsTooltip>
         <div className="flat-terminal-wrapper__statusbar-spacer" aria-hidden="true" />
         {/* Area-scoped building shortcuts — mirrors the Guake statusbar so the
             user can jump into a terminal/PM2 logs/database from any view. */}

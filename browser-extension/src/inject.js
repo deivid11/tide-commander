@@ -345,20 +345,25 @@
     window.XMLHttpRequest = PatchedXHR;
   }
 
-  // ── console.error ──
-  const origConsoleError = console.error;
-  console.error = function (...a) {
-    try {
-      post({
-        kind: 'console',
-        subtype: 'error',
-        message: a.map(stringifyArg).join(' ').slice(0, 4000),
-      });
-    } catch (_e) {
-      /* ignore */
-    }
-    return origConsoleError.apply(this, a);
-  };
+  // ── console.* capture ──
+  // Mirror every console level into the Console tab (channel:'console'). console.error
+  // additionally feeds the Errors tab (kind:'console', subtype:'error') as before.
+  const CONSOLE_LEVELS = ['log', 'info', 'warn', 'error', 'debug'];
+  let consoleSeq = 0;
+  for (const level of CONSOLE_LEVELS) {
+    const orig = console[level];
+    if (typeof orig !== 'function') continue;
+    console[level] = function (...a) {
+      try {
+        const text = a.map(stringifyArg).join(' ');
+        post({ channel: 'console', level, text: text.slice(0, 8000), conId: 'c' + ++consoleSeq + '_' + Date.now() });
+        if (level === 'error') post({ kind: 'console', subtype: 'error', message: text.slice(0, 4000) });
+      } catch (_e) {
+        /* ignore */
+      }
+      return orig.apply(this, a);
+    };
+  }
 
   // ── uncaught errors + failed resource loads (capture phase) ──
   window.addEventListener(

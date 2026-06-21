@@ -23,19 +23,23 @@
       </section>
 
       <section class="card">
+        <h2>Chat panel</h2>
+        <label>Minimize pinned agents past
+          <input type="number" id="pinThumbnailThreshold" min="0" step="1" placeholder="5" />
+          <small class="hint">When more agents than this are pinned, the quick-select bar shows thumbnail-only icons (no names). Their names stay available on hover. 0 = always thumbnails.</small>
+        </label>
+      </section>
+
+      <section class="card">
         <h2>Capture</h2>
         <label class="check"><input type="checkbox" id="enabled" /> Extension enabled</label>
-        <label class="check"><input type="checkbox" id="autoSend" /> Auto-send errors to the agent</label>
         <label class="check"><input type="checkbox" id="captureScreenshots" /> Attach a screenshot at error time</label>
         <hr />
         <label class="check"><input type="checkbox" id="captureNetwork" /> Network errors (4xx / 5xx / failures)</label>
         <label class="check"><input type="checkbox" id="captureJs" /> Uncaught JS errors + promise rejections</label>
         <label class="check"><input type="checkbox" id="captureConsole" /> console.error calls</label>
         <label class="check"><input type="checkbox" id="captureResource" /> Failed resource loads (img/script/css)</label>
-        <label>Send on occurrence counts (thresholds)
-          <input type="text" id="thresholds" placeholder="1,10,100,1000" />
-          <small class="hint">Comma-separated. The agent fires when a deduped error hits one of these counts.</small>
-        </label>
+        <p class="sub">Captured errors are listed in the chat panel's ⚠️ tray; nothing is sent to an agent until you press <strong>Send</strong> on a specific error.</p>
       </section>
 
       <section class="card">

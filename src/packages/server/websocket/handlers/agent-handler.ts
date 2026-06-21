@@ -850,6 +850,7 @@ export async function handleUpdateAgentProperties(
       cwd?: string;
       shortcut?: string;
       customInstructions?: string;
+      customPrompt?: string;
     };
   }
 ): Promise<void> {
@@ -975,6 +976,10 @@ export async function handleUpdateAgentProperties(
 
   if (updates.customInstructions !== undefined) {
     agentUpdates.customInstructions = updates.customInstructions || undefined;
+  }
+
+  if (updates.customPrompt !== undefined) {
+    agentUpdates.customPrompt = updates.customPrompt || undefined;
   }
 
   // Apply agent property updates if any

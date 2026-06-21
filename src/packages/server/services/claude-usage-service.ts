@@ -57,7 +57,7 @@ export interface ClaudeUsageSnapshot {
   fetchedAt: number;
   session: ClaudeUsageSession;
   today: DailyActivityEntry | null;
-  recentDays: DailyActivityEntry[];   // newest first, capped at 14 entries
+  recentDays: DailyActivityEntry[];   // newest first, capped at 8 entries
   statsCacheLastComputed: string | null;
   rateLimits: ClaudeRateLimits | null;
   rateLimitsError: string | null;
@@ -503,14 +503,128 @@ function todayString(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+/**
+ * Tally one main-session transcript for `localDay`. Counts the main
+ * conversation only — `isSidechain` (Task/subagent) turns are excluded so the
+ * totals line up with the CLI's own daily messageCount. `startedToday` is true
+ * when the file's first timestamped record falls on `localDay`, which is how we
+ * approximate the CLI's "sessions started today" sessionCount.
+ */
+async function scanTranscriptForDay(
+  filePath: string,
+  localDay: string,
+): Promise<{ messageCount: number; toolCallCount: number; startedToday: boolean }> {
+  let messageCount = 0;
+  let toolCallCount = 0;
+  let firstLocalDate: string | null = null;
+
+  const stream = fs.createReadStream(filePath, { encoding: 'utf-8' });
+  const lines = readline.createInterface({ input: stream, crlfDelay: Infinity });
+  for await (const line of lines) {
+    if (!line.includes('"timestamp"')) continue;
+    let record: Record<string, any>;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const ts = typeof record.timestamp === 'string' ? Date.parse(record.timestamp) : NaN;
+    if (!Number.isFinite(ts)) continue;
+    const localDate = localDateKey(ts);
+    if (firstLocalDate === null) firstLocalDate = localDate;
+    if (localDate !== localDay || record.isSidechain) continue;
+
+    if (record.type === 'user' || record.type === 'assistant') messageCount += 1;
+    const content = record.message?.content;
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (block && typeof block === 'object' && block.type === 'tool_use') toolCallCount += 1;
+      }
+    }
+  }
+  return { messageCount, toolCallCount, startedToday: firstLocalDate === localDay };
+}
+
+/**
+ * Reconstruct today's activity entry live from the session transcripts.
+ *
+ * The CLI's `stats-cache.json` only rolls up through `lastComputedDate` (it
+ * recomputes lazily, typically once per day), so the current day is normally
+ * absent from `dailyActivity` and never appears in the usage panel. We rebuild
+ * it from `~/.claude/projects/<project>/<sessionId>.jsonl`, bucketed by LOCAL
+ * date to match the cache's own day boundaries, and scoped to main-conversation
+ * messages so the totals stay within a few percent of the CLI's historical
+ * days. Returns null when there's no activity yet today.
+ */
+async function computeTodayActivity(): Promise<DailyActivityEntry | null> {
+  const today = todayString();
+  const startMs = startOfLocalDay(Date.now());
+  const projectsDir = path.join(os.homedir(), '.claude', 'projects');
+
+  let projects: fs.Dirent[];
+  try {
+    if (!fs.existsSync(projectsDir)) return null;
+    projects = fs.readdirSync(projectsDir, { withFileTypes: true });
+  } catch (err) {
+    log.warn(`Failed to list Claude projects dir ${projectsDir}: ${err}`);
+    return null;
+  }
+
+  let messageCount = 0;
+  let toolCallCount = 0;
+  let sessionsStartedToday = 0;
+
+  for (const project of projects) {
+    if (!project.isDirectory()) continue;
+    const projectPath = path.join(projectsDir, project.name);
+    let files: fs.Dirent[];
+    try {
+      files = fs.readdirSync(projectPath, { withFileTypes: true });
+    } catch (err) {
+      log.warn(`Failed to read project dir ${projectPath}: ${err}`);
+      continue;
+    }
+    for (const file of files) {
+      // Main session transcripts only: `<sessionId>.jsonl`. Subagent files live
+      // under `subagents/` (not visited here) and `agent-*.jsonl` is skipped;
+      // their turns are already excluded as sidechains in the parent transcript.
+      if (!file.isFile() || !file.name.endsWith('.jsonl') || file.name.startsWith('agent-')) continue;
+      const filePath = path.join(projectPath, file.name);
+      // mtime fast-path: a file untouched since local midnight can't hold a
+      // today line (Claude only appends, so mtime tracks the latest record).
+      try {
+        if (fs.statSync(filePath).mtimeMs < startMs) continue;
+      } catch {
+        continue;
+      }
+      const result = await scanTranscriptForDay(filePath, today);
+      messageCount += result.messageCount;
+      toolCallCount += result.toolCallCount;
+      if (result.startedToday) sessionsStartedToday += 1;
+    }
+  }
+
+  if (messageCount === 0 && toolCallCount === 0) return null;
+  return { date: today, messageCount, sessionCount: sessionsStartedToday, toolCallCount };
+}
+
 export async function buildClaudeUsageSnapshot(agent: Agent): Promise<ClaudeUsageSnapshot> {
   const cache = readStatsCache();
   const all = cache?.dailyActivity ?? [];
   // The cache writes oldest-first; sort newest-first for display.
   const sortedDesc = [...all].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-  const today = sortedDesc.find((e) => e.date === todayString()) ?? null;
-  const recentDays = sortedDesc.slice(0, 14);
-  const { rateLimits, error: rateLimitsError } = await fetchClaudeRateLimits();
+  const cachedToday = sortedDesc.find((e) => e.date === todayString()) ?? null;
+
+  // Once the CLI has rolled today into its cache, trust that copy; until then
+  // reconstruct it live so the panel still shows the current day. Run the
+  // transcript scan alongside the rate-limit fetch — they're independent I/O.
+  const [liveToday, { rateLimits, error: rateLimitsError }] = await Promise.all([
+    cachedToday ? Promise.resolve<DailyActivityEntry | null>(null) : computeTodayActivity(),
+    fetchClaudeRateLimits(),
+  ]);
+
+  const today = cachedToday ?? liveToday;
+  const recentDays = (liveToday ? [liveToday, ...sortedDesc] : sortedDesc).slice(0, 8);
 
   return {
     provider: 'claude',

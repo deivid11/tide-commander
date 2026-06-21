@@ -721,7 +721,7 @@
   gap: 6px;
   flex: none;
   max-width: 150px;
-  padding: 4px 10px 4px 5px;
+  padding: 3px 8px 3px 5px;
   border: 1px solid rgba($dracula-comment, 0.45);
   border-radius: 8px;
   background: rgba($dracula-current, 0.5);
@@ -737,9 +737,51 @@
   }
 
   &.active {
-    border-color: var(--accent-cyan);
-    background: color-mix(in srgb, var(--accent-cyan) 16%, rgba($dracula-current, 0.5));
-    color: $dracula-cyan;
+    // Selected = ONLY a bluish border. The background (area tint or default) is
+    // left completely untouched.
+    border-color: var(--accent-blue, #5b9dff);
+  }
+
+  // Area-tinted background (--area-color set inline per agent).
+  &.has-area {
+    background: color-mix(in srgb, var(--area-color) 20%, rgba($dracula-current, 0.5));
+  }
+
+  // Drag-to-reorder: dim the chip being dragged and draw a vertical accent caret
+  // on the edge of the chip the drop would land next to.
+  &[draggable='true'] { cursor: grab; }
+  // Keep the whole chip the single drag source: a native <img> avatar (custom
+  // class icons) is draggable by default and would otherwise hijack the drag.
+  .pinned-agent-av,
+  .pinned-agent-av img {
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+  &.dragging {
+    opacity: 0.4;
+    cursor: grabbing;
+    animation: none; // freeze the working glow while dragging (extension parity)
+  }
+  &.drop-before::before,
+  &.drop-after::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--accent-cyan);
+    box-shadow: 0 0 6px var(--accent-cyan);
+  }
+  &.drop-before::before { left: -5px; }
+  &.drop-after::after { right: -5px; }
+
+  // Working chips: green border + soft pulsing ring only — NO green fill, so it
+  // never stacks onto the agent's area tint or the selected state (that combo
+  // read as a heavy green wash). The border + ring convey "working" cleanly.
+  &.working {
+    border-color: $dracula-green;
+    animation: pinned-agent-glow 1.6s ease-in-out infinite;
   }
 
   &.working .pinned-agent-av {
@@ -771,16 +813,6 @@
     border-radius: 5px;
     object-fit: cover;
   }
-}
-
-.pinned-agent-status {
-  position: absolute;
-  right: -2px;
-  bottom: -2px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  border: 1px solid rgba($dracula-bg, 0.9);
 }
 
 .pinned-agent-name {
@@ -825,4 +857,16 @@
 @keyframes pinned-agent-ring {
   0% { transform: scale(0.85); opacity: 0.55; }
   100% { transform: scale(1.35); opacity: 0; }
+}
+
+// Subtle green ring that pulses around a working chip — a thin border-hug plus a
+// faint, tight halo (kept small so it never reads as a green background wash).
+@keyframes pinned-agent-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 1px color-mix(in srgb, $dracula-green 25%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 1px color-mix(in srgb, $dracula-green 55%, transparent),
+                0 0 7px -4px color-mix(in srgb, $dracula-green 55%, transparent);
+  }
 }

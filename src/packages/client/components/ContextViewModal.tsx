@@ -10,6 +10,7 @@ import { useModalClose } from '../hooks';
 import { ModalPortal } from './shared/ModalPortal';
 import { Icon } from './Icon';
 import { fetchClaudeUsage, type ClaudeRateLimitWindow, type ClaudeUsageSnapshot } from '../api/claude-usage';
+import { getUsedPercentColor, formatResetTime } from '../utils/claude-usage-format';
 
 interface ContextViewModalProps {
   agent: Agent;
@@ -32,14 +33,6 @@ function formatTokens(count: number): string {
 // Format percentage for display
 function formatPercent(value: number): string {
   return `${value.toFixed(1)}%`;
-}
-
-// Get color for percentage value (for used space)
-function getUsedPercentColor(percent: number): string {
-  if (percent >= 80) return '#ff4a4a'; // Red - critical
-  if (percent >= 60) return '#ff9e4a'; // Orange - warning
-  if (percent >= 40) return '#ffd700'; // Yellow - moderate
-  return '#4aff9e'; // Green - healthy
 }
 
 // Category colors
@@ -393,20 +386,6 @@ function formatActivityDate(isoDate: string): string {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-// Format a rate-limit reset timestamp the way the CLI's /usage tab does:
-// time-of-day for same-day resets, "Jun 15, 1pm" style otherwise, with the
-// local IANA timezone appended.
-function formatResetTime(isoTimestamp: string): string {
-  const date = new Date(isoTimestamp);
-  if (Number.isNaN(date.getTime())) return isoTimestamp;
-  const now = new Date();
-  const time = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  const sameDay = date.toDateString() === now.toDateString();
-  const datePart = sameDay ? time : `${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${time}`;
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  return timeZone ? `${datePart} (${timeZone})` : datePart;
-}
-
 function ClaudeUsageSection({ snapshot, loading, error, onRefresh }: ClaudeUsageSectionProps) {
   const { t } = useTranslation(['terminal', 'common']);
 
@@ -617,7 +596,7 @@ function ClaudeUsageSection({ snapshot, loading, error, onRefresh }: ClaudeUsage
                 {t('terminal:usage.recentDays')}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {snapshot.recentDays.slice(0, 7).map((day) => {
+                {snapshot.recentDays.slice(0, 8).map((day) => {
                   const ratio = peakMessages > 0 ? day.messageCount / peakMessages : 0;
                   return (
                     <div key={day.date} style={{

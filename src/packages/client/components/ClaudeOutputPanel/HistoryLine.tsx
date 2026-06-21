@@ -20,6 +20,7 @@ import { parseWhatsAppMessage, WhatsAppMessageBubble } from './WhatsAppMessageBu
 import { parseEmailMessage, GmailMessageBubble } from './GmailMessageBubble';
 import { parseSlackMessage, SlackMessageBubble } from './SlackMessageBubble';
 import { AgentChatMessageCard, parseAgentChatMessage } from './AgentChatMessageCard';
+import { parseExtensionContext, ExtensionContextCard } from './ExtensionContextCard';
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, AskQuestionResult, ExitPlanModeInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, MemoryOpInput, isToolSearchContent } from './ToolRenderers';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
@@ -1293,6 +1294,18 @@ export const HistoryLine = memo(function HistoryLine({
                 )}
               </span>
             )}
+          </span>
+        </div>
+      );
+    }
+
+    const extCtx = parseExtensionContext(displayMessage);
+    if (extCtx) {
+      return (
+        <div className={`${className} history-user-ext-ctx`}>
+          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+          <span className="history-content">
+            <ExtensionContextCard ctx={extCtx} onImageClick={onImageClick} />
           </span>
         </div>
       );

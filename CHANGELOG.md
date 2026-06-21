@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.119.0] - 2026-06-20
+
+### Added
+- **Per-agent system prompt** — `SystemPromptModal` migrated from global to per-agent (`agent.customPrompt`); includes an agent picker and updated styles in `system-prompt-modal.scss`.
+- **Plan limits tooltip** — new `PlanLimitsTooltip.tsx` component and `claude-usage-format.ts` utility surface Anthropic plan usage limits inline in FlatView.
+- **Tooltip SCSS** — new `_tooltip.scss` with shared tooltip styling.
+- **Browser extension major update** — sidepanel, background, renderers, options, and content scripts significantly expanded; new `package.sh` build script and `.gitignore`.
+- **Extension context cards** — new `ExtensionContextCard.tsx` component and `_extension-context-cards.scss` render browser extension context inline in `HistoryLine` and `OutputLine`.
+
+### Changed
+- `claude-usage-service.ts` expanded with additional usage data aggregation.
+- `browser-error-service.ts` updated with refined error handling.
+- `agent-types.ts` and `agent-handler.ts` extended for per-agent custom prompt support.
+- `PinnedAgentsBar.tsx` updated with layout improvements.
+- `ContextViewModal.tsx` and `FlatView/index.tsx` updated to integrate plan limits display.
+
+### Fixed
+- Removed invalid `// eslint-disable-next-line react-hooks/exhaustive-deps` comments in `SystemPromptModal.tsx` (plugin not in ESLint config).
+
 ## [1.118.1] - 2026-06-19
 
 ### Changed
