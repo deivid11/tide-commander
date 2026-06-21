@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.119.1] - 2026-06-20
+
+### Changed
+- `PinnedAgentsBar.tsx` layout refinements.
+- `_input.scss` guake terminal input style tweaks.
+
 ## [1.119.0] - 2026-06-20
 
 ### Added

@@ -516,9 +516,15 @@
   align-items: center;
   gap: 6px;
 
-  // On mobile, move up slightly to clear the context bar
+  // On mobile the pinned-agents bar + context bar sit directly above the input,
+  // so floating the stop bar up collides with them (it landed on the pinned
+  // chips). Drop it into normal flow as its own centered row instead — it
+  // renders between the context bar and the input, so nothing overlaps.
   @media (max-width: 768px) {
-    top: -20px;
+    position: static;
+    transform: none;
+    justify-content: center;
+    margin: 3px 0 4px;
   }
 }
 
@@ -555,6 +561,15 @@
   border: 1px solid rgba($dracula-green, 0.5);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
   animation: elapsed-fade 4s ease-out forwards;
+
+  // Same as the stop bar: in normal flow on mobile so it never floats onto the
+  // pinned-agents / context bars above the input.
+  @media (max-width: 768px) {
+    position: static;
+    transform: none;
+    width: fit-content;
+    margin: 3px auto 4px;
+  }
 }
 
 @keyframes elapsed-fade {
@@ -847,6 +862,17 @@
 
 .pinned-agent:hover .pinned-agent-unpin {
   display: flex;
+}
+
+// On mobile (touch), pinned agents are shown icon-only and CANNOT be unpinned by
+// tapping a chip — removal is only via the input-area pin button. This keeps a tap
+// reserved for switching agents (no accidental unpin) and saves horizontal space.
+@media (max-width: 768px) {
+  .pinned-agent { max-width: none; gap: 0; padding: 5px; }
+  .pinned-agent-av { width: 26px; height: 26px; }
+  .pinned-agent-name { display: none; }
+  .pinned-agent-unpin,
+  .pinned-agent:hover .pinned-agent-unpin { display: none; }
 }
 
 @keyframes pinned-agent-pulse {
