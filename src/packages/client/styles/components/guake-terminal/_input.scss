@@ -694,7 +694,21 @@
     touch-action: pan-x;
     transition: opacity 95ms ease, filter 95ms ease;
     will-change: opacity, filter;
+    // Lay the pre-input strip out as a wrapping row so the context bar and the
+    // timer/Stop share ONE line (each was its own near-empty row before); the
+    // input is forced onto the next line at full width.
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 8px;
   }
+  // Context bar takes the remaining width (shrinks/clips when the timer is
+  // present); timer + completion badge sit inline on its right.
+  .mobile-context-bar.show-on-mobile { flex: 1 1 auto; min-width: 0; justify-content: flex-start; }
+  .guake-stop-bar { flex: 0 0 auto; margin: 0; }
+  .guake-completion-time { flex: 0 0 auto; margin: 0; }
+  // The input always gets its own full-width line below the strip.
+  .guake-input { flex: 0 0 100%; }
 
   .guake-input-swipe-shell.swipe-close-ready {
     opacity: 0.96;

@@ -108,6 +108,7 @@ import {
   handleCancelWorkflow,
   handleManualTransition,
 } from './handlers/workflow-handler.js';
+import { handleBrowserRegister, handleBrowserResult } from './handlers/browser-handler.js';
 import { setupServiceListeners } from './listeners/index.js';
 
 const log = logger.ws;
@@ -237,6 +238,8 @@ const messageHandlers = {
   kill_agent: handleKillAgent,
   stop_agent: handleStopAgent,
   clear_context: handleClearContext,
+  browser_register: handleBrowserRegister,
+  browser_result: handleBrowserResult,
   restore_session: handleRestoreSession,
   request_session_history: handleRequestSessionHistory,
   collapse_context: handleCollapseContext,
