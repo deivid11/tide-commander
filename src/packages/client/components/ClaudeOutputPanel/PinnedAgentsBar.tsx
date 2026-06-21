@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { store, useAgents, usePinnedAgentIds, useCustomAgentClassesArray, useAreas } from '../../store';
+import { store, useAgents, usePinnedAgentIds, useCustomAgentClassesArray, useAreas, useViewMode } from '../../store';
 import { AgentIcon } from '../AgentIcon';
 import type { Agent } from '../../../shared/types';
 
@@ -19,6 +19,7 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId }: 
   const agents = useAgents();
   const customClasses = useCustomAgentClassesArray();
   const areas = useAreas();
+  const viewMode = useViewMode();
 
   // Resolve each pinned agent's area color (by spatial position, like the board).
   // `areas` is a dep so the tint re-resolves when areas move/recolor.
@@ -33,12 +34,18 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId }: 
   const handleSelect = useCallback((agent: Agent) => {
     store.setLastSelectionViaDirectClick(true);
     store.selectAgent(agent.id);
-    store.setTerminalOpen(true);
-  }, []);
+    // FlatView drives its own inline chat column from the same selection; opening
+    // the Guake terminal here would stack a SECOND chat overlay on top of it
+    // (mirrors the `!isFlat` guard in store.openTerminalOnMobile).
+    if (viewMode !== 'flat') store.setTerminalOpen(true);
+  }, [viewMode]);
 
   const handleUnpin = useCallback((e: React.MouseEvent, agentId: string) => {
     e.preventDefault();
     e.stopPropagation();
+    // On mobile the chip is icon-only with no × — a tap/long-press must never
+    // unpin; removal is only via the input-area pin button.
+    if (window.matchMedia('(max-width: 768px)').matches) return;
     store.togglePinnedAgent(agentId);
   }, []);
 
