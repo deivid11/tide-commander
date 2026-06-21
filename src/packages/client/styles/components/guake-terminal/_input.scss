@@ -888,10 +888,11 @@
 @media (max-width: 768px) {
   // The × badge is hidden on mobile, so drop the tall padding that reserved room
   // for it and keep comfortable side padding so the chips aren't flush to the edge.
-  .pinned-agents-bar { padding: 8px 12px; gap: 8px; }
-  // More inset around each icon so it reads as a padded button, not a raw image.
-  .pinned-agent { max-width: none; gap: 0; padding: 7px; }
-  .pinned-agent-av { width: 26px; height: 26px; }
+  // Tight vertical footprint: minimal top/bottom padding on both the bar and the
+  // chips (kept a little horizontal inset so icons aren't flush / touching).
+  .pinned-agents-bar { padding: 3px 10px; gap: 6px; }
+  .pinned-agent { max-width: none; gap: 0; padding: 2px 4px; }
+  .pinned-agent-av { width: 20px; height: 20px; }
   .pinned-agent-name { display: none; }
   .pinned-agent-unpin,
   .pinned-agent:hover .pinned-agent-unpin { display: none; }

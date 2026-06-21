@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.120.2] - 2026-06-20
+
+### Changed
+- Guake terminal input style refinements (`_input.scss`).
+
 ## [1.120.1] - 2026-06-20
 
 ### Fixed
