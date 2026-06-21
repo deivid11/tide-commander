@@ -29,6 +29,7 @@ import databaseRouter from './database.js';
 import buildingsRouter, { setBroadcast as setBuildingsBroadcast } from './buildings.js';
 import skillsRouter, { setBroadcast as setSkillsBroadcast } from './skills.js';
 import systemRouter from './system.js';
+import browserRouter from './browser.js';
 import { getPlugins } from '../integrations/integration-registry.js';
 
 const router = Router();
@@ -61,6 +62,7 @@ router.use('/database', databaseRouter);
 router.use('/buildings', buildingsRouter);
 router.use('/skills', skillsRouter);
 router.use('/system', systemRouter);
+router.use('/browser', browserRouter);
 // Integration plugin routes (e.g. /api/slack/*, /api/documents/*, /api/jira/*)
 // Uses lazy lookup so plugins can be registered after route setup
 router.use((req: Request, res: Response, next: NextFunction) => {

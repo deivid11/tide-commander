@@ -852,6 +852,27 @@ async function sendNow(fingerprint) {
   return { ok: !result.startsWith('error'), result };
 }
 
+// ── browser bridge: capture a screenshot for an agent ──
+// Captures the visible tab, optionally crops to a rect (one element), saves it via
+// the element-screenshot endpoint, and returns the path the agent can Read.
+async function bridgeScreenshot(commanderId, rect, selector) {
+  let tab = null;
+  try {
+    [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  } catch (_e) {
+    /* ignore */
+  }
+  if (!tab || tab.id == null) return { ok: false, error: 'no active tab' };
+  let shot = await captureVisible(tab.id, tab.windowId);
+  if (!shot) return { ok: false, error: 'capture failed (tab must be the active, focused tab)' };
+  if (rect && rect.w && rect.h) {
+    const cropped = await cropScreenshot(shot, rect, rect.dpr || 1);
+    if (cropped) shot = cropped;
+  }
+  const saved = await saveElementShot(commanderId, shot, selector || 'page');
+  return saved && saved.ok ? { ok: true, path: saved.path } : { ok: false, error: (saved && saved.error) || 'save failed' };
+}
+
 // ── element picker → side panel ──
 async function handleElementPicked(context, sender) {
   let image = null;
@@ -998,6 +1019,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return true;
     case 'saveElementShot':
       saveElementShot(msg.commanderId, msg.image, msg.selector).then(sendResponse);
+      return true;
+    case 'bridgeScreenshot':
+      bridgeScreenshot(msg.commanderId, msg.rect, msg.selector).then(sendResponse);
       return true;
     case 'saveAttachment':
       saveAttachment(msg.commanderId, msg.dataUrl, msg.filename).then(sendResponse);

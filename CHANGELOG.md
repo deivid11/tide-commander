@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.120.0] - 2026-06-20
+
+### Added
+- **Agent↔browser bridge** — new `/api/browser/*` routes and `browser-bridge-service.ts` let agents read and drive the live browser page via the extension WebSocket relay (DOM, console, network, errors, screenshot) and CDP/puppeteer-core (click, type, navigate, scroll). Requires Chrome `--remote-debugging-port=9222`.
+- **CDP service** — `cdp-service.ts` wraps puppeteer-core for programmatic browser control.
+- **Browser WebSocket handler** — `browser-handler.ts` processes browser events forwarded by the extension over WebSocket.
+- New WebSocket message types in `websocket-messages.ts` for browser bridge events.
+- Browser extension (`background.js`, `content.js`, `sidepanel.js`) updated to support the bridge protocol.
+
 ## [1.119.1] - 2026-06-20
 
 ### Changed

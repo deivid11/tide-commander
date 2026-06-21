@@ -215,6 +215,26 @@ export interface ClearContextMessage extends WSMessage {
   };
 }
 
+// ── browser bridge (server ⇄ extension live-page commands) ──
+// The extension side panel registers its WebSocket as able to run browser
+// commands (DOM / console / network / screenshot reads in the user's live,
+// logged-in session). One register per open panel.
+export interface BrowserRegisterMessage extends WSMessage {
+  type: 'browser_register';
+  payload: { origin?: string };
+}
+// The extension returns the result of a relayed browser command, correlated to
+// the originating request by reqId.
+export interface BrowserResultMessage extends WSMessage {
+  type: 'browser_result';
+  payload: { reqId: string; ok: boolean; result?: unknown; error?: string };
+}
+// Server → extension: run a command in the live page (reqId for correlation).
+export interface BrowserCommandMessage extends WSMessage {
+  type: 'browser_command';
+  payload: { reqId: string; cmd: string; args?: Record<string, unknown> };
+}
+
 // Restore a previous session for an agent
 export interface RestoreSessionMessage extends WSMessage {
   type: 'restore_session';
@@ -1596,7 +1616,8 @@ export type ServerMessage =
   | WorkflowCompletedMessage
   | WorkflowErrorMessage
   | CompactingStatusMessage
-  | SessionHistoryMessage;
+  | SessionHistoryMessage
+  | BrowserCommandMessage;
 
 export type ClientMessage =
   | SpawnAgentMessage
@@ -1606,6 +1627,8 @@ export type ClientMessage =
   | KillAgentMessage
   | StopAgentMessage
   | ClearContextMessage
+  | BrowserRegisterMessage
+  | BrowserResultMessage
   | RestoreSessionMessage
   | RequestSessionHistoryMessage
   | CollapseContextMessage

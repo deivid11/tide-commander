@@ -1305,7 +1305,16 @@ function connectWs() {
     setWsDot('bad');
     return;
   }
-  ws.addEventListener('open', () => setWsDot('ok'));
+  ws.addEventListener('open', () => {
+    setWsDot('ok');
+    // Register this panel as a browser-command target so server-side agents can
+    // read the live page (DOM/console/network/screenshot) through the bridge.
+    try {
+      ws.send(JSON.stringify({ type: 'browser_register', payload: { origin: currentOrigin || '' } }));
+    } catch (_e) {
+      /* ignore */
+    }
+  });
   ws.addEventListener('close', () => {
     setWsDot('bad');
     if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
@@ -1322,6 +1331,13 @@ function onWsMessage(ev) {
     return;
   }
   if (!msg || !msg.type) return;
+
+  // Browser bridge: a server-side agent asked us to read the live page. Execute
+  // and reply with the result (correlated by reqId).
+  if (msg.type === 'browser_command' && msg.payload && msg.payload.reqId) {
+    handleBrowserCommand(msg.payload);
+    return;
+  }
 
   // custom class icons (sent on connect + on change)
   if (msg.type === 'custom_agent_classes_update' && Array.isArray(msg.payload)) {
@@ -1427,6 +1443,89 @@ function onWsMessage(ev) {
   if (msg.type === 'session_updated' && msg.payload && msg.payload.agentId === selectedAgent) {
     if (streamIdleTimer) clearTimeout(streamIdleTimer);
     streamIdleTimer = setTimeout(loadHistory, 400);
+  }
+}
+
+// ── browser bridge: execute a relayed read command from a server-side agent ──
+async function handleBrowserCommand(payload) {
+  const { reqId, cmd } = payload;
+  const args = payload.args || {};
+  let ok = true;
+  let result = null;
+  let error = '';
+  try {
+    result = await execBrowserCommand(cmd, args);
+  } catch (e) {
+    ok = false;
+    error = (e && e.message) || String(e) || 'command failed';
+  }
+  try {
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({ type: 'browser_result', payload: { reqId, ok, result, error } }));
+    }
+  } catch (_e) {
+    /* socket gone — the server request will time out */
+  }
+}
+// Map a bridge command to the existing capture/inspection plumbing. Reads run in
+// the active tab of the user's live session.
+async function execBrowserCommand(cmd, args) {
+  switch (cmd) {
+    case 'page': {
+      const t = await activePageInfo();
+      return { url: t && t.url, title: t && t.title };
+    }
+    case 'console': {
+      const res = await send({ type: 'getConsole' });
+      let recs = (res && res.records) || [];
+      if (args.level) recs = recs.filter((r) => String(r.level || '') === String(args.level));
+      recs = recs.slice(0, Math.min(Number(args.limit) || 50, 200));
+      return recs.map((r) => ({ level: r.level, text: r.text, pageUrl: r.pageUrl, ts: r.ts }));
+    }
+    case 'network': {
+      const res = await send({ type: 'getNetwork' });
+      let recs = (res && res.records) || [];
+      if (args.filter) {
+        const f = String(args.filter).toLowerCase();
+        recs = recs.filter((r) => `${r.method} ${r.url} ${r.status}`.toLowerCase().includes(f));
+      }
+      recs = recs.slice(0, Math.min(Number(args.limit) || 30, 200));
+      return recs.map((r) => ({
+        method: r.method, url: r.url, status: r.status, statusText: r.statusText,
+        contentType: r.contentType, durationMs: r.durationMs, pageUrl: r.pageUrl, ts: r.ts,
+      }));
+    }
+    case 'errors': {
+      const st = await send({ type: 'getState' });
+      let errs = (st && st.errors) || [];
+      errs = errs.slice(0, Math.min(Number(args.limit) || 30, 200));
+      return errs.map((e) => ({
+        kind: e.kind, subtype: e.subtype, status: e.status, method: e.method, url: e.url,
+        message: e.message, count: e.count, pageUrl: e.pageUrl,
+      }));
+    }
+    case 'dom': {
+      if (activeTabId == null) throw new Error('no active web page');
+      const r = await chrome.tabs.sendMessage(activeTabId, { type: 'getDom', selector: args.selector || '', all: !!args.all });
+      if (!r || !r.ok) throw new Error((r && r.error) || 'DOM read failed');
+      return args.all ? { nodes: r.nodes } : { node: r.node };
+    }
+    case 'screenshot': {
+      let rect = null;
+      if (args.selector && activeTabId != null) {
+        try {
+          const r = await chrome.tabs.sendMessage(activeTabId, { type: 'getDom', selector: args.selector });
+          if (r && r.ok && r.node && r.node.rect) rect = Object.assign({}, r.node.rect, { dpr: r.node.dpr });
+        } catch (_e) {
+          /* fall back to a full-viewport shot */
+        }
+      }
+      const res = await send({ type: 'bridgeScreenshot', commanderId: selectedCommander, rect, selector: args.selector || 'page' });
+      if (!res || !res.ok) throw new Error((res && res.error) || 'screenshot failed');
+      return { path: res.path };
+    }
+    default:
+      throw new Error('unknown browser command: ' + cmd);
   }
 }
 

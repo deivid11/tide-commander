@@ -318,6 +318,22 @@
       sendResponse({ context: lastContextEl ? buildContext(lastContextEl) : null });
       return true;
     }
+    if (msg.type === 'getDom') {
+      // Bridge read: serialize a node (or all matches) by selector for an agent.
+      try {
+        if (msg.all && msg.selector) {
+          const nodes = Array.from(document.querySelectorAll(msg.selector)).slice(0, 20).map(buildContext);
+          sendResponse({ ok: true, nodes });
+        } else {
+          const el = msg.selector ? document.querySelector(msg.selector) : document.body;
+          if (!el) sendResponse({ ok: false, error: 'no element matches ' + (msg.selector || 'body') });
+          else sendResponse({ ok: true, node: buildContext(el) });
+        }
+      } catch (e) {
+        sendResponse({ ok: false, error: (e && e.message) || 'getDom failed' });
+      }
+      return true;
+    }
     if (msg.type === 'reproControl') {
       if (msg.on) startReproRecording();
       else stopReproRecording();
