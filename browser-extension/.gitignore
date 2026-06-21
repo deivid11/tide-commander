@@ -1,0 +1,4 @@
+# Build artifacts produced by package.sh (Chrome Web Store upload zips)
+tide-commander-extension-*.zip
+*.pem
+*.crx

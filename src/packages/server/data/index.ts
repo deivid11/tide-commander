@@ -80,6 +80,7 @@ export interface StoredAgent {
   // Per-agent persistent config (must be saved or it is lost on restart)
   shortcut?: string;          // Global keyboard shortcut to open this agent's terminal
   customInstructions?: string; // Extra system-prompt instructions for this agent
+  customPrompt?: string;       // Per-agent custom system prompt (replaces the old global one)
   memory?: string;            // Agent's own persistent notes (injected into system prompt)
   // Boss-specific fields
   isBoss?: boolean;           // True if this agent is a boss
@@ -210,6 +211,7 @@ function toStoredAgents(agents: Agent[]): StoredAgent[] {
     trackingStatusTimestamp: agent.trackingStatusTimestamp,
     shortcut: agent.shortcut,
     customInstructions: agent.customInstructions,
+    customPrompt: agent.customPrompt,
     memory: agent.memory,
     isBoss: agent.isBoss,
     subordinateIds: agent.subordinateIds,

@@ -1,8 +1,9 @@
 /**
  * background.js — MV3 service worker / hub.
  *
- *  - Receives + dedupes captured errors, auto-sends them to the agent assigned
- *    to the page's origin.
+ *  - Receives + dedupes captured errors into a local store. Delivery to an agent
+ *    is always user-initiated from the side panel (the "Send" button); there is
+ *    no automatic page→agent path.
  *  - Multi-commander: holds a list of TC servers ({id,name,baseUrl,token}); each
  *    origin can be routed to a specific commander + agent (else the active one).
  *  - Proxies chat send / history / agent-list for the side panel (keeps tokens
@@ -17,12 +18,12 @@ const DEFAULT_CONFIG = {
   defaultAgentId: '',
   originMap: {}, // origin -> { commanderId, agentId }
   enabled: true,
-  autoSend: true,
   captureScreenshots: true,
   includePageContext: false, // prepend current page URL/title to chat messages
   includeComputedStyles: true, // include a picked element's computed CSS when sending it
   includeNetworkHeaders: true, // include request/response headers when sending a network request
-  thresholds: [1, 10, 100, 1000],
+  hideSvg: true, // strip <svg> markup from a picked element's outerHTML (icon paths are noise)
+  pinThumbnailThreshold: 5, // pinned-agent bar collapses to thumbnail-only past this many pins (0 = always)
   allowlist: ['http://localhost:*', 'http://127.0.0.1:*'],
   redact: true,
   redactKeys: ['authorization', 'cookie', 'token', 'password', 'secret', 'apikey', 'api_key'],
@@ -60,6 +61,78 @@ function persistNetLog() {
       /* ignore */
     }
   }, 600);
+}
+
+// Ring buffer of recent console.* output (newest first), same persistence scheme
+// as netLog — feeds the Console tab.
+const MAX_CONSOLE = 300;
+let consoleLog = [];
+const consoleLogReady = (async () => {
+  try {
+    const { tc_console } = await chrome.storage.local.get('tc_console');
+    if (Array.isArray(tc_console)) consoleLog = tc_console.slice(0, MAX_CONSOLE);
+  } catch (_e) {
+    /* ignore */
+  }
+})();
+let consolePersistTimer = null;
+function persistConsoleLog() {
+  if (consolePersistTimer) return;
+  consolePersistTimer = setTimeout(() => {
+    consolePersistTimer = null;
+    try {
+      chrome.storage.local.set({ tc_console: consoleLog });
+    } catch (_e) {
+      /* ignore */
+    }
+  }, 600);
+}
+
+// ── reproduction recorder session ──
+// A single in-progress recording: which tab is being recorded and the ordered
+// steps captured so far. Persisted (debounced) so it survives a service-worker
+// recycle mid-recording; the content script re-attaches on each page via the
+// reproHello handshake below.
+const MAX_REPRO_STEPS = 300;
+let repro = { recording: false, tabId: null, windowId: null, startUrl: '', steps: [] };
+const reproReady = (async () => {
+  try {
+    const { tc_repro } = await chrome.storage.local.get('tc_repro');
+    if (tc_repro && typeof tc_repro === 'object') {
+      repro.recording = !!tc_repro.recording;
+      repro.tabId = tc_repro.tabId == null ? null : tc_repro.tabId;
+      repro.windowId = tc_repro.windowId == null ? null : tc_repro.windowId;
+      repro.startUrl = tc_repro.startUrl || '';
+      repro.steps = Array.isArray(tc_repro.steps) ? tc_repro.steps.slice(0, MAX_REPRO_STEPS) : [];
+    }
+  } catch (_e) {
+    /* ignore */
+  }
+})();
+let reproPersistTimer = null;
+function persistRepro() {
+  if (reproPersistTimer) return;
+  reproPersistTimer = setTimeout(() => {
+    reproPersistTimer = null;
+    try {
+      chrome.storage.local.set({ tc_repro: repro });
+    } catch (_e) {
+      /* ignore */
+    }
+  }, 500);
+}
+// Flush the session state immediately (bypass the step-burst debounce) — used when
+// the `recording` flag flips, since content scripts read it from storage on load.
+function persistReproNow() {
+  if (reproPersistTimer) {
+    clearTimeout(reproPersistTimer);
+    reproPersistTimer = null;
+  }
+  try {
+    chrome.storage.local.set({ tc_repro: repro });
+  } catch (_e) {
+    /* ignore */
+  }
 }
 
 // ── config (with migration from the v0.1 flat schema) ──
@@ -234,6 +307,83 @@ async function stopAgent(commanderId, agentId) {
     return { ok: false, error: String((e && e.message) || e) };
   }
 }
+// Send Claude Code's /compact slash command to the agent's runner. Plain
+// /message can't carry slash commands, so this hits the dedicated endpoint.
+// waitForIdle:true → if the agent is busy, the /compact is queued and fires the
+// next time it goes idle (so the button always "takes").
+async function collapseContext(commanderId, agentId) {
+  const cfg = await getConfig();
+  const c = commanderById(cfg, commanderId);
+  if (!c) return { ok: false, error: 'no commander' };
+  if (!agentId) return { ok: false, error: 'no agent selected' };
+  try {
+    const r = await apiFetch(c.baseUrl, c.token, `/api/agents/${encodeURIComponent(agentId)}/collapse-context`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ waitForIdle: true }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return { ok: false, error: j.error || 'HTTP ' + r.status, status: j.status };
+    return { ok: true, status: j.status };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+}
+// List all buildings for a commander (global, not per-agent): servers with
+// start/stop/restart, docker containers, terminals, and quick links. We slim the
+// payload down to what the overlay renders (status + ports + urls + ttyd url).
+async function fetchBuildings(commanderId) {
+  const cfg = await getConfig();
+  const c = commanderById(cfg, commanderId);
+  if (!c) return { ok: false, error: 'no commander', buildings: [] };
+  try {
+    const r = await apiFetch(c.baseUrl, c.token, '/api/buildings');
+    if (!r.ok) return { ok: false, error: 'HTTP ' + r.status, buildings: [] };
+    const j = await r.json();
+    const list = Array.isArray(j) ? j : j.buildings || [];
+    return {
+      ok: true,
+      buildings: list.map((b) => ({
+        id: b.id,
+        name: b.name,
+        type: b.type,
+        status: b.status,
+        cwd: b.cwd,
+        urls: Array.isArray(b.urls) ? b.urls.filter((u) => u && u.url) : [],
+        pm2Ports: b.pm2Status && Array.isArray(b.pm2Status.ports) ? b.pm2Status.ports : [],
+        dockerPorts:
+          b.dockerStatus && Array.isArray(b.dockerStatus.ports)
+            ? b.dockerStatus.ports.map((p) => p && p.host).filter(Boolean)
+            : [],
+        terminalUrl: b.terminalStatus && b.terminalStatus.url ? b.terminalStatus.url : '',
+        folderPath: b.folderPath,
+        lastError: b.lastError,
+      })),
+    };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e), buildings: [] };
+  }
+}
+// Start / stop / restart a building. Same X-Auth-Token; the server returns
+// { success, error?, logs? }.
+async function buildingCommand(commanderId, buildingId, command) {
+  const cfg = await getConfig();
+  const c = commanderById(cfg, commanderId);
+  if (!c) return { ok: false, error: 'no commander' };
+  if (!buildingId) return { ok: false, error: 'no building' };
+  try {
+    const r = await apiFetch(c.baseUrl, c.token, `/api/buildings/${encodeURIComponent(buildingId)}/command`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return { ok: false, error: j.error || 'HTTP ' + r.status };
+    return { ok: j.success !== false, result: j, error: j.error };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+}
 async function getHistory(commanderId, agentId, limit) {
   const cfg = await getConfig();
   const c = commanderById(cfg, commanderId);
@@ -242,7 +392,7 @@ async function getHistory(commanderId, agentId, limit) {
     const r = await apiFetch(c.baseUrl, c.token, `/api/agents/${encodeURIComponent(agentId)}/history?limit=${limit || 60}&offset=0`);
     if (!r.ok) return { ok: false, error: 'HTTP ' + r.status, messages: [] };
     const j = await r.json();
-    return { ok: true, messages: j.messages || [], cwd: j.cwd, sessionId: j.sessionId };
+    return { ok: true, messages: j.messages || [], cwd: j.cwd, sessionId: j.sessionId, hasMore: !!j.hasMore, totalCount: j.totalCount };
   } catch (e) {
     return { ok: false, error: String((e && e.message) || e), messages: [] };
   }
@@ -448,12 +598,17 @@ async function handleError(payload, sender) {
   const cfg = await getConfig();
   if (!cfg.enabled) return;
   if (!typeEnabled(cfg, payload.kind)) return;
-  if (!originAllowed(cfg.allowlist, payload.pageUrl)) return;
+  // Security: attribute the record to the BROWSER-supplied frame URL (sender.url),
+  // never the page-supplied payload.pageUrl. A malicious page can forge pageUrl to
+  // spoof its origin past the allowlist; sender.url is set by Chrome and cannot be
+  // forged from page script. Drop anything we can't tie to a real frame.
+  const frameUrl = (sender && sender.url) || '';
+  if (!originAllowed(cfg.allowlist, frameUrl)) return;
 
   const now = payload.ts || Date.now();
   let origin = '';
   try {
-    origin = new URL(payload.pageUrl).origin;
+    origin = new URL(frameUrl).origin;
   } catch (_e) {
     /* ignore */
   }
@@ -463,7 +618,7 @@ async function handleError(payload, sender) {
     status: payload.status || 0,
     method: payload.method || '',
     url: redact(payload.url || '', cfg),
-    pageUrl: payload.pageUrl || '',
+    pageUrl: frameUrl,
     origin,
     message: redact(payload.message || '', cfg),
     stack: redact(payload.stack || '', cfg),
@@ -473,7 +628,9 @@ async function handleError(payload, sender) {
   };
   const fp = fingerprintOf(clean);
 
-  const decision = await withLock(async () => {
+  // Capture + dedupe only. Delivery to an agent is ALWAYS user-initiated (the
+  // "Send" button → sendNow); there is no automatic page→agent path.
+  await withLock(async () => {
     const errors = await getErrors();
     let rec = errors[fp];
     if (rec) {
@@ -487,29 +644,10 @@ async function handleError(payload, sender) {
       rec = { fingerprint: fp, ...clean, count: 1, firstSeen: now, lastSeen: now, sentCount: 0, lastSentAt: 0, lastSendResult: null, muted: false };
       errors[fp] = rec;
     }
-    const shouldSend = cfg.autoSend && !rec.muted && Array.isArray(cfg.thresholds) && cfg.thresholds.includes(rec.count);
     await saveErrors(errors);
-    return { rec: { ...rec }, shouldSend };
   });
 
   await updateBadge();
-
-  if (decision.shouldSend) {
-    const target = resolveTarget(cfg, origin);
-    if (!target) return;
-    const shot = cfg.captureScreenshots ? await captureVisible(sender?.tab?.id, sender?.tab?.windowId) : null;
-    const result = await sendErrorToServer(target, decision.rec, shot, currentLocation(cfg, sender && sender.tab));
-    await withLock(async () => {
-      const errors = await getErrors();
-      const rec = errors[fp];
-      if (rec) {
-        rec.sentCount += 1;
-        rec.lastSentAt = Date.now();
-        rec.lastSendResult = result;
-        await saveErrors(errors);
-      }
-    });
-  }
 }
 
 // Redact sensitive header values (Authorization/Cookie/…), then run the generic
@@ -530,10 +668,13 @@ function redactHeaders(h, cfg) {
 async function handleNet(payload, sender) {
   const cfg = await getConfig();
   if (!cfg.enabled || cfg.captureNetworkLog === false) return;
-  if (!originAllowed(cfg.allowlist, payload.pageUrl)) return;
+  // Security: gate on the browser-supplied frame URL, not the forgeable
+  // payload.pageUrl (see handleError).
+  const frameUrl = (sender && sender.url) || '';
+  if (!originAllowed(cfg.allowlist, frameUrl)) return;
   let origin = '';
   try {
-    origin = new URL(payload.pageUrl).origin;
+    origin = new URL(frameUrl).origin;
   } catch (_e) {
     /* ignore */
   }
@@ -552,7 +693,7 @@ async function handleNet(payload, sender) {
     requestBody: payload.requestBody ? redact(payload.requestBody, cfg) : undefined,
     responseHeaders: redactHeaders(payload.responseHeaders, cfg),
     responseBody: payload.responseBody ? redact(payload.responseBody, cfg) : undefined,
-    pageUrl: payload.pageUrl || '',
+    pageUrl: frameUrl,
     origin,
     ts: payload.ts || Date.now(),
   };
@@ -564,6 +705,123 @@ async function handleNet(payload, sender) {
   } catch (_e) {
     /* no panel open */
   }
+}
+
+// Console.* output for the Console tab. Mirrors handleNet: gate on the
+// browser-supplied frame URL (not the forgeable payload), store newest-first,
+// persist, and live-push to an open panel.
+async function handleConsole(payload, sender) {
+  const cfg = await getConfig();
+  if (!cfg.enabled || cfg.captureConsole === false) return;
+  const frameUrl = (sender && sender.url) || '';
+  if (!originAllowed(cfg.allowlist, frameUrl)) return;
+  let origin = '';
+  try {
+    origin = new URL(frameUrl).origin;
+  } catch (_e) {
+    /* ignore */
+  }
+  const rec = {
+    conId: payload.conId || 'c_' + Date.now(),
+    tabId: sender && sender.tab ? sender.tab.id : undefined,
+    level: payload.level || 'log',
+    text: redact(String(payload.text || ''), cfg),
+    pageUrl: frameUrl,
+    origin,
+    ts: payload.ts || Date.now(),
+  };
+  consoleLog.unshift(rec);
+  if (consoleLog.length > MAX_CONSOLE) consoleLog.length = MAX_CONSOLE;
+  persistConsoleLog();
+  try {
+    chrome.runtime.sendMessage({ type: 'tc-console-record', record: rec }, () => void chrome.runtime.lastError);
+  } catch (_e) {
+    /* no panel open */
+  }
+}
+
+// ── reproduction recorder ──
+// Append + live-broadcast one captured step. The broadcast uses a DISTINCT type
+// (tc-repro-record) from the inbound tc-repro-step so the background's own
+// listener doesn't loop it back into the store (same trick as net/console).
+function pushReproStep(rec) {
+  repro.steps.push(rec);
+  if (repro.steps.length > MAX_REPRO_STEPS) repro.steps.shift();
+  persistRepro();
+  try {
+    chrome.runtime.sendMessage({ type: 'tc-repro-record', step: rec }, () => void chrome.runtime.lastError);
+  } catch (_e) {
+    /* no panel open */
+  }
+}
+// Begin a recording on the active tab: reset the step list, remember the tab, and
+// tell its content script to start observing.
+async function startRepro() {
+  let tab = null;
+  try {
+    [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  } catch (_e) {
+    /* ignore */
+  }
+  if (!tab || tab.id == null) return { ok: false, error: 'no active page' };
+  const cfg = await getConfig();
+  if (!originAllowed(cfg.allowlist, tab.url || '')) return { ok: false, error: 'page not in allowlist' };
+  repro = { recording: true, tabId: tab.id, windowId: tab.windowId, startUrl: tab.url || '', steps: [] };
+  persistReproNow();
+  try {
+    chrome.tabs.sendMessage(tab.id, { type: 'reproControl', on: true }, { frameId: 0 }, () => void chrome.runtime.lastError);
+  } catch (_e) {
+    /* ignore */
+  }
+  return { ok: true, startUrl: repro.startUrl };
+}
+// Finish a recording: stop the content observer, grab a final screenshot of the
+// end state, and hand the captured steps back to the side panel.
+async function stopRepro() {
+  const steps = repro.steps.slice();
+  const startUrl = repro.startUrl;
+  let screenshot = null;
+  if (repro.recording && repro.tabId != null) {
+    try {
+      chrome.tabs.sendMessage(repro.tabId, { type: 'reproControl', on: false }, { frameId: 0 }, () => void chrome.runtime.lastError);
+    } catch (_e) {
+      /* ignore */
+    }
+    screenshot = await captureVisible(repro.tabId, repro.windowId);
+  }
+  repro.recording = false;
+  persistReproNow();
+  return { ok: true, steps, startUrl, screenshot };
+}
+// One step streamed from the recorded tab's content script. Gate on the recorded
+// tab id and redact text/value the same way captured errors are.
+async function handleReproStep(step, sender) {
+  if (!repro.recording) return;
+  if (sender && sender.tab && repro.tabId != null && sender.tab.id !== repro.tabId) return;
+  const cfg = await getConfig();
+  const rec = {
+    action: String((step && step.action) || 'event'),
+    selector: String((step && step.selector) || '').slice(0, 300),
+    text: redact(String((step && step.text) || ''), cfg).slice(0, 200),
+    value: redact(String((step && step.value) || ''), cfg).slice(0, 200),
+    url: (step && step.url) || (sender && sender.url) || '',
+    ts: (step && step.ts) || Date.now(),
+  };
+  pushReproStep(rec);
+}
+// A top-frame content script (re)loaded. If it belongs to the tab we're recording
+// it's a navigation: log the new URL as a step and tell the script to resume.
+function reproHello(sender, sendResponse) {
+  const top = sender && (sender.frameId === 0 || sender.frameId == null);
+  const isTarget = repro.recording && top && sender && sender.tab && sender.tab.id === repro.tabId;
+  if (isTarget) {
+    const url = (sender && sender.url) || '';
+    const last = repro.steps[repro.steps.length - 1];
+    if (url && !(last && last.action === 'nav' && last.url === url)) {
+      pushReproStep({ action: 'nav', selector: '', text: '', value: '', url, ts: Date.now() });
+    }
+  }
+  sendResponse({ record: !!isTarget });
 }
 
 async function sendNow(fingerprint) {
@@ -658,6 +916,36 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       netLog = [];
       chrome.storage.local.set({ tc_netlog: [] }).finally(() => sendResponse({ ok: true }));
       return true;
+    case 'tc-console':
+      handleConsole(msg.payload, sender).catch(() => {});
+      return;
+    case 'getConsole':
+      consoleLogReady.then(() => sendResponse({ records: consoleLog }));
+      return true;
+    case 'clearConsole':
+      consoleLog = [];
+      chrome.storage.local.set({ tc_console: [] }).finally(() => sendResponse({ ok: true }));
+      return true;
+    case 'startRepro':
+      startRepro().then(sendResponse);
+      return true;
+    case 'stopRepro':
+      stopRepro().then(sendResponse);
+      return true;
+    case 'getRepro':
+      reproReady.then(() => sendResponse({ recording: repro.recording, steps: repro.steps }));
+      return true;
+    case 'clearRepro':
+      repro.steps = [];
+      persistRepro();
+      sendResponse({ ok: true });
+      return true;
+    case 'tc-repro-step':
+      handleReproStep(msg.step, sender).catch(() => {});
+      return;
+    case 'reproHello':
+      reproHello(sender, sendResponse);
+      return true;
     case 'elementPicked':
       handleElementPicked(msg.payload || msg.context ? msg.context || msg.payload : msg.context, sender).catch(() => {});
       return;
@@ -695,6 +983,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return true;
     case 'stopAgent':
       stopAgent(msg.commanderId, msg.agentId).then(sendResponse);
+      return true;
+    case 'collapseContext':
+      collapseContext(msg.commanderId, msg.agentId).then(sendResponse);
+      return true;
+    case 'fetchBuildings':
+      fetchBuildings(msg.commanderId).then(sendResponse);
+      return true;
+    case 'buildingCommand':
+      buildingCommand(msg.commanderId, msg.buildingId, msg.command).then(sendResponse);
       return true;
     case 'getHistory':
       getHistory(msg.commanderId, msg.agentId, msg.limit).then(sendResponse);

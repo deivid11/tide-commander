@@ -3,7 +3,7 @@
 const $ = (id) => document.getElementById(id);
 const send = (msg) => new Promise((r) => chrome.runtime.sendMessage(msg, r));
 
-const FLAGS = ['enabled', 'autoSend', 'captureScreenshots', 'captureNetwork', 'captureJs', 'captureConsole', 'captureResource', 'redact'];
+const FLAGS = ['enabled', 'captureScreenshots', 'captureNetwork', 'captureJs', 'captureConsole', 'captureResource', 'redact'];
 
 let working = []; // working copy of commanders
 let activeId = '';
@@ -75,7 +75,7 @@ async function load() {
 
   for (const f of FLAGS) $(f).checked = config[f];
   $('defaultAgentId').value = config.defaultAgentId || '';
-  $('thresholds').value = (config.thresholds || []).join(',');
+  $('pinThumbnailThreshold').value = Number.isFinite(config.pinThumbnailThreshold) ? config.pinThumbnailThreshold : 5;
   $('allowlist').value = (config.allowlist || []).join('\n');
   $('redactKeys').value = (config.redactKeys || []).join(',');
 }
@@ -86,11 +86,11 @@ async function save() {
   if (working.length && !working.find((c) => c.id === activeId)) activeId = working[0].id;
 
   const patch = { commanders: working, activeCommanderId: activeId, defaultAgentId: $('defaultAgentId').value.trim() };
+  {
+    const n = parseInt($('pinThumbnailThreshold').value, 10);
+    patch.pinThumbnailThreshold = Number.isFinite(n) && n >= 0 ? n : 5;
+  }
   for (const f of FLAGS) patch[f] = $(f).checked;
-  patch.thresholds = parseList($('thresholds').value, ',')
-    .map((n) => parseInt(n, 10))
-    .filter((n) => Number.isFinite(n) && n > 0);
-  if (patch.thresholds.length === 0) patch.thresholds = [1, 10, 100, 1000];
   patch.allowlist = parseList($('allowlist').value, '\n');
   patch.redactKeys = parseList($('redactKeys').value, ',').map((k) => k.toLowerCase());
 

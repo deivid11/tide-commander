@@ -74,6 +74,9 @@ export interface AgentActions {
 
   // Pinning (quick-select thumbnail bar)
   togglePinnedAgent(agentId: string): void;
+  /** Reorder a pinned agent: move `agentId` next to `targetId` (before it, or
+   * after it when `placeAfter`). No-op if either id isn't pinned. */
+  reorderPinnedAgent(agentId: string, targetId: string, placeAfter?: boolean): void;
 
   // Commands
   spawnAgent(
@@ -124,6 +127,7 @@ export interface AgentActions {
       cwd?: string;
       shortcut?: string;
       customInstructions?: string;
+      customPrompt?: string;
     }
   ): void;
 
@@ -385,6 +389,23 @@ export function createAgentActions(
         const next = state.pinnedAgentIds.filter((id) => id !== agentId);
         if (next.length === state.pinnedAgentIds.length) next.push(agentId);
         state.pinnedAgentIds = next;
+      });
+      if (savePinnedAgents) savePinnedAgents();
+      notify();
+    },
+
+    reorderPinnedAgent(agentId: string, targetId: string, placeAfter = false): void {
+      if (!agentId || agentId === targetId) return;
+      setState((state) => {
+        const ids = state.pinnedAgentIds.slice();
+        const from = ids.indexOf(agentId);
+        if (from < 0) return;
+        ids.splice(from, 1);
+        let to = ids.indexOf(targetId);
+        if (to < 0) to = ids.length; // unknown target → append
+        else if (placeAfter) to += 1;
+        ids.splice(to, 0, agentId);
+        state.pinnedAgentIds = ids;
       });
       if (savePinnedAgents) savePinnedAgents();
       notify();
@@ -706,6 +727,7 @@ export function createAgentActions(
         cwd?: string;
         shortcut?: string;
         customInstructions?: string;
+        customPrompt?: string;
       }
     ): void {
       const state = getState();
@@ -749,6 +771,9 @@ export function createAgentActions(
           if (updates.customInstructions !== undefined) {
             updatedAgent.customInstructions = updates.customInstructions || undefined;
           }
+          if (updates.customPrompt !== undefined) {
+            updatedAgent.customPrompt = updates.customPrompt || undefined;
+          }
           const newAgents = new Map(s.agents);
           newAgents.set(agentId, updatedAgent);
           s.agents = newAgents;
@@ -778,6 +803,16 @@ export function createAgentActions(
           body: JSON.stringify({ customInstructions: updates.customInstructions || null }),
         }).catch((error) => {
           console.error('[Store] Failed to persist agent customInstructions', error);
+        });
+      }
+
+      if (updates.customPrompt !== undefined) {
+        authFetch(apiUrl(`/api/agents/${agentId}`), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customPrompt: updates.customPrompt || null }),
+        }).catch((error) => {
+          console.error('[Store] Failed to persist agent customPrompt', error);
         });
       }
     },

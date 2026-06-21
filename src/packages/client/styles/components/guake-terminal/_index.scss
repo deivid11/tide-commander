@@ -23,6 +23,9 @@
 // Structured card for `curl ...` Bash commands
 @forward 'curl-card';
 
+// Browser-extension context cards (picked element / network / error / files)
+@forward 'extension-context-cards';
+
 // Permission request UI
 @forward 'permissions';
 

@@ -13,6 +13,11 @@
       <div class="hd-row">
         <span class="dot" id="ws-dot" title="WebSocket"></span>
         <select id="commander" class="sel grow" title="Commander"></select>
+        <button class="icon-btn" id="open-buildings" title="Buildings — services, links &amp; controls">🏢</button>
+        <span class="font-stepper" title="Interface size — right-click to reset to 100%">
+          <button class="icon-btn font-btn" id="font-dec" title="Smaller interface (right-click to reset)">A−</button>
+          <button class="icon-btn font-btn" id="font-inc" title="Larger interface (right-click to reset)">A+</button>
+        </span>
         <button class="icon-btn" id="theme-toggle" title="Toggle light / dark theme">🌙</button>
         <button class="icon-btn" id="open-options" title="Settings">⚙</button>
         <button class="icon-btn close" id="close-panel" title="Close chat">✕</button>
@@ -34,66 +39,32 @@
           <span class="switch" aria-hidden="true"></span>
           <span class="switch-text">🧾 headers</span>
         </label>
+        <label class="pgctx" title="Strip &lt;svg&gt; markup from a picked element's HTML (icon paths are bulky noise)">
+          <input type="checkbox" id="hidesvg" class="switch-input" />
+          <span class="switch" aria-hidden="true"></span>
+          <span class="switch-text">✂️ svg</span>
+        </label>
       </div>
       <div class="hd-row">
         <div class="combo" id="agentCombo">
           <span class="combo-av" id="agentAv"></span>
           <input class="combo-input" id="agentInput" type="text" placeholder="Search agents…" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" title="Assigned agent — type to search" />
+          <span class="combo-area-tag" id="agentAreaTag" hidden aria-hidden="true" title="Project"></span>
           <span class="combo-typing" id="agentTyping" aria-hidden="true" title="Agent is working…"><i></i><i></i><i></i></span>
           <span class="combo-caret" id="agentCaret">▾</span>
           <div class="combo-pop" id="agentPop" hidden>
             <div class="combo-tools">
-              <select class="combo-area" id="agentArea" title="Filter by area">
-                <option value="">All areas</option>
-              </select>
+              <input class="combo-area" id="agentArea" type="text" placeholder="Filter area…" list="agentAreaList" autocomplete="off" spellcheck="false" title="Filter by area — type to search" />
+              <datalist id="agentAreaList"></datalist>
               <button class="combo-sort" id="agentSort" type="button" title="Toggle sort: name / last active">↓ A–Z</button>
             </div>
             <div class="combo-list" id="agentList"></div>
           </div>
         </div>
         <button class="icon-btn" id="refresh" title="Reload history">⟳</button>
-      </div>
-      <div class="hd-row">
-        <button class="btn pick" id="pick" title="Pick a DOM element to attach its context">⊹ Pick</button>
-        <button class="btn shot" id="shot" title="Screenshot a DOM element and send the image">📷 Screenshot</button>
+        <button class="icon-btn clear-ctx" id="clear-ctx" title="Clear context — archives the session & starts fresh">🧹</button>
       </div>
     </header>
-
-    <section class="errpanel collapsed" id="errpanel">
-      <div class="errpanel-hd">
-        <button class="err-toggle" id="err-toggle" aria-expanded="false" title="Show captured errors">
-          <span class="err-caret">▸</span>
-          <span class="err-title">Errors</span>
-          <span class="err-count" id="err-count">0</span>
-        </button>
-        <label class="err-auto" title="Auto-send captured errors to the agent">
-          <input type="checkbox" id="err-autosend" class="switch-input" />
-          <span class="switch" aria-hidden="true"></span>
-          <span class="switch-text">Auto send errors</span>
-        </label>
-        <button class="err-clear" id="err-clear" title="Clear all captured errors">Clear errors</button>
-      </div>
-      <div class="errpanel-body" id="err-body" hidden>
-        <div class="err-list" id="err-list"></div>
-        <div class="err-empty" id="err-empty" hidden>No errors captured yet.</div>
-      </div>
-    </section>
-
-    <section class="netpanel collapsed" id="netpanel">
-      <div class="netpanel-hd">
-        <button class="net-toggle" id="net-toggle" aria-expanded="false" title="Show captured network requests">
-          <span class="net-caret">▸</span>
-          <span class="net-title">Network</span>
-          <span class="net-count" id="net-count">0</span>
-        </button>
-        <input class="net-filter" id="net-filter" type="text" placeholder="filter method / url / status" autocomplete="off" spellcheck="false" />
-        <button class="net-clear" id="net-clear" title="Clear captured requests">Clear</button>
-      </div>
-      <div class="netpanel-body" id="net-body" hidden>
-        <div class="net-list" id="net-list"></div>
-        <div class="net-empty" id="net-empty" hidden>No requests captured yet for this page.</div>
-      </div>
-    </section>
 
     <div class="chat" id="chat">
       <div class="hint" id="hint">Pick an agent for this page, then chat. Use ⊹ Pick or right-click any element to attach it as context.</div>
@@ -106,45 +77,107 @@
       <button class="working-stop" id="working-stop" title="Stop the agent (Esc)">■ Stop</button>
     </div>
 
+    <!-- Live context-compaction indicator (mirrors the Guake terminal's sweep
+         bar), shown while the selected agent is compacting its context. -->
+    <div class="compacting-indicator" id="compacting-bar" hidden>
+      <div class="compacting-bar"><div class="compacting-bar-fill"></div></div>
+      <span class="compacting-label">Compacting context…</span>
+    </div>
+
     <div class="resize-handle" id="resize-handle" title="Drag or scroll to resize the input / chat"></div>
 
     <div class="pinbar" id="pinbar" hidden title="Pinned agents — click a thumbnail to select"></div>
 
     <footer class="composer">
       <div class="composer-row">
-        <button class="icon-btn attach" id="attach" title="Attach files (images or documents)">📎</button>
-        <input type="file" id="fileInput" multiple hidden />
-        <button class="icon-btn pin-toggle" id="pin-toggle" title="Pin this agent" aria-pressed="false" hidden>📌</button>
         <textarea id="input" rows="2" placeholder="Message the agent…  (Enter to send, Shift+Enter for newline)"></textarea>
-        <button class="btn primary" id="send">Send</button>
+        <div class="composer-actions">
+          <button class="icon-btn attach" id="attach" title="Attach files (images or documents)">📎</button>
+          <input type="file" id="fileInput" multiple hidden />
+          <button class="icon-btn pick" id="pick" title="Pick a DOM element to attach its context">⊹</button>
+          <button class="icon-btn shot" id="shot" title="Screenshot a DOM element and send the image">📷</button>
+          <button class="icon-btn pin-toggle" id="pin-toggle" title="Pin this agent" aria-pressed="false" hidden>📌</button>
+          <button class="icon-btn clear-ctx" id="clear-ctx-2" title="Clear context — archives the session & starts fresh">🧹</button>
+          <button class="icon-btn compact" id="compact" title="Compact context — sends /compact to the agent">🗜️</button>
+          <button class="icon-btn tool-badge" id="err-btn" title="Captured errors — click to attach">⚠️<span class="tb-count" id="err-count" hidden>0</span></button>
+          <button class="icon-btn tool-badge" id="net-btn" title="Network requests — click to attach">🌐<span class="tb-count" id="net-count" hidden>0</span></button>
+          <button class="icon-btn tool-badge" id="con-btn" title="Console logs — click to attach">📋<span class="tb-count" id="con-count" hidden>0</span></button>
+          <button class="icon-btn tool-badge repro-btn" id="repro-btn" title="Record a reproduction — clicks, typing &amp; navigation">⏺<span class="tb-count" id="repro-count" hidden>0</span></button>
+          <span class="composer-spacer"></span>
+          <button class="btn primary" id="send">Send</button>
+        </div>
       </div>
 
       <!-- Selected agent's available context (area · context used · status) —
            moved out of the header to sit right under the input. -->
       <div class="agent-meta" id="agent-meta" hidden></div>
 
-      <!-- Available context to send with the next message — inside the composer,
-           directly BELOW the input row. -->
-      <div class="ctx" id="ctx" hidden>
-        <img id="ctx-img" alt="" />
-        <div class="ctx-meta">
-          <div class="ctx-sel" id="ctx-sel"></div>
-          <div class="ctx-tag" id="ctx-tag"></div>
-        </div>
-        <button class="icon-btn" id="ctx-clear" title="Remove attached element">✕</button>
-      </div>
-
-      <div class="netctx" id="netctx" hidden>
-        <span class="netctx-icon">🌐</span>
-        <div class="netctx-meta">
-          <div class="netctx-line" id="netctx-line"></div>
-          <div class="netctx-sub" id="netctx-sub"></div>
-        </div>
-        <button class="icon-btn" id="netctx-clear" title="Remove attached request">✕</button>
-      </div>
-
+      <!-- Unified tray of everything queued for the next message: picked
+           elements, screenshots, network requests, errors, and files. Each chip
+           is removable; rendered by renderPending(). -->
       <div class="attachments" id="attachments" hidden></div>
+
+      <!-- Errors popover, opened from the ⚠️ badge in the actions bar. -->
+      <div class="tool-pop" id="err-pop" hidden>
+        <div class="tool-pop-hd">
+          <span class="tool-pop-title">Captured errors</span>
+          <button class="tool-pop-clear" id="err-clear" title="Clear all captured errors">Clear</button>
+        </div>
+        <div class="err-list tool-pop-list" id="err-list"></div>
+        <div class="err-empty" id="err-empty" hidden>No errors captured yet.</div>
+      </div>
+
+      <!-- Network popover, opened from the 🌐 badge in the actions bar. -->
+      <div class="tool-pop" id="net-pop" hidden>
+        <div class="tool-pop-hd">
+          <span class="tool-pop-title">Network</span>
+          <input class="net-filter" id="net-filter" type="text" placeholder="filter method / url / status" autocomplete="off" spellcheck="false" />
+          <button class="tool-pop-clear" id="net-clear" title="Clear captured requests">Clear</button>
+        </div>
+        <div class="net-list tool-pop-list" id="net-list"></div>
+        <div class="net-empty" id="net-empty" hidden>No requests captured yet for this page.</div>
+      </div>
+
+      <!-- Console popover, opened from the 📋 badge in the actions bar.
+           Click rows to (de)select; selected logs queue for the next message. -->
+      <div class="tool-pop" id="con-pop" hidden>
+        <div class="tool-pop-hd">
+          <span class="tool-pop-title">Console</span>
+          <input class="net-filter" id="con-filter" type="text" placeholder="filter level / text" autocomplete="off" spellcheck="false" />
+          <button class="tool-pop-clear" id="con-clear" title="Clear captured console logs">Clear</button>
+        </div>
+        <div class="con-list tool-pop-list" id="con-list"></div>
+        <div class="con-empty" id="con-empty" hidden>No console logs captured yet for this page.</div>
+      </div>
+
+      <!-- Reproduction recorder popover, opened from the ⏺ badge. Opening it
+           starts a recording; steps stream in live. Finish with "Stop & attach"
+           (queues the steps + a final screenshot) or "Discard". -->
+      <div class="tool-pop" id="repro-pop" hidden>
+        <div class="tool-pop-hd">
+          <span class="tool-pop-title repro-title" id="repro-title">⏺ Recording…</span>
+          <button class="tool-pop-clear" id="repro-discard" title="Stop and throw the recording away">Discard</button>
+          <button class="repro-stop" id="repro-stop" title="Stop recording and attach the steps">■ Stop &amp; attach</button>
+        </div>
+        <div class="repro-list tool-pop-list" id="repro-list"></div>
+        <div class="repro-empty" id="repro-empty">Interact with the page — clicks, typing, selects &amp; navigation are recorded as numbered steps.</div>
+      </div>
     </footer>
+
+    <!-- Buildings cockpit: full-panel overlay opened from the header 🏢 button.
+         Global to the commander (services/links/docker/terminals), so it lives
+         outside the per-agent chat flow and only appears on demand. -->
+    <div class="buildings-overlay" id="buildings-overlay" hidden>
+      <div class="bld-head">
+        <span class="bld-title">🏢 Buildings</span>
+        <button class="bld-refresh" id="bld-refresh" title="Reload buildings">⟳</button>
+        <button class="icon-btn close" id="bld-close" title="Close (Esc)">✕</button>
+      </div>
+      <input class="bld-search" id="bld-search" type="text" placeholder="Search buildings…" autocomplete="off" spellcheck="false" />
+      <div class="bld-msg" id="bld-msg" hidden></div>
+      <div class="bld-list" id="bld-list"></div>
+      <div class="bld-empty" id="bld-empty" hidden>No buildings.</div>
+    </div>
 
     <div class="lightbox" id="lightbox" hidden>
       <img id="lightbox-img" alt="Preview" />

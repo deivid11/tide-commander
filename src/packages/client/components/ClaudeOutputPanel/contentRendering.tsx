@@ -41,6 +41,10 @@ export function getImageWebUrl(imagePath: string): string {
     // Absolute path like /tmp/tide-commander-uploads/image.png - extract filename
     const imageName = imagePath.split('/').pop() || 'image';
     return `${baseUrl}/uploads/${imageName}`;
+  } else if (imagePath.includes('browser-errors/attachments/')) {
+    // Browser-extension attachments / element shots are served at /attachments.
+    const imageName = imagePath.split('/').pop() || 'image';
+    return `${baseUrl}/attachments/${imageName}`;
   } else {
     // Default: assume it's a relative path
     return imagePath;

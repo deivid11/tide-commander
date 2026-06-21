@@ -23,7 +23,14 @@
     if (event.source !== window) return;
     const d = event.data;
     if (!d || d[MARK] !== true || !d.payload) return;
+    // The MAIN-world relay is page-reachable: any script can postMessage a forged
+    // record with this (public) marker. Overwrite pageUrl with the ISOLATED-world
+    // location.href — the real frame URL, which page script cannot forge — so a
+    // page can't spoof its origin to slip past the background allowlist. The
+    // background re-verifies independently via sender.url.
+    d.payload.pageUrl = location.href;
     if (d.payload.channel === 'network') toBg({ type: 'tc-net', payload: d.payload });
+    else if (d.payload.channel === 'console') toBg({ type: 'tc-console', payload: d.payload });
     else toBg({ type: 'tc-error', payload: d.payload });
   });
 
@@ -86,7 +93,9 @@
       id: el.id || '',
       classes: el.classList ? Array.from(el.classList) : [],
       text: (el.innerText || '').trim().slice(0, 300),
-      outerHTML: (el.outerHTML || '').slice(0, 4000),
+      // Capture generously; the side panel strips <svg> noise and applies the
+      // final length cap AFTER stripping, so bulky icon paths don't eat the budget.
+      outerHTML: (el.outerHTML || '').slice(0, 12000),
       styles: computedSubset(el),
       rect: {
         x: Math.round(rect.left),
@@ -179,6 +188,125 @@
     lastContextEl = e.target;
   }, true);
 
+  // ── 3. reproduction recorder ──
+  // While a recording is active, observe (never block) the user's interactions —
+  // clicks, typing, selects, Enter/submit, and navigations — and stream them to
+  // the background as numbered steps. Listeners are capture-phase + passive so the
+  // page behaves exactly as if we weren't here. The background owns the session
+  // state and survives full-page reloads (this script re-asks on load via
+  // reproHello), so a multi-page flow is captured end to end.
+  let reproOn = false;
+  let reproLastUrl = location.href;
+  let reproUrlTimer = null;
+  let pendingInputEl = null;
+  let pendingInputTimer = null;
+
+  function reproEmit(action, detail) {
+    toBg({ type: 'tc-repro-step', step: Object.assign({ action, url: location.href, ts: Date.now() }, detail || {}) });
+  }
+  // Best human label for a clicked element: its text, value, aria-label, etc.
+  function reproLabel(el) {
+    if (!el || el.nodeType !== 1) return '';
+    let t = '';
+    try {
+      t =
+        (el.innerText || el.value || '') ||
+        (el.getAttribute && (el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.title)) ||
+        '';
+    } catch (_e) {
+      /* ignore */
+    }
+    return String(t).trim().replace(/\s+/g, ' ').slice(0, 80);
+  }
+  // Coalesce a burst of keystrokes in one field into a single "type …" step:
+  // emitted when focus moves on, the value settles, or recording stops.
+  function flushReproInput() {
+    if (pendingInputTimer) {
+      clearTimeout(pendingInputTimer);
+      pendingInputTimer = null;
+    }
+    if (!pendingInputEl) return;
+    const el = pendingInputEl;
+    pendingInputEl = null;
+    let val = '';
+    try {
+      val = el.value != null ? String(el.value) : '';
+    } catch (_e) {
+      /* ignore */
+    }
+    if (el.type === 'password') val = '•'.repeat(Math.min(val.length, 8)); // never leak passwords
+    reproEmit('input', { selector: cssPath(el), value: val.slice(0, 200) });
+  }
+  function onReproClick(e) {
+    const el = e.target;
+    if (!el || el === overlay || el === labelEl) return;
+    flushReproInput();
+    reproEmit('click', { selector: cssPath(el), text: reproLabel(el) });
+  }
+  function onReproInput(e) {
+    const el = e.target;
+    if (!el || !('value' in el)) return;
+    if (el.type === 'checkbox' || el.type === 'radio') return; // handled on 'change'
+    if (pendingInputEl && pendingInputEl !== el) flushReproInput();
+    pendingInputEl = el;
+    if (pendingInputTimer) clearTimeout(pendingInputTimer);
+    pendingInputTimer = setTimeout(flushReproInput, 1000);
+  }
+  function onReproChange(e) {
+    const el = e.target;
+    if (!el) return;
+    if (el.nodeName === 'SELECT') {
+      const opt = el.options && el.options[el.selectedIndex];
+      reproEmit('change', { selector: cssPath(el), text: opt ? String(opt.text || '').trim().slice(0, 80) : '', value: el.value });
+    } else if (el.type === 'checkbox' || el.type === 'radio') {
+      reproEmit('change', { selector: cssPath(el), value: el.checked ? 'checked' : 'unchecked' });
+    }
+  }
+  function onReproKey(e) {
+    if (e.key !== 'Enter') return;
+    const el = e.target;
+    if (el && el.tagName === 'TEXTAREA' && !e.ctrlKey && !e.metaKey) return; // Enter is a newline here
+    flushReproInput();
+    reproEmit('key', { selector: cssPath(el), text: 'Enter' });
+  }
+  function onReproSubmit(e) {
+    flushReproInput();
+    reproEmit('submit', { selector: cssPath(e.target) });
+  }
+  // Polled so it also catches SPA route changes (history.pushState), which a
+  // content script can't hook directly from the isolated world.
+  function checkReproNav() {
+    if (location.href !== reproLastUrl) {
+      reproLastUrl = location.href;
+      reproEmit('nav', { url: location.href });
+    }
+  }
+  function startReproRecording() {
+    if (reproOn) return;
+    reproOn = true;
+    document.addEventListener('click', onReproClick, true);
+    document.addEventListener('input', onReproInput, true);
+    document.addEventListener('change', onReproChange, true);
+    document.addEventListener('keydown', onReproKey, true);
+    document.addEventListener('submit', onReproSubmit, true);
+    reproLastUrl = location.href;
+    reproUrlTimer = setInterval(checkReproNav, 600);
+  }
+  function stopReproRecording() {
+    if (!reproOn) return;
+    reproOn = false;
+    flushReproInput();
+    document.removeEventListener('click', onReproClick, true);
+    document.removeEventListener('input', onReproInput, true);
+    document.removeEventListener('change', onReproChange, true);
+    document.removeEventListener('keydown', onReproKey, true);
+    document.removeEventListener('submit', onReproSubmit, true);
+    if (reproUrlTimer) {
+      clearInterval(reproUrlTimer);
+      reproUrlTimer = null;
+    }
+  }
+
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (!msg || !msg.type) return;
     if (msg.type === 'startPicker') {
@@ -190,5 +318,31 @@
       sendResponse({ context: lastContextEl ? buildContext(lastContextEl) : null });
       return true;
     }
+    if (msg.type === 'reproControl') {
+      if (msg.on) startReproRecording();
+      else stopReproRecording();
+      sendResponse && sendResponse({ ok: true });
+      return;
+    }
   });
+
+  // On (re)load, resume recording if a session is active. A full-page navigation
+  // tears down & re-injects this script, so the handshake here (and the nav step
+  // logged on the background side) keeps a multi-page flow recording. Gate on a
+  // direct storage read first — content scripts run on every page, and we must NOT
+  // wake the service worker on every load just to be told "not recording".
+  if (window.top === window) {
+    try {
+      chrome.storage.local.get('tc_repro', (r) => {
+        void chrome.runtime.lastError;
+        if (!r || !r.tc_repro || !r.tc_repro.recording) return;
+        chrome.runtime.sendMessage({ type: 'reproHello' }, (resp) => {
+          void chrome.runtime.lastError;
+          if (resp && resp.record) startReproRecording();
+        });
+      });
+    } catch (_e) {
+      /* extension context invalidated — ignore */
+    }
+  }
 })();
