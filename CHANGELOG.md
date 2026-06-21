@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.120.1] - 2026-06-20
+
+### Fixed
+- **Mobile context bar** — `justify-content` changed to `center` so content is centered in the strip.
+- **Pinned agents bar** — added `flex: none` to prevent height compression in the constrained terminal column; tightened chip padding on mobile now that the × badge is hidden.
+
 ## [1.120.0] - 2026-06-20
 
 ### Added
