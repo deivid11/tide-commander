@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.120.3] - 2026-06-21
+
+### Changed
+- FlatView and guake terminal input style refinements (`FlatView.scss`, `_input.scss`).
+
 ## [1.120.2] - 2026-06-20
 
 ### Changed
