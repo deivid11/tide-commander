@@ -20,6 +20,7 @@ const els = {
   agentList: $('agentList'),
   agentMeta: $('agent-meta'),
   origin: $('origin'),
+  driveTab: $('driveTab'),
   refresh: $('refresh'),
   clearCtx: $('clear-ctx'),
   compact: $('compact'),
@@ -617,11 +618,13 @@ async function resolveForActiveTab() {
   }
   if (origin === currentOrigin) {
     activeTabId = tab.id;
+    void refreshDriveToggle();
     return;
   }
   currentOrigin = origin;
   activeTabId = tab.id;
   els.origin.textContent = origin || tab.url || '—';
+  void refreshDriveToggle();
 
   if (!origin) {
     agentsList = [];
@@ -637,6 +640,40 @@ async function resolveForActiveTab() {
     els.commander.value = target.commanderId;
     await loadAgents(target.agentId);
   }
+}
+
+// ── per-tab manipulation (drive) gate ─────────────────────────────────────────
+// Manipulation is OFF by default — agents can't click/type/navigate a tab until its
+// 🤖 drive toggle is turned on (reads still work regardless). State lives in
+// chrome.storage.local under `tc_drive_enabled` (a { [tabId]: true } map of ENABLED
+// tabs) so this toggle and the background gate (cdpDrive) share one source of truth.
+// Keyed by tabId for true per-open-tab control; the background prunes entries on close.
+async function isDriveEnabled(tabId) {
+  if (tabId == null) return false;
+  try {
+    const { tc_drive_enabled } = await chrome.storage.local.get('tc_drive_enabled');
+    return !!(tc_drive_enabled && tc_drive_enabled[String(tabId)]);
+  } catch (_e) {
+    return false;
+  }
+}
+async function setDriveEnabled(tabId, enabled) {
+  if (tabId == null) return;
+  const { tc_drive_enabled } = await chrome.storage.local.get('tc_drive_enabled');
+  const map = tc_drive_enabled || {};
+  if (enabled) map[String(tabId)] = true;
+  else delete map[String(tabId)];
+  await chrome.storage.local.set({ tc_drive_enabled: map });
+}
+async function refreshDriveToggle() {
+  if (!els.driveTab) return;
+  if (activeTabId == null) {
+    els.driveTab.checked = false;
+    els.driveTab.disabled = true;
+    return;
+  }
+  els.driveTab.disabled = false;
+  els.driveTab.checked = await isDriveEnabled(activeTabId);
 }
 
 async function loadAgents(preferId) {
@@ -1308,11 +1345,14 @@ function connectWs() {
   ws.addEventListener('open', () => {
     setWsDot('ok');
     // Register this panel as a browser-command target so server-side agents can
-    // read the live page (DOM/console/network/screenshot) through the bridge.
-    try {
-      ws.send(JSON.stringify({ type: 'browser_register', payload: { origin: currentOrigin || '' } }));
-    } catch (_e) {
-      /* ignore */
+    // read/drive the live page through the bridge — unless the user disabled it
+    // in the extension settings.
+    if (!config || config.bridgeEnabled !== false) {
+      try {
+        ws.send(JSON.stringify({ type: 'browser_register', payload: { origin: currentOrigin || '' } }));
+      } catch (_e) {
+        /* ignore */
+      }
     }
   });
   ws.addEventListener('close', () => {
@@ -1453,6 +1493,17 @@ async function handleBrowserCommand(payload) {
   let ok = true;
   let result = null;
   let error = '';
+  // Hard gate: when browser control is disabled in settings, refuse every command.
+  if (config && config.bridgeEnabled === false) {
+    try {
+      if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'browser_result', payload: { reqId, ok: false, result: null, error: 'Browser control is disabled in the Tide Commander extension settings.' } }));
+      }
+    } catch (_e) {
+      /* ignore */
+    }
+    return;
+  }
   try {
     result = await execBrowserCommand(cmd, args);
   } catch (e) {
@@ -1467,17 +1518,116 @@ async function handleBrowserCommand(payload) {
     /* socket gone — the server request will time out */
   }
 }
-// Map a bridge command to the existing capture/inspection plumbing. Reads run in
-// the active tab of the user's live session.
-async function execBrowserCommand(cmd, args) {
-  switch (cmd) {
-    case 'page': {
-      const t = await activePageInfo();
-      return { url: t && t.url, title: t && t.title };
+// Resolve which tab a command targets: an explicit `tabId`, a `tab` URL/title
+// substring match across ALL open tabs, or (default) the active tab. Lets an
+// agent drive/read any of the user's tabs, not just the focused one.
+async function resolveTargetTab(args) {
+  args = args || {};
+  if (args.tabId != null && args.tabId !== '') {
+    try {
+      const t = await chrome.tabs.get(Number(args.tabId));
+      if (t) return t;
+    } catch (_e) {
+      /* fall through to error */
     }
+    throw new Error('no tab with id ' + args.tabId);
+  }
+  if (args.tab) {
+    const needle = String(args.tab).toLowerCase();
+    let tabs = [];
+    try {
+      tabs = await chrome.tabs.query({});
+    } catch (_e) {
+      /* ignore */
+    }
+    const m = tabs.find(
+      (t) => (t.url && t.url.toLowerCase().includes(needle)) || (t.title && t.title.toLowerCase().includes(needle)),
+    );
+    if (m) return m;
+    throw new Error('no open tab matches "' + args.tab + '"');
+  }
+  try {
+    const [t] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (t) return t;
+  } catch (_e) {
+    /* ignore */
+  }
+  throw new Error('no active tab');
+}
+function tabOriginOf(tab) {
+  try {
+    return new URL(tab.url).origin;
+  } catch (_e) {
+    return '';
+  }
+}
+// Map a bridge command to the existing capture/inspection + drive plumbing. Every
+// tab-scoped command resolves its target tab first (args.tabId / args.tab / active).
+async function execBrowserCommand(cmd, args) {
+  args = args || {};
+  if (cmd === 'tabs') {
+    let tabs = [];
+    try {
+      tabs = await chrome.tabs.query({});
+    } catch (_e) {
+      /* ignore */
+    }
+    return tabs
+      .filter((t) => /^https?:/i.test(t.url || ''))
+      .map((t) => ({ tabId: t.id, url: t.url, title: t.title, active: !!t.active, windowId: t.windowId }));
+  }
+  if (cmd === 'tab_open') {
+    const t = await chrome.tabs.create({ url: args.url || undefined, active: args.active !== false });
+    return { tabId: t.id, url: t.url, windowId: t.windowId };
+  }
+  // Global diagnostic — no tab/attach needed; lists all DevTools targets.
+  if (cmd === 'targets') {
+    const res = await send({ type: 'cdpDrive', cmd: 'targets', args, tabId: null });
+    if (!res || !res.ok) throw new Error((res && res.error) || 'targets failed');
+    return res.result;
+  }
+  // Run a list of steps in order on one tab (a step may override the tab). Stops at
+  // the first failing step unless that step has continueOnError:true. Returns every
+  // step's result — turns a multi-call flow (wake → click → screenshot) into one call.
+  if (cmd === 'batch') {
+    const steps = Array.isArray(args.steps) ? args.steps : [];
+    const out = [];
+    for (const step of steps) {
+      const sc = step && step.cmd;
+      if (!sc) {
+        out.push({ cmd: sc, ok: false, error: 'step missing "cmd"' });
+        if (!(step && step.continueOnError)) break;
+        continue;
+      }
+      const sargs = Object.assign({}, step);
+      delete sargs.cmd;
+      delete sargs.continueOnError;
+      if (sargs.tab == null && sargs.tabId == null) {
+        if (args.tab != null) sargs.tab = args.tab;
+        if (args.tabId != null) sargs.tabId = args.tabId;
+      }
+      try {
+        const r = await execBrowserCommand(sc, sargs);
+        out.push({ cmd: sc, ok: true, result: r });
+      } catch (e) {
+        out.push({ cmd: sc, ok: false, error: (e && e.message) || String(e) });
+        if (!(step && step.continueOnError)) break;
+      }
+    }
+    return out;
+  }
+
+  const tab = await resolveTargetTab(args);
+  const tabId = tab && tab.id;
+  const origin = tabOriginOf(tab);
+
+  switch (cmd) {
+    case 'page':
+      return { tabId, url: tab && tab.url, title: tab && tab.title };
     case 'console': {
       const res = await send({ type: 'getConsole' });
       let recs = (res && res.records) || [];
+      recs = recs.filter((r) => (tabId != null && r.tabId === tabId) || (origin && r.origin === origin));
       if (args.level) recs = recs.filter((r) => String(r.level || '') === String(args.level));
       recs = recs.slice(0, Math.min(Number(args.limit) || 50, 200));
       return recs.map((r) => ({ level: r.level, text: r.text, pageUrl: r.pageUrl, ts: r.ts }));
@@ -1485,19 +1635,31 @@ async function execBrowserCommand(cmd, args) {
     case 'network': {
       const res = await send({ type: 'getNetwork' });
       let recs = (res && res.records) || [];
+      recs = recs.filter((r) => (tabId != null && r.tabId === tabId) || (origin && r.origin === origin));
       if (args.filter) {
         const f = String(args.filter).toLowerCase();
         recs = recs.filter((r) => `${r.method} ${r.url} ${r.status}`.toLowerCase().includes(f));
       }
       recs = recs.slice(0, Math.min(Number(args.limit) || 30, 200));
-      return recs.map((r) => ({
-        method: r.method, url: r.url, status: r.status, statusText: r.statusText,
-        contentType: r.contentType, durationMs: r.durationMs, pageUrl: r.pageUrl, ts: r.ts,
-      }));
+      return recs.map((r) => {
+        const base = {
+          method: r.method, url: r.url, status: r.status, statusText: r.statusText,
+          contentType: r.contentType, durationMs: r.durationMs, pageUrl: r.pageUrl, ts: r.ts,
+        };
+        // `detail` includes the heavier request/response headers + bodies.
+        if (args.detail) {
+          base.requestHeaders = r.requestHeaders;
+          base.requestBody = r.requestBody;
+          base.responseHeaders = r.responseHeaders;
+          base.responseBody = r.responseBody;
+        }
+        return base;
+      });
     }
     case 'errors': {
       const st = await send({ type: 'getState' });
       let errs = (st && st.errors) || [];
+      if (origin) errs = errs.filter((e) => e.origin === origin);
       errs = errs.slice(0, Math.min(Number(args.limit) || 30, 200));
       return errs.map((e) => ({
         kind: e.kind, subtype: e.subtype, status: e.status, method: e.method, url: e.url,
@@ -1505,24 +1667,78 @@ async function execBrowserCommand(cmd, args) {
       }));
     }
     case 'dom': {
-      if (activeTabId == null) throw new Error('no active web page');
-      const r = await chrome.tabs.sendMessage(activeTabId, { type: 'getDom', selector: args.selector || '', all: !!args.all });
-      if (!r || !r.ok) throw new Error((r && r.error) || 'DOM read failed');
-      return args.all ? { nodes: r.nodes } : { node: r.node };
+      if (tabId == null) throw new Error('no target tab');
+      // Prefer the content script (no debugger banner); fall back to chrome.debugger
+      // when it's absent (tab opened before the extension loaded / was reloaded).
+      let viaContent = null;
+      try {
+        viaContent = await chrome.tabs.sendMessage(tabId, { type: 'getDom', selector: args.selector || '', all: !!args.all });
+      } catch (_e) {
+        /* no content script in this tab → debugger fallback */
+      }
+      if (viaContent && viaContent.ok) return args.all ? { nodes: viaContent.nodes } : { node: viaContent.node };
+      const res = await send({ type: 'cdpDrive', cmd: 'dom', args, tabId });
+      if (!res || !res.ok) throw new Error((res && res.error) || (viaContent && viaContent.error) || 'DOM read failed');
+      return res.result;
     }
     case 'screenshot': {
       let rect = null;
-      if (args.selector && activeTabId != null) {
+      if (args.selector && tabId != null) {
         try {
-          const r = await chrome.tabs.sendMessage(activeTabId, { type: 'getDom', selector: args.selector });
+          const r = await chrome.tabs.sendMessage(tabId, { type: 'getDom', selector: args.selector });
           if (r && r.ok && r.node && r.node.rect) rect = Object.assign({}, r.node.rect, { dpr: r.node.dpr });
         } catch (_e) {
           /* fall back to a full-viewport shot */
         }
       }
-      const res = await send({ type: 'bridgeScreenshot', commanderId: selectedCommander, rect, selector: args.selector || 'page' });
+      const res = await send({ type: 'bridgeScreenshot', commanderId: selectedCommander, rect, selector: args.selector || 'page', tabId });
       if (!res || !res.ok) throw new Error((res && res.error) || 'screenshot failed');
       return { path: res.path };
+    }
+    case 'tab_close':
+      await chrome.tabs.remove(tabId);
+      return { ok: true };
+    case 'tab_activate':
+      await chrome.tabs.update(tabId, { active: true });
+      try {
+        if (tab && tab.windowId != null) await chrome.windows.update(tab.windowId, { focused: true });
+      } catch (_e) {
+        /* ignore */
+      }
+      return { ok: true };
+    // ── interaction: driven in the live session via chrome.debugger (background) ──
+    case 'click':
+    case 'type':
+    case 'navigate':
+    case 'scroll':
+    case 'hover':
+    case 'drag':
+    case 'key':
+    case 'select':
+    case 'evaluate':
+    case 'wait':
+    case 'dialog':
+    case 'cdp_raw': {
+      const res = await send({ type: 'cdpDrive', cmd, args, tabId });
+      if (res && res.ok) return res.result;
+      const err = (res && res.error) || cmd + ' failed';
+      // chrome.debugger refused because another extension (e.g. LastPass) injected a
+      // frame into this tab → fall back to a content-script driver (synthetic events),
+      // which isn't subject to the debugger access check. Only the page-level gate +
+      // allowlist were already enforced (they run before the attach that failed), and
+      // only commands a content script can do (not drag/dialog/cdp_raw → need CDP).
+      const CONTENT_DRIVE = ['click', 'type', 'navigate', 'scroll', 'hover', 'key', 'select', 'wait', 'evaluate'];
+      if (/different extension|chrome-extension/i.test(err) && CONTENT_DRIVE.includes(cmd) && tabId != null) {
+        let cres;
+        try {
+          cres = await chrome.tabs.sendMessage(tabId, { type: 'tcAct', cmd, args });
+        } catch (e) {
+          throw new Error('content-script drive unavailable (' + ((e && e.message) || e) + ') — orig: ' + err);
+        }
+        if (!cres || !cres.ok) throw new Error((cres && cres.error) || cmd + ' failed (content-script)');
+        return cres.result;
+      }
+      throw new Error(err);
     }
     default:
       throw new Error('unknown browser command: ' + cmd);
@@ -1589,8 +1805,11 @@ function errGroupHtml(pageUrl, items) {
   );
 }
 function renderErrors(errors, cfg) {
-  const list = errors || [];
-  errorRecords = list; // for attach-by-fingerprint
+  let list = errors || [];
+  // Scope to the active page's domain — only errors triggered on this site.
+  const dom = currentDomain();
+  if (dom) list = list.filter((e) => netHost(e.pageUrl || e.origin || '') === dom);
+  errorRecords = list; // for attach-by-fingerprint (matches what's shown)
   const active = list.filter((e) => !e.muted).length;
   els.errCount.textContent = String(list.length);
   els.errCount.hidden = list.length === 0;
@@ -1620,14 +1839,22 @@ async function refreshErrors() {
   renderErrors(state.errors || [], state.config);
 }
 
-// ── network log (all requests for the active page) ──
-// Records arrive from every tab; show only the page the panel is pointed at.
+// The active page's domain (host = hostname:port). Captured errors / network /
+// console are scoped to this so you only see what belongs to the site you're on.
+function currentDomain() {
+  return netHost(currentOrigin || '');
+}
+// True if a captured record (error / request / console line) belongs to the
+// active page's domain — matched by the live tab id OR the record's page host.
+function inCurrentDomain(r) {
+  if (activeTabId != null && r.tabId === activeTabId) return true;
+  const dom = currentDomain();
+  return !!dom && netHost(r.origin || r.pageUrl || '') === dom;
+}
+
+// ── network log (requests for the active page's domain) ──
 function netForActiveTab() {
-  // Match by live tab id OR by origin: origin keeps persisted records visible
-  // after a restart/SW recycle, when the old tab ids no longer match.
-  return netRecords.filter(
-    (r) => (activeTabId != null && r.tabId === activeTabId) || (currentOrigin && r.origin === currentOrigin),
-  );
+  return netRecords.filter(inCurrentDomain);
 }
 function netStatusClass(r) {
   const s = r.status || 0;
@@ -1731,11 +1958,9 @@ function netRecordById(id) {
   return netRecords.find((r) => r.netId === id);
 }
 
-// ── console log (all console.* output for the active page) ──
+// ── console log (console.* output for the active page's domain) ──
 function consoleForActiveTab() {
-  return consoleRecords.filter(
-    (r) => (activeTabId != null && r.tabId === activeTabId) || (currentOrigin && r.origin === currentOrigin),
-  );
+  return consoleRecords.filter(inCurrentDomain);
 }
 function consoleRecordById(id) {
   return consoleRecords.find((r) => r.conId === id);
@@ -3001,6 +3226,11 @@ if (els.compact) els.compact.addEventListener('click', doCompactContext);
 els.pick.addEventListener('click', () => pickElement('pick'));
 els.shot.addEventListener('click', () => pickElement('shot'));
 els.pgctx.addEventListener('change', () => send({ type: 'setConfig', patch: { includePageContext: els.pgctx.checked } }));
+if (els.driveTab)
+  els.driveTab.addEventListener('change', async () => {
+    await setDriveEnabled(activeTabId, els.driveTab.checked);
+    await refreshDriveToggle();
+  });
 els.incstyles.addEventListener('change', () => {
   if (config) config.includeComputedStyles = els.incstyles.checked;
   send({ type: 'setConfig', patch: { includeComputedStyles: els.incstyles.checked } });
@@ -3218,6 +3448,16 @@ chrome.storage.onChanged.addListener((changes, area) => {
       }
       if (prev && (config.commanders || []).some((c) => c.id === prev)) els.commander.value = prev;
       renderPinBar(); // re-apply compact threshold after a Settings change
+      // Browser control re-enabled while connected → (re)register this socket so it
+      // takes effect without reopening the panel. Disabling is handled by the
+      // per-command gate in handleBrowserCommand.
+      if (config.bridgeEnabled !== false && ws && ws.readyState === 1) {
+        try {
+          ws.send(JSON.stringify({ type: 'browser_register', payload: { origin: currentOrigin || '' } }));
+        } catch (_e) {
+          /* ignore */
+        }
+      }
     });
   }
 });
@@ -3320,6 +3560,7 @@ function scheduleResolve() {
     Promise.resolve(resolveForActiveTab()).then(() => {
       renderNetwork();
       renderConsole();
+      refreshErrors(); // re-scope the error list/badge to the new domain
     });
   }, 250);
 }

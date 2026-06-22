@@ -4,6 +4,7 @@
  */
 
 import { Server as HttpServer } from 'http';
+import { hostname } from 'node:os';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { ClientMessage, ServerMessage } from '../../shared/types.js';
 import {
@@ -348,9 +349,28 @@ export function init(server: HttpServer): WebSocketServer {
     // Other paths (like /api/terminal/*/ws) are handled by the terminal proxy
   });
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws, request) => {
     clients.add(ws);
     setWsClientsCount(clients.size);
+    // Record who opened this socket so the browser bridge can identify the connected
+    // extension client: remote IP, browser User-Agent, and Origin (chrome-extension://
+    // <id> for the extension). A loopback peer IS this host, so its machine name is the
+    // server's own hostname (browsers don't expose the client OS hostname otherwise).
+    try {
+      const fwd = String(request.headers['x-forwarded-for'] || '').split(',')[0].trim();
+      const ip = fwd || request.socket.remoteAddress || '';
+      const local = ip === '' || /^(::1$|::ffff:127\.|127\.|localhost)/i.test(ip);
+      (ws as WebSocket & { __tcClient?: unknown }).__tcClient = {
+        ip,
+        userAgent: String(request.headers['user-agent'] || ''),
+        origin: String(request.headers['origin'] || ''),
+        host: local ? hostname() : undefined,
+        local,
+        connectedAt: Date.now(),
+      };
+    } catch {
+      /* best-effort — client info is diagnostic only */
+    }
     log.log(`Client connected (total: ${clients.size})`);
 
     // Send initial state immediately – status sync runs in background

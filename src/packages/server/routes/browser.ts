@@ -12,7 +12,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { runBrowserCommand, browserConnected } from '../services/browser-bridge-service.js';
+import { runBrowserCommand, browserConnected, getBrowserClients } from '../services/browser-bridge-service.js';
 import * as cdp from '../services/cdp-service.js';
 
 const router = Router();
@@ -27,76 +27,153 @@ async function drive(res: Response, fn: () => Promise<unknown>): Promise<void> {
   }
 }
 
-// Relay a read command to the extension and shape a uniform JSON response.
-async function relay(res: Response, cmd: string, args: Record<string, unknown>): Promise<void> {
+// Relay a command to the extension (live session) and shape a uniform response.
+async function relay(res: Response, cmd: string, args: Record<string, unknown>, timeoutMs?: number): Promise<void> {
   try {
-    const result = await runBrowserCommand(cmd, args);
+    const result = await runBrowserCommand(cmd, args, timeoutMs);
     res.json({ ok: true, result });
   } catch (err) {
     res.status(502).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
   }
 }
 
-// Is a browser (extension side panel) currently connected?
+// Is a browser (extension side panel) currently connected? `clients` identifies who
+// opened each bridge socket — IP, User-Agent, extension origin, and (for a loopback
+// peer) the host machine name.
 router.get('/status', (_req: Request, res: Response) => {
-  res.json({ extensionConnected: browserConnected() });
+  res.json({ extensionConnected: browserConnected(), clients: getBrowserClients() });
 });
+
+// List the user's open tabs (so an agent can target one by id or url).
+router.get('/tabs', (_req: Request, res: Response) => relay(res, 'tabs', {}));
+
+// Diagnostic: list every DevTools debug target (type/url/tabId/extensionId). Use to
+// see which extension owns a tab's target when chrome.debugger attach is rejected with
+// "Cannot access a chrome-extension:// URL of different extension".
+router.get('/targets', (_req: Request, res: Response) => relay(res, 'targets', {}));
+
+// Every command below accepts an optional tab target: `tabId` (exact) or `tab`
+// (a URL/title substring). Omit both to use the active tab.
+function target(req: Request): Record<string, unknown> {
+  return { tabId: req.body?.tabId, tab: req.body?.tab };
+}
 
 // ── reads (relayed to the extension's live session) ──
 
 // Read a DOM element (or all matches) by CSS selector → outerHTML/text/box/styles.
 router.post('/dom', (req: Request, res: Response) =>
-  relay(res, 'dom', { selector: req.body?.selector, all: !!req.body?.all }),
+  relay(res, 'dom', { ...target(req), selector: req.body?.selector, all: !!req.body?.all }),
 );
 
 // Captured console.* output (optionally filtered by level), newest-first.
 router.post('/console', (req: Request, res: Response) =>
-  relay(res, 'console', { level: req.body?.level, limit: req.body?.limit }),
+  relay(res, 'console', { ...target(req), level: req.body?.level, limit: req.body?.limit }),
 );
 
-// Captured network requests (method/url/status/duration), newest-first.
+// Captured network requests (method/url/status/duration), newest-first. Set
+// `detail:true` to include request/response headers + bodies.
 router.post('/network', (req: Request, res: Response) =>
-  relay(res, 'network', { limit: req.body?.limit, filter: req.body?.filter }),
+  relay(res, 'network', { ...target(req), limit: req.body?.limit, filter: req.body?.filter, detail: !!req.body?.detail }),
 );
 
 // Captured + deduped browser errors.
-router.post('/errors', (req: Request, res: Response) => relay(res, 'errors', { limit: req.body?.limit }));
+router.post('/errors', (req: Request, res: Response) => relay(res, 'errors', { ...target(req), limit: req.body?.limit }));
 
-// Active page url + title.
-router.post('/page', (_req: Request, res: Response) => relay(res, 'page', {}));
+// Page url + title of the target tab.
+router.post('/page', (req: Request, res: Response) => relay(res, 'page', target(req)));
 
-// Screenshot the visible viewport, or a single element when `selector` is given.
-// Returns a saved path the agent can Read.
+// Screenshot the target tab's viewport, or a single element when `selector` is
+// given. Returns a saved path the agent can Read.
 router.post('/screenshot', (req: Request, res: Response) =>
-  relay(res, 'screenshot', { selector: req.body?.selector }),
+  relay(res, 'screenshot', { ...target(req), selector: req.body?.selector }),
 );
 
-// ── interaction (CDP, attached to the user's Chrome via the debug port) ──
+// ── interaction (live session, via the extension's chrome.debugger) ──
+// These drive the user's REAL logged-in browser — chrome.debugger doesn't use the
+// remote-debugging port, so it isn't blocked on the default profile (Chrome 136+).
+const DRIVE_TIMEOUT_MS = 30000;
+// `wait` can block up to its own 30s cap, so give the bridge a little more headroom.
+const WAIT_TIMEOUT_MS = 35000;
+// A batch runs several steps; allow more time than a single action.
+const BATCH_TIMEOUT_MS = 90000;
 
-// Is Chrome reachable over CDP, and which tabs are open?
+// click / hover / scroll accept EITHER a CSS `selector` OR visible `text` (e.g.
+// {"text":"Volver"}) — no selector needed. Discarded/slept tabs are auto-woken.
+router.post('/click', (req: Request, res: Response) =>
+  relay(res, 'click', { ...target(req), selector: req.body?.selector, text: req.body?.text, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
+);
+router.post('/type', (req: Request, res: Response) =>
+  relay(res, 'type', { ...target(req), selector: req.body?.selector, text: req.body?.text, clear: !!req.body?.clear, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
+);
+router.post('/navigate', (req: Request, res: Response) =>
+  relay(res, 'navigate', { ...target(req), url: req.body?.url, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
+);
+router.post('/scroll', (req: Request, res: Response) =>
+  relay(res, 'scroll', { ...target(req), selector: req.body?.selector, text: req.body?.text, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
+);
+router.post('/hover', (req: Request, res: Response) =>
+  relay(res, 'hover', { ...target(req), selector: req.body?.selector, text: req.body?.text, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
+);
+// Run a sequence of steps in one call on one tab. Each step is {cmd, ...args} using
+// the same vocabulary as the endpoints; stops at the first failure unless the step
+// sets continueOnError. e.g. {"tab":"6200","steps":[{"cmd":"click","text":"Volver"},{"cmd":"page"}]}
+router.post('/batch', (req: Request, res: Response) =>
+  relay(res, 'batch', { tab: req.body?.tab, tabId: req.body?.tabId, steps: req.body?.steps }, BATCH_TIMEOUT_MS),
+);
+// Drag from one selector to another.
+router.post('/drag', (req: Request, res: Response) =>
+  relay(res, 'drag', { ...target(req), from: req.body?.from, to: req.body?.to, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
+);
+// Press a named key (Enter, Tab, Escape, ArrowDown, …), optionally focusing a selector first.
+router.post('/key', (req: Request, res: Response) =>
+  relay(res, 'key', { ...target(req), key: req.body?.key, selector: req.body?.selector, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
+);
+// Pick a <select> option by `value` or visible `label`.
+router.post('/select', (req: Request, res: Response) =>
+  relay(res, 'select', { ...target(req), selector: req.body?.selector, value: req.body?.value, label: req.body?.label, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
+);
+// Run arbitrary JS in the page and return its (JSON-serializable) result.
+router.post('/evaluate', (req: Request, res: Response) =>
+  relay(res, 'evaluate', { ...target(req), expression: req.body?.expression ?? req.body?.script }, DRIVE_TIMEOUT_MS),
+);
+// Wait for a selector, a text string, or a fixed delay (ms).
+router.post('/wait', (req: Request, res: Response) =>
+  relay(res, 'wait', { ...target(req), selector: req.body?.selector, text: req.body?.text, ms: req.body?.ms, timeoutMs: req.body?.timeoutMs }, WAIT_TIMEOUT_MS),
+);
+// Arm a one-shot auto-response for the next JS dialog (accept/dismiss + promptText).
+router.post('/dialog', (req: Request, res: Response) =>
+  relay(res, 'dialog', { ...target(req), accept: req.body?.accept, promptText: req.body?.promptText }, DRIVE_TIMEOUT_MS),
+);
+// Escape hatch: run ANY DevTools Protocol command on the target tab.
+router.post('/cdp-raw', (req: Request, res: Response) =>
+  relay(res, 'cdp_raw', { ...target(req), method: req.body?.method, params: req.body?.params }, DRIVE_TIMEOUT_MS),
+);
+
+// ── tabs (open / close / activate) ──
+router.post('/tab/open', (req: Request, res: Response) =>
+  relay(res, 'tab_open', { url: req.body?.url, active: req.body?.active }),
+);
+router.post('/tab/close', (req: Request, res: Response) => relay(res, 'tab_close', target(req)));
+router.post('/tab/activate', (req: Request, res: Response) => relay(res, 'tab_activate', target(req)));
+
+// ── fallback: drive a SEPARATE Chrome via puppeteer-core over the debug port ──
+// For a throwaway --user-data-dir profile or Chrome for Testing (not your live
+// session). Requires Chrome launched with --remote-debugging-port. See cdp-service.ts.
 router.get('/cdp-status', async (_req: Request, res: Response) => {
   res.json(await cdp.status());
 });
-
-// Click an element by CSS selector.
-router.post('/click', (req: Request, res: Response) =>
+router.post('/cdp/click', (req: Request, res: Response) =>
   drive(res, () => cdp.click(req.body?.selector, { url: req.body?.url, timeoutMs: req.body?.timeoutMs })),
 );
-
-// Type text into an element (set `clear:true` to replace existing content).
-router.post('/type', (req: Request, res: Response) =>
+router.post('/cdp/type', (req: Request, res: Response) =>
   drive(res, () =>
     cdp.type(req.body?.selector, req.body?.text, { url: req.body?.url, clear: !!req.body?.clear, timeoutMs: req.body?.timeoutMs }),
   ),
 );
-
-// Navigate the active (or matched) tab to a URL.
-router.post('/navigate', (req: Request, res: Response) =>
+router.post('/cdp/navigate', (req: Request, res: Response) =>
   drive(res, () => cdp.navigate(req.body?.url, { timeoutMs: req.body?.timeoutMs })),
 );
-
-// Scroll an element into view.
-router.post('/scroll', (req: Request, res: Response) =>
+router.post('/cdp/scroll', (req: Request, res: Response) =>
   drive(res, () => cdp.scroll(req.body?.selector, { url: req.body?.url, timeoutMs: req.body?.timeoutMs })),
 );
 

@@ -32,6 +32,7 @@ const DEFAULT_CONFIG = {
   captureConsole: true,
   captureResource: false,
   captureNetworkLog: true, // record ALL requests (not just errors) for the Network tab
+  bridgeEnabled: true, // allow server-side agents to read/drive the live page via /api/browser/*
 };
 
 const MAX_ERRORS = 200;
@@ -853,24 +854,474 @@ async function sendNow(fingerprint) {
 }
 
 // ── browser bridge: capture a screenshot for an agent ──
-// Captures the visible tab, optionally crops to a rect (one element), saves it via
-// the element-screenshot endpoint, and returns the path the agent can Read.
-async function bridgeScreenshot(commanderId, rect, selector) {
-  let tab = null;
+// Screenshots the target tab (default: active), optionally cropped to one element,
+// saves it via the element-screenshot endpoint, and returns the path. The VISIBLE
+// tab uses captureVisibleTab (no debugger banner); a background/targeted tab is
+// captured over chrome.debugger's Page.captureScreenshot (works without focus).
+async function bridgeScreenshot(commanderId, rect, selector, tabId) {
+  let activeTab = null;
   try {
-    [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
   } catch (_e) {
     /* ignore */
   }
-  if (!tab || tab.id == null) return { ok: false, error: 'no active tab' };
-  let shot = await captureVisible(tab.id, tab.windowId);
-  if (!shot) return { ok: false, error: 'capture failed (tab must be the active, focused tab)' };
-  if (rect && rect.w && rect.h) {
-    const cropped = await cropScreenshot(shot, rect, rect.dpr || 1);
-    if (cropped) shot = cropped;
+  let target = null;
+  if (tabId != null) {
+    try {
+      target = await chrome.tabs.get(tabId);
+    } catch (_e) {
+      /* ignore */
+    }
+  } else {
+    target = activeTab;
   }
+  if (!target || target.id == null) return { ok: false, error: 'no target tab' };
+
+  let shot = null;
+  const isVisible = activeTab && target.id === activeTab.id;
+  if (isVisible && !cdpAttached.has(target.id)) {
+    shot = await captureVisible(target.id, target.windowId);
+    if (shot && rect && rect.w && rect.h) {
+      const cropped = await cropScreenshot(shot, rect, rect.dpr || 1);
+      if (cropped) shot = cropped;
+    }
+  } else {
+    // Background tab (or one we're already driving) → capture via CDP.
+    try {
+      shot = await cdpScreenshot(target.id, rect);
+    } catch (e) {
+      return { ok: false, error: (e && e.message) || 'cdp screenshot failed' };
+    }
+  }
+  if (!shot) return { ok: false, error: 'capture failed' };
   const saved = await saveElementShot(commanderId, shot, selector || 'page');
   return saved && saved.ok ? { ok: true, path: saved.path } : { ok: false, error: (saved && saved.error) || 'save failed' };
+}
+// Capture any tab (even backgrounded) via the DevTools Protocol. `rect` (CSS px,
+// viewport-relative) clips to one element.
+async function cdpScreenshot(tabId, rect) {
+  await cdpAttach(tabId);
+  const params = { format: 'png' };
+  if (rect && rect.w && rect.h) params.clip = { x: rect.x, y: rect.y, width: rect.w, height: rect.h, scale: 1 };
+  const r = await cdpSend(tabId, 'Page.captureScreenshot', params);
+  return r && r.data ? 'data:image/png;base64,' + r.data : null;
+}
+
+// ── chrome.debugger CDP driver (drive the real, logged-in session) ──
+// Drives the page via the DevTools Protocol THROUGH the extension (chrome.debugger),
+// so it works on the user's real profile without --remote-debugging-port (which
+// Chrome 136+ refuses on the default profile). Shows the "…debugging this browser"
+// banner while attached. Actions are gated to the capture allowlist.
+const cdpAttached = new Set(); // tabIds we currently hold a debugger session on
+// tabId → the Debuggee we actually attached with ({tabId} normally, or {targetId}
+// when we had to fall back — see cdpAttach). cdpSend/detach must reuse it.
+const cdpDebuggee = new Map();
+
+function cdpSend(tabId, method, params) {
+  return new Promise((resolve, reject) => {
+    const dbg = cdpDebuggee.get(tabId) || { tabId };
+    chrome.debugger.sendCommand(dbg, method, params || {}, (result) => {
+      const e = chrome.runtime.lastError;
+      if (e) return reject(new Error(e.message));
+      resolve(result);
+    });
+  });
+}
+function cdpRawAttach(dbg) {
+  return new Promise((resolve, reject) => {
+    chrome.debugger.attach(dbg, '1.3', () => {
+      const e = chrome.runtime.lastError;
+      // "Another debugger is already attached" → reuse it rather than fail.
+      if (e && !/already attached/i.test(e.message || '')) return reject(new Error(e.message));
+      resolve();
+    });
+  });
+}
+function cdpGetTargets() {
+  return new Promise((resolve) => chrome.debugger.getTargets((t) => resolve(t || [])));
+}
+async function cdpAttach(tabId) {
+  if (cdpAttached.has(tabId)) return;
+  try {
+    await cdpRawAttach({ tabId });
+    cdpDebuggee.set(tabId, { tabId });
+  } catch (e) {
+    // attach({tabId}) can resolve to the WRONG DevTools target when the tab has an
+    // associated extension target (Brave web3/wallet components, other injectors):
+    // Chrome answers "Cannot access a chrome-extension:// URL of different extension".
+    // Recover by enumerating targets and attaching to the real *page* target for this
+    // tab by its targetId (whose URL is the actual http(s) document, not an extension).
+    if (!/different extension|chrome-extension/i.test(e.message || '')) throw e;
+    let tabUrl = '';
+    try {
+      const tb = await chrome.tabs.get(tabId);
+      tabUrl = (tb && tb.url) || '';
+    } catch (_e) {
+      /* ignore */
+    }
+    const targets = await cdpGetTargets();
+    const pages = targets.filter(
+      (t) => t.type === 'page' && (t.tabId === tabId || (tabUrl && t.url === tabUrl)),
+    );
+    const real = pages.find((t) => !/^chrome-extension:\/\//.test(t.url || '')) || pages[0];
+    if (!real) throw new Error('no page target for tab ' + tabId + ' (' + e.message + ')');
+    if (/^chrome-extension:\/\//.test(real.url || '')) {
+      throw new Error(
+        'tab ' + tabId + ' top document is ' + real.url + ' — owned by another extension; cannot attach',
+      );
+    }
+    await cdpRawAttach({ targetId: real.id });
+    cdpDebuggee.set(tabId, { targetId: real.id });
+  }
+  cdpAttached.add(tabId);
+}
+// Evaluate an expression in the page and return its (by-value) result.
+function cdpEval(tabId, expression) {
+  return cdpSend(tabId, 'Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }).then(
+    (r) => (r && r.result ? r.result.value : undefined),
+  );
+}
+// Poll until a selector exists (or time out).
+async function cdpWaitSelector(tabId, selector, timeoutMs) {
+  if (!selector) throw new Error('selector required');
+  const deadline = Date.now() + Math.min(Number(timeoutMs) || 5000, 30000);
+  for (;;) {
+    if (await cdpEval(tabId, `!!document.querySelector(${JSON.stringify(selector)})`)) return;
+    if (Date.now() > deadline) throw new Error('timed out waiting for selector: ' + selector);
+    await new Promise((r) => setTimeout(r, 150));
+  }
+}
+// Poll until the page text contains a string (or time out).
+async function cdpWaitText(tabId, text, timeoutMs) {
+  const needle = JSON.stringify(String(text));
+  const deadline = Date.now() + Math.min(Number(timeoutMs) || 5000, 30000);
+  for (;;) {
+    if (await cdpEval(tabId, `((document.body&&document.body.innerText)||'').includes(${needle})`)) return;
+    if (Date.now() > deadline) throw new Error('timed out waiting for text: ' + text);
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+// Center point (viewport CSS px) of a selector, scrolling it into view first.
+async function cdpPoint(tabId, selector) {
+  const pt = await cdpEval(
+    tabId,
+    `(()=>{const e=document.querySelector(${JSON.stringify(selector)}); if(!e) return null; e.scrollIntoView({block:'center'}); const r=e.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2};})()`,
+  );
+  if (!pt) throw new Error('element not found: ' + selector);
+  return pt;
+}
+// Center point of the first clickable element whose VISIBLE TEXT matches (exact,
+// then case-insensitive, then contains). Lets actions target "Volver" etc. without
+// a CSS selector. Scrolls it into view first.
+async function cdpPointByText(tabId, text) {
+  const expr = `(function(){
+    var norm=function(s){return String(s==null?'':s).trim();};
+    var t=${JSON.stringify(String(text))}, tl=t.toLowerCase();
+    var cands=Array.prototype.slice.call(document.querySelectorAll('button, a, [role=button], [role=link], [role=menuitem], [role=tab], input[type=button], input[type=submit], label'));
+    var lower=function(e){return norm(e.innerText||e.value).toLowerCase();};
+    var el=cands.find(function(e){return norm(e.innerText||e.value)===t;}) || cands.find(function(e){return lower(e)===tl;}) || cands.find(function(e){return lower(e).indexOf(tl)>=0;});
+    if(el==null){ el=Array.prototype.slice.call(document.querySelectorAll('*')).find(function(e){return e.children.length===0 && norm(e.innerText)===t;}); }
+    if(el==null) return null;
+    el.scrollIntoView({block:'center'});
+    var r=el.getBoundingClientRect();
+    return {x:r.left+r.width/2, y:r.top+r.height/2};
+  })()`;
+  const pt = await cdpEval(tabId, expr);
+  if (!pt) throw new Error('no clickable element with text "' + text + '"');
+  return pt;
+}
+// Resolve an action's target to a point: a CSS `selector` or visible `text`.
+async function cdpResolvePoint(tabId, selector, text, timeoutMs) {
+  if (selector) {
+    await cdpWaitSelector(tabId, selector, timeoutMs);
+    return cdpPoint(tabId, selector);
+  }
+  if (text) return cdpPointByText(tabId, text);
+  throw new Error('selector or text required');
+}
+// Brave/Chrome memory-saver discards background tabs; a discarded tab has no live
+// renderer, so chrome.debugger attach/evaluate just hangs. Reload it (in place, no
+// focus steal) and wait until it's ready before driving.
+async function cdpEnsureAwake(tabId) {
+  let tab = null;
+  try {
+    tab = await chrome.tabs.get(tabId);
+  } catch (_e) {
+    return;
+  }
+  if (!tab || (!tab.discarded && tab.status !== 'unloaded')) return;
+  try {
+    await chrome.tabs.reload(tabId);
+  } catch (_e) {
+    return;
+  }
+  const deadline = Date.now() + 15000;
+  for (;;) {
+    try {
+      const t = await chrome.tabs.get(tabId);
+      if (t && !t.discarded && t.status === 'complete') return;
+    } catch (_e) {
+      return;
+    }
+    if (Date.now() > deadline) return;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+}
+// Named keys → CDP key-event params (printable text typed via Input.insertText).
+const CDP_KEYS = {
+  Enter: { keyCode: 13, key: 'Enter', code: 'Enter', text: '\r' },
+  Tab: { keyCode: 9, key: 'Tab', code: 'Tab' },
+  Escape: { keyCode: 27, key: 'Escape', code: 'Escape' },
+  Backspace: { keyCode: 8, key: 'Backspace', code: 'Backspace' },
+  Delete: { keyCode: 46, key: 'Delete', code: 'Delete' },
+  ArrowUp: { keyCode: 38, key: 'ArrowUp', code: 'ArrowUp' },
+  ArrowDown: { keyCode: 40, key: 'ArrowDown', code: 'ArrowDown' },
+  ArrowLeft: { keyCode: 37, key: 'ArrowLeft', code: 'ArrowLeft' },
+  ArrowRight: { keyCode: 39, key: 'ArrowRight', code: 'ArrowRight' },
+  Home: { keyCode: 36, key: 'Home', code: 'Home' },
+  End: { keyCode: 35, key: 'End', code: 'End' },
+  PageUp: { keyCode: 33, key: 'PageUp', code: 'PageUp' },
+  PageDown: { keyCode: 34, key: 'PageDown', code: 'PageDown' },
+  Space: { keyCode: 32, key: ' ', code: 'Space', text: ' ' },
+};
+async function cdpKey(tabId, keyName) {
+  const k = CDP_KEYS[keyName];
+  if (!k) throw new Error('unsupported key "' + keyName + '" (supported: ' + Object.keys(CDP_KEYS).join(', ') + ')');
+  const base = { windowsVirtualKeyCode: k.keyCode, nativeVirtualKeyCode: k.keyCode, key: k.key, code: k.code };
+  await cdpSend(tabId, 'Input.dispatchKeyEvent', Object.assign({ type: k.text ? 'keyDown' : 'rawKeyDown' }, base, k.text ? { text: k.text } : {}));
+  await cdpSend(tabId, 'Input.dispatchKeyEvent', Object.assign({ type: 'keyUp' }, base));
+}
+// One-shot JS-dialog auto-responders (tabId → {accept, promptText}). The onEvent
+// listener below also auto-accepts UNARMED dialogs so an alert() can't hang a tab
+// that has the Page domain enabled.
+const dialogArmed = new Map();
+
+// Per-tab manipulation gate — shared with the side panel via chrome.storage.local
+// (`tc_drive_enabled` = { [tabId]: true } map of ENABLED tabs). Manipulation is OFF
+// by default: a tab must be explicitly turned on (🤖 drive toggle) to be driven.
+async function isTabDriveEnabled(tabId) {
+  if (tabId == null) return false;
+  try {
+    const { tc_drive_enabled } = await chrome.storage.local.get('tc_drive_enabled');
+    return !!(tc_drive_enabled && tc_drive_enabled[String(tabId)]);
+  } catch (_e) {
+    return false;
+  }
+}
+// Prune a tab's drive-enabled flag when it closes (tabIds are reused, so a stale
+// entry could silently auto-enable a future tab on the same id).
+try {
+  chrome.tabs.onRemoved.addListener(async (closedId) => {
+    try {
+      const { tc_drive_enabled } = await chrome.storage.local.get('tc_drive_enabled');
+      if (tc_drive_enabled && tc_drive_enabled[String(closedId)] != null) {
+        delete tc_drive_enabled[String(closedId)];
+        await chrome.storage.local.set({ tc_drive_enabled });
+      }
+    } catch (_e) {
+      /* ignore */
+    }
+  });
+} catch (_e) {
+  /* ignore */
+}
+
+async function cdpDrive(cmd, args, tabId) {
+  args = args || {};
+  // Diagnostic: list every DevTools target (type/url/tabId/extensionId). Doesn't need
+  // a tab or an attach — used to identify which extension owns a tab's debug target.
+  if (cmd === 'targets') {
+    const targets = await cdpGetTargets();
+    return { targets, attached: Array.from(cdpAttached) };
+  }
+  if (tabId == null) {
+    try {
+      const [t] = await chrome.tabs.query({ active: true, currentWindow: true });
+      tabId = t && t.id;
+    } catch (_e) {
+      /* ignore */
+    }
+  }
+  if (tabId == null) throw new Error('no active tab to drive');
+  const cfg = await getConfig();
+  let tab = null;
+  try {
+    tab = await chrome.tabs.get(tabId);
+  } catch (_e) {
+    /* ignore */
+  }
+  const url = (tab && tab.url) || '';
+  if (!originAllowed(cfg.allowlist, url)) throw new Error('Refused: ' + (url || 'page') + ' is not in the allowlist');
+
+  // Per-tab manipulation gate: manipulation is OFF by default — unless this tab's
+  // 🤖 drive toggle is on (side panel), refuse so the debugger never even attaches to
+  // it. 'detach' is always allowed so a tab can be cleaned up after being turned off.
+  if (cmd !== 'detach' && !(await isTabDriveEnabled(tabId))) {
+    throw new Error('Agent manipulation is OFF for this tab — turn on the 🤖 drive toggle in the Tide Commander side panel to allow click/type/navigate.');
+  }
+
+  await cdpEnsureAwake(tabId); // wake discarded/slept tabs so the debugger can attach
+  await cdpAttach(tabId);
+
+  switch (cmd) {
+    case 'navigate': {
+      if (!args.url) throw new Error('url required');
+      if (!originAllowed(cfg.allowlist, args.url)) throw new Error('Refused: target ' + args.url + ' is not in the allowlist');
+      await cdpSend(tabId, 'Page.navigate', { url: args.url });
+      return { ok: true, url: args.url };
+    }
+    case 'scroll': {
+      // Resolving the point already scrolls the element into view.
+      await cdpResolvePoint(tabId, args.selector, args.text, args.timeoutMs);
+      return { ok: true };
+    }
+    case 'click': {
+      const pt = await cdpResolvePoint(tabId, args.selector, args.text, args.timeoutMs);
+      // Real (trusted) mouse events so SPA handlers fire exactly as for a user.
+      await cdpSend(tabId, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: pt.x, y: pt.y });
+      await cdpSend(tabId, 'Input.dispatchMouseEvent', { type: 'mousePressed', x: pt.x, y: pt.y, button: 'left', buttons: 1, clickCount: 1 });
+      await cdpSend(tabId, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: pt.x, y: pt.y, button: 'left', buttons: 1, clickCount: 1 });
+      return { ok: true };
+    }
+    case 'hover': {
+      const pt = await cdpResolvePoint(tabId, args.selector, args.text, args.timeoutMs);
+      await cdpSend(tabId, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: pt.x, y: pt.y });
+      return { ok: true };
+    }
+    case 'drag': {
+      await cdpWaitSelector(tabId, args.from, args.timeoutMs);
+      await cdpWaitSelector(tabId, args.to, args.timeoutMs);
+      const a = await cdpPoint(tabId, args.from);
+      const b = await cdpPoint(tabId, args.to);
+      await cdpSend(tabId, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x, y: a.y });
+      await cdpSend(tabId, 'Input.dispatchMouseEvent', { type: 'mousePressed', x: a.x, y: a.y, button: 'left', buttons: 1, clickCount: 1 });
+      await cdpSend(tabId, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: b.x, y: b.y, button: 'left', buttons: 1 });
+      await cdpSend(tabId, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: b.x, y: b.y, button: 'left', buttons: 1, clickCount: 1 });
+      return { ok: true };
+    }
+    case 'type': {
+      await cdpWaitSelector(tabId, args.selector, args.timeoutMs);
+      // Focus (and optionally select-all so insertText replaces the value). insertText
+      // fires beforeinput/input events, so React/SPA state updates.
+      await cdpEval(
+        tabId,
+        `(()=>{const e=document.querySelector(${JSON.stringify(args.selector)}); if(e){e.focus(); ${args.clear ? 'if(e.select)e.select();' : ''}} return !!e;})()`,
+      );
+      await cdpSend(tabId, 'Input.insertText', { text: String(args.text == null ? '' : args.text) });
+      return { ok: true };
+    }
+    case 'key': {
+      if (args.selector) {
+        await cdpWaitSelector(tabId, args.selector, args.timeoutMs);
+        await cdpEval(tabId, `(()=>{const e=document.querySelector(${JSON.stringify(args.selector)}); if(e)e.focus(); return !!e;})()`);
+      }
+      await cdpKey(tabId, String(args.key));
+      return { ok: true };
+    }
+    case 'select': {
+      await cdpWaitSelector(tabId, args.selector, args.timeoutMs);
+      const pick =
+        args.label != null
+          ? `const o=[...e.options].find(o=>o.text.trim()===${JSON.stringify(String(args.label))}); if(!o) return 'no option'; e.value=o.value;`
+          : `e.value=${JSON.stringify(String(args.value == null ? '' : args.value))};`;
+      const r = await cdpEval(
+        tabId,
+        `(()=>{const e=document.querySelector(${JSON.stringify(args.selector)}); if(!e) return 'no element'; ${pick} e.dispatchEvent(new Event('input',{bubbles:true})); e.dispatchEvent(new Event('change',{bubbles:true})); return 'ok';})()`,
+      );
+      if (r !== 'ok') throw new Error('select failed: ' + r);
+      return { ok: true };
+    }
+    case 'evaluate': {
+      const value = await cdpEval(tabId, String(args.expression || args.script || ''));
+      return { value };
+    }
+    case 'dom': {
+      // Debugger-based DOM read — works on any tab, including ones opened before
+      // the extension loaded (where the content script isn't injected).
+      const sel = args.selector || 'body';
+      const all = !!args.all;
+      const ser = `function(e){var r=e.getBoundingClientRect();var cs=getComputedStyle(e);var st={};['display','position','width','height','color','background-color','font-size','border','border-radius'].forEach(function(k){var v=cs.getPropertyValue(k); if(v) st[k]=v;});return {selector:${JSON.stringify(sel)}, tag:e.tagName.toLowerCase(), id:e.id||'', classes:e.classList?Array.prototype.slice.call(e.classList):[], text:(e.innerText||'').trim().slice(0,300), outerHTML:(e.outerHTML||'').slice(0,8000), styles:st, rect:{x:Math.round(r.left),y:Math.round(r.top),w:Math.round(r.width),h:Math.round(r.height)}};}`;
+      const expr = all
+        ? `(function(){var ser=${ser};return {found:true, nodes:Array.prototype.slice.call(document.querySelectorAll(${JSON.stringify(sel)})).slice(0,20).map(ser)};})()`
+        : `(function(){var ser=${ser};var e=document.querySelector(${JSON.stringify(sel)});if(!e) return {found:false};return {found:true, node:ser(e)};})()`;
+      const out = await cdpEval(tabId, expr);
+      if (!out || out.found === false) throw new Error('no element matches ' + sel);
+      return all ? { nodes: out.nodes } : { node: out.node };
+    }
+    case 'wait': {
+      if (args.selector) {
+        await cdpWaitSelector(tabId, args.selector, args.timeoutMs);
+        return { ok: true, found: 'selector' };
+      }
+      if (args.text) {
+        await cdpWaitText(tabId, args.text, args.timeoutMs);
+        return { ok: true, found: 'text' };
+      }
+      await new Promise((r) => setTimeout(r, Math.min(Number(args.ms) || 500, 30000)));
+      return { ok: true };
+    }
+    case 'dialog': {
+      // Arm a one-shot auto-responder for the NEXT JS dialog on this tab. Page must
+      // be enabled so dialogs route through CDP (see the onEvent listener below).
+      await cdpSend(tabId, 'Page.enable');
+      const accept = args.accept !== false;
+      dialogArmed.set(tabId, { accept, promptText: args.promptText != null ? String(args.promptText) : '' });
+      return { ok: true, armed: true, accept };
+    }
+    case 'cdp_raw': {
+      // Escape hatch: run ANY DevTools Protocol command on the tab.
+      if (!args.method) throw new Error('method required');
+      const result = await cdpSend(tabId, String(args.method), args.params || {});
+      return { result };
+    }
+    case 'detach': {
+      const dbg = cdpDebuggee.get(tabId) || { tabId };
+      try {
+        await new Promise((resolve) => chrome.debugger.detach(dbg, () => { void chrome.runtime.lastError; resolve(); }));
+      } catch (_e) {
+        /* ignore */
+      }
+      cdpAttached.delete(tabId);
+      cdpDebuggee.delete(tabId);
+      return { ok: true };
+    }
+    default:
+      throw new Error('unknown drive command: ' + cmd);
+  }
+}
+// Tab closed / DevTools opened / user clicked Cancel on the banner → forget it.
+try {
+  chrome.debugger.onDetach.addListener((source) => {
+    if (source && source.tabId != null) {
+      cdpAttached.delete(source.tabId);
+      cdpDebuggee.delete(source.tabId);
+      dialogArmed.delete(source.tabId);
+    } else if (source && source.targetId != null) {
+      // Session attached by targetId (the getTargets fallback) — find its tabId.
+      for (const [tid, dbg] of cdpDebuggee) {
+        if (dbg && dbg.targetId === source.targetId) {
+          cdpAttached.delete(tid);
+          cdpDebuggee.delete(tid);
+          dialogArmed.delete(tid);
+        }
+      }
+    }
+  });
+  // When Page is enabled, JS dialogs route through CDP and BLOCK until handled —
+  // so always answer them (armed response, else a safe default accept) to avoid
+  // hanging the tab.
+  chrome.debugger.onEvent.addListener((source, method) => {
+    if (method !== 'Page.javascriptDialogOpening') return;
+    const tabId = source && source.tabId;
+    if (tabId == null) return;
+    const armed = dialogArmed.get(tabId);
+    dialogArmed.delete(tabId); // one-shot
+    const accept = armed ? armed.accept : true;
+    const promptText = armed ? armed.promptText : '';
+    chrome.debugger.sendCommand({ tabId }, 'Page.handleJavaScriptDialog', { accept, promptText }, () => void chrome.runtime.lastError);
+  });
+} catch (_e) {
+  /* debugger permission may be absent until the user re-approves */
 }
 
 // ── element picker → side panel ──
@@ -1021,7 +1472,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       saveElementShot(msg.commanderId, msg.image, msg.selector).then(sendResponse);
       return true;
     case 'bridgeScreenshot':
-      bridgeScreenshot(msg.commanderId, msg.rect, msg.selector).then(sendResponse);
+      bridgeScreenshot(msg.commanderId, msg.rect, msg.selector, msg.tabId).then(sendResponse);
+      return true;
+    case 'cdpDrive':
+      cdpDrive(msg.cmd, msg.args, msg.tabId)
+        .then((result) => sendResponse({ ok: true, result }))
+        .catch((e) => sendResponse({ ok: false, error: (e && e.message) || String(e) }));
       return true;
     case 'saveAttachment':
       saveAttachment(msg.commanderId, msg.dataUrl, msg.filename).then(sendResponse);

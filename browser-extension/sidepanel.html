@@ -24,6 +24,11 @@
       </div>
       <div class="hd-row">
         <span class="origin grow" id="origin" title="Active page">—</span>
+        <label class="pgctx drive-toggle" title="Let agents manipulate THIS tab — click / type / navigate via the debugger. Off (default) = reads still work, but manipulation is refused for this tab (no debugger attaches, no banner).">
+          <input type="checkbox" id="driveTab" class="switch-input" />
+          <span class="switch" aria-hidden="true"></span>
+          <span class="switch-text" aria-label="Agent drive">🤖</span>
+        </label>
         <label class="pgctx" title="Prepend the current page URL + title to each message">
           <input type="checkbox" id="pgctx" class="switch-input" />
           <span class="switch" aria-hidden="true"></span>

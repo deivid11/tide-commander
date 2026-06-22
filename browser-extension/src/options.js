@@ -3,7 +3,7 @@
 const $ = (id) => document.getElementById(id);
 const send = (msg) => new Promise((r) => chrome.runtime.sendMessage(msg, r));
 
-const FLAGS = ['enabled', 'captureScreenshots', 'captureNetwork', 'captureJs', 'captureConsole', 'captureResource', 'redact'];
+const FLAGS = ['enabled', 'captureScreenshots', 'captureNetwork', 'captureJs', 'captureConsole', 'captureResource', 'redact', 'bridgeEnabled'];
 
 let working = []; // working copy of commanders
 let activeId = '';
