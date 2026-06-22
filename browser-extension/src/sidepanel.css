@@ -42,6 +42,9 @@
 html, body {
   margin: 0;
   height: 100vh;
+  /* Fixed-viewport panel: the chat + popovers scroll internally, so the panel
+   * itself must never scroll (avoids a stray whole-page vertical scrollbar). */
+  overflow: hidden;
   font-family: var(--mono);
   font-size: 13px;
   background: var(--bg);
@@ -68,6 +71,10 @@ html, body {
 .origin.grow { flex: 1; min-width: 0; }
 .pgctx { display: flex; align-items: center; gap: 4px; flex: none; color: var(--muted); font-size: 11px; cursor: pointer; white-space: nowrap; }
 .pgctx input { accent-color: var(--accent); margin: 0; }
+/* The 🤖 drive control is a per-tab manipulation gate, not a message-context option —
+   set it apart from the page/styles/headers/svg cluster with a divider. */
+.pgctx.drive-toggle { border-right: 1px solid var(--border); padding-right: 8px; margin-right: 2px; }
+.pgctx.drive-toggle .switch-text { font-size: 13px; }
 
 .sel {
   background: var(--panel-2);

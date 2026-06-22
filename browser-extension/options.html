@@ -43,6 +43,12 @@
       </section>
 
       <section class="card">
+        <h2>Agent browser control</h2>
+        <label class="check"><input type="checkbox" id="bridgeEnabled" /> Allow agents to read &amp; drive the browser</label>
+        <p class="sub">Lets a connected Tide Commander server read the live page (DOM, console, network, screenshots) and drive it (click, type, navigate) through <code>/api/browser/*</code>, in your real session. Uncheck to fully disable this — the chat panel stops registering and refuses every command. Driving still requires the side panel open and the <strong>debugger</strong> permission; only pages in the allowlist below can be controlled.</p>
+      </section>
+
+      <section class="card">
         <h2>Origins allowlist</h2>
         <p class="sub">Only pages whose origin matches a line below are captured. <code>*</code> is a wildcard; <code>*</code> alone allows everything (not recommended).</p>
         <textarea id="allowlist" rows="4" placeholder="http://localhost:*&#10;http://127.0.0.1:*"></textarea>

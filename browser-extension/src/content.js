@@ -307,8 +307,222 @@
     }
   }
 
+  // ── content-script drive (synthetic events) ────────────────────────────────
+  // Used when chrome.debugger can't attach because another extension injected a
+  // frame into the tab (e.g. LastPass's autofill in-field icon). Content scripts
+  // aren't subject to that debugger access check, so we drive the page directly
+  // with dispatched events. Events are isTrusted=false — fine for filling fields &
+  // clicking normal buttons; a handler that demands a trusted event won't respond.
+  function tcText(el) {
+    return ((el && (el.innerText || el.textContent || el.value)) || '').trim();
+  }
+  function tcFindByText(text) {
+    const t = String(text);
+    const els = Array.prototype.slice.call(
+      document.querySelectorAll('button,a,[role="button"],input[type="submit"],input[type="button"],summary,label,li,span,div'),
+    );
+    return (
+      els.find((e) => tcText(e) === t) ||
+      els.find((e) => tcText(e).toLowerCase() === t.toLowerCase()) ||
+      els.find((e) => tcText(e).toLowerCase().includes(t.toLowerCase())) ||
+      null
+    );
+  }
+  function tcResolve(args) {
+    if (args.selector) return document.querySelector(args.selector);
+    if (args.text) return tcFindByText(args.text);
+    return null;
+  }
+  function tcWaitFor(pred, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const deadline = Date.now() + Math.min(Number(timeoutMs) || 8000, 30000);
+      (function poll() {
+        let v;
+        try {
+          v = pred();
+        } catch (_e) {
+          v = null;
+        }
+        if (v) return resolve(v);
+        if (Date.now() > deadline) return reject(new Error('timed out'));
+        setTimeout(poll, 150);
+      })();
+    });
+  }
+  function tcMouse(el) {
+    const r = el.getBoundingClientRect();
+    const o = { bubbles: true, cancelable: true, view: window, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, button: 0 };
+    ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((type) => {
+      try {
+        const isPtr = type.indexOf('pointer') === 0;
+        el.dispatchEvent(isPtr ? new PointerEvent(type, o) : new MouseEvent(type, o));
+      } catch (_e) {
+        try {
+          el.dispatchEvent(new MouseEvent(type.replace('pointer', 'mouse'), o));
+        } catch (_e2) {
+          /* ignore */
+        }
+      }
+    });
+  }
+  // Set a field's value through the native setter so React/Vue see the change.
+  function tcSetValue(el, value) {
+    const proto =
+      el.tagName === 'TEXTAREA'
+        ? HTMLTextAreaElement.prototype
+        : el.tagName === 'SELECT'
+          ? HTMLSelectElement.prototype
+          : HTMLInputElement.prototype;
+    const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+    if (desc && desc.set) desc.set.call(el, value);
+    else el.value = value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  const TC_KEYS = {
+    Enter: { key: 'Enter', code: 'Enter', keyCode: 13 },
+    Tab: { key: 'Tab', code: 'Tab', keyCode: 9 },
+    Escape: { key: 'Escape', code: 'Escape', keyCode: 27 },
+    Backspace: { key: 'Backspace', code: 'Backspace', keyCode: 8 },
+    ArrowDown: { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40 },
+    ArrowUp: { key: 'ArrowUp', code: 'ArrowUp', keyCode: 38 },
+  };
+  async function tcAct(cmd, args) {
+    args = args || {};
+    switch (cmd) {
+      case 'navigate': {
+        if (!args.url) throw new Error('url required');
+        let u;
+        try {
+          u = new URL(args.url, location.href);
+        } catch (_e) {
+          throw new Error('bad url: ' + args.url);
+        }
+        // Same-origin only — the page-level allowlist was already satisfied, but the
+        // navigate target wasn't checked (the debugger refused before its own check).
+        if (u.origin !== location.origin) throw new Error('content-script navigate is same-origin only (' + location.origin + ')');
+        location.assign(u.href);
+        return { ok: true, url: u.href };
+      }
+      case 'wait': {
+        if (args.selector) {
+          await tcWaitFor(() => document.querySelector(args.selector), args.timeoutMs);
+          return { ok: true, found: 'selector' };
+        }
+        if (args.text) {
+          await tcWaitFor(() => (((document.body && document.body.innerText) || '').includes(args.text) ? true : null), args.timeoutMs);
+          return { ok: true, found: 'text' };
+        }
+        await new Promise((r) => setTimeout(r, Math.min(Number(args.ms) || 500, 30000)));
+        return { ok: true };
+      }
+      case 'scroll': {
+        const el = await tcWaitFor(() => tcResolve(args), args.timeoutMs);
+        el.scrollIntoView({ block: 'center' });
+        return { ok: true };
+      }
+      case 'click': {
+        const el = await tcWaitFor(() => tcResolve(args), args.timeoutMs);
+        el.scrollIntoView({ block: 'center' });
+        try {
+          if (typeof el.focus === 'function') el.focus();
+        } catch (_e) {
+          /* ignore */
+        }
+        tcMouse(el);
+        try {
+          if (typeof el.click === 'function') el.click();
+        } catch (_e) {
+          /* ignore */
+        }
+        return { ok: true };
+      }
+      case 'hover': {
+        const el = await tcWaitFor(() => tcResolve(args), args.timeoutMs);
+        el.scrollIntoView({ block: 'center' });
+        const r = el.getBoundingClientRect();
+        const o = { bubbles: true, cancelable: true, view: window, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+        ['mouseover', 'mouseenter', 'mousemove'].forEach((t) => {
+          try {
+            el.dispatchEvent(new MouseEvent(t, o));
+          } catch (_e) {
+            /* ignore */
+          }
+        });
+        return { ok: true };
+      }
+      case 'type': {
+        const el = await tcWaitFor(() => document.querySelector(args.selector), args.timeoutMs);
+        el.scrollIntoView({ block: 'center' });
+        try {
+          el.focus();
+        } catch (_e) {
+          /* ignore */
+        }
+        const add = String(args.text == null ? '' : args.text);
+        tcSetValue(el, args.clear ? add : (el.value || '') + add);
+        return { ok: true };
+      }
+      case 'key': {
+        const el = args.selector ? document.querySelector(args.selector) : document.activeElement || document.body;
+        if (args.selector && el) {
+          try {
+            el.focus();
+          } catch (_e) {
+            /* ignore */
+          }
+        }
+        const name = String(args.key || '');
+        const k = TC_KEYS[name] || { key: name, code: name, keyCode: name.charCodeAt(0) || 0 };
+        const init = { bubbles: true, cancelable: true, key: k.key, code: k.code, keyCode: k.keyCode, which: k.keyCode };
+        ['keydown', 'keypress', 'keyup'].forEach((t) => {
+          try {
+            (el || document).dispatchEvent(new KeyboardEvent(t, init));
+          } catch (_e) {
+            /* ignore */
+          }
+        });
+        return { ok: true };
+      }
+      case 'select': {
+        const el = await tcWaitFor(() => document.querySelector(args.selector), args.timeoutMs);
+        if (el.tagName !== 'SELECT') {
+          tcSetValue(el, String(args.value == null ? '' : args.value));
+          return { ok: true };
+        }
+        let val = args.value;
+        if (args.label != null) {
+          const opt = Array.prototype.slice.call(el.options).find((o) => o.text.trim() === String(args.label));
+          if (!opt) throw new Error('no option labelled ' + args.label);
+          val = opt.value;
+        }
+        tcSetValue(el, String(val == null ? '' : val));
+        return { ok: true };
+      }
+      case 'evaluate': {
+        // Isolated-world eval: DOM access only, no page globals, and may be blocked by
+        // the extension CSP. Best-effort — reads should prefer /dom or /page.
+        try {
+          const v = (0, eval)(String(args.expression || args.script || '')); // eslint-disable-line no-eval
+          return { value: v };
+        } catch (e) {
+          throw new Error('content-script evaluate failed (' + ((e && e.message) || e) + ') — use /dom for reads');
+        }
+      }
+      default:
+        throw new Error('content-script drive does not support: ' + cmd);
+    }
+  }
+
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (!msg || !msg.type) return;
+    if (msg.type === 'tcAct') {
+      Promise.resolve(tcAct(msg.cmd, msg.args)).then(
+        (result) => sendResponse({ ok: true, result }),
+        (e) => sendResponse({ ok: false, error: (e && e.message) || String(e) }),
+      );
+      return true;
+    }
     if (msg.type === 'startPicker') {
       startPicker();
       sendResponse && sendResponse({ ok: true });

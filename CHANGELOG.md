@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.121.0] - 2026-06-22
+
+### Added
+- **Browser bridge: real-session control via `chrome.debugger`** — extension now uses the `debugger` permission to drive the user's actual Chrome session (click, type, navigate, scroll) without needing `--remote-debugging-port`. Chrome 136+ blocks the port approach on the default profile; this resolves that. CDP/puppeteer path kept as `/cdp/*` fallback for throwaway browser instances.
+- **New browser bridge API routes** — `browser.ts` expanded with additional `/api/browser/*` endpoints for DOM read, console, network, errors, page info, and screenshot capture.
+- **Extended WebSocket handler** — `handler.ts` updated to route browser events from the extension relay to agents.
+
+### Changed
+- Browser extension (`background.js`, `content.js`, `sidepanel.js`, `sidepanel.css`, `options.js`, `options.html`) significantly updated to support the debugger-based control flow and improved sidepanel UI.
+
 ## [1.120.3] - 2026-06-21
 
 ### Changed

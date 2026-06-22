@@ -25,6 +25,19 @@ const DEFAULT_TIMEOUT_MS = 15000;
 // panel takes precedence when several are connected).
 const sockets: WebSocket[] = [];
 
+/** Who opened a bridge socket — captured from the WS upgrade (see handler.ts). */
+export interface BrowserClientInfo {
+  ip: string; // remote address; ::1/127.0.0.1 when the browser is on this host
+  userAgent: string; // browser User-Agent (OS + browser version)
+  origin: string; // chrome-extension://<id> for the extension side panel
+  host?: string; // server hostname — equals the client machine name iff `local`
+  local: boolean; // true when the peer is loopback (same machine as the server)
+  connectedAt: number;
+}
+// Set by the WS layer on the socket object at connection time.
+type WithClient = WebSocket & { __tcClient?: BrowserClientInfo };
+const clientInfo = new Map<WebSocket, BrowserClientInfo>();
+
 interface Pending {
   resolve: (value: unknown) => void;
   reject: (err: Error) => void;
@@ -39,6 +52,9 @@ export function registerBrowserSocket(ws: WebSocket): void {
     sockets.unshift(ws);
     log.log(`Browser extension registered (total: ${sockets.length})`);
   }
+  const info = (ws as WithClient).__tcClient;
+  if (info) clientInfo.set(ws, info);
+  log.log(`Browser client: ${info ? `${info.origin || '?'} @ ${info.ip || '?'}${info.host ? ` (${info.host})` : ''}` : 'unknown'}`);
   ws.on('close', () => unregisterBrowserSocket(ws));
 }
 
@@ -48,11 +64,20 @@ export function unregisterBrowserSocket(ws: WebSocket): void {
     sockets.splice(i, 1);
     log.log(`Browser extension unregistered (remaining: ${sockets.length})`);
   }
+  clientInfo.delete(ws);
 }
 
 /** True when at least one extension side panel is connected + open. */
 export function browserConnected(): boolean {
   return sockets.some((w) => w.readyState === 1 /* OPEN */);
+}
+
+/** Identify the connected bridge clients (IP / User-Agent / extension origin / host). */
+export function getBrowserClients(): Array<BrowserClientInfo & { open: boolean }> {
+  return sockets.map((w) => {
+    const info = clientInfo.get(w) || { ip: '', userAgent: '', origin: '', local: false, connectedAt: 0 };
+    return { ...info, open: w.readyState === 1 };
+  });
 }
 
 /** Resolve a pending command with the extension's reply. */
