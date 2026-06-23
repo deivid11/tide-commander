@@ -299,6 +299,182 @@ export function detectAgentFetch(parsed: ParsedCurl): { agentId: string } | null
   return { agentId: match[1] };
 }
 
+const BROWSER_URL_RE = /^https?:\/\/[^/]+\/api\/browser\/(.+?)\/?$/;
+
+export interface BrowserAction {
+  /** Raw endpoint path under /api/browser/, e.g. `click`, `dom`, `tab/activate`. */
+  endpoint: string;
+  /** Human-readable action label, e.g. `Click`, `Read DOM`. */
+  verb: string;
+  /** Icon name (from the shared Icon set). */
+  icon: string;
+  /** Tab target display string (`#<tabId>` or the `tab` substring), if any. */
+  tab?: string;
+  /** The selector/text/url the action operates on, if any. */
+  target?: string;
+  /** Secondary detail (typed text, key, level, field/step count, …). */
+  detail?: string;
+  /** Whether a DOM diff was requested. */
+  diff: boolean;
+  /** The raw JSON body (for the expandable details view). */
+  body: unknown;
+}
+
+/**
+ * Detect a `/api/browser/<action>` bridge call and summarize it for a compact card.
+ * Generic over every browser endpoint (reads + drives + tab ops); returns null for
+ * any non-browser URL so the generic curl card still handles those.
+ */
+export function detectBrowserAction(parsed: ParsedCurl): BrowserAction | null {
+  if (!parsed) return null;
+  const match = BROWSER_URL_RE.exec(parsed.url);
+  if (!match) return null;
+  const endpoint = match[1].toLowerCase();
+
+  const body: Record<string, unknown> =
+    parsed.bodyJson && typeof parsed.bodyJson === 'object' && !Array.isArray(parsed.bodyJson)
+      ? (parsed.bodyJson as Record<string, unknown>)
+      : {};
+
+  const asStr = (v: unknown): string | undefined =>
+    typeof v === 'string' && v.length > 0 ? v : typeof v === 'number' ? String(v) : undefined;
+
+  let tab: string | undefined;
+  if (body.tabId != null && body.tabId !== '') tab = `#${String(body.tabId)}`;
+  else if (typeof body.tab === 'string' && body.tab) tab = body.tab;
+
+  const diff = body.diff === true;
+  let verb = endpoint;
+  let icon = 'robot';
+  let target = asStr(body.selector) ?? asStr(body.text);
+  let detail: string | undefined;
+
+  switch (endpoint) {
+    case 'page':
+      verb = 'Read page';
+      icon = 'file-text';
+      target = undefined;
+      break;
+    case 'dom':
+      if (body.actionable === true) {
+        verb = 'Map elements';
+        icon = 'grid';
+      } else {
+        verb = 'Read DOM';
+        icon = 'eye';
+      }
+      target = asStr(body.selector);
+      break;
+    case 'click':
+      verb = 'Click';
+      icon = 'hand-point';
+      break;
+    case 'hover':
+      verb = 'Hover';
+      icon = 'hand-point';
+      break;
+    case 'type':
+      verb = 'Type';
+      icon = 'keyboard';
+      target = asStr(body.selector) ?? asStr(body.within);
+      detail = asStr(body.text) != null ? `“${asStr(body.text)}”` : undefined;
+      break;
+    case 'fill': {
+      verb = 'Fill form';
+      icon = 'list-checks';
+      const fields = Array.isArray(body.fields) ? body.fields.length : 0;
+      detail = `${fields} field${fields === 1 ? '' : 's'}`;
+      if (body.submit) detail += ' + submit';
+      target = undefined;
+      break;
+    }
+    case 'key':
+      verb = 'Press key';
+      icon = 'keyboard';
+      detail = asStr(body.key);
+      target = asStr(body.selector);
+      break;
+    case 'select':
+      verb = 'Select';
+      icon = 'list';
+      detail = asStr(body.label) ?? asStr(body.value);
+      target = asStr(body.selector);
+      break;
+    case 'scroll':
+      verb = 'Scroll';
+      icon = 'scroll';
+      break;
+    case 'navigate':
+      verb = 'Navigate';
+      icon = 'arrow-right';
+      target = asStr(body.url);
+      break;
+    case 'console':
+      verb = 'Read console';
+      icon = 'terminal';
+      detail = asStr(body.level);
+      target = undefined;
+      break;
+    case 'network':
+      verb = 'Read network';
+      icon = 'wifi';
+      detail = asStr(body.filter);
+      target = undefined;
+      break;
+    case 'errors':
+      verb = 'Read errors';
+      icon = 'bug';
+      target = undefined;
+      break;
+    case 'screenshot':
+      verb = 'Screenshot';
+      icon = 'frame';
+      target = asStr(body.selector);
+      break;
+    case 'batch': {
+      verb = 'Batch';
+      icon = 'list-bullets';
+      const steps = Array.isArray(body.steps) ? body.steps.length : 0;
+      detail = `${steps} step${steps === 1 ? '' : 's'}`;
+      target = undefined;
+      break;
+    }
+    case 'status':
+      verb = 'Browser status';
+      icon = 'info';
+      target = undefined;
+      break;
+    case 'tabs':
+      verb = 'List tabs';
+      icon = 'list-bullets';
+      target = undefined;
+      break;
+    case 'targets':
+      verb = 'List targets';
+      icon = 'target';
+      target = undefined;
+      break;
+    case 'tab/open':
+      verb = 'Open tab';
+      icon = 'plus';
+      target = asStr(body.url);
+      break;
+    case 'tab/close':
+      verb = 'Close tab';
+      icon = 'close';
+      break;
+    case 'tab/activate':
+      verb = 'Activate tab';
+      icon = 'arrow-up-right';
+      break;
+    default:
+      verb = endpoint.charAt(0).toUpperCase() + endpoint.slice(1);
+      break;
+  }
+
+  return { endpoint, verb, icon, tab, target, detail, diff, body: parsed.bodyJson };
+}
+
 const AGENT_MESSAGE_URL_RE = /^https?:\/\/[^/]+\/api\/agents\/([A-Za-z0-9_-]+)\/message$/;
 
 /**

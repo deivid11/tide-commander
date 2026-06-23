@@ -613,6 +613,7 @@ async function handleError(payload, sender) {
   } catch (_e) {
     /* ignore */
   }
+  const tabId = sender && sender.tab ? sender.tab.id : undefined;
   const clean = {
     kind: payload.kind,
     subtype: payload.subtype || '',
@@ -621,6 +622,7 @@ async function handleError(payload, sender) {
     url: redact(payload.url || '', cfg),
     pageUrl: frameUrl,
     origin,
+    tabId,
     message: redact(payload.message || '', cfg),
     stack: redact(payload.stack || '', cfg),
     userAgent: payload.ua || '',
@@ -641,8 +643,14 @@ async function handleError(payload, sender) {
       rec.stack = clean.stack;
       rec.requestBody = clean.requestBody;
       rec.responseBody = clean.responseBody;
+      // Same error can fire in several tabs (same origin) — keep dedup by fingerprint
+      // (one panel entry) but ACCUMULATE the tabs that produced it, so a per-tab read
+      // can scope errors to its own tab instead of getting every same-origin tab's.
+      rec.tabId = tabId; // last-seen, for legacy single-value consumers
+      if (!Array.isArray(rec.tabIds)) rec.tabIds = [];
+      if (tabId != null && !rec.tabIds.includes(tabId)) rec.tabIds.push(tabId);
     } else {
-      rec = { fingerprint: fp, ...clean, count: 1, firstSeen: now, lastSeen: now, sentCount: 0, lastSentAt: 0, lastSendResult: null, muted: false };
+      rec = { fingerprint: fp, ...clean, tabIds: tabId != null ? [tabId] : [], count: 1, firstSeen: now, lastSeen: now, sentCount: 0, lastSentAt: 0, lastSendResult: null, muted: false };
       errors[fp] = rec;
     }
     await saveErrors(errors);
@@ -993,6 +1001,20 @@ async function cdpAttach(tabId) {
     cdpDebuggee.set(tabId, { targetId: real.id });
   }
   cdpAttached.add(tabId);
+  // Make the renderer behave as if focused/active even when its tab is backgrounded, so
+  // drives/reads run identically unfocused: focus emulation (document.hasFocus()=true,
+  // :focus styles, no blur events that close menus) + active web-lifecycle (Chrome won't
+  // freeze/intensively-throttle the tab). Best-effort — never let these break the attach.
+  try {
+    await cdpSend(tabId, 'Emulation.setFocusEmulationEnabled', { enabled: true });
+  } catch (_e) {
+    /* not supported on this target */
+  }
+  try {
+    await cdpSend(tabId, 'Page.setWebLifecycleState', { state: 'active' });
+  } catch (_e) {
+    /* not supported on this target */
+  }
 }
 // Evaluate an expression in the page and return its (by-value) result.
 function cdpEval(tabId, expression) {

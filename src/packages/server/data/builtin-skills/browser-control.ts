@@ -20,9 +20,23 @@ every call with the scaffolding from the API Calling Convention above (host + th
 - The page origin must be in the extension's allowlist, else drive returns \`Refused: … is not in the allowlist\`.
 - Check first: \`GET /api/browser/status\` → \`{extensionConnected, clients[]}\` (each client = ip / userAgent / origin / host).
 
-## Target a tab
-Every command accepts \`tabId\` (exact, from \`GET /api/browser/tabs\`) **or** \`tab\` (a
-URL/title substring, e.g. \`{"tab":"transfercld"}\`). Omit both to use the active tab.
+## Target a tab — pass it explicitly, and DON'T activate
+Every command — **reads (\`/dom\`, \`/console\`, \`/network\`, \`/errors\`, \`/page\`, \`/screenshot\`) included, not just drives** — accepts \`tabId\` (exact, from \`GET /api/browser/tabs\`) **or** \`tab\` (a
+URL/title substring, e.g. \`{"tab":"transfercld"}\`). **There is NO per-agent "current tab" memory** — the tab is resolved fresh on EVERY call from the body (or the omit-fallback below); nothing is remembered from your previous call. **Resolve the tab once (\`GET
+/api/browser/tabs\`) and pass \`tab\`/\`tabId\` on EVERY call** — reads too — so you act on YOUR tab no
+matter what's focused. \`/console\`, \`/network\` and \`/errors\` are SCOPED to the resolved tab (the buffers are global but tagged per-tab); omit the tab and you get whichever tab the fallback picks — with two tabs of the **same site** that used to bleed each other's logs/errors together.
+- If you omit both: it targets the tab with the 🤖 toggle ON **only when exactly one tab
+  has it** (unambiguous). With **0** driven tabs it falls back to the focused tab; with
+  **2+** driven tabs (e.g. several agents) it refuses to guess and falls back to the
+  focused tab — which is probably the WRONG one. So when more than one tab is in play,
+  passing \`tab\`/\`tabId\` is **mandatory**.
+- **Multiple agents can drive different tabs at the same time.** Each agent must target its
+  own tab by \`tab\`/\`tabId\`; never rely on "the active tab".
+- **Do NOT call \`/api/browser/tab/activate\` just to drive.** Clicks/typing/reads work on a
+  **background, unfocused tab** (the user may be on another screen/monitor) — activating
+  steals their focus and, with multiple agents, makes the tab fight over the foreground.
+  Activate ONLY if the user explicitly asks, or you need a full-viewport screenshot
+  (element-clip screenshots don't need it either).
 
 ## Reads (always available)
 - \`POST /api/browser/dom\` \`{selector, all?}\` → outerHTML/text/box/styles + **\`field\`** (live \`value\`/\`checked\`/\`selectedText\`/\`disabled\` for input/textarea/select). Read form state from \`field\`, NOT from the value attribute (React often doesn't mirror it) and NOT via \`evaluate\` (its content-script fallback is CSP-blocked). Bulky \`<svg>\` icon markup is stripped to a compact \`<svg data-icon>\` placeholder by default (token saver) — pass \`"keepSvg":true\` to keep it.
@@ -156,7 +170,7 @@ pure reads or trivially safe actions where the effect doesn't matter.
   then drives are real trusted input. If a \`click\` returns \`changed:false\`, first check
   you're targeting the element that owns the handler (e.g. a react-select control, not its
   input) before assuming a trust problem.
-- **react-select** (not a native \`<select>\`): the RELIABLE way to open it is **\`type\` the query straight into \`#react-select-N-input\`** — that opens AND filters in one step (proven). A \`click\` (on the input OR the \`.tide-react-select__control\`) often does NOT open the menu with the synthetic content-script driver and returns \`changed:false\` — so don't fight it with clicks; **just \`type\`.** To open the FULL list without a filter, \`key\` \`ArrowDown\` on \`#react-select-N-input\` (react-select's keyboard-open). Once open, \`click\` the option. **Do NOT click by a raw \`#react-select-N-option-M\` id — react-select RENUMBERS those on every filter/re-render, so the id you read is often stale by the time you click (→ "no element matches").** Two robust ways: (a) \`click\` the \`selector\` the diff's \`actions\` gives you (the bridge now anchors it on the stable \`#react-select-N-listbox\` + position, not the volatile id), or (b) \`click\` by \`text\` **scoped to the menu** — \`{"text":"BBVA BANCOMER","within":"#react-select-N-listbox"}\` (bare \`text\` without \`within\` is the classic mis-click — the same label in a background table/list wins). Confirm via \`.tide-react-select__single-value\`.
+- **react-select** (not a native \`<select>\`): **open it** with \`key\` \`ArrowDown\` on \`#react-select-N-input\` (full list), or \`type\` a real query into that input (opens AND filters in one step). Do NOT \`type\` an EMPTY string to "open" it — that's a no-op and returns \`changed:false\` (proven in-run). A \`click\` (on the input OR the \`.tide-react-select__control\`) often does NOT open the menu with the synthetic content-script driver and returns \`changed:false\` — so don't fight it with clicks. **Filtering an already-open menu** (typing a query) returns \`summary: ["filtró lista de opciones (N): …"]\` listing what's now selectable — so you do NOT need a follow-up \`/dom\` read to see the narrowed options (an earlier version returned \`changed:false\` here, which is fixed). Once open, **\`click\` the option by \`text\` scoped to the menu** — \`{"text":"BBVA BANCOMER","within":"#react-select-N-listbox"}\` — this is the robust path (bare \`text\` without \`within\` is the classic mis-click: the same label in a background table/list wins). **Avoid index/class-based option selectors:** \`#react-select-N-option-M\` ids RENUMBER on every filter, and the \`css-<hash>-option\` class encodes the option's highlight STATE (idle vs hovered hash differ) — both go stale between read and click. The diff's \`actions\`/\`added\` selectors are now stripped of those volatile \`css-*\` hashes, so a selector you get from a diff is safe to reuse; one you hand-built with \`:nth-of-type\` + a \`css-…\` class is not. Confirm a pick via \`summary: ["seleccionó: <value>"]\` or \`.tide-react-select__single-value\`. **In a \`/batch\`:** \`#react-select-N\` ids renumber each time a fresh modal opens, and you can't re-read them mid-batch — so don't hardcode option indices/ids across a just-opened modal; open with \`ArrowDown\` then pick by \`text\`+\`within\` (the listbox id within the same open menu is stable enough for one batch).
 - **Submit buttons:** click by a precise \`selector\`, not \`text\` — \`text\` can match a wrapper element whose text equals the button's.
 - **Verifying values:** read \`/dom\`'s \`field.value\`/\`field.checked\`/\`field.selectedText\` (live DOM properties) — don't trust the \`value\` attribute (React often won't mirror it) and don't use \`evaluate\` for reads (CSP-blocked unless the debugger path is available).
 - **Reads are clean:** a read with no match returns \`no element matches <selector>\` (it no longer falls back to the debugger, so it won't surface the cross-extension error); \`<svg>\` and \`<style>\` blocks are collapsed to compact placeholders (pass \`keepSvg:true\` to keep them).
