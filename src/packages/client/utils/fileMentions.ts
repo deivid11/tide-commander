@@ -27,6 +27,18 @@ const AGENTE_BLOCK_RE = /<agente[^>]*\bnombre="([^"]+)"[^>]*\/?>/g;
 // Stripped from chat history so the user only sees their own text.
 const INSTRUCCIONES_INTERNAS_RE = /<instrucciones_internas>[\s\S]*?<\/instrucciones_internas>/g;
 
+// Inverse of the server's `attr()` escaping. Agent names are emitted as XML
+// attribute values (e.g. nombre="My &quot;Cool&quot; Agent"), so decode the
+// entities back before showing them as a chip. Order matters: &amp; last so a
+// literal "&amp;" in a name survives the round-trip.
+function unescapeAttr(value: string): string {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
 export interface FileMentionChip {
   path: string; // file/folder path, or the agent name for agent chips
   type: 'file' | 'dir' | 'agent';
@@ -66,7 +78,7 @@ export function extractFileMentionBlocks(content: string): {
     const seen = new Set(chips.filter((c) => c.type === 'agent').map((c) => c.path));
     let m;
     while ((m = AGENTE_BLOCK_RE.exec(inner)) !== null) {
-      const agentName = m[1];
+      const agentName = unescapeAttr(m[1]);
       if (!seen.has(agentName)) {
         seen.add(agentName);
         chips.push({ path: agentName, type: 'agent' });
