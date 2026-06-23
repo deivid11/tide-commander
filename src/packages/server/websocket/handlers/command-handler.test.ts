@@ -288,16 +288,18 @@ describe('expandFileMentions', () => {
 
   it('expands [@file:path] by injecting file content before the user text', async () => {
     const result = await expandFileMentions('[@file:hello.ts]\nexplica el archivo', tmpDir);
-    expect(result).toContain('<file path="hello.ts">');
+    expect(result).toContain('<archivos_contexto>');
+    expect(result).toContain('<archivo ruta="hello.ts">');
+    expect(result).toContain('<![CDATA[');
     expect(result).toContain('export const greeting = "hello";');
-    expect(result).toContain('</file>');
-    expect(result).toContain('explica el archivo');
+    expect(result).toContain('</archivo>');
+    expect(result).toContain('Petición: explica el archivo');
   });
 
   it('places file context before the user message', async () => {
     const result = await expandFileMentions('[@file:hello.ts]\nque hace esto?', tmpDir);
-    const fileIdx = result.indexOf('<file path=');
-    const textIdx = result.indexOf('que hace esto?');
+    const fileIdx = result.indexOf('<archivo ruta=');
+    const textIdx = result.indexOf('Petición: que hace esto?');
     expect(fileIdx).toBeLessThan(textIdx);
   });
 
@@ -306,31 +308,48 @@ describe('expandFileMentions', () => {
       '[@file:hello.ts]\n[@file:README.md]\ncompara ambos',
       tmpDir,
     );
-    expect(result).toContain('<file path="hello.ts">');
-    expect(result).toContain('<file path="README.md">');
+    expect(result).toContain('<archivo ruta="hello.ts">');
+    expect(result).toContain('<archivo ruta="README.md">');
     expect(result).toContain('# Project');
-    expect(result).toContain('compara ambos');
+    expect(result).toContain('Petición: compara ambos');
   });
 
-  it('leaves unreadable file token as-is rather than throwing', async () => {
+  it('silently drops unreadable file token rather than throwing', async () => {
     const result = await expandFileMentions('[@file:no-existe.ts]\nexplica', tmpDir);
-    // Token stays in the string; function does not throw
-    expect(result).toContain('[@file:no-existe.ts]');
+    // Unreadable file is skipped; only the user text is returned
+    expect(result).not.toContain('[@file:no-existe.ts]');
     expect(result).toContain('explica');
   });
 
-  it('expands [@folder:path] to a directory listing', async () => {
+  it('expands [@folder:path] as a structure listing without inlining file content', async () => {
     const result = await expandFileMentions('[@folder:src]\nexplora la carpeta', tmpDir);
-    expect(result).toContain('<folder path="src">');
-    expect(result).toContain('</folder>');
-    expect(result).toContain('explora la carpeta');
-    // Should list the file inside the folder
-    expect(result).toContain('index.ts');
+    expect(result).toContain('<archivos_contexto>');
+    // Folder mention emits a <carpeta> block with paths, NOT <archivo> blocks
+    expect(result).toContain('<carpeta ruta="src">');
+    expect(result).toContain('src/index.ts');
+    expect(result).not.toContain('<archivo ruta="src/index.ts">');
+    // The file content from inside src/ must not leak into the prompt
+    expect(result).not.toContain('export default {}');
+    expect(result).toContain('Petición: explora la carpeta');
+  });
+
+  it('mixes [@file:] (content) and [@folder:] (structure) in the same prompt', async () => {
+    const result = await expandFileMentions(
+      '[@file:hello.ts]\n[@folder:src]\ncompara',
+      tmpDir,
+    );
+    // file mention still inlines content
+    expect(result).toContain('<archivo ruta="hello.ts">');
+    expect(result).toContain('export const greeting = "hello";');
+    // folder mention stays structural
+    expect(result).toContain('<carpeta ruta="src">');
+    expect(result).toContain('src/index.ts');
+    expect(result).not.toContain('<archivo ruta="src/index.ts">');
   });
 
   it('handles command with only a mention and no user text', async () => {
     const result = await expandFileMentions('[@file:hello.ts]', tmpDir);
-    expect(result).toContain('<file path="hello.ts">');
+    expect(result).toContain('<archivo ruta="hello.ts">');
     expect(result).toContain('export const greeting');
   });
 });

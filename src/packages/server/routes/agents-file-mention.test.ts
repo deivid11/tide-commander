@@ -262,5 +262,31 @@ describe('GET /api/agents/:id/files — @ mention file listing', () => {
       const { files } = await res.json();
       expect(files.some((f: any) => f.path.includes('routes'))).toBe(true);
     });
+
+    it('ranks shallow exact-name matches above deeper namesakes', async () => {
+      // Build a scenario with a deep "src" directory under an alphabetically
+      // earlier sibling — the kind of layout that hid the root-level src/
+      // before MAX_RESULTS was lifted from inside the walk.
+      const deepRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'tc-files-deep-'));
+      try {
+        fs.mkdirSync(path.join(deepRoot, 'src'));
+        fs.writeFileSync(path.join(deepRoot, 'src', 'app.ts'), '');
+        fs.mkdirSync(path.join(deepRoot, 'android'));
+        fs.mkdirSync(path.join(deepRoot, 'android', 'app'));
+        fs.mkdirSync(path.join(deepRoot, 'android', 'app', 'src'));
+        fs.writeFileSync(path.join(deepRoot, 'android', 'app', 'src', 'main.java'), '');
+
+        vi.mocked(agentService.getAgent).mockReturnValue(makeAgent(deepRoot) as any);
+        const res = await fetch(`${baseUrl}/api/agents/agent-1/files?q=src`);
+        const { files } = await res.json();
+        const rootIdx = files.findIndex((f: any) => f.path === 'src');
+        const deepIdx = files.findIndex((f: any) => f.path === 'android/app/src');
+        expect(rootIdx).toBeGreaterThanOrEqual(0);
+        expect(deepIdx).toBeGreaterThanOrEqual(0);
+        expect(rootIdx).toBeLessThan(deepIdx);
+      } finally {
+        fs.rmSync(deepRoot, { recursive: true, force: true });
+      }
+    });
   });
 });
