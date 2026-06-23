@@ -1,14 +1,27 @@
 /**
- * Pure utility for stripping server-injected <file>/<folder> context blocks
+ * Pure utility for stripping server-injected file/folder context blocks
  * from user message content before display in chat history.
  *
- * These blocks are produced by expandFileMentions() on the server and carry
- * the full file/folder content for Claude. In the chat UI we replace them with
- * compact chips so the history stays readable.
+ * Two formats are supported:
+ *   - Legacy: <file path="...">...</file> / <folder path="...">...</folder>
+ *   - Current: <archivos_contexto><archivo ruta="..."><![CDATA[...]]></archivo></archivos_contexto>
+ *
+ * Both are produced by expandFileMentions() on the server. In the chat UI we
+ * replace them with compact chips so the history stays readable.
  */
 
-// Matches <file path="...">...</file> and <folder path="...">...</folder>
+// Legacy format: <file path="...">...</file> and <folder path="...">...</folder>
 const FILE_MENTION_BLOCK_RE = /<(file|folder) path="([^"]+)">([\s\S]*?)<\/\1>/g;
+
+// Current format: outer <archivos_contexto> wrapper
+const ARCHIVOS_CONTEXTO_RE = /<archivos_contexto>([\s\S]*?)<\/archivos_contexto>/g;
+
+// Current format: individual <archivo ruta="..."> blocks inside the wrapper
+const ARCHIVO_BLOCK_RE = /<archivo ruta="([^"]+)">([\s\S]*?)<\/archivo>/g;
+
+// Server-injected internal guidance (path-format hints for the LLM).
+// Stripped from chat history so the user only sees their own text.
+const INSTRUCCIONES_INTERNAS_RE = /<instrucciones_internas>[\s\S]*?<\/instrucciones_internas>/g;
 
 export interface FileMentionChip {
   path: string;
@@ -16,7 +29,7 @@ export interface FileMentionChip {
 }
 
 /**
- * Extract [@file/@folder] context blocks injected by the server.
+ * Extract file/folder context blocks injected by the server.
  * Returns the cleaned display string (blocks removed) and a chip list
  * that the UI renders as compact file/folder badges.
  */
@@ -25,11 +38,37 @@ export function extractFileMentionBlocks(content: string): {
   chips: FileMentionChip[];
 } {
   const chips: FileMentionChip[] = [];
+
+  // Current format: strip <archivos_contexto> wrapper and collect <archivo ruta> chips
+  ARCHIVOS_CONTEXTO_RE.lastIndex = 0;
+  let displayContent = content.replace(ARCHIVOS_CONTEXTO_RE, (_match, inner: string) => {
+    ARCHIVO_BLOCK_RE.lastIndex = 0;
+    const seen = new Set(chips.map((c) => c.path));
+    let m;
+    while ((m = ARCHIVO_BLOCK_RE.exec(inner)) !== null) {
+      const filePath = m[1];
+      if (!seen.has(filePath)) {
+        seen.add(filePath);
+        chips.push({ path: filePath, type: 'file' });
+      }
+    }
+    return '';
+  });
+
+  // Legacy format: <file path="..."> and <folder path="...">
   FILE_MENTION_BLOCK_RE.lastIndex = 0;
-  let displayContent = content.replace(FILE_MENTION_BLOCK_RE, (_, tag, filePath) => {
+  displayContent = displayContent.replace(FILE_MENTION_BLOCK_RE, (_, tag, filePath) => {
     chips.push({ path: filePath, type: tag === 'folder' ? 'dir' : 'file' });
     return '';
   });
+
+  // Strip the internal path-format guidance the server injects alongside file context
+  INSTRUCCIONES_INTERNAS_RE.lastIndex = 0;
+  displayContent = displayContent.replace(INSTRUCCIONES_INTERNAS_RE, '');
+
+  // Strip "Petición: " prefix that the server prepends to user text in the current format
+  displayContent = displayContent.replace(/^Petición:\s*/m, '');
+
   displayContent = displayContent.replace(/^\s*\n+/, '').replace(/\n{3,}/g, '\n\n').trim();
   return { displayContent, chips };
 }

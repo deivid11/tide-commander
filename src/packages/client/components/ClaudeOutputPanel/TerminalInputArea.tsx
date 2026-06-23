@@ -450,6 +450,10 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     cursorPositionRef.current = cursor;
     setCommand(val);
 
+    // Drop tracked mentions whose @path text no longer appears in the command —
+    // the user removed the inline reference, so we must not still inject context.
+    setFileMentions((prev) => prev.filter((f) => val.includes(`@${f.path}`)));
+
     // Detect @ mention trigger: look for @ followed by non-whitespace up to cursor
     const textBefore = val.slice(0, cursor);
     const atMatch = textBefore.match(/@(\S*)$/);
@@ -587,10 +591,10 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   }, []);
 
   const handleSelectMention = useCallback((item: FileMentionItem) => {
-    // Remove the @query text from the command string
+    // Replace @query with the selected item's path, preserving surrounding text
     const before = command.slice(0, mentionQuery.start);
     const after = command.slice(mentionQuery.start + 1 + mentionQuery.query.length);
-    setCommand(before + after);
+    setCommand(before + `@${item.path} ` + after);
     // Add chip (deduplicated)
     setFileMentions((prev) => prev.some((f) => f.path === item.path) ? prev : [...prev, item]);
     closeMention();
@@ -599,10 +603,6 @@ export const TerminalInputArea = memo(function TerminalInputArea({
       (textareaRef.current || inputRef.current)?.focus();
     });
   }, [command, mentionQuery, setCommand, closeMention, textareaRef, inputRef]);
-
-  const removeFileMention = useCallback((path: string) => {
-    setFileMentions((prev) => prev.filter((f) => f.path !== path));
-  }, []);
 
   const handleToggleExpand = () => {
     const next = !isInputExpanded;
@@ -993,25 +993,6 @@ export const TerminalInputArea = memo(function TerminalInputArea({
               />
             );
           })}
-        </div>
-      )}
-
-      {/* File mention chips — @ referenced files/folders */}
-      {fileMentions.length > 0 && (
-        <div className="guake-file-mentions">
-          {fileMentions.map((f) => (
-            <span key={f.path} className={`file-mention-chip ${f.type === 'dir' ? 'is-dir' : ''}`}>
-              <span className="file-mention-chip__icon">
-                <Icon name={f.type === 'dir' ? 'folder' : 'file'} size={11} />
-              </span>
-              <span className="file-mention-chip__name" title={f.path}>{f.name}</span>
-              <button
-                className="file-mention-chip__remove"
-                onClick={() => removeFileMention(f.path)}
-                title="Quitar referencia"
-              >×</button>
-            </span>
-          ))}
         </div>
       )}
 
