@@ -174,6 +174,27 @@ async function fetchAgents(commanderId) {
     return { ok: false, error: String((e && e.message) || e), agents: [] };
   }
 }
+// List/search files in an agent's cwd for the @-mention autocomplete. Mirrors
+// the React client's GET /api/agents/:id/files?q= call; the server ranks and
+// caps the results (dirs first, shallow paths first).
+async function fetchFiles(commanderId, agentId, q) {
+  const cfg = await getConfig();
+  const c = commanderById(cfg, commanderId);
+  if (!c) return { ok: false, error: 'no commander', files: [] };
+  if (!agentId) return { ok: false, error: 'no agent selected', files: [] };
+  try {
+    const r = await apiFetch(
+      c.baseUrl,
+      c.token,
+      `/api/agents/${encodeURIComponent(agentId)}/files?q=${encodeURIComponent(q || '')}`,
+    );
+    if (!r.ok) return { ok: false, error: 'HTTP ' + r.status, files: [] };
+    const j = await r.json();
+    return { ok: true, files: Array.isArray(j.files) ? j.files : [] };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e), files: [] };
+  }
+}
 async function sendChat(commanderId, agentId, message) {
   const cfg = await getConfig();
   const c = commanderById(cfg, commanderId);
@@ -686,6 +707,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return true;
     case 'fetchAgents':
       fetchAgents(msg.commanderId).then(sendResponse);
+      return true;
+    case 'fetchFiles':
+      fetchFiles(msg.commanderId, msg.agentId, msg.q).then(sendResponse);
       return true;
     case 'sendChat':
       sendChat(msg.commanderId, msg.agentId, msg.message).then(sendResponse);
