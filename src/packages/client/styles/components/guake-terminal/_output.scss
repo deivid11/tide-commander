@@ -476,19 +476,6 @@
   word-wrap: break-word;
 }
 
-// Chip row shown in history when the user referenced @ files/folders
-.user-prompt-mention-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 4px;
-}
-
-// Block wrapper for the text after the chips
-.user-prompt-text-block {
-  display: block;
-}
-
 .output-role {
   font-weight: bold;
   color: var(--text-secondary);
