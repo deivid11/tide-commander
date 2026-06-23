@@ -405,4 +405,92 @@ describe('expandFileMentions', () => {
     expect(result).toContain('nombre="Helper"');
     expect(result).toContain('Petición: haz ambos');
   });
+
+  it('marks a boss agent with jefe="true"', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'b1', name: 'Boss', class: 'orchestrator', status: 'idle', cwd: '/w', isBoss: true,
+    } as any);
+    const result = await expandFileMentions('[@agent:b1] delega', tmpDir);
+    expect(result).toContain('jefe="true"');
+  });
+
+  it('falls back to status when trackingStatus is absent', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'a1', name: 'Plain', class: 'default', status: 'idle', cwd: '/w', isBoss: false,
+    } as any);
+    const result = await expandFileMentions('[@agent:a1] hey', tmpDir);
+    expect(result).toContain('estado="idle"');
+  });
+
+  it('uses estado="unknown" when neither trackingStatus nor status is set', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'a1', name: 'Ghosty', class: 'default', cwd: '/w', isBoss: false,
+    } as any);
+    const result = await expandFileMentions('[@agent:a1] hey', tmpDir);
+    expect(result).toContain('estado="unknown"');
+  });
+
+  it('escapes <, > and & in agent attributes', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'a1', name: 'A <b> & "c"', class: 'x&y', status: 'idle', cwd: '/w', isBoss: false,
+    } as any);
+    const result = await expandFileMentions('[@agent:a1] hey', tmpDir);
+    expect(result).toContain('nombre="A &lt;b&gt; &amp; &quot;c&quot;"');
+    expect(result).toContain('clase="x&amp;y"');
+    // No raw angle brackets leak into the attribute value
+    expect(result).not.toContain('nombre="A <b>');
+  });
+
+  it('emits a block for each distinct agent (no false dedup)', async () => {
+    vi.mocked(agentService.getAgent).mockImplementation(((id: string) => ({
+      id, name: `Name-${id}`, class: 'scout', status: 'idle', cwd: '/w', isBoss: false,
+    })) as any);
+    const result = await expandFileMentions('[@agent:a1]\n[@agent:a2]\njunta', tmpDir);
+    expect(result.match(/<agente /g)?.length).toBe(2);
+    expect(result).toContain('id="a1"');
+    expect(result).toContain('id="a2"');
+  });
+
+  it('trims whitespace inside the [@agent: id ] token before lookup', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'a1', name: 'Trimmed', class: 'default', status: 'idle', cwd: '/w', isBoss: false,
+    } as any);
+    const result = await expandFileMentions('[@agent:  a1  ] hey', tmpDir);
+    expect(agentService.getAgent).toHaveBeenCalledWith('a1');
+    expect(result).toContain('id="a1"');
+  });
+
+  it('emits empty cwd attribute when the agent has no cwd', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'a1', name: 'NoCwd', class: 'default', status: 'idle', isBoss: false,
+    } as any);
+    const result = await expandFileMentions('[@agent:a1] hey', tmpDir);
+    expect(result).toContain('cwd=""');
+  });
+
+  it('includes agent coordination guidance inside <instrucciones_internas>', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'a1', name: 'Guide', class: 'scout', status: 'idle', cwd: '/w', isBoss: false,
+    } as any);
+    const result = await expandFileMentions('[@agent:a1] coordina', tmpDir);
+    const start = result.indexOf('<instrucciones_internas>');
+    const end = result.indexOf('</instrucciones_internas>');
+    expect(start).toBeGreaterThanOrEqual(0);
+    const guidance = result.slice(start, end);
+    expect(guidance).toContain('<agentes_contexto>');
+    expect(guidance).toContain('POST /api/agents/<id>/message');
+    // The guidance clarifies tagging does not auto-message the agent
+    expect(guidance).toContain('no se envió ningún mensaje');
+  });
+
+  it('combines [@folder:] structure and [@agent:] identity in one prompt', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'a1', name: 'Combo', class: 'scout', status: 'idle', cwd: '/w', isBoss: false,
+    } as any);
+    const result = await expandFileMentions('[@folder:src]\n[@agent:a1]\nrevisa', tmpDir);
+    expect(result).toContain('<carpeta ruta="src">');
+    expect(result).toContain('<agentes_contexto>');
+    expect(result).toContain('nombre="Combo"');
+    expect(result).toContain('Petición: revisa');
+  });
 });

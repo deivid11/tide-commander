@@ -169,5 +169,38 @@ describe('extractFileMentionBlocks', () => {
       expect(chips).toContainEqual({ path: 'a.ts', type: 'file' });
       expect(chips).toContainEqual({ path: 'Helper', type: 'agent' });
     });
+
+    it('decodes XML entities in the agent name (round-trips server attr escaping)', () => {
+      // The server escapes names via attr(): " -> &quot;, < -> &lt;, & -> &amp;
+      const input = [
+        '<agentes_contexto>',
+        '  <agente id="a1" nombre="A &lt;b&gt; &amp; &quot;c&quot;" clase="x&amp;y" jefe="false" estado="idle" cwd="/w"/>',
+        '</agentes_contexto>',
+        '',
+        'Petición: hola',
+      ].join('\n');
+      const { displayContent, chips } = extractFileMentionBlocks(input);
+      expect(displayContent).toBe('hola');
+      expect(chips).toContainEqual({ path: 'A <b> & "c"', type: 'agent' });
+    });
+
+    it('captures the agent name even when nombre is not the first attribute', () => {
+      const input = [
+        '<agentes_contexto>',
+        '  <agente jefe="true" clase="boss" nombre="Late Name" id="a1" estado="idle" cwd="/w"/>',
+        '</agentes_contexto>',
+        '',
+        'Petición: revisa',
+      ].join('\n');
+      const { chips } = extractFileMentionBlocks(input);
+      expect(chips).toContainEqual({ path: 'Late Name', type: 'agent' });
+    });
+
+    it('leaves content untouched when there is no agent context block', () => {
+      const input = 'just a plain message with no mentions';
+      const { displayContent, chips } = extractFileMentionBlocks(input);
+      expect(displayContent).toBe('just a plain message with no mentions');
+      expect(chips.filter((c) => c.type === 'agent')).toHaveLength(0);
+    });
   });
 });
