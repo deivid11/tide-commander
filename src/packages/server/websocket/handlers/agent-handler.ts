@@ -150,6 +150,83 @@ export async function handleSpawnAgent(
 }
 
 /**
+ * Handle clone_agent message - duplicates an existing agent's configuration
+ * into a brand-new agent (fresh session, no inherited context/memory).
+ */
+export async function handleCloneAgent(
+  ctx: HandlerContext,
+  payload: {
+    sourceAgentId: string;
+    name?: string;
+    position?: { x: number; y: number; z: number };
+  }
+): Promise<void> {
+  const source = agentService.getAgent(payload.sourceAgentId);
+  if (!source) {
+    log.error(`Cannot clone: source agent ${payload.sourceAgentId} not found`);
+    ctx.sendError(`Agent ${payload.sourceAgentId} not found`);
+    return;
+  }
+
+  const name = payload.name?.trim() || `${source.name} (Copy)`;
+  // Offset the clone so it doesn't overlap the source on the battlefield.
+  const position = payload.position ?? {
+    x: source.position.x + 2,
+    y: 0,
+    z: source.position.z + 2,
+  };
+
+  log.log(`Cloning agent ${source.name} (${source.id}) -> ${name}`);
+
+  try {
+    // Copy only directly-assigned skills; class-default skills are re-applied
+    // automatically below based on the clone's class.
+    const directSkillIds = skillService
+      .getAllSkills()
+      .filter((skill) => skill.assignedAgentIds.includes(source.id))
+      .map((skill) => skill.id);
+
+    const agent = await agentService.createAgent(
+      name,
+      source.class,
+      source.cwd,
+      position,
+      undefined, // sessionId - start a fresh session, don't share the source's
+      source.useChrome,
+      source.permissionMode,
+      undefined, // initialSkillIds handled separately below
+      source.isBoss,
+      source.model,
+      source.codexModel,
+      source.customInstructions,
+      source.provider,
+      source.codexConfig,
+      source.effort,
+      source.opencodeModel
+    );
+
+    // Re-apply skills: copied direct assignments + class defaults.
+    const classDefaultSkills = customClassService.getClassDefaultSkillIds(agent.class);
+    const allSkillIds = [...new Set([...directSkillIds, ...classDefaultSkills])];
+    for (const skillId of allSkillIds) {
+      skillService.assignSkillToAgent(skillId, agent.id);
+    }
+
+    log.log(`Agent cloned successfully: ${agent.name} (${agent.id})`);
+
+    ctx.broadcast({
+      type: 'agent_created',
+      payload: agent,
+    });
+
+    ctx.sendActivity(agent.id, `${agent.name} cloned from ${source.name}`);
+  } catch (err: any) {
+    log.error('Failed to clone agent:', err);
+    ctx.sendError(err.message);
+  }
+}
+
+/**
  * Handle kill_agent message - stops and deletes agent
  */
 export async function handleKillAgent(

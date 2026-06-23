@@ -957,6 +957,7 @@ class Store
   deselectAll(...args: Parameters<AgentActions['deselectAll']>) { return this.agentActions.deselectAll(...args); }
   togglePinnedAgent(...args: Parameters<AgentActions['togglePinnedAgent']>) { return this.agentActions.togglePinnedAgent(...args); }
   spawnAgent(...args: Parameters<AgentActions['spawnAgent']>) { return this.agentActions.spawnAgent(...args); }
+  cloneAgent(...args: Parameters<AgentActions['cloneAgent']>) { return this.agentActions.cloneAgent(...args); }
   createDirectoryAndSpawn(...args: Parameters<AgentActions['createDirectoryAndSpawn']>) { return this.agentActions.createDirectoryAndSpawn(...args); }
   sendCommand(...args: Parameters<AgentActions['sendCommand']>) { return this.agentActions.sendCommand(...args); }
   refreshAgentContext(...args: Parameters<AgentActions['refreshAgentContext']>) { return this.agentActions.refreshAgentContext(...args); }

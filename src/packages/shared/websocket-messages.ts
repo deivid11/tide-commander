@@ -169,6 +169,16 @@ export interface SpawnAgentMessage extends WSMessage {
   };
 }
 
+// Clone an existing agent (duplicate its configuration into a new agent)
+export interface CloneAgentMessage extends WSMessage {
+  type: 'clone_agent';
+  payload: {
+    sourceAgentId: string;
+    name?: string; // defaults to "<source name> (Copy)"
+    position?: { x: number; y: number; z: number };
+  };
+}
+
 export interface SendCommandMessage extends WSMessage {
   type: 'send_command';
   payload: {
@@ -1600,6 +1610,7 @@ export type ServerMessage =
 
 export type ClientMessage =
   | SpawnAgentMessage
+  | CloneAgentMessage
   | SendCommandMessage
   | ReattachAgentMessage
   | MoveAgentMessage
