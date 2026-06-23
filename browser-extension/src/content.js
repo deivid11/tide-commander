@@ -51,9 +51,13 @@
   }
   // State/modifier classes toggle as the user interacts (focus, selection, open, hashed
   // CSS-in-JS state) — anchoring a path on them makes it match a moving target, so they're
-  // dropped in favour of stable semantic/hashed classes.
+  // dropped in favour of stable semantic classes. The trailing `css-<hash>` test catches
+  // emotion / CSS-in-JS generated classes (`css-1nmdiq5-menu`, `css-d7l1ni-option`): the
+  // hash encodes the render STATE, so e.g. a react-select option flips `css-d7l1ni-option`
+  // (idle) → `css-10wo9uf-option` (highlighted) — baking it makes the next click miss. The
+  // hash always carries a digit, so `css-<word>` (hand-written) is left intact.
   function tcStateClass(c) {
-    return c.indexOf('--') >= 0 || /^(is|has)-/.test(c) || /^(active|focus|focused|hover|hovered|selected|open|opened|show|shown|hidden|disabled|checked|expanded|collapsed|loading|dirty|touched|pending|invalid|error|current|highlighted|dragging)$/i.test(c);
+    return c.indexOf('--') >= 0 || /^(is|has)-/.test(c) || /^css-(?=[a-z0-9]*\d)[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(c) || /^(active|focus|focused|hover|hovered|selected|open|opened|show|shown|hidden|disabled|checked|expanded|collapsed|loading|dirty|touched|pending|invalid|error|current|highlighted|dragging)$/i.test(c);
   }
   function tcPathClasses(node) {
     if (typeof node.className !== 'string') return '';
@@ -717,6 +721,10 @@
   // can wait for the cursor to arrive. No-op (resolves immediately) outside the top frame.
   function tcCursorMoveTo(x, y) {
     return new Promise((resolve) => {
+      // On a hidden/background tab the cursor isn't visible AND its setTimeout is throttled
+      // to ~1s — which would add ~1s to every click. Skip it entirely so background driving
+      // stays fast.
+      if (document.hidden) return resolve();
       let els = null;
       try {
         els = tcCursorEls();
@@ -750,6 +758,7 @@
   }
   // Ripple pulse + brief press at (x,y) to mark a click.
   function tcCursorClick(x, y) {
+    if (document.hidden) return; // no visible cursor on a background tab
     let els = null;
     try {
       els = tcCursorEls();
@@ -952,7 +961,8 @@
     const textChanges = [];
     let textRaw = 0;
     let rsSelected = null; // react-select chosen value text (→ "seleccionó: X")
-    let rsMenu = false; // a react-select menu opened/filtered
+    let rsMenu = false; // a react-select menu opened/filtered (added option/menu nodes)
+    let rsFiltered = false; // a react-select filter NARROWED an open menu (removed options only)
     let rsNoOpt = false; // react-select showed "no options"
     const rsOpts = new Set(); // option labels surfaced when a menu opens/filters
     const tcText1 = (n) => (n.innerText || n.textContent || '').trim().replace(/\s+/g, ' ');
@@ -994,7 +1004,15 @@
         }
         for (const n of r.removedNodes) {
           if (tcDiffIgnored(n) || tcAddNoise(n)) continue;
-          if (!verbose && tcIsRs(n)) continue;
+          if (!verbose && tcIsRs(n)) {
+            // Typing into an OPEN react-select filters by REMOVING the non-matching
+            // options (it doesn't add new ones), so a pure-removal diff would read
+            // `changed:false` and hide that the filter took. Flag it → the summary
+            // re-reads the live menu's remaining options. A removed MENU container is a
+            // close, not a filter, so only option removals set the flag.
+            if (TC_RS_OPTION.test(tcRsCls(n))) rsFiltered = true;
+            continue;
+          }
           removedSet.add(n);
         }
       } else if (r.type === 'attributes') {
@@ -1071,6 +1089,28 @@
     else if (rsMenu) {
       const opts = Array.from(rsOpts);
       summarySet.add('abrió/filtró lista de opciones' + (opts.length ? ' (' + opts.length + '): ' + opts.slice(0, 8).join(', ') : ''));
+    } else if (rsFiltered) {
+      // Filter only removed options (no added nodes) → re-read the live menu so the diff
+      // reports what's NOW selectable instead of a misleading changed:false. If the menu
+      // is gone by settle (filtered then closed), emit nothing and let the diff collapse.
+      let liveMenu = null;
+      try {
+        liveMenu = document.querySelector('[class*="react-select__menu"]');
+      } catch (_e) {
+        /* detached */
+      }
+      if (liveMenu) {
+        try {
+          liveMenu.querySelectorAll('[class*="react-select__option"],[role="option"]').forEach((o) => {
+            const t = tcText1(o);
+            if (t) rsOpts.add(t.slice(0, 40));
+          });
+        } catch (_e) {
+          /* detached */
+        }
+        const opts = Array.from(rsOpts);
+        summarySet.add('filtró lista de opciones' + (opts.length ? ' (' + opts.length + '): ' + opts.slice(0, 8).join(', ') : ''));
+      }
     }
     // No meaningful change → collapse the empty {counts:0, added:[], …} skeleton (≈140
     // tokens of nothing) to a one-line marker. The "nothing happened" signal is kept

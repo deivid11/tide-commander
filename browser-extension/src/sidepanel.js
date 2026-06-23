@@ -459,7 +459,12 @@ function addMessage(type, content, toolName, toolInput, timestamp) {
   if (type === 'tool_use') {
     const div = document.createElement('div');
     div.className = 'msg tool';
-    div.innerHTML = `🔧 <span class="tname">${esc(toolSummary(toolName || 'tool', toolInput))}</span>`;
+    // A Bash curl to /api/browser/* renders as a compact robot-action chip.
+    const browserChip =
+      toolName === 'Bash' && window.TCRenderers && window.TCRenderers.browserCurlChip
+        ? window.TCRenderers.browserCurlChip((toolInput && toolInput.command) || '')
+        : null;
+    div.innerHTML = browserChip || `🔧 <span class="tname">${esc(toolSummary(toolName || 'tool', toolInput))}</span>`;
     els.chat.appendChild(div);
     if (stick) scrollDown();
     return div;
@@ -522,6 +527,11 @@ function basename(p) {
 }
 function chipHtml(name, input) {
   const i = input || {};
+  // A Bash curl to /api/browser/* gets its own robot-action chip (verb + target).
+  if (name === 'Bash' && window.TCRenderers && window.TCRenderers.browserCurlChip) {
+    const b = window.TCRenderers.browserCurlChip(String(i.command || ''));
+    if (b) return b;
+  }
   const icon = TOOL_ICON[name] || '•';
   let label = name || 'tool';
   if (name === 'Bash') label = (String(i.command || '').trim().split(/\s+/)[0] || 'bash');
@@ -674,6 +684,30 @@ async function setDriveEnabled(tabId, enabled) {
   if (enabled) map[String(tabId)] = true;
   else delete map[String(tabId)];
   await chrome.storage.local.set({ tc_drive_enabled: map });
+}
+// Tab ids that currently have the 🤖 drive toggle ON (the tabs the user designated as the
+// agent's drive target).
+async function driveEnabledTabIds() {
+  try {
+    const { tc_drive_enabled } = await chrome.storage.local.get('tc_drive_enabled');
+    const map = tc_drive_enabled || {};
+    return Object.keys(map)
+      .filter((k) => map[k])
+      .map(Number)
+      .filter((n) => !Number.isNaN(n));
+  } catch (_e) {
+    return [];
+  }
+}
+// The tab to treat as the agent's drive target when no explicit tab is given. Only
+// auto-pick when EXACTLY ONE tab has the 🤖 toggle ON — that's unambiguous (single agent /
+// single driven tab). With 0 enabled → null (caller falls back to the active tab). With
+// MULTIPLE enabled (several agents driving several tabs) → null on purpose: we can't tell
+// which agent a tab-less command belongs to, so the caller MUST pass `tab`/`tabId`; we do
+// NOT guess (and never steal focus by reading the active tab — the user may be elsewhere).
+async function pickDriveTabId() {
+  const ids = await driveEnabledTabIds();
+  return ids.length === 1 ? ids[0] : null;
 }
 async function refreshDriveToggle() {
   if (!els.driveTab) return;
@@ -1566,6 +1600,20 @@ async function resolveTargetTab(args) {
     if (m) return m;
     throw new Error('no open tab matches "' + args.tab + '"');
   }
+  // No explicit target → prefer a tab with the 🤖 drive toggle ON (the one the user picked
+  // to drive). This is the key to working when the tab is NOT focused: the agent usually
+  // omits `tab`, and defaulting to the ACTIVE tab meant that as soon as the user switched
+  // away, commands hit the wrong (now-active) tab → "manipulation is OFF for this tab".
+  // Pinning to the drive-enabled tab keeps every command on it regardless of focus.
+  try {
+    const pick = await pickDriveTabId();
+    if (pick != null) {
+      const t = await chrome.tabs.get(pick);
+      if (t) return t;
+    }
+  } catch (_e) {
+    /* drive tab gone / none → fall through to active tab */
+  }
   try {
     const [t] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (t) return t;
@@ -1579,6 +1627,39 @@ function tabOriginOf(tab) {
     return new URL(tab.url).origin;
   } catch (_e) {
     return '';
+  }
+}
+// Chrome's memory-saver DISCARDS backgrounded tabs (the content script is unloaded, so
+// every chrome.tabs.sendMessage fails "Could not establish connection"). The debugger
+// drive path already wakes discarded tabs (background cdpEnsureAwake); this mirrors it for
+// the CONTENT-SCRIPT path (reads + the synthetic-event fallback), so the connector keeps
+// working on a background/unfocused tab. Reloads in place (no focus steal) and waits until
+// ready. No-op when the tab is live. Returns true if it had to reload (state was lost).
+async function tcEnsureTabAwake(tabId) {
+  if (tabId == null) return false;
+  let t = null;
+  try {
+    t = await chrome.tabs.get(tabId);
+  } catch (_e) {
+    return false;
+  }
+  if (!t || (!t.discarded && t.status !== 'unloaded')) return false;
+  try {
+    await chrome.tabs.reload(tabId);
+  } catch (_e) {
+    return false;
+  }
+  const deadline = Date.now() + 15000;
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 200));
+    let tt = null;
+    try {
+      tt = await chrome.tabs.get(tabId);
+    } catch (_e) {
+      return true;
+    }
+    if (tt && !tt.discarded && tt.status === 'complete') return true;
+    if (Date.now() > deadline) return true;
   }
 }
 // Map a bridge command to the existing capture/inspection + drive plumbing. Every
@@ -1684,7 +1765,11 @@ async function execBrowserCommand(cmd, args) {
     case 'console': {
       const res = await send({ type: 'getConsole' });
       let recs = (res && res.records) || [];
-      recs = recs.filter((r) => (tabId != null && r.tabId === tabId) || (origin && r.origin === origin));
+      // Scope to the resolved tab. A record that KNOWS its tab is matched strictly by
+      // tabId — so a second tab of the SAME site doesn't leak its console in (the old
+      // `tabId===t OR origin===o` did). Origin is only a fallback for legacy records
+      // captured without a tabId (e.g. from a worker/extension frame with no sender.tab).
+      recs = recs.filter((r) => (r.tabId != null ? tabId != null && r.tabId === tabId : !!origin && r.origin === origin));
       if (args.level) recs = recs.filter((r) => String(r.level || '') === String(args.level));
       recs = recs.slice(0, Math.min(Number(args.limit) || 50, 200));
       return recs.map((r) => ({ level: r.level, text: r.text, pageUrl: r.pageUrl, ts: r.ts }));
@@ -1692,7 +1777,8 @@ async function execBrowserCommand(cmd, args) {
     case 'network': {
       const res = await send({ type: 'getNetwork' });
       let recs = (res && res.records) || [];
-      recs = recs.filter((r) => (tabId != null && r.tabId === tabId) || (origin && r.origin === origin));
+      // Same strict-by-tabId scoping as console (no same-origin cross-tab leak).
+      recs = recs.filter((r) => (r.tabId != null ? tabId != null && r.tabId === tabId : !!origin && r.origin === origin));
       if (args.filter) {
         const f = String(args.filter).toLowerCase();
         recs = recs.filter((r) => `${r.method} ${r.url} ${r.status}`.toLowerCase().includes(f));
@@ -1716,7 +1802,14 @@ async function execBrowserCommand(cmd, args) {
     case 'errors': {
       const st = await send({ type: 'getState' });
       let errs = (st && st.errors) || [];
-      if (origin) errs = errs.filter((e) => e.origin === origin);
+      // Scope to the resolved tab, mirroring console/network. Errors now carry the tab(s)
+      // that produced them (`tabId` last-seen + `tabIds[]` accumulated across same-origin
+      // tabs); a record that knows its tab is matched strictly by tab, so a second tab of
+      // the same site no longer mixes its errors in. Origin is the fallback only for
+      // legacy records captured before tab tagging (no tabId/tabIds).
+      const recHasTab = (e) => e.tabId != null || (Array.isArray(e.tabIds) && e.tabIds.length > 0);
+      const recInTab = (e) => e.tabId === tabId || (Array.isArray(e.tabIds) && e.tabIds.includes(tabId));
+      errs = errs.filter((e) => (recHasTab(e) ? tabId != null && recInTab(e) : !!origin && e.origin === origin));
       errs = errs.slice(0, Math.min(Number(args.limit) || 30, 200));
       return errs.map((e) => ({
         kind: e.kind, subtype: e.subtype, status: e.status, method: e.method, url: e.url,
@@ -1725,6 +1818,7 @@ async function execBrowserCommand(cmd, args) {
     }
     case 'dom': {
       if (tabId == null) throw new Error('no target tab');
+      await tcEnsureTabAwake(tabId); // wake a discarded/background tab so the content-script read works
       // actionable mode: one-call list of interactive elements (selector + label +
       // state). Content-script only — no debugger fallback (it's a convenience read).
       if (args.actionable) {
@@ -1812,6 +1906,10 @@ async function execBrowserCommand(cmd, args) {
     case 'wait':
     case 'dialog':
     case 'cdp_raw': {
+      // Wake a discarded/slept tab BEFORE driving so a backgrounded tab works (the
+      // content-script fallback + diff both need a live content script; the debugger path
+      // wakes itself but this is harmless there).
+      await tcEnsureTabAwake(tabId);
       // The action itself: chrome.debugger first; on the foreign-frame refusal fall
       // back to the content-script driver (synthetic events). The page-level gate +
       // allowlist already ran before the attach that failed, and only content-doable
@@ -2912,6 +3010,17 @@ async function pickElement(mode) {
 
 // ── send ──
 async function activePageInfo() {
+  // Prefer the drive-enabled (🤖) tab so the `[Current page: …]` the agent sees matches the
+  // tab its commands actually drive — even when the user has switched to another tab.
+  try {
+    const pick = await pickDriveTabId();
+    if (pick != null) {
+      const t = await chrome.tabs.get(pick);
+      if (t) return { url: t.url, title: t.title };
+    }
+  } catch (_e) {
+    /* drive tab gone / none → fall through to active */
+  }
   try {
     const [t] = await chrome.tabs.query({ active: true, currentWindow: true });
     return t ? { url: t.url, title: t.title } : null;
@@ -3527,6 +3636,12 @@ document.addEventListener('keydown', (e) => {
   if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'j' || e.key === 'J' || e.key === 'k' || e.key === 'K')) {
     e.preventDefault();
     cyclePinned(e.key === 'j' || e.key === 'J' ? -1 : 1);
+    return;
+  }
+  // Alt+P → toggle pin of the selected agent in the pinned bar.
+  if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.key === 'p' || e.key === 'P')) {
+    e.preventDefault();
+    if (selectedAgent) togglePin(selectedAgent);
     return;
   }
   if (e.key === 'Escape' && !els.lightbox.hidden) {

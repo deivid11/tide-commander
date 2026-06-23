@@ -1525,10 +1525,110 @@
     return card;
   }
 
+  // ── browser-bridge curl chip ───────────────────────────────────────────────
+  // Vanilla port of the commander's detectBrowserAction (curlParser.ts): turn a
+  // `curl … /api/browser/<action> … -d '{…}'` Bash command into a compact, readable
+  // chip (🤖 verb · target · detail · diff · tab) instead of a raw command dump.
+  function truncMid(text, max) {
+    const s = String(text == null ? '' : text);
+    if (s.length <= max) return s;
+    return s.slice(0, Math.max(0, max - 1)) + '…';
+  }
+  function parseBrowserCurl(command) {
+    if (typeof command !== 'string' || !command) return null;
+    const urlMatch = /https?:\/\/[^/\s'"]+\/api\/browser\/([A-Za-z0-9/_-]+)/.exec(command);
+    if (!urlMatch) return null;
+    const endpoint = urlMatch[1].toLowerCase().replace(/\/+$/, '');
+
+    // Pull the JSON body out of -d '…' (single-quoted bash bodies can't contain a
+    // bare ', so non-greedy to the next ' is exact) or -d "…". Parse best-effort;
+    // an unparseable body still yields a useful verb from the endpoint.
+    let body = {};
+    let m = /(?:-d|--data(?:-raw|-binary)?)\s+'([\s\S]*?)'(?:\s|$)/.exec(command);
+    if (!m) m = /(?:-d|--data(?:-raw|-binary)?)\s+"((?:[^"\\]|\\.)*)"/.exec(command);
+    if (m) {
+      try {
+        const parsed = JSON.parse(m[1]);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) body = parsed;
+      } catch (_e) {
+        /* keep body = {} */
+      }
+    }
+
+    const asStr = (v) => (typeof v === 'string' && v.length ? v : typeof v === 'number' ? String(v) : undefined);
+    let tab;
+    if (body.tabId != null && body.tabId !== '') tab = '#' + String(body.tabId);
+    else if (typeof body.tab === 'string' && body.tab) tab = body.tab;
+
+    const diff = body.diff === true;
+    let verb = endpoint;
+    let target = asStr(body.selector) || asStr(body.text);
+    let detail;
+
+    switch (endpoint) {
+      case 'page': verb = 'Read page'; target = undefined; break;
+      case 'dom':
+        verb = body.actionable === true ? 'Map elements' : 'Read DOM';
+        target = asStr(body.selector);
+        break;
+      case 'click': verb = 'Click'; break;
+      case 'hover': verb = 'Hover'; break;
+      case 'type':
+        verb = 'Type';
+        target = asStr(body.selector) || asStr(body.within);
+        detail = asStr(body.text) != null ? '“' + asStr(body.text) + '”' : undefined;
+        break;
+      case 'fill': {
+        verb = 'Fill form';
+        const fields = Array.isArray(body.fields) ? body.fields.length : 0;
+        detail = fields + ' field' + (fields === 1 ? '' : 's');
+        if (body.submit) detail += ' + submit';
+        target = undefined;
+        break;
+      }
+      case 'key': verb = 'Press key'; detail = asStr(body.key); target = asStr(body.selector); break;
+      case 'select': verb = 'Select'; detail = asStr(body.label) || asStr(body.value); target = asStr(body.selector); break;
+      case 'scroll': verb = 'Scroll'; break;
+      case 'navigate': verb = 'Navigate'; target = asStr(body.url); break;
+      case 'console': verb = 'Read console'; detail = asStr(body.level); target = undefined; break;
+      case 'network': verb = 'Read network'; detail = asStr(body.filter); target = undefined; break;
+      case 'errors': verb = 'Read errors'; target = undefined; break;
+      case 'screenshot': verb = 'Screenshot'; target = asStr(body.selector); break;
+      case 'batch': {
+        verb = 'Batch';
+        const steps = Array.isArray(body.steps) ? body.steps.length : 0;
+        detail = steps + ' step' + (steps === 1 ? '' : 's');
+        target = undefined;
+        break;
+      }
+      case 'status': verb = 'Browser status'; target = undefined; break;
+      case 'tabs': verb = 'List tabs'; target = undefined; break;
+      case 'targets': verb = 'List targets'; target = undefined; break;
+      case 'tab/open': verb = 'Open tab'; target = asStr(body.url); break;
+      case 'tab/close': verb = 'Close tab'; break;
+      case 'tab/activate': verb = 'Activate tab'; break;
+      default: verb = endpoint.charAt(0).toUpperCase() + endpoint.slice(1); break;
+    }
+    return { endpoint, verb, target, detail, diff, tab };
+  }
+  function browserCurlChip(command) {
+    const a = parseBrowserCurl(command);
+    if (!a) return null;
+    const parts = ['<i class="tchip-bico">🤖</i><span class="tchip-bverb">' + esc(a.verb) + '</span>'];
+    if (a.target) parts.push('<code class="tchip-btarget">' + esc(truncMid(a.target, 48)) + '</code>');
+    if (a.detail) parts.push('<span class="tchip-bdetail">' + esc(a.detail) + '</span>');
+    if (a.diff) parts.push('<span class="tchip-bdiff">diff</span>');
+    if (a.tab) parts.push('<span class="tchip-btab">' + esc(a.tab) + '</span>');
+    const titleText = 'Browser · ' + a.verb + (a.target ? ' ' + a.target : '') + (a.tab ? ' (' + a.tab + ')' : '') + '\n' + String(command).slice(0, 400);
+    return '<span class="tchip tchip-browser" title="' + attr(titleText) + '">' + parts.join('') + '</span>';
+  }
+
   window.TCRenderers = {
     renderSpecial,
     renderRichBody,
     renderAgentPrompt,
+    parseBrowserCurl,
+    browserCurlChip,
     HIDE,
   };
 })();

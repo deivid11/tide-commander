@@ -52,13 +52,35 @@ Check the connection (and identify the client) with `GET /api/browser/status`.
 
 ## Tab targeting
 
-Every command takes an optional target:
+Every command — **reads (`/dom`, `/console`, `/network`, `/errors`, `/page`, `/screenshot`)
+as well as drives** — takes an optional target:
 
 - `tabId` — exact numeric id (from `GET /api/browser/tabs`), **or**
 - `tab` — a URL/title substring (e.g. `{"tab":"transfercld"}`).
 
-Omit both to use the **active** tab. `GET /api/browser/tabs` lists open `http(s)`
-tabs with `{tabId, url, title, active, windowId}`.
+**There is no per-agent "current tab".** The bridge keeps no memory of which tab you used
+last — `resolveTargetTab` runs fresh on every call from the request body, then the omit
+fallback below. So the answer to "is the tab saved on the agent's session?" is **no**; you
+re-state it each call.
+
+**Pass `tab`/`tabId` on every call** (resolve once via `GET /api/browser/tabs`) so you act
+on the intended tab regardless of focus. This applies to the read endpoints too:
+`/console`, `/network` and `/errors` keep a single global buffer but every record is tagged
+with its `tabId` (+ `origin`), and the read is **scoped to the resolved tab** — so omitting
+the target on a machine with two tabs of the **same site** would otherwise have mixed their
+logs/errors together (fixed: records are now matched strictly by `tabId`, with `origin` only
+a fallback for legacy tab-less records; errors carry the producing `tabId`/`tabIds[]` too). If you omit both, it targets the 🤖-ON tab **only
+when exactly one tab has drive enabled** (unambiguous); with **0** it falls back to the
+focused tab, and with **2+ driven tabs** (multiple agents) it refuses to guess and also
+falls back to focused — so when more than one tab is in play, an explicit `tab`/`tabId` is
+required. The `[Current page: …]` context reflects the single drive tab when there is one.
+
+**Don't `/tab/activate` to drive** — clicks/typing/reads work on a background, unfocused
+tab; activating steals the user's focus (they may be on another screen) and, with several
+agents, fights over the foreground. Activate only on explicit request or for a full-viewport
+screenshot. **Multiple agents can drive different tabs concurrently** — each must target its
+own tab by id. `GET /api/browser/tabs` lists open `http(s)` tabs with `{tabId, url, title,
+active, windowId}`.
 
 ---
 
@@ -247,25 +269,34 @@ or `"within":".Modal-container"`. Resolution polls until `within` itself mounts,
 safe to fire right after opening the menu/modal. Honored on both the chrome.debugger and
 content-script drivers.
 
-**react-select dropdowns** — `/select` only does native `<select>`. The RELIABLE open is
-`type` the query straight into `#react-select-N-input` (opens + filters in one step). A
-`click` — on the input OR the `.tide-react-select__control` — often does NOT open the menu
-with the synthetic content-script driver (`changed:false`, the "clicked but the dropdown
-didn't show"); don't fight it, just `type`. For the full unfiltered list, `key` `ArrowDown`
-on `#react-select-N-input`. Once open, `click` the option. (The driver was also fixed to
-not pre-focus before the click sequence, which is what broke react-select's
-mousedown→focus→open chain — but `type` remains the reliable path.) **Don't click a raw `#react-select-N-option-M` id — react-select
-renumbers those on every filter/re-render, so a read id is often stale by click time** (→
-"no element matches"). Robust ways: click the `selector` from the diff's `actions` (the
-bridge anchors it on the stable `#react-select-N-listbox` + position, dropping the volatile
-id — see selector stability below), or click by `text` **scoped to the menu**:
-`{"text":"BBVA BANCOMER","within":"#react-select-N-listbox"}`. Confirm via
-`.tide-react-select__single-value`.
+**react-select dropdowns** — `/select` only does native `<select>`. **Open** with `key`
+`ArrowDown` on `#react-select-N-input` (full list) or `type` a real query into that input
+(opens + filters in one step). **Do NOT `type` an empty string to "open"** — it's a no-op
+(`changed:false`, proven in-run); use `ArrowDown`. A `click` — on the input OR the
+`.tide-react-select__control` — often does NOT open the menu with the synthetic
+content-script driver (`changed:false`, the "clicked but the dropdown didn't show"); don't
+fight it. **Filtering an open menu** (typing a query that NARROWS the list) returns
+`summary: ["filtró lista de opciones (N): …"]` listing the now-selectable options — no
+follow-up `/dom` read needed. (An earlier version reported `changed:false` here because the
+filter only *removes* the non-matching option nodes and react-select removals were dropped
+as noise; the diff now re-reads the live menu and lists what remains.) Once open, **click the
+option by `text` scoped to the menu**: `{"text":"BBVA BANCOMER","within":"#react-select-N-listbox"}`.
+**Avoid index/class-based option selectors** — `#react-select-N-option-M` ids renumber on
+every filter, and the `css-<hash>-option` class encodes the option's highlight STATE (idle
+vs hovered hashes differ), so both go stale between read and click (→ "no element matches" /
+wrong option). The diff's `actions`/`added` selectors are now stripped of those volatile
+`css-*` hashes (see selector stability below), so a selector handed to you by a diff is safe
+to reuse; one you hand-built with `:nth-of-type` + a `css-…` class is not. **In a `/batch`**,
+`#react-select-N` ids renumber each time a fresh modal opens and you can't re-read them
+mid-batch, so open with `ArrowDown` and pick by `text`+`within` rather than hardcoding an
+option index/id. Confirm a pick via `summary: ["seleccionó: …"]` or `.tide-react-select__single-value`.
 
 **Selector stability** — `cssPath` (used by `actionable`, diff `actions`, the element
 picker) deliberately **skips auto-generated volatile ids** (`react-select-N-option-M`,
 React `useId` `:r1:`, `radix-`/`headlessui-`/`reach-` prefixes) and **state/modifier
-classes** (`--is-focused`, `is-selected`, hashed CSS-in-JS state), anchoring instead on the
+classes** (`--is-focused`, `is-selected`, and **emotion/CSS-in-JS hashes** like
+`css-1nmdiq5-menu` / `css-d7l1ni-option` — the hash carries the render state, so it flips
+when an option highlights; hand-written `css-<word>` without a digit is kept), anchoring instead on the
 nearest stable id + semantic classes + `:nth-of-type`. So the selectors it hands you
 survive the next re-render. Still, for list/menu items the most robust target is `text` +
 `within`.
@@ -290,13 +321,24 @@ a precise `selector`; to disambiguate a repeated label, add `within`.
 inputs (some React fields don't mirror `.value` to the attribute). Read the whole
 modal's input list rather than trusting one attribute, or screenshot.
 
-**Screenshots / background tabs** — drive and reads work on background tabs without
-focus (chrome.debugger Input and content-script events don't need a focused window).
-Full-viewport screenshots use `captureVisibleTab` scoped to the tab's own window, so
-they work on a **background window's active tab** too — no `/tab/activate` needed.
-Element-clipped screenshots still use `chrome.debugger` (blocked when a foreign
-extension injected a frame). A truly hidden tab (not the active tab of its window, or
-a minimized window) can only be screenshotted via the debugger, or after activating.
+**Works on unfocused / background tabs** — drives and reads do NOT need the tab focused.
+- **Discarded tabs:** Chrome's memory-saver unloads a backgrounded tab (content script
+  gone → `sendMessage` would fail). Both paths now wake it first — the debugger path via
+  `cdpEnsureAwake`, the content-script path via `tcEnsureTabAwake` (reload-in-place + wait,
+  no focus steal). A reload loses in-page state (the tab was already discarded), so the
+  agent may need to re-open a modal it had open.
+- **Throttling/freezing:** on the **debugger** path, attach now enables
+  `Emulation.setFocusEmulationEnabled` + `Page.setWebLifecycleState('active')`, so the
+  renderer behaves as focused and Chrome won't freeze/throttle it — full speed backgrounded,
+  and focus-dependent UI (`:focus`, no blur-close) works. On the **content-script** path
+  (a LastPass-blocked tab), Chrome still throttles `setTimeout` to ~1s for a *hidden* tab
+  (inactive-in-window or minimized), so waits/settles are coarser but functional; the
+  robot-cursor animation is skipped when `document.hidden` so it doesn't add latency. Keep
+  the tab the **active tab of its (even unfocused) window** for full speed.
+- **Screenshots** are the one focus-sensitive op: full-viewport `captureVisibleTab` is
+  scoped to the tab's window (works for a background window's active tab — no
+  `/tab/activate`); element-clipped uses `chrome.debugger`; a truly hidden tab can only be
+  screenshotted via the debugger or after activating.
 
 **"Cannot access a chrome-extension:// URL of different extension"** — `chrome.debugger`
 refuses any tab that contains a frame owned by **another** extension (e.g. a

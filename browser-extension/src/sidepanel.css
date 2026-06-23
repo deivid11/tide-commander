@@ -727,6 +727,51 @@ html, body {
   transform-origin: left center;
 }
 
+/* Browser-bridge action chip (curl → /api/browser/*): 🤖 verb · target · detail · tab. */
+.tchip.tchip-browser {
+  max-width: 420px;
+  gap: 6px;
+  border-color: color-mix(in srgb, #7ee0a0 45%, var(--border));
+  background: color-mix(in srgb, #7ee0a0 9%, var(--panel-2));
+  color: var(--text, #ddd);
+}
+.tchip-browser .tchip-bico { font-style: normal; flex: none; font-size: 11px; }
+.tchip-browser .tchip-bverb {
+  flex: none;
+  font-weight: 700;
+  color: color-mix(in srgb, #7ee0a0 85%, var(--text, #ddd));
+}
+.tchip-browser .tchip-btarget {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  color: var(--term-blue, #5b9dff);
+}
+.tchip-browser .tchip-bdetail { flex: none; opacity: 0.85; }
+.tchip-browser .tchip-bdiff {
+  flex: none;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--term-yellow, #ffce6b);
+  border: 1px solid color-mix(in srgb, #ffce6b 50%, transparent);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+.tchip-browser .tchip-btab {
+  flex: none;
+  margin-left: auto;
+  font-size: 9px;
+  opacity: 0.75;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--border) 50%, transparent);
+}
+
 /* markdown body */
 .md { color: var(--term-fg); }
 .md > :first-child { margin-top: 0; }

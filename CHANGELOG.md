@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.123.0] - 2026-06-23
+
+### Added
+- **Curl card rendering** — `CurlCard.tsx` and `curlParser.ts` parse and render curl commands from agent output as interactive cards; styled via `_curl-card.scss`.
+- **New keyboard shortcuts** — `useKeyboardShortcuts.ts` extended with additional bindings.
+- Browser extension `renderers.js` updated with new rendering support; `sidepanel.css` and `sidepanel.js` expanded.
+
+### Changed
+- `browser-control` skill updated with refined instructions.
+- `docs/browser-bridge.md` expanded with additional documentation.
+
 ## [1.122.0] - 2026-06-23
 
 ### Added
