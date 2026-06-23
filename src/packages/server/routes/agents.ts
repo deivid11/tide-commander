@@ -1228,8 +1228,13 @@ router.get('/:id/files', (req: Request<{ id: string }>, res: Response) => {
   const MAX_RESULTS = 60;
   const MAX_DEPTH = 6;
 
+  // Walk the whole tree (bounded by depth + ignored dirs). We can't early-exit
+  // on result count here: depth-first traversal would saturate the cap with
+  // deep matches in alphabetically-earlier siblings (e.g. q=src filling up
+  // with android/app/src/... before ever visiting the root-level src/),
+  // hiding the shallow match the user almost certainly wanted.
   function walk(dir: string, relBase: string, depth: number) {
-    if (results.length >= MAX_RESULTS || depth > MAX_DEPTH) return;
+    if (depth > MAX_DEPTH) return;
     let entries: import('fs').Dirent[];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -1237,7 +1242,6 @@ router.get('/:id/files', (req: Request<{ id: string }>, res: Response) => {
       return;
     }
     for (const entry of entries) {
-      if (results.length >= MAX_RESULTS) break;
       if (IGNORED.has(entry.name)) continue;
       const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
       if (!query || entry.name.toLowerCase().includes(query) || relPath.toLowerCase().includes(query)) {
@@ -1251,13 +1255,32 @@ router.get('/:id/files', (req: Request<{ id: string }>, res: Response) => {
 
   walk(cwd, '', 0);
 
-  // Directories first, then alphabetical within each group
+  // Sort by relevance, then slice to the cap. Priority:
+  //   1. Exact (case-insensitive) name match — definitively what they typed.
+  //   2. Name starts with the query — stronger than a midline substring.
+  //   3. Directories before files at the same rank.
+  //   4. Shallower paths first — root-level matches before nested namesakes.
+  //   5. Alphabetical by path as a stable tie-break.
+  const depthOf = (p: string) => p.split('/').length;
   results.sort((a, b) => {
+    if (query) {
+      const aName = a.name.toLowerCase();
+      const bName = b.name.toLowerCase();
+      const aExact = aName === query;
+      const bExact = bName === query;
+      if (aExact !== bExact) return aExact ? -1 : 1;
+      const aStarts = aName.startsWith(query);
+      const bStarts = bName.startsWith(query);
+      if (aStarts !== bStarts) return aStarts ? -1 : 1;
+    }
     if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+    const da = depthOf(a.path);
+    const db = depthOf(b.path);
+    if (da !== db) return da - db;
     return a.path.localeCompare(b.path);
   });
 
-  res.json({ files: results });
+  res.json({ files: results.slice(0, MAX_RESULTS) });
 });
 
 // POST /api/agents/:id/message - Send a message/command to an agent
