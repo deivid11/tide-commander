@@ -13,23 +13,52 @@ import type { HandlerContext } from './types.js';
 
 const log = createLogger('CommandHandler');
 
-const IGNORED_DIRS = new Set(['.git', 'node_modules', 'dist', '.next', '__pycache__', '.cache', 'coverage', '.claude']);
+const IGNORED_DIRS = new Set([
+  '.git', 'node_modules', 'dist', '.next', '__pycache__', '.cache',
+  'coverage', '.claude', '.venv', 'venv', 'build', 'out', '.turbo',
+]);
 
-function listDirFiles(dirPath: string, relPath: string, maxDepth = 2): string[] {
-  const items: string[] = [];
+const BINARY_EXTENSIONS = new Set([
+  'png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'webp', 'tiff', 'heic', 'avif',
+  'zip', 'tar', 'gz', 'bz2', 'rar', '7z', 'xz', 'zst',
+  'exe', 'dll', 'so', 'dylib', 'bin', 'obj', 'o', 'a',
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+  'mp3', 'mp4', 'wav', 'avi', 'mov', 'mkv', 'flac', 'ogg', 'webm',
+  'ttf', 'otf', 'woff', 'woff2', 'eot',
+  'pyc', 'pyo', 'class', 'jar',
+  'db', 'sqlite', 'sqlite3',
+]);
+
+function isBinaryFile(filePath: string): boolean {
+  const ext = path.extname(filePath).slice(1).toLowerCase();
+  return BINARY_EXTENSIONS.has(ext);
+}
+
+// Recursively list every entry (file or dir) under `dirPath`, respecting the
+// ignore list. Used to build the structural listing for `[@folder:]` mentions —
+// the LLM sees the layout (paths only) without paying the token cost of every
+// file's content. Binary files are kept in the listing because their presence
+// is informative (e.g. "there's an .apk here") even though they wouldn't be
+// read for a `[@file:]` mention.
+function listDirEntriesRecursive(dirPath: string, relBase: string, maxDepth = 6): string[] {
+  const entries: string[] = [];
   function walk(dir: string, rel: string, depth: number) {
     if (depth > maxDepth) return;
-    let entries: fs.Dirent[];
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-    for (const entry of entries) {
-      if (IGNORED_DIRS.has(entry.name)) continue;
-      const entryRel = rel ? `${rel}/${entry.name}` : entry.name;
-      items.push(entry.isDirectory() ? `  [dir]  ${entryRel}/` : `  [file] ${entryRel}`);
-      if (entry.isDirectory()) walk(path.join(dir, entry.name), entryRel, depth + 1);
+    let dirents: fs.Dirent[];
+    try { dirents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const dirent of dirents) {
+      if (IGNORED_DIRS.has(dirent.name)) continue;
+      const entryRel = rel ? `${rel}/${dirent.name}` : dirent.name;
+      if (dirent.isDirectory()) {
+        entries.push(`${entryRel}/`);
+        walk(path.join(dir, dirent.name), entryRel, depth + 1);
+      } else if (dirent.isFile()) {
+        entries.push(entryRel);
+      }
     }
   }
-  walk(dirPath, relPath, 0);
-  return items;
+  walk(dirPath, relBase, 0);
+  return entries;
 }
 
 export async function expandFileMentions(command: string, cwd: string): Promise<string> {
@@ -40,36 +69,98 @@ export async function expandFileMentions(command: string, cwd: string): Promise<
   const folderMatches = [...command.matchAll(FOLDER_RE)];
   if (fileMatches.length === 0 && folderMatches.length === 0) return command;
 
-  const contextParts: string[] = [];
-  let clean = command;
+  // PASO 1 & 2: Strip tokens from user text, build resolution maps
+  let userText = command;
+  for (const match of [...fileMatches, ...folderMatches]) {
+    userText = userText.replace(match[0], '');
+  }
 
+  const filesToProcess = new Map<string, string>(); // relPath -> fullPath (deduplicated)
+  const foldersToList = new Map<string, string[]>(); // relPath -> recursive entry listing
+  const resolvedMentions = new Map<string, string>(); // original ref -> resolved relPath
+
+  // PASO 2: Resolve file tokens
   for (const match of fileMatches) {
     const relPath = match[1].trim();
-    const fullPath = path.join(cwd, relPath);
-    try {
-      const content = await fs.promises.readFile(fullPath, 'utf-8');
-      contextParts.push(`<file path="${relPath}">\n${content}\n</file>`);
-      clean = clean.replace(match[0], '');
-    } catch {
-      // leave token as-is if file can't be read
+    resolvedMentions.set(relPath, relPath);
+    if (!isBinaryFile(relPath)) {
+      filesToProcess.set(relPath, path.join(cwd, relPath));
     }
   }
 
+  // PASO 2: Resolve folder tokens — list structure only. File contents are
+  // intentionally NOT inlined here: the LLM should see the layout and ask for
+  // specific files via `[@file:]` if it needs their content.
   for (const match of folderMatches) {
     const relPath = match[1].trim();
     const fullPath = path.join(cwd, relPath);
+    resolvedMentions.set(relPath, relPath);
     try {
-      const entries = listDirFiles(fullPath, relPath, 2);
-      contextParts.push(`<folder path="${relPath}">\n${entries.join('\n')}\n</folder>`);
-      clean = clean.replace(match[0], '');
+      const stat = await fs.promises.stat(fullPath);
+      if (stat.isDirectory()) {
+        foldersToList.set(relPath, listDirEntriesRecursive(fullPath, relPath));
+      }
     } catch {
-      // leave token as-is if folder can't be read
+      // folder not found — skip
     }
   }
 
-  const userText = clean.trim();
-  if (contextParts.length === 0) return command;
-  return contextParts.join('\n\n') + (userText ? `\n\n${userText}` : '');
+  // PASO 4 (rewrite): normalize @mention text in the user prompt to exact resolved paths
+  const MENTION_RE = /@([\w./\-]+)/g;
+  userText = userText.replace(MENTION_RE, (_full, ref) => {
+    if (resolvedMentions.has(ref)) return `@${resolvedMentions.get(ref)}`;
+    // suffix match: @src → android/app/src
+    for (const [orig] of resolvedMentions) {
+      if (orig === ref || orig.endsWith(`/${ref}`)) return `@${orig}`;
+    }
+    return _full;
+  });
+
+  userText = userText.trim();
+
+  // PASO 3a: Read each [@file:] mention and wrap content in XML CDATA
+  const archivoBlocks: string[] = [];
+  for (const [relPath, fullPath] of filesToProcess) {
+    try {
+      const content = await fs.promises.readFile(fullPath, 'utf-8');
+      archivoBlocks.push(
+        `  <archivo ruta="${relPath}">\n    <![CDATA[\n${content}\n    ]]>\n  </archivo>`
+      );
+    } catch {
+      // skip unreadable files
+    }
+  }
+
+  // PASO 3b: Emit folder mentions as structure-only listings (no file content).
+  // Directories are marked with a trailing slash so the layout reads naturally.
+  const carpetaBlocks: string[] = [];
+  for (const [relPath, entries] of foldersToList) {
+    const listing = entries.length > 0 ? entries.join('\n') : '(carpeta vacía)';
+    carpetaBlocks.push(
+      `  <carpeta ruta="${relPath}">\n    <![CDATA[\n${listing}\n    ]]>\n  </carpeta>`
+    );
+  }
+
+  if (archivoBlocks.length === 0 && carpetaBlocks.length === 0) return userText || command;
+
+  // PASO 4: Compile — structured context first, then internal path-format
+  // guidance (wrapped in <instrucciones_internas> so the chat UI strips it
+  // and the user only sees their original text), then the user instruction.
+  // The guidance tells the model to echo back the exact `ruta="..."` value
+  // as plain text — the Tide file viewer resolves clicks against the agent
+  // cwd, so any deviation produces a 404.
+  const contextChildren = [...archivoBlocks, ...carpetaBlocks].join('\n\n');
+  const contextBlock = `<archivos_contexto>\n${contextChildren}\n</archivos_contexto>`;
+  const pathGuidance =
+    '<instrucciones_internas>\n' +
+    'Formato de rutas en tu respuesta: cuando te refieras a un archivo del contexto anterior, ' +
+    'usa exactamente el valor del atributo ruta="..." como texto plano (ej. src/foo/bar.ts:42). ' +
+    'No envuelvas la ruta en tags XML, no agregues prefijos como "archivo:"/"file:"/"carpeta:", ' +
+    'y no la pongas en un enlace de markdown. Para una <carpeta>, solo recibes su estructura ' +
+    '(listado de rutas) — si necesitas el contenido de un archivo específico de adentro, ' +
+    'léelo con tus herramientas habituales antes de responder.\n' +
+    '</instrucciones_internas>';
+  return `${contextBlock}\n\n${pathGuidance}\n\nPetición: ${userText}`;
 }
 
 /**
