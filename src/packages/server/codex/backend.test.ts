@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CodexBackend } from './backend.js';
+import { markInstructionsDirty } from '../services/instruction-refresh.js';
 
 describe('CodexBackend', () => {
   it('builds exec args for a fresh run and caches the prompt for stdin', () => {
@@ -25,6 +26,28 @@ describe('CodexBackend', () => {
     expect(stdin).toContain('Tide Commander');
   });
 
+  it('sends a bare slash command verbatim — no instruction block, no echo', () => {
+    const backend = new CodexBackend();
+    // A fresh run (no sessionId) would normally inject the full instruction block,
+    // but a bare slash command must reach the CLI as just the command — otherwise
+    // it gets buried under "## User Request" and is treated as text, never running.
+    backend.buildArgs({
+      workingDir: '/tmp/project',
+      prompt: '/compact',
+      systemPrompt: 'You are operating as team lead.',
+      customAgent: {
+        name: 'scout',
+        definition: { description: 'Scout agent', prompt: 'Always apply assigned skills.' },
+      },
+    });
+
+    const stdin = backend.formatStdinInput('ignored-fallback');
+    expect(stdin).toBe('/compact');
+    expect(stdin).not.toContain('## User Request');
+    expect(stdin).not.toContain('Follow all instructions below for this task.');
+    expect(stdin).not.toContain('Always apply assigned skills.');
+  });
+
   it('builds exec resume args when session id exists', () => {
     const backend = new CodexBackend();
     const args = backend.buildArgs({
@@ -44,9 +67,11 @@ describe('CodexBackend', () => {
     expect(args[8]).toBe('019c3925-c665-7b70-8711-d63bf7d8bda0');
     expect(args[9]).toBe('-');
 
+    // Resume sends only the user prompt — the instruction block is already in
+    // the session history, so there is no wrapper or injected sections.
     const stdin = backend.formatStdinInput('ignored-fallback');
-    expect(stdin).toContain('continue');
-    expect(stdin).toContain('## User Request');
+    expect(stdin).toBe('continue');
+    expect(stdin).not.toContain('## User Request');
   });
 
   it('builds explicit approval/sandbox args when fullAuto is disabled', () => {
@@ -127,7 +152,7 @@ describe('CodexBackend', () => {
     expect(stdin).toContain('Implement the feature');
   });
 
-  it('injects custom prompts for resume runs too', () => {
+  it('skips the instruction block on resume to avoid duplicating it into history', () => {
     const backend = new CodexBackend();
     const args = backend.buildArgs({
       workingDir: '/tmp/project',
@@ -146,10 +171,43 @@ describe('CodexBackend', () => {
     expect(args[8]).toBe('thread-123');
     expect(args[9]).toBe('-');
 
+    // On resume the instruction block is already in the session history, so the
+    // stdin payload is just the user prompt — no injected sections, no wrapper.
     const stdin = backend.formatStdinInput('ignored-fallback');
-    expect(stdin).toContain('Always apply assigned skills.');
-    expect(stdin).toContain('## User Request');
-    expect(stdin).toContain('continue');
+    expect(stdin).toBe('continue');
+    expect(stdin).not.toContain('Always apply assigned skills.');
+    expect(stdin).not.toContain('## User Request');
+    expect(stdin).not.toContain('Follow all instructions below for this task.');
+  });
+
+  it('re-injects the instruction block once on resume when instructions are marked dirty', () => {
+    const backend = new CodexBackend();
+    markInstructionsDirty('agent-dirty-1');
+    const config = {
+      agentId: 'agent-dirty-1',
+      workingDir: '/tmp/project',
+      sessionId: 'thread-123',
+      prompt: 'continue',
+      customAgent: {
+        name: 'scout',
+        definition: {
+          description: 'Scout agent',
+          prompt: 'Always apply assigned skills.',
+        },
+      },
+    };
+
+    // First resume after a dirty mark re-injects the full block.
+    backend.buildArgs(config);
+    const refreshed = backend.formatStdinInput('ignored-fallback');
+    expect(refreshed).toContain('Always apply assigned skills.');
+    expect(refreshed).toContain('## User Request');
+    expect(refreshed).toContain('continue');
+
+    // The dirty flag is one-shot: the next resume drops back to user-prompt-only.
+    backend.buildArgs(config);
+    const after = backend.formatStdinInput('ignored-fallback');
+    expect(after).toBe('continue');
   });
 
   it('stdin input consumption clears the cached prompt', () => {

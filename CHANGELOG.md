@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.122.0] - 2026-06-23
+
+### Added
+- **`browser-control` built-in skill** — new skill gives agents a full API for reading and driving the live browser page (DOM, console, network, errors, screenshot, click, type, navigate, scroll) via the extension bridge.
+- **`instruction-refresh` service** — new server service for refreshing agent instructions at runtime.
+- **Browser bridge documentation** — `docs/browser-bridge.md` documents the full agent↔browser architecture.
+- Browser extension content script massively expanded (+827 lines) with full DOM interaction, network interception, and error capture support.
+
+### Changed
+- Codex and OpenCode backends updated with additional handling.
+- `browser.ts` routes extended with more endpoints.
+- `skill-service.ts` wired to serve the new browser-control skill.
+
 ## [1.121.0] - 2026-06-22
 
 ### Added

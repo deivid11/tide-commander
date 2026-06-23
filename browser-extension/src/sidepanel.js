@@ -62,6 +62,16 @@ const els = {
   reproDiscard: $('repro-discard'),
   reproList: $('repro-list'),
   reproEmpty: $('repro-empty'),
+  diffBtn: $('diff-btn'),
+  diffPop: $('diff-pop'),
+  diffCount: $('diff-count'),
+  diffList: $('diff-list'),
+  diffEmpty: $('diff-empty'),
+  diffClear: $('diff-clear'),
+  diffAuto: $('diff-auto'),
+  toolsToggle: $('tools-toggle'),
+  toolBadges: $('tool-badges'),
+  toolsDot: $('tools-dot'),
   lightbox: $('lightbox'),
   lightboxImg: $('lightbox-img'),
   resizeHandle: $('resize-handle'),
@@ -1077,6 +1087,16 @@ function togglePin(id) {
   renderPinToggle();
   if (!els.agentPop.hidden) renderAgentList(els.agentInput.value);
 }
+// Select the next (+1) / previous (-1) PINNED agent, in pin order, wrapping
+// around. If the open agent isn't pinned, start from the first / last pin.
+// Driven by Alt+J / Alt+K.
+function cyclePinned(dir) {
+  const pins = pinnedIds.filter((id) => agentsList.some((a) => a.id === id));
+  if (!pins.length) return;
+  const idx = pins.indexOf(selectedAgent);
+  const next = idx < 0 ? (dir > 0 ? pins[0] : pins[pins.length - 1]) : pins[(idx + dir + pins.length) % pins.length];
+  if (next && next !== selectedAgent) selectAgent(next);
+}
 // Thumbnail strip of pinned agents (in pin order). Hidden when nothing pinned.
 function renderPinBar() {
   if (!els.pinbar) return;
@@ -1616,6 +1636,43 @@ async function execBrowserCommand(cmd, args) {
     }
     return out;
   }
+  // Fill a whole form in ONE call: type every field in order (reusing the `type`
+  // drive path, so the 🤖 gate + allowlist + React-safe value set all apply), then
+  // optionally click `submit` ONCE with a diff — so validation errors / the confirm
+  // modal come back in the same call. Beats N separate /type round-trips.
+  if (cmd === 'fill') {
+    const fields = Array.isArray(args.fields) ? args.fields : [];
+    const base = { tab: args.tab, tabId: args.tabId };
+    const filled = [];
+    let aborted = false;
+    for (const f of fields) {
+      if (!f || !f.selector) {
+        filled.push({ selector: (f && f.selector) || null, ok: false, error: 'missing selector' });
+        if (!args.continueOnError) { aborted = true; break; }
+        continue;
+      }
+      try {
+        await execBrowserCommand('type', Object.assign({}, base, { selector: f.selector, text: f.text, clear: f.clear }));
+        filled.push({ selector: f.selector, ok: true });
+      } catch (e) {
+        filled.push({ selector: f.selector, ok: false, error: (e && e.message) || String(e) });
+        if (!args.continueOnError) { aborted = true; break; }
+      }
+    }
+    const result = { filled };
+    if (aborted) result.aborted = true;
+    if (args.submit && !aborted) {
+      try {
+        const r = await execBrowserCommand('click', Object.assign({}, base, { selector: args.submit, diff: args.diff !== false, settleMs: args.settleMs }));
+        result.submitted = true;
+        if (r && r.diff) result.diff = r.diff;
+      } catch (e) {
+        result.submitted = false;
+        result.submitError = (e && e.message) || String(e);
+      }
+    }
+    return result;
+  }
 
   const tab = await resolveTargetTab(args);
   const tabId = tab && tab.id;
@@ -1668,18 +1725,54 @@ async function execBrowserCommand(cmd, args) {
     }
     case 'dom': {
       if (tabId == null) throw new Error('no target tab');
+      // actionable mode: one-call list of interactive elements (selector + label +
+      // state). Content-script only — no debugger fallback (it's a convenience read).
+      if (args.actionable) {
+        let r = null;
+        try {
+          r = await chrome.tabs.sendMessage(tabId, { type: 'getActionable', selector: args.selector || '', limit: args.limit });
+        } catch (_e) {
+          throw new Error('content script unavailable for actionable read (reopen the tab so the extension can inject)');
+        }
+        if (r && r.ok) return { actionable: r.actionable, count: r.count, truncated: r.truncated };
+        throw new Error((r && r.error) || 'actionable read failed');
+      }
       // Prefer the content script (no debugger banner); fall back to chrome.debugger
       // when it's absent (tab opened before the extension loaded / was reloaded).
+      let result = null;
       let viaContent = null;
       try {
         viaContent = await chrome.tabs.sendMessage(tabId, { type: 'getDom', selector: args.selector || '', all: !!args.all });
       } catch (_e) {
         /* no content script in this tab → debugger fallback */
       }
-      if (viaContent && viaContent.ok) return args.all ? { nodes: viaContent.nodes } : { node: viaContent.node };
-      const res = await send({ type: 'cdpDrive', cmd: 'dom', args, tabId });
-      if (!res || !res.ok) throw new Error((res && res.error) || (viaContent && viaContent.error) || 'DOM read failed');
-      return res.result;
+      if (viaContent && viaContent.ok) {
+        result = args.all ? { nodes: viaContent.nodes } : { node: viaContent.node };
+      } else if (viaContent) {
+        // Content script is present and answered (e.g. "no element matches") — surface
+        // that directly. Don't fall back to chrome.debugger for a plain not-found: it
+        // adds nothing and, when a foreign extension (LastPass) injected a frame, it
+        // fails with the confusing "chrome-extension:// URL of different extension"
+        // error — which is what the m17ea3ui run hit on a simple missing selector.
+        throw new Error(viaContent.error || 'DOM read failed');
+      } else {
+        // No content script in this tab (opened before the extension loaded) → debugger.
+        const res = await send({ type: 'cdpDrive', cmd: 'dom', args, tabId });
+        if (!res || !res.ok) throw new Error((res && res.error) || 'DOM read failed');
+        result = res.result;
+      }
+      // Strip bulky <svg> icon markup and <style> blocks by default (replaced with
+      // compact placeholders — same scrub used for picked-element context). <style>
+      // stripping kills the KB of injected CSS (e.g. DarkReader) that flooded reads
+      // in the m17ea3ui run. Opt out with keepSvg:true.
+      if (!args.keepSvg && result) {
+        const scrub = (n) => {
+          if (n && typeof n.outerHTML === 'string') n.outerHTML = stripStyle(stripSvg(n.outerHTML));
+        };
+        if (Array.isArray(result.nodes)) result.nodes.forEach(scrub);
+        else if (result.node) scrub(result.node);
+      }
+      return result;
     }
     case 'screenshot': {
       let rect = null;
@@ -1719,26 +1812,56 @@ async function execBrowserCommand(cmd, args) {
     case 'wait':
     case 'dialog':
     case 'cdp_raw': {
-      const res = await send({ type: 'cdpDrive', cmd, args, tabId });
-      if (res && res.ok) return res.result;
-      const err = (res && res.error) || cmd + ' failed';
-      // chrome.debugger refused because another extension (e.g. LastPass) injected a
-      // frame into this tab → fall back to a content-script driver (synthetic events),
-      // which isn't subject to the debugger access check. Only the page-level gate +
-      // allowlist were already enforced (they run before the attach that failed), and
-      // only commands a content script can do (not drag/dialog/cdp_raw → need CDP).
-      const CONTENT_DRIVE = ['click', 'type', 'navigate', 'scroll', 'hover', 'key', 'select', 'wait', 'evaluate'];
-      if (/different extension|chrome-extension/i.test(err) && CONTENT_DRIVE.includes(cmd) && tabId != null) {
-        let cres;
-        try {
-          cres = await chrome.tabs.sendMessage(tabId, { type: 'tcAct', cmd, args });
-        } catch (e) {
-          throw new Error('content-script drive unavailable (' + ((e && e.message) || e) + ') — orig: ' + err);
+      // The action itself: chrome.debugger first; on the foreign-frame refusal fall
+      // back to the content-script driver (synthetic events). The page-level gate +
+      // allowlist already ran before the attach that failed, and only content-doable
+      // commands fall back (not drag/dialog/cdp_raw → need CDP).
+      const runAction = async () => {
+        const res = await send({ type: 'cdpDrive', cmd, args, tabId });
+        if (res && res.ok) return res.result;
+        const err = (res && res.error) || cmd + ' failed';
+        const CONTENT_DRIVE = ['click', 'type', 'navigate', 'scroll', 'hover', 'key', 'select', 'wait', 'evaluate'];
+        if (/different extension|chrome-extension/i.test(err) && CONTENT_DRIVE.includes(cmd) && tabId != null) {
+          let cres;
+          try {
+            cres = await chrome.tabs.sendMessage(tabId, { type: 'tcAct', cmd, args });
+          } catch (e) {
+            throw new Error('content-script drive unavailable (' + ((e && e.message) || e) + ') — orig: ' + err);
+          }
+          if (!cres || !cres.ok) throw new Error((cres && cres.error) || cmd + ' failed (content-script)');
+          return cres.result;
         }
-        if (!cres || !cres.ok) throw new Error((cres && cres.error) || cmd + ' failed (content-script)');
-        return cres.result;
+        throw new Error(err);
+      };
+      // Optional DOM diff: record mutations around the action with a content-script
+      // MutationObserver (sees both content-script- and debugger-driven changes). The
+      // caller opts in with diff:true; the 🔀 panel's "auto" toggle forces it on every
+      // action so the panel fills during normal driving (without changing the agent's
+      // result — auto-captured diffs go to the panel only).
+      const wantDiff = !!(args.diff || diffAutoCapture);
+      if (!wantDiff || tabId == null) return await runAction();
+      let started = false;
+      try {
+        const s = await chrome.tabs.sendMessage(tabId, { type: 'tcDiffStart', root: args.diffRoot || null });
+        started = !!(s && s.ok);
+      } catch (_e) {
+        /* no content script on this tab — proceed without a diff */
       }
-      throw new Error(err);
+      const out = await runAction();
+      let diff;
+      if (started) {
+        try {
+          const r = await chrome.tabs.sendMessage(tabId, { type: 'tcDiffCollect', settleMs: args.settleMs, maxMs: args.diffTimeoutMs, verbose: args.diffVerbose });
+          diff = r && r.ok ? r.diff : { error: (r && r.error) || 'diff collect failed' };
+        } catch (e) {
+          diff = { error: (e && e.message) || String(e) };
+        }
+      } else {
+        diff = { error: 'content script unavailable for diff' };
+      }
+      recordDomDiff(cmd, args, tab, diff); // feed the 🔀 panel
+      if (!args.diff) return out; // auto-only → don't attach diff to the caller's result
+      return out && typeof out === 'object' ? { ...out, diff } : { result: out, diff };
     }
     default:
       throw new Error('unknown browser command: ' + cmd);
@@ -1814,6 +1937,7 @@ function renderErrors(errors, cfg) {
   els.errCount.textContent = String(list.length);
   els.errCount.hidden = list.length === 0;
   els.errCount.classList.toggle('has', active > 0);
+  updateToolsDot(); // surface errors on the collapsed 🧰 button
   if (list.length === 0) {
     els.errList.innerHTML = '';
     els.errEmpty.hidden = false;
@@ -2037,6 +2161,126 @@ function togglePendingConsole(id) {
   renderPending();
   renderConsole();
   saveCompose();
+}
+
+// ── DOM diffs panel (what agent drive actions changed in the page) ──
+// Drive results that carry a `diff` (from diff:true, or forced by the "auto" toggle)
+// are recorded here and shown in the 🔀 popover, newest first.
+const DIFF_MAX = 50;
+let domDiffs = [];
+let diffSeq = 0;
+const diffExpanded = new Set();
+let diffAutoCapture = true; // auto-capture a diff on every drive action by default
+async function loadDiffAuto() {
+  try {
+    const r = await chrome.storage.local.get('tc_diff_auto');
+    diffAutoCapture = r.tc_diff_auto !== false; // default ON; respects a saved opt-out
+  } catch (_e) {
+    diffAutoCapture = true;
+  }
+  if (els.diffAuto) els.diffAuto.checked = diffAutoCapture;
+}
+
+function recordDomDiff(cmd, args, tab, diff) {
+  if (!diff || diff.error) return;
+  if (diff.changed === false) return; // explicit no-op marker
+  // Signal = any node/attr/text change OR a semantic summary (the diff dropped its
+  // redundant `counts` key, so derive from the arrays themselves).
+  const len = (a) => (Array.isArray(a) ? a.length : 0);
+  const signal = len(diff.added) + len(diff.removed) + len(diff.attrs) + len(diff.text) + len(diff.summary);
+  if (!signal) return; // no-op
+  const id = 'd' + ++diffSeq;
+  domDiffs.unshift({
+    id,
+    ts: Date.now(),
+    cmd,
+    target: (args && (args.selector || args.text || args.url)) || '',
+    origin: tabOriginOf(tab) || '',
+    diff,
+  });
+  if (domDiffs.length > DIFF_MAX) domDiffs.length = DIFF_MAX;
+  renderDomDiffs();
+}
+function diffAgo(ts) {
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (s < 60) return s + 's';
+  const m = Math.round(s / 60);
+  return m < 60 ? m + 'm' : Math.round(m / 60) + 'h';
+}
+function diffRowHtml(d) {
+  // Tally badges derived from the arrays + truncated (the diff no longer ships `counts`).
+  const dd = d.diff;
+  const t = dd.truncated || {};
+  const len = (a) => (Array.isArray(a) ? a.length : 0);
+  const na = len(dd.added) + (t.added || 0);
+  const nr = len(dd.removed) + (t.removed || 0);
+  const nat = len(dd.attrs) + (t.attrs || 0);
+  const tally =
+    (na ? '<span class="diff-add">+' + na + '</span>' : '') +
+    (nr ? '<span class="diff-del">-' + nr + '</span>' : '') +
+    (nat ? '<span class="diff-attr">~' + nat + '</span>' : '');
+  const sum = (d.diff.summary && d.diff.summary[0]) || '';
+  const open = diffExpanded.has(d.id);
+  let body = '';
+  if (open) {
+    const nodes = (list, cls, sign) =>
+      (list || [])
+        .map((n) => `<div class="dnode ${cls}">${sign} <code>${esc(n.selector)}</code>${n.text ? ' — ' + esc(n.text.slice(0, 60)) : ''}</div>`)
+        .join('');
+    const attrs = (d.diff.attrs || [])
+      .map((a) => {
+        const detail =
+          a.attr === 'class'
+            ? (a.add ? '<span class="diff-add">+' + esc(a.add) + '</span>' : '') + (a.remove ? ' <span class="diff-del">-' + esc(a.remove) + '</span>' : '')
+            : esc(String(a.old)) + ' → ' + esc(String(a.new));
+        return `<div class="dnode diff-attr">~ <code>${esc(a.selector)}</code> <b>${esc(a.attr)}</b> ${detail}</div>`;
+      })
+      .join('');
+    const t = d.diff.truncated || {};
+    const dropped = (t.added || 0) + (t.removed || 0) + (t.attrs || 0);
+    const allSum = (d.diff.summary || []).map((s) => `<div class="dsum">• ${esc(s)}</div>`).join('');
+    body =
+      '<div class="dbody">' +
+      allSum +
+      nodes(d.diff.added, 'diff-add', '+') +
+      nodes(d.diff.removed, 'diff-del', '−') +
+      attrs +
+      (dropped ? `<div class="dnode dmore">… +${dropped} más</div>` : '') +
+      (d.diff.settled ? '' : '<div class="dnode dmore">(no se asentó — settle timeout)</div>') +
+      '</div>';
+  }
+  return (
+    `<div class="drow${open ? ' open' : ''}" data-did="${esc(d.id)}" title="Click para ${open ? 'cerrar' : 'ver detalle'}">` +
+    `<div class="drow-hd"><span class="dcmd">${esc(d.cmd)}</span>` +
+    `<span class="dtarget">${esc(d.target || d.origin)}</span>` +
+    `<span class="dtally">${tally}</span><span class="dtime">${diffAgo(d.ts)}</span></div>` +
+    (sum && !open ? `<div class="dsum1">${esc(sum)}</div>` : '') +
+    body +
+    '</div>'
+  );
+}
+function renderDomDiffs() {
+  if (!els.diffCount) return;
+  els.diffCount.textContent = String(domDiffs.length);
+  els.diffCount.hidden = domDiffs.length === 0;
+  els.diffCount.classList.toggle('has', domDiffs.length > 0);
+  if (els.diffPop.hidden) return; // count only when the popover is closed
+  if (!domDiffs.length) {
+    els.diffList.innerHTML = '';
+    els.diffEmpty.hidden = false;
+    return;
+  }
+  els.diffEmpty.hidden = true;
+  els.diffList.innerHTML = domDiffs.map(diffRowHtml).join('');
+}
+
+// The inspector badges (errors/network/console/recorder/diffs) collapse behind the
+// 🧰 button to keep the actions bar uncluttered. Surface the one urgent signal —
+// uncleared errors — as a red dot on 🧰 while the group is collapsed.
+function updateToolsDot() {
+  if (!els.toolsDot || !els.toolBadges) return;
+  const errs = parseInt((els.errCount && els.errCount.textContent) || '0', 10) || 0;
+  els.toolsDot.hidden = !(errs > 0 && els.toolBadges.hidden);
 }
 
 // ── reproduction recorder (record interactions → numbered repro steps) ──
@@ -2609,6 +2853,11 @@ async function addFiles(files) {
 }
 // Replace each <svg>…</svg> with a compact placeholder that keeps the icon's
 // identity (data-icon / aria-label / class) but drops the bulky path geometry.
+// Collapse <style> blocks (injected CSS — DarkReader, app theme dumps) to a compact
+// placeholder so a DOM read returns structure, not kilobytes of rules.
+function stripStyle(html) {
+  return String(html || '').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '<style>…</style>');
+}
 function stripSvg(html) {
   return String(html || '').replace(/<svg\b([^>]*)>[\s\S]*?<\/svg>/gi, (_m, attrs) => {
     const pick = (re) => {
@@ -2669,6 +2918,13 @@ async function activePageInfo() {
   } catch (_e) {
     return null;
   }
+}
+
+// A bare CLI slash command (/compact, /clear, …) with no arguments. These must be
+// sent verbatim — never with the `[Current page: …]` prefix or any attached context
+// blocks, or the commander treats them as a normal message and the command never runs.
+function isBareSlashCommand(s) {
+  return /^\/[a-z][a-z0-9_-]*$/i.test((s || '').trim());
 }
 
 async function doSend() {
@@ -2753,6 +3009,10 @@ async function doSend() {
     const pi = await activePageInfo();
     if (pi && pi.url) message = `[Current page: ${pi.title || ''} — ${pi.url}]\n\n` + message;
   }
+
+  // Bare slash command → send it alone, dropping the page-context prefix and every
+  // attached context block, so the commander recognizes it (e.g. /compact, /clear).
+  if (isBareSlashCommand(text)) message = text;
 
   // Compact label for the user's turn in the chat.
   let userLabel = text;
@@ -3253,6 +3513,22 @@ els.chat.addEventListener('click', (e) => {
   if (img && img.src) openLightbox(img.src);
 });
 document.addEventListener('keydown', (e) => {
+  // Ctrl/Cmd+K → jump to the agent selector (focus, select text, open the list).
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault();
+    if (els.agentInput && !els.agentInput.disabled) {
+      els.agentInput.focus();
+      els.agentInput.select();
+      openAgentCombo(true);
+    }
+    return;
+  }
+  // Alt+J → previous pin (left), Alt+K → next pin (right) in the pinned bar.
+  if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'j' || e.key === 'J' || e.key === 'k' || e.key === 'K')) {
+    e.preventDefault();
+    cyclePinned(e.key === 'j' || e.key === 'J' ? -1 : 1);
+    return;
+  }
   if (e.key === 'Escape' && !els.lightbox.hidden) {
     e.preventDefault();
     closeLightbox();
@@ -3292,6 +3568,8 @@ function closeToolPops() {
   // in-progress recording; the ⏺ badge keeps pulsing and reopens the live list.
   if (els.reproPop) els.reproPop.hidden = true;
   if (els.reproBtn) els.reproBtn.classList.remove('open');
+  if (els.diffPop) els.diffPop.hidden = true;
+  if (els.diffBtn) els.diffBtn.classList.remove('open');
 }
 els.errBtn.addEventListener('click', (e) => {
   e.stopPropagation();
@@ -3329,6 +3607,52 @@ els.reproBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   onReproBtn();
 });
+if (els.toolsToggle)
+  els.toolsToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const show = els.toolBadges.hidden;
+    els.toolBadges.hidden = !show;
+    els.toolsToggle.classList.toggle('open', show);
+    els.toolsToggle.setAttribute('aria-expanded', String(show));
+    if (!show) closeToolPops(); // collapsing → close any open inspector popover
+    updateToolsDot();
+  });
+if (els.diffBtn)
+  els.diffBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const willOpen = els.diffPop.hidden;
+    closeToolPops();
+    if (willOpen) {
+      els.diffPop.hidden = false;
+      els.diffBtn.classList.add('open');
+      renderDomDiffs();
+    }
+  });
+if (els.diffClear)
+  els.diffClear.addEventListener('click', (e) => {
+    e.stopPropagation();
+    domDiffs = [];
+    diffExpanded.clear();
+    renderDomDiffs();
+  });
+if (els.diffAuto)
+  els.diffAuto.addEventListener('change', () => {
+    diffAutoCapture = els.diffAuto.checked;
+    try {
+      chrome.storage.local.set({ tc_diff_auto: diffAutoCapture });
+    } catch (_e) {
+      /* ignore */
+    }
+  });
+if (els.diffList)
+  els.diffList.addEventListener('click', (ev) => {
+    const row = ev.target.closest('.drow');
+    if (!row) return;
+    const id = row.dataset.did;
+    if (diffExpanded.has(id)) diffExpanded.delete(id);
+    else diffExpanded.add(id);
+    renderDomDiffs();
+  });
 els.reproStop.addEventListener('click', (e) => {
   e.stopPropagation();
   finishReproSession(true);
@@ -3342,8 +3666,8 @@ els.reproDiscard.addEventListener('click', (e) => {
 // its `closest()` check is reliable. (On click, the rebuild detaches the node and
 // closest() wrongly reports "outside", which closed the popover on every expand.)
 document.addEventListener('pointerdown', (e) => {
-  if (els.errPop.hidden && els.netPop.hidden && els.conPop.hidden && els.reproPop.hidden) return;
-  if (e.target.closest('#err-pop, #net-pop, #con-pop, #repro-pop, #err-btn, #net-btn, #con-btn, #repro-btn')) return;
+  if (els.errPop.hidden && els.netPop.hidden && els.conPop.hidden && els.reproPop.hidden && (!els.diffPop || els.diffPop.hidden)) return;
+  if (e.target.closest('#err-pop, #net-pop, #con-pop, #repro-pop, #diff-pop, #err-btn, #net-btn, #con-btn, #repro-btn, #diff-btn')) return;
   closeToolPops();
 });
 els.errClear.addEventListener('click', async () => {
@@ -3580,4 +3904,5 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
   await loadNetwork();
   await loadConsole();
   await loadRepro(); // resume an in-progress recording if the panel reopened mid-record
+  await loadDiffAuto(); // 🔀 auto-capture defaults ON (unless the user opted out)
 })();

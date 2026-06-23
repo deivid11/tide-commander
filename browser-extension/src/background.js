@@ -878,19 +878,38 @@ async function bridgeScreenshot(commanderId, rect, selector, tabId) {
   if (!target || target.id == null) return { ok: false, error: 'no target tab' };
 
   let shot = null;
-  const isVisible = activeTab && target.id === activeTab.id;
-  if (isVisible && !cdpAttached.has(target.id)) {
-    shot = await captureVisible(target.id, target.windowId);
-    if (shot && rect && rect.w && rect.h) {
-      const cropped = await cropScreenshot(shot, rect, rect.dpr || 1);
-      if (cropped) shot = cropped;
+  const cropIf = async (s) => {
+    if (s && rect && rect.w && rect.h) {
+      const cropped = await cropScreenshot(s, rect, rect.dpr || 1);
+      if (cropped) return cropped;
     }
-  } else {
-    // Background tab (or one we're already driving) → capture via CDP.
+    return s;
+  };
+  // Prefer captureVisibleTab whenever the target is the ACTIVE tab of its window —
+  // the current window OR a background one. captureVisibleTab(windowId) grabs that
+  // window's active tab WITHOUT focusing it (and with no debugger banner), so this
+  // works on background-window tabs. Skip it only while we're mid-debug on the tab.
+  if (target.active && !cdpAttached.has(target.id)) {
+    shot = await cropIf(await captureVisible(target.id, target.windowId));
+  }
+  // Otherwise (a hidden tab not active in its window, or the capture failed) → CDP
+  // Page.captureScreenshot — works without focus, but is refused when another
+  // extension injected a frame into the tab (LastPass et al.).
+  if (!shot) {
     try {
       shot = await cdpScreenshot(target.id, rect);
     } catch (e) {
-      return { ok: false, error: (e && e.message) || 'cdp screenshot failed' };
+      // Last resort: if the tab is active in some on-screen window, try that window.
+      if (target.active) shot = await cropIf(await captureVisible(target.id, target.windowId));
+      if (!shot) {
+        return {
+          ok: false,
+          error:
+            'screenshot failed (' +
+            ((e && e.message) || 'cdp blocked') +
+            '). The tab is not the active tab of an on-screen window and chrome.debugger is blocked here — bring its window on-screen, or activate the tab.',
+        };
+      }
     }
   }
   if (!shot) return { ok: false, error: 'capture failed' };
@@ -981,13 +1000,23 @@ function cdpEval(tabId, expression) {
     (r) => (r && r.result ? r.result.value : undefined),
   );
 }
-// Poll until a selector exists (or time out).
-async function cdpWaitSelector(tabId, selector, timeoutMs) {
+// JS expression (string) for the scope root: `within` (a CSS selector) confines
+// matching to that subtree so background content can't steal a selector/text hit;
+// `document` when no `within`. Resolves to null when `within` is set but absent.
+function tcRootExpr(within) {
+  return within ? `document.querySelector(${JSON.stringify(within)})` : 'document';
+}
+// JS expression (string) resolving `selector` inside the optional `within` root.
+function tcScopedQS(selector, within) {
+  return `(()=>{const _r=${tcRootExpr(within)}; return _r?_r.querySelector(${JSON.stringify(selector)}):null;})()`;
+}
+// Poll until a selector exists (or time out). `within` scopes the search root.
+async function cdpWaitSelector(tabId, selector, timeoutMs, within) {
   if (!selector) throw new Error('selector required');
   const deadline = Date.now() + Math.min(Number(timeoutMs) || 5000, 30000);
   for (;;) {
-    if (await cdpEval(tabId, `!!document.querySelector(${JSON.stringify(selector)})`)) return;
-    if (Date.now() > deadline) throw new Error('timed out waiting for selector: ' + selector);
+    if (await cdpEval(tabId, `!!${tcScopedQS(selector, within)}`)) return;
+    if (Date.now() > deadline) throw new Error('timed out waiting for selector: ' + selector + (within ? ' within ' + within : ''));
     await new Promise((r) => setTimeout(r, 150));
   }
 }
@@ -1002,41 +1031,44 @@ async function cdpWaitText(tabId, text, timeoutMs) {
   }
 }
 // Center point (viewport CSS px) of a selector, scrolling it into view first.
-async function cdpPoint(tabId, selector) {
+// `within` scopes the search root.
+async function cdpPoint(tabId, selector, within) {
   const pt = await cdpEval(
     tabId,
-    `(()=>{const e=document.querySelector(${JSON.stringify(selector)}); if(!e) return null; e.scrollIntoView({block:'center'}); const r=e.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2};})()`,
+    `(()=>{const e=${tcScopedQS(selector, within)}; if(!e) return null; e.scrollIntoView({block:'center'}); const r=e.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2};})()`,
   );
-  if (!pt) throw new Error('element not found: ' + selector);
+  if (!pt) throw new Error('element not found: ' + selector + (within ? ' within ' + within : ''));
   return pt;
 }
 // Center point of the first clickable element whose VISIBLE TEXT matches (exact,
 // then case-insensitive, then contains). Lets actions target "Volver" etc. without
 // a CSS selector. Scrolls it into view first.
-async function cdpPointByText(tabId, text) {
+async function cdpPointByText(tabId, text, within) {
   const expr = `(function(){
+    var root=${tcRootExpr(within)}; if(!root) return null;
     var norm=function(s){return String(s==null?'':s).trim();};
     var t=${JSON.stringify(String(text))}, tl=t.toLowerCase();
-    var cands=Array.prototype.slice.call(document.querySelectorAll('button, a, [role=button], [role=link], [role=menuitem], [role=tab], input[type=button], input[type=submit], label'));
+    var cands=Array.prototype.slice.call(root.querySelectorAll('button, a, [role=button], [role=option], [role=link], [role=menuitem], [role=tab], input[type=button], input[type=submit], label'));
     var lower=function(e){return norm(e.innerText||e.value).toLowerCase();};
     var el=cands.find(function(e){return norm(e.innerText||e.value)===t;}) || cands.find(function(e){return lower(e)===tl;}) || cands.find(function(e){return lower(e).indexOf(tl)>=0;});
-    if(el==null){ el=Array.prototype.slice.call(document.querySelectorAll('*')).find(function(e){return e.children.length===0 && norm(e.innerText)===t;}); }
+    if(el==null){ el=Array.prototype.slice.call(root.querySelectorAll('*')).find(function(e){return e.children.length===0 && norm(e.innerText)===t;}); }
     if(el==null) return null;
     el.scrollIntoView({block:'center'});
     var r=el.getBoundingClientRect();
     return {x:r.left+r.width/2, y:r.top+r.height/2};
   })()`;
   const pt = await cdpEval(tabId, expr);
-  if (!pt) throw new Error('no clickable element with text "' + text + '"');
+  if (!pt) throw new Error('no clickable element with text "' + text + '"' + (within ? ' within ' + within : ''));
   return pt;
 }
-// Resolve an action's target to a point: a CSS `selector` or visible `text`.
-async function cdpResolvePoint(tabId, selector, text, timeoutMs) {
+// Resolve an action's target to a point: a CSS `selector` or visible `text`,
+// optionally scoped to the `within` subtree.
+async function cdpResolvePoint(tabId, selector, text, timeoutMs, within) {
   if (selector) {
-    await cdpWaitSelector(tabId, selector, timeoutMs);
-    return cdpPoint(tabId, selector);
+    await cdpWaitSelector(tabId, selector, timeoutMs, within);
+    return cdpPoint(tabId, selector, within);
   }
-  if (text) return cdpPointByText(tabId, text);
+  if (text) return cdpPointByText(tabId, text, within);
   throw new Error('selector or text required');
 }
 // Brave/Chrome memory-saver discards background tabs; a discarded tab has no live
@@ -1108,6 +1140,31 @@ async function isTabDriveEnabled(tabId) {
     return false;
   }
 }
+// When a tab's 🤖 drive flag flips, tell that tab's content script to show/hide the
+// on-page "agent can control this tab" indicator (the source of truth is storage, so
+// this fires for both the side-panel toggle and the onRemoved prune below).
+try {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !changes.tc_drive_enabled) return;
+    const next = changes.tc_drive_enabled.newValue || {};
+    const prev = changes.tc_drive_enabled.oldValue || {};
+    const ids = new Set([...Object.keys(next), ...Object.keys(prev)]);
+    for (const id of ids) {
+      const on = !!next[id];
+      if (on === !!prev[id]) continue; // unchanged for this tab
+      const tabId = Number(id);
+      if (!Number.isFinite(tabId)) continue;
+      try {
+        chrome.tabs.sendMessage(tabId, { type: 'tcDriveIndicator', on }, () => void chrome.runtime.lastError);
+      } catch (_e) {
+        /* tab may be gone */
+      }
+    }
+  });
+} catch (_e) {
+  /* ignore */
+}
+
 // Prune a tab's drive-enabled flag when it closes (tabIds are reused, so a stale
 // entry could silently auto-enable a future tab on the same id).
 try {
@@ -1172,11 +1229,11 @@ async function cdpDrive(cmd, args, tabId) {
     }
     case 'scroll': {
       // Resolving the point already scrolls the element into view.
-      await cdpResolvePoint(tabId, args.selector, args.text, args.timeoutMs);
+      await cdpResolvePoint(tabId, args.selector, args.text, args.timeoutMs, args.within);
       return { ok: true };
     }
     case 'click': {
-      const pt = await cdpResolvePoint(tabId, args.selector, args.text, args.timeoutMs);
+      const pt = await cdpResolvePoint(tabId, args.selector, args.text, args.timeoutMs, args.within);
       // Real (trusted) mouse events so SPA handlers fire exactly as for a user.
       await cdpSend(tabId, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: pt.x, y: pt.y });
       await cdpSend(tabId, 'Input.dispatchMouseEvent', { type: 'mousePressed', x: pt.x, y: pt.y, button: 'left', buttons: 1, clickCount: 1 });
@@ -1184,7 +1241,7 @@ async function cdpDrive(cmd, args, tabId) {
       return { ok: true };
     }
     case 'hover': {
-      const pt = await cdpResolvePoint(tabId, args.selector, args.text, args.timeoutMs);
+      const pt = await cdpResolvePoint(tabId, args.selector, args.text, args.timeoutMs, args.within);
       await cdpSend(tabId, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: pt.x, y: pt.y });
       return { ok: true };
     }
@@ -1200,33 +1257,33 @@ async function cdpDrive(cmd, args, tabId) {
       return { ok: true };
     }
     case 'type': {
-      await cdpWaitSelector(tabId, args.selector, args.timeoutMs);
+      await cdpWaitSelector(tabId, args.selector, args.timeoutMs, args.within);
       // Focus (and optionally select-all so insertText replaces the value). insertText
       // fires beforeinput/input events, so React/SPA state updates.
       await cdpEval(
         tabId,
-        `(()=>{const e=document.querySelector(${JSON.stringify(args.selector)}); if(e){e.focus(); ${args.clear ? 'if(e.select)e.select();' : ''}} return !!e;})()`,
+        `(()=>{const e=${tcScopedQS(args.selector, args.within)}; if(e){e.focus(); ${args.clear ? 'if(e.select)e.select();' : ''}} return !!e;})()`,
       );
       await cdpSend(tabId, 'Input.insertText', { text: String(args.text == null ? '' : args.text) });
       return { ok: true };
     }
     case 'key': {
       if (args.selector) {
-        await cdpWaitSelector(tabId, args.selector, args.timeoutMs);
-        await cdpEval(tabId, `(()=>{const e=document.querySelector(${JSON.stringify(args.selector)}); if(e)e.focus(); return !!e;})()`);
+        await cdpWaitSelector(tabId, args.selector, args.timeoutMs, args.within);
+        await cdpEval(tabId, `(()=>{const e=${tcScopedQS(args.selector, args.within)}; if(e)e.focus(); return !!e;})()`);
       }
       await cdpKey(tabId, String(args.key));
       return { ok: true };
     }
     case 'select': {
-      await cdpWaitSelector(tabId, args.selector, args.timeoutMs);
+      await cdpWaitSelector(tabId, args.selector, args.timeoutMs, args.within);
       const pick =
         args.label != null
           ? `const o=[...e.options].find(o=>o.text.trim()===${JSON.stringify(String(args.label))}); if(!o) return 'no option'; e.value=o.value;`
           : `e.value=${JSON.stringify(String(args.value == null ? '' : args.value))};`;
       const r = await cdpEval(
         tabId,
-        `(()=>{const e=document.querySelector(${JSON.stringify(args.selector)}); if(!e) return 'no element'; ${pick} e.dispatchEvent(new Event('input',{bubbles:true})); e.dispatchEvent(new Event('change',{bubbles:true})); return 'ok';})()`,
+        `(()=>{const e=${tcScopedQS(args.selector, args.within)}; if(!e) return 'no element'; ${pick} e.dispatchEvent(new Event('input',{bubbles:true})); e.dispatchEvent(new Event('change',{bubbles:true})); return 'ok';})()`,
       );
       if (r !== 'ok') throw new Error('select failed: ' + r);
       return { ok: true };
@@ -1240,7 +1297,7 @@ async function cdpDrive(cmd, args, tabId) {
       // the extension loaded (where the content script isn't injected).
       const sel = args.selector || 'body';
       const all = !!args.all;
-      const ser = `function(e){var r=e.getBoundingClientRect();var cs=getComputedStyle(e);var st={};['display','position','width','height','color','background-color','font-size','border','border-radius'].forEach(function(k){var v=cs.getPropertyValue(k); if(v) st[k]=v;});return {selector:${JSON.stringify(sel)}, tag:e.tagName.toLowerCase(), id:e.id||'', classes:e.classList?Array.prototype.slice.call(e.classList):[], text:(e.innerText||'').trim().slice(0,300), outerHTML:(e.outerHTML||'').slice(0,8000), styles:st, rect:{x:Math.round(r.left),y:Math.round(r.top),w:Math.round(r.width),h:Math.round(r.height)}};}`;
+      const ser = `function(e){var r=e.getBoundingClientRect();var cs=getComputedStyle(e);var st={};['display','position','width','height','color','background-color','font-size','border','border-radius'].forEach(function(k){var v=cs.getPropertyValue(k); if(v) st[k]=v;});var fld;var tg=e.tagName.toLowerCase();if(tg==='input'||tg==='textarea'||tg==='select'){fld={type:e.type||tg,disabled:!!e.disabled};if(typeof e.value==='string')fld.value=e.value.slice(0,500);if(typeof e.checked==='boolean')fld.checked=e.checked;if(tg==='select'){var o=e.selectedOptions&&e.selectedOptions[0];fld.selectedText=o?(o.text||'').trim():'';}}return {selector:${JSON.stringify(sel)}, tag:tg, id:e.id||'', classes:e.classList?Array.prototype.slice.call(e.classList):[], text:(e.innerText||'').trim().slice(0,300), outerHTML:(e.outerHTML||'').slice(0,8000), field:fld, styles:st, rect:{x:Math.round(r.left),y:Math.round(r.top),w:Math.round(r.width),h:Math.round(r.height)}};}`;
       const expr = all
         ? `(function(){var ser=${ser};return {found:true, nodes:Array.prototype.slice.call(document.querySelectorAll(${JSON.stringify(sel)})).slice(0,20).map(ser)};})()`
         : `(function(){var ser=${ser};var e=document.querySelector(${JSON.stringify(sel)});if(!e) return {found:false};return {found:true, node:ser(e)};})()`;
@@ -1418,6 +1475,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     case 'reproHello':
       reproHello(sender, sendResponse);
       return true;
+    case 'tcDriveQuery': {
+      // A freshly-loaded content script asking whether its tab's 🤖 drive is on, so
+      // it can (re)show the on-page indicator — only the background knows its tabId.
+      const driveTabId = sender && sender.tab ? sender.tab.id : null;
+      isTabDriveEnabled(driveTabId).then((on) => sendResponse({ on }));
+      return true;
+    }
     case 'elementPicked':
       handleElementPicked(msg.payload || msg.context ? msg.context || msg.payload : msg.context, sender).catch(() => {});
       return;
