@@ -2,9 +2,11 @@ import React, { useEffect, useRef } from 'react';
 import { Icon } from '../Icon';
 
 export interface FileMentionItem {
-  path: string;
+  path: string; // file/folder path; for agents this holds the agent name (drives the inline @text + dedup)
   name: string;
-  type: 'file' | 'dir';
+  type: 'file' | 'dir' | 'agent';
+  agentId?: string; // present only for agent mentions — the id injected as [@agent:id] on send
+  subtitle?: string; // secondary label shown in place of the path (e.g. agent class/status)
 }
 
 interface FileMentionDropdownProps {
@@ -49,23 +51,25 @@ export function FileMentionDropdown({ items, selectedIndex, onSelect, onClose }:
       <ul ref={listRef} className="file-mention-dropdown__list">
         {items.map((item, i) => (
           <li
-            key={item.path}
+            key={item.type === 'agent' ? `agent:${item.agentId}` : item.path}
             role="option"
             aria-selected={i === selectedIndex}
-            className={`file-mention-dropdown__item ${i === selectedIndex ? 'is-selected' : ''}`}
+            className={`file-mention-dropdown__item ${item.type === 'agent' ? 'is-agent' : ''} ${i === selectedIndex ? 'is-selected' : ''}`}
             onMouseDown={(e) => {
               e.preventDefault();
               onSelect(item);
             }}
           >
             <span className="file-mention-dropdown__icon">
-              {item.type === 'dir'
-                ? <Icon name="folder" size={12} />
-                : fileIcon(item.name)
+              {item.type === 'agent'
+                ? <Icon name="robot" size={12} />
+                : item.type === 'dir'
+                  ? <Icon name="folder" size={12} />
+                  : fileIcon(item.name)
               }
             </span>
             <span className="file-mention-dropdown__name">{item.name}</span>
-            <span className="file-mention-dropdown__path">{item.path}</span>
+            <span className="file-mention-dropdown__path">{item.type === 'agent' ? (item.subtitle ?? 'agente') : item.path}</span>
           </li>
         ))}
       </ul>

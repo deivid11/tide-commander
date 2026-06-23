@@ -570,19 +570,34 @@ export const TerminalInputArea = memo(function TerminalInputArea({
 
   const pastedTextInfos = getPastedTextInfo();
 
-  // Fetch file suggestions for @ mention autocomplete
+  // Fetch suggestions for @ mention autocomplete: other agents (from the store)
+  // first, then files/folders from the selected agent's cwd.
   useEffect(() => {
     if (!mentionQuery.active || !selectedAgentId) {
       setMentionResults([]);
       return;
     }
+    // Agent matches come from the in-memory store — no fetch needed. Exclude the
+    // current agent (you don't tag yourself) and match by name.
+    const q = mentionQuery.query.toLowerCase();
+    const agentItems: FileMentionItem[] = Array.from(store.getState().agents.values())
+      .filter((a) => a.id !== selectedAgentId && (q === '' || a.name.toLowerCase().includes(q)))
+      .slice(0, 5)
+      .map((a) => ({
+        path: a.name,
+        name: a.name,
+        type: 'agent' as const,
+        agentId: a.id,
+        subtitle: a.isBoss ? `boss · ${a.class}` : a.class,
+      }));
+
     if (mentionFetchRef.current) mentionFetchRef.current.abort();
     const ctrl = new AbortController();
     mentionFetchRef.current = ctrl;
     authFetch(apiUrl(`/api/agents/${selectedAgentId}/files?q=${encodeURIComponent(mentionQuery.query)}`), { signal: ctrl.signal })
       .then((r) => r.json())
-      .then((data) => { setMentionResults(data.files ?? []); setMentionIndex(0); })
-      .catch(() => {});
+      .then((data) => { setMentionResults([...agentItems, ...(data.files ?? [])]); setMentionIndex(0); })
+      .catch(() => { if (!ctrl.signal.aborted) { setMentionResults(agentItems); setMentionIndex(0); } });
   }, [mentionQuery.active, mentionQuery.query, selectedAgentId]);
 
   const closeMention = useCallback(() => {
@@ -595,8 +610,10 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     const before = command.slice(0, mentionQuery.start);
     const after = command.slice(mentionQuery.start + 1 + mentionQuery.query.length);
     setCommand(before + `@${item.path} ` + after);
-    // Add chip (deduplicated)
-    setFileMentions((prev) => prev.some((f) => f.path === item.path) ? prev : [...prev, item]);
+    // Track the mention (deduplicated). Agents are keyed by id (names can collide);
+    // files/folders by path.
+    const key = (m: FileMentionItem) => (m.type === 'agent' ? `agent:${m.agentId}` : m.path);
+    setFileMentions((prev) => prev.some((f) => key(f) === key(item)) ? prev : [...prev, item]);
     closeMention();
     // Re-focus the input
     requestAnimationFrame(() => {
@@ -673,10 +690,15 @@ export const TerminalInputArea = memo(function TerminalInputArea({
       }
     }
 
-    // Append [@file:path] and [@folder:path] tokens for server-side content injection
+    // Append [@file:path] / [@folder:path] / [@agent:id] tokens for server-side
+    // context injection (expandFileMentions resolves them before the agent runs).
     if (fileMentions.length > 0) {
       const mentionTokens = fileMentions
-        .map((f) => `[@${f.type === 'dir' ? 'folder' : 'file'}:${f.path}]`)
+        .map((f) =>
+          f.type === 'agent'
+            ? `[@agent:${f.agentId}]`
+            : `[@${f.type === 'dir' ? 'folder' : 'file'}:${f.path}]`
+        )
         .join('\n');
       fullCommand = fullCommand ? `${fullCommand}\n\n${mentionTokens}` : mentionTokens;
     }

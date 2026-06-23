@@ -670,6 +670,19 @@
       color: $dracula-cyan;
     }
   }
+
+  // Agent mentions: accent the row so tagging an agent reads distinct from a file.
+  &.is-agent {
+    box-shadow: inset 2px 0 0 $dracula-purple;
+
+    .file-mention-dropdown__icon {
+      color: $dracula-purple;
+    }
+
+    .file-mention-dropdown__path {
+      color: rgba($dracula-purple, 0.85);
+    }
+  }
 }
 
 .file-mention-dropdown__icon {

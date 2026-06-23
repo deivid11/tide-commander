@@ -19,13 +19,17 @@ const ARCHIVOS_CONTEXTO_RE = /<archivos_contexto>([\s\S]*?)<\/archivos_contexto>
 // Current format: individual <archivo ruta="..."> blocks inside the wrapper
 const ARCHIVO_BLOCK_RE = /<archivo ruta="([^"]+)">([\s\S]*?)<\/archivo>/g;
 
+// Agent mentions: <agentes_contexto> wrapper and the <agente ... nombre="..."/> entries inside it
+const AGENTES_CONTEXTO_RE = /<agentes_contexto>([\s\S]*?)<\/agentes_contexto>/g;
+const AGENTE_BLOCK_RE = /<agente[^>]*\bnombre="([^"]+)"[^>]*\/?>/g;
+
 // Server-injected internal guidance (path-format hints for the LLM).
 // Stripped from chat history so the user only sees their own text.
 const INSTRUCCIONES_INTERNAS_RE = /<instrucciones_internas>[\s\S]*?<\/instrucciones_internas>/g;
 
 export interface FileMentionChip {
-  path: string;
-  type: 'file' | 'dir';
+  path: string; // file/folder path, or the agent name for agent chips
+  type: 'file' | 'dir' | 'agent';
 }
 
 /**
@@ -50,6 +54,22 @@ export function extractFileMentionBlocks(content: string): {
       if (!seen.has(filePath)) {
         seen.add(filePath);
         chips.push({ path: filePath, type: 'file' });
+      }
+    }
+    return '';
+  });
+
+  // Agent mentions: strip the <agentes_contexto> wrapper and collect agent chips
+  AGENTES_CONTEXTO_RE.lastIndex = 0;
+  displayContent = displayContent.replace(AGENTES_CONTEXTO_RE, (_match, inner: string) => {
+    AGENTE_BLOCK_RE.lastIndex = 0;
+    const seen = new Set(chips.filter((c) => c.type === 'agent').map((c) => c.path));
+    let m;
+    while ((m = AGENTE_BLOCK_RE.exec(inner)) !== null) {
+      const agentName = m[1];
+      if (!seen.has(agentName)) {
+        seen.add(agentName);
+        chips.push({ path: agentName, type: 'agent' });
       }
     }
     return '';
