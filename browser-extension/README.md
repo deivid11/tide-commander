@@ -12,7 +12,10 @@ A browser-side cockpit for Tide Commander. It:
    and a **Network** section lists *every* request for the active page (method,
    status, timing) — expand any one to see its request/response headers + bodies
    and **Send as context** (or **Copy**) it to the agent. **Pin** agents (📌 in
-   the selector) to get a thumbnail quick-switch bar above the composer.
+   the selector) to get a thumbnail quick-switch bar above the composer. Type
+   **`@`** in the composer to **mention files/folders** from the agent's working
+   directory — pick from the autocomplete and their contents (or a folder's
+   structure) are attached to the message as context.
 3. **Picks DOM elements** — hover-pick or right-click → attaches the element's
    selector, HTML, computed styles, box and a screenshot crop as chat context so
    the agent knows exactly what to change.

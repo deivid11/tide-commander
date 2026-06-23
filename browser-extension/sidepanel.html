@@ -111,6 +111,10 @@
     <div class="pinbar" id="pinbar" hidden title="Pinned agents — click a thumbnail to select"></div>
 
     <footer class="composer">
+      <!-- @-mention autocomplete — floats above the composer; populated from
+           GET /api/agents/:id/files. -->
+      <div class="file-mention" id="fileMention" role="listbox" hidden></div>
+
       <div class="composer-row">
         <button class="icon-btn attach" id="attach" title="Attach files (images or documents)">📎</button>
         <input type="file" id="fileInput" multiple hidden />
