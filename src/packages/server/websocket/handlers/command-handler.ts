@@ -34,6 +34,15 @@ function isBinaryFile(filePath: string): boolean {
   return BINARY_EXTENSIONS.has(ext);
 }
 
+// Escape a string for safe use inside an XML attribute value.
+function attr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 // Recursively list every entry (file or dir) under `dirPath`, respecting the
 // ignore list. Used to build the structural listing for `[@folder:]` mentions —
 // the LLM sees the layout (paths only) without paying the token cost of every
@@ -64,14 +73,16 @@ function listDirEntriesRecursive(dirPath: string, relBase: string, maxDepth = 6)
 export async function expandFileMentions(command: string, cwd: string): Promise<string> {
   const FILE_RE = /\[@file:([^\]]+)\]/g;
   const FOLDER_RE = /\[@folder:([^\]]+)\]/g;
+  const AGENT_RE = /\[@agent:([^\]]+)\]/g;
 
   const fileMatches = [...command.matchAll(FILE_RE)];
   const folderMatches = [...command.matchAll(FOLDER_RE)];
-  if (fileMatches.length === 0 && folderMatches.length === 0) return command;
+  const agentMatches = [...command.matchAll(AGENT_RE)];
+  if (fileMatches.length === 0 && folderMatches.length === 0 && agentMatches.length === 0) return command;
 
   // PASO 1 & 2: Strip tokens from user text, build resolution maps
   let userText = command;
-  for (const match of [...fileMatches, ...folderMatches]) {
+  for (const match of [...fileMatches, ...folderMatches, ...agentMatches]) {
     userText = userText.replace(match[0], '');
   }
 
@@ -103,6 +114,24 @@ export async function expandFileMentions(command: string, cwd: string): Promise<
     } catch {
       // folder not found — skip
     }
+  }
+
+  // PASO 2: Resolve agent tokens. Tagging an agent injects that agent's identity
+  // (the id is the key the prompted agent needs to coordinate / message them)
+  // as context only — no message is sent to the tagged agent here.
+  const agenteBlocks: string[] = [];
+  const seenAgents = new Set<string>();
+  for (const match of agentMatches) {
+    const agentId = match[1].trim();
+    if (seenAgents.has(agentId)) continue;
+    seenAgents.add(agentId);
+    const a = agentService.getAgent(agentId);
+    if (!a) continue;
+    const estado = a.trackingStatus || a.status || 'unknown';
+    agenteBlocks.push(
+      `  <agente id="${attr(agentId)}" nombre="${attr(a.name)}" clase="${attr(a.class)}"` +
+        ` jefe="${a.isBoss ? 'true' : 'false'}" estado="${attr(String(estado))}" cwd="${attr(a.cwd || '')}"/>`
+    );
   }
 
   // PASO 4 (rewrite): normalize @mention text in the user prompt to exact resolved paths
@@ -141,26 +170,46 @@ export async function expandFileMentions(command: string, cwd: string): Promise<
     );
   }
 
-  if (archivoBlocks.length === 0 && carpetaBlocks.length === 0) return userText || command;
+  if (archivoBlocks.length === 0 && carpetaBlocks.length === 0 && agenteBlocks.length === 0) {
+    return userText || command;
+  }
 
-  // PASO 4: Compile — structured context first, then internal path-format
-  // guidance (wrapped in <instrucciones_internas> so the chat UI strips it
-  // and the user only sees their original text), then the user instruction.
-  // The guidance tells the model to echo back the exact `ruta="..."` value
-  // as plain text — the Tide file viewer resolves clicks against the agent
-  // cwd, so any deviation produces a 404.
-  const contextChildren = [...archivoBlocks, ...carpetaBlocks].join('\n\n');
-  const contextBlock = `<archivos_contexto>\n${contextChildren}\n</archivos_contexto>`;
-  const pathGuidance =
-    '<instrucciones_internas>\n' +
-    'Formato de rutas en tu respuesta: cuando te refieras a un archivo del contexto anterior, ' +
-    'usa exactamente el valor del atributo ruta="..." como texto plano (ej. src/foo/bar.ts:42). ' +
-    'No envuelvas la ruta en tags XML, no agregues prefijos como "archivo:"/"file:"/"carpeta:", ' +
-    'y no la pongas en un enlace de markdown. Para una <carpeta>, solo recibes su estructura ' +
-    '(listado de rutas) — si necesitas el contenido de un archivo específico de adentro, ' +
-    'léelo con tus herramientas habituales antes de responder.\n' +
-    '</instrucciones_internas>';
-  return `${contextBlock}\n\n${pathGuidance}\n\nPetición: ${userText}`;
+  // PASO 4: Compile — structured context first, then internal guidance (wrapped
+  // in <instrucciones_internas> so the chat UI strips it and the user only sees
+  // their original text), then the user instruction. Each context kind that is
+  // present contributes its own block and its own guidance paragraph.
+  const sections: string[] = [];
+  const guidanceParts: string[] = [];
+
+  if (archivoBlocks.length > 0 || carpetaBlocks.length > 0) {
+    const contextChildren = [...archivoBlocks, ...carpetaBlocks].join('\n\n');
+    sections.push(`<archivos_contexto>\n${contextChildren}\n</archivos_contexto>`);
+    // Tell the model to echo back the exact `ruta="..."` value as plain text —
+    // the Tide file viewer resolves clicks against the agent cwd, so any
+    // deviation produces a 404.
+    guidanceParts.push(
+      'Formato de rutas en tu respuesta: cuando te refieras a un archivo del contexto anterior, ' +
+        'usa exactamente el valor del atributo ruta="..." como texto plano (ej. src/foo/bar.ts:42). ' +
+        'No envuelvas la ruta en tags XML, no agregues prefijos como "archivo:"/"file:"/"carpeta:", ' +
+        'y no la pongas en un enlace de markdown. Para una <carpeta>, solo recibes su estructura ' +
+        '(listado de rutas) — si necesitas el contenido de un archivo específico de adentro, ' +
+        'léelo con tus herramientas habituales antes de responder.'
+    );
+  }
+
+  if (agenteBlocks.length > 0) {
+    sections.push(`<agentes_contexto>\n${agenteBlocks.join('\n')}\n</agentes_contexto>`);
+    guidanceParts.push(
+      'Agentes mencionados: el bloque <agentes_contexto> lista otros agentes del sistema que el ' +
+        'usuario etiquetó con @. Para coordinarte o delegar con alguno, usa su atributo id="..." ' +
+        'exacto al enviarle un mensaje vía la API (POST /api/agents/<id>/message) o la skill de ' +
+        'mensajería entre agentes. No inventes ids; usa solo los que aparecen aquí. Esto es ' +
+        'contexto: no se envió ningún mensaje a esos agentes automáticamente al etiquetarlos.'
+    );
+  }
+
+  const pathGuidance = `<instrucciones_internas>\n${guidanceParts.join('\n\n')}\n</instrucciones_internas>`;
+  return `${sections.join('\n\n')}\n\n${pathGuidance}\n\nPetición: ${userText}`;
 }
 
 /**
