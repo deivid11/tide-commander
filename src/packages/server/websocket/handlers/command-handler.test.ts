@@ -352,4 +352,57 @@ describe('expandFileMentions', () => {
     expect(result).toContain('<archivo ruta="hello.ts">');
     expect(result).toContain('export const greeting');
   });
+
+  it('expands [@agent:id] into an <agentes_contexto> block with the agent identity', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'cy3c3i3x', name: 'Scout One', class: 'scout', status: 'idle',
+      trackingStatus: 'working', cwd: '/work/scout', isBoss: false,
+    } as any);
+    const result = await expandFileMentions('[@agent:cy3c3i3x]\ncoordínate con él', tmpDir);
+    expect(result).toContain('<agentes_contexto>');
+    expect(result).toContain('id="cy3c3i3x"');
+    expect(result).toContain('nombre="Scout One"');
+    expect(result).toContain('clase="scout"');
+    expect(result).toContain('estado="working"'); // trackingStatus wins over status
+    expect(result).toContain('jefe="false"');
+    expect(result).toContain('Petición: coordínate con él');
+    // No file context block when only an agent was mentioned
+    expect(result).not.toContain('<archivos_contexto>');
+  });
+
+  it('drops an [@agent:id] token for an unknown agent', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue(undefined as any);
+    const result = await expandFileMentions('[@agent:ghost]\nhola', tmpDir);
+    expect(result).not.toContain('<agentes_contexto>');
+    expect(result).not.toContain('[@agent:ghost]');
+    expect(result).toContain('hola');
+  });
+
+  it('deduplicates repeated [@agent:id] mentions of the same agent', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'a1', name: 'Dupe', class: 'default', status: 'idle', cwd: '/w', isBoss: false,
+    } as any);
+    const result = await expandFileMentions('[@agent:a1]\n[@agent:a1]\nhola', tmpDir);
+    expect(result.match(/<agente /g)?.length).toBe(1);
+  });
+
+  it('escapes quotes in agent names within the attribute', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'a1', name: 'My "Cool" Agent', class: 'default', status: 'idle', cwd: '/w', isBoss: false,
+    } as any);
+    const result = await expandFileMentions('[@agent:a1] hey', tmpDir);
+    expect(result).toContain('nombre="My &quot;Cool&quot; Agent"');
+  });
+
+  it('combines [@file:] and [@agent:] context in the same prompt', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'a2', name: 'Helper', class: 'scout', status: 'idle', cwd: '/w', isBoss: false,
+    } as any);
+    const result = await expandFileMentions('[@file:hello.ts]\n[@agent:a2]\nhaz ambos', tmpDir);
+    expect(result).toContain('<archivos_contexto>');
+    expect(result).toContain('<archivo ruta="hello.ts">');
+    expect(result).toContain('<agentes_contexto>');
+    expect(result).toContain('nombre="Helper"');
+    expect(result).toContain('Petición: haz ambos');
+  });
 });

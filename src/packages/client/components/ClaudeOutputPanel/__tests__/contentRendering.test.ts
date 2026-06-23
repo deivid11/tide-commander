@@ -114,4 +114,60 @@ describe('extractFileMentionBlocks', () => {
       expect(chips[0].path).toBe('big.ts');
     });
   });
+
+  describe('agent mentions (<agentes_contexto>)', () => {
+    it('strips the agent context block and returns an agent chip', () => {
+      const input = [
+        '<agentes_contexto>',
+        '  <agente id="cy3c3i3x" nombre="Scout One" clase="scout" jefe="false" estado="working" cwd="/w"/>',
+        '</agentes_contexto>',
+        '',
+        '<instrucciones_internas>',
+        'Agentes mencionados: usa el id...',
+        '</instrucciones_internas>',
+        '',
+        'Petición: coordínate con él',
+      ].join('\n');
+      const { displayContent, chips } = extractFileMentionBlocks(input);
+      expect(displayContent).toBe('coordínate con él');
+      expect(chips).toContainEqual({ path: 'Scout One', type: 'agent' });
+    });
+
+    it('collects multiple agent chips and dedups repeats', () => {
+      const input = [
+        '<agentes_contexto>',
+        '  <agente id="a1" nombre="Alpha" clase="scout" jefe="false" estado="idle" cwd="/w"/>',
+        '  <agente id="a2" nombre="Beta" clase="boss" jefe="true" estado="idle" cwd="/w"/>',
+        '  <agente id="a1" nombre="Alpha" clase="scout" jefe="false" estado="idle" cwd="/w"/>',
+        '</agentes_contexto>',
+        '',
+        'Petición: junta a los tres',
+      ].join('\n');
+      const { displayContent, chips } = extractFileMentionBlocks(input);
+      expect(displayContent).toBe('junta a los tres');
+      const agentChips = chips.filter((c) => c.type === 'agent');
+      expect(agentChips).toEqual([
+        { path: 'Alpha', type: 'agent' },
+        { path: 'Beta', type: 'agent' },
+      ]);
+    });
+
+    it('strips both file and agent context blocks together', () => {
+      const input = [
+        '<archivos_contexto>',
+        '  <archivo ruta="a.ts"><![CDATA[\ncontent\n]]></archivo>',
+        '</archivos_contexto>',
+        '',
+        '<agentes_contexto>',
+        '  <agente id="a1" nombre="Helper" clase="scout" jefe="false" estado="idle" cwd="/w"/>',
+        '</agentes_contexto>',
+        '',
+        'Petición: haz ambos',
+      ].join('\n');
+      const { displayContent, chips } = extractFileMentionBlocks(input);
+      expect(displayContent).toBe('haz ambos');
+      expect(chips).toContainEqual({ path: 'a.ts', type: 'file' });
+      expect(chips).toContainEqual({ path: 'Helper', type: 'agent' });
+    });
+  });
 });
