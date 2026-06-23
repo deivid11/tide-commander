@@ -444,6 +444,31 @@ html, body {
 .att-doc.att-con { border-color: color-mix(in srgb, var(--term-green) 45%, var(--border)); }
 .con-empty, .net-empty, .err-empty { padding: 12px 8px; text-align: center; color: var(--faint); font-size: 11px; }
 
+/* ── DOM diffs panel (🔀) ── */
+.diff-empty { padding: 12px 10px; text-align: center; color: var(--faint); font-size: 11px; line-height: 1.5; }
+.diff-empty code { background: var(--panel-2); border-radius: 4px; padding: 0 3px; }
+#diff-pop .diff-auto { display: flex; align-items: center; gap: 4px; margin-left: auto; font-size: 10.5px; color: var(--muted); cursor: pointer; }
+#diff-pop .diff-auto input { margin: 0; }
+#diff-btn .tb-count.has { background: var(--accent); }
+.drow { border: 1px solid var(--border); border-left: 2px solid var(--accent); border-radius: 6px;
+  background: var(--panel-2); padding: 5px 8px; margin-bottom: 5px; cursor: pointer; font-size: 11px; }
+.drow:hover { border-color: var(--accent); }
+.drow-hd { display: flex; align-items: center; gap: 7px; }
+.dcmd { flex: none; font-weight: 700; font-size: 10px; color: var(--accent); text-transform: uppercase; }
+.dtarget { flex: 1; min-width: 0; color: var(--text); font-family: var(--mono); font-size: 10px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dtally { flex: none; display: flex; gap: 4px; font-weight: 700; font-size: 10px; }
+.dtime { flex: none; color: var(--faint); font-size: 9.5px; }
+.diff-add { color: var(--term-green); }
+.diff-del { color: var(--danger); }
+.diff-attr { color: var(--term-yellow); }
+.dsum1 { color: var(--muted); font-size: 10.5px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dbody { margin-top: 5px; border-top: 1px dashed var(--border); padding-top: 5px; display: flex; flex-direction: column; gap: 2px; }
+.dsum { color: var(--text); font-size: 10.5px; }
+.dnode { font-family: var(--mono); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dnode code { background: var(--panel); border-radius: 3px; padding: 0 3px; }
+.dnode.dmore { color: var(--faint); font-style: italic; }
+
 /* ── reproduction recorder: live step list + queued chip ── */
 .repro-list { display: flex; flex-direction: column; gap: 4px; }
 .rrow {
@@ -771,8 +796,19 @@ html, body {
    buttons on the left and Send on the right — so the textarea uses the full
    width and the buttons no longer float in an empty column beside a tall input. */
 .composer-row { display: flex; flex-direction: column; gap: 6px; }
-.composer-actions { display: flex; align-items: center; gap: 6px; }
-.composer-actions .composer-spacer { flex: 1; }
+/* Ghost toolbar on TWO rows: borderless icons grouped by purpose. Row 1 =
+   compose/inspect, row 2 = agent/session + Send. Each row wraps rather than
+   overflowing on a narrow panel. */
+.composer-actions { display: flex; flex-direction: column; gap: 5px; }
+.composer-actions-row { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
+.composer-actions-row .composer-spacer { flex: 1; min-width: 8px; }
+.composer-actions .icon-btn { width: 32px; height: 32px; font-size: 14px; border-color: transparent; background: transparent; }
+.composer-actions .icon-btn:hover { background: var(--panel-2); }
+/* Row 2: inspector badges (errors · network · console · recorder · diffs),
+   always visible. Faint top divider sets them apart from the action row. */
+.composer-actions-inspectors { padding-top: 4px; border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent); }
+/* state indicators still read via their colored border against the transparent base */
+.tools-sep { flex: none; width: 1px; align-self: center; height: 20px; margin: 0 5px; background: var(--border); }
 /* Context blocks live inside the composer, above the input row — render them as
    contained chips rather than full-width bars with a top divider. */
 .composer .ctx, .composer .netctx { border-top: none; border: 1px solid var(--border); border-radius: 7px; }
@@ -863,6 +899,17 @@ html, body {
 #net-btn .tb-count.has { background: var(--accent); }
 #con-btn .tb-count.has { background: var(--term-green); }
 #repro-btn .tb-count.has { background: var(--danger); }
+
+/* Inspector badges (errors/network/console/recorder/diffs) collapse behind the 🧰
+   toggle so the actions bar stays tidy; a red dot on 🧰 flags uncleared errors. */
+.tool-badges { display: inline-flex; align-items: center; gap: 6px; }
+.tools-toggle.open { background: var(--panel-2); border-color: var(--accent); }
+.tb-dot {
+  position: absolute; top: -3px; right: -3px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--danger); box-shadow: 0 0 5px var(--danger);
+  pointer-events: none;
+}
 
 /* ⏺ record badge: idle is muted; while recording it glows + pulses red. */
 .repro-btn { color: var(--muted); }

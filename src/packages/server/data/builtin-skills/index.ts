@@ -31,6 +31,7 @@ import { workflowDesigner } from './workflow-designer.js';
 import { triggerDesigner } from './trigger-designer.js';
 import { workflowBuilder } from './workflow-builder.js';
 import { backupRestore } from './backup-restore.js';
+import { browserControl } from './browser-control.js';
 
 // Re-export types
 export type { BuiltinSkillDefinition } from './types.js';
@@ -61,6 +62,7 @@ export const BUILTIN_SKILLS: BuiltinSkillDefinition[] = [
   triggerDesigner,
   workflowBuilder,
   backupRestore,
+  browserControl,
 ];
 
 /**

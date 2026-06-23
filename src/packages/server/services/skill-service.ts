@@ -12,6 +12,7 @@ import { createLogger, generateId, generateSlug, getCommanderBaseUrl } from '../
 import { BUILTIN_SKILLS, createBuiltinSkill, isBuiltinSkillId } from '../data/builtin-skills.js';
 import { getIntegrationSkills } from '../integrations/integration-registry.js';
 import { getAuthToken } from '../auth/index.js';
+import { markInstructionsDirty } from './instruction-refresh.js';
 
 const log = createLogger('SkillService');
 
@@ -692,6 +693,11 @@ async function handleSkillContentUpdate(skill: Skill): Promise<void> {
         currentTool: undefined,
         // Keep sessionId! This allows --resume to work with updated skill content
       }, false);
+
+      // Claude re-applies skills via --append-system-prompt-file on every resume,
+      // but the stdin backends (OpenCode/Codex) skip the instruction block on
+      // resume — flag this agent so its next turn re-injects the updated skill.
+      markInstructionsDirty(agent.id);
 
       // Send activity notification
       broadcastRef({

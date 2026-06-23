@@ -54,15 +54,39 @@ router.get('/targets', (_req: Request, res: Response) => relay(res, 'targets', {
 
 // Every command below accepts an optional tab target: `tabId` (exact) or `tab`
 // (a URL/title substring). Omit both to use the active tab.
+//
+// The `diff*` fields are only honored by DRIVE commands: pass `diff:true` to get a
+// MutationObserver summary of what the action changed in the DOM (added/removed/
+// attribute/text changes + a short semantic summary). `settleMs` tunes the quiet
+// window (default 350), `diffRoot` scopes the observer to a CSS selector. They are
+// undefined for reads ⇒ JSON.stringify omits them, so reads are unaffected.
 function target(req: Request): Record<string, unknown> {
-  return { tabId: req.body?.tabId, tab: req.body?.tab };
+  return {
+    tabId: req.body?.tabId,
+    tab: req.body?.tab,
+    diff: req.body?.diff,
+    diffRoot: req.body?.diffRoot,
+    diffVerbose: req.body?.diffVerbose,
+    settleMs: req.body?.settleMs,
+    diffTimeoutMs: req.body?.diffTimeoutMs,
+  };
 }
 
 // ── reads (relayed to the extension's live session) ──
 
 // Read a DOM element (or all matches) by CSS selector → outerHTML/text/box/styles.
+// `actionable:true` instead returns a compact, DOM-ordered list of the interactive
+// elements rendered under `selector` (or the whole page) — each with a click-ready
+// selector + visible label + form state — so an agent finds its target in one read.
 router.post('/dom', (req: Request, res: Response) =>
-  relay(res, 'dom', { ...target(req), selector: req.body?.selector, all: !!req.body?.all }),
+  relay(res, 'dom', {
+    ...target(req),
+    selector: req.body?.selector,
+    all: !!req.body?.all,
+    keepSvg: !!req.body?.keepSvg,
+    actionable: !!req.body?.actionable,
+    limit: req.body?.limit,
+  }),
 );
 
 // Captured console.* output (optionally filtered by level), newest-first.
@@ -100,19 +124,19 @@ const BATCH_TIMEOUT_MS = 90000;
 // click / hover / scroll accept EITHER a CSS `selector` OR visible `text` (e.g.
 // {"text":"Volver"}) — no selector needed. Discarded/slept tabs are auto-woken.
 router.post('/click', (req: Request, res: Response) =>
-  relay(res, 'click', { ...target(req), selector: req.body?.selector, text: req.body?.text, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
+  relay(res, 'click', { ...target(req), selector: req.body?.selector, text: req.body?.text, within: req.body?.within, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
 );
 router.post('/type', (req: Request, res: Response) =>
-  relay(res, 'type', { ...target(req), selector: req.body?.selector, text: req.body?.text, clear: !!req.body?.clear, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
+  relay(res, 'type', { ...target(req), selector: req.body?.selector, text: req.body?.text, within: req.body?.within, clear: !!req.body?.clear, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
 );
 router.post('/navigate', (req: Request, res: Response) =>
   relay(res, 'navigate', { ...target(req), url: req.body?.url, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
 );
 router.post('/scroll', (req: Request, res: Response) =>
-  relay(res, 'scroll', { ...target(req), selector: req.body?.selector, text: req.body?.text, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
+  relay(res, 'scroll', { ...target(req), selector: req.body?.selector, text: req.body?.text, within: req.body?.within, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
 );
 router.post('/hover', (req: Request, res: Response) =>
-  relay(res, 'hover', { ...target(req), selector: req.body?.selector, text: req.body?.text, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
+  relay(res, 'hover', { ...target(req), selector: req.body?.selector, text: req.body?.text, within: req.body?.within, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
 );
 // Run a sequence of steps in one call on one tab. Each step is {cmd, ...args} using
 // the same vocabulary as the endpoints; stops at the first failure unless the step
@@ -120,17 +144,37 @@ router.post('/hover', (req: Request, res: Response) =>
 router.post('/batch', (req: Request, res: Response) =>
   relay(res, 'batch', { tab: req.body?.tab, tabId: req.body?.tabId, steps: req.body?.steps }, BATCH_TIMEOUT_MS),
 );
+// Fill a whole form in ONE call: `fields:[{selector,text,clear?}]` are typed in order
+// (React-safe, 🤖-gated like /type), then optional `submit` (a selector) is clicked once
+// WITH a diff so validation errors / the confirm modal come back in the same response.
+// Returns {filled:[{selector,ok,error?}], submitted?, diff?}. Prefer this over N /type calls.
+router.post('/fill', (req: Request, res: Response) =>
+  relay(
+    res,
+    'fill',
+    {
+      tab: req.body?.tab,
+      tabId: req.body?.tabId,
+      fields: req.body?.fields,
+      submit: req.body?.submit,
+      diff: req.body?.diff,
+      settleMs: req.body?.settleMs,
+      continueOnError: !!req.body?.continueOnError,
+    },
+    BATCH_TIMEOUT_MS,
+  ),
+);
 // Drag from one selector to another.
 router.post('/drag', (req: Request, res: Response) =>
   relay(res, 'drag', { ...target(req), from: req.body?.from, to: req.body?.to, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
 );
 // Press a named key (Enter, Tab, Escape, ArrowDown, …), optionally focusing a selector first.
 router.post('/key', (req: Request, res: Response) =>
-  relay(res, 'key', { ...target(req), key: req.body?.key, selector: req.body?.selector, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
+  relay(res, 'key', { ...target(req), key: req.body?.key, selector: req.body?.selector, within: req.body?.within, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
 );
 // Pick a <select> option by `value` or visible `label`.
 router.post('/select', (req: Request, res: Response) =>
-  relay(res, 'select', { ...target(req), selector: req.body?.selector, value: req.body?.value, label: req.body?.label, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
+  relay(res, 'select', { ...target(req), selector: req.body?.selector, value: req.body?.value, label: req.body?.label, within: req.body?.within, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
 );
 // Run arbitrary JS in the page and return its (JSON-serializable) result.
 router.post('/evaluate', (req: Request, res: Response) =>

@@ -20,6 +20,7 @@ import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js
 import { clearDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
 import { OpencodeBackend } from '../opencode/backend.js';
 import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled, isInteractiveModeEnabled, setInteractiveModeEnabled } from '../services/system-prompt-service.js';
+import { markInstructionsDirtyForAll } from '../services/instruction-refresh.js';
 import { startAgentTerminal, stopAgentTerminal } from '../services/agent-terminal-service.js';
 import { buildClaudeUsageByAgentSummary, buildClaudeUsageByDaySummary, buildClaudeUsageSnapshot } from '../services/claude-usage-service.js';
 import { getBackupStatus, setBackupEnabled } from '../services/backup-service.js';
@@ -1416,6 +1417,11 @@ router.post('/system-settings/prompt', (req: Request, res: Response) => {
 
     setSystemPrompt(prompt);
 
+    // The global system prompt is part of the injected instruction block. Claude
+    // re-applies it on every resume, but the stdin backends (OpenCode/Codex) skip
+    // that block on resume — flag every agent so the change reaches live sessions.
+    markInstructionsDirtyForAll(agentService.getAllAgents().map(a => a.id));
+
     log.log(` System prompt updated (${prompt.length} chars)`);
 
     res.json({
@@ -1433,6 +1439,10 @@ router.post('/system-settings/prompt', (req: Request, res: Response) => {
 router.delete('/system-settings/prompt', (_req: Request, res: Response) => {
   try {
     clearSystemPrompt();
+
+    // Same as the update path: flag every agent so the stdin backends drop the
+    // now-removed system prompt from their next resumed turn.
+    markInstructionsDirtyForAll(agentService.getAllAgents().map(a => a.id));
 
     log.log(` System prompt cleared`);
 

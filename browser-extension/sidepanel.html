@@ -97,19 +97,27 @@
       <div class="composer-row">
         <textarea id="input" rows="2" placeholder="Message the agent…  (Enter to send, Shift+Enter for newline)"></textarea>
         <div class="composer-actions">
-          <button class="icon-btn attach" id="attach" title="Attach files (images or documents)">📎</button>
-          <input type="file" id="fileInput" multiple hidden />
-          <button class="icon-btn pick" id="pick" title="Pick a DOM element to attach its context">⊹</button>
-          <button class="icon-btn shot" id="shot" title="Screenshot a DOM element and send the image">📷</button>
-          <button class="icon-btn pin-toggle" id="pin-toggle" title="Pin this agent" aria-pressed="false" hidden>📌</button>
-          <button class="icon-btn clear-ctx" id="clear-ctx-2" title="Clear context — archives the session & starts fresh">🧹</button>
-          <button class="icon-btn compact" id="compact" title="Compact context — sends /compact to the agent">🗜️</button>
-          <button class="icon-btn tool-badge" id="err-btn" title="Captured errors — click to attach">⚠️<span class="tb-count" id="err-count" hidden>0</span></button>
-          <button class="icon-btn tool-badge" id="net-btn" title="Network requests — click to attach">🌐<span class="tb-count" id="net-count" hidden>0</span></button>
-          <button class="icon-btn tool-badge" id="con-btn" title="Console logs — click to attach">📋<span class="tb-count" id="con-count" hidden>0</span></button>
-          <button class="icon-btn tool-badge repro-btn" id="repro-btn" title="Record a reproduction — clicks, typing &amp; navigation">⏺<span class="tb-count" id="repro-count" hidden>0</span></button>
-          <span class="composer-spacer"></span>
-          <button class="btn primary" id="send">Send</button>
+          <!-- Row 1 — all actions: compose · agent/session · Send -->
+          <div class="composer-actions-row">
+            <button class="icon-btn attach" id="attach" title="Attach files (images or documents)">📎</button>
+            <input type="file" id="fileInput" multiple hidden />
+            <button class="icon-btn pick" id="pick" title="Pick a DOM element to attach its context">⊹</button>
+            <button class="icon-btn shot" id="shot" title="Screenshot a DOM element and send the image">📷</button>
+            <span class="tools-sep" aria-hidden="true"></span>
+            <button class="icon-btn pin-toggle" id="pin-toggle" title="Pin this agent" aria-pressed="false" hidden>📌</button>
+            <button class="icon-btn clear-ctx" id="clear-ctx-2" title="Clear context — archives the session & starts fresh">🧹</button>
+            <button class="icon-btn compact" id="compact" title="Compact context — sends /compact to the agent">🗜️</button>
+            <span class="composer-spacer"></span>
+            <button class="btn primary" id="send">Send</button>
+          </div>
+          <!-- Row 2 — inspectors (always visible, ungrouped) -->
+          <div class="composer-actions-row composer-actions-inspectors">
+            <button class="icon-btn tool-badge" id="err-btn" title="Captured errors — click to attach">⚠️<span class="tb-count" id="err-count" hidden>0</span></button>
+            <button class="icon-btn tool-badge" id="net-btn" title="Network requests — click to attach">🌐<span class="tb-count" id="net-count" hidden>0</span></button>
+            <button class="icon-btn tool-badge" id="con-btn" title="Console logs — click to attach">📋<span class="tb-count" id="con-count" hidden>0</span></button>
+            <button class="icon-btn tool-badge repro-btn" id="repro-btn" title="Record a reproduction — clicks, typing &amp; navigation">⏺<span class="tb-count" id="repro-count" hidden>0</span></button>
+            <button class="icon-btn tool-badge" id="diff-btn" title="DOM diffs — what agent actions changed on the page">🔀<span class="tb-count" id="diff-count" hidden>0</span></button>
+          </div>
         </div>
       </div>
 
@@ -166,6 +174,21 @@
         </div>
         <div class="repro-list tool-pop-list" id="repro-list"></div>
         <div class="repro-empty" id="repro-empty">Interact with the page — clicks, typing, selects &amp; navigation are recorded as numbered steps.</div>
+      </div>
+
+      <!-- DOM diffs popover, opened from the 🔀 badge. Lists what each agent drive
+           action changed in the page (added/removed/attributes). "auto" forces a
+           diff on every action so the panel fills during normal driving. -->
+      <div class="tool-pop" id="diff-pop" hidden>
+        <div class="tool-pop-hd">
+          <span class="tool-pop-title">DOM diffs</span>
+          <label class="diff-auto" title="Capture a diff for every agent drive action (adds a short settle delay per action)">
+            <input type="checkbox" id="diff-auto" checked /> auto
+          </label>
+          <button class="tool-pop-clear" id="diff-clear" title="Clear captured diffs">Clear</button>
+        </div>
+        <div class="diff-list tool-pop-list" id="diff-list"></div>
+        <div class="diff-empty" id="diff-empty">No DOM diffs yet. Drive with <code>diff:true</code> — or turn on <b>auto</b> — to capture what each action changes.</div>
       </div>
     </footer>
 

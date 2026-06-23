@@ -8,6 +8,7 @@ import type { CLIBackend, BackendConfig, StandardEvent } from '../claude/types.j
 import { OpencodeJsonEventParser } from './json-event-parser.js';
 import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
 import { getSystemPrompt, isEchoPromptEnabled } from '../services/system-prompt-service.js';
+import { consumeInstructionsDirty, isBareSlashCommand } from '../services/instruction-refresh.js';
 import { loadAreas } from '../data/index.js';
 import { createLogger } from '../utils/logger.js';
 
@@ -21,6 +22,29 @@ interface OpencodeRawEvent {
 
 export function buildOpencodePrompt(config: BackendConfig): string {
   const userPrompt = config.prompt?.trim() || 'Continue the task.';
+  // Bare slash commands (/compact, /clear, …) must reach the CLI verbatim — never
+  // wrap them in the instruction block (or echo them), or the slash gets buried
+  // under "## User Request" and the command is treated as text instead of running.
+  if (isBareSlashCommand(userPrompt)) {
+    return userPrompt;
+  }
+  // Echo Prompt: duplicate the user message for improved attention coverage.
+  const echoedUserPrompt = isEchoPromptEnabled()
+    ? userPrompt + '\n\n---\n\n' + userPrompt
+    : userPrompt;
+
+  // OpenCode has no system-prompt channel, so the instruction block lands inside
+  // a user turn. On resume (-s <sessionId>) that block is already in the session's
+  // conversation history from the first turn — re-injecting it every message would
+  // duplicate it into the history and bloat the context window. So resumed turns
+  // send only the user prompt; the full block is sent once when the session starts.
+  // Exception: when an instruction source changed mid-session (skill edit, system
+  // prompt update), re-inject the full block once so the change reaches the agent.
+  const refreshInstructions = consumeInstructionsDirty(config.agentId);
+  if (config.sessionId && !refreshInstructions) {
+    return echoedUserPrompt;
+  }
+
   const injectedSections: string[] = [];
 
   const systemLevelPrompt = getSystemPrompt().trim();
@@ -49,14 +73,6 @@ export function buildOpencodePrompt(config: BackendConfig): string {
   }
 
   injectedSections.push(TIDE_COMMANDER_APPENDED_PROMPT);
-
-  if (injectedSections.length === 0) {
-    return isEchoPromptEnabled() ? userPrompt + '\n\n---\n\n' + userPrompt : userPrompt;
-  }
-
-  const echoedUserPrompt = isEchoPromptEnabled()
-    ? userPrompt + '\n\n---\n\n' + userPrompt
-    : userPrompt;
 
   return [
     'Follow all instructions below for this task.',
