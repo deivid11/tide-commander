@@ -199,6 +199,7 @@
     "collapseContext": "Contraer contexto",
     "clearContext": "Limpiar contexto",
     "killAgent": "Terminar agente",
+    "cloneAgent": "Clonar agente",
     "clickToRename": "Clic para renombrar",
     "permissions": "Permisos",
     "allowedPatterns": "Patrones permitidos",

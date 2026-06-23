@@ -106,6 +106,15 @@ export function buildContextMenuActions(
           callbacks.openAgentEditModal(target.id!);
         },
       });
+      actions.push({
+        id: 'clone-agent',
+        label: 'Clone Agent',
+        icon: <Icon name="clipboard" size={14} />,
+        onClick: () => {
+          store.cloneAgent(target.id!);
+          callbacks.showToast('success', 'Agent Cloned', `Created a copy of ${agent.name}`);
+        },
+      });
       actions.push({ id: 'divider-agent', label: '', divider: true, onClick: () => {} });
       actions.push({
         id: 'delete-agent',
