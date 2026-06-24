@@ -6,6 +6,7 @@
 import { Router, raw, Request, Response, NextFunction } from 'express';
 import agentsRouter, { setBroadcast as setAgentsBroadcast } from './agents.js';
 import filesRouter from './files.js';
+import foldersRouter from './folders.js';
 import permissionsRouter from './permissions.js';
 import agentPromptRouter from './agent-prompt.js';
 import notificationsRouter, { setBroadcast as setNotificationBroadcast } from './notifications.js';
@@ -42,6 +43,7 @@ router.get('/health', (_req, res) => {
 // Mount sub-routers
 router.use('/agents', agentsRouter);
 router.use('/files', filesRouter);
+router.use('/folders', foldersRouter);
 router.use('/notify', notificationsRouter);
 router.use('/exec', execRouter);
 router.use('/focus-agent', focusAgentRouter);

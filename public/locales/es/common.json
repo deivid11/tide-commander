@@ -200,6 +200,7 @@
     "clearContext": "Limpiar contexto",
     "killAgent": "Terminar agente",
     "cloneAgent": "Clonar agente",
+    "forkAgent": "Bifurcar agente (clonar + continuar conversación)",
     "clickToRename": "Clic para renombrar",
     "permissions": "Permisos",
     "allowedPatterns": "Patrones permitidos",

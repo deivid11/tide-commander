@@ -115,6 +115,15 @@ export function buildContextMenuActions(
           callbacks.showToast('success', 'Agent Cloned', `Created a copy of ${agent.name}`);
         },
       });
+      actions.push({
+        id: 'fork-agent',
+        label: 'Fork Agent (with history)',
+        icon: <Icon name="git-branch" size={14} />,
+        onClick: () => {
+          store.forkAgent(target.id!);
+          callbacks.showToast('success', 'Agent Forked', `Forked ${agent.name} — continues its conversation`);
+        },
+      });
       actions.push({ id: 'divider-agent', label: '', divider: true, onClick: () => {} });
       actions.push({
         id: 'delete-agent',

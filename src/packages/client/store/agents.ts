@@ -101,6 +101,11 @@ export interface AgentActions {
     name?: string,
     position?: { x: number; z: number }
   ): void;
+  forkAgent(
+    sourceAgentId: string,
+    name?: string,
+    position?: { x: number; z: number }
+  ): void;
   createDirectoryAndSpawn(path: string, name: string, agentClass: AgentClass): void;
   sendCommand(agentId: string, command: string): void;
   refreshAgentContext(agentId: string): void;
@@ -506,6 +511,31 @@ export function createAgentActions(
 
       sendMessage(message);
       logAgentStore('[Store] clone_agent message sent to WebSocket');
+    },
+
+    forkAgent(
+      sourceAgentId: string,
+      name?: string,
+      position?: { x: number; z: number }
+    ): void {
+      const pos3d = position ? { x: position.x, y: 0, z: position.z } : undefined;
+      const message = {
+        type: 'fork_agent' as const,
+        payload: {
+          sourceAgentId,
+          name,
+          position: pos3d,
+        },
+      };
+
+      const sendMessage = getSendMessage();
+      if (!sendMessage) {
+        console.error('[Store] sendMessage is not defined! WebSocket may not be connected');
+        return;
+      }
+
+      sendMessage(message);
+      logAgentStore('[Store] fork_agent message sent to WebSocket');
     },
 
     createDirectoryAndSpawn(path: string, name: string, agentClass: AgentClass): void {

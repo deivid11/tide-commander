@@ -67,6 +67,7 @@ export interface StoredAgent {
   lastActivity: number;
   sessionId?: string;
   lastSessionId?: string;
+  forkSourceSessionId?: string; // Pending fork source session (see handleForkAgent)
   currentTask?: string;
   // Task tracking for auto-resume
   lastAssignedTask?: string;      // Last task assigned (persisted for auto-resume)
@@ -202,6 +203,7 @@ function toStoredAgents(agents: Agent[]): StoredAgent[] {
     createdAt: agent.createdAt,
     lastActivity: agent.lastActivity,
     sessionId: agent.sessionId,
+    forkSourceSessionId: agent.forkSourceSessionId,
     currentTask: agent.currentTask,
     lastAssignedTask: agent.lastAssignedTask,
     lastAssignedTaskTime: agent.lastAssignedTaskTime,
