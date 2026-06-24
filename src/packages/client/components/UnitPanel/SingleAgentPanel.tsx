@@ -295,6 +295,13 @@ export function SingleAgentPanel({
           >
             <Icon name="clipboard" size={16} />
           </button>
+          <button
+            className="unit-action-icon"
+            onClick={() => store.forkAgent(agent.id)}
+            title={t('unitPanel.forkAgent')}
+          >
+            <Icon name="git-branch" size={16} />
+          </button>
           <button className="unit-action-icon danger" onClick={handleKill} title={t('unitPanel.killAgent')}>
             <Icon name="skull" size={16} />
           </button>

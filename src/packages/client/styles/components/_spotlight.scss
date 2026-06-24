@@ -557,6 +557,12 @@
     color: $accent-red;
     border-color: rgba($accent-red, 0.2);
   }
+
+  &.folder {
+    background: rgba($accent-orange, 0.15);
+    color: $accent-orange;
+    border-color: rgba($accent-orange, 0.2);
+  }
 }
 
 // Colored agent status chip in the result header (color set inline per status)
@@ -627,6 +633,31 @@
     background: rgba($accent-purple, 0.35);
     color: color.adjust($accent-purple, $lightness: 15%);
     font-weight: 700;
+  }
+}
+
+// Git-branch chip in the result header (folder results that are git repos)
+.spotlight-item-git-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 160px;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: $accent-green;
+  background: rgba($accent-green, 0.15);
+  border: 1px solid rgba($accent-green, 0.25);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+
+  svg {
+    flex-shrink: 0;
+    opacity: 0.85;
   }
 }
 

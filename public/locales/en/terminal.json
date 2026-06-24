@@ -999,6 +999,7 @@
       "agents": "Agents",
       "buildings": "Buildings",
       "areas": "Areas",
+      "folders": "Folders",
       "commands": "Commands"
     },
     "categories": {
@@ -1006,6 +1007,7 @@
       "agents": "Agents",
       "infrastructure": "Infrastructure",
       "areas": "Areas",
+      "folders": "Folders & Repos",
       "modifiedFiles": "Modified Files",
       "recentActivity": "Recent Activity"
     }

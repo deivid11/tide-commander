@@ -1994,6 +1994,18 @@ export function FlatView({
         onClick: () => onAgentClick(agent.id),
       },
       {
+        id: 'clone-agent',
+        label: 'Clone Agent',
+        icon: <Icon name="clipboard" size={14} />,
+        onClick: () => store.cloneAgent(agent.id),
+      },
+      {
+        id: 'fork-agent',
+        label: 'Fork Agent (with history)',
+        icon: <Icon name="git-branch" size={14} />,
+        onClick: () => store.forkAgent(agent.id),
+      },
+      {
         id: 'delete-agent',
         label: 'Delete Agent',
         icon: <Icon name="trash" size={14} />,

@@ -8,13 +8,13 @@ import type React from 'react';
 import type { IconName } from '../Icon';
 
 // Search result types
-export type SearchResultType = 'agent' | 'command' | 'area' | 'modified-file' | 'building';
+export type SearchResultType = 'agent' | 'command' | 'area' | 'modified-file' | 'building' | 'folder';
 
 // Result-grouping tabs shown at the top of the palette. Order defines the
-// forward Tab-cycle order (All -> Agents -> Buildings -> Areas -> Commands -> All).
-export type SpotlightTab = 'all' | 'agents' | 'buildings' | 'areas' | 'commands';
+// forward Tab-cycle order (All -> Agents -> Buildings -> Areas -> Folders -> Commands -> All).
+export type SpotlightTab = 'all' | 'agents' | 'buildings' | 'areas' | 'folders' | 'commands';
 
-export const SPOTLIGHT_TABS: readonly SpotlightTab[] = ['all', 'agents', 'buildings', 'areas', 'commands'];
+export const SPOTLIGHT_TABS: readonly SpotlightTab[] = ['all', 'agents', 'buildings', 'areas', 'folders', 'commands'];
 
 // One area section rendered in the "Areas" tab: the area plus the agents that
 // belong to it, ordered exactly the way the Agent Overview panel orders them.
@@ -47,6 +47,8 @@ export interface SearchResult {
   _taskLabel?: string; // Brief task label (agent results only) — rendered as a chip in the header
   _status?: string; // Raw agent status (agent results only) — rendered as a colored chip
   _ports?: number[]; // Auto-detected listening ports (building results only) — rendered as links
+  _isGitRepo?: boolean; // Folder results only — whether the directory is a git repository
+  _gitBranch?: string; // Folder results only — current git branch (rendered as a branch badge)
 }
 
 // Props for the main Spotlight component

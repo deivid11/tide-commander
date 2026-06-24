@@ -26,6 +26,7 @@ import type { HandlerContext, MessageHandler } from './handlers/types.js';
 import {
   handleSpawnAgent,
   handleCloneAgent,
+  handleForkAgent,
   handleKillAgent,
   handleStopAgent,
   handleClearContext,
@@ -235,6 +236,7 @@ const noopHandler: MessageHandler = () => {};
 const messageHandlers = {
   spawn_agent: handleSpawnAgent,
   clone_agent: handleCloneAgent,
+  fork_agent: handleForkAgent,
   send_command: (ctx, payload) => handleSendCommand(ctx, payload, bossMessageService.buildBossMessage),
   reattach_agent: handleReattachAgent,
   move_agent: handleMoveAgent,

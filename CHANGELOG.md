@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.124.0] - 2026-06-24
+
+### Added
+- **Folder/git-repo search in Spotlight** — new "Folders" tab in Spotlight searches discoverable directories and git repos by name; results show the active branch for git repos and open the File Explorer rooted at that path. Backed by `GET /api/folders/search` (depth/result-capped, ignores `node_modules`/`dist`/etc.).
+- **Agent fork** — "Fork Agent (with history)" context-menu action duplicates an agent's configuration and continues its conversation history (Claude/OpenCode providers); falls back to a plain clone for unsupported providers. `ForkAgentMessage` added to the WebSocket protocol.
+
+### Changed
+- Spotlight type weights rebalanced: agent → 6, building → 5, folder → 4, command → 3.
+- `agent-handler.ts` refactored: shared `duplicateAgentConfig` helper extracts clone/fork common logic.
+
 ## [1.123.0] - 2026-06-23
 
 ### Added

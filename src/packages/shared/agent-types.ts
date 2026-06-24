@@ -250,6 +250,10 @@ export interface Agent {
 
   // Claude Code session
   sessionId?: string;
+  // Set on a forked agent until its first run: the SOURCE session id to resume +
+  // fork from (Claude --fork-session / OpenCode --fork). Cleared once the fork's
+  // own new session id is captured. See handleForkAgent.
+  forkSourceSessionId?: string;
   cwd: string;
   useChrome?: boolean; // Start with --chrome flag
   permissionMode: PermissionMode; // How permissions are handled

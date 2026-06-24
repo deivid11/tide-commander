@@ -959,6 +959,7 @@ class Store
   reorderPinnedAgent(...args: Parameters<AgentActions['reorderPinnedAgent']>) { return this.agentActions.reorderPinnedAgent(...args); }
   spawnAgent(...args: Parameters<AgentActions['spawnAgent']>) { return this.agentActions.spawnAgent(...args); }
   cloneAgent(...args: Parameters<AgentActions['cloneAgent']>) { return this.agentActions.cloneAgent(...args); }
+  forkAgent(...args: Parameters<AgentActions['forkAgent']>) { return this.agentActions.forkAgent(...args); }
   createDirectoryAndSpawn(...args: Parameters<AgentActions['createDirectoryAndSpawn']>) { return this.agentActions.createDirectoryAndSpawn(...args); }
   sendCommand(...args: Parameters<AgentActions['sendCommand']>) { return this.agentActions.sendCommand(...args); }
   refreshAgentContext(...args: Parameters<AgentActions['refreshAgentContext']>) { return this.agentActions.refreshAgentContext(...args); }

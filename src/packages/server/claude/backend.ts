@@ -169,6 +169,11 @@ export class ClaudeBackend implements CLIBackend {
     // Resume existing session if available
     if (config.sessionId) {
       args.push('--resume', config.sessionId);
+      // Fork the resumed session into a fresh one (first run of a forked agent):
+      // Claude assigns a NEW session id, leaving the source transcript untouched.
+      if (config.forkSession) {
+        args.push('--fork-session');
+      }
     }
 
     // Permission mode - bypass for autonomous agents, interactive uses hooks

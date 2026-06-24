@@ -96,6 +96,11 @@ export class OpencodeBackend implements CLIBackend {
     // Session resume
     if (config.sessionId) {
       args.push('-s', config.sessionId);
+      // Fork the resumed session into a fresh one (first run of a forked agent):
+      // OpenCode copies the session before continuing and emits a new sessionID.
+      if (config.forkSession) {
+        args.push('--fork');
+      }
     }
 
     // Model selection

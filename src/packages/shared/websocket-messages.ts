@@ -179,6 +179,18 @@ export interface CloneAgentMessage extends WSMessage {
   };
 }
 
+// Fork an existing agent: duplicate its config AND continue its conversation
+// history (Claude/OpenCode). Falls back to a plain clone for unsupported
+// providers or agents with no session.
+export interface ForkAgentMessage extends WSMessage {
+  type: 'fork_agent';
+  payload: {
+    sourceAgentId: string;
+    name?: string; // defaults to "<source name> (Fork)"
+    position?: { x: number; y: number; z: number };
+  };
+}
+
 export interface SendCommandMessage extends WSMessage {
   type: 'send_command';
   payload: {
@@ -1632,6 +1644,7 @@ export type ServerMessage =
 export type ClientMessage =
   | SpawnAgentMessage
   | CloneAgentMessage
+  | ForkAgentMessage
   | SendCommandMessage
   | ReattachAgentMessage
   | MoveAgentMessage
