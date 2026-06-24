@@ -25,6 +25,7 @@ import { incrementWsSent, incrementWsReceived, setWsClientsCount } from '../rout
 import type { HandlerContext, MessageHandler } from './handlers/types.js';
 import {
   handleSpawnAgent,
+  handleCloneAgent,
   handleKillAgent,
   handleStopAgent,
   handleClearContext,
@@ -233,6 +234,7 @@ const noopHandler: MessageHandler = () => {};
 
 const messageHandlers = {
   spawn_agent: handleSpawnAgent,
+  clone_agent: handleCloneAgent,
   send_command: (ctx, payload) => handleSendCommand(ctx, payload, bossMessageService.buildBossMessage),
   reattach_agent: handleReattachAgent,
   move_agent: handleMoveAgent,
