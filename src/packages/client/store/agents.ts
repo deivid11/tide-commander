@@ -138,6 +138,9 @@ export interface AgentActions {
       shortcut?: string;
       customInstructions?: string;
       customPrompt?: string;
+      autoCollapse?: boolean;
+      autoCollapseCron?: string;
+      autoCollapseTz?: string;
     }
   ): void;
 
@@ -788,6 +791,9 @@ export function createAgentActions(
         shortcut?: string;
         customInstructions?: string;
         customPrompt?: string;
+        autoCollapse?: boolean;
+        autoCollapseCron?: string;
+        autoCollapseTz?: string;
       }
     ): void {
       const state = getState();
@@ -834,6 +840,15 @@ export function createAgentActions(
           if (updates.customPrompt !== undefined) {
             updatedAgent.customPrompt = updates.customPrompt || undefined;
           }
+          if (updates.autoCollapse !== undefined) {
+            updatedAgent.autoCollapse = updates.autoCollapse;
+          }
+          if (updates.autoCollapseCron !== undefined) {
+            updatedAgent.autoCollapseCron = updates.autoCollapseCron || undefined;
+          }
+          if (updates.autoCollapseTz !== undefined) {
+            updatedAgent.autoCollapseTz = updates.autoCollapseTz || undefined;
+          }
           const newAgents = new Map(s.agents);
           newAgents.set(agentId, updatedAgent);
           s.agents = newAgents;
@@ -873,6 +888,20 @@ export function createAgentActions(
           body: JSON.stringify({ customPrompt: updates.customPrompt || null }),
         }).catch((error) => {
           console.error('[Store] Failed to persist agent customPrompt', error);
+        });
+      }
+
+      if (updates.autoCollapse !== undefined || updates.autoCollapseCron !== undefined || updates.autoCollapseTz !== undefined) {
+        const body: Record<string, unknown> = {};
+        if (updates.autoCollapse !== undefined) body.autoCollapse = updates.autoCollapse;
+        if (updates.autoCollapseCron !== undefined) body.autoCollapseCron = updates.autoCollapseCron || null;
+        if (updates.autoCollapseTz !== undefined) body.autoCollapseTz = updates.autoCollapseTz || null;
+        authFetch(apiUrl(`/api/agents/${agentId}`), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }).catch((error) => {
+          console.error('[Store] Failed to persist agent auto-collapse config', error);
         });
       }
     },

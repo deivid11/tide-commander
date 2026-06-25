@@ -83,6 +83,10 @@ export interface StoredAgent {
   customInstructions?: string; // Extra system-prompt instructions for this agent
   customPrompt?: string;       // Per-agent custom system prompt (replaces the old global one)
   memory?: string;            // Agent's own persistent notes (injected into system prompt)
+  // Auto-collapse config (recurring context collapse on a cron schedule)
+  autoCollapse?: boolean;     // Whether auto-collapse is enabled
+  autoCollapseCron?: string;  // 5-field cron expression
+  autoCollapseTz?: string;    // IANA timezone for the cron
   // Boss-specific fields
   isBoss?: boolean;           // True if this agent is a boss
   subordinateIds?: string[];  // Only for boss agents
@@ -215,6 +219,9 @@ function toStoredAgents(agents: Agent[]): StoredAgent[] {
     customInstructions: agent.customInstructions,
     customPrompt: agent.customPrompt,
     memory: agent.memory,
+    autoCollapse: agent.autoCollapse,
+    autoCollapseCron: agent.autoCollapseCron,
+    autoCollapseTz: agent.autoCollapseTz,
     isBoss: agent.isBoss,
     subordinateIds: agent.subordinateIds,
     bossId: agent.bossId,
