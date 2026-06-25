@@ -144,7 +144,20 @@ export function createApp(): Express {
   });
 
   // Error handler
-  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: Error & { type?: string; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
+    // body-parser surfaces malformed JSON as SyntaxError with type 'entity.parse.failed',
+    // and oversized bodies as 'entity.too.large'. Surface the actual parser message so
+    // clients/agents can debug from the response without tailing server logs.
+    if (err.type === 'entity.parse.failed') {
+      logger.http.error(`Body parse error: ${err.message}`);
+      res.status(400).json({ error: `Invalid JSON body: ${err.message}` });
+      return;
+    }
+    if (err.type === 'entity.too.large') {
+      logger.http.error(`Body too large: ${err.message}`);
+      res.status(413).json({ error: `Request body too large: ${err.message}` });
+      return;
+    }
     logger.http.error('Request error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   });
