@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.125.1] - 2026-06-25
+
+### Fixed
+- **Body-parser errors now surface a useful response** — when `express.json()` rejects a malformed body, the global error handler in `app.ts` now returns `400 {"error":"Invalid JSON body: <parser message>"}` instead of an opaque `500 {"error":"Internal server error"}`; oversized bodies return `413` with the size limit message. Lets agents debug "my curl payload is wrong" from the response alone, without tailing server logs.
+
 ## [1.125.0] - 2026-06-25
 
 ### Added
