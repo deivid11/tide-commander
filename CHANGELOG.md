@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.125.0] - 2026-06-25
+
+### Added
+- **Auto-collapse** — agents can now collapse (compact) their conversation context on a recurring cron schedule. Enable it per-agent in the Agent Edit modal with a 5-field cron expression and IANA timezone (presets: nightly 3am, every 6h, weekdays 2am). A new `auto-collapse-service.ts` arms one cron job per agent that runs the collapse (waiting for the agent to be idle if it's mid-task) — intended for unattended agents (Slack channels, log-supervising cronjobs) whose context grows indefinitely, so each day starts fresh. New `autoCollapse` / `autoCollapseCron` / `autoCollapseTz` fields on the agent model, persisted and plumbed through the `PATCH /api/agents/:id` route and the `update_agent_properties` WebSocket handler.
+
 ## [1.124.0] - 2026-06-24
 
 ### Added

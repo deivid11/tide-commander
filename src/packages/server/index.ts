@@ -10,7 +10,7 @@ import { createServer as createHttpsServer } from 'https';
 import fs from 'node:fs';
 import type { Socket } from 'node:net';
 import { createApp } from './app.js';
-import { agentService, runtimeService, bossService, skillService, customClassService, secretsService, buildingService, eventRetentionService, triggerService, workflowService, databaseService } from './services/index.js';
+import { agentService, runtimeService, bossService, skillService, customClassService, secretsService, buildingService, eventRetentionService, triggerService, autoCollapseService, workflowService, databaseService } from './services/index.js';
 import * as websocket from './websocket/handler.js';
 import { getDataDir } from './data/index.js';
 import { initEventDb, closeEventDb } from './data/event-db.js';
@@ -83,6 +83,7 @@ async function main(): Promise<void> {
   customClassService.initCustomClasses();
   secretsService.initSecrets();
   triggerService.initTriggers();
+  autoCollapseService.initAutoCollapse();
   workflowService.initWorkflows();
 
   // Initialize integration plugins
@@ -246,6 +247,7 @@ async function main(): Promise<void> {
       shutdownBackupService();
       shutdownAttachmentJanitor();
       triggerService.shutdown();
+      autoCollapseService.shutdown();
       workflowService.shutdown();
       await shutdownIntegrations();
       bossService.shutdown();

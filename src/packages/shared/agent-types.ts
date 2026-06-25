@@ -319,6 +319,13 @@ export interface Agent {
 
   // Global keyboard shortcut to open guake terminal for this agent (e.g. 'ctrl+1', 'alt+a')
   shortcut?: string;
+
+  // Auto-collapse: when enabled, the agent's context is collapsed (/compact runs,
+  // waiting for idle if busy) on a recurring cron schedule. Intended for unattended
+  // agents (slack channels, log-supervising cronjobs) whose context grows indefinitely.
+  autoCollapse?: boolean;          // Master enable/disable flag
+  autoCollapseCron?: string;       // 5-field cron expression, e.g. '0 3 * * *' (3am daily)
+  autoCollapseTz?: string;         // IANA timezone for the cron, e.g. 'America/Mexico_City'
 }
 
 // ============================================================================
