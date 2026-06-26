@@ -121,11 +121,17 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
       }
     }
 
+    // First run of a forked agent: resume the SOURCE session and fork it into a
+    // new one. agent.sessionId is still empty here; once the fork's own id is
+    // captured (handleSessionId) it takes over and forkSourceSessionId is cleared.
+    const isFirstForkRun = !!agent.forkSourceSessionId && !agent.sessionId && !forceNewSession;
+
     await runner.run({
       agentId,
       prompt: command,
       workingDir: agent.cwd,
-      sessionId: agent.sessionId,
+      sessionId: isFirstForkRun ? agent.forkSourceSessionId : agent.sessionId,
+      forkSession: isFirstForkRun,
       model: agent.provider === 'claude'
         ? agentService.sanitizeModelForProvider(agent.provider, agent.model)
         : agent.provider === 'opencode'

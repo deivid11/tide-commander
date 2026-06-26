@@ -12,7 +12,7 @@
     "modelStyle": "Agent Model Style",
     "animations": "Animations",
     "secrets": "Secrets",
-    "systemPrompt": "System Prompt",
+    "systemPrompt": "Agent System Prompt",
     "whatsapp": "WhatsApp Integration",
     "whatsappNotifications": "WhatsApp Notifications",
     "whatsappHistory": "WhatsApp History",
@@ -300,18 +300,20 @@
     "update": "Update"
   },
   "systemPrompt": {
-    "title": "Global System Prompt",
-    "description": "Add global instructions that apply to all agents. This appears after Tide Commander base rules but before agent-specific instructions.",
+    "title": "Per-Agent System Prompt",
+    "description": "Add custom instructions for a specific agent. Pick the agent below, then edit its prompt. It appears after Tide Commander base rules but before that agent's class instructions.",
+    "agentLabel": "Agent",
+    "noAgents": "No agents yet. Spawn an agent first, then set its system prompt here.",
     "editPrompt": "Edit System Prompt",
     "save": "Save Prompt",
     "reset": "Reset Changes",
     "clear": "Clear Prompt",
     "characters": "characters",
-    "saved": "System prompt saved successfully. It will apply to all new agent sessions.",
-    "cleared": "System prompt cleared successfully.",
-    "hint": "This prompt will be inserted into the system instructions for all agents.",
-    "placeholder": "Enter your global system prompt here...\n\nExamples:\n- Coding style guidelines\n- Team communication rules\n- Project-wide conventions\n- Security best practices",
-    "confirmClear": "Are you sure you want to clear the system prompt?"
+    "saved": "System prompt saved. It applies to this agent's next session.",
+    "cleared": "System prompt cleared for this agent.",
+    "hint": "This prompt is inserted into the system instructions for the selected agent only.",
+    "placeholder": "Enter this agent's system prompt here...\n\nExamples:\n- Coding style guidelines\n- Team communication rules\n- Project-wide conventions\n- Security best practices",
+    "confirmClear": "Are you sure you want to clear this agent's system prompt?"
   },
   "integrations": {
     "whatsapp": {

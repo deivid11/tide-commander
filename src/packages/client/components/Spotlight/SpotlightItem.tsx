@@ -66,6 +66,15 @@ export const SpotlightItem = memo(function SpotlightItem({
               {highlightMatch(result._taskLabel, query)}
             </span>
           )}
+          {result.type === 'folder' && result._isGitRepo && (
+            <span
+              className="spotlight-item-git-badge"
+              title={result._gitBranch ? `git branch: ${result._gitBranch}` : 'git repository'}
+            >
+              <Icon name="git-branch" size={9} aria-hidden />
+              {result._gitBranch || 'git'}
+            </span>
+          )}
           <span className={`spotlight-item-type ${result.type}`} aria-label={getTypeLabel(result.type)}>
             {getTypeLabel(result.type)}
           </span>

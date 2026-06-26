@@ -1,6 +1,6 @@
 {
   "name": "tide-commander",
-  "version": "1.118.1",
+  "version": "1.125.1",
   "description": "Visual multi-agent orchestrator and manager for Claude Code with 3D/2D interface",
   "repository": {
     "type": "git",
@@ -94,6 +94,7 @@
     "pg": "^8.17.2",
     "pizzip": "^3.2.0",
     "prismjs": "^1.30.0",
+    "puppeteer-core": "^25.1.0",
     "react": "^19.2.3",
     "react-datepicker": "^9.1.0",
     "react-dom": "^19.2.3",

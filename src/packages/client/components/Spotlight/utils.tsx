@@ -184,6 +184,8 @@ export function getTypeLabel(type: string): string {
       return 'Changed';
     case 'building':
       return 'Server';
+    case 'folder':
+      return 'Folder';
     default:
       return type;
   }

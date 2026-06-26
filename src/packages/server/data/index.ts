@@ -67,6 +67,7 @@ export interface StoredAgent {
   lastActivity: number;
   sessionId?: string;
   lastSessionId?: string;
+  forkSourceSessionId?: string; // Pending fork source session (see handleForkAgent)
   currentTask?: string;
   // Task tracking for auto-resume
   lastAssignedTask?: string;      // Last task assigned (persisted for auto-resume)
@@ -80,7 +81,12 @@ export interface StoredAgent {
   // Per-agent persistent config (must be saved or it is lost on restart)
   shortcut?: string;          // Global keyboard shortcut to open this agent's terminal
   customInstructions?: string; // Extra system-prompt instructions for this agent
+  customPrompt?: string;       // Per-agent custom system prompt (replaces the old global one)
   memory?: string;            // Agent's own persistent notes (injected into system prompt)
+  // Auto-collapse config (recurring context collapse on a cron schedule)
+  autoCollapse?: boolean;     // Whether auto-collapse is enabled
+  autoCollapseCron?: string;  // 5-field cron expression
+  autoCollapseTz?: string;    // IANA timezone for the cron
   // Boss-specific fields
   isBoss?: boolean;           // True if this agent is a boss
   subordinateIds?: string[];  // Only for boss agents
@@ -201,6 +207,7 @@ function toStoredAgents(agents: Agent[]): StoredAgent[] {
     createdAt: agent.createdAt,
     lastActivity: agent.lastActivity,
     sessionId: agent.sessionId,
+    forkSourceSessionId: agent.forkSourceSessionId,
     currentTask: agent.currentTask,
     lastAssignedTask: agent.lastAssignedTask,
     lastAssignedTaskTime: agent.lastAssignedTaskTime,
@@ -210,7 +217,11 @@ function toStoredAgents(agents: Agent[]): StoredAgent[] {
     trackingStatusTimestamp: agent.trackingStatusTimestamp,
     shortcut: agent.shortcut,
     customInstructions: agent.customInstructions,
+    customPrompt: agent.customPrompt,
     memory: agent.memory,
+    autoCollapse: agent.autoCollapse,
+    autoCollapseCron: agent.autoCollapseCron,
+    autoCollapseTz: agent.autoCollapseTz,
     isBoss: agent.isBoss,
     subordinateIds: agent.subordinateIds,
     bossId: agent.bossId,

@@ -123,10 +123,19 @@ export function Tooltip({
   }, []);
 
   useEffect(() => {
-    if (isMounted && isVisible) {
-      // Small delay to ensure tooltip is rendered before calculating position
-      requestAnimationFrame(calculatePosition);
-    }
+    if (!isMounted || !isVisible) return;
+    // Small delay to ensure tooltip is rendered before calculating position
+    requestAnimationFrame(calculatePosition);
+
+    // Re-position whenever the tooltip's own size changes — async content (e.g.
+    // a lazily-fetched panel that swaps "Loading…" for a taller body) otherwise
+    // keeps the position computed at the smaller size. Repositioning only moves
+    // the element (no size change), so this can't trigger a resize loop.
+    const el = tooltipRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => calculatePosition());
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [isMounted, isVisible, calculatePosition]);
 
   useEffect(() => {

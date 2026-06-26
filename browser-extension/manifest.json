@@ -4,7 +4,7 @@
   "version": "0.2.0",
   "description": "Capture browser errors, chat with the agent assigned to a page, and pick DOM elements to send as context to Tide Commander.",
   "minimum_chrome_version": "114",
-  "permissions": ["storage", "unlimitedStorage", "tabs", "sidePanel", "contextMenus"],
+  "permissions": ["storage", "unlimitedStorage", "tabs", "sidePanel", "contextMenus", "debugger"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "src/background.js"

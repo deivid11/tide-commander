@@ -56,6 +56,12 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const [customInstructions, setCustomInstructions] = useState<string>(agent.customInstructions || '');
   const [editingInstructions, setEditingInstructions] = useState(false);
   const [instructionsText, setInstructionsText] = useState('');
+  const browserTz = useMemo(() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; }
+  }, []);
+  const [autoCollapse, setAutoCollapse] = useState<boolean>(agent.autoCollapse || false);
+  const [autoCollapseCron, setAutoCollapseCron] = useState<string>(agent.autoCollapseCron || '');
+  const [autoCollapseTz, setAutoCollapseTz] = useState<string>(agent.autoCollapseTz || '');
 
   // Filter classes by search query
   const filteredCustomClasses = useMemo(() => {
@@ -115,6 +121,9 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       setShortcut((((agent as AgentWithShortcut).shortcut) || '').trim());
       setClassSearch('');
       setCustomInstructions(agent.customInstructions || '');
+      setAutoCollapse(agent.autoCollapse || false);
+      setAutoCollapseCron(agent.autoCollapseCron || '');
+      setAutoCollapseTz(agent.autoCollapseTz || '');
       const directlyAssigned = allSkills
         .filter(s => s.assignedAgentIds.includes(agent.id))
         .map(s => s.id);
@@ -223,6 +232,9 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (workdir !== agent.cwd) return true;
     if (shortcut !== (((agent as AgentWithShortcut).shortcut || '').trim())) return true;
     if (customInstructions !== (agent.customInstructions || '')) return true;
+    if (autoCollapse !== (agent.autoCollapse || false)) return true;
+    if (autoCollapseCron !== (agent.autoCollapseCron || '')) return true;
+    if (autoCollapseTz !== (agent.autoCollapseTz || '')) return true;
 
     // Check skill changes
     const currentDirectSkills = allSkills
@@ -234,7 +246,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (currentDirectSkills !== newSkills) return true;
 
     return false;
-  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedEffort, selectedCodexModel, codexConfig, opencodeModel, useChrome, workdir, shortcut, customInstructions, selectedSkillIds, agent, allSkills]);
+  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedEffort, selectedCodexModel, codexConfig, opencodeModel, useChrome, workdir, shortcut, customInstructions, autoCollapse, autoCollapseCron, autoCollapseTz, selectedSkillIds, agent, allSkills]);
 
   // Handle save
   const handleSave = () => {
@@ -253,6 +265,9 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       cwd?: string;
       shortcut?: string;
       customInstructions?: string;
+      autoCollapse?: boolean;
+      autoCollapseCron?: string;
+      autoCollapseTz?: string;
     } = {};
 
     if (trimmedName && trimmedName !== agent.name) {
@@ -305,6 +320,23 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
 
     if (customInstructions !== (agent.customInstructions || '')) {
       updates.customInstructions = customInstructions;
+    }
+
+    if (autoCollapse !== (agent.autoCollapse || false)) {
+      updates.autoCollapse = autoCollapse;
+    }
+
+    if (autoCollapseCron !== (agent.autoCollapseCron || '')) {
+      updates.autoCollapseCron = autoCollapseCron.trim();
+    }
+
+    // Persist the timezone (defaulting to the browser's) whenever auto-collapse is on,
+    // so the server-side cron resolves against a concrete zone instead of guessing.
+    const effectiveTz = autoCollapseTz.trim() || browserTz;
+    if (autoCollapse && effectiveTz !== (agent.autoCollapseTz || '')) {
+      updates.autoCollapseTz = effectiveTz;
+    } else if (autoCollapseTz !== (agent.autoCollapseTz || '')) {
+      updates.autoCollapseTz = autoCollapseTz.trim();
     }
 
     // Always send skill IDs if changed
@@ -724,6 +756,70 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                 />
               </div>
             </div>
+
+            {/* Auto-collapse: scheduled context collapse for unattended agents */}
+            <div className="spawn-form-row spawn-options-row">
+              <label className="spawn-checkbox">
+                <input
+                  type="checkbox"
+                  checked={autoCollapse}
+                  onChange={(e) => setAutoCollapse(e.target.checked)}
+                />
+                <span>Auto-collapse context on a schedule</span>
+              </label>
+            </div>
+            {autoCollapse && (
+              <div className="spawn-form-row">
+                <div className="spawn-field">
+                  <label className="spawn-label">Collapse schedule (cron)</label>
+                  <input
+                    type="text"
+                    className="spawn-input"
+                    value={autoCollapseCron}
+                    onChange={(e) => setAutoCollapseCron(e.target.value)}
+                    placeholder="0 3 * * *  (every day at 3:00 AM)"
+                    style={{ fontFamily: 'monospace' }}
+                  />
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'Nightly 3am', cron: '0 3 * * *' },
+                      { label: 'Every 6h', cron: '0 */6 * * *' },
+                      { label: 'Weekdays 2am', cron: '0 2 * * MON-FRI' },
+                    ].map(p => (
+                      <button
+                        key={p.cron}
+                        type="button"
+                        className="spawn-preset-chip"
+                        onClick={() => setAutoCollapseCron(p.cron)}
+                        style={{
+                          fontSize: 11, padding: '3px 8px', borderRadius: 4,
+                          border: '1px solid var(--border-color, #444)', cursor: 'pointer',
+                          background: autoCollapseCron === p.cron ? 'var(--accent-color, #4a9eff)' : 'transparent',
+                          color: 'inherit',
+                        }}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="spawn-inline-hint">
+                    5-field cron (minute hour day month weekday). Collapse waits for the agent to be idle before running.
+                  </div>
+                  <label className="spawn-label" style={{ marginTop: 10 }}>Timezone</label>
+                  <input
+                    type="text"
+                    className="spawn-input"
+                    value={autoCollapseTz}
+                    onChange={(e) => setAutoCollapseTz(e.target.value)}
+                    placeholder={browserTz}
+                    style={{ fontFamily: 'monospace' }}
+                  />
+                  <div className="spawn-inline-hint">
+                    IANA timezone. Leave blank to use this browser's zone ({browserTz}).
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Skills section */}
             <div className="spawn-skills-section">

@@ -14,6 +14,10 @@
 (function () {
   'use strict';
 
+  // Sentinel: renderSpecial returns this to tell the host to render NOTHING for
+  // this message (e.g. the /compact command echo + local-command caveats).
+  const HIDE = '__TC_HIDE__';
+
   // ── escaping ──
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
@@ -800,6 +804,366 @@
   }
 
   // ============================================================================
+  // Picked UI element / element screenshot context (from the extension's Pick &
+  // Screenshot tools). Turns the raw "[UI element the user selected…]" payload —
+  // Page / Selector / Tag / Box / Text / outerHTML / Request — into a compact
+  // card with the user's request up top and a collapsible HTML preview.
+  // ============================================================================
+  const UIELEM_MARKER_RE = /\[UI element the user selected on the page\]/;
+  const UIELEM_SHOT_RE = /\[Screenshot of a UI element the user selected\]/;
+  // The set of known field labels; used as a lookahead so a multi-line value
+  // (Text, outerHTML, Request) stops at the next field instead of the next line.
+  const UIELEM_NEXT = '(?:Page|Selector|Tag|Box|Text|Computed styles|outerHTML|Request)[ \\t]*:';
+  function uiGrab(text, label) {
+    const re = new RegExp(
+      '^[ \\t]*' + label + '[ \\t]*:[ \\t]*([\\s\\S]*?)(?=\\n[ \\t]*' + UIELEM_NEXT + '|(?![\\s\\S]))',
+      'm'
+    );
+    const m = text.match(re);
+    return m ? m[1].trim() : '';
+  }
+  function parseElementContext(text) {
+    if (!text) return null;
+    const isShot = UIELEM_SHOT_RE.test(text);
+    if (!isShot && !UIELEM_MARKER_RE.test(text)) return null;
+    const box = uiGrab(text, 'Box');
+    const bm = box.match(/x=(-?\d+)\s+y=(-?\d+)\s+w=(\d+)\s+h=(\d+)/);
+    const html = uiGrab(text, 'outerHTML')
+      .replace(/^```\w*\s*\n?/, '')
+      .replace(/\n?```\s*$/, '')
+      .trim();
+    return {
+      isShot,
+      page: uiGrab(text, 'Page'),
+      selector: uiGrab(text, 'Selector'),
+      tag: uiGrab(text, 'Tag'),
+      rect: bm ? { x: +bm[1], y: +bm[2], w: +bm[3], h: +bm[4] } : null,
+      text: uiGrab(text, 'Text'),
+      html,
+      shotPath: ((text.match(/Saved screenshot:\s*([^\n]+)/) || [])[1] || '').trim(),
+      request: uiGrab(text, 'Request'),
+    };
+  }
+  // Compact "tagname.firstclass" / "tagname#id" label from the raw Tag field.
+  function elementTagLabel(tag) {
+    if (!tag) return 'element';
+    const name = (tag.match(/<\s*([\w-]+)/) || [])[1] || 'element';
+    const idM = tag.match(/id="([^"]+)"/);
+    if (idM) return name + '#' + idM[1].trim().split(/\s+/)[0];
+    const clsM = tag.match(/class="([^"]+)"/);
+    if (clsM) return name + '.' + clsM[1].trim().split(/\s+/)[0];
+    return name;
+  }
+  function buildElementContext(ui, deps) {
+    const card = el('div', 'tc-uielem-card');
+
+    const head = el('div', 'tc-uielem-head');
+    head.innerHTML =
+      `<span class="tc-uielem-icon">⊹</span>` +
+      `<span class="tc-uielem-chip">${ui.isShot ? 'Element shot' : 'UI element'}</span>` +
+      `<span class="tc-uielem-tag" title="${attr(ui.tag || '')}">${esc(elementTagLabel(ui.tag))}</span>` +
+      (ui.rect ? `<span class="tc-uielem-dims">${ui.rect.w} × ${ui.rect.h}</span>` : '') +
+      (ui.html ? `<span class="tc-uielem-toggle">▸</span>` : '');
+    card.appendChild(head);
+
+    // The user's actual ask, up top and prominent.
+    if (ui.request) {
+      const req = renderRichBody(ui.request, deps);
+      req.classList.add('tc-uielem-req');
+      card.appendChild(req);
+    }
+
+    // Metadata rows (selector / page / screenshot path / text preview).
+    const meta = el('div', 'tc-uielem-meta');
+    if (ui.selector) {
+      const row = el('div', 'tc-uielem-row');
+      row.innerHTML = `<span class="tc-uielem-k">selector</span><code class="tc-uielem-sel">${esc(ui.selector)}</code>`;
+      meta.appendChild(row);
+    }
+    if (ui.page) {
+      const row = el('div', 'tc-uielem-row');
+      row.innerHTML = `<span class="tc-uielem-k">page</span><span class="tc-uielem-v">${esc(ui.page)}</span>`;
+      meta.appendChild(row);
+    }
+    if (ui.shotPath) {
+      const row = el('div', 'tc-uielem-row');
+      row.innerHTML = `<span class="tc-uielem-k">📷</span><code class="tc-uielem-sel">${esc(ui.shotPath)}</code>`;
+      meta.appendChild(row);
+    }
+    if (ui.text) {
+      const t = el('div', 'tc-uielem-text');
+      t.textContent = ui.text;
+      meta.appendChild(t);
+    }
+    if (meta.childNodes.length) card.appendChild(meta);
+
+    // Collapsible raw outerHTML preview (the bulky part).
+    if (ui.html) {
+      const pre = el('pre', 'tc-uielem-html');
+      const code = el('code', null);
+      code.textContent = ui.html;
+      pre.appendChild(code);
+      card.appendChild(pre);
+      makeCollapsible(card, pre, head.querySelector('.tc-uielem-toggle'), ui.html);
+    }
+
+    return card;
+  }
+
+  // ============================================================================
+  // Captured network request (extension's netContextBlock). Turns the raw
+  // "[Network request captured in the browser]" payload — method/url/status,
+  // headers and bodies — into a card with the request line up top, a coloured
+  // method+status header, and a collapsible detail (headers + pretty-printed
+  // JSON bodies).
+  // ============================================================================
+  const NET_MARKER = '[Network request captured in the browser]';
+  const NET_NEXT = '(?:Page|Request headers|Request body|Response headers|Response body|Request)[ \\t]*:';
+  function netGrab(text, label) {
+    const re = new RegExp(
+      '^[ \\t]*' + label + '[ \\t]*:[ \\t]*([\\s\\S]*?)(?=\\n[ \\t]*' + NET_NEXT + '|(?![\\s\\S]))',
+      'm'
+    );
+    const m = text.match(re);
+    return m ? m[1].trim() : '';
+  }
+  // Pretty-print a JSON body; leave non-JSON untouched.
+  function prettyJson(s) {
+    const t = (s || '').trim();
+    if (!t || (t[0] !== '{' && t[0] !== '[')) return s;
+    try { return JSON.stringify(JSON.parse(t), null, 2); } catch (_e) { return s; }
+  }
+  function parseNetworkContext(text) {
+    if (!text || text.indexOf(NET_MARKER) === -1) return null;
+    // The status line is the first line after the marker.
+    const lines = text.slice(text.indexOf(NET_MARKER)).split('\n');
+    const statusLine = (lines[1] || '').trim();
+    const sm = statusLine.match(/^(\S+)\s+(.*?)\s+→\s+(\S+)\s*(.*)$/);
+    let method = '', url = '', status = '', statusText = '', ms = '';
+    if (sm) {
+      method = sm[1];
+      url = sm[2];
+      status = sm[3];
+      let tail = sm[4] || '';
+      const mm = tail.match(/\((\d+)ms\)\s*$/);
+      if (mm) { ms = mm[1]; tail = tail.slice(0, mm.index).trim(); }
+      statusText = tail.trim();
+    }
+    return {
+      method, url, status, statusText, ms,
+      page: netGrab(text, 'Page'),
+      reqHeaders: netGrab(text, 'Request headers'),
+      reqBody: netGrab(text, 'Request body'),
+      resHeaders: netGrab(text, 'Response headers'),
+      resBody: netGrab(text, 'Response body'),
+      request: netGrab(text, 'Request'),
+    };
+  }
+  function buildNetworkContext(n, deps) {
+    const card = el('div', 'tc-net-card');
+
+    const head = el('div', 'tc-net-head');
+    const sClass = !n.status || n.status === 'ERR' ? 's-err' : 's-' + (String(n.status)[0] || '') + 'xx';
+    const statusLabel = (n.status || 'ERR') + (n.statusText ? ' ' + n.statusText : '');
+    head.innerHTML =
+      `<span class="tc-net-method m-${attr(n.method || '')}">${esc(n.method || '?')}</span>` +
+      `<span class="tc-net-status ${sClass}">${esc(statusLabel)}</span>` +
+      (n.ms ? `<span class="tc-net-ms">${esc(n.ms)}ms</span>` : '') +
+      `<span class="tc-net-toggle">▸</span>`;
+    card.appendChild(head);
+
+    if (n.url) { const u = el('div', 'tc-net-url'); u.textContent = n.url; card.appendChild(u); }
+
+    if (n.request) {
+      const req = renderRichBody(n.request, deps);
+      req.classList.add('tc-net-req');
+      card.appendChild(req);
+    }
+
+    // Collapsible detail: page + headers + (pretty) bodies.
+    const detail = el('div', 'tc-net-detail');
+    const addSec = (label, content, isJson) => {
+      if (!content) return;
+      const sec = el('div', 'tc-net-sec');
+      sec.appendChild(el('div', 'tc-net-sec-label', esc(label)));
+      const pre = el('pre', 'tc-net-pre');
+      const code = el('code', null);
+      code.textContent = isJson ? prettyJson(content) : content;
+      pre.appendChild(code);
+      sec.appendChild(pre);
+      detail.appendChild(sec);
+    };
+    if (n.page) {
+      const sec = el('div', 'tc-net-sec');
+      sec.innerHTML = `<span class="tc-net-sec-label">page</span><span class="tc-net-page">${esc(n.page)}</span>`;
+      detail.appendChild(sec);
+    }
+    addSec('Request headers', n.reqHeaders, false);
+    addSec('Request body', n.reqBody, true);
+    addSec('Response headers', n.resHeaders, false);
+    addSec('Response body', n.resBody, true);
+    card.appendChild(detail);
+
+    const full = [n.reqHeaders, n.reqBody, n.resHeaders, n.resBody].filter(Boolean).join('\n');
+    makeCollapsible(card, detail, head.querySelector('.tc-net-toggle'), full);
+
+    return card;
+  }
+
+  // ============================================================================
+  // Captured browser error (extension's errorContextBlock). Same treatment as
+  // the network card: a coloured kind/status header, the error message, and a
+  // collapsible detail with pretty-printed JSON bodies / stack.
+  // ============================================================================
+  const ERR_MARKER = '[Browser error captured]';
+  const ERR_NEXT = '(?:Page|Message|Request body|Response body|Stack|Request)[ \\t]*:';
+  function errGrab(text, label) {
+    const re = new RegExp(
+      '^[ \\t]*' + label + '[ \\t]*:[ \\t]*([\\s\\S]*?)(?=\\n[ \\t]*' + ERR_NEXT + '|(?![\\s\\S]))',
+      'm'
+    );
+    const m = text.match(re);
+    return m ? m[1].trim() : '';
+  }
+  function parseErrorContext(text) {
+    if (!text || text.indexOf(ERR_MARKER) === -1) return null;
+    const lines = text.slice(text.indexOf(ERR_MARKER)).split('\n');
+    // Kind line, e.g. "network/fetch 500 ×2" or "console/error ×1".
+    const kindLine = (lines[1] || '').trim();
+    const km = kindLine.match(/^(\S+?)(?:\s+(\d{3}))?(?:\s+×(\d+))?\s*$/);
+    const kind = km ? km[1] : (kindLine || 'error');
+    const status = km && km[2] ? km[2] : '';
+    const count = km && km[3] ? km[3] : '';
+    // The method+url (or "URL: …") line has no label — find it positionally.
+    let method = '', url = '';
+    for (const l of lines) {
+      const mu = l.match(/^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+(\S.*)$/);
+      if (mu) { method = mu[1]; url = mu[2].trim(); break; }
+      const uu = l.match(/^URL:\s*(\S.*)$/);
+      if (uu) { url = uu[1].trim(); break; }
+    }
+    return {
+      kind, status, count, method, url,
+      // Page is a single URL; grab just its line so it doesn't swallow the
+      // unlabeled "GET <url>" line that follows it.
+      page: ((text.match(/^[ \t]*Page[ \t]*:[ \t]*(.*)$/m) || [])[1] || '').trim(),
+      message: errGrab(text, 'Message'),
+      reqBody: errGrab(text, 'Request body'),
+      resBody: errGrab(text, 'Response body'),
+      stack: errGrab(text, 'Stack'),
+      request: errGrab(text, 'Request'),
+    };
+  }
+  function buildErrorContext(er, deps) {
+    const card = el('div', 'tc-err-card');
+
+    const head = el('div', 'tc-err-head');
+    head.innerHTML =
+      `<span class="tc-err-badge">⚠ error</span>` +
+      `<span class="tc-err-kind">${esc(er.kind)}</span>` +
+      (er.status ? `<span class="tc-err-status">${esc(er.status)}</span>` : '') +
+      (er.count && er.count !== '1' ? `<span class="tc-err-count">×${esc(er.count)}</span>` : '') +
+      `<span class="tc-err-toggle">▸</span>`;
+    card.appendChild(head);
+
+    if (er.url) {
+      const u = el('div', 'tc-err-url');
+      u.textContent = (er.method ? er.method + ' ' : '') + er.url;
+      card.appendChild(u);
+    }
+    if (er.message) card.appendChild(el('div', 'tc-err-msg', esc(er.message)));
+
+    if (er.request) {
+      const req = renderRichBody(er.request, deps);
+      req.classList.add('tc-err-req');
+      card.appendChild(req);
+    }
+
+    const detail = el('div', 'tc-err-detail');
+    const addSec = (label, content, isJson) => {
+      if (!content) return;
+      const sec = el('div', 'tc-net-sec');
+      sec.appendChild(el('div', 'tc-net-sec-label', esc(label)));
+      const pre = el('pre', 'tc-net-pre');
+      const code = el('code', null);
+      code.textContent = isJson ? prettyJson(content) : content;
+      pre.appendChild(code);
+      sec.appendChild(pre);
+      detail.appendChild(sec);
+    };
+    if (er.page) {
+      const sec = el('div', 'tc-net-sec');
+      sec.innerHTML = `<span class="tc-net-sec-label">page</span><span class="tc-net-page">${esc(er.page)}</span>`;
+      detail.appendChild(sec);
+    }
+    addSec('Request body', er.reqBody, true);
+    addSec('Response body', er.resBody, true);
+    addSec('Stack', er.stack, true);
+    card.appendChild(detail);
+
+    const full = [er.reqBody, er.resBody, er.stack].filter(Boolean).join('\n');
+    makeCollapsible(card, detail, head.querySelector('.tc-err-toggle'), full);
+
+    return card;
+  }
+
+  // ============================================================================
+  // Attached files (extension's "[Attached file(s)]" block). Lists each file;
+  // images become clickable thumbnails that open the in-panel lightbox (the host
+  // wires a chat click handler for .tc-att-img), others show a doc chip.
+  // ============================================================================
+  const ATT_MARKER_RE = /\[Attached files?\]/;
+  const ATT_FILE_RE = /^-\s+(.+?):\s+(\/.+?)\s*$/gm;
+  const ATT_IMG_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif)$/i;
+  function parseAttachedFiles(text) {
+    if (!text || !ATT_MARKER_RE.test(text)) return null;
+    const files = [];
+    let m;
+    ATT_FILE_RE.lastIndex = 0;
+    while ((m = ATT_FILE_RE.exec(text)) !== null) {
+      const name = m[1].trim();
+      const path = m[2].trim();
+      files.push({ name, path, isImage: ATT_IMG_RE.test(name) || ATT_IMG_RE.test(path) });
+    }
+    if (!files.length) return null;
+    const rm = text.match(/^[ \t]*Request[ \t]*:[ \t]*([\s\S]*?)(?![\s\S])/m);
+    return { files, request: rm ? rm[1].trim() : '' };
+  }
+  function buildAttachedFiles(att, deps) {
+    const resolve = (deps && deps.resolveImage) || ((p) => p);
+    const card = el('div', 'tc-att-card');
+
+    const n = att.files.length;
+    const head = el('div', 'tc-att-head');
+    head.innerHTML = `<span class="tc-att-icon">📎</span><span class="tc-att-title">${n} attachment${n > 1 ? 's' : ''}</span>`;
+    card.appendChild(head);
+
+    if (att.request) {
+      const req = renderRichBody(att.request, deps);
+      req.classList.add('tc-att-req');
+      card.appendChild(req);
+    }
+
+    const list = el('div', 'tc-att-list');
+    for (const f of att.files) {
+      if (f.isImage) {
+        const url = resolve(f.path);
+        const fig = el('figure', 'tc-att-img-wrap');
+        fig.innerHTML =
+          `<img class="tc-att-img" src="${attr(url)}" alt="${attr(f.name)}" title="${attr(f.name)} — click to enlarge" loading="lazy"/>` +
+          `<figcaption>${esc(f.name)}</figcaption>`;
+        list.appendChild(fig);
+      } else {
+        const chip = el('div', 'tc-att-doc');
+        chip.innerHTML = `<span class="tc-att-doc-ic">📄</span><span class="tc-att-doc-name" title="${attr(f.path)}">${esc(f.name)}</span>`;
+        list.appendChild(chip);
+      }
+    }
+    card.appendChild(list);
+    return card;
+  }
+
+  // ============================================================================
   // Dispatch — returns an HTMLElement/fragment for the message content, or null
   // if it has no special block (caller renders the default body).
   // ============================================================================
@@ -810,13 +1174,54 @@
     target.appendChild(rest);
   }
 
-  // role: 'user' | 'assistant'. Returns a node wrapping the rendered card(s) or null.
+  // /compact result pill (mirrors Guake's .output-compacted-notice).
+  function buildCompactedNotice() {
+    const row = el('div', 'msg msg-compacted');
+    const pill = el('div', 'output-compacted-notice');
+    pill.appendChild(el('span', 'compacted-icon', '🗜️'));
+    pill.appendChild(el('span', 'compacted-label', 'Context compacted'));
+    row.appendChild(pill);
+    return row;
+  }
+
+  // role: 'user' | 'assistant'. Returns a node wrapping the rendered card(s),
+  // the HIDE sentinel (render nothing), or null (caller renders the default body).
   function renderSpecial(content, role, deps) {
     if (!content) return null;
     deps = deps || {};
 
+    // /compact: turn the "Compacted" stdout into a pill; hide the command echo +
+    // local-command caveats. Checked on RAW content before any stripping, and
+    // before role branching (the stdout arrives as a user message).
+    if (content.indexOf('<local-command-stdout>') !== -1) {
+      const m = content.match(/<local-command-stdout>([\s\S]*?)<\/local-command-stdout>/);
+      if (m && m[1].replace(/\x1b?\[\d+m/g, '').trim() === 'Compacted') {
+        return buildCompactedNotice();
+      }
+    }
+    if (
+      content.indexOf('<local-command-caveat>') !== -1 ||
+      content.indexOf('<command-name>/compact</command-name>') !== -1 ||
+      content.indexOf('<command-name>/context</command-name>') !== -1 ||
+      content.indexOf('<command-name>/cost</command-name>') !== -1
+    ) {
+      return HIDE;
+    }
+
     if (role === 'user') {
       const text = stripInjectedInstructions(stripBossContext(content)).trim();
+
+      const ui = parseElementContext(text);
+      if (ui) return wrapCard(buildElementContext(ui, deps));
+
+      const net = parseNetworkContext(text);
+      if (net) return wrapCard(buildNetworkContext(net, deps));
+
+      const er = parseErrorContext(text);
+      if (er) return wrapCard(buildErrorContext(er, deps));
+
+      const att = parseAttachedFiles(text);
+      if (att) return wrapCard(buildAttachedFiles(att, deps));
 
       const dt = parseDelegatedTaskMessage(text);
       if (dt) return wrapCard(buildDelegatedTask(dt, deps));
@@ -1120,9 +1525,110 @@
     return card;
   }
 
+  // ── browser-bridge curl chip ───────────────────────────────────────────────
+  // Vanilla port of the commander's detectBrowserAction (curlParser.ts): turn a
+  // `curl … /api/browser/<action> … -d '{…}'` Bash command into a compact, readable
+  // chip (🤖 verb · target · detail · diff · tab) instead of a raw command dump.
+  function truncMid(text, max) {
+    const s = String(text == null ? '' : text);
+    if (s.length <= max) return s;
+    return s.slice(0, Math.max(0, max - 1)) + '…';
+  }
+  function parseBrowserCurl(command) {
+    if (typeof command !== 'string' || !command) return null;
+    const urlMatch = /https?:\/\/[^/\s'"]+\/api\/browser\/([A-Za-z0-9/_-]+)/.exec(command);
+    if (!urlMatch) return null;
+    const endpoint = urlMatch[1].toLowerCase().replace(/\/+$/, '');
+
+    // Pull the JSON body out of -d '…' (single-quoted bash bodies can't contain a
+    // bare ', so non-greedy to the next ' is exact) or -d "…". Parse best-effort;
+    // an unparseable body still yields a useful verb from the endpoint.
+    let body = {};
+    let m = /(?:-d|--data(?:-raw|-binary)?)\s+'([\s\S]*?)'(?:\s|$)/.exec(command);
+    if (!m) m = /(?:-d|--data(?:-raw|-binary)?)\s+"((?:[^"\\]|\\.)*)"/.exec(command);
+    if (m) {
+      try {
+        const parsed = JSON.parse(m[1]);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) body = parsed;
+      } catch (_e) {
+        /* keep body = {} */
+      }
+    }
+
+    const asStr = (v) => (typeof v === 'string' && v.length ? v : typeof v === 'number' ? String(v) : undefined);
+    let tab;
+    if (body.tabId != null && body.tabId !== '') tab = '#' + String(body.tabId);
+    else if (typeof body.tab === 'string' && body.tab) tab = body.tab;
+
+    const diff = body.diff === true;
+    let verb = endpoint;
+    let target = asStr(body.selector) || asStr(body.text);
+    let detail;
+
+    switch (endpoint) {
+      case 'page': verb = 'Read page'; target = undefined; break;
+      case 'dom':
+        verb = body.actionable === true ? 'Map elements' : 'Read DOM';
+        target = asStr(body.selector);
+        break;
+      case 'click': verb = 'Click'; break;
+      case 'hover': verb = 'Hover'; break;
+      case 'type':
+        verb = 'Type';
+        target = asStr(body.selector) || asStr(body.within);
+        detail = asStr(body.text) != null ? '“' + asStr(body.text) + '”' : undefined;
+        break;
+      case 'fill': {
+        verb = 'Fill form';
+        const fields = Array.isArray(body.fields) ? body.fields.length : 0;
+        detail = fields + ' field' + (fields === 1 ? '' : 's');
+        if (body.submit) detail += ' + submit';
+        target = undefined;
+        break;
+      }
+      case 'key': verb = 'Press key'; detail = asStr(body.key); target = asStr(body.selector); break;
+      case 'select': verb = 'Select'; detail = asStr(body.label) || asStr(body.value); target = asStr(body.selector); break;
+      case 'scroll': verb = 'Scroll'; break;
+      case 'navigate': verb = 'Navigate'; target = asStr(body.url); break;
+      case 'console': verb = 'Read console'; detail = asStr(body.level); target = undefined; break;
+      case 'network': verb = 'Read network'; detail = asStr(body.filter); target = undefined; break;
+      case 'errors': verb = 'Read errors'; target = undefined; break;
+      case 'screenshot': verb = 'Screenshot'; target = asStr(body.selector); break;
+      case 'batch': {
+        verb = 'Batch';
+        const steps = Array.isArray(body.steps) ? body.steps.length : 0;
+        detail = steps + ' step' + (steps === 1 ? '' : 's');
+        target = undefined;
+        break;
+      }
+      case 'status': verb = 'Browser status'; target = undefined; break;
+      case 'tabs': verb = 'List tabs'; target = undefined; break;
+      case 'targets': verb = 'List targets'; target = undefined; break;
+      case 'tab/open': verb = 'Open tab'; target = asStr(body.url); break;
+      case 'tab/close': verb = 'Close tab'; break;
+      case 'tab/activate': verb = 'Activate tab'; break;
+      default: verb = endpoint.charAt(0).toUpperCase() + endpoint.slice(1); break;
+    }
+    return { endpoint, verb, target, detail, diff, tab };
+  }
+  function browserCurlChip(command) {
+    const a = parseBrowserCurl(command);
+    if (!a) return null;
+    const parts = ['<i class="tchip-bico">🤖</i><span class="tchip-bverb">' + esc(a.verb) + '</span>'];
+    if (a.target) parts.push('<code class="tchip-btarget">' + esc(truncMid(a.target, 48)) + '</code>');
+    if (a.detail) parts.push('<span class="tchip-bdetail">' + esc(a.detail) + '</span>');
+    if (a.diff) parts.push('<span class="tchip-bdiff">diff</span>');
+    if (a.tab) parts.push('<span class="tchip-btab">' + esc(a.tab) + '</span>');
+    const titleText = 'Browser · ' + a.verb + (a.target ? ' ' + a.target : '') + (a.tab ? ' (' + a.tab + ')' : '') + '\n' + String(command).slice(0, 400);
+    return '<span class="tchip tchip-browser" title="' + attr(titleText) + '">' + parts.join('') + '</span>';
+  }
+
   window.TCRenderers = {
     renderSpecial,
     renderRichBody,
     renderAgentPrompt,
+    parseBrowserCurl,
+    browserCurlChip,
+    HIDE,
   };
 })();

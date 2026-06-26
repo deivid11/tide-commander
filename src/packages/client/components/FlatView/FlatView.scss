@@ -2142,7 +2142,12 @@ body.flat-splitter-dragging {
   // isn't room to push chat content left by 380px.
   .flat-terminal-wrapper {
     --guake-side-panel-width: 100%;
+    // Void instead of the gray $bg-tertiary so the (transparent) pinned-agents
+    // bar reads as the chat background, not a gray strip. Header/output/input all
+    // paint their own bg, so this only affects the otherwise-bare pinbar row.
+    background: var(--bg-primary);
   }
+  .flat-right { background: var(--bg-primary); }
 
   .flat-terminal-wrapper--with-side-panel > *:not(.guake-git-panel):not(.guake-buildings-panel):not(.guake-workflow-panel):not(.agent-debug-panel) {
     margin-right: 0;

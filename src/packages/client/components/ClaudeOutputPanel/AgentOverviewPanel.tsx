@@ -805,6 +805,18 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         onClick: () => store.clearContext(agent.id),
       },
       {
+        id: 'clone-agent',
+        label: t('terminal:overview.cloneAgent', { defaultValue: 'Clone Agent' }),
+        icon: <Icon name="clipboard" size={14} />,
+        onClick: () => store.cloneAgent(agent.id),
+      },
+      {
+        id: 'fork-agent',
+        label: t('terminal:overview.forkAgent', { defaultValue: 'Fork Agent (with history)' }),
+        icon: <Icon name="git-branch" size={14} />,
+        onClick: () => store.forkAgent(agent.id),
+      },
+      {
         id: 'delete-agent',
         label: t('terminal:overview.deleteAgent', { defaultValue: 'Delete Agent' }),
         icon: <Icon name="trash" size={14} />,

@@ -201,6 +201,8 @@
     "collapseContext": "Collapse context",
     "clearContext": "Clear context",
     "killAgent": "Kill agent",
+    "cloneAgent": "Clone agent",
+    "forkAgent": "Fork agent (clone + continue conversation)",
     "clickToRename": "Click to rename",
     "permissions": "Permissions",
     "allowedPatterns": "Allowed Patterns",

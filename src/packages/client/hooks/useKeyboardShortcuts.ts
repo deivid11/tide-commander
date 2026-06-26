@@ -217,6 +217,23 @@ export function useKeyboardShortcuts({
         return;
       }
 
+      // Toggle pin of the selected agent when the guake terminal is open (Alt+P).
+      // Outside the terminal, Alt+P still toggles Spotlight (handled just below).
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.code === 'KeyP') {
+        const currentState = store.getState();
+        if (currentState.terminalOpen) {
+          const selectedId = currentState.selectedAgentIds.size === 1
+            ? Array.from(currentState.selectedAgentIds)[0]
+            : null;
+          if (selectedId) {
+            e.preventDefault();
+            e.stopPropagation();
+            store.togglePinnedAgent(selectedId);
+            return;
+          }
+        }
+      }
+
       // Toggle Spotlight (Alt+P)
       const spotlightShortcut = shortcuts.find(s => s.id === 'toggle-spotlight');
       if (matchesShortcut(e, spotlightShortcut) || (e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyP')) {

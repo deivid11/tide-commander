@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useId, useMemo, useState } from 'react';
-import { detectAgentFetch, detectAgentMessage, type ParsedCurl } from './curlParser';
+import { detectAgentFetch, detectAgentMessage, detectBrowserAction, type BrowserAction, type ParsedCurl } from './curlParser';
 import { useAgent } from '../../store/selectors';
 import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
@@ -169,7 +169,67 @@ function AgentFetchCard({ agentId, rawCommand }: { agentId: string; rawCommand?:
   );
 }
 
+function BrowserActionCard({ action, rawCommand }: { action: BrowserAction; rawCommand?: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const toggleExpanded = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpanded(v => !v);
+  }, []);
+
+  const hasBody = action.body !== undefined && action.body !== null;
+  const bodyHtml = hasBody ? formatJsonWithHighlight(action.body) : undefined;
+  const bodyText = hasBody ? JSON.stringify(action.body, null, 2) : undefined;
+
+  return (
+    <div className={`curl-card curl-card--browser${expanded ? ' curl-card-expanded' : ''}`} title={rawCommand}>
+      <div
+        className="curl-browser-head"
+        onClick={hasBody ? toggleExpanded : undefined}
+        role={hasBody ? 'button' : undefined}
+        tabIndex={hasBody ? 0 : undefined}
+      >
+        <span className="curl-browser-icon"><Icon name={action.icon as React.ComponentProps<typeof Icon>['name']} size={14} /></span>
+        <span className="curl-browser-brand">Browser</span>
+        <span className="curl-browser-verb">{action.verb}</span>
+        {action.target && (
+          <code className="curl-browser-target" title={action.target}>{truncateMiddle(action.target, 72)}</code>
+        )}
+        {action.detail && <span className="curl-browser-detail">{action.detail}</span>}
+        <span className="curl-browser-spacer" />
+        {action.diff && <span className="curl-browser-badge curl-browser-badge--diff">diff</span>}
+        {action.tab && <span className="curl-browser-tab" title="Target tab">{action.tab}</span>}
+        {hasBody && (
+          <button
+            type="button"
+            className="curl-expand-btn"
+            onClick={toggleExpanded}
+            aria-label={expanded ? 'Collapse details' : 'Expand details'}
+            aria-expanded={expanded}
+            title={expanded ? 'Collapse' : 'Details'}
+          >
+            <Icon name={expanded ? 'caret-down' : 'caret-right'} size={12} />
+          </button>
+        )}
+      </div>
+      {expanded && bodyHtml !== undefined && (
+        <div className="curl-card-row curl-body-row">
+          <div className="curl-body-block">
+            <pre className="curl-body-pre" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+            {bodyText !== undefined && bodyText.length > 0 && (
+              <CopyButton value={bodyText} title="Copy body" />
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export const CurlCard = memo(function CurlCard({ parsed, rawCommand }: CurlCardProps) {
+  const browserAction = detectBrowserAction(parsed);
+  if (browserAction) {
+    return <BrowserActionCard action={browserAction} rawCommand={rawCommand} />;
+  }
   const agentMessage = detectAgentMessage(parsed, rawCommand);
   if (agentMessage) {
     return (

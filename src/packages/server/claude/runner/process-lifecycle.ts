@@ -63,6 +63,7 @@ export class RunnerProcessLifecycle {
       permissionMode = 'bypass',
       systemPrompt,
       forceNewSession,
+      forkSession,
       customAgent,
     } = request;
 
@@ -71,6 +72,7 @@ export class RunnerProcessLifecycle {
     const backendConfig = {
       agentId,
       sessionId: forceNewSession ? undefined : sessionId,
+      forkSession,
       model,
       effort,
       workingDir,

@@ -141,6 +141,80 @@
   }
 }
 
+// Plan-limits tooltip (FlatView status-bar context chip) — mirrors the CLI
+// /usage gauges shown in the ContextViewModal, condensed for a hover tooltip.
+.plan-limits-tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 220px;
+
+  &__context {
+    font-size: 11px;
+    color: var(--text-secondary);
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  &__title {
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent-cyan);
+  }
+
+  &__muted {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  &__gauges {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  &__gauge-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+
+  &__gauge-label {
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  &__gauge-percent {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  &__bar {
+    height: 8px;
+    background: var(--bg-tertiary, rgba(255, 255, 255, 0.08));
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  &__bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.2s ease;
+  }
+
+  &__reset {
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-top: 3px;
+  }
+}
+
 // Detached mode tooltip specific styling
 .tide-tooltip--detached {
   .tide-tooltip__content {

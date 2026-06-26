@@ -14,6 +14,7 @@ import { logger } from './utils/logger.js';
 import { authMiddleware, isAuthEnabled, getAuthTokenPreview } from './auth/index.js';
 import { recordRequestTiming } from './routes/perf.js';
 import { setupTerminalHttpProxy } from './services/terminal-proxy.js';
+import { ATTACHMENT_DIR } from './services/browser-error-service.js';
 
 // Temp directory for uploads (same as in files.ts)
 const UPLOADS_DIR = path.join(os.tmpdir(), 'tide-commander-uploads');
@@ -103,6 +104,9 @@ export function createApp(): Express {
 
   // Serve uploaded files statically
   app.use('/uploads', express.static(UPLOADS_DIR));
+  // Serve browser-extension attachments (image attachments / element shots) so
+  // the extension can render them as thumbnails + lightbox previews.
+  app.use('/attachments', express.static(ATTACHMENT_DIR));
 
   // Terminal proxy (must be before API routes to avoid 404 catch-all)
   // Auth is already applied above via app.use('/api', authMiddleware)
@@ -119,7 +123,7 @@ export function createApp(): Express {
     app.use(express.static(DIST_DIR));
     app.get('/{*path}', (req: Request, res: Response, next: NextFunction) => {
       // Skip API routes
-      if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/ws')) {
+      if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/attachments') || req.path.startsWith('/ws')) {
         return next();
       }
       const indexPath = path.join(DIST_DIR, 'index.html');
@@ -140,7 +144,20 @@ export function createApp(): Express {
   });
 
   // Error handler
-  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: Error & { type?: string; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
+    // body-parser surfaces malformed JSON as SyntaxError with type 'entity.parse.failed',
+    // and oversized bodies as 'entity.too.large'. Surface the actual parser message so
+    // clients/agents can debug from the response without tailing server logs.
+    if (err.type === 'entity.parse.failed') {
+      logger.http.error(`Body parse error: ${err.message}`);
+      res.status(400).json({ error: `Invalid JSON body: ${err.message}` });
+      return;
+    }
+    if (err.type === 'entity.too.large') {
+      logger.http.error(`Body too large: ${err.message}`);
+      res.status(413).json({ error: `Request body too large: ${err.message}` });
+      return;
+    }
     logger.http.error('Request error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   });
