@@ -6,6 +6,7 @@
 import { Router, raw, Request, Response, NextFunction } from 'express';
 import agentsRouter, { setBroadcast as setAgentsBroadcast } from './agents.js';
 import filesRouter from './files.js';
+import foldersRouter from './folders.js';
 import permissionsRouter from './permissions.js';
 import agentPromptRouter from './agent-prompt.js';
 import notificationsRouter, { setBroadcast as setNotificationBroadcast } from './notifications.js';
@@ -29,6 +30,7 @@ import databaseRouter from './database.js';
 import buildingsRouter, { setBroadcast as setBuildingsBroadcast } from './buildings.js';
 import skillsRouter, { setBroadcast as setSkillsBroadcast } from './skills.js';
 import systemRouter from './system.js';
+import browserRouter from './browser.js';
 import { getPlugins } from '../integrations/integration-registry.js';
 
 const router = Router();
@@ -41,6 +43,7 @@ router.get('/health', (_req, res) => {
 // Mount sub-routers
 router.use('/agents', agentsRouter);
 router.use('/files', filesRouter);
+router.use('/folders', foldersRouter);
 router.use('/notify', notificationsRouter);
 router.use('/exec', execRouter);
 router.use('/focus-agent', focusAgentRouter);
@@ -61,6 +64,7 @@ router.use('/database', databaseRouter);
 router.use('/buildings', buildingsRouter);
 router.use('/skills', skillsRouter);
 router.use('/system', systemRouter);
+router.use('/browser', browserRouter);
 // Integration plugin routes (e.g. /api/slack/*, /api/documents/*, /api/jira/*)
 // Uses lazy lookup so plugins can be registered after route setup
 router.use((req: Request, res: Response, next: NextFunction) => {

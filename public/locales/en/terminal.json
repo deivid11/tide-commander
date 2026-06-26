@@ -999,6 +999,7 @@
       "agents": "Agents",
       "buildings": "Buildings",
       "areas": "Areas",
+      "folders": "Folders",
       "commands": "Commands"
     },
     "categories": {
@@ -1006,6 +1007,7 @@
       "agents": "Agents",
       "infrastructure": "Infrastructure",
       "areas": "Areas",
+      "folders": "Folders & Repos",
       "modifiedFiles": "Modified Files",
       "recentActivity": "Recent Activity"
     }
@@ -1260,7 +1262,7 @@
     "sessions": "Sessions",
     "toolCalls": "Tool calls",
     "noActivityToday": "No activity recorded yet today.",
-    "recentDays": "Last 7 days",
+    "recentDays": "Last 8 days",
     "refresh": "Refresh usage data",
     "error": "Could not load usage: {{message}}",
     "limits": "Plan limits",

@@ -1,57 +1,72 @@
 /**
- * SystemPromptModal - Modal for editing the global system prompt
+ * SystemPromptModal - Modal for editing a per-agent custom system prompt
  *
- * Opens from Settings > System Prompt
- * Provides large editor with better UX than inline component
+ * Opens from Settings > System Prompt. The prompt is now scoped to a single
+ * agent (picked at the top of the modal) instead of being global — it is stored
+ * on the agent (`agent.customPrompt`) and injected into that agent's system
+ * prompt by the server's buildAppendedProjectInstructions().
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ModalPortal } from './shared/ModalPortal';
 import { ConfirmModal } from './shared/ConfirmModal';
-import { fetchSystemPrompt, updateSystemPrompt, clearSystemPrompt } from '../api/system-settings';
+import { store, useAgentsArray } from '../store';
+import { AgentIcon } from './AgentIcon';
 import { Icon } from './Icon';
 import '../styles/components/system-prompt-modal.scss';
 
 export interface SystemPromptModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Optionally open the modal pre-targeted at a specific agent. */
+  initialAgentId?: string;
 }
 
-export function SystemPromptModal({ isOpen, onClose }: SystemPromptModalProps) {
+export function SystemPromptModal({ isOpen, onClose, initialAgentId }: SystemPromptModalProps) {
   const { t } = useTranslation(['config']);
+  const agents = useAgentsArray();
 
+  const [selectedAgentId, setSelectedAgentId] = useState<string>('');
   const [prompt, setPrompt] = useState('');
   const [originalPrompt, setOriginalPrompt] = useState('');
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [unsavedConfirmOpen, setUnsavedConfirmOpen] = useState(false);
+  // When set, a confirmed discard switches to this agent; otherwise it closes.
+  const [pendingAgentId, setPendingAgentId] = useState<string | null>(null);
 
-  // Load system prompt when modal opens
+  const sortedAgents = useMemo(
+    () => [...agents].sort((a, b) => a.name.localeCompare(b.name)),
+    [agents]
+  );
+
+  const selectedAgent = useMemo(
+    () => agents.find((a) => a.id === selectedAgentId),
+    [agents, selectedAgentId]
+  );
+
+  // Pick an initial agent when the modal opens.
   useEffect(() => {
-    if (isOpen) {
-      loadSystemPrompt();
-    }
+    if (!isOpen) return;
+    const validInitial = initialAgentId && agents.some((a) => a.id === initialAgentId)
+      ? initialAgentId
+      : (sortedAgents[0]?.id ?? '');
+    setSelectedAgentId(validInitial);
+    // Intentionally only re-run when the modal opens.
   }, [isOpen]);
 
-  const loadSystemPrompt = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      setSuccess(null);
-      const content = await fetchSystemPrompt();
-      setPrompt(content);
-      setOriginalPrompt(content);
-      setIsDirty(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load system prompt');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Load the selected agent's prompt whenever the selection changes.
+  useEffect(() => {
+    const content = selectedAgent?.customPrompt ?? '';
+    setPrompt(content);
+    setOriginalPrompt(content);
+    setIsDirty(false);
+    setError(null);
+    setSuccess(null);
+  }, [selectedAgentId]);
 
   const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newPrompt = e.target.value;
@@ -61,11 +76,12 @@ export function SystemPromptModal({ isOpen, onClose }: SystemPromptModalProps) {
     setSuccess(null);
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
+    if (!selectedAgentId) return;
     try {
       setError(null);
       setSuccess(null);
-      await updateSystemPrompt(prompt);
+      store.updateAgentProperties(selectedAgentId, { customPrompt: prompt });
       setOriginalPrompt(prompt);
       setIsDirty(false);
       setSuccess(t('config:systemPrompt.saved'));
@@ -78,11 +94,12 @@ export function SystemPromptModal({ isOpen, onClose }: SystemPromptModalProps) {
     setClearConfirmOpen(true);
   };
 
-  const performClear = async () => {
+  const performClear = () => {
+    if (!selectedAgentId) return;
     try {
       setError(null);
       setSuccess(null);
-      await clearSystemPrompt();
+      store.updateAgentProperties(selectedAgentId, { customPrompt: '' });
       setPrompt('');
       setOriginalPrompt('');
       setIsDirty(false);
@@ -99,12 +116,36 @@ export function SystemPromptModal({ isOpen, onClose }: SystemPromptModalProps) {
     setSuccess(null);
   };
 
+  // Switch the active agent, guarding unsaved edits.
+  const switchAgent = (id: string) => {
+    if (id === selectedAgentId) return;
+    if (isDirty) {
+      setPendingAgentId(id);
+      setUnsavedConfirmOpen(true);
+      return;
+    }
+    setSelectedAgentId(id);
+  };
+
   const requestClose = () => {
     if (isDirty) {
+      setPendingAgentId(null);
       setUnsavedConfirmOpen(true);
       return;
     }
     onClose();
+  };
+
+  // Confirmed "discard unsaved changes": either switch agents or close.
+  const confirmDiscard = () => {
+    setUnsavedConfirmOpen(false);
+    if (pendingAgentId) {
+      const id = pendingAgentId;
+      setPendingAgentId(null);
+      setSelectedAgentId(id); // load effect resets prompt + dirty
+    } else {
+      onClose();
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -128,14 +169,37 @@ export function SystemPromptModal({ isOpen, onClose }: SystemPromptModalProps) {
           </div>
 
           <div className="modal-body">
-            {loading ? (
+            {sortedAgents.length === 0 ? (
               <div className="loading-state">
-                <div className="spinner"></div>
-                <p>Loading system prompt...</p>
+                <p>{t('config:systemPrompt.noAgents')}</p>
               </div>
             ) : (
               <>
                 <p className="modal-description">{t('config:systemPrompt.description')}</p>
+
+                {/* Agent picker — the prompt is scoped to the chosen agent. */}
+                <div className="agent-picker">
+                  <label htmlFor="system-prompt-agent" className="editor-label">
+                    {t('config:systemPrompt.agentLabel')}
+                  </label>
+                  <div className="agent-picker-row">
+                    {selectedAgent && (
+                      <AgentIcon classId={selectedAgent.class} size={20} className="agent-picker-icon" />
+                    )}
+                    <select
+                      id="system-prompt-agent"
+                      className="agent-picker-select"
+                      value={selectedAgentId}
+                      onChange={(e) => switchAgent(e.target.value)}
+                    >
+                      {sortedAgents.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name}{a.customPrompt ? ' • ✦' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
                 {error && (
                   <div className="alert alert-error">
@@ -184,7 +248,7 @@ export function SystemPromptModal({ isOpen, onClose }: SystemPromptModalProps) {
               <button
                 className="btn btn-danger"
                 onClick={handleClear}
-                disabled={!prompt || loading}
+                disabled={!prompt || !selectedAgentId}
               >
                 {t('config:systemPrompt.clear')}
               </button>
@@ -201,7 +265,7 @@ export function SystemPromptModal({ isOpen, onClose }: SystemPromptModalProps) {
               <button
                 className="btn btn-secondary"
                 onClick={handleReset}
-                disabled={!isDirty || loading}
+                disabled={!isDirty}
               >
                 {t('config:systemPrompt.reset')}
               </button>
@@ -209,7 +273,7 @@ export function SystemPromptModal({ isOpen, onClose }: SystemPromptModalProps) {
               <button
                 className="btn btn-primary"
                 onClick={handleSave}
-                disabled={!isDirty || loading}
+                disabled={!isDirty || !selectedAgentId}
               >
                 {t('config:systemPrompt.save')}
               </button>
@@ -225,19 +289,19 @@ export function SystemPromptModal({ isOpen, onClose }: SystemPromptModalProps) {
         confirmLabel={t('config:systemPrompt.clear')}
         cancelLabel="Cancel"
         variant="danger"
-        onConfirm={() => { void performClear(); }}
+        onConfirm={() => { performClear(); }}
         onClose={() => setClearConfirmOpen(false)}
       />
 
       <ConfirmModal
         isOpen={unsavedConfirmOpen}
         title="Unsaved Changes"
-        message="You have unsaved changes. Close anyway?"
-        confirmLabel="Close anyway"
+        message="You have unsaved changes for this agent. Discard them?"
+        confirmLabel="Discard"
         cancelLabel="Keep editing"
         variant="danger"
-        onConfirm={onClose}
-        onClose={() => setUnsavedConfirmOpen(false)}
+        onConfirm={confirmDiscard}
+        onClose={() => { setUnsavedConfirmOpen(false); setPendingAgentId(null); }}
       />
     </ModalPortal>
   );

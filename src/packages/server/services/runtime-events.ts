@@ -1,4 +1,4 @@
-import type { ContextStats } from '../../shared/types.js';
+import type { Agent, ContextStats } from '../../shared/types.js';
 import type { SessionMessage } from '../claude/session-loader.js';
 import { loadSession } from '../claude/session-loader.js';
 import type { RuntimeEvent } from '../runtime/index.js';
@@ -493,7 +493,12 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
     const existingSessionId = agent?.sessionId;
 
     if (!existingSessionId) {
-      agentService.updateAgent(agentId, { sessionId });
+      // Capture the new session id. If this agent was a pending fork, the new id
+      // is the FORKED session — clear the fork marker so later runs resume it
+      // normally instead of re-forking the source.
+      const updates: Partial<Agent> = { sessionId };
+      if (agent?.forkSourceSessionId) updates.forkSourceSessionId = undefined;
+      agentService.updateAgent(agentId, updates);
     } else if (existingSessionId !== sessionId) {
       log.log(`Session mismatch for ${agentId}: expected ${existingSessionId}, got ${sessionId}`);
     }

@@ -169,6 +169,28 @@ export interface SpawnAgentMessage extends WSMessage {
   };
 }
 
+// Clone an existing agent (duplicate its configuration into a new agent)
+export interface CloneAgentMessage extends WSMessage {
+  type: 'clone_agent';
+  payload: {
+    sourceAgentId: string;
+    name?: string; // defaults to "<source name> (Copy)"
+    position?: { x: number; y: number; z: number };
+  };
+}
+
+// Fork an existing agent: duplicate its config AND continue its conversation
+// history (Claude/OpenCode). Falls back to a plain clone for unsupported
+// providers or agents with no session.
+export interface ForkAgentMessage extends WSMessage {
+  type: 'fork_agent';
+  payload: {
+    sourceAgentId: string;
+    name?: string; // defaults to "<source name> (Fork)"
+    position?: { x: number; y: number; z: number };
+  };
+}
+
 export interface SendCommandMessage extends WSMessage {
   type: 'send_command';
   payload: {
@@ -213,6 +235,26 @@ export interface ClearContextMessage extends WSMessage {
   payload: {
     agentId: string;
   };
+}
+
+// ── browser bridge (server ⇄ extension live-page commands) ──
+// The extension side panel registers its WebSocket as able to run browser
+// commands (DOM / console / network / screenshot reads in the user's live,
+// logged-in session). One register per open panel.
+export interface BrowserRegisterMessage extends WSMessage {
+  type: 'browser_register';
+  payload: { origin?: string };
+}
+// The extension returns the result of a relayed browser command, correlated to
+// the originating request by reqId.
+export interface BrowserResultMessage extends WSMessage {
+  type: 'browser_result';
+  payload: { reqId: string; ok: boolean; result?: unknown; error?: string };
+}
+// Server → extension: run a command in the live page (reqId for correlation).
+export interface BrowserCommandMessage extends WSMessage {
+  type: 'browser_command';
+  payload: { reqId: string; cmd: string; args?: Record<string, unknown> };
 }
 
 // Restore a previous session for an agent
@@ -1596,16 +1638,21 @@ export type ServerMessage =
   | WorkflowCompletedMessage
   | WorkflowErrorMessage
   | CompactingStatusMessage
-  | SessionHistoryMessage;
+  | SessionHistoryMessage
+  | BrowserCommandMessage;
 
 export type ClientMessage =
   | SpawnAgentMessage
+  | CloneAgentMessage
+  | ForkAgentMessage
   | SendCommandMessage
   | ReattachAgentMessage
   | MoveAgentMessage
   | KillAgentMessage
   | StopAgentMessage
   | ClearContextMessage
+  | BrowserRegisterMessage
+  | BrowserResultMessage
   | RestoreSessionMessage
   | RequestSessionHistoryMessage
   | CollapseContextMessage

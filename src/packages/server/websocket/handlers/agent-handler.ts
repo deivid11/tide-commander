@@ -8,6 +8,7 @@ import { spawn } from 'child_process';
 import type { Agent, AgentProvider, CodexConfig, ContextStats } from '../../../shared/types.js';
 import { CLAUDE_MODELS as CLAUDE_MODEL_METADATA } from '../../../shared/agent-types.js';
 import { agentService, runtimeService, skillService, customClassService, bossService, permissionService } from '../../services/index.js';
+import { markInstructionsDirty } from '../../services/instruction-refresh.js';
 import { createLogger } from '../../utils/index.js';
 import { ClaudeBackend, parseContextOutput } from '../../claude/backend.js';
 import type { HandlerContext } from './types.js';
@@ -146,6 +147,157 @@ export async function handleSpawnAgent(
     } else {
       ctx.sendError(err.message);
     }
+  }
+}
+
+/**
+ * Shared core for clone/fork: duplicate a source agent's configuration into a
+ * brand-new agent (new id, copied config + skills). Does NOT touch sessions —
+ * the caller decides whether to start fresh (clone) or fork the source session.
+ */
+async function duplicateAgentConfig(
+  source: Agent,
+  name: string,
+  position: { x: number; y: number; z: number }
+): Promise<Agent> {
+  // Copy only directly-assigned skills; class-default skills are re-applied
+  // automatically below based on the new agent's class.
+  const directSkillIds = skillService
+    .getAllSkills()
+    .filter((skill) => skill.assignedAgentIds.includes(source.id))
+    .map((skill) => skill.id);
+
+  const agent = await agentService.createAgent(
+    name,
+    source.class,
+    source.cwd,
+    position,
+    undefined, // sessionId - never share the source's; clone=fresh, fork=set below
+    source.useChrome,
+    source.permissionMode,
+    undefined, // initialSkillIds handled separately below
+    source.isBoss,
+    source.model,
+    source.codexModel,
+    source.customInstructions,
+    source.provider,
+    source.codexConfig,
+    source.effort,
+    source.opencodeModel
+  );
+
+  // Re-apply skills: copied direct assignments + class defaults.
+  const classDefaultSkills = customClassService.getClassDefaultSkillIds(agent.class);
+  const allSkillIds = [...new Set([...directSkillIds, ...classDefaultSkills])];
+  for (const skillId of allSkillIds) {
+    skillService.assignSkillToAgent(skillId, agent.id);
+  }
+
+  return agent;
+}
+
+// Offset a duplicate so it doesn't overlap the source on the battlefield.
+function duplicateOffset(source: Agent): { x: number; y: number; z: number } {
+  return { x: source.position.x + 2, y: 0, z: source.position.z + 2 };
+}
+
+// Providers whose conversation history can be forked (resume + native fork flag).
+// Codex is intentionally excluded for now (no headless fork; would need rollout
+// duplication) — forking a Codex agent gracefully degrades to a plain clone.
+const FORKABLE_PROVIDERS: ReadonlySet<AgentProvider> = new Set(['claude', 'opencode']);
+
+/**
+ * Handle clone_agent message - duplicates an existing agent's configuration
+ * into a brand-new agent (fresh session, no inherited context/memory).
+ */
+export async function handleCloneAgent(
+  ctx: HandlerContext,
+  payload: {
+    sourceAgentId: string;
+    name?: string;
+    position?: { x: number; y: number; z: number };
+  }
+): Promise<void> {
+  const source = agentService.getAgent(payload.sourceAgentId);
+  if (!source) {
+    log.error(`Cannot clone: source agent ${payload.sourceAgentId} not found`);
+    ctx.sendError(`Agent ${payload.sourceAgentId} not found`);
+    return;
+  }
+
+  const name = payload.name?.trim() || `${source.name} (Copy)`;
+  const position = payload.position ?? duplicateOffset(source);
+
+  log.log(`Cloning agent ${source.name} (${source.id}) -> ${name}`);
+
+  try {
+    const agent = await duplicateAgentConfig(source, name, position);
+    log.log(`Agent cloned successfully: ${agent.name} (${agent.id})`);
+
+    ctx.broadcast({ type: 'agent_created', payload: agent });
+    ctx.sendActivity(agent.id, `${agent.name} cloned from ${source.name}`);
+  } catch (err: any) {
+    log.error('Failed to clone agent:', err);
+    ctx.sendError(err.message);
+  }
+}
+
+/**
+ * Handle fork_agent message - like clone, but the new agent also CONTINUES the
+ * source's conversation history. On the new agent's first run the backend
+ * resumes the source session and forks it into a fresh one (Claude
+ * --fork-session / OpenCode --fork); the new session id is then captured and
+ * forkSourceSessionId is cleared. If the source has no session or its provider
+ * isn't forkable (e.g. Codex), this degrades to a plain clone (fresh session).
+ */
+export async function handleForkAgent(
+  ctx: HandlerContext,
+  payload: {
+    sourceAgentId: string;
+    name?: string;
+    position?: { x: number; y: number; z: number };
+  }
+): Promise<void> {
+  const source = agentService.getAgent(payload.sourceAgentId);
+  if (!source) {
+    log.error(`Cannot fork: source agent ${payload.sourceAgentId} not found`);
+    ctx.sendError(`Agent ${payload.sourceAgentId} not found`);
+    return;
+  }
+
+  const provider = source.provider ?? 'claude';
+  const canForkHistory = !!source.sessionId && FORKABLE_PROVIDERS.has(provider);
+  const name = payload.name?.trim() || `${source.name} (Fork)`;
+  const position = payload.position ?? duplicateOffset(source);
+
+  log.log(`Forking agent ${source.name} (${source.id}) -> ${name} (history: ${canForkHistory ? 'yes' : 'no'})`);
+
+  try {
+    const agent = await duplicateAgentConfig(source, name, position);
+
+    if (canForkHistory) {
+      // Mark the source session so the new agent's first run forks it. Also flag
+      // instructions dirty so that first turn re-injects THIS agent's identity
+      // (new id/notify token) + skills — the forked history carries the source's.
+      agentService.updateAgent(agent.id, { forkSourceSessionId: source.sessionId });
+      markInstructionsDirty(agent.id);
+    }
+
+    log.log(`Agent forked successfully: ${agent.name} (${agent.id})`);
+
+    ctx.broadcast({ type: 'agent_created', payload: agent });
+    const fallbackReason = !source.sessionId
+      ? 'source has no conversation yet'
+      : `history fork not supported for ${provider}`;
+    ctx.sendActivity(
+      agent.id,
+      canForkHistory
+        ? `${agent.name} forked from ${source.name} (continues its conversation)`
+        : `${agent.name} cloned from ${source.name} (${fallbackReason})`
+    );
+  } catch (err: any) {
+    log.error('Failed to fork agent:', err);
+    ctx.sendError(err.message);
   }
 }
 
@@ -850,6 +1002,10 @@ export async function handleUpdateAgentProperties(
       cwd?: string;
       shortcut?: string;
       customInstructions?: string;
+      customPrompt?: string;
+      autoCollapse?: boolean;
+      autoCollapseCron?: string;
+      autoCollapseTz?: string;
     };
   }
 ): Promise<void> {
@@ -975,6 +1131,22 @@ export async function handleUpdateAgentProperties(
 
   if (updates.customInstructions !== undefined) {
     agentUpdates.customInstructions = updates.customInstructions || undefined;
+  }
+
+  if (updates.customPrompt !== undefined) {
+    agentUpdates.customPrompt = updates.customPrompt || undefined;
+  }
+
+  if (updates.autoCollapse !== undefined) {
+    agentUpdates.autoCollapse = updates.autoCollapse;
+  }
+
+  if (updates.autoCollapseCron !== undefined) {
+    agentUpdates.autoCollapseCron = updates.autoCollapseCron || undefined;
+  }
+
+  if (updates.autoCollapseTz !== undefined) {
+    agentUpdates.autoCollapseTz = updates.autoCollapseTz || undefined;
   }
 
   // Apply agent property updates if any

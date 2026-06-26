@@ -74,6 +74,9 @@ export interface AgentActions {
 
   // Pinning (quick-select thumbnail bar)
   togglePinnedAgent(agentId: string): void;
+  /** Reorder a pinned agent: move `agentId` next to `targetId` (before it, or
+   * after it when `placeAfter`). No-op if either id isn't pinned. */
+  reorderPinnedAgent(agentId: string, targetId: string, placeAfter?: boolean): void;
 
   // Commands
   spawnAgent(
@@ -92,6 +95,16 @@ export interface AgentActions {
     customInstructions?: string,
     effort?: ClaudeEffort,
     opencodeModel?: string
+  ): void;
+  cloneAgent(
+    sourceAgentId: string,
+    name?: string,
+    position?: { x: number; z: number }
+  ): void;
+  forkAgent(
+    sourceAgentId: string,
+    name?: string,
+    position?: { x: number; z: number }
   ): void;
   createDirectoryAndSpawn(path: string, name: string, agentClass: AgentClass): void;
   sendCommand(agentId: string, command: string): void;
@@ -124,6 +137,10 @@ export interface AgentActions {
       cwd?: string;
       shortcut?: string;
       customInstructions?: string;
+      customPrompt?: string;
+      autoCollapse?: boolean;
+      autoCollapseCron?: string;
+      autoCollapseTz?: string;
     }
   ): void;
 
@@ -390,6 +407,23 @@ export function createAgentActions(
       notify();
     },
 
+    reorderPinnedAgent(agentId: string, targetId: string, placeAfter = false): void {
+      if (!agentId || agentId === targetId) return;
+      setState((state) => {
+        const ids = state.pinnedAgentIds.slice();
+        const from = ids.indexOf(agentId);
+        if (from < 0) return;
+        ids.splice(from, 1);
+        let to = ids.indexOf(targetId);
+        if (to < 0) to = ids.length; // unknown target → append
+        else if (placeAfter) to += 1;
+        ids.splice(to, 0, agentId);
+        state.pinnedAgentIds = ids;
+      });
+      if (savePinnedAgents) savePinnedAgents();
+      notify();
+    },
+
     spawnAgent(
       name: string,
       agentClass: AgentClass,
@@ -455,6 +489,56 @@ export function createAgentActions(
 
       sendMessage(message);
       logAgentStore('[Store] Message sent to WebSocket');
+    },
+
+    cloneAgent(
+      sourceAgentId: string,
+      name?: string,
+      position?: { x: number; z: number }
+    ): void {
+      const pos3d = position ? { x: position.x, y: 0, z: position.z } : undefined;
+      const message = {
+        type: 'clone_agent' as const,
+        payload: {
+          sourceAgentId,
+          name,
+          position: pos3d,
+        },
+      };
+
+      const sendMessage = getSendMessage();
+      if (!sendMessage) {
+        console.error('[Store] sendMessage is not defined! WebSocket may not be connected');
+        return;
+      }
+
+      sendMessage(message);
+      logAgentStore('[Store] clone_agent message sent to WebSocket');
+    },
+
+    forkAgent(
+      sourceAgentId: string,
+      name?: string,
+      position?: { x: number; z: number }
+    ): void {
+      const pos3d = position ? { x: position.x, y: 0, z: position.z } : undefined;
+      const message = {
+        type: 'fork_agent' as const,
+        payload: {
+          sourceAgentId,
+          name,
+          position: pos3d,
+        },
+      };
+
+      const sendMessage = getSendMessage();
+      if (!sendMessage) {
+        console.error('[Store] sendMessage is not defined! WebSocket may not be connected');
+        return;
+      }
+
+      sendMessage(message);
+      logAgentStore('[Store] fork_agent message sent to WebSocket');
     },
 
     createDirectoryAndSpawn(path: string, name: string, agentClass: AgentClass): void {
@@ -706,6 +790,10 @@ export function createAgentActions(
         cwd?: string;
         shortcut?: string;
         customInstructions?: string;
+        customPrompt?: string;
+        autoCollapse?: boolean;
+        autoCollapseCron?: string;
+        autoCollapseTz?: string;
       }
     ): void {
       const state = getState();
@@ -749,6 +837,18 @@ export function createAgentActions(
           if (updates.customInstructions !== undefined) {
             updatedAgent.customInstructions = updates.customInstructions || undefined;
           }
+          if (updates.customPrompt !== undefined) {
+            updatedAgent.customPrompt = updates.customPrompt || undefined;
+          }
+          if (updates.autoCollapse !== undefined) {
+            updatedAgent.autoCollapse = updates.autoCollapse;
+          }
+          if (updates.autoCollapseCron !== undefined) {
+            updatedAgent.autoCollapseCron = updates.autoCollapseCron || undefined;
+          }
+          if (updates.autoCollapseTz !== undefined) {
+            updatedAgent.autoCollapseTz = updates.autoCollapseTz || undefined;
+          }
           const newAgents = new Map(s.agents);
           newAgents.set(agentId, updatedAgent);
           s.agents = newAgents;
@@ -778,6 +878,30 @@ export function createAgentActions(
           body: JSON.stringify({ customInstructions: updates.customInstructions || null }),
         }).catch((error) => {
           console.error('[Store] Failed to persist agent customInstructions', error);
+        });
+      }
+
+      if (updates.customPrompt !== undefined) {
+        authFetch(apiUrl(`/api/agents/${agentId}`), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customPrompt: updates.customPrompt || null }),
+        }).catch((error) => {
+          console.error('[Store] Failed to persist agent customPrompt', error);
+        });
+      }
+
+      if (updates.autoCollapse !== undefined || updates.autoCollapseCron !== undefined || updates.autoCollapseTz !== undefined) {
+        const body: Record<string, unknown> = {};
+        if (updates.autoCollapse !== undefined) body.autoCollapse = updates.autoCollapse;
+        if (updates.autoCollapseCron !== undefined) body.autoCollapseCron = updates.autoCollapseCron || null;
+        if (updates.autoCollapseTz !== undefined) body.autoCollapseTz = updates.autoCollapseTz || null;
+        authFetch(apiUrl(`/api/agents/${agentId}`), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }).catch((error) => {
+          console.error('[Store] Failed to persist agent auto-collapse config', error);
         });
       }
     },

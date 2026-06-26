@@ -516,9 +516,15 @@
   align-items: center;
   gap: 6px;
 
-  // On mobile, move up slightly to clear the context bar
+  // On mobile the pinned-agents bar + context bar sit directly above the input,
+  // so floating the stop bar up collides with them (it landed on the pinned
+  // chips). Drop it into normal flow as its own centered row instead — it
+  // renders between the context bar and the input, so nothing overlaps.
   @media (max-width: 768px) {
-    top: -20px;
+    position: static;
+    transform: none;
+    justify-content: center;
+    margin: 3px 0 4px;
   }
 }
 
@@ -555,6 +561,15 @@
   border: 1px solid rgba($dracula-green, 0.5);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
   animation: elapsed-fade 4s ease-out forwards;
+
+  // Same as the stop bar: in normal flow on mobile so it never floats onto the
+  // pinned-agents / context bars above the input.
+  @media (max-width: 768px) {
+    position: static;
+    transform: none;
+    width: fit-content;
+    margin: 3px auto 4px;
+  }
 }
 
 @keyframes elapsed-fade {
@@ -679,7 +694,21 @@
     touch-action: pan-x;
     transition: opacity 95ms ease, filter 95ms ease;
     will-change: opacity, filter;
+    // Lay the pre-input strip out as a wrapping row so the context bar and the
+    // timer/Stop share ONE line (each was its own near-empty row before); the
+    // input is forced onto the next line at full width.
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 8px;
   }
+  // Context bar takes the remaining width (shrinks/clips when the timer is
+  // present); timer + completion badge sit inline on its right.
+  .mobile-context-bar.show-on-mobile { flex: 1 1 auto; min-width: 0; justify-content: center; }
+  .guake-stop-bar { flex: 0 0 auto; margin: 0; }
+  .guake-completion-time { flex: 0 0 auto; margin: 0; }
+  // The input always gets its own full-width line below the strip.
+  .guake-input { flex: 0 0 100%; }
 
   .guake-input-swipe-shell.swipe-close-ready {
     opacity: 0.96;
@@ -697,6 +726,10 @@
 // =============================================================================
 .pinned-agents-bar {
   display: flex;
+  // Never shrink below the chips' height — as a flex item in the height-
+  // constrained terminal column it would otherwise compress and `overflow-y:
+  // hidden` would clip the icons at the top.
+  flex: none;
   align-items: center;
   gap: 8px;
   // Generous vertical padding gives the chips breathing room between the chat
@@ -721,7 +754,7 @@
   gap: 6px;
   flex: none;
   max-width: 150px;
-  padding: 4px 10px 4px 5px;
+  padding: 3px 8px 3px 5px;
   border: 1px solid rgba($dracula-comment, 0.45);
   border-radius: 8px;
   background: rgba($dracula-current, 0.5);
@@ -737,9 +770,51 @@
   }
 
   &.active {
-    border-color: var(--accent-cyan);
-    background: color-mix(in srgb, var(--accent-cyan) 16%, rgba($dracula-current, 0.5));
-    color: $dracula-cyan;
+    // Selected = ONLY a bluish border. The background (area tint or default) is
+    // left completely untouched.
+    border-color: var(--accent-blue, #5b9dff);
+  }
+
+  // Area-tinted background (--area-color set inline per agent).
+  &.has-area {
+    background: color-mix(in srgb, var(--area-color) 20%, rgba($dracula-current, 0.5));
+  }
+
+  // Drag-to-reorder: dim the chip being dragged and draw a vertical accent caret
+  // on the edge of the chip the drop would land next to.
+  &[draggable='true'] { cursor: grab; }
+  // Keep the whole chip the single drag source: a native <img> avatar (custom
+  // class icons) is draggable by default and would otherwise hijack the drag.
+  .pinned-agent-av,
+  .pinned-agent-av img {
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+  &.dragging {
+    opacity: 0.4;
+    cursor: grabbing;
+    animation: none; // freeze the working glow while dragging (extension parity)
+  }
+  &.drop-before::before,
+  &.drop-after::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--accent-cyan);
+    box-shadow: 0 0 6px var(--accent-cyan);
+  }
+  &.drop-before::before { left: -5px; }
+  &.drop-after::after { right: -5px; }
+
+  // Working chips: green border + soft pulsing ring only — NO green fill, so it
+  // never stacks onto the agent's area tint or the selected state (that combo
+  // read as a heavy green wash). The border + ring convey "working" cleanly.
+  &.working {
+    border-color: $dracula-green;
+    animation: pinned-agent-glow 1.6s ease-in-out infinite;
   }
 
   &.working .pinned-agent-av {
@@ -771,16 +846,6 @@
     border-radius: 5px;
     object-fit: cover;
   }
-}
-
-.pinned-agent-status {
-  position: absolute;
-  right: -2px;
-  bottom: -2px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  border: 1px solid rgba($dracula-bg, 0.9);
 }
 
 .pinned-agent-name {
@@ -817,6 +882,44 @@
   display: flex;
 }
 
+// On mobile (touch), pinned agents are shown icon-only and CANNOT be unpinned by
+// tapping a chip — removal is only via the input-area pin button. This keeps a tap
+// reserved for switching agents (no accidental unpin) and saves horizontal space.
+@media (max-width: 768px) {
+  // The × badge is hidden on mobile, so drop the tall padding that reserved room
+  // for it and keep comfortable side padding so the chips aren't flush to the edge.
+  // Tight vertical footprint: minimal top/bottom padding on both the bar and the
+  // chips (kept a little horizontal inset so icons aren't flush / touching). No
+  // fill/divider — the empty space to the right of the chips stays transparent.
+  // ONE rounded background bar, sized to the pins (align-self: flex-start =>
+  // content width, NOT full width), floating over the bottom of the chat (the
+  // negative margin pulls it up so the conversation shows on either side of it).
+  .pinned-agents-bar {
+    align-self: flex-start;
+    max-width: 100%;
+    gap: 6px; padding: 4px 8px;
+    background: $bg-tertiary;
+    border-top: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+    position: relative; z-index: 5; margin-top: -30px;
+  }
+  // Chips are just icons sitting ON the bar — transparent, no per-chip box.
+  // !important beats the &.has-area / &.active / &.sel backgrounds + borders.
+  .pinned-agent {
+    max-width: none; gap: 0; padding: 2px;
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+  }
+  // Keep an active indicator: a soft accent fill on the open agent's icon.
+  .pinned-agent.active { background: color-mix(in srgb, var(--accent-blue, #5b9dff) 28%, transparent) !important; }
+  .pinned-agent-av { width: 20px; height: 20px; }
+  .pinned-agent-name { display: none; }
+  .pinned-agent-unpin,
+  .pinned-agent:hover .pinned-agent-unpin { display: none; }
+}
+
 @keyframes pinned-agent-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.55; }
@@ -825,4 +928,16 @@
 @keyframes pinned-agent-ring {
   0% { transform: scale(0.85); opacity: 0.55; }
   100% { transform: scale(1.35); opacity: 0; }
+}
+
+// Subtle green ring that pulses around a working chip — a thin border-hug plus a
+// faint, tight halo (kept small so it never reads as a green background wash).
+@keyframes pinned-agent-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 1px color-mix(in srgb, $dracula-green 25%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 1px color-mix(in srgb, $dracula-green 55%, transparent),
+                0 0 7px -4px color-mix(in srgb, $dracula-green 55%, transparent);
+  }
 }

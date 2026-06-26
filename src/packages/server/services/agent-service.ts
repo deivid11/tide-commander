@@ -684,16 +684,22 @@ export async function getAgentHistory(
   log.log(` getAgentHistory called for agentId=${agentId}, agent found: ${!!agent}`);
   if (!agent) return null;
 
-  log.log(` Agent ${agent.name} (${agentId}): sessionId=${agent.sessionId}, cwd=${agent.cwd}`);
+  // A freshly-forked agent has no session of its own yet. Until its first run
+  // forks the source session (Claude --fork-session / OpenCode --fork), show the
+  // SOURCE session's transcript so the inherited conversation is visible
+  // immediately. Once the fork's own sessionId is captured it takes over (and
+  // its copied transcript contains the same history plus any new turns).
+  const effectiveSessionId = agent.sessionId || agent.forkSourceSessionId;
+  log.log(` Agent ${agent.name} (${agentId}): sessionId=${agent.sessionId}, forkSource=${agent.forkSourceSessionId}, cwd=${agent.cwd}`);
 
-  if (!agent.sessionId) {
+  if (!effectiveSessionId) {
     log.log(` No sessionId for agent ${agentId}, returning empty`);
     return { messages: [], sessionId: null, totalCount: 0, hasMore: false, subagents: [] as SubagentHistoryEntry[] };
   }
 
-  const history = await loadSession(agent.cwd, agent.sessionId, limit, offset);
+  const history = await loadSession(agent.cwd, effectiveSessionId, limit, offset);
   const messages = history?.messages || [];
-  log.log(` Loaded ${messages.length} messages for agent ${agentId} from session ${agent.sessionId}`);
+  log.log(` Loaded ${messages.length} messages for agent ${agentId} from session ${effectiveSessionId}`);
 
   // Load subagent history if requested
   let subagents: SubagentHistoryEntry[] = [];
@@ -709,12 +715,12 @@ export async function getAgentHistory(
     if (toolUseIdsInPage.size > 0) {
       try {
         // We need all messages for correlation (not just the page), so load full session
-        const fullHistory = await loadSession(agent.cwd, agent.sessionId, 10000, 0);
+        const fullHistory = await loadSession(agent.cwd, effectiveSessionId, 10000, 0);
         const allMessages = fullHistory?.messages || messages;
 
         subagents = await loadSubagentHistory(
           agent.cwd,
-          agent.sessionId,
+          effectiveSessionId,
           allMessages,
           toolUseIdsInPage,
           subagentEntriesLimit
@@ -727,7 +733,7 @@ export async function getAgentHistory(
   }
 
   return {
-    sessionId: agent.sessionId,
+    sessionId: effectiveSessionId,
     messages,
     cwd: agent.cwd,
     totalCount: history?.totalCount || 0,

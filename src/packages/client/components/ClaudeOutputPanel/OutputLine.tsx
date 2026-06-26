@@ -15,6 +15,7 @@ import { parseEmailMessage, GmailMessageBubble } from './GmailMessageBubble';
 import { parseSlackMessage, SlackMessageBubble } from './SlackMessageBubble';
 import { DelegationMessageCard, parseDelegationMessage } from './DelegationMessageCard';
 import { AgentChatMessageCard, parseAgentChatMessage } from './AgentChatMessageCard';
+import { parseExtensionContext, ExtensionContextCard } from './ExtensionContextCard';
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, AskQuestionResult, ExitPlanModeInput, UnknownToolInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, MemoryOpInput, isToolSearchContent } from './ToolRenderers';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
@@ -439,6 +440,18 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               {renderUserPromptContent(subagentNotif.contentWithoutNotification, onImageClick, onFileClick)}
             </span>
           )}
+        </div>
+      );
+    }
+
+    // Browser-extension context blocks (picked element / network / error /
+    // attached files) → pretty cards, mirroring the extension's renderers.
+    const extCtx = parseExtensionContext(userMessage);
+    if (extCtx) {
+      return (
+        <div className="output-line output-user output-user-ext-ctx">
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          <ExtensionContextCard ctx={extCtx} onImageClick={onImageClick} />
         </div>
       );
     }

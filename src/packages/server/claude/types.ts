@@ -81,6 +81,9 @@ export interface CustomAgentDefinition {
 export interface BackendConfig {
   agentId?: string;  // Used for prompt file naming
   sessionId?: string;
+  // Fork the resumed session into a NEW one on this run (Claude --fork-session /
+  // OpenCode --fork). Used for the first run of a forked agent. Requires sessionId.
+  forkSession?: boolean;
   model?: string;
   effort?: string;  // Reasoning effort level (low, medium, high, xHigh, max)
   workingDir: string;
@@ -226,6 +229,7 @@ export interface RunnerRequest {
   permissionMode?: 'bypass' | 'interactive';
   systemPrompt?: string;
   forceNewSession?: boolean;  // Don't resume existing session (for boss team questions)
+  forkSession?: boolean;  // Fork the resumed session into a new one (first run of a forked agent)
   // Custom agent configuration (for custom class instructions)
   customAgent?: {
     name: string;

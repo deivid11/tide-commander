@@ -132,6 +132,41 @@
   }
 }
 
+// Per-agent picker at the top of the modal body
+.agent-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  .agent-picker-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .agent-picker-icon {
+    flex-shrink: 0;
+  }
+
+  .agent-picker-select {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1px solid $border-color;
+    border-radius: $radius-sm;
+    background: $bg-tertiary;
+    color: $text-primary;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    outline: none;
+    transition: all $transition-fast;
+
+    &:focus {
+      border-color: $accent-blue;
+    }
+  }
+}
+
 .editor-wrapper {
   display: flex;
   flex-direction: column;

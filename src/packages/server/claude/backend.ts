@@ -15,7 +15,7 @@ import type {
 } from './types.js';
 import { createLogger, sanitizeUnicode } from '../utils/index.js';
 import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
-import { getSystemPrompt, isEchoPromptEnabled } from '../services/system-prompt-service.js';
+import { isEchoPromptEnabled } from '../services/system-prompt-service.js';
 import { loadAreas } from '../data/index.js';
 import { getAgent } from '../services/agent-service.js';
 
@@ -88,12 +88,17 @@ export function buildAppendedProjectInstructions(config: BackendConfig): string 
     TIDE_COMMANDER_APPENDED_PROMPT,
   ];
 
-  const systemLevelPrompt = getSystemPrompt().trim();
-  if (systemLevelPrompt) {
-    sections.push(
-      '## System-Level Custom Prompt',
-      systemLevelPrompt
-    );
+  // Per-agent custom system prompt (replaces the former global one). Scoped to
+  // this specific agent and edited from Settings → System Prompt.
+  if (config.agentId) {
+    const agent = getAgent(config.agentId);
+    const agentCustomPrompt = agent?.customPrompt?.trim();
+    if (agentCustomPrompt) {
+      sections.push(
+        '## System-Level Custom Prompt',
+        agentCustomPrompt
+      );
+    }
   }
 
   // Area-level prompt (per-area instructions for agents assigned to this area)
@@ -164,6 +169,11 @@ export class ClaudeBackend implements CLIBackend {
     // Resume existing session if available
     if (config.sessionId) {
       args.push('--resume', config.sessionId);
+      // Fork the resumed session into a fresh one (first run of a forked agent):
+      // Claude assigns a NEW session id, leaving the source transcript untouched.
+      if (config.forkSession) {
+        args.push('--fork-session');
+      }
     }
 
     // Permission mode - bypass for autonomous agents, interactive uses hooks

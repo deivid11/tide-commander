@@ -18,9 +18,14 @@ import { SPOTLIGHT_TABS } from './types';
 import { getFileIconFromPath, getRecentAgentTimes, recordRecentAgent, agentRecency } from './utils';
 import { Icon, type IconName } from '../Icon';
 import { AgentIcon } from '../AgentIcon';
+import { searchFolders, type FolderSearchResult } from '../../api/folders';
 
 // Category display order - must match SpotlightResults rendering
-const categoryOrder = ['command', 'agent', 'building', 'area', 'modified-file'];
+const categoryOrder = ['command', 'agent', 'building', 'area', 'folder', 'modified-file'];
+
+// Minimum query length before hitting the folder-search endpoint (matches the
+// server's MIN_QUERY — folders are never shown for the empty/recent view).
+const FOLDER_MIN_QUERY = 2;
 
 // Load the persisted tab, falling back to 'all' for unknown/legacy values.
 function loadPersistedTab(): SpotlightTab {
@@ -90,6 +95,8 @@ export function useSpotlightSearch({
   const [selectedIndex, setSelectedIndex] = useState(0);
   // Last-used tab restored from localStorage so reopening starts where the user left off.
   const [activeTab, setActiveTabState] = useState<SpotlightTab>(loadPersistedTab);
+  // Folder/git-repo results fetched from the server (debounced, query-gated).
+  const [folderData, setFolderData] = useState<FolderSearchResult[]>([]);
 
   // Persisting query setter so the last search is remembered across opens.
   const setQuery = useCallback((value: string) => {
@@ -105,6 +112,35 @@ export function useSpotlightSearch({
       setSelectedIndex(0);
     }
   }, [isOpen]);
+
+  // Debounced folder/git-repo search. Gated on a non-empty query (enumerating
+  // every folder on an empty query would be huge) and only while open. The
+  // server bounds depth/results, so this stays cheap.
+  useEffect(() => {
+    if (!isOpen) {
+      setFolderData([]);
+      return;
+    }
+    const q = query.trim();
+    if (q.length < FOLDER_MIN_QUERY) {
+      setFolderData([]);
+      return;
+    }
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      searchFolders(q)
+        .then((folders) => {
+          if (!cancelled) setFolderData(folders);
+        })
+        .catch(() => {
+          if (!cancelled) setFolderData([]);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [isOpen, query]);
 
   // Persisting tab setter. Used by the tab bar and Tab-key cycling.
   const setActiveTab = useCallback((tab: SpotlightTab) => {
@@ -468,6 +504,34 @@ export function useSpotlightSearch({
     return results;
   }, [isOpen, fileChanges]);
 
+  // Build folder/git-repo results from the debounced server fetch. The list is
+  // already query-filtered + ranked server-side, so it needs no Fuse instance.
+  const folderResults: SearchResult[] = useMemo(() => {
+    if (!isOpen) return [];
+
+    return folderData.map((folder) => {
+      const subtitle = folder.isGitRepo && folder.gitBranch
+        ? `${folder.path} • ${folder.gitBranch}`
+        : folder.path;
+      return {
+        id: `folder-${folder.path}`,
+        type: 'folder' as const,
+        title: folder.name,
+        subtitle,
+        matchedText: folder.path,
+        icon: <Icon name={folder.isGitRepo ? 'git-branch' : 'folder'} size={16} />,
+        _searchText: `${folder.name} ${folder.path}`,
+        _isGitRepo: folder.isGitRepo,
+        _gitBranch: folder.gitBranch,
+        action: () => {
+          onCloseRef.current();
+          // Open the File Explorer panel rooted at this folder (direct-folder mode).
+          store.openFileExplorer(folder.path);
+        },
+      };
+    });
+  }, [isOpen, folderData]);
+
   // Create Fuse instances for fuzzy search
   const agentFuse = useMemo(
     () =>
@@ -569,6 +633,8 @@ export function useSpotlightSearch({
     const matchedCommands = commandFuse.search(query).slice(0, 3);
     const matchedAreas = areaFuse.search(query).slice(0, 2);
     const matchedModifiedFiles = modifiedFileFuse.search(query).slice(0, 3);
+    // Folders are already query-filtered + ranked server-side (no Fuse needed).
+    const matchedFolders = folderResults.slice(0, 8);
     const matchedBuildings = buildingFuse
       .search(query)
       .filter((r) => {
@@ -588,8 +654,9 @@ export function useSpotlightSearch({
     // Per-entity base weight — agents biased highest. Deliberately small so it
     // can only break ties WITHIN a match-quality tier, never jump across tiers.
     const TYPE_WEIGHT: Record<SearchResult['type'], number> = {
-      agent: 5,
-      building: 4,
+      agent: 6,
+      building: 5,
+      folder: 4,
       command: 3,
       area: 2,
       'modified-file': 1,
@@ -667,6 +734,7 @@ export function useSpotlightSearch({
     for (const r of matchedCommands) pushScored(r.item, r.score);
     for (const r of matchedAreas) pushScored(r.item, r.score);
     for (const r of matchedModifiedFiles) pushScored(r.item, r.score);
+    for (const item of matchedFolders) pushScored(item, undefined);
 
     // Sort WITHIN each category. For AGENTS the user wants matching agents to
     // surface most-recently-USED first: relevance TIER stays the primary key
@@ -705,7 +773,7 @@ export function useSpotlightSearch({
       });
 
     return finalResults;
-  }, [query, agentFuse, commandFuse, areaFuse, modifiedFileFuse, buildingFuse, commands, agentResults, areaResults, buildingResults, recentAgentTimes]);
+  }, [query, agentFuse, commandFuse, areaFuse, modifiedFileFuse, buildingFuse, commands, agentResults, areaResults, buildingResults, folderResults, recentAgentTimes]);
 
   // Filter the flat result list to the active tab. 'all' shows everything;
   // 'buildings'/'commands' filter by type; 'areas' is the flattened agent list
@@ -718,6 +786,8 @@ export function useSpotlightSearch({
         return allResults.filter((r) => r.type === 'building');
       case 'commands':
         return allResults.filter((r) => r.type === 'command');
+      case 'folders':
+        return allResults.filter((r) => r.type === 'folder');
       case 'areas':
         return areaSections.flatMap((s) => s.agents);
       case 'all':

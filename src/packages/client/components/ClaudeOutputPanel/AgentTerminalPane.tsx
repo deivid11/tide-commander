@@ -207,7 +207,11 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   const lastPrompts = useLastPrompts();
   const outputs = useAgentOutputs(agentId);
   const isCompacting = useAgentCompacting(agentId);
-  const hasSessionId = !!agent?.sessionId;
+  // A freshly-forked agent has no session of its own yet, but it should still
+  // show the inherited (source) conversation — the server's history endpoint
+  // falls back to forkSourceSessionId until the fork's first run establishes
+  // its own session. So treat a pending fork as having loadable history too.
+  const hasSessionId = !!(agent?.sessionId || agent?.forkSourceSessionId);
 
   // Exec tasks & subagents
   const execTasks = useExecTasks(agentId);

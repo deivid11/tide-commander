@@ -866,3 +866,109 @@
   top: 4px;
   right: 4px;
 }
+
+// =============================================================================
+// Specialized variant: /api/browser/<action> (agent ↔ browser bridge)
+// Compact one-line summary — icon · "Browser" · verb · target · detail · tab.
+// Click to expand the raw JSON body.
+// =============================================================================
+.curl-card.curl-card--browser {
+  border-left: 3px solid color-mix(in srgb, #7ee0a0 60%, transparent);
+
+  .curl-browser-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 8px;
+    min-height: 24px;
+    cursor: pointer;
+    min-width: 0;
+  }
+
+  &:not(.curl-card-expanded) .curl-browser-head {
+    cursor: pointer;
+  }
+
+  .curl-browser-icon {
+    flex-shrink: 0;
+    color: #7ee0a0;
+    line-height: 1;
+  }
+
+  .curl-browser-brand {
+    flex-shrink: 0;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: color-mix(in srgb, #7ee0a0 85%, var(--tool-use-text));
+  }
+
+  .curl-browser-verb {
+    flex-shrink: 0;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--tool-use-text);
+    padding: 1px 6px;
+    border-radius: $radius-sm;
+    background: color-mix(in srgb, #7ee0a0 16%, transparent);
+  }
+
+  .curl-browser-target {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: $font-mono;
+    font-size: 10.5px;
+    color: color-mix(in srgb, var(--accent-blue, #5b9dff) 85%, var(--tool-use-text));
+  }
+
+  .curl-browser-detail {
+    flex-shrink: 0;
+    font-size: 10.5px;
+    opacity: 0.85;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 40%;
+  }
+
+  .curl-browser-spacer {
+    flex: 1 1 auto;
+    min-width: 4px;
+  }
+
+  .curl-browser-badge--diff {
+    flex-shrink: 0;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #ffce6b;
+    border: 1px solid color-mix(in srgb, #ffce6b 50%, transparent);
+    border-radius: $radius-sm;
+    padding: 0 4px;
+    line-height: 14px;
+  }
+
+  .curl-browser-tab {
+    flex-shrink: 0;
+    font-family: $font-mono;
+    font-size: 9.5px;
+    opacity: 0.8;
+    padding: 0 4px;
+    border-radius: $radius-sm;
+    background: color-mix(in srgb, var(--tool-use-border) 40%, transparent);
+  }
+
+  .curl-expand-btn {
+    flex-shrink: 0;
+    margin-left: 2px;
+  }
+
+  .curl-body-row {
+    padding: 0 8px 8px;
+  }
+}

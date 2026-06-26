@@ -250,6 +250,10 @@ export interface Agent {
 
   // Claude Code session
   sessionId?: string;
+  // Set on a forked agent until its first run: the SOURCE session id to resume +
+  // fork from (Claude --fork-session / OpenCode --fork). Cleared once the fork's
+  // own new session id is captured. See handleForkAgent.
+  forkSourceSessionId?: string;
   cwd: string;
   useChrome?: boolean; // Start with --chrome flag
   permissionMode: PermissionMode; // How permissions are handled
@@ -303,6 +307,11 @@ export interface Agent {
   // Custom instructions appended to the agent's class system prompt
   customInstructions?: string;
 
+  // Per-agent custom system prompt (replaces the old global "System-Level Custom
+  // Prompt"). Edited from Settings → System Prompt, scoped to one agent, and
+  // injected by buildAppendedProjectInstructions() under "System-Level Custom Prompt".
+  customPrompt?: string;
+
   // Per-agent persistent memory — agent's own notes/lessons/preferences.
   // Maintained by the agent itself via /api/agents/:id/memory and injected
   // into the system prompt by buildAppendedProjectInstructions().
@@ -310,6 +319,13 @@ export interface Agent {
 
   // Global keyboard shortcut to open guake terminal for this agent (e.g. 'ctrl+1', 'alt+a')
   shortcut?: string;
+
+  // Auto-collapse: when enabled, the agent's context is collapsed (/compact runs,
+  // waiting for idle if busy) on a recurring cron schedule. Intended for unattended
+  // agents (slack channels, log-supervising cronjobs) whose context grows indefinitely.
+  autoCollapse?: boolean;          // Master enable/disable flag
+  autoCollapseCron?: string;       // 5-field cron expression, e.g. '0 3 * * *' (3am daily)
+  autoCollapseTz?: string;         // IANA timezone for the cron, e.g. 'America/Mexico_City'
 }
 
 // ============================================================================

@@ -2,6 +2,110 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.125.1] - 2026-06-25
+
+### Fixed
+- **Body-parser errors now surface a useful response** — when `express.json()` rejects a malformed body, the global error handler in `app.ts` now returns `400 {"error":"Invalid JSON body: <parser message>"}` instead of an opaque `500 {"error":"Internal server error"}`; oversized bodies return `413` with the size limit message. Lets agents debug "my curl payload is wrong" from the response alone, without tailing server logs.
+
+## [1.125.0] - 2026-06-25
+
+### Added
+- **Auto-collapse** — agents can now collapse (compact) their conversation context on a recurring cron schedule. Enable it per-agent in the Agent Edit modal with a 5-field cron expression and IANA timezone (presets: nightly 3am, every 6h, weekdays 2am). A new `auto-collapse-service.ts` arms one cron job per agent that runs the collapse (waiting for the agent to be idle if it's mid-task) — intended for unattended agents (Slack channels, log-supervising cronjobs) whose context grows indefinitely, so each day starts fresh. New `autoCollapse` / `autoCollapseCron` / `autoCollapseTz` fields on the agent model, persisted and plumbed through the `PATCH /api/agents/:id` route and the `update_agent_properties` WebSocket handler.
+
+## [1.124.0] - 2026-06-24
+
+### Added
+- **Folder/git-repo search in Spotlight** — new "Folders" tab in Spotlight searches discoverable directories and git repos by name; results show the active branch for git repos and open the File Explorer rooted at that path. Backed by `GET /api/folders/search` (depth/result-capped, ignores `node_modules`/`dist`/etc.).
+- **Agent fork** — "Fork Agent (with history)" context-menu action duplicates an agent's configuration and continues its conversation history (Claude/OpenCode providers); falls back to a plain clone for unsupported providers. `ForkAgentMessage` added to the WebSocket protocol.
+
+### Changed
+- Spotlight type weights rebalanced: agent → 6, building → 5, folder → 4, command → 3.
+- `agent-handler.ts` refactored: shared `duplicateAgentConfig` helper extracts clone/fork common logic.
+
+## [1.123.0] - 2026-06-23
+
+### Added
+- **Curl card rendering** — `CurlCard.tsx` and `curlParser.ts` parse and render curl commands from agent output as interactive cards; styled via `_curl-card.scss`.
+- **New keyboard shortcuts** — `useKeyboardShortcuts.ts` extended with additional bindings.
+- Browser extension `renderers.js` updated with new rendering support; `sidepanel.css` and `sidepanel.js` expanded.
+
+### Changed
+- `browser-control` skill updated with refined instructions.
+- `docs/browser-bridge.md` expanded with additional documentation.
+
+## [1.122.0] - 2026-06-23
+
+### Added
+- **`browser-control` built-in skill** — new skill gives agents a full API for reading and driving the live browser page (DOM, console, network, errors, screenshot, click, type, navigate, scroll) via the extension bridge.
+- **`instruction-refresh` service** — new server service for refreshing agent instructions at runtime.
+- **Browser bridge documentation** — `docs/browser-bridge.md` documents the full agent↔browser architecture.
+- Browser extension content script massively expanded (+827 lines) with full DOM interaction, network interception, and error capture support.
+
+### Changed
+- Codex and OpenCode backends updated with additional handling.
+- `browser.ts` routes extended with more endpoints.
+- `skill-service.ts` wired to serve the new browser-control skill.
+
+## [1.121.0] - 2026-06-22
+
+### Added
+- **Browser bridge: real-session control via `chrome.debugger`** — extension now uses the `debugger` permission to drive the user's actual Chrome session (click, type, navigate, scroll) without needing `--remote-debugging-port`. Chrome 136+ blocks the port approach on the default profile; this resolves that. CDP/puppeteer path kept as `/cdp/*` fallback for throwaway browser instances.
+- **New browser bridge API routes** — `browser.ts` expanded with additional `/api/browser/*` endpoints for DOM read, console, network, errors, page info, and screenshot capture.
+- **Extended WebSocket handler** — `handler.ts` updated to route browser events from the extension relay to agents.
+
+### Changed
+- Browser extension (`background.js`, `content.js`, `sidepanel.js`, `sidepanel.css`, `options.js`, `options.html`) significantly updated to support the debugger-based control flow and improved sidepanel UI.
+
+## [1.120.3] - 2026-06-21
+
+### Changed
+- FlatView and guake terminal input style refinements (`FlatView.scss`, `_input.scss`).
+
+## [1.120.2] - 2026-06-20
+
+### Changed
+- Guake terminal input style refinements (`_input.scss`).
+
+## [1.120.1] - 2026-06-20
+
+### Fixed
+- **Mobile context bar** — `justify-content` changed to `center` so content is centered in the strip.
+- **Pinned agents bar** — added `flex: none` to prevent height compression in the constrained terminal column; tightened chip padding on mobile now that the × badge is hidden.
+
+## [1.120.0] - 2026-06-20
+
+### Added
+- **Agent↔browser bridge** — new `/api/browser/*` routes and `browser-bridge-service.ts` let agents read and drive the live browser page via the extension WebSocket relay (DOM, console, network, errors, screenshot) and CDP/puppeteer-core (click, type, navigate, scroll). Requires Chrome `--remote-debugging-port=9222`.
+- **CDP service** — `cdp-service.ts` wraps puppeteer-core for programmatic browser control.
+- **Browser WebSocket handler** — `browser-handler.ts` processes browser events forwarded by the extension over WebSocket.
+- New WebSocket message types in `websocket-messages.ts` for browser bridge events.
+- Browser extension (`background.js`, `content.js`, `sidepanel.js`) updated to support the bridge protocol.
+
+## [1.119.1] - 2026-06-20
+
+### Changed
+- `PinnedAgentsBar.tsx` layout refinements.
+- `_input.scss` guake terminal input style tweaks.
+
+## [1.119.0] - 2026-06-20
+
+### Added
+- **Per-agent system prompt** — `SystemPromptModal` migrated from global to per-agent (`agent.customPrompt`); includes an agent picker and updated styles in `system-prompt-modal.scss`.
+- **Plan limits tooltip** — new `PlanLimitsTooltip.tsx` component and `claude-usage-format.ts` utility surface Anthropic plan usage limits inline in FlatView.
+- **Tooltip SCSS** — new `_tooltip.scss` with shared tooltip styling.
+- **Browser extension major update** — sidepanel, background, renderers, options, and content scripts significantly expanded; new `package.sh` build script and `.gitignore`.
+- **Extension context cards** — new `ExtensionContextCard.tsx` component and `_extension-context-cards.scss` render browser extension context inline in `HistoryLine` and `OutputLine`.
+
+### Changed
+- `claude-usage-service.ts` expanded with additional usage data aggregation.
+- `browser-error-service.ts` updated with refined error handling.
+- `agent-types.ts` and `agent-handler.ts` extended for per-agent custom prompt support.
+- `PinnedAgentsBar.tsx` updated with layout improvements.
+- `ContextViewModal.tsx` and `FlatView/index.tsx` updated to integrate plan limits display.
+
+### Fixed
+- Removed invalid `// eslint-disable-next-line react-hooks/exhaustive-deps` comments in `SystemPromptModal.tsx` (plugin not in ESLint config).
+
 ## [1.118.1] - 2026-06-19
 
 ### Changed
