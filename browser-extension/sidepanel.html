@@ -94,6 +94,10 @@
     <div class="pinbar" id="pinbar" hidden title="Pinned agents — click a thumbnail to select"></div>
 
     <footer class="composer">
+      <!-- @-mention autocomplete — floats above the composer; populated from
+           GET /api/agents/:id/files. -->
+      <div class="file-mention" id="fileMention" role="listbox" hidden></div>
+
       <div class="composer-row">
         <textarea id="input" rows="2" placeholder="Message the agent…  (Enter to send, Shift+Enter for newline)"></textarea>
         <div class="composer-actions">

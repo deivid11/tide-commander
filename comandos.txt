@@ -1,0 +1,68 @@
+===========================================================
+  INSTALACIÓN Y AUTENTICACIÓN DE GITHUB CLI (gh)
+===========================================================
+
+PASO 1 — INSTALAR gh CLI
+--------------------------
+Ejecuta estos comandos en orden en tu terminal:
+
+  curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+
+  sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+
+  sudo apt-get update
+
+  sudo apt-get install gh -y
+
+Verifica la instalación con:
+  gh --version
+
+
+PASO 2 — AUTENTICARSE EN GITHUB
+----------------------------------
+Ejecuta:
+
+  gh auth login
+
+El comando es interactivo y te hará las siguientes preguntas:
+
+  1. "Where do you use GitHub?"
+     → Selecciona: GitHub.com
+
+  2. "What is your preferred protocol for Git operations?"
+     → Selecciona: HTTPS  (recomendado)
+        o SSH si prefieres usar llaves SSH
+
+  3. "Authenticate Git with your GitHub credentials?"
+     → Selecciona: Yes
+
+  4. "How would you like to authenticate GitHub CLI?"
+     → Selecciona: Login with a web browser
+        (abrirá tu navegador y pedirá que copies un código de un solo uso)
+
+     ALTERNATIVA: si prefieres un token personal:
+     → Selecciona: Paste an authentication token
+        Genera el token en: https://github.com/settings/tokens
+        Permisos mínimos necesarios: repo, read:org
+
+
+PASO 3 — VERIFICAR AUTENTICACIÓN
+-----------------------------------
+  gh auth status
+
+Deberías ver algo como:
+  ✓ Logged in to github.com as <tu-usuario>
+  ✓ Git operations for github.com configured to use https protocol
+
+
+COMANDOS ÚTILES DESPUÉS DE AUTENTICARSE
+-----------------------------------------
+  gh repo list                  # listar tus repos
+  gh pr list                    # listar pull requests del repo actual
+  gh pr create                  # crear un pull request
+  gh issue list                 # listar issues
+  gh auth logout                # cerrar sesión
+  gh auth token                 # ver el token activo (para scripts)
+===========================================================

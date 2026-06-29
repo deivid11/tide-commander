@@ -3,6 +3,8 @@
  * Handles sending commands to agents (both regular and boss agents)
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
 import { agentService, runtimeService, skillService, customClassService } from '../../services/index.js';
 import { createLogger, getCommanderBaseUrl } from '../../utils/index.js';
 import { getAuthToken } from '../../auth/index.js';
@@ -10,6 +12,205 @@ import { handleRequestContextStats } from './agent-handler.js';
 import type { HandlerContext } from './types.js';
 
 const log = createLogger('CommandHandler');
+
+const IGNORED_DIRS = new Set([
+  '.git', 'node_modules', 'dist', '.next', '__pycache__', '.cache',
+  'coverage', '.claude', '.venv', 'venv', 'build', 'out', '.turbo',
+]);
+
+const BINARY_EXTENSIONS = new Set([
+  'png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'webp', 'tiff', 'heic', 'avif',
+  'zip', 'tar', 'gz', 'bz2', 'rar', '7z', 'xz', 'zst',
+  'exe', 'dll', 'so', 'dylib', 'bin', 'obj', 'o', 'a',
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+  'mp3', 'mp4', 'wav', 'avi', 'mov', 'mkv', 'flac', 'ogg', 'webm',
+  'ttf', 'otf', 'woff', 'woff2', 'eot',
+  'pyc', 'pyo', 'class', 'jar',
+  'db', 'sqlite', 'sqlite3',
+]);
+
+function isBinaryFile(filePath: string): boolean {
+  const ext = path.extname(filePath).slice(1).toLowerCase();
+  return BINARY_EXTENSIONS.has(ext);
+}
+
+// Escape a string for safe use inside an XML attribute value.
+function attr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// Recursively list every entry (file or dir) under `dirPath`, respecting the
+// ignore list. Used to build the structural listing for `[@folder:]` mentions —
+// the LLM sees the layout (paths only) without paying the token cost of every
+// file's content. Binary files are kept in the listing because their presence
+// is informative (e.g. "there's an .apk here") even though they wouldn't be
+// read for a `[@file:]` mention.
+function listDirEntriesRecursive(dirPath: string, relBase: string, maxDepth = 6): string[] {
+  const entries: string[] = [];
+  function walk(dir: string, rel: string, depth: number) {
+    if (depth > maxDepth) return;
+    let dirents: fs.Dirent[];
+    try { dirents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const dirent of dirents) {
+      if (IGNORED_DIRS.has(dirent.name)) continue;
+      const entryRel = rel ? `${rel}/${dirent.name}` : dirent.name;
+      if (dirent.isDirectory()) {
+        entries.push(`${entryRel}/`);
+        walk(path.join(dir, dirent.name), entryRel, depth + 1);
+      } else if (dirent.isFile()) {
+        entries.push(entryRel);
+      }
+    }
+  }
+  walk(dirPath, relBase, 0);
+  return entries;
+}
+
+export async function expandFileMentions(command: string, cwd: string): Promise<string> {
+  const FILE_RE = /\[@file:([^\]]+)\]/g;
+  const FOLDER_RE = /\[@folder:([^\]]+)\]/g;
+  const AGENT_RE = /\[@agent:([^\]]+)\]/g;
+
+  const fileMatches = [...command.matchAll(FILE_RE)];
+  const folderMatches = [...command.matchAll(FOLDER_RE)];
+  const agentMatches = [...command.matchAll(AGENT_RE)];
+  if (fileMatches.length === 0 && folderMatches.length === 0 && agentMatches.length === 0) return command;
+
+  // PASO 1 & 2: Strip tokens from user text, build resolution maps
+  let userText = command;
+  for (const match of [...fileMatches, ...folderMatches, ...agentMatches]) {
+    userText = userText.replace(match[0], '');
+  }
+
+  const filesToProcess = new Map<string, string>(); // relPath -> fullPath (deduplicated)
+  const foldersToList = new Map<string, string[]>(); // relPath -> recursive entry listing
+  const resolvedMentions = new Map<string, string>(); // original ref -> resolved relPath
+
+  // PASO 2: Resolve file tokens
+  for (const match of fileMatches) {
+    const relPath = match[1].trim();
+    resolvedMentions.set(relPath, relPath);
+    if (!isBinaryFile(relPath)) {
+      filesToProcess.set(relPath, path.join(cwd, relPath));
+    }
+  }
+
+  // PASO 2: Resolve folder tokens — list structure only. File contents are
+  // intentionally NOT inlined here: the LLM should see the layout and ask for
+  // specific files via `[@file:]` if it needs their content.
+  for (const match of folderMatches) {
+    const relPath = match[1].trim();
+    const fullPath = path.join(cwd, relPath);
+    resolvedMentions.set(relPath, relPath);
+    try {
+      const stat = await fs.promises.stat(fullPath);
+      if (stat.isDirectory()) {
+        foldersToList.set(relPath, listDirEntriesRecursive(fullPath, relPath));
+      }
+    } catch {
+      // folder not found — skip
+    }
+  }
+
+  // PASO 2: Resolve agent tokens. Tagging an agent injects that agent's identity
+  // (the id is the key the prompted agent needs to coordinate / message them)
+  // as context only — no message is sent to the tagged agent here.
+  const agenteBlocks: string[] = [];
+  const seenAgents = new Set<string>();
+  for (const match of agentMatches) {
+    const agentId = match[1].trim();
+    if (seenAgents.has(agentId)) continue;
+    seenAgents.add(agentId);
+    const a = agentService.getAgent(agentId);
+    if (!a) continue;
+    const estado = a.trackingStatus || a.status || 'unknown';
+    agenteBlocks.push(
+      `  <agente id="${attr(agentId)}" nombre="${attr(a.name)}" clase="${attr(a.class)}"` +
+        ` jefe="${a.isBoss ? 'true' : 'false'}" estado="${attr(String(estado))}" cwd="${attr(a.cwd || '')}"/>`
+    );
+  }
+
+  // PASO 4 (rewrite): normalize @mention text in the user prompt to exact resolved paths
+  const MENTION_RE = /@([\w./\-]+)/g;
+  userText = userText.replace(MENTION_RE, (_full, ref) => {
+    if (resolvedMentions.has(ref)) return `@${resolvedMentions.get(ref)}`;
+    // suffix match: @src → android/app/src
+    for (const [orig] of resolvedMentions) {
+      if (orig === ref || orig.endsWith(`/${ref}`)) return `@${orig}`;
+    }
+    return _full;
+  });
+
+  userText = userText.trim();
+
+  // PASO 3a: Read each [@file:] mention and wrap content in XML CDATA
+  const archivoBlocks: string[] = [];
+  for (const [relPath, fullPath] of filesToProcess) {
+    try {
+      const content = await fs.promises.readFile(fullPath, 'utf-8');
+      archivoBlocks.push(
+        `  <archivo ruta="${relPath}">\n    <![CDATA[\n${content}\n    ]]>\n  </archivo>`
+      );
+    } catch {
+      // skip unreadable files
+    }
+  }
+
+  // PASO 3b: Emit folder mentions as structure-only listings (no file content).
+  // Directories are marked with a trailing slash so the layout reads naturally.
+  const carpetaBlocks: string[] = [];
+  for (const [relPath, entries] of foldersToList) {
+    const listing = entries.length > 0 ? entries.join('\n') : '(carpeta vacía)';
+    carpetaBlocks.push(
+      `  <carpeta ruta="${relPath}">\n    <![CDATA[\n${listing}\n    ]]>\n  </carpeta>`
+    );
+  }
+
+  if (archivoBlocks.length === 0 && carpetaBlocks.length === 0 && agenteBlocks.length === 0) {
+    return userText || command;
+  }
+
+  // PASO 4: Compile — structured context first, then internal guidance (wrapped
+  // in <instrucciones_internas> so the chat UI strips it and the user only sees
+  // their original text), then the user instruction. Each context kind that is
+  // present contributes its own block and its own guidance paragraph.
+  const sections: string[] = [];
+  const guidanceParts: string[] = [];
+
+  if (archivoBlocks.length > 0 || carpetaBlocks.length > 0) {
+    const contextChildren = [...archivoBlocks, ...carpetaBlocks].join('\n\n');
+    sections.push(`<archivos_contexto>\n${contextChildren}\n</archivos_contexto>`);
+    // Tell the model to echo back the exact `ruta="..."` value as plain text —
+    // the Tide file viewer resolves clicks against the agent cwd, so any
+    // deviation produces a 404.
+    guidanceParts.push(
+      'Formato de rutas en tu respuesta: cuando te refieras a un archivo del contexto anterior, ' +
+        'usa exactamente el valor del atributo ruta="..." como texto plano (ej. src/foo/bar.ts:42). ' +
+        'No envuelvas la ruta en tags XML, no agregues prefijos como "archivo:"/"file:"/"carpeta:", ' +
+        'y no la pongas en un enlace de markdown. Para una <carpeta>, solo recibes su estructura ' +
+        '(listado de rutas) — si necesitas el contenido de un archivo específico de adentro, ' +
+        'léelo con tus herramientas habituales antes de responder.'
+    );
+  }
+
+  if (agenteBlocks.length > 0) {
+    sections.push(`<agentes_contexto>\n${agenteBlocks.join('\n')}\n</agentes_contexto>`);
+    guidanceParts.push(
+      'Agentes mencionados: el bloque <agentes_contexto> lista otros agentes del sistema que el ' +
+        'usuario etiquetó con @. Para coordinarte o delegar con alguno, usa su atributo id="..." ' +
+        'exacto al enviarle un mensaje vía la API (POST /api/agents/<id>/message) o la skill de ' +
+        'mensajería entre agentes. No inventes ids; usa solo los que aparecen aquí. Esto es ' +
+        'contexto: no se envió ningún mensaje a esos agentes automáticamente al etiquetarlos.'
+    );
+  }
+
+  const pathGuidance = `<instrucciones_internas>\n${guidanceParts.join('\n\n')}\n</instrucciones_internas>`;
+  return `${sections.join('\n\n')}\n\n${pathGuidance}\n\nPetición: ${userText}`;
+}
 
 /**
  * Track last boss commands for delegation parsing
@@ -150,11 +351,14 @@ export async function handleSendCommand(
     return;
   }
 
+  // Expand [@file:path] and [@folder:path] mentions by injecting file content
+  const finalCommand = await expandFileMentions(command, agent.cwd);
+
   // If this is a boss agent, handle differently
   if (agent.isBoss || agent.class === 'boss') {
-    await handleBossCommand(ctx, agentId, command, agent.name, buildBossMessage);
+    await handleBossCommand(ctx, agentId, finalCommand, agent.name, buildBossMessage);
   } else {
-    await handleRegularAgentCommand(ctx, agentId, command, agent);
+    await handleRegularAgentCommand(ctx, agentId, finalCommand, agent);
   }
 }
 

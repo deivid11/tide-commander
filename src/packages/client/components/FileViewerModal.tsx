@@ -589,47 +589,90 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     setDirectoryEntries([]);
 
     try {
-      // First, try loading the file directly
-      const result = await loadFileByPath(effectivePath);
+      // Bare basenames (no directory component) can't be probed directly —
+      // resolveAgentFilePath just glues cwd + basename, which almost never
+      // exists. Skip the direct read (which would 404 and noise the console)
+      // and go straight to tree search for matching candidates.
+      const originalIsBareBasename = !parsedReference.path.includes('/');
 
-      if (result.ok) {
-        setFileData(result.data);
-        return;
-      }
+      if (!originalIsBareBasename) {
+        // First, try loading the file directly
+        const result = await loadFileByPath(effectivePath);
 
-      // If it's a directory, load its contents
-      if (result.isDirectory) {
-        const entries = await loadDirectoryContents(effectivePath);
-        if (entries.length > 0) {
-          setDirectoryEntries(entries);
+        if (result.ok) {
+          setFileData(result.data);
           return;
         }
-        setError(result.error || t('terminal:fileExplorer.failedToLoad'));
+
+        // If it's a directory, load its contents
+        if (result.isDirectory) {
+          const entries = await loadDirectoryContents(effectivePath);
+          if (entries.length > 0) {
+            setDirectoryEntries(entries);
+            return;
+          }
+          setError(result.error || t('terminal:fileExplorer.failedToLoad'));
+          return;
+        }
+
+        // File not found — try fallback search, then fall through to notFound view
+        const filename = effectivePath.split('/').pop() || effectivePath;
+        const root = searchRoot || (effectivePath.startsWith('/') ? effectivePath.split('/').slice(0, -1).join('/') : '');
+
+        if (root && filename) {
+          const candidates = await tryResolveFile(filename, root);
+
+          if (candidates.length === 1 && !candidates[0].isDirectory) {
+            const resolved = await loadFileByPath(candidates[0].path);
+            if (resolved.ok) {
+              setFileData(resolved.data);
+              return;
+            }
+          } else if (candidates.length > 0) {
+            setResolvedCandidates(candidates);
+            return;
+          }
+        }
+
+        // No fallback worked — show structured "Tried N candidate locations" view
+        if (result.error === 'File not found' && (result.triedRoots?.length ?? 0) > 0) {
+          setNotFound({
+            message: result.error,
+            triedRoots: result.triedRoots ?? [],
+            requested: result.requested,
+          });
+        } else {
+          setError(result.error || t('terminal:fileExplorer.failedToLoad'));
+        }
         return;
       }
 
-      // File not found (or path not absolute) — try fallback search
-      const filename = effectivePath.split('/').pop() || effectivePath;
+      // Bare basename path: search the tree directly
+      const filename = parsedReference.path;
       const root = searchRoot || (effectivePath.startsWith('/') ? effectivePath.split('/').slice(0, -1).join('/') : '');
 
-      if (root && filename) {
+      if (root) {
         const candidates = await tryResolveFile(filename, root);
 
         if (candidates.length === 1 && !candidates[0].isDirectory) {
-          // Exactly one match — load it directly
           const resolved = await loadFileByPath(candidates[0].path);
           if (resolved.ok) {
             setFileData(resolved.data);
             return;
           }
         } else if (candidates.length > 0) {
-          // Multiple matches — show candidates
           setResolvedCandidates(candidates);
           return;
         }
       }
 
-      // No fallback worked — show structured "Tried N candidate locations" view
+      // Nothing found — probe the synthesized path so the user still gets
+      // the canonical "Tried N candidate locations" view.
+      const result = await loadFileByPath(effectivePath);
+      if (result.ok) {
+        setFileData(result.data);
+        return;
+      }
       if (result.error === 'File not found' && (result.triedRoots?.length ?? 0) > 0) {
         setNotFound({
           message: result.error,

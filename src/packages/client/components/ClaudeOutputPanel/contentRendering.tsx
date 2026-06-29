@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm';
 import { createMarkdownComponents } from './MarkdownComponents';
 import { getApiBaseUrl } from '../../utils/storage';
 import { linkifyFilePathsForMarkdown } from '../../utils/outputRendering';
+import { extractFileMentionBlocks } from '../../utils/fileMentions';
 import i18n from '../../i18n';
 
 /**
@@ -235,16 +236,18 @@ export function renderUserPromptContent(
   onImageClick?: (url: string, name: string) => void,
   onFileClick?: (path: string) => void
 ): React.ReactNode {
+  const { displayContent } = extractFileMentionBlocks(content);
+
   // Pattern to match [Image: /path/to/image.png] or [File: /path/to/file.pdf]
   const combinedPattern = /\[(Image|File):\s*([^\]]+)\]/g;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match;
 
-  while ((match = combinedPattern.exec(content)) !== null) {
+  while ((match = combinedPattern.exec(displayContent)) !== null) {
     // Add text before the match
     if (match.index > lastIndex) {
-      const textBefore = content.slice(lastIndex, match.index);
+      const textBefore = displayContent.slice(lastIndex, match.index);
       parts.push(
         <span key={`text-${lastIndex}`} className="user-prompt-text">
           {textBefore}
@@ -289,8 +292,8 @@ export function renderUserPromptContent(
   }
 
   // Add remaining text after last match
-  if (lastIndex < content.length) {
-    const textAfter = content.slice(lastIndex);
+  if (lastIndex < displayContent.length) {
+    const textAfter = displayContent.slice(lastIndex);
     parts.push(
       <span key={`text-${lastIndex}`} className="user-prompt-text">
         {textAfter}
@@ -298,9 +301,9 @@ export function renderUserPromptContent(
     );
   }
 
-  // If no images found, just return the text
+  // If no images/text found, just return the text
   if (parts.length === 0) {
-    return <span className="user-prompt-text">{content}</span>;
+    return <span className="user-prompt-text">{displayContent}</span>;
   }
 
   return <>{parts}</>;
