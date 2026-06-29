@@ -84,6 +84,7 @@ const els = {
   workingAv: $('working-av'),
   workingText: $('working-text'),
   workingStop: $('working-stop'),
+  fileMention: $('fileMention'),
   compactingBar: $('compacting-bar'),
   openBuildings: $('open-buildings'),
   buildingsOverlay: $('buildings-overlay'),
@@ -135,6 +136,13 @@ let historyCommander = ''; // commander the current stack belongs to (reset on c
 let buildingsList = []; // commander's buildings (services/links/docker/terminals)
 let bldFilterText = ''; // search text in the buildings overlay
 let bldLoading = false; // true while the buildings list is (re)loading
+
+// ── @-mention composer state ──
+let fileMentions = []; // [{ path, name, type, agentId? }] picked via @, expanded into [@file:…]/[@folder:…]/[@agent:…] tokens on send
+let mentionState = { active: false, query: '', start: 0 }; // active @-token being typed; `start` = index of the @
+let mentionResults = []; // current server matches for the dropdown
+let mentionIndex = 0; // keyboard-highlighted row in the dropdown
+let mentionReqToken = 0; // guards against out-of-order search responses
 
 // built-in agent class → emoji (mirrors BUILT_IN_AGENT_CLASSES in shared/agent-types.ts)
 const BUILT_IN_ICONS = {
@@ -1302,6 +1310,8 @@ async function selectAgent(id, opts) {
   }
   flushCompose(); // persist the OUTGOING agent's draft + attachments before switching
   selectedAgent = id;
+  fileMentions = []; // tracked @-mentions are cwd-relative to the previous agent
+  closeMention();
   // Record the visit unless this select came FROM a back/forward navigation.
   if (!(opts && opts.fromHistory)) pushAgentHistory(id);
   resetClearBtn(); // don't carry an armed "confirm clear" across agents
@@ -3008,6 +3018,166 @@ async function pickElement(mode) {
   }
 }
 
+// ── @-mention autocomplete ──
+// Type "@" in the composer to tag another agent (by name) or search files/folders
+// in the selected agent's cwd. Picking one inserts "@name " / "@path " into the
+// text and tracks it; on send we append [@agent:id] / [@file:path] / [@folder:path]
+// tokens that the server expands into context (POST /api/agents/:id/message runs
+// expandFileMentions, same as the web app).
+function mentionItemIcon(it) {
+  if (it.type === 'agent') return '🤖';
+  return it.type === 'dir' ? '📁' : fileIcon(it.name, '');
+}
+function renderMentionDropdown() {
+  if (!mentionState.active || !mentionResults.length) {
+    els.fileMention.hidden = true;
+    els.fileMention.innerHTML = '';
+    return;
+  }
+  els.fileMention.hidden = false;
+  els.fileMention.innerHTML = mentionResults
+    .map(
+      (it, i) =>
+        `<div class="fm-item${i === mentionIndex ? ' active' : ''}${it.type === 'agent' ? ' agent' : ''}" data-i="${i}" role="option" aria-selected="${
+          i === mentionIndex
+        }">` +
+        `<span class="fm-ic">${mentionItemIcon(it)}</span>` +
+        `<span class="fm-name">${esc(it.name)}</span>` +
+        `<span class="fm-path">${esc(it.type === 'agent' ? it.sub || 'agente' : it.path)}</span>` +
+        `</div>`,
+    )
+    .join('');
+}
+function scrollMentionActive() {
+  const el = els.fileMention.querySelector('.fm-item.active');
+  if (el) el.scrollIntoView({ block: 'nearest' });
+}
+function closeMention() {
+  mentionState = { active: false, query: '', start: 0 };
+  mentionResults = [];
+  mentionIndex = 0;
+  els.fileMention.hidden = true;
+  els.fileMention.innerHTML = '';
+}
+// Other agents matching the @query, from the already-loaded agentsList (no
+// fetch). Excludes the current agent — you don't tag yourself. `path` holds the
+// name so the shared insert/dedup/token logic works; `sub` is the class label.
+function agentMentionMatches(query) {
+  const q = (query || '').toLowerCase();
+  return agentsList
+    .filter((a) => a.id !== selectedAgent && (q === '' || String(a.name || '').toLowerCase().includes(q)))
+    .slice(0, 5)
+    .map((a) => ({
+      type: 'agent',
+      agentId: a.id,
+      name: a.name || a.id,
+      path: a.name || a.id,
+      sub: a.isBoss ? 'boss · ' + (a.class || '') : a.class || 'agente',
+    }));
+}
+async function fetchMentions(query) {
+  if (!selectedCommander || !selectedAgent) {
+    mentionResults = [];
+    renderMentionDropdown();
+    return;
+  }
+  const agents = agentMentionMatches(query);
+  const token = ++mentionReqToken;
+  const res = await send({ type: 'fetchFiles', commanderId: selectedCommander, agentId: selectedAgent, q: query });
+  if (token !== mentionReqToken || !mentionState.active) return; // stale or cancelled
+  const files = res && res.ok && Array.isArray(res.files) ? res.files : [];
+  mentionResults = agents.concat(files);
+  mentionIndex = 0;
+  renderMentionDropdown();
+}
+// Re-scan the text around the caret for an active "@token"; open/refresh or close
+// the dropdown accordingly. Also drops tracked mentions the user has deleted.
+function updateMentionFromInput() {
+  const val = els.input.value;
+  const cursor = els.input.selectionStart == null ? val.length : els.input.selectionStart;
+  const before = val.slice(0, cursor);
+  const m = before.match(/@(\S*)$/);
+  if (m) {
+    mentionState = { active: true, query: m[1], start: cursor - m[0].length };
+    fetchMentions(m[1]);
+  } else if (mentionState.active) {
+    closeMention();
+  }
+  if (fileMentions.length) fileMentions = fileMentions.filter((f) => val.includes('@' + f.path));
+}
+// Replace the typed "@query" with "@path " and remember the pick for send-time
+// token injection.
+function selectMention(item) {
+  if (!item) return;
+  const val = els.input.value;
+  const cursor = els.input.selectionStart == null ? val.length : els.input.selectionStart;
+  const before = val.slice(0, mentionState.start);
+  const after = val.slice(cursor);
+  const insert = `@${item.path} `;
+  els.input.value = before + insert + after;
+  const pos = before.length + insert.length;
+  try {
+    els.input.setSelectionRange(pos, pos);
+  } catch (_e) {
+    /* ignore */
+  }
+  // Dedup: agents by id (names can collide), files/folders by type+path.
+  const key = (m) => (m.type === 'agent' ? 'agent:' + m.agentId : m.type + ':' + m.path);
+  if (!fileMentions.some((f) => key(f) === key(item))) fileMentions.push(item);
+  closeMention();
+  saveCompose();
+  els.input.focus();
+}
+// Handle dropdown navigation keys while it's open; returns true when it consumed
+// the key so the composer's Enter-to-send doesn't also fire.
+function handleMentionKey(e) {
+  if (!mentionState.active) return false;
+  if (!mentionResults.length) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeMention();
+      return true;
+    }
+    return false;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    mentionIndex = Math.min(mentionResults.length - 1, mentionIndex + 1);
+    renderMentionDropdown();
+    scrollMentionActive();
+    return true;
+  }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    mentionIndex = Math.max(0, mentionIndex - 1);
+    renderMentionDropdown();
+    scrollMentionActive();
+    return true;
+  }
+  if (e.key === 'Enter' || e.key === 'Tab') {
+    e.preventDefault();
+    selectMention(mentionResults[mentionIndex]);
+    return true;
+  }
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closeMention();
+    return true;
+  }
+  return false;
+}
+// Build the trailing [@file:…]/[@folder:…]/[@agent:…] tokens for the mentions
+// still present in the outgoing text. The server strips these and injects the
+// matching file/folder/agent context before the agent sees the message.
+function buildMentionTokens(text) {
+  if (!fileMentions.length) return '';
+  const active = fileMentions.filter((f) => text.includes('@' + f.path));
+  if (!active.length) return '';
+  return active
+    .map((f) => (f.type === 'agent' ? `[@agent:${f.agentId}]` : `[@${f.type === 'dir' ? 'folder' : 'file'}:${f.path}]`))
+    .join('\n');
+}
+
 // ── send ──
 async function activePageInfo() {
   // Prefer the drive-enabled (🤖) tab so the `[Current page: …]` the agent sees matches the
@@ -3114,6 +3284,11 @@ async function doSend() {
     ? blocks.join('\n\n') + (text ? '\n\nRequest: ' + text : '')
     : text;
 
+  // Append [@file:…]/[@folder:…] tokens for any @-mentions still in the text; the
+  // server expands them into file/folder context before the agent sees them.
+  const mentionTokens = buildMentionTokens(text);
+  if (mentionTokens) message = message ? `${message}\n\n${mentionTokens}` : mentionTokens;
+
   if (els.pgctx.checked) {
     const pi = await activePageInfo();
     if (pi && pi.url) message = `[Current page: ${pi.title || ''} — ${pi.url}]\n\n` + message;
@@ -3141,6 +3316,8 @@ async function doSend() {
   }
 
   els.input.value = '';
+  fileMentions = [];
+  closeMention();
   addMessage('user', userLabel, null, null, new Date().toISOString());
   scrollDown();
   loadingCompose = true; // clearing the tray here must not re-save the (now-sent) compose
@@ -3944,7 +4121,25 @@ els.input.addEventListener('drop', async (e) => {
 els.sendBtn.addEventListener('click', doSend);
 els.workingStop.addEventListener('click', doStop);
 els.input.addEventListener('input', saveCompose);
+els.input.addEventListener('input', updateMentionFromInput);
+// Reposition the @-token detection when the caret moves without editing (arrows,
+// Home/End, clicks) so the dropdown reflects the token under the new caret.
+els.input.addEventListener('click', updateMentionFromInput);
+els.input.addEventListener('keyup', (e) => {
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') updateMentionFromInput();
+});
+// Close the dropdown when the composer loses focus (delayed so an item mousedown
+// — which keeps focus via preventDefault — still registers as a pick).
+els.input.addEventListener('blur', () => setTimeout(closeMention, 150));
+// Pick a file/folder by clicking it; preventDefault keeps the textarea focused.
+els.fileMention.addEventListener('mousedown', (e) => {
+  const item = e.target.closest('.fm-item');
+  if (!item) return;
+  e.preventDefault();
+  selectMention(mentionResults[Number(item.dataset.i)]);
+});
 els.input.addEventListener('keydown', (e) => {
+  if (handleMentionKey(e)) return;
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     doSend();

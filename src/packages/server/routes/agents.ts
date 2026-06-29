@@ -16,7 +16,7 @@ import { getAllCustomClasses } from '../services/custom-class-service.js';
 import { createLogger } from '../utils/logger.js';
 import { withAgentContext } from '../utils/log-context.js';
 import { truncateOrEmpty } from '../utils/string.js';
-import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js';
+import { buildCustomAgentConfig, expandFileMentions } from '../websocket/handlers/command-handler.js';
 import { clearDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
 import { OpencodeBackend } from '../opencode/backend.js';
 import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled, isInteractiveModeEnabled, setInteractiveModeEnabled } from '../services/system-prompt-service.js';
@@ -1208,6 +1208,82 @@ router.get('/:id/search', async (req: Request<{ id: string }>, res: Response) =>
   }
 });
 
+// GET /api/agents/:id/files?q=search — list files/folders in agent cwd for @ mention autocomplete
+router.get('/:id/files', (req: Request<{ id: string }>, res: Response) => {
+  const { q = '' } = req.query as { q?: string };
+  const agent = agentService.getAgent(req.params.id);
+
+  if (!agent) {
+    res.status(404).json({ error: 'Agent not found' });
+    return;
+  }
+
+  const cwd = agent.cwd;
+  const query = String(q).toLowerCase().trim();
+  const IGNORED = new Set([
+    '.git', 'node_modules', 'dist', '.next', '__pycache__', '.cache',
+    'coverage', '.claude', '.idea', '.vscode', 'build', 'out', '.turbo', '.nx',
+  ]);
+
+  const results: Array<{ path: string; name: string; type: 'file' | 'dir' }> = [];
+  const MAX_RESULTS = 60;
+  const MAX_DEPTH = 6;
+
+  // Walk the whole tree (bounded by depth + ignored dirs). We can't early-exit
+  // on result count here: depth-first traversal would saturate the cap with
+  // deep matches in alphabetically-earlier siblings (e.g. q=src filling up
+  // with android/app/src/... before ever visiting the root-level src/),
+  // hiding the shallow match the user almost certainly wanted.
+  function walk(dir: string, relBase: string, depth: number) {
+    if (depth > MAX_DEPTH) return;
+    let entries: import('fs').Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (IGNORED.has(entry.name)) continue;
+      const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
+      if (!query || entry.name.toLowerCase().includes(query) || relPath.toLowerCase().includes(query)) {
+        results.push({ path: relPath, name: entry.name, type: entry.isDirectory() ? 'dir' : 'file' });
+      }
+      if (entry.isDirectory()) {
+        walk(path.join(dir, entry.name), relPath, depth + 1);
+      }
+    }
+  }
+
+  walk(cwd, '', 0);
+
+  // Sort by relevance, then slice to the cap. Priority:
+  //   1. Exact (case-insensitive) name match — definitively what they typed.
+  //   2. Name starts with the query — stronger than a midline substring.
+  //   3. Directories before files at the same rank.
+  //   4. Shallower paths first — root-level matches before nested namesakes.
+  //   5. Alphabetical by path as a stable tie-break.
+  const depthOf = (p: string) => p.split('/').length;
+  results.sort((a, b) => {
+    if (query) {
+      const aName = a.name.toLowerCase();
+      const bName = b.name.toLowerCase();
+      const aExact = aName === query;
+      const bExact = bName === query;
+      if (aExact !== bExact) return aExact ? -1 : 1;
+      const aStarts = aName.startsWith(query);
+      const bStarts = bName.startsWith(query);
+      if (aStarts !== bStarts) return aStarts ? -1 : 1;
+    }
+    if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+    const da = depthOf(a.path);
+    const db = depthOf(b.path);
+    if (da !== db) return da - db;
+    return a.path.localeCompare(b.path);
+  });
+
+  res.json({ files: results.slice(0, MAX_RESULTS) });
+});
+
 // POST /api/agents/:id/message - Send a message/command to an agent
 router.post('/:id/message', async (req: Request<{ id: string }>, res: Response) => {
   try {
@@ -1227,14 +1303,16 @@ router.post('/:id/message', async (req: Request<{ id: string }>, res: Response) 
 
     log.log(`API message to agent ${agent.name}: "${message.slice(0, 50)}${message.length > 50 ? '...' : ''}"`);
 
+    const expandedMessage = await expandFileMentions(message, agent.cwd);
+
     // Handle boss agents with their special context building
     if (agent.isBoss || agent.class === 'boss') {
-      const { message: bossMessage, systemPrompt } = await bossMessageService.buildBossMessage(agentId, message);
+      const { message: bossMessage, systemPrompt } = await bossMessageService.buildBossMessage(agentId, expandedMessage);
       await runtimeService.sendCommand(agentId, bossMessage, systemPrompt);
     } else {
       // Regular agents get custom agent config (identity header, class instructions, skills)
       const customAgentConfig = buildCustomAgentConfig(agentId, agent.class);
-      await runtimeService.sendCommand(agentId, message, undefined, undefined, customAgentConfig);
+      await runtimeService.sendCommand(agentId, expandedMessage, undefined, undefined, customAgentConfig);
     }
 
     res.status(200).json({

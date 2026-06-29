@@ -10,6 +10,7 @@ import { store, useSettings, useLastPrompt, usePinnedAgentIds } from '../../stor
 import { PermissionRequestInline } from './PermissionRequest';
 import { getImageWebUrl } from './contentRendering';
 import { PastedTextChip } from './PastedTextChip';
+import { FileMentionDropdown, type FileMentionItem } from './FileMentionDropdown';
 import { useSTT } from '../../hooks/useSTT';
 import type { Agent, PermissionRequest } from '../../../shared/types';
 import type { AttachedFile } from './types';
@@ -18,6 +19,7 @@ import { getPendingMessagesForAgent, removePendingMessageForAgent } from '../../
 import { useMessageQueue, type QueuedMessage } from '../../hooks/useMessageQueue';
 import { useAgentStatusTransition } from '../../hooks/useAgentStatusTransition';
 import { QueuedMessagesBar } from './QueuedMessagesBar';
+import { apiUrl, authFetch } from '../../utils/storage';
 
 /**
  * Isolated elapsed timer component — owns its own 1-second setInterval so the
@@ -255,6 +257,13 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   const [uploadingFiles, setUploadingFiles] = useState<Array<{ id: string; name: string }>>([]);
   const [pendingMessages, setPendingMessages] = useState<Array<{ command: string; queuedAt: number }>>([]);
 
+  // @ file mention state
+  const [fileMentions, setFileMentions] = useState<FileMentionItem[]>([]);
+  const [mentionQuery, setMentionQuery] = useState<{ active: boolean; query: string; start: number }>({ active: false, query: '', start: 0 });
+  const [mentionResults, setMentionResults] = useState<FileMentionItem[]>([]);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const mentionFetchRef = useRef<AbortController | null>(null);
+
   // Poll pending messages so the queue UI stays in sync across tabs / reconnects
   useEffect(() => {
     const refresh = () => {
@@ -436,8 +445,23 @@ export const TerminalInputArea = memo(function TerminalInputArea({
 
   // Track cursor position on every input change
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    cursorPositionRef.current = e.target.selectionStart || e.target.value.length;
-    setCommand(e.target.value);
+    const val = e.target.value;
+    const cursor = e.target.selectionStart ?? val.length;
+    cursorPositionRef.current = cursor;
+    setCommand(val);
+
+    // Drop tracked mentions whose @path text no longer appears in the command —
+    // the user removed the inline reference, so we must not still inject context.
+    setFileMentions((prev) => prev.filter((f) => val.includes(`@${f.path}`)));
+
+    // Detect @ mention trigger: look for @ followed by non-whitespace up to cursor
+    const textBefore = val.slice(0, cursor);
+    const atMatch = textBefore.match(/@(\S*)$/);
+    if (atMatch) {
+      setMentionQuery({ active: true, query: atMatch[1], start: cursor - atMatch[0].length });
+    } else if (mentionQuery.active) {
+      closeMention();
+    }
   };
 
   // Auto-resize textarea
@@ -546,6 +570,57 @@ export const TerminalInputArea = memo(function TerminalInputArea({
 
   const pastedTextInfos = getPastedTextInfo();
 
+  // Fetch suggestions for @ mention autocomplete: other agents (from the store)
+  // first, then files/folders from the selected agent's cwd.
+  useEffect(() => {
+    if (!mentionQuery.active || !selectedAgentId) {
+      setMentionResults([]);
+      return;
+    }
+    // Agent matches come from the in-memory store — no fetch needed. Exclude the
+    // current agent (you don't tag yourself) and match by name.
+    const q = mentionQuery.query.toLowerCase();
+    const agentItems: FileMentionItem[] = Array.from(store.getState().agents.values())
+      .filter((a) => a.id !== selectedAgentId && (q === '' || a.name.toLowerCase().includes(q)))
+      .slice(0, 5)
+      .map((a) => ({
+        path: a.name,
+        name: a.name,
+        type: 'agent' as const,
+        agentId: a.id,
+        subtitle: a.isBoss ? `boss · ${a.class}` : a.class,
+      }));
+
+    if (mentionFetchRef.current) mentionFetchRef.current.abort();
+    const ctrl = new AbortController();
+    mentionFetchRef.current = ctrl;
+    authFetch(apiUrl(`/api/agents/${selectedAgentId}/files?q=${encodeURIComponent(mentionQuery.query)}`), { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((data) => { setMentionResults([...agentItems, ...(data.files ?? [])]); setMentionIndex(0); })
+      .catch(() => { if (!ctrl.signal.aborted) { setMentionResults(agentItems); setMentionIndex(0); } });
+  }, [mentionQuery.active, mentionQuery.query, selectedAgentId]);
+
+  const closeMention = useCallback(() => {
+    setMentionQuery({ active: false, query: '', start: 0 });
+    setMentionResults([]);
+  }, []);
+
+  const handleSelectMention = useCallback((item: FileMentionItem) => {
+    // Replace @query with the selected item's path, preserving surrounding text
+    const before = command.slice(0, mentionQuery.start);
+    const after = command.slice(mentionQuery.start + 1 + mentionQuery.query.length);
+    setCommand(before + `@${item.path} ` + after);
+    // Track the mention (deduplicated). Agents are keyed by id (names can collide);
+    // files/folders by path.
+    const key = (m: FileMentionItem) => (m.type === 'agent' ? `agent:${m.agentId}` : m.path);
+    setFileMentions((prev) => prev.some((f) => key(f) === key(item)) ? prev : [...prev, item]);
+    closeMention();
+    // Re-focus the input
+    requestAnimationFrame(() => {
+      (textareaRef.current || inputRef.current)?.focus();
+    });
+  }, [command, mentionQuery, setCommand, closeMention, textareaRef, inputRef]);
+
   const handleToggleExpand = () => {
     const next = !isInputExpanded;
 
@@ -582,7 +657,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   };
 
   const handleSendCommand = () => {
-    if ((!command.trim() && attachedFiles.length === 0) || !selectedAgentId) return;
+    if ((!command.trim() && attachedFiles.length === 0 && fileMentions.length === 0) || !selectedAgentId) return;
 
     if (command.trim() === '/clear' && attachedFiles.length === 0) {
       store.clearContext(selectedAgentId);
@@ -615,12 +690,27 @@ export const TerminalInputArea = memo(function TerminalInputArea({
       }
     }
 
+    // Append [@file:path] / [@folder:path] / [@agent:id] tokens for server-side
+    // context injection (expandFileMentions resolves them before the agent runs).
+    if (fileMentions.length > 0) {
+      const mentionTokens = fileMentions
+        .map((f) =>
+          f.type === 'agent'
+            ? `[@agent:${f.agentId}]`
+            : `[@${f.type === 'dir' ? 'folder' : 'file'}:${f.path}]`
+        )
+        .join('\n');
+      fullCommand = fullCommand ? `${fullCommand}\n\n${mentionTokens}` : mentionTokens;
+    }
+
     store.sendCommand(selectedAgentId, fullCommand);
     onSendCommand?.();
     setCommand('');
     setForceTextarea(false);
     setPastedTexts(new Map());
     setAttachedFiles([]);
+    setFileMentions([]);
+    closeMention();
     resetPastedCount();
 
     // On mobile, blur input to hide keyboard
@@ -633,6 +723,31 @@ export const TerminalInputArea = memo(function TerminalInputArea({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const isMobile = window.innerWidth <= 768;
+
+    // @ mention dropdown keyboard navigation
+    if (mentionQuery.active && mentionResults.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex((i) => Math.min(i + 1, mentionResults.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const item = mentionResults[mentionIndex];
+        if (item) handleSelectMention(item);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeMention();
+        return;
+      }
+    }
 
     if (e.key === 'Enter') {
       if (e.altKey && e.shiftKey) {
@@ -1055,7 +1170,16 @@ export const TerminalInputArea = memo(function TerminalInputArea({
             <div className="guake-completion-time">{formatElapsed(completionElapsed)}</div>
           )}
 
-          <div className={`guake-input ${useTextarea ? 'guake-input-expanded' : ''}`}>
+          <div className={`guake-input ${useTextarea ? 'guake-input-expanded' : ''}`} style={{ position: 'relative' }}>
+            {/* @ file mention dropdown */}
+            {mentionQuery.active && mentionResults.length > 0 && (
+              <FileMentionDropdown
+                items={mentionResults}
+                selectedIndex={mentionIndex}
+                onSelect={handleSelectMention}
+                onClose={closeMention}
+              />
+            )}
             <input
               ref={fileInputRef}
               type="file"
@@ -1134,7 +1258,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
               >
                 <Icon name={isInputExpanded ? 'caret-down' : 'caret-up'} size={12} />
               </button>
-              <button onClick={handleSendCommand} disabled={!command.trim() && attachedFiles.length === 0} title={t('terminal:input.send')}>
+              <button onClick={handleSendCommand} disabled={!command.trim() && attachedFiles.length === 0 && fileMentions.length === 0} title={t('terminal:input.send')}>
                 <Icon name="send" size={14} />
               </button>
             </div>
