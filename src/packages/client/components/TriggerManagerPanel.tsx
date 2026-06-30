@@ -110,6 +110,9 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
   // Type-filter tab selection (persisted across the session)
   const [selectedType, setSelectedType] = useState<TypeFilter>('all');
 
+  // Slack instances (for the instanceId selector in the edit form)
+  const [slackInstances, setSlackInstances] = useState<{ id: string; label: string }[]>([]);
+
   // ─── Data Loading ───
 
   const loadTriggers = useCallback(async () => {
@@ -136,11 +139,25 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
     }
   }, []);
 
+  const loadSlackInstances = useCallback(async () => {
+    try {
+      const res = await authFetch(apiUrl('/api/slack/instances'));
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data?.instances) ? data.instances : [];
+        setSlackInstances(list.map((i: { id: string; label?: string }) => ({ id: i.id, label: i.label || i.id })));
+      }
+    } catch (err) {
+      console.error('Failed to load Slack instances:', err);
+    }
+  }, []);
+
   useEffect(() => {
     if (isOpen) {
       loadTriggers();
+      loadSlackInstances();
     }
-  }, [isOpen, loadTriggers]);
+  }, [isOpen, loadTriggers, loadSlackInstances]);
 
   useEffect(() => {
     if (selectedTriggerId) {
@@ -830,6 +847,323 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                         ))}
                       </div>
                     )}
+                  </div>
+                );
+              })()}
+
+              {editingTrigger.type === 'slack' && (() => {
+                const cfg = (editingTrigger as any).config || {};
+                return (
+                  <div style={styles.section}>
+                    <h4 style={styles.sectionTitle}>Slack Config</h4>
+                    <div style={styles.row}>
+                      <div style={styles.field}>
+                        <label style={styles.label}>Instance</label>
+                        <select
+                          style={styles.select}
+                          value={cfg.instanceId || ''}
+                          onChange={e => updateConfig('instanceId', e.target.value || undefined)}
+                        >
+                          <option value="">Any instance</option>
+                          {slackInstances.map(inst => (
+                            <option key={inst.id} value={inst.id}>{inst.label} ({inst.id})</option>
+                          ))}
+                          {cfg.instanceId && !slackInstances.some(i => i.id === cfg.instanceId) && (
+                            <option value={cfg.instanceId}>{cfg.instanceId} (not found)</option>
+                          )}
+                        </select>
+                      </div>
+                      <div style={styles.field}>
+                        <label style={styles.label}>Thread timestamp</label>
+                        <input
+                          style={styles.input}
+                          value={cfg.threadTs || ''}
+                          onChange={e => updateConfig('threadTs', e.target.value || undefined)}
+                          placeholder="Only replies in this thread"
+                        />
+                      </div>
+                    </div>
+                    <div style={styles.field}>
+                      <label style={styles.label}>Channel ID (legacy single channel)</label>
+                      <input
+                        style={styles.input}
+                        value={cfg.channelId || ''}
+                        onChange={e => updateConfig('channelId', e.target.value || undefined)}
+                        placeholder="C0123ABCD (blank = any)"
+                      />
+                    </div>
+                    <div style={styles.row}>
+                      <div style={styles.field}>
+                        <label style={styles.label}>Channel allowlist (comma-separated IDs)</label>
+                        <input
+                          style={styles.input}
+                          value={cfg.channelIdAllowlist?.join(', ') || ''}
+                          onChange={e => updateConfig('channelIdAllowlist', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
+                          placeholder="C06UCC5FFST, C0789..."
+                        />
+                      </div>
+                      <div style={styles.field}>
+                        <label style={styles.label}>Exclude channel IDs (comma-separated)</label>
+                        <input
+                          style={styles.input}
+                          value={cfg.excludeChannelIds?.join(', ') || ''}
+                          onChange={e => updateConfig('excludeChannelIds', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
+                          placeholder="D0AMP833LDQ"
+                        />
+                      </div>
+                    </div>
+                    <div style={styles.field}>
+                      <label style={styles.label}>Message pattern (regex)</label>
+                      <input
+                        style={styles.input}
+                        value={cfg.messagePattern || ''}
+                        onChange={e => updateConfig('messagePattern', e.target.value || undefined)}
+                        placeholder="deploy|release"
+                      />
+                    </div>
+                    <div style={styles.row}>
+                      <div style={styles.field}>
+                        <label style={styles.label}>User filter (comma-separated IDs)</label>
+                        <input
+                          style={styles.input}
+                          value={cfg.userFilter?.join(', ') || ''}
+                          onChange={e => updateConfig('userFilter', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
+                          placeholder="U0123ABCD, U0456EFGH"
+                        />
+                      </div>
+                      <div style={styles.field}>
+                        <label style={styles.label}>Exclude user IDs (comma-separated)</label>
+                        <input
+                          style={styles.input}
+                          value={cfg.excludeUserIds?.join(', ') || ''}
+                          onChange={e => updateConfig('excludeUserIds', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
+                          placeholder="U0789IJKL"
+                        />
+                      </div>
+                    </div>
+                    <div style={styles.checkboxGrid}>
+                      <label style={styles.checkboxLabel}>
+                        <input type="checkbox" checked={!!cfg.dmOnly} onChange={e => updateConfig('dmOnly', e.target.checked || undefined)} />
+                        <span>DMs only</span>
+                      </label>
+                      <label style={styles.checkboxLabel}>
+                        <input type="checkbox" checked={!!cfg.excludeDms} onChange={e => updateConfig('excludeDms', e.target.checked || undefined)} />
+                        <span>Exclude DMs</span>
+                      </label>
+                      <label style={styles.checkboxLabel}>
+                        <input type="checkbox" checked={!!cfg.includeOwnMessages} onChange={e => updateConfig('includeOwnMessages', e.target.checked || undefined)} />
+                        <span>Include own messages</span>
+                      </label>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {editingTrigger.type === 'email' && (() => {
+                const cfg = (editingTrigger as any).config || {};
+                const approvals = cfg.requiredApprovals;
+                const setApprovals = (patch: Record<string, unknown>) =>
+                  updateConfig('requiredApprovals', { count: 1, approvers: [], approvalKeywords: [], ...approvals, ...patch });
+                return (
+                  <div style={styles.section}>
+                    <h4 style={styles.sectionTitle}>Email Config</h4>
+                    <div style={styles.field}>
+                      <label style={styles.label}>From filter (comma-separated addresses)</label>
+                      <input
+                        style={styles.input}
+                        value={cfg.fromFilter?.join(', ') || ''}
+                        onChange={e => updateConfig('fromFilter', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
+                        placeholder="alerts@example.com, ops@example.com"
+                      />
+                    </div>
+                    <div style={styles.row}>
+                      <div style={styles.field}>
+                        <label style={styles.label}>Subject pattern (regex)</label>
+                        <input
+                          style={styles.input}
+                          value={cfg.subjectPattern || ''}
+                          onChange={e => updateConfig('subjectPattern', e.target.value || undefined)}
+                          placeholder="^\\[Deploy\\]"
+                        />
+                      </div>
+                      <div style={styles.field}>
+                        <label style={styles.label}>Thread ID</label>
+                        <input
+                          style={styles.input}
+                          value={cfg.threadId || ''}
+                          onChange={e => updateConfig('threadId', e.target.value || undefined)}
+                          placeholder="Only watch a specific thread"
+                        />
+                      </div>
+                    </div>
+                    <div style={styles.field}>
+                      <label style={styles.checkboxLabel}>
+                        <input
+                          type="checkbox"
+                          checked={!!approvals}
+                          onChange={e => updateConfig('requiredApprovals', e.target.checked ? { count: 1, approvers: [], approvalKeywords: [] } : undefined)}
+                        />
+                        <span>Require approvals before firing</span>
+                      </label>
+                    </div>
+                    {approvals && (
+                      <>
+                        <div style={styles.row}>
+                          <div style={styles.field}>
+                            <label style={styles.label}>Approvals needed</label>
+                            <input
+                              style={styles.input}
+                              type="number"
+                              min="1"
+                              value={approvals.count ?? 1}
+                              onChange={e => setApprovals({ count: parseInt(e.target.value, 10) || 1 })}
+                            />
+                          </div>
+                          <div style={styles.field}>
+                            <label style={styles.label}>Approvers (comma-separated)</label>
+                            <input
+                              style={styles.input}
+                              value={approvals.approvers?.join(', ') || ''}
+                              onChange={e => setApprovals({ approvers: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean) })}
+                              placeholder="lead@example.com"
+                            />
+                          </div>
+                        </div>
+                        <div style={styles.field}>
+                          <label style={styles.label}>Approval keywords (comma-separated)</label>
+                          <input
+                            style={styles.input}
+                            value={approvals.approvalKeywords?.join(', ') || ''}
+                            onChange={e => setApprovals({ approvalKeywords: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean) })}
+                            placeholder="approved, lgtm, ship it"
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {editingTrigger.type === 'jira' && (() => {
+                const cfg = (editingTrigger as any).config || {};
+                return (
+                  <div style={styles.section}>
+                    <h4 style={styles.sectionTitle}>Jira Config</h4>
+                    <div style={styles.row}>
+                      <div style={styles.field}>
+                        <label style={styles.label}>Project key</label>
+                        <input
+                          style={styles.input}
+                          value={cfg.projectKey || ''}
+                          onChange={e => updateConfig('projectKey', e.target.value || undefined)}
+                          placeholder="OPS"
+                        />
+                      </div>
+                      <div style={styles.field}>
+                        <label style={styles.label}>Issue type</label>
+                        <input
+                          style={styles.input}
+                          value={cfg.issueType || ''}
+                          onChange={e => updateConfig('issueType', e.target.value || undefined)}
+                          placeholder="Service Request"
+                        />
+                      </div>
+                    </div>
+                    <div style={styles.field}>
+                      <label style={styles.label}>Events (comma-separated)</label>
+                      <input
+                        style={styles.input}
+                        value={cfg.events?.join(', ') || ''}
+                        onChange={e => updateConfig('events', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
+                        placeholder="jira:issue_created, jira:issue_updated"
+                      />
+                    </div>
+                    <div style={styles.field}>
+                      <label style={styles.label}>JQL filter</label>
+                      <textarea
+                        style={styles.textarea}
+                        value={cfg.jqlFilter || ''}
+                        onChange={e => updateConfig('jqlFilter', e.target.value || undefined)}
+                        placeholder='priority = High AND status = Open'
+                        rows={2}
+                      />
+                    </div>
+                    <div style={styles.field}>
+                      <label style={styles.label}>HMAC / shared secret</label>
+                      <input
+                        style={styles.input}
+                        type="password"
+                        value={cfg.secret || ''}
+                        onChange={e => updateConfig('secret', e.target.value || undefined)}
+                        placeholder="Required — unsigned deliveries are rejected"
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {editingTrigger.type === 'whatsapp' && (() => {
+                const cfg = (editingTrigger as any).config || {};
+                return (
+                  <div style={styles.section}>
+                    <h4 style={styles.sectionTitle}>WhatsApp Config</h4>
+                    <div style={styles.row}>
+                      <div style={styles.field}>
+                        <label style={styles.label}>From filter (comma-separated JID substrings)</label>
+                        <input
+                          style={styles.input}
+                          value={cfg.fromFilter?.join(', ') || ''}
+                          onChange={e => updateConfig('fromFilter', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
+                          placeholder="5215512345678, @g.us"
+                        />
+                      </div>
+                      <div style={styles.field}>
+                        <label style={styles.label}>Direction</label>
+                        <select
+                          style={styles.select}
+                          value={cfg.direction || 'any'}
+                          onChange={e => updateConfig('direction', e.target.value === 'any' ? undefined : e.target.value)}
+                        >
+                          <option value="any">Any</option>
+                          <option value="inbound">Inbound</option>
+                          <option value="outbound">Outbound</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div style={styles.row}>
+                      <div style={styles.field}>
+                        <label style={styles.label}>Body pattern (regex)</label>
+                        <input
+                          style={styles.input}
+                          value={cfg.bodyPattern || ''}
+                          onChange={e => updateConfig('bodyPattern', e.target.value || undefined)}
+                          placeholder="urgente|deploy"
+                        />
+                      </div>
+                      <div style={styles.field}>
+                        <label style={styles.label}>Session ID</label>
+                        <input
+                          style={styles.input}
+                          value={cfg.sessionId || ''}
+                          onChange={e => updateConfig('sessionId', e.target.value || undefined)}
+                          placeholder="Restrict to a Baileys session"
+                        />
+                      </div>
+                    </div>
+                    <div style={styles.checkboxGrid}>
+                      <label style={styles.checkboxLabel}>
+                        <input type="checkbox" checked={!!cfg.groupOnly} onChange={e => updateConfig('groupOnly', e.target.checked || undefined)} />
+                        <span>Groups only</span>
+                      </label>
+                      <label style={styles.checkboxLabel}>
+                        <input type="checkbox" checked={!!cfg.dmOnly} onChange={e => updateConfig('dmOnly', e.target.checked || undefined)} />
+                        <span>DMs only</span>
+                      </label>
+                      <label style={styles.checkboxLabel}>
+                        <input type="checkbox" checked={!!cfg.includeStatuses} onChange={e => updateConfig('includeStatuses', e.target.checked || undefined)} />
+                        <span>Include statuses</span>
+                      </label>
+                    </div>
                   </div>
                 );
               })()}
