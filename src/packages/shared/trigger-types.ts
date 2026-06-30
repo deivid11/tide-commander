@@ -94,7 +94,10 @@ export interface EmailTrigger extends BaseTrigger {
 export interface SlackTrigger extends BaseTrigger {
   type: 'slack';
   config: {
+    instanceId?: string;              // Restrict to messages from this Slack instance. Falsy = match any instance.
     channelId?: string;               // Watch specific channel (null = DMs to bot)
+    channelIdAllowlist?: string[];    // When set + non-empty, only messages whose channel is in this list fire. Literal channel ids.
+    excludeChannelIds?: string[];     // Literal Slack channel ids whose messages must NOT fire the trigger.
     userFilter?: string[];            // Only trigger for messages from these Slack user IDs
     excludeUserIds?: string[];        // Skip messages from these Slack user IDs (e.g., to ignore your own personal account on a shared workspace)
     messagePattern?: string;          // Regex to match message content

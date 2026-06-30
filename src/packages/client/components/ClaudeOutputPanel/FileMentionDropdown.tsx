@@ -36,7 +36,7 @@ function fileIcon(name: string): React.ReactElement {
   return <Icon name="file" size={12} />;
 }
 
-export function FileMentionDropdown({ items, selectedIndex, onSelect, onClose }: FileMentionDropdownProps) {
+export function FileMentionDropdown({ items, selectedIndex, onSelect }: FileMentionDropdownProps) {
   const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {

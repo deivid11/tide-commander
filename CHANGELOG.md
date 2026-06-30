@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.126.0] - 2026-06-30
+
+### Added
+- **Full trigger-config editing for Slack, Email, Jira, and WhatsApp triggers** — the Edit Trigger modal previously only rendered type-specific config for Webhook, Bitbucket, and Cron triggers, so the structural match conditions for the other four types were invisible and uneditable. The modal now renders every type's matching fields: Slack (instance, channel, channel allowlist/exclude, user filter/exclude, message pattern, thread, DM/own-message toggles), Email (from filter, subject pattern, thread, required-approvals), Jira (project key, issue type, events, JQL, secret), and WhatsApp (from filter, direction, body pattern, session, group/DM/status toggles).
+- **Slack trigger instance selector** — Slack triggers can now be scoped to a specific Slack instance (or "Any instance") via a dropdown populated from `GET /api/slack/instances`. The `instanceId`, `channelIdAllowlist`, and `excludeChannelIds` fields — already honored by the runtime handler — are now part of the shared `SlackTrigger` type and the edit UI.
+- **@ file/folder mention in agent prompt input** — type `@` in the composer (web and browser extension) to mention files and folders with ranked search; folder mentions expand to directory structure and render as collapsible blocks in the chat UI.
+- **@ agent mention** — tag other agents with `@` in the web composer and browser extension; `[@agent:id]` mentions expand into the referenced agent's context.
+
+### Fixed
+- `<file>`/`<folder>` mention blocks are now collapsed in the chat history view.
+- Agent chip names now decode XML entities correctly.
+
 ## [1.125.1] - 2026-06-25
 
 ### Fixed
