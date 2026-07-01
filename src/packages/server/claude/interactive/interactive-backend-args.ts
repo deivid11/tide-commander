@@ -27,6 +27,7 @@ function translateCliModel(model: string): string {
   if (model === 'opus[1m]') return 'claude-opus-4-7';
   if (model === 'claude-opus-4-8[1m]') return 'claude-opus-4-8';
   if (model === 'claude-fable-5[1m]') return 'claude-fable-5';
+  if (model === 'claude-sonnet-5[1m]') return 'claude-sonnet-5';
   return model;
 }
 
