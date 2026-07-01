@@ -50,6 +50,41 @@ describe('ClaudeBackend', () => {
       expect(mergedContent).toContain('## Runtime System Context');
       expect(mergedContent).toContain('Boss context here.');
     });
+
+    describe('model selection', () => {
+      const baseConfig = {
+        agentId: 'agent-123',
+        prompt: 'Do the task',
+        workingDir: '/tmp/project',
+      };
+
+      function modelArg(model: string): string | undefined {
+        const backend = new ClaudeBackend();
+        const args = backend.buildArgs({ ...baseConfig, model } as never);
+        const flagIndex = args.indexOf('--model');
+        return flagIndex === -1 ? undefined : args[flagIndex + 1];
+      }
+
+      it('translates the claude-sonnet-5[1m] label to the bare claude-sonnet-5 id', () => {
+        expect(modelArg('claude-sonnet-5[1m]')).toBe('claude-sonnet-5');
+      });
+
+      it('passes the plain claude-sonnet-5 id through unchanged', () => {
+        expect(modelArg('claude-sonnet-5')).toBe('claude-sonnet-5');
+      });
+
+      it('still translates the existing [1m]-suffixed labels unchanged', () => {
+        expect(modelArg('opus[1m]')).toBe('claude-opus-4-7');
+        expect(modelArg('claude-opus-4-8[1m]')).toBe('claude-opus-4-8');
+        expect(modelArg('claude-fable-5[1m]')).toBe('claude-fable-5');
+      });
+
+      it('omits --model when no model is configured', () => {
+        const backend = new ClaudeBackend();
+        const args = backend.buildArgs({ ...baseConfig } as never);
+        expect(args).not.toContain('--model');
+      });
+    });
   });
 
   describe('parseEvent', () => {
