@@ -21,7 +21,10 @@ const TIMEOUT_MS = 15_000;
 // run with the 1M-token context beta"; the backing model ID is the bare ID.
 const MODEL_MAP: Record<string, string> = {
   haiku: 'claude-haiku-4-5-20251001',
-  sonnet: 'claude-sonnet-4-6-20250514',
+  sonnet: 'claude-sonnet-5',
+  'claude-sonnet-5': 'claude-sonnet-5',
+  'claude-sonnet-5[1m]': 'claude-sonnet-5',
+  'claude-sonnet-4-6': 'claude-sonnet-4-6-20250514',
   opus: 'claude-opus-4-8',
   fable: 'claude-fable-5',
   'fable-5': 'claude-fable-5',
@@ -35,7 +38,7 @@ const MODEL_MAP: Record<string, string> = {
   'opus[1m]': 'claude-opus-4-7',
 };
 
-function resolveModel(model?: string): string {
+export function resolveModel(model?: string): string {
   if (!model) return MODEL_MAP.haiku;
   return MODEL_MAP[model] || model;
 }
