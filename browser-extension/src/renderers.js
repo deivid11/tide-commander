@@ -813,7 +813,8 @@
   const UIELEM_SHOT_RE = /\[Screenshot of a UI element the user selected\]/;
   // The set of known field labels; used as a lookahead so a multi-line value
   // (Text, outerHTML, Request) stops at the next field instead of the next line.
-  const UIELEM_NEXT = '(?:Page|Selector|Tag|Box|Text|Computed styles|outerHTML|Request)[ \\t]*:';
+  const UIELEM_NEXT =
+    '(?:Page|Selector|Tag|Box|Text|Computed styles|outerHTML|Request|React component|Component tree|Source|React version)[ \\t]*:';
   function uiGrab(text, label) {
     const re = new RegExp(
       '^[ \\t]*' + label + '[ \\t]*:[ \\t]*([\\s\\S]*?)(?=\\n[ \\t]*' + UIELEM_NEXT + '|(?![\\s\\S]))',
@@ -842,6 +843,10 @@
       html,
       shotPath: ((text.match(/Saved screenshot:\s*([^\n]+)/) || [])[1] || '').trim(),
       request: uiGrab(text, 'Request'),
+      // React-aware pick (component resolved from the element's Fiber in the page).
+      reactComponent: uiGrab(text, 'React component').replace(/^<|>$/g, ''),
+      reactTree: uiGrab(text, 'Component tree'),
+      reactSource: uiGrab(text, 'Source'),
     };
   }
   // Compact "tagname.firstclass" / "tagname#id" label from the raw Tag field.
@@ -859,9 +864,11 @@
 
     const head = el('div', 'tc-uielem-head');
     head.innerHTML =
-      `<span class="tc-uielem-icon">⊹</span>` +
+      `<span class="tc-uielem-icon">${ui.reactComponent ? '⚛️' : '⊹'}</span>` +
       `<span class="tc-uielem-chip">${ui.isShot ? 'Element shot' : 'UI element'}</span>` +
-      `<span class="tc-uielem-tag" title="${attr(ui.tag || '')}">${esc(elementTagLabel(ui.tag))}</span>` +
+      (ui.reactComponent
+        ? `<span class="tc-uielem-comp" title="${attr(ui.reactTree || ui.reactComponent)}">&lt;${esc(ui.reactComponent)}&gt;</span>`
+        : `<span class="tc-uielem-tag" title="${attr(ui.tag || '')}">${esc(elementTagLabel(ui.tag))}</span>`) +
       (ui.rect ? `<span class="tc-uielem-dims">${ui.rect.w} × ${ui.rect.h}</span>` : '') +
       (ui.html ? `<span class="tc-uielem-toggle">▸</span>` : '');
     card.appendChild(head);
@@ -873,8 +880,18 @@
       card.appendChild(req);
     }
 
-    // Metadata rows (selector / page / screenshot path / text preview).
+    // Metadata rows (component / selector / page / screenshot path / text preview).
     const meta = el('div', 'tc-uielem-meta');
+    if (ui.reactComponent && ui.reactTree && ui.reactTree !== ui.reactComponent) {
+      const row = el('div', 'tc-uielem-row');
+      row.innerHTML = `<span class="tc-uielem-k">tree</span><span class="tc-uielem-v">${esc(ui.reactTree)}</span>`;
+      meta.appendChild(row);
+    }
+    if (ui.reactSource) {
+      const row = el('div', 'tc-uielem-row');
+      row.innerHTML = `<span class="tc-uielem-k">source</span><code class="tc-uielem-sel">${esc(ui.reactSource)}</code>`;
+      meta.appendChild(row);
+    }
     if (ui.selector) {
       const row = el('div', 'tc-uielem-row');
       row.innerHTML = `<span class="tc-uielem-k">selector</span><code class="tc-uielem-sel">${esc(ui.selector)}</code>`;
