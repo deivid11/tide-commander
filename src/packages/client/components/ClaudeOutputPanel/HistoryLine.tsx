@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useHideCost, useSettings, useAgentPrompts } from '../../store';
-import { store } from '../../store';
+import { store, type TestRunHandle } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
 import { getToolIconName, extractToolKeyParam, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
@@ -24,6 +24,9 @@ import { parseExtensionContext, ExtensionContextCard } from './ExtensionContextC
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, AskQuestionResult, ExitPlanModeInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, MemoryOpInput, isToolSearchContent } from './ToolRenderers';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
+import { parseTestResults } from './testResultsParser';
+import { TestResultsCard } from './TestResultsCard';
+import { TestRunInline } from './TestRunInline';
 import { highlightText, renderContentWithImages, renderUserPromptContent } from './contentRendering';
 import { useTTS } from '../../hooks/useTTS';
 import { ansiToHtml } from '../../utils/ansiToHtml';
@@ -59,6 +62,7 @@ interface HistoryLineProps {
    */
   subagents?: Map<string, Subagent>;
   execTasks?: ExecTask[];
+  testRunHandles?: TestRunHandle[];
   onImageClick?: (url: string, name: string) => void;
   onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
   onBashClick?: (command: string, output: string) => void;
@@ -85,6 +89,7 @@ export const HistoryLine = memo(function HistoryLine({
   simpleView,
   subagents,
   execTasks = [],
+  testRunHandles = [],
   onImageClick,
   onFileClick,
   onBashClick,
@@ -438,6 +443,20 @@ export const HistoryLine = memo(function HistoryLine({
             return [];
           })()
         : [];
+      // A persisted `curl … /api/tests/run` line → re-attach the in-store run so
+      // the inline test component shows on refresh (parity with live OutputLine).
+      const isCurlTestRunCommand = /\bcurl\b[\s\S]*\/api\/tests\/run(?!s)/.test(bashCommand);
+      const matchingTestRunId = isCurlTestRunCommand && testRunHandles.length > 0
+        ? (() => {
+            const near = testRunHandles.filter(
+              (r) => r.startedAt >= bashTimestampMs - 3000 && r.startedAt <= bashTimestampMs + 20000
+            );
+            if (near.length > 0) {
+              return near.reduce((latest, cur) => (cur.startedAt > latest.startedAt ? cur : latest)).runId;
+            }
+            return null;
+          })()
+        : null;
       const bashCurlParsed = (
         isBashTool
         && bashCommand
@@ -775,6 +794,12 @@ export const HistoryLine = memo(function HistoryLine({
                   </div>
                 );
               })}
+            </div>
+          )}
+          {/* Live/persisted test-run suite/test tree below the `curl /api/tests/run` line */}
+          {matchingTestRunId && (
+            <div className="exec-task-output-container">
+              <TestRunInline runId={matchingTestRunId} />
             </div>
           )}
           {/* Render exec task output for curl exec commands */}
@@ -1160,6 +1185,17 @@ export const HistoryLine = memo(function HistoryLine({
     // (see AgentTerminalPane.enrichHistory) so we don't render them
     // standalone here either.
     if (simpleView) return null;
+
+    // Test-run result JSON → render a compact card (parity with live OutputLine).
+    const testCard = parseTestResults(content);
+    if (testCard) {
+      return (
+        <div className="output-line output-tool-result">
+          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+          <TestResultsCard data={testCard} />
+        </div>
+      );
+    }
 
     const isError = content.toLowerCase().includes('error') || content.toLowerCase().includes('failed');
 

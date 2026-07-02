@@ -16,6 +16,9 @@ import type {
   AgentNotification, Secret,
   SkillUpdateData,
 } from './common-types.js';
+import type {
+  TestRunnerType, TestRunResult, TestRunStatus,
+} from './test-runner-types.js';
 
 // ============================================================================
 // WebSocket Base
@@ -1099,6 +1102,58 @@ export interface ExecTaskCompletedMessage extends WSMessage {
 }
 
 // ============================================================================
+// Test Run Messages (Streaming Test Execution)
+// ============================================================================
+
+// Test run started message (Server -> Client)
+export interface TestRunStartedMessage extends WSMessage {
+  type: 'test_run_started';
+  payload: {
+    runId: string;
+    runnerType: TestRunnerType;
+    moduleRoot: string;
+    command: string;
+    label: string;
+    targetPath: string; // folder the user clicked "Run Tests" on
+    agentId?: string; // set when an agent started the run (streams inline in its terminal)
+  };
+}
+
+// Test run output message (Server -> Client) - streaming console output
+export interface TestRunOutputMessage extends WSMessage {
+  type: 'test_run_output';
+  payload: {
+    runId: string;
+    output: string;
+    isError?: boolean;
+    agentId?: string; // repeated so a late-loading client can associate the run
+  };
+}
+
+// Test run progress message (Server -> Client) - partial parsed results streamed
+// while the run is still in flight (each suite appears as its report is written).
+export interface TestRunProgressMessage extends WSMessage {
+  type: 'test_run_progress';
+  payload: {
+    runId: string;
+    result: TestRunResult;
+  };
+}
+
+// Test run completed message (Server -> Client) - carries parsed results
+export interface TestRunCompletedMessage extends WSMessage {
+  type: 'test_run_completed';
+  payload: {
+    runId: string;
+    status: TestRunStatus;
+    exitCode: number | null;
+    result: TestRunResult;
+    error?: string; // set when the run could not start / produce results
+    agentId?: string; // repeated so a late-loading client can associate the run
+  };
+}
+
+// ============================================================================
 // Secrets Messages
 // ============================================================================
 
@@ -1598,6 +1653,10 @@ export type ServerMessage =
   | ExecTaskStartedMessage
   | ExecTaskOutputMessage
   | ExecTaskCompletedMessage
+  | TestRunStartedMessage
+  | TestRunOutputMessage
+  | TestRunProgressMessage
+  | TestRunCompletedMessage
   | SecretsUpdateMessage
   | SecretCreatedMessage
   | SecretUpdatedMessage

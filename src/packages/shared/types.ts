@@ -10,6 +10,7 @@ export * from './agent-types.js';
 export * from './building-types.js';
 export * from './database-types.js';
 export * from './common-types.js';
+export * from './test-runner-types.js';
 export * from './websocket-messages.js';
 export * from './trigger-types.js';
 export * from './integration-types.js';

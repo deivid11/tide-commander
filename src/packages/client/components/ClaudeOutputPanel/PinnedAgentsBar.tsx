@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { store, useAgents, usePinnedAgentIds, useCustomAgentClassesArray, useAreas, useViewMode } from '../../store';
 import { AgentIcon } from '../AgentIcon';
+import { STORAGE_KEYS, getStorageString, setStorageString } from '../../utils/storage';
 import type { Agent } from '../../../shared/types';
 
 interface PinnedAgentsBarProps {
@@ -8,11 +9,47 @@ interface PinnedAgentsBarProps {
   activeAgentId?: string;
 }
 
+/** How the pinned chips are laid out. Persisted in localStorage. */
+type GroupMode = 'none' | 'status' | 'area';
+const GROUP_MODES: GroupMode[] = ['none', 'status', 'area'];
+const MODE_LABEL: Record<GroupMode, string> = { none: 'Flat', status: 'Status', area: 'Area' };
+
+/** Coarse status buckets for "group by status". The live AgentStatus union is
+ * `idle | working | waiting | waiting_permission | error | offline | orphaned`.
+ * Anything actively running (or blocked awaiting permission) is "Working"; a
+ * clean stopped agent is "Idle"; error/offline/orphaned fall to "Offline". */
+type StatusBucket = 'working' | 'idle' | 'offline';
+const STATUS_RANK: Record<StatusBucket, number> = { working: 0, idle: 1, offline: 2 };
+const STATUS_LABEL: Record<StatusBucket, string> = { working: 'Working', idle: 'Idle', offline: 'Offline' };
+function statusBucket(a: Agent): StatusBucket {
+  switch (a.status) {
+    case 'working':
+    case 'waiting':
+    case 'waiting_permission':
+      return 'working';
+    case 'idle':
+      return 'idle';
+    default: // error, offline, orphaned
+      return 'offline';
+  }
+}
+
+interface PinGroup {
+  key: string;
+  label: string;
+  color: string | null;
+  agents: Agent[];
+}
+
 /**
  * Quick-select strip of pinned agents, shown above the terminal input. Click a
  * thumbnail to switch the terminal to that agent; click its × (or right-click)
  * to unpin. Pins persist per-browser (see store.togglePinnedAgent). Hidden when
  * nothing is pinned. Mirrors the browser-extension cockpit's pinned-agents bar.
+ *
+ * A leading toggle cycles the layout: Flat (default) → by Status → by Area. In
+ * a grouped layout the chips are split into inline sections, each led by a small
+ * label+count header; the chip rendering itself is identical across modes.
  */
 export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId }: PinnedAgentsBarProps) {
   const pinnedIds = usePinnedAgentIds();
@@ -20,6 +57,18 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId }: 
   const customClasses = useCustomAgentClassesArray();
   const areas = useAreas();
   const viewMode = useViewMode();
+
+  const [groupMode, setGroupMode] = useState<GroupMode>(() => {
+    const saved = getStorageString(STORAGE_KEYS.PINNED_GROUP_MODE, 'none');
+    return saved === 'status' || saved === 'area' ? saved : 'none';
+  });
+  const cycleGroupMode = useCallback(() => {
+    setGroupMode((prev) => {
+      const next = GROUP_MODES[(GROUP_MODES.indexOf(prev) + 1) % GROUP_MODES.length];
+      setStorageString(STORAGE_KEYS.PINNED_GROUP_MODE, next);
+      return next;
+    });
+  }, []);
 
   // Resolve each pinned agent's area color (by spatial position, like the board).
   // `areas` is a dep so the tint re-resolves when areas move/recolor.
@@ -96,48 +145,121 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId }: 
   }, []);
 
   // Resolve in pin order; skip ids whose agent no longer exists.
-  const pinned = pinnedIds.map((id) => agents.get(id)).filter((a): a is Agent => !!a);
+  const pinned = useMemo(
+    () => pinnedIds.map((id) => agents.get(id)).filter((a): a is Agent => !!a),
+    [pinnedIds, agents],
+  );
+
+  // Build the grouped sections (null in flat mode). Group membership derives from
+  // live status/area; within each group the flat pin order is preserved, so
+  // drag-to-reorder still orders chips inside a group.
+  const groups = useMemo<PinGroup[] | null>(() => {
+    if (groupMode === 'none') return null;
+    const byKey = new Map<string, PinGroup>();
+    const push = (key: string, label: string, color: string | null, agent: Agent) => {
+      let g = byKey.get(key);
+      if (!g) {
+        g = { key, label, color, agents: [] };
+        byKey.set(key, g);
+      }
+      g.agents.push(agent);
+    };
+    for (const agent of pinned) {
+      if (groupMode === 'status') {
+        const b = statusBucket(agent);
+        push(b, STATUS_LABEL[b], null, agent);
+      } else {
+        const area = store.getAreaForAgent(agent.id);
+        if (area) push(`area:${area.id}`, area.name, area.color ?? null, agent);
+        else push('noarea', 'No area', null, agent);
+      }
+    }
+    const list = Array.from(byKey.values());
+    if (groupMode === 'status') {
+      list.sort((a, b) => (STATUS_RANK[a.key as StatusBucket] ?? 9) - (STATUS_RANK[b.key as StatusBucket] ?? 9));
+    } else {
+      // Alphabetical by area name; the catch-all "No area" always trails.
+      list.sort((a, b) => {
+        if (a.key === 'noarea') return 1;
+        if (b.key === 'noarea') return -1;
+        return a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
+      });
+    }
+    return list;
+    // `areas` dep keeps the by-area headers (name + color) fresh when an area is
+    // renamed/recolored/moved without the pin set itself changing.
+  }, [groupMode, pinned, areas]);
+
+  const renderChip = useCallback(
+    (agent: Agent) => {
+      const working = agent.status === 'working' || agent.status === 'waiting';
+      const isActive = agent.id === activeAgentId;
+      const areaColor = areaColorById.get(agent.id) ?? null;
+      return (
+        <button
+          key={agent.id}
+          type="button"
+          draggable
+          className={`pinned-agent${isActive ? ' active' : ''}${working ? ' working' : ''}${areaColor ? ' has-area' : ''}${
+            draggingId === agent.id ? ' dragging' : ''
+          }${dropTarget && dropTarget.id === agent.id ? (dropTarget.after ? ' drop-after' : ' drop-before') : ''}`}
+          title={`${agent.name}${agent.status ? ` — ${agent.status}` : ''}`}
+          style={areaColor ? ({ ['--area-color']: areaColor } as React.CSSProperties) : undefined}
+          onClick={() => handleSelect(agent)}
+          onContextMenu={(e) => handleUnpin(e, agent.id)}
+          onDragStart={(e) => handleDragStart(e, agent.id)}
+          onDragOver={(e) => handleDragOver(e, agent.id)}
+          onDrop={(e) => handleDrop(e, agent.id)}
+          onDragEnd={handleDragEnd}
+        >
+          <span className="pinned-agent-av">
+            <AgentIcon classId={agent.class} size="100%" customClasses={customClasses} />
+          </span>
+          <span className="pinned-agent-name">{agent.name}</span>
+          <span
+            className="pinned-agent-unpin"
+            role="button"
+            aria-label="Unpin agent"
+            title="Unpin"
+            onClick={(e) => handleUnpin(e, agent.id)}
+          >
+            ×
+          </span>
+        </button>
+      );
+    },
+    [activeAgentId, areaColorById, draggingId, dropTarget, customClasses, handleSelect, handleUnpin, handleDragStart, handleDragOver, handleDrop, handleDragEnd],
+  );
+
   if (pinned.length === 0) return null;
 
   return (
     <div className="pinned-agents-bar" role="toolbar" aria-label="Pinned agents">
-      {pinned.map((agent) => {
-        const working = agent.status === 'working' || agent.status === 'waiting';
-        const isActive = agent.id === activeAgentId;
-        const areaColor = areaColorById.get(agent.id) ?? null;
-        return (
-          <button
-            key={agent.id}
-            type="button"
-            draggable
-            className={`pinned-agent${isActive ? ' active' : ''}${working ? ' working' : ''}${areaColor ? ' has-area' : ''}${
-              draggingId === agent.id ? ' dragging' : ''
-            }${dropTarget && dropTarget.id === agent.id ? (dropTarget.after ? ' drop-after' : ' drop-before') : ''}`}
-            title={`${agent.name}${agent.status ? ` — ${agent.status}` : ''}`}
-            style={areaColor ? ({ ['--area-color']: areaColor } as React.CSSProperties) : undefined}
-            onClick={() => handleSelect(agent)}
-            onContextMenu={(e) => handleUnpin(e, agent.id)}
-            onDragStart={(e) => handleDragStart(e, agent.id)}
-            onDragOver={(e) => handleDragOver(e, agent.id)}
-            onDrop={(e) => handleDrop(e, agent.id)}
-            onDragEnd={handleDragEnd}
-          >
-            <span className="pinned-agent-av">
-              <AgentIcon classId={agent.class} size="100%" customClasses={customClasses} />
-            </span>
-            <span className="pinned-agent-name">{agent.name}</span>
-            <span
-              className="pinned-agent-unpin"
-              role="button"
-              aria-label="Unpin agent"
-              title="Unpin"
-              onClick={(e) => handleUnpin(e, agent.id)}
-            >
-              ×
-            </span>
-          </button>
-        );
-      })}
+      <button
+        type="button"
+        className="pinned-group-toggle"
+        title={`Group pinned agents: ${MODE_LABEL[groupMode]} — click to change`}
+        aria-label={`Grouping: ${MODE_LABEL[groupMode]}. Click to change.`}
+        onClick={cycleGroupMode}
+      >
+        <span className="pgt-icon" aria-hidden="true">⊞</span>
+        <span className="pgt-label">{MODE_LABEL[groupMode]}</span>
+      </button>
+      {groups
+        ? groups.map((g) => (
+            <div className="pinned-group" key={g.key}>
+              <span
+                className={`pinned-group-label${g.color ? ' has-area' : ''}`}
+                style={g.color ? ({ ['--area-color']: g.color } as React.CSSProperties) : undefined}
+                title={`${g.label} · ${g.agents.length}`}
+              >
+                <span className="pinned-group-name">{g.label}</span>
+                <span className="pinned-group-count">{g.agents.length}</span>
+              </span>
+              <div className="pinned-group-chips">{g.agents.map(renderChip)}</div>
+            </div>
+          ))
+        : pinned.map(renderChip)}
     </div>
   );
 });

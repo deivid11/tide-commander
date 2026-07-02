@@ -25,3 +25,4 @@ export * as autoCollapseService from './auto-collapse-service.js';
 export * as workflowService from './workflow-service.js';
 export * as workflowChatService from './workflow-chat-service.js';
 export * as whatsappNotificationConfigService from './whatsapp-notification-config-service.js';
+export * as testRunnerService from './test-runner-service.js';

@@ -12,6 +12,7 @@ import { OutputLine } from './OutputLine';
 import type { EnrichedHistoryMessage, EditData } from './types';
 import type { ClaudeOutput } from '../../store';
 import type { ExecTask, Subagent } from '../../../shared/types';
+import type { TestRunHandle } from '../../store';
 import { buildItemKey } from './virtualizedOutputKey';
 export { buildItemKey } from './virtualizedOutputKey';
 export type { TaggedItem, TaggedHistoryItem, TaggedLiveItem } from './virtualizedOutputKey';
@@ -32,6 +33,7 @@ interface VirtualizedOutputListProps {
   liveOutputs: EnrichedOutput[];
   agentId: string;
   execTasks?: ExecTask[];
+  testRunHandles?: TestRunHandle[];
   subagents?: Map<string, Subagent>;
 
   // UI state
@@ -126,6 +128,7 @@ const VirtualRow = memo(function VirtualRow({
   isHistory,
   agentId,
   execTasks,
+  testRunHandles,
   subagents,
   simpleView,
   isSelected,
@@ -140,6 +143,7 @@ const VirtualRow = memo(function VirtualRow({
   isHistory: boolean;
   agentId: string;
   execTasks: ExecTask[];
+  testRunHandles: TestRunHandle[];
   subagents?: Map<string, Subagent>;
   simpleView: boolean;
   isSelected: boolean;
@@ -163,6 +167,7 @@ const VirtualRow = memo(function VirtualRow({
           highlight={searchHighlight}
           subagents={subagents}
           execTasks={execTasks}
+          testRunHandles={testRunHandles}
           onImageClick={onImageClick}
           onFileClick={onFileClick}
           onBashClick={onBashClick}
@@ -173,6 +178,7 @@ const VirtualRow = memo(function VirtualRow({
           output={item as EnrichedOutput}
           agentId={agentId}
           execTasks={execTasks}
+          testRunHandles={testRunHandles}
           subagents={subagents}
           highlight={searchHighlight}
           onImageClick={onImageClick}
@@ -190,6 +196,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   liveOutputs,
   agentId,
   execTasks = [],
+  testRunHandles = [],
   subagents,
   viewMode,
   searchHighlight,
@@ -500,6 +507,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
               isHistory={isHistory}
               agentId={agentId}
               execTasks={execTasks}
+              testRunHandles={testRunHandles}
               subagents={subagents}
               simpleView={simpleView}
               isSelected={isMessageSelected(virtualRow.index)}

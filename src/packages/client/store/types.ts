@@ -25,6 +25,9 @@ import type {
   ExistingComposeProject,
   Subagent,
   SessionHistoryEntry,
+  TestRunnerType,
+  TestRunResult,
+  TestRunStatus,
 } from '../../shared/types';
 import type { ShortcutConfig } from './shortcuts';
 import type { MouseControlsState } from './mouseControls';
@@ -97,6 +100,31 @@ export interface AgentTaskProgress {
   output: AgentOutput[];      // Streaming output lines with tool metadata
   startedAt: number;
   completedAt?: number;
+}
+
+// Test run (streaming Run Tests execution via /api/tests/run)
+export interface TestRun {
+  runId: string;
+  runnerType: TestRunnerType;
+  moduleRoot: string;
+  targetPath: string; // folder the user clicked "Run Tests" on
+  command: string;
+  label: string;
+  agentId?: string; // agent that started the run (streams inline in its terminal)
+  status: TestRunStatus;
+  output: string[]; // streamed console lines ([stderr] prefix for stderr)
+  result?: TestRunResult;
+  exitCode?: number | null;
+  error?: string;
+  startedAt: number;
+  completedAt?: number;
+}
+
+// Stable handle for matching a test run to its `curl` line without threading the
+// mutable run (which changes on every output line) through the virtualized list.
+export interface TestRunHandle {
+  runId: string;
+  startedAt: number;
 }
 
 // Settings
@@ -236,6 +264,14 @@ export interface StoreState {
   historyRefreshTrigger: number;
   // Exec tasks (streaming command execution via /api/exec)
   execTasks?: Map<string, ExecTask>;
+  // Test runs (streaming Run Tests execution via /api/tests/run)
+  testRuns?: Map<string, TestRun>;
+  // Most recently started test run — lets the explorer reopen the results modal
+  // after it's closed (the run keeps streaming in the background).
+  latestTestRunId?: string | null;
+  // Whether the (global) test results modal is open. Rendered app-wide so it can
+  // be opened from anywhere (e.g. the Ctrl+T shortcut), not just the explorer.
+  testResultsModalOpen?: boolean;
   // Secrets (key-value pairs for placeholder replacement)
   secrets: Map<string, Secret>;
   // Database state per building

@@ -264,6 +264,18 @@ export function useKeyboardShortcuts({
         return;
       }
 
+      // Toggle Test Results panel (Ctrl+T by default). Global — works from
+      // anywhere. Let the embedded terminal keep the combo if focus is inside it.
+      const testResultsShortcut = shortcuts.find(s => s.id === 'toggle-test-results');
+      if (matchesShortcut(e, testResultsShortcut)) {
+        if (target.closest('.guake-bottom-terminal-embed')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (store.getState().testResultsModalOpen) store.closeTestResults();
+        else store.openTestResults();
+        return;
+      }
+
       // Cycle View Mode: 3D → 2D → Dashboard → 3D (Alt+2)
       const toggle2DViewShortcut = shortcuts.find(s => s.id === 'toggle-2d-view');
       if (matchesShortcut(e, toggle2DViewShortcut)) {

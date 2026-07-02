@@ -31,6 +31,8 @@ import type {
   FileChange,
   AgentTaskProgress,
   DatabaseBuildingState,
+  TestRun,
+  TestRunHandle,
 } from './types';
 import type { ShortcutConfig } from './shortcuts';
 import type { MouseControlsState, CameraSensitivityConfig } from './mouseControls';
@@ -872,6 +874,70 @@ export function useAllExecTasks(): ExecTask[] {
       return Array.from(state.execTasks.values());
     }, []),
     shallowArrayEqual
+  );
+}
+
+// ============================================================================
+// TEST RUN SELECTORS
+// ============================================================================
+
+/**
+ * Subscribe to a single test run by id. The run object is replaced immutably on
+ * every update (output/result), so default Object.is equality re-renders only
+ * when this run changes.
+ */
+export function useTestRun(runId: string | null): TestRun | undefined {
+  return useSelector(
+    useCallback(
+      (state: StoreState) => {
+        if (!runId) return undefined;
+        return state.testRuns?.get(runId);
+      },
+      [runId]
+    )
+  );
+}
+
+/** Id of the most recently started test run (null if none this session). */
+export function useLatestTestRunId(): string | null {
+  return useSelector(useCallback((state: StoreState) => state.latestTestRunId ?? null, []));
+}
+
+/** Whether the global test results modal is open. */
+export function useTestResultsModalOpen(): boolean {
+  return useSelector(useCallback((state: StoreState) => state.testResultsModalOpen ?? false, []));
+}
+
+// Equality that ignores per-run mutations (output/result/status) — only the SET
+// of (runId, startedAt) matters, so the list doesn't re-render on every output.
+function testRunHandlesEqual(a: TestRunHandle[], b: TestRunHandle[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].runId !== b[i].runId || a[i].startedAt !== b[i].startedAt) return false;
+  }
+  return true;
+}
+
+/**
+ * Stable handles for an agent's test runs. Only changes when a run is added or
+ * removed — NOT on output/progress — so threading it through the virtualized
+ * terminal doesn't cause a re-render storm. TestRunInline subscribes to the
+ * live run itself via useTestRun(runId).
+ */
+export function useAgentTestRunHandles(agentId: string | null): TestRunHandle[] {
+  return useSelector(
+    useCallback(
+      (state: StoreState) => {
+        if (!agentId || !state.testRuns) return [];
+        const out: TestRunHandle[] = [];
+        for (const r of state.testRuns.values()) {
+          if (r.agentId === agentId) out.push({ runId: r.runId, startedAt: r.startedAt });
+        }
+        return out;
+      },
+      [agentId]
+    ),
+    testRunHandlesEqual
   );
 }
 

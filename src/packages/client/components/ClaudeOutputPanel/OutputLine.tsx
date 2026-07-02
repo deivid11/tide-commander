@@ -4,7 +4,7 @@
 
 import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useHideCost, useSettings, ClaudeOutput, store, useAgentPrompts } from '../../store';
+import { useHideCost, useSettings, ClaudeOutput, store, useAgentPrompts, type TestRunHandle } from '../../store';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
 import { getToolIconName, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
@@ -19,6 +19,9 @@ import { parseExtensionContext, ExtensionContextCard } from './ExtensionContextC
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, AskQuestionResult, ExitPlanModeInput, UnknownToolInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, MemoryOpInput, isToolSearchContent } from './ToolRenderers';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
+import { parseTestResults } from './testResultsParser';
+import { TestResultsCard } from './TestResultsCard';
+import { TestRunInline } from './TestRunInline';
 import { renderContentWithImages, renderUserPromptContent, highlightText } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
@@ -46,6 +49,7 @@ interface OutputLineProps {
   output: ClaudeOutput & { _toolKeyParam?: string; _editData?: EditData; _todoInput?: string; _bashOutput?: string; _bashCommand?: string; _isRunning?: boolean };
   agentId: string | null;
   execTasks?: ExecTask[];
+  testRunHandles?: TestRunHandle[];
   subagents?: Map<string, Subagent>;
   onImageClick?: (url: string, name: string) => void;
   onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
@@ -205,7 +209,7 @@ function TimestampWithMeta({ output, timeStr, debugHash, agentId }: { output: Cl
   );
 }
 
-export const OutputLine = memo(function OutputLine({ output, agentId, execTasks = [], subagents, onImageClick, onFileClick, onBashClick, onViewMarkdown, highlight }: OutputLineProps) {
+export const OutputLine = memo(function OutputLine({ output, agentId, execTasks = [], testRunHandles = [], subagents, onImageClick, onFileClick, onBashClick, onViewMarkdown, highlight }: OutputLineProps) {
   const { t } = useTranslation(['tools', 'common', 'terminal']);
   const hideCost = useHideCost();
   const settings = useSettings();
@@ -785,6 +789,24 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const showInlineRunningTasks = Boolean(isBashTool && isCurlExecCommand && matchingExecTasks.length > 0);
     const _truncatedTaskCommand = (value: string) => (value.length > 52 ? `${value.slice(0, 52)}...` : value);
 
+    // A `curl … POST /api/tests/run` line → stream the matching test run inline
+    // (like an exec task). Match by time window since the runId isn't in the command.
+    // `/api/tests/run` but not `/api/tests/runs/` (the poll endpoint).
+    const isTestRunCurl = Boolean(
+      isBashTool && bashCommand && looksLikeCurl(bashCommand) && /\/api\/tests\/run(?!s)/.test(bashCommand)
+    );
+    const matchingTestRunId = isTestRunCurl && testRunHandles.length > 0
+      ? (() => {
+          const near = testRunHandles.filter(
+            (r) => r.startedAt >= bashTimestampMs - 3000 && r.startedAt <= bashTimestampMs + 20000
+          );
+          if (near.length > 0) {
+            return near.reduce((latest, cur) => (cur.startedAt > latest.startedAt ? cur : latest)).runId;
+          }
+          return null;
+        })()
+      : null;
+
     // Match Task/Agent tool line to its subagent via uuid (which equals toolUseId)
     const matchingSubagent = (toolName === 'Task' || toolName === 'Agent') && subagents && output.uuid
       ? (() => {
@@ -1069,6 +1091,13 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           </div>
         )}
 
+        {/* Live test-run suite/test tree below the `curl /api/tests/run` line */}
+        {matchingTestRunId && (
+          <div className="exec-task-output-container">
+            <TestRunInline runId={matchingTestRunId} />
+          </div>
+        )}
+
         {/* Inline subagent activity panel below Task tool line */}
         {matchingSubagent && <SubagentInline subagent={matchingSubagent} />}
       </>
@@ -1130,6 +1159,15 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   // Handle tool result with nice formatting
   if (text.startsWith('Tool result:')) {
     const resultText = text.replace('Tool result:', '').trim();
+    const testCard = parseTestResults(resultText);
+    if (testCard) {
+      return (
+        <div className="output-line output-tool-result">
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          <TestResultsCard data={testCard} />
+        </div>
+      );
+    }
     const isError = resultText.toLowerCase().includes('error') || resultText.toLowerCase().includes('failed');
     if (output.toolName === 'AskUserQuestion' || output.toolName === 'AskFollowupQuestion') {
       return (
@@ -1151,6 +1189,15 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   // Handle Bash command output with terminal-like styling
   if (text.startsWith('Bash output:')) {
     const bashOutput = text.replace('Bash output:', '').trim();
+    const testCard = parseTestResults(bashOutput);
+    if (testCard) {
+      return (
+        <div className="output-line output-tool-result">
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          <TestResultsCard data={testCard} />
+        </div>
+      );
+    }
     const isError = bashOutput.toLowerCase().includes('error') ||
                     bashOutput.toLowerCase().includes('failed') ||
                     bashOutput.toLowerCase().includes('command not found') ||

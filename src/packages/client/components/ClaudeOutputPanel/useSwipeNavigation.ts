@@ -6,7 +6,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { store, useAreas, useToolExecutions, useSettings } from '../../store';
+import { store, useAreas, useToolExecutions, useSettings, usePinnedAgentIds } from '../../store';
 import { matchesShortcut } from '../../store/shortcuts';
 import { useSwipeGesture } from '../../hooks';
 import { STORAGE_KEYS, getStorage } from '../../utils/storage';
@@ -69,6 +69,12 @@ export function useSwipeNavigation({
   const areas = useAreas();
   const toolExecutions = useToolExecutions();
   const settings = useSettings();
+  // When >= 2 agents are pinned, the pinned-swipe (usePinnedSwipeNavigation, bound
+  // on the same output element in AgentTerminalPane) takes over horizontal swipe.
+  // Disable this all-agent swipe gesture then so the two never both fire; the
+  // keyboard nav below still cycles the full agent list.
+  const pinnedIds = usePinnedAgentIds();
+  const pinnedNavCount = pinnedIds.reduce((n, id) => (agents.has(id) ? n + 1 : n), 0);
   const vibrationIntensity = (settings.vibrationIntensity ?? 1) as VibrationIntensity;
   const isAgentBarVisible = (): boolean => {
     if (typeof document === 'undefined') return false;
@@ -307,7 +313,7 @@ export function useSwipeNavigation({
     resetDragState();
   }, [resetDragState]);
 
-  const swipeEnabled = isOpen && sortedAgents.length > 1;
+  const swipeEnabled = isOpen && sortedAgents.length > 1 && pinnedNavCount < 2;
   const sharedSwipeOpts = {
     // Gesture direction intentionally inverted: swipe-left gesture → prev agent, swipe-right → next
     onSwipeLeft: handleSwipeRight,

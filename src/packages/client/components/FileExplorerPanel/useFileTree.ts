@@ -66,6 +66,7 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
           size: 0,
           extension: '',
           children: sortedTree,
+          runnerType: data.runnerType,
         };
         setTree([rootNode]);
         // Track that we've loaded this path

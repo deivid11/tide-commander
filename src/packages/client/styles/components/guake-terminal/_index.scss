@@ -23,6 +23,9 @@
 // Structured card for `curl ...` Bash commands
 @forward 'curl-card';
 
+// Compact card for executed test-run results
+@forward 'test-results-card';
+
 // Browser-extension context cards (picked element / network / error / files)
 @forward 'extension-context-cards';
 

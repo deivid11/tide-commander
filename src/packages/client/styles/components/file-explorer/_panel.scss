@@ -108,6 +108,45 @@
   z-index: 1001;
 }
 
+// Filter input pinned to the top of the open dropdown.
+.file-explorer-folder-dropdown-search {
+  position: sticky;
+  top: 0;
+  padding: 6px;
+  background: $bg-tertiary;
+  border-bottom: 1px solid $border-color;
+  z-index: 1;
+}
+
+.file-explorer-folder-dropdown-search-input {
+  width: 100%;
+  padding: 5px 8px;
+  background: $dracula-bg;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  font-family: $font-mono;
+  font-size: 11px;
+  outline: none;
+  box-sizing: border-box;
+
+  &:focus {
+    border-color: $accent-blue;
+  }
+
+  &::placeholder {
+    color: $text-muted;
+  }
+}
+
+.file-explorer-folder-dropdown-empty {
+  padding: 10px 8px;
+  font-size: 11px;
+  font-family: $font-mono;
+  color: $text-muted;
+  text-align: center;
+}
+
 .file-explorer-folder-option {
   display: flex;
   flex-direction: column;

@@ -2,6 +2,7 @@ import React, { Suspense, Profiler } from 'react';
 import { store, useStore } from '../store';
 import { type SceneConfig } from './toolbox';
 import { ContextMenu, type ContextMenuAction } from './ContextMenu';
+import { GlobalTestRunnerModal } from './GlobalTestRunnerModal';
 import { profileRender } from '../utils/profiling';
 import type { UseModalState, UseModalStateWithId, UseContextMenu } from '../hooks';
 
@@ -295,12 +296,21 @@ export function AppModals({
         isOpen={explorerModal.isOpen || explorerFolderPath !== null || state.explorerAreaId !== null}
         areaId={explorerModal.id || state.explorerAreaId || null}
         folderPath={explorerFolderPath}
-        onChangeArea={(newAreaId) => explorerModal.open(newAreaId)}
+        onChangeArea={(newAreaId) => {
+          // Clear any direct-folder path (opened via the terminal cwd or spotlight)
+          // so the freshly picked folder isn't overridden when we leave direct-folder
+          // mode — otherwise the lingering cwd path re-seeds the selection.
+          store.setExplorerFolderPath(null);
+          explorerModal.open(newAreaId);
+        }}
         onClose={() => {
           explorerModal.close();
           store.closeFileExplorer();
         }}
       />
+
+      {/* Test results — global mount so Ctrl+T / the explorer button can open it anywhere */}
+      <GlobalTestRunnerModal />
 
       {/* Spotlight / Global Search */}
       <Spotlight

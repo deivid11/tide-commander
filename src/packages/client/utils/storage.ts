@@ -92,6 +92,8 @@ export const STORAGE_KEYS = {
 
   // Pinned agents (quick-select thumbnail bar above the terminal input)
   PINNED_AGENTS: 'tide-pinned-agents',
+  // Grouping mode for the pinned-agents bar: 'none' | 'status' | 'area'
+  PINNED_GROUP_MODE: 'tide-pinned-group-mode',
 
   // Pending messages (queued when offline)
   PENDING_MESSAGES: 'tide-pending-messages',
