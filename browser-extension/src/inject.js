@@ -459,7 +459,17 @@
   }
   function reactInfo(el) {
     if (!(el instanceof Element)) return null;
-    let node = reactFiber(el);
+    // The clicked node may be a non-React-managed leaf (an <svg>/<path> inside an icon,
+    // a portal wrapper, a third-party widget). React attaches a Fiber to the host nodes
+    // it renders, so climb the DOM until we hit one that carries a Fiber.
+    let host = el;
+    let node = reactFiber(host);
+    let dom = 0;
+    while (!node && host && dom < 15) {
+      host = host.parentElement;
+      node = host ? reactFiber(host) : null;
+      dom++;
+    }
     if (!node) return null;
     const chain = [];
     let source = null;

@@ -3032,9 +3032,11 @@ function formatElementContext(ctx) {
   const preferComp = !config || config.preferReactComponent !== false; // default on
   const dropHtml = hasComp && preferComp;
   const html = dropHtml ? '' : (hideSvg ? stripSvg(ctx.outerHTML) : ctx.outerHTML || '').slice(0, 4000);
+  // Keep the base marker line EXACTLY as-is so renderers.js (UIELEM_MARKER_RE) still
+  // matches; append the React fields right after it when a component was resolved.
   const header = hasComp
     ? [
-        '[UI element the user selected on the page — React component]',
+        '[UI element the user selected on the page]',
         `React component: <${r.component}>`,
         r.chain && r.chain.length > 1 ? `Component tree: ${r.chain.join(' ‹ ')}` : '',
         r.source ? `Source: ${r.source}` : '',
