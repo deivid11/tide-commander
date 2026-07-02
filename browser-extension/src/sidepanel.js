@@ -2867,16 +2867,45 @@ function renderPending() {
   const chips = [];
   const x = (pk, i) => `<button class="att-x" data-pk="${pk}" data-i="${i}" title="Remove">✕</button>`;
   pendingElements.forEach((p, i) => {
-    const name = p.context.selector || p.context.tag || 'element';
+    const ctx = p.context || {};
+    const name = ctx.selector || ctx.tag || 'element';
+    const react = ctx.react && ctx.react.component ? ctx.react : null;
+    // Full tooltip: when React was resolved, show component + tree + source AND the
+    // selector, so the user can confirm exactly what's being attached.
+    const tip = react
+      ? [
+          `⚛️ <${react.component}>`,
+          react.chain && react.chain.length > 1 ? `   ${react.chain.join(' ‹ ')}` : '',
+          react.source ? `   ${react.source}` : '',
+          `◈ ${name}`,
+          p.mode === 'shot' ? '📷 + screenshot' : '',
+        ]
+          .filter(Boolean)
+          .join('\n')
+      : (p.mode === 'shot' ? '📷 ' : '<' + ctx.tag + '> ') + name;
     if (p.mode === 'shot' && p.image) {
+      // Screenshot thumbnail; add a ⚛️ corner badge when it was picked off a React element.
       chips.push(
-        `<span class="att att-shot" title="${esc('📷 ' + name)}">` +
-          `<img src="${esc(p.image)}" alt="" /><span class="att-badge">📷</span>${x('el', i)}</span>`,
+        `<span class="att att-shot" title="${esc(tip)}">` +
+          `<img src="${esc(p.image)}" alt="" /><span class="att-badge">📷</span>` +
+          (react ? `<span class="att-badge-react" title="${esc('React: ' + react.component)}">⚛️</span>` : '') +
+          `${x('el', i)}</span>`,
+      );
+    } else if (react) {
+      // React-aware chip: component name on top, DOM selector beneath — both visible so
+      // it's obvious the attachment carries the component AND its selector.
+      chips.push(
+        `<span class="att att-doc att-el att-el-react" title="${esc(tip)}">` +
+          `<span class="att-doc-ic">⚛️</span>` +
+          `<span class="att-el-parts">` +
+            `<span class="att-el-comp">${esc(react.component)}</span>` +
+            `<span class="att-el-sel"><span class="att-el-tag">◈</span><span class="att-el-sel-txt">${esc(name)}</span></span>` +
+          `</span>${x('el', i)}</span>`,
       );
     } else {
       chips.push(
-        `<span class="att att-doc att-el" title="${esc((p.mode === 'shot' ? '📷 ' : '<' + p.context.tag + '> ') + name)}">` +
-          `<span class="att-doc-ic">${p.mode === 'shot' ? '📷' : '🧩'}</span>` +
+        `<span class="att att-doc att-el" title="${esc(tip)}">` +
+          `<span class="att-doc-ic">🧩</span>` +
           `<span class="att-doc-name">${esc(name)}</span>${x('el', i)}</span>`,
       );
     }
