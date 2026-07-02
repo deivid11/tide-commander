@@ -144,7 +144,12 @@ export function handleServerMessage(message: ServerMessage): void {
         type: string;
         toolName?: string;
         toolInput?: Record<string, unknown>;
+        toolOutput?: string;
         errorMessage?: string;
+        // Present on subagent-internal tools: the tool_use id of the Task/Agent
+        // that spawned the subagent. Absent on the parent agent's own tools.
+        parentToolUseId?: string;
+        uuid?: string;
       };
       debugLog.debug(`Event: ${event.type}`, {
         agentId: event.agentId,
@@ -174,6 +179,40 @@ export function handleServerMessage(message: ServerMessage): void {
             }
           }
         }
+        // Subagent internal tool-use carries a parentToolUseId (the id of the
+        // Task/Agent tool that spawned the subagent). The server suppresses the
+        // terminal `output` message for these (stdout pipeline skips them when
+        // parentToolUseId is set), so they never reach the `output` case and are
+        // invisible in the parent terminal. Render them here as real tool cards,
+        // attributed to the subagent. Parent-agent tools have NO parentToolUseId
+        // and already render via the `output` message, so this guard guarantees
+        // the non-wrapped case is never double-rendered.
+        if (event.parentToolUseId && event.toolName !== 'Task' && event.toolName !== 'Agent') {
+          const sub = store.getSubagentByToolUseId(event.parentToolUseId);
+          store.addOutput(event.agentId, {
+            text: `Using tool: ${event.toolName}`,
+            isStreaming: false,
+            timestamp: Date.now(),
+            toolName: event.toolName,
+            toolInput: event.toolInput,
+            uuid: event.uuid,
+            subagentName: sub?.name,
+          });
+        }
+      } else if (event.type === 'tool_result' && event.parentToolUseId && event.toolName === 'Bash') {
+        // Mirror the parent-agent behavior (only Bash results get a terminal
+        // card) for a subagent's Bash commands so their output is visible too.
+        // Guarded on parentToolUseId — top-level Bash results already arrive via
+        // the `output` message and must not be duplicated here.
+        const sub = store.getSubagentByToolUseId(event.parentToolUseId);
+        store.addOutput(event.agentId, {
+          text: `Bash output:\n${event.toolOutput || '(no output)'}`,
+          isStreaming: false,
+          timestamp: Date.now(),
+          toolOutput: event.toolOutput,
+          uuid: event.uuid,
+          subagentName: sub?.name,
+        });
       }
       break;
     }
@@ -739,6 +778,58 @@ export function handleServerMessage(message: ServerMessage): void {
       };
       console.log(`[WebSocket] Exec task completed: ${taskId} for agent ${agentId}, success: ${success}`);
       store.handleExecTaskCompleted(taskId, agentId, exitCode, success);
+      break;
+    }
+
+    // ========================================================================
+    // Test Run Messages (Streaming Test Execution)
+    // ========================================================================
+
+    case 'test_run_started': {
+      const { runId, runnerType, moduleRoot, command, label, targetPath, agentId } = message.payload as {
+        runId: string;
+        runnerType: import('../../shared/types').TestRunnerType;
+        moduleRoot: string;
+        command: string;
+        label: string;
+        targetPath: string;
+        agentId?: string;
+      };
+      store.handleTestRunStarted({ runId, runnerType, moduleRoot, command, label, targetPath, agentId });
+      break;
+    }
+
+    case 'test_run_output': {
+      const { runId, output, isError, agentId } = message.payload as {
+        runId: string;
+        output: string;
+        isError?: boolean;
+        agentId?: string;
+      };
+      store.handleTestRunOutput(runId, output, isError, agentId);
+      break;
+    }
+
+    case 'test_run_progress': {
+      const { runId, result } = message.payload as {
+        runId: string;
+        result: import('../../shared/types').TestRunResult;
+      };
+      store.handleTestRunProgress(runId, result);
+      break;
+    }
+
+    case 'test_run_completed': {
+      const { runId, status, exitCode, result, error, agentId } = message.payload as {
+        runId: string;
+        status: import('../../shared/types').TestRunStatus;
+        exitCode: number | null;
+        result: import('../../shared/types').TestRunResult;
+        error?: string;
+        agentId?: string;
+      };
+      console.log(`[WebSocket] Test run completed: ${runId}, status: ${status}`);
+      store.handleTestRunCompleted(runId, status, exitCode, result, error, agentId);
       break;
     }
 

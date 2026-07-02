@@ -75,6 +75,7 @@ export const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
   shortcut('toggle-spotlight', 'Toggle Spotlight', 'Open/close global search', 'p', { alt: true }),
   shortcut('toggle-recents', 'Toggle Recents', 'Open/close recently-accessed agents & buildings', 'l', { ctrl: true }),
   shortcut('open-session-finder', 'Open Session Finder', 'Open the global session finder modal', 'f', { ctrl: true, shift: true }),
+  shortcut('toggle-test-results', 'Toggle Test Results', 'Open/close the test results panel', 't', { ctrl: true }),
   shortcut('open-database', 'Open Database', 'Open last used database query builder', 'd', { alt: true }),
   shortcut('toggle-2d-view', 'Cycle View Mode', 'Cycle between 3D, 2D, and Dashboard views', '2', { alt: true }),
   shortcut('clear-context', 'Clear Context', 'Clear context of the selected agent', 'c', { alt: true, shift: true }),

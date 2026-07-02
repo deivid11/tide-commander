@@ -1,0 +1,241 @@
+// =============================================================================
+// Guake Terminal - Test Results Card
+// =============================================================================
+// Compact card rendered when an agent's output contains a Tide Commander
+// test-run result JSON (see testResultsParser / TestResultsCard).
+// =============================================================================
+
+@use '../../variables' as *;
+
+.test-results-card {
+  font-family: $font-mono;
+  font-size: 11.5px;
+  color: var(--tool-use-text, #{$text-primary});
+  background: color-mix(in srgb, var(--tool-use-bg, #{$bg-tertiary}) 85%, var(--bg-primary, #{$bg-primary}) 15%);
+  border: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 60%, transparent);
+  border-left-width: 3px;
+  border-radius: $radius-md;
+  width: 100%;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  &.status-passed { border-left-color: $accent-green; }
+  &.status-failed { border-left-color: $accent-red; }
+  &.status-error { border-left-color: $accent-orange; }
+
+  .trc-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .trc-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-size: 11px;
+  }
+
+  .trc-counts {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-variant-numeric: tabular-nums;
+
+    .trc-count {
+      color: $text-secondary;
+      &.passed { color: $accent-green; }
+      &.failed { color: $accent-red; }
+      &.error { color: $accent-orange; }
+      &.skipped { color: $text-muted; }
+      &.total { color: $text-muted; }
+    }
+  }
+
+  .trc-time {
+    margin-left: auto;
+    color: $text-muted;
+    font-size: 11px;
+  }
+
+  .trc-command {
+    color: $text-muted;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .trc-failing {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-top: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 40%, transparent);
+    padding-top: 6px;
+  }
+
+  .trc-failing-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: $accent-red;
+  }
+
+  .trc-failing-more {
+    color: $text-muted;
+    padding-left: 17px;
+  }
+}
+
+// Inline test-run tree shown under the `curl /api/tests/run` line in the terminal.
+.test-run-inline {
+  font-family: $font-mono;
+  font-size: 11.5px;
+  color: var(--tool-use-text, #{$text-primary});
+  background: color-mix(in srgb, var(--tool-use-bg, #{$bg-tertiary}) 85%, var(--bg-primary, #{$bg-primary}) 15%);
+  border: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 60%, transparent);
+  border-left-width: 3px;
+  border-radius: $radius-md;
+  width: 100%;
+  overflow: hidden;
+  margin-top: 4px;
+
+  &.status-running { border-left-color: $accent-blue; }
+  &.status-passed { border-left-color: $accent-green; }
+  &.status-failed { border-left-color: $accent-red; }
+  &.status-error { border-left-color: $accent-orange; }
+
+  .tri-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    border-bottom: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 40%, transparent);
+
+    &:hover { background: rgba(255, 255, 255, 0.04); }
+  }
+
+  .tri-status {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-size: 11px;
+  }
+
+  .tri-counts,
+  .tri-suite-counts {
+    display: inline-flex;
+    gap: 7px;
+    font-variant-numeric: tabular-nums;
+    .pass { color: $accent-green; }
+    .fail { color: $accent-red; }
+    .skip { color: $text-muted; }
+    .tot { color: $text-muted; }
+  }
+
+  .tri-open {
+    margin-left: auto;
+    color: $text-muted;
+    font-size: 10.5px;
+  }
+
+  .tri-spin {
+    width: 9px;
+    height: 9px;
+    border: 2px solid $accent-blue;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: tri-spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+
+  .tri-suites {
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 4px 0;
+  }
+
+  .tri-empty {
+    padding: 6px 12px;
+    color: $text-muted;
+  }
+
+  .tri-suite-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 10px;
+    cursor: default;
+
+    &:hover { background: rgba(255, 255, 255, 0.03); }
+  }
+
+  .tri-caret-spacer { width: 9px; flex-shrink: 0; }
+  .tri-icon { display: inline-flex; flex-shrink: 0; }
+
+  .tri-suite-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tri-test-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 1px 10px 1px 34px;
+    color: $accent-red;
+
+    .tri-test-name { flex-shrink: 0; }
+    .tri-test-msg {
+      color: $text-muted;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .tri-console-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-top: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 40%, transparent);
+    color: $text-secondary;
+    font: inherit;
+    padding: 5px 10px;
+    cursor: pointer;
+    text-align: left;
+
+    &:hover { color: $text-primary; }
+  }
+
+  .tri-console {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 6px 10px;
+    background: var(--bg-primary, #{$bg-primary});
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: $text-secondary;
+    }
+  }
+
+  .tri-cursor { animation: tri-blink 1s step-end infinite; }
+}
+
+@keyframes tri-spin { to { transform: rotate(360deg); } }
+@keyframes tri-blink { 50% { opacity: 0; } }

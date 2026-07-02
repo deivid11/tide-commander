@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.127.0] - 2026-07-02
+
+### Added
+- **Run Tests feature** — right-click a folder in the File Explorer to run `mvn test` (runner-agnostic detector) and view results in a parsed JUnit/Surefire tree modal. Backed by `GET/POST /api/tests/*` (async `runId`-based), a `run-tests` built-in skill, and inline test-result cards (`TestResultsCard`, `TestRunInline`) in the agent output stream alongside the full `TestRunnerModal`/`GlobalTestRunnerModal`.
+- **Claude Sonnet 5 support** — new `claude-sonnet-5` model (released 2026-06-30) added to the model picker, CLI arg translation for headless and interactive Claude backends, and the LLM matcher's model map, with the `[1m]` 1M-context-window label.
+
 ## [1.126.0] - 2026-06-30
 
 ### Added

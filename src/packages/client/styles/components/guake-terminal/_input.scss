@@ -882,6 +882,96 @@
   display: flex;
 }
 
+// ── grouping toggle + section headers ───────────────────────────────────────
+// Leading pill that cycles the layout (Flat / Status / Area). Styled like a
+// muted chip so it reads as a control, distinct from the agent chips.
+.pinned-group-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid rgba($dracula-comment, 0.45);
+  border-radius: 8px;
+  background: rgba($dracula-current, 0.5);
+  color: $dracula-comment;
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1.5;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color $transition-fast, color $transition-fast, background $transition-fast;
+
+  &:hover { border-color: var(--accent-cyan); color: $dracula-fg; }
+
+  .pgt-icon { font-size: 11px; line-height: 1; }
+  .pgt-label { text-transform: uppercase; letter-spacing: 0.04em; }
+}
+
+// Each grouped section = its header stacked ABOVE the chips that belong to it, so
+// the label costs vertical (not horizontal) space and the bar stays narrow. A
+// thin left rule separates sections (space is tight, so a divider — not a full
+// box — matches the bar's flat visual language).
+.pinned-group {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
+  flex: none;
+  padding-left: 8px;
+  border-left: 1px solid rgba($dracula-comment, 0.28);
+
+  &:first-of-type { border-left: none; padding-left: 0; }
+}
+
+// The chips row within a group (was inline beside the label; now under it).
+.pinned-group-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pinned-group-label {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding-left: 2px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: $dracula-comment;
+  cursor: default;
+
+  &.has-area .pinned-group-name { color: var(--area-color); }
+  &.has-area .pinned-group-count {
+    background: color-mix(in srgb, var(--area-color) 32%, transparent);
+    color: $dracula-fg;
+  }
+}
+
+.pinned-group-name {
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pinned-group-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 7px;
+  background: rgba($dracula-comment, 0.28);
+  color: $dracula-fg;
+  font-size: 9px;
+  line-height: 1;
+}
+
 // On mobile (touch), pinned agents are shown icon-only and CANNOT be unpinned by
 // tapping a chip — removal is only via the input-area pin button. This keeps a tap
 // reserved for switching agents (no accidental unpin) and saves horizontal space.
@@ -918,6 +1008,11 @@
   .pinned-agent-name { display: none; }
   .pinned-agent-unpin,
   .pinned-agent:hover .pinned-agent-unpin { display: none; }
+  // Icon-only grouping toggle on mobile (the ⊞ glyph carries it); group headers
+  // stay (label + count) so the sections remain legible in the tight bar.
+  .pinned-group-toggle { padding: 3px 6px; }
+  .pinned-group-toggle .pgt-label { display: none; }
+  .pinned-group { gap: 6px; padding-left: 6px; }
 }
 
 @keyframes pinned-agent-pulse {

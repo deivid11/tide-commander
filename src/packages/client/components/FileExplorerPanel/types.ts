@@ -4,6 +4,8 @@
  * Centralized type definitions following ClaudeOutputPanel patterns.
  */
 
+import type { TestRunnerType } from '../../../shared/types';
+
 // ============================================================================
 // TREE TYPES
 // ============================================================================
@@ -17,6 +19,7 @@ export interface TreeNode {
   children?: TreeNode[];
   gitStatus?: GitFileStatusType;
   hasGitChanges?: boolean;           // For folders: true if any descendant has git changes
+  runnerType?: TestRunnerType;       // For folders: set when the folder can run tests (e.g. 'maven')
 }
 
 // ============================================================================

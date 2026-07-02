@@ -7,7 +7,7 @@
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useStore, store } from '../../store';
+import { useStore, store, useLatestTestRunId, useTestRun, useTestResultsModalOpen } from '../../store';
 import { matchesShortcut } from '../../store/shortcuts';
 import { DiffViewer } from '../DiffViewer';
 import { apiUrl, authFetch } from '../../utils/storage';
@@ -99,6 +99,8 @@ export function FileExplorerPanel({
   const [selectedFolderIndex, setSelectedFolderIndex] = useState(0);
   const [pendingFolderPath, setPendingFolderPath] = useState<string | null>(null);
   const [showFolderSelector, setShowFolderSelector] = useState(false);
+  const [folderFilter, setFolderFilter] = useState('');
+  const folderFilterInputRef = useRef<HTMLInputElement>(null);
 
   const currentFolder = directories[selectedFolderIndex] || directories[0] || null;
   const currentFolderName = currentFolder?.split('/').pop() || currentFolder || '';
@@ -142,6 +144,27 @@ export function FileExplorerPanel({
     }
     return folders;
   }, [allAreas]);
+
+  // Folder options after applying the dropdown's text filter (case-insensitive
+  // substring match on the folder name/path). Empty filter shows all folders.
+  const filteredFolders = useMemo<FolderInfo[]>(() => {
+    const q = folderFilter.trim().toLowerCase();
+    if (!q) return allFolders;
+    return allFolders.filter((folder) => {
+      const name = (folder.path.split('/').pop() || folder.path).toLowerCase();
+      return folder.path.toLowerCase().includes(q) || name.includes(q);
+    });
+  }, [allFolders, folderFilter]);
+
+  // Autofocus the filter when the dropdown opens; reset it when it closes so it
+  // starts fresh on the next open.
+  useEffect(() => {
+    if (showFolderSelector) {
+      folderFilterInputRef.current?.focus();
+    } else {
+      setFolderFilter('');
+    }
+  }, [showFolderSelector]);
 
   // -------------------------------------------------------------------------
   // HOOKS
@@ -258,6 +281,11 @@ export function FileExplorerPanel({
     submitting: false,
   });
   const [deleteConfirm, setDeleteConfirm] = useState<{ node: TreeNode } | null>(null);
+  // Run Tests results modal is a global store-driven modal (openable anywhere via
+  // Ctrl+T). Here we only read the latest run to show a header reopen button.
+  const latestTestRunId = useLatestTestRunId();
+  const latestTestRun = useTestRun(latestTestRunId);
+  const testResultsModalOpen = useTestResultsModalOpen();
 
   // File tabs state
   const [openTabs, setOpenTabs] = useState<FileTab[]>([]);
@@ -1178,6 +1206,16 @@ export function FileExplorerPanel({
     setGitHistoryModal({ open: true, path, cwd: currentFolder });
   }, [currentFolder]);
 
+  // Start a test run for a folder or single test file, then open the (global)
+  // results modal. Orchestration + streaming state live in the store.
+  const handleRunTests = useCallback(async (node: TreeNode) => {
+    try {
+      await store.runTests(node.path);
+    } catch (err) {
+      showToast('error', 'Run Tests Failed', err instanceof Error ? err.message : 'Unable to start tests');
+    }
+  }, [showToast]);
+
   const fileTreeContextActions = useMemo((): ContextMenuAction[] => {
     if (!fileTreeContextMenu) return [];
     const node = fileTreeContextMenu.node;
@@ -1225,6 +1263,20 @@ export function FileExplorerPanel({
       },
     ];
 
+    // Testable folders/files (server-detected runner, e.g. Maven) get "Run Tests".
+    // Folders run the whole module; a single test file runs just that class.
+    if (node.runnerType) {
+      actions.push(
+        { id: 'divider-run-tests', label: '', divider: true, onClick: () => {} },
+        {
+          id: 'run-tests',
+          label: node.isDirectory ? 'Run Tests' : 'Run This Test',
+          icon: <Icon name="flask" size={14} />,
+          onClick: () => { void handleRunTests(node); },
+        },
+      );
+    }
+
     if (!node.isDirectory) {
       actions.push(
         { id: 'divider-git-history', label: '', divider: true, onClick: () => {} },
@@ -1249,7 +1301,7 @@ export function FileExplorerPanel({
     );
 
     return actions;
-  }, [fileTreeContextMenu, fileClipboard, getParentDir, handleOpenCreateDialog, handleOpenRenameDialog, handleCopyNode, handlePasteNode, handleCopyPath, handleOpenGitHistory, handleOpenDeleteConfirm, t]);
+  }, [fileTreeContextMenu, fileClipboard, getParentDir, handleOpenCreateDialog, handleOpenRenameDialog, handleCopyNode, handlePasteNode, handleCopyPath, handleOpenGitHistory, handleOpenDeleteConfirm, handleRunTests, t]);
 
   const treeRootContextActions = useMemo((): ContextMenuAction[] => {
     if (!treeRootContextMenu) return [];
@@ -1639,8 +1691,8 @@ export function FileExplorerPanel({
           {currentFolder && (
             <div
               className="file-explorer-folder-selector"
-              onClick={() => !isDirectFolderMode && allFolders.length > 0 && setShowFolderSelector(!showFolderSelector)}
-              style={{ cursor: !isDirectFolderMode && allFolders.length > 0 ? 'pointer' : 'default' }}
+              onClick={() => allFolders.length > 0 && setShowFolderSelector(!showFolderSelector)}
+              style={{ cursor: allFolders.length > 0 ? 'pointer' : 'default' }}
               title={currentFolder}
             >
               <span className="file-explorer-panel-dot" style={{ background: area?.color || '#ffd700' }} />
@@ -1648,7 +1700,7 @@ export function FileExplorerPanel({
                 {currentFolderName}
               </span>
               <span className="file-explorer-folder-path-hint">{currentFolder}</span>
-              {!isDirectFolderMode && allFolders.length > 1 && (
+              {allFolders.length > 1 && (
                 <span className="file-explorer-folder-dropdown-icon"><Icon name="caret-down" size={10} /></span>
               )}
             </div>
@@ -1676,8 +1728,9 @@ export function FileExplorerPanel({
             <span className="file-explorer-current-file">/ {selectedFile.filename}</span>
           )}
 
-          {/* Folder Selector Dropdown (not shown in direct folder mode) */}
-          {!isDirectFolderMode && showFolderSelector && allFolders.length > 0 && (
+          {/* Folder Selector Dropdown — available in both area and direct-folder mode
+              (e.g. opened via the terminal cwd or spotlight) so the folder is always switchable. */}
+          {showFolderSelector && allFolders.length > 0 && (
             <div
               className="file-explorer-folder-dropdown"
               onWheel={(e) => {
@@ -1685,30 +1738,57 @@ export function FileExplorerPanel({
                 e.currentTarget.scrollTop += e.deltaY * 0.35;
               }}
             >
-              {allFolders.map((folder) => (
-                <div
-                  key={`${folder.areaId}-${folder.path}`}
-                  className={`file-explorer-folder-option ${
-                    folder.path === currentFolder ? 'active' : ''
-                  }`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleFolderSelect(folder);
+              <div
+                className="file-explorer-folder-dropdown-search"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <input
+                  ref={folderFilterInputRef}
+                  type="text"
+                  className="file-explorer-folder-dropdown-search-input"
+                  placeholder="Filter folders…"
+                  value={folderFilter}
+                  onChange={(e) => setFolderFilter(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Enter selects the first (top) folder in the filtered list.
+                    if (e.key === 'Enter' && filteredFolders.length > 0) {
+                      e.preventDefault();
+                      handleFolderSelect(filteredFolders[0]);
+                    }
                   }}
-                >
-                  <span className="file-explorer-folder-option-name">
-                    <span
-                      className="file-explorer-folder-option-dot"
-                      style={{ background: folder.areaColor }}
-                    />
-                    {folder.path.split('/').pop() || folder.path}
-                  </span>
-                  {(folder.path.split('/').pop() || folder.path) !== folder.path && (
-                    <span className="file-explorer-folder-option-path">{folder.path}</span>
-                  )}
-                  <span className="file-explorer-folder-option-area">{folder.areaName}</span>
-                </div>
-              ))}
+                  spellCheck={false}
+                  autoComplete="off"
+                  aria-label="Filter folders"
+                />
+              </div>
+              {filteredFolders.length === 0 ? (
+                <div className="file-explorer-folder-dropdown-empty">No matching folders</div>
+              ) : (
+                filteredFolders.map((folder) => (
+                  <div
+                    key={`${folder.areaId}-${folder.path}`}
+                    className={`file-explorer-folder-option ${
+                      folder.path === currentFolder ? 'active' : ''
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleFolderSelect(folder);
+                    }}
+                  >
+                    <span className="file-explorer-folder-option-name">
+                      <span
+                        className="file-explorer-folder-option-dot"
+                        style={{ background: folder.areaColor }}
+                      />
+                      {folder.path.split('/').pop() || folder.path}
+                    </span>
+                    {(folder.path.split('/').pop() || folder.path) !== folder.path && (
+                      <span className="file-explorer-folder-option-path">{folder.path}</span>
+                    )}
+                    <span className="file-explorer-folder-option-area">{folder.areaName}</span>
+                  </div>
+                ))
+              )}
             </div>
           )}
         </div>
@@ -1719,6 +1799,20 @@ export function FileExplorerPanel({
             title={t('terminal:fileExplorer.gitHistory.title')}
           >
             <Icon name="status-waiting-input" size={14} />
+          </button>
+        )}
+        {latestTestRun && !testResultsModalOpen && (
+          <button
+            className={`file-explorer-test-results-toggle status-${latestTestRun.status}`}
+            onClick={() => store.openTestResults()}
+            title={
+              latestTestRun.status === 'running'
+                ? 'Tests running — open results'
+                : 'Open last test results'
+            }
+          >
+            <Icon name="flask" size={14} />
+            {latestTestRun.status === 'running' && <span className="fe-test-run-dot" />}
           </button>
         )}
         <button className="file-explorer-panel-close" onClick={onClose}>

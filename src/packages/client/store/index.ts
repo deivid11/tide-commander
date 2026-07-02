@@ -25,6 +25,7 @@ import { createAgentPromptActions, type AgentPromptActions } from './agentPrompt
 import { createDelegationActions, type DelegationActions } from './delegation';
 import { createSkillActions, type SkillActions } from './skills';
 import { createExecTaskActions, type ExecTaskActions } from './execTasks';
+import { createTestRunActions, type TestRunActions } from './testRuns';
 import { createSecretActions, type SecretActions } from './secrets';
 import { createDatabaseActions, type DatabaseActions } from './database';
 import { createSubagentActions, type SubagentActions } from './subagents';
@@ -56,6 +57,8 @@ export type {
   Settings,
   Listener,
   AgentTaskProgress,
+  TestRun,
+  TestRunHandle,
 } from './types';
 
 export { DEFAULT_SETTINGS } from './types';
@@ -138,6 +141,10 @@ export {
   useAgentTaskProgress,
   useExecTasks,
   useAllExecTasks,
+  useTestRun,
+  useLatestTestRunId,
+  useTestResultsModalOpen,
+  useAgentTestRunHandles,
   useSecrets,
   useSecretsArray,
   useSecret,
@@ -175,6 +182,7 @@ class Store
     DelegationActions,
     SkillActions,
     ExecTaskActions,
+    TestRunActions,
     SecretActions,
     SubagentActions
 {
@@ -192,6 +200,7 @@ class Store
   private delegationActions: DelegationActions;
   private skillActions: SkillActions;
   private execTaskActions: ExecTaskActions;
+  private testRunActions: TestRunActions;
   private secretActions: SecretActions;
   private databaseActions: DatabaseActions;
   private subagentActions: SubagentActions;
@@ -247,6 +256,9 @@ class Store
       reconnectCount: 0,
       historyRefreshTrigger: 0,
       execTasks: new Map(),
+      testRuns: new Map(),
+      latestTestRunId: null,
+      testResultsModalOpen: false,
       secrets: new Map(),
       databaseState: new Map(),
       dockerContainersList: [],
@@ -292,6 +304,7 @@ class Store
     this.delegationActions = createDelegationActions(getState, setState, notify, getSendMessage);
     this.skillActions = createSkillActions(getState, setState, notify, getSendMessage);
     this.execTaskActions = createExecTaskActions(getState, setState, notify);
+    this.testRunActions = createTestRunActions(getState, setState, notify);
     this.secretActions = createSecretActions(getState, setState, notify, getSendMessage);
     this.databaseActions = createDatabaseActions(getState, setState, notify, getSendMessage);
     this.subagentActions = createSubagentActions(getState, setState, notify);
@@ -783,6 +796,71 @@ class Store
   }
 
   // ============================================================================
+  // Test Results Modal (global — openable from anywhere, e.g. Ctrl+T)
+  // ============================================================================
+
+  openTestResults(): void {
+    this.state.testResultsModalOpen = true;
+    this.notify();
+  }
+
+  closeTestResults(): void {
+    this.state.testResultsModalOpen = false;
+    this.notify();
+  }
+
+  /** Open the results modal focused on a specific run (e.g. from a terminal card). */
+  openTestResultsForRun(runId: string): void {
+    this.state.latestTestRunId = runId;
+    this.state.testResultsModalOpen = true;
+    this.notify();
+  }
+
+  /** Start a test run for a folder/file (optionally scoped) and open the modal. */
+  async runTests(path: string, testFilter?: string): Promise<void> {
+    const { startTestRun } = await import('../api/test-runner');
+    const resp = await startTestRun(path, testFilter);
+    this.handleTestRunStarted({
+      runId: resp.runId,
+      runnerType: resp.runnerType,
+      moduleRoot: resp.moduleRoot,
+      targetPath: resp.targetPath,
+      command: resp.command,
+      label: resp.label,
+    });
+    this.state.testResultsModalOpen = true;
+    this.notify();
+  }
+
+  /** Load a persisted past run into the store and show it in the modal. */
+  async openTestRunFromHistory(runId: string): Promise<void> {
+    const { fetchTestRun } = await import('../api/test-runner');
+    const run = await fetchTestRun(runId);
+    if (!run) return;
+    this.handleTestRunStarted({
+      runId: run.runId,
+      runnerType: run.runnerType as import('../../shared/types').TestRunnerType,
+      moduleRoot: run.moduleRoot,
+      targetPath: run.targetPath,
+      command: run.command ?? '',
+      label: '',
+    });
+    // Historical runs don't retain console output; results come straight in.
+    this.handleTestRunCompleted(run.runId, run.status, run.exitCode, run.result, run.error);
+    this.state.testResultsModalOpen = true;
+    this.notify();
+  }
+
+  /** Re-run the latest run — whole run, or a subset via a Maven `-Dtest=` filter. */
+  async rerunTests(testFilter?: string): Promise<void> {
+    const runId = this.state.latestTestRunId;
+    const run = runId ? this.state.testRuns?.get(runId) : undefined;
+    if (!run) return;
+    if (testFilter) await this.runTests(run.moduleRoot, testFilter);
+    else await this.runTests(run.targetPath);
+  }
+
+  // ============================================================================
   // Context Modal
   // ============================================================================
 
@@ -1194,6 +1272,18 @@ class Store
   clearCompletedExecTasks(...args: Parameters<ExecTaskActions['clearCompletedExecTasks']>) { return this.execTaskActions.clearCompletedExecTasks(...args); }
   clearAllExecTasks(...args: Parameters<ExecTaskActions['clearAllExecTasks']>) { return this.execTaskActions.clearAllExecTasks(...args); }
   removeExecTask(...args: Parameters<ExecTaskActions['removeExecTask']>) { return this.execTaskActions.removeExecTask(...args); }
+
+  // ============================================================================
+  // Test Run Actions (delegated)
+  // ============================================================================
+
+  handleTestRunStarted(...args: Parameters<TestRunActions['handleTestRunStarted']>) { return this.testRunActions.handleTestRunStarted(...args); }
+  handleTestRunOutput(...args: Parameters<TestRunActions['handleTestRunOutput']>) { return this.testRunActions.handleTestRunOutput(...args); }
+  handleTestRunProgress(...args: Parameters<TestRunActions['handleTestRunProgress']>) { return this.testRunActions.handleTestRunProgress(...args); }
+  handleTestRunCompleted(...args: Parameters<TestRunActions['handleTestRunCompleted']>) { return this.testRunActions.handleTestRunCompleted(...args); }
+  getTestRun(...args: Parameters<TestRunActions['getTestRun']>) { return this.testRunActions.getTestRun(...args); }
+  stopTestRun(...args: Parameters<TestRunActions['stopTestRun']>) { return this.testRunActions.stopTestRun(...args); }
+  removeTestRun(...args: Parameters<TestRunActions['removeTestRun']>) { return this.testRunActions.removeTestRun(...args); }
 
   // ============================================================================
   // Secret Actions (delegated)

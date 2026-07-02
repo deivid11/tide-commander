@@ -15,7 +15,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import { execSync } from 'child_process';
-import type { Agent, DrawingArea, Building, DelegationDecision, Skill, StoredSkill, CustomAgentClass, ContextStats, Secret, StoredSecret, QueryHistoryEntry, SessionHistoryEntry } from '../../shared/types.js';
+import type { Agent, DrawingArea, Building, DelegationDecision, Skill, StoredSkill, CustomAgentClass, ContextStats, Secret, StoredSecret, QueryHistoryEntry, SessionHistoryEntry, StoredTestRun, TestRunSummary } from '../../shared/types.js';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('Data');
@@ -1074,4 +1074,90 @@ export function getSessionHistoryForAgent(
   agentId: string
 ): SessionHistoryEntry[] {
   return histories.get(agentId) || [];
+}
+
+// ============================================================================
+// Test Run History (persisted to test-runs/ — one file per run + an index)
+// ============================================================================
+
+const TEST_RUNS_DIR = path.join(DATA_DIR, 'test-runs');
+const TEST_RUNS_INDEX_FILE = path.join(TEST_RUNS_DIR, 'index.json');
+const MAX_TEST_RUNS = 200;
+
+interface TestRunsIndexData {
+  runs: TestRunSummary[]; // newest first
+  savedAt: number;
+  version: string;
+}
+
+function ensureTestRunsDir(): void {
+  if (!fs.existsSync(TEST_RUNS_DIR)) {
+    fs.mkdirSync(TEST_RUNS_DIR, { recursive: true });
+    log.log(` Created test runs directory: ${TEST_RUNS_DIR}`);
+  }
+}
+
+function getTestRunFile(runId: string): string {
+  return path.join(TEST_RUNS_DIR, `${runId}.json`);
+}
+
+function summarizeTestRun(run: StoredTestRun): TestRunSummary {
+  return {
+    runId: run.runId,
+    status: run.status,
+    exitCode: run.exitCode,
+    targetPath: run.targetPath,
+    moduleRoot: run.moduleRoot,
+    runnerType: run.runnerType,
+    command: run.command,
+    totals: run.result.totals,
+    error: run.error,
+    finishedAt: run.finishedAt,
+  };
+}
+
+/** List recent runs (newest first) from the lightweight index. */
+export function loadTestRunSummaries(limit = 50): TestRunSummary[] {
+  ensureTestRunsDir();
+  const data = safeReadJsonSync<TestRunsIndexData>(TEST_RUNS_INDEX_FILE, 'Test runs index');
+  const runs = data?.runs || [];
+  return limit > 0 ? runs.slice(0, limit) : runs;
+}
+
+/** Read a single stored run (full detail) by id. */
+export function loadTestRun(runId: string): StoredTestRun | null {
+  return safeReadJsonSync<StoredTestRun>(getTestRunFile(runId), `Test run ${runId}`);
+}
+
+/**
+ * Persist a completed run: write its full file, prepend a summary to the index,
+ * cap the index at MAX_TEST_RUNS, and prune the per-run files that fell out.
+ */
+export function saveTestRun(run: StoredTestRun): void {
+  ensureTestRunsDir();
+  try {
+    atomicWriteJsonSync(getTestRunFile(run.runId), run);
+
+    const existing = loadTestRunSummaries(0).filter((r) => r.runId !== run.runId);
+    const runs = [summarizeTestRun(run), ...existing];
+    const kept = runs.slice(0, MAX_TEST_RUNS);
+    const dropped = runs.slice(MAX_TEST_RUNS);
+
+    atomicWriteJsonSync(TEST_RUNS_INDEX_FILE, {
+      runs: kept,
+      savedAt: Date.now(),
+      version: '1.0.0',
+    } as TestRunsIndexData);
+
+    for (const d of dropped) {
+      try {
+        const f = getTestRunFile(d.runId);
+        if (fs.existsSync(f)) fs.unlinkSync(f);
+      } catch {
+        // best-effort prune
+      }
+    }
+  } catch (err) {
+    log.error(' Failed to save test run:', err);
+  }
 }

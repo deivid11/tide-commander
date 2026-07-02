@@ -56,6 +56,46 @@
   }
 }
 
+// Header button to reopen the last (or in-progress) test run results modal.
+.file-explorer-test-results-toggle {
+  position: relative;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: $radius-sm;
+  color: $text-muted;
+  font-size: 14px;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+
+  &:hover {
+    color: $text-primary;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  &.status-passed { color: $accent-green; }
+  &.status-failed,
+  &.status-error { color: $accent-red; }
+  &.status-running { color: $accent-blue; }
+
+  .fe-test-run-dot {
+    width: 6px;
+    height: 6px;
+    margin-left: 4px;
+    border-radius: 50%;
+    background: $accent-blue;
+    animation: fe-test-run-pulse 1s ease-in-out infinite;
+  }
+}
+
+@keyframes fe-test-run-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
 // ---------------------------------------------------------------------------
 // Panel internals
 // ---------------------------------------------------------------------------

@@ -23,6 +23,7 @@ import { TreeNodeItem } from '../FileExplorerPanel/TreeNodeItem';
 import type { BranchInfo } from './useGitBranch';
 import { ContextMenu, type ContextMenuAction } from '../ContextMenu';
 import { Icon } from '../Icon';
+import { useToast } from '../Toast';
 import { useModalStackRegistration } from '../../hooks/useModalStack';
 
 // ==========================================================================
@@ -94,6 +95,24 @@ function hasDiff(status: GitFileStatusType): boolean {
   return status === 'modified' || status === 'renamed' || status === 'deleted' || status === 'conflict';
 }
 
+/** Recursively collect every changed file under a git-tree (Changes tab) directory node. */
+function collectFilesFromGitNode(node: GitTreeNode): GitFileStatus[] {
+  if (!node.isDirectory) return node.file ? [node.file] : [];
+  const out: GitFileStatus[] = [];
+  for (const child of node.children) out.push(...collectFilesFromGitNode(child));
+  return out;
+}
+
+/** Recursively collect git-changed files under an explorer (Files tab) directory node. */
+function collectGitFilesFromExplorerNode(node: TreeNode): Array<{ path: string; status: GitFileStatusType }> {
+  if (!node.isDirectory) {
+    return node.gitStatus ? [{ path: node.path, status: node.gitStatus as GitFileStatusType }] : [];
+  }
+  const out: Array<{ path: string; status: GitFileStatusType }> = [];
+  for (const child of node.children || []) out.push(...collectGitFilesFromExplorerNode(child));
+  return out;
+}
+
 // ==========================================================================
 // TREE NODE RENDERER
 // ==========================================================================
@@ -105,11 +124,12 @@ interface TreeNodeProps {
   onToggleDir: (path: string) => void;
   onFileClick: (file: GitFileStatus, repoDir: string) => void;
   onContextMenu?: (e: React.MouseEvent, file: GitFileStatus, repoDir: string) => void;
+  onFolderContextMenu?: (e: React.MouseEvent, node: GitTreeNode, repoDir: string) => void;
   onDiscard?: (e: React.MouseEvent, file: GitFileStatus, repoDir: string) => void;
   repoDir: string;
 }
 
-function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onContextMenu, onDiscard, repoDir }: TreeNodeProps) {
+function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onContextMenu, onFolderContextMenu, onDiscard, repoDir }: TreeNodeProps) {
   if (node.isDirectory) {
     const isExpanded = expandedDirs.has(node.path);
     const folderIconSrc = isExpanded
@@ -121,6 +141,7 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onC
           className="guake-git-file guake-git-tree-dir"
           style={{ paddingLeft: `${12 + depth * 20}px` }}
           onClick={() => onToggleDir(node.path)}
+          onContextMenu={onFolderContextMenu ? (e) => onFolderContextMenu(e, node, repoDir) : undefined}
         >
           <span className="guake-git-repo-arrow" style={{ marginRight: 4 }}>
             <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={12} />
@@ -138,6 +159,7 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onC
             onToggleDir={onToggleDir}
             onFileClick={onFileClick}
             onContextMenu={onContextMenu}
+            onFolderContextMenu={onFolderContextMenu}
             onDiscard={onDiscard}
             repoDir={repoDir}
           />
@@ -184,6 +206,7 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onC
 export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRemote, fetchingDirs, onResizeStart }: GuakeGitPanelProps) {
   const { t: _t } = useTranslation(['terminal', 'common']);
   const areas = useAreas();
+  const { showToast } = useToast();
 
   const [repos, setRepos] = useState<RepoStatus[]>([]);
   const [loading, setLoading] = useState(false);
@@ -594,7 +617,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
   const [pendingDiscard, setPendingDiscard] = useState<{ path: string; name: string; status: GitFileStatusType; repoDir: string } | null>(null);
   const executeDiscard = useCallback(async (pending: { path: string; name: string; status: GitFileStatusType; repoDir: string }) => {
     try {
-      await authFetch(apiUrl('/api/files/git-discard'), {
+      const res = await authFetch(apiUrl('/api/files/git-discard'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -602,11 +625,94 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
           directory: pending.repoDir,
         }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Unknown error' }));
+        showToast('error', 'Discard Failed', data.error || 'Could not discard changes');
+      }
       refresh();
-    } catch { /* skip */ } finally {
+    } catch (err) {
+      showToast('error', 'Discard Failed', err instanceof Error ? err.message : 'Could not discard changes');
+    } finally {
       setPendingDiscard(null);
     }
-  }, [refresh]);
+  }, [refresh, showToast]);
+
+  // Discard ALL uncommitted changes in a single repo (server runs
+  // `git reset --hard HEAD` + `git clean -fd`, scoped to that repo).
+  const [pendingDiscardAll, setPendingDiscardAll] = useState<{ repoDir: string; dirName: string; count: number; untracked: number } | null>(null);
+  const executeDiscardAll = useCallback(async (pending: { repoDir: string; dirName: string; count: number; untracked: number }) => {
+    try {
+      const res = await authFetch(apiUrl('/api/files/git-discard-all'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory: pending.repoDir }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Unknown error' }));
+        showToast('error', 'Discard All Failed', data.error || 'Could not discard changes');
+      } else {
+        const data = await res.json().catch(() => ({ discarded: pending.count }));
+        showToast('success', 'Changes Discarded', `Reverted ${data.discarded ?? pending.count} change(s) in ${pending.dirName}`);
+      }
+      refresh();
+    } catch (err) {
+      showToast('error', 'Discard All Failed', err instanceof Error ? err.message : 'Could not discard changes');
+    } finally {
+      setPendingDiscardAll(null);
+    }
+  }, [refresh, showToast]);
+
+  // Discard every changed file under one folder subtree (reuses the batch
+  // /git-discard endpoint — mixed statuses handled server-side: modified files
+  // revert to HEAD, untracked/added files are removed). Confirmed first.
+  const [pendingDiscardFolder, setPendingDiscardFolder] = useState<{ folderName: string; repoDir: string; files: Array<{ path: string; status: GitFileStatusType }> } | null>(null);
+  const executeDiscardFolder = useCallback(async (pending: { folderName: string; repoDir: string; files: Array<{ path: string; status: GitFileStatusType }> }) => {
+    try {
+      const res = await authFetch(apiUrl('/api/files/git-discard'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: pending.files, directory: pending.repoDir }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Unknown error' }));
+        showToast('error', 'Discard Failed', data.error || 'Could not discard changes');
+      } else {
+        const data = await res.json().catch(() => ({ discarded: pending.files.length }));
+        showToast('success', 'Changes Discarded', `Reverted ${data.discarded ?? pending.files.length} change(s) in ${pending.folderName}`);
+      }
+      refresh();
+      if (panelMode === 'explorer') fileTree.loadTree();
+    } catch (err) {
+      showToast('error', 'Discard Failed', err instanceof Error ? err.message : 'Could not discard changes');
+    } finally {
+      setPendingDiscardFolder(null);
+    }
+  }, [refresh, showToast, panelMode, fileTree]);
+
+  // Delete an entire folder from disk (recursive). Destructive — removes the
+  // real directory and everything in it, not just git-changed files. Confirmed first.
+  const [pendingDeleteFolder, setPendingDeleteFolder] = useState<{ folderPath: string; folderName: string; repoDir: string } | null>(null);
+  const executeDeleteFolder = useCallback(async (pending: { folderPath: string; folderName: string; repoDir: string }) => {
+    try {
+      const res = await authFetch(apiUrl('/api/files/delete'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: pending.folderPath, recursive: true }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Unknown error' }));
+        showToast('error', 'Delete Failed', data.error || 'Could not delete folder');
+      } else {
+        showToast('success', 'Folder Deleted', `Deleted ${pending.folderName}`);
+      }
+      refresh();
+      if (panelMode === 'explorer') fileTree.loadTree();
+    } catch (err) {
+      showToast('error', 'Delete Failed', err instanceof Error ? err.message : 'Could not delete folder');
+    } finally {
+      setPendingDeleteFolder(null);
+    }
+  }, [refresh, showToast, panelMode, fileTree]);
 
   const handleInlineDiscard = useCallback((e: React.MouseEvent, file: GitFileStatus, repoDir: string) => {
     e.stopPropagation();
@@ -678,19 +784,8 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         label: 'Discard Changes',
         icon: <Icon name="revert" size={14} />,
         danger: true,
-        onClick: async () => {
-          try {
-            await authFetch(apiUrl('/api/files/git-discard'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                files: [{ path: fullPath, status: file.status }],
-                directory: repoDir,
-              }),
-            });
-            refresh();
-          } catch { /* skip */ }
-        },
+        // Route through the confirmation dialog — discarding is irreversible.
+        onClick: () => setPendingDiscard({ path: fullPath, name: file.name, status: file.status, repoDir }),
       });
     }
 
@@ -710,6 +805,52 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
 
     setContextMenu({ isOpen: true, position: { x: e.clientX, y: e.clientY }, actions });
   }, [handleFileClick]);
+
+  // Context menu for a folder node in the Changes-tab tree view.
+  // Offers "Discard Changes" (all changed files under the folder) and
+  // "Delete Folder" (remove the real directory from disk). Both confirm first.
+  const handleGitFolderContextMenu = useCallback((e: React.MouseEvent, node: GitTreeNode, repoDir: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const changed = collectFilesFromGitNode(node);
+    const absFiles = changed.map((f) => ({
+      path: f.path.startsWith('/') ? f.path : `${repoDir.replace(/\/$/, '')}/${f.path}`,
+      status: f.status,
+    }));
+    // git-status returns absolute paths, so buildGitTree's directory node.path is
+    // already absolute — guard against double-prefixing (which caused "File not found").
+    const folderPath = node.path.startsWith('/') ? node.path : `${repoDir.replace(/\/$/, '')}/${node.path}`;
+    const actions: ContextMenuAction[] = [];
+
+    actions.push({
+      id: 'copy-path',
+      label: 'Copy Full Path',
+      icon: <Icon name="pin" size={14} />,
+      onClick: () => { navigator.clipboard.writeText(folderPath); },
+    });
+
+    actions.push({ id: 'div1', label: '', divider: true, onClick: () => {} });
+
+    if (absFiles.length > 0) {
+      actions.push({
+        id: 'discard-folder',
+        label: `Discard Changes (${absFiles.length})`,
+        icon: <Icon name="revert" size={14} />,
+        danger: true,
+        onClick: () => setPendingDiscardFolder({ folderName: node.name, repoDir, files: absFiles }),
+      });
+    }
+
+    actions.push({
+      id: 'delete-folder',
+      label: 'Delete Folder',
+      icon: <Icon name="trash" size={14} />,
+      danger: true,
+      onClick: () => setPendingDeleteFolder({ folderPath, folderName: node.name, repoDir }),
+    });
+
+    setContextMenu({ isOpen: true, position: { x: e.clientX, y: e.clientY }, actions });
+  }, []);
 
   // Context menu for explorer tree nodes
   const handleExplorerContextMenu = useCallback((e: React.MouseEvent, node: TreeNode) => {
@@ -774,6 +915,26 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         danger: true,
         onClick: () => setPendingDelete({ path: node.path, name: node.name, status: (node.gitStatus as GitFileStatusType) || 'untracked', repoDir: explorerFolder || '' }),
       });
+    } else {
+      // Directory node: discard git changes under it + delete the folder from disk.
+      const changed = collectGitFilesFromExplorerNode(node); // explorer node paths are absolute
+      actions.push({ id: 'div-dir', label: '', divider: true, onClick: () => {} });
+      if (changed.length > 0 && explorerFolder) {
+        actions.push({
+          id: 'discard-folder',
+          label: `Discard Changes (${changed.length})`,
+          icon: <Icon name="revert" size={14} />,
+          danger: true,
+          onClick: () => setPendingDiscardFolder({ folderName: node.name, repoDir: explorerFolder, files: changed }),
+        });
+      }
+      actions.push({
+        id: 'delete-folder',
+        label: 'Delete Folder',
+        icon: <Icon name="trash" size={14} />,
+        danger: true,
+        onClick: () => setPendingDeleteFolder({ folderPath: node.path, folderName: node.name, repoDir: explorerFolder || '' }),
+      });
     }
 
     setContextMenu({ isOpen: true, position: { x: e.clientX, y: e.clientY }, actions });
@@ -785,12 +946,18 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
   // useKeyboardShortcuts capture-phase listener (also on document) doesn't
   // also fire and close the guake terminal itself.
   useEffect(() => {
-    if (!modalState && !pendingDelete && !pendingDiscard) return;
+    if (!modalState && !pendingDelete && !pendingDiscard && !pendingDiscardAll && !pendingDiscardFolder && !pendingDeleteFolder) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopImmediatePropagation();
         e.preventDefault();
-        if (pendingDiscard) {
+        if (pendingDeleteFolder) {
+          setPendingDeleteFolder(null);
+        } else if (pendingDiscardFolder) {
+          setPendingDiscardFolder(null);
+        } else if (pendingDiscardAll) {
+          setPendingDiscardAll(null);
+        } else if (pendingDiscard) {
           setPendingDiscard(null);
         } else if (pendingDelete) {
           setPendingDelete(null);
@@ -801,13 +968,16 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     };
     document.addEventListener('keydown', onKeyDown, true);
     return () => document.removeEventListener('keydown', onKeyDown, true);
-  }, [modalState, closeModal, pendingDelete, pendingDiscard]);
+  }, [modalState, closeModal, pendingDelete, pendingDiscard, pendingDiscardAll, pendingDiscardFolder, pendingDeleteFolder]);
 
   // Register git modals on the modal stack so other Escape handlers
   // (e.g. useKeyboardShortcuts) know a modal is open and skip closing the terminal.
   useModalStackRegistration('guake-git-diff-modal', modalState !== null, closeModal);
   useModalStackRegistration('guake-git-delete-confirm', pendingDelete !== null, () => setPendingDelete(null));
   useModalStackRegistration('guake-git-discard-confirm', pendingDiscard !== null, () => setPendingDiscard(null));
+  useModalStackRegistration('guake-git-discard-all-confirm', pendingDiscardAll !== null, () => setPendingDiscardAll(null));
+  useModalStackRegistration('guake-git-discard-folder-confirm', pendingDiscardFolder !== null, () => setPendingDiscardFolder(null));
+  useModalStackRegistration('guake-git-delete-folder-confirm', pendingDeleteFolder !== null, () => setPendingDeleteFolder(null));
 
   // Auto-expand tree dirs on first tree view
   useEffect(() => {
@@ -857,6 +1027,59 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
           <div className="guake-git-delete-actions">
             <button className="guake-git-delete-cancel" onClick={() => setPendingDiscard(null)}>Cancel</button>
             <button className="guake-git-delete-btn" onClick={() => executeDiscard(pendingDiscard)}>Discard</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Discard-All Confirmation — destructive, irreversible */}
+    {pendingDiscardAll && (
+      <div className="guake-git-diff-modal-overlay" onClick={() => setPendingDiscardAll(null)}>
+        <div className="guake-git-delete-confirm" onClick={(e) => e.stopPropagation()}>
+          <p>
+            Permanently discard <strong>{pendingDiscardAll.count}</strong> uncommitted change{pendingDiscardAll.count === 1 ? '' : 's'} in <strong>{pendingDiscardAll.dirName}</strong>?
+          </p>
+          <p className="guake-git-delete-path">
+            Resets all tracked files to HEAD{pendingDiscardAll.untracked > 0 ? ` and deletes ${pendingDiscardAll.untracked} untracked file${pendingDiscardAll.untracked === 1 ? '' : 's'}` : ''}. This cannot be undone.
+          </p>
+          <div className="guake-git-delete-actions">
+            <button className="guake-git-delete-cancel" onClick={() => setPendingDiscardAll(null)}>Cancel</button>
+            <button className="guake-git-delete-btn" onClick={() => executeDiscardAll(pendingDiscardAll)}>Discard all</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Discard-Folder Confirmation — reverts every changed file under the folder */}
+    {pendingDiscardFolder && (
+      <div className="guake-git-diff-modal-overlay" onClick={() => setPendingDiscardFolder(null)}>
+        <div className="guake-git-delete-confirm" onClick={(e) => e.stopPropagation()}>
+          <p>
+            Discard <strong>{pendingDiscardFolder.files.length}</strong> change{pendingDiscardFolder.files.length === 1 ? '' : 's'} in <strong>{pendingDiscardFolder.folderName}</strong>?
+          </p>
+          <p className="guake-git-delete-path">
+            Reverts tracked files to HEAD and removes any untracked/new files in this folder. This cannot be undone.
+          </p>
+          <div className="guake-git-delete-actions">
+            <button className="guake-git-delete-cancel" onClick={() => setPendingDiscardFolder(null)}>Cancel</button>
+            <button className="guake-git-delete-btn" onClick={() => executeDiscardFolder(pendingDiscardFolder)}>Discard</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Delete-Folder Confirmation — removes the real directory from disk */}
+    {pendingDeleteFolder && (
+      <div className="guake-git-diff-modal-overlay" onClick={() => setPendingDeleteFolder(null)}>
+        <div className="guake-git-delete-confirm" onClick={(e) => e.stopPropagation()}>
+          <p>Delete folder <strong>{pendingDeleteFolder.folderName}</strong>?</p>
+          <p className="guake-git-delete-path">{pendingDeleteFolder.folderPath}</p>
+          <p className="guake-git-delete-path">
+            Permanently removes this folder and everything inside it from disk. This cannot be undone.
+          </p>
+          <div className="guake-git-delete-actions">
+            <button className="guake-git-delete-cancel" onClick={() => setPendingDeleteFolder(null)}>Cancel</button>
+            <button className="guake-git-delete-btn" onClick={() => executeDeleteFolder(pendingDeleteFolder)}>Delete folder</button>
           </div>
         </div>
       </div>
@@ -1013,6 +1236,21 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                   {bi && bi.ahead > 0 && <span className="guake-branch-ahead"><Icon name="arrow-up" size={9} />{bi.ahead}</span>}
                   {bi && bi.behind > 0 && <span className="guake-branch-behind"><Icon name="arrow-down" size={9} />{bi.behind}</span>}
                   <span className="guake-git-repo-count">{gitStatus.files.length}</span>
+                  <button
+                    className="git-discard-all-btn"
+                    title="Discard all changes in this repo"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPendingDiscardAll({
+                        repoDir: dir,
+                        dirName,
+                        count: gitStatus.files.length,
+                        untracked: gitStatus.files.filter((f) => f.status === 'untracked').length,
+                      });
+                    }}
+                  >
+                    <Icon name="revert" size={12} />
+                  </button>
                 </div>
 
                 {expandedRepos.has(dir) && viewMode === 'flat' && (
@@ -1061,6 +1299,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                         onToggleDir={toggleTreeDir}
                         onFileClick={handleFileClick}
                         onContextMenu={handleGitFileContextMenu}
+                        onFolderContextMenu={handleGitFolderContextMenu}
                         onDiscard={handleInlineDiscard}
                         repoDir={dir}
                       />

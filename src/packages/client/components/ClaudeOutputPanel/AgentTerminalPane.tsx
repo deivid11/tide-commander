@@ -28,6 +28,7 @@ import {
   useReconnectCount,
   useHistoryRefreshTrigger,
   useExecTasks,
+  useAgentTestRunHandles,
   useSubagentsMapForAgent,
   usePermissionRequests,
   useAgentPrompts,
@@ -43,6 +44,7 @@ import type { ViewMode, EnrichedHistoryMessage } from './types';
 
 // Hooks
 import { useHistoryLoader } from './useHistoryLoader';
+import { usePinnedSwipeNavigation } from './usePinnedSwipeNavigation';
 import { useSearchHistory, type UseSearchHistoryReturn } from './useSearchHistory';
 import { useTerminalInput } from './useTerminalInput';
 import { useMessageNavigation } from './useMessageNavigation';
@@ -213,8 +215,11 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // its own session. So treat a pending fork as having loadable history too.
   const hasSessionId = !!(agent?.sessionId || agent?.forkSourceSessionId);
 
-  // Exec tasks & subagents
+  // Exec tasks, test runs & subagents
   const execTasks = useExecTasks(agentId);
+  // Stable handles only (avoids re-rendering the whole list on every output line;
+  // TestRunInline subscribes to the live run itself).
+  const testRunHandles = useAgentTestRunHandles(agentId);
   const subagents = useSubagentsMapForAgent(agentId);
 
   // Pending permission requests
@@ -251,6 +256,11 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
   // ── Terminal input ──
   const terminalInput = useTerminalInput({ selectedAgentId: agentId });
+
+  // Touch swipe on the chat area cycles the PINNED agents (>= 2 pinned). Shared
+  // by 3D/normal and Flat modes since both render this pane. In normal mode the
+  // all-agent useSwipeNavigation yields to this when >= 2 agents are pinned.
+  usePinnedSwipeNavigation({ activeAgentId: agentId, outputRef: outputScrollRef, enabled: isOpen });
 
   // Pending agent-prompts (AskUserQuestion / ExitPlanMode awaiting human input).
   // Read here at the pane level so enrichHistory can attach _pendingPromptId to
@@ -955,6 +965,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
               liveOutputs={dedupedOutputs}
               agentId={agentId}
               execTasks={execTasks}
+              testRunHandles={testRunHandles}
               subagents={subagents}
               viewMode={viewMode}
               searchHighlight={search.highlightQuery}

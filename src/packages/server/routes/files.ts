@@ -11,6 +11,8 @@ import * as os from 'os';
 import { pathToFileURL } from 'url';
 import { logger } from '../utils/logger.js';
 import { loadAreas } from '../data/index.js';
+import { detectRunnerType, mightBeTestFile } from '../services/test-runner-service.js';
+import type { TestRunnerType } from '../../shared/types.js';
 
 const log = logger.files;
 
@@ -41,6 +43,9 @@ interface TreeNode {
   size: number;
   extension: string;
   children?: TreeNode[];
+  // Set on directories that belong to a runnable test project (e.g. 'maven'),
+  // so the file explorer can offer "Run Tests" on the right folders.
+  runnerType?: TestRunnerType;
 }
 
 const router = Router();
@@ -797,7 +802,12 @@ router.get('/list', async (req: Request, res: Response) => {
 });
 
 // Helper function to build tree recursively
-function buildTree(dirPath: string, depth: number, maxDepth: number): TreeNode[] {
+function buildTree(
+  dirPath: string,
+  depth: number,
+  maxDepth: number,
+  runnerMemo: Map<string, TestRunnerType | undefined> = new Map(),
+): TreeNode[] {
   if (depth > maxDepth) return [];
 
   const nodes: TreeNode[] = [];
@@ -822,7 +832,14 @@ function buildTree(dirPath: string, depth: number, maxDepth: number): TreeNode[]
         };
 
         if (entry.isDirectory()) {
-          node.children = buildTree(fullPath, depth + 1, maxDepth);
+          // Annotate testable folders so the explorer can offer "Run Tests".
+          const runnerType = detectRunnerType(fullPath, runnerMemo);
+          if (runnerType) node.runnerType = runnerType;
+          node.children = buildTree(fullPath, depth + 1, maxDepth, runnerMemo);
+        } else if (mightBeTestFile(entry.name)) {
+          // Annotate individual test files so "Run Tests" can scope to one class.
+          const runnerType = detectRunnerType(fullPath, runnerMemo);
+          if (runnerType) node.runnerType = runnerType;
         }
 
         nodes.push(node);
@@ -912,11 +929,15 @@ router.get('/tree', async (req: Request, res: Response) => {
     }
 
     const tree = buildTree(dirPath, 0, maxDepth);
+    // Also report the runner for the requested directory itself, so the client
+    // can offer "Run Tests" on the tree's root node (built client-side).
+    const runnerType = detectRunnerType(dirPath);
 
     res.json({
       path: dirPath,
       name: path.basename(dirPath),
       tree,
+      ...(runnerType ? { runnerType } : {}),
     });
   } catch (err: any) {
     log.error(' Failed to build tree:', err);
@@ -1631,6 +1652,78 @@ router.post('/git-discard', async (req: Request, res: Response) => {
     res.json({ success: true, discarded });
   } catch (err: any) {
     log.error(' Failed to discard files:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/files/git-discard-all - Discard ALL uncommitted changes in one repo.
+// Destructive & irreversible. `git reset --hard HEAD` restores every tracked file
+// (staged + unstaged) to HEAD; `git clean -fd` removes untracked files AND
+// directories. `-fd` respects .gitignore, so ignored paths (node_modules, .env,
+// build output) are intentionally left untouched — this matches the untracked set
+// shown by `git status`. Scoped to the git root resolved from `directory`, so it
+// can never touch another repo.
+router.post('/git-discard-all', async (req: Request, res: Response) => {
+  try {
+    const { directory } = req.body as { directory?: string };
+
+    if (!directory || typeof directory !== 'string') {
+      res.status(400).json({ error: 'Missing directory parameter' });
+      return;
+    }
+    if (!path.isAbsolute(directory)) {
+      res.status(400).json({ error: 'Directory must be absolute' });
+      return;
+    }
+
+    // Resolve the git root so both commands are scoped to exactly this repo.
+    let gitRoot: string;
+    try {
+      gitRoot = execSync('git rev-parse --show-toplevel', {
+        cwd: directory,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
+    } catch {
+      res.status(400).json({ error: 'Not in a git repository' });
+      return;
+    }
+
+    // Count changes first so the response can report how many were discarded.
+    let discarded = 0;
+    try {
+      const statusOut = execSync('git status --porcelain -uall', {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+        maxBuffer: 10 * 1024 * 1024,
+      });
+      discarded = statusOut.split('\n').filter((l) => l.trim().length > 0).length;
+    } catch {
+      // Non-fatal: if counting fails, still proceed with the discard.
+    }
+
+    try {
+      // Restore all tracked files (staged + unstaged) to HEAD.
+      execSync('git reset --hard HEAD', {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+        maxBuffer: 10 * 1024 * 1024,
+      });
+      // Remove untracked files and directories (respects .gitignore).
+      execSync('git clean -fd', {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+        maxBuffer: 10 * 1024 * 1024,
+      });
+    } catch (err: any) {
+      log.error(' Git discard-all failed:', err);
+      res.status(500).json({ error: `Failed to discard all changes: ${err.message}` });
+      return;
+    }
+
+    res.json({ success: true, discarded });
+  } catch (err: any) {
+    log.error(' Failed to discard all changes:', err);
     res.status(500).json({ error: err.message });
   }
 });
