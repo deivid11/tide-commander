@@ -954,6 +954,27 @@ html, body {
   background: var(--panel-2); border: 1px solid var(--border);
   font-size: 9px; line-height: 14px; text-align: center;
 }
+/* ⚛️ badge on a screenshot picked off a React element. */
+.att-shot .att-badge-react {
+  position: absolute; top: -6px; left: -6px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--panel-2); border: 1px solid color-mix(in srgb, var(--term-purple) 55%, var(--border));
+  font-size: 9px; line-height: 14px; text-align: center;
+}
+/* React-aware picked-element chip: component name on top, DOM selector beneath, so
+   the tray shows BOTH what's being attached (the component and its selector). */
+.att-doc.att-el-react { height: 44px; max-width: 220px; }
+.att-el-parts { display: flex; flex-direction: column; justify-content: center; gap: 1px; min-width: 0; overflow: hidden; }
+.att-el-comp {
+  font-size: 11px; font-weight: 600; color: var(--term-purple);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.25;
+}
+.att-el-sel {
+  display: flex; align-items: center; gap: 3px; min-width: 0;
+  font-size: 9.5px; color: var(--muted); font-family: var(--mono); line-height: 1.25;
+}
+.att-el-sel-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.att-el-tag { color: var(--faint); font-size: 8px; flex: none; }
 
 /* ── errors / network tool badges + popovers (in the composer actions bar) ── */
 .tool-badge { position: relative; }

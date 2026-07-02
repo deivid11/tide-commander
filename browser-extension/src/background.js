@@ -23,6 +23,7 @@ const DEFAULT_CONFIG = {
   includeComputedStyles: true, // include a picked element's computed CSS when sending it
   includeNetworkHeaders: true, // include request/response headers when sending a network request
   hideSvg: true, // strip <svg> markup from a picked element's outerHTML (icon paths are noise)
+  preferReactComponent: true, // on React pages, lead the picked-element prompt with the component name/source and drop the bulky outerHTML
   pinThumbnailThreshold: 5, // pinned-agent bar collapses to thumbnail-only past this many pins (0 = always)
   allowlist: ['http://localhost:*', 'http://127.0.0.1:*'],
   redact: true,

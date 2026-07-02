@@ -120,6 +120,51 @@
     }
     return f;
   }
+  // ── React component probe (bridges to inject.js in the MAIN world) ──────────
+  // React Fibers (`el.__reactFiber$…`) live in the page's MAIN world; this isolated
+  // script can't read them. We tag the element with a transient attribute, ask
+  // inject.js to resolve the nearest React component, and merge the answer into the
+  // picked-element context. The short timeout means a non-React page never stalls the
+  // picker (inject.js just replies `react:null`, or nobody replies and we resolve null).
+  const REACT_QUERY = '__tideReactQuery';
+  const REACT_RESULT = '__tideReactResult';
+  const REACT_ATTR = 'data-tc-react-probe';
+  let reactSeq = 0;
+  const reactPending = new Map(); // id -> settle fn
+  window.addEventListener('message', (e) => {
+    if (e.source !== window) return;
+    const d = e.data;
+    if (!d || d[REACT_RESULT] !== true) return;
+    const settle = reactPending.get(d.id);
+    if (settle) settle(d.react || null);
+  });
+  function resolveReact(el) {
+    return new Promise((resolve) => {
+      if (!el || el.nodeType !== 1) return resolve(null);
+      const id = 'r' + ++reactSeq;
+      let done = false;
+      const settle = (val) => {
+        if (done) return;
+        done = true;
+        reactPending.delete(id);
+        try {
+          el.removeAttribute(REACT_ATTR);
+        } catch (_e) {
+          /* ignore */
+        }
+        resolve(val || null);
+      };
+      reactPending.set(id, settle);
+      try {
+        el.setAttribute(REACT_ATTR, '1');
+        window.postMessage({ [REACT_QUERY]: true, id }, '*');
+      } catch (_e) {
+        return settle(null);
+      }
+      setTimeout(() => settle(null), 250); // non-React pages / no responder → give up fast
+    });
+  }
+
   function buildContext(el) {
     const rect = el.getBoundingClientRect();
     return {
@@ -189,11 +234,17 @@
     e.stopPropagation();
     const el = curEl || e.target;
     stopPicker();
-    try {
-      toBg({ type: 'elementPicked', context: buildContext(el) });
-    } catch (_e) {
-      /* ignore */
-    }
+    // Build the DOM context first (so the transient probe attr never lands in
+    // outerHTML), then ask the MAIN world which React component owns the element.
+    const ctx = buildContext(el);
+    resolveReact(el).then((react) => {
+      if (react) ctx.react = react;
+      try {
+        toBg({ type: 'elementPicked', context: ctx });
+      } catch (_e) {
+        /* ignore */
+      }
+    });
   }
 
   function onKey(e) {
@@ -1300,8 +1351,16 @@
       return;
     }
     if (msg.type === 'getContextElement') {
-      sendResponse({ context: lastContextEl ? buildContext(lastContextEl) : null });
-      return true;
+      if (!lastContextEl) {
+        sendResponse({ context: null });
+        return true;
+      }
+      const ctx = buildContext(lastContextEl);
+      resolveReact(lastContextEl).then((react) => {
+        if (react) ctx.react = react;
+        sendResponse({ context: ctx });
+      });
+      return true; // async — keep the message channel open for sendResponse
     }
     if (msg.type === 'getDom') {
       // Bridge read: serialize a node (or all matches) by selector for an agent.

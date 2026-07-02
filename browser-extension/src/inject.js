@@ -410,4 +410,104 @@
       /* ignore */
     }
   });
+
+  // ── React component resolver (for the element picker) ──────────────────────
+  // The picker runs in the ISOLATED world (content.js), which can't read the React
+  // Fiber that react-dom hangs off each DOM node (`el.__reactFiber$…`) — those expando
+  // properties live here in the MAIN world. content.js tags the picked element with a
+  // `data-tc-react-probe` attribute (attributes cross worlds) and postMessages a query;
+  // we resolve the nearest NAMED component (+ its ancestor chain + dev-build source
+  // file:line) and post it back. This is a pure DOM read — it never mutates the page.
+  const REACT_QUERY = '__tideReactQuery';
+  const REACT_RESULT = '__tideReactResult';
+  // The Fiber expando is an own, enumerable property; the key is versioned/hashed:
+  // React 17+ uses `__reactFiber$<hash>`, React 16 `__reactInternalInstance$<hash>`.
+  function reactFiber(el) {
+    try {
+      const keys = Object.keys(el);
+      for (let i = 0; i < keys.length; i++) {
+        const k = keys[i];
+        if (k.indexOf('__reactFiber$') === 0 || k.indexOf('__reactInternalInstance$') === 0) return el[k];
+      }
+    } catch (_e) {
+      /* ignore */
+    }
+    return null;
+  }
+  // A Fiber's `.type` is a STRING for host nodes (div/span/…) and null for text — only
+  // function/class/memo/forwardRef components carry a name. Unwrap memo/forwardRef.
+  function fiberName(type) {
+    if (!type || typeof type === 'string') return null;
+    if (typeof type === 'function') return type.displayName || type.name || null;
+    if (typeof type === 'object') {
+      if (type.displayName) return type.displayName;
+      const inner = type.render || type.type; // forwardRef.render / memo.type
+      if (inner) return (typeof inner === 'function' ? inner.displayName || inner.name : inner.displayName) || null;
+    }
+    return null;
+  }
+  function reactVersion() {
+    try {
+      const hook = window.__REACT_DEVTOOLS_GLOBAL_HOOK__;
+      if (hook && hook.renderers && hook.renderers.size) {
+        for (const r of hook.renderers.values()) if (r && r.version) return r.version;
+      }
+    } catch (_e) {
+      /* ignore */
+    }
+    return null;
+  }
+  function reactInfo(el) {
+    if (!(el instanceof Element)) return null;
+    // The clicked node may be a non-React-managed leaf (an <svg>/<path> inside an icon,
+    // a portal wrapper, a third-party widget). React attaches a Fiber to the host nodes
+    // it renders, so climb the DOM until we hit one that carries a Fiber.
+    let host = el;
+    let node = reactFiber(host);
+    let dom = 0;
+    while (!node && host && dom < 15) {
+      host = host.parentElement;
+      node = host ? reactFiber(host) : null;
+      dom++;
+    }
+    if (!node) return null;
+    const chain = [];
+    let source = null;
+    let hops = 0;
+    // Walk up `.return` collecting named components; the FIRST is the component the
+    // element belongs to, the rest is the containing tree (Row ‹ Table ‹ Page).
+    while (node && hops < 60 && chain.length < 8) {
+      const name = fiberName(node.type);
+      if (name && (!chain.length || chain[chain.length - 1] !== name)) {
+        chain.push(name);
+        // `_debugSource` is present in DEV builds (dropped in React 19) → the real
+        // file:line of the component, which the agent can open directly.
+        if (!source && node._debugSource && node._debugSource.fileName) {
+          const s = node._debugSource;
+          source = s.fileName + (s.lineNumber ? ':' + s.lineNumber : '');
+        }
+      }
+      node = node.return;
+      hops++;
+    }
+    if (!chain.length) return null;
+    return { component: chain[0], chain, source, version: reactVersion() };
+  }
+  window.addEventListener('message', (e) => {
+    if (e.source !== window) return;
+    const d = e.data;
+    if (!d || typeof d !== 'object' || d[REACT_QUERY] !== true) return;
+    let react = null;
+    try {
+      const el = document.querySelector('[data-tc-react-probe]');
+      if (el) react = reactInfo(el);
+    } catch (_e) {
+      /* ignore */
+    }
+    try {
+      window.postMessage({ [REACT_RESULT]: true, id: d.id, react }, '*');
+    } catch (_e) {
+      /* ignore */
+    }
+  });
 })();
