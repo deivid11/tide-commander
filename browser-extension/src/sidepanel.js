@@ -78,6 +78,7 @@ const els = {
   incstyles: $('incstyles'),
   incheaders: $('incheaders'),
   hidesvg: $('hidesvg'),
+  preferreact: $('preferreact'),
   pinbar: $('pinbar'),
   pinToggle: $('pin-toggle'),
   workingBar: $('working-bar'),
@@ -621,6 +622,7 @@ async function loadConfig() {
   els.incstyles.checked = config.includeComputedStyles !== false; // default on
   els.incheaders.checked = config.includeNetworkHeaders !== false; // default on
   els.hidesvg.checked = config.hideSvg !== false; // default on (strip svg noise)
+  els.preferreact.checked = config.preferReactComponent !== false; // default on (send component over DOM on React pages)
   els.commander.innerHTML = '';
   for (const c of config.commanders || []) {
     const o = document.createElement('option');
@@ -2990,19 +2992,35 @@ function formatElementContext(ctx) {
   // is long, low-signal noise that bloats the picked-element HTML. Cap length
   // AFTER stripping so the budget holds real markup, not discarded svg paths.
   const hideSvg = !config || config.hideSvg !== false;
-  const html = (hideSvg ? stripSvg(ctx.outerHTML) : ctx.outerHTML || '').slice(0, 4000);
+  // React-aware picking: when inject.js resolved the component that owns this element
+  // and "prefer component" is on (default), lead the prompt with the component's
+  // identity (name + ancestor tree + dev-build source) and DROP the bulky outerHTML —
+  // the component name/source + selector is what the agent needs to find the code,
+  // not kilobytes of rendered markup. The selector is always kept so the agent can
+  // still act on the element. Toggle off → old behaviour + a component hint line.
+  const r = ctx.react;
+  const hasComp = !!(r && r.component);
+  const preferComp = !config || config.preferReactComponent !== false; // default on
+  const dropHtml = hasComp && preferComp;
+  const html = dropHtml ? '' : (hideSvg ? stripSvg(ctx.outerHTML) : ctx.outerHTML || '').slice(0, 4000);
+  const header = hasComp
+    ? [
+        '[UI element the user selected on the page — React component]',
+        `React component: <${r.component}>`,
+        r.chain && r.chain.length > 1 ? `Component tree: ${r.chain.join(' ‹ ')}` : '',
+        r.source ? `Source: ${r.source}` : '',
+        r.version ? `React version: ${r.version}` : '',
+      ]
+    : ['[UI element the user selected on the page]'];
   return [
-    '[UI element the user selected on the page]',
+    ...header,
     `Page: ${ctx.pageUrl}`,
     `Selector: ${ctx.selector}`,
     `Tag: <${ctx.tag}>${ctx.id ? ` id="${ctx.id}"` : ''}${ctx.classes && ctx.classes.length ? ` class="${ctx.classes.join(' ')}"` : ''}`,
     `Box: x=${ctx.rect.x} y=${ctx.rect.y} w=${ctx.rect.w} h=${ctx.rect.h}`,
     ctx.text ? `Text: ${ctx.text}` : '',
     styles ? 'Computed styles:\n' + styles : '',
-    'outerHTML:',
-    '```html',
-    html,
-    '```',
+    ...(html ? ['outerHTML:', '```html', html, '```'] : []),
   ]
     .filter(Boolean)
     .join('\n');
@@ -3788,6 +3806,10 @@ els.incheaders.addEventListener('change', () => {
 els.hidesvg.addEventListener('change', () => {
   if (config) config.hideSvg = els.hidesvg.checked;
   send({ type: 'setConfig', patch: { hideSvg: els.hidesvg.checked } });
+});
+els.preferreact.addEventListener('change', () => {
+  if (config) config.preferReactComponent = els.preferreact.checked;
+  send({ type: 'setConfig', patch: { preferReactComponent: els.preferreact.checked } });
 });
 
 // lightbox: click backdrop or Esc to close (tray image chips open it — see the
