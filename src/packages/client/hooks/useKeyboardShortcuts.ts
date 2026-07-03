@@ -128,6 +128,28 @@ export function useKeyboardShortcuts({
         }
       }
 
+      // Alt+J / Alt+K — cycle the terminal's active agent through the PINNED set
+      // (reassigned from terminal message-nav per user request). Mirrors the
+      // pinned-bar swipe: reuses store.cyclePinnedAgent (next/prev, wrapping).
+      // Guarded like the other nav shortcuts: never while typing, inside the
+      // embedded terminal, or while Commander view (its own Alt+J/K vim nav) is open.
+      if (!isInputFocused && !commanderModal.isOpen && !target.closest('.guake-bottom-terminal-embed')) {
+        const nextPinnedShortcut = shortcuts.find(s => s.id === 'cycle-pinned-next');
+        const prevPinnedShortcut = shortcuts.find(s => s.id === 'cycle-pinned-prev');
+        const dir = matchesShortcut(e, nextPinnedShortcut) ? 1 : matchesShortcut(e, prevPinnedShortcut) ? -1 : 0;
+        if (dir !== 0) {
+          // Gate to >= 2 pinned agents (no-op otherwise).
+          const pinnedCount = currentState.pinnedAgentIds.reduce((n, id) => (currentState.agents.has(id) ? n + 1 : n), 0);
+          if (pinnedCount >= 2) {
+            e.preventDefault();
+            // Mirror a pinned-chip click so mobile doesn't autofocus the input.
+            store.setLastSelectionViaDirectClick(true);
+            store.cyclePinnedAgent(dir as 1 | -1);
+          }
+          return;
+        }
+      }
+
       // Spawn new agent
       const spawnShortcut = shortcuts.find(s => s.id === 'spawn-agent');
       if (matchesShortcut(e, spawnShortcut)) {

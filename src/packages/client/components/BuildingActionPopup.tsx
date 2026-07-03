@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo, memo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useStore } from '../store';
+import { store, useStore, useRunningTestRoots, isTestPathRelated } from '../store';
 import type { Building } from '../../shared/types';
 import { BUILDING_STATUS_COLORS } from '../utils/colors';
 import { Icon } from './Icon';
@@ -112,6 +112,13 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
   const logs = store.getBuildingLogs(building.id);
   const isPM2 = building.pm2?.enabled;
   const isDocker = building.docker?.enabled;
+  const isTests = building.type === 'tests';
+  // Whether a test run is in flight for this tests building's folder.
+  const runningTestRoots = useRunningTestRoots();
+  const isTestsWorking =
+    isTests &&
+    !!building.folderPath &&
+    runningTestRoots.some((root) => isTestPathRelated(root, building.folderPath!));
 
   // Stable mouse move handler using ref
   const handleMouseMoveRef = useRef<((e: MouseEvent) => void) | null>(null);
@@ -263,12 +270,22 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
             ))}
           </span>
         )}
-        <span
-          className="building-popup-status"
-          style={{ backgroundColor: BUILDING_STATUS_COLORS[building.status] }}
-        >
-          {building.status}
-        </span>
+        {isTests ? (
+          // start/stop status is meaningless for tests buildings — show the
+          // live run state instead (and nothing while idle).
+          isTestsWorking && (
+            <span className="building-popup-status building-popup-status--tests-working">
+              running tests
+            </span>
+          )
+        ) : (
+          <span
+            className="building-popup-status"
+            style={{ backgroundColor: BUILDING_STATUS_COLORS[building.status] }}
+          >
+            {building.status}
+          </span>
+        )}
         <button className="building-popup-close" onClick={onClose}>x</button>
       </div>
 
@@ -370,7 +387,37 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
         </div>
       )}
 
+      {/* Tests building: browse/run its suite — no start/stop semantics */}
+      {isTests && (
+        <>
+          {building.folderPath && (
+            <div className="building-popup-metrics">
+              <span className="metric building-popup-metric--wide">
+                <span className="label">DIR</span>
+                <span className="value" title={building.folderPath}>
+                  {building.folderPath.split('/').filter(Boolean).slice(-2).join('/')}
+                </span>
+              </span>
+            </div>
+          )}
+          <div className="building-popup-actions">
+            <button
+              className="action-btn open-tests"
+              onClick={() => {
+                store.openTestsBuilding(building.id);
+                onClose();
+              }}
+              title="Browse, search and run this folder's tests"
+            >
+              <span className="icon"><Icon name="flask" size={13} /></span>
+              Open Tests
+            </button>
+          </div>
+        </>
+      )}
+
       {/* Action Buttons */}
+      {!isTests && (
       <div className="building-popup-actions">
         <button
           className="action-btn start"
@@ -433,6 +480,7 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
           </div>
         )}
       </div>
+      )}
 
       {/* Logs display */}
       {showLogs && logs.length > 0 && (
@@ -451,7 +499,7 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
 
       {/* Settings link */}
       <button className="building-popup-settings" onClick={onOpenSettings}>
-        {t('terminal:buildingAction.fullSettings')}
+        {t('terminal:building.fullSettings')}
       </button>
     </div>
   );

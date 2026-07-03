@@ -260,7 +260,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // Touch swipe on the chat area cycles the PINNED agents (>= 2 pinned). Shared
   // by 3D/normal and Flat modes since both render this pane. In normal mode the
   // all-agent useSwipeNavigation yields to this when >= 2 agents are pinned.
-  usePinnedSwipeNavigation({ activeAgentId: agentId, outputRef: outputScrollRef, enabled: isOpen });
+  usePinnedSwipeNavigation({ outputRef: outputScrollRef, enabled: isOpen });
 
   // Pending agent-prompts (AskUserQuestion / ExitPlanMode awaiting human input).
   // Read here at the pane level so enrichHistory can attach _pendingPromptId to

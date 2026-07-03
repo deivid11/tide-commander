@@ -908,6 +908,43 @@ export function useTestResultsModalOpen(): boolean {
   return useSelector(useCallback((state: StoreState) => state.testResultsModalOpen ?? false, []));
 }
 
+/** Tests building whose browser modal is open (null = closed). */
+export function useTestsBuildingId(): string | null {
+  return useSelector(useCallback((state: StoreState) => state.testsBuildingId ?? null, []));
+}
+
+/**
+ * Module roots of currently RUNNING test runs. The strings are stable across
+ * per-line output updates (only run start/finish changes the array), so this is
+ * safe to consume from list panels (e.g. the guake buildings panel working
+ * animation) without re-rendering on every mvn output line.
+ */
+export function useRunningTestRoots(): string[] {
+  return useSelector(
+    useCallback((state: StoreState) => {
+      if (!state.testRuns) return [];
+      const out: string[] = [];
+      for (const r of state.testRuns.values()) {
+        if (r.status === 'running') out.push(r.moduleRoot || r.targetPath);
+      }
+      return out;
+    }, []),
+    shallowArrayEqual
+  );
+}
+
+/**
+ * Whether two absolute paths belong to the same test tree (one is the other's
+ * ancestor or they're equal). Used to match a live run (keyed by moduleRoot)
+ * to a tests building (keyed by its configured folder).
+ */
+export function isTestPathRelated(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  const na = a.replace(/\/+$/, '');
+  const nb = b.replace(/\/+$/, '');
+  return na === nb || na.startsWith(`${nb}/`) || nb.startsWith(`${na}/`);
+}
+
 // Equality that ignores per-run mutations (output/result/status) — only the SET
 // of (runId, startedAt) matters, so the list doesn't re-render on every output.
 function testRunHandlesEqual(a: TestRunHandle[], b: TestRunHandle[]): boolean {

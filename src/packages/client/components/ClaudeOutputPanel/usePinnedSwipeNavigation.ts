@@ -9,7 +9,8 @@
  *
  * Direction matches the all-agent swipe + the boss spec: swipe LEFT → next pinned
  * agent, swipe RIGHT → previous, wrapping at both ends. Selection goes through the
- * exact same store.selectAgent() call a pinned chip click uses.
+ * shared store.cyclePinnedAgent() — the same next/prev-pinned logic the Alt+J/K
+ * shortcut uses and ultimately the same store.selectAgent() a pinned chip click uses.
  */
 
 import { useCallback, useMemo } from 'react';
@@ -19,8 +20,6 @@ import type { VibrationIntensity } from '../../utils/haptics';
 import type { Agent } from '../../../shared/types';
 
 export interface UsePinnedSwipeNavigationProps {
-  /** The agent currently shown in this pane. */
-  activeAgentId: string | null;
   /** The chat/output scroll element the gesture is attached to. */
   outputRef: React.RefObject<HTMLElement | null>;
   /** Only bind while the pane is actually visible/open. */
@@ -35,7 +34,6 @@ export interface UsePinnedSwipeNavigationReturn {
 }
 
 export function usePinnedSwipeNavigation({
-  activeAgentId,
   outputRef,
   enabled = true,
 }: UsePinnedSwipeNavigationProps): UsePinnedSwipeNavigationReturn {
@@ -53,19 +51,12 @@ export function usePinnedSwipeNavigation({
   );
   const active = enabled && pinned.length >= 2;
 
-  // Move `dir` steps through the pinned ring. When the active agent isn't pinned,
-  // "next" starts at the first pin and "previous" at the last (sensible entry).
-  const step = useCallback(
-    (dir: 1 | -1) => {
-      if (pinned.length < 2) return;
-      const cur = pinned.findIndex((a) => a.id === activeAgentId);
-      const base = cur === -1 ? (dir === 1 ? -1 : 0) : cur;
-      const nextIdx = (base + dir + pinned.length) % pinned.length;
-      store.setLastSelectionViaSwipe(true);
-      store.selectAgent(pinned[nextIdx].id);
-    },
-    [pinned, activeAgentId],
-  );
+  // Delegate the next/prev-pinned selection (wrap + sensible entry when the active
+  // agent isn't pinned) to the shared store method, so swipe and Alt+J/K stay in sync.
+  const step = useCallback((dir: 1 | -1) => {
+    store.setLastSelectionViaSwipe(true);
+    store.cyclePinnedAgent(dir);
+  }, []);
 
   const onSwipeLeft = useCallback(() => step(1), [step]); // left → next
   const onSwipeRight = useCallback(() => step(-1), [step]); // right → previous

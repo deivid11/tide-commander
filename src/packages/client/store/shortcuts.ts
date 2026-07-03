@@ -63,8 +63,14 @@ export const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
   shortcut('prev-agent', 'Previous Agent', 'Select previous agent on battlefield', 'h', { alt: true }),
   shortcut('next-working-agent', 'Next Working Agent', 'Select next working agent on battlefield', 'l', { alt: true, shift: true }),
   shortcut('prev-working-agent', 'Previous Working Agent', 'Select previous working agent on battlefield', 'h', { alt: true, shift: true }),
-  shortcut('next-message', 'Next Message', 'Navigate to next message in terminal', 'j', { alt: true }),
-  shortcut('prev-message', 'Previous Message', 'Navigate to previous message in terminal', 'k', { alt: true }),
+  // Alt+J / Alt+K were reassigned to pinned-agent cycling (see cycle-pinned-*).
+  // Message navigation is left unbound (empty key) — rebind it in Settings if wanted.
+  shortcut('next-message', 'Next Message', 'Navigate to next message in terminal (unbound — set a key in Settings)', '', {}),
+  shortcut('prev-message', 'Previous Message', 'Navigate to previous message in terminal (unbound — set a key in Settings)', '', {}),
+  // Cycle the terminal's active agent through the PINNED agents (wraps). Same
+  // next/prev selection the pinned-bar swipe uses (store.cyclePinnedAgent).
+  shortcut('cycle-pinned-next', 'Next Pinned Agent', 'Switch to the next pinned agent (wraps around)', 'j', { alt: true }),
+  shortcut('cycle-pinned-prev', 'Previous Pinned Agent', 'Switch to the previous pinned agent (wraps around)', 'k', { alt: true }),
   shortcut('page-down-messages', 'Page Down Messages', 'Jump down 10 messages in terminal', 'd', { alt: true, shift: true }),
   shortcut('page-up-messages', 'Page Up Messages', 'Jump up 10 messages in terminal', 'u', { alt: true }),
   shortcut('next-agent-terminal', 'Next Agent (Terminal)', 'Switch to next agent in terminal', 'l', { alt: true }),

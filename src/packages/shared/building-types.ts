@@ -5,7 +5,7 @@ import type { DatabaseConfig } from './database-types.js';
 // ============================================================================
 
 // Building types - different kinds of buildings
-export type BuildingType = 'server' | 'link' | 'database' | 'docker' | 'monitor' | 'folder' | 'boss' | 'terminal';
+export type BuildingType = 'server' | 'link' | 'database' | 'docker' | 'monitor' | 'folder' | 'boss' | 'terminal' | 'tests';
 
 export const BUILDING_TYPES: Record<BuildingType, { icon: string; color: string; description: string }> = {
   server: { icon: '🖥️', color: '#4aff9e', description: 'Service with start/stop commands and logs' },
@@ -16,6 +16,7 @@ export const BUILDING_TYPES: Record<BuildingType, { icon: string; color: string;
   folder: { icon: '📁', color: '#ffd700', description: 'Folder shortcut - opens file explorer on click' },
   boss: { icon: '👑', color: '#ffd700', description: 'Boss building - manages multiple buildings with unified controls' },
   terminal: { icon: '💻', color: '#a855f7', description: 'Interactive web terminal via ttyd' },
+  tests: { icon: '🧪', color: '#5cb88a', description: 'Test suite browser - scan, search and run the tests of a folder' },
 };
 
 // Building status
@@ -251,7 +252,8 @@ export interface Building {
   // Docker runtime status (not persisted, populated at runtime)
   dockerStatus?: DockerStatus;
 
-  // Folder path (for folder type - opens file explorer when clicked)
+  // Folder path (folder type: opens file explorer when clicked;
+  // tests type: the folder whose test suite this building browses/runs)
   folderPath?: string;
 
   // Git pending changes count (not persisted, populated at runtime)

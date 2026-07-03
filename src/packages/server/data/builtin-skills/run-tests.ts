@@ -10,7 +10,7 @@ export const runTests: BuiltinSkillDefinition = {
   assignedAgentClasses: [],
   content: `# Run Tests
 
-Run a project's test suite through \`/api/tests/*\` (not raw \`mvn\`) so the run streams live into the user's **Test Results** panel and comes back as a parsed suite/test tree (pass/fail/error/skip, per-test durations, stacktraces). Currently supports **Java / Maven** (JUnit surefire).
+Run a project's test suite through \`/api/tests/*\` (not raw \`mvn\`/\`vitest\`/\`phpunit\`) so the run streams live into the user's **Test Results** panel and comes back as a parsed suite/test tree (pass/fail/error/skip, per-test durations, stacktraces). Supports **Java / Maven** (JUnit surefire, incl. Cucumber), **vitest** (TS/JS) and **PHPUnit** (PHP/Symfony).
 
 Use this when asked to run tests, check if tests pass, or re-run failures. For non-test long commands use the Streaming Command Execution skill instead.
 
@@ -26,6 +26,10 @@ Check whether a folder or a single test file is runnable:
 \`\`\`
 Returns \`{"testable":true,"runnerType":"maven","moduleRoot":"...","command":"mvn test"}\` (or \`{"testable":false}\`).
 
+### List available tests without running (scan)
+
+\`POST /api/tests/scan\` with \`{"path":"/abs/path"}\` statically inventories the module's test sources: \`{"testable":true,"moduleRoot":"...","totalMethods":N,"classes":[{"className":"FooTest","packageName":"com.x","fqName":"com.x.FooTest","methods":[{"name":"casePasses","line":42}]}]}\`. Use it to pick an exact \`testFilter\` (\`FooTest#casePasses\`) before running.
+
 ## 2. Run (returns immediately)
 
 \`POST /api/tests/run\`
@@ -34,7 +38,7 @@ Returns \`{"testable":true,"runnerType":"maven","moduleRoot":"...","command":"mv
 \`\`\`
 - \`agentId\` (recommended) — your agent ID from the system prompt. Pass it so the live mvn output streams inline in your terminal (like an exec task), not only in the panel.
 - \`path\` — a project/module folder (runs the whole module) OR a single test file (runs just that class, \`mvn test -Dtest=<Class>\`).
-- \`testFilter\` (optional) — Maven \`-Dtest=\` syntax to scope a subset, e.g. \`"ClassA#method1+method2,ClassB"\`. Use it to re-run only failed/errored tests.
+- \`testFilter\` (optional) — scopes the run. Maven: \`-Dtest=\` syntax, e.g. \`"ClassA#method1+method2,ClassB"\`. Cucumber (maven): \`"src/test/resources/.../file.feature"\` for one feature or \`"...file.feature:LINE"\` for one scenario (runner class auto-resolved). Vitest: \`"rel/path/foo.test.ts"\` for one file or \`"rel/path/foo.test.ts::test name"\` for one test. PHPUnit: \`"tests/FooTest.php"\` for one file or \`"tests/FooTest.php::testMethod"\` for one method.
 
 Responds right away with \`{"success":true,"runId":"...","command":"..."}\`. The run continues in the background, streams live to your terminal, and streams to the Test Results panel.
 

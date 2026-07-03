@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.128.0] - 2026-07-02
+
+### Added
+- **"Tests" building type** — new building kind that scans a configured folder for test classes/methods (`POST /api/tests/scan`) and browses them in `TestsBuildingModal`: search, run the whole suite/a single class/a single method, with live-streamed results (Gherkin step highlighting for BDD-style tests) and a jump to the full `TestRunnerModal` for deep dives.
+- **Browser extension: React component picker** — picking an element on a React page now resolves the owning component from its Fiber and sends the component name, ancestor chain, and dev-build source `file:line` to the agent instead of raw DOM `outerHTML`; the CSS selector is still included so the agent can act on the element. Includes a more robust component-detection path.
+
+### Changed
+- Attachment chip rendering updated to show the resolved React component name/selector when available.
+
 ## [1.127.0] - 2026-07-02
 
 ### Added

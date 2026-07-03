@@ -1240,7 +1240,7 @@ export async function handleBuildingSync(
 // ============================================================================
 
 const VALID_TYPES: ReadonlySet<BuildingType> = new Set<BuildingType>([
-  'server', 'link', 'database', 'docker', 'monitor', 'folder', 'boss', 'terminal',
+  'server', 'link', 'database', 'docker', 'monitor', 'folder', 'boss', 'terminal', 'tests',
 ]);
 
 const VALID_STYLES: ReadonlySet<BuildingStyle> = new Set<BuildingStyle>([
@@ -1269,6 +1269,7 @@ const DEFAULT_STYLE_BY_TYPE: Record<BuildingType, BuildingStyle> = {
   folder: 'filing-cabinet',
   boss: 'command-center',
   terminal: 'desktop',
+  tests: 'dome',
 };
 
 function generateBuildingId(name: string): string {
@@ -1360,6 +1361,10 @@ export function validateBuilding(input: Partial<Building>): ValidationResult {
 
   if (input.type === 'folder' && !input.folderPath) {
     errors.push('folderPath is required for folder buildings');
+  }
+
+  if (input.type === 'tests' && !input.folderPath) {
+    errors.push('folderPath is required for tests buildings (the folder whose tests it browses)');
   }
 
   if (input.type === 'link' && (!input.urls || input.urls.length === 0)) {
