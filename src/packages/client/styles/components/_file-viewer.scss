@@ -315,6 +315,10 @@
   flex-direction: column;
   align-items: center;
   scrollbar-width: thin;
+  // Keep the width stable when the vertical scrollbar appears — page bitmaps
+  // are sized to the measured width, and a post-render width change would
+  // trigger a pointless re-render (or CSS-rescale blur).
+  scrollbar-gutter: stable;
 
   &::-webkit-scrollbar {
     width: 6px;
@@ -367,12 +371,78 @@
   border-radius: 2px;
   overflow: hidden;
   flex-shrink: 0;
+  // Anchors the absolutely-positioned text layer to the page.
+  position: relative;
 }
 
 .pdf-js-page-canvas {
   display: block;
-  max-width: 100%;
-  height: auto;
+  // No max-width/height:auto here: the canvas gets explicit CSS dimensions
+  // matching its DPR-aware bitmap; letting CSS rescale it reintroduces blur
+  // and misaligns the text layer.
+}
+
+// pdf.js selectable-text layer. Rules ported from the `.textLayer` block of
+// pdfjs-dist/web/pdf_viewer.css (v5): the TextLayer JS positions each glyph
+// span through inline CSS vars (--font-height, --scale-x, --rotate) that
+// these rules consume; the page wrapper provides --scale-factor. Scoped under
+// the page wrapper so nothing leaks to the rest of the app.
+.pdf-js-page-wrapper .textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  text-align: initial;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  color-scheme: only light;
+  z-index: 1;
+
+  --min-font-size: 1;
+  --user-unit: 1;
+  --total-scale-factor: calc(var(--scale-factor, 1) * var(--user-unit));
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+
+  :is(span, br) {
+    color: transparent;
+    position: absolute;
+    white-space: pre;
+    cursor: text;
+    transform-origin: 0% 0%;
+  }
+
+  > :not(.markedContent),
+  .markedContent span:not(.markedContent) {
+    z-index: 1;
+    --font-height: 0;
+    font-size: calc(var(--text-scale-factor) * var(--font-height));
+    --scale-x: 1;
+    --rotate: 0deg;
+    transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+  }
+
+  .markedContent {
+    display: contents;
+  }
+
+  span[role='img'] {
+    user-select: none;
+    cursor: default;
+  }
+
+  ::selection {
+    background: rgba(0, 0, 255, 0.25);
+    background: color-mix(in srgb, AccentColor, transparent 75%);
+  }
+
+  br::selection {
+    background: transparent;
+  }
 }
 
 .file-viewer-markdown {
