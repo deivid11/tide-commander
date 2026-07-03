@@ -35,6 +35,7 @@ import { useMobileTreeResize } from './useMobileTreeResize';
 import { useGitBranches } from './useGitBranches';
 import { useGitHistory } from './useGitHistory';
 import { useToast } from '../Toast';
+import { getFilename } from './fileUtils';
 
 // Components
 import { TreeNodeItem } from './TreeNodeItem';
@@ -102,8 +103,12 @@ export function FileExplorerPanel({
   const [folderFilter, setFolderFilter] = useState('');
   const folderFilterInputRef = useRef<HTMLInputElement>(null);
 
-  const currentFolder = directories[selectedFolderIndex] || directories[0] || null;
-  const currentFolderName = currentFolder?.split('/').pop() || currentFolder || '';
+  // Normalize to '/' at the source: configured directories (area/agent cwd) store
+  // whatever the user typed, which on Windows may be `C:\Users\…`. Everything
+  // downstream (breadcrumb name, tree root, API params) then sees canonical '/'.
+  const currentFolderRaw = directories[selectedFolderIndex] || directories[0] || null;
+  const currentFolder = currentFolderRaw ? currentFolderRaw.replace(/\\/g, '/') : null;
+  const currentFolderName = currentFolder ? getFilename(currentFolder) : '';
 
   // Reset folder index when switching modes or folder path changes
   useEffect(() => {
@@ -500,7 +505,7 @@ export function FileExplorerPanel({
       const path = state.fileViewerPath;
 
       if (state.fileViewerRevealInTree) {
-        const filename = path.split('/').pop() || path;
+        const filename = getFilename(path);
         const extension = path.substring(path.lastIndexOf('.')).toLowerCase();
         // Open as a tab AND reveal in tree (expand ancestors, select, scroll).
         openFileInTab(path, filename, extension);
@@ -653,8 +658,9 @@ export function FileExplorerPanel({
     };
 
     for (const file of gitStatus.files) {
-      // Walk up parent directories from each changed file
-      let dirPath = file.path;
+      // Walk up parent directories from each changed file (separator-agnostic:
+      // normalize so a Windows '\' path still yields parent segments).
+      let dirPath = file.path.replace(/\\/g, '/');
       while (true) {
         const lastSlash = dirPath.lastIndexOf('/');
         if (lastSlash <= 0) break;
@@ -742,7 +748,7 @@ export function FileExplorerPanel({
   const handleContentSearchSelect = (path: string, line?: number) => {
     setSelectedGitStatus(null);
     setOriginalContent(null);
-    const filename = path.split('/').pop() || path;
+    const filename = getFilename(path);
     const extension = path.substring(path.lastIndexOf('.')).toLowerCase();
     openFileInTab(path, filename, extension, line);
   };
@@ -751,7 +757,7 @@ export function FileExplorerPanel({
     setSelectedGitStatus(status);
     setOriginalContent(null);
 
-    const filename = path.split('/').pop() || path;
+    const filename = getFilename(path);
     const extension = path.substring(path.lastIndexOf('.')).toLowerCase();
     openFileInTab(path, filename, extension);
 

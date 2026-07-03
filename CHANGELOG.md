@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.128.1] - 2026-07-02
+
+### Fixed
+- **Windows path mapping in File Explorer** — robust Windows-native + POSIX path handling in the File Explorer folder tree (`FileExplorerPanel/fileUtils.ts`, `useFileTree.ts`, `index.tsx`) and the server's file/folder routes (`routes/files.ts`, `routes/folders.ts`); no-op on Linux. Note: if the server itself runs under WSL/Linux with literal `C:\` paths configured, those paths still won't resolve on that filesystem — translating them to `/mnt/c/...` is out of scope for this fix.
+
 ## [1.128.0] - 2026-07-02
 
 ### Added

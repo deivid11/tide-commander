@@ -62,17 +62,24 @@ export function findMatchIndices(
 // ============================================================================
 
 /**
+ * Separator-agnostic split: handles both POSIX '/' and Windows '\' paths, so a
+ * configured Windows path (e.g. `C:\Users\x`) is parsed correctly on the client
+ * even if it reaches the UI without server normalization.
+ */
+export const PATH_SEP_RE = /[\\/]/;
+
+/**
  * Get the filename from a path
  */
 export function getFilename(path: string): string {
-  return path.split('/').pop() || path;
+  return path.split(PATH_SEP_RE).pop() || path;
 }
 
 /**
  * Get the parent directory from a path
  */
 export function getParentDir(path: string): string {
-  const parts = path.split('/');
+  const parts = path.split(PATH_SEP_RE);
   parts.pop();
   return parts.join('/') || '/';
 }
@@ -101,7 +108,7 @@ export function buildGitTree(files: GitFileStatus[]): GitTreeNode[] {
   const root: GitTreeNode = { name: '', path: '', isDirectory: true, children: [], fileCount: 0 };
 
   for (const file of files) {
-    const segments = file.path.split('/');
+    const segments = file.path.split(PATH_SEP_RE);
     let current = root;
 
     // Walk/create directory nodes for all segments except the last (filename)

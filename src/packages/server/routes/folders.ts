@@ -15,6 +15,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { loadAgents, loadBuildings, loadAreas } from '../data/index.js';
 import { createLogger } from '../utils/logger.js';
+import { isAbsolutePathCrossPlatform, toPosixSeparators } from './files.js';
 
 const log = createLogger('Routes');
 const router = Router();
@@ -40,8 +41,9 @@ export interface FolderResult {
 }
 
 // Absolute, resolved, no trailing slash — or null if not an absolute path.
+// Windows-aware: `C:\…` / UNC paths are absolute even when the server is POSIX.
 function normalizeDir(p: string | undefined): string | null {
-  if (!p || !path.isAbsolute(p)) return null;
+  if (!p || !isAbsolutePathCrossPlatform(p)) return null;
   return path.resolve(p);
 }
 
@@ -132,7 +134,7 @@ function searchFolders(query: string): FolderResult[] {
     seen.add(dir);
     const gitRepo = isGitRepo(dir);
     results.push({
-      path: dir,
+      path: toPosixSeparators(dir), // API boundary: '/'-separated for the browser
       name,
       isGitRepo: gitRepo,
       gitBranch: gitRepo ? readGitBranch(dir) : undefined,

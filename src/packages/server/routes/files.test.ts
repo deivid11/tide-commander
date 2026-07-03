@@ -5,6 +5,8 @@ import * as path from 'node:path';
 import {
   findFileWithFallbacks,
   resolveAndValidateFilePath,
+  isAbsolutePathCrossPlatform,
+  toPosixSeparators,
   _resetSuffixWalkCacheForTests,
   _resetAreaDirCacheForTests,
   _setAreaLoaderForTests,
@@ -84,6 +86,63 @@ describe('resolveAndValidateFilePath', () => {
       expect(result.status).toBe(400);
       expect(result.error).toContain('Cannot resolve relative path');
     }
+  });
+
+  // Windows paths must be recognized as absolute even when the server runs on
+  // POSIX — otherwise they'd be misclassified as relative and resolved into the
+  // server cwd (a bogus path). These pass through unchanged on any platform.
+  it('passes a Windows drive-letter path through unchanged (backslash)', () => {
+    const result = resolveAndValidateFilePath('C:\\Users\\david\\project', '/home/user/project', FALLBACK);
+    expect(result).toEqual({ ok: true, path: 'C:\\Users\\david\\project' });
+  });
+
+  it('passes a Windows drive-letter path through unchanged (forward slash)', () => {
+    const result = resolveAndValidateFilePath('C:/Users/david/project', undefined, FALLBACK);
+    expect(result).toEqual({ ok: true, path: 'C:/Users/david/project' });
+  });
+
+  it('passes a UNC path through unchanged', () => {
+    const result = resolveAndValidateFilePath('\\\\server\\share\\dir', undefined, FALLBACK);
+    expect(result).toEqual({ ok: true, path: '\\\\server\\share\\dir' });
+  });
+
+  it('does NOT treat a lone drive letter without separator as absolute', () => {
+    // "C:" (no slash) is a drive-relative path on Windows — treat as relative.
+    const result = resolveAndValidateFilePath('C:foo', '/home/user/project', FALLBACK);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.path).not.toBe('C:foo');
+  });
+});
+
+describe('isAbsolutePathCrossPlatform', () => {
+  it('recognizes POSIX absolute paths', () => {
+    expect(isAbsolutePathCrossPlatform('/home/user/x')).toBe(true);
+  });
+  it('recognizes Windows drive-letter absolute paths (both separators)', () => {
+    expect(isAbsolutePathCrossPlatform('C:\\Users\\x')).toBe(true);
+    expect(isAbsolutePathCrossPlatform('D:/data/x')).toBe(true);
+    expect(isAbsolutePathCrossPlatform('z:\\lower')).toBe(true);
+  });
+  it('recognizes UNC absolute paths', () => {
+    expect(isAbsolutePathCrossPlatform('\\\\server\\share')).toBe(true);
+  });
+  it('rejects relative paths and drive-relative paths', () => {
+    expect(isAbsolutePathCrossPlatform('foo/bar')).toBe(false);
+    expect(isAbsolutePathCrossPlatform('./foo')).toBe(false);
+    expect(isAbsolutePathCrossPlatform('..\\foo')).toBe(false);
+    expect(isAbsolutePathCrossPlatform('C:foo')).toBe(false); // drive-relative, no separator
+  });
+});
+
+describe('toPosixSeparators', () => {
+  it('converts backslashes to forward slashes', () => {
+    expect(toPosixSeparators('C:\\Users\\david\\project\\src')).toBe('C:/Users/david/project/src');
+  });
+  it('is a no-op for POSIX paths', () => {
+    expect(toPosixSeparators('/home/user/project/src')).toBe('/home/user/project/src');
+  });
+  it('handles mixed separators', () => {
+    expect(toPosixSeparators('C:/Users\\david/project')).toBe('C:/Users/david/project');
   });
 });
 
