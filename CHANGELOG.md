@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.129.2] - 2026-07-03
+
+### Changed
+- **Terminal pane remount is now interruptible** — the agent the terminal pane binds to is deferred via `useDeferredValue`, so opening the drawer or switching agents paints the drawer chrome first and remounts the heavy agent-keyed pane in a follow-up interruptible render instead of blocking the same frame. Reduced `VirtualizedOutputList` overscan from 25 to 10 rows to shrink the number of markdown-parsed rows mounted synchronously on open/switch.
+
 ## [1.129.1] - 2026-07-03
 
 ### Fixed
