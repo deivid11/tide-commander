@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useId, useMemo, useState } from 'react';
 import { detectAgentFetch, detectAgentMessage, detectBrowserAction, type BrowserAction, type ParsedCurl } from './curlParser';
 import { useAgent } from '../../store/selectors';
+import { store, useViewMode } from '../../store';
 import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
 
@@ -85,6 +86,7 @@ function AgentMessageCard({
   rawCommand?: string;
 }) {
   const agent = useAgent(targetAgentId);
+  const viewMode = useViewMode();
   const [expanded, setExpanded] = useState(false);
   const bodyId = useId();
 
@@ -100,6 +102,30 @@ function AgentMessageCard({
     setExpanded(v => !v);
   }, []);
 
+  // Clicking the agent name focuses/opens that agent. Reuses the SAME selection
+  // path as clicking a pinned chip (PinnedAgentsBar.handleSelect): focus it, then
+  // open the Guake terminal unless we're in Flat mode (which drives its own inline
+  // chat and would otherwise stack a second overlay). No-op if the agent is gone.
+  const openAgent = useCallback(() => {
+    if (!agent) return;
+    store.setLastSelectionViaDirectClick(true);
+    store.selectAgent(targetAgentId);
+    if (viewMode !== 'flat') store.setTerminalOpen(true);
+  }, [agent, targetAgentId, viewMode]);
+
+  const handleNameClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    openAgent();
+  }, [openAgent]);
+
+  const handleNameKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      e.stopPropagation();
+      openAgent();
+    }
+  }, [openAgent]);
+
   return (
     <div className="curl-card curl-card--agent-message" title={rawCommand}>
       <div className="curl-agent-message-title">
@@ -110,9 +136,22 @@ function AgentMessageCard({
         <span className="curl-agent-message-label">To</span>
         <span className="curl-agent-message-name">
           {agent && <AgentIcon agent={agent} size={12} />}
-          <span className="curl-agent-message-name-text">
-            {agent ? agent.name : targetAgentId}
-          </span>
+          {agent ? (
+            <span
+              className="curl-agent-message-name-text clickable-agent-name"
+              role="button"
+              tabIndex={0}
+              title={`Open ${agent.name}`}
+              onClick={handleNameClick}
+              onKeyDown={handleNameKeyDown}
+            >
+              {agent.name}
+            </span>
+          ) : (
+            <span className="curl-agent-message-name-text" title="Agent unavailable">
+              {targetAgentId}
+            </span>
+          )}
           {!agent && <CopyButton value={targetAgentId} title="Copy ID" />}
         </span>
       </div>
