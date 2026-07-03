@@ -234,26 +234,42 @@
   }
 }
 
+// Loading indicator overlay — first child of the scroll container. Sticky
+// (not absolute) so it stays in view while the pin loop holds the scroll at
+// the bottom; zero flow height so it never shifts the content below it.
+.guake-loading-overlay {
+  position: sticky;
+  top: 40%;
+  height: 0;
+  overflow: visible;
+  display: flex;
+  justify-content: center;
+  z-index: 2;
+  pointer-events: none;
+}
+
 // History content wrapper — hide is instant, only the reveal animates.
+// Keep the reveal a bare opacity fade: the old 100ms translateY slide-in
+// shifted the just-pinned content and read as flicker on agent switches.
 .guake-history-content {
   opacity: 0;
 
   &.fade-in {
     opacity: 1;
     transition: opacity 50ms ease-out;
-    animation: history-slide-in 0.1s ease-out;
   }
 }
 
-@keyframes history-slide-in {
-  from {
-    opacity: 0;
-    transform: translateY(-2px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+// Agent-switch crossfade, outgoing half: while a switch is pending, the pane
+// host (SplitTerminalLayout in the guake terminal, flat-terminal-wrapper in
+// the Flat view — both driven by useAgentSwitchFade) adds `pane-fading-out`
+// to fade the current conversation out; the keyed remount swaps panes when
+// the fade ends. Duration must match PANE_FADE_OUT_MS in useAgentSwitchFade.ts.
+// Only the conversation fades — pane chrome (pinned bar, input) stays solid.
+.pane-fading-out .guake-history-content,
+.pane-fading-out .guake-history-content.fade-in {
+  opacity: 0;
+  transition: opacity 30ms ease-in;
 }
 
 // Output line types

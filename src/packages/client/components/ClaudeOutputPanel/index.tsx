@@ -13,7 +13,7 @@
  * - Agent switcher bar
  */
 
-import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, useDeferredValue, memo } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 // NOTE: useLayoutEffect used by BottomPm2LogContent and remaining parent effects
 import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -84,6 +84,7 @@ import { GuakeGitPanel } from './GuakeGitPanel';
 import { AgentOverviewPanel } from './AgentOverviewPanel';
 import { type AgentTerminalPaneHandle } from './AgentTerminalPane';
 import { SplitTerminalLayout } from './SplitTerminalLayout';
+import { useAgentSwitchFade } from './useAgentSwitchFade';
 import { AreaBuildingsPanel } from './AreaBuildingsPanel';
 import { WorkflowPanel } from '../WorkflowPanel';
 import { useTwoFingerSelector } from '../../hooks/useTwoFingerSelector';
@@ -348,13 +349,12 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   const activeAgentId = terminalOpen ? selectedAgentId : heldAgentId;
   const activeAgent = useAgent(activeAgentId) || null;
 
-  // Defer the agent the heavy terminal pane binds to. The pane subtree is
-  // keyed by agent id, so binding it to the urgent value would remount it in
-  // the same render that opens the drawer (double-click) or switches agents —
-  // blocking the frame. With the deferred value the drawer chrome paints
-  // first, then the pane remounts in a follow-up interruptible render.
-  const paneAgentId = useDeferredValue(activeAgentId);
-  const paneAgent = useAgent(paneAgentId) || null;
+  // Agent-switch crossfade (shared with the Flat view — see useAgentSwitchFade):
+  // the keyed pane remounts atomically once the short fade-out of the outgoing
+  // conversation completes. The remount itself is cheap because
+  // useHistoryLoader hydrates from its cache in the pane's first render.
+  const { displayedAgentId, fadingOut: paneFadingOut } = useAgentSwitchFade(activeAgentId);
+  const displayedAgent = useAgent(displayedAgentId) || null;
   const trackingBoardVisible = useTrackingBoardVisible();
 
   const handleTrackingBoardSelectAgent = useCallback((agentId: string) => {
@@ -1605,9 +1605,10 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
             </div>
           )}
 
-          {paneAgent && paneAgentId && <SplitTerminalLayout
-            activeAgentId={paneAgentId}
-            activeAgent={paneAgent}
+          {displayedAgent && displayedAgentId && <SplitTerminalLayout
+            activeAgentId={displayedAgentId}
+            activeAgent={displayedAgent}
+            fadingOut={paneFadingOut}
             paneRef={paneRef}
             viewMode={viewMode}
             isOpen={isOpen}

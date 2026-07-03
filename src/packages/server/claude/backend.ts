@@ -15,7 +15,7 @@ import type {
 } from './types.js';
 import { createLogger, sanitizeUnicode } from '../utils/index.js';
 import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
-import { isEchoPromptEnabled } from '../services/system-prompt-service.js';
+import { isEchoPromptEnabled, getSystemPrompt } from '../services/system-prompt-service.js';
 import { loadAreas } from '../data/index.js';
 import { getAgent } from '../services/agent-service.js';
 
@@ -88,8 +88,19 @@ export function buildAppendedProjectInstructions(config: BackendConfig): string 
     TIDE_COMMANDER_APPENDED_PROMPT,
   ];
 
-  // Per-agent custom system prompt (replaces the former global one). Scoped to
-  // this specific agent and edited from Settings → System Prompt.
+  // Global custom prompt — applies to every agent. Edited from Settings →
+  // System Prompt → "All Agents (Global)". Injected before the per-agent
+  // prompt so agent-specific instructions take precedence over it.
+  const globalPrompt = getSystemPrompt().trim();
+  if (globalPrompt) {
+    sections.push(
+      '## Global Custom Prompt (All Agents)',
+      globalPrompt
+    );
+  }
+
+  // Per-agent custom system prompt. Scoped to this specific agent and edited
+  // from Settings → System Prompt with that agent selected.
   if (config.agentId) {
     const agent = getAgent(config.agentId);
     const agentCustomPrompt = agent?.customPrompt?.trim();

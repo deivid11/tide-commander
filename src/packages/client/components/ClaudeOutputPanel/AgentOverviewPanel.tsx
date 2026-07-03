@@ -23,6 +23,7 @@ import { getToolIconName, formatTimestamp } from '../../utils/outputRendering';
 import { STORAGE_KEYS, getStorage, setStorage } from '../../utils/storage';
 import { getClassConfig } from '../../utils/classConfig';
 import { makeAgentOverviewComparator } from './agentOverviewSort';
+import { prefetchAgentHistory } from './useHistoryLoader';
 import type { Agent, Subagent, DrawingArea } from '../../../shared/types';
 import type { ToolExecution, ClaudeOutput } from '../../store/types';
 import type { TwoFingerSelectorState } from '../../hooks/useTwoFingerSelector';
@@ -1447,6 +1448,9 @@ const AgentCard = React.memo(function AgentCard({
           (e.currentTarget as HTMLElement).style.opacity = '';
         }}
         onClick={handleSelect}
+        // Warm the history cache during hover (same as the pinned bar) so a
+        // click switches to an already-cached conversation.
+        onMouseEnter={() => prefetchAgentHistory(agent.id)}
         onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation();

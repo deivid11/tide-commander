@@ -1,10 +1,12 @@
 /**
- * SystemPromptModal - Modal for editing a per-agent custom system prompt
+ * SystemPromptModal - Modal for editing custom system prompts
  *
- * Opens from Settings > System Prompt. The prompt is now scoped to a single
- * agent (picked at the top of the modal) instead of being global — it is stored
- * on the agent (`agent.customPrompt`) and injected into that agent's system
- * prompt by the server's buildAppendedProjectInstructions().
+ * Opens from Settings > System Prompt. The picker at the top selects the scope:
+ * "All Agents (Global)" edits the commander-wide prompt (stored server-side via
+ * system-prompt-service and injected into every agent's instructions), while a
+ * specific agent edits that agent's own prompt (`agent.customPrompt`). The
+ * global prompt is injected before the per-agent one by the server's
+ * buildAppendedProjectInstructions().
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -14,7 +16,15 @@ import { ConfirmModal } from './shared/ConfirmModal';
 import { store, useAgentsArray } from '../store';
 import { AgentIcon } from './AgentIcon';
 import { Icon } from './Icon';
+import {
+  fetchSystemPrompt,
+  updateSystemPrompt,
+  clearSystemPrompt as clearGlobalSystemPrompt,
+} from '../api/system-settings';
 import '../styles/components/system-prompt-modal.scss';
+
+/** Sentinel picker value for the commander-wide (all agents) prompt scope. */
+const GLOBAL_SCOPE_ID = '__global__';
 
 export interface SystemPromptModalProps {
   isOpen: boolean;
@@ -28,6 +38,8 @@ export function SystemPromptModal({ isOpen, onClose, initialAgentId }: SystemPro
   const agents = useAgentsArray();
 
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
+  const [globalPrompt, setGlobalPrompt] = useState('');
+  const [globalLoaded, setGlobalLoaded] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [originalPrompt, setOriginalPrompt] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -48,25 +60,36 @@ export function SystemPromptModal({ isOpen, onClose, initialAgentId }: SystemPro
     [agents, selectedAgentId]
   );
 
-  // Pick an initial agent when the modal opens.
+  const isGlobal = selectedAgentId === GLOBAL_SCOPE_ID;
+
+  // Pick the initial scope when the modal opens and fetch the global prompt
+  // (for the picker marker and so switching scopes is instant).
   useEffect(() => {
     if (!isOpen) return;
     const validInitial = initialAgentId && agents.some((a) => a.id === initialAgentId)
       ? initialAgentId
-      : (sortedAgents[0]?.id ?? '');
+      : GLOBAL_SCOPE_ID;
     setSelectedAgentId(validInitial);
+    setGlobalLoaded(false);
+    fetchSystemPrompt()
+      .then((content) => setGlobalPrompt(content))
+      .catch(() => setGlobalPrompt(''))
+      .finally(() => setGlobalLoaded(true));
     // Intentionally only re-run when the modal opens.
   }, [isOpen]);
 
-  // Load the selected agent's prompt whenever the selection changes.
+  // Load the selected scope's prompt whenever the selection changes (and once
+  // the global prompt arrives, since the fetch resolves after open).
   useEffect(() => {
-    const content = selectedAgent?.customPrompt ?? '';
+    const content = selectedAgentId === GLOBAL_SCOPE_ID
+      ? globalPrompt
+      : (selectedAgent?.customPrompt ?? '');
     setPrompt(content);
     setOriginalPrompt(content);
     setIsDirty(false);
     setError(null);
     setSuccess(null);
-  }, [selectedAgentId]);
+  }, [selectedAgentId, globalLoaded]);
 
   const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newPrompt = e.target.value;
@@ -76,15 +99,21 @@ export function SystemPromptModal({ isOpen, onClose, initialAgentId }: SystemPro
     setSuccess(null);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!selectedAgentId) return;
     try {
       setError(null);
       setSuccess(null);
-      store.updateAgentProperties(selectedAgentId, { customPrompt: prompt });
+      if (isGlobal) {
+        await updateSystemPrompt(prompt);
+        setGlobalPrompt(prompt);
+        setSuccess(t('config:systemPrompt.savedGlobal'));
+      } else {
+        store.updateAgentProperties(selectedAgentId, { customPrompt: prompt });
+        setSuccess(t('config:systemPrompt.saved'));
+      }
       setOriginalPrompt(prompt);
       setIsDirty(false);
-      setSuccess(t('config:systemPrompt.saved'));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save system prompt');
     }
@@ -94,16 +123,22 @@ export function SystemPromptModal({ isOpen, onClose, initialAgentId }: SystemPro
     setClearConfirmOpen(true);
   };
 
-  const performClear = () => {
+  const performClear = async () => {
     if (!selectedAgentId) return;
     try {
       setError(null);
       setSuccess(null);
-      store.updateAgentProperties(selectedAgentId, { customPrompt: '' });
+      if (isGlobal) {
+        await clearGlobalSystemPrompt();
+        setGlobalPrompt('');
+        setSuccess(t('config:systemPrompt.clearedGlobal'));
+      } else {
+        store.updateAgentProperties(selectedAgentId, { customPrompt: '' });
+        setSuccess(t('config:systemPrompt.cleared'));
+      }
       setPrompt('');
       setOriginalPrompt('');
       setIsDirty(false);
-      setSuccess(t('config:systemPrompt.cleared'));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to clear system prompt');
     }
@@ -169,78 +204,78 @@ export function SystemPromptModal({ isOpen, onClose, initialAgentId }: SystemPro
           </div>
 
           <div className="modal-body">
-            {sortedAgents.length === 0 ? (
-              <div className="loading-state">
-                <p>{t('config:systemPrompt.noAgents')}</p>
+            <p className="modal-description">{t('config:systemPrompt.description')}</p>
+
+            {/* Scope picker — the global (all agents) prompt or a specific agent's. */}
+            <div className="agent-picker">
+              <label htmlFor="system-prompt-agent" className="editor-label">
+                {t('config:systemPrompt.agentLabel')}
+              </label>
+              <div className="agent-picker-row">
+                {isGlobal ? (
+                  <Icon name="globe" size={20} className="agent-picker-icon" />
+                ) : (
+                  selectedAgent && (
+                    <AgentIcon classId={selectedAgent.class} size={20} className="agent-picker-icon" />
+                  )
+                )}
+                <select
+                  id="system-prompt-agent"
+                  className="agent-picker-select"
+                  value={selectedAgentId}
+                  onChange={(e) => switchAgent(e.target.value)}
+                >
+                  <option value={GLOBAL_SCOPE_ID}>
+                    {t('config:systemPrompt.globalOption')}{globalPrompt ? ' • ✦' : ''}
+                  </option>
+                  {sortedAgents.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}{a.customPrompt ? ' • ✦' : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
-            ) : (
-              <>
-                <p className="modal-description">{t('config:systemPrompt.description')}</p>
+            </div>
 
-                {/* Agent picker — the prompt is scoped to the chosen agent. */}
-                <div className="agent-picker">
-                  <label htmlFor="system-prompt-agent" className="editor-label">
-                    {t('config:systemPrompt.agentLabel')}
-                  </label>
-                  <div className="agent-picker-row">
-                    {selectedAgent && (
-                      <AgentIcon classId={selectedAgent.class} size={20} className="agent-picker-icon" />
-                    )}
-                    <select
-                      id="system-prompt-agent"
-                      className="agent-picker-select"
-                      value={selectedAgentId}
-                      onChange={(e) => switchAgent(e.target.value)}
-                    >
-                      {sortedAgents.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.name}{a.customPrompt ? ' • ✦' : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {error && (
-                  <div className="alert alert-error">
-                    <span className="alert-icon"><Icon name="warn" size={14} /></span>
-                    {error}
-                  </div>
-                )}
-
-                {success && (
-                  <div className="alert alert-success">
-                    <span className="alert-icon"><Icon name="check" size={14} /></span>
-                    {success}
-                  </div>
-                )}
-
-                <div className="editor-wrapper">
-                  <div className="editor-header">
-                    <label htmlFor="prompt-input" className="editor-label">
-                      {t('config:systemPrompt.editPrompt')}
-                    </label>
-                    <span className="char-count">
-                      {prompt.length} {t('config:systemPrompt.characters')}
-                    </span>
-                  </div>
-
-                  <textarea
-                    id="prompt-input"
-                    className="prompt-editor"
-                    value={prompt}
-                    onChange={handlePromptChange}
-                    placeholder={t('config:systemPrompt.placeholder')}
-                    rows={18}
-                    autoFocus
-                  />
-
-                  <div className="editor-hint">
-                    {t('config:systemPrompt.hint')}
-                  </div>
-                </div>
-              </>
+            {error && (
+              <div className="alert alert-error">
+                <span className="alert-icon"><Icon name="warn" size={14} /></span>
+                {error}
+              </div>
             )}
+
+            {success && (
+              <div className="alert alert-success">
+                <span className="alert-icon"><Icon name="check" size={14} /></span>
+                {success}
+              </div>
+            )}
+
+            <div className="editor-wrapper">
+              <div className="editor-header">
+                <label htmlFor="prompt-input" className="editor-label">
+                  {t('config:systemPrompt.editPrompt')}
+                </label>
+                <span className="char-count">
+                  {prompt.length} {t('config:systemPrompt.characters')}
+                </span>
+              </div>
+
+              <textarea
+                id="prompt-input"
+                className="prompt-editor"
+                value={prompt}
+                onChange={handlePromptChange}
+                placeholder={t('config:systemPrompt.placeholder')}
+                rows={18}
+                disabled={isGlobal && !globalLoaded}
+                autoFocus
+              />
+
+              <div className="editor-hint">
+                {t(isGlobal ? 'config:systemPrompt.hintGlobal' : 'config:systemPrompt.hint')}
+              </div>
+            </div>
           </div>
 
           <div className="modal-footer">
@@ -285,7 +320,7 @@ export function SystemPromptModal({ isOpen, onClose, initialAgentId }: SystemPro
       <ConfirmModal
         isOpen={clearConfirmOpen}
         title={t('config:systemPrompt.clear')}
-        message={t('config:systemPrompt.confirmClear')}
+        message={t(isGlobal ? 'config:systemPrompt.confirmClearGlobal' : 'config:systemPrompt.confirmClear')}
         confirmLabel={t('config:systemPrompt.clear')}
         cancelLabel="Cancel"
         variant="danger"

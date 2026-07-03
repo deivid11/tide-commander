@@ -37,6 +37,7 @@ import { getAgentStatusColor, getBuildingStatusColor } from '../../utils/colors'
 import { getDisplayContextInfo } from '../../utils/context';
 import { AgentOverviewPanel } from '../ClaudeOutputPanel/AgentOverviewPanel';
 import { AgentTerminalPane, type AgentTerminalPaneHandle } from '../ClaudeOutputPanel/AgentTerminalPane';
+import { useAgentSwitchFade } from '../ClaudeOutputPanel/useAgentSwitchFade';
 import AgentClassicTerminal from './AgentClassicTerminal';
 import { PlanLimitsTooltip } from './PlanLimitsTooltip';
 import { AgentDebugPanel } from '../ClaudeOutputPanel/AgentDebugPanel';
@@ -225,6 +226,13 @@ const ChatView = React.memo(function ChatView({
   const settings = useSettings();
   const paneRef = useRef<AgentTerminalPaneHandle>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Same agent-switch pipeline as the guake terminal: the chrome (header)
+  // follows the selection instantly, while the keyed conversation pane
+  // crossfades — short fade-out of the outgoing conversation, atomic remount,
+  // fade-in of the incoming one after pin.
+  const { displayedAgentId, fadingOut } = useAgentSwitchFade(agentId);
+  const displayedAgent = useAgent(displayedAgentId);
 
   // "Classic TUI" view: only offered when interactive-TUI mode is enabled and
   // this is a Claude agent that has a session (i.e. a tc-int-<agentId> tmux
@@ -573,7 +581,7 @@ const ChatView = React.memo(function ChatView({
   return (
     <div
       ref={wrapperRef}
-      className={`flat-terminal-wrapper ${gitPanelOpen || buildingsPanelOpen || debugPanelOpen ? 'flat-terminal-wrapper--with-side-panel' : ''}`}
+      className={`flat-terminal-wrapper ${gitPanelOpen || buildingsPanelOpen || debugPanelOpen ? 'flat-terminal-wrapper--with-side-panel' : ''} ${fadingOut ? 'pane-fading-out' : ''}`}
       // Clamp to 70% of the (often narrow) Flat chat column so the side panel
       // can't overflow it and push the resize handle off the left edge. Panel
       // width, chat margin, and handle position all read this one var, so they
@@ -872,11 +880,12 @@ const ChatView = React.memo(function ChatView({
       </div>
       {classicTuiOpen && classicTuiAvailable ? (
         <AgentClassicTerminal agentId={agentId} />
-      ) : (
+      ) : displayedAgentId && displayedAgent ? (
         <AgentTerminalPane
+          key={displayedAgentId}
           ref={paneRef}
-          agentId={agentId}
-          agent={agent}
+          agentId={displayedAgentId}
+          agent={displayedAgent}
           viewMode={terminalViewMode}
           isOpen={true}
           onImageClick={onImageClick}
@@ -886,7 +895,7 @@ const ChatView = React.memo(function ChatView({
           keyboard={keyboard}
           hasModalOpen={false}
         />
-      )}
+      ) : null}
       {embeddedTerminalBuilding && (
         <>
           <div

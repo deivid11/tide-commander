@@ -12,7 +12,7 @@
     "modelStyle": "Agent Model Style",
     "animations": "Animations",
     "secrets": "Secrets",
-    "systemPrompt": "Agent System Prompt",
+    "systemPrompt": "System Prompt",
     "whatsapp": "WhatsApp Integration",
     "whatsappNotifications": "WhatsApp Notifications",
     "whatsappHistory": "WhatsApp History",
@@ -300,20 +300,25 @@
     "update": "Update"
   },
   "systemPrompt": {
-    "title": "Per-Agent System Prompt",
-    "description": "Add custom instructions for a specific agent. Pick the agent below, then edit its prompt. It appears after Tide Commander base rules but before that agent's class instructions.",
-    "agentLabel": "Agent",
+    "title": "System Prompt",
+    "description": "Add custom instructions for all agents or for a specific agent. Pick the scope below, then edit its prompt. It appears after Tide Commander base rules but before agent class instructions.",
+    "agentLabel": "Apply to",
     "noAgents": "No agents yet. Spawn an agent first, then set its system prompt here.",
+    "globalOption": "All Agents (Global)",
     "editPrompt": "Edit System Prompt",
     "save": "Save Prompt",
     "reset": "Reset Changes",
     "clear": "Clear Prompt",
     "characters": "characters",
     "saved": "System prompt saved. It applies to this agent's next session.",
+    "savedGlobal": "Global system prompt saved. It applies to every agent's next session.",
     "cleared": "System prompt cleared for this agent.",
+    "clearedGlobal": "Global system prompt cleared.",
     "hint": "This prompt is inserted into the system instructions for the selected agent only.",
-    "placeholder": "Enter this agent's system prompt here...\n\nExamples:\n- Coding style guidelines\n- Team communication rules\n- Project-wide conventions\n- Security best practices",
-    "confirmClear": "Are you sure you want to clear this agent's system prompt?"
+    "hintGlobal": "This prompt is inserted into the system instructions of every agent, before any per-agent prompt.",
+    "placeholder": "Enter the system prompt here...\n\nExamples:\n- Coding style guidelines\n- Team communication rules\n- Project-wide conventions\n- Security best practices",
+    "confirmClear": "Are you sure you want to clear this agent's system prompt?",
+    "confirmClearGlobal": "Are you sure you want to clear the global system prompt (all agents)?"
   },
   "integrations": {
     "whatsapp": {

@@ -53,6 +53,12 @@ interface SplitTerminalLayoutProps {
   onSwipeClose?: () => void;
   /** Whether any modal is open */
   hasModalOpen?: boolean;
+  /**
+   * True while an agent switch is pending and the outgoing conversation is
+   * fading out (the parent swaps `activeAgentId` when the fade completes).
+   * Only the conversation fades — pane chrome stays solid.
+   */
+  fadingOut?: boolean;
 }
 
 // ─── Split Pane Header ──────────────────────────────────────────────────────
@@ -103,6 +109,7 @@ export const SplitTerminalLayout = memo(function SplitTerminalLayout(props: Spli
     onSwipeCloseOffsetChange,
     onSwipeClose,
     hasModalOpen,
+    fadingOut,
   } = props;
 
   const splitPaneAgentIds = useSplitPaneAgentIds();
@@ -153,21 +160,21 @@ export const SplitTerminalLayout = memo(function SplitTerminalLayout(props: Spli
     store.toggleSplitOrientation();
   }, []);
 
-  // No split panes - render single pane as before
+  // No split panes - render ONE pane, keyed by agent id. An agent switch is an
+  // atomic remount: the old conversation, its input and its pinned bar unmount
+  // in the same commit the new agent's pane mounts, so nothing ever overlaps,
+  // hides, or lingers. The remount is cheap because useHistoryLoader hydrates
+  // synchronously from its cache (first paint already shows the conversation)
+  // and PinnedAgentsBar prefetches history on chip hover.
   if (!isSplitMode) {
     return (
       <div
-        className={`split-terminal-layout single ${dragOver ? 'drop-zone-active' : ''}`}
+        className={`split-terminal-layout single ${dragOver ? 'drop-zone-active' : ''} ${fadingOut ? 'pane-fading-out' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
         <AgentTerminalPane
-          // key forces a full remount on agent switch so the selector hooks
-          // (useAgentOutputs, useHistoryLoader) re-run their useState
-          // initializers with the new agentId — without this the first render
-          // after switching reuses the previous agent's cached selector value
-          // and a freshly-keyed VirtualizedOutputList paints stale data.
           key={activeAgentId}
           ref={paneRef}
           agentId={activeAgentId}
