@@ -275,7 +275,10 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     count: allItems.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: (index) => getEstimatedHeight(allItems[index]),
-    overscan: 25, // Render 25 items above/below viewport
+    // Keep overscan modest: every overscanned row is a markdown-parsed
+    // OutputLine/HistoryLine mounted synchronously when the pane opens or
+    // switches agents, and this mount is the main cost of that switch.
+    overscan: 10,
     initialRect: { width: 500, height: 800 },
     // Stable per-item key — see buildItemKey above for the live/history bridge
     // that prevents virtualizer remount when the optimistic prompt is replaced

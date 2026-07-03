@@ -13,7 +13,7 @@
  * - Agent switcher bar
  */
 
-import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, useDeferredValue, memo } from 'react';
 // NOTE: useLayoutEffect used by BottomPm2LogContent and remaining parent effects
 import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -347,6 +347,14 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   }, [terminalOpen, selectedAgentId]);
   const activeAgentId = terminalOpen ? selectedAgentId : heldAgentId;
   const activeAgent = useAgent(activeAgentId) || null;
+
+  // Defer the agent the heavy terminal pane binds to. The pane subtree is
+  // keyed by agent id, so binding it to the urgent value would remount it in
+  // the same render that opens the drawer (double-click) or switches agents —
+  // blocking the frame. With the deferred value the drawer chrome paints
+  // first, then the pane remounts in a follow-up interruptible render.
+  const paneAgentId = useDeferredValue(activeAgentId);
+  const paneAgent = useAgent(paneAgentId) || null;
   const trackingBoardVisible = useTrackingBoardVisible();
 
   const handleTrackingBoardSelectAgent = useCallback((agentId: string) => {
@@ -1597,9 +1605,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
             </div>
           )}
 
-          <SplitTerminalLayout
-            activeAgentId={activeAgentId}
-            activeAgent={activeAgent}
+          {paneAgent && paneAgentId && <SplitTerminalLayout
+            activeAgentId={paneAgentId}
+            activeAgent={paneAgent}
             paneRef={paneRef}
             viewMode={viewMode}
             isOpen={isOpen}
@@ -1618,7 +1626,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
             onSwipeCloseOffsetChange={handleMobileSwipeCloseOffsetChange}
             onSwipeClose={handleMobileSwipeClose}
             hasModalOpen={!!(imageModal || bashModal || responseModalContent || fileViewerPath)}
-          />
+          />}
         </div>
 
         {/* Agent Status Bar (CWD + Context) */}
