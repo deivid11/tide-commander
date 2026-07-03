@@ -272,6 +272,8 @@ export interface StoreState {
   // Whether the (global) test results modal is open. Rendered app-wide so it can
   // be opened from anywhere (e.g. the Ctrl+T shortcut), not just the explorer.
   testResultsModalOpen?: boolean;
+  // Tests building whose browser modal is open (null/undefined = closed).
+  testsBuildingId?: string | null;
   // Secrets (key-value pairs for placeholder replacement)
   secrets: Map<string, Secret>;
   // Database state per building

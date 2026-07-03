@@ -674,7 +674,9 @@ export function TestRunnerModal({ isOpen, runId, targetName, onClose, onRerun }:
                   {copiedFailed ? 'Copied' : `Copy failed (${totals.failures + totals.errors})`}
                 </button>
               )}
-              {statusFilter && visibleSuites.length > 0 && (
+              {/* Subset re-run builds a Maven `-Dtest=` filter — other runners
+                  (vitest) re-run the whole target instead. */}
+              {statusFilter && visibleSuites.length > 0 && run?.runnerType === 'maven' && (
                 <button
                   className="btn btn-secondary"
                   onClick={() => onRerun(buildTestFilter(visibleSuites))}

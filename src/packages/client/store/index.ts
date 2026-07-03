@@ -144,6 +144,9 @@ export {
   useTestRun,
   useLatestTestRunId,
   useTestResultsModalOpen,
+  useTestsBuildingId,
+  useRunningTestRoots,
+  isTestPathRelated,
   useAgentTestRunHandles,
   useSecrets,
   useSecretsArray,
@@ -818,6 +821,16 @@ class Store
 
   /** Start a test run for a folder/file (optionally scoped) and open the modal. */
   async runTests(path: string, testFilter?: string): Promise<void> {
+    await this.runTestsQuiet(path, testFilter);
+    this.state.testResultsModalOpen = true;
+    this.notify();
+  }
+
+  /**
+   * Start a run WITHOUT opening the global results modal (the tests-building
+   * browser shows the run inline). Returns the runId. Throws on start failure.
+   */
+  async runTestsQuiet(path: string, testFilter?: string): Promise<string> {
     const { startTestRun } = await import('../api/test-runner');
     const resp = await startTestRun(path, testFilter);
     this.handleTestRunStarted({
@@ -828,7 +841,20 @@ class Store
       command: resp.command,
       label: resp.label,
     });
-    this.state.testResultsModalOpen = true;
+    return resp.runId;
+  }
+
+  // ============================================================================
+  // Tests Building (browser modal: scan + search + run individual tests)
+  // ============================================================================
+
+  openTestsBuilding(buildingId: string): void {
+    this.state.testsBuildingId = buildingId;
+    this.notify();
+  }
+
+  closeTestsBuilding(): void {
+    this.state.testsBuildingId = null;
     this.notify();
   }
 
@@ -1035,6 +1061,24 @@ class Store
   deselectAll(...args: Parameters<AgentActions['deselectAll']>) { return this.agentActions.deselectAll(...args); }
   togglePinnedAgent(...args: Parameters<AgentActions['togglePinnedAgent']>) { return this.agentActions.togglePinnedAgent(...args); }
   reorderPinnedAgent(...args: Parameters<AgentActions['reorderPinnedAgent']>) { return this.agentActions.reorderPinnedAgent(...args); }
+  /**
+   * Cycle the terminal's active agent through the PINNED set (the same list/order
+   * the PinnedAgentsBar shows and the horizontal swipe uses). `direction` +1 =
+   * next, -1 = previous, wrapping. No-op (returns null) with < 2 pinned. When the
+   * active agent isn't pinned, "next" enters at the first pin and "previous" at
+   * the last. Reuses selectAgent() — the exact selection path a pinned-chip click
+   * and the swipe navigation use — so callers don't reimplement selection.
+   */
+  cyclePinnedAgent(direction: 1 | -1): string | null {
+    const state = this.getState();
+    const pinned = state.pinnedAgentIds.filter((id) => state.agents.has(id));
+    if (pinned.length < 2) return null;
+    const cur = state.lastSelectedAgentId ? pinned.indexOf(state.lastSelectedAgentId) : -1;
+    const base = cur === -1 ? (direction === 1 ? -1 : 0) : cur;
+    const nextId = pinned[(base + direction + pinned.length) % pinned.length];
+    this.selectAgent(nextId);
+    return nextId;
+  }
   spawnAgent(...args: Parameters<AgentActions['spawnAgent']>) { return this.agentActions.spawnAgent(...args); }
   cloneAgent(...args: Parameters<AgentActions['cloneAgent']>) { return this.agentActions.cloneAgent(...args); }
   forkAgent(...args: Parameters<AgentActions['forkAgent']>) { return this.agentActions.forkAgent(...args); }

@@ -657,6 +657,8 @@ function AppContent() {
         setDatabasePanelBuildingId(detail.buildingId);
       } else if (building.type === 'folder' && building.folderPath) {
         store.openFileExplorer(building.folderPath);
+      } else if (building.type === 'tests') {
+        store.openTestsBuilding(detail.buildingId);
       } else if (building.type === 'terminal' && building.terminalStatus?.url) {
         setTerminalModalBuildingId(detail.buildingId);
       } else {
@@ -809,6 +811,8 @@ function AppContent() {
       setDatabasePanelBuildingId(buildingId);
     } else if (building.type === 'folder' && building.folderPath) {
       store.openFileExplorer(building.folderPath);
+    } else if (building.type === 'tests') {
+      store.openTestsBuilding(buildingId);
     } else if (building.type === 'terminal' && building.terminalStatus?.url) {
       setTerminalModalBuildingId(buildingId);
     } else {
@@ -890,6 +894,8 @@ function AppContent() {
                   setDatabasePanelBuildingId(buildingId);
                 } else if (building?.type === 'folder' && building.folderPath) {
                   store.openFileExplorer(building.folderPath);
+                } else if (building?.type === 'tests') {
+                  store.openTestsBuilding(buildingId);
                 } else {
                   buildingModal.open(buildingId);
                 }
@@ -973,6 +979,8 @@ function AppContent() {
                 const building = store.getState().buildings.get(buildingId);
                 if (building?.type === 'folder' && building.folderPath) {
                   store.openFileExplorer(building.folderPath);
+                } else if (building?.type === 'tests') {
+                  store.openTestsBuilding(buildingId);
                 } else if (building?.type === 'server' || building?.type === 'boss' || building?.type === 'database') {
                   // Clear any pending popup timeout
                   if (pendingPopupTimeoutRef.current) {
@@ -1003,6 +1011,8 @@ function AppContent() {
                   setDatabasePanelBuildingId(buildingId);
                 } else if (building?.type === 'folder' && building.folderPath) {
                   store.openFileExplorer(building.folderPath);
+                } else if (building?.type === 'tests') {
+                  store.openTestsBuilding(buildingId);
                 } else {
                   buildingModal.open(buildingId);
                 }

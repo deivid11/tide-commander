@@ -7,7 +7,7 @@
 
 import React, { useMemo, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useBuildings, useAreas } from '../../store';
+import { store, useBuildings, useAreas, useRunningTestRoots, isTestPathRelated } from '../../store';
 import { BUILDING_TYPES } from '../../../shared/building-types';
 import type { Building, BuildingStatus } from '../../../shared/building-types';
 import type { DrawingArea } from '../../../shared/types';
@@ -71,6 +71,10 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
   const { t } = useTranslation(['terminal', 'common']);
   const buildings = useBuildings();
   const areas = useAreas();
+  // Module roots with a test run in flight — stable across per-line output
+  // updates, so this panel doesn't re-render while mvn streams. Used to play
+  // the "working" animation on tests buildings.
+  const runningTestRoots = useRunningTestRoots();
   const [contextMenu, setContextMenu] = useState<BuildingContextMenuState | null>(null);
 
   // Find the area for the active agent
@@ -150,12 +154,14 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
       id: 'open',
       label: building.type === 'database' ? 'Open Database' :
              building.type === 'folder' ? 'Open Folder' :
+             building.type === 'tests' ? 'Open Tests' :
              building.type === 'boss' ? 'View Boss Logs' :
              building.type === 'terminal' ? 'Open Terminal' :
              (building.type === 'server' && building.pm2?.enabled) ? 'View PM2 Logs' :
              'Open',
       icon: <Icon name={building.type === 'database' ? 'database' :
             building.type === 'folder' ? 'folder' :
+            building.type === 'tests' ? 'flask' :
             building.type === 'terminal' ? 'terminal' :
             'eye'} size={14} />,
       onClick: () => handleBuildingClick(building.id),
@@ -495,6 +501,26 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
       }
     }
 
+    // -- Tests building: target folder + live run indicator --
+    if (building.type === 'tests' && building.folderPath) {
+      details.push(
+        <div key="tests-path" className="guake-building-detail">
+          <span className="detail-label">Tests</span>
+          <span className="detail-value detail-mono" title={building.folderPath}>{shortenPath(building.folderPath)}</span>
+        </div>
+      );
+      if (runningTestRoots.some((root) => isTestPathRelated(root, building.folderPath!))) {
+        details.push(
+          <div key="tests-running" className="guake-building-detail">
+            <span className="detail-label">Run</span>
+            <span className="detail-value detail-warn tests-running-detail">
+              <span className="tests-running-dot" /> Running tests…
+            </span>
+          </div>
+        );
+      }
+    }
+
     // -- Folder path & git changes --
     if (building.type === 'folder' && building.folderPath) {
       details.push(
@@ -536,7 +562,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
     }
 
     return details;
-  }, [buildings]);
+  }, [buildings, runningTestRoots]);
 
   return (
     <div className="guake-buildings-panel">
@@ -576,16 +602,24 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
             const statusColor = STATUS_COLORS[building.status] || '#9ca3af';
             const isRunnable = building.type === 'server' || building.type === 'docker' || building.type === 'terminal';
             const isRunning = building.status === 'running';
+            // Tests building with a run in flight → animate its icon (working).
+            const isTestsWorking =
+              building.type === 'tests' &&
+              !!building.folderPath &&
+              runningTestRoots.some((root) => isTestPathRelated(root, building.folderPath!));
 
             return (
               <div
                 key={building.id}
-                className={`guake-building-item ${building.status}`}
+                className={`guake-building-item ${building.status}${isTestsWorking ? ' tests-working' : ''}`}
                 onClick={() => handleBuildingClick(building.id)}
                 onContextMenu={(e) => handleContextMenu(e, building.id)}
               >
                 <div className="guake-building-row">
-                  <span className="guake-building-type-icon" title={typeConfig.description}>
+                  <span
+                    className={`guake-building-type-icon${isTestsWorking ? ' tests-working' : ''}`}
+                    title={isTestsWorking ? 'Running tests…' : typeConfig.description}
+                  >
                     <Icon name={getBuildingTypeIcon(building.type)} size={14} />
                   </span>
                   <span className="guake-building-name">{building.name}</span>

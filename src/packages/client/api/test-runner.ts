@@ -6,7 +6,7 @@
  */
 
 import { apiUrl, authFetch } from '../utils/storage';
-import type { DetectRunnerResult, TestRunnerType, TestRunSummary, StoredTestRun } from '../../shared/types';
+import type { DetectRunnerResult, TestRunnerType, TestRunSummary, StoredTestRun, TestScanResult } from '../../shared/types';
 
 export interface StartTestRunResponse {
   success: boolean;
@@ -27,6 +27,23 @@ export async function detectRunner(path: string): Promise<DetectRunnerResult> {
   });
   if (!res.ok) return { testable: false };
   return (await res.json()) as DetectRunnerResult;
+}
+
+/**
+ * Statically scan a folder's module for every test class/method (nothing runs).
+ * Powers the tests-building browser. Throws with the server message on failure.
+ */
+export async function scanTests(path: string): Promise<TestScanResult> {
+  const res = await authFetch(apiUrl('/api/tests/scan'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((data as { error?: string }).error || 'Failed to scan tests');
+  }
+  return data as TestScanResult;
 }
 
 /**

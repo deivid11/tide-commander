@@ -170,6 +170,10 @@ export class RunnerProcessLifecycle {
       env,
       shell: isWindows ? true : false,
       detached: isWindows ? false : true,
+      // On Windows, shell:true launches via cmd.exe which pops a visible
+      // console window on every agent turn. windowsHide suppresses it and is
+      // a no-op on other platforms.
+      windowsHide: true,
     });
 
     if (!isWindows) {

@@ -1043,6 +1043,24 @@ body.flat-splitter-dragging {
         background: rgba($accent-purple, 0.36);
       }
     }
+
+    // Tests building with a run in flight — shaking flask + pulsing glow,
+    // mirrors the guake buildings-panel working indicator.
+    &--tests-working {
+      color: $accent-cyan;
+      background: rgba($accent-cyan, 0.14);
+      box-shadow: 0 0 0 1px rgba($accent-cyan, 0.4);
+      animation: flat-tests-glow 1.4s ease-in-out infinite;
+
+      svg {
+        animation: flat-tests-shake 1.1s ease-in-out infinite;
+      }
+
+      &:hover {
+        color: $accent-cyan;
+        background: rgba($accent-cyan, 0.22);
+      }
+    }
   }
 
   // ── Detached (reattaching) badge ────────────────────────────────────────
@@ -2385,4 +2403,18 @@ body.flat-splitter-dragging {
     color: $text-muted;
     font-size: 12px;
   }
+}
+
+// Statusbar tests-building working indicator (shared by the flask shortcut button)
+@keyframes flat-tests-shake {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-14deg); }
+  40% { transform: rotate(10deg); }
+  60% { transform: rotate(-7deg); }
+  80% { transform: rotate(4deg); }
+}
+
+@keyframes flat-tests-glow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(139, 233, 253, 0.3); }
+  50% { box-shadow: 0 0 6px 1px rgba(139, 233, 253, 0.7); }
 }

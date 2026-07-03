@@ -16,6 +16,8 @@ import {
   useAgent,
   useAreas,
   useBuildings,
+  useRunningTestRoots,
+  isTestPathRelated,
 } from '../../store/selectors';
 import { store, useSettings } from '../../store';
 import { ConfirmModal } from '../shared/ConfirmModal';
@@ -410,6 +412,25 @@ const ChatView = React.memo(function ChatView({
     }
     return result;
   }, [agentId, buildings]);
+
+  // Roots with a test run in flight — stable across per-line output updates
+  // (only run start/finish changes it), so the statusbar flask can animate
+  // while that building's tests execute without re-render storms.
+  const runningTestRoots = useRunningTestRoots();
+  const areaTestsBuildings = useMemo(() => {
+    const area = store.getAreaForAgent(agentId);
+    if (!area) return [];
+    const result: { id: string; name: string; working: boolean }[] = [];
+    for (const building of buildings.values()) {
+      if (building.type === 'tests' && store.isPositionInArea(building.position, area)) {
+        const working =
+          !!building.folderPath &&
+          runningTestRoots.some((root) => isTestPathRelated(root, building.folderPath!));
+        result.push({ id: building.id, name: building.name, working });
+      }
+    }
+    return result;
+  }, [agentId, buildings, runningTestRoots]);
 
   // Search-mode mirror: paneRef owns the search state, but header buttons
   // need to re-render to reflect the active style when toggled. A counter
@@ -1106,6 +1127,26 @@ const ChatView = React.memo(function ChatView({
                 }}
               >
                 <Icon name="hard-drives" size={14} />
+              </button>
+            ))}
+          </span>
+        )}
+        {areaTestsBuildings.length > 0 && (
+          <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area tests">
+            {areaTestsBuildings.map((tb) => (
+              <button
+                key={tb.id}
+                type="button"
+                className={`flat-terminal-wrapper__building-btn ${tb.working ? 'flat-terminal-wrapper__building-btn--tests-working' : ''}`}
+                title={tb.working ? `Running tests: ${tb.name}` : `Open tests: ${tb.name}`}
+                onClick={() => onOpenBuilding(tb.id)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onBuildingContextMenu(tb.id, { x: e.clientX, y: e.clientY });
+                }}
+              >
+                <Icon name="flask" size={14} />
               </button>
             ))}
           </span>
@@ -2034,12 +2075,14 @@ export function FlatView({
       id: 'open',
       label: building.type === 'database' ? 'Open Database' :
              building.type === 'folder' ? 'Open Folder' :
+             building.type === 'tests' ? 'Open Tests' :
              building.type === 'boss' ? 'View Boss Logs' :
              building.type === 'terminal' ? 'Open Terminal' :
              (building.type === 'server' && building.pm2?.enabled) ? 'View PM2 Logs' :
              'Open',
       icon: <Icon name={building.type === 'database' ? 'database' :
             building.type === 'folder' ? 'folder' :
+            building.type === 'tests' ? 'flask' :
             building.type === 'terminal' ? 'terminal' :
             'eye'} size={14} />,
       onClick: () => handleOpenBuilding(building.id),

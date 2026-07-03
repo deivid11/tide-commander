@@ -3,6 +3,7 @@ import { store, useStore } from '../store';
 import { type SceneConfig } from './toolbox';
 import { ContextMenu, type ContextMenuAction } from './ContextMenu';
 import { GlobalTestRunnerModal } from './GlobalTestRunnerModal';
+import { GlobalTestsBuildingModal } from './TestsBuildingModal';
 import { profileRender } from '../utils/profiling';
 import type { UseModalState, UseModalStateWithId, UseContextMenu } from '../hooks';
 
@@ -311,6 +312,9 @@ export function AppModals({
 
       {/* Test results — global mount so Ctrl+T / the explorer button can open it anywhere */}
       <GlobalTestRunnerModal />
+
+      {/* Tests building browser — global mount, driven by store.testsBuildingId */}
+      <GlobalTestsBuildingModal />
 
       {/* Spotlight / Global Search */}
       <Spotlight

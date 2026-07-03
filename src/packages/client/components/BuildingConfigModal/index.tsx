@@ -386,6 +386,9 @@ export function BuildingConfigModal({
                       if (bt === 'database' && style === 'server-rack') {
                         setStyle('filing-cabinet');
                       }
+                      if (bt === 'tests' && style === 'server-rack') {
+                        setStyle('dome');
+                      }
                     }}
                     title={BUILDING_TYPES[bt].description}
                   >
@@ -497,6 +500,24 @@ export function BuildingConfigModal({
                 />
                 <div className="form-hint">
                   Click this building to open the file explorer at this path
+                </div>
+              </div>
+            )}
+
+            {/* Tests Folder Section (for tests type) */}
+            {type === 'tests' && (
+              <div className="form-section">
+                <label className="form-label">Tests Folder</label>
+                <FolderInput
+                  value={folderPath}
+                  onChange={setFolderPath}
+                  placeholder="/path/to/project/src/test"
+                  className="form-input"
+                  directoriesOnly={true}
+                />
+                <div className="form-hint">
+                  Click this building to browse, search and run the tests of this folder
+                  (any folder inside a Maven module works)
                 </div>
               </div>
             )}

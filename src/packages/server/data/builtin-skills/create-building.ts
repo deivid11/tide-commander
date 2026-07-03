@@ -50,7 +50,7 @@ ${BT}name${BT}, ${BT}type${BT}, and ${BT}position${BT} are always required. Styl
 ${BT3}typescript
 {
   name: string,                                       // Display name
-  type: 'server'|'link'|'database'|'docker'|'monitor'|'folder'|'boss'|'terminal',
+  type: 'server'|'link'|'database'|'docker'|'monitor'|'folder'|'boss'|'terminal'|'tests',
   position: { x: number, z: number },
   style?: 'server-rack'|'tower'|'dome'|'pyramid'|'desktop'
         | 'filing-cabinet'|'satellite'|'crystal'|'factory'|'command-center',
@@ -61,7 +61,7 @@ ${BT3}typescript
   docker?: { ... },                                   // Docker type — see below
   database?: { connections: [...] },                  // Database type
   terminal?: { ... },                                 // Terminal type
-  folderPath?: string,                                // Folder type — required
+  folderPath?: string,                                // Folder + tests types — required
   urls?: [{ label, url }],                            // Link type — required
   commands?: { start, stop, restart, healthCheck, logs },  // Non-PM2 server custom commands
   subordinateBuildingIds?: string[],                  // Boss type

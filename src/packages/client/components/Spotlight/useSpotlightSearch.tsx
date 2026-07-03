@@ -393,17 +393,19 @@ export function useSpotlightSearch({
     if (!isOpen) return [];
 
     return Array.from(buildings.values())
-      .filter((building) => building.type === 'server' || building.type === 'boss' || building.type === 'database')
+      .filter((building) => building.type === 'server' || building.type === 'boss' || building.type === 'database' || building.type === 'tests')
       .map((building) => {
         const statusColor = building.status === 'running' ? '#4ade80' : building.status === 'stopped' ? '#f87171' : '#facc15';
-        const typeIconName: IconName = building.type === 'boss' ? 'crown' : building.type === 'database' ? 'database' : 'desktop';
-        const typeLabel = building.type === 'boss' ? 'Boss' : building.type === 'database' ? 'Database' : 'Server';
+        const typeIconName: IconName = building.type === 'boss' ? 'crown' : building.type === 'database' ? 'database' : building.type === 'tests' ? 'flask' : 'desktop';
+        const typeLabel = building.type === 'boss' ? 'Boss' : building.type === 'database' ? 'Database' : building.type === 'tests' ? 'Tests' : 'Server';
 
         // Build subtitle with connection info for database buildings
         let subtitle = `${typeLabel} • ${building.status}`;
         if (building.type === 'database' && building.database?.connections?.length) {
           const conn = building.database.connections[0];
           subtitle += ` • ${conn.engine} @ ${conn.host}`;
+        } else if (building.type === 'tests' && building.folderPath) {
+          subtitle = `${typeLabel} • ${building.folderPath}`;
         } else if (building.cwd) {
           subtitle += ` • ${building.cwd}`;
         }
@@ -413,6 +415,9 @@ export function useSpotlightSearch({
 
         // Build search text including database connection details and ports
         let searchText = `${building.name} ${building.type} ${building.status} ${building.cwd || ''} ${building.pm2?.name || ''}`;
+        if (building.type === 'tests') {
+          searchText += ` ${building.folderPath || ''} tests junit maven`;
+        }
         if (ports.length > 0) {
           searchText += ` ${ports.join(' ')}`;
         }
@@ -441,6 +446,8 @@ export function useSpotlightSearch({
               onOpenBossLogsModalRef.current(building.id);
             } else if (building.type === 'database') {
               onOpenDatabasePanelRef.current(building.id);
+            } else if (building.type === 'tests') {
+              store.openTestsBuilding(building.id);
             } else if (building.pm2?.enabled) {
               onOpenPM2LogsModalRef.current(building.id);
             }

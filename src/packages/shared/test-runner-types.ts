@@ -10,9 +10,9 @@
  * …) without changing the transport or the UI, which key off these shared shapes.
  */
 
-// Supported test runner kinds. Only 'maven' is implemented today; the detector
-// registry is structured so more can be added later.
-export type TestRunnerType = 'maven';
+// Supported test runner kinds. The detector registry is structured so more
+// can be added (gradle, pytest, …).
+export type TestRunnerType = 'maven' | 'vitest' | 'phpunit';
 
 // Per-test outcome. Mirrors JUnit semantics (failure = assertion, error = thrown).
 export type TestCaseStatus = 'passed' | 'failed' | 'error' | 'skipped';
@@ -88,6 +88,46 @@ export interface TestRunSummary {
   totals: TestRunTotals;
   error?: string;
   finishedAt: number;
+}
+
+// A single test method discovered by scanning source files (no execution).
+export interface ScannedTestMethod {
+  name: string;
+  line: number; // 1-based line of the method declaration in the source file
+  // Human-readable detail — for Gherkin scenarios, the step lines
+  // (Given/When/Then…) so the UI can show what the test does.
+  detail?: string;
+}
+
+// A test class discovered by scanning a module's test sources.
+export interface ScannedTestClass {
+  className: string; // simple name, e.g. ClabeUtilTest
+  packageName: string; // e.g. opm.mx.pagamento.util ('' if none)
+  fqName: string; // packageName + '.' + className (or just className)
+  file: string; // absolute path to the source file
+  relFile: string; // path relative to the module root
+  methods: ScannedTestMethod[];
+  // True for suite/runner classes with no own @Test methods (Cucumber TestNG
+  // runners, JUnit suites) — runnable only as a whole class (`-Dtest=Class`).
+  runner?: boolean;
+  // True for Gherkin .feature files — methods are scenarios, run via
+  // `relFile` (whole file) or `relFile:line` (one scenario).
+  feature?: boolean;
+  // Human-readable summary — for Gherkin, the `Feature:` title (+ description).
+  description?: string;
+  // Gherkin `Background:` block (title + steps) — shown with every scenario,
+  // since it runs before each one.
+  background?: string;
+}
+
+// Result of POST /api/tests/scan — the browsable inventory of a module's tests.
+export interface TestScanResult {
+  testable: boolean;
+  runnerType?: TestRunnerType;
+  moduleRoot?: string;
+  classes: ScannedTestClass[];
+  totalMethods: number;
+  error?: string;
 }
 
 // Result of detecting whether a folder (or a single test file) can run tests.

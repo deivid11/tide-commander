@@ -50,6 +50,25 @@ router.post('/detect', (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/tests/scan - List every test class/method under a folder's module
+ * (static source scan, nothing is executed). Powers the tests-building browser.
+ * Body: { path: string }
+ */
+router.post('/scan', (req: Request, res: Response) => {
+  const { path: targetPath } = req.body as { path?: string };
+  if (!targetPath) {
+    res.status(400).json({ error: 'Missing required field: path' });
+    return;
+  }
+  const scan = testRunnerService.scanTests(targetPath);
+  if (scan.testable && scan.moduleRoot && !testRunnerService.isSafeModuleRoot(scan.moduleRoot)) {
+    res.status(400).json({ error: 'Refusing to scan tests outside your home directory.' });
+    return;
+  }
+  res.json(scan);
+});
+
+/**
  * POST /api/tests/run - Run the tests for a folder or file.
  * Body: { path: string, testFilter?: string }
  * `testFilter` (optional) scopes the run to specific tests (Maven `-Dtest=`
@@ -81,13 +100,29 @@ router.post('/run', (req: Request, res: Response) => {
 
   const runId = generateId();
   const { moduleRoot, runnerType, label = '' } = detection;
-  // An explicit body filter (re-run subset) overrides the path-derived one.
-  // Restricted to the safe surefire `-Dtest` charset; it becomes a single argv
-  // element (spawn is shell-less), so this only guards against odd input.
-  const explicitFilter =
-    rawFilter && /^[\w#+,.$*-]+$/.test(rawFilter) ? rawFilter : undefined;
+  // An explicit body filter (re-run subset / scoped run) overrides the
+  // path-derived one. It becomes a single argv element (spawn is shell-less),
+  // so validation only guards against odd input per runner:
+  // - maven: the safe surefire `-Dtest=` charset, or `file.feature[:line]`
+  //   for a Cucumber feature/scenario scope
+  // - vitest/phpunit: `relFile[::test name]` — paths/spaces fine, no control chars
+  const filterValid =
+    runnerType === 'vitest' || runnerType === 'phpunit'
+      ? !!rawFilter && rawFilter.length <= 500 && !/[\0\r\n]/.test(rawFilter)
+      : !!rawFilter &&
+        (/^[\w#+,.$*-]+$/.test(rawFilter) || !!testRunnerService.parseCucumberFilter(rawFilter));
+  const explicitFilter = rawFilter && filterValid ? rawFilter : undefined;
   const testFilter = explicitFilter ?? detection.testFilter;
-  const command = testFilter ? `mvn test -Dtest=${testFilter}` : detection.command ?? 'mvn test';
+  const command =
+    runnerType === 'vitest'
+      ? testRunnerService.vitestCommandLabel(testFilter)
+      : runnerType === 'phpunit'
+        ? testRunnerService.phpunitCommandLabel(testFilter)
+        : testFilter
+          ? testRunnerService.parseCucumberFilter(testFilter)
+            ? `mvn test -Dcucumber.features=${testFilter}`
+            : `mvn test -Dtest=${testFilter}`
+          : detection.command ?? 'mvn test';
 
   const startAgentId = typeof agentId === 'string' && agentId ? agentId : undefined;
 
@@ -99,17 +134,14 @@ router.post('/run', (req: Request, res: Response) => {
   res.status(200).json({ success: true, runId, runnerType, moduleRoot, command, label, targetPath });
 
   try {
-    testRunnerService.startMavenRun(
-      runId,
-      moduleRoot,
-      {
-      onOutput: (output, isError) => {
+    const callbacks = {
+      onOutput: (output: string, isError: boolean) => {
         broadcast({ type: 'test_run_output', payload: { runId, output, isError, agentId: startAgentId } } as ServerMessage);
       },
-      onProgress: (result) => {
+      onProgress: (result: TestRunResult) => {
         broadcast({ type: 'test_run_progress', payload: { runId, result } } as ServerMessage);
       },
-      onComplete: ({ status, exitCode, result, error }) => {
+      onComplete: ({ status, exitCode, result, error }: { status: StoredTestRun['status']; exitCode: number | null; result: TestRunResult; error?: string }) => {
         log.log(
           `[${runId}] done status=${status} tests=${result.totals.tests} ` +
             `failures=${result.totals.failures} errors=${result.totals.errors}`,
@@ -120,9 +152,14 @@ router.post('/run', (req: Request, res: Response) => {
           payload: { runId, status, exitCode, result, error, agentId: startAgentId },
         } as ServerMessage);
       },
-      },
-      { testFilter },
-    );
+    };
+    if (runnerType === 'vitest') {
+      testRunnerService.startVitestRun(runId, moduleRoot, callbacks, { testFilter });
+    } else if (runnerType === 'phpunit') {
+      testRunnerService.startPhpUnitRun(runId, moduleRoot, callbacks, { testFilter });
+    } else {
+      testRunnerService.startMavenRun(runId, moduleRoot, callbacks, { testFilter });
+    }
   } catch (err: any) {
     const message = err?.message || 'Failed to start test run';
     log.error(`[${runId}] ${message}`);

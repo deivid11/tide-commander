@@ -85,6 +85,13 @@
       color: #000;
       font-weight: 600;
       text-transform: uppercase;
+
+      // Tests building with a run in flight — pulsing "running tests" pill.
+      &--tests-working {
+        color: #fff;
+        background: rgba($accent-blue, 0.85);
+        animation: building-popup-tests-pulse 1.4s ease-in-out infinite;
+      }
     }
 
     .building-popup-close {
@@ -128,6 +135,22 @@
         font-weight: 600;
         color: $text-primary;
         font-family: $font-mono;
+      }
+    }
+
+    // Full-width metric (e.g. tests building folder path) — left-aligned,
+    // ellipsized value instead of the centered mini-column layout.
+    .building-popup-metric--wide {
+      flex: 1;
+      min-width: 0;
+      align-items: flex-start;
+
+      .value {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 500;
       }
     }
   }
@@ -249,6 +272,22 @@
         &:hover:not(:disabled) {
           background: rgba($accent-purple, 0.15);
           border-color: $accent-purple;
+        }
+      }
+
+      // Tests building primary action — spans the whole grid row.
+      &.open-tests {
+        grid-column: 1 / -1;
+        border-color: rgba($accent-green, 0.4);
+
+        .icon {
+          display: inline-flex;
+          color: $accent-green;
+        }
+
+        &:hover:not(:disabled) {
+          background: rgba($accent-green, 0.15);
+          border-color: $accent-green;
         }
       }
 
@@ -644,4 +683,9 @@
       }
     }
   }
+}
+
+@keyframes building-popup-tests-pulse {
+  0%, 100% { opacity: 0.65; }
+  50% { opacity: 1; }
 }

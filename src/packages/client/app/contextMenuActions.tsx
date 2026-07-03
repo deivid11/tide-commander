@@ -327,6 +327,16 @@ export function buildContextMenuActions(
           },
         });
       }
+      if (building.type === 'tests' && building.folderPath) {
+        actions.push({
+          id: 'open-tests',
+          label: 'Open Tests',
+          icon: <Icon name="flask" size={14} />,
+          onClick: () => {
+            store.openTestsBuilding(building.id);
+          },
+        });
+      }
       actions.push({ id: 'divider-building', label: '', divider: true, onClick: () => {} });
       actions.push({
         id: 'delete-building',

@@ -11,7 +11,7 @@ import * as os from 'os';
 import { pathToFileURL } from 'url';
 import { logger } from '../utils/logger.js';
 import { loadAreas } from '../data/index.js';
-import { detectRunnerType, mightBeTestFile } from '../services/test-runner-service.js';
+import { detectRunnerType, mightBeTestFile, mightBeVitestFile, mightBePhpTestFile } from '../services/test-runner-service.js';
 import type { TestRunnerType } from '../../shared/types.js';
 
 const log = logger.files;
@@ -836,8 +836,8 @@ function buildTree(
           const runnerType = detectRunnerType(fullPath, runnerMemo);
           if (runnerType) node.runnerType = runnerType;
           node.children = buildTree(fullPath, depth + 1, maxDepth, runnerMemo);
-        } else if (mightBeTestFile(entry.name)) {
-          // Annotate individual test files so "Run Tests" can scope to one class.
+        } else if (mightBeTestFile(entry.name) || mightBeVitestFile(entry.name) || mightBePhpTestFile(entry.name)) {
+          // Annotate individual test files so "Run Tests" can scope to one class/file.
           const runnerType = detectRunnerType(fullPath, runnerMemo);
           if (runnerType) node.runnerType = runnerType;
         }
