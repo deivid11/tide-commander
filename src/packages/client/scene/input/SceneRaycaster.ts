@@ -17,6 +17,7 @@ export class SceneRaycaster {
   private ground: THREE.Object3D | null = null;
   private agentMeshes: Map<string, AgentMeshData> = new Map();
   private agentHitboxes: THREE.Object3D[] = [];
+  private agentBodies: THREE.Object3D[] = [];
   private resizeHandlesGetter: ResizeHandlesGetter = () => [];
   private folderIconMeshesGetter: FolderIconMeshesGetter = () => [];
 
@@ -32,10 +33,13 @@ export class SceneRaycaster {
     this.ground = ground;
     this.agentMeshes = agentMeshes;
     this.agentHitboxes = [];
+    this.agentBodies = [];
 
     for (const data of agentMeshes.values()) {
       const hitbox = data.group.getObjectByName('clickHitbox');
       this.agentHitboxes.push(hitbox ?? data.group);
+      const body = data.group.getObjectByName('characterBody');
+      if (body) this.agentBodies.push(body);
     }
   }
 
@@ -150,22 +154,7 @@ export class SceneRaycaster {
    */
   findAgentAtPosition(event: MouseEvent | PointerEvent): string | null {
     this.updateMouseFromEvent(event);
-    this.raycaster.setFromCamera(this.mouse, this.camera);
-
-    if (this.agentHitboxes.length === 0) return null;
-    const intersects = this.raycaster.intersectObjects(this.agentHitboxes, false);
-
-    if (intersects.length > 0) {
-      let obj: THREE.Object3D | null = intersects[0].object;
-      while (obj && !obj.userData.agentId) {
-        obj = obj.parent;
-      }
-      if (obj && obj.userData.agentId) {
-        const id = obj.userData.agentId as string;
-        return this.isAgentPickable(id) ? id : null;
-      }
-    }
-    return null;
+    return this.pickAgent();
   }
 
   /**
@@ -173,19 +162,40 @@ export class SceneRaycaster {
    */
   findAgentAtPoint(clientX: number, clientY: number): string | null {
     this.updateMouseFromPoint(clientX, clientY);
+    return this.pickAgent();
+  }
+
+  /**
+   * Pick the agent under the current mouse position in two passes:
+   * 1. Precise — the actual model geometry, so a click on a visible model
+   *    always wins even when a nearer neighbor's forgiving hitbox overlaps it
+   *    (small agents standing behind large ones were unclickable otherwise).
+   * 2. Forgiving — the enlarged invisible hitbox cylinders, which cover the
+   *    name label and a margin around small models.
+   */
+  private pickAgent(): string | null {
     this.raycaster.setFromCamera(this.mouse, this.camera);
 
-    if (this.agentHitboxes.length === 0) return null;
-    const intersects = this.raycaster.intersectObjects(this.agentHitboxes, false);
+    if (this.agentBodies.length > 0) {
+      const preciseHits = this.raycaster.intersectObjects(this.agentBodies, true);
+      const preciseId = this.resolvePickableAgent(preciseHits);
+      if (preciseId) return preciseId;
+    }
 
-    if (intersects.length > 0) {
-      let obj: THREE.Object3D | null = intersects[0].object;
+    if (this.agentHitboxes.length === 0) return null;
+    const hitboxHits = this.raycaster.intersectObjects(this.agentHitboxes, false);
+    return this.resolvePickableAgent(hitboxHits);
+  }
+
+  private resolvePickableAgent(intersects: THREE.Intersection[]): string | null {
+    for (const hit of intersects) {
+      let obj: THREE.Object3D | null = hit.object;
       while (obj && !obj.userData.agentId) {
         obj = obj.parent;
       }
       if (obj && obj.userData.agentId) {
         const id = obj.userData.agentId as string;
-        return this.isAgentPickable(id) ? id : null;
+        if (this.isAgentPickable(id)) return id;
       }
     }
     return null;

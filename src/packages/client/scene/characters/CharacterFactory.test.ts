@@ -31,6 +31,7 @@ vi.mock('three', () => {
     this.receiveShadow = false;
     this.renderOrder = 0;
     this.name = '';
+    this.userData = {};
   }
 
   function MockSprite(this: any) {

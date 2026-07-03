@@ -87,6 +87,10 @@ export class CharacterFactory {
     const hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
     hitbox.position.y = hitboxHeight / 2;
     hitbox.name = 'clickHitbox';
+    // Base geometry dimensions — AgentManager rescales the hitbox to fit the
+    // actual scaled model once the body scale is known
+    hitbox.userData.baseRadius = hitboxRadius;
+    hitbox.userData.baseHeight = hitboxHeight;
     group.add(hitbox);
 
     return { group, mixer, animations, currentAction: null };

@@ -1112,14 +1112,12 @@ export class InputHandler {
     }
 
     const agentId = this.raycaster.findAgentAtPosition(event);
-    console.log('[3D InputHandler] handleSingleClick agentId:', agentId, 'shiftKey:', event.shiftKey);
 
     if (agentId) {
       const clickType = this.agentClickDetector.handleClick(agentId);
       if (clickType === 'double') {
         this.callbacks.onAgentDoubleClick(agentId);
       } else {
-        console.log('[3D InputHandler] calling onAgentClick', { agentId, shiftKey: event.shiftKey });
         this.callbacks.onAgentClick(agentId, event.shiftKey);
       }
       return;

@@ -102,18 +102,7 @@ export class AgentManager {
         const isBoss = meshData.group.userData.isBoss === true;
         const bossMultiplier = isBoss ? 1.5 : 1.0;
         body.scale.setScalar(customModelScale * scale * bossMultiplier);
-
-        // Update status bar position based on new model height
-        const statusBar = meshData.group.getObjectByName('statusBar') as THREE.Sprite;
-        if (statusBar) {
-          // Box3.setFromObject already accounts for the object's current scale
-          const box = new THREE.Box3().setFromObject(body);
-          const modelTop = box.max.y;
-          const padding = isBoss ? 0.2 : 0.3;
-          // Cap the height to prevent mana bar going too high
-          const maxHeight = isBoss ? 3.0 : 2.2;
-          statusBar.position.y = Math.min(Math.max(modelTop, 1.0) + padding, maxHeight);
-        }
+        this.refreshAgentBodyLayout(meshData.group, body, isBoss);
       }
     }
   }
@@ -498,8 +487,10 @@ export class AgentManager {
         const newBody = newMeshData.group.getObjectByName('characterBody');
         if (newBody) {
           const customModelScale = newBody.userData.customModelScale ?? 1.0;
-          const bossMultiplier = (agent.isBoss || agent.class === 'boss') ? 1.5 : 1.0;
+          const upgradeIsBoss = agent.isBoss === true || agent.class === 'boss';
+          const bossMultiplier = upgradeIsBoss ? 1.5 : 1.0;
           newBody.scale.setScalar(customModelScale * this.characterScale * bossMultiplier);
+          this.refreshAgentBodyLayout(newMeshData.group, newBody, upgradeIsBoss);
 
           this.proceduralAnimator.unregister(agentId);
           if (newMeshData.animations.size === 0) {
@@ -573,6 +564,49 @@ export class AgentManager {
     this.addAgentInternal(agent);
   }
 
+  /**
+   * Reposition the status bar and fit the click hitbox to the body's actual
+   * scaled bounds. Must run after any body.scale change — the hitbox is what
+   * clicks raycast against, so it has to match what the user sees.
+   */
+  private refreshAgentBodyLayout(group: THREE.Group, body: THREE.Object3D, isBoss: boolean): void {
+    // Box3.setFromObject already accounts for the object's current scale.
+    // It can come back empty (Infinity) when geometry hasn't decoded or is
+    // degenerate; falling through with Infinity propagates NaN through matrices.
+    const box = new THREE.Box3().setFromObject(body);
+    const rawTop = box.max.y;
+    const modelTop = Number.isFinite(rawTop) ? Math.max(rawTop, 1.0) : 1.0;
+
+    const statusBar = group.getObjectByName('statusBar') as THREE.Sprite;
+    if (statusBar) {
+      const padding = isBoss ? 0.2 : 0.3;
+      // Cap the height to prevent mana bar going too high
+      const maxHeight = isBoss ? 3.0 : 2.2;
+      statusBar.position.y = Math.min(modelTop + padding, maxHeight);
+    }
+
+    const hitbox = group.getObjectByName('clickHitbox') as THREE.Mesh | null;
+    if (hitbox) {
+      const baseRadius = (hitbox.userData.baseRadius as number) ?? (isBoss ? 1.0 : 0.75);
+      const baseHeight = (hitbox.userData.baseHeight as number) ?? (isBoss ? 3.5 : 2.5);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const halfWidth = Math.max(size.x, size.z) / 2;
+      // Grow modestly toward wide models but cap the growth: clicks on a wide
+      // model's far edges are handled by the precise geometry pass in
+      // SceneRaycaster, and an oversized cylinder swallows clicks meant for
+      // small agents standing right behind it. Never shrink below base.
+      const radius = Number.isFinite(halfWidth) && halfWidth > 0
+        ? Math.min(Math.max(baseRadius, halfWidth * 1.15), baseRadius * 1.5)
+        : baseRadius;
+      const top = Math.max(baseHeight, modelTop + 0.5);
+      // Extend below the feet so clicking the name label also selects the agent
+      const bottom = -1.1;
+      hitbox.scale.set(radius / baseRadius, (top - bottom) / baseHeight, radius / baseRadius);
+      hitbox.position.y = (top + bottom) / 2;
+    }
+  }
+
   private addAgentInternal(agent: Agent): void {
     const existing = this.agentMeshes.get(agent.id);
     if (existing) {
@@ -604,21 +638,7 @@ export class AgentManager {
       const customModelScale = body.userData.customModelScale ?? 1.0;
       const bossMultiplier = isBoss ? 1.5 : 1.0;
       body.scale.setScalar(customModelScale * this.characterScale * bossMultiplier);
-
-      // Update status bar position based on actual scaled model height
-      const statusBar = meshData.group.getObjectByName('statusBar') as THREE.Sprite;
-      if (statusBar) {
-        // Box3.setFromObject already accounts for the object's current scale
-        const box = new THREE.Box3().setFromObject(body);
-        // Box3 can come back empty (Infinity) when geometry hasn't decoded or is degenerate;
-        // falling through with Infinity propagates NaN through the sprite matrix.
-        const rawTop = box.max.y;
-        const modelTop = Number.isFinite(rawTop) ? rawTop : 1.0;
-        const padding = isBoss ? 0.2 : 0.3;
-        // Cap the height to prevent mana bar going too high
-        const maxHeight = isBoss ? 3.0 : 2.2;
-        statusBar.position.y = Math.min(Math.max(modelTop, 1.0) + padding, maxHeight);
-      }
+      this.refreshAgentBodyLayout(meshData.group, body, isBoss);
 
       if (meshData.animations.size === 0) {
         const state = this.getProceduralStateForStatus(agent.status);
@@ -649,8 +669,20 @@ export class AgentManager {
   }
 
   updateAgent(agent: Agent, animatePosition = false): void {
+    if (!this.applyAgentUpdate(agent, animatePosition)) return;
+
+    // Update notification badges
+    this.updateNotificationBadges();
+  }
+
+  /**
+   * Update an existing agent mesh in place (position, animation, visuals).
+   * Returns false when the agent has no mesh. Does NOT refresh notification
+   * badges — callers updating many agents run that O(meshes) pass once.
+   */
+  private applyAgentUpdate(agent: Agent, animatePosition: boolean): boolean {
     const meshData = this.agentMeshes.get(agent.id);
-    if (!meshData) return;
+    if (!meshData) return false;
 
     const state = store.getState();
     const isSelected = state.selectedAgentIds.has(agent.id);
@@ -682,29 +714,13 @@ export class AgentManager {
     }
 
     this.characterFactory.updateVisuals(meshData.group, agent, isSelected);
-
-    // Update notification badges
-    this.updateNotificationBadges();
+    return true;
   }
 
   syncAgents(agents: Agent[]): void {
-    const previousCount = this.agentMeshes.size;
-
-    if (this.pendingAgents.length > 0) {
-      console.warn(`[AgentManager] syncAgents called with ${this.pendingAgents.length} pending agents that will be discarded`);
-    }
-
+    // Sync is incremental: existing meshes are updated in place so frequent
+    // ws re-syncs never blank the scene; only genuinely new agents get built.
     this.pendingAgents = [];
-
-    for (const meshData of this.agentMeshes.values()) {
-      this.scene.remove(meshData.group);
-      this.characterFactory.disposeAgentMesh(meshData);
-    }
-    this.agentMeshes.clear();
-    this.previousAgentStatuses.clear();
-
-    this.proceduralAnimator.clear();
-    this.effectsManager.clear();
 
     // Filter out agents that are in archived areas or outside active workspace
     const activeWs = getActiveWorkspaceState();
@@ -717,8 +733,39 @@ export class AgentManager {
       return true;
     });
 
-    console.log(`[AgentManager] syncAgents: disposed ${previousCount}, adding ${visibleAgents.length} visible agents (of ${agents.length} total, modelsReady: ${this.modelsReady})`);
-    this.addAgentsStaggered(visibleAgents, () => this.updateNotificationBadges());
+    // Remove meshes for agents that are gone or no longer visible
+    const visibleIds = new Set(visibleAgents.map(a => a.id));
+    let removed = 0;
+    for (const agentId of Array.from(this.agentMeshes.keys())) {
+      if (!visibleIds.has(agentId)) {
+        this.removeAgent(agentId);
+        removed++;
+      }
+    }
+
+    const toAdd: Agent[] = [];
+    let updated = 0;
+    for (const agent of visibleAgents) {
+      const existing = this.agentMeshes.get(agent.id);
+      if (!existing) {
+        toAdd.push(agent);
+        continue;
+      }
+      // Model and scale depend on class/boss status — rebuild those meshes
+      const isBoss = agent.isBoss === true || agent.class === 'boss';
+      if (existing.group.userData.agentClass !== agent.class || existing.group.userData.isBoss !== isBoss) {
+        this.removeAgent(agent.id);
+        toAdd.push(agent);
+      } else {
+        this.applyAgentUpdate(agent, false);
+        updated++;
+      }
+    }
+
+    if (toAdd.length > 0 || removed > 0) {
+      console.log(`[AgentManager] syncAgents: ${updated} updated, ${toAdd.length} added, ${removed} removed (of ${agents.length} total, modelsReady: ${this.modelsReady})`);
+    }
+    this.addAgentsStaggered(toAdd, () => this.updateNotificationBadges());
   }
 
   // ============================================
