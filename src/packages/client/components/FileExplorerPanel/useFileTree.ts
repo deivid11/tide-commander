@@ -242,12 +242,17 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
    *
    * Does NOT use togglePath to avoid double chain-walking and toggle-off.
    */
-  const expandToPath = useCallback(async (targetPath: string) => {
-    if (!targetPath) return;
+  const expandToPath = useCallback(async (targetPathRaw: string) => {
+    if (!targetPathRaw) return;
+
+    // Separator-agnostic: server tree node paths are '/'-separated, but a
+    // configured Windows target/currentFolder may still carry '\'. Normalize both
+    // to '/' so the startsWith/substring/split below line up with the tree nodes.
+    const targetPath = targetPathRaw.replace(/\\/g, '/');
 
     // Normalize: strip trailing slash from currentFolder to prevent double-slash paths.
     // Tree node paths never have trailing slashes, but currentFolder sometimes does.
-    const rootFolder = currentFolder?.replace(/\/+$/, '') || null;
+    const rootFolder = currentFolder?.replace(/\\/g, '/').replace(/\/+$/, '') || null;
 
     const waitForPaint = () => new Promise<void>((resolve) => {
       requestAnimationFrame(() => resolve());

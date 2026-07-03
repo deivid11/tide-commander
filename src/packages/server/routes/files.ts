@@ -50,6 +50,25 @@ interface TreeNode {
 
 const router = Router();
 
+// Windows absolute paths — drive-letter (`C:\…` or `C:/…`) and UNC (`\\server\share`)
+// — are NOT recognized by path.isAbsolute() when the server runs on POSIX. Without
+// this, a configured Windows path is misclassified as relative and resolved into
+// the server cwd (producing a bogus path). Detect them explicitly so they pass
+// through unchanged on any platform. On Linux the path simply won't exist (honest
+// 404) rather than silently resolving somewhere inside cwd.
+const WINDOWS_ABSOLUTE_RE = /^(?:[A-Za-z]:[\\/]|\\\\)/;
+export function isAbsolutePathCrossPlatform(p: string): boolean {
+  return path.isAbsolute(p) || WINDOWS_ABSOLUTE_RE.test(p);
+}
+
+// Normalize a path to forward-slash separators for the API boundary. The browser
+// assumes '/' when it splits paths for trees/breadcrumbs, so every path we return
+// must be canonical '/'. Node on Windows accepts '/' in fs calls, so a normalized
+// path still round-trips when the client sends it back. No-op on POSIX (no '\').
+export function toPosixSeparators(p: string): string {
+  return p.replace(/\\/g, '/');
+}
+
 /**
  * Resolve a path query against an optional baseDir. Absolute paths pass through
  * unchanged; relative paths are resolved via path.resolve(baseDir, rawPath).
@@ -66,11 +85,11 @@ export function resolveAndValidateFilePath(
   if (!rawPath) {
     return { ok: false, status: 400, error: 'Missing path parameter' };
   }
-  if (path.isAbsolute(rawPath)) {
+  if (isAbsolutePathCrossPlatform(rawPath)) {
     return { ok: true, path: rawPath };
   }
-  const effectiveBase = baseDir && path.isAbsolute(baseDir) ? baseDir : fallbackBaseDir;
-  if (!path.isAbsolute(effectiveBase)) {
+  const effectiveBase = baseDir && isAbsolutePathCrossPlatform(baseDir) ? baseDir : fallbackBaseDir;
+  if (!isAbsolutePathCrossPlatform(effectiveBase)) {
     return {
       ok: false,
       status: 400,
@@ -90,7 +109,7 @@ function validateRevealPath(rawPath: unknown): { ok: true; path: string } | { ok
     return { ok: false, status: 400, error: 'Missing path parameter' };
   }
 
-  if (!path.isAbsolute(rawPath)) {
+  if (!isAbsolutePathCrossPlatform(rawPath)) {
     return { ok: false, status: 400, error: 'Path must be absolute' };
   }
 
@@ -771,7 +790,7 @@ router.get('/list', async (req: Request, res: Response) => {
         const entryStats = fs.statSync(fullPath);
         files.push({
           name: entry.name,
-          path: fullPath,
+          path: toPosixSeparators(fullPath),
           isDirectory: entry.isDirectory(),
           size: entryStats.size,
           modified: entryStats.mtime,
@@ -791,8 +810,8 @@ router.get('/list', async (req: Request, res: Response) => {
     });
 
     res.json({
-      path: dirPath,
-      parent: path.dirname(dirPath),
+      path: toPosixSeparators(dirPath),
+      parent: toPosixSeparators(path.dirname(dirPath)),
       files,
     });
   } catch (err: any) {
@@ -825,7 +844,9 @@ function buildTree(
         const stats = fs.statSync(fullPath);
         const node: TreeNode = {
           name: entry.name,
-          path: fullPath,
+          // API boundary: emit '/' so the browser can split/join the tree paths.
+          // fs recursion below still uses the native `fullPath`.
+          path: toPosixSeparators(fullPath),
           isDirectory: entry.isDirectory(),
           size: stats.size,
           extension: entry.isDirectory() ? '' : path.extname(entry.name).toLowerCase(),
@@ -934,7 +955,7 @@ router.get('/tree', async (req: Request, res: Response) => {
     const runnerType = detectRunnerType(dirPath);
 
     res.json({
-      path: dirPath,
+      path: toPosixSeparators(dirPath),
       name: path.basename(dirPath),
       tree,
       ...(runnerType ? { runnerType } : {}),
@@ -1384,13 +1405,16 @@ router.get('/git-status', async (req: Request, res: Response) => {
       let oldPath: string | undefined;
 
       // Check for rename (contains ' -> ')
+      // Emit '/'-separated absolute paths: git returns forward-slash relatives
+      // but path.join yields backslashes on Windows, which would break the
+      // client's git tree (it splits on '/').
       if (filePart.includes(' -> ')) {
         const [old, newPath] = filePart.split(' -> ');
-        filePath = path.join(gitRoot, newPath);
-        oldPath = path.join(gitRoot, old);
+        filePath = toPosixSeparators(path.join(gitRoot, newPath));
+        oldPath = toPosixSeparators(path.join(gitRoot, old));
         status = 'renamed';
       } else {
-        filePath = path.join(gitRoot, filePart);
+        filePath = toPosixSeparators(path.join(gitRoot, filePart));
 
         // Determine status from XY codes
         // Check for conflicts first (both modified, both added, both deleted, etc.)
