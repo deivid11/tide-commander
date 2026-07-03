@@ -311,9 +311,11 @@ export interface Agent {
   // Custom instructions appended to the agent's class system prompt
   customInstructions?: string;
 
-  // Per-agent custom system prompt (replaces the old global "System-Level Custom
-  // Prompt"). Edited from Settings → System Prompt, scoped to one agent, and
-  // injected by buildAppendedProjectInstructions() under "System-Level Custom Prompt".
+  // Per-agent custom system prompt. Edited from Settings → System Prompt with a
+  // specific agent selected, and injected by buildAppendedProjectInstructions()
+  // under "System-Level Custom Prompt". Coexists with the global prompt (the
+  // "All Agents (Global)" picker entry, stored via system-prompt-service), which
+  // is injected before it for every agent.
   customPrompt?: string;
 
   // Per-agent persistent memory — agent's own notes/lessons/preferences.

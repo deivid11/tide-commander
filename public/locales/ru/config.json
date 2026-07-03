@@ -16,7 +16,7 @@
     "experimental": "Экспериментальные",
     "about": "О программе",
     "sky": "Цвет неба",
-    "systemPrompt": "System Prompt"
+    "systemPrompt": "Системный промпт"
   },
   "general": {
     "history": "История",
@@ -323,17 +323,24 @@
     "conflictsWith": "Конфликтует с: {{names}}"
   },
   "systemPrompt": {
-    "title": "Global System Prompt",
-    "description": "Add global instructions that apply to all agents. This appears after Tide Commander base rules but before agent-specific instructions.",
-    "editPrompt": "Edit System Prompt",
-    "save": "Save Prompt",
-    "reset": "Reset Changes",
-    "clear": "Clear Prompt",
-    "characters": "characters",
-    "saved": "System prompt saved successfully. It will apply to all new agent sessions.",
-    "cleared": "System prompt cleared successfully.",
-    "hint": "This prompt will be inserted into the system instructions for all agents.",
-    "placeholder": "Enter your global system prompt here...\n\nExamples:\n- Coding style guidelines\n- Team communication rules\n- Project-wide conventions\n- Security best practices",
-    "confirmClear": "Are you sure you want to clear the system prompt?"
+    "title": "Системный промпт",
+    "description": "Добавьте пользовательские инструкции для всех агентов или для конкретного агента. Выберите область ниже и отредактируйте промпт. Он применяется после базовых правил Tide Commander, но до инструкций класса агента.",
+    "agentLabel": "Применить к",
+    "noAgents": "Агентов пока нет. Сначала создайте агента, затем задайте здесь его системный промпт.",
+    "globalOption": "Все агенты (глобально)",
+    "editPrompt": "Редактировать системный промпт",
+    "save": "Сохранить промпт",
+    "reset": "Отменить изменения",
+    "clear": "Очистить промпт",
+    "characters": "символов",
+    "saved": "Системный промпт сохранён. Применится в следующей сессии этого агента.",
+    "savedGlobal": "Глобальный системный промпт сохранён. Применится в следующей сессии каждого агента.",
+    "cleared": "Системный промпт этого агента очищен.",
+    "clearedGlobal": "Глобальный системный промпт очищен.",
+    "hint": "Этот промпт вставляется в системные инструкции только выбранного агента.",
+    "hintGlobal": "Этот промпт вставляется в системные инструкции всех агентов, перед промптами отдельных агентов.",
+    "placeholder": "Введите системный промпт здесь...\n\nПримеры:\n- Правила стиля кода\n- Правила командной коммуникации\n- Соглашения проекта\n- Практики безопасности",
+    "confirmClear": "Точно очистить системный промпт этого агента?",
+    "confirmClearGlobal": "Точно очистить глобальный системный промпт (все агенты)?"
   }
 }

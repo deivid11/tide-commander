@@ -16,7 +16,7 @@
     "experimental": "実験的機能",
     "about": "このアプリについて",
     "sky": "空の色",
-    "systemPrompt": "System Prompt"
+    "systemPrompt": "システムプロンプト"
   },
   "general": {
     "history": "履歴",
@@ -323,17 +323,24 @@
     "conflictsWith": "競合: {{names}}"
   },
   "systemPrompt": {
-    "title": "Global System Prompt",
-    "description": "Add global instructions that apply to all agents. This appears after Tide Commander base rules but before agent-specific instructions.",
-    "editPrompt": "Edit System Prompt",
-    "save": "Save Prompt",
-    "reset": "Reset Changes",
-    "clear": "Clear Prompt",
-    "characters": "characters",
-    "saved": "System prompt saved successfully. It will apply to all new agent sessions.",
-    "cleared": "System prompt cleared successfully.",
-    "hint": "This prompt will be inserted into the system instructions for all agents.",
-    "placeholder": "Enter your global system prompt here...\n\nExamples:\n- Coding style guidelines\n- Team communication rules\n- Project-wide conventions\n- Security best practices",
-    "confirmClear": "Are you sure you want to clear the system prompt?"
+    "title": "システムプロンプト",
+    "description": "全エージェント共通、または特定のエージェント向けのカスタム指示を追加します。下でスコープを選んでプロンプトを編集してください。Tide Commander の基本ルールの後、エージェントクラスの指示の前に適用されます。",
+    "agentLabel": "適用先",
+    "noAgents": "まだエージェントがいません。先にエージェントを作成してから、ここでシステムプロンプトを設定してください。",
+    "globalOption": "全エージェント（グローバル）",
+    "editPrompt": "システムプロンプトを編集",
+    "save": "プロンプトを保存",
+    "reset": "変更を破棄",
+    "clear": "プロンプトをクリア",
+    "characters": "文字",
+    "saved": "システムプロンプトを保存しました。このエージェントの次のセッションから適用されます。",
+    "savedGlobal": "グローバルシステムプロンプトを保存しました。各エージェントの次のセッションから適用されます。",
+    "cleared": "このエージェントのシステムプロンプトをクリアしました。",
+    "clearedGlobal": "グローバルシステムプロンプトをクリアしました。",
+    "hint": "このプロンプトは選択したエージェントのシステム指示にのみ挿入されます。",
+    "hintGlobal": "このプロンプトは全エージェントのシステム指示に、各エージェント個別のプロンプトより前に挿入されます。",
+    "placeholder": "ここにシステムプロンプトを入力...\n\n例:\n- コーディングスタイルのガイドライン\n- チームのコミュニケーションルール\n- プロジェクト全体の規約\n- セキュリティのベストプラクティス",
+    "confirmClear": "このエージェントのシステムプロンプトをクリアしてもよろしいですか？",
+    "confirmClearGlobal": "グローバルシステムプロンプト（全エージェント）をクリアしてもよろしいですか？"
   }
 }

@@ -16,7 +16,7 @@
     "experimental": "प्रायोगिक",
     "about": "परिचय",
     "sky": "आकाश रंग",
-    "systemPrompt": "System Prompt"
+    "systemPrompt": "सिस्टम प्रॉम्प्ट"
   },
   "general": {
     "history": "इतिहास",
@@ -323,17 +323,24 @@
     "conflictsWith": "इनसे टकराव: {{names}}"
   },
   "systemPrompt": {
-    "title": "Global System Prompt",
-    "description": "Add global instructions that apply to all agents. This appears after Tide Commander base rules but before agent-specific instructions.",
-    "editPrompt": "Edit System Prompt",
-    "save": "Save Prompt",
-    "reset": "Reset Changes",
-    "clear": "Clear Prompt",
-    "characters": "characters",
-    "saved": "System prompt saved successfully. It will apply to all new agent sessions.",
-    "cleared": "System prompt cleared successfully.",
-    "hint": "This prompt will be inserted into the system instructions for all agents.",
-    "placeholder": "Enter your global system prompt here...\n\nExamples:\n- Coding style guidelines\n- Team communication rules\n- Project-wide conventions\n- Security best practices",
-    "confirmClear": "Are you sure you want to clear the system prompt?"
+    "title": "सिस्टम प्रॉम्प्ट",
+    "description": "सभी एजेंटों के लिए या किसी खास एजेंट के लिए कस्टम निर्देश जोड़ें। नीचे दायरा चुनें, फिर उसका प्रॉम्प्ट संपादित करें। यह Tide Commander के मूल नियमों के बाद लेकिन एजेंट क्लास निर्देशों से पहले लागू होता है।",
+    "agentLabel": "लागू करें",
+    "noAgents": "अभी कोई एजेंट नहीं है। पहले एक एजेंट बनाएं, फिर यहां उसका सिस्टम प्रॉम्प्ट सेट करें।",
+    "globalOption": "सभी एजेंट (ग्लोबल)",
+    "editPrompt": "सिस्टम प्रॉम्प्ट संपादित करें",
+    "save": "प्रॉम्प्ट सहेजें",
+    "reset": "परिवर्तन रद्द करें",
+    "clear": "प्रॉम्प्ट हटाएं",
+    "characters": "अक्षर",
+    "saved": "सिस्टम प्रॉम्प्ट सहेजा गया। यह इस एजेंट के अगले सत्र में लागू होगा।",
+    "savedGlobal": "ग्लोबल सिस्टम प्रॉम्प्ट सहेजा गया। यह हर एजेंट के अगले सत्र में लागू होगा।",
+    "cleared": "इस एजेंट का सिस्टम प्रॉम्प्ट हटा दिया गया।",
+    "clearedGlobal": "ग्लोबल सिस्टम प्रॉम्प्ट हटा दिया गया।",
+    "hint": "यह प्रॉम्प्ट केवल चुने गए एजेंट के सिस्टम निर्देशों में जोड़ा जाता है।",
+    "hintGlobal": "यह प्रॉम्प्ट सभी एजेंटों के सिस्टम निर्देशों में, किसी भी प्रति-एजेंट प्रॉम्प्ट से पहले जोड़ा जाता है।",
+    "placeholder": "यहां सिस्टम प्रॉम्प्ट दर्ज करें...\n\nउदाहरण:\n- कोडिंग शैली दिशानिर्देश\n- टीम संचार नियम\n- प्रोजेक्ट-व्यापी परंपराएं\n- सुरक्षा सर्वोत्तम प्रथाएं",
+    "confirmClear": "क्या आप वाकई इस एजेंट का सिस्टम प्रॉम्प्ट हटाना चाहते हैं?",
+    "confirmClearGlobal": "क्या आप वाकई ग्लोबल सिस्टम प्रॉम्प्ट (सभी एजेंट) हटाना चाहते हैं?"
   }
 }

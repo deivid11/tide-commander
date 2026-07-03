@@ -4,7 +4,7 @@ import * as path from 'path';
 import type { CLIBackend, BackendConfig, StandardEvent } from '../claude/types.js';
 import { CodexJsonEventParser } from './json-event-parser.js';
 import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
-import { isEchoPromptEnabled, getCodexBinaryPath } from '../services/system-prompt-service.js';
+import { isEchoPromptEnabled, getCodexBinaryPath, getSystemPrompt } from '../services/system-prompt-service.js';
 import { consumeInstructionsDirty, isBareSlashCommand } from '../services/instruction-refresh.js';
 import { loadAreas } from '../data/index.js';
 
@@ -53,6 +53,12 @@ export function buildCodexPrompt(config: BackendConfig): string {
   }
 
   const injectedSections: string[] = [];
+
+  // Global custom prompt — applies to every agent regardless of provider.
+  const systemLevelPrompt = getSystemPrompt().trim();
+  if (systemLevelPrompt) {
+    injectedSections.push(`## System-Level Custom Prompt\n${systemLevelPrompt}`);
+  }
 
   const customPrompt = config.customAgent?.definition?.prompt?.trim();
   if (customPrompt) {

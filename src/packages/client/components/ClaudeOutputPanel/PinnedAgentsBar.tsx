@@ -2,6 +2,7 @@ import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { store, useAgents, usePinnedAgentIds, useCustomAgentClassesArray, useAreas, useViewMode } from '../../store';
 import { AgentIcon } from '../AgentIcon';
 import { STORAGE_KEYS, getStorageString, setStorageString } from '../../utils/storage';
+import { prefetchAgentHistory } from './useHistoryLoader';
 import type { Agent } from '../../../shared/types';
 
 interface PinnedAgentsBarProps {
@@ -206,6 +207,9 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId }: 
           title={`${agent.name}${agent.status ? ` — ${agent.status}` : ''}`}
           style={areaColor ? ({ ['--area-color']: areaColor } as React.CSSProperties) : undefined}
           onClick={() => handleSelect(agent)}
+          // Warm the history cache during hover so the switch on click paints
+          // the conversation in its first frame (no-op when already cached).
+          onMouseEnter={() => prefetchAgentHistory(agent.id)}
           onContextMenu={(e) => handleUnpin(e, agent.id)}
           onDragStart={(e) => handleDragStart(e, agent.id)}
           onDragOver={(e) => handleDragOver(e, agent.id)}

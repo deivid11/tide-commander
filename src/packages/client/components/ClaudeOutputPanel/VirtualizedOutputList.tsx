@@ -275,10 +275,13 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     count: allItems.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: (index) => getEstimatedHeight(allItems[index]),
-    // Keep overscan modest: every overscanned row is a markdown-parsed
-    // OutputLine/HistoryLine mounted synchronously when the pane opens or
-    // switches agents, and this mount is the main cost of that switch.
-    overscan: 10,
+    // Two-phase overscan. While pinned (pane mount / agent switch) keep it
+    // small — every overscanned row is a markdown-parsed OutputLine/HistoryLine
+    // mounted synchronously, and that mount is the main cost of the switch.
+    // Once settled, widen the window so scrolling reaches pre-mounted rows
+    // instead of blank container background. The extra rows mount in the
+    // unpin commit, while the content is still faded out.
+    overscan: pinToBottom ? 10 : 25,
     initialRect: { width: 500, height: 800 },
     // Stable per-item key — see buildItemKey above for the live/history bridge
     // that prevents virtualizer remount when the optimistic prompt is replaced

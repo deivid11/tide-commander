@@ -16,7 +16,7 @@
     "experimental": "Expérimental",
     "about": "À propos",
     "sky": "Couleur du ciel",
-    "systemPrompt": "System Prompt"
+    "systemPrompt": "Prompt système"
   },
   "general": {
     "history": "Historique",
@@ -323,17 +323,24 @@
     "conflictsWith": "En conflit avec : {{names}}"
   },
   "systemPrompt": {
-    "title": "Global System Prompt",
-    "description": "Add global instructions that apply to all agents. This appears after Tide Commander base rules but before agent-specific instructions.",
-    "editPrompt": "Edit System Prompt",
-    "save": "Save Prompt",
-    "reset": "Reset Changes",
-    "clear": "Clear Prompt",
-    "characters": "characters",
-    "saved": "System prompt saved successfully. It will apply to all new agent sessions.",
-    "cleared": "System prompt cleared successfully.",
-    "hint": "This prompt will be inserted into the system instructions for all agents.",
-    "placeholder": "Enter your global system prompt here...\n\nExamples:\n- Coding style guidelines\n- Team communication rules\n- Project-wide conventions\n- Security best practices",
-    "confirmClear": "Are you sure you want to clear the system prompt?"
+    "title": "Prompt système",
+    "description": "Ajoutez des instructions personnalisées pour tous les agents ou pour un agent précis. Choisissez la portée ci-dessous, puis modifiez son prompt. Il s'applique après les règles de base de Tide Commander mais avant les instructions de classe de l'agent.",
+    "agentLabel": "Appliquer à",
+    "noAgents": "Aucun agent pour le moment. Créez d'abord un agent, puis définissez ici son prompt système.",
+    "globalOption": "Tous les agents (Global)",
+    "editPrompt": "Modifier le prompt système",
+    "save": "Enregistrer le prompt",
+    "reset": "Annuler les modifications",
+    "clear": "Effacer le prompt",
+    "characters": "caractères",
+    "saved": "Prompt système enregistré. Il s'appliquera à la prochaine session de cet agent.",
+    "savedGlobal": "Prompt système global enregistré. Il s'appliquera à la prochaine session de chaque agent.",
+    "cleared": "Prompt système effacé pour cet agent.",
+    "clearedGlobal": "Prompt système global effacé.",
+    "hint": "Ce prompt est inséré dans les instructions système de l'agent sélectionné uniquement.",
+    "hintGlobal": "Ce prompt est inséré dans les instructions système de tous les agents, avant tout prompt propre à un agent.",
+    "placeholder": "Saisissez le prompt système ici...\n\nExemples :\n- Règles de style de code\n- Règles de communication d'équipe\n- Conventions du projet\n- Bonnes pratiques de sécurité",
+    "confirmClear": "Voulez-vous vraiment effacer le prompt système de cet agent ?",
+    "confirmClearGlobal": "Voulez-vous vraiment effacer le prompt système global (tous les agents) ?"
   }
 }

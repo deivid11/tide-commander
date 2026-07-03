@@ -4,15 +4,17 @@
  * Handles initial history loading, pagination, and output deduplication.
  */
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import { store, ClaudeOutput } from '../../store';
 import { apiUrl, authFetch } from '../../utils/storage';
 import type { HistoryMessage } from './types';
 import { MESSAGES_PER_PAGE, SCROLL_THRESHOLD } from './types';
 import { dedupeOutputsAgainstHistory, mergeOlderHistoryPage } from './historyDedup';
 
-// Maximum number of agents to keep cached history for (LRU eviction)
-const HISTORY_CACHE_MAX_AGENTS = 5;
+// Maximum number of agents to keep cached history for (LRU eviction).
+// A cached agent switches instantly (pin + reveal run on the cached page while
+// the refetch happens in the background); an uncached one waits for the fetch.
+const HISTORY_CACHE_MAX_AGENTS = 10;
 
 // Per-agent history cache for instant display on revisit (LRU: most recent access last)
 const historyCache = new Map<string, {
@@ -47,6 +49,39 @@ function historyCacheEvict(): void {
  */
 export function evictHistoryCache(agentId: string): void {
   historyCache.delete(agentId);
+}
+
+// Prefetches currently in flight (dedup guard).
+const prefetchInFlight = new Set<string>();
+
+/**
+ * Warm the history cache for an agent BEFORE the user switches to it (e.g. on
+ * pinned-chip hover). By click time the cache is usually populated, so the
+ * pane's first paint after the switch already shows the conversation. No-op if
+ * the agent is already cached or a prefetch is in flight; a real load that
+ * lands meanwhile wins (we never overwrite an existing entry).
+ */
+export function prefetchAgentHistory(agentId: string): void {
+  if (!agentId || historyCache.has(agentId) || prefetchInFlight.has(agentId)) return;
+  prefetchInFlight.add(agentId);
+  authFetch(apiUrl(`/api/agents/${agentId}/history?limit=${MESSAGES_PER_PAGE}&offset=0`))
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      if (!data || !Array.isArray(data.messages) || data.messages.length === 0) return;
+      if (historyCache.has(agentId)) return;
+      historyCache.set(agentId, {
+        messages: data.messages,
+        hasMore: data.hasMore || false,
+        totalCount: data.totalCount || 0,
+      });
+      historyCacheEvict();
+      const subagents = Array.isArray(data.subagents) ? data.subagents : [];
+      if (subagents.length > 0) {
+        store.hydrateSubagentsFromHistory(agentId, subagents);
+      }
+    })
+    .catch(() => { /* prefetch is best-effort; the real load will retry */ })
+    .finally(() => prefetchInFlight.delete(agentId));
 }
 
 
@@ -104,29 +139,38 @@ export function useHistoryLoader({
   lastPrompts,
   outputScrollRef,
 }: UseHistoryLoaderProps): UseHistoryLoaderReturn {
-  const [history, setHistory] = useState<HistoryMessage[]>([]);
+  // Hydrate synchronously from the cache: a keyed pane remounts on every agent
+  // switch, and seeding state in the initializers means the FIRST paint of the
+  // new pane already shows the conversation — no empty commit, no wait for the
+  // load effect. The effect below still runs and refreshes from the network.
+  const mountCached = selectedAgentId && hasSessionId ? historyCache.get(selectedAgentId) : undefined;
+  const [history, setHistory] = useState<HistoryMessage[]>(() => mountCached?.messages ?? []);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [fetchingHistory, setFetchingHistory] = useState(false);
   const [historyLoadVersion, setHistoryLoadVersion] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [totalCount, setTotalCount] = useState(0);
+  const [hasMore, setHasMore] = useState(() => mountCached?.hasMore ?? false);
+  const [totalCount, setTotalCount] = useState(() => mountCached?.totalCount ?? 0);
   const isMountedRef = useRef(true);
 
   // Token to ignore out-of-order fetch completions when switching agents quickly
   const fetchSeqRef = useRef(0);
 
   // Track history length in a ref to avoid dependency issues in loadMoreHistory
-  const historyLengthRef = useRef(0);
+  const historyLengthRef = useRef(mountCached?.messages.length ?? 0);
 
   // Server offset for the NEXT older page. Advances by each fetched page size
   // (NOT the deduped length) so pagination can't stall when the server's
   // offset-from-end drifts and a whole page overlaps what we already have.
-  const paginationOffsetRef = useRef(0);
+  const paginationOffsetRef = useRef(mountCached?.messages.length ?? 0);
 
   // Track loading/hasMore state in refs for scroll handler (avoid stale closures)
   const loadingMoreRef = useRef(false);
-  const hasMoreRef = useRef(false);
+  const hasMoreRef = useRef(mountCached?.hasMore ?? false);
+
+  // Distance-from-bottom to restore after an older page is prepended; consumed
+  // pre-paint by the layout effect below.
+  const pendingScrollRestoreRef = useRef<number | null>(null);
 
   // Track previous agent ID and sessionId to detect switches vs session establishment
   const prevAgentIdRef = useRef<string | null>(null);
@@ -242,7 +286,7 @@ export function useHistoryLoader({
     if (!isSessionEstablishment && !isReconnect) {
       loadingTimerRef.current = setTimeout(() => {
         setLoadingHistory(true);
-      }, 150); // Only show loading if fetch takes longer than 150ms
+      }, 80); // Only show loading if fetch takes longer than this; until then the pane is blank
     }
 
     authFetch(apiUrl(`/api/agents/${selectedAgentId}/history?limit=${MESSAGES_PER_PAGE}&offset=0`))
@@ -394,6 +438,11 @@ export function useHistoryLoader({
         // always progresses toward older messages and never re-fetches the same
         // window forever when a page is dropped by the dedupe/timestamp guards.
         paginationOffsetRef.current = currentOffset + data.messages.length;
+        // The scroll restore runs pre-paint in the layout effect below, in the
+        // same commit that prepends the page. A rAF-deferred restore painted
+        // 1-2 frames at the shifted position first — a visible jump every time
+        // an older page auto-loaded while scrolling up.
+        pendingScrollRestoreRef.current = distanceFromBottom;
         setHistory((prev) => {
           // Dedupe overlapping pages (offset drift) so older messages stay
           // above current ones in order, with no duplicates or interleaving.
@@ -404,17 +453,6 @@ export function useHistoryLoader({
         const hasMoreValue = data.hasMore || false;
         hasMoreRef.current = hasMoreValue;
         setHasMore(hasMoreValue);
-
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (!isMountedRef.current) return;
-            if (outputScrollRef.current) {
-              outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight - distanceFromBottom;
-            }
-            loadingMoreRef.current = false;
-            setLoadingMore(false);
-          });
-        });
       } else {
         if (!isMountedRef.current) return;
         loadingMoreRef.current = false;
@@ -427,6 +465,22 @@ export function useHistoryLoader({
       setLoadingMore(false);
     }
   }, [selectedAgentId, outputScrollRef]);
+
+  // Pre-paint scroll restore for prepended pages: runs in the same commit that
+  // inserted the older messages (child DOM already updated, browser not yet
+  // painted), so the viewport never shows the shifted position.
+  useLayoutEffect(() => {
+    if (pendingScrollRestoreRef.current === null) return;
+    const distanceFromBottom = pendingScrollRestoreRef.current;
+    pendingScrollRestoreRef.current = null;
+
+    const container = outputScrollRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight - distanceFromBottom;
+    }
+    loadingMoreRef.current = false;
+    setLoadingMore(false);
+  }, [history, outputScrollRef]);
 
   // Handle scroll to detect load more trigger
   const handleScroll = useCallback((keyboardScrollLockRef: React.MutableRefObject<boolean>) => {

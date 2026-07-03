@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.130.0] - 2026-07-03
+
+### Added
+- **Global system prompt restored alongside per-agent** — the System Prompt modal's scope picker now includes an "All Agents (Global)" entry that edits a commander-wide prompt (stored server-side, injected into every agent's instructions before that agent's own per-agent prompt), coexisting with the existing per-agent `customPrompt` scope.
+
+### Changed
+- **Agent-switch crossfade replaces the deferred-value approach** — a new `useAgentSwitchFade` hook drives a bounded, `setTimeout`-based crossfade (30ms) for the terminal pane on both the 3D guake terminal and Flat view chat, instead of `useDeferredValue`: a deferred render can be starved by streaming store updates and freeze the outgoing conversation on screen with no feedback, whereas the timeout-bounded fade always completes.
+- **Hover-prefetch for agent history** — hovering an agent in the pinned bar or overview panel now warms the history cache (`prefetchAgentHistory`) so clicking to switch renders the conversation on the first frame.
+- **Server-side parsed-session cache** — `session-loader.ts` caches parsed session JSONL keyed by file path and invalidated on `(mtimeMs, size)` change (LRU, max 8 entries), so repeated `/history` requests and the internal double-parse for subagent references no longer re-parse multi-MB session files on every call. Also narrowed the file-stability wait to files modified within the last 300ms instead of unconditionally sleeping on every request.
+
 ## [1.129.2] - 2026-07-03
 
 ### Changed

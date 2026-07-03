@@ -1672,6 +1672,63 @@ async function parseSessionMessages(
   };
 }
 
+type ParsedSession = Awaited<ReturnType<typeof parseSessionMessages>>;
+
+// Parsed-session cache keyed by file path, invalidated by (mtimeMs, size).
+// Every /history request previously re-parsed the full JSONL (and
+// getAgentHistory parses the SAME file twice when the page references
+// subagents) — with multi-MB sessions that parse dominated request latency.
+// Callers MUST treat the returned messages as immutable (all current callers
+// only read/slice them). Opencode sessions are excluded: their messages live
+// outside the resolved file (sqlite / part dirs), so a stat key on filePath
+// cannot see changes — and the sqlite path is cheap anyway.
+const parsedSessionCache = new Map<string, { mtimeMs: number; size: number; parsed: ParsedSession }>();
+const PARSED_SESSION_CACHE_MAX = 8;
+// Only a file modified this recently may still be mid-write and warrant the
+// stability wait. The old unconditional waitForFileStable slept >=50ms on
+// EVERY request by construction (lastSize starts at -1, so the first check
+// can never match).
+const RECENT_WRITE_WINDOW_MS = 300;
+
+async function parseSessionMessagesCached(resolved: ResolvedSessionFile): Promise<ParsedSession> {
+  if (resolved.provider === 'opencode') {
+    return parseSessionMessages(resolved);
+  }
+
+  let stats: fs.Stats;
+  try {
+    stats = fs.statSync(resolved.filePath);
+  } catch {
+    return parseSessionMessages(resolved);
+  }
+
+  const cached = parsedSessionCache.get(resolved.filePath);
+  if (cached && cached.mtimeMs === stats.mtimeMs && cached.size === stats.size) {
+    // LRU touch: most recently used moves to the end of iteration order.
+    parsedSessionCache.delete(resolved.filePath);
+    parsedSessionCache.set(resolved.filePath, cached);
+    return cached.parsed;
+  }
+
+  if (Date.now() - stats.mtimeMs < RECENT_WRITE_WINDOW_MS) {
+    await waitForFileStable(resolved.filePath);
+    try {
+      stats = fs.statSync(resolved.filePath);
+    } catch {
+      return parseSessionMessages(resolved);
+    }
+  }
+
+  const parsed = await parseSessionMessages(resolved);
+  parsedSessionCache.set(resolved.filePath, { mtimeMs: stats.mtimeMs, size: stats.size, parsed });
+  while (parsedSessionCache.size > PARSED_SESSION_CACHE_MAX) {
+    const oldest = parsedSessionCache.keys().next().value;
+    if (oldest === undefined) break;
+    parsedSessionCache.delete(oldest);
+  }
+  return parsed;
+}
+
 /**
  * Load conversation history from a session file
  * @param cwd - Working directory
@@ -1691,10 +1748,7 @@ export async function loadSession(
     return null;
   }
 
-  if (!resolved.opencodeDbSessionId) {
-    await waitForFileStable(resolved.filePath);
-  }
-  const { messages } = await parseSessionMessages(resolved);
+  const { messages } = await parseSessionMessagesCached(resolved);
 
   const totalCount = messages.length;
 
@@ -1732,10 +1786,7 @@ export async function searchSession(
     return null;
   }
 
-  if (!resolved.opencodeDbSessionId) {
-    await waitForFileStable(resolved.filePath);
-  }
-  const { messages } = await parseSessionMessages(resolved);
+  const { messages } = await parseSessionMessagesCached(resolved);
   const queryLower = query.toLowerCase();
   const matches: SessionMessage[] = [];
 
@@ -1924,7 +1975,7 @@ export async function getSessionActivityStatus(
   const lastModified = await getResolvedSessionLastModified(resolved);
   const now = new Date();
   const secondsSinceModified = (now.getTime() - lastModified.getTime()) / 1000;
-  const { lastMessageType, lastMessageTimestamp } = await parseSessionMessages(resolved);
+  const { lastMessageType, lastMessageTimestamp } = await parseSessionMessagesCached(resolved);
 
   // Determine if work is pending based on last message type:
   // - Last message was from user (Claude should be processing) OR
@@ -2199,10 +2250,7 @@ export async function loadToolHistory(
     return { toolExecutions, fileChanges };
   }
 
-  if (!resolved.opencodeDbSessionId) {
-    await waitForFileStable(resolved.filePath);
-  }
-  const { messages } = await parseSessionMessages(resolved);
+  const { messages } = await parseSessionMessagesCached(resolved);
 
   for (const msg of messages) {
     if (msg.type !== 'tool_use' || !msg.toolName) continue;

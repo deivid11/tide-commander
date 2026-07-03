@@ -720,6 +720,14 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // ── Pin to bottom (stabilization loop) ──
   const pendingFadeInRef = useRef(false);
 
+  // "Waiting" means we have NOTHING to render yet. When cached history (or
+  // live outputs) can already paint, the pin + reveal must not wait for the
+  // network refetch — that wait made agent switches feel slow, and any reveal
+  // that fires before the pin settles paints the conversation at the wrong
+  // scroll position, then visibly snaps to the bottom when the fetch lands.
+  const hasRenderedContent = dedupedHistory.length > 0 || dedupedOutputs.length > 0;
+  const waitingForFirstContent = historyLoader.fetchingHistory && !hasRenderedContent;
+
   useEffect(() => {
     pendingFadeInRef.current = true;
     setPinToBottom(true);
@@ -763,7 +771,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   useEffect(() => {
     if (!pinToBottom) return;
     if (!isOpen) return;
-    if (historyLoader.fetchingHistory) return;
+    if (waitingForFirstContent) return;
 
     const container = outputScrollRef.current;
     if (!container) return;
@@ -827,7 +835,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
-  }, [pinToBottom, isOpen, historyLoader.fetchingHistory, historyLoader.historyLoadVersion]);
+  }, [pinToBottom, isOpen, waitingForFirstContent, historyLoader.historyLoadVersion]);
 
   // Fade in after scroll stabilization
   const prevPinToBottomRef = useRef(false);
@@ -844,7 +852,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     if (!isOpen) return;
     if (!pendingFadeInRef.current) return;
     if (pinToBottom) return;
-    if (historyLoader.fetchingHistory) return;
+    if (waitingForFirstContent) return;
 
     const rafId = requestAnimationFrame(() => {
       if (pendingFadeInRef.current) {
@@ -853,20 +861,21 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       }
     });
     return () => cancelAnimationFrame(rafId);
-  }, [historyLoader.historyLoadVersion, isOpen, pinToBottom, historyLoader.fetchingHistory]);
+  }, [historyLoader.historyLoadVersion, isOpen, pinToBottom, waitingForFirstContent]);
 
-  // Empty-chat sends can receive the optimistic live prompt while the normal
-  // pin/fade path is still waiting on a history load or a zero-height scroll
-  // stabilization pass. Reveal immediately once this pane has real content.
-  const renderedItemCount = dedupedHistory.length + dedupedOutputs.length;
+  // Last-resort reveal for content that arrives while no pin pass is pending
+  // (e.g. the optimistic live prompt on an empty chat). Never preempt an
+  // active pin: revealing before the pin settles paints the conversation at
+  // the wrong scroll position and the later snap-to-bottom reads as flicker.
   useEffect(() => {
     if (historyFadeIn) return;
     if (isAgentSwitching) return;
-    if (renderedItemCount === 0) return;
+    if (pinToBottom) return;
+    if (!hasRenderedContent) return;
 
     pendingFadeInRef.current = false;
     setHistoryFadeIn(true);
-  }, [historyFadeIn, isAgentSwitching, renderedItemCount]);
+  }, [historyFadeIn, isAgentSwitching, pinToBottom, hasRenderedContent]);
 
   // ── Escape key for search ──
   useEffect(() => {
@@ -936,13 +945,16 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
       {/* Output area */}
       <div className="guake-output" ref={outputScrollRef} onScroll={handleScroll}>
+        {/* Loading indicator lives OUTSIDE the fade wrapper (which is opacity:0
+            until the pin settles) and sticks to the viewport — inside the
+            wrapper it was invisible, so a slow history fetch showed a plain
+            black pane. */}
+        {(isAgentSwitching || (historyLoader.loadingHistory && historyLoader.history.length === 0 && outputs.length === 0)) && (
+          <div className="guake-loading-overlay">
+            <div className="guake-empty loading">{t('terminal:empty.loadingConversation')}<span className="loading-dots"><span></span><span></span><span></span></span></div>
+          </div>
+        )}
         <div className={`guake-history-content ${historyFadeIn ? 'fade-in' : ''}`}>
-          {isAgentSwitching && (
-            <div className="guake-empty loading">{t('terminal:empty.loadingConversation')}<span className="loading-dots"><span></span><span></span><span></span></span></div>
-          )}
-          {!isAgentSwitching && historyLoader.loadingHistory && historyLoader.history.length === 0 && outputs.length === 0 && (
-            <div className="guake-empty loading">{t('terminal:empty.loadingConversation')}<span className="loading-dots"><span></span><span></span><span></span></span></div>
-          )}
           {!isAgentSwitching && !historyLoader.loadingHistory && historyLoader.history.length === 0 && displayOutputs.length === 0 && agent.status !== 'working' && (
             <div className="guake-empty">{t('terminal:empty.noOutput')}</div>
           )}
@@ -984,7 +996,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
               onUserScroll={handleUserScrollUp}
               pinToBottom={pinToBottom}
               onPinCancel={handlePinCancel}
-              isLoadingHistory={historyLoader.fetchingHistory}
+              isLoadingHistory={waitingForFirstContent}
             />
           )}
           {/* Context compaction indicator */}

@@ -16,7 +16,7 @@
     "experimental": "实验性",
     "about": "关于",
     "sky": "天空颜色",
-    "systemPrompt": "System Prompt"
+    "systemPrompt": "系统提示词"
   },
   "general": {
     "history": "历史记录",
@@ -323,17 +323,24 @@
     "conflictsWith": "与以下冲突：{{names}}"
   },
   "systemPrompt": {
-    "title": "Global System Prompt",
-    "description": "Add global instructions that apply to all agents. This appears after Tide Commander base rules but before agent-specific instructions.",
-    "editPrompt": "Edit System Prompt",
-    "save": "Save Prompt",
-    "reset": "Reset Changes",
-    "clear": "Clear Prompt",
-    "characters": "characters",
-    "saved": "System prompt saved successfully. It will apply to all new agent sessions.",
-    "cleared": "System prompt cleared successfully.",
-    "hint": "This prompt will be inserted into the system instructions for all agents.",
-    "placeholder": "Enter your global system prompt here...\n\nExamples:\n- Coding style guidelines\n- Team communication rules\n- Project-wide conventions\n- Security best practices",
-    "confirmClear": "Are you sure you want to clear the system prompt?"
+    "title": "系统提示词",
+    "description": "为所有代理或某个特定代理添加自定义指令。在下方选择作用范围并编辑提示词。它在 Tide Commander 基础规则之后、代理类指令之前生效。",
+    "agentLabel": "应用于",
+    "noAgents": "还没有代理。请先创建一个代理，然后在此设置它的系统提示词。",
+    "globalOption": "所有代理（全局）",
+    "editPrompt": "编辑系统提示词",
+    "save": "保存提示词",
+    "reset": "撤销更改",
+    "clear": "清除提示词",
+    "characters": "个字符",
+    "saved": "系统提示词已保存，将在该代理的下一个会话中生效。",
+    "savedGlobal": "全局系统提示词已保存，将在每个代理的下一个会话中生效。",
+    "cleared": "已清除该代理的系统提示词。",
+    "clearedGlobal": "已清除全局系统提示词。",
+    "hint": "此提示词仅插入所选代理的系统指令中。",
+    "hintGlobal": "此提示词会插入所有代理的系统指令中，位于任何单个代理提示词之前。",
+    "placeholder": "在此输入系统提示词...\n\n示例：\n- 代码风格规范\n- 团队沟通规则\n- 项目级约定\n- 安全最佳实践",
+    "confirmClear": "确定要清除该代理的系统提示词吗？",
+    "confirmClearGlobal": "确定要清除全局系统提示词（所有代理）吗？"
   }
 }
