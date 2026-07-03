@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.131.0] - 2026-07-03
+
+### Added
+- **Selectable/copyable text in the PDF viewer** — `FileViewerModal`'s `pdf.js` viewer now renders a transparent `TextLayer` over each page's rasterized canvas, so PDF text can be selected and copied instead of only viewed.
+
+### Changed
+- **Sharper, responsive PDF rendering** — pages are rasterized at `devicePixelRatio` (capped at 3x) and fit to the container width (capped at 2.5x scale), fixing blurry/CSS-rescaled bitmaps; a debounced `ResizeObserver` + window-resize listener re-renders pages when the container width or DPR changes (container resize, browser zoom), instead of only rendering once on load.
+
 ## [1.130.0] - 2026-07-03
 
 ### Added
