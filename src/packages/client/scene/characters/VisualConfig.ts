@@ -17,9 +17,12 @@ const STATUS_COLORS: Record<string, number> = {
   default: 0x888888,
 };
 
+// Font sizes are expressed against this reference canvas width; drawNameLabel
+// scales them to the actual canvas so resolution can change without relayout.
+const NAME_LABEL_REFERENCE_WIDTH = 4096;
 const NAME_LABEL_REFERENCE_FONT_SIZE = 800;
 const NAME_LABEL_MAX_FONT_SIZE = 420;
-const NAME_LABEL_LAYOUT_VERSION = 5;
+const NAME_LABEL_LAYOUT_VERSION = 6;
 
 /**
  * Calculate remaining context percentage from agent data.
@@ -156,8 +159,10 @@ export class VisualConfig {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
 
-    canvas.width = 4096;
-    canvas.height = 2560;
+    // Sprites render at ~100-400px on screen; 1024 wide keeps them crisp while
+    // costing ~16x less CPU/GPU memory per agent than the previous 4096 canvas.
+    canvas.width = 1024;
+    canvas.height = 640;
 
     this.drawStatusBar(ctx, canvas.width, canvas.height, remainingPercent, status, lastActivity, isBoss);
 
@@ -165,7 +170,6 @@ export class VisualConfig {
     texture.minFilter = THREE.LinearMipmapLinearFilter;
     texture.magFilter = THREE.LinearFilter;
     texture.generateMipmaps = true;
-    texture.anisotropy = 16;
     texture.needsUpdate = true;
 
     const material = new THREE.SpriteMaterial({
@@ -197,8 +201,8 @@ export class VisualConfig {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
 
-    canvas.width = 4096;
-    canvas.height = taskLabel ? 2048 : 1024;
+    canvas.width = 1024;
+    canvas.height = taskLabel ? 512 : 256;
 
     this.drawNameLabel(ctx, canvas.width, canvas.height, name, color, isBoss, provider, taskLabel);
 
@@ -206,7 +210,6 @@ export class VisualConfig {
     texture.minFilter = THREE.LinearMipmapLinearFilter;
     texture.magFilter = THREE.LinearFilter;
     texture.generateMipmaps = true;
-    texture.anisotropy = 16;
     texture.needsUpdate = true;
 
     const material = new THREE.SpriteMaterial({
@@ -256,12 +259,13 @@ export class VisualConfig {
 
     const providerBadgeImage = this.getProviderBadgeImage(provider);
     const hasProviderBadge = providerBadgeImage !== null;
-    const fontSize = isBoss
+    const s = width / NAME_LABEL_REFERENCE_WIDTH;
+    const fontSize = (isBoss
       ? Math.max(NAME_LABEL_MAX_FONT_SIZE, NAME_LABEL_REFERENCE_FONT_SIZE - 300)
-      : NAME_LABEL_MAX_FONT_SIZE;
+      : NAME_LABEL_MAX_FONT_SIZE) * s;
 
     ctx.font = `bold ${fontSize}px Arial`;
-    const displayName = this.fitNameLabelText(ctx, name, fontSize, width - 400, hasProviderBadge);
+    const displayName = this.fitNameLabelText(ctx, name, fontSize, width - 400 * s, hasProviderBadge);
     const textWidth = ctx.measureText(displayName).width;
     const badgeSize = hasProviderBadge ? fontSize * 0.95 : 0;
     const badgeSpacing = hasProviderBadge ? fontSize * 0.32 : 0;
@@ -310,7 +314,7 @@ export class VisualConfig {
     if (taskLabel) {
       const taskFontSize = Math.round(fontSize * 0.85);
       const taskY = height * 0.55;
-      const maxLabelWidth = width - 600;
+      const maxLabelWidth = width - 600 * s;
       const actualTaskFontSize = taskFontSize;
       const displayLabel = this.fitTaskLabelText(ctx, taskLabel, actualTaskFontSize, maxLabelWidth);
       ctx.font = `italic ${actualTaskFontSize}px "Segoe UI", Arial, sans-serif`;

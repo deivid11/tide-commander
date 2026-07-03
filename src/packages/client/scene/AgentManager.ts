@@ -27,6 +27,7 @@ export class AgentManager {
   private idleAnimation: string = ANIMATIONS.SIT;
   private workingAnimation: string = ANIMATIONS.WALK;
   private previousAgentStatuses = new Map<string, string>(); // Track previous status for each agent
+  private staggerGeneration = 0; // Invalidates in-flight staggered mesh builds when a newer sync/dispose supersedes them
 
   // Agent model style settings
   private modelStyle = {
@@ -432,16 +433,46 @@ export class AgentManager {
     console.log('[AgentManager] Models ready, pending agents:', this.pendingAgents.length);
 
     if (this.pendingAgents.length > 0) {
-      console.log(`[AgentManager] Processing ${this.pendingAgents.length} pending agents`);
       const agents = this.pendingAgents;
       this.pendingAgents = [];
-      for (const agent of agents) {
-        this.addAgent(agent);
-      }
-      // After processing pending agents, trigger a callback to ensure the render loop
-      // captures the updated agent meshes in the next frame
-      this.onAgentMeshesChanged?.();
+      // Trigger a callback when done to ensure the render loop captures the
+      // updated agent meshes in the next frame
+      this.addAgentsStaggered(agents, () => this.onAgentMeshesChanged?.());
     }
+  }
+
+  /**
+   * Build agent meshes in time-budgeted chunks across frames so large fleets
+   * don't freeze the main thread in a single blocking loop. A newer sync or
+   * dispose supersedes any chunks still queued.
+   */
+  private addAgentsStaggered(agents: Agent[], onComplete?: () => void): void {
+    this.staggerGeneration++;
+    if (agents.length === 0) {
+      onComplete?.();
+      return;
+    }
+
+    const generation = this.staggerGeneration;
+    let index = 0;
+    const processChunk = () => {
+      if (generation !== this.staggerGeneration) return;
+      const deadline = performance.now() + 8;
+      do {
+        const queued = agents[index++];
+        // Re-read from the store so updates (or deletes) that arrived while
+        // this agent sat in the queue win over the snapshot we were given
+        const agent = store.getState().agents.get(queued.id);
+        if (agent) this.addAgent(agent);
+      } while (index < agents.length && performance.now() < deadline);
+
+      if (index < agents.length) {
+        requestAnimationFrame(processChunk);
+      } else {
+        onComplete?.();
+      }
+    };
+    processChunk();
   }
 
   upgradeAgentModels(): void {
@@ -508,7 +539,6 @@ export class AgentManager {
     }
 
     if (!this.modelsReady) {
-      console.log(`[AgentManager] Queueing agent ${agent.name} (models not ready, pending count: ${this.pendingAgents.length})`);
       const existingIdx = this.pendingAgents.findIndex(a => a.id === agent.id);
       if (existingIdx >= 0) {
         this.pendingAgents[existingIdx] = agent;
@@ -518,11 +548,8 @@ export class AgentManager {
       return;
     }
 
-    console.log(`[AgentManager] addAgent ${agent.name} (models ready, current meshes: ${this.agentMeshes.size})`);
-
     const existing = this.agentMeshes.get(agent.id);
     if (existing) {
-      console.log(`[AgentManager] Agent ${agent.name} already exists, removing old mesh`);
       this.scene.remove(existing.group);
       this.characterFactory.disposeAgentMesh(existing);
       this.proceduralAnimator.unregister(agent.id);
@@ -533,30 +560,22 @@ export class AgentManager {
     const customClasses = store.getState().customAgentClasses;
     const customClass = customClasses.get(agent.class);
     if (customClass?.customModelPath && !this.characterLoader.hasCustomModel(customClass.id)) {
-      console.log(`[AgentManager] Custom model for class ${agent.class} not yet loaded, loading async...`);
       this.characterLoader.loadCustomModel(customClass.id).then(() => {
-        console.log(`[AgentManager] Custom model loaded for class ${agent.class}, now adding agent ${agent.name}`);
         this.addAgentInternal(agent);
       }).catch(err => {
-        const _errorMsg = err instanceof Error ? err.message : String(err);
         console.error(`[AgentManager] Failed to load custom model for ${agent.class}:`, err);
-        console.warn(`[AgentManager] Using fallback model for agent ${agent.name}`);
         this.onToast?.('warning', 'Model Load Failed', `Could not load custom model for ${agent.class}, using fallback`);
         this.addAgentInternal(agent);
       });
       return;
     }
 
-    console.log(`[AgentManager] Custom model already loaded for class ${agent.class}, adding agent directly`);
     this.addAgentInternal(agent);
   }
 
   private addAgentInternal(agent: Agent): void {
-    console.log(`[AgentManager] addAgentInternal called for ${agent.name}, position: (${agent.position.x}, ${agent.position.y}, ${agent.position.z})`);
-
     const existing = this.agentMeshes.get(agent.id);
     if (existing) {
-      console.log(`[AgentManager] Removing existing mesh for ${agent.name}`);
       this.scene.remove(existing.group);
       this.characterFactory.disposeAgentMesh(existing);
       this.proceduralAnimator.unregister(agent.id);
@@ -575,7 +594,6 @@ export class AgentManager {
 
     this.scene.add(meshData.group);
     this.agentMeshes.set(agent.id, meshData);
-    console.log(`[AgentManager] Agent ${agent.name} added to scene, total meshes: ${this.agentMeshes.size}`);
 
     // Apply current brightness to new agent's materials
     this.applyStyleToMesh(meshData.group);
@@ -670,15 +688,10 @@ export class AgentManager {
   }
 
   syncAgents(agents: Agent[]): void {
-    console.log(`[AgentManager] syncAgents called with ${agents.length} agents, modelsReady: ${this.modelsReady}, pending: ${this.pendingAgents.length}`);
     const previousCount = this.agentMeshes.size;
 
-    // Log pending agents before clearing
     if (this.pendingAgents.length > 0) {
-      console.warn(`[AgentManager] WARNING: syncAgents called with ${this.pendingAgents.length} pending agents that will be discarded!`);
-      for (const pending of this.pendingAgents) {
-        console.warn(`  - ${pending.name}`);
-      }
+      console.warn(`[AgentManager] syncAgents called with ${this.pendingAgents.length} pending agents that will be discarded`);
     }
 
     this.pendingAgents = [];
@@ -704,15 +717,8 @@ export class AgentManager {
       return true;
     });
 
-    console.log(`[AgentManager] syncAgents: adding ${visibleAgents.length} visible agents (filtered from ${agents.length}, ${agents.length - visibleAgents.length} in archived areas)`);
-    for (const agent of visibleAgents) {
-      this.addAgent(agent);
-    }
-
-    // Update notification badges after sync
-    this.updateNotificationBadges();
-
-    console.log(`[AgentManager] syncAgents complete: disposed ${previousCount} agents, added ${visibleAgents.length} visible agents`);
+    console.log(`[AgentManager] syncAgents: disposed ${previousCount}, adding ${visibleAgents.length} visible agents (of ${agents.length} total, modelsReady: ${this.modelsReady})`);
+    this.addAgentsStaggered(visibleAgents, () => this.updateNotificationBadges());
   }
 
   // ============================================
@@ -990,6 +996,7 @@ export class AgentManager {
   // ============================================
 
   dispose(): void {
+    this.staggerGeneration++; // cancel any in-flight staggered mesh builds
     const agentCount = this.agentMeshes.size;
     for (const meshData of this.agentMeshes.values()) {
       this.scene.remove(meshData.group);

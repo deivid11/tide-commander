@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.129.0] - 2026-07-03
+
+### Added
+- **Clickable agent name in curl "send message" cards** — clicking the target agent's name in an `AgentMessageCard` (`CurlCard.tsx`) focuses and opens that agent, reusing the same selection path as clicking a pinned chip.
+
+### Changed
+- **3D scene performance** — agent meshes are now built in time-budgeted chunks across frames (`AgentManager.addAgentsStaggered`) instead of one blocking loop, so large fleets no longer freeze the main thread on load/sync; stale in-flight builds are invalidated by a newer sync or dispose. Name/status label sprite canvases shrunk from 4096×2560 to 1024×640 (~16x less GPU/CPU memory per agent) with resolution-aware font scaling, and removed the fixed `anisotropy` override. Dropped noisy per-agent `console.log` calls in `AgentManager`.
+
 ## [1.128.1] - 2026-07-02
 
 ### Fixed
