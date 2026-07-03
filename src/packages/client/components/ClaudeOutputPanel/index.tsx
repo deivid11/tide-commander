@@ -336,10 +336,17 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   const selectedAgentIdsArray = Array.from(selectedAgentIds);
   const isSingleSelection = selectedAgentIdsArray.length === 1;
   const selectedAgentId = isSingleSelection ? selectedAgentIdsArray[0] : null;
-  const selectedAgent = useAgent(selectedAgentId) || null;
-
-  const activeAgent = selectedAgent;
-  const activeAgentId = selectedAgentId;
+  // While the terminal drawer is collapsed, keep the panel bound to the agent
+  // it last showed instead of following the live selection. The terminal pane
+  // subtree is keyed by agent id, so following selection while collapsed made
+  // every 3D board click remount the whole pane (history load + enrichment
+  // memos) — a visible freeze per click. The pane re-syncs when the drawer opens.
+  const [heldAgentId, setHeldAgentId] = useState<string | null>(null);
+  useEffect(() => {
+    if (terminalOpen) setHeldAgentId(selectedAgentId);
+  }, [terminalOpen, selectedAgentId]);
+  const activeAgentId = terminalOpen ? selectedAgentId : heldAgentId;
+  const activeAgent = useAgent(activeAgentId) || null;
   const trackingBoardVisible = useTrackingBoardVisible();
 
   const handleTrackingBoardSelectAgent = useCallback((agentId: string) => {

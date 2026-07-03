@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.129.1] - 2026-07-03
+
+### Fixed
+- **3D agent click picking** — small agents standing behind a large agent's oversized click hitbox were unclickable; `SceneRaycaster` now raycasts the precise model geometry first and only falls back to the forgiving hitbox cylinder, so the visible model under the cursor always wins.
+- **Terminal panel remount freeze** — while the terminal drawer was collapsed, clicking agents on the 3D board re-bound the output panel to the live selection, remounting the whole agent-keyed pane (history load + enrichment memos) and causing a visible freeze per click; the panel now holds the last-shown agent while collapsed and only re-syncs when the drawer reopens.
+- Click hitboxes are now rescaled to fit each agent's actual scaled model bounds (`AgentManager.refreshAgentBodyLayout`), instead of only repositioning the status bar.
+
 ## [1.129.0] - 2026-07-03
 
 ### Added

@@ -35,9 +35,7 @@ export class InputEventHandlers {
   }
 
   handleAgentClick(agentId: string, shiftKey: boolean): void {
-    console.log('[InputEventHandlers] handleAgentClick', { agentId, shiftKey });
     if (shiftKey) {
-      console.log('[InputEventHandlers] addToSelection', agentId);
       store.addToSelection(agentId);
     } else {
       store.selectAgent(agentId);
