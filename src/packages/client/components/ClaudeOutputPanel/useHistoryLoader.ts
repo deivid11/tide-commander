@@ -477,6 +477,16 @@ export function useHistoryLoader({
     const container = outputScrollRef.current;
     if (container) {
       container.scrollTop = container.scrollHeight - distanceFromBottom;
+      // Sync the virtualizer's internal offset in the SAME frame. A
+      // programmatic scrollTop change fires its scroll event asynchronously
+      // (1-2 frames later on mobile); until then the virtualizer still thinks
+      // it sits near the top, so it renders the wrong row window (flicker)
+      // AND skips its built-in scroll correction for the just-prepended rows
+      // measuring taller than their estimates — item.start < scrollOffset is
+      // evaluated against the stale offset — which pulled the view back as
+      // the real heights landed. The synchronous dispatch makes the
+      // virtualizer re-read scrollTop before paint.
+      container.dispatchEvent(new Event('scroll'));
     }
     loadingMoreRef.current = false;
     setLoadingMore(false);

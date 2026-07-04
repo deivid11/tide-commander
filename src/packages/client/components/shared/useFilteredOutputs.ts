@@ -195,6 +195,20 @@ export function useFilteredOutputs({
     }
 
     // Simple view: enrich tool lines with key parameters
+    //
+    // Bash results are paired with their "Using tool: Bash" card by uuid when
+    // both carry one (subagent tools: uuid = the subagent-internal tool_use
+    // id). The positional look-ahead below stays as fallback for top-level
+    // Bash, whose result rows have no uuid — but it must never match a
+    // uuid-tagged result row from a DIFFERENT tool call (parallel subagents
+    // interleave their cards and results).
+    const bashOutputByUuid = new Map<string, string>();
+    for (const o of outputs) {
+      if (o.uuid && o.text && o.text.startsWith('Bash output:')) {
+        bashOutputByUuid.set(o.uuid, o.text.replace('Bash output:', '').trim());
+      }
+    }
+
     const result: EnrichedOutput[] = [];
     for (let i = 0; i < outputs.length; i++) {
       const output = outputs[i];
@@ -263,8 +277,14 @@ export function useFilteredOutputs({
               }
             }
           }
-          // Capture Bash output
-          if (toolName === 'Bash' && nextOutput.text.startsWith('Bash output:')) {
+          // Capture Bash output. uuid-tagged result rows belong to a specific
+          // tool call — only accept them for the matching card; untagged rows
+          // (top-level Bash) keep the positional pairing.
+          if (
+            toolName === 'Bash'
+            && nextOutput.text.startsWith('Bash output:')
+            && (!nextOutput.uuid || nextOutput.uuid === output.uuid)
+          ) {
             bashOutput = nextOutput.text.replace('Bash output:', '').trim();
           }
           if (nextOutput.text.startsWith('Using tool:')) {
@@ -274,6 +294,13 @@ export function useFilteredOutputs({
 
         if (toolName === 'Bash' && keyParam && keyParam.length > BASH_TRUNCATE_LENGTH) {
           keyParam = keyParam.substring(0, BASH_TRUNCATE_LENGTH - 3) + '...';
+        }
+
+        // Exact uuid pairing wins over the positional look-ahead (essential
+        // for subagent Bash cards, whose results can land far away in the
+        // stream when several subagents run in parallel).
+        if (toolName === 'Bash' && output.uuid && bashOutputByUuid.has(output.uuid)) {
+          bashOutput = bashOutputByUuid.get(output.uuid);
         }
 
         // For Bash: if no output captured yet, mark as running

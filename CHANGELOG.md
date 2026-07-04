@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.133.2] - 2026-07-04
+
+### Fixed
+- **Subagent Bash cards stuck on "running" forever** — the parent CLI stream never echoes subagent `tool_result` events (only `tool_use`), so subagent Bash cards in the terminal kept their spinner indefinitely. The subagent JSONL watcher (`subagent-jsonl-watcher.ts`) now parses full tool results (id → name attribution, output capped at 100k chars) and forwards Bash results immediately over WebSocket; the client pairs them to their card by exact uuid, with the positional look-ahead kept only as fallback for top-level Bash (whose result rows carry no uuid) — so parallel subagents' interleaved results never attach to the wrong card.
+- **Scroll flicker/jump when loading older history** — after prepending older messages, the virtualizer's scroll offset is now synced in the same frame via a synchronous `scroll` event dispatch; previously the programmatic `scrollTop` change was observed 1–2 frames later (especially on mobile), rendering the wrong row window and skipping the built-in scroll correction, which pulled the view back as real row heights landed.
+
 ## [1.133.1] - 2026-07-04
 
 ### Fixed

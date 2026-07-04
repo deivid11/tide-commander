@@ -56,11 +56,34 @@ interface ActiveWatcher {
   maxTimer?: ReturnType<typeof setTimeout>;
   pendingEntries: SubagentStreamEntry[];
   onBroadcast: BroadcastCallback;
+  onToolResult?: ToolResultCallback;
+  // Subagent-internal tool_use id -> tool name, so tool_result lines can be
+  // attributed (the result line only carries the id).
+  toolNames: Map<string, string>;
   stopped: boolean;
   lastReadTime: number;
 }
 
 type BroadcastCallback = (toolUseId: string, parentAgentId: string, entries: SubagentStreamEntry[]) => void;
+
+/**
+ * Full tool result parsed from the subagent's JSONL. The parent CLI stream
+ * does NOT echo subagent tool_result events (only tool_use), so this is the
+ * only source for resolving a subagent tool card's "running" state in the
+ * terminal.
+ */
+export interface SubagentToolResult {
+  /** Subagent-internal tool_use id (matches the tool_start event's uuid). */
+  toolUseId: string;
+  toolName: string;
+  output: string;
+  isError: boolean;
+}
+
+type ToolResultCallback = (toolUseId: string, parentAgentId: string, result: SubagentToolResult) => void;
+
+// Cap forwarded tool outputs — JSONL lines can embed very large results.
+const MAX_TOOL_RESULT_OUTPUT_CHARS = 100_000;
 
 const activeWatchers = new Map<string, ActiveWatcher>();
 
@@ -79,7 +102,8 @@ export function startWatching(
   toolUseId: string,
   parentAgentId: string,
   subagentsDir: string,
-  onBroadcast: BroadcastCallback
+  onBroadcast: BroadcastCallback,
+  onToolResult?: ToolResultCallback
 ): void {
   if (activeWatchers.has(toolUseId)) {
     log.warn(`[Watcher] Already watching for toolUseId=${toolUseId}`);
@@ -94,6 +118,8 @@ export function startWatching(
     lineBuffer: '',
     pendingEntries: [],
     onBroadcast,
+    onToolResult,
+    toolNames: new Map(),
     stopped: false,
     lastReadTime: Date.now(),
   };
@@ -348,9 +374,16 @@ function readNewLines(watcher: ActiveWatcher): void {
       const trimmed = line.trim();
       if (!trimmed) continue;
 
-      const entries = parseLine(trimmed);
+      const { entries, toolResults } = parseLine(trimmed, watcher.toolNames);
       if (entries.length > 0) {
         watcher.pendingEntries.push(...entries);
+      }
+      // Forward full tool results immediately (not debounced) — the terminal
+      // uses them to resolve a subagent tool card's "running" spinner.
+      if (watcher.onToolResult) {
+        for (const result of toolResults) {
+          watcher.onToolResult(watcher.toolUseId, watcher.parentAgentId, result);
+        }
       }
     }
 
@@ -392,15 +425,22 @@ function flushEntries(watcher: ActiveWatcher): void {
 }
 
 /**
- * Parse a single JSONL line into SubagentStreamEntry items
+ * Parse a single JSONL line into SubagentStreamEntry items plus any full
+ * tool results (used to resolve subagent tool cards in the terminal).
+ * `toolNames` accumulates the subagent's tool_use id -> name mapping across
+ * lines so results can be attributed to their tool.
  */
-function parseLine(line: string): SubagentStreamEntry[] {
+function parseLine(
+  line: string,
+  toolNames: Map<string, string>
+): { entries: SubagentStreamEntry[]; toolResults: SubagentToolResult[] } {
   const entries: SubagentStreamEntry[] = [];
+  const toolResults: SubagentToolResult[] = [];
 
   try {
     const data = JSON.parse(line);
     const message = data.message;
-    if (!message || !message.content) return entries;
+    if (!message || !message.content) return { entries, toolResults };
 
     const timestamp = data.timestamp || new Date().toISOString();
     const contentArray = Array.isArray(message.content) ? message.content : [];
@@ -424,10 +464,18 @@ function parseLine(line: string): SubagentStreamEntry[] {
               isError: block.is_error === true,
               toolUseId: block.tool_use_id,
             });
+            if (block.tool_use_id) {
+              toolResults.push({
+                toolUseId: block.tool_use_id,
+                toolName: toolNames.get(block.tool_use_id) || 'unknown',
+                output: resultText.slice(0, MAX_TOOL_RESULT_OUTPUT_CHARS),
+                isError: block.is_error === true,
+              });
+            }
           }
         }
       }
-      return entries;
+      return { entries, toolResults };
     }
 
     // Parse assistant messages
@@ -450,6 +498,10 @@ function parseLine(line: string): SubagentStreamEntry[] {
             ? String(input[keyParamName]).slice(0, 120)
             : undefined;
 
+          if (block.id) {
+            toolNames.set(block.id, toolName);
+          }
+
           entries.push({
             type: 'tool_use',
             timestamp,
@@ -464,5 +516,5 @@ function parseLine(line: string): SubagentStreamEntry[] {
     // Invalid JSON line - skip
   }
 
-  return entries;
+  return { entries, toolResults };
 }
