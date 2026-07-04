@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.132.0] - 2026-07-04
+
+### Added
+- **Icon-only miniature mode for the pinned-agents bar** — past a configurable threshold (`localStorage`, default 6), pinned-agent chips collapse to icon-only miniatures to save horizontal space, with an accessible `aria-label` preserving the agent name. Threshold changes made elsewhere (devtools / a future Settings control) apply live via the cross-tab `storage` event.
+
+### Changed
+- **Mobile guake terminal input & scroll clearance** — the floating pinned-agents bar on mobile no longer overlaps chat content: the output area gets a `has-pinned-agents` class reserving extra bottom scroll clearance when agents are pinned, plus terminal input/mobile responsive SCSS tweaks.
+
 ## [1.131.0] - 2026-07-03
 
 ### Added

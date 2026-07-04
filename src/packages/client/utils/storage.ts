@@ -94,6 +94,8 @@ export const STORAGE_KEYS = {
   PINNED_AGENTS: 'tide-pinned-agents',
   // Grouping mode for the pinned-agents bar: 'none' | 'status' | 'area'
   PINNED_GROUP_MODE: 'tide-pinned-group-mode',
+  // Past this many pinned agents the bar renders icon-only miniature chips (number, default 6)
+  PINNED_MINIATURE_THRESHOLD: 'tide-pinned-miniature-threshold',
 
   // Pending messages (queued when offline)
   PENDING_MESSAGES: 'tide-pending-messages',

@@ -363,11 +363,21 @@
       //   - keyboard (when open)
       //   - agent toolbar / mobile-bottom-stack (always visible on mobile)
       //   - input wrapper (~120px: context bar + stop bar + input)
+      //   - the floating pinned-agents pill, only when present (see below)
       padding-bottom: calc(
         var(--keyboard-height, 0px)
         + var(--mobile-bottom-stack-height, 72px)
         + 120px
+        + var(--pinned-bar-clearance, 0px)
       ) !important;
+    }
+
+    // The pinned-agents bar floats up over the bottom of the chat (margin-top
+    // pulls it into the conversation). When pins exist, reserve a little extra
+    // scroll clearance so the last lines can sit above the pill instead of being
+    // covered by it. `has-pinned-agents` is toggled by AgentTerminalPane.
+    .guake-output.has-pinned-agents {
+      --pinned-bar-clearance: 48px;
     }
 
     // Input wrapper - FIXED at bottom. The vertical anchor is computed in a
