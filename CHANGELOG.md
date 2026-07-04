@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.133.1] - 2026-07-04
+
+### Fixed
+- **Pinned-agents pill still overlapped the newest message in Flat mode** — the mobile pinned-agents bar pulls itself up 30px over the chat; the bottom-clearance rule for that pull now also applies in Flat view (the mobile terminal view already had its own higher-specificity rule), so the newest message no longer sits under the pill.
+
 ## [1.133.0] - 2026-07-04
 
 ### Added
