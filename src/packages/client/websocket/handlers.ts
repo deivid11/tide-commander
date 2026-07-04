@@ -4,7 +4,7 @@
 
 import type { Agent, ServerMessage, DelegationDecision, CustomAgentClass, Subagent } from '../../shared/types';
 import { store } from '../store';
-import { noteServerTimestamp } from '../store/outputs';
+import { noteServerTimestamp, serverNow } from '../store/outputs';
 import { perf } from '../utils/profiling';
 import { debugLog } from '../services/agentDebugger';
 import { cb } from './callbacks';
@@ -94,10 +94,10 @@ export function handleServerMessage(message: ServerMessage): void {
       const previousAgent = state.agents.get(updatedAgent.id);
 
       const statusChanged = previousAgent?.status !== updatedAgent.status;
-      console.log(`[Tide] Agent updated: ${updatedAgent.name} (${updatedAgent.id}) status=${updatedAgent.status} (was ${previousAgent?.status})${statusChanged ? ' ⚡ STATUS CHANGED' : ''}`);
-
       if (statusChanged) {
-        console.log(`[Tide] 🔔 Status change for ${updatedAgent.name}: ${previousAgent?.status} → ${updatedAgent.status}`);
+        debugLog.info(`Status change for ${updatedAgent.name}: ${previousAgent?.status} → ${updatedAgent.status}`, {
+          agentId: updatedAgent.id,
+        }, 'ws:agent_updated');
       }
 
       // When agent transitions from working to idle, refresh conversation history
@@ -137,6 +137,19 @@ export function handleServerMessage(message: ServerMessage): void {
       break;
     }
 
+    case 'server_time': {
+      // First message on connection — seeds the server↔client clock offset so
+      // serverNow() is accurate before any output/activity arrives.
+      const { timestamp } = message.payload as { timestamp: number };
+      noteServerTimestamp(timestamp);
+      break;
+    }
+
+    case 'git_status_update': {
+      store.applyGitStatusUpdate(message.payload as import('../../shared/types').GitWatchedDirStatus);
+      break;
+    }
+
     case 'event': {
       // Claude event - trigger visual effects and track tools
       const event = message.payload as {
@@ -159,11 +172,16 @@ export function handleServerMessage(message: ServerMessage): void {
         store.addOutput(event.agentId, {
           text: event.errorMessage,
           isStreaming: false,
-          timestamp: Date.now(),
+          // Server time domain: a device-clock ahead of the server would sort
+          // this row after later server-stamped outputs (visible on mobile).
+          timestamp: serverNow(),
           isError: true,
         });
       } else if (event.type === 'tool_start' && event.toolName) {
         cb.onToolUse?.(event.agentId, event.toolName, event.toolInput);
+        // Keep agent.currentTool fresh locally — the server no longer
+        // broadcasts a full agent_updated for tool churn (quiet updates).
+        store.setAgentCurrentTool(event.agentId, event.toolName);
         // Track tool execution with input
         store.addToolExecution(event.agentId, event.toolName, event.toolInput);
         // Track file changes from file-related tools
@@ -192,27 +210,31 @@ export function handleServerMessage(message: ServerMessage): void {
           store.addOutput(event.agentId, {
             text: `Using tool: ${event.toolName}`,
             isStreaming: false,
-            timestamp: Date.now(),
+            timestamp: serverNow(),
             toolName: event.toolName,
             toolInput: event.toolInput,
             uuid: event.uuid,
             subagentName: sub?.name,
           });
         }
-      } else if (event.type === 'tool_result' && event.parentToolUseId && event.toolName === 'Bash') {
-        // Mirror the parent-agent behavior (only Bash results get a terminal
-        // card) for a subagent's Bash commands so their output is visible too.
-        // Guarded on parentToolUseId — top-level Bash results already arrive via
-        // the `output` message and must not be duplicated here.
-        const sub = store.getSubagentByToolUseId(event.parentToolUseId);
-        store.addOutput(event.agentId, {
-          text: `Bash output:\n${event.toolOutput || '(no output)'}`,
-          isStreaming: false,
-          timestamp: Date.now(),
-          toolOutput: event.toolOutput,
-          uuid: event.uuid,
-          subagentName: sub?.name,
-        });
+      } else if (event.type === 'tool_result') {
+        // Mirror of the server-side behavior: any tool_result clears the badge.
+        store.setAgentCurrentTool(event.agentId, undefined);
+        if (event.parentToolUseId && event.toolName === 'Bash') {
+          // Mirror the parent-agent behavior (only Bash results get a terminal
+          // card) for a subagent's Bash commands so their output is visible too.
+          // Guarded on parentToolUseId — top-level Bash results already arrive via
+          // the `output` message and must not be duplicated here.
+          const sub = store.getSubagentByToolUseId(event.parentToolUseId);
+          store.addOutput(event.agentId, {
+            text: `Bash output:\n${event.toolOutput || '(no output)'}`,
+            isStreaming: false,
+            timestamp: serverNow(),
+            toolOutput: event.toolOutput,
+            uuid: event.uuid,
+            subagentName: sub?.name,
+          });
+        }
       }
       break;
     }
@@ -595,7 +617,7 @@ export function handleServerMessage(message: ServerMessage): void {
       store.handleAgentTaskOutput(bossId, subordinateId, {
         text: output,
         isStreaming: isStreaming || false,
-        timestamp: timestamp || Date.now(),
+        timestamp: timestamp || serverNow(),
         subagentName,
         toolName,
         toolInput,
@@ -910,7 +932,7 @@ export function handleServerMessage(message: ServerMessage): void {
       store.addOutput(parentAgentId, {
         text: `${statusEmoji} Subagent ${subName} ${success ? 'completed' : 'failed'}${statsStr}`,
         isStreaming: false,
-        timestamp: Date.now(),
+        timestamp: serverNow(),
         subagentName: subName,
         toolOutput: resultPreview,
       });

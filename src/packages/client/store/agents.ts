@@ -62,6 +62,7 @@ export interface AgentActions {
   setAgents(agentList: Agent[]): void;
   addAgent(agent: Agent): void;
   updateAgent(agent: Agent): void;
+  setAgentCurrentTool(agentId: string, toolName: string | undefined): void;
   updateAgentContextStats(agentId: string, stats: ContextStats): void;
   updateAgentContext(agentId: string, contextUsed: number, contextLimit: number): void;
   removeAgent(agentId: string): void;
@@ -249,6 +250,19 @@ export function createAgentActions(
       if (statusChanged) {
         logAgentStore(`[Store] Agent ${normalizedAgent.name} status now in store: ${getState().agents.get(normalizedAgent.id)?.status}`);
       }
+    },
+
+    // Local patch driven by `event` messages (tool_start/tool_result). The
+    // server no longer broadcasts a full agent_updated for currentTool churn.
+    setAgentCurrentTool(agentId: string, toolName: string | undefined): void {
+      const agent = getState().agents.get(agentId);
+      if (!agent || agent.currentTool === toolName) return;
+      setState((s) => {
+        const newAgents = new Map(s.agents);
+        newAgents.set(agentId, { ...agent, currentTool: toolName });
+        s.agents = newAgents;
+      });
+      notify();
     },
 
     updateAgentContextStats(agentId: string, stats: ContextStats): void {

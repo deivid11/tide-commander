@@ -20,6 +20,7 @@ import type {
   QueryResult,
   QueryHistoryEntry,
   Subagent,
+  GitWatchedDirStatus,
 } from '../../shared/types';
 import type {
   StoreState,
@@ -394,6 +395,17 @@ export function useIsConnected(): boolean {
 export function useAreas(): Map<string, DrawingArea> {
   return useSelector(
     useCallback((state: StoreState) => state.areas, []),
+    shallowMapEqual
+  );
+}
+
+/**
+ * Git status per watched directory, pushed by the server over WS.
+ * Only re-renders when a directory's status object is replaced.
+ */
+export function useGitDirStatuses(): Map<string, GitWatchedDirStatus> {
+  return useSelector(
+    useCallback((state: StoreState) => state.gitDirStatuses, []),
     shallowMapEqual
   );
 }

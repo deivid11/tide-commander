@@ -16,6 +16,7 @@ import type {
   ServerMessage,
 } from '../../shared/types.js';
 import { loadBuildings, saveBuildings } from '../data/index.js';
+import { getWsClientsCount } from '../routes/perf.js';
 import { createLogger, generateId } from '../utils/index.js';
 import * as pm2Service from './pm2-service.js';
 import * as dockerService from './docker-service.js';
@@ -690,24 +691,51 @@ export function getSubordinateBuildings(buildingId: string): Building[] {
 // ============================================================================
 
 let pollInterval: NodeJS.Timeout | null = null;
+let pollBroadcast: BroadcastFn | null = null;
+let pollInFlight = false;
 
 /**
  * Start polling PM2 for status updates
  * Syncs PM2 process status with building status
+ *
+ * Each cycle spawns `pm2 jlist` (a full Node process), so cycles are skipped
+ * while no WebSocket client is connected — nobody is looking at the status
+ * badges, and a fresh poll runs on the next client connect
+ * (triggerPM2StatusPoll from the WS connection handler).
  */
-export function startPM2StatusPolling(broadcast: BroadcastFn, intervalMs: number = 10000): void {
+export function startPM2StatusPolling(broadcast: BroadcastFn, intervalMs: number = 30000): void {
   if (pollInterval) {
     log.log('PM2 status polling already running');
     return;
   }
 
-  log.log(`Starting PM2 status polling (interval: ${intervalMs}ms)`);
+  pollBroadcast = broadcast;
+  log.log(`Starting PM2 status polling (interval: ${intervalMs}ms, paused while no clients)`);
 
   // Initial poll
-  pollPM2Status(broadcast);
+  void guardedPoll(broadcast);
 
   // Set up interval
-  pollInterval = setInterval(() => pollPM2Status(broadcast), intervalMs);
+  pollInterval = setInterval(() => {
+    if (getWsClientsCount() === 0) return;
+    void guardedPoll(broadcast);
+  }, intervalMs);
+}
+
+/** Run one poll immediately (used when a client connects mid-idle). */
+export function triggerPM2StatusPoll(): void {
+  if (pollBroadcast) void guardedPoll(pollBroadcast);
+}
+
+// Prevents overlapping polls if `pm2 jlist` is slower than the interval.
+async function guardedPoll(broadcast: BroadcastFn): Promise<void> {
+  if (pollInFlight) return;
+  pollInFlight = true;
+  try {
+    await pollPM2Status(broadcast);
+  } finally {
+    pollInFlight = false;
+  }
 }
 
 /**

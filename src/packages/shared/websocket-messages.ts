@@ -68,6 +68,66 @@ export interface ActivityMessage extends WSMessage {
   };
 }
 
+// Sent once on connection so clients can align their clock with the server's
+// before any output arrives. Client-stamped optimistic items (user prompts,
+// error rows) sort against server-stamped outputs by epoch ms, so a device
+// with a skewed clock (mobile) needs this sample from the very first message.
+export interface ServerTimeMessage extends WSMessage {
+  type: 'server_time';
+  payload: {
+    timestamp: number;
+  };
+}
+
+// ============================================================================
+// Git Watch (server-side git polling pushed over WS)
+// ============================================================================
+// Replaces per-client HTTP polling of /api/files/git-status + git-branch:
+// clients declare the directories they care about (git_watch), the server
+// polls the union once for everyone and pushes git_status_update only when a
+// directory's status actually changed.
+
+export interface GitWatchedFile {
+  /** Absolute, '/'-separated path of the changed file. */
+  path: string;
+  name: string;
+  status: 'modified' | 'added' | 'deleted' | 'untracked' | 'renamed' | 'conflict';
+  oldPath?: string;
+}
+
+export interface GitWatchedDirStatus {
+  /** The watched directory exactly as the client requested it. */
+  path: string;
+  isGitRepo: boolean;
+  branch: string | null;
+  ahead: number;
+  behind: number;
+  mergeInProgress: boolean;
+  files: GitWatchedFile[];
+}
+
+/** Client -> Server: replace this socket's full set of watched directories. */
+export interface GitWatchMessage extends WSMessage {
+  type: 'git_watch';
+  payload: {
+    paths: string[];
+  };
+}
+
+/** Client -> Server: recompute these directories now and push the result. */
+export interface GitRefreshMessage extends WSMessage {
+  type: 'git_refresh';
+  payload: {
+    paths: string[];
+  };
+}
+
+/** Server -> Client: a watched directory's git status (on change or subscribe). */
+export interface GitStatusUpdateMessage extends WSMessage {
+  type: 'git_status_update';
+  payload: GitWatchedDirStatus;
+}
+
 // Streaming output from Claude
 export interface OutputMessage extends WSMessage {
   type: 'output';
@@ -1608,6 +1668,8 @@ export type ServerMessage =
   | AgentDeletedMessage
   | EventMessage
   | ActivityMessage
+  | ServerTimeMessage
+  | GitStatusUpdateMessage
   | OutputMessage
   | ErrorMessage
   | DirectoryNotFoundMessage
@@ -1724,6 +1786,8 @@ export type ClientMessage =
   | BuildingCommandMessage
   | PM2LogsStartMessage
   | PM2LogsStopMessage
+  | GitWatchMessage
+  | GitRefreshMessage
   | DockerLogsStartMessage
   | DockerLogsStopMessage
   | DockerListContainersMessage

@@ -7,8 +7,10 @@
  */
 
 import { useEffect } from 'react';
+import type { PluginListenerHandle } from '@capacitor/core';
+import { App } from '@capacitor/app';
 import { store } from '../store';
-import { connect, setCallbacks } from '../websocket';
+import { connect, setCallbacks, suspendForBackground, resumeFromBackground } from '../websocket';
 import { runPostReconnectResync } from '../services/postReconnectResync';
 import {
   getWsConnected,
@@ -18,6 +20,7 @@ import {
   requestNotificationPermission,
   initNotificationListeners,
   openAgentTerminalFromNotification,
+  isNativeApp,
 } from '../utils/notifications';
 import type { ToastType } from '../components/Toast';
 import type { WhatsAppMessagePayload } from '../websocket/callbacks';
@@ -76,7 +79,7 @@ export function useWebSocketConnection({
     // Handle app resume from background (Android)
     const handleAppResume = () => {
       console.log('[Tide] App resumed from background, reconnecting...');
-      setTimeout(() => connect(), 100);
+      setTimeout(() => resumeFromBackground(), 100);
     };
     window.addEventListener('tideAppResume', handleAppResume);
 
@@ -85,4 +88,51 @@ export function useWebSocketConnection({
       cleanupNotificationListeners?.();
     };
   }, [showToast, showAgentNotification, showWhatsAppMessage]);
+
+  // Native app only: park the WebSocket while backgrounded. The Android
+  // foreground service delivers notifications through its own native socket,
+  // so keeping the JS socket open in the background just burns CPU/battery
+  // processing the broadcast firehose with nothing on screen. The grace
+  // period avoids reconnect churn on quick app switches. Browser/PWA keeps
+  // the socket: there the JS socket IS the notification path.
+  useEffect(() => {
+    if (!isNativeApp()) return;
+
+    let graceTimer: number | null = null;
+    let listener: PluginListenerHandle | null = null;
+    let cancelled = false;
+
+    void App.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) {
+        if (graceTimer !== null) {
+          clearTimeout(graceTimer);
+          graceTimer = null;
+        }
+        resumeFromBackground();
+      } else {
+        if (graceTimer !== null) clearTimeout(graceTimer);
+        graceTimer = window.setTimeout(() => {
+          graceTimer = null;
+          suspendForBackground();
+        }, BACKGROUND_SUSPEND_GRACE_MS);
+      }
+    }).then((h) => {
+      if (cancelled) {
+        void h.remove();
+      } else {
+        listener = h;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      if (graceTimer !== null) clearTimeout(graceTimer);
+      if (listener) void listener.remove();
+    };
+  }, []);
 }
+
+// How long the app must stay backgrounded before the socket is parked.
+// Long enough to survive quick app switches, short enough that a phone left
+// in a pocket stops processing the firehose within half a minute.
+const BACKGROUND_SUSPEND_GRACE_MS = 20_000;

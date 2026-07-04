@@ -102,7 +102,9 @@ export function WorkflowPanel({ agentId, onClose }: WorkflowPanelProps) {
 
   useEffect(() => {
     fetchData();
-    pollRef.current = setInterval(fetchData, 10_000);
+    pollRef.current = setInterval(() => {
+      if (!document.hidden) fetchData();
+    }, 10_000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [fetchData]);
 

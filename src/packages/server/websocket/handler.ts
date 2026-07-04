@@ -10,6 +10,7 @@ import type { ClientMessage, ServerMessage } from '../../shared/types.js';
 import {
   agentService,
   bossMessageService,
+  buildingService,
   customClassService,
   permissionService,
   runtimeService,
@@ -74,6 +75,8 @@ import {
   handleBossBuildingLogsStop,
 } from './handlers/building-handler.js';
 import { handleSendCommand } from './handlers/command-handler.js';
+import { handleGitWatch, handleGitRefresh } from './handlers/git-handler.js';
+import { gitWatchService } from '../services/git-watch-service.js';
 import {
   handleCreateSecret,
   handleUpdateSecret,
@@ -159,6 +162,18 @@ function serializeMessage(message: ServerMessage): string {
   return JSON.stringify(message, messageReplacer);
 }
 
+// Notification-only clients (connected with /ws?mode=notify, e.g. the Android
+// foreground service) subscribe exclusively to these types. Everything else —
+// output streams, activity, state syncs — is skipped so a backgrounded phone's
+// radio/CPU stay idle unless a real notification arrives.
+const NOTIFY_ONLY_TYPES = new Set<string>(['agent_notification']);
+
+type TaggedSocket = WebSocket & { __tcNotifyOnly?: boolean };
+
+function wantsMessage(client: WebSocket, messageType: string): boolean {
+  return !(client as TaggedSocket).__tcNotifyOnly || NOTIFY_ONLY_TYPES.has(messageType);
+}
+
 export function broadcast(message: ServerMessage): void {
   try {
     const data = serializeMessage(message);
@@ -167,7 +182,7 @@ export function broadcast(message: ServerMessage): void {
     let errorCount = 0;
 
     for (const client of clients) {
-      if (client.readyState === WebSocket.OPEN) {
+      if (client.readyState === WebSocket.OPEN && wantsMessage(client, message.type)) {
         try {
           client.send(data);
           sentCount++;
@@ -191,7 +206,7 @@ export function broadcast(message: ServerMessage): void {
 function broadcastToOthers(sender: WebSocket, message: ServerMessage): void {
   const data = serializeMessage(message);
   for (const client of clients) {
-    if (client !== sender && client.readyState === WebSocket.OPEN) {
+    if (client !== sender && client.readyState === WebSocket.OPEN && wantsMessage(client, message.type)) {
       client.send(data);
     }
   }
@@ -257,6 +272,8 @@ const messageHandlers = {
   building_command: handleBuildingCommand,
   pm2_logs_start: handlePM2LogsStart,
   pm2_logs_stop: handlePM2LogsStop,
+  git_watch: handleGitWatch,
+  git_refresh: handleGitRefresh,
   docker_logs_start: handleDockerLogsStart,
   docker_logs_stop: handleDockerLogsStop,
   docker_list_containers: (ctx) => handleDockerListContainers(ctx),
@@ -375,43 +392,58 @@ export function init(server: HttpServer): WebSocketServer {
     } catch {
       /* best-effort — client info is diagnostic only */
     }
-    log.log(`Client connected (total: ${clients.size})`);
+    // Notification-only subscribers (the Android foreground service) get no
+    // broadcast firehose and no initial state — just agent_notification.
+    const notifyOnly = (request.url || '').includes('mode=notify');
+    if (notifyOnly) {
+      (ws as TaggedSocket).__tcNotifyOnly = true;
+    }
 
-    // Send initial state immediately – status sync runs in background
-    const customClasses = customClassService.getAllCustomClasses();
-    ws.send(JSON.stringify({ type: 'custom_agent_classes_update', payload: customClasses }));
+    log.log(`${notifyOnly ? 'Notification-only client' : 'Client'} connected (total: ${clients.size})`);
 
-    const agents = agentService.getAllAgents();
-    ws.send(JSON.stringify({ type: 'agents_update', payload: agents }));
+    if (!notifyOnly) {
+      // Send initial state immediately – status sync runs in background
+      // server_time goes FIRST: clients use it to align their clock with the
+      // server before any output arrives, so optimistic client-stamped items
+      // sort correctly against server-stamped outputs even on devices with a
+      // skewed clock (mobile).
+      ws.send(JSON.stringify({ type: 'server_time', payload: { timestamp: Date.now() } }));
 
-    const areas = loadAreas();
-    ws.send(JSON.stringify({ type: 'areas_update', payload: areas }));
+      const customClasses = customClassService.getAllCustomClasses();
+      ws.send(JSON.stringify({ type: 'custom_agent_classes_update', payload: customClasses }));
 
-    const buildings = loadBuildings();
-    ws.send(JSON.stringify({ type: 'buildings_update', payload: buildings }));
+      const agents = agentService.getAllAgents();
+      ws.send(JSON.stringify({ type: 'agents_update', payload: agents }));
 
-    const skills = skillService.getAllSkills();
-    ws.send(JSON.stringify({ type: 'skills_update', payload: skills }));
+      const areas = loadAreas();
+      ws.send(JSON.stringify({ type: 'areas_update', payload: areas }));
 
-    const secrets = secretsService.getAllSecrets();
-    ws.send(JSON.stringify({ type: 'secrets_update', payload: secrets }));
+      const buildings = loadBuildings();
+      ws.send(JSON.stringify({ type: 'buildings_update', payload: buildings }));
 
-    const triggers = triggerService.getAllTriggers();
-    ws.send(JSON.stringify({ type: 'triggers_update', payload: triggers }));
+      const skills = skillService.getAllSkills();
+      ws.send(JSON.stringify({ type: 'skills_update', payload: skills }));
 
-    const workflowDefs = workflowService.listDefinitions();
-    ws.send(JSON.stringify({ type: 'workflow_definitions_update', payload: workflowDefs }));
+      const secrets = secretsService.getAllSecrets();
+      ws.send(JSON.stringify({ type: 'secrets_update', payload: secrets }));
 
-    const pendingPermissions = permissionService.getPendingRequests();
-    if (pendingPermissions.length > 0) {
-      log.log(`Sending ${pendingPermissions.length} pending permission requests`);
-      for (const request of pendingPermissions) {
-        ws.send(
-          JSON.stringify({
-            type: 'permission_request',
-            payload: request,
-          })
-        );
+      const triggers = triggerService.getAllTriggers();
+      ws.send(JSON.stringify({ type: 'triggers_update', payload: triggers }));
+
+      const workflowDefs = workflowService.listDefinitions();
+      ws.send(JSON.stringify({ type: 'workflow_definitions_update', payload: workflowDefs }));
+
+      const pendingPermissions = permissionService.getPendingRequests();
+      if (pendingPermissions.length > 0) {
+        log.log(`Sending ${pendingPermissions.length} pending permission requests`);
+        for (const request of pendingPermissions) {
+          ws.send(
+            JSON.stringify({
+              type: 'permission_request',
+              payload: request,
+            })
+          );
+        }
       }
     }
 
@@ -428,15 +460,22 @@ export function init(server: HttpServer): WebSocketServer {
     ws.on('close', () => {
       clients.delete(ws);
       setWsClientsCount(clients.size);
+      gitWatchService.removeSocket(ws);
       log.log(`Client disconnected (remaining: ${clients.size})`);
     });
 
     // Background sync – refreshes agent status after initial data is sent
-    runtimeService.syncAllAgentStatus().then(() => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'agents_update', payload: agentService.getAllAgents() }));
-      }
-    }).catch(() => {});
+    if (!notifyOnly) {
+      runtimeService.syncAllAgentStatus().then(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'agents_update', payload: agentService.getAllAgents() }));
+        }
+      }).catch(() => {});
+
+      // PM2 polling pauses while no clients are connected — run one poll now
+      // so building status badges are fresh for this client.
+      buildingService.triggerPM2StatusPoll();
+    }
   });
 
   setupServiceListeners({

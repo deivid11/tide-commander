@@ -15,7 +15,6 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
-import android.os.PowerManager;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
 
@@ -55,11 +54,16 @@ public class WebSocketForegroundService extends Service {
     private static int agentNotificationId = 1000;
 
     public static final String ACTION_RECONNECT = "RECONNECT";
+    private static final long NOTIFICATION_CHECK_INTERVAL_MS = 60_000;
 
     // Track whether the app is in foreground (set by MainActivity)
     public static volatile boolean isAppInForeground = false;
 
-    private PowerManager.WakeLock wakeLock;
+    // NOTE: deliberately NO permanent wake lock. The foreground service keeps
+    // the process alive and incoming socket data wakes the CPU on its own; a
+    // held PARTIAL_WAKE_LOCK prevents the SoC from ever sleeping and made the
+    // phone heat up while idle in the background. The battery-optimization
+    // exemption (REQUEST_IGNORE_BATTERY_OPTIMIZATIONS) covers Doze delivery.
     private Handler handler;
     private Runnable notificationChecker;
     private boolean isRunning = false;
@@ -78,7 +82,6 @@ public class WebSocketForegroundService extends Service {
     public void onCreate() {
         super.onCreate();
         createNotificationChannel();
-        acquireWakeLock();
         handler = new Handler(Looper.getMainLooper());
 
         okHttpClient = new OkHttpClient.Builder()
@@ -86,13 +89,16 @@ public class WebSocketForegroundService extends Service {
             .pingInterval(30, TimeUnit.SECONDS)    // Keep-alive pings
             .build();
 
-        // Periodically check if foreground notification was dismissed and repost it
+        // Periodically check if foreground notification was dismissed and repost it.
+        // A long period matters: this runnable is a recurring CPU wakeup for the
+        // life of the service, and the previous 2s cadence kept the SoC from
+        // idling (phone heated up in the user's pocket).
         notificationChecker = new Runnable() {
             @Override
             public void run() {
                 if (isRunning) {
                     ensureNotificationVisible();
-                    handler.postDelayed(this, 2000);
+                    handler.postDelayed(this, NOTIFICATION_CHECK_INTERVAL_MS);
                 }
             }
         };
@@ -108,6 +114,10 @@ public class WebSocketForegroundService extends Service {
             startForeground(FOREGROUND_NOTIFICATION_ID, notification);
         }
 
+        // Remove any already-scheduled checker first: onStartCommand runs again
+        // for every RECONNECT action, and stacking posts would multiply the
+        // periodic wakeups (each posted runnable reschedules itself forever).
+        handler.removeCallbacks(notificationChecker);
         handler.post(notificationChecker);
 
         // Handle reconnect action from ServerConfigPlugin
@@ -132,7 +142,6 @@ public class WebSocketForegroundService extends Service {
             okHttpClient.dispatcher().executorService().shutdown();
         }
         super.onDestroy();
-        releaseWakeLock();
     }
 
     @Override
@@ -163,6 +172,10 @@ public class WebSocketForegroundService extends Service {
         if (!wsUrl.endsWith("/ws")) {
             wsUrl = wsUrl.replaceAll("/$", "") + "/ws";
         }
+        // Notification-only subscription: the server skips the broadcast
+        // firehose (agent output streams etc.) for this socket, so the phone's
+        // radio and CPU stay idle unless an actual notification arrives.
+        wsUrl = wsUrl + "?mode=notify";
 
         Log.d(TAG, "Connecting native WebSocket to: " + wsUrl);
 
@@ -225,6 +238,12 @@ public class WebSocketForegroundService extends Service {
     }
 
     private void handleWebSocketMessage(String text) {
+        // Cheap pre-filter: with an up-to-date server the ?mode=notify socket
+        // only receives agent_notification messages, but against an older
+        // server this still avoids JSON-parsing the full broadcast firehose.
+        if (text == null || !text.contains("\"agent_notification\"")) {
+            return;
+        }
         try {
             JSONObject message = new JSONObject(text);
             String type = message.optString("type", "");
@@ -470,23 +489,4 @@ public class WebSocketForegroundService extends Service {
         }
     }
 
-    // ─── Wake Lock ───────────────────────────────────────────────────
-
-    private void acquireWakeLock() {
-        PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
-        if (powerManager != null) {
-            wakeLock = powerManager.newWakeLock(
-                PowerManager.PARTIAL_WAKE_LOCK,
-                "TideCommander::WebSocketWakeLock"
-            );
-            wakeLock.acquire();
-        }
-    }
-
-    private void releaseWakeLock() {
-        if (wakeLock != null && wakeLock.isHeld()) {
-            wakeLock.release();
-            wakeLock = null;
-        }
-    }
 }

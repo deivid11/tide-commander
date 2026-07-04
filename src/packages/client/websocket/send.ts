@@ -156,7 +156,6 @@ function sendMessageDirect(message: ClientMessage): boolean {
     const messageStr = JSON.stringify(message);
 
     const agentId = extractAgentId(message);
-    console.log('[AgentDebugger] SENT - type:', message.type, 'agentId:', agentId, 'payload:', message.payload);
     if (agentId) {
       agentDebugger.captureSent(agentId, messageStr);
     }
@@ -215,8 +214,8 @@ export function sendMessage(message: ClientMessage): boolean {
     const messageStr = JSON.stringify(message);
 
     // Capture for agent-specific debugger if message has an extractable agent id.
+    // No console.log here — this runs for every outbound message.
     const agentId = extractAgentId(message);
-    console.log('[AgentDebugger] SENT - type:', message.type, 'agentId:', agentId, 'payload:', message.payload);
     if (agentId) {
       agentDebugger.captureSent(agentId, messageStr);
     }
