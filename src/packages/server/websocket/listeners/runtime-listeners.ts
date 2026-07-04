@@ -131,6 +131,25 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
                 type: 'subagent_stream',
                 payload: { toolUseId, parentAgentId, entries },
               } as any);
+            }, (toolUseId, parentAgentId, result) => {
+              // The parent CLI stream never echoes subagent tool_result events
+              // (only tool_use), so without this bridge the subagent Bash
+              // cards in the terminal keep their "running" spinner forever.
+              // Mirror the parent-agent behavior: only Bash results get a card.
+              if (result.toolName !== 'Bash') return;
+              ctx.broadcast({
+                type: 'event',
+                payload: {
+                  agentId: parentAgentId,
+                  type: 'tool_result',
+                  toolName: 'Bash',
+                  toolOutput: result.output,
+                  parentToolUseId: toolUseId,
+                  // Subagent-internal tool_use id — matches the uuid of the
+                  // corresponding tool_start card so the client pairs exactly.
+                  uuid: result.toolUseId,
+                },
+              } as any);
             });
           }
         }
