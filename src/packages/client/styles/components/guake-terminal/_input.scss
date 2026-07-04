@@ -1049,6 +1049,17 @@
   .pinned-group-toggle { padding: 3px 6px; }
   .pinned-group-toggle .pgt-label { display: none; }
   .pinned-group { gap: 6px; padding-left: 6px; }
+
+  // The pill pulls itself 30px up over the chat (margin-top above), so wherever
+  // it renders — Guake overlay AND Flat mode — the output needs that overlap +
+  // a gap reserved at the bottom or the newest message sits under the pill.
+  // Baseline lives HERE, next to the pull it compensates. The mobile terminal
+  // view's higher-specificity rule (responsive/_mobile.scss, .app.mobile-view-
+  // terminal) still wins there with its bigger keyboard/stack calc; this is the
+  // one Flat mode gets. `has-pinned-agents` is toggled by AgentTerminalPane.
+  .guake-output.has-pinned-agents {
+    padding-bottom: 56px !important;
+  }
 }
 
 @keyframes pinned-agent-pulse {
