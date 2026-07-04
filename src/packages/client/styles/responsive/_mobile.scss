@@ -373,11 +373,15 @@
     }
 
     // The pinned-agents bar floats up over the bottom of the chat (margin-top
-    // pulls it into the conversation). When pins exist, reserve a little extra
-    // scroll clearance so the last lines can sit above the pill instead of being
-    // covered by it. `has-pinned-agents` is toggled by AgentTerminalPane.
+    // pulls it into the conversation). When pins exist, reserve scroll clearance
+    // equal to the bar's LIVE measured height (published as --pinned-agents-bar-
+    // height by PinnedAgentsBar) plus a gap, so the newest lines always clear the
+    // pill regardless of miniature / grouping / row count. Falls back to a
+    // generous fixed value until the first measurement lands.
+    // `has-pinned-agents` is toggled by AgentTerminalPane.
     .guake-output.has-pinned-agents {
-      --pinned-bar-clearance: 48px;
+      // + 24px covers the bar's negative-margin pull into the chat plus a small gap.
+      --pinned-bar-clearance: calc(var(--pinned-agents-bar-height, 80px) + 24px);
     }
 
     // Input wrapper - FIXED at bottom. The vertical anchor is computed in a
@@ -1110,9 +1114,11 @@
       gap: 4px 8px;
       border-radius: 6px;
 
-      // Hide timestamp on mobile tool lines to save space
+      // Keep the timestamp visible on mobile tool lines too (user wants the
+      // datetime on every message). It's a tiny 9px chip and the row wraps, so
+      // it doesn't crowd the tool label.
       .output-timestamp {
-        display: none;
+        display: inline;
       }
 
       .output-tool-icon {

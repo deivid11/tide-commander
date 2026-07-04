@@ -9,6 +9,6 @@
  *   send.ts       – sendMessage, isConnected, getSocket
  */
 
-export { connect, disconnect, reconnect } from './connection';
+export { connect, disconnect, reconnect, suspendForBackground, resumeFromBackground, isBackgroundSuspended } from './connection';
 export { sendMessage, isConnected, getSocket } from './send';
 export { setCallbacks, clearCallbacks, clearSceneCallbacks } from './callbacks';

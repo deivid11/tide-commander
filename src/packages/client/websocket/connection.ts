@@ -12,6 +12,7 @@ import {
   getAuthToken,
 } from '../utils/storage';
 import { syncConnectionToNative } from '../utils/notifications';
+import { resyncGitWatch } from '../services/gitWatch';
 import {
   getWs, setWs,
   getIsConnecting, setIsConnecting,
@@ -31,6 +32,54 @@ setConnectFn(() => connect());
 
 // Track if we've added the beforeunload listener
 let beforeUnloadListenerAdded = false;
+
+// ─── Background parking (native app) ────────────────────────────────────────
+// While the Capacitor app is backgrounded, the Android foreground service
+// delivers notifications through its own native socket, so keeping THIS
+// socket open only burns CPU/battery: every broadcast message (including all
+// agents' streaming output) would be parsed, stored, and re-rendered by React
+// with nothing on screen. Parking the socket stops all of that; the existing
+// reconnect + post-reconnect resync flow restores full state on resume.
+let backgroundSuspended = false;
+// Skip the "Reconnected" toast for resumes from an intentional park — the
+// connection never "failed", so the warning/success pair would just be noise.
+let suppressNextReconnectToast = false;
+
+/** True while the socket is intentionally parked because the app is hidden. */
+export function isBackgroundSuspended(): boolean {
+  return backgroundSuspended;
+}
+
+/** Park the socket while the native app is backgrounded (notifications keep
+ * flowing through the Android foreground service's own socket). */
+export function suspendForBackground(): void {
+  if (backgroundSuspended) return;
+  backgroundSuspended = true;
+
+  const timeout = getReconnectTimeout();
+  if (timeout) {
+    clearTimeout(timeout);
+    setReconnectTimeout(null);
+  }
+
+  const ws = getWs();
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    ws.close(1000, 'App backgrounded');
+  }
+  setIsConnecting(false);
+  store.setConnected(false);
+  store.stopStatusPolling();
+}
+
+/** Reconnect after a background park (no-op reconnect if never parked). */
+export function resumeFromBackground(): void {
+  if (backgroundSuspended) {
+    backgroundSuspended = false;
+    suppressNextReconnectToast = true;
+    setReconnectAttempts(0);
+  }
+  connect();
+}
 
 // Clean up WebSocket on page unload (actual refresh/close, not HMR)
 function handleBeforeUnload(): void {
@@ -140,6 +189,9 @@ function buildWsUrl(httpUrl: string | null): string {
 
 /** Establish (or re-use) a WebSocket connection to the backend. */
 export function connect(): void {
+  // Parked for background — resumeFromBackground() is the only way back.
+  if (backgroundSuspended) return;
+
   ensureBeforeUnloadListener();
 
   // Clear any pending reconnect
@@ -223,17 +275,25 @@ async function openSocket(): Promise<void> {
     store.clearAllPermissions();
 
     if (isReconnection) {
-      cb.onToast?.('success', 'Reconnected', 'Connection restored - refreshing data...');
+      if (!suppressNextReconnectToast) {
+        cb.onToast?.('success', 'Reconnected', 'Connection restored - refreshing data...');
+      }
+      // Always resync — a background park still misses whatever happened while parked.
       cb.onReconnect?.();
     } else {
       cb.onToast?.('success', 'Connected', 'Connected to Tide Commander server');
     }
+    suppressNextReconnectToast = false;
 
     // Sync the URL we actually connected to so background services align.
     syncConnectionToNative(chosenHttpUrl ?? '', authToken);
 
     // Flush any messages that were queued while disconnected
     flushPendingMessages();
+
+    // Server-side git watch subscriptions live on the socket — re-declare
+    // the watch list on every (re)connect.
+    resyncGitWatch();
   };
 
   newSocket.onmessage = (event) => {
@@ -241,8 +301,10 @@ async function openSocket(): Promise<void> {
       const message = JSON.parse(event.data) as ServerMessage;
 
       // Capture for agent-specific debugger if message has an extractable agent id.
+      // NOTE: no console.log here — this is the hottest path in the client
+      // (every streamed chunk of every agent) and logging full payloads burns
+      // CPU/memory, especially on mobile where it also runs in the background.
       const agentId = extractAgentId(message);
-      console.log('[AgentDebugger] RECEIVED - type:', message.type, 'agentId:', agentId, 'payload:', message.payload);
       if (agentId) {
         agentDebugger.captureReceived(agentId, event.data);
       }
@@ -264,6 +326,12 @@ async function openSocket(): Promise<void> {
     setWs(null);
     store.setConnected(false);
     store.stopStatusPolling();
+
+    // Intentional background park: stay quiet and do NOT schedule reconnects —
+    // resumeFromBackground() reconnects when the app comes back.
+    if (backgroundSuspended) {
+      return;
+    }
 
     const attempts = getReconnectAttempts();
     if (attempts === 1) {

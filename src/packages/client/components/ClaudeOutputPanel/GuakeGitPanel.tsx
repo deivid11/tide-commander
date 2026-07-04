@@ -10,7 +10,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiUrl, authFetch, STORAGE_KEYS, getStorageString, setStorageString, getStorage, setStorage } from '../../utils/storage';
-import { useAreas } from '../../store';
+import { useAreas, useGitDirStatuses } from '../../store';
+import { acquireGitWatch, requestGitRefresh } from '../../services/gitWatch';
 import { DiffViewer } from '../DiffViewer';
 import { GIT_STATUS_CONFIG } from '../FileExplorerPanel/constants';
 import { getIconForExtension, buildGitTree } from '../FileExplorerPanel/fileUtils';
@@ -208,8 +209,6 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
   const areas = useAreas();
   const { showToast } = useToast();
 
-  const [repos, setRepos] = useState<RepoStatus[]>([]);
-  const [loading, setLoading] = useState(false);
   const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set());
   const [expandedTreeDirs, setExpandedTreeDirs] = useState<Set<string>>(new Set());
   const [modalState, setModalState] = useState<ModalState>(null);
@@ -282,6 +281,43 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     return [...new Set(dirs)];
   }, [agentId, agents, areas]);
 
+  const areaDirsKey = areaDirs.join('\n');
+
+  // Register the area directories with the server-side git watcher; status
+  // arrives as git_status_update pushes (no HTTP polling).
+  useEffect(() => {
+    if (areaDirs.length === 0) return;
+    return acquireGitWatch(areaDirs);
+  }, [areaDirsKey]);
+
+  const gitStatuses = useGitDirStatuses();
+
+  // Repos with pending changes, derived from server-pushed statuses.
+  const repos = useMemo<RepoStatus[]>(() => {
+    const results: RepoStatus[] = [];
+    for (const dir of areaDirs) {
+      const status = gitStatuses.get(dir);
+      if (status?.isGitRepo && status.files.length > 0) {
+        const dirName = dir.split('/').filter(Boolean).pop() || dir;
+        results.push({
+          dir,
+          dirName,
+          gitStatus: {
+            isGitRepo: true,
+            branch: status.branch ?? undefined,
+            files: status.files,
+            mergeInProgress: status.mergeInProgress,
+          },
+        });
+      }
+    }
+    results.sort((a, b) => a.dirName.localeCompare(b.dirName));
+    return results;
+  }, [gitStatuses, areaDirsKey]);
+
+  // Still waiting for the first push for every watched directory.
+  const loading = areaDirs.length > 0 && areaDirs.every((dir) => !gitStatuses.has(dir));
+
   // Current explorer folder
   const explorerFolder = areaDirs.length > 0 ? (areaDirs[explorerFolderIdx] || areaDirs[0]) : null;
   const fileTree = useFileTree(panelMode === 'explorer' ? explorerFolder : null);
@@ -336,7 +372,6 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     if (prevAgentIdRef.current !== agentId) {
       prevAgentIdRef.current = agentId;
       hasAutoExpanded.current = false;
-      setRepos([]);
       setExpandedRepos(new Set());
       setExpandedTreeDirs(new Set());
       setModalState(null);
@@ -345,46 +380,21 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     }
   }, [agentId]);
 
-  // Fetch git status with cancellation guard
-  const refreshGenRef = React.useRef(0);
+  // Ask the server-side watcher to recompute now and push the result.
+  // Called after git actions (stage/discard/commit/...) so all connected
+  // clients see the effect immediately instead of on the next poll cycle.
   const refresh = useCallback(async () => {
     if (areaDirs.length === 0) return;
-    const gen = ++refreshGenRef.current;
-    setLoading(true);
-    try {
-      const results: RepoStatus[] = [];
-      await Promise.all(
-        areaDirs.map(async (dir) => {
-          try {
-            const res = await authFetch(apiUrl(`/api/files/git-status?path=${encodeURIComponent(dir)}`));
-            if (res.ok) {
-              const data: GitStatus = await res.json();
-              if (data.isGitRepo && data.files.length > 0) {
-                const dirName = dir.split('/').filter(Boolean).pop() || dir;
-                results.push({ dir, dirName, gitStatus: data });
-              }
-            }
-          } catch { /* skip */ }
-        })
-      );
-      // Discard results if a newer refresh was triggered (agent switch)
-      if (gen !== refreshGenRef.current) return;
-      results.sort((a, b) => a.dirName.localeCompare(b.dirName));
-      setRepos(results);
-      if (!hasAutoExpanded.current && results.length > 0) {
-        hasAutoExpanded.current = true;
-        setExpandedRepos(new Set(results.map(r => r.dir)));
-      }
-    } finally {
-      if (gen === refreshGenRef.current) setLoading(false);
-    }
-  }, [areaDirs]);
+    requestGitRefresh(areaDirs);
+  }, [areaDirsKey]);
 
+  // Auto-expand all repos the first time changes appear for this agent.
   useEffect(() => {
-    refresh();
-    const timer = setInterval(refresh, 15_000);
-    return () => clearInterval(timer);
-  }, [refresh]);
+    if (!hasAutoExpanded.current && repos.length > 0) {
+      hasAutoExpanded.current = true;
+      setExpandedRepos(new Set(repos.map(r => r.dir)));
+    }
+  }, [repos]);
 
   // Git fetch all area directories then refresh
   const gitFetchAll = useCallback(async () => {

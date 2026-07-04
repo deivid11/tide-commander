@@ -31,6 +31,10 @@ export function setWsClientsCount(count: number): void {
   wsClientsCount = count;
 }
 
+export function getWsClientsCount(): number {
+  return wsClientsCount;
+}
+
 // Track request latencies
 interface RequestTiming {
   path: string;

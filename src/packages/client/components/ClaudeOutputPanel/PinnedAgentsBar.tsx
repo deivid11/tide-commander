@@ -119,6 +119,24 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId }: 
     store.togglePinnedAgent(agentId);
   }, []);
 
+  // Publish the bar's live height to the enclosing terminal as a CSS var so the
+  // mobile chat can reserve exactly enough bottom scroll clearance to never sit
+  // under this floating pill — regardless of miniature / grouping / row count.
+  const barRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = barRef.current;
+    if (!el) return;
+    const target = (el.closest('.guake-terminal') as HTMLElement | null) ?? document.documentElement;
+    const apply = () => target.style.setProperty('--pinned-agents-bar-height', `${el.offsetHeight}px`);
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      target.style.removeProperty('--pinned-agents-bar-height');
+    };
+  }, []);
+
   // ── drag-to-reorder ──
   // `dragId` (ref) drives the reorder math without stale-closure risk; the two
   // states only exist to paint the dimmed source and the insertion indicator.
@@ -265,7 +283,7 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId }: 
   const miniature = pinned.length > miniatureThreshold;
 
   return (
-    <div className={`pinned-agents-bar${miniature ? ' miniature' : ''}`} role="toolbar" aria-label="Pinned agents">
+    <div ref={barRef} className={`pinned-agents-bar${miniature ? ' miniature' : ''}`} role="toolbar" aria-label="Pinned agents">
       <button
         type="button"
         className="pinned-group-toggle"

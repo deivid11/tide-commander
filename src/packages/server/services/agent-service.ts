@@ -49,9 +49,27 @@ function getDefaultContextLimit(
 // In-memory agent storage
 const agents = new Map<string, Agent>();
 
-// Listeners for agent changes
-type AgentListener = (event: string, agent: Agent | string) => void;
+// Listeners for agent changes.
+// `meta.quiet === true` marks 'updated' events whose changed fields are all
+// high-churn metrics (currentTool, context usage) — internal subscribers
+// still receive them, but the WS layer skips the full-Agent broadcast
+// (lightweight channels like `context_update` and `event` already carry that
+// data to clients).
+export interface AgentUpdateMeta {
+  quiet: boolean;
+}
+type AgentListener = (event: string, agent: Agent | string, meta?: AgentUpdateMeta) => void;
 const listeners = new Set<AgentListener>();
+
+// Fields that change constantly while an agent works (several times per tool
+// call). When an update changes nothing outside this set, the 'updated' event
+// is emitted as quiet.
+const QUIET_UPDATE_FIELDS = new Set<string>([
+  'currentTool',
+  'contextUsed',
+  'contextLimit',
+  'contextStats',
+]);
 
 
 // Track agents with pending property updates that need notification on next command
@@ -313,8 +331,8 @@ export function subscribe(listener: AgentListener): () => void {
   return () => listeners.delete(listener);
 }
 
-function emit(event: string, data: Agent | string): void {
-  listeners.forEach((listener) => listener(event, data));
+function emit(event: string, data: Agent | string, meta?: AgentUpdateMeta): void {
+  listeners.forEach((listener) => listener(event, data, meta));
 }
 
 // ============================================================================
@@ -580,6 +598,16 @@ export function updateAgent(id: string, updates: Partial<Agent>, updateActivity 
     normalizedUpdates.trackingStatusTimestamp = undefined;
   }
 
+  // Determine which fields actually change value (shallow — replaced objects
+  // like contextStats/position always count as changed). Drives the `quiet`
+  // flag on the 'updated' event below.
+  const changedKeys: string[] = [];
+  for (const key of Object.keys(normalizedUpdates)) {
+    const before = (agent as unknown as Record<string, unknown>)[key];
+    const after = (normalizedUpdates as Record<string, unknown>)[key];
+    if (before !== after) changedKeys.push(key);
+  }
+
   // Only update lastActivity for real activity (not position changes, etc.)
   if (updateActivity) {
     Object.assign(agent, normalizedUpdates, { lastActivity: Date.now() });
@@ -599,7 +627,13 @@ export function updateAgent(id: string, updates: Partial<Agent>, updateActivity 
     log.warn(`🔑 [SESSION CHANGE] Agent ${agent.name} (${id}): sessionId changed from "${sessionIdBefore}" to "${agent.sessionId}". Updates had sessionId: ${hasSessionIdInUpdates}, updates keys: ${Object.keys(normalizedUpdates).join(', ')}`);
   }
 
-  emit('updated', agent);
+  // Quiet when nothing changed, or everything that changed is a high-churn
+  // metric field. During streaming this is ~3 updates per tool call
+  // (status:'working' no-op, currentTool set/clear, context tokens) — without
+  // the flag each one broadcast the FULL agent (contextStats, todos, config)
+  // to every connected client.
+  const quiet = changedKeys.every((key) => QUIET_UPDATE_FIELDS.has(key));
+  emit('updated', agent, { quiet });
 
   if (statusBefore !== agent.status) {
     void publishNotification(

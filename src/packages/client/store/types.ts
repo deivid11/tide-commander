@@ -28,6 +28,7 @@ import type {
   TestRunnerType,
   TestRunResult,
   TestRunStatus,
+  GitWatchedDirStatus,
 } from '../../shared/types';
 import type { ShortcutConfig } from './shortcuts';
 import type { MouseControlsState } from './mouseControls';
@@ -186,6 +187,8 @@ export interface StoreState {
   // Buildings
   buildings: Map<string, Building>;
   selectedBuildingIds: Set<string>;
+  // Git status per watched directory (pushed by the server over WS)
+  gitDirStatuses: Map<string, GitWatchedDirStatus>;
   buildingLogs: Map<string, string[]>; // Building ID -> logs
   streamingBuildingLogs: Map<string, string>; // Building ID -> streaming log buffer (for real-time modal)
   streamingBuildingIds: Set<string>; // Building IDs currently streaming logs

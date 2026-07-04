@@ -12,11 +12,16 @@ interface ServiceListenerContext {
 }
 
 export function setupServiceListeners(ctx: ServiceListenerContext): void {
-  agentService.subscribe((event, data) => {
+  agentService.subscribe((event, data, meta) => {
     switch (event) {
       case 'created':
         break;
       case 'updated':
+        // Quiet updates only changed high-churn metric fields (currentTool,
+        // context tokens) — clients already get those through the lightweight
+        // `context_update` and `event` messages, so skip the full-Agent
+        // broadcast (fires several times per tool call during streaming).
+        if (meta?.quiet) break;
         ctx.broadcast({
           type: 'agent_updated',
           payload: data as Agent,

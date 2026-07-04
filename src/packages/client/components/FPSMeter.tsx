@@ -159,7 +159,9 @@ export function FPSMeter({ visible = true, position = 'top-right' }: FPSMeterPro
     };
 
     fetchServerMetrics();
-    const intervalId = setInterval(fetchServerMetrics, expanded ? 3000 : 10000);
+    const intervalId = setInterval(() => {
+      if (!document.hidden) fetchServerMetrics();
+    }, expanded ? 3000 : 10000);
     return () => clearInterval(intervalId);
   }, [visible, expanded]);
 

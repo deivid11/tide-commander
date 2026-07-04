@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.133.0] - 2026-07-04
+
+### Added
+- **Server-side git status watcher over WebSocket** — replaces per-client HTTP polling of `/api/files/git-status` and `/api/files/git-branch` with a server-side watcher (`git-watch-service.ts`) that polls the union of every connected client's watched directories once per cycle and pushes `git_status_update` only when a directory's status actually changed; clients declare interest via `git_watch`/`git_refresh` messages. New `GuakeGitPanel`/`useGitBranch`/`useBuildingGitStatus` consume it instead of polling directly.
+- **Server-time handshake** — a `server_time` message is now sent once on connection so clients (notably mobile, prone to clock skew) can align client-stamped optimistic items against server-stamped outputs for correct ordering.
+
+### Changed
+- **Mobile background heat fix** — removed the permanent `PARTIAL_WAKE_LOCK` in `WebSocketForegroundService`, which kept the SoC from ever sleeping; the notification-repost checker interval was widened from 2s to 60s; the native background socket now connects with `?mode=notify` so the server skips the full broadcast firehose for it, and a cheap string pre-filter avoids JSON-parsing non-notification messages against older servers.
+- Pinned-agents bar now publishes its live rendered height as a `--pinned-agents-bar-height` CSS var (via `ResizeObserver`) so the mobile chat reserves exactly enough scroll clearance regardless of miniature mode, grouping, or row count, replacing the fixed-height reservation from v1.132.0.
+
 ## [1.132.0] - 2026-07-04
 
 ### Added

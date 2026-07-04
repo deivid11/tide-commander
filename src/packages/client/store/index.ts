@@ -6,7 +6,7 @@
  * module provides actions that operate on shared state.
  */
 
-import type { ClientMessage } from '../../shared/types';
+import type { ClientMessage, GitWatchedDirStatus } from '../../shared/types';
 import { STORAGE_KEYS, getStorage, setStorage, getStorageString, setStorageString, getStorageBoolean, setStorageBoolean } from '../utils/storage';
 import { closeAllModalsExcept } from '../hooks';
 import { MAX_VIBRATION_INTENSITY } from '../utils/haptics';
@@ -99,6 +99,7 @@ export {
   useActivities,
   useIsConnected,
   useAreas,
+  useGitDirStatuses,
   useActiveTool,
   useSelectedAreaId,
   useBuildings,
@@ -224,6 +225,7 @@ class Store
       selectedAreaId: null,
       buildings: new Map(),
       selectedBuildingIds: new Set(),
+      gitDirStatuses: new Map(),
       buildingLogs: new Map(),
       streamingBuildingLogs: new Map(),
       streamingBuildingIds: new Set(),
@@ -435,6 +437,44 @@ class Store
     if (this.state.connectionFailing === value) return;
     this.state.connectionFailing = value;
     this.notify();
+  }
+
+  /**
+   * Apply a server-pushed git status for a watched directory: record it and
+   * fan the pending-changes count out to matching buildings and area
+   * directories (the counts previously polled by useBuildingGitStatus).
+   */
+  applyGitStatusUpdate(status: GitWatchedDirStatus): void {
+    const newStatuses = new Map(this.state.gitDirStatuses);
+    newStatuses.set(status.path, status);
+    this.state.gitDirStatuses = newStatuses;
+    this.notify();
+
+    const count = status.files.length;
+
+    for (const [buildingId, building] of this.state.buildings) {
+      const dirPath = building.folderPath || building.cwd;
+      if (dirPath === status.path && building.gitChangesCount !== count) {
+        this.updateBuildingLocal(buildingId, { gitChangesCount: count });
+      }
+    }
+
+    for (const [areaId, area] of this.state.areas) {
+      if (area.archived || !area.directories) continue;
+      let changed = false;
+      const counts = area.directoryGitCounts
+        ? [...area.directoryGitCounts]
+        : new Array(area.directories.length).fill(0);
+      area.directories.forEach((dirPath, dirIndex) => {
+        if (dirPath === status.path && counts[dirIndex] !== count) {
+          counts[dirIndex] = count;
+          changed = true;
+        }
+      });
+      if (changed) {
+        this.updateAreaLocal(areaId, { directoryGitCounts: counts });
+      }
+    }
   }
 
   /**
@@ -1046,6 +1086,7 @@ class Store
   setAgents(...args: Parameters<AgentActions['setAgents']>) { return this.agentActions.setAgents(...args); }
   addAgent(...args: Parameters<AgentActions['addAgent']>) { return this.agentActions.addAgent(...args); }
   updateAgent(...args: Parameters<AgentActions['updateAgent']>) { return this.agentActions.updateAgent(...args); }
+  setAgentCurrentTool(...args: Parameters<AgentActions['setAgentCurrentTool']>) { return this.agentActions.setAgentCurrentTool(...args); }
   updateAgentContextStats(...args: Parameters<AgentActions['updateAgentContextStats']>) { return this.agentActions.updateAgentContextStats(...args); }
   updateAgentContext(...args: Parameters<AgentActions['updateAgentContext']>) { return this.agentActions.updateAgentContext(...args); }
   setAgentCompacting(agentId: string, active: boolean): void {
