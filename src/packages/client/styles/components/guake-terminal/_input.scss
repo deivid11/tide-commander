@@ -770,9 +770,20 @@
   }
 
   &.active {
-    // Selected = ONLY a bluish border. The background (area tint or default) is
-    // left completely untouched.
+    // Clearly-evident "currently open" indicator: a 2px accent RING drawn as an
+    // outline — no layout shift, doesn't fight the `.working` box-shadow glow, and
+    // survives the mobile overrides below (which reset border/background/box-shadow,
+    // not outline). Uses the theme accent var so it reads in light & dark. The
+    // background (area tint / default) is deliberately left untouched.
     border-color: var(--accent-blue, #5b9dff);
+    outline: 2px solid var(--accent-blue, #5b9dff);
+    outline-offset: 1px;
+    z-index: 1; // lift the ring above adjacent chips' edges
+
+    // Soft halo, only when not also "working" (which owns the box-shadow anim).
+    &:not(.working) {
+      box-shadow: 0 0 8px -1px color-mix(in srgb, var(--accent-blue, #5b9dff) 60%, transparent);
+    }
   }
 
   // Area-tinted background (--area-color set inline per agent).
@@ -972,6 +983,25 @@
   line-height: 1;
 }
 
+// Miniature mode: past the configurable threshold the bar drops chip names and
+// shows square avatar-only thumbnails so a large pinned set stays glanceable
+// without eating horizontal space. The name stays available via the chip's
+// title/aria-label. Applies to grouped chips too (the whole bar switches at once).
+.pinned-agents-bar.miniature {
+  .pinned-agent {
+    max-width: none;
+    gap: 0;
+    padding: 4px;
+  }
+  .pinned-agent-name {
+    display: none;
+  }
+  .pinned-agent-av {
+    width: 24px;
+    height: 24px;
+  }
+}
+
 // On mobile (touch), pinned agents are shown icon-only and CANNOT be unpinned by
 // tapping a chip — removal is only via the input-area pin button. This keeps a tap
 // reserved for switching agents (no accidental unpin) and saves horizontal space.
@@ -1002,8 +1032,14 @@
     border-color: transparent !important;
     box-shadow: none !important;
   }
-  // Keep an active indicator: a soft accent fill on the open agent's icon.
-  .pinned-agent.active { background: color-mix(in srgb, var(--accent-blue, #5b9dff) 28%, transparent) !important; }
+  // Active indicator on touch: accent fill + a 2px accent ring hugging the icon.
+  // outline-offset:0 keeps the ring inside the tight bar's overflow (no clipping)
+  // while staying obvious; the base box-shadow halo is dropped by the reset above.
+  .pinned-agent.active {
+    background: color-mix(in srgb, var(--accent-blue, #5b9dff) 28%, transparent) !important;
+    outline: 2px solid var(--accent-blue, #5b9dff);
+    outline-offset: 0;
+  }
   .pinned-agent-av { width: 20px; height: 20px; }
   .pinned-agent-name { display: none; }
   .pinned-agent-unpin,

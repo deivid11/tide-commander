@@ -1,9 +1,17 @@
-import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { store, useAgents, usePinnedAgentIds, useCustomAgentClassesArray, useAreas, useViewMode } from '../../store';
 import { AgentIcon } from '../AgentIcon';
-import { STORAGE_KEYS, getStorageString, setStorageString } from '../../utils/storage';
+import { STORAGE_KEYS, getStorage, getStorageString, setStorageString } from '../../utils/storage';
 import { prefetchAgentHistory } from './useHistoryLoader';
 import type { Agent } from '../../../shared/types';
+
+/** Past this many pinned agents the chips collapse to icon-only miniatures (no
+ * name) to save horizontal space. Configurable + persisted (see readMiniatureThreshold). */
+const DEFAULT_PINNED_MINIATURE_THRESHOLD = 6;
+function readMiniatureThreshold(): number {
+  const v = getStorage<number>(STORAGE_KEYS.PINNED_MINIATURE_THRESHOLD, DEFAULT_PINNED_MINIATURE_THRESHOLD);
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : DEFAULT_PINNED_MINIATURE_THRESHOLD;
+}
 
 interface PinnedAgentsBarProps {
   /** The agent currently shown in this pane — its thumbnail is highlighted. */
@@ -69,6 +77,18 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId }: 
       setStorageString(STORAGE_KEYS.PINNED_GROUP_MODE, next);
       return next;
     });
+  }, []);
+
+  // Configurable miniature threshold (localStorage, default 6). Re-read on the
+  // cross-tab `storage` event so a change (devtools / a future Settings control)
+  // reflects without a reload.
+  const [miniatureThreshold, setMiniatureThreshold] = useState<number>(readMiniatureThreshold);
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEYS.PINNED_MINIATURE_THRESHOLD) setMiniatureThreshold(readMiniatureThreshold());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   // Resolve each pinned agent's area color (by spatial position, like the board).
@@ -205,6 +225,9 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId }: 
             draggingId === agent.id ? ' dragging' : ''
           }${dropTarget && dropTarget.id === agent.id ? (dropTarget.after ? ' drop-after' : ' drop-before') : ''}`}
           title={`${agent.name}${agent.status ? ` — ${agent.status}` : ''}`}
+          // Keep an accessible name even in miniature mode, where the visible
+          // name label is hidden via CSS.
+          aria-label={agent.name}
           style={areaColor ? ({ ['--area-color']: areaColor } as React.CSSProperties) : undefined}
           onClick={() => handleSelect(agent)}
           // Warm the history cache during hover so the switch on click paints
@@ -237,8 +260,12 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId }: 
 
   if (pinned.length === 0) return null;
 
+  // Criterion: TOTAL pinned count > threshold → icon-only miniatures. In grouped
+  // mode it's still the total (not per-group), so the whole bar switches at once.
+  const miniature = pinned.length > miniatureThreshold;
+
   return (
-    <div className="pinned-agents-bar" role="toolbar" aria-label="Pinned agents">
+    <div className={`pinned-agents-bar${miniature ? ' miniature' : ''}`} role="toolbar" aria-label="Pinned agents">
       <button
         type="button"
         className="pinned-group-toggle"

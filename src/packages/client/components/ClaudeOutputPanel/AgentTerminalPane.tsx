@@ -32,6 +32,7 @@ import {
   useSubagentsMapForAgent,
   usePermissionRequests,
   useAgentPrompts,
+  usePinnedAgentIds,
   store,
   type ClaudeOutput,
 } from '../../store';
@@ -261,6 +262,11 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // by 3D/normal and Flat modes since both render this pane. In normal mode the
   // all-agent useSwipeNavigation yields to this when >= 2 agents are pinned.
   usePinnedSwipeNavigation({ outputRef: outputScrollRef, enabled: isOpen });
+
+  // When agents are pinned, the floating pinned-bar (mobile) overlays the bottom
+  // of the chat — flag the output so the mobile stylesheet reserves extra bottom
+  // scroll clearance (`.guake-output.has-pinned-agents`), keeping text uncovered.
+  const hasPinnedAgents = usePinnedAgentIds().length > 0;
 
   // Pending agent-prompts (AskUserQuestion / ExitPlanMode awaiting human input).
   // Read here at the pane level so enrichHistory can attach _pendingPromptId to
@@ -944,7 +950,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       )}
 
       {/* Output area */}
-      <div className="guake-output" ref={outputScrollRef} onScroll={handleScroll}>
+      <div className={`guake-output${hasPinnedAgents ? ' has-pinned-agents' : ''}`} ref={outputScrollRef} onScroll={handleScroll}>
         {/* Loading indicator lives OUTSIDE the fade wrapper (which is opacity:0
             until the pin settles) and sticks to the viewport — inside the
             wrapper it was invisible, so a slow history fetch showed a plain
