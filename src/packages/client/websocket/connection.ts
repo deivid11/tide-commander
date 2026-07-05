@@ -33,6 +33,91 @@ setConnectFn(() => connect());
 // Track if we've added the beforeunload listener
 let beforeUnloadListenerAdded = false;
 
+// ─── Connection generations ──────────────────────────────────────────────────
+// openSocket() awaits network probes before it creates a socket, so a
+// reconnect()/park/unload can supersede a run that is still probing. Each run
+// captures the generation at start and bails after the await if it no longer
+// owns it; socket handlers additionally check the ws slot so an abandoned
+// socket can never feed the store alongside its replacement.
+let connectGeneration = 0;
+
+// One "Disconnected" toast per offline episode (reset when a socket opens).
+let disconnectToastShown = false;
+
+// How long a handshake may sit in CONNECTING before we abort it and let the
+// normal retry path take over — browsers can hang there for a long time after
+// a mobile network switch, and connect() refuses to act while one is pending.
+const WS_HANDSHAKE_TIMEOUT_MS = 10_000;
+
+// ─── WS-handshake demotion ───────────────────────────────────────────────────
+// A URL whose /api/health answers but whose /ws upgrade keeps dying (e.g. a
+// proxy without WebSocket support) must not be re-picked forever just because
+// the probe likes it. After N consecutive handshake failures the URL is
+// ordered after the other candidates until the demotion expires.
+const WS_FAILURES_TO_DEMOTE = 2;
+const WS_DEMOTION_TTL_MS = 5 * 60_000;
+const wsHandshakeFailures = new Map<string, { count: number; lastAt: number }>();
+
+function recordWsHandshakeFailure(url: string): void {
+  const prev = wsHandshakeFailures.get(url);
+  wsHandshakeFailures.set(url, { count: (prev?.count ?? 0) + 1, lastAt: Date.now() });
+}
+
+function isWsDemoted(url: string): boolean {
+  const failures = wsHandshakeFailures.get(url);
+  if (!failures || failures.count < WS_FAILURES_TO_DEMOTE) return false;
+  if (Date.now() - failures.lastAt > WS_DEMOTION_TTL_MS) {
+    wsHandshakeFailures.delete(url);
+    return false;
+  }
+  return true;
+}
+
+// ─── Failback to a higher-priority URL ───────────────────────────────────────
+// The prober is sticky (keeps the URL that last worked), so without this a
+// client that failed over to a secondary URL would stay there forever. While
+// connected to anything but the top-priority candidate, periodically probe the
+// candidates ranked above it and switch back when one answers.
+const FAILBACK_PROBE_INTERVAL_MS = 60_000;
+let failbackTimer: ReturnType<typeof setInterval> | null = null;
+let failbackProbeInFlight = false;
+
+function stopFailbackWatch(): void {
+  if (failbackTimer) {
+    clearInterval(failbackTimer);
+    failbackTimer = null;
+  }
+}
+
+function startFailbackWatch(activeUrl: string): void {
+  stopFailbackWatch();
+  const candidates = getBackendUrls();
+  const activeIndex = candidates.indexOf(activeUrl);
+  if (activeIndex <= 0) return; // already on the top-priority URL (or unlisted)
+  const higherPriority = candidates.slice(0, activeIndex);
+  failbackTimer = setInterval(() => {
+    if (failbackProbeInFlight || backgroundSuspended) return;
+    failbackProbeInFlight = true;
+    void (async () => {
+      try {
+        for (const url of higherPriority) {
+          if (isWsDemoted(url)) continue;
+          if (await probeBackend(url, 2000)) {
+            stopFailbackWatch();
+            // Point the sticky preference at the recovered URL, then
+            // reconnect — the prober will try it first.
+            setActiveBackendUrl(url);
+            reconnect();
+            return;
+          }
+        }
+      } finally {
+        failbackProbeInFlight = false;
+      }
+    })();
+  }, FAILBACK_PROBE_INTERVAL_MS);
+}
+
 // ─── Background parking (native app) ────────────────────────────────────────
 // While the Capacitor app is backgrounded, the Android foreground service
 // delivers notifications through its own native socket, so keeping THIS
@@ -55,6 +140,8 @@ export function isBackgroundSuspended(): boolean {
 export function suspendForBackground(): void {
   if (backgroundSuspended) return;
   backgroundSuspended = true;
+  connectGeneration++; // invalidate any openSocket() still probing
+  stopFailbackWatch();
 
   const timeout = getReconnectTimeout();
   if (timeout) {
@@ -83,8 +170,10 @@ export function resumeFromBackground(): void {
 
 // Clean up WebSocket on page unload (actual refresh/close, not HMR)
 function handleBeforeUnload(): void {
+  connectGeneration++; // invalidate any openSocket() still probing
+  stopFailbackWatch();
   const ws = getWs();
-  if (ws && ws.readyState === WebSocket.OPEN) {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
     ws.close(1000, 'Page unloading');
   }
   const timeout = getReconnectTimeout();
@@ -117,7 +206,14 @@ export function disconnect(): void {
 
 /** Disconnect then reconnect with potentially new backend URL. */
 export function reconnect(): void {
+  // disconnect() clears the has-connected flag as part of unload cleanup, but
+  // a programmatic reconnect should still resync on reopen like any other
+  // reconnection — losing the flag would silently skip cb.onReconnect().
+  const wasConnected = getHasConnectedBefore();
   disconnect();
+  if (wasConnected) {
+    setHasConnectedBefore(true);
+  }
   setReconnectAttempts(0);
   setTimeout(() => connect(), 100);
 }
@@ -141,10 +237,10 @@ async function probeBackend(httpUrl: string, timeoutMs: number): Promise<boolean
 }
 
 /**
- * Pick the first reachable URL from the configured priority list.
- * Tries the previously-active URL first if it's still in the list, then walks the rest in order.
+ * Candidate order for probing: last successful URL first (sticky), then the
+ * configured priority order, with WS-demoted URLs pushed to the back.
  */
-async function pickReachableUrl(candidates: string[], timeoutPerProbeMs: number): Promise<string | null> {
+function orderCandidates(candidates: string[]): string[] {
   const seen = new Set<string>();
   const ordered: string[] = [];
   const previouslyActive = getActiveBackendUrl();
@@ -158,6 +254,13 @@ async function pickReachableUrl(candidates: string[], timeoutPerProbeMs: number)
       seen.add(u);
     }
   }
+  const healthy = ordered.filter((u) => !isWsDemoted(u));
+  const demoted = ordered.filter((u) => isWsDemoted(u));
+  return [...healthy, ...demoted];
+}
+
+/** Pick the first URL (in the given order) whose /api/health answers. */
+async function pickReachableUrl(ordered: string[], timeoutPerProbeMs: number): Promise<string | null> {
   for (const candidate of ordered) {
     if (await probeBackend(candidate, timeoutPerProbeMs)) {
       return candidate;
@@ -222,27 +325,44 @@ export function connect(): void {
 }
 
 async function openSocket(): Promise<void> {
+  const generation = ++connectGeneration;
   const candidates = getBackendUrls();
   const authToken = getAuthToken();
 
   // Resolve which HTTP base URL to use. With a configured list, probe in priority
   // order (last successful first) and pick the first reachable host.
   let chosenHttpUrl: string | null = null;
+  let probeVerified = false;
   if (candidates.length > 0) {
-    chosenHttpUrl = await pickReachableUrl(candidates, 3000);
-    if (!chosenHttpUrl) {
-      setIsConnecting(false);
-      const attempts = getReconnectAttempts();
-      if (attempts === 1) {
-        cb.onToast?.('warning', 'Disconnected', 'No backend URL reachable. Retrying…');
-      }
-      if (attempts >= failingThresholdAttempts) {
-        store.setConnectionFailing(true);
-      }
-      handleReconnectDelay();
+    const ordered = orderCandidates(candidates);
+    chosenHttpUrl = await pickReachableUrl(ordered, 3000);
+    if (generation !== connectGeneration) {
+      // Superseded while probing (reconnect()/unload) — the newer run owns the
+      // shared connection state now, so drop out without touching it.
       return;
     }
-    setActiveBackendUrl(chosenHttpUrl);
+    if (backgroundSuspended) {
+      setIsConnecting(false);
+      return;
+    }
+    if (chosenHttpUrl) {
+      probeVerified = true;
+      setActiveBackendUrl(chosenHttpUrl);
+    } else {
+      // Nothing answered /api/health, but a blocked probe (proxy, filtered
+      // fetch) doesn't prove the WS is down too — try the socket directly on
+      // the top candidate instead of never attempting a connection at all.
+      chosenHttpUrl = ordered[0] ?? null;
+      if (!chosenHttpUrl) {
+        setIsConnecting(false);
+        handleReconnectDelay();
+        return;
+      }
+      if (!disconnectToastShown) {
+        cb.onToast?.('warning', 'Disconnected', 'No backend URL reachable. Retrying…');
+        disconnectToastShown = true;
+      }
+    }
   } else {
     // No configured URL — use built-in defaults exactly as before.
     setActiveBackendUrl('');
@@ -264,8 +384,33 @@ async function openSocket(): Promise<void> {
   }
 
   setWs(newSocket);
+  const socket = newSocket;
+  let opened = false;
 
-  newSocket.onopen = () => {
+  // Abort a handshake stuck in CONNECTING so the normal retry path takes over.
+  const handshakeTimer = setTimeout(() => {
+    if (getWs() === socket && socket.readyState === WebSocket.CONNECTING) {
+      socket.close();
+    }
+  }, WS_HANDSHAKE_TIMEOUT_MS);
+
+  socket.onopen = () => {
+    clearTimeout(handshakeTimer);
+    if (getWs() !== socket || backgroundSuspended) {
+      // Abandoned while connecting (superseded or app parked) — never let it
+      // feed the store next to its replacement.
+      socket.close(1000, 'Superseded connection');
+      return;
+    }
+    opened = true;
+    if (chosenHttpUrl) {
+      wsHandshakeFailures.delete(chosenHttpUrl);
+    }
+    // The last-resort path skips the optimistic pre-connect write, so record
+    // the URL now that the open socket proves it works.
+    setActiveBackendUrl(chosenHttpUrl ?? '');
+    disconnectToastShown = false;
+
     const isReconnection = getHasConnectedBefore();
     setIsConnecting(false);
     setReconnectAttempts(0);
@@ -285,8 +430,9 @@ async function openSocket(): Promise<void> {
     }
     suppressNextReconnectToast = false;
 
-    // Sync the URL we actually connected to so background services align.
-    syncConnectionToNative(chosenHttpUrl ?? '', authToken);
+    // Sync the URL we actually connected to (plus the full candidate list so
+    // the native socket can fail over on its own while the app is parked).
+    syncConnectionToNative(chosenHttpUrl ?? '', authToken, candidates);
 
     // Flush any messages that were queued while disconnected
     flushPendingMessages();
@@ -294,9 +440,15 @@ async function openSocket(): Promise<void> {
     // Server-side git watch subscriptions live on the socket — re-declare
     // the watch list on every (re)connect.
     resyncGitWatch();
+
+    // Connected to a lower-priority URL? Watch for the better ones to recover.
+    if (chosenHttpUrl) {
+      startFailbackWatch(chosenHttpUrl);
+    }
   };
 
-  newSocket.onmessage = (event) => {
+  socket.onmessage = (event) => {
+    if (getWs() !== socket) return; // abandoned socket
     try {
       const message = JSON.parse(event.data) as ServerMessage;
 
@@ -321,11 +473,24 @@ async function openSocket(): Promise<void> {
     }
   };
 
-  newSocket.onclose = () => {
+  socket.onclose = () => {
+    clearTimeout(handshakeTimer);
+    if (getWs() !== socket) {
+      // Abandoned socket (superseded, or already cleaned up by disconnect()) —
+      // its replacement owns the shared state.
+      return;
+    }
+    stopFailbackWatch();
     setIsConnecting(false);
     setWs(null);
     store.setConnected(false);
     store.stopStatusPolling();
+
+    // Health answered but the handshake died — remember it so the prober can
+    // prefer candidates whose WS actually works.
+    if (!opened && probeVerified && chosenHttpUrl) {
+      recordWsHandshakeFailure(chosenHttpUrl);
+    }
 
     // Intentional background park: stay quiet and do NOT schedule reconnects —
     // resumeFromBackground() reconnects when the app comes back.
@@ -333,17 +498,18 @@ async function openSocket(): Promise<void> {
       return;
     }
 
-    const attempts = getReconnectAttempts();
-    if (attempts === 1) {
+    if (!disconnectToastShown) {
       cb.onToast?.('warning', 'Disconnected', 'Connection lost. Reconnecting…');
+      disconnectToastShown = true;
     }
-    if (attempts >= failingThresholdAttempts) {
+    if (getReconnectAttempts() >= failingThresholdAttempts) {
       store.setConnectionFailing(true);
     }
     handleReconnectDelay();
   };
 
-  newSocket.onerror = () => {
+  socket.onerror = () => {
+    if (getWs() !== socket) return; // abandoned socket
     setIsConnecting(false);
   };
 

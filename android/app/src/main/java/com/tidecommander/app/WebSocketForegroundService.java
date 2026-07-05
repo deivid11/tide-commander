@@ -22,11 +22,15 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
+import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -72,6 +76,11 @@ public class WebSocketForegroundService extends Service {
     private OkHttpClient okHttpClient;
     private WebSocket webSocket;
     private int reconnectAttempts = 0;
+    // Which URL of the synced candidate list the next connect attempt uses.
+    // Advanced on connection failure so the service fails over between
+    // backends on its own — while the app is backgrounded its JS socket is
+    // parked and cannot re-probe for us (e.g. after leaving the home Wi-Fi).
+    private int candidateIndex = 0;
     private static final int MAX_RECONNECT_DELAY_MS = 30000;
     // Dedupe agent notifications by server notification id
     private static final long NOTIFICATION_DEDUPE_TTL_MS = 2 * 60 * 1000; // 2 minutes
@@ -122,6 +131,8 @@ public class WebSocketForegroundService extends Service {
 
         // Handle reconnect action from ServerConfigPlugin
         if (intent != null && ACTION_RECONNECT.equals(intent.getAction())) {
+            // Fresh config from JS puts its chosen URL first — start over there.
+            candidateIndex = 0;
             connectNativeWebSocket();
         } else if (webSocket == null) {
             // First start — try connecting if URL is already configured
@@ -157,13 +168,16 @@ public class WebSocketForegroundService extends Service {
 
         SharedPreferences prefs = getSharedPreferences(
             ServerConfigPlugin.PREFS_NAME, Context.MODE_PRIVATE);
-        String serverUrl = prefs.getString(ServerConfigPlugin.KEY_SERVER_URL, "");
+        List<String> candidates = loadCandidateUrls(prefs);
         String authToken = prefs.getString(ServerConfigPlugin.KEY_AUTH_TOKEN, "");
 
-        if (serverUrl == null || serverUrl.isEmpty()) {
+        if (candidates.isEmpty()) {
             Log.d(TAG, "No server URL configured, skipping native WebSocket");
             return;
         }
+
+        final int usedIndex = candidateIndex % candidates.size();
+        String serverUrl = candidates.get(usedIndex);
 
         // Build WebSocket URL from HTTP URL
         String wsUrl = serverUrl
@@ -190,6 +204,7 @@ public class WebSocketForegroundService extends Service {
             public void onOpen(@NonNull WebSocket ws, @NonNull Response response) {
                 Log.d(TAG, "Native WebSocket connected");
                 reconnectAttempts = 0;
+                candidateIndex = usedIndex; // pin the URL that actually works
                 updateForegroundNotification("Connected to server");
             }
 
@@ -216,10 +231,41 @@ public class WebSocketForegroundService extends Service {
             public void onFailure(@NonNull WebSocket ws, @NonNull Throwable t, @Nullable Response response) {
                 Log.w(TAG, "Native WebSocket failure: " + t.getMessage());
                 webSocket = null;
+                // This URL didn't answer — rotate to the next candidate for the
+                // upcoming retry (wraps around via the modulo at connect time).
+                candidateIndex = usedIndex + 1;
                 updateForegroundNotification("Disconnected");
                 scheduleReconnect();
             }
         });
+    }
+
+    /**
+     * Candidate URL list for the native socket: the JS-chosen active URL first,
+     * then the rest of the configured priority list.
+     */
+    private List<String> loadCandidateUrls(SharedPreferences prefs) {
+        ArrayList<String> urls = new ArrayList<>();
+        String json = prefs.getString(ServerConfigPlugin.KEY_SERVER_URLS, "");
+        if (json != null && !json.isEmpty()) {
+            try {
+                JSONArray arr = new JSONArray(json);
+                for (int i = 0; i < arr.length(); i++) {
+                    String u = arr.optString(i, "").trim();
+                    if (!u.isEmpty() && !urls.contains(u)) {
+                        urls.add(u);
+                    }
+                }
+            } catch (JSONException e) {
+                Log.w(TAG, "Invalid server_urls JSON: " + e.getMessage());
+            }
+        }
+        String active = prefs.getString(ServerConfigPlugin.KEY_SERVER_URL, "");
+        if (active != null && !active.isEmpty()) {
+            urls.remove(active);
+            urls.add(0, active);
+        }
+        return urls;
     }
 
     private void disconnectNativeWebSocket() {
