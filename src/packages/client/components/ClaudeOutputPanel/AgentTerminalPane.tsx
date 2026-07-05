@@ -778,6 +778,15 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
   useEffect(() => {
     if (historyLoader.fetchingHistory) {
+      // fetchingHistory goes true on EVERY background history refresh — the
+      // store bumps historyRefreshTrigger on each session-file update while
+      // the viewed agent streams. Re-arming the pin unconditionally made each
+      // refresh snap toward the bottom mid-scroll (the user's next scroll
+      // event cancels it, then the next refresh re-pins — a stutter loop for
+      // as long as the agent keeps streaming). Only re-pin while the user is
+      // following the bottom; sending a command resets the ref, so their own
+      // next message still pins as before.
+      if (isUserScrolledUpRef.current) return;
       pendingFadeInRef.current = true;
       setPinToBottom(true);
     }
