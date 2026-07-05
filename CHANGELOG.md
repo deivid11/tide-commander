@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.134.1] - 2026-07-05
+
+### Fixed
+- **Scroll fights after switching agents** — scrolling up right after an agent switch (or while the pin-to-bottom loop was still settling) kept yanking the view back to the bottom, worst on mobile where slow row measurement keeps the pin alive longest. User scrolls are now detected by position instead of flags/timers: programmatic pin/settle writes always land AT the bottom and content growth never decreases `scrollTop`, so "moved up AND meaningfully above the bottom" can only be the user — such scrolls now cancel pin mode and disable auto-scroll immediately, ungated by the post-switch grace window (which still gates only the re-enable side at the bottom).
+
 ## [1.134.0] - 2026-07-04
 
 ### Added

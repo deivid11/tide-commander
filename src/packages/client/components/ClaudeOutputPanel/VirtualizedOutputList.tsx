@@ -403,9 +403,21 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     const prevScrollTop = lastScrollTopRef.current;
     lastScrollTopRef.current = scrollTop;
 
-    // If the user scrolls while we are pinning, cancel pin mode (so we don't fight them).
-    if (pinToBottom && !isProgrammaticScrollRef.current) {
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    const scrolledUp = scrollTop < prevScrollTop - 1;
+
+    // Cancel pin mode on a genuine user scroll so we don't fight their finger.
+    // isProgrammaticScrollRef cannot make that call here: the pin enforce loop
+    // holds it true for the entire pin, so every scroll event during pin —
+    // including the user's — used to be classified programmatic and the loop
+    // kept dragging them back to the bottom (worst on mobile, where slow row
+    // measurement keeps the pin alive longest). Position tells the truth
+    // instead: every programmatic pin write lands AT the bottom (shrink-clamps
+    // included) and content growth never decreases scrollTop, so "moved up AND
+    // meaningfully above the bottom" can only be the user.
+    if (pinToBottom && scrolledUp && distanceFromBottom > 4) {
       onPinCancel?.();
+      onUserScroll?.();
     }
 
     // Disable auto-scroll only on a genuine UPWARD user scroll (scrollTop
@@ -413,8 +425,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     // false without scrollTop decreasing — treating that as "user scrolled up"
     // is what made the view jump up off the latest agent message/reasoning.
     // Also skip during the post-agent-switch grace period and programmatic scrolls.
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 150;
-    const scrolledUp = scrollTop < prevScrollTop - 1;
+    const isAtBottom = distanceFromBottom < 150;
     if (!isAtBottom && scrolledUp && !isProgrammaticScrollRef.current && !agentSwitchGraceRef.current && onUserScroll) {
       onUserScroll();
     }
