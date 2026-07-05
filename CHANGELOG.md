@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.134.0] - 2026-07-04
+
+### Added
+- **Multi-backend failover hardening for the WebSocket connection** (`connection.ts`):
+  - *Failback watch* — the URL prober is sticky, so a client that failed over to a secondary backend stayed there forever; while connected to anything but the top-priority URL, higher-priority candidates are now re-probed every 60s and the client switches back when one recovers.
+  - *WS-handshake demotion* — a URL whose `/api/health` answers but whose `/ws` upgrade keeps failing (e.g. a proxy without WebSocket support) is demoted after 2 consecutive handshake failures (5-minute TTL) instead of being re-picked forever.
+  - *Handshake timeout* — a socket stuck in CONNECTING is aborted after 10s (browsers can hang there long after a mobile network switch, blocking `connect()`).
+  - *Connection generations* — a reconnect/park/unload now supersedes an in-flight connect run that is still probing, so an abandoned socket can never feed the store alongside its replacement.
+- **Native Android socket failover** — the foreground service now keeps the full candidate URL list (JS-chosen active URL first, synced via `ServerConfigPlugin`) and rotates to the next candidate on connection failure, since the parked JS socket can't re-probe while the app is backgrounded (e.g. after leaving home Wi-Fi).
+
+### Changed
+- One "Disconnected" toast per offline episode instead of repeated toasts on every retry.
+
 ## [1.133.2] - 2026-07-04
 
 ### Fixed

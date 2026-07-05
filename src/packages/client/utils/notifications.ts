@@ -15,7 +15,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 
 // Register custom Capacitor plugin for syncing config to native foreground service
 const ServerConfig = registerPlugin<{
-  syncConfig(options: { url: string; token: string }): Promise<void>;
+  syncConfig(options: { url: string; token: string; urls?: string[] }): Promise<void>;
 }>('ServerConfig');
 
 // Start at 100 to avoid collision with foreground service notification (ID 1)
@@ -227,14 +227,17 @@ export async function initNotificationListeners(
 /**
  * Sync the server connection URL to the native Android foreground service
  * so it can maintain its own WebSocket for background notification delivery.
- * No-op on non-native platforms.
+ * The full candidate list rides along so the service can fail over to another
+ * URL on its own — while the app is parked in the background the JS side
+ * cannot re-probe for it. No-op on non-native platforms.
  */
-export function syncConnectionToNative(serverUrl: string, authToken: string): void {
+export function syncConnectionToNative(serverUrl: string, authToken: string, candidateUrls: string[] = []): void {
   if (!isNativeApp()) return;
 
   ServerConfig.syncConfig({
     url: serverUrl,
     token: authToken,
+    urls: candidateUrls,
   }).catch((err: any) => {
     console.warn('[Notifications] Failed to sync config to native service:', err);
   });

@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 
+import com.getcapacitor.JSArray;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -18,17 +19,23 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 public class ServerConfigPlugin extends Plugin {
     public static final String PREFS_NAME = "TideCommanderPrefs";
     public static final String KEY_SERVER_URL = "server_url";
+    public static final String KEY_SERVER_URLS = "server_urls";
     public static final String KEY_AUTH_TOKEN = "auth_token";
 
     @PluginMethod
     public void syncConfig(PluginCall call) {
         String url = call.getString("url", "");
         String token = call.getString("token", "");
+        // Full candidate list (JSON array) so the foreground service can fail
+        // over between backends while the app's own socket is parked.
+        JSArray urls = call.getArray("urls");
+        String urlsJson = urls != null ? urls.toString() : "[]";
 
         SharedPreferences prefs = getContext()
             .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         prefs.edit()
             .putString(KEY_SERVER_URL, url)
+            .putString(KEY_SERVER_URLS, urlsJson)
             .putString(KEY_AUTH_TOKEN, token)
             .apply();
 
