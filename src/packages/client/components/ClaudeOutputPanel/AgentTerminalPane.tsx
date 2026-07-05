@@ -626,7 +626,11 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   const lastScrollTopRef = useRef(0);
 
   const handleUserScrollUp = useCallback(() => {
-    if (agentSwitchGraceRef.current) return;
+    // No grace-window gate here: VirtualizedOutputList only calls this for
+    // scrolls it has already position-verified as user-initiated (moved up
+    // AND meaningfully above the bottom — programmatic settle scrolls always
+    // land at the bottom). Swallowing them during the post-switch grace made
+    // streaming/measurement growth yank the user back down for up to 3s.
     isUserScrolledUpRef.current = true;
     setShouldAutoScroll(false);
   }, []);
@@ -668,14 +672,19 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     // decreasing — that must NOT disable auto-scroll, else the view jumps up.
     const scrolledUp = scrollTop < prevScrollTop - 1;
 
-    if (!agentSwitchGraceRef.current) {
-      if (isAtBottom) {
+    if (isAtBottom) {
+      if (!agentSwitchGraceRef.current) {
         isUserScrolledUpRef.current = false;
         setShouldAutoScroll(true);
-      } else if (scrolledUp) {
-        isUserScrolledUpRef.current = true;
-        setShouldAutoScroll(false);
       }
+    } else if (scrolledUp) {
+      // Deliberately NOT gated on the post-switch grace window: programmatic
+      // settle scrolls land AT the bottom (shrink-clamps included) and content
+      // growth never decreases scrollTop, so up-and-away-from-bottom can only
+      // be the user. Ignoring it here let streaming auto-scroll drag the user
+      // back down for the full 3s grace after switching agents on mobile.
+      isUserScrolledUpRef.current = true;
+      setShouldAutoScroll(false);
     }
 
     historyLoaderHandleScrollRef.current(keyboard.keyboardScrollLockRef);
