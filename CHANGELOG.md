@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.134.2] - 2026-07-05
+
+### Fixed
+- **Background history refreshes re-pinned the view mid-scroll** — `fetchingHistory` goes true on every background history refresh while the viewed agent streams, and each refresh unconditionally re-armed pin-to-bottom: the user's next scroll cancelled it, the next refresh re-pinned, producing a stutter loop for as long as the agent kept streaming. The pin is now only re-armed while the user is following the bottom; sending a command still pins as before.
+
 ## [1.134.1] - 2026-07-05
 
 ### Fixed
