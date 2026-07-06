@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.136.0] - 2026-07-06
+
+### Added
+- **Agent context menu on the terminal header** — right-clicking the agent title in the guake terminal header now opens the full agent menu (Edit / Clear context / Clone / Fork / Delete), same as the overview panel's cards.
+
+### Changed
+- Agent right-click menu extracted into a shared `agentContextMenuActions.tsx` builder consumed by both the overview panel and the terminal header, so the two menus can never drift apart.
+
 ## [1.135.0] - 2026-07-06
 
 ### Added

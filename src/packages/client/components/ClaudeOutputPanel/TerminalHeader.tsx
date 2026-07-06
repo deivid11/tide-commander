@@ -4,7 +4,7 @@
  * Displays agent info, status, actions buttons, and view mode toggle.
  */
 
-import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { store, useSettings, useLastPrompt, useSubagentsForAgent, useAreas } from '../../store';
 import { STORAGE_KEYS, setStorageString } from '../../utils/storage';
@@ -40,6 +40,9 @@ import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
 import { useTwoClickConfirm } from '../../hooks';
 import { ConfirmModal } from '../shared/ConfirmModal';
+import { ContextMenu } from '../ContextMenu';
+import { ModalPortal } from '../shared/ModalPortal';
+import { buildAgentContextMenuActions } from './agentContextMenuActions';
 
 export interface TerminalHeaderProps {
   selectedAgent: Agent;
@@ -174,6 +177,23 @@ export const TerminalHeader = memo(function TerminalHeader({
     setRemoveConfirmOpen(true);
   };
 
+  // Right-click on the header's title area opens the same agent menu as the
+  // overview panel's cards (shared builder). Delete routes into this header's
+  // existing remove-agent ConfirmModal.
+  const [headerContextMenu, setHeaderContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const handleHeaderLeftContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault(); // suppress the browser's native menu
+    e.stopPropagation();
+    setHeaderContextMenu({ x: e.clientX, y: e.clientY });
+  }, []);
+  const headerAgentMenuActions = useMemo(
+    () =>
+      headerContextMenu
+        ? buildAgentContextMenuActions({ agent: selectedAgent, t, onDelete: () => setRemoveConfirmOpen(true) })
+        : [],
+    [headerContextMenu, selectedAgent, t],
+  );
+
   // Get status info
   const lastInput =
     selectedAgent.currentTask ||
@@ -266,7 +286,7 @@ export const TerminalHeader = memo(function TerminalHeader({
       ref={headerRef}
       style={agentArea ? { borderBottomColor: `color-mix(in srgb, ${agentArea.color} 50%, var(--border-color))` } as React.CSSProperties : undefined}
     >
-      <div className="guake-header-left">
+      <div className="guake-header-left" onContextMenu={handleHeaderLeftContextMenu}>
         <div className="guake-header-title-row">
           {selectedAgent.isDetached && (
             <Tooltip
@@ -718,6 +738,18 @@ export const TerminalHeader = memo(function TerminalHeader({
           <Icon name="close" size={16} />
         </button>
       </div>
+      {/* Portaled to body: the menu is position:fixed but .guake-content carries a
+          transform (slide animation), which would otherwise become its containing
+          block and shift the menu away from the cursor's viewport coordinates. */}
+      <ModalPortal>
+        <ContextMenu
+          isOpen={headerContextMenu !== null}
+          position={headerContextMenu ?? { x: 0, y: 0 }}
+          worldPosition={{ x: 0, z: 0 }}
+          actions={headerAgentMenuActions}
+          onClose={() => setHeaderContextMenu(null)}
+        />
+      </ModalPortal>
       <ConfirmModal
         isOpen={removeConfirmOpen}
         title={t('common:confirm.removeAgentTitle')}
