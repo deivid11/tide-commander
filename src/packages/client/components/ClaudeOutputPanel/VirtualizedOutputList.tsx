@@ -5,8 +5,8 @@
  * Only renders visible items plus overscan buffer, reducing DOM nodes from 200+ to ~30.
  */
 
-import React, { useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import React, { useRef, useEffect, useLayoutEffect, useCallback, useMemo, useState, memo } from 'react';
+import { useVirtualizer, defaultRangeExtractor, type Range } from '@tanstack/react-virtual';
 import { HistoryLine } from './HistoryLine';
 import { OutputLine } from './OutputLine';
 import type { EnrichedHistoryMessage, EditData } from './types';
@@ -41,6 +41,9 @@ interface VirtualizedOutputListProps {
   searchHighlight?: string;
   /** Index of the active search match to scroll to */
   searchActiveIndex?: number | null;
+  /** Height (px) of the search results panel overlaying the top of the output,
+   *  so the scrolled-to match can be nudged clear of it. 0 when no panel. */
+  searchPanelHeight?: number;
 
   // Message navigation
   selectedMessageIndex: number | null;
@@ -82,6 +85,24 @@ const ESTIMATED_HEIGHTS = {
   tool_result: 80,
   default: 60,
 };
+
+// ── Measurement warm-up ──
+// virtual-core applies a scrollTop "correction" whenever a row ABOVE the
+// viewport measures different from its estimate (via the row's initial
+// ResizeObserver fire — a path NOT gated on user scrolling). Any programmatic
+// scroll write kills fling momentum on mobile, so scrolling up through
+// never-measured rows right after an agent switch (the per-agent remount
+// empties the size cache) stuttered for seconds until the page was measured.
+// The corrections themselves must stay (they are the anchor — see
+// project_virtualized_prepend_anchor), so instead we make them no-ops:
+// mount a small slice of rows at a time from bottom to top during idle
+// frames (extra indexes via rangeExtractor), letting them measure while the
+// user is stationary. Once warmed, re-mounting during a fling yields
+// delta=0 → no correction → momentum survives.
+const WARMUP_SLICE = 12;
+// Bound the walk for huge histories ("load all"): warm at most this many
+// rows above the bottom (or above the just-prepended page boundary).
+const WARMUP_MAX_ROWS = 240;
 
 // Tagged wrapper so the merged history+live array can be sorted while still
 // telling each renderer which component to use (HistoryLine vs OutputLine).
@@ -132,6 +153,7 @@ const VirtualRow = memo(function VirtualRow({
   subagents,
   simpleView,
   isSelected,
+  isSearchActive,
   messageIndex,
   searchHighlight,
   onImageClick,
@@ -147,6 +169,7 @@ const VirtualRow = memo(function VirtualRow({
   subagents?: Map<string, Subagent>;
   simpleView: boolean;
   isSelected: boolean;
+  isSearchActive?: boolean;
   messageIndex: number;
   searchHighlight?: string;
   onImageClick?: (url: string, name: string) => void;
@@ -157,7 +180,7 @@ const VirtualRow = memo(function VirtualRow({
   return (
     <div
       data-message-index={messageIndex}
-      className={`message-nav-wrapper ${isSelected ? 'message-selected' : ''}`}
+      className={`message-nav-wrapper ${isSelected ? 'message-selected' : ''}${isSearchActive ? ' search-active' : ''}`}
     >
       {isHistory ? (
         <HistoryLine
@@ -201,6 +224,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   viewMode,
   searchHighlight,
   searchActiveIndex,
+  searchPanelHeight = 0,
   selectedMessageIndex,
   isMessageSelected,
   onImageClick,
@@ -268,6 +292,23 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // Track virtual content height to detect remeasurement changes
   const prevTotalSizeRef = useRef(0);
 
+  // Warm-up walk state: exclusive upper bound of the next slice to mount
+  // ([warmupFront - WARMUP_SLICE, warmupFront)); null = not walking.
+  const [warmupFront, setWarmupFront] = useState<number | null>(null);
+  const warmupDoneRef = useRef(false);
+
+  const rangeExtractor = useCallback((range: Range) => {
+    const defaults = defaultRangeExtractor(range);
+    if (warmupFront === null) return defaults;
+    const top = Math.min(warmupFront, allItemsCountRef.current);
+    const sliceStart = Math.max(0, top - WARMUP_SLICE);
+    if (sliceStart >= top) return defaults;
+    const merged = new Set<number>();
+    for (let i = sliceStart; i < top; i++) merged.add(i);
+    for (const i of defaults) merged.add(i);
+    return Array.from(merged).sort((a, b) => a - b);
+  }, [warmupFront]);
+
   // Create virtualizer
   // initialRect prevents the first render from having outerSize=0 (which yields
   // zero visible items until a scroll event triggers a re-measure).
@@ -282,6 +323,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     // instead of blank container background. The extra rows mount in the
     // unpin commit, while the content is still faded out.
     overscan: pinToBottom ? 10 : 25,
+    rangeExtractor,
     initialRect: { width: 500, height: 800 },
     // Stable per-item key — see buildItemKey above for the live/history bridge
     // that prevents virtualizer remount when the optimistic prompt is replaced
@@ -307,6 +349,71 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
       virtualizer.elementsCache.clear();
     };
   }, [virtualizer]);
+
+  // Start the warm-up walk once the post-switch pin has released and there is
+  // content. One pass per mount (per agent, thanks to key={agentId}); prepends
+  // re-arm it below.
+  useEffect(() => {
+    if (pinToBottom || isLoadingHistory) return;
+    if (allItems.length === 0) return;
+    if (warmupDoneRef.current || warmupFront !== null) return;
+    setWarmupFront(allItems.length);
+  }, [pinToBottom, isLoadingHistory, allItems.length, warmupFront]);
+
+  // Advance the slice during idle frames only — never mount/measure work while
+  // the user's finger or fling is active (that's the jank we're preventing).
+  // Two frames per step: one for React to mount the slice, one for the
+  // ResizeObserver measurements (and their silent, anchored corrections) to land.
+  useEffect(() => {
+    if (warmupFront === null) return;
+    if (pinToBottom) return; // paused; resumes when the pin releases
+    let cancelled = false;
+    let rafId: number;
+    const advance = () => {
+      if (cancelled) return;
+      if (virtualizer.isScrolling) {
+        rafId = requestAnimationFrame(advance);
+        return;
+      }
+      const floor = Math.max(0, allItemsCountRef.current - WARMUP_MAX_ROWS);
+      setWarmupFront((front) => {
+        if (front === null) return null;
+        if (front <= floor) {
+          warmupDoneRef.current = true;
+          return null;
+        }
+        return Math.max(floor, front - WARMUP_SLICE);
+      });
+    };
+    rafId = requestAnimationFrame(() => {
+      rafId = requestAnimationFrame(advance);
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(rafId);
+    };
+  }, [warmupFront, pinToBottom, virtualizer]);
+
+  // A history prepend (load-more) shifts every index up and introduces a page
+  // of unmeasured rows exactly where the user is about to scroll — re-arm the
+  // walk over them. Detected by the first item's key changing while the count
+  // grew (appends keep the first key; same-size refreshes keep the count).
+  // Size caches are keyed by item key, so surviving rows stay warm through
+  // the index shift.
+  const firstItemKey = allItems.length > 0 ? buildItemKey(allItems[0], agentId) : null;
+  const prevFirstKeyRef = useRef<string | null>(null);
+  const prevCountForPrependRef = useRef(0);
+  useEffect(() => {
+    const prevKey = prevFirstKeyRef.current;
+    const prevCount = prevCountForPrependRef.current;
+    prevFirstKeyRef.current = firstItemKey;
+    prevCountForPrependRef.current = allItems.length;
+    if (prevKey === null || firstItemKey === null) return;
+    if (firstItemKey === prevKey || allItems.length <= prevCount) return;
+    const delta = allItems.length - prevCount;
+    warmupDoneRef.current = false;
+    setWarmupFront((front) => (front === null ? delta : front + delta));
+  }, [firstItemKey, allItems.length]);
 
   const scrollToBottom = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -478,17 +585,40 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     }
   }, [selectedMessageIndex, virtualizer, allItems.length]);
 
-  // Scroll to active search match
+  // Scroll to active search match. The search results panel overlays the top
+  // of the output, so after centring we nudge the row down if it landed behind
+  // the panel — keeping the clicked match visible on screen.
   useEffect(() => {
     if (searchActiveIndex !== null && searchActiveIndex !== undefined && searchActiveIndex >= 0 && searchActiveIndex < allItems.length) {
       isProgrammaticScrollRef.current = true;
       virtualizer.scrollToIndex(searchActiveIndex, { align: 'center' });
+
+      const raf = requestAnimationFrame(() => {
+        const container = scrollContainerRef.current;
+        if (container && searchPanelHeight > 0) {
+          const row = container.querySelector<HTMLElement>(`[data-index="${searchActiveIndex}"]`);
+          if (row) {
+            const rowTop = row.getBoundingClientRect().top - container.getBoundingClientRect().top;
+            const minVisibleTop = searchPanelHeight + 12;
+            if (rowTop < minVisibleTop) {
+              // Scroll up so the row clears the panel (clamped at 0 by the browser).
+              container.scrollTop -= minVisibleTop - rowTop;
+              // Keep the virtualizer window in sync after a manual scrollTop write.
+              container.dispatchEvent(new Event('scroll'));
+            }
+          }
+        }
+      });
+
       const timer = setTimeout(() => {
         isProgrammaticScrollRef.current = false;
-      }, 100);
-      return () => clearTimeout(timer);
+      }, 120);
+      return () => {
+        cancelAnimationFrame(raf);
+        clearTimeout(timer);
+      };
     }
-  }, [searchActiveIndex, virtualizer, allItems.length]);
+  }, [searchActiveIndex, virtualizer, allItems.length, searchPanelHeight, scrollContainerRef]);
 
   const virtualItems = virtualizer.getVirtualItems();
   const simpleView = viewMode !== 'advanced';
@@ -528,6 +658,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
               subagents={subagents}
               simpleView={simpleView}
               isSelected={isMessageSelected(virtualRow.index)}
+              isSearchActive={searchActiveIndex != null && virtualRow.index === searchActiveIndex}
               messageIndex={virtualRow.index}
               searchHighlight={searchHighlight}
               onImageClick={onImageClick}

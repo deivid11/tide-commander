@@ -23,9 +23,12 @@ import { encodeProjectPath } from '../claude/session-loader.js';
 const log = createLogger('SubagentJSONL');
 
 const MAX_ENTRIES_PER_BROADCAST = 20;
-const IDLE_TIMEOUT_MS = 180_000;       // Stop after 3 minutes of no file changes (subagents can run long builds)
-const POLL_INTERVAL_MS = 2_000;        // Poll file every 2s (fallback if fs.watch misses events)
-const MAX_WATCH_DURATION_MS = 900_000; // Hard limit: 15 minutes max per watcher
+const IDLE_TIMEOUT_MS = 600_000;         // Stop after 10 minutes of no file changes (long thinking/tool gaps on xhigh effort)
+const POLL_INTERVAL_MS = 2_000;          // Poll file every 2s (fallback if fs.watch misses events)
+const MAX_WATCH_DURATION_MS = 3_600_000; // Hard limit: 60 minutes max per watcher (background agents routinely run 20-30 min)
+const BIND_POLL_INTERVAL_MS = 1_000;     // Retry transcript binding every second until found
+const BIND_GIVE_UP_MS = 120_000;         // Stop an unbound watcher after 2 minutes (no transcript ever appeared)
+const FALLBACK_BIND_GRACE_MS = 15_000;   // Give meta.json time to appear before the newest-file fallback
 
 // Key param extraction per tool name
 const TOOL_KEY_PARAMS: Record<string, string> = {
@@ -45,6 +48,11 @@ interface ActiveWatcher {
   toolUseId: string;
   parentAgentId: string;
   subagentsDir: string;
+  startedAt: number;
+  // Skip content already in the file at bind time (re-armed watchers: avoids
+  // re-broadcasting the subagent's whole history as duplicate entries).
+  startAtEnd?: boolean;
+  bindTimer?: ReturnType<typeof setInterval>;
   dirWatcher?: fs.FSWatcher;
   fileWatcher?: fs.FSWatcher;
   jsonlPath?: string;
@@ -103,7 +111,8 @@ export function startWatching(
   parentAgentId: string,
   subagentsDir: string,
   onBroadcast: BroadcastCallback,
-  onToolResult?: ToolResultCallback
+  onToolResult?: ToolResultCallback,
+  options?: { startAtEnd?: boolean }
 ): void {
   if (activeWatchers.has(toolUseId)) {
     log.warn(`[Watcher] Already watching for toolUseId=${toolUseId}`);
@@ -114,6 +123,8 @@ export function startWatching(
     toolUseId,
     parentAgentId,
     subagentsDir,
+    startedAt: Date.now(),
+    startAtEnd: options?.startAtEnd === true,
     readPosition: 0,
     lineBuffer: '',
     pendingEntries: [],
@@ -135,6 +146,11 @@ export function startWatching(
 
   // Try to find existing files first, then watch for new ones
   tryFindAndWatchFile(watcher);
+}
+
+/** Whether a live watcher exists for this Task/Agent toolUseId. */
+export function isWatching(toolUseId: string): boolean {
+  return activeWatchers.has(toolUseId);
 }
 
 /**
@@ -168,6 +184,7 @@ function doStop(watcher: ActiveWatcher): void {
   flushEntries(watcher);
 
   // Cleanup all timers and watchers
+  clearBindTimer(watcher);
   watcher.dirWatcher?.close();
   watcher.fileWatcher?.close();
   if (watcher.broadcastTimer) clearTimeout(watcher.broadcastTimer);
@@ -200,101 +217,111 @@ function resetIdleTimer(watcher: ActiveWatcher): void {
 }
 
 /**
- * Try to find an existing JSONL file or watch the directory for new ones
+ * Bind this watcher to its subagent's transcript inside the shared
+ * subagents/ directory, retrying until it appears.
+ *
+ * Exact binding: each subagent writes agent-<id>.meta.json containing the
+ * parent Task/Agent toolUseId — match it against ours. The old "newest
+ * .jsonl in the dir" heuristic mis-binds when several subagents run
+ * concurrently: at tool_start time the newest file usually belongs to a
+ * sibling (this subagent hasn't written anything yet), so this subagent's
+ * tool_results never bridge and its Bash cards spin forever.
  */
 function tryFindAndWatchFile(watcher: ActiveWatcher): void {
-  const { subagentsDir } = watcher;
+  if (tryBindTranscript(watcher)) return;
 
-  // Check if directory exists yet
-  if (!fs.existsSync(subagentsDir)) {
-    // Directory doesn't exist yet - watch parent for it to appear
-    const parentDir = path.dirname(subagentsDir);
-    if (!fs.existsSync(parentDir)) {
-      // Session directory doesn't exist either - retry periodically
-      const retryInterval = setInterval(() => {
-        if (watcher.stopped) {
-          clearInterval(retryInterval);
-          return;
-        }
-        if (fs.existsSync(subagentsDir)) {
-          clearInterval(retryInterval);
-          watchDirectory(watcher);
-        }
-      }, 500);
-      // Give up after 30 seconds
-      setTimeout(() => clearInterval(retryInterval), 30000);
+  // Retry on a timer — also covers the "session/subagents directory doesn't
+  // exist yet" case (readdir fails → keep polling).
+  watcher.bindTimer = setInterval(() => {
+    if (watcher.stopped) {
+      clearBindTimer(watcher);
       return;
     }
-
-    // Watch parent directory for subagents/ to appear
-    try {
-      const parentWatcher = fs.watch(parentDir, (eventType, filename) => {
-        if (watcher.stopped) return;
-        if (filename === 'subagents' && fs.existsSync(subagentsDir)) {
-          parentWatcher.close();
-          watchDirectory(watcher);
-        }
-      });
-      parentWatcher.on('error', () => parentWatcher.close());
-    } catch {
-      log.warn(`[Watcher] Failed to watch parent dir: ${parentDir}`);
-    }
-    return;
-  }
-
-  // Directory exists - look for existing files or watch for new ones
-  watchDirectory(watcher);
-}
-
-/**
- * Watch the subagents directory for JSONL files
- */
-function watchDirectory(watcher: ActiveWatcher): void {
-  if (watcher.stopped) return;
-
-  const { subagentsDir } = watcher;
-
-  // Check for existing .jsonl files
-  try {
-    const files = fs.readdirSync(subagentsDir).filter(f => f.endsWith('.jsonl'));
-    if (files.length > 0) {
-      // Pick the most recently modified file
-      let newest = files[0];
-      let newestMtime = 0;
-      for (const f of files) {
-        try {
-          const stat = fs.statSync(path.join(subagentsDir, f));
-          if (stat.mtimeMs > newestMtime) {
-            newestMtime = stat.mtimeMs;
-            newest = f;
-          }
-        } catch { /* skip */ }
-      }
-      startFileWatch(watcher, path.join(subagentsDir, newest));
+    if (tryBindTranscript(watcher)) {
+      clearBindTimer(watcher);
       return;
     }
-  } catch { /* directory may have been removed */ }
+    if (Date.now() - watcher.startedAt > BIND_GIVE_UP_MS) {
+      log.warn(`[Watcher] No transcript appeared for toolUseId=${watcher.toolUseId} after ${BIND_GIVE_UP_MS / 1000}s, giving up`);
+      doStop(watcher);
+    }
+  }, BIND_POLL_INTERVAL_MS);
 
-  // No files yet - watch for new ones
+  // React faster than the poll when the directory already exists.
   try {
-    watcher.dirWatcher = fs.watch(subagentsDir, (eventType, filename) => {
-      if (watcher.stopped) return;
-      if (filename && filename.endsWith('.jsonl') && !watcher.jsonlPath) {
-        const filePath = path.join(subagentsDir, filename);
-        if (fs.existsSync(filePath)) {
-          watcher.dirWatcher?.close();
-          watcher.dirWatcher = undefined;
-          startFileWatch(watcher, filePath);
-        }
+    watcher.dirWatcher = fs.watch(watcher.subagentsDir, () => {
+      if (watcher.stopped || watcher.jsonlPath) return;
+      if (tryBindTranscript(watcher)) {
+        clearBindTimer(watcher);
       }
     });
     watcher.dirWatcher.on('error', () => {
       watcher.dirWatcher?.close();
       watcher.dirWatcher = undefined;
     });
-  } catch {
-    log.warn(`[Watcher] Failed to watch directory: ${subagentsDir}`);
+  } catch { /* directory not created yet — the bind poll covers it */ }
+}
+
+function clearBindTimer(watcher: ActiveWatcher): void {
+  if (watcher.bindTimer) {
+    clearInterval(watcher.bindTimer);
+    watcher.bindTimer = undefined;
   }
+}
+
+/**
+ * One binding attempt. Returns true when a file watch was started.
+ *
+ * Fallback for CLI layouts that don't write meta files: after a grace
+ * period, bind to the newest .jsonl that has no .meta.json sibling. Files
+ * WITH a meta sibling are never eligible — a non-matching meta means the
+ * file belongs to a different Task/Agent call.
+ */
+function tryBindTranscript(watcher: ActiveWatcher): boolean {
+  const { subagentsDir } = watcher;
+  let files: string[];
+  try {
+    files = fs.readdirSync(subagentsDir);
+  } catch {
+    return false; // directory doesn't exist yet
+  }
+
+  // Exact match via meta.json (agent-<id>.meta.json → agent-<id>.jsonl)
+  for (const f of files) {
+    if (!f.endsWith('.meta.json')) continue;
+    try {
+      const meta = JSON.parse(fs.readFileSync(path.join(subagentsDir, f), 'utf8'));
+      if (meta?.toolUseId !== watcher.toolUseId) continue;
+      const jsonl = f.replace(/\.meta\.json$/, '.jsonl');
+      if (files.includes(jsonl)) {
+        startFileWatch(watcher, path.join(subagentsDir, jsonl));
+        return true;
+      }
+      return false; // our meta exists but the transcript doesn't yet — keep waiting
+    } catch { /* unreadable/partially-written meta — skip */ }
+  }
+
+  // Fallback: newest orphan .jsonl (no meta sibling), after a grace period
+  // that gives our meta.json time to appear.
+  if (Date.now() - watcher.startedAt < FALLBACK_BIND_GRACE_MS) return false;
+  const orphans = files.filter(
+    (f) => f.endsWith('.jsonl') && !files.includes(f.replace(/\.jsonl$/, '.meta.json'))
+  );
+  if (orphans.length === 0) return false;
+
+  let newest = orphans[0];
+  let newestMtime = 0;
+  for (const f of orphans) {
+    try {
+      const stat = fs.statSync(path.join(subagentsDir, f));
+      if (stat.mtimeMs > newestMtime) {
+        newestMtime = stat.mtimeMs;
+        newest = f;
+      }
+    } catch { /* skip */ }
+  }
+  startFileWatch(watcher, path.join(subagentsDir, newest));
+  return true;
 }
 
 /**
@@ -303,8 +330,18 @@ function watchDirectory(watcher: ActiveWatcher): void {
 function startFileWatch(watcher: ActiveWatcher, filePath: string): void {
   if (watcher.stopped) return;
 
+  // Binding done — the directory watcher is no longer needed.
+  watcher.dirWatcher?.close();
+  watcher.dirWatcher = undefined;
+
   watcher.jsonlPath = filePath;
-  log.log(`[Watcher] Found JSONL file: ${filePath} for toolUseId=${watcher.toolUseId}`);
+  log.log(`[Watcher] Found JSONL file: ${filePath} for toolUseId=${watcher.toolUseId}${watcher.startAtEnd ? ' (tail from EOF)' : ''}`);
+
+  if (watcher.startAtEnd) {
+    try {
+      watcher.readPosition = fs.statSync(filePath).size;
+    } catch { /* file vanished — readNewLines will retry from 0 */ }
+  }
 
   // Read existing content
   readNewLines(watcher);

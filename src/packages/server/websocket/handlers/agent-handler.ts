@@ -1006,6 +1006,7 @@ export async function handleUpdateAgentProperties(
       autoCollapse?: boolean;
       autoCollapseCron?: string;
       autoCollapseTz?: string;
+      autoCollapsePrompt?: string;
     };
   }
 ): Promise<void> {
@@ -1147,6 +1148,10 @@ export async function handleUpdateAgentProperties(
 
   if (updates.autoCollapseTz !== undefined) {
     agentUpdates.autoCollapseTz = updates.autoCollapseTz || undefined;
+  }
+
+  if (updates.autoCollapsePrompt !== undefined) {
+    agentUpdates.autoCollapsePrompt = updates.autoCollapsePrompt || undefined;
   }
 
   // Apply agent property updates if any

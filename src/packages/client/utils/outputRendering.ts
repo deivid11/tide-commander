@@ -552,6 +552,32 @@ export function linkifyFilePathsForMarkdown(text: string): string {
 }
 
 /**
+ * Extract bare file-path tokens from free text (not markdown).
+ *
+ * Reuses the exact detection heuristics of linkifyFilePathsForMarkdown
+ * (FILE_PATH_TOKEN_REGEX + isLikelyFilePathToken) so search indexing and
+ * rendering agree on what counts as a file path. Trailing line/column suffixes
+ * (:12, :12:3, #L12, #L12C3) are stripped so callers get the bare path, and the
+ * result is de-duplicated preserving first-seen order.
+ */
+export function extractFilePathTokens(text: string): string[] {
+  if (!text || !text.includes('.')) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  FILE_PATH_TOKEN_REGEX.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = FILE_PATH_TOKEN_REGEX.exec(text)) !== null) {
+    const token = match[2];
+    if (!isLikelyFilePathToken(token)) continue;
+    const bare = token.replace(/(?:#L\d+(?:C\d+)?)?(?::\d+(?::\d+)?)?$/, '');
+    if (!bare || seen.has(bare)) continue;
+    seen.add(bare);
+    out.push(bare);
+  }
+  return out;
+}
+
+/**
  * Decode custom markdown href back into a file reference string.
  */
 export function decodeTideFileHref(href?: string | null): string | null {

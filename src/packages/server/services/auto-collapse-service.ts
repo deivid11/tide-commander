@@ -74,8 +74,14 @@ function armJob(agentId: string, config: { expression: string; timezone: string 
 
 async function runCollapse(agentId: string, expression: string, timezone: string): Promise<void> {
   try {
-    const result = await collapseAgentContext(agentId, { waitForIdle: true });
-    log.log(`Auto-collapse fired for agent ${agentId} ('${expression}' ${timezone}): ${result.status}`);
+    // Read the prompt at fire time (not arm time) so edits to it apply on the
+    // next collapse without re-arming the cron job.
+    const afterPrompt = (agentService.getAgent(agentId)?.autoCollapsePrompt ?? '').trim() || undefined;
+    const result = await collapseAgentContext(agentId, {
+      waitForIdle: true,
+      ...(afterPrompt ? { afterPrompt } : {}),
+    });
+    log.log(`Auto-collapse fired for agent ${agentId} ('${expression}' ${timezone}): ${result.status}${afterPrompt ? ' [post-collapse prompt armed]' : ''}`);
   } catch (err) {
     log.error(`Auto-collapse failed for agent ${agentId}:`, err);
   }

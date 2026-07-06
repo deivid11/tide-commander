@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import type { ActiveProcess, CLIBackend, RunnerRequest } from '../types.js';
 import {
   saveRunningProcesses,
@@ -8,9 +9,54 @@ import {
 } from '../../data/index.js';
 import * as agentService from '../../services/agent-service.js';
 import { createLogger } from '../../utils/logger.js';
-import { hasTmuxSession, isTmuxEnabled, killTmuxSession, listAgentTmuxSessions, tmuxLogPath } from './tmux-helper.js';
+import { hasTmuxSession, isTmuxEnabled, killTmuxSession, listAgentTmuxSessions, tmuxLogPath, tmuxSessionName } from './tmux-helper.js';
 
 const log = createLogger('Runner');
+
+const TAIL_SCAN_BYTES = 64 * 1024;
+
+/**
+ * Derive whether the CLI inside a live tmux session is mid-turn by scanning
+ * the tail of its log for the last complete stream-json event: claude emits
+ * `{type:'result'}` at end of turn, so a trailing result means the agent is
+ * waiting for input; any other trailing event means a turn is in flight.
+ * Used for sessions recovered WITHOUT a persist entry, where the persisted
+ * agentStatus is unavailable.
+ */
+function scanLogTailForStatus(logFile: string): 'working' | 'idle' {
+  let fd: number | undefined;
+  try {
+    const stat = fs.statSync(logFile);
+    if (stat.size === 0) return 'idle';
+    const readLen = Math.min(stat.size, TAIL_SCAN_BYTES);
+    const buf = Buffer.alloc(readLen);
+    fd = fs.openSync(logFile, 'r');
+    fs.readSync(fd, buf, 0, readLen, stat.size - readLen);
+    fs.closeSync(fd);
+    fd = undefined;
+
+    // Walk complete lines from the end; the first parseable JSON event wins.
+    // Partial trailing writes and the (possibly truncated) chunk head fail
+    // JSON.parse and are skipped naturally.
+    const lines = buf.toString('utf8').split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      try {
+        const event = JSON.parse(line);
+        if (event && typeof event.type === 'string') {
+          return event.type === 'result' ? 'idle' : 'working';
+        }
+      } catch { /* partial/truncated line — keep walking back */ }
+    }
+    return 'idle';
+  } catch {
+    if (fd !== undefined) {
+      try { fs.closeSync(fd); } catch { /* ignore */ }
+    }
+    return 'idle';
+  }
+}
 
 interface RecoveryStoreDeps {
   backend: CLIBackend;
@@ -164,14 +210,54 @@ export class RunnerRecoveryStore {
       }
     }
 
-    // Only clear THIS provider's entries from the persist file, not the whole file.
-    // Other runners haven't recovered yet and still need their entries.
-    const remaining = savedProcesses.filter((p) => {
+    // Persist-file entries can be lost (a restart landing before the
+    // post-reconnect persist below, or a hard crash), but the tmux sessions
+    // themselves survive. Treat live `tc-*` sessions as the source of truth:
+    // any session whose agent belongs to this provider and has no persist
+    // entry gets a synthesized reconnect entry tailing from the log's current
+    // end, with status derived from the last event in the log.
+    if (isTmuxEnabled()) {
+      const pending = new Set(toReconnectTmux.map((p) => p.agentId));
+      for (const agentId of listAgentTmuxSessions()) {
+        if (this.activeProcesses.has(agentId) || pending.has(agentId)) continue;
+        const agent = agentService.getAgent(agentId);
+        if (!agent) continue; // killUnknownTmuxSessions() already handles these
+        if ((agent.provider ?? 'claude') !== this.backend.name) continue;
+
+        const logFile = tmuxLogPath(agentId);
+        let offset = 0;
+        try {
+          offset = fs.statSync(logFile).size;
+        } catch { /* no log yet — reconnect from 0 */ }
+        // Stdin-closed backends (codex/opencode) exit at end of turn, so a
+        // live session is mid-turn by definition.
+        const closesStdin = this.backend.shouldCloseStdinAfterPrompt?.() === true;
+        const agentStatus = closesStdin ? 'working' : scanLogTailForStatus(logFile);
+        log.log(`✅ [TMUX] Live session ${tmuxSessionName(agentId)} has no persist entry — reconnecting at EOF (offset=${offset}, derived status=${agentStatus})`);
+        toReconnectTmux.push({
+          agentId,
+          pid: 0,
+          sessionId: agent.sessionId,
+          startTime: Date.now(),
+          agentStatus,
+          tmuxSession: tmuxSessionName(agentId),
+          tmuxLogOffset: offset,
+          provider: this.backend.name,
+        });
+      }
+    }
+
+    // Rewrite the persist file: other providers' entries stay untouched, and
+    // our to-reconnect tmux entries are KEPT (not consumed) — if the server
+    // dies again before the reconnect below re-persists, the next boot can
+    // still find them. Everything else of ours is consumed.
+    const otherProviders = savedProcesses.filter((p) => {
       const prov = p.provider ?? agentService.getAgent(p.agentId)?.provider ?? 'claude';
       return prov !== this.backend.name;
     });
-    if (remaining.length > 0) {
-      saveRunningProcesses(remaining);
+    const preserved = [...otherProviders, ...toReconnectTmux];
+    if (preserved.length > 0) {
+      saveRunningProcesses(preserved);
     } else {
       clearRunningProcesses();
     }
@@ -191,6 +277,10 @@ export class RunnerRecoveryStore {
           log.log(`🔄 [TMUX] Reconnecting to tmux session for agent ${saved.agentId} at offset ${offset}`);
           this.reconnectTmux!(saved.agentId, logFile, offset, saved);
         }
+        // Re-persist immediately so the freshly tracked processes survive
+        // another quick restart (the periodic persist is up to 10s away, and
+        // tsx-watch dev restarts land inside that window all the time).
+        this.persistRunningProcesses();
       }, 1000);
     }
 

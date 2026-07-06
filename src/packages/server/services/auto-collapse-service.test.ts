@@ -20,6 +20,7 @@ vi.mock('./runtime-service.js', () => ({
 }));
 vi.mock('./agent-service.js', () => ({
   getAllAgents: () => allAgents,
+  getAgent: (id: string) => allAgents.find((a) => a.id === id),
   subscribe: (cb: (event: string, data: Agent | string) => void) => {
     subscriber = cb;
     return () => { subscriber = null; };
@@ -140,6 +141,44 @@ describe('autoCollapseService reconcile on agent events', () => {
     const cronCallback = scheduleMock.mock.calls[0][2] as () => void;
     cronCallback();
     await Promise.resolve();
+    expect(collapseMock).toHaveBeenCalledWith('a1', { waitForIdle: true });
+  });
+
+  it('does NOT re-arm when only autoCollapsePrompt changes', () => {
+    autoCollapse.initAutoCollapse();
+    const armed = makeAgent({ id: 'a1', autoCollapse: true, autoCollapseCron: '0 2 * * *', autoCollapseTz: 'UTC', autoCollapsePrompt: 'v1' });
+    subscriber?.('updated', armed);
+    expect(scheduleMock).toHaveBeenCalledTimes(1);
+
+    subscriber?.('updated', { ...armed, autoCollapsePrompt: 'v2' });
+    expect(scheduleMock).toHaveBeenCalledTimes(1);
+    expect(stopMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('autoCollapseService post-collapse prompt', () => {
+  it('passes the agent autoCollapsePrompt as afterPrompt, read at fire time', async () => {
+    const agent = makeAgent({ id: 'a1', autoCollapse: true, autoCollapseCron: '0 2 * * *', autoCollapseTz: 'UTC', autoCollapsePrompt: 'stale prompt' });
+    allAgents = [agent];
+    autoCollapse.initAutoCollapse();
+
+    // Edited after arming — the fresh value must be used without re-arming.
+    agent.autoCollapsePrompt = '  resume the sweep  ';
+    const cronCallback = scheduleMock.mock.calls[0][2] as () => void;
+    cronCallback();
+    await Promise.resolve();
+
+    expect(collapseMock).toHaveBeenCalledWith('a1', { waitForIdle: true, afterPrompt: 'resume the sweep' });
+  });
+
+  it('omits afterPrompt when the agent has a blank prompt configured', async () => {
+    allAgents = [makeAgent({ id: 'a1', autoCollapse: true, autoCollapseCron: '0 2 * * *', autoCollapseTz: 'UTC', autoCollapsePrompt: '   ' })];
+    autoCollapse.initAutoCollapse();
+
+    const cronCallback = scheduleMock.mock.calls[0][2] as () => void;
+    cronCallback();
+    await Promise.resolve();
+
     expect(collapseMock).toHaveBeenCalledWith('a1', { waitForIdle: true });
   });
 });

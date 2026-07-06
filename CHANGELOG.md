@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.135.0] - 2026-07-06
+
+### Added
+- **In-terminal conversation search** — the Guake terminal search now has a dedicated results panel (`SearchResultsPanel`) backed by pure, unit-tested indexing helpers (`searchIndexing.ts`): ranked content results (multi-word AND matching, exact-phrase boosted, windowed snippets with match counts) and fuzzy-matched file results aggregating every file referenced in the conversation with per-file read/edit/write counts; results scroll-to-navigate the output list.
+- **Post-collapse prompt for auto-collapse** — agents can define an `autoCollapsePrompt` that is sent after each scheduled auto-collapse fires; the prompt is read at fire time, so edits apply to the next collapse without re-arming the cron job.
+
+### Changed
+- **Subagent transcript watcher hardening** (`subagent-jsonl-watcher.ts`) — exact transcript binding via each subagent's `agent-<id>.meta.json` (with a newest-file fallback after a grace period), retries binding every second for up to 2 minutes, idle timeout raised 3→10 minutes and max watch duration 15→60 minutes (background agents routinely run 20–30 min), and re-armed watchers start at end-of-file so a subagent's history is never re-broadcast as duplicates.
+- Agent edit modal and terminal theme/rendering refinements.
+
 ## [1.134.2] - 2026-07-05
 
 ### Fixed

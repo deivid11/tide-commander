@@ -209,3 +209,114 @@ describe('collapseAgentContext — waitForIdle queue', () => {
     expect(svc.hasPending('A')).toBe(false);
   });
 });
+
+describe('collapseAgentContext — afterPrompt', () => {
+  it('idle path: sends /compact, then the prompt on the next idle transition', async () => {
+    bus.agents.set('A', { id: 'A', status: 'idle' });
+    const svc = makeService();
+
+    const result = await svc.collapse('A', { afterPrompt: 'resume monitoring' });
+
+    expect(result).toEqual({ status: 'collapse-initiated' });
+    expect(sendCommand).toHaveBeenCalledExactlyOnceWith('A', '/compact');
+    expect(svc.hasPendingPrompt('A')).toBe(true);
+
+    // Compact turn runs and finishes — prompt fires on the idle transition.
+    bus.emitUpdated({ id: 'A', status: 'working' });
+    bus.emitUpdated({ id: 'A', status: 'idle' });
+    await vi.waitFor(() => expect(sendCommand).toHaveBeenCalledTimes(2));
+    expect(sendCommand).toHaveBeenLastCalledWith('A', 'resume monitoring');
+    expect(svc.hasPendingPrompt('A')).toBe(false);
+  });
+
+  it('queued path: /compact drains on first idle, prompt fires on the following idle', async () => {
+    bus.agents.set('A', { id: 'A', status: 'working' });
+    const svc = makeService();
+
+    const result = await svc.collapse('A', { waitForIdle: true, afterPrompt: 'resume monitoring' });
+    expect(result).toEqual({ status: 'queued' });
+    expect(svc.hasPendingPrompt('A')).toBe(false);
+
+    // First idle → queued /compact drains and arms the prompt.
+    bus.emitUpdated({ id: 'A', status: 'idle' });
+    await vi.waitFor(() => expect(sendCommand).toHaveBeenCalledExactlyOnceWith('A', '/compact'));
+    expect(svc.hasPending('A')).toBe(false);
+    expect(svc.hasPendingPrompt('A')).toBe(true);
+
+    // Compact turn finishes → prompt fires.
+    bus.emitUpdated({ id: 'A', status: 'working' });
+    bus.emitUpdated({ id: 'A', status: 'idle' });
+    await vi.waitFor(() => expect(sendCommand).toHaveBeenCalledTimes(2));
+    expect(sendCommand).toHaveBeenLastCalledWith('A', 'resume monitoring');
+  });
+
+  it('prompt is single-shot: later idle transitions do not resend it', async () => {
+    bus.agents.set('A', { id: 'A', status: 'idle' });
+    const svc = makeService();
+
+    await svc.collapse('A', { afterPrompt: 'once only' });
+    bus.emitUpdated({ id: 'A', status: 'idle' });
+    await vi.waitFor(() => expect(sendCommand).toHaveBeenCalledTimes(2));
+
+    bus.emitUpdated({ id: 'A', status: 'working' });
+    bus.emitUpdated({ id: 'A', status: 'idle' });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(sendCommand).toHaveBeenCalledTimes(2);
+  });
+
+  it('blank/whitespace afterPrompt is ignored', async () => {
+    bus.agents.set('A', { id: 'A', status: 'idle' });
+    const svc = makeService();
+
+    await svc.collapse('A', { afterPrompt: '   ' });
+
+    expect(svc.hasPendingPrompt('A')).toBe(false);
+    bus.emitUpdated({ id: 'A', status: 'idle' });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(sendCommand).toHaveBeenCalledExactlyOnceWith('A', '/compact');
+  });
+
+  it('does not arm the prompt when the /compact send fails', async () => {
+    bus.agents.set('A', { id: 'A', status: 'idle' });
+    const svc = makeService({ sendCommandFails: true });
+
+    const result = await svc.collapse('A', { afterPrompt: 'never sent' });
+
+    expect(result).toEqual({ status: 'error', error: 'boom' });
+    expect(svc.hasPendingPrompt('A')).toBe(false);
+    bus.emitUpdated({ id: 'A', status: 'idle' });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(sendCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it('coalesced waitForIdle calls keep the latest afterPrompt', async () => {
+    bus.agents.set('A', { id: 'A', status: 'working' });
+    const svc = makeService();
+
+    await svc.collapse('A', { waitForIdle: true, afterPrompt: 'first' });
+    await svc.collapse('A', { waitForIdle: true, afterPrompt: 'second' });
+    expect(svc.pendingCount()).toBe(1);
+
+    bus.emitUpdated({ id: 'A', status: 'idle' });
+    await vi.waitFor(() => expect(sendCommand).toHaveBeenCalledExactlyOnceWith('A', '/compact'));
+    bus.emitUpdated({ id: 'A', status: 'working' });
+    bus.emitUpdated({ id: 'A', status: 'idle' });
+    await vi.waitFor(() => expect(sendCommand).toHaveBeenCalledTimes(2));
+    expect(sendCommand).toHaveBeenLastCalledWith('A', 'second');
+  });
+
+  it('deleting the agent clears both queued collapse and armed prompt', async () => {
+    bus.agents.set('A', { id: 'A', status: 'idle' });
+    const svc = makeService();
+
+    await svc.collapse('A', { afterPrompt: 'orphaned' });
+    expect(svc.hasPendingPrompt('A')).toBe(true);
+
+    for (const l of bus.listeners) l('deleted', 'A');
+    expect(svc.hasPendingPrompt('A')).toBe(false);
+
+    bus.emitUpdated({ id: 'A', status: 'idle' });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(sendCommand).toHaveBeenCalledExactlyOnceWith('A', '/compact');
+  });
+});

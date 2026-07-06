@@ -332,6 +332,7 @@ export interface Agent {
   autoCollapse?: boolean;          // Master enable/disable flag
   autoCollapseCron?: string;       // 5-field cron expression, e.g. '0 3 * * *' (3am daily)
   autoCollapseTz?: string;         // IANA timezone for the cron, e.g. 'America/Mexico_City'
+  autoCollapsePrompt?: string;     // Optional prompt sent to the agent after each scheduled collapse completes
 }
 
 // ============================================================================

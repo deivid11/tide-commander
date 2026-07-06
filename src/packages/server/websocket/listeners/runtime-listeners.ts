@@ -7,7 +7,7 @@ import { parseAllFormats } from '../handlers/agent-handler.js';
 import { agentService, runtimeService } from '../../services/index.js';
 import { logger, formatToolActivity } from '../../utils/index.js';
 import { parseBossDelegation, parseBossSpawn, getBossForSubordinate, clearDelegation } from '../handlers/boss-response-handler.js';
-import { startWatching as startJsonlWatching, stopWatching as stopJsonlWatching, getSubagentsDir } from '../../services/subagent-jsonl-watcher.js';
+import { startWatching as startJsonlWatching, stopWatching as stopJsonlWatching, isWatching as isJsonlWatching, getSubagentsDir } from '../../services/subagent-jsonl-watcher.js';
 
 const log = logger.ws;
 const MAX_SYNTHETIC_DIFF_FILE_BYTES = 256 * 1024;
@@ -48,6 +48,37 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
 
   // Track agents currently in compacting state so we can clear it when they resume
   const compactingAgents = new Set<string>();
+
+  function armSubagentJsonlWatcher(agentId: string, toolUseId: string, options?: { startAtEnd?: boolean }): void {
+    const parentAgent = agentService.getAgent(agentId);
+    if (!parentAgent?.sessionId) return;
+    const subagentsDir = getSubagentsDir(parentAgent.cwd, parentAgent.sessionId);
+    startJsonlWatching(toolUseId, agentId, subagentsDir, (watchedToolUseId, parentAgentId, entries) => {
+      ctx.broadcast({
+        type: 'subagent_stream',
+        payload: { toolUseId: watchedToolUseId, parentAgentId, entries },
+      } as any);
+    }, (watchedToolUseId, parentAgentId, result) => {
+      // The parent CLI stream never echoes subagent tool_result events
+      // (only tool_use), so without this bridge the subagent Bash
+      // cards in the terminal keep their "running" spinner forever.
+      // Mirror the parent-agent behavior: only Bash results get a card.
+      if (result.toolName !== 'Bash') return;
+      ctx.broadcast({
+        type: 'event',
+        payload: {
+          agentId: parentAgentId,
+          type: 'tool_result',
+          toolName: 'Bash',
+          toolOutput: result.output,
+          parentToolUseId: watchedToolUseId,
+          // Subagent-internal tool_use id — matches the uuid of the
+          // corresponding tool_start card so the client pairs exactly.
+          uuid: result.toolUseId,
+        },
+      } as any);
+    }, options);
+  }
 
   runtimeService.on('event', (agentId, event) => {
     // Clear compacting state when agent resumes with new output after compaction
@@ -124,34 +155,7 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
           log.log(`[Subagent] Broadcast subagent_started: ${subagent.name} (${subagent.id})`);
 
           // Start streaming JSONL file for this subagent
-          if (parentAgent?.sessionId) {
-            const subagentsDir = getSubagentsDir(parentAgent.cwd, parentAgent.sessionId);
-            startJsonlWatching(event.toolUseId, agentId, subagentsDir, (toolUseId, parentAgentId, entries) => {
-              ctx.broadcast({
-                type: 'subagent_stream',
-                payload: { toolUseId, parentAgentId, entries },
-              } as any);
-            }, (toolUseId, parentAgentId, result) => {
-              // The parent CLI stream never echoes subagent tool_result events
-              // (only tool_use), so without this bridge the subagent Bash
-              // cards in the terminal keep their "running" spinner forever.
-              // Mirror the parent-agent behavior: only Bash results get a card.
-              if (result.toolName !== 'Bash') return;
-              ctx.broadcast({
-                type: 'event',
-                payload: {
-                  agentId: parentAgentId,
-                  type: 'tool_result',
-                  toolName: 'Bash',
-                  toolOutput: result.output,
-                  parentToolUseId: toolUseId,
-                  // Subagent-internal tool_use id — matches the uuid of the
-                  // corresponding tool_start card so the client pairs exactly.
-                  uuid: result.toolUseId,
-                },
-              } as any);
-            });
-          }
+          armSubagentJsonlWatcher(agentId, event.toolUseId);
         }
       }
     } else if (event.type === 'tool_result' && (event.toolName === 'Task' || event.toolName === 'Agent') && event.toolUseId) {
@@ -195,6 +199,12 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
 
     // Forward subagent internal tool activity to client (events with parentToolUseId)
     if (event.parentToolUseId && event.type === 'tool_start' && event.toolName !== 'Task' && event.toolName !== 'Agent') {
+      // Self-heal: if this subagent's watcher is gone (idle/max timeout hit,
+      // server restarted mid-run) or was never armed, re-arm it tailing from
+      // EOF so this tool's result can still resolve its card's spinner.
+      if (!isJsonlWatching(event.parentToolUseId)) {
+        armSubagentJsonlWatcher(agentId, event.parentToolUseId, { startAtEnd: true });
+      }
       const toolDesc = formatToolActivity(event.toolName, event.toolInput);
       ctx.broadcast({
         type: 'subagent_output',

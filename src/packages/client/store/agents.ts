@@ -142,6 +142,7 @@ export interface AgentActions {
       autoCollapse?: boolean;
       autoCollapseCron?: string;
       autoCollapseTz?: string;
+      autoCollapsePrompt?: string;
     }
   ): void;
 
@@ -808,6 +809,7 @@ export function createAgentActions(
         autoCollapse?: boolean;
         autoCollapseCron?: string;
         autoCollapseTz?: string;
+        autoCollapsePrompt?: string;
       }
     ): void {
       const state = getState();
@@ -863,6 +865,9 @@ export function createAgentActions(
           if (updates.autoCollapseTz !== undefined) {
             updatedAgent.autoCollapseTz = updates.autoCollapseTz || undefined;
           }
+          if (updates.autoCollapsePrompt !== undefined) {
+            updatedAgent.autoCollapsePrompt = updates.autoCollapsePrompt || undefined;
+          }
           const newAgents = new Map(s.agents);
           newAgents.set(agentId, updatedAgent);
           s.agents = newAgents;
@@ -905,11 +910,12 @@ export function createAgentActions(
         });
       }
 
-      if (updates.autoCollapse !== undefined || updates.autoCollapseCron !== undefined || updates.autoCollapseTz !== undefined) {
+      if (updates.autoCollapse !== undefined || updates.autoCollapseCron !== undefined || updates.autoCollapseTz !== undefined || updates.autoCollapsePrompt !== undefined) {
         const body: Record<string, unknown> = {};
         if (updates.autoCollapse !== undefined) body.autoCollapse = updates.autoCollapse;
         if (updates.autoCollapseCron !== undefined) body.autoCollapseCron = updates.autoCollapseCron || null;
         if (updates.autoCollapseTz !== undefined) body.autoCollapseTz = updates.autoCollapseTz || null;
+        if (updates.autoCollapsePrompt !== undefined) body.autoCollapsePrompt = updates.autoCollapsePrompt || null;
         authFetch(apiUrl(`/api/agents/${agentId}`), {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },

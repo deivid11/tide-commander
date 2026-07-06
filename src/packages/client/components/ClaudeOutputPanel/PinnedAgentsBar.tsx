@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { store, useAgents, usePinnedAgentIds, useCustomAgentClassesArray, useAreas, useViewMode } from '../../store';
+import { store, useAgents, usePinnedAgentIds, useCustomAgentClassesArray, useAreas, useViewMode, useAgentsWithUnseenOutput } from '../../store';
 import { AgentIcon } from '../AgentIcon';
 import { STORAGE_KEYS, getStorage, getStorageString, setStorageString } from '../../utils/storage';
 import { prefetchAgentHistory } from './useHistoryLoader';
@@ -66,6 +66,11 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId }: 
   const customClasses = useCustomAgentClassesArray();
   const areas = useAreas();
   const viewMode = useViewMode();
+  // Agents whose finished work the user hasn't opened yet (same source as the
+  // AgentBar triangle and the tracking-board "!" bubble). The store adds an id
+  // when an agent goes working→idle unviewed and clears it on select/open, so
+  // the badge appears and disappears with no extra bookkeeping here.
+  const unseenAgents = useAgentsWithUnseenOutput();
 
   const [groupMode, setGroupMode] = useState<GroupMode>(() => {
     const saved = getStorageString(STORAGE_KEYS.PINNED_GROUP_MODE, 'none');
@@ -234,18 +239,19 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId }: 
       const working = agent.status === 'working' || agent.status === 'waiting';
       const isActive = agent.id === activeAgentId;
       const areaColor = areaColorById.get(agent.id) ?? null;
+      const hasUnread = unseenAgents.has(agent.id);
       return (
         <button
           key={agent.id}
           type="button"
           draggable
           className={`pinned-agent${isActive ? ' active' : ''}${working ? ' working' : ''}${areaColor ? ' has-area' : ''}${
-            draggingId === agent.id ? ' dragging' : ''
-          }${dropTarget && dropTarget.id === agent.id ? (dropTarget.after ? ' drop-after' : ' drop-before') : ''}`}
-          title={`${agent.name}${agent.status ? ` — ${agent.status}` : ''}`}
+            hasUnread ? ' has-unread' : ''
+          }${draggingId === agent.id ? ' dragging' : ''}${dropTarget && dropTarget.id === agent.id ? (dropTarget.after ? ' drop-after' : ' drop-before') : ''}`}
+          title={`${agent.name}${agent.status ? ` — ${agent.status}` : ''}${hasUnread ? ' — new output' : ''}`}
           // Keep an accessible name even in miniature mode, where the visible
           // name label is hidden via CSS.
-          aria-label={agent.name}
+          aria-label={`${agent.name}${hasUnread ? ', new output' : ''}`}
           style={areaColor ? ({ ['--area-color']: areaColor } as React.CSSProperties) : undefined}
           onClick={() => handleSelect(agent)}
           // Warm the history cache during hover so the switch on click paints
@@ -260,6 +266,7 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId }: 
           <span className="pinned-agent-av">
             <AgentIcon classId={agent.class} size="100%" customClasses={customClasses} />
           </span>
+          {hasUnread && <span className="pinned-agent-notif" aria-hidden="true" />}
           <span className="pinned-agent-name">{agent.name}</span>
           <span
             className="pinned-agent-unpin"
@@ -273,7 +280,7 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId }: 
         </button>
       );
     },
-    [activeAgentId, areaColorById, draggingId, dropTarget, customClasses, handleSelect, handleUnpin, handleDragStart, handleDragOver, handleDrop, handleDragEnd],
+    [activeAgentId, areaColorById, unseenAgents, draggingId, dropTarget, customClasses, handleSelect, handleUnpin, handleDragStart, handleDragOver, handleDrop, handleDragEnd],
   );
 
   if (pinned.length === 0) return null;

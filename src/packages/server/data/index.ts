@@ -87,6 +87,7 @@ export interface StoredAgent {
   autoCollapse?: boolean;     // Whether auto-collapse is enabled
   autoCollapseCron?: string;  // 5-field cron expression
   autoCollapseTz?: string;    // IANA timezone for the cron
+  autoCollapsePrompt?: string; // Prompt sent to the agent after each scheduled collapse completes
   // Boss-specific fields
   isBoss?: boolean;           // True if this agent is a boss
   subordinateIds?: string[];  // Only for boss agents
@@ -222,6 +223,7 @@ function toStoredAgents(agents: Agent[]): StoredAgent[] {
     autoCollapse: agent.autoCollapse,
     autoCollapseCron: agent.autoCollapseCron,
     autoCollapseTz: agent.autoCollapseTz,
+    autoCollapsePrompt: agent.autoCollapsePrompt,
     isBoss: agent.isBoss,
     subordinateIds: agent.subordinateIds,
     bossId: agent.bossId,
