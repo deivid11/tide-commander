@@ -62,6 +62,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const [autoCollapse, setAutoCollapse] = useState<boolean>(agent.autoCollapse || false);
   const [autoCollapseCron, setAutoCollapseCron] = useState<string>(agent.autoCollapseCron || '');
   const [autoCollapseTz, setAutoCollapseTz] = useState<string>(agent.autoCollapseTz || '');
+  const [autoCollapsePrompt, setAutoCollapsePrompt] = useState<string>(agent.autoCollapsePrompt || '');
 
   // Filter classes by search query
   const filteredCustomClasses = useMemo(() => {
@@ -124,6 +125,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       setAutoCollapse(agent.autoCollapse || false);
       setAutoCollapseCron(agent.autoCollapseCron || '');
       setAutoCollapseTz(agent.autoCollapseTz || '');
+      setAutoCollapsePrompt(agent.autoCollapsePrompt || '');
       const directlyAssigned = allSkills
         .filter(s => s.assignedAgentIds.includes(agent.id))
         .map(s => s.id);
@@ -235,6 +237,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (autoCollapse !== (agent.autoCollapse || false)) return true;
     if (autoCollapseCron !== (agent.autoCollapseCron || '')) return true;
     if (autoCollapseTz !== (agent.autoCollapseTz || '')) return true;
+    if (autoCollapsePrompt !== (agent.autoCollapsePrompt || '')) return true;
 
     // Check skill changes
     const currentDirectSkills = allSkills
@@ -246,7 +249,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (currentDirectSkills !== newSkills) return true;
 
     return false;
-  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedEffort, selectedCodexModel, codexConfig, opencodeModel, useChrome, workdir, shortcut, customInstructions, autoCollapse, autoCollapseCron, autoCollapseTz, selectedSkillIds, agent, allSkills]);
+  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedEffort, selectedCodexModel, codexConfig, opencodeModel, useChrome, workdir, shortcut, customInstructions, autoCollapse, autoCollapseCron, autoCollapseTz, autoCollapsePrompt, selectedSkillIds, agent, allSkills]);
 
   // Handle save
   const handleSave = () => {
@@ -268,6 +271,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       autoCollapse?: boolean;
       autoCollapseCron?: string;
       autoCollapseTz?: string;
+      autoCollapsePrompt?: string;
     } = {};
 
     if (trimmedName && trimmedName !== agent.name) {
@@ -337,6 +341,10 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       updates.autoCollapseTz = effectiveTz;
     } else if (autoCollapseTz !== (agent.autoCollapseTz || '')) {
       updates.autoCollapseTz = autoCollapseTz.trim();
+    }
+
+    if (autoCollapsePrompt !== (agent.autoCollapsePrompt || '')) {
+      updates.autoCollapsePrompt = autoCollapsePrompt.trim();
     }
 
     // Always send skill IDs if changed
@@ -816,6 +824,18 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                   />
                   <div className="spawn-inline-hint">
                     IANA timezone. Leave blank to use this browser's zone ({browserTz}).
+                  </div>
+                  <label className="spawn-label" style={{ marginTop: 10 }}>Post-collapse prompt (optional)</label>
+                  <textarea
+                    className="spawn-input"
+                    value={autoCollapsePrompt}
+                    onChange={(e) => setAutoCollapsePrompt(e.target.value)}
+                    placeholder="Prompt sent to the agent after each scheduled collapse completes..."
+                    rows={3}
+                    style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
+                  />
+                  <div className="spawn-inline-hint">
+                    Sent as a new task once the /compact finishes — use it to re-seed instructions after the context is wiped.
                   </div>
                 </div>
               </div>

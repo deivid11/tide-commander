@@ -12,13 +12,22 @@ import { extractFileMentionBlocks } from '../../utils/fileMentions';
 import i18n from '../../i18n';
 
 /**
- * Helper to highlight search terms in text
+ * Helper to highlight search terms in text.
+ *
+ * Multi-word queries are tokenised so each word is highlighted independently
+ * (matches the token-AND search behaviour). Single-word queries behave exactly
+ * as before. The signature is unchanged so shared callers (OutputLine +
+ * HistoryLine) need no updates.
  */
 export function highlightText(text: string, query?: string): React.ReactNode {
   if (!query) return text;
-  const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
+  const tokens = query.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return text;
+  const escaped = tokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const tokenSet = new Set(tokens.map((t) => t.toLowerCase()));
+  const parts = text.split(new RegExp(`(${escaped.join('|')})`, 'gi'));
   return parts.map((part, i) =>
-    part.toLowerCase() === query.toLowerCase() ? (
+    part && tokenSet.has(part.toLowerCase()) ? (
       <mark key={i} className="search-highlight">
         {part}
       </mark>

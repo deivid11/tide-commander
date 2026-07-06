@@ -1356,11 +1356,30 @@
       padding-left: 20px;
     }
   }
+
+  // The message a search result was clicked/navigated to. Persistent tint (so
+  // you can see which match you jumped to) plus a one-shot flash on arrival.
+  &.search-active {
+    background: linear-gradient(
+      to right,
+      color-mix(in srgb, #c8c87a 22%, transparent),
+      color-mix(in srgb, #c8c87a 8%, transparent)
+    );
+    border-left: 3px solid #c8c87a;
+    margin-left: -3px;
+    box-shadow: inset 0 0 12px color-mix(in srgb, #c8c87a 12%, transparent);
+    animation: search-active-flash 0.9s ease-out;
+  }
 }
 
 @keyframes selection-pulse {
   0%, 100% { opacity: 0.8; }
   50% { opacity: 1; }
+}
+
+@keyframes search-active-flash {
+  0% { background-color: color-mix(in srgb, #c8c87a 55%, transparent); }
+  100% { background-color: transparent; }
 }
 
 // Context compaction indicator

@@ -893,6 +893,26 @@
   display: flex;
 }
 
+// Unseen-output dot at the top-LEFT corner — mirror of the × unpin badge's
+// top-right spot so the two never collide, and clear of the working avatar
+// ring. Blue matches the app's unseen language (AgentBar triangle, tracking-
+// board bubble); the bg-colored ring keeps it legible over the active outline
+// and area tints. The store has no per-agent count, hence a dot, not a number.
+.pinned-agent-notif {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent-blue, #4a9eff);
+  border: 1.5px solid var(--bg-primary, #{$dracula-bg});
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent-blue, #4a9eff) 70%, transparent);
+  z-index: 2;
+  pointer-events: none;
+  animation: pinned-agent-notif-pulse 1.5s ease-in-out infinite;
+}
+
 // ── grouping toggle + section headers ───────────────────────────────────────
 // Leading pill that cycles the layout (Flat / Status / Area). Styled like a
 // muted chip so it reads as a control, distinct from the agent chips.
@@ -1044,6 +1064,14 @@
   .pinned-agent-name { display: none; }
   .pinned-agent-unpin,
   .pinned-agent:hover .pinned-agent-unpin { display: none; }
+  // Tighter dot hugging the bare icon; -2px stays inside the pill's 4px top
+  // padding so the bar's overflow-y: hidden never clips it.
+  .pinned-agent-notif {
+    top: -2px;
+    left: -2px;
+    width: 8px;
+    height: 8px;
+  }
   // Icon-only grouping toggle on mobile (the ⊞ glyph carries it); group headers
   // stay (label + count) so the sections remain legible in the tight bar.
   .pinned-group-toggle { padding: 3px 6px; }
@@ -1065,6 +1093,13 @@
 @keyframes pinned-agent-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.55; }
+}
+
+// Gentle breathe on the unseen-output dot — scale only (an opacity pulse makes
+// a 9px dot vanish half the time).
+@keyframes pinned-agent-notif-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.25); }
 }
 
 @keyframes pinned-agent-ring {

@@ -170,6 +170,16 @@ export class InteractiveClaudeRunner implements RuntimeRunner {
       lastRequest: entry.lastRequest!,
     };
     this.processes.set(entry.agentId, proc);
+
+    // loadAgentsFromDisk() flattens every agent to 'idle' on server start, so
+    // restore 'working' from the status captured at persist time. Must happen
+    // BEFORE watcher.start(): its synchronous replay delivers any end-of-turn
+    // events from the downtime, flipping the agent back to idle if the turn
+    // actually finished while we were down.
+    if (entry.agentStatus === 'working' && agentService.getAgent(entry.agentId)) {
+      agentService.updateAgent(entry.agentId, { status: 'working' });
+    }
+
     // start() synchronously reads from the saved offset to EOF, emitting any
     // events that landed while we were down (incl. a trailing end_turn →
     // step_complete → idle), then continues live-tailing.

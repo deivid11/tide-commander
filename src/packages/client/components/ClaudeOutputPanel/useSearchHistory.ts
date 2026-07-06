@@ -9,6 +9,22 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import type { EnrichedHistoryMessage } from './types';
 import type { ClaudeOutput } from '../../store';
+import {
+  tokenize,
+  matchContent,
+  extractSnippet,
+  getItemText,
+  deriveRole,
+  getItemToolName,
+  getItemTimestamp,
+  extractFileReferences,
+  rankFiles,
+  type ContentResult,
+  type FileResult,
+} from './searchIndexing';
+
+/** Which tab of the results panel is active. */
+export type SearchResultsTab = 'content' | 'files';
 
 export interface UseSearchHistoryProps {
   selectedAgentId: string | null;
@@ -52,22 +68,16 @@ export interface UseSearchHistoryReturn {
   scrollToIndex: number | null;
   /** Whether full history is still loading for search */
   loadingFullHistory: boolean;
-}
-
-/** Extract searchable text from an item */
-function getItemText(item: EnrichedHistoryMessage | ClaudeOutput): string {
-  if ('type' in item && 'content' in item) {
-    // EnrichedHistoryMessage
-    const msg = item as EnrichedHistoryMessage;
-    let text = msg.content || '';
-    if (msg._bashOutput) text += ' ' + msg._bashOutput;
-    if (msg._bashCommand) text += ' ' + msg._bashCommand;
-    if (msg.toolName) text += ' ' + msg.toolName;
-    return text;
-  }
-  // ClaudeOutput (live)
-  const output = item as ClaudeOutput;
-  return output.text || '';
+  /** Active results-panel tab */
+  activeTab: SearchResultsTab;
+  /** Switch the active results-panel tab */
+  setActiveTab: (tab: SearchResultsTab) => void;
+  /** Ranked content matches (for the Content tab) */
+  contentResults: ContentResult[];
+  /** Ranked file matches (for the Files tab) */
+  fileResults: FileResult[];
+  /** Jump the output to a given item index (from a results-panel click) */
+  selectResult: (itemIndex: number) => void;
 }
 
 /** Check if a history message is visible in the current view mode */
@@ -128,6 +138,7 @@ export function useSearchHistory({
   const [currentMatch, setCurrentMatch] = useState(0);
   const [scrollToIndex, setScrollToIndex] = useState<number | null>(null);
   const [loadingFullHistory, setLoadingFullHistory] = useState(false);
+  const [activeTab, setActiveTab] = useState<SearchResultsTab>('content');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // When search mode activates and there's more history, load it all.
@@ -155,19 +166,61 @@ export function useSearchHistory({
     });
   }, [searchMode, hasMoreHistory, loadingMore, loadAllHistory]);
 
-  // Find all matching item indices (client-side search)
-  const matchIndices = useMemo(() => {
-    if (!searchQuery.trim() || searchQuery.trim().length < 2) return [];
-    const query = searchQuery.trim().toLowerCase();
+  // Token-aware content search: computes the ascending match indices (for
+  // prev/next navigation + inline highlight) AND the ranked content results
+  // (for the Content tab) in a single pass over the items.
+  const { matchIndices, contentResults } = useMemo(() => {
+    const query = searchQuery.trim();
+    if (query.length < 2) return { matchIndices: [] as number[], contentResults: [] as ContentResult[] };
+    const tokens = tokenize(query);
+    const isMultiWord = query.includes(' ');
     const indices: number[] = [];
+    const results: ContentResult[] = [];
+    const total = allItems.length || 1;
+
     for (let i = 0; i < allItems.length; i++) {
-      const text = getItemText(allItems[i]).toLowerCase();
-      if (text.includes(query) && isItemVisibleInViewMode(allItems[i], viewMode)) {
-        indices.push(i);
-      }
+      const item = allItems[i];
+      if (!isItemVisibleInViewMode(item, viewMode)) continue;
+      const text = getItemText(item);
+      const m = matchContent(text, query, tokens);
+      if (!m.matched) continue;
+
+      indices.push(i);
+
+      // Centre the snippet on the phrase when it matched exactly, else the
+      // primary token.
+      const hasPhrase = isMultiWord && text.toLowerCase().includes(query.toLowerCase());
+      const term = hasPhrase ? query : tokens[0];
+      // Recency weight: later (more recent) items rank a little higher.
+      const recency = Math.floor((i / total) * 50);
+      results.push({
+        itemIndex: i,
+        role: deriveRole(item),
+        toolName: getItemToolName(item),
+        timestamp: getItemTimestamp(item),
+        snippet: extractSnippet(text, term),
+        matchCount: m.matchCount,
+        score: m.score + recency,
+      });
     }
-    return indices;
+
+    results.sort((a, b) => b.score - a.score);
+    return { matchIndices: indices, contentResults: results };
   }, [allItems, searchQuery, viewMode]);
+
+  // Per-conversation file index (only built while searching, so idle terminals
+  // pay nothing). Rebuilt when the underlying items change.
+  const fileIndex = useMemo(
+    () => (searchMode ? extractFileReferences(allItems) : []),
+    [searchMode, allItems]
+  );
+
+  // Ranked file results for the Files tab. Empty query lists every referenced
+  // file (ranked by frequency + recency) for discovery.
+  const fileResults = useMemo(
+    () => rankFiles(fileIndex, searchQuery.trim()),
+    [fileIndex, searchQuery]
+  );
 
   // Reset current match when matches change
   useEffect(() => {
@@ -208,6 +261,14 @@ export function useSearchHistory({
     setScrollToIndex(matchIndices[prev]);
   }, [currentMatch, matchIndices]);
 
+  // Jump the output to a specific item (from a results-panel click). Keeps the
+  // prev/next pointer in sync when the target is one of the highlighted matches.
+  const selectResult = useCallback((itemIndex: number) => {
+    setScrollToIndex(itemIndex);
+    const pos = matchIndices.indexOf(itemIndex);
+    if (pos !== -1) setCurrentMatch(pos);
+  }, [matchIndices]);
+
   // Toggle search
   const toggleSearch = useCallback(() => {
     setSearchMode((prev) => {
@@ -229,6 +290,7 @@ export function useSearchHistory({
     setCurrentMatch(0);
     setScrollToIndex(null);
     setLoadingFullHistory(false);
+    setActiveTab('content');
   }, []);
 
   // Reset when agent changes
@@ -276,5 +338,10 @@ export function useSearchHistory({
     navigatePrev,
     scrollToIndex,
     loadingFullHistory,
+    activeTab,
+    setActiveTab,
+    contentResults,
+    fileResults,
+    selectResult,
   };
 }

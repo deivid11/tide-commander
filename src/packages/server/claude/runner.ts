@@ -618,34 +618,55 @@ export class ClaudeRunner {
     const dummyProcess = spawn('true', [], { stdio: 'ignore' });
     dummyProcess.unref();
 
+    // loadAgentsFromDisk() flattens every agent to 'idle' on server start, so
+    // the in-memory status can't tell us whether this agent was mid-task —
+    // use the status captured in the persist file (refreshed every 10s and on
+    // graceful shutdown) instead.
+    const agent = agentService.getAgent(agentId);
+    const wasWorking = agent?.status === 'working' || savedProcess?.agentStatus === 'working';
+    const lastRequest = savedProcess?.lastRequest as RunnerRequest | undefined;
+
     const activeProcess: ActiveProcess = {
       agentId,
       sessionId: savedProcess?.sessionId,
       startTime: savedProcess?.startTime ?? Date.now(),
       process: dummyProcess,
-      lastRequest: savedProcess?.lastRequest as RunnerRequest | undefined,
+      lastRequest,
       restartCount: 0,
-      turnState: 'waiting_for_input',
+      turnState: wasWorking ? 'processing' : 'waiting_for_input',
+      // Fresh baseline: with the saved startTime as fallback, the watchdog's
+      // idle-timeout would see hours of "inactivity" and kill the live
+      // session on its first tick after a restart.
+      lastActivityTime: Date.now(),
       tmuxSession: sessionName,
       tmuxLogFile: logFile,
       isReconnected: true,
     };
     this.activeProcesses.set(agentId, activeProcess);
 
-    // Resume tailing the log file from where we left off
-    const tailer = this.stdoutPipeline.handleTmuxLog(agentId, logFile, offset);
-    activeProcess.tmuxTailer = tailer;
-
-    // Ensure the agent status reflects that we're connected
-    const agent = agentService.getAgent(agentId);
-    if (agent && agent.status === 'working') {
-      // Keep it as working — it was mid-task when the server restarted
+    if (agent && wasWorking) {
+      // Mid-task when the previous instance went down — re-assert 'working'
+      // so the UI doesn't show idle and the watchdog's idle-timeout doesn't
+      // kill the live session.
+      agentService.updateAgent(agentId, {
+        status: 'working',
+        ...(typeof lastRequest?.prompt === 'string' && lastRequest.prompt.length > 0
+          ? { currentTask: lastRequest.prompt.substring(0, 100) }
+          : {}),
+      });
     } else if (agent) {
       // Set to idle — the tmux session is alive but waiting for input
       agentService.updateAgent(agentId, { status: 'idle' });
     }
 
-    log.log(`✅ [TMUX] Reconnected to tmux session ${sessionName} for agent ${agentId}`);
+    // Resume tailing the log file from where we left off. start() replays any
+    // events that landed during the downtime synchronously, so this must run
+    // AFTER the status restore above: if the turn actually ended while we were
+    // down, the replayed end-of-turn events flip the agent back to idle.
+    const tailer = this.stdoutPipeline.handleTmuxLog(agentId, logFile, offset);
+    activeProcess.tmuxTailer = tailer;
+
+    log.log(`✅ [TMUX] Reconnected to tmux session ${sessionName} for agent ${agentId} (status=${wasWorking ? 'working' : 'idle'})`);
   }
 
   interrupt(agentId: string): boolean {

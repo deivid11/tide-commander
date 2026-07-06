@@ -61,6 +61,7 @@ import {
 
 // Components
 import { SearchBar } from './TerminalHeader';
+import { SearchResultsPanel } from './SearchResultsPanel';
 import { TerminalInputArea } from './TerminalInputArea';
 import { PinnedAgentsBar } from './PinnedAgentsBar';
 import { VirtualizedOutputList } from './VirtualizedOutputList';
@@ -564,6 +565,9 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     loadingMore: historyLoader.loadingMore,
   });
 
+  // Height of the search results dropdown, so scrolled-to matches clear it.
+  const [searchPanelHeight, setSearchPanelHeight] = useState(0);
+
   // ── Message navigation ──
   const totalNavigableMessages = dedupedHistory.length + dedupedOutputs.length;
   const messageNav = useMessageNavigation({
@@ -952,19 +956,38 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // ── Render ──
   return (
     <>
-      {/* Search bar (per-pane) */}
+      {/* Search bar + tabbed results dropdown (per-pane) */}
       {search.searchMode && (
-        <SearchBar
-          searchInputRef={search.searchInputRef}
-          searchQuery={search.searchQuery}
-          setSearchQuery={search.setSearchQuery}
-          closeSearch={search.closeSearch}
-          matchCount={search.matchIndices.length}
-          currentMatch={search.currentMatch}
-          navigateNext={search.navigateNext}
-          navigatePrev={search.navigatePrev}
-          loadingFullHistory={search.loadingFullHistory}
-        />
+        <div className="guake-search-container">
+          <SearchBar
+            searchInputRef={search.searchInputRef}
+            searchQuery={search.searchQuery}
+            setSearchQuery={search.setSearchQuery}
+            closeSearch={search.closeSearch}
+            matchCount={search.matchIndices.length}
+            currentMatch={search.currentMatch}
+            navigateNext={search.navigateNext}
+            navigatePrev={search.navigatePrev}
+            loadingFullHistory={search.loadingFullHistory}
+          />
+          {(search.searchQuery.trim().length >= 2 || search.activeTab === 'files') && (
+            <SearchResultsPanel
+              activeTab={search.activeTab}
+              setActiveTab={search.setActiveTab}
+              contentResults={search.contentResults}
+              fileResults={search.fileResults}
+              query={search.searchQuery}
+              loadingFullHistory={search.loadingFullHistory}
+              onSelectContent={search.selectResult}
+              onSelectFile={(f) => onFileClick(f.path)}
+              onGoToFileMessage={(f) => {
+                const last = f.itemIndices[f.itemIndices.length - 1];
+                if (last !== undefined) search.selectResult(last);
+              }}
+              onHeightChange={setSearchPanelHeight}
+            />
+          )}
+        </div>
       )}
 
       {/* Output area */}
@@ -1006,6 +1029,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
               viewMode={viewMode}
               searchHighlight={search.highlightQuery}
               searchActiveIndex={search.scrollToIndex}
+              searchPanelHeight={search.searchMode ? searchPanelHeight : 0}
               selectedMessageIndex={messageNav.selectedIndex}
               isMessageSelected={messageNav.isSelected}
               onImageClick={onImageClick}
