@@ -29,6 +29,7 @@ import type { ToolExecution, ClaudeOutput } from '../../store/types';
 import type { TwoFingerSelectorState } from '../../hooks/useTwoFingerSelector';
 import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
+import { buildAgentContextMenuActions } from './agentContextMenuActions';
 import { findFreeAreaSpot } from '../../utils/areaPlacement';
 import { AREA_COLORS } from '../../utils/colors';
 import { WorkspaceSwitcher, useWorkspaceFilter, isAgentVisibleInWorkspace } from '../WorkspaceSwitcher';
@@ -784,49 +785,19 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     if (!agent) return [];
     const isExpanded = expandedAgents.has(agent.id);
 
-    return [
-      {
-        id: 'edit-agent',
-        label: t('terminal:overview.editAgent', { defaultValue: 'Edit Agent' }),
-        icon: <Icon name="edit" size={14} />,
-        onClick: () => {
-          window.dispatchEvent(new CustomEvent('tide:open-agent-edit', { detail: { agentId: agent.id } }));
+    return buildAgentContextMenuActions({
+      agent,
+      t,
+      onDelete: () => setRemoveAgentConfirm({ agentId: agent.id, name: agent.name }),
+      extraActions: [
+        {
+          id: 'toggle-expand',
+          label: isExpanded ? t('terminal:overview.collapse', { defaultValue: 'Collapse' }) : t('terminal:overview.expand', { defaultValue: 'Expand' }),
+          icon: <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={14} />,
+          onClick: () => toggleAgent(agent.id),
         },
-      },
-      {
-        id: 'toggle-expand',
-        label: isExpanded ? t('terminal:overview.collapse', { defaultValue: 'Collapse' }) : t('terminal:overview.expand', { defaultValue: 'Expand' }),
-        icon: <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={14} />,
-        onClick: () => toggleAgent(agent.id),
-      },
-      {
-        id: 'clear-context',
-        label: t('terminal:overview.clearContext', { defaultValue: 'Clear context' }),
-        icon: <Icon name="clear" size={14} />,
-        onClick: () => store.clearContext(agent.id),
-      },
-      {
-        id: 'clone-agent',
-        label: t('terminal:overview.cloneAgent', { defaultValue: 'Clone Agent' }),
-        icon: <Icon name="clipboard" size={14} />,
-        onClick: () => store.cloneAgent(agent.id),
-      },
-      {
-        id: 'fork-agent',
-        label: t('terminal:overview.forkAgent', { defaultValue: 'Fork Agent (with history)' }),
-        icon: <Icon name="git-branch" size={14} />,
-        onClick: () => store.forkAgent(agent.id),
-      },
-      {
-        id: 'delete-agent',
-        label: t('terminal:overview.deleteAgent', { defaultValue: 'Delete Agent' }),
-        icon: <Icon name="trash" size={14} />,
-        danger: true,
-        onClick: () => {
-          setRemoveAgentConfirm({ agentId: agent.id, name: agent.name });
-        },
-      },
-    ];
+      ],
+    });
   }, [agentContextMenu, agents, expandedAgents, t]);
 
   // Keep the active agent card centered in the overview scroll container when the
