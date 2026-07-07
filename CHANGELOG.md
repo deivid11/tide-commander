@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.136.1] - 2026-07-07
+
+### Fixed
+- **Background Task/Agent runs no longer make parent agents look idle too early** — async launch stubs are now tracked until task notifications arrive, slow background work keeps the activity clock fresh, and stale `working` status is reconciled if a completed turn goes silent.
+
 ## [1.136.0] - 2026-07-06
 
 ### Added
