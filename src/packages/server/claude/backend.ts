@@ -25,6 +25,13 @@ const log = createLogger('Backend');
 // This is a module-level map that persists across parseEvent calls
 const toolUseIdToName: Map<string, string> = new Map();
 
+// Marker text of the immediate tool_result the CLI returns when a Task/Agent tool
+// launches in the background (the real result arrives later as a <task-notification>)
+function isBackgroundLaunchStub(content: string): boolean {
+  return content.includes('Async agent launched successfully')
+    || content.includes('The agent is working in the background');
+}
+
 /**
  * Write prompt content to a temp file for use with --system-prompt-file / --append-system-prompt-file
  * This avoids issues with multiline prompts and shell escaping
@@ -327,11 +334,11 @@ export class ClaudeBackend implements CLIBackend {
   }
 
   private parseUserEvent(event: ClaudeRawEvent): StandardEvent | StandardEvent[] | null {
-    const message = event.message as { content?: string | Array<{ type: string; content?: string; tool_use_id?: string }> };
+    const message = event.message as { content?: string | Array<{ type: string; text?: string; content?: string; tool_use_id?: string }> };
 
     // Handle array content (tool_result blocks)
     if (Array.isArray(message?.content)) {
-      const toolResults: StandardEvent[] = [];
+      const events: StandardEvent[] = [];
       for (const block of message.content) {
         if (block.type === 'tool_result' && block.tool_use_id) {
           // Prefer tool_use_result.stdout (raw output) over block.content (may be truncated)
@@ -350,6 +357,16 @@ export class ClaudeBackend implements CLIBackend {
           // Look up the tool name from the tool_use_id mapping
           const toolName = toolUseIdToName.get(block.tool_use_id) || 'unknown';
           log.log(`parseUserEvent: Found tool_result for tool_use_id=${block.tool_use_id}, toolName=${toolName}, content length=${content?.length || 0}, hasToolUseResult=${!!event.tool_use_result}`);
+          // Background Task launch stub: the CLI answers the tool_use immediately with
+          // "Async agent launched..." while the subagent keeps running. Reclassify as
+          // task_started so downstream doesn't complete the subagent or idle the agent —
+          // the real completion arrives later as a <task-notification> user message.
+          if ((toolName === 'Task' || toolName === 'Agent') && isBackgroundLaunchStub(content)) {
+            log.log(`parseUserEvent: background launch stub for tool_use_id=${block.tool_use_id} — task still running`);
+            events.push({ type: 'task_started', toolUseId: block.tool_use_id });
+            toolUseIdToName.delete(block.tool_use_id);
+            continue;
+          }
           const toolResult: StandardEvent = {
             type: 'tool_result',
             toolName,
@@ -372,14 +389,29 @@ export class ClaudeBackend implements CLIBackend {
           if (event.parent_tool_use_id) {
             toolResult.parentToolUseId = event.parent_tool_use_id;
           }
-          toolResults.push(toolResult);
+          events.push(toolResult);
           // Clean up the mapping after use (tool_use_id is unique per invocation)
           toolUseIdToName.delete(block.tool_use_id);
         }
       }
-      if (toolResults.length > 0) {
-        log.log(`parseUserEvent: Extracted ${toolResults.length} tool_result(s)`);
-        return toolResults.length === 1 ? toolResults[0] : toolResults;
+      // Background task completions: the CLI wakes the model with a user message
+      // containing <task-notification> blocks (one per finished background task).
+      for (const block of message.content) {
+        if (block.type !== 'text' || typeof block.text !== 'string' || !block.text.includes('<task-notification>')) {
+          continue;
+        }
+        for (const chunk of block.text.match(/<task-notification>[\s\S]*?(?:<\/task-notification>|$)/g) ?? []) {
+          const toolUseId = /<tool-use-id>([^<]+)<\/tool-use-id>/.exec(chunk)?.[1];
+          const taskId = /<task-id>([^<]+)<\/task-id>/.exec(chunk)?.[1];
+          if (toolUseId) {
+            log.log(`parseUserEvent: task_notification for tool_use_id=${toolUseId} (task_id=${taskId || 'unknown'})`);
+            events.push({ type: 'task_notification', toolUseId, taskId });
+          }
+        }
+      }
+      if (events.length > 0) {
+        log.log(`parseUserEvent: Extracted ${events.length} event(s)`);
+        return events.length === 1 ? events[0] : events;
       }
     }
 
@@ -418,9 +450,28 @@ export class ClaudeBackend implements CLIBackend {
         errorMessage: event.error,
       };
     }
-    // Capture task_started events (links task_id to tool_use_id)
+    // Background Task launched (links task_id to the Task tool_use_id). The tool_result
+    // that follows immediately is only a launch stub — the task keeps running until a
+    // <task-notification> user message arrives.
     if (event.subtype === 'task_started' && event.task_id) {
-      log.log(`parseSystemEvent: task_started - task_id=${event.task_id}, tool_use_id=${(event as any).tool_use_id}`);
+      log.log(`parseSystemEvent: task_started - task_id=${event.task_id}, tool_use_id=${event.tool_use_id}`);
+      if (event.tool_use_id) {
+        return {
+          type: 'task_started',
+          taskId: event.task_id,
+          toolUseId: event.tool_use_id,
+        };
+      }
+    }
+    // Background task finished (fires for async Task/Agent launches and for slow Bash
+    // commands the CLI promotes to tasks) — resolves pending-task tracking.
+    if (event.subtype === 'task_notification' && (event.tool_use_id || event.task_id)) {
+      log.log(`parseSystemEvent: task_notification - task_id=${event.task_id}, tool_use_id=${event.tool_use_id}`);
+      return {
+        type: 'task_notification',
+        taskId: event.task_id,
+        toolUseId: event.tool_use_id,
+      };
     }
     // Context compaction status
     if (event.subtype === 'status' && (event as any).status === 'compacting') {

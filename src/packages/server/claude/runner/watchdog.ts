@@ -4,6 +4,7 @@ import { isProcessRunning } from '../../data/index.js';
 import type { RunnerInternalEventBus } from './internal-events.js';
 import { hasTmuxSession, isTmuxPaneCommandAlive, killTmuxSession } from './tmux-helper.js';
 import * as agentService from '../../services/agent-service.js';
+import { clearPendingBackgroundTasks } from '../../services/runtime-subagents.js';
 import { getTmuxIdleTimeoutMs } from '../../services/system-prompt-service.js';
 
 const log = createLogger('Runner');
@@ -14,6 +15,13 @@ const MAX_DEATH_HISTORY = 50;
 // can hang for many minutes without an exit signal) and SIGKILL it so the normal
 // process_closed → maybeAutoRestart path can respawn with session resume.
 const IDLE_RESPAWN_MS = Number.parseInt(process.env.TIDE_IDLE_RESPAWN_MS ?? '', 10) || 180_000;
+// A 'working' agent whose turn already ended (waiting_for_input) and whose stream has
+// been silent this long is stuck — a background-task completion signal we missed
+// (killed task, CLI wording change) or a stale status restored across a server
+// restart. Reconcile to idle. Live background tasks emit task_progress lines that
+// count as activity, and message sends flip turnState to 'processing', so neither
+// can trip this.
+const STUCK_WORKING_RECONCILE_MS = Number.parseInt(process.env.TIDE_STUCK_WORKING_RECONCILE_MS ?? '', 10) || 180_000;
 
 interface WatchdogDeps {
   activeProcesses: Map<string, ActiveProcess>;
@@ -43,6 +51,8 @@ export class RunnerWatchdog {
     const now = Date.now();
 
     for (const [agentId, activeProcess] of this.activeProcesses) {
+      this.reconcileStuckWorking(agentId, activeProcess, now);
+
       // tmux mode: the launcher PID exits immediately — check the tmux session instead
       if (activeProcess.tmuxSession) {
         const sessionAlive = hasTmuxSession(agentId);
@@ -168,6 +178,34 @@ export class RunnerWatchdog {
         }
       }
     }
+  }
+
+  // Safety net for stuck 'working' status: the turn ended, no events are flowing,
+  // yet the agent still shows working. Flip it to idle and drop any pending
+  // background-task tracking so the tmux idle-timeout can later reclaim the session.
+  private reconcileStuckWorking(agentId: string, activeProcess: ActiveProcess, now: number): void {
+    if (activeProcess.turnState !== 'waiting_for_input') {
+      return;
+    }
+    const lastActivity = activeProcess.lastActivityTime ?? activeProcess.startTime;
+    if (now - lastActivity < STUCK_WORKING_RECONCILE_MS) {
+      return;
+    }
+    const agent = agentService.getAgent(agentId);
+    if (agent?.status !== 'working') {
+      return;
+    }
+    const silentSec = Math.round((now - lastActivity) / 1000);
+    log.error(
+      `🐕 [WATCHDOG] Agent ${agentId}: status 'working' but turn ended and stream silent for ${silentSec}s `
+      + `(threshold=${STUCK_WORKING_RECONCILE_MS / 1000}s) — reconciling to idle and clearing pending background tasks`
+    );
+    clearPendingBackgroundTasks(agentId);
+    agentService.updateAgent(agentId, {
+      status: 'idle',
+      currentTask: undefined,
+      currentTool: undefined,
+    });
   }
 
   recordDeath(info: ProcessDeathInfo): void {

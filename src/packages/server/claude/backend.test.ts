@@ -506,6 +506,100 @@ describe('ClaudeBackend', () => {
         expect(result.toolOutput).toBe('full output here\n[stderr] some warning');
       });
 
+      it('reclassifies background Task launch stub as task_started', () => {
+        backend.parseEvent({
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', id: 'tu-bg-1', name: 'Agent', input: { description: 'Map stuff' } },
+            ],
+          },
+        });
+
+        const result = backend.parseEvent({
+          type: 'user',
+          message: {
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'tu-bg-1',
+                content: 'Async agent launched successfully. The agent is working in the background.',
+              },
+            ],
+          },
+        }) as StandardEvent;
+
+        expect(result.type).toBe('task_started');
+        expect(result.toolUseId).toBe('tu-bg-1');
+      });
+
+      it('keeps real Task tool_result as tool_result', () => {
+        backend.parseEvent({
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', id: 'tu-fg-1', name: 'Agent', input: { description: 'Map stuff' } },
+            ],
+          },
+        });
+
+        const result = backend.parseEvent({
+          type: 'user',
+          message: {
+            content: [
+              { type: 'tool_result', tool_use_id: 'tu-fg-1', content: 'Here is the full report.' },
+            ],
+          },
+        }) as StandardEvent;
+
+        expect(result.type).toBe('tool_result');
+        expect(result.toolUseId).toBe('tu-fg-1');
+      });
+
+      it('parses task_notification from user text blocks', () => {
+        const result = backend.parseEvent({
+          type: 'user',
+          message: {
+            content: [
+              {
+                type: 'text',
+                text: '<task-notification>\n<task-id>abc123</task-id>\n<tool-use-id>tu-bg-2</tool-use-id>\n<status>completed</status>\n<summary>Agent finished</summary>\n</task-notification>',
+              },
+            ],
+          },
+        }) as StandardEvent;
+
+        expect(result.type).toBe('task_notification');
+        expect(result.toolUseId).toBe('tu-bg-2');
+        expect(result.taskId).toBe('abc123');
+      });
+
+      it('parses system task_started into task_started event', () => {
+        const result = backend.parseEvent({
+          type: 'system',
+          subtype: 'task_started',
+          task_id: 'task-9',
+          tool_use_id: 'tu-bg-3',
+        }) as StandardEvent;
+
+        expect(result.type).toBe('task_started');
+        expect(result.taskId).toBe('task-9');
+        expect(result.toolUseId).toBe('tu-bg-3');
+      });
+
+      it('parses system task_notification into task_notification event', () => {
+        const result = backend.parseEvent({
+          type: 'system',
+          subtype: 'task_notification',
+          task_id: 'task-9',
+          tool_use_id: 'tu-bg-3',
+        }) as StandardEvent;
+
+        expect(result.type).toBe('task_notification');
+        expect(result.taskId).toBe('task-9');
+        expect(result.toolUseId).toBe('tu-bg-3');
+      });
+
       it('parses /context output from local-command-stdout', () => {
         const contextOutput = `<local-command-stdout>## Context Usage
 **Model:** claude-opus-4-6

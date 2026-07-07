@@ -106,6 +106,10 @@ export class RunnerStdoutPipeline {
 
       const eventOrEvents = this.backend.parseEvent(rawEvent);
       if (!eventOrEvents) {
+        // Even unmapped events (task_progress, thinking_tokens, ...) prove the CLI is
+        // alive and mid-work — keep the watchdog's activity clock fresh so a session
+        // waiting on background tasks isn't idle-killed or flagged as stuck.
+        this.bus.emit({ type: 'runner.activity', agentId, timestamp: Date.now() });
         return;
       }
 

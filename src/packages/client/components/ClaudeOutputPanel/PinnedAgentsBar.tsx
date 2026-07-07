@@ -240,12 +240,13 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId }: 
       const isActive = agent.id === activeAgentId;
       const areaColor = areaColorById.get(agent.id) ?? null;
       const hasUnread = unseenAgents.has(agent.id);
+      const isBoss = agent.class === 'boss' || !!agent.isBoss;
       return (
         <button
           key={agent.id}
           type="button"
           draggable
-          className={`pinned-agent${isActive ? ' active' : ''}${working ? ' working' : ''}${areaColor ? ' has-area' : ''}${
+          className={`pinned-agent${isActive ? ' active' : ''}${working ? ' working' : ''}${isBoss ? ' is-boss' : ''}${areaColor ? ' has-area' : ''}${
             hasUnread ? ' has-unread' : ''
           }${draggingId === agent.id ? ' dragging' : ''}${dropTarget && dropTarget.id === agent.id ? (dropTarget.after ? ' drop-after' : ' drop-before') : ''}`}
           title={`${agent.name}${agent.status ? ` — ${agent.status}` : ''}${hasUnread ? ' — new output' : ''}`}

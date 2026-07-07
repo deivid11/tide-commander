@@ -842,6 +842,16 @@
     opacity: 0.5;
     animation: pinned-agent-ring 1.1s ease-out infinite;
   }
+
+  // Boss chips: constant gold identity border. Declared AFTER .working on
+  // purpose so gold keeps the border even on a busy boss — the green glow
+  // animation and avatar ring still signal activity, and the active state's
+  // blue outline is a separate channel that composes with it.
+  &.is-boss {
+    border-color: #d4af37;
+
+    &:hover { border-color: #f0cf6b; }
+  }
 }
 
 .pinned-agent-av {
@@ -1071,6 +1081,13 @@
     left: -2px;
     width: 8px;
     height: 8px;
+  }
+  // Boss identity on mobile: the chip reset above strips borders (bare icons on
+  // the pill), so the gold ring hugs the avatar instead. Distinct from the
+  // active state, which is a blue outline around the whole chip.
+  .pinned-agent.is-boss .pinned-agent-av {
+    border-radius: 6px;
+    box-shadow: 0 0 0 1.5px #d4af37;
   }
   // Icon-only grouping toggle on mobile (the ⊞ glyph carries it); group headers
   // stay (label + count) so the sections remain legible in the tight bar.

@@ -353,6 +353,10 @@
 .agent-panel-content {
   flex: 1;
   overflow-y: auto;
+  // Hosts the same VirtualizedOutputList as .guake-output: the virtualizer
+  // applies its own scroll corrections, so native scroll anchoring must be
+  // off or the two compensate for the same row-measurement movement twice.
+  overflow-anchor: none;
   padding: 6px 8px;
   font-family: $font-mono;
   font-size: 11px;
