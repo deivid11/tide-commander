@@ -18,6 +18,12 @@ vi.mock('./agent-service.js', () => ({
 vi.mock('./runtime-subagents.js', () => ({
   handleTaskToolStart: mockHandleTaskToolStart,
   handleTaskToolResult: mockHandleTaskToolResult,
+  addPendingBackgroundTask: vi.fn(),
+  resolvePendingBackgroundTask: vi.fn(() => false),
+  resolvePendingBackgroundTaskByTaskId: vi.fn(() => false),
+  hasPendingBackgroundTasks: vi.fn(() => false),
+  clearPendingBackgroundTasks: vi.fn(),
+  getActiveSubagentByToolUseId: vi.fn(() => undefined),
 }));
 
 vi.mock('./runtime-watchdog.js', () => ({

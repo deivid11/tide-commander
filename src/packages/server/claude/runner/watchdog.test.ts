@@ -3,9 +3,25 @@ import type { ActiveProcess } from '../types.js';
 import { RunnerInternalEventBus } from './internal-events.js';
 
 const mockIsProcessRunning = vi.hoisted(() => vi.fn());
+const mockGetAgent = vi.hoisted(() => vi.fn());
+const mockUpdateAgent = vi.hoisted(() => vi.fn());
+const mockClearPendingBackgroundTasks = vi.hoisted(() => vi.fn());
 
 vi.mock('../../data/index.js', () => ({
   isProcessRunning: mockIsProcessRunning,
+}));
+
+vi.mock('../../services/agent-service.js', () => ({
+  getAgent: mockGetAgent,
+  updateAgent: mockUpdateAgent,
+}));
+
+vi.mock('../../services/runtime-subagents.js', () => ({
+  clearPendingBackgroundTasks: mockClearPendingBackgroundTasks,
+}));
+
+vi.mock('../../services/system-prompt-service.js', () => ({
+  getTmuxIdleTimeoutMs: vi.fn(() => 1_800_000),
 }));
 
 describe('RunnerWatchdog', () => {
@@ -176,5 +192,80 @@ describe('RunnerWatchdog idle detection', () => {
     const wd = await makeWatchdog(processes);
     expect(() => wd.runWatchdog()).not.toThrow();
     expect(killSpy).toHaveBeenCalledTimes(2);
+  });
+});
+
+
+describe('RunnerWatchdog stuck-working reconciler', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockIsProcessRunning.mockReturnValue(true);
+  });
+
+  function makeProc(over: Partial<ActiveProcess> = {}): ActiveProcess {
+    const tenMinAgo = Date.now() - 600_000;
+    return {
+      agentId: 'a1',
+      startTime: tenMinAgo,
+      process: { pid: 99_999 } as any,
+      turnState: 'waiting_for_input',
+      lastActivityTime: tenMinAgo,
+      ...over,
+    };
+  }
+
+  async function makeWatchdog(processes: Map<string, ActiveProcess>) {
+    const { RunnerWatchdog } = await import('./watchdog.js');
+    return new RunnerWatchdog({
+      activeProcesses: processes,
+      lastStderr: new Map(),
+      bus: new RunnerInternalEventBus(),
+    });
+  }
+
+  it('flips a stuck working agent to idle and clears pending tasks', async () => {
+    mockGetAgent.mockReturnValue({ id: 'a1', status: 'working' });
+    const processes = new Map<string, ActiveProcess>([['a1', makeProc()]]);
+
+    (await makeWatchdog(processes)).runWatchdog();
+
+    expect(mockClearPendingBackgroundTasks).toHaveBeenCalledWith('a1');
+    expect(mockUpdateAgent).toHaveBeenCalledWith('a1', {
+      status: 'idle',
+      currentTask: undefined,
+      currentTool: undefined,
+    });
+  });
+
+  it('leaves non-working agents alone', async () => {
+    mockGetAgent.mockReturnValue({ id: 'a1', status: 'idle' });
+    const processes = new Map<string, ActiveProcess>([['a1', makeProc()]]);
+
+    (await makeWatchdog(processes)).runWatchdog();
+
+    expect(mockUpdateAgent).not.toHaveBeenCalled();
+    expect(mockClearPendingBackgroundTasks).not.toHaveBeenCalled();
+  });
+
+  it('does not reconcile while the stream is active', async () => {
+    mockGetAgent.mockReturnValue({ id: 'a1', status: 'working' });
+    const processes = new Map<string, ActiveProcess>([
+      ['a1', makeProc({ lastActivityTime: Date.now() - 5_000 })],
+    ]);
+
+    (await makeWatchdog(processes)).runWatchdog();
+
+    expect(mockUpdateAgent).not.toHaveBeenCalled();
+  });
+
+  it('does not reconcile while a turn is in flight', async () => {
+    mockGetAgent.mockReturnValue({ id: 'a1', status: 'working' });
+    const processes = new Map<string, ActiveProcess>([
+      ['a1', makeProc({ turnState: undefined })],
+    ]);
+
+    (await makeWatchdog(processes)).runWatchdog();
+
+    expect(mockUpdateAgent).not.toHaveBeenCalled();
   });
 });

@@ -21,6 +21,12 @@ let subagentCounter = 0;
 const activeSubagents = new Map<string, ActiveSubagent>();
 const subagentIdToToolUseId = new Map<string, string>();
 
+// Background tasks: the CLI assigns task_ids to async Task/Agent launches AND to slow
+// Bash commands. The parent turn can end while these still run — the CLI wakes the
+// model with a task-notification when each finishes. While any are pending the agent
+// must NOT be flipped to idle.
+const pendingBackgroundTasks = new Map<string, Map<string, string | undefined>>(); // parentAgentId -> toolUseId -> taskId
+
 function generateSubagentId(): string {
   return `sub_${Date.now().toString(36)}_${(subagentCounter++).toString(36)}`;
 }
@@ -76,6 +82,47 @@ export function handleTaskToolResult(
   subagentIdToToolUseId.delete(subagent.id);
 }
 
+export function addPendingBackgroundTask(agentId: string, toolUseId: string, taskId?: string): void {
+  let tasks = pendingBackgroundTasks.get(agentId);
+  if (!tasks) {
+    tasks = new Map();
+    pendingBackgroundTasks.set(agentId, tasks);
+  }
+  tasks.set(toolUseId, taskId);
+}
+
+export function resolvePendingBackgroundTask(agentId: string, toolUseId: string): boolean {
+  const tasks = pendingBackgroundTasks.get(agentId);
+  if (!tasks?.delete(toolUseId)) {
+    return false;
+  }
+  if (tasks.size === 0) {
+    pendingBackgroundTasks.delete(agentId);
+  }
+  return true;
+}
+
+export function resolvePendingBackgroundTaskByTaskId(agentId: string, taskId: string): boolean {
+  const tasks = pendingBackgroundTasks.get(agentId);
+  if (!tasks) {
+    return false;
+  }
+  for (const [toolUseId, pendingTaskId] of tasks) {
+    if (pendingTaskId === taskId) {
+      return resolvePendingBackgroundTask(agentId, toolUseId);
+    }
+  }
+  return false;
+}
+
+export function hasPendingBackgroundTasks(agentId: string): boolean {
+  return (pendingBackgroundTasks.get(agentId)?.size ?? 0) > 0;
+}
+
+export function clearPendingBackgroundTasks(agentId: string): void {
+  pendingBackgroundTasks.delete(agentId);
+}
+
 export function getActiveSubagentByToolUseId(toolUseId: string): ActiveSubagent | undefined {
   return activeSubagents.get(toolUseId);
 }
@@ -87,5 +134,6 @@ export function getActiveSubagentsForAgent(parentAgentId: string): ActiveSubagen
 export function resetSubagentStateForTests(): void {
   activeSubagents.clear();
   subagentIdToToolUseId.clear();
+  pendingBackgroundTasks.clear();
   subagentCounter = 0;
 }

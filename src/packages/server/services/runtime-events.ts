@@ -8,7 +8,16 @@ import {
   consumeStepCompleteReceived,
   markStepCompleteReceived,
 } from './runtime-watchdog.js';
-import { handleTaskToolResult, handleTaskToolStart } from './runtime-subagents.js';
+import {
+  addPendingBackgroundTask,
+  clearPendingBackgroundTasks,
+  getActiveSubagentByToolUseId,
+  handleTaskToolResult,
+  handleTaskToolStart,
+  hasPendingBackgroundTasks,
+  resolvePendingBackgroundTask,
+  resolvePendingBackgroundTaskByTaskId,
+} from './runtime-subagents.js';
 
 const DEFAULT_CLAUDE_CONTEXT_WINDOW = 200000;
 const DEFAULT_CODEX_CONTEXT_WINDOW = 258400;
@@ -244,7 +253,58 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
 
       case 'tool_result':
         handleTaskToolResult(agentId, event, log);
+        if (event.toolUseId) {
+          // Any tool_result for a tracked toolUseId means that task delivered its
+          // result. The CLI assigns task_ids to slow Bash commands too, so resolution
+          // must NOT be limited to Task/Agent tools — that gap pinned agents 'working'.
+          resolvePendingBackgroundTask(agentId, event.toolUseId);
+        }
         agentService.updateAgent(agentId, { currentTool: undefined });
+        break;
+
+      case 'task_started':
+        // Tool promoted to a background task (async Task/Agent, slow Bash): it can
+        // outlive the parent turn, so step_complete must not flip the agent idle
+        // while it runs.
+        if (event.toolUseId) {
+          addPendingBackgroundTask(agentId, event.toolUseId, event.taskId);
+          log.log(`[task] Background task pending for ${agentId}: toolUseId=${event.toolUseId}${event.taskId ? `, taskId=${event.taskId}` : ''}`);
+        }
+        break;
+
+      case 'task_notification': {
+        // A background task finished and the CLI is waking the model with its result.
+        if (!event.toolUseId && event.taskId) {
+          resolvePendingBackgroundTaskByTaskId(agentId, event.taskId);
+        }
+        if (event.toolUseId) {
+          resolvePendingBackgroundTask(agentId, event.toolUseId);
+          // Complete the subagent now (its launch-stub tool_result was suppressed).
+          if (getActiveSubagentByToolUseId(event.toolUseId)) {
+            const completion: RuntimeEvent = {
+              type: 'tool_result',
+              toolName: 'Agent',
+              toolUseId: event.toolUseId,
+            };
+            handleTaskToolResult(agentId, completion, log);
+            emitEvent(agentId, completion);
+          }
+        }
+        if (processActive && agent.status === 'idle') {
+          agentService.updateAgent(agentId, { status: 'working' });
+        }
+        break;
+      }
+
+      case 'text':
+      case 'thinking':
+        // The model produced output — it's working, even right after a step_complete
+        // (background-task wakes often start with text/thinking, not a tool call).
+        // Subagent-bridged events (parentToolUseId set) don't count: the JSONL watcher
+        // can drain trailing lines after the parent is genuinely done.
+        if (processActive && agent.status === 'idle' && !event.parentToolUseId) {
+          agentService.updateAgent(agentId, { status: 'working' });
+        }
         break;
 
       case 'usage_snapshot': {
@@ -448,14 +508,25 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         agentService.updateAgent(agentId, updates);
 
         if (!isCodexProvider && !isOpencodeProvider) {
-          setTimeout(() => {
-            log.log(`[step_complete] Setting status to idle for agent ${agentId} (lastTask: ${agent.lastAssignedTask})`);
-            agentService.updateAgent(agentId, {
-              status: 'idle',
-              currentTask: undefined,
-              currentTool: undefined,
-            });
-          }, 200);
+          if (hasPendingBackgroundTasks(agentId)) {
+            // The turn ended but background tasks are still running — the CLI will wake
+            // the model with a <task-notification> when they finish. Not idle yet.
+            log.log(`[step_complete] Agent ${agentId} has pending background task(s) — keeping status '${agent.status}'`);
+            agentService.updateAgent(agentId, { currentTool: undefined });
+          } else {
+            setTimeout(() => {
+              if (hasPendingBackgroundTasks(agentId)) {
+                log.log(`[step_complete] Agent ${agentId} gained pending background task(s) — skipping idle`);
+                return;
+              }
+              log.log(`[step_complete] Setting status to idle for agent ${agentId} (lastTask: ${agent.lastAssignedTask})`);
+              agentService.updateAgent(agentId, {
+                status: 'idle',
+                currentTask: undefined,
+                currentTool: undefined,
+              });
+            }, 200);
+          }
         } else {
           log.log(`[step_complete] ${isCodexProvider ? 'Codex' : 'OpenCode'} agent ${agentId} will be set idle on process completion`);
         }
@@ -467,6 +538,9 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
       }
 
       case 'error':
+        // Background tasks are children of the CLI process — an errored run means
+        // they're gone; a stale pending set would pin the agent 'working' forever.
+        clearPendingBackgroundTasks(agentId);
         agentService.updateAgent(agentId, { status: 'error' });
         break;
 
@@ -505,6 +579,8 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
   }
 
   function handleComplete(agentId: string, success: boolean): void {
+    // Process closed — any background tasks died with it.
+    clearPendingBackgroundTasks(agentId);
     const receivedStepComplete = consumeStepCompleteReceived(agentId);
     const agent = agentService.getAgent(agentId);
     const isCodexProvider = (agent?.provider ?? 'claude') === 'codex';
@@ -554,6 +630,8 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
   }
 
   function handleError(agentId: string, error: string): void {
+    // Same as 'error' events: a failed run takes its background tasks with it.
+    clearPendingBackgroundTasks(agentId);
     const agent = agentService.getAgent(agentId);
     const timestamp = new Date().toISOString();
 

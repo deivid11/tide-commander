@@ -19,7 +19,9 @@ export interface StandardEvent {
     | 'block_start'
     | 'block_end'
     | 'context_stats'   // Response from /context command
-    | 'compacting';     // Context compaction in progress
+    | 'compacting'      // Context compaction in progress
+    | 'task_started'    // Task/Agent tool launched in background — still running after its stub tool_result
+    | 'task_notification'; // Background task finished; the CLI is waking the model with its result
   blockType?: 'text' | 'thinking';
   sessionId?: string;
   text?: string;
@@ -179,6 +181,7 @@ export interface ClaudeRawEvent {
   // From system/task_started events
   task_id?: string;
   task_type?: string;
+  tool_use_id?: string;
 }
 
 // Backend interface (allows for multiple CLI backends)

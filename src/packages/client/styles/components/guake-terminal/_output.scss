@@ -8,6 +8,11 @@
   flex: 1;
   min-height: 0; // Allow flex shrinking below content height
   overflow-y: auto;
+  // The virtualized list does its own scroll-position corrections when rows
+  // above the viewport measure differently than estimated; native browser
+  // scroll anchoring compensates for the same movement a frame apart, and the
+  // double adjustment reads as flicker during the post-switch warm-up walk.
+  overflow-anchor: none;
   padding: 14px 18px;
   font-family: $font-mono;
   font-size: 13px;
