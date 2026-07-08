@@ -253,6 +253,7 @@ export interface UseFileTreeReturn {
   renamePathInTree: (oldPath: string, newPath: string) => void;
   togglePath: (path: string) => void | Promise<void>;
   expandToPath: (path: string) => Promise<void>;
+  restoreExpandedPaths: (storedPaths: Set<string>) => Promise<void>;
   setExpandedPaths: React.Dispatch<React.SetStateAction<Set<string>>>;
 }
 

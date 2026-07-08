@@ -184,6 +184,7 @@ export function FileExplorerPanel({
     renamePathInTree,
     togglePath,
     expandToPath,
+    restoreExpandedPaths,
     setExpandedPaths,
   } = useFileTree(currentFolder);
 
@@ -216,12 +217,27 @@ export function FileExplorerPanel({
   const { treePanelWidth, handleResizeStart, isResizing } = useTreePanelResize();
   const { mobileTreeHeight, handleResizeMouseDown: handleMobileResizeMouseDown, handleResizeTouchStart: handleMobileResizeTouchStart } = useMobileTreeResize();
 
-  // Storage hook for persistence
-  const { loadStoredState, saveState } = useFileExplorerStorage({
-    areaId: areaId || null,
-    folderPath: folderPath || null,
-    isOpen,
-  });
+  // Storage hook for persistence (state is scoped per project / current folder)
+  const { loadProjectState, saveProjectState, loadRecentProjects, pushRecentProject } =
+    useFileExplorerStorage();
+
+  // Recently-visited projects (most-recent first) — powers the header chips and the
+  // initial-folder pick when the panel reopens on an area.
+  const [recentProjects, setRecentProjects] = useState<string[]>(() => loadRecentProjects());
+
+  // Up to 5 recent-project chips, resolved to folders that still exist (so clicking
+  // one actually navigates). Most-recent first. Keyed on normalized paths since
+  // recentProjects stores the normalized currentFolder while allFolders keeps raw paths.
+  const recentProjectChips = useMemo<FolderInfo[]>(() => {
+    const byPath = new Map(allFolders.map((f) => [f.path.replace(/\\/g, '/'), f]));
+    const chips: FolderInfo[] = [];
+    for (const path of recentProjects) {
+      const folder = byPath.get(path);
+      if (folder) chips.push(folder);
+      if (chips.length >= 5) break;
+    }
+    return chips;
+  }, [recentProjects, allFolders]);
 
   // -------------------------------------------------------------------------
   // LOCAL STATE
@@ -296,13 +312,6 @@ export function FileExplorerPanel({
   const [openTabs, setOpenTabs] = useState<FileTab[]>([]);
   const [activeTabPath, setActiveTabPath] = useState<string | null>(null);
 
-  // Tab navigation history — browser-style back/forward through opened files.
-  const tabHistoryRef = useRef<string[]>([]);
-  const tabHistoryIndexRef = useRef(-1);
-  const isTabHistoryNavRef = useRef(false);
-  const [canNavigateTabBack, setCanNavigateTabBack] = useState(false);
-  const [canNavigateTabForward, setCanNavigateTabForward] = useState(false);
-
   // Line number to scroll to (from file:line search)
   const [, setScrollToLine] = useState<number | undefined>(undefined);
 
@@ -331,79 +340,155 @@ export function FileExplorerPanel({
 
   // Ref to hold expanded paths that should be applied after loadTree completes
   const pendingExpandedPathsRef = useRef<Set<string> | null>(null);
+  // Mirror of currentFolder for async guards (avoids applying stale project state).
+  const currentFolderRef = useRef(currentFolder);
+  useEffect(() => { currentFolderRef.current = currentFolder; }, [currentFolder]);
+  // Guard so the initial-folder pick runs once per area/folder mode.
+  const hasPickedFolderRef = useRef(false);
+  useEffect(() => { hasPickedFolderRef.current = false; }, [areaId, folderPath]);
 
-  // Restore state from localStorage when panel opens
+  // Pick which folder (project) to show when the panel opens on an area: an explicit
+  // pending request wins, otherwise the most-recently-visited project of this area,
+  // otherwise the first folder.
   useEffect(() => {
-    if (!isOpen || hasRestoredState) return;
+    if (!isOpen || hasPickedFolderRef.current) return;
+
+    if (isDirectFolderMode) {
+      hasPickedFolderRef.current = true;
+      setSelectedFolderIndex(0);
+      return;
+    }
+    if (directories.length === 0) return; // wait for the area's directories to arrive
+
+    hasPickedFolderRef.current = true;
+
+    if (pendingFolderPath) {
+      const pendingIndex = directories.indexOf(pendingFolderPath);
+      setSelectedFolderIndex(pendingIndex >= 0 ? pendingIndex : 0);
+      setPendingFolderPath(null);
+      return;
+    }
+
+    // recentProjects stores normalized paths; compare against normalized directories.
+    const normDirs = directories.map((d) => d.replace(/\\/g, '/'));
+    const recentMatch = loadRecentProjects().find((p) => normDirs.includes(p));
+    setSelectedFolderIndex(recentMatch ? normDirs.indexOf(recentMatch) : 0);
+  }, [isOpen, isDirectFolderMode, directories, pendingFolderPath, loadRecentProjects]);
+
+  // Record the active project as most-recently-visited (drives the header chips and
+  // the initial-folder pick above). Debounced so the transient default folder shown for
+  // a tick before the initial-pick settles isn't recorded as "recent".
+  useEffect(() => {
+    if (!isOpen || !currentFolder) return;
+    const id = setTimeout(() => setRecentProjects(pushRecentProject(currentFolder)), 250);
+    return () => clearTimeout(id);
+  }, [isOpen, currentFolder, pushRecentProject]);
+
+  // Restore PER-PROJECT state (tabs / active tab / view mode / expanded folders) each
+  // time the current project changes. hasRestoredState is reset on currentFolder change
+  // (below), so this re-runs for every project.
+  useEffect(() => {
+    if (!isOpen || hasRestoredState || !currentFolder) return;
+    const projectKey = currentFolder;
 
     const restoreState = async () => {
-      const stored = await loadStoredState();
+      const stored = await loadProjectState(projectKey);
+      // Bail if the user switched projects while we were loading.
+      if (currentFolderRef.current !== projectKey) return;
+
       if (stored) {
-        let nextFolderIndex = stored.selectedFolderIndex;
-
-        // If user selected a folder from another area, prioritize that explicit choice.
-        if (pendingFolderPath) {
-          const pendingIndex = directories.indexOf(pendingFolderPath);
-          nextFolderIndex = pendingIndex >= 0 ? pendingIndex : 0;
-          setPendingFolderPath(null);
-        } else {
-          // Clamp stale persisted index to current directories list.
-          const maxIndex = Math.max(0, directories.length - 1);
-          nextFolderIndex = Math.min(Math.max(0, nextFolderIndex), maxIndex);
-        }
-
         setOpenTabs(stored.tabs);
         setActiveTabPath(stored.activeTabPath);
         setViewMode(stored.viewMode);
-        setSelectedFolderIndex(nextFolderIndex);
         setExpandedPaths(stored.expandedPaths);
         // Store pending paths so they survive loadTree's reset
         pendingExpandedPathsRef.current = stored.expandedPaths;
         // Mark view as initialized so auto-switch to git tab doesn't override restored preference
         setHasInitializedView(true);
 
-        // Load the active tab's file content
         if (stored.activeTabPath) {
           setSelectedPath(stored.activeTabPath);
           loadFile(stored.activeTabPath);
+        } else {
+          setSelectedPath(null);
+          clearFile();
         }
+      } else {
+        // No saved state for this project — start clean so we don't carry over the
+        // previous project's tabs/selection.
+        setOpenTabs([]);
+        setActiveTabPath(null);
+        setSelectedPath(null);
+        clearFile();
+        pendingExpandedPathsRef.current = null;
       }
       setHasRestoredState(true);
     };
 
     restoreState();
-  }, [isOpen, hasRestoredState, loadStoredState, setExpandedPaths, loadFile, pendingFolderPath, directories]);
+  }, [isOpen, hasRestoredState, currentFolder, loadProjectState, setExpandedPaths, loadFile, clearFile]);
 
-  // Re-apply stored expanded paths after tree loads (loadTree resets expandedPaths to root-only)
+  // Re-apply stored expanded paths after tree loads (loadTree resets expandedPaths to
+  // root-only). Deep folders past INITIAL_DEPTH aren't loaded yet, so we can't just set
+  // the raw Set — restoreExpandedPaths lazy-loads every stored directory first, otherwise
+  // compaction chains stop short ("java/opm" vs "java/opm/mx/pagamento") and nested
+  // expanded folders render nothing (partial restore). Clear the ref BEFORE the async
+  // call so the loadChildren-driven tree updates don't re-trigger this effect. Depends on
+  // hasRestoredState too so it fires whether the tree or the async restore finishes last.
   useEffect(() => {
     if (pendingExpandedPathsRef.current && !treeLoading && tree.length > 0) {
-      setExpandedPaths(pendingExpandedPathsRef.current);
+      const paths = pendingExpandedPathsRef.current;
       pendingExpandedPathsRef.current = null;
+      void restoreExpandedPaths(paths);
     }
-  }, [treeLoading, tree, setExpandedPaths]);
+  }, [treeLoading, tree, hasRestoredState, restoreExpandedPaths]);
 
-  // Save state to localStorage when it changes
+  // Latest savable snapshot, kept in a ref so we can flush it synchronously right before
+  // switching projects / closing (the debounced save below may not have fired yet).
+  const projectSaveRef = useRef<{
+    key: string;
+    state: { tabs: FileTab[]; activeTabPath: string | null; viewMode: ViewMode; expandedPaths: Set<string> };
+  } | null>(null);
   useEffect(() => {
-    if (!isOpen || !hasRestoredState) return;
+    projectSaveRef.current =
+      hasRestoredState && currentFolder
+        ? { key: currentFolder, state: { tabs: openTabs, activeTabPath, viewMode, expandedPaths } }
+        : null;
+  }, [hasRestoredState, currentFolder, openTabs, activeTabPath, viewMode, expandedPaths]);
 
-    // Debounce saves to avoid excessive writes
+  const flushProjectSave = useCallback(() => {
+    const pending = projectSaveRef.current;
+    if (pending) saveProjectState(pending.key, pending.state);
+  }, [saveProjectState]);
+
+  // Debounced per-project save. Keyed by the current project and guarded by
+  // hasRestoredState, so the transient window during a switch (new folder, old tabs)
+  // never writes: currentFolder changes reset hasRestoredState, cancelling this timeout.
+  useEffect(() => {
+    if (!isOpen || !hasRestoredState || !currentFolder) return;
+    const projectKey = currentFolder;
     const timeoutId = setTimeout(() => {
-      saveState({
-        tabs: openTabs,
-        activeTabPath,
-        viewMode,
-        selectedFolderIndex,
-        expandedPaths,
-      });
+      saveProjectState(projectKey, { tabs: openTabs, activeTabPath, viewMode, expandedPaths });
     }, 500);
-
     return () => clearTimeout(timeoutId);
-  }, [isOpen, hasRestoredState, openTabs, activeTabPath, viewMode, selectedFolderIndex, expandedPaths, saveState]);
+  }, [isOpen, hasRestoredState, currentFolder, openTabs, activeTabPath, viewMode, expandedPaths, saveProjectState]);
 
-  // Reset restored state flag when area/folder changes
+  // Flush the outgoing project's state when the panel unmounts.
+  useEffect(() => () => flushProjectSave(), [flushProjectSave]);
+
+  // Flush on close too: some mounts keep the panel mounted and just toggle isOpen,
+  // so the unmount cleanup above never fires. Persist the last state as it closes.
+  const wasOpenRef = useRef(isOpen);
+  useEffect(() => {
+    if (wasOpenRef.current && !isOpen) flushProjectSave();
+    wasOpenRef.current = isOpen;
+  }, [isOpen, flushProjectSave]);
+
+  // Reset restored state flag when the project (current folder) changes, so per-project
+  // state is re-loaded for the new project.
   useEffect(() => {
     setHasRestoredState(false);
-  }, [areaId, folderPath]);
+  }, [currentFolder]);
 
   useEffect(() => {
     if (!renameDialog.isOpen) return;
@@ -782,49 +867,6 @@ export function FileExplorerPanel({
     }
   };
 
-  // Tab navigation history: push current activeTabPath onto the stack whenever
-  // it changes, unless the change was itself caused by a back/forward click.
-  const updateTabNavAvailability = useCallback(() => {
-    const history = tabHistoryRef.current;
-    const index = tabHistoryIndexRef.current;
-    setCanNavigateTabBack(index > 0);
-    setCanNavigateTabForward(index >= 0 && index < history.length - 1);
-  }, []);
-
-  useEffect(() => {
-    if (!activeTabPath) {
-      tabHistoryRef.current = [];
-      tabHistoryIndexRef.current = -1;
-      updateTabNavAvailability();
-      return;
-    }
-
-    if (isTabHistoryNavRef.current) {
-      isTabHistoryNavRef.current = false;
-      updateTabNavAvailability();
-      return;
-    }
-
-    const history = tabHistoryRef.current;
-    const currentIndex = tabHistoryIndexRef.current;
-    if (currentIndex >= 0 && history[currentIndex] === activeTabPath) {
-      updateTabNavAvailability();
-      return;
-    }
-
-    const trimmed =
-      currentIndex < history.length - 1
-        ? history.slice(0, currentIndex + 1)
-        : history.slice();
-    trimmed.push(activeTabPath);
-    const MAX = 100;
-    if (trimmed.length > MAX) trimmed.shift();
-
-    tabHistoryRef.current = trimmed;
-    tabHistoryIndexRef.current = trimmed.length - 1;
-    updateTabNavAvailability();
-  }, [activeTabPath, updateTabNavAvailability]);
-
   // Tab handlers
   const handleSelectTab = (path: string) => {
     setActiveTabPath(path);
@@ -841,31 +883,6 @@ export function FileExplorerPanel({
       loadFile(path);
     }
   };
-
-  const navigateTabHistory = useCallback(
-    (direction: -1 | 1) => {
-      const history = tabHistoryRef.current;
-      if (history.length === 0) return;
-
-      let nextIndex = tabHistoryIndexRef.current + direction;
-      while (nextIndex >= 0 && nextIndex < history.length) {
-        const target = history[nextIndex];
-        // Skip entries whose tab has since been closed.
-        if (openTabs.some((t) => t.path === target)) {
-          isTabHistoryNavRef.current = true;
-          tabHistoryIndexRef.current = nextIndex;
-          updateTabNavAvailability();
-          handleSelectTab(target);
-          return;
-        }
-        nextIndex += direction;
-      }
-    },
-    [openTabs, updateTabNavAvailability]
-  );
-
-  const handleNavigateTabBack = useCallback(() => navigateTabHistory(-1), [navigateTabHistory]);
-  const handleNavigateTabForward = useCallback(() => navigateTabHistory(1), [navigateTabHistory]);
 
   const handleCloseTab = (path: string) => {
     setOpenTabs(prev => {
@@ -910,6 +927,9 @@ export function FileExplorerPanel({
 
   const handleFolderSelect = (folder: FolderInfo) => {
     setShowFolderSelector(false);
+    if (folder.path.replace(/\\/g, '/') === currentFolder) return; // already on this project
+    // Persist the outgoing project before switching so its tabs/folders aren't lost.
+    flushProjectSave();
     if (folder.areaId !== areaId) {
       setPendingFolderPath(folder.path);
       if (onChangeArea) {
@@ -1682,30 +1702,8 @@ export function FileExplorerPanel({
     <div className="file-explorer-panel ide-style">
       {/* Header */}
       <div className="file-explorer-panel-header">
+       <div className="file-explorer-panel-header-row">
         <div className="file-explorer-panel-title">
-          {/* Back / Forward navigation through tab history */}
-          <div className="file-explorer-nav-group" role="group" aria-label="Tab history navigation">
-            <button
-              type="button"
-              className="file-explorer-nav-btn"
-              onClick={handleNavigateTabBack}
-              disabled={!canNavigateTabBack}
-              title="Back to previous file"
-              aria-label="Back to previous file"
-            >
-              <Icon name="arrow-left" size={14} />
-            </button>
-            <button
-              type="button"
-              className="file-explorer-nav-btn"
-              onClick={handleNavigateTabForward}
-              disabled={!canNavigateTabForward}
-              title="Forward to next file"
-              aria-label="Forward to next file"
-            >
-              <Icon name="arrow-right" size={14} />
-            </button>
-          </div>
           {/* Folder selector */}
           {currentFolder && (
             <div
@@ -1837,6 +1835,32 @@ export function FileExplorerPanel({
         <button className="file-explorer-panel-close" onClick={onClose}>
           ×
         </button>
+       </div>
+
+        {/* Recent projects — quick switch between the last visited projects */}
+        {recentProjectChips.length > 1 && (
+          <div className="file-explorer-recent-projects" role="group" aria-label="Recent projects">
+            {recentProjectChips.map((folder) => {
+              const name = folder.path.split('/').pop() || folder.path;
+              const isActive = folder.path.replace(/\\/g, '/') === currentFolder;
+              return (
+                <button
+                  key={`${folder.areaId}-${folder.path}`}
+                  type="button"
+                  className={`file-explorer-recent-chip ${isActive ? 'active' : ''}`}
+                  onClick={() => handleFolderSelect(folder)}
+                  title={folder.path}
+                >
+                  <span
+                    className="file-explorer-recent-chip-dot"
+                    style={{ background: folder.areaColor }}
+                  />
+                  <span className="file-explorer-recent-chip-name">{name}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Main Content */}

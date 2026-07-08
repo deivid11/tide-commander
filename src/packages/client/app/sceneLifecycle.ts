@@ -1,3 +1,4 @@
+
 import type { SceneManager } from '../scene/SceneManager';
 import { disconnect, clearCallbacks } from '../websocket';
 
