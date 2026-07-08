@@ -59,6 +59,7 @@ export type {
   AgentTaskProgress,
   TestRun,
   TestRunHandle,
+  HttpRunHandle,
 } from './types';
 
 export { DEFAULT_SETTINGS } from './types';

@@ -56,6 +56,7 @@ import { UpdateBanner } from './components/UpdateBanner';
 import { PostUpdateNotice } from './components/PostUpdateNotice';
 import { OnboardingModal } from './components/OnboardingModal';
 import { profileRender, useRenderCounter } from './utils/profiling';
+import { dockBuilding } from './utils/buildingViewMode';
 import {
   useModalState,
   useModalStateWithId,
@@ -652,7 +653,7 @@ function AppContent() {
       if (!building) return;
       recordRecentBuilding(detail.buildingId);
 
-      if (building.type === 'server' && building.pm2?.enabled) {
+      if (building.type === 'server' && (building.pm2?.enabled || building.docker?.enabled)) {
         setPm2LogsModalBuildingId(detail.buildingId);
       } else if (building.type === 'boss') {
         setBossLogsModalBuildingId(detail.buildingId);
@@ -1370,6 +1371,10 @@ function AppContent() {
       {pm2LogsModalBuildingId && (() => {
         const building = buildings.get(pm2LogsModalBuildingId);
         if (!building) return null;
+        const minimizeLogs = () => {
+          dockBuilding(building.id, 'pm2-logs');
+          setPm2LogsModalBuildingId(null);
+        };
         // Use DockerLogsModal for Docker buildings, PM2LogsModal for PM2 buildings
         if (building.docker?.enabled) {
           return (
@@ -1377,6 +1382,7 @@ function AppContent() {
               building={building}
               isOpen={true}
               onClose={() => setPm2LogsModalBuildingId(null)}
+              onMinimize={minimizeLogs}
             />
           );
         }
@@ -1385,6 +1391,7 @@ function AppContent() {
             building={building}
             isOpen={true}
             onClose={() => setPm2LogsModalBuildingId(null)}
+            onMinimize={minimizeLogs}
           />
         );
       })()}
@@ -1416,6 +1423,10 @@ function AppContent() {
               <DatabasePanel
                 building={building}
                 onClose={closeDatabasePanel}
+                onMinimize={() => {
+                  dockBuilding(building.id, 'database');
+                  closeDatabasePanel();
+                }}
               />
             </div>
           </div>
@@ -1435,12 +1446,24 @@ function AppContent() {
             <div className="terminal-modal-container">
               <div className="terminal-modal-header">
                 <span className="terminal-modal-title">Terminal - {building.name}</span>
-                <button className="terminal-modal-close" onClick={closeTerminalModal}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
+                <span className="terminal-modal-actions">
+                  <button
+                    className="terminal-modal-close"
+                    onClick={() => {
+                      dockBuilding(building.id, 'terminal');
+                      closeTerminalModal();
+                    }}
+                    title="Minimize — dock below the terminal input"
+                  >
+                    <Icon name="arrow-down" size={14} />
+                  </button>
+                  <button className="terminal-modal-close" onClick={closeTerminalModal}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </span>
               </div>
               <TerminalEmbed
                 terminalUrl={building.terminalStatus.url}

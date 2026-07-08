@@ -12,6 +12,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next';
 import { ansiToHtml } from '../utils/ansiToHtml';
 import { useModalClose } from '../hooks';
+import { Icon } from './Icon';
 
 export interface LogLine {
   text: string;
@@ -24,6 +25,8 @@ export interface LogLine {
 interface LogViewerModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Minimize — dock the logs as a compact bottom panel (host renders the button only when set). */
+  onMinimize?: () => void;
   title: string;
   icon: string;
   lines: LogLine[];
@@ -43,6 +46,7 @@ interface LogViewerModalProps {
 export function LogViewerModal({
   isOpen,
   onClose,
+  onMinimize,
   title,
   icon,
   lines,
@@ -340,6 +344,11 @@ export function LogViewerModal({
           </div>
           <div className="header-right">
             <span className="line-count">{t('terminal:logs.lines', { count: lines.length })}</span>
+            {onMinimize && (
+              <button className="modal-close" onClick={onMinimize} title="Minimize — dock below the terminal input">
+                <Icon name="arrow-down" size={14} />
+              </button>
+            )}
             <button className="modal-close" onClick={onClose} title={t('terminal:logs.closeEsc')}>
               &times;
             </button>

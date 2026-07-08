@@ -51,6 +51,9 @@ import { ModalPortal } from './shared/ModalPortal';
 import { Icon, type IconName } from './Icon';
 import { store, useTestRun, useTestsBuildingId, useBuildings, useLatestTestRunId, isTestPathRelated } from '../store';
 import { useModalStackRegistration } from '../hooks/useModalStack';
+import { useSplitPane } from '../hooks/useSplitPane';
+import { dockBuilding } from '../utils/buildingViewMode';
+import { getStorageBoolean, setStorageBoolean, getStorageStringSet, setStorageStringSet } from '../utils/storage';
 import { scanTests, fetchTestHistory } from '../api/test-runner';
 import { ansiToHtml } from '../utils/ansiToHtml';
 import type {
@@ -481,9 +484,12 @@ const TbmHistory = memo(function TbmHistory({
   reloadKey: number;
   onPick: (runId: string) => void;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(() => getStorageBoolean(`tbm-history-open:${folderPath}`, true));
   const [rows, setRows] = useState<TestRunSummary[] | null>(null);
   const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    setStorageBoolean(`tbm-history-open:${folderPath}`, open);
+  }, [folderPath, open]);
 
   useEffect(() => {
     if (!folderPath) return;
@@ -552,27 +558,56 @@ const TbmHistory = memo(function TbmHistory({
 });
 
 // ============================================================================
-// Modal
+// Browser content — shared by the modal and the dockable bottom panels
 // ============================================================================
 
-function TestsBuildingModal({ building, onClose }: { building: Building; onClose: () => void }) {
+/**
+ * The whole tests browser (toolbar + class tree + run panel + history) without
+ * any window chrome, so it can live either inside the full modal or docked as
+ * a compact panel under the Guake/flat terminal input. Runs stream through the
+ * store (useTestRun), so a run started in one host keeps streaming in the
+ * other after docking/undocking.
+ */
+export function TestsBrowser({
+  building,
+  autoFocusSearch = true,
+  onBusyChange,
+}: {
+  building: Building;
+  /** Disable in panel mode so opening the dock doesn't steal the terminal input's focus. */
+  autoFocusSearch?: boolean;
+  /** Lets the host pulse its flask icon while a run is in flight. */
+  onBusyChange?: (busy: boolean) => void;
+}) {
   const folderPath = building.folderPath ?? '';
 
   const [scan, setScan] = useState<TestScanResult | null>(null);
   const [scanning, setScanning] = useState(true);
   const [scanError, setScanError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Expanded classes survive close/reopen AND modal↔dock swaps (the swap
+  // remounts this component).
+  const expandedKey = `tests-building-expanded-${building.id}`;
+  const [expanded, setExpanded] = useState<Set<string>>(() => getStorageStringSet(expandedKey));
+  useEffect(() => {
+    setStorageStringSet(expandedKey, expanded);
+  }, [expandedKey, expanded]);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   // Bumped whenever a run finishes so the "Previous runs" list refetches and
   // the freshly-completed run appears without a manual refresh.
   const [historyReloadKey, setHistoryReloadKey] = useState(0);
   const lastCompletedRef = useRef<string>('');
+  // Draggable list/run split, persisted per building (shared modal↔dock).
+  const { leftPct: splitLeftPct, bodyRef: splitBodyRef, onSplitMouseDown } = useSplitPane(`tests-building-split-${building.id}`, 55);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const run = useTestRun(activeRunId);
   const isRunBusy = run?.status === 'running';
+
+  useEffect(() => {
+    onBusyChange?.(!!isRunBusy);
+  }, [isRunBusy, onBusyChange]);
 
   // When the panel's run reaches a terminal status, refresh the history list.
   useEffect(() => {
@@ -621,9 +656,10 @@ function TestsBuildingModal({ building, onClose }: { building: Building; onClose
   // Scan on open + focus the search box.
   useEffect(() => {
     void doScan();
+    if (!autoFocusSearch) return;
     const t = window.setTimeout(() => searchRef.current?.focus(), 150);
     return () => window.clearTimeout(t);
-  }, [doScan]);
+  }, [doScan, autoFocusSearch]);
 
   // Adopt the most recent run already related to this folder (e.g. still
   // streaming from a previous open, or started from the file explorer).
@@ -761,6 +797,110 @@ function TestsBuildingModal({ building, onClose }: { building: Building; onClose
   }, []);
 
   return (
+    <>
+      {/* Toolbar */}
+      <div className="tbm-toolbar">
+        <div className="tbm-search">
+          <Icon name="search" size={13} />
+          <input
+            ref={searchRef}
+            type="text"
+            placeholder="Search classes and methods…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search && (
+            <button className="tbm-search-clear" onClick={() => setSearch('')} title="Clear search">
+              <Icon name="close" size={11} />
+            </button>
+          )}
+        </div>
+        <span className="tbm-scan-counts">
+          {scan ? `${filteredClasses.length} classes · ${visibleMethodCount} tests` : ''}
+        </span>
+        {scan?.runnerType && <span className="tbm-runner-badge">{scan.runnerType}</span>}
+        <button className="tbm-btn" onClick={() => void doScan()} disabled={scanning} title="Re-scan test sources">
+          <Icon name="refresh" size={12} /> {scanning ? 'Scanning…' : 'Rescan'}
+        </button>
+        <button
+          className="tbm-btn primary"
+          onClick={handleRunAll}
+          disabled={isRunBusy || scanning || !scan}
+          title={isRunBusy ? 'A run is already in progress' : 'Run the whole suite'}
+        >
+          <Icon name="play" size={12} /> Run all
+        </button>
+      </div>
+
+      {runError && <div className="tbm-run-error banner"><Icon name="warning-circle" size={13} /> {runError}</div>}
+
+      {/* Body */}
+      <div className="tbm-body" ref={splitBodyRef}>
+        <div className="tbm-left" style={{ width: `${splitLeftPct}%` }}>
+          {scanning ? (
+            <div className="tbm-browser-empty">
+              <span className="tbm-spinner large" /> Scanning test sources…
+            </div>
+          ) : scanError ? (
+            <div className="tbm-browser-empty error">
+              <Icon name="warning-circle" size={16} /> {scanError}
+              <button className="tbm-btn" onClick={() => void doScan()}>
+                <Icon name="refresh" size={12} /> Retry
+              </button>
+            </div>
+          ) : (
+            <TestBrowser
+              classes={filteredClasses}
+              searching={search.trim().length > 0}
+              expanded={expanded}
+              suitesByFq={suitesByFq}
+              scenarioStatuses={scenarioStatuses}
+              runBusy={!!isRunBusy}
+              onToggle={handleToggle}
+              onRunClass={handleRunClass}
+              onRunMethod={handleRunMethod}
+            />
+          )}
+        </div>
+
+        <div
+          className="tbm-split"
+          onMouseDown={onSplitMouseDown}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize test list"
+        />
+
+        <div className="tbm-right">
+          {run ? (
+            <RunPanel run={run} onStop={handleStop} onRerun={handleRerun} />
+          ) : (
+            <div className="tbm-run-empty">
+              <Icon name="flask" size={30} />
+              <span>No run yet</span>
+              <p>Run the whole suite, or hover a class or method on the left and hit play.</p>
+            </div>
+          )}
+          <TbmHistory
+            folderPath={folderPath}
+            currentRunId={activeRunId}
+            reloadKey={historyReloadKey}
+            onPick={handlePickHistory}
+          />
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ============================================================================
+// Modal shell
+// ============================================================================
+
+function TestsBuildingModal({ building, onClose }: { building: Building; onClose: () => void }) {
+  const folderPath = building.folderPath ?? '';
+  const [busy, setBusy] = useState(false);
+  return (
     <ModalPortal>
       <div className="modal-overlay visible" onClick={onClose}>
         <div
@@ -776,100 +916,30 @@ function TestsBuildingModal({ building, onClose }: { building: Building; onClose
           {/* Header */}
           <div className="modal-header">
             <div className="tbm-title">
-              <span className={`tbm-title-flask ${isRunBusy ? 'working' : ''}`}>
+              <span className={`tbm-title-flask ${busy ? 'working' : ''}`}>
                 <Icon name="flask" size={16} />
               </span>
               <span className="tbm-title-text">{building.name}</span>
               <span className="tbm-title-path" title={folderPath}>{folderPath}</span>
-              {scan?.runnerType && <span className="tbm-runner-badge">{scan.runnerType}</span>}
             </div>
-            <button className="modal-close" onClick={onClose} aria-label="Close">
-              <Icon name="close" size={16} />
-            </button>
-          </div>
-
-          {/* Toolbar */}
-          <div className="tbm-toolbar">
-            <div className="tbm-search">
-              <Icon name="search" size={13} />
-              <input
-                ref={searchRef}
-                type="text"
-                placeholder="Search classes and methods…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              {search && (
-                <button className="tbm-search-clear" onClick={() => setSearch('')} title="Clear search">
-                  <Icon name="close" size={11} />
-                </button>
-              )}
-            </div>
-            <span className="tbm-scan-counts">
-              {scan ? `${filteredClasses.length} classes · ${visibleMethodCount} tests` : ''}
-            </span>
-            <button className="tbm-btn" onClick={() => void doScan()} disabled={scanning} title="Re-scan test sources">
-              <Icon name="refresh" size={12} /> {scanning ? 'Scanning…' : 'Rescan'}
-            </button>
-            <button
-              className="tbm-btn primary"
-              onClick={handleRunAll}
-              disabled={isRunBusy || scanning || !scan}
-              title={isRunBusy ? 'A run is already in progress' : 'Run the whole suite'}
-            >
-              <Icon name="play" size={12} /> Run all
-            </button>
-          </div>
-
-          {runError && <div className="tbm-run-error banner"><Icon name="warning-circle" size={13} /> {runError}</div>}
-
-          {/* Body */}
-          <div className="tbm-body">
-            <div className="tbm-left">
-              {scanning ? (
-                <div className="tbm-browser-empty">
-                  <span className="tbm-spinner large" /> Scanning test sources…
-                </div>
-              ) : scanError ? (
-                <div className="tbm-browser-empty error">
-                  <Icon name="warning-circle" size={16} /> {scanError}
-                  <button className="tbm-btn" onClick={() => void doScan()}>
-                    <Icon name="refresh" size={12} /> Retry
-                  </button>
-                </div>
-              ) : (
-                <TestBrowser
-                  classes={filteredClasses}
-                  searching={search.trim().length > 0}
-                  expanded={expanded}
-                  suitesByFq={suitesByFq}
-                  scenarioStatuses={scenarioStatuses}
-                  runBusy={!!isRunBusy}
-                  onToggle={handleToggle}
-                  onRunClass={handleRunClass}
-                  onRunMethod={handleRunMethod}
-                />
-              )}
-            </div>
-
-            <div className="tbm-right">
-              {run ? (
-                <RunPanel run={run} onStop={handleStop} onRerun={handleRerun} />
-              ) : (
-                <div className="tbm-run-empty">
-                  <Icon name="flask" size={30} />
-                  <span>No run yet</span>
-                  <p>Run the whole suite, or hover a class or method on the left and hit play.</p>
-                </div>
-              )}
-              <TbmHistory
-                folderPath={folderPath}
-                currentRunId={activeRunId}
-                reloadKey={historyReloadKey}
-                onPick={handlePickHistory}
-              />
+            <div className="tbm-header-actions">
+              <button
+                className="modal-close"
+                onClick={() => {
+                  dockBuilding(building.id, 'tests');
+                  onClose();
+                }}
+                aria-label="Dock below the terminal input"
+                title="Minimize — dock below the terminal input"
+              >
+                <Icon name="arrow-down" size={16} />
+              </button>
+              <button className="modal-close" onClick={onClose} aria-label="Close">
+                <Icon name="close" size={16} />
+              </button>
             </div>
           </div>
+          <TestsBrowser building={building} onBusyChange={setBusy} />
         </div>
       </div>
     </ModalPortal>

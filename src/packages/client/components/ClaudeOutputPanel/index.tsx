@@ -13,10 +13,8 @@
  * - Agent switcher bar
  */
 
-import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
-// NOTE: useLayoutEffect used by BottomPm2LogContent and remaining parent effects
+import React, { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   useAgents,
   useAgent,
@@ -30,7 +28,6 @@ import {
   useTrackingBoardVisible,
   useAreas,
   useBuildings,
-  useStore,
 } from '../../store';
 import {
   STORAGE_KEYS,
@@ -44,15 +41,17 @@ import { resolveAgentFileReference } from '../../utils/filePaths';
 import {
   BOTTOM_PM2_LOG_RETENTION_OPTIONS,
   readBottomPm2LogRetention,
-  trimLogBufferByLines,
   writeBottomPm2LogRetention,
 } from '../../utils/logRetention';
-import { ansiToHtml } from '../../utils/ansiToHtml';
 import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
 import { Icon } from '../Icon';
 import { ModalPortal } from '../shared/ModalPortal';
 import { DatabasePanelInline } from '../database/DatabasePanelInline';
+import { HttpRequestsBrowser } from '../HttpRequestsBuildingModal';
+import { TestsBrowser } from '../TestsBuildingModal';
+import { BottomPm2LogContent } from './BottomPm2LogContent';
+import { getBuildingViewMode, expandBuilding } from '../../utils/buildingViewMode';
 
 // Import types
 import type { ViewMode } from './types';
@@ -121,7 +120,7 @@ function isPositionInArea(
 }
 
 /** A single bottom panel descriptor */
-type BottomPanelType = 'terminal' | 'pm2-logs' | 'database';
+type BottomPanelType = 'terminal' | 'pm2-logs' | 'database' | 'http' | 'tests';
 
 interface BottomPanel {
   id: string;
@@ -136,116 +135,6 @@ let nextPanelId = 1;
 function makePanelId(): string {
   return `bp-${nextPanelId++}`;
 }
-
-/** Inline PM2 log viewer for the bottom panel */
-const BottomPm2LogContent = memo(function BottomPm2LogContent({
-  buildingId,
-  filterText,
-  maxRetention,
-}: {
-  buildingId: string;
-  filterText: string;
-  maxRetention: number | null;
-}) {
-  const { streamingBuildingLogs } = useStore();
-  const logs = streamingBuildingLogs.get(buildingId) || '';
-  const logRef = useRef<HTMLDivElement>(null);
-  const isUserScrolledUpRef = useRef(false);
-  const previousScrollHeightRef = useRef(0);
-  const normalizedFilter = filterText.trim().toLowerCase();
-  const bottomThreshold = 30;
-
-  const updateStickToBottom = useCallback(() => {
-    const el = logRef.current;
-    if (!el) return;
-
-    const isNearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - bottomThreshold;
-    isUserScrolledUpRef.current = !isNearBottom;
-  }, []);
-
-  const retainedLogs = useMemo(() => trimLogBufferByLines(logs, maxRetention), [logs, maxRetention]);
-
-  useLayoutEffect(() => {
-    const el = logRef.current;
-    if (!el) return;
-
-    const previousScrollHeight = previousScrollHeightRef.current;
-    const nextScrollHeight = el.scrollHeight;
-
-    if (isUserScrolledUpRef.current) {
-      const removedHeight = previousScrollHeight - nextScrollHeight;
-      if (removedHeight > 0) {
-        el.scrollTop = Math.max(0, el.scrollTop - removedHeight);
-      }
-    } else {
-      el.scrollTop = nextScrollHeight;
-    }
-
-    previousScrollHeightRef.current = el.scrollHeight;
-  }, [retainedLogs, normalizedFilter]);
-
-  const visibleLogs = useMemo(() => {
-    if (!retainedLogs) return '';
-    if (!normalizedFilter) return retainedLogs;
-
-    return retainedLogs
-      .split('\n')
-      .filter((line) => line.toLowerCase().includes(normalizedFilter))
-      .join('\n');
-  }, [retainedLogs, normalizedFilter]);
-
-  const visibleLines = useMemo(() => (
-    visibleLogs ? visibleLogs.split('\n') : []
-  ), [visibleLogs]);
-
-  const lineHtml = useMemo(() => (
-    visibleLines.map((line) => ansiToHtml(line || ' '))
-  ), [visibleLines]);
-
-  const emptyMessage = useMemo(() => {
-    if (!retainedLogs) return 'Waiting for logs...';
-    if (normalizedFilter && !visibleLogs) return 'No log lines match the current filter.';
-    return null;
-  }, [retainedLogs, normalizedFilter, visibleLogs]);
-
-  const virtualizer = useVirtualizer({
-    count: lineHtml.length,
-    getScrollElement: () => logRef.current,
-    estimateSize: () => 20,
-    overscan: 12,
-    measureElement: (element) => element.getBoundingClientRect().height,
-  });
-
-  const virtualItems = virtualizer.getVirtualItems();
-
-  return (
-    <div
-      ref={logRef}
-      className="guake-bottom-pm2-logs"
-      onScroll={updateStickToBottom}
-    >
-      {emptyMessage ? (
-        <div className="guake-bottom-pm2-logs-empty">{emptyMessage}</div>
-      ) : (
-        <div
-          className="guake-bottom-pm2-logs-inner"
-          style={{ height: virtualizer.getTotalSize() }}
-        >
-          {virtualItems.map((virtualItem) => (
-            <div
-              key={virtualItem.key}
-              ref={virtualizer.measureElement}
-              className="guake-bottom-pm2-log-line"
-              data-index={virtualItem.index}
-              style={{ transform: `translateY(${virtualItem.start}px)` }}
-              dangerouslySetInnerHTML={{ __html: lineHtml[virtualItem.index] }}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-});
 
 const _BottomTerminalIframe = memo(function BottomTerminalIframe({
   src,
@@ -454,6 +343,20 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
     const result: { id: string; name: string }[] = [];
     for (const building of buildings.values()) {
       if (building.type === 'http' && store.isPositionInArea(building.position, area)) {
+        result.push({ id: building.id, name: building.name });
+      }
+    }
+    return result;
+  }, [activeAgentId, buildings, areas]);
+
+  // Tests buildings in the active agent's area (for status-bar buttons)
+  const areaTestsBuildings = useMemo(() => {
+    if (!activeAgentId) return [];
+    const area = store.getAreaForAgent(activeAgentId);
+    if (!area) return [];
+    const result: { id: string; name: string }[] = [];
+    for (const building of buildings.values()) {
+      if (building.type === 'tests' && store.isPositionInArea(building.position, area)) {
         result.push({ id: building.id, name: building.name });
       }
     }
@@ -774,6 +677,29 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
     };
     window.addEventListener('tide:open-bottom-database', handler as EventListener);
     return () => window.removeEventListener('tide:open-bottom-database', handler as EventListener);
+  }, [openBottomPanel]);
+
+  // Listen for open-bottom-http / open-bottom-tests events (single open,
+  // replaces all) — also dispatched by the modals' minimize/dock buttons.
+  useEffect(() => {
+    const httpHandler = (e: Event) => {
+      const detail = (e as CustomEvent<{ buildingId: string }>).detail;
+      if (detail?.buildingId) {
+        openBottomPanel(detail.buildingId, 'http');
+      }
+    };
+    const testsHandler = (e: Event) => {
+      const detail = (e as CustomEvent<{ buildingId: string }>).detail;
+      if (detail?.buildingId) {
+        openBottomPanel(detail.buildingId, 'tests');
+      }
+    };
+    window.addEventListener('tide:open-bottom-http', httpHandler as EventListener);
+    window.addEventListener('tide:open-bottom-tests', testsHandler as EventListener);
+    return () => {
+      window.removeEventListener('tide:open-bottom-http', httpHandler as EventListener);
+      window.removeEventListener('tide:open-bottom-tests', testsHandler as EventListener);
+    };
   }, [openBottomPanel]);
 
   // Listen for split-bottom-panel events
@@ -1759,6 +1685,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                           // Close just this panel
                           const panel = bottomPanels.find(p => p.buildingId === tb.id);
                           if (panel) closeBottomPanel(panel.id);
+                        } else if (tb.hasUrl && getBuildingViewMode(tb.id) === 'modal') {
+                          expandBuilding(tb.id);
                         } else {
                           if (!tb.hasUrl) {
                             store.sendBuildingCommand(tb.id, 'start');
@@ -1794,6 +1722,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                         if (isActive) {
                           const panel = bottomPanels.find(p => p.buildingId === sb.id);
                           if (panel) closeBottomPanel(panel.id);
+                        } else if (getBuildingViewMode(sb.id) === 'modal') {
+                          expandBuilding(sb.id);
                         } else {
                           openBottomPanel(sb.id, 'pm2-logs');
                         }
@@ -1826,6 +1756,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                         if (isActive) {
                           const panel = bottomPanels.find(p => p.buildingId === db.id);
                           if (panel) closeBottomPanel(panel.id);
+                        } else if (getBuildingViewMode(db.id) === 'modal') {
+                          expandBuilding(db.id);
                         } else {
                           openBottomPanel(db.id, 'database');
                         }
@@ -1844,19 +1776,75 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                 })}
               </span>
             )}
-            {/* HTTP-requests browser buttons for area http buildings */}
+            {/* HTTP-requests toggle buttons for area http buildings — docked
+                panel on click (like terminals); modal via the panel's maximize
+                button or the right-click menu. */}
             {areaHttpBuildings.length > 0 && (
               <span className="guake-status-terminals">
-                {areaHttpBuildings.map((hb) => (
-                  <button
-                    key={hb.id}
-                    className="guake-status-terminal-btn"
-                    title={`Open HTTP requests: ${hb.name}`}
-                    onClick={() => store.openHttpBuilding(hb.id)}
-                  >
-                    <Icon name="globe" size={14} />
-                  </button>
-                ))}
+                {areaHttpBuildings.map((hb) => {
+                  const isActive = bottomPanelBuildingIds.has(hb.id);
+                  return (
+                    <button
+                      key={hb.id}
+                      className={`guake-status-terminal-btn ${isActive ? 'active' : ''}`}
+                      title={`${isActive ? 'Hide' : 'Show'} HTTP requests: ${hb.name}`}
+                      onClick={() => {
+                        if (isActive) {
+                          const panel = bottomPanels.find(p => p.buildingId === hb.id);
+                          if (panel) closeBottomPanel(panel.id);
+                        } else if (getBuildingViewMode(hb.id) === 'modal') {
+                          expandBuilding(hb.id);
+                        } else {
+                          openBottomPanel(hb.id, 'http');
+                        }
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!bottomPanelBuildingIds.has(hb.id)) {
+                          setSplitContextMenu({ position: { x: e.clientX, y: e.clientY }, buildingId: hb.id, type: 'http' });
+                        }
+                      }}
+                    >
+                      <Icon name="globe" size={14} />
+                    </button>
+                  );
+                })}
+              </span>
+            )}
+            {/* Tests toggle buttons for area tests buildings — docked panel on
+                click; modal via the panel's maximize button / right-click. */}
+            {areaTestsBuildings.length > 0 && (
+              <span className="guake-status-terminals">
+                {areaTestsBuildings.map((tb) => {
+                  const isActive = bottomPanelBuildingIds.has(tb.id);
+                  return (
+                    <button
+                      key={tb.id}
+                      className={`guake-status-terminal-btn ${isActive ? 'active' : ''}`}
+                      title={`${isActive ? 'Hide' : 'Show'} tests: ${tb.name}`}
+                      onClick={() => {
+                        if (isActive) {
+                          const panel = bottomPanels.find(p => p.buildingId === tb.id);
+                          if (panel) closeBottomPanel(panel.id);
+                        } else if (getBuildingViewMode(tb.id) === 'modal') {
+                          expandBuilding(tb.id);
+                        } else {
+                          openBottomPanel(tb.id, 'tests');
+                        }
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!bottomPanelBuildingIds.has(tb.id)) {
+                          setSplitContextMenu({ position: { x: e.clientX, y: e.clientY }, buildingId: tb.id, type: 'tests' });
+                        }
+                      }}
+                    >
+                      <Icon name="flask" size={14} />
+                    </button>
+                  );
+                })}
               </span>
             )}
             <ThemeSelector />
@@ -1872,6 +1860,12 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
               label: 'Open',
               icon: <Icon name="arrow-down" size={14} />,
               onClick: () => openBottomPanel(splitContextMenu.buildingId, splitContextMenu.type),
+            });
+            splitActions.push({
+              id: 'open-modal',
+              label: 'Open as modal',
+              icon: <Icon name="fullscreen" size={14} />,
+              onClick: () => expandBuilding(splitContextMenu.buildingId),
             });
             if (activeAreaPanels.length > 0) {
               splitActions.push({
@@ -1940,11 +1934,23 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                       <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
                         <div className="guake-bottom-terminal-header">
                           <span className="guake-bottom-terminal-title"><Icon name="terminal" size={12} /> {building.name}</span>
-                          <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                            </svg>
-                          </button>
+                          <div className="guake-bottom-terminal-controls">
+                            <button
+                              className="guake-bottom-terminal-close"
+                              onClick={() => {
+                                closeBottomPanel(panel.id);
+                                expandBuilding(panel.buildingId);
+                              }}
+                              title="Maximize — open as modal"
+                            >
+                              <Icon name="fullscreen" size={12} />
+                            </button>
+                            <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                         <TerminalEmbed
                           terminalUrl={building.terminalStatus.url}
@@ -2015,6 +2021,16 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                                 <path d="M1 4v6h6" /><path d="M3.51 15a9 9 0 105.64-11.36L3 10" />
                               </svg>
                             </button>
+                            <button
+                              className="guake-bottom-terminal-close"
+                              onClick={() => {
+                                closeBottomPanel(panel.id);
+                                expandBuilding(panel.buildingId);
+                              }}
+                              title="Maximize — open as modal"
+                            >
+                              <Icon name="fullscreen" size={12} />
+                            </button>
                             <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -2031,16 +2047,88 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                     );
                   }
 
+                  if (panel.type === 'http') {
+                    return (
+                      <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
+                        <div className="guake-bottom-terminal-header">
+                          <span className="guake-bottom-terminal-title"><Icon name="globe" size={12} /> {building.name}</span>
+                          <div className="guake-bottom-terminal-controls">
+                            <button
+                              className="guake-bottom-terminal-close"
+                              onClick={() => {
+                                closeBottomPanel(panel.id);
+                                expandBuilding(panel.buildingId);
+                              }}
+                              title="Maximize — open as modal"
+                            >
+                              <Icon name="fullscreen" size={12} />
+                            </button>
+                            <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                        <div className="http-requests-panel-host">
+                          <HttpRequestsBrowser building={building} autoFocusSearch={false} />
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (panel.type === 'tests') {
+                    return (
+                      <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
+                        <div className="guake-bottom-terminal-header">
+                          <span className="guake-bottom-terminal-title"><Icon name="flask" size={12} /> {building.name}</span>
+                          <div className="guake-bottom-terminal-controls">
+                            <button
+                              className="guake-bottom-terminal-close"
+                              onClick={() => {
+                                closeBottomPanel(panel.id);
+                                expandBuilding(panel.buildingId);
+                              }}
+                              title="Maximize — open as modal"
+                            >
+                              <Icon name="fullscreen" size={12} />
+                            </button>
+                            <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                        <div className="tests-panel-host">
+                          <TestsBrowser building={building} autoFocusSearch={false} />
+                        </div>
+                      </div>
+                    );
+                  }
+
                   // database panel (compact inline version)
                   return (
                     <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
                       <div className="guake-bottom-terminal-header">
                         <span className="guake-bottom-terminal-title"><Icon name="hard-drives" size={12} /> {building.name}</span>
-                        <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                          </svg>
-                        </button>
+                        <div className="guake-bottom-terminal-controls">
+                          <button
+                            className="guake-bottom-terminal-close"
+                            onClick={() => {
+                              closeBottomPanel(panel.id);
+                              expandBuilding(panel.buildingId);
+                            }}
+                            title="Maximize — open as modal"
+                          >
+                            <Icon name="fullscreen" size={12} />
+                          </button>
+                          <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                       <DatabasePanelInline building={building} />
                     </div>

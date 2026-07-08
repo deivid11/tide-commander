@@ -12,7 +12,7 @@ import { OutputLine } from './OutputLine';
 import type { EnrichedHistoryMessage, EditData } from './types';
 import type { ClaudeOutput } from '../../store';
 import type { ExecTask, Subagent } from '../../../shared/types';
-import type { TestRunHandle } from '../../store';
+import type { TestRunHandle, HttpRunHandle } from '../../store';
 import { buildItemKey } from './virtualizedOutputKey';
 export { buildItemKey } from './virtualizedOutputKey';
 export type { TaggedItem, TaggedHistoryItem, TaggedLiveItem } from './virtualizedOutputKey';
@@ -34,7 +34,7 @@ interface VirtualizedOutputListProps {
   agentId: string;
   execTasks?: ExecTask[];
   testRunHandles?: TestRunHandle[];
-  httpRunHandles?: TestRunHandle[];
+  httpRunHandles?: HttpRunHandle[];
   subagents?: Map<string, Subagent>;
 
   // UI state
@@ -168,7 +168,7 @@ const VirtualRow = memo(function VirtualRow({
   agentId: string;
   execTasks: ExecTask[];
   testRunHandles: TestRunHandle[];
-  httpRunHandles: TestRunHandle[];
+  httpRunHandles: HttpRunHandle[];
   subagents?: Map<string, Subagent>;
   simpleView: boolean;
   isSelected: boolean;

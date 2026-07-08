@@ -3,7 +3,10 @@
 // Tests building browser modal — scan/search/run panel (left) + live run
 // panel (right). Shares the shared .modal-overlay; visual language follows
 // test-runner-modal.scss so both tests surfaces feel like one feature.
-.tests-building-modal {
+// .tests-panel-host reuses the same inner styles for the docked bottom-panel
+// variant (guake / flat terminal); its shell overrides live at the end.
+.tests-building-modal,
+.tests-panel-host {
   width: 1500px;
   max-width: 96vw;
   height: 86vh;
@@ -219,10 +222,24 @@
   }
 
   .tbm-left {
-    flex: 1.25;
-    min-width: 0;
+    width: 55%; // overridden by the inline style from useSplitPane
+    min-width: 160px;
+    flex-shrink: 0;
     border-right: 1px solid $border-color;
     overflow-y: auto;
+  }
+
+  // Draggable divider between the test list and the run pane.
+  .tbm-split {
+    flex: 0 0 5px;
+    margin-left: -1px; // sit on the left pane's border
+    cursor: col-resize;
+    transition: background 0.15s ease;
+
+    &:hover,
+    &:active {
+      background: rgba($accent-cyan, 0.35);
+    }
   }
 
   .tbm-right {
@@ -848,4 +865,100 @@
   40% { transform: rotate(10deg); }
   60% { transform: rotate(-7deg); }
   80% { transform: rotate(4deg); }
+}
+
+// Modal header action cluster (minimize/dock + close).
+.tests-building-modal .tbm-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+// Docked bottom-panel variant: fill the host panel instead of the fixed modal
+// footprint, and drop the window chrome (the panel provides its own header).
+.tests-panel-host {
+  flex: 1 1 auto;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  max-width: none;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  font-size: 12px;
+
+  // Compact chrome — the dock is short, every px counts.
+  .tbm-toolbar {
+    padding: 3px 8px;
+    gap: 6px;
+  }
+
+  .tbm-search {
+    padding: 2px 8px;
+    gap: 5px;
+
+    input {
+      font-size: 12px;
+    }
+  }
+
+  .tbm-scan-counts {
+    font-size: 11px;
+  }
+
+  .tbm-btn {
+    padding: 2px 8px;
+    font-size: 11px;
+    gap: 4px;
+  }
+
+  .tbm-left {
+    min-width: 140px;
+  }
+
+  .tbm-package-header {
+    padding: 2px 8px;
+    font-size: 10px;
+  }
+
+  .tbm-row {
+    padding: 1px 8px;
+    font-size: 12px;
+    gap: 6px;
+  }
+
+  .tbm-run-header {
+    padding: 3px 8px;
+    gap: 6px;
+  }
+
+  .tbm-run-command {
+    font-size: 10px;
+  }
+
+  .tbm-run-totals {
+    padding: 2px 8px;
+    font-size: 11px;
+  }
+
+  .tbm-console {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .tbm-history-toggle {
+    padding: 2px 8px;
+    font-size: 11px;
+  }
+
+  .tbm-history-row {
+    padding: 1px 8px;
+    font-size: 11px;
+  }
+
+  .tbm-browser-empty {
+    padding: 12px 10px;
+    gap: 6px;
+  }
 }

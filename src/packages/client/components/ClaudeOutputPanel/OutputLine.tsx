@@ -4,7 +4,7 @@
 
 import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useHideCost, useSettings, ClaudeOutput, store, useAgentPrompts, type TestRunHandle } from '../../store';
+import { useHideCost, useSettings, ClaudeOutput, store, useAgentPrompts, type TestRunHandle, type HttpRunHandle } from '../../store';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
 import { getToolIconName, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
@@ -24,7 +24,7 @@ import { TestResultsCard } from './TestResultsCard';
 import { parseHttpResults } from './httpResultsParser';
 import { HttpResultsCard } from './HttpResultsCard';
 import { TestRunInline } from './TestRunInline';
-import { HttpRunInline, HttpRunLookup } from './HttpRunInline';
+import { HttpRunInline, HttpRunLookup, matchHttpRunHandle } from './HttpRunInline';
 import { renderContentWithImages, renderUserPromptContent, highlightText, isThumbnailableImagePath, getLocalFileImageUrl } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
@@ -53,7 +53,7 @@ interface OutputLineProps {
   agentId: string | null;
   execTasks?: ExecTask[];
   testRunHandles?: TestRunHandle[];
-  httpRunHandles?: TestRunHandle[];
+  httpRunHandles?: HttpRunHandle[];
   subagents?: Map<string, Subagent>;
   onImageClick?: (url: string, name: string) => void;
   onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
@@ -821,16 +821,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const isHttpRunCurl = Boolean(
       isBashTool && bashCommand && looksLikeCurl(bashCommand) && /\/api\/http-requests\/run(?!s)/.test(bashCommand)
     );
-    const matchingHttpRunId = isHttpRunCurl && httpRunHandles.length > 0
-      ? (() => {
-          const near = httpRunHandles.filter(
-            (r) => r.startedAt >= bashTimestampMs - 3000 && r.startedAt <= bashTimestampMs + 20000
-          );
-          if (near.length > 0) {
-            return near.reduce((latest, cur) => (cur.startedAt > latest.startedAt ? cur : latest)).runId;
-          }
-          return null;
-        })()
+    const matchingHttpRunId = isHttpRunCurl && bashCommand
+      ? matchHttpRunHandle(httpRunHandles, bashCommand, bashTimestampMs)
       : null;
 
     // Match Task/Agent tool line to its subagent via uuid (which equals toolUseId)
