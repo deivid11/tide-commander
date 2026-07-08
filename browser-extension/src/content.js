@@ -714,6 +714,17 @@
     const el = document.getElementById(TC_DRIVE_BADGE_ID);
     if (el) el.remove();
   }
+  // Temporarily hide our own injected overlays (the drive badge + the robot cursor) so an
+  // agent's screenshot captures the real page, not our chrome. Uses visibility (no layout
+  // shift — both hosts are position:fixed). Applied synchronously; the caller waits a frame
+  // (on the un-throttled side-panel side) before shooting so the change is composited.
+  function tcCloakOverlays(on) {
+    if (window.top !== window) return;
+    for (const id of [TC_DRIVE_BADGE_ID, TC_CURSOR_ID]) {
+      const el = document.getElementById(id);
+      if (el) el.style.visibility = on ? 'hidden' : '';
+    }
+  }
 
   // ── fake "robot cursor" (visual feedback) ──────────────────────────────────
   // A pointer-events:none overlay arrow that GLIDES to each target's coordinates and
@@ -1336,6 +1347,15 @@
       if (msg.on) showDriveBadge();
       else hideDriveBadge();
       sendResponse && sendResponse({ ok: true });
+      return;
+    }
+    if (msg.type === 'tcCaptureCloak') {
+      try {
+        tcCloakOverlays(!!msg.on);
+        sendResponse && sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse && sendResponse({ ok: false, error: (e && e.message) || String(e) });
+      }
       return;
     }
     if (msg.type === 'tcAct') {

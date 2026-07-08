@@ -27,7 +27,7 @@ import { CurlCard } from './CurlCard';
 import { parseTestResults } from './testResultsParser';
 import { TestResultsCard } from './TestResultsCard';
 import { TestRunInline } from './TestRunInline';
-import { highlightText, renderContentWithImages, renderUserPromptContent } from './contentRendering';
+import { highlightText, renderContentWithImages, renderUserPromptContent, isThumbnailableImagePath, getLocalFileImageUrl } from './contentRendering';
 import { useTTS } from '../../hooks/useTTS';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { Icon } from '../Icon';
@@ -405,6 +405,11 @@ export const HistoryLine = memo(function HistoryLine({
       const isFilePath = keyParam && (isFileTool || keyParam.startsWith('/') || keyParam.includes('/'));
       const isFileClickable = isFileTool && isFilePath && onFileClick;
 
+      // When Read targets an image, show an inline thumbnail preview below the line.
+      const readImageThumb = (toolName === 'Read' && isFilePath && keyParam && isThumbnailableImagePath(keyParam))
+        ? { url: getLocalFileImageUrl(keyParam), name: getBasenameFromPath(keyParam) }
+        : null;
+
       // Bash tools are clickable if we have onBashClick handler
       const isBashTool = toolName === 'Bash' && onBashClick;
       const bashCommand = _bashCommand || keyParam || '';
@@ -751,6 +756,20 @@ export const HistoryLine = memo(function HistoryLine({
               )
             )}
           </div>
+          {/* Inline image thumbnail when a Read targets an image file */}
+          {readImageThumb && (
+            <div className="output-read-image-preview">
+              <img
+                src={readImageThumb.url}
+                alt={readImageThumb.name}
+                className="read-image-thumb"
+                loading="lazy"
+                title={t('terminal:content.clickToViewImage')}
+                onClick={(e) => { e.stopPropagation(); onImageClick?.(readImageThumb.url, readImageThumb.name); }}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+              />
+            </div>
+          )}
           {matchingExecTasks.length > 0 && (
             <div className="exec-task-output-container">
               {matchingExecTasks.map((task) => {

@@ -4,6 +4,7 @@ import { useAppUpdate } from '../../hooks/useAppUpdate';
 import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
 import { Icon } from '../Icon';
 import { useSelfUpdate } from '../../hooks/useSelfUpdate';
+import { ChangelogModal } from '../ChangelogModal';
 
 // Theme selector component
 export function ThemeSelector() {
@@ -215,6 +216,7 @@ export function AboutSection() {
     downloadAndInstall,
     openReleasePage,
   } = useAppUpdate();
+  const [showChangelog, setShowChangelog] = useState(false);
 
   const formatSize = (bytes: number | null): string => {
     if (!bytes) return '';
@@ -265,6 +267,16 @@ export function AboutSection() {
 
       {/* Self-update from npm global (desktop/CLI). Renders only when relevant. */}
       <AutoUpdatePanel />
+
+      {/* Full changelog (all versions) in a modal */}
+      <div className="about-changelog-row">
+        <button
+          className="about-update-btn changelog"
+          onClick={() => setShowChangelog(true)}
+        >
+          {t('config:about.changelog')}
+        </button>
+      </div>
 
       {/* Update Section */}
       <div className="about-update">
@@ -381,6 +393,10 @@ export function AboutSection() {
           <span className="about-credit-desc">{t('config:about.claudeCodeCredit')}</span>
         </div>
       </div>
+
+      {showChangelog && (
+        <ChangelogModal onClose={() => setShowChangelog(false)} />
+      )}
     </div>
   );
 }

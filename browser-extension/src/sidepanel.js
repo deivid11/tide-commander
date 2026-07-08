@@ -1698,7 +1698,11 @@ async function execBrowserCommand(cmd, args) {
       .map((t) => ({ tabId: t.id, url: t.url, title: t.title, active: !!t.active, windowId: t.windowId }));
   }
   if (cmd === 'tab_open') {
-    const t = await chrome.tabs.create({ url: args.url || undefined, active: args.active !== false });
+    // Open in the BACKGROUND by default so opening a tab never yanks the user's
+    // foreground app away (chrome.tabs.create with active:true raises the window). The
+    // agent drives/reads a background tab just fine; pass active:true ONLY when the user
+    // should actually be switched to the new tab.
+    const t = await chrome.tabs.create({ url: args.url || undefined, active: args.active === true });
     return { tabId: t.id, url: t.url, windowId: t.windowId };
   }
   // Global diagnostic — no tab/attach needed; lists all DevTools targets.
@@ -1898,19 +1902,51 @@ async function execBrowserCommand(cmd, args) {
           /* fall back to a full-viewport shot */
         }
       }
-      const res = await send({ type: 'bridgeScreenshot', commanderId: selectedCommander, rect, selector: args.selector || 'page', tabId });
-      if (!res || !res.ok) throw new Error((res && res.error) || 'screenshot failed');
-      return { path: res.path };
+      // Hide our own overlays (drive badge + robot cursor) so they don't end up in the
+      // shot, then restore them no matter what. The wait runs here in the side panel (not
+      // throttled like a background tab's timers), giving the browser a frame to composite
+      // the visibility change before captureVisibleTab grabs the frame.
+      let cloaked = false;
+      if (tabId != null) {
+        try {
+          await chrome.tabs.sendMessage(tabId, { type: 'tcCaptureCloak', on: true });
+          cloaked = true;
+          await new Promise((r) => setTimeout(r, 50));
+        } catch (_e) {
+          /* no content script on this tab → nothing of ours to hide */
+        }
+      }
+      try {
+        const res = await send({ type: 'bridgeScreenshot', commanderId: selectedCommander, rect, selector: args.selector || 'page', tabId });
+        if (!res || !res.ok) throw new Error((res && res.error) || 'screenshot failed');
+        return { path: res.path };
+      } finally {
+        if (cloaked) {
+          try {
+            await chrome.tabs.sendMessage(tabId, { type: 'tcCaptureCloak', on: false });
+          } catch (_e) {
+            /* tab gone / navigated — badge re-injects itself on next load */
+          }
+        }
+      }
     }
     case 'tab_close':
       await chrome.tabs.remove(tabId);
       return { ok: true };
     case 'tab_activate':
+      // Make the target the ACTIVE tab of its window — enough for captureVisibleTab
+      // (full-viewport screenshots) and for drives, and it does NOT pull a background
+      // window to the OS foreground. Raise the window (stealing the user's OS focus
+      // from whatever app they're in) ONLY when the caller explicitly asks with
+      // focusWindow:true; by default the tab activates behind the scenes and the user
+      // keeps working uninterrupted.
       await chrome.tabs.update(tabId, { active: true });
-      try {
-        if (tab && tab.windowId != null) await chrome.windows.update(tab.windowId, { focused: true });
-      } catch (_e) {
-        /* ignore */
+      if (args.focusWindow === true) {
+        try {
+          if (tab && tab.windowId != null) await chrome.windows.update(tab.windowId, { focused: true });
+        } catch (_e) {
+          /* ignore */
+        }
       }
       return { ok: true };
     // ── interaction: driven in the live session via chrome.debugger (background) ──

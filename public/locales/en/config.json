@@ -581,7 +581,15 @@
     "close": "Close",
     "stuckHint": "Taking longer than expected?",
     "reload": "Reload",
-    "recheck": "Recheck"
+    "recheck": "Recheck",
+    "updated": "Updated to v{{version}}",
+    "viewChangelog": "View changelog",
+    "changelogTitle": "What's new in v{{version}}",
+    "changelogTitleAll": "Changelog",
+    "changelogLoading": "Loading changelog…",
+    "changelogError": "Couldn't load the changelog.",
+    "changelogEmpty": "No release notes for this version.",
+    "viewOnGithub": "View on GitHub"
   },
   "shortcuts": {
     "pressKeys": "Press keys...",

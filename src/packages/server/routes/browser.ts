@@ -198,7 +198,12 @@ router.post('/tab/open', (req: Request, res: Response) =>
   relay(res, 'tab_open', { url: req.body?.url, active: req.body?.active }),
 );
 router.post('/tab/close', (req: Request, res: Response) => relay(res, 'tab_close', target(req)));
-router.post('/tab/activate', (req: Request, res: Response) => relay(res, 'tab_activate', target(req)));
+// Activating a tab makes it the ACTIVE tab of its window (so full-viewport screenshots
+// work) WITHOUT stealing the user's OS focus. Pass focusWindow:true to also raise the
+// window to the foreground (interrupts whatever the user is doing) — opt-in only.
+router.post('/tab/activate', (req: Request, res: Response) =>
+  relay(res, 'tab_activate', { ...target(req), focusWindow: req.body?.focusWindow }),
+);
 
 // ── fallback: drive a SEPARATE Chrome via puppeteer-core over the debug port ──
 // For a throwaway --user-data-dir profile or Chrome for Testing (not your live

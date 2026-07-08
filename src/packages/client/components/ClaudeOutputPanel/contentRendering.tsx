@@ -6,7 +6,7 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { createMarkdownComponents } from './MarkdownComponents';
-import { getApiBaseUrl } from '../../utils/storage';
+import { getApiBaseUrl, apiUrl, getAuthToken } from '../../utils/storage';
 import { linkifyFilePathsForMarkdown } from '../../utils/outputRendering';
 import { extractFileMentionBlocks } from '../../utils/fileMentions';
 import i18n from '../../i18n';
@@ -59,6 +59,37 @@ export function getImageWebUrl(imagePath: string): string {
     // Default: assume it's a relative path
     return imagePath;
   }
+}
+
+/** Image file extensions we can render an inline thumbnail preview for. */
+const THUMBNAIL_IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif|ico)$/i;
+
+/** True when the path points to an image we can preview as a thumbnail. */
+export function isThumbnailableImagePath(filePath: string): boolean {
+  return THUMBNAIL_IMAGE_EXT_RE.test(filePath);
+}
+
+/**
+ * True when an `[Image: X]` reference actually resolves to a renderable image
+ * (a URL, data/blob URI, or a path ending in an image extension). The agent
+ * sometimes emits `[Image: <text>]` where the text is a *caption/instruction*
+ * rather than a path — e.g. "original 2474x1323, displayed at 2000x1070.
+ * Multiply coordinates by 1.24 to map to original image." Those must be shown
+ * as text, not fed into an <img src> (which produces a broken image).
+ */
+export function isRenderableImageRef(ref: string): boolean {
+  return /^(https?:|data:|blob:)/i.test(ref) || isThumbnailableImagePath(ref);
+}
+
+/**
+ * Build a web URL that streams a local image file's bytes via /api/files/binary,
+ * so an arbitrary on-disk path (e.g. one the agent read) can be shown in the
+ * browser. Unlike getImageWebUrl (uploads/attachments only), this works for any
+ * absolute path the server can read.
+ */
+export function getLocalFileImageUrl(filePath: string): string {
+  const token = getAuthToken();
+  return apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}${token ? `&token=${encodeURIComponent(token)}` : ''}`);
 }
 
 /**
@@ -175,7 +206,7 @@ export function renderContentWithImages(
     const resourcePath = match[2].trim();
     const resourceName = resourcePath.split('/').pop() || (isImage ? 'image' : 'file');
 
-    if (isImage) {
+    if (isImage && isRenderableImageRef(resourcePath)) {
       // Add clickable image with thumbnail preview
       const imageUrl = getImageWebUrl(resourcePath);
       parts.push(
@@ -187,6 +218,15 @@ export function renderContentWithImages(
         >
           <img src={imageUrl} alt={resourceName} className="image-reference-thumb" />
           {resourceName}
+        </span>
+      );
+    } else if (isImage) {
+      // `[Image: <text>]` where the text is a caption/instruction, not a path.
+      // Render the instruction itself instead of a broken thumbnail.
+      parts.push(
+        <span key={`imgnote-${match.index}`} className="image-annotation" title={resourcePath}>
+          <img src={`${import.meta.env.BASE_URL}assets/vscode-icons/file_type_image.svg`} alt="" className="image-annotation-icon" />
+          {resourcePath}
         </span>
       );
     } else {
@@ -269,7 +309,7 @@ export function renderUserPromptContent(
     const resourcePath = match[2].trim();
     const resourceName = resourcePath.split('/').pop() || (isImage ? 'image' : 'file');
 
-    if (isImage) {
+    if (isImage && isRenderableImageRef(resourcePath)) {
       const imageUrl = getImageWebUrl(resourcePath);
       parts.push(
         <span
@@ -280,6 +320,15 @@ export function renderUserPromptContent(
         >
           <img src={imageUrl} alt={resourceName} className="image-reference-thumb" />
           {resourceName}
+        </span>
+      );
+    } else if (isImage) {
+      // `[Image: <text>]` where the text is a caption/instruction, not a path.
+      // Render the instruction itself instead of a broken thumbnail.
+      parts.push(
+        <span key={`imgnote-${match.index}`} className="image-annotation" title={resourcePath}>
+          <img src={`${import.meta.env.BASE_URL}assets/vscode-icons/file_type_image.svg`} alt="" className="image-annotation-icon" />
+          {resourcePath}
         </span>
       );
     } else {
