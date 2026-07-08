@@ -52,6 +52,7 @@ import { RecentsOverlay } from './components/Recents/RecentsOverlay';
 import { recordRecentAgent, recordRecentBuilding } from './components/Spotlight/utils';
 const IframeModal = React.lazy(() => import('./components/IframeModal').then(m => ({ default: m.IframeModal })));
 import { NotConnectedOverlay } from './components/NotConnectedOverlay';
+import { UpdateBanner } from './components/UpdateBanner';
 import { OnboardingModal } from './components/OnboardingModal';
 import { profileRender, useRenderCounter } from './utils/profiling';
 import {
@@ -825,6 +826,8 @@ function AppContent() {
     <div className={`app ${terminalOpen ? 'terminal-open' : ''} ${isDrawingMode ? 'drawing-mode' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''} mobile-view-${mobileView} view-mode-${viewMode}`}>
       {/* Not Connected Overlay */}
       <NotConnectedOverlay />
+      {/* Global "update available" banner (dismissible, conscious restart) */}
+      <UpdateBanner />
       <OnboardingModal onCreateAgent={spawnModal.open} />
 
       {/* FPS Meter */}

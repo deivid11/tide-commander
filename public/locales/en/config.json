@@ -567,6 +567,18 @@
     "autoUpdateManualCommand": "Run this in your terminal to update manually:",
     "autoUpdatePackageManagerNotice": "Auto-update only supports npm-installed globals. Detected: {{pm}}."
   },
+  "updateBanner": {
+    "newVersion": "New version v{{version}} available",
+    "updateBtn": "Update & restart",
+    "dismiss": "Ignore",
+    "confirmWarning": "Restarting will interrupt agents currently working. Continue?",
+    "confirmYes": "Yes, update & restart",
+    "confirmCancel": "Cancel",
+    "installing": "Installing update…",
+    "reconnecting": "Update installed — restarting, reconnecting shortly…",
+    "failed": "Update failed",
+    "close": "Close"
+  },
   "shortcuts": {
     "pressKeys": "Press keys...",
     "notSet": "Not set",

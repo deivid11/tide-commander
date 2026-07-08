@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.138.0] - 2026-07-07
+
+### Added
+- **Global update banner with conscious restart** — a dismissible "New version available" banner now appears app-wide when an auto-updatable npm global install has an update. It offers an explicit "Update & restart" action that warns restarting will interrupt working agents, then shows install progress and reconnects automatically. Dismissal is per-version, so the banner reappears when a newer version ships. The server never restarts on its own — restart only happens from a conscious click.
+
+### Changed
+- Self-update logic extracted into a shared `useSelfUpdate` hook consumed by both the new update banner and the Settings → About panel, so the two stay in sync.
+
 ## [1.137.0] - 2026-07-07
 
 ### Added
