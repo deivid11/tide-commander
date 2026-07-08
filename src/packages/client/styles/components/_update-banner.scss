@@ -1,0 +1,121 @@
+@use '../variables' as *;
+
+.update-banner {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1900; // above content, below toasts (2000) and critical modals
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  max-width: min(680px, calc(100vw - 24px));
+  margin-top: 8px;
+  padding: 7px 14px;
+  background: $bg-tertiary;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+  font-family: $font-mono;
+  color: $text-primary;
+  animation: update-banner-in $transition-slow ease-out;
+}
+
+.update-banner-msg {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.3;
+
+  &.warn {
+    color: $accent-orange;
+  }
+}
+
+.update-banner-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: $accent-blue;
+  box-shadow: 0 0 8px $accent-blue;
+  animation: update-banner-pulse 1.8s ease-in-out infinite;
+}
+
+.update-banner-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.update-banner-btn {
+  padding: 4px 12px;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  background: transparent;
+  color: $text-primary;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background $transition-fast ease, filter $transition-fast ease, border-color $transition-fast ease;
+
+  &.primary {
+    background: $accent-blue;
+    border-color: $accent-blue;
+    color: #fff;
+
+    &:hover {
+      filter: brightness(1.12);
+    }
+  }
+
+  &.ghost {
+    color: $text-secondary;
+
+    &:hover {
+      background: $bg-secondary;
+      color: $text-primary;
+      border-color: $text-muted;
+    }
+  }
+}
+
+.update-banner-spinner {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border: 2px solid $border-color;
+  border-top-color: $accent-blue;
+  border-radius: 50%;
+  animation: update-banner-spin 0.7s linear infinite;
+}
+
+@keyframes update-banner-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes update-banner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes update-banner-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}

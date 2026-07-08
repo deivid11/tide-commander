@@ -3,13 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAppUpdate } from '../../hooks/useAppUpdate';
 import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
 import { Icon } from '../Icon';
-import {
-  fetchInstallInfo,
-  startSelfUpdate,
-  waitForServerBack,
-  type InstallInfo,
-  type SelfUpdateEvent,
-} from '../../api/system-update';
+import { useSelfUpdate } from '../../hooks/useSelfUpdate';
 
 // Theme selector component
 export function ThemeSelector() {
@@ -54,27 +48,21 @@ export function ThemeSelector() {
   );
 }
 
-type UpdateUiPhase = 'idle' | 'confirm' | 'running' | 'success' | 'failed';
-
 function AutoUpdatePanel() {
   const { t } = useTranslation(['config']);
-  const [installInfo, setInstallInfo] = useState<InstallInfo | null>(null);
-  const [phase, setPhase] = useState<UpdateUiPhase>('idle');
-  const [output, setOutput] = useState<string>('');
-  const [error, setError] = useState<string | null>(null);
-  const [newVersion, setNewVersion] = useState<string | null>(null);
-  const [autoRestart, setAutoRestart] = useState<boolean>(false);
-  const abortRef = useRef<(() => void) | null>(null);
+  const {
+    installInfo,
+    phase,
+    output,
+    error,
+    newVersion,
+    autoRestart,
+    refreshInstallInfo,
+    runUpdate,
+    reset,
+  } = useSelfUpdate();
+  const [confirming, setConfirming] = useState(false);
   const outputRef = useRef<HTMLPreElement | null>(null);
-
-  const refreshInstallInfo = useCallback(async () => {
-    try {
-      const info = await fetchInstallInfo();
-      setInstallInfo(info);
-    } catch {
-      setInstallInfo(null);
-    }
-  }, []);
 
   useEffect(() => {
     void refreshInstallInfo();
@@ -87,88 +75,24 @@ function AutoUpdatePanel() {
     }
   }, [output]);
 
-  // After a successful auto-restart, wait for the new server to come back up
-  // (poll /api/health) then reload so the UI reconnects and picks up the new
-  // frontend. Reload regardless once the poll settles.
-  useEffect(() => {
-    if (phase !== 'success' || !autoRestart) return;
-    let cancelled = false;
-    void waitForServerBack().then(() => {
-      if (!cancelled) window.location.reload();
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [phase, autoRestart]);
-
   const handleStart = useCallback(() => {
-    setPhase('confirm');
+    setConfirming(true);
   }, []);
 
   const handleCancel = useCallback(() => {
-    setPhase('idle');
+    setConfirming(false);
   }, []);
 
   const handleConfirm = useCallback(() => {
-    setPhase('running');
-    setOutput('');
-    setError(null);
-    setNewVersion(null);
-    setAutoRestart(false);
-
-    const stop = startSelfUpdate(
-      (event: SelfUpdateEvent) => {
-        switch (event.type) {
-          case 'start':
-            setOutput((prev) => prev + `${event.message}\n`);
-            break;
-          case 'stdout':
-            setOutput((prev) => prev + event.chunk);
-            break;
-          case 'stderr':
-            setOutput((prev) => prev + event.chunk);
-            break;
-          case 'error':
-            setError(event.message);
-            if (event.suggestedManualCommand) {
-              setOutput((prev) => prev + `\n\nSuggested manual command: ${event.suggestedManualCommand}\n`);
-            }
-            break;
-          case 'done':
-            if (event.success) {
-              setNewVersion(event.newVersion);
-              setAutoRestart(Boolean(event.autoRestart));
-              setPhase('success');
-            } else {
-              setPhase('failed');
-            }
-            break;
-        }
-      },
-      (err) => {
-        // Stream closed. If we already moved to success/failed, don't override.
-        if (err) {
-          setError((prev) => prev ?? err.message);
-        }
-        setPhase((prev) => {
-          if (prev === 'running') {
-            // Server killed itself after success — treat as success if no error captured
-            return error ? 'failed' : 'success';
-          }
-          return prev;
-        });
-      },
-    );
-
-    abortRef.current = stop;
-  }, [error]);
+    setConfirming(false);
+    runUpdate();
+  }, [runUpdate]);
 
   const handleClose = useCallback(() => {
-    abortRef.current?.();
-    abortRef.current = null;
-    setPhase('idle');
+    reset();
+    setConfirming(false);
     void refreshInstallInfo();
-  }, [refreshInstallInfo]);
+  }, [reset, refreshInstallInfo]);
 
   // Decide what to render
   if (!installInfo) {
@@ -213,7 +137,7 @@ function AutoUpdatePanel() {
     <div className="about-autoupdate">
       <div className="about-autoupdate-title">{t('config:about.autoUpdateTitle')}</div>
 
-      {phase === 'idle' && installInfo.updateAvailable && (
+      {phase === 'idle' && !confirming && installInfo.updateAvailable && (
         <div className="about-autoupdate-row">
           <span className="about-autoupdate-versions">
             <span className="about-autoupdate-current">{installInfo.currentVersion}</span>
@@ -226,7 +150,7 @@ function AutoUpdatePanel() {
         </div>
       )}
 
-      {phase === 'confirm' && (
+      {phase === 'idle' && confirming && (
         <div className="about-autoupdate-confirm">
           <div className="about-autoupdate-confirm-title">{t('config:about.autoUpdateConfirmTitle')}</div>
           <div className="about-autoupdate-confirm-body">{t('config:about.autoUpdateConfirmBody')}</div>
