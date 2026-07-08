@@ -4,6 +4,7 @@ import { type SceneConfig } from './toolbox';
 import { ContextMenu, type ContextMenuAction } from './ContextMenu';
 import { GlobalTestRunnerModal } from './GlobalTestRunnerModal';
 import { GlobalTestsBuildingModal } from './TestsBuildingModal';
+import { GlobalHttpRequestsBuildingModal } from './HttpRequestsBuildingModal';
 import { profileRender } from '../utils/profiling';
 import type { UseModalState, UseModalStateWithId, UseContextMenu } from '../hooks';
 
@@ -315,6 +316,9 @@ export function AppModals({
 
       {/* Tests building browser — global mount, driven by store.testsBuildingId */}
       <GlobalTestsBuildingModal />
+
+      {/* HTTP-requests building browser — global mount, driven by store.httpBuildingId */}
+      <GlobalHttpRequestsBuildingModal />
 
       {/* Spotlight / Global Search */}
       <Spotlight

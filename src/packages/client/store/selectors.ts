@@ -925,6 +925,11 @@ export function useTestsBuildingId(): string | null {
   return useSelector(useCallback((state: StoreState) => state.testsBuildingId ?? null, []));
 }
 
+/** HTTP-requests building whose browser modal is open (null = closed). */
+export function useHttpBuildingId(): string | null {
+  return useSelector(useCallback((state: StoreState) => state.httpBuildingId ?? null, []));
+}
+
 /**
  * Module roots of currently RUNNING test runs. The strings are stable across
  * per-line output updates (only run start/finish changes the array), so this is
@@ -980,6 +985,40 @@ export function useAgentTestRunHandles(agentId: string | null): TestRunHandle[] 
         if (!agentId || !state.testRuns) return [];
         const out: TestRunHandle[] = [];
         for (const r of state.testRuns.values()) {
+          if (r.agentId === agentId) out.push({ runId: r.runId, startedAt: r.startedAt });
+        }
+        return out;
+      },
+      [agentId]
+    ),
+    testRunHandlesEqual
+  );
+}
+
+/** Live/finished HTTP request run (inline terminal card) by id. */
+export function useHttpRun(runId: string | null): import('./types').HttpInlineRun | undefined {
+  return useSelector(
+    useCallback(
+      (state: StoreState) => {
+        if (!runId) return undefined;
+        return state.httpRuns?.get(runId);
+      },
+      [runId]
+    )
+  );
+}
+
+/**
+ * Stable handles for an agent's HTTP request runs — same contract as
+ * useAgentTestRunHandles (only add/remove changes the array identity).
+ */
+export function useAgentHttpRunHandles(agentId: string | null): TestRunHandle[] {
+  return useSelector(
+    useCallback(
+      (state: StoreState) => {
+        if (!agentId || !state.httpRuns) return [];
+        const out: TestRunHandle[] = [];
+        for (const r of state.httpRuns.values()) {
           if (r.agentId === agentId) out.push({ runId: r.runId, startedAt: r.startedAt });
         }
         return out;

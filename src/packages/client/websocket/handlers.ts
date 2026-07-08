@@ -855,6 +855,32 @@ export function handleServerMessage(message: ServerMessage): void {
       break;
     }
 
+    case 'http_run_started': {
+      store.handleHttpRunStarted(
+        message.payload as {
+          runId: string;
+          agentId?: string;
+          folder: string;
+          relFile: string;
+          requestIndex: number;
+          requestName: string;
+          method: string;
+          url: string;
+          env?: string;
+        },
+      );
+      break;
+    }
+
+    case 'http_run_completed': {
+      const { runId, result } = message.payload as {
+        runId: string;
+        result: import('../../shared/types').HttpRunResult;
+      };
+      store.handleHttpRunCompleted(runId, result);
+      break;
+    }
+
     // ========================================================================
     // Subagent Messages (Claude Code Task tool)
     // ========================================================================

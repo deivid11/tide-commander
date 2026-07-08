@@ -49,6 +49,59 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
   // Track agents currently in compacting state so we can clear it when they resume
   const compactingAgents = new Set<string>();
 
+  // Per-agent harness Task-tool state (TaskCreate/TaskUpdate). Unlike TodoWrite
+  // — which replaces the whole list on every call — Task ids persist across
+  // turns and TaskUpdate carries only {taskId,status} (no subject). We keep the
+  // id→subject map here (learned from TaskCreate results, which stream by only
+  // once) so a later TaskUpdate can still NAME its task, then mirror the list
+  // into agent.latestTodos so the current-task banner + overview reuse it.
+  interface TrackedTask { subject?: string; status: AgentTodoStatus; }
+  const agentTaskState = new Map<string, { sessionId?: string; tasks: Map<string, TrackedTask> }>();
+  const TASK_CREATE_RE = /Task\s+#(\d+)\s+created\s+successfully:\s*(.+)/i;
+
+  // Get (or reset) an agent's task map. Resets when the session id changes so
+  // Task ids reused by a fresh session don't resolve to a prior turn's subject.
+  function taskStateFor(agentId: string): Map<string, TrackedTask> {
+    const sessionId = agentService.getAgent(agentId)?.sessionId;
+    let entry = agentTaskState.get(agentId);
+    if (!entry) {
+      entry = { sessionId, tasks: new Map() };
+      agentTaskState.set(agentId, entry);
+    } else if (sessionId && entry.sessionId && entry.sessionId !== sessionId) {
+      entry = { sessionId, tasks: new Map() };
+      agentTaskState.set(agentId, entry);
+    } else if (sessionId && !entry.sessionId) {
+      entry.sessionId = sessionId; // backfill once the session id is known
+    }
+    return entry.tasks;
+  }
+
+  const normalizeTaskStatus = (raw: unknown): AgentTodoStatus =>
+    raw === 'in_progress' || raw === 'completed' ? raw : 'pending';
+
+  // TaskCreate results can arrive as a plain string or a JSON array of text
+  // blocks — flatten either to searchable text.
+  function extractResultText(raw: string): string {
+    if (!raw) return '';
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((b: any) => b?.type === 'text' && b.text).map((b: any) => b.text).join(' ');
+      }
+      if (typeof parsed === 'string') return parsed;
+    } catch { /* not JSON — treat as plain text */ }
+    return raw;
+  }
+
+  // Mirror an agent's tracked tasks (id order) into latestTodos for display.
+  function pushTaskTodos(agentId: string, tasks: Map<string, TrackedTask>): void {
+    if (tasks.size === 0) return;
+    const items: AgentTodoItem[] = [...tasks.entries()]
+      .sort((a, b) => Number(a[0]) - Number(b[0]))
+      .map(([id, t]) => ({ content: t.subject || `Task #${id}`, status: t.status }));
+    agentService.updateAgent(agentId, { latestTodos: items }, false);
+  }
+
   function armSubagentJsonlWatcher(agentId: string, toolUseId: string, options?: { startAtEnd?: boolean }): void {
     const parentAgent = agentService.getAgent(agentId);
     if (!parentAgent?.sessionId) return;
@@ -117,6 +170,21 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
         const todos = parseTodoWriteInput(event.toolInput);
         if (todos) {
           agentService.updateAgent(agentId, { latestTodos: todos }, false);
+        }
+      }
+
+      // Harness Task tool: mark the referenced task's new status. The subject was
+      // learned earlier from the TaskCreate result (see the tool_result branch).
+      if (event.toolName === 'TaskUpdate' && !event.parentToolUseId) {
+        const ti = event.toolInput as Record<string, unknown> | undefined;
+        const rawId = ti?.taskId ?? ti?.task_id ?? ti?.id;
+        const id = typeof rawId === 'string' || typeof rawId === 'number' ? String(rawId) : undefined;
+        if (id) {
+          const tasks = taskStateFor(agentId);
+          const existing = tasks.get(id) ?? { status: 'pending' as AgentTodoStatus };
+          existing.status = normalizeTaskStatus(ti?.status);
+          tasks.set(id, existing);
+          pushTaskTodos(agentId, tasks);
         }
       }
 
@@ -195,6 +263,22 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
 
       // Stop streaming JSONL file for this subagent
       stopJsonlWatching(event.toolUseId);
+    }
+
+    // Harness Task tool: learn a new task's subject from its create result
+    // ("Task #N created successfully: <subject>") so later TaskUpdates (which
+    // only carry {taskId,status}) can name it in the current-task banner.
+    if (event.type === 'tool_result' && event.toolName === 'TaskCreate' && !event.parentToolUseId) {
+      const text = extractResultText((event.toolOutput ?? (event as any).content ?? '') as string);
+      const m = TASK_CREATE_RE.exec(text);
+      if (m) {
+        const [, id, subject] = m;
+        const tasks = taskStateFor(agentId);
+        const existing = tasks.get(id) ?? { status: 'pending' as AgentTodoStatus };
+        existing.subject = subject.trim();
+        tasks.set(id, existing);
+        pushTaskTodos(agentId, tasks);
+      }
     }
 
     // Forward subagent internal tool activity to client (events with parentToolUseId)

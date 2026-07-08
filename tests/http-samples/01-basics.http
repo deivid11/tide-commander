@@ -1,0 +1,25 @@
+# Lines starting with '#' (outside a body) are comments.
+// Double-slash comments work too.
+// A request that appears before any ### separator is also picked up:
+GET https://httpbin.org/get
+
+### Simple GET with a name
+GET https://httpbin.org/uuid
+
+### GET with query parameters
+GET https://httpbin.org/get?framework=tide-commander&mode=sample&page=1
+Accept: application/json
+
+### GET with an explicit HTTP version token (ignored by the runner)
+GET https://httpbin.org/user-agent HTTP/1.1
+User-Agent: TideCommander-HTTP-Sample/1.0
+
+### Fetch a single post from JSONPlaceholder
+GET https://jsonplaceholder.typicode.com/posts/1
+Accept: application/json
+
+### HEAD request (no response body expected)
+HEAD https://httpbin.org/get
+
+### OPTIONS request (inspect allowed methods in the response headers)
+OPTIONS https://httpbin.org/get

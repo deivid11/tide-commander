@@ -441,6 +441,19 @@ const ChatView = React.memo(function ChatView({
     return result;
   }, [agentId, buildings, runningTestRoots]);
 
+  // HTTP-requests buildings in the agent's area (statusbar shortcut buttons).
+  const areaHttpBuildings = useMemo(() => {
+    const area = store.getAreaForAgent(agentId);
+    if (!area) return [];
+    const result: { id: string; name: string }[] = [];
+    for (const building of buildings.values()) {
+      if (building.type === 'http' && store.isPositionInArea(building.position, area)) {
+        result.push({ id: building.id, name: building.name });
+      }
+    }
+    return result;
+  }, [agentId, buildings]);
+
   // Search-mode mirror: paneRef owns the search state, but header buttons
   // need to re-render to reflect the active style when toggled. A counter
   // forces a re-render after we call toggleSearch().
@@ -1157,6 +1170,26 @@ const ChatView = React.memo(function ChatView({
                 }}
               >
                 <Icon name="flask" size={14} />
+              </button>
+            ))}
+          </span>
+        )}
+        {areaHttpBuildings.length > 0 && (
+          <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area HTTP requests">
+            {areaHttpBuildings.map((hb) => (
+              <button
+                key={hb.id}
+                type="button"
+                className="flat-terminal-wrapper__building-btn"
+                title={`Open HTTP requests: ${hb.name}`}
+                onClick={() => onOpenBuilding(hb.id)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onBuildingContextMenu(hb.id, { x: e.clientX, y: e.clientY });
+                }}
+              >
+                <Icon name="globe" size={14} />
               </button>
             ))}
           </span>
@@ -2096,6 +2129,7 @@ export function FlatView({
       label: building.type === 'database' ? 'Open Database' :
              building.type === 'folder' ? 'Open Folder' :
              building.type === 'tests' ? 'Open Tests' :
+             building.type === 'http' ? 'Open Requests' :
              building.type === 'boss' ? 'View Boss Logs' :
              building.type === 'terminal' ? 'Open Terminal' :
              (building.type === 'server' && building.pm2?.enabled) ? 'View PM2 Logs' :
@@ -2103,6 +2137,7 @@ export function FlatView({
       icon: <Icon name={building.type === 'database' ? 'database' :
             building.type === 'folder' ? 'folder' :
             building.type === 'tests' ? 'flask' :
+            building.type === 'http' ? 'globe' :
             building.type === 'terminal' ? 'terminal' :
             'eye'} size={14} />,
       onClick: () => handleOpenBuilding(building.id),

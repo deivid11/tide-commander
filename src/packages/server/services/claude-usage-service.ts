@@ -129,6 +129,19 @@ const CREDENTIALS_PATH = path.join(os.homedir(), '.claude', '.credentials.json')
 const OAUTH_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 const OAUTH_USAGE_TIMEOUT_MS = 5_000;
 
+// --- Local throttling of the Anthropic OAuth usage endpoint ------------------
+//
+// The rate-limit gauges are ACCOUNT-WIDE — identical no matter which agent asks —
+// so a single cached value serves every agent and every client poll. Before this
+// throttle, each hovered agent chip / open usage panel fired its own request to
+// Anthropic and the endpoint started returning 429. We (1) reuse a good result
+// for a TTL, (2) dedupe concurrent fetches into ONE network request
+// (single-flight), and (3) back off hard when Anthropic rate-limits us — honoring
+// its `Retry-After` header when present.
+const RATE_LIMIT_CACHE_TTL_MS = 60_000;         // reuse a good result for a minute
+const RATE_LIMIT_429_BACKOFF_MS = 5 * 60_000;   // after a 429, don't retry for 5 min
+const RATE_LIMIT_ERROR_BACKOFF_MS = 30_000;     // after any other failure, cool down 30s
+
 interface StatsCacheFile {
   version?: number;
   lastComputedDate?: string;
@@ -440,13 +453,36 @@ function parseRateLimitWindow(value: unknown): ClaudeRateLimitWindow | null {
   };
 }
 
+interface RateLimitFetchResult {
+  rateLimits: ClaudeRateLimits | null;
+  error: string | null;
+  // HTTP status when Anthropic responded (used to pick the backoff length).
+  status?: number;
+  // Parsed `Retry-After` header (ms from now) when the endpoint sent one.
+  retryAfterMs?: number;
+}
+
+// `Retry-After` is either delta-seconds or an HTTP date; return ms-from-now.
+function parseRetryAfterMs(headerValue: string | null): number | undefined {
+  if (!headerValue) return undefined;
+  const seconds = Number(headerValue);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  const dateMs = Date.parse(headerValue);
+  if (Number.isFinite(dateMs)) return Math.max(0, dateMs - Date.now());
+  return undefined;
+}
+
 /**
  * Fetch the live session/weekly rate-limit gauges — the data behind the
  * progress bars in the CLI's `/usage` panel — using the OAuth token the CLI
  * keeps in `~/.claude/.credentials.json`. Returns the gauges or an error
  * string (never throws); the caller folds either into the snapshot.
+ *
+ * This is the RAW network call. Go through `getClaudeRateLimits()` instead —
+ * it caches, dedupes, and rate-limits calls to this so we don't hammer (and get
+ * 429'd by) the Anthropic endpoint.
  */
-async function fetchClaudeRateLimits(): Promise<{ rateLimits: ClaudeRateLimits | null; error: string | null }> {
+async function fetchClaudeRateLimitsFromApi(): Promise<RateLimitFetchResult> {
   let accessToken: string;
   try {
     if (!fs.existsSync(CREDENTIALS_PATH)) {
@@ -476,7 +512,12 @@ async function fetchClaudeRateLimits(): Promise<{ rateLimits: ClaudeRateLimits |
       signal: AbortSignal.timeout(OAUTH_USAGE_TIMEOUT_MS),
     });
     if (!response.ok) {
-      return { rateLimits: null, error: `Anthropic usage endpoint returned ${response.status}` };
+      return {
+        rateLimits: null,
+        error: `Anthropic usage endpoint returned ${response.status}`,
+        status: response.status,
+        retryAfterMs: parseRetryAfterMs(response.headers.get('retry-after')),
+      };
     }
     const body = await response.json() as Record<string, unknown>;
     return {
@@ -487,12 +528,89 @@ async function fetchClaudeRateLimits(): Promise<{ rateLimits: ClaudeRateLimits |
         sevenDaySonnet: parseRateLimitWindow(body.seven_day_sonnet),
       },
       error: null,
+      status: response.status,
     };
   } catch (err: any) {
     log.warn(`Failed to fetch Claude rate limits: ${err}`);
     const reason = err?.name === 'TimeoutError' ? 'request timed out' : (err?.message ?? 'request failed');
     return { rateLimits: null, error: `Could not reach Anthropic usage endpoint (${reason})` };
   }
+}
+
+interface RateLimitCacheEntry {
+  rateLimits: ClaudeRateLimits | null;
+  error: string | null;
+  // Timestamp until which this entry is served without touching the network.
+  validUntil: number;
+}
+
+// Account-wide, so a single cache line serves every agent/client. Never keyed.
+let rateLimitCache: RateLimitCacheEntry | null = null;
+// Last successful gauges, kept so we can serve them (stale) while backing off —
+// the panel keeps showing numbers instead of going blank after a transient 429.
+let lastGoodRateLimits: ClaudeRateLimits | null = null;
+// In-flight fetch, so N concurrent callers share ONE network request.
+let rateLimitInFlight: Promise<{ rateLimits: ClaudeRateLimits | null; error: string | null }> | null = null;
+
+/**
+ * Cached, single-flight, backoff-aware accessor for the rate-limit gauges.
+ *
+ * Guarantees at most one request to the Anthropic usage endpoint per TTL window
+ * (or per backoff window after a failure), no matter how many agents or clients
+ * poll `/api/agents/:id/usage` concurrently. On 429 we honor `Retry-After` (or
+ * fall back to a 5-minute cooldown); on any other failure we cool down briefly.
+ * `resetClaudeRateLimitCache()` clears the cache for tests.
+ */
+async function getClaudeRateLimits(): Promise<{ rateLimits: ClaudeRateLimits | null; error: string | null }> {
+  const now = Date.now();
+
+  // Serve the cached value while it's still valid (covers both the TTL after a
+  // success AND the backoff window after a failure).
+  if (rateLimitCache && now < rateLimitCache.validUntil) {
+    return { rateLimits: rateLimitCache.rateLimits, error: rateLimitCache.error };
+  }
+
+  // Single-flight: concurrent callers await the same request rather than each
+  // firing their own (which is exactly what triggered the 429s).
+  if (rateLimitInFlight) return rateLimitInFlight;
+
+  rateLimitInFlight = (async () => {
+    const result = await fetchClaudeRateLimitsFromApi();
+
+    let ttl = RATE_LIMIT_CACHE_TTL_MS;
+    if (result.rateLimits) {
+      lastGoodRateLimits = result.rateLimits;
+    } else if (result.status === 429) {
+      // Respect Anthropic's own Retry-After when it sends one; never shorter
+      // than the normal TTL so a stray header can't reopen the floodgates.
+      ttl = Math.max(result.retryAfterMs ?? RATE_LIMIT_429_BACKOFF_MS, RATE_LIMIT_CACHE_TTL_MS);
+    } else {
+      ttl = RATE_LIMIT_ERROR_BACKOFF_MS;
+    }
+
+    // During a failure/backoff, still surface the last good gauges (stale) so
+    // the panel keeps showing numbers alongside the error string.
+    const entry: RateLimitCacheEntry = {
+      rateLimits: result.rateLimits ?? lastGoodRateLimits,
+      error: result.error,
+      validUntil: Date.now() + ttl,
+    };
+    rateLimitCache = entry;
+    return { rateLimits: entry.rateLimits, error: entry.error };
+  })();
+
+  try {
+    return await rateLimitInFlight;
+  } finally {
+    rateLimitInFlight = null;
+  }
+}
+
+/** Test helper: drop the cached rate-limit result and backoff state. */
+export function resetClaudeRateLimitCache(): void {
+  rateLimitCache = null;
+  lastGoodRateLimits = null;
+  rateLimitInFlight = null;
 }
 
 function todayString(): string {
@@ -620,7 +738,7 @@ export async function buildClaudeUsageSnapshot(agent: Agent): Promise<ClaudeUsag
   // transcript scan alongside the rate-limit fetch — they're independent I/O.
   const [liveToday, { rateLimits, error: rateLimitsError }] = await Promise.all([
     cachedToday ? Promise.resolve<DailyActivityEntry | null>(null) : computeTodayActivity(),
-    fetchClaudeRateLimits(),
+    getClaudeRateLimits(),
   ]);
 
   const today = cachedToday ?? liveToday;

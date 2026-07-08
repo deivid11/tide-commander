@@ -1,0 +1,22 @@
+### .rest files are scanned exactly like .http files
+GET https://httpbin.org/get?ext=rest
+
+### Body loaded from a file — '< payload.json' reads the file next to this one
+POST https://httpbin.org/post
+Content-Type: application/json
+
+< payload.json
+
+### Response-handler blocks are IntelliJ-only and get stripped before sending
+POST https://httpbin.org/post
+Content-Type: application/json
+
+{
+  "note": "the handler block below never reaches the wire"
+}
+
+> {%
+  client.test("Status is 200", function() {
+    client.assert(response.status === 200, "Expected 200");
+  });
+%}

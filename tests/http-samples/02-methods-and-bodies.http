@@ -1,0 +1,52 @@
+### POST a JSON body (httpbin echoes it back)
+POST https://httpbin.org/post
+Content-Type: application/json
+Accept: application/json
+
+{
+  "project": "tide-commander",
+  "feature": "http-requests-building",
+  "nested": {
+    "bool": true,
+    "number": 42,
+    "list": [1, 2, 3]
+  }
+}
+
+### POST form-urlencoded
+POST https://httpbin.org/post
+Content-Type: application/x-www-form-urlencoded
+
+username=riven&action=sample&remember=true
+
+#### Create a post (deep-name separator: extra #'s still name the request)
+POST https://jsonplaceholder.typicode.com/posts
+Content-Type: application/json
+
+{
+  "title": "Sample from Tide Commander",
+  "body": "Created by the HTTP requests building",
+  "userId": 7
+}
+
+### PUT — full update
+PUT https://jsonplaceholder.typicode.com/posts/1
+Content-Type: application/json
+
+{
+  "id": 1,
+  "title": "Replaced title",
+  "body": "Replaced body",
+  "userId": 1
+}
+
+### PATCH — partial update
+PATCH https://jsonplaceholder.typicode.com/posts/1
+Content-Type: application/json
+
+{
+  "title": "Only the title changes"
+}
+
+### DELETE
+DELETE https://jsonplaceholder.typicode.com/posts/1

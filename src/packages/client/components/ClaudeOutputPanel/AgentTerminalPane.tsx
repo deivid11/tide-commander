@@ -29,6 +29,7 @@ import {
   useHistoryRefreshTrigger,
   useExecTasks,
   useAgentTestRunHandles,
+  useAgentHttpRunHandles,
   useSubagentsMapForAgent,
   usePermissionRequests,
   useAgentPrompts,
@@ -222,6 +223,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // Stable handles only (avoids re-rendering the whole list on every output line;
   // TestRunInline subscribes to the live run itself).
   const testRunHandles = useAgentTestRunHandles(agentId);
+  const httpRunHandles = useAgentHttpRunHandles(agentId);
   const subagents = useSubagentsMapForAgent(agentId);
 
   // Pending permission requests
@@ -1025,6 +1027,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
               agentId={agentId}
               execTasks={execTasks}
               testRunHandles={testRunHandles}
+              httpRunHandles={httpRunHandles}
               subagents={subagents}
               viewMode={viewMode}
               searchHighlight={search.highlightQuery}

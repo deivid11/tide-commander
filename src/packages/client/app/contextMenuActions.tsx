@@ -339,6 +339,16 @@ export function buildContextMenuActions(
           },
         });
       }
+      if (building.type === 'http' && building.folderPath) {
+        actions.push({
+          id: 'open-http-requests',
+          label: 'Open Requests',
+          icon: <Icon name="globe" size={14} />,
+          onClick: () => {
+            store.openHttpBuilding(building.id);
+          },
+        });
+      }
       actions.push({ id: 'divider-building', label: '', divider: true, onClick: () => {} });
       actions.push({
         id: 'delete-building',

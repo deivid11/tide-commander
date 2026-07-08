@@ -72,6 +72,14 @@ Quick URL shortcuts with labels. Click to open in the browser. Useful for dashbo
 
 Opens the file explorer at a configured directory path. One-click access to project folders.
 
+### Tests
+
+Browses a folder's test suite (Maven/JUnit, Cucumber features, vitest, PHPUnit). Click the building to scan, search and run the whole suite, a single class, or a single method, with live results.
+
+### HTTP Requests
+
+IntelliJ-style `.http` file runner. Point `folderPath` at a folder of `.http`/`.rest` files; click the building to browse every request, pick an environment from `http-client.env.json` / `http-client.private.env.json`, and fire requests individually (or a whole file) — status, time, size, headers and pretty-printed body are shown per request. `{{variables}}` resolve server-side; no JDK or external CLI required.
+
 ### Boss Building
 
 Manages a group of subordinate buildings with unified controls:

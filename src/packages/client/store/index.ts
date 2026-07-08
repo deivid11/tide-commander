@@ -146,6 +146,9 @@ export {
   useLatestTestRunId,
   useTestResultsModalOpen,
   useTestsBuildingId,
+  useHttpBuildingId,
+  useHttpRun,
+  useAgentHttpRunHandles,
   useRunningTestRoots,
   isTestPathRelated,
   useAgentTestRunHandles,
@@ -898,11 +901,100 @@ class Store
     this.notify();
   }
 
-  /** Load a persisted past run into the store and show it in the modal. */
-  async openTestRunFromHistory(runId: string): Promise<void> {
+  // ============================================================================
+  // HTTP Requests Building (browse + fire .http file requests, IntelliJ style)
+  // ============================================================================
+
+  openHttpBuilding(buildingId: string): void {
+    this.state.httpBuildingId = buildingId;
+    this.notify();
+  }
+
+  closeHttpBuilding(): void {
+    this.state.httpBuildingId = null;
+    this.notify();
+  }
+
+  // --- HTTP request runs (inline terminal cards, http_run_* WS messages) ----
+
+  private ensureHttpRuns(): Map<string, import('./types').HttpInlineRun> {
+    if (!this.state.httpRuns) this.state.httpRuns = new Map();
+    return this.state.httpRuns;
+  }
+
+  handleHttpRunStarted(seed: {
+    runId: string;
+    agentId?: string;
+    folder: string;
+    relFile: string;
+    requestIndex: number;
+    requestName: string;
+    method: string;
+    url: string;
+    env?: string;
+  }): void {
+    const runs = this.ensureHttpRuns();
+    const existing = runs.get(seed.runId);
+    runs.set(seed.runId, {
+      ...seed,
+      status: 'running',
+      startedAt: existing?.startedAt ?? Date.now(),
+    });
+    // Cap growth: drop the oldest finished runs beyond 50.
+    if (runs.size > 50) {
+      const finished = [...runs.values()].filter((r) => r.status === 'done').sort((a, b) => a.startedAt - b.startedAt);
+      for (const r of finished.slice(0, runs.size - 50)) runs.delete(r.runId);
+    }
+    this.notify();
+  }
+
+  handleHttpRunCompleted(runId: string, result: import('../../shared/types').HttpRunResult): void {
+    const runs = this.ensureHttpRuns();
+    const run = runs.get(runId);
+    if (!run) return; // never seeded here (no agentId) — nothing renders it
+    runs.set(runId, { ...run, status: 'done', result, completedAt: Date.now() });
+    this.notify();
+  }
+
+  /** Re-fire an inline run with its original parameters, updating in place. */
+  async rerunHttpRun(runId: string): Promise<void> {
+    const runs = this.ensureHttpRuns();
+    const run = runs.get(runId);
+    if (!run || run.status === 'running') return;
+    runs.set(runId, { ...run, status: 'running', startedAt: Date.now(), completedAt: undefined });
+    this.notify();
+    try {
+      const { runHttpRequest } = await import('../api/http-requests');
+      // No agentId on purpose: the server only broadcasts agent-fired runs, so
+      // this update stays local to the existing card.
+      const result = await runHttpRequest({
+        path: run.folder,
+        relFile: run.relFile,
+        requestIndex: run.requestIndex,
+        env: run.env,
+      });
+      this.handleHttpRunCompleted(runId, result);
+    } catch (err: any) {
+      this.handleHttpRunCompleted(runId, {
+        ok: false,
+        request: { method: run.method, url: run.url, headers: [] },
+        timeMs: 0,
+        error: err?.message || 'Failed to re-run request',
+      });
+    }
+  }
+
+  /**
+   * Load a persisted past run into the store WITHOUT opening the global results
+   * modal — used by inline history views (e.g. the tests-building browser) that
+   * render the run in their own panel. No-op (returns true) if already loaded.
+   * Returns false only when the run can't be fetched.
+   */
+  async loadTestRunFromHistory(runId: string): Promise<boolean> {
+    if (this.state.testRuns?.has(runId)) return true;
     const { fetchTestRun } = await import('../api/test-runner');
     const run = await fetchTestRun(runId);
-    if (!run) return;
+    if (!run) return false;
     this.handleTestRunStarted({
       runId: run.runId,
       runnerType: run.runnerType as import('../../shared/types').TestRunnerType,
@@ -913,6 +1005,14 @@ class Store
     });
     // Historical runs don't retain console output; results come straight in.
     this.handleTestRunCompleted(run.runId, run.status, run.exitCode, run.result, run.error);
+    return true;
+  }
+
+  /** Load a persisted past run into the store and show it in the global modal. */
+  async openTestRunFromHistory(runId: string): Promise<void> {
+    const ok = await this.loadTestRunFromHistory(runId);
+    if (!ok) return;
+    this.state.latestTestRunId = runId;
     this.state.testResultsModalOpen = true;
     this.notify();
   }
@@ -1439,7 +1539,9 @@ declare global {
 }
 
 // Increment this when Store class has breaking changes that require fresh instance
-const STORE_VERSION = 3;
+// (e.g. new methods) — otherwise HMR keeps the old singleton, which lacks them.
+// v4: added loadTestRunFromHistory (tests-building "Previous runs" list).
+const STORE_VERSION = 4;
 
 // Singleton store instance - persisted on window for HMR
 function getOrCreateStore(): Store {

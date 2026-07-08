@@ -1,0 +1,24 @@
+### Bearer auth — httpbin validates any Bearer token ({{token}} from the env)
+GET https://httpbin.org/bearer
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### Basic auth — succeeds only with the matching credentials in the URL path
+# httpbin checks the Authorization header against /basic-auth/<user>/<pass>.
+# 'ZGVtbzpzZWNyZXQ=' is base64("demo:secret") — matches the env values.
+GET https://httpbin.org/basic-auth/demo/secret
+Authorization: Basic ZGVtbzpzZWNyZXQ=
+Accept: application/json
+
+### Basic auth — wrong credentials → 401 Unauthorized
+GET https://httpbin.org/basic-auth/demo/secret
+Authorization: Basic d3Jvbmc6bm9wZQ==
+
+### Echo every request header back
+GET https://httpbin.org/headers
+X-Custom-Header: tide-commander-sample
+X-Request-Source: http-building
+Accept: application/json
+
+### Response headers inspection — httpbin sets a custom response header
+GET https://httpbin.org/response-headers?X-Sample-Header=hello-from-query&Content-Language=en

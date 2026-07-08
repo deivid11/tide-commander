@@ -5,7 +5,7 @@ import type { DatabaseConfig } from './database-types.js';
 // ============================================================================
 
 // Building types - different kinds of buildings
-export type BuildingType = 'server' | 'link' | 'database' | 'docker' | 'monitor' | 'folder' | 'boss' | 'terminal' | 'tests';
+export type BuildingType = 'server' | 'link' | 'database' | 'docker' | 'monitor' | 'folder' | 'boss' | 'terminal' | 'tests' | 'http';
 
 export const BUILDING_TYPES: Record<BuildingType, { icon: string; color: string; description: string }> = {
   server: { icon: '🖥️', color: '#4aff9e', description: 'Service with start/stop commands and logs' },
@@ -17,6 +17,7 @@ export const BUILDING_TYPES: Record<BuildingType, { icon: string; color: string;
   boss: { icon: '👑', color: '#ffd700', description: 'Boss building - manages multiple buildings with unified controls' },
   terminal: { icon: '💻', color: '#a855f7', description: 'Interactive web terminal via ttyd' },
   tests: { icon: '🧪', color: '#5cb88a', description: 'Test suite browser - scan, search and run the tests of a folder' },
+  http: { icon: '🌐', color: '#5ad4d4', description: 'HTTP request tests - browse and fire the requests of a folder of .http files (IntelliJ style)' },
 };
 
 // Building status

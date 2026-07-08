@@ -215,6 +215,8 @@ export function useSceneSetup({
           store.openFileExplorer(building.folderPath);
         } else if (building?.type === 'tests') {
           store.openTestsBuilding(buildingId);
+        } else if (building?.type === 'http') {
+          store.openHttpBuilding(buildingId);
         } else if (building?.type === 'server' || building?.type === 'boss' || building?.type === 'database') {
           // Clear any pending popup timeout
           if (pendingPopupTimeoutRef.current) {
@@ -295,6 +297,9 @@ export function useSceneSetup({
         } else if (building?.type === 'tests') {
           // Open the test browser for tests buildings
           store.openTestsBuilding(buildingId);
+        } else if (building?.type === 'http') {
+          // Open the .http request browser for http buildings
+          store.openHttpBuilding(buildingId);
         } else {
           // Open building config modal for other types
           openBuildingModal(buildingId);

@@ -1,0 +1,39 @@
+# In-file variables: '@name = value' lines apply to every request in the file
+# and win over environment values with the same name.
+@resource = anything
+@sampleId = 1234
+
+### Environment variable in the URL ({{baseUrl}} comes from http-client.env.json)
+GET {{baseUrl}}/get?source=env-variables
+Accept: application/json
+
+### In-file @variables combined with env variables
+POST {{baseUrl}}/{{resource}}/{{sampleId}}
+Content-Type: application/json
+
+{
+  "resourceUsed": "{{resource}}",
+  "id": "{{sampleId}}"
+}
+
+### Built-in dynamic variables (new value on every run)
+POST {{baseUrl}}/anything
+Content-Type: application/json
+
+{
+  "requestId": "{{$uuid}}",
+  "unixSeconds": "{{$timestamp}}",
+  "isoTime": "{{$isoTimestamp}}",
+  "randomInt": "{{$randomInt}}"
+}
+
+### Multi-line URL — indented ?/& lines continue the request line
+GET {{baseUrl}}/get
+    ?page=2
+    &pageSize=25
+    &sort=name
+Accept: application/json
+
+### Unresolved variable — run WITHOUT an environment to see the warning banner
+GET {{baseUrl}}/headers
+X-Api-Key: {{iDoNotExistAnywhere}}

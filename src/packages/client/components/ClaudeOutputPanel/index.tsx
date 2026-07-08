@@ -69,6 +69,7 @@ import { useModalStackRegistration, hasModalsAbove } from '../../hooks/useModalS
 
 // Import extracted components
 import { TerminalHeader } from './TerminalHeader';
+import { GuakeTaskBanner } from './GuakeTaskBanner';
 import {
   ImageModal,
   BashModal,
@@ -439,6 +440,20 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
     const result: { id: string; name: string }[] = [];
     for (const building of buildings.values()) {
       if (building.type === 'database' && building.database && store.isPositionInArea(building.position, area)) {
+        result.push({ id: building.id, name: building.name });
+      }
+    }
+    return result;
+  }, [activeAgentId, buildings, areas]);
+
+  // HTTP-requests buildings in the active agent's area (for status-bar buttons)
+  const areaHttpBuildings = useMemo(() => {
+    if (!activeAgentId) return [];
+    const area = store.getAreaForAgent(activeAgentId);
+    if (!area) return [];
+    const result: { id: string; name: string }[] = [];
+    for (const building of buildings.values()) {
+      if (building.type === 'http' && store.isPositionInArea(building.position, area)) {
         result.push({ id: building.id, name: building.name });
       }
     }
@@ -1575,6 +1590,12 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
           headerRef={swipe.headerRef}
         />
 
+        {/* Current-task banner — what this agent is working on right now. */}
+        <GuakeTaskBanner
+          agent={activeAgent}
+          onClick={() => store.setTrackingBoardVisible(!trackingBoardVisible)}
+        />
+
         {/* Swipe container — gesture hook applies transform directly via containerRef */}
         <div
           ref={swipe.containerRef}
@@ -1821,6 +1842,21 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                     </button>
                   );
                 })}
+              </span>
+            )}
+            {/* HTTP-requests browser buttons for area http buildings */}
+            {areaHttpBuildings.length > 0 && (
+              <span className="guake-status-terminals">
+                {areaHttpBuildings.map((hb) => (
+                  <button
+                    key={hb.id}
+                    className="guake-status-terminal-btn"
+                    title={`Open HTTP requests: ${hb.name}`}
+                    onClick={() => store.openHttpBuilding(hb.id)}
+                  >
+                    <Icon name="globe" size={14} />
+                  </button>
+                ))}
               </span>
             )}
             <ThemeSelector />

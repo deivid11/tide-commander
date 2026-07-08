@@ -448,6 +448,8 @@ export function useSpotlightSearch({
               onOpenDatabasePanelRef.current(building.id);
             } else if (building.type === 'tests') {
               store.openTestsBuilding(building.id);
+            } else if (building.type === 'http') {
+              store.openHttpBuilding(building.id);
             } else if (building.pm2?.enabled) {
               onOpenPM2LogsModalRef.current(building.id);
             }

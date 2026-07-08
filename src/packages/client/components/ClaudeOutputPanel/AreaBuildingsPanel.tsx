@@ -155,6 +155,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
       label: building.type === 'database' ? 'Open Database' :
              building.type === 'folder' ? 'Open Folder' :
              building.type === 'tests' ? 'Open Tests' :
+             building.type === 'http' ? 'Open Requests' :
              building.type === 'boss' ? 'View Boss Logs' :
              building.type === 'terminal' ? 'Open Terminal' :
              (building.type === 'server' && building.pm2?.enabled) ? 'View PM2 Logs' :
@@ -162,6 +163,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
       icon: <Icon name={building.type === 'database' ? 'database' :
             building.type === 'folder' ? 'folder' :
             building.type === 'tests' ? 'flask' :
+            building.type === 'http' ? 'globe' :
             building.type === 'terminal' ? 'terminal' :
             'eye'} size={14} />,
       onClick: () => handleBuildingClick(building.id),
@@ -519,6 +521,16 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
           </div>
         );
       }
+    }
+
+    // -- HTTP-requests building: target folder --
+    if (building.type === 'http' && building.folderPath) {
+      details.push(
+        <div key="http-path" className="guake-building-detail">
+          <span className="detail-label">Requests</span>
+          <span className="detail-value detail-mono" title={building.folderPath}>{shortenPath(building.folderPath)}</span>
+        </div>
+      );
     }
 
     // -- Folder path & git changes --

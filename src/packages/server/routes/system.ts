@@ -4,6 +4,8 @@
  */
 
 import { Router, Request, Response } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
 import { createLogger } from '../utils/logger.js';
 import { fetchLatestNpmVersion, getVersionRelation } from '../../shared/version.js';
 import {
@@ -52,6 +54,34 @@ router.get('/install-info', async (_req: Request, res: Response) => {
   } catch (err) {
     const message = (err as Error).message;
     log.error(`Failed to get install info: ${message}`);
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * GET /api/system/changelog
+ *
+ * Serves the bundled CHANGELOG.md (Keep a Changelog markdown) so the UI can
+ * render release notes locally — no GitHub API, no rate limits, works offline
+ * and always matches the installed version.
+ */
+router.get('/changelog', (_req: Request, res: Response) => {
+  try {
+    const installRoot = getInstallInfo().installRoot;
+    if (!installRoot) {
+      res.status(404).json({ error: 'Could not locate install root.' });
+      return;
+    }
+    const changelogPath = path.join(installRoot, 'CHANGELOG.md');
+    if (!fs.existsSync(changelogPath)) {
+      res.status(404).json({ error: 'CHANGELOG.md not found.' });
+      return;
+    }
+    const content = fs.readFileSync(changelogPath, 'utf8');
+    res.type('text/markdown').send(content);
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`Failed to read changelog: ${message}`);
     res.status(500).json({ error: message });
   }
 });

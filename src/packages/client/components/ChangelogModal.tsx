@@ -1,78 +1,80 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { fetchChangelog } from '../api/system-update';
 
-const GITHUB_REPO = 'deivid11/tide-commander';
-const FULL_LIST_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=30`;
-const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
-
-interface ReleaseEntry {
-  version: string;
-  date: string | null;
-  body: string;
-  url: string;
-}
+const RELEASES_URL = 'https://github.com/deivid11/tide-commander/releases';
 
 interface ChangelogModalProps {
-  /** When set, show just that release; otherwise the full list of releases. */
+  /** When set, show just that version's section; otherwise the whole changelog. */
   version?: string;
   onClose: () => void;
 }
 
+/** Extract a single version's section from Keep-a-Changelog markdown. */
+function extractVersion(md: string, version: string): string | null {
+  const lines = md.split('\n');
+  const start = lines.findIndex((l) => {
+    const s = l.trim();
+    return (
+      s.startsWith(`## [${version}]`) ||
+      s.startsWith(`## [v${version}]`) ||
+      s.startsWith(`## ${version}`) ||
+      s.startsWith(`## v${version}`)
+    );
+  });
+  if (start === -1) return null;
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (lines[i].startsWith('## ')) {
+      end = i;
+      break;
+    }
+  }
+  return lines.slice(start, end).join('\n').trim();
+}
+
+/** Drop the leading "# Changelog" + intro so rendering starts at the first version. */
+function stripPreamble(md: string): string {
+  const idx = md.search(/^##\s/m);
+  return idx >= 0 ? md.slice(idx) : md;
+}
+
 /**
- * Changelog viewer. With `version` it shows a single release's notes
- * (post-update); without it, the full list of releases. Notes come from the
- * GitHub Releases API and render as markdown; falls back to a GitHub link.
+ * Changelog viewer. With `version` it shows a single release's section
+ * (post-update); without it, the full changelog. Content is the locally-served
+ * bundled CHANGELOG.md (with a raw-GitHub-CDN fallback) — no GitHub API, so no
+ * rate limits.
  */
 export function ChangelogModal({ version, onClose }: ChangelogModalProps) {
   const { t } = useTranslation(['config']);
-  const [releases, setReleases] = useState<ReleaseEntry[] | null>(null);
+  const [raw, setRaw] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const footerUrl = version ? `${RELEASES_URL}/tag/v${version}` : RELEASES_URL;
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    setReleases(null);
-    (async () => {
-      try {
-        const url = version
-          ? `https://api.github.com/repos/${GITHUB_REPO}/releases/tags/v${version}`
-          : FULL_LIST_URL;
-        const res = await fetch(url, { headers: { Accept: 'application/vnd.github+json' } });
-        if (!res.ok) throw new Error(`GitHub API ${res.status}`);
-        const data = (await res.json()) as unknown;
-        const list = (Array.isArray(data) ? data : [data]) as Array<{
-          tag_name?: string;
-          published_at?: string;
-          body?: string;
-          html_url?: string;
-        }>;
-        const parsed: ReleaseEntry[] = list.map((r) => ({
-          version: (r.tag_name ?? '').replace(/^v/, ''),
-          date: r.published_at ? new Date(r.published_at).toLocaleDateString() : null,
-          body: r.body ?? '',
-          url: r.html_url ?? RELEASES_URL,
-        }));
+    setRaw(null);
+    fetchChangelog()
+      .then((md) => {
         if (!cancelled) {
-          setReleases(parsed);
+          setRaw(md);
           setLoading(false);
         }
-      } catch (err) {
+      })
+      .catch((err) => {
         if (!cancelled) {
           setError((err as Error).message);
           setLoading(false);
         }
-      }
-    })();
+      });
     return () => {
       cancelled = true;
     };
-  }, [version]);
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -84,11 +86,15 @@ export function ChangelogModal({ version, onClose }: ChangelogModalProps) {
 
   const stop = useCallback((e: React.MouseEvent) => e.stopPropagation(), []);
 
+  const content = useMemo(() => {
+    if (!raw) return null;
+    if (version) return extractVersion(raw, version) ?? stripPreamble(raw);
+    return stripPreamble(raw);
+  }, [raw, version]);
+
   const title = version
     ? t('config:updateBanner.changelogTitle', { version })
     : t('config:updateBanner.changelogTitleAll');
-
-  const isEmpty = releases !== null && releases.every((r) => !r.body.trim());
 
   return (
     <div className="changelog-modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
@@ -107,30 +113,19 @@ export function ChangelogModal({ version, onClose }: ChangelogModalProps) {
 
           {error && <div className="changelog-modal-error">{t('config:updateBanner.changelogError')}</div>}
 
-          {!loading && !error && isEmpty && (
-            <div className="changelog-modal-empty">{t('config:updateBanner.changelogEmpty')}</div>
+          {!loading && !error && content && (
+            <div className="changelog-markdown">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+            </div>
           )}
 
-          {!loading && !error && releases && !isEmpty && (
-            <div className="changelog-markdown">
-              {releases.map((r) => (
-                <section key={r.version || r.url} className="changelog-release">
-                  {/* Version header only in full (multi-release) mode */}
-                  {!version && (
-                    <div className="changelog-release-head">
-                      <span className="changelog-release-version">v{r.version}</span>
-                      {r.date && <span className="changelog-release-date">{r.date}</span>}
-                    </div>
-                  )}
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{r.body}</ReactMarkdown>
-                </section>
-              ))}
-            </div>
+          {!loading && !error && !content && (
+            <div className="changelog-modal-empty">{t('config:updateBanner.changelogEmpty')}</div>
           )}
         </div>
 
         <div className="changelog-modal-footer">
-          <a href={footerUrl} target="_blank" rel="noreferrer" className="changelog-modal-link">
+          <a href={RELEASES_URL} target="_blank" rel="noreferrer" className="changelog-modal-link">
             {t('config:updateBanner.viewOnGithub')}
           </a>
         </div>

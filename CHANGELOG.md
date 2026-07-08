@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.141.0] - 2026-07-08
+
+### Added
+- **HTTP Requests building type** — a new `http` building that runs IntelliJ-style `.http`/`.rest` files. Point it at a folder, then browse every request, pick an environment from `http-client.env.json` / `http-client.private.env.json`, and fire requests individually or a whole file — status, time, size, headers and a pretty-printed body are shown per request. `{{variables}}` resolve server-side; no JDK or external CLI required. Includes a native `.http` parser, a dedicated skill, result cards, a copy-as-curl action, and inline run output in the terminal.
+- **Guake current-task banner** — the terminal now shows a live banner with the agent's in-progress task while it works, bridged from the harness Task tool and TodoWrite updates.
+
 ## [1.140.0] - 2026-07-08
 
 ### Added

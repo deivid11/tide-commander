@@ -693,6 +693,135 @@
     border-top: 1px solid $border-color;
   }
 
+  // --- Previous runs (history) -------------------------------------------------
+  .tbm-history {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-top: 1px solid $border-color;
+    background: $bg-secondary;
+  }
+
+  .tbm-history-toggle {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: $text-secondary;
+    font-family: $font-family;
+    font-size: 12px;
+    padding: 8px 14px;
+    cursor: pointer;
+    text-align: left;
+
+    &:hover {
+      color: $text-primary;
+    }
+
+    .tbm-history-title {
+      font-weight: 600;
+    }
+
+    .tbm-history-badge {
+      font-size: 10px;
+      color: $text-muted;
+      background: $bg-tertiary;
+      border-radius: 8px;
+      padding: 0 7px;
+      line-height: 16px;
+    }
+
+    .tbm-spinner {
+      margin-left: auto;
+    }
+  }
+
+  .tbm-history-list {
+    overflow-y: auto;
+    max-height: 240px;
+    padding-bottom: 6px;
+  }
+
+  .tbm-history-empty {
+    padding: 14px;
+    text-align: center;
+    color: $text-muted;
+    font-size: 12px;
+  }
+
+  .tbm-history-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-left: 2px solid transparent;
+    color: $text-secondary;
+    font-family: $font-family;
+    font-size: 12px;
+    padding: 5px 14px;
+    cursor: pointer;
+    text-align: left;
+    transition: background $transition-fast;
+
+    &:hover {
+      background: $bg-tertiary;
+    }
+
+    &.status-failed,
+    &.status-error {
+      border-left-color: rgba($accent-red, 0.7);
+    }
+
+    &.status-passed {
+      border-left-color: rgba($accent-green, 0.4);
+    }
+
+    &.status-running {
+      border-left-color: rgba($accent-blue, 0.6);
+    }
+
+    &.current {
+      background: rgba($accent-blue, 0.1);
+    }
+
+    .tbm-history-status {
+      flex-shrink: 0;
+      font-weight: 600;
+      width: 52px;
+    }
+
+    .tbm-history-counts {
+      display: inline-flex;
+      gap: 6px;
+      flex-shrink: 0;
+
+      .passed { color: $accent-green; }
+      .failed { color: $accent-red; }
+      .skipped { color: $text-muted; }
+      .total { color: $text-muted; }
+    }
+
+    .tbm-history-cmd {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: $text-muted;
+    }
+
+    .tbm-history-time {
+      flex-shrink: 0;
+      color: $text-muted;
+      font-size: 11px;
+    }
+  }
+
   // --- Spinner -------------------------------------------------------------------
   .tbm-spinner {
     width: 10px;

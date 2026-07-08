@@ -12,6 +12,7 @@ import agentPromptRouter from './agent-prompt.js';
 import notificationsRouter, { setBroadcast as setNotificationBroadcast } from './notifications.js';
 import execRouter, { setBroadcast as setExecBroadcast } from './exec.js';
 import testsRouter, { setBroadcast as setTestsBroadcast } from './tests.js';
+import httpRequestsRouter, { setBroadcast as setHttpRequestsBroadcast } from './http-requests.js';
 import focusAgentRouter, { setBroadcast as setFocusAgentBroadcast } from './focus-agent.js';
 import customModelsRouter from './custom-models.js';
 import configRouter from './config.js';
@@ -48,6 +49,7 @@ router.use('/folders', foldersRouter);
 router.use('/notify', notificationsRouter);
 router.use('/exec', execRouter);
 router.use('/tests', testsRouter);
+router.use('/http-requests', httpRequestsRouter);
 router.use('/focus-agent', focusAgentRouter);
 router.use('/custom-models', customModelsRouter);
 router.use('/tts', ttsRouter);
@@ -88,6 +90,6 @@ router.use('/', permissionsRouter);
 router.use('/', agentPromptRouter);
 
 // Export the broadcast setters for WebSocket handler to use
-export { setNotificationBroadcast, setExecBroadcast, setTestsBroadcast, setFocusAgentBroadcast, setAgentsBroadcast, setTriggerBroadcast, setBuildingsBroadcast, setSkillsBroadcast };
+export { setNotificationBroadcast, setExecBroadcast, setTestsBroadcast, setHttpRequestsBroadcast, setFocusAgentBroadcast, setAgentsBroadcast, setTriggerBroadcast, setBuildingsBroadcast, setSkillsBroadcast };
 
 export default router;

@@ -15,7 +15,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import { execSync } from 'child_process';
-import type { Agent, DrawingArea, Building, DelegationDecision, Skill, StoredSkill, CustomAgentClass, ContextStats, Secret, StoredSecret, QueryHistoryEntry, SessionHistoryEntry, StoredTestRun, TestRunSummary } from '../../shared/types.js';
+import type { Agent, DrawingArea, Building, DelegationDecision, Skill, StoredSkill, CustomAgentClass, ContextStats, Secret, StoredSecret, QueryHistoryEntry, SessionHistoryEntry, StoredTestRun, TestRunSummary, StoredHttpRun, HttpRunSummary } from '../../shared/types.js';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('Data');
@@ -1161,5 +1161,83 @@ export function saveTestRun(run: StoredTestRun): void {
     }
   } catch (err) {
     log.error(' Failed to save test run:', err);
+  }
+}
+
+// ============================================================================
+// HTTP Run History (persisted to http-runs/ — one file per run + an index)
+// Mirrors the test-run history above for the "http" (.http requests) building.
+// ============================================================================
+
+const HTTP_RUNS_DIR = path.join(DATA_DIR, 'http-runs');
+const HTTP_RUNS_INDEX_FILE = path.join(HTTP_RUNS_DIR, 'index.json');
+const MAX_HTTP_RUNS = 300;
+
+interface HttpRunsIndexData {
+  runs: HttpRunSummary[]; // newest first
+  savedAt: number;
+  version: string;
+}
+
+function ensureHttpRunsDir(): void {
+  if (!fs.existsSync(HTTP_RUNS_DIR)) {
+    fs.mkdirSync(HTTP_RUNS_DIR, { recursive: true });
+    log.log(` Created http runs directory: ${HTTP_RUNS_DIR}`);
+  }
+}
+
+function getHttpRunFile(runId: string): string {
+  return path.join(HTTP_RUNS_DIR, `${runId}.json`);
+}
+
+function summarizeHttpRun(run: StoredHttpRun): HttpRunSummary {
+  const { result: _result, ...summary } = run;
+  return summary;
+}
+
+/** List recent http runs (newest first); optionally scoped to one folder. */
+export function loadHttpRunSummaries(limit = 50, folder?: string): HttpRunSummary[] {
+  ensureHttpRunsDir();
+  const data = safeReadJsonSync<HttpRunsIndexData>(HTTP_RUNS_INDEX_FILE, 'Http runs index');
+  let runs = data?.runs || [];
+  if (folder) runs = runs.filter((r) => r.folder === folder);
+  return limit > 0 ? runs.slice(0, limit) : runs;
+}
+
+/** Read a single stored http run (full request/response detail) by id. */
+export function loadHttpRun(runId: string): StoredHttpRun | null {
+  return safeReadJsonSync<StoredHttpRun>(getHttpRunFile(runId), `Http run ${runId}`);
+}
+
+/**
+ * Persist an executed request: write its full file, prepend a summary to the
+ * index, cap at MAX_HTTP_RUNS, prune per-run files that fell out.
+ */
+export function saveHttpRun(run: StoredHttpRun): void {
+  ensureHttpRunsDir();
+  try {
+    atomicWriteJsonSync(getHttpRunFile(run.runId), run);
+
+    const existing = loadHttpRunSummaries(0).filter((r) => r.runId !== run.runId);
+    const runs = [summarizeHttpRun(run), ...existing];
+    const kept = runs.slice(0, MAX_HTTP_RUNS);
+    const dropped = runs.slice(MAX_HTTP_RUNS);
+
+    atomicWriteJsonSync(HTTP_RUNS_INDEX_FILE, {
+      runs: kept,
+      savedAt: Date.now(),
+      version: '1.0.0',
+    } as HttpRunsIndexData);
+
+    for (const d of dropped) {
+      try {
+        const f = getHttpRunFile(d.runId);
+        if (fs.existsSync(f)) fs.unlinkSync(f);
+      } catch {
+        // best-effort prune
+      }
+    }
+  } catch (err) {
+    log.error(' Failed to save http run:', err);
   }
 }

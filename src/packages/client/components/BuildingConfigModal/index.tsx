@@ -389,6 +389,9 @@ export function BuildingConfigModal({
                       if (bt === 'tests' && style === 'server-rack') {
                         setStyle('dome');
                       }
+                      if (bt === 'http' && style === 'server-rack') {
+                        setStyle('satellite');
+                      }
                     }}
                     title={BUILDING_TYPES[bt].description}
                   >
@@ -518,6 +521,24 @@ export function BuildingConfigModal({
                 <div className="form-hint">
                   Click this building to browse, search and run the tests of this folder
                   (any folder inside a Maven module works)
+                </div>
+              </div>
+            )}
+
+            {/* HTTP Requests Folder Section (for http type) */}
+            {type === 'http' && (
+              <div className="form-section">
+                <label className="form-label">Requests Folder</label>
+                <FolderInput
+                  value={folderPath}
+                  onChange={setFolderPath}
+                  placeholder="/path/to/project/http-requests"
+                  className="form-input"
+                  directoriesOnly={true}
+                />
+                <div className="form-hint">
+                  Click this building to browse and fire the .http request files of this folder
+                  (IntelliJ HTTP Client style; http-client.env.json environments supported)
                 </div>
               </div>
             )}

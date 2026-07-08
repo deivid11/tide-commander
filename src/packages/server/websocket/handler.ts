@@ -20,7 +20,7 @@ import {
 } from '../services/index.js';
 import { loadAreas, loadBuildings } from '../data/index.js';
 import { logger } from '../utils/index.js';
-import { setNotificationBroadcast, setExecBroadcast, setTestsBroadcast, setFocusAgentBroadcast, setAgentsBroadcast, setTriggerBroadcast, setBuildingsBroadcast, setSkillsBroadcast } from '../routes/index.js';
+import { setNotificationBroadcast, setExecBroadcast, setTestsBroadcast, setHttpRequestsBroadcast, setFocusAgentBroadcast, setAgentsBroadcast, setTriggerBroadcast, setBuildingsBroadcast, setSkillsBroadcast } from '../routes/index.js';
 import { validateWebSocketAuth, isAuthEnabled } from '../auth/index.js';
 import { incrementWsSent, incrementWsReceived, setWsClientsCount } from '../routes/perf.js';
 import type { HandlerContext, MessageHandler } from './handlers/types.js';
@@ -486,6 +486,7 @@ export function init(server: HttpServer): WebSocketServer {
   setNotificationBroadcast(broadcast);
   setExecBroadcast(broadcast);
   setTestsBroadcast(broadcast);
+  setHttpRequestsBroadcast(broadcast);
   setFocusAgentBroadcast(broadcast);
   setAgentsBroadcast(broadcast);
   setTriggerBroadcast(broadcast);

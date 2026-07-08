@@ -925,10 +925,37 @@ async function bridgeScreenshot(commanderId, rect, selector, tabId) {
   if (target.active) {
     shot = await cropIf(await captureVisible(target.id, target.windowId));
   }
-  // Otherwise (a tab NOT active in its window, or captureVisibleTab returned null because
-  // the window is fully occluded/minimized) → CDP Page.captureScreenshot. This can pull
-  // the tab to the foreground, but it's the only option for a non-active/hidden tab; it's
-  // also refused when another extension injected a frame into the tab (LastPass et al.).
+  // Buried tab (not the frontmost tab of its window) → captureVisibleTab above returned
+  // nothing. Rather than fall to CDP (which foregrounds the tab and steals the user's
+  // focus — the reported bug), temporarily make the target the ACTIVE tab OF ITS WINDOW,
+  // capture, then restore the previously-active tab. chrome.tabs.update({active:true}) only
+  // switches the active tab *within* that window; it does NOT call chrome.windows.update,
+  // so it never raises the window to the OS foreground → no focus steal. The tab flip is
+  // invisible unless that exact window is on-screen, where it's a brief flicker, not theft.
+  if (!shot && !target.active && target.windowId != null) {
+    let prevActiveId = null;
+    try {
+      const [prev] = await chrome.tabs.query({ active: true, windowId: target.windowId });
+      prevActiveId = prev ? prev.id : null;
+      await chrome.tabs.update(target.id, { active: true });
+      await new Promise((r) => setTimeout(r, 60)); // let the newly-active tab paint a frame
+      shot = await cropIf(await captureVisible(target.id, target.windowId));
+    } catch (_e) {
+      /* fall through to CDP */
+    } finally {
+      if (prevActiveId != null && prevActiveId !== target.id) {
+        try {
+          await chrome.tabs.update(prevActiveId, { active: true });
+        } catch (_e) {
+          /* ignore */
+        }
+      }
+    }
+  }
+  // Genuine last resort (tab has no windowId, or activating+capturing failed, e.g. a truly
+  // minimized window) → CDP Page.captureScreenshot. This can pull the tab to the foreground,
+  // but it's the only option left; it's also refused when another extension injected a frame
+  // into the tab (LastPass et al.).
   if (!shot) {
     try {
       shot = await cdpScreenshot(target.id, rect);
