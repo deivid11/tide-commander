@@ -13,6 +13,7 @@ import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { CopyCurlButton } from '../shared/CopyCurlButton';
 import { fetchHttpHistory, fetchHttpRun } from '../../api/http-requests';
 import type { HttpRunSummary } from '../../../shared/types';
+import type { HttpRunHandle } from '../../store';
 
 const METHOD_COLORS: Record<string, string> = {
   GET: '#5cb88a',
@@ -50,6 +51,42 @@ function fmtSize(bytes: number | undefined): string {
 }
 
 const MAX_INLINE_BODY = 2000;
+
+/**
+ * Resolve which live in-store HTTP run belongs to a given
+ * `curl … /api/http-requests/run` terminal line. Agents fire many requests a
+ * few seconds apart, so their time windows overlap heavily; a naive "latest run
+ * in the window" match makes an earlier card jump onto a later run's result
+ * (the "previous outputs change strangely" bug). Instead we:
+ *   1. keep the loose time gate (a run may start slightly before the line
+ *      renders, or up to ~20s after while the WS start event lags),
+ *   2. narrow to the SAME request (relFile#requestIndex) when the command names
+ *      one, so distinct requests never claim each other's card, and
+ *   3. pick the handle whose startedAt is CLOSEST to the line — not the latest.
+ * Shared by OutputLine (live) and HistoryLine (reload) to keep them in parity.
+ */
+export function matchHttpRunHandle(
+  handles: HttpRunHandle[],
+  command: string,
+  timestampMs: number,
+): string | null {
+  if (handles.length === 0) return null;
+  const near = handles.filter(
+    (r) => r.startedAt >= timestampMs - 3000 && r.startedAt <= timestampMs + 20000,
+  );
+  if (near.length === 0) return null;
+  const relFile = command.match(/"relFile"\s*:\s*"([^"]+)"/)?.[1];
+  const idxRaw = command.match(/"requestIndex"\s*:\s*(\d+)/)?.[1];
+  let candidates = near;
+  if (relFile !== undefined && idxRaw !== undefined) {
+    const requestIndex = Number(idxRaw);
+    const sameReq = near.filter((r) => r.relFile === relFile && r.requestIndex === requestIndex);
+    if (sameReq.length > 0) candidates = sameReq;
+  }
+  return candidates.reduce((best, cur) =>
+    Math.abs(cur.startedAt - timestampMs) < Math.abs(best.startedAt - timestampMs) ? cur : best,
+  ).runId;
+}
 
 export function HttpRunInline({ runId }: { runId: string }) {
   const run = useHttpRun(runId);

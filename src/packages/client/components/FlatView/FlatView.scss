@@ -2363,6 +2363,13 @@ body.flat-splitter-dragging {
     font-size: 10px;
   }
 
+  &__header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
   &__close {
     display: inline-flex;
     align-items: center;

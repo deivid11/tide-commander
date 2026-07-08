@@ -15,8 +15,10 @@ import { ModalPortal } from './shared/ModalPortal';
 import { Icon } from './Icon';
 import { store, useHttpBuildingId, useBuildings } from '../store';
 import { useModalStackRegistration } from '../hooks/useModalStack';
+import { useSplitPane } from '../hooks/useSplitPane';
+import { dockBuilding } from '../utils/buildingViewMode';
 import { scanHttpRequests, runHttpRequest, fetchHttpHistory, fetchHttpRun } from '../api/http-requests';
-import { apiUrl, authFetch } from '../utils/storage';
+import { apiUrl, authFetch, getStorageBoolean, setStorageBoolean, getStorageStringSet, setStorageStringSet } from '../utils/storage';
 import { highlightCode } from './FileExplorerPanel/syntaxHighlighting';
 import { CopyCurlButton } from './shared/CopyCurlButton';
 import type {
@@ -517,9 +519,12 @@ const HrmHistory = memo(function HrmHistory({
   reloadKey: number;
   onPick: (runId: string) => void;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(() => getStorageBoolean(`http-history-open:${folderPath}`, true));
   const [rows, setRows] = useState<HttpRunSummary[] | null>(null);
   const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    setStorageBoolean(`http-history-open:${folderPath}`, open);
+  }, [folderPath, open]);
 
   useEffect(() => {
     if (!folderPath) return;
@@ -642,17 +647,40 @@ function HistoryRunView({
 }
 
 // ============================================================================
-// Modal
+// Browser content — shared by the modal and the dockable bottom panels
 // ============================================================================
 
-function HttpRequestsBuildingModal({ building, onClose }: { building: Building; onClose: () => void }) {
+/**
+ * The whole .http browser (toolbar + file tree + detail/response + history)
+ * without any window chrome, so it can live either inside the full modal or
+ * docked as a compact panel under the Guake/flat terminal input. All state is
+ * local, so docking/undocking remounts it — selection and env survive via
+ * localStorage; run results just re-fetch from the persisted history.
+ */
+export function HttpRequestsBrowser({
+  building,
+  autoFocusSearch = true,
+  onBusyChange,
+}: {
+  building: Building;
+  /** Disable in panel mode so opening the dock doesn't steal the terminal input's focus. */
+  autoFocusSearch?: boolean;
+  /** Lets the host pulse its globe icon while a request/run is in flight. */
+  onBusyChange?: (busy: boolean) => void;
+}) {
   const folderPath = building.folderPath ?? '';
 
   const [scan, setScan] = useState<HttpRequestsScanResult | null>(null);
   const [scanning, setScanning] = useState(true);
   const [scanError, setScanError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Expanded files survive close/reopen AND modal↔dock swaps (the swap
+  // remounts this component).
+  const expandedKey = `http-building-expanded-${building.id}`;
+  const [expanded, setExpanded] = useState<Set<string>>(() => getStorageStringSet(expandedKey));
+  useEffect(() => {
+    setStorageStringSet(expandedKey, expanded);
+  }, [expandedKey, expanded]);
   const [selectedKey, setSelectedKey] = useState<RequestKey | null>(null);
   const [results, setResults] = useState<Map<RequestKey, HttpRunResult>>(new Map());
   const [runningKey, setRunningKey] = useState<RequestKey | null>(null);
@@ -668,6 +696,8 @@ function HttpRequestsBuildingModal({ building, onClose }: { building: Building; 
   const [editorBusy, setEditorBusy] = useState(false);
   const [editorError, setEditorError] = useState<string | null>(null);
   const [env, setEnv] = useState<string>(() => localStorage.getItem(`http-building-env-${building.id}`) ?? '');
+  // Draggable list/detail split, persisted per building (shared modal↔dock).
+  const { leftPct: splitLeftPct, bodyRef: splitBodyRef, onSplitMouseDown } = useSplitPane(`http-building-split-${building.id}`);
   const searchRef = useRef<HTMLInputElement>(null);
   // The env the NEXT run uses — reading state inside the sequential run-file
   // loop would go stale.
@@ -700,8 +730,11 @@ function HttpRequestsBuildingModal({ building, onClose }: { building: Building; 
         setScanError(result.error || 'Scan failed');
       } else {
         setScan(result);
-        // Auto-expand everything when the corpus is small.
-        if (result.files.length <= 6) setExpanded(new Set(result.files.map((f) => f.relFile)));
+        // Auto-expand everything when the corpus is small — but never override
+        // a fold state the user already saved.
+        if (result.files.length <= 6 && localStorage.getItem(expandedKey) === null) {
+          setExpanded(new Set(result.files.map((f) => f.relFile)));
+        }
         // Auto-pick the only environment.
         if (result.environments.length > 0 && !result.environments.includes(envRef.current)) {
           setEnv(result.environments.length === 1 ? result.environments[0] : '');
@@ -713,13 +746,14 @@ function HttpRequestsBuildingModal({ building, onClose }: { building: Building; 
     } finally {
       setScanning(false);
     }
-  }, [folderPath]);
+  }, [folderPath, expandedKey]);
 
   useEffect(() => {
     void doScan();
+    if (!autoFocusSearch) return;
     const t = window.setTimeout(() => searchRef.current?.focus(), 150);
     return () => window.clearTimeout(t);
-  }, [doScan]);
+  }, [doScan, autoFocusSearch]);
 
   useEffect(() => {
     localStorage.setItem(`http-building-env-${building.id}`, env);
@@ -785,6 +819,10 @@ function HttpRequestsBuildingModal({ building, onClose }: { building: Building; 
   }, [scan, selectedKey]);
 
   const busy = runningKey !== null || runningFile !== null || runningAll;
+
+  useEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
 
   const runOne = useCallback(
     async (relFile: string, index: number): Promise<boolean> => {
@@ -971,6 +1009,177 @@ function HttpRequestsBuildingModal({ building, onClose }: { building: Building; 
   }, []);
 
   return (
+    <>
+      {/* Toolbar */}
+      <div className="hrm-toolbar">
+        <div className="hrm-search">
+          <Icon name="search" size={13} />
+          <input
+            ref={searchRef}
+            type="text"
+            placeholder="Search requests, URLs and files…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search && (
+            <button className="hrm-search-clear" onClick={() => setSearch('')} title="Clear search">
+              <Icon name="close" size={11} />
+            </button>
+          )}
+        </div>
+        <span className="hrm-scan-counts">
+          {scan ? `${filteredFiles.length} files · ${requestCount} requests` : ''}
+        </span>
+        {scan && scan.environments.length > 0 && (
+          <label className="hrm-env">
+            <span>Env</span>
+            <select value={env} onChange={(e) => setEnv(e.target.value)}>
+              <option value="">(none)</option>
+              {scan.environments.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <button className="hrm-btn" onClick={() => void doScan()} disabled={scanning} title="Re-scan .http files">
+          <Icon name="refresh" size={12} /> {scanning ? 'Scanning…' : 'Rescan'}
+        </button>
+        <button
+          className="hrm-btn primary"
+          onClick={handleRunAll}
+          disabled={busy || scanning || !scan || requestCount === 0}
+          title={
+            busy
+              ? 'A run is already in progress'
+              : `Run all ${requestCount} requests${search.trim() ? ' (filtered)' : ''}, file by file`
+          }
+        >
+          {runningAll ? <span className="hrm-spinner" /> : <Icon name="play" size={12} />} Run all
+        </button>
+      </div>
+
+      {runError && (
+        <div className="hrm-error-banner banner">
+          <Icon name="warning-circle" size={13} /> {runError}
+        </div>
+      )}
+
+      {/* Body */}
+      <div className="hrm-body" ref={splitBodyRef}>
+        <div className="hrm-left" style={{ width: `${splitLeftPct}%` }}>
+          {/* Environment files — click to edit variables (private overlay wins) */}
+          {scan && !scanning && (
+            <div className="hrm-env-files">
+              <span className="hrm-env-files-label">
+                <Icon name="gear" size={11} /> Env
+              </span>
+              {scan.envFiles.map((f) => (
+                <button key={f} className="hrm-env-file-chip" title={`Edit ${f}`} onClick={() => void handleEditFile(f)}>
+                  <Icon name="edit" size={10} /> {f.split('/').pop()}
+                </button>
+              ))}
+              {scan.envFiles.length === 0 && (
+                <button
+                  className="hrm-env-file-chip create"
+                  title="Create http-client.env.json in this folder"
+                  onClick={() => void handleCreateEnvFile()}
+                >
+                  <Icon name="file-add" size={10} /> Create http-client.env.json
+                </button>
+              )}
+            </div>
+          )}
+          {scanning ? (
+            <div className="hrm-browser-empty">
+              <span className="hrm-spinner large" /> Scanning .http files…
+            </div>
+          ) : scanError ? (
+            <div className="hrm-browser-empty error">
+              <Icon name="warning-circle" size={16} /> {scanError}
+              <button className="hrm-btn" onClick={() => void doScan()}>
+                <Icon name="refresh" size={12} /> Retry
+              </button>
+            </div>
+          ) : (
+            <RequestBrowser
+              files={filteredFiles}
+              searching={search.trim().length > 0}
+              expanded={expanded}
+              selectedKey={selectedKey}
+              results={results}
+              runningKey={runningKey}
+              runningFile={runningFile}
+              onToggleFile={handleToggleFile}
+              onSelect={handleSelect}
+              onRun={handleRun}
+              onRunFile={handleRunFile}
+              onEditFile={handleEditFile}
+            />
+          )}
+        </div>
+
+        <div
+          className="hrm-split"
+          onMouseDown={onSplitMouseDown}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize request list"
+        />
+
+        <div className="hrm-right">
+          {editing ? (
+            <FileEditor
+              relFile={editing.relFile}
+              text={editing.text}
+              dirty={editing.text !== editing.original}
+              busy={editorBusy}
+              error={editorError}
+              onChange={(text) => setEditing((prev) => (prev ? { ...prev, text } : prev))}
+              onSave={() => void handleSaveEdit()}
+              onCancel={handleCancelEdit}
+            />
+          ) : historyRun ? (
+            <HistoryRunView
+              run={historyRun}
+              busy={busy}
+              canRerun={!!scan?.files.find((f) => f.relFile === historyRun.relFile)?.requests[historyRun.requestIndex]}
+              onRerun={() => handleRun(historyRun.relFile, historyRun.requestIndex)}
+              onClose={() => setHistoryRun(null)}
+            />
+          ) : selected ? (
+            <RequestDetail
+              file={selected.file}
+              request={selected.request}
+              result={selectedKey ? results.get(selectedKey) : undefined}
+              running={runningKey === selectedKey}
+              busy={busy}
+              onRun={() => selected && handleRun(selected.file.relFile, selected.request.index)}
+              onEdit={() => void handleEditFile(selected.file.relFile)}
+            />
+          ) : (
+            <div className="hrm-response-empty">
+              <Icon name="globe" size={30} />
+              <span>No request selected</span>
+              <p>Pick a request on the left, or hit its play button to fire it.</p>
+            </div>
+          )}
+          <HrmHistory folderPath={folderPath} reloadKey={historyReloadKey} onPick={handlePickHistory} />
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ============================================================================
+// Modal shell
+// ============================================================================
+
+function HttpRequestsBuildingModal({ building, onClose }: { building: Building; onClose: () => void }) {
+  const folderPath = building.folderPath ?? '';
+  const [busy, setBusy] = useState(false);
+  return (
     <ModalPortal>
       <div className="modal-overlay visible" onClick={onClose}>
         <div
@@ -994,161 +1203,24 @@ function HttpRequestsBuildingModal({ building, onClose }: { building: Building; 
                 {folderPath}
               </span>
             </div>
-            <button className="modal-close" onClick={onClose} aria-label="Close">
-              <Icon name="close" size={16} />
-            </button>
-          </div>
-
-          {/* Toolbar */}
-          <div className="hrm-toolbar">
-            <div className="hrm-search">
-              <Icon name="search" size={13} />
-              <input
-                ref={searchRef}
-                type="text"
-                placeholder="Search requests, URLs and files…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              {search && (
-                <button className="hrm-search-clear" onClick={() => setSearch('')} title="Clear search">
-                  <Icon name="close" size={11} />
-                </button>
-              )}
-            </div>
-            <span className="hrm-scan-counts">
-              {scan ? `${filteredFiles.length} files · ${requestCount} requests` : ''}
-            </span>
-            {scan && scan.environments.length > 0 && (
-              <label className="hrm-env">
-                <span>Env</span>
-                <select value={env} onChange={(e) => setEnv(e.target.value)}>
-                  <option value="">(none)</option>
-                  {scan.environments.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <button className="hrm-btn" onClick={() => void doScan()} disabled={scanning} title="Re-scan .http files">
-              <Icon name="refresh" size={12} /> {scanning ? 'Scanning…' : 'Rescan'}
-            </button>
-            <button
-              className="hrm-btn primary"
-              onClick={handleRunAll}
-              disabled={busy || scanning || !scan || requestCount === 0}
-              title={
-                busy
-                  ? 'A run is already in progress'
-                  : `Run all ${requestCount} requests${search.trim() ? ' (filtered)' : ''}, file by file`
-              }
-            >
-              {runningAll ? <span className="hrm-spinner" /> : <Icon name="play" size={12} />} Run all
-            </button>
-          </div>
-
-          {runError && (
-            <div className="hrm-error-banner banner">
-              <Icon name="warning-circle" size={13} /> {runError}
-            </div>
-          )}
-
-          {/* Body */}
-          <div className="hrm-body">
-            <div className="hrm-left">
-              {/* Environment files — click to edit variables (private overlay wins) */}
-              {scan && !scanning && (
-                <div className="hrm-env-files">
-                  <span className="hrm-env-files-label">
-                    <Icon name="gear" size={11} /> Env
-                  </span>
-                  {scan.envFiles.map((f) => (
-                    <button key={f} className="hrm-env-file-chip" title={`Edit ${f}`} onClick={() => void handleEditFile(f)}>
-                      <Icon name="edit" size={10} /> {f.split('/').pop()}
-                    </button>
-                  ))}
-                  {scan.envFiles.length === 0 && (
-                    <button
-                      className="hrm-env-file-chip create"
-                      title="Create http-client.env.json in this folder"
-                      onClick={() => void handleCreateEnvFile()}
-                    >
-                      <Icon name="file-add" size={10} /> Create http-client.env.json
-                    </button>
-                  )}
-                </div>
-              )}
-              {scanning ? (
-                <div className="hrm-browser-empty">
-                  <span className="hrm-spinner large" /> Scanning .http files…
-                </div>
-              ) : scanError ? (
-                <div className="hrm-browser-empty error">
-                  <Icon name="warning-circle" size={16} /> {scanError}
-                  <button className="hrm-btn" onClick={() => void doScan()}>
-                    <Icon name="refresh" size={12} /> Retry
-                  </button>
-                </div>
-              ) : (
-                <RequestBrowser
-                  files={filteredFiles}
-                  searching={search.trim().length > 0}
-                  expanded={expanded}
-                  selectedKey={selectedKey}
-                  results={results}
-                  runningKey={runningKey}
-                  runningFile={runningFile}
-                  onToggleFile={handleToggleFile}
-                  onSelect={handleSelect}
-                  onRun={handleRun}
-                  onRunFile={handleRunFile}
-                  onEditFile={handleEditFile}
-                />
-              )}
-            </div>
-
-            <div className="hrm-right">
-              {editing ? (
-                <FileEditor
-                  relFile={editing.relFile}
-                  text={editing.text}
-                  dirty={editing.text !== editing.original}
-                  busy={editorBusy}
-                  error={editorError}
-                  onChange={(text) => setEditing((prev) => (prev ? { ...prev, text } : prev))}
-                  onSave={() => void handleSaveEdit()}
-                  onCancel={handleCancelEdit}
-                />
-              ) : historyRun ? (
-                <HistoryRunView
-                  run={historyRun}
-                  busy={busy}
-                  canRerun={!!scan?.files.find((f) => f.relFile === historyRun.relFile)?.requests[historyRun.requestIndex]}
-                  onRerun={() => handleRun(historyRun.relFile, historyRun.requestIndex)}
-                  onClose={() => setHistoryRun(null)}
-                />
-              ) : selected ? (
-                <RequestDetail
-                  file={selected.file}
-                  request={selected.request}
-                  result={selectedKey ? results.get(selectedKey) : undefined}
-                  running={runningKey === selectedKey}
-                  busy={busy}
-                  onRun={() => selected && handleRun(selected.file.relFile, selected.request.index)}
-                  onEdit={() => void handleEditFile(selected.file.relFile)}
-                />
-              ) : (
-                <div className="hrm-response-empty">
-                  <Icon name="globe" size={30} />
-                  <span>No request selected</span>
-                  <p>Pick a request on the left, or hit its play button to fire it.</p>
-                </div>
-              )}
-              <HrmHistory folderPath={folderPath} reloadKey={historyReloadKey} onPick={handlePickHistory} />
+            <div className="hrm-header-actions">
+              <button
+                className="modal-close"
+                onClick={() => {
+                  dockBuilding(building.id, 'http');
+                  onClose();
+                }}
+                aria-label="Dock below the terminal input"
+                title="Minimize — dock below the terminal input"
+              >
+                <Icon name="arrow-down" size={16} />
+              </button>
+              <button className="modal-close" onClick={onClose} aria-label="Close">
+                <Icon name="close" size={16} />
+              </button>
             </div>
           </div>
+          <HttpRequestsBrowser building={building} onBusyChange={setBusy} />
         </div>
       </div>
     </ModalPortal>

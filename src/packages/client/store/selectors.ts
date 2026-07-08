@@ -34,6 +34,7 @@ import type {
   DatabaseBuildingState,
   TestRun,
   TestRunHandle,
+  HttpRunHandle,
 } from './types';
 import type { ShortcutConfig } from './shortcuts';
 import type { MouseControlsState, CameraSensitivityConfig } from './mouseControls';
@@ -972,6 +973,17 @@ function testRunHandlesEqual(a: TestRunHandle[], b: TestRunHandle[]): boolean {
   return true;
 }
 
+function httpRunHandlesEqual(a: HttpRunHandle[], b: HttpRunHandle[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    // runId + startedAt fully identify a handle (relFile/requestIndex are
+    // immutable for a given runId), so add/remove is the only thing that flips
+    // identity — same contract as testRunHandlesEqual.
+    if (a[i].runId !== b[i].runId || a[i].startedAt !== b[i].startedAt) return false;
+  }
+  return true;
+}
+
 /**
  * Stable handles for an agent's test runs. Only changes when a run is added or
  * removed — NOT on output/progress — so threading it through the virtualized
@@ -1012,20 +1024,27 @@ export function useHttpRun(runId: string | null): import('./types').HttpInlineRu
  * Stable handles for an agent's HTTP request runs — same contract as
  * useAgentTestRunHandles (only add/remove changes the array identity).
  */
-export function useAgentHttpRunHandles(agentId: string | null): TestRunHandle[] {
+export function useAgentHttpRunHandles(agentId: string | null): HttpRunHandle[] {
   return useSelector(
     useCallback(
       (state: StoreState) => {
         if (!agentId || !state.httpRuns) return [];
-        const out: TestRunHandle[] = [];
+        const out: HttpRunHandle[] = [];
         for (const r of state.httpRuns.values()) {
-          if (r.agentId === agentId) out.push({ runId: r.runId, startedAt: r.startedAt });
+          if (r.agentId === agentId) {
+            out.push({
+              runId: r.runId,
+              startedAt: r.startedAt,
+              relFile: r.relFile,
+              requestIndex: r.requestIndex,
+            });
+          }
         }
         return out;
       },
       [agentId]
     ),
-    testRunHandlesEqual
+    httpRunHandlesEqual
   );
 }
 

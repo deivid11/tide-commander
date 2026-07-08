@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.142.0] - 2026-07-08
+
+### Added
+- **Dockable building surfaces** — dockable buildings (terminal, PM2 logs, database, tests, HTTP requests) can now open either as a compact bottom dock panel or as their full modal. Each building remembers how it was last opened (per-building view-mode preference) and reopens that way; minimize/maximize buttons switch between the two.
+- **Draggable split pane** — the tests and HTTP request browsers get a draggable divider between the request/list pane and the detail pane, with the split position persisted (one percentage works for both the wide modal and the compact docked panel).
+
+### Changed
+- Reworked the tests and HTTP request building modals and the bottom output panel to share the new split-pane and dock/modal view infrastructure; added a docked PM2 log view.
+
 ## [1.141.0] - 2026-07-08
 
 ### Added

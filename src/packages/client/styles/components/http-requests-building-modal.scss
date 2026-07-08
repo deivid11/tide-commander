@@ -3,7 +3,11 @@
 // HTTP-requests building browser modal — .http file/request tree (left) +
 // request detail & response panel (right). Visual language follows
 // tests-building-modal.scss so the two "runner" buildings feel like one family.
-.http-requests-building-modal {
+// .http-requests-panel-host reuses the exact same inner styles for the docked
+// bottom-panel variant (guake / flat terminal); its shell overrides live at
+// the end of this file.
+.http-requests-building-modal,
+.http-requests-panel-host {
   width: 1500px;
   max-width: 96vw;
   height: 86vh;
@@ -221,11 +225,25 @@
   }
 
   .hrm-left {
-    width: 40%;
-    min-width: 320px;
+    width: 40%; // overridden by the inline style from useSplitPane
+    min-width: 160px;
+    flex-shrink: 0;
     border-right: 1px solid $border-color;
     overflow-y: auto;
     background: $bg-primary;
+  }
+
+  // Draggable divider between the request list and the detail pane.
+  .hrm-split {
+    flex: 0 0 5px;
+    margin-left: -1px; // sit on the left pane's border
+    cursor: col-resize;
+    transition: background 0.15s ease;
+
+    &:hover,
+    &:active {
+      background: rgba($accent-cyan, 0.35);
+    }
   }
 
   .hrm-right {
@@ -912,17 +930,171 @@
 
 // Mobile: stack the panes.
 @media (max-width: 760px) {
-  .http-requests-building-modal {
+  .http-requests-building-modal,
+  .http-requests-panel-host {
     .hrm-body {
       flex-direction: column;
     }
 
     .hrm-left {
-      width: 100%;
+      // !important beats the inline width from useSplitPane (desktop-only drag).
+      width: 100% !important;
       min-width: 0;
       max-height: 40%;
       border-right: none;
       border-bottom: 1px solid $border-color;
     }
+
+    .hrm-split {
+      display: none;
+    }
+  }
+}
+
+// Modal header action cluster (minimize/dock + close).
+.http-requests-building-modal .hrm-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+// Docked bottom-panel variant: fill the host panel instead of the fixed modal
+// footprint, and drop the window chrome (the panel provides its own header).
+.http-requests-panel-host {
+  flex: 1 1 auto;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  max-width: none;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  font-size: 12px;
+
+  // Compact chrome — the dock is short, every px counts.
+  .hrm-toolbar {
+    padding: 3px 8px;
+    gap: 6px;
+  }
+
+  .hrm-search {
+    padding: 2px 8px;
+    gap: 5px;
+
+    input {
+      font-size: 12px;
+    }
+  }
+
+  .hrm-scan-counts {
+    font-size: 11px;
+  }
+
+  .hrm-env {
+    font-size: 11px;
+  }
+
+  .hrm-btn {
+    padding: 2px 8px;
+    font-size: 11px;
+    gap: 4px;
+  }
+
+  .hrm-env-files {
+    padding: 2px 8px;
+    gap: 4px;
+  }
+
+  .hrm-env-file-chip {
+    padding: 1px 6px;
+    font-size: 10px;
+  }
+
+  .hrm-left {
+    min-width: 140px;
+  }
+
+  .hrm-row {
+    padding: 1px 8px;
+    font-size: 12px;
+    gap: 6px;
+  }
+
+  .hrm-detail-head {
+    padding: 3px 8px;
+    gap: 6px;
+
+    .hrm-detail-name {
+      font-size: 12px;
+    }
+
+    .hrm-detail-loc {
+      font-size: 10px;
+    }
+  }
+
+  .hrm-request-block {
+    padding: 3px 8px;
+
+    .hrm-request-line {
+      gap: 6px;
+    }
+
+    .hrm-url {
+      font-size: 12px;
+    }
+  }
+
+  .hrm-response-head {
+    padding: 2px 8px;
+    gap: 6px;
+  }
+
+  .hrm-status-pill {
+    padding: 1px 8px;
+    font-size: 11px;
+  }
+
+  .hrm-response-meta {
+    font-size: 10px;
+  }
+
+  .hrm-headers-table {
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+
+  .hrm-request-body {
+    margin: 4px 8px;
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+
+  .hrm-response-body {
+    margin: 0 8px 6px;
+    padding: 6px 8px;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .hrm-sent-request {
+    margin: 4px 8px;
+    padding: 5px 8px;
+  }
+
+  .hrm-history-toggle {
+    padding: 2px 8px;
+    font-size: 11px;
+  }
+
+  .hrm-history-row {
+    padding: 1px 8px;
+    font-size: 11px;
+  }
+
+  .hrm-browser-empty {
+    padding: 12px 10px;
+    gap: 6px;
   }
 }

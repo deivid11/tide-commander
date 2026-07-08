@@ -23,11 +23,13 @@ interface PM2LogsModalProps {
   building: Building;
   isOpen: boolean;
   onClose: () => void;
+  /** Minimize — dock the logs as a compact bottom panel. */
+  onMinimize?: () => void;
 }
 
 type ProcessCommand = 'restart' | 'stop';
 
-export function PM2LogsModal({ building, isOpen, onClose }: PM2LogsModalProps) {
+export function PM2LogsModal({ building, isOpen, onClose, onMinimize }: PM2LogsModalProps) {
   const { t } = useTranslation(['terminal']);
   const { streamingBuildingLogs, streamingBuildingIds } = useStore();
   const logs = streamingBuildingLogs.get(building.id) || '';
@@ -167,6 +169,7 @@ export function PM2LogsModal({ building, isOpen, onClose }: PM2LogsModalProps) {
     <LogViewerModal
       isOpen={isOpen}
       onClose={onClose}
+      onMinimize={onMinimize}
       title={`${building.name} - ${t('terminal:logs.pm2Logs')}`}
       icon="&#128196;"
       lines={lines}

@@ -14,9 +14,11 @@ interface DockerLogsModalProps {
   building: Building;
   isOpen: boolean;
   onClose: () => void;
+  /** Minimize — dock the logs as a compact bottom panel. */
+  onMinimize?: () => void;
 }
 
-export function DockerLogsModal({ building, isOpen, onClose }: DockerLogsModalProps) {
+export function DockerLogsModal({ building, isOpen, onClose, onMinimize }: DockerLogsModalProps) {
   const { t } = useTranslation(['terminal']);
   const { streamingBuildingLogs, streamingBuildingIds } = useStore();
   const logs = streamingBuildingLogs.get(building.id) || '';
@@ -46,6 +48,7 @@ export function DockerLogsModal({ building, isOpen, onClose }: DockerLogsModalPr
     <LogViewerModal
       isOpen={isOpen}
       onClose={onClose}
+      onMinimize={onMinimize}
       title={`${building.name} - ${t('terminal:logs.dockerLogs')}`}
       icon="&#128051;" // whale emoji
       lines={lines}

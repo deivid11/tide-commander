@@ -26,7 +26,7 @@ import type { Agent } from '../../../shared/types';
 import type { Building } from '../../../shared/building-types';
 import { BUILDING_TYPES } from '../../../shared/building-types';
 import { AgentIcon } from '../AgentIcon';
-import { Icon } from '../Icon';
+import { Icon, type IconName } from '../Icon';
 import { getBuildingTypeIcon } from '../DashboardView/utils';
 import { getAreaLogoUrl } from '../../api/area-logos';
 import { TaskProgressDots } from '../shared/TaskProgressDots';
@@ -56,6 +56,16 @@ import { TrackingBoard } from '../ClaudeOutputPanel/TrackingBoard';
 import { useWorkspaceFilter, isAgentVisibleInWorkspace, isAreaVisibleInWorkspace } from '../WorkspaceSwitcher';
 import type { ViewMode as TerminalViewMode } from '../ClaudeOutputPanel/types';
 import TerminalEmbed from '../TerminalEmbed';
+import { HttpRequestsBrowser } from '../HttpRequestsBuildingModal';
+import { TestsBrowser } from '../TestsBuildingModal';
+import { BottomPm2LogContent } from '../ClaudeOutputPanel/BottomPm2LogContent';
+import { DatabasePanelInline } from '../database/DatabasePanelInline';
+import { getBuildingViewMode, expandBuilding, type DockPanelType } from '../../utils/buildingViewMode';
+import {
+  BOTTOM_PM2_LOG_RETENTION_OPTIONS,
+  readBottomPm2LogRetention,
+  writeBottomPm2LogRetention,
+} from '../../utils/logRetention';
 import { ViewModeToggle } from '../ViewModeToggle/ViewModeToggle';
 import { useTwoClickConfirm, useAndroidBackButton } from '../../hooks';
 import {
@@ -117,7 +127,6 @@ interface ChatViewProps {
   onBashClick: (command: string, output: string) => void;
   onViewMarkdown: (content: string) => void;
   onRequestClearSubordinates: (agentId: string, count: number) => void;
-  onOpenBuilding: (buildingId: string) => void;
   keyboard: ReturnType<typeof useKeyboardHeight>;
   canNavigateBack: boolean;
   canNavigateForward: boolean;
@@ -149,6 +158,32 @@ const TERMINAL_VIEW_MODE_DESCRIPTIONS: Record<TerminalViewMode, string> = {
 };
 
 const CLEAR_CONFIRM_ID = 'flat-clear-context';
+
+// Per-area persistence of the flat embedded bottom panel — mirrors the guake's
+// tide:bottom-panels-v2 map so switching to an agent of another area and back
+// restores the panel exactly as it was left.
+const FLAT_EMBED_LS_KEY = 'tide:flat-embedded-panels';
+
+function readFlatEmbeddedPanels(): Record<string, { type: DockPanelType; buildingId: string }> {
+  try {
+    const raw = localStorage.getItem(FLAT_EMBED_LS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeFlatEmbeddedPanel(areaId: string, panel: { type: DockPanelType; buildingId: string } | null): void {
+  try {
+    const map = readFlatEmbeddedPanels();
+    if (panel) map[areaId] = panel;
+    else delete map[areaId];
+    localStorage.setItem(FLAT_EMBED_LS_KEY, JSON.stringify(map));
+  } catch {
+    /* quota/private mode — open state just won't stick */
+  }
+}
 
 function formatCwdShort(cwd: string): string {
   const parts = cwd.split('/').filter(Boolean);
@@ -211,7 +246,6 @@ const ChatView = React.memo(function ChatView({
   onBashClick,
   onViewMarkdown,
   onRequestClearSubordinates,
-  onOpenBuilding,
   keyboard,
   canNavigateBack,
   canNavigateForward,
@@ -469,13 +503,40 @@ const ChatView = React.memo(function ChatView({
   const clearConfirm = useTwoClickConfirm();
   const isClearArmed = clearConfirm.isPending(CLEAR_CONFIRM_ID);
 
-  // Embedded bottom panel — currently just a single terminal at a time,
-  // rendered under the chat pane like the Guake statusbar's bottom panels.
-  // Logs/database buttons still fall back to the global modal.
-  const [embeddedTerminalBuildingId, setEmbeddedTerminalBuildingId] = useState<string | null>(null);
-  const embeddedTerminalBuilding = embeddedTerminalBuildingId
-    ? buildings.get(embeddedTerminalBuildingId)
-    : null;
+  // Embedded bottom panel — one building surface at a time (terminal, PM2
+  // logs, database, tests or HTTP requests), rendered under the chat pane like
+  // the Guake statusbar's bottom panels. The statusbar buttons toggle it; the
+  // maximize button swaps to the building's rich modal.
+  const [embeddedPanel, setEmbeddedPanel] = useState<{ type: DockPanelType; buildingId: string } | null>(null);
+  const embeddedBuilding = embeddedPanel ? buildings.get(embeddedPanel.buildingId) : null;
+  // PM2-panel chrome state (filter is per-open; retention shared with the guake panel).
+  const [embeddedPm2Filter, setEmbeddedPm2Filter] = useState('');
+  const [embeddedPm2Retention, setEmbeddedPm2Retention] = useState<number | null>(() => readBottomPm2LogRetention());
+  const agentAreaId = useMemo(() => store.getAreaForAgent(agentId)?.id ?? null, [agentId, buildings]);
+  // Explicit user actions persist the panel per area; the area-switch restore
+  // effect below reads it back. Automatic closes (building removed / area
+  // switch) must NOT persist — they'd clobber the user's saved choice.
+  const toggleEmbeddedPanel = useCallback((type: DockPanelType, buildingId: string) => {
+    setEmbeddedPm2Filter('');
+    setEmbeddedPanel((prev) => {
+      const next = prev?.buildingId === buildingId ? null : { type, buildingId };
+      if (agentAreaId) writeFlatEmbeddedPanel(agentAreaId, next);
+      return next;
+    });
+  }, [agentAreaId]);
+  const closeEmbeddedPanel = useCallback(() => {
+    setEmbeddedPm2Filter('');
+    setEmbeddedPanel(null);
+    if (agentAreaId) writeFlatEmbeddedPanel(agentAreaId, null);
+  }, [agentAreaId]);
+  // PM2 log streaming follows the panel lifecycle (same pattern as the guake
+  // bottom panels: start on open, stop on close/swap).
+  useEffect(() => {
+    if (embeddedPanel?.type !== 'pm2-logs') return;
+    const id = embeddedPanel.buildingId;
+    store.startLogStreaming(id, 200);
+    return () => store.stopLogStreaming(id);
+  }, [embeddedPanel]);
   // Shared resizer — same hook the Guake bottom panel uses, so the persisted
   // height is kept in sync across both surfaces.
   const { height: embeddedHeight, onResizeStart: handleEmbeddedResizeStart } = useBottomTerminalResize();
@@ -530,13 +591,64 @@ const ChatView = React.memo(function ChatView({
   // Agents Map needed by GuakeGitPanel's diff viewer lookups.
   const agentsMap = useAgents();
 
+  // Buildings this pane can host, per panel type — drives both the ghost
+  // cleanup and the dock-event membership check below.
+  const embeddableByType = useMemo<Record<DockPanelType, { id: string }[]>>(() => ({
+    terminal: areaTerminalBuildings,
+    'pm2-logs': areaPm2Buildings,
+    database: areaDatabaseBuildings,
+    tests: areaTestsBuildings,
+    http: areaHttpBuildings,
+  }), [areaTerminalBuildings, areaPm2Buildings, areaDatabaseBuildings, areaTestsBuildings, areaHttpBuildings]);
+
   // Close the embed automatically if the building leaves the current area or
-  // disappears, so the panel doesn't stick around as a stale ghost.
+  // disappears, so the panel doesn't stick around as a stale ghost. Visual
+  // close only — no LS write, so the restore effect below can bring the saved
+  // panel back when the user returns to its area.
   useEffect(() => {
-    if (!embeddedTerminalBuildingId) return;
-    const stillInArea = areaTerminalBuildings.some((tb) => tb.id === embeddedTerminalBuildingId);
-    if (!stillInArea) setEmbeddedTerminalBuildingId(null);
-  }, [embeddedTerminalBuildingId, areaTerminalBuildings]);
+    if (!embeddedPanel) return;
+    const stillInArea = embeddableByType[embeddedPanel.type].some((b) => b.id === embeddedPanel.buildingId);
+    if (!stillInArea) {
+      setEmbeddedPm2Filter('');
+      setEmbeddedPanel(null);
+    }
+  }, [embeddedPanel, embeddableByType]);
+
+  // Restore the area's saved panel when the pane lands on an agent of a
+  // different area (and on mount/reload). Guarded by a ref so it fires once
+  // per area change — in-area opens/closes are never overridden.
+  const prevEmbedAreaRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (prevEmbedAreaRef.current === agentAreaId) return;
+    prevEmbedAreaRef.current = agentAreaId;
+    const saved = agentAreaId ? readFlatEmbeddedPanels()[agentAreaId] : undefined;
+    setEmbeddedPm2Filter('');
+    if (saved && embeddableByType[saved.type]?.some((b) => b.id === saved.buildingId)) {
+      setEmbeddedPanel(saved);
+    } else {
+      setEmbeddedPanel(null);
+    }
+  }, [agentAreaId, embeddableByType]);
+
+  // Dock request coming from a modal's minimize button while the flat chat
+  // pane is the visible surface. Marking `handled` tells dockBuilding() it
+  // doesn't need to fall back to the Guake bottom panel. Buildings outside
+  // this pane's area stay unhandled — the still-in-area cleanup above would
+  // immediately close them, so the guake dock is the better host.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ buildingId: string; type: DockPanelType; handled?: boolean }>).detail;
+      if (!detail?.buildingId || !detail?.type) return;
+      if (!embeddableByType[detail.type]?.some((b) => b.id === detail.buildingId)) return;
+      detail.handled = true;
+      setEmbeddedPm2Filter('');
+      const panel = { type: detail.type, buildingId: detail.buildingId };
+      setEmbeddedPanel(panel);
+      if (agentAreaId) writeFlatEmbeddedPanel(agentAreaId, panel);
+    };
+    window.addEventListener('tide:dock-building-flat', handler as EventListener);
+    return () => window.removeEventListener('tide:dock-building-flat', handler as EventListener);
+  }, [embeddableByType, agentAreaId]);
 
   // More-actions menu (kebab) for collapse/remove/clear-subs
   const [menuOpen, setMenuOpen] = useState(false);
@@ -910,52 +1022,142 @@ const ChatView = React.memo(function ChatView({
           hasModalOpen={false}
         />
       ) : null}
-      {embeddedTerminalBuilding && (
-        <>
-          <div
-            className="guake-bottom-terminal-resize"
-            onMouseDown={handleEmbeddedResizeStart}
-            role="separator"
-            aria-orientation="horizontal"
-            aria-label="Resize embedded terminal"
-          />
-          <div
-            className="flat-bottom-panel"
-            role="region"
-            aria-label={`Embedded terminal: ${embeddedTerminalBuilding.name}`}
-            style={{ height: embeddedHeight }}
-          >
-            <div className="flat-bottom-panel__header">
-              <span className="flat-bottom-panel__title">
-                <Icon name="terminal" size={12} />
-                <span>{embeddedTerminalBuilding.name}</span>
-                {!embeddedTerminalBuilding.terminalStatus?.url && (
-                  <span className="flat-bottom-panel__muted">(starting...)</span>
+      {embeddedPanel && embeddedBuilding && (() => {
+        const panelType = embeddedPanel.type;
+        const titleIcon: Record<DockPanelType, IconName> = {
+          terminal: 'terminal',
+          'pm2-logs': 'scroll',
+          database: 'hard-drives',
+          tests: 'flask',
+          http: 'globe',
+        };
+        const terminalStarting = panelType === 'terminal' && !embeddedBuilding.terminalStatus?.url;
+        // Terminals without a URL can't maximize (the modal needs the URL).
+        const canMaximize = !terminalStarting;
+        return (
+          <>
+            <div
+              className="guake-bottom-terminal-resize"
+              onMouseDown={handleEmbeddedResizeStart}
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label="Resize embedded panel"
+            />
+            <div
+              className="flat-bottom-panel"
+              role="region"
+              aria-label={`${embeddedBuilding.name} panel`}
+              style={{ height: embeddedHeight }}
+            >
+              <div className="flat-bottom-panel__header">
+                <span className="flat-bottom-panel__title">
+                  <Icon name={titleIcon[panelType]} size={12} />
+                  <span>{embeddedBuilding.name}</span>
+                  {terminalStarting && <span className="flat-bottom-panel__muted">(starting...)</span>}
+                </span>
+                <span className="flat-bottom-panel__header-actions">
+                  {panelType === 'pm2-logs' && (
+                    <>
+                      <input
+                        type="text"
+                        className="guake-bottom-terminal-filter"
+                        value={embeddedPm2Filter}
+                        onChange={(e) => setEmbeddedPm2Filter(e.target.value)}
+                        placeholder="Filter logs"
+                        aria-label={`Filter logs for ${embeddedBuilding.name}`}
+                        spellCheck={false}
+                      />
+                      <select
+                        className="guake-bottom-terminal-retention"
+                        value={embeddedPm2Retention === null ? 'unlimited' : String(embeddedPm2Retention)}
+                        onChange={(e) => {
+                          const nextValue = e.target.value === 'unlimited' ? null : Number(e.target.value);
+                          setEmbeddedPm2Retention(nextValue);
+                          writeBottomPm2LogRetention(nextValue);
+                        }}
+                        aria-label={`Max log retention for ${embeddedBuilding.name}`}
+                      >
+                        {BOTTOM_PM2_LOG_RETENTION_OPTIONS.map((option) => (
+                          <option key={option === null ? 'unlimited' : option} value={option === null ? 'unlimited' : String(option)}>
+                            {option === null ? 'Unlimited' : `${option.toLocaleString()} lines`}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="flat-bottom-panel__close"
+                        onClick={() => store.clearStreamingLogs(embeddedPanel.buildingId)}
+                        title="Clear logs"
+                      >
+                        <Icon name="trash" size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        className="flat-bottom-panel__close"
+                        onClick={() => store.sendBuildingCommand(embeddedPanel.buildingId, 'restart')}
+                        title="Restart"
+                      >
+                        <Icon name="restart" size={12} />
+                      </button>
+                    </>
+                  )}
+                  {canMaximize && (
+                    <button
+                      type="button"
+                      className="flat-bottom-panel__close"
+                      onClick={() => {
+                        closeEmbeddedPanel();
+                        expandBuilding(embeddedPanel.buildingId);
+                      }}
+                      title="Maximize — open as modal"
+                      aria-label="Open as modal"
+                    >
+                      <Icon name="fullscreen" size={12} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="flat-bottom-panel__close"
+                    onClick={closeEmbeddedPanel}
+                    title="Close panel"
+                    aria-label="Close panel"
+                  >
+                    <Icon name="cross" size={12} />
+                  </button>
+                </span>
+              </div>
+              <div className="flat-bottom-panel__body">
+                {panelType === 'terminal' ? (
+                  embeddedBuilding.terminalStatus?.url ? (
+                    <TerminalEmbed
+                      terminalUrl={embeddedBuilding.terminalStatus.url}
+                      visible={true}
+                    />
+                  ) : (
+                    <div className="flat-bottom-panel__placeholder">Starting terminal...</div>
+                  )
+                ) : panelType === 'pm2-logs' ? (
+                  <BottomPm2LogContent
+                    buildingId={embeddedPanel.buildingId}
+                    filterText={embeddedPm2Filter}
+                    maxRetention={embeddedPm2Retention}
+                  />
+                ) : panelType === 'database' ? (
+                  <DatabasePanelInline building={embeddedBuilding} />
+                ) : panelType === 'tests' ? (
+                  <div className="tests-panel-host">
+                    <TestsBrowser building={embeddedBuilding} autoFocusSearch={false} />
+                  </div>
+                ) : (
+                  <div className="http-requests-panel-host">
+                    <HttpRequestsBrowser building={embeddedBuilding} autoFocusSearch={false} />
+                  </div>
                 )}
-              </span>
-              <button
-                type="button"
-                className="flat-bottom-panel__close"
-                onClick={() => setEmbeddedTerminalBuildingId(null)}
-                title="Close embedded terminal"
-                aria-label="Close embedded terminal"
-              >
-                <Icon name="cross" size={12} />
-              </button>
+              </div>
             </div>
-            <div className="flat-bottom-panel__body">
-              {embeddedTerminalBuilding.terminalStatus?.url ? (
-                <TerminalEmbed
-                  terminalUrl={embeddedTerminalBuilding.terminalStatus.url}
-                  visible={true}
-                />
-              ) : (
-                <div className="flat-bottom-panel__placeholder">Starting terminal...</div>
-              )}
-            </div>
-          </div>
-        </>
-      )}
+          </>
+        );
+      })()}
       <div className="flat-terminal-wrapper__statusbar" role="contentinfo">
         {agent.isDetached && (
           <span
@@ -1087,7 +1289,7 @@ const ChatView = React.memo(function ChatView({
         {areaTerminalBuildings.length > 0 && (
           <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area terminals">
             {areaTerminalBuildings.map((tb) => {
-              const isActive = embeddedTerminalBuildingId === tb.id;
+              const isActive = embeddedPanel?.buildingId === tb.id;
               return (
                 <button
                   key={tb.id}
@@ -1096,11 +1298,15 @@ const ChatView = React.memo(function ChatView({
                   title={`${isActive ? 'Hide' : 'Show'} terminal: ${tb.name}${!tb.hasUrl ? ' (starting...)' : ''}`}
                   onClick={() => {
                     if (isActive) {
-                      setEmbeddedTerminalBuildingId(null);
+                      closeEmbeddedPanel();
+                      return;
+                    }
+                    if (tb.hasUrl && getBuildingViewMode(tb.id) === 'modal') {
+                      expandBuilding(tb.id);
                       return;
                     }
                     if (!tb.hasUrl) store.sendBuildingCommand(tb.id, 'start');
-                    setEmbeddedTerminalBuildingId(tb.id);
+                    toggleEmbeddedPanel('terminal', tb.id);
                   }}
                   onContextMenu={(e) => {
                     e.preventDefault();
@@ -1116,82 +1322,126 @@ const ChatView = React.memo(function ChatView({
         )}
         {areaPm2Buildings.length > 0 && (
           <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area PM2 logs">
-            {areaPm2Buildings.map((sb) => (
-              <button
-                key={sb.id}
-                type="button"
-                className="flat-terminal-wrapper__building-btn"
-                title={`Open logs: ${sb.name}`}
-                onClick={() => onOpenBuilding(sb.id)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onBuildingContextMenu(sb.id, { x: e.clientX, y: e.clientY });
-                }}
-              >
-                <Icon name="scroll" size={14} />
-              </button>
-            ))}
+            {areaPm2Buildings.map((sb) => {
+              const isActive = embeddedPanel?.buildingId === sb.id;
+              return (
+                <button
+                  key={sb.id}
+                  type="button"
+                  className={`flat-terminal-wrapper__building-btn ${isActive ? 'flat-terminal-wrapper__building-btn--active' : ''}`}
+                  title={`${isActive ? 'Hide' : 'Show'} logs: ${sb.name}`}
+                  onClick={() => {
+                    if (isActive) {
+                      closeEmbeddedPanel();
+                    } else if (getBuildingViewMode(sb.id) === 'modal') {
+                      expandBuilding(sb.id);
+                    } else {
+                      toggleEmbeddedPanel('pm2-logs', sb.id);
+                    }
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onBuildingContextMenu(sb.id, { x: e.clientX, y: e.clientY });
+                  }}
+                >
+                  <Icon name="scroll" size={14} />
+                </button>
+              );
+            })}
           </span>
         )}
         {areaDatabaseBuildings.length > 0 && (
           <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area databases">
-            {areaDatabaseBuildings.map((db) => (
-              <button
-                key={db.id}
-                type="button"
-                className="flat-terminal-wrapper__building-btn"
-                title={`Open database: ${db.name}`}
-                onClick={() => onOpenBuilding(db.id)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onBuildingContextMenu(db.id, { x: e.clientX, y: e.clientY });
-                }}
-              >
-                <Icon name="hard-drives" size={14} />
-              </button>
-            ))}
+            {areaDatabaseBuildings.map((db) => {
+              const isActive = embeddedPanel?.buildingId === db.id;
+              return (
+                <button
+                  key={db.id}
+                  type="button"
+                  className={`flat-terminal-wrapper__building-btn ${isActive ? 'flat-terminal-wrapper__building-btn--active' : ''}`}
+                  title={`${isActive ? 'Hide' : 'Show'} database: ${db.name}`}
+                  onClick={() => {
+                    if (isActive) {
+                      closeEmbeddedPanel();
+                    } else if (getBuildingViewMode(db.id) === 'modal') {
+                      expandBuilding(db.id);
+                    } else {
+                      toggleEmbeddedPanel('database', db.id);
+                    }
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onBuildingContextMenu(db.id, { x: e.clientX, y: e.clientY });
+                  }}
+                >
+                  <Icon name="hard-drives" size={14} />
+                </button>
+              );
+            })}
           </span>
         )}
         {areaTestsBuildings.length > 0 && (
           <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area tests">
-            {areaTestsBuildings.map((tb) => (
-              <button
-                key={tb.id}
-                type="button"
-                className={`flat-terminal-wrapper__building-btn ${tb.working ? 'flat-terminal-wrapper__building-btn--tests-working' : ''}`}
-                title={tb.working ? `Running tests: ${tb.name}` : `Open tests: ${tb.name}`}
-                onClick={() => onOpenBuilding(tb.id)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onBuildingContextMenu(tb.id, { x: e.clientX, y: e.clientY });
-                }}
-              >
-                <Icon name="flask" size={14} />
-              </button>
-            ))}
+            {areaTestsBuildings.map((tb) => {
+              const isActive = embeddedPanel?.buildingId === tb.id;
+              return (
+                <button
+                  key={tb.id}
+                  type="button"
+                  className={`flat-terminal-wrapper__building-btn ${isActive ? 'flat-terminal-wrapper__building-btn--active' : ''} ${tb.working ? 'flat-terminal-wrapper__building-btn--tests-working' : ''}`}
+                  title={tb.working ? `Running tests: ${tb.name}` : `${isActive ? 'Hide' : 'Show'} tests: ${tb.name}`}
+                  onClick={() => {
+                    if (isActive) {
+                      closeEmbeddedPanel();
+                    } else if (getBuildingViewMode(tb.id) === 'modal') {
+                      expandBuilding(tb.id);
+                    } else {
+                      toggleEmbeddedPanel('tests', tb.id);
+                    }
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onBuildingContextMenu(tb.id, { x: e.clientX, y: e.clientY });
+                  }}
+                >
+                  <Icon name="flask" size={14} />
+                </button>
+              );
+            })}
           </span>
         )}
         {areaHttpBuildings.length > 0 && (
           <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area HTTP requests">
-            {areaHttpBuildings.map((hb) => (
-              <button
-                key={hb.id}
-                type="button"
-                className="flat-terminal-wrapper__building-btn"
-                title={`Open HTTP requests: ${hb.name}`}
-                onClick={() => onOpenBuilding(hb.id)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onBuildingContextMenu(hb.id, { x: e.clientX, y: e.clientY });
-                }}
-              >
-                <Icon name="globe" size={14} />
-              </button>
-            ))}
+            {areaHttpBuildings.map((hb) => {
+              const isActive = embeddedPanel?.buildingId === hb.id;
+              return (
+                <button
+                  key={hb.id}
+                  type="button"
+                  className={`flat-terminal-wrapper__building-btn ${isActive ? 'flat-terminal-wrapper__building-btn--active' : ''}`}
+                  title={`${isActive ? 'Hide' : 'Show'} HTTP requests: ${hb.name}`}
+                  onClick={() => {
+                    if (isActive) {
+                      closeEmbeddedPanel();
+                    } else if (getBuildingViewMode(hb.id) === 'modal') {
+                      expandBuilding(hb.id);
+                    } else {
+                      toggleEmbeddedPanel('http', hb.id);
+                    }
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onBuildingContextMenu(hb.id, { x: e.clientX, y: e.clientY });
+                  }}
+                >
+                  <Icon name="globe" size={14} />
+                </button>
+              );
+            })}
           </span>
         )}
         <div className="flat-terminal-wrapper__theme">
@@ -2408,7 +2658,6 @@ export function FlatView({
             onBashClick={handleBashClick}
             onViewMarkdown={handleViewMarkdown}
             onRequestClearSubordinates={handleRequestClearSubordinates}
-            onOpenBuilding={handleOpenBuilding}
             keyboard={keyboard}
             canNavigateBack={canNavigateBack}
             canNavigateForward={canNavigateForward}

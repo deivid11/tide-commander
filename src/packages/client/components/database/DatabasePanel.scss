@@ -45,6 +45,12 @@
     border-left: 1px solid $border-color;
   }
 
+  &__header-actions {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
   &__close {
     background: none;
     border: none;
@@ -53,6 +59,8 @@
     cursor: pointer;
     padding: 0 8px;
     line-height: 1;
+    display: inline-flex;
+    align-items: center;
 
     &:hover {
       color: $text-primary;

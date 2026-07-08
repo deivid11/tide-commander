@@ -209,6 +209,32 @@ export function setStorageNumber(key: string, value: number): void {
 }
 
 /**
+ * Get a Set of strings from localStorage (stored as a JSON array).
+ * Returns an empty Set if the key doesn't exist or can't be parsed.
+ */
+export function getStorageStringSet(key: string): Set<string> {
+  try {
+    const stored = localStorage.getItem(key);
+    if (!stored) return new Set();
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed) ? new Set(parsed.filter((v) => typeof v === 'string')) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Set a Set of strings in localStorage (stored as a JSON array).
+ */
+export function setStorageStringSet(key: string, value: Set<string>): void {
+  try {
+    localStorage.setItem(key, JSON.stringify([...value]));
+  } catch (error) {
+    console.error(`Failed to save to localStorage: ${key}`, error);
+  }
+}
+
+/**
  * Remove a value from localStorage
  */
 export function removeStorage(key: string): void {

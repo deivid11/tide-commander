@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useHideCost, useSettings, useAgentPrompts } from '../../store';
-import { store, type TestRunHandle } from '../../store';
+import { store, type TestRunHandle, type HttpRunHandle } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
 import { getToolIconName, extractToolKeyParam, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
@@ -28,7 +28,7 @@ import { parseTestResults } from './testResultsParser';
 import { TestResultsCard } from './TestResultsCard';
 import { parseHttpResults } from './httpResultsParser';
 import { HttpResultsCard } from './HttpResultsCard';
-import { HttpRunInline, HttpRunLookup } from './HttpRunInline';
+import { HttpRunInline, HttpRunLookup, matchHttpRunHandle } from './HttpRunInline';
 import { TestRunInline } from './TestRunInline';
 import { highlightText, renderContentWithImages, renderUserPromptContent, isThumbnailableImagePath, getLocalFileImageUrl } from './contentRendering';
 import { useTTS } from '../../hooks/useTTS';
@@ -66,7 +66,7 @@ interface HistoryLineProps {
   subagents?: Map<string, Subagent>;
   execTasks?: ExecTask[];
   testRunHandles?: TestRunHandle[];
-  httpRunHandles?: TestRunHandle[];
+  httpRunHandles?: HttpRunHandle[];
   onImageClick?: (url: string, name: string) => void;
   onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
   onBashClick?: (command: string, output: string) => void;
@@ -470,16 +470,8 @@ export const HistoryLine = memo(function HistoryLine({
       // A persisted `curl … /api/http-requests/run` line → re-attach the in-store
       // run so the inline HTTP card shows on refresh (parity with OutputLine).
       const isCurlHttpRunCommand = /\bcurl\b[\s\S]*\/api\/http-requests\/run(?!s)/.test(bashCommand);
-      const matchingHttpRunId = isCurlHttpRunCommand && httpRunHandles.length > 0
-        ? (() => {
-            const near = httpRunHandles.filter(
-              (r) => r.startedAt >= bashTimestampMs - 3000 && r.startedAt <= bashTimestampMs + 20000
-            );
-            if (near.length > 0) {
-              return near.reduce((latest, cur) => (cur.startedAt > latest.startedAt ? cur : latest)).runId;
-            }
-            return null;
-          })()
+      const matchingHttpRunId = isCurlHttpRunCommand
+        ? matchHttpRunHandle(httpRunHandles, bashCommand, bashTimestampMs)
         : null;
       const bashCurlParsed = (
         isBashTool

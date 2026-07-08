@@ -21,6 +21,8 @@ import './DatabasePanel.scss';
 interface DatabasePanelProps {
   building: Building;
   onClose: () => void;
+  /** Minimize — dock the database grid as a compact bottom panel. */
+  onMinimize?: () => void;
 }
 
 // LocalStorage keys
@@ -54,7 +56,7 @@ function saveStoredState(buildingId: string, state: StoredDbState): void {
   }
 }
 
-export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose }) => {
+export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose, onMinimize }) => {
   const { t } = useTranslation(['terminal', 'common']);
   const dbState = useDatabaseState(building.id);
   const queryResults = useQueryResults(building.id);
@@ -367,9 +369,20 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose 
             </span>
           )}
         </div>
-        <button className="database-panel__close" onClick={onClose}>
-          &times;
-        </button>
+        <div className="database-panel__header-actions">
+          {onMinimize && (
+            <button
+              className="database-panel__close"
+              onClick={onMinimize}
+              title="Minimize — dock below the terminal input"
+            >
+              <Icon name="arrow-down" size={14} />
+            </button>
+          )}
+          <button className="database-panel__close" onClick={onClose}>
+            &times;
+          </button>
+        </div>
       </div>
 
       <div className="database-panel__body">

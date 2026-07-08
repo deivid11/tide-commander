@@ -128,6 +128,16 @@ export interface TestRunHandle {
   startedAt: number;
 }
 
+// HTTP-run handle — like TestRunHandle but also carries the request identity
+// (relFile#requestIndex) so a terminal line can be matched to the run it fired
+// even when several requests overlap the same time window.
+export interface HttpRunHandle {
+  runId: string;
+  startedAt: number;
+  relFile: string;
+  requestIndex: number;
+}
+
 // HTTP request run fired via POST /api/http-requests/run with an agentId —
 // rendered as a live inline card under the agent's `curl` line (like TestRun).
 export interface HttpInlineRun {
