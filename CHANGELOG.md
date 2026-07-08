@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.136.2] - 2026-07-07
+
+### Fixed
+- **File viewer resolution** — improved how the file viewer resolves and displays file paths.
+
 ## [1.136.1] - 2026-07-07
 
 ### Fixed
