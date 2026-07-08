@@ -44,6 +44,7 @@ router.get('/install-info', async (_req: Request, res: Response) => {
       latestVersion,
       updateAvailable,
       autoUpdateSupported: isAutoUpdateSupported(info),
+      writable: info.writable,
       suggestedManualCommand: info.suggestedManualCommand,
       reason: info.reason,
       updateInProgress,
@@ -83,8 +84,11 @@ router.post('/self-update', async (_req: Request, res: Response) => {
   }
 
   if (!isAutoUpdateSupported(info)) {
+    const permsIssue = info.isGlobalInstall && info.packageManager === 'npm' && !info.writable;
     res.status(400).json({
-      error: `Auto-update is not supported for package manager: ${info.packageManager}`,
+      error: permsIssue
+        ? `The install directory (${info.installRoot}) is not writable by this process — auto-update needs elevated permissions. Update manually: ${info.suggestedManualCommand}`
+        : `Auto-update is not supported for package manager: ${info.packageManager}`,
       suggestedManualCommand: info.suggestedManualCommand,
     });
     return;

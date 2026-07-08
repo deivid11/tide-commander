@@ -20,8 +20,23 @@ export interface InstallInfo {
   packageManager: PackageManager;
   installRoot: string | null;
   currentVersion: string;
+  /** Whether the install dir is writable by this process (else the update needs sudo). */
+  writable: boolean;
   suggestedManualCommand: string | null;
   reason: string;
+}
+
+/**
+ * Whether `dir` is writable by the current process — determines if
+ * `npm install -g` could succeed without sudo.
+ */
+function isWritable(dir: string): boolean {
+  try {
+    fs.accessSync(dir, fs.constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function readPackageJson(dir: string): { name?: string; version?: string } | null {
@@ -125,6 +140,7 @@ export function getInstallInfo(): InstallInfo {
       packageManager: 'unknown',
       installRoot: null,
       currentVersion: 'unknown',
+      writable: false,
       suggestedManualCommand: null,
       reason: 'Could not locate tide-commander package root on disk.',
     };
@@ -140,28 +156,36 @@ export function getInstallInfo(): InstallInfo {
       packageManager: 'unknown',
       installRoot,
       currentVersion,
+      writable: false,
       suggestedManualCommand: null,
       reason,
     };
   }
 
   const { pm, suggested } = detectPackageManager(installRoot);
+  // npm replaces the package dir inside node_modules — check that parent is writable.
+  const writable = isWritable(path.dirname(installRoot));
+  // A root-owned prefix can't be updated without sudo — surface that in the command.
+  const needsSudo = pm === 'npm' && !writable;
+  const suggestedManualCommand = needsSudo && suggested ? `sudo ${suggested}` : suggested;
+
   return {
     isGlobalInstall: true,
     packageManager: pm,
     installRoot,
     currentVersion,
-    suggestedManualCommand: suggested,
+    writable,
+    suggestedManualCommand,
     reason,
   };
 }
 
 /**
  * Whether the current install can be auto-updated by this server.
- * Right now only npm-style globals are supported.
+ * Only npm-style globals whose install dir is writable (no sudo needed).
  */
 export function isAutoUpdateSupported(info: InstallInfo = getInstallInfo()): boolean {
-  return info.isGlobalInstall && info.packageManager === 'npm';
+  return info.isGlobalInstall && info.packageManager === 'npm' && info.writable;
 }
 
 export interface RunUpdateCallbacks {

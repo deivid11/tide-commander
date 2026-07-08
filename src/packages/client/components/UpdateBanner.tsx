@@ -5,6 +5,9 @@ import { useSelfUpdate } from '../hooks/useSelfUpdate';
 // Per-version dismissal — reappears automatically when a newer version ships.
 const DISMISS_KEY = 'npm_update_dismissed_version';
 const RECHECK_INTERVAL_MS = 60 * 60 * 1000; // 1h
+// A normal global install takes ~3 min; past this we assume it's stuck and
+// surface a manual escape (reload / recheck).
+const STUCK_MS = 4 * 60 * 1000;
 
 /**
  * Semi-global, dismissible update banner. When a newer npm version is available
@@ -25,6 +28,7 @@ export function UpdateBanner() {
     reset,
   } = useSelfUpdate();
   const [confirming, setConfirming] = useState(false);
+  const [stuck, setStuck] = useState(false);
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(
     () => localStorage.getItem(DISMISS_KEY),
   );
@@ -54,6 +58,31 @@ export function UpdateBanner() {
     setConfirming(false);
     void refreshInstallInfo();
   }, [reset, refreshInstallInfo]);
+
+  // If an update sits in 'running'/'success' too long (no 'done', restart never
+  // took over), flag it stuck so we can offer a manual escape.
+  useEffect(() => {
+    if (phase !== 'running' && phase !== 'success') {
+      setStuck(false);
+      return;
+    }
+    const id = window.setTimeout(() => setStuck(true), STUCK_MS);
+    return () => window.clearTimeout(id);
+  }, [phase]);
+
+  // Force recheck: abort the (possibly hung) stream and re-fetch install info.
+  // If the update actually applied, the banner hides; otherwise it returns to
+  // idle so the user can retry or dismiss.
+  const handleRecheck = useCallback(() => {
+    reset();
+    setConfirming(false);
+    setStuck(false);
+    void refreshInstallInfo();
+  }, [reset, refreshInstallInfo]);
+
+  const handleReload = useCallback(() => {
+    window.location.reload();
+  }, []);
 
   // Auto-updatable = an npm global install: gets the full "update & restart" flow.
   const isAutoUpdatable = Boolean(
@@ -141,18 +170,28 @@ export function UpdateBanner() {
         </>
       )}
 
-      {phase === 'running' && (
-        <span className="update-banner-msg">
-          <span className="update-banner-spinner" />
-          {t('config:updateBanner.installing')}
-        </span>
-      )}
-
-      {phase === 'success' && (
-        <span className="update-banner-msg">
-          <span className="update-banner-spinner" />
-          {t('config:updateBanner.reconnecting')}
-        </span>
+      {(phase === 'running' || phase === 'success') && (
+        <>
+          <span className="update-banner-msg">
+            <span className="update-banner-spinner" />
+            {phase === 'running'
+              ? t('config:updateBanner.installing')
+              : t('config:updateBanner.reconnecting')}
+          </span>
+          {stuck && (
+            <span className="update-banner-actions">
+              <span className="update-banner-manualhint">
+                {t('config:updateBanner.stuckHint')}
+              </span>
+              <button className="update-banner-btn ghost" onClick={handleReload}>
+                {t('config:updateBanner.reload')}
+              </button>
+              <button className="update-banner-btn ghost" onClick={handleRecheck}>
+                {t('config:updateBanner.recheck')}
+              </button>
+            </span>
+          )}
+        </>
       )}
 
       {phase === 'failed' && (

@@ -15,6 +15,7 @@ export interface InstallInfo {
   latestVersion: string | null;
   updateAvailable: boolean;
   autoUpdateSupported: boolean;
+  writable?: boolean;
   suggestedManualCommand: string | null;
   reason: string;
   updateInProgress: boolean;

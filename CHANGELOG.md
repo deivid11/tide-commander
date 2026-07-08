@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.139.1] - 2026-07-08
+
+### Fixed
+- **Self-update permissions detection** — the server now checks whether the global install directory is writable and, when it is not, returns a clear "needs elevated permissions" error with a `sudo`-prefixed manual command instead of a generic failure. Auto-update is only offered when it can actually succeed without sudo.
+- **Stuck-update escape hatch** — if a self-update sits in "installing/reconnecting" longer than expected (restart never took over), the update banner now surfaces manual Reload / Recheck actions so the UI can recover instead of spinning forever.
+
 ## [1.139.0] - 2026-07-08
 
 ### Added
