@@ -10,6 +10,7 @@ import {
   getInstallInfo,
   isAutoUpdateSupported,
   runNpmGlobalUpdate,
+  schedulePostUpdateRestart,
 } from '../services/self-update-service.js';
 
 const log = createLogger('SystemRoutes');
@@ -66,8 +67,9 @@ router.get('/install-info', async (_req: Request, res: Response) => {
  *   - done     { success, exitCode, newVersion, requiresRestart }
  *   - error    { message, permissionDenied, suggestedManualCommand }
  *
- * On success the server schedules its own exit so the next launch picks up
- * the new binary. The user must relaunch tide-commander manually.
+ * On success the server relaunches itself (detached `tide-commander start
+ * --restart`) so the new binary comes up automatically; if that can't be
+ * scheduled it falls back to exiting for a manual restart.
  */
 router.post('/self-update', async (_req: Request, res: Response) => {
   const info = getInstallInfo();
@@ -127,22 +129,39 @@ router.post('/self-update', async (_req: Request, res: Response) => {
 
     if (result.exitCode === 0) {
       const newVersion = (await fetchLatestNpmVersion(PACKAGE_NAME)) ?? null;
+
+      // Try to bring the new binary up automatically. The relauncher will
+      // SIGTERM this process, so we must NOT exit ourselves when it's scheduled.
+      const autoRestart = schedulePostUpdateRestart();
+
       send('done', {
         success: true,
         exitCode: 0,
         newVersion,
         requiresRestart: true,
-        message: 'Update installed. Please restart Tide Commander from your terminal.',
+        autoRestart,
+        message: autoRestart
+          ? 'Update installed — Tide Commander is restarting automatically. The UI will reconnect in a few seconds.'
+          : 'Update installed. Please restart Tide Commander from your terminal.',
       });
       res.end();
 
-      // Give the client ~1.5s to render the success message before we exit.
-      // The user must manually restart with `tide-commander` from the terminal.
-      log.log('Update succeeded — scheduling server exit in 1500ms to release the old binary.');
-      setTimeout(() => {
-        log.log('Exiting after successful update. Restart manually with: tide-commander');
-        process.exit(0);
-      }, 1500);
+      if (autoRestart) {
+        log.log('Update succeeded — detached relauncher scheduled; awaiting takeover.');
+        // Safety net: if the relauncher never takes over, don't stay locked.
+        setTimeout(() => {
+          log.warn('Relauncher did not take over within 30s — clearing update lock.');
+          updateInProgress = false;
+        }, 30000).unref?.();
+      } else {
+        // Couldn't schedule an auto-restart — fall back to the old behaviour:
+        // exit so the next manual launch picks up the new binary.
+        log.log('Auto-restart unavailable — scheduling exit in 1500ms for manual restart.');
+        setTimeout(() => {
+          log.log('Exiting after successful update. Restart manually with: tide-commander');
+          process.exit(0);
+        }, 1500);
+      }
     } else {
       const errMsg = result.permissionDenied
         ? 'Permission denied while installing globally. Re-run from a terminal with the appropriate permissions (e.g. sudo npm install -g tide-commander@latest), or fix your npm prefix to a user-owned directory.'

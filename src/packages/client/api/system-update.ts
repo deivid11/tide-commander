@@ -20,6 +20,28 @@ export interface InstallInfo {
   updateInProgress: boolean;
 }
 
+/**
+ * Poll the lightweight /api/health endpoint until the (restarting) server
+ * responds again, or the timeout elapses. Used after an auto-restart to reload
+ * only once the new server is actually up. Resolves true if it came back.
+ */
+export async function waitForServerBack(
+  { initialDelayMs = 2500, intervalMs = 1500, timeoutMs = 60000 } = {},
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  await new Promise((r) => setTimeout(r, initialDelayMs));
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/health`, { cache: 'no-store' });
+      if (res.ok) return true;
+    } catch {
+      // server still down — keep polling
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  return false;
+}
+
 export async function fetchInstallInfo(): Promise<InstallInfo> {
   const response = await authFetch(`${getApiBaseUrl()}/api/system/install-info`);
   if (!response.ok) {
@@ -45,6 +67,7 @@ export type SelfUpdateEvent =
       exitCode: number | null;
       newVersion: string | null;
       requiresRestart: boolean;
+      autoRestart?: boolean;
       message?: string;
     };
 

@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.137.0] - 2026-07-07
+
+### Added
+- **Auto-restart after self-update** — after a successful `Update now`, the server now relaunches itself automatically (`tide-commander start --restart`) and the UI polls `/api/health` and reconnects on its own once the new server is up, instead of asking you to relaunch from the terminal. A new `--restart` CLI flag forces a clean restart of a running server reusing its current config.
+
+### Changed
+- Update confirmation and success messaging now reflect the automatic restart/reconnect flow.
+
 ## [1.136.2] - 2026-07-07
 
 ### Fixed
