@@ -30,6 +30,7 @@ type CliOptions = {
   follow?: boolean;
   lines?: number;
   help?: boolean;
+  restart?: boolean;
 };
 
 const PID_DIR = path.join(os.homedir(), '.local', 'share', 'tide-commander');
@@ -88,6 +89,7 @@ Options:
                         current terminal so logs print here and Ctrl+C stops it.
       --lines <n>       Number of log lines for logs command (default: 100)
       --follow          Follow logs stream (like tail -f)
+      --restart         Restart a running server, reusing its current config
   -h, --help            Show this help message
 `);
 }
@@ -180,6 +182,9 @@ function parseArgs(argv: string[]): CliOptions {
         break;
       case '--follow':
         options.follow = true;
+        break;
+      case '--restart':
+        options.restart = true;
         break;
       case '--lines': {
         const value = argv[i + 1];
@@ -741,6 +746,9 @@ async function main(): Promise<void> {
     || options.authToken !== undefined
     || options.generateAuthToken === true
     || options.foreground === true;
+  // An explicit --restart (used by the post-update auto-restart) forces a clean
+  // restart of the running server even when no config overrides were passed.
+  const shouldRestartExisting = hasStartupOverrides || options.restart === true;
 
   if (existingPid && isRunning(existingPid)) {
     if (runInForeground) {
@@ -755,7 +763,7 @@ async function main(): Promise<void> {
       }
       clearPidFile();
       clearServerMeta();
-    } else if (hasStartupOverrides) {
+    } else if (shouldRestartExisting) {
       try {
         process.kill(existingPid, 'SIGTERM');
       } catch (error) {

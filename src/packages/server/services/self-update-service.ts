@@ -240,3 +240,57 @@ export function runNpmGlobalUpdate(callbacks: RunUpdateCallbacks = {}): Promise<
     });
   });
 }
+
+/**
+ * After a successful global update, bring up the freshly installed binary
+ * without the user having to relaunch by hand.
+ *
+ * Spawns a fully detached `tide-commander start --restart` that inherits the
+ * current server's environment (same PORT/HOST/AUTH_TOKEN/HTTPS). That process
+ * SIGTERMs the still-running old server (triggering its graceful shutdown so the
+ * port is released), waits for it to exit, then starts the new server and
+ * rewrites the PID file. The caller MUST NOT exit — the relauncher drives the
+ * handoff.
+ *
+ * Returns true if the relauncher was scheduled, false if it could not be
+ * (in which case the caller should fall back to exiting for a manual restart).
+ */
+export function schedulePostUpdateRestart(delayMs = 600): boolean {
+  let cliPath: string;
+  try {
+    // self-update-service.js lives at dist/.../server/services/, the CLI entry
+    // at dist/.../server/cli.js — one level up.
+    cliPath = fileURLToPath(new URL('../cli.js', import.meta.url));
+  } catch (err) {
+    log.error(`Cannot resolve CLI path for auto-restart: ${(err as Error).message}`);
+    return false;
+  }
+
+  if (!fs.existsSync(cliPath)) {
+    log.error(`CLI entrypoint not found for auto-restart: ${cliPath}`);
+    return false;
+  }
+
+  // Small delay so the SSE 'done' frame flushes to the client before the
+  // relauncher SIGTERMs us.
+  const timer = setTimeout(() => {
+    try {
+      const child = spawn(process.execPath, [cliPath, 'start', '--restart'], {
+        detached: true,
+        stdio: 'ignore',
+        env: process.env,
+        cwd: process.cwd(),
+      });
+      child.on('error', (err) => {
+        log.error(`Auto-restart relauncher failed to spawn: ${err.message}`);
+      });
+      child.unref();
+      log.log('Spawned detached relauncher: tide-commander start --restart');
+    } catch (err) {
+      log.error(`Failed to spawn auto-restart relauncher: ${(err as Error).message}`);
+    }
+  }, delayMs);
+  timer.unref?.();
+
+  return true;
+}

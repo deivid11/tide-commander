@@ -6,6 +6,7 @@ import { Icon } from '../Icon';
 import {
   fetchInstallInfo,
   startSelfUpdate,
+  waitForServerBack,
   type InstallInfo,
   type SelfUpdateEvent,
 } from '../../api/system-update';
@@ -62,6 +63,7 @@ function AutoUpdatePanel() {
   const [output, setOutput] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [newVersion, setNewVersion] = useState<string | null>(null);
+  const [autoRestart, setAutoRestart] = useState<boolean>(false);
   const abortRef = useRef<(() => void) | null>(null);
   const outputRef = useRef<HTMLPreElement | null>(null);
 
@@ -85,6 +87,20 @@ function AutoUpdatePanel() {
     }
   }, [output]);
 
+  // After a successful auto-restart, wait for the new server to come back up
+  // (poll /api/health) then reload so the UI reconnects and picks up the new
+  // frontend. Reload regardless once the poll settles.
+  useEffect(() => {
+    if (phase !== 'success' || !autoRestart) return;
+    let cancelled = false;
+    void waitForServerBack().then(() => {
+      if (!cancelled) window.location.reload();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, autoRestart]);
+
   const handleStart = useCallback(() => {
     setPhase('confirm');
   }, []);
@@ -98,6 +114,7 @@ function AutoUpdatePanel() {
     setOutput('');
     setError(null);
     setNewVersion(null);
+    setAutoRestart(false);
 
     const stop = startSelfUpdate(
       (event: SelfUpdateEvent) => {
@@ -120,6 +137,7 @@ function AutoUpdatePanel() {
           case 'done':
             if (event.success) {
               setNewVersion(event.newVersion);
+              setAutoRestart(Boolean(event.autoRestart));
               setPhase('success');
             } else {
               setPhase('failed');
@@ -236,7 +254,11 @@ function AutoUpdatePanel() {
               {newVersion && (
                 <div className="about-autoupdate-newversion">v{newVersion}</div>
               )}
-              <div>{t('config:about.autoUpdateRestartHint')}</div>
+              <div>
+                {autoRestart
+                  ? t('config:about.autoUpdateReconnectHint')
+                  : t('config:about.autoUpdateRestartHint')}
+              </div>
             </div>
           )}
           {phase === 'failed' && error && (
