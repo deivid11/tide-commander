@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.139.2] - 2026-07-08
+
+### Changed
+- **Faster stuck-update escape hatch** — the update banner now surfaces the manual Reload / Recheck actions after 1 minute (down from 4) if an update stays in installing/reconnecting. The actions are non-destructive — the install continues server-side — so they can appear mid-install as a safety net without interrupting anything.
+
 ## [1.139.1] - 2026-07-08
 
 ### Fixed

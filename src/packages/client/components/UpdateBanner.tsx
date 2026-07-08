@@ -5,9 +5,11 @@ import { useSelfUpdate } from '../hooks/useSelfUpdate';
 // Per-version dismissal — reappears automatically when a newer version ships.
 const DISMISS_KEY = 'npm_update_dismissed_version';
 const RECHECK_INTERVAL_MS = 60 * 60 * 1000; // 1h
-// A normal global install takes ~3 min; past this we assume it's stuck and
-// surface a manual escape (reload / recheck).
-const STUCK_MS = 4 * 60 * 1000;
+// After this long in running/success we surface a manual escape (reload /
+// recheck). A normal install can take ~3 min, so at 1 min this may appear
+// mid-install — the actions are non-destructive (the install continues
+// server-side), just an escape hatch if it truly hangs.
+const STUCK_MS = 60 * 1000;
 
 /**
  * Semi-global, dismissible update banner. When a newer npm version is available
