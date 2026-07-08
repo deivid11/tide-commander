@@ -26,6 +26,9 @@ import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
 import { parseTestResults } from './testResultsParser';
 import { TestResultsCard } from './TestResultsCard';
+import { parseHttpResults } from './httpResultsParser';
+import { HttpResultsCard } from './HttpResultsCard';
+import { HttpRunInline, HttpRunLookup } from './HttpRunInline';
 import { TestRunInline } from './TestRunInline';
 import { highlightText, renderContentWithImages, renderUserPromptContent, isThumbnailableImagePath, getLocalFileImageUrl } from './contentRendering';
 import { useTTS } from '../../hooks/useTTS';
@@ -63,6 +66,7 @@ interface HistoryLineProps {
   subagents?: Map<string, Subagent>;
   execTasks?: ExecTask[];
   testRunHandles?: TestRunHandle[];
+  httpRunHandles?: TestRunHandle[];
   onImageClick?: (url: string, name: string) => void;
   onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
   onBashClick?: (command: string, output: string) => void;
@@ -90,6 +94,7 @@ export const HistoryLine = memo(function HistoryLine({
   subagents,
   execTasks = [],
   testRunHandles = [],
+  httpRunHandles = [],
   onImageClick,
   onFileClick,
   onBashClick,
@@ -462,6 +467,20 @@ export const HistoryLine = memo(function HistoryLine({
             return null;
           })()
         : null;
+      // A persisted `curl … /api/http-requests/run` line → re-attach the in-store
+      // run so the inline HTTP card shows on refresh (parity with OutputLine).
+      const isCurlHttpRunCommand = /\bcurl\b[\s\S]*\/api\/http-requests\/run(?!s)/.test(bashCommand);
+      const matchingHttpRunId = isCurlHttpRunCommand && httpRunHandles.length > 0
+        ? (() => {
+            const near = httpRunHandles.filter(
+              (r) => r.startedAt >= bashTimestampMs - 3000 && r.startedAt <= bashTimestampMs + 20000
+            );
+            if (near.length > 0) {
+              return near.reduce((latest, cur) => (cur.startedAt > latest.startedAt ? cur : latest)).runId;
+            }
+            return null;
+          })()
+        : null;
       const bashCurlParsed = (
         isBashTool
         && bashCommand
@@ -821,6 +840,18 @@ export const HistoryLine = memo(function HistoryLine({
               <TestRunInline runId={matchingTestRunId} />
             </div>
           )}
+          {/* Live/persisted HTTP-request card below the `curl /api/http-requests/run`
+              line; with no in-store run (page reload / run without agentId) it is
+              reconstructed from the persisted history. */}
+          {matchingHttpRunId ? (
+            <div className="exec-task-output-container">
+              <HttpRunInline runId={matchingHttpRunId} />
+            </div>
+          ) : isCurlHttpRunCommand ? (
+            <div className="exec-task-output-container">
+              <HttpRunLookup command={bashCommand} timestampMs={bashTimestampMs} />
+            </div>
+          ) : null}
           {/* Render exec task output for curl exec commands */}
           {isCurlExecCommand && execTaskOutput && (
             <div className="exec-task-output-container">
@@ -1212,6 +1243,17 @@ export const HistoryLine = memo(function HistoryLine({
         <div className="output-line output-tool-result">
           {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
           <TestResultsCard data={testCard} />
+        </div>
+      );
+    }
+
+    // HTTP-request result JSON → compact card (parity with live OutputLine).
+    const httpCard = parseHttpResults(content);
+    if (httpCard) {
+      return (
+        <div className="output-line output-tool-result">
+          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+          <HttpResultsCard data={httpCard} />
         </div>
       );
     }

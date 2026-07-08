@@ -662,6 +662,8 @@ function AppContent() {
         store.openFileExplorer(building.folderPath);
       } else if (building.type === 'tests') {
         store.openTestsBuilding(detail.buildingId);
+      } else if (building.type === 'http') {
+        store.openHttpBuilding(detail.buildingId);
       } else if (building.type === 'terminal' && building.terminalStatus?.url) {
         setTerminalModalBuildingId(detail.buildingId);
       } else {
@@ -816,6 +818,8 @@ function AppContent() {
       store.openFileExplorer(building.folderPath);
     } else if (building.type === 'tests') {
       store.openTestsBuilding(buildingId);
+    } else if (building.type === 'http') {
+      store.openHttpBuilding(buildingId);
     } else if (building.type === 'terminal' && building.terminalStatus?.url) {
       setTerminalModalBuildingId(buildingId);
     } else {
@@ -903,6 +907,8 @@ function AppContent() {
                   store.openFileExplorer(building.folderPath);
                 } else if (building?.type === 'tests') {
                   store.openTestsBuilding(buildingId);
+                } else if (building?.type === 'http') {
+                  store.openHttpBuilding(buildingId);
                 } else {
                   buildingModal.open(buildingId);
                 }
@@ -988,6 +994,8 @@ function AppContent() {
                   store.openFileExplorer(building.folderPath);
                 } else if (building?.type === 'tests') {
                   store.openTestsBuilding(buildingId);
+                } else if (building?.type === 'http') {
+                  store.openHttpBuilding(buildingId);
                 } else if (building?.type === 'server' || building?.type === 'boss' || building?.type === 'database') {
                   // Clear any pending popup timeout
                   if (pendingPopupTimeoutRef.current) {
@@ -1020,6 +1028,8 @@ function AppContent() {
                   store.openFileExplorer(building.folderPath);
                 } else if (building?.type === 'tests') {
                   store.openTestsBuilding(buildingId);
+                } else if (building?.type === 'http') {
+                  store.openHttpBuilding(buildingId);
                 } else {
                   buildingModal.open(buildingId);
                 }

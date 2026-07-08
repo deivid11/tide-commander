@@ -64,6 +64,13 @@ git pull --rebase origin $(git branch --show-current)
 \`\`\`
 On conflicts: STOP immediately and report. Do NOT auto-resolve.
 
+Verify the changelog packaging contract (fail fast — before doing any build/publish work):
+
+\`\`\`bash
+npm pkg get files | grep -q '"CHANGELOG.md"' || echo "MISSING: CHANGELOG.md not in package.json files"
+\`\`\`
+\`CHANGELOG.md\` MUST be listed in package.json \`files\`. It ships in the npm tarball and is served by the server at \`GET /api/system/changelog\`; the in-app changelog (post-update banner + Settings → About) reads this local packaged file instead of the GitHub API, which 403'd on rate limits (60 req/hour). If the check prints \`MISSING\`: STOP and report — do NOT publish, or the in-app changelog breaks.
+
 ### Phase 2: Quality Gates (3 parallel sub-agents)
 
 Spawn all 3 Agent calls in a single response, each using the curl template above with its command, checking output and exitCode, and instructed not to fix any issues:
@@ -107,7 +114,7 @@ npm version <patch|minor|major> --no-git-tag-version
 git log --oneline $(git describe --tags --abbrev=0 2>/dev/null || echo "HEAD~20")..HEAD
 \`\`\`
 
-Add the new version entry at the top of \`CHANGELOG.md\` (below the header), Keep a Changelog format. Only include sections that have entries; write concise, user-facing descriptions.
+Add the new version entry at the top of \`CHANGELOG.md\` (directly below the \`# Changelog\` header), Keep a Changelog format. Only include sections that have entries; write concise, user-facing descriptions. The changelog is a committed, packaged (package.json \`files\`), server-served artifact — it MUST be updated every release so the bundled file stays current.
 
 \`\`\`markdown
 ## [X.Y.Z] - YYYY-MM-DD
@@ -124,6 +131,8 @@ Add the new version entry at the top of \`CHANGELOG.md\` (below the header), Kee
 ### Removed
 - (from \`remove:\` or \`delete:\` commits)
 \`\`\`
+
+CRITICAL — keep the per-version header EXACTLY \`## [X.Y.Z] - YYYY-MM-DD\` (Keep a Changelog): one header per release, newest at the top. The in-app changelog modal extracts a single release by matching the line \`## [X.Y.Z]\`; any other header format breaks the per-version view (the full-changelog view still works). Do NOT drop the \`[\` \`]\` brackets, the version number, or change the \` - YYYY-MM-DD\` suffix.
 
 ### Phase 6: Commit, Tag, Push (run yourself — sequential git ops)
 

@@ -1619,3 +1619,100 @@
     display: none;
   }
 }
+
+// =============================================================================
+// Current-task banner — slim strip under the header showing what the selected
+// agent is working on right now (in-progress todo / tracking detail).
+// =============================================================================
+.guake-task-banner {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 16px;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-color) 12%, var(--bg-secondary)),
+    color-mix(in srgb, var(--accent-color) 6%, var(--bg-primary))
+  );
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent-color) 18%, var(--bg-secondary)),
+      color-mix(in srgb, var(--accent-color) 9%, var(--bg-primary))
+    );
+  }
+
+  .guake-task-banner-spinner {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--accent-color);
+    animation: guake-task-banner-spin 1.4s linear infinite;
+  }
+
+  .guake-task-banner-label {
+    flex-shrink: 0;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 10px;
+    color: var(--accent-color);
+    opacity: 0.85;
+  }
+
+  .guake-task-banner-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-primary);
+  }
+
+  .guake-task-banner-progress {
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 9px;
+    color: var(--accent-color);
+    background: color-mix(in srgb, var(--accent-color) 16%, transparent);
+  }
+
+  .guake-task-banner-hint {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--text-muted);
+    opacity: 0.7;
+  }
+
+  &:hover .guake-task-banner-hint {
+    opacity: 1;
+    color: var(--accent-color);
+  }
+}
+
+@keyframes guake-task-banner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// On narrow screens keep it readable — drop the uppercase label, keep the task.
+@media (max-width: 620px) {
+  .guake-task-banner .guake-task-banner-label {
+    display: none;
+  }
+}

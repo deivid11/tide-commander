@@ -51,7 +51,7 @@ import { ModalPortal } from './shared/ModalPortal';
 import { Icon, type IconName } from './Icon';
 import { store, useTestRun, useTestsBuildingId, useBuildings, useLatestTestRunId, isTestPathRelated } from '../store';
 import { useModalStackRegistration } from '../hooks/useModalStack';
-import { scanTests } from '../api/test-runner';
+import { scanTests, fetchTestHistory } from '../api/test-runner';
 import { ansiToHtml } from '../utils/ansiToHtml';
 import type {
   Building,
@@ -60,6 +60,7 @@ import type {
   TestCaseStatus,
   TestRunResult,
   TestRunStatus,
+  TestRunSummary,
   TestScanResult,
   TestSuiteResult,
 } from '../../shared/types';
@@ -87,6 +88,17 @@ function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.round(seconds % 60);
   return `${m}m ${s}s`;
+}
+
+function formatRelativeTime(ms: number): string {
+  const diff = Date.now() - ms;
+  if (diff < 60_000) return 'just now';
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
 
 /** Match a scanned method to its reported testcase status. Tolerates the
@@ -451,6 +463,95 @@ function RunPanel({ run, onStop, onRerun }: { run: TestRun; onStop: () => void; 
 }
 
 // ============================================================================
+// Previous runs (history) — persisted past runs scoped to this building's folder
+// ============================================================================
+
+// Memoized so the per-output-line re-renders of the modal don't reconcile the
+// list: it only re-renders when its (referentially stable) props change.
+const TbmHistory = memo(function TbmHistory({
+  folderPath,
+  currentRunId,
+  reloadKey,
+  onPick,
+}: {
+  folderPath: string;
+  currentRunId: string | null;
+  // Bumped by the modal whenever a run finishes so a freshly-completed run
+  // shows up in the list without a manual refresh.
+  reloadKey: number;
+  onPick: (runId: string) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const [rows, setRows] = useState<TestRunSummary[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!folderPath) return;
+    let live = true;
+    setLoading(true);
+    fetchTestHistory(100)
+      .then((all) => {
+        if (!live) return;
+        // Scope to runs whose module/target lives under (or above) this folder.
+        setRows(all.filter((r) => isTestPathRelated(r.moduleRoot || r.targetPath, folderPath)));
+      })
+      .catch(() => live && setRows([]))
+      .finally(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+  }, [folderPath, reloadKey]);
+
+  const count = rows?.length ?? 0;
+
+  return (
+    <div className="tbm-history">
+      <button className="tbm-history-toggle" onClick={() => setOpen((v) => !v)}>
+        <Icon name={open ? 'caret-down' : 'caret-right'} size={10} />
+        <Icon name="hourglass" size={12} />
+        <span className="tbm-history-title">Previous runs</span>
+        {rows !== null && <span className="tbm-history-badge">{count}</span>}
+        {loading && <span className="tbm-spinner" />}
+      </button>
+      {open && (
+        <div className="tbm-history-list">
+          {rows === null ? (
+            <div className="tbm-history-empty">Loading history…</div>
+          ) : count === 0 ? (
+            <div className="tbm-history-empty">No past runs for this folder yet.</div>
+          ) : (
+            rows.map((r) => {
+              const meta = RUN_STATUS_META[r.status];
+              const failed = r.totals.failures + r.totals.errors;
+              return (
+                <button
+                  key={r.runId}
+                  className={`tbm-history-row status-${r.status} ${r.runId === currentRunId ? 'current' : ''}`}
+                  onClick={() => onPick(r.runId)}
+                  title={r.command || r.targetPath}
+                >
+                  <span className="tbm-history-status" style={{ color: meta.color }}>
+                    {meta.label}
+                  </span>
+                  <span className="tbm-history-counts">
+                    <span className="passed">{r.totals.passed}✓</span>
+                    {failed > 0 && <span className="failed">{failed}✗</span>}
+                    {r.totals.skipped > 0 && <span className="skipped">{r.totals.skipped}⊘</span>}
+                    <span className="total">/ {r.totals.tests}</span>
+                  </span>
+                  <span className="tbm-history-cmd">{r.command}</span>
+                  <span className="tbm-history-time">{formatRelativeTime(r.finishedAt)}</span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
+
+// ============================================================================
 // Modal
 // ============================================================================
 
@@ -464,10 +565,34 @@ function TestsBuildingModal({ building, onClose }: { building: Building; onClose
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
+  // Bumped whenever a run finishes so the "Previous runs" list refetches and
+  // the freshly-completed run appears without a manual refresh.
+  const [historyReloadKey, setHistoryReloadKey] = useState(0);
+  const lastCompletedRef = useRef<string>('');
   const searchRef = useRef<HTMLInputElement>(null);
 
   const run = useTestRun(activeRunId);
   const isRunBusy = run?.status === 'running';
+
+  // When the panel's run reaches a terminal status, refresh the history list.
+  useEffect(() => {
+    if (!run || run.status === 'running') return;
+    const sig = `${run.runId}:${run.completedAt ?? ''}`;
+    if (sig === lastCompletedRef.current) return;
+    lastCompletedRef.current = sig;
+    setHistoryReloadKey((k) => k + 1);
+  }, [run?.runId, run?.status, run?.completedAt]);
+
+  const handlePickHistory = useCallback(async (runId: string) => {
+    setRunError(null);
+    try {
+      const ok = await store.loadTestRunFromHistory(runId);
+      if (ok) setActiveRunId(runId);
+      else setRunError('That run could not be loaded (it may have been cleared).');
+    } catch (err: any) {
+      setRunError(err?.message || 'Failed to load the selected run.');
+    }
+  }, []);
 
   const doScan = useCallback(async () => {
     if (!folderPath) {
@@ -737,6 +862,12 @@ function TestsBuildingModal({ building, onClose }: { building: Building; onClose
                   <p>Run the whole suite, or hover a class or method on the left and hit play.</p>
                 </div>
               )}
+              <TbmHistory
+                folderPath={folderPath}
+                currentRunId={activeRunId}
+                reloadKey={historyReloadKey}
+                onPick={handlePickHistory}
+              />
             </div>
           </div>
         </div>

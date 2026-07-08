@@ -34,6 +34,7 @@ interface VirtualizedOutputListProps {
   agentId: string;
   execTasks?: ExecTask[];
   testRunHandles?: TestRunHandle[];
+  httpRunHandles?: TestRunHandle[];
   subagents?: Map<string, Subagent>;
 
   // UI state
@@ -150,6 +151,7 @@ const VirtualRow = memo(function VirtualRow({
   agentId,
   execTasks,
   testRunHandles,
+  httpRunHandles,
   subagents,
   simpleView,
   isSelected,
@@ -166,6 +168,7 @@ const VirtualRow = memo(function VirtualRow({
   agentId: string;
   execTasks: ExecTask[];
   testRunHandles: TestRunHandle[];
+  httpRunHandles: TestRunHandle[];
   subagents?: Map<string, Subagent>;
   simpleView: boolean;
   isSelected: boolean;
@@ -191,6 +194,7 @@ const VirtualRow = memo(function VirtualRow({
           subagents={subagents}
           execTasks={execTasks}
           testRunHandles={testRunHandles}
+          httpRunHandles={httpRunHandles}
           onImageClick={onImageClick}
           onFileClick={onFileClick}
           onBashClick={onBashClick}
@@ -202,6 +206,7 @@ const VirtualRow = memo(function VirtualRow({
           agentId={agentId}
           execTasks={execTasks}
           testRunHandles={testRunHandles}
+          httpRunHandles={httpRunHandles}
           subagents={subagents}
           highlight={searchHighlight}
           onImageClick={onImageClick}
@@ -220,6 +225,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   agentId,
   execTasks = [],
   testRunHandles = [],
+  httpRunHandles = [],
   subagents,
   viewMode,
   searchHighlight,
@@ -655,6 +661,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
               agentId={agentId}
               execTasks={execTasks}
               testRunHandles={testRunHandles}
+              httpRunHandles={httpRunHandles}
               subagents={subagents}
               simpleView={simpleView}
               isSelected={isMessageSelected(virtualRow.index)}

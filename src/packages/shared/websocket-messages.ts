@@ -19,6 +19,9 @@ import type {
 import type {
   TestRunnerType, TestRunResult, TestRunStatus,
 } from './test-runner-types.js';
+import type {
+  HttpRunResult,
+} from './http-requests-types.js';
 
 // ============================================================================
 // WebSocket Base
@@ -1213,6 +1216,33 @@ export interface TestRunCompletedMessage extends WSMessage {
   };
 }
 
+// HTTP request run started (Server -> Client) — fired by POST /api/http-requests/run
+// so the initiating agent's terminal shows a live inline card (like test runs).
+export interface HttpRunStartedMessage extends WSMessage {
+  type: 'http_run_started';
+  payload: {
+    runId: string;
+    agentId?: string; // set when an agent fired the request (renders inline in its terminal)
+    folder: string;
+    relFile: string;
+    requestIndex: number;
+    requestName: string;
+    method: string;
+    url: string; // raw URL as written (may contain {{vars}})
+    env?: string;
+  };
+}
+
+// HTTP request run completed (Server -> Client) — carries the full result.
+export interface HttpRunCompletedMessage extends WSMessage {
+  type: 'http_run_completed';
+  payload: {
+    runId: string;
+    agentId?: string;
+    result: HttpRunResult;
+  };
+}
+
 // ============================================================================
 // Secrets Messages
 // ============================================================================
@@ -1719,6 +1749,8 @@ export type ServerMessage =
   | TestRunOutputMessage
   | TestRunProgressMessage
   | TestRunCompletedMessage
+  | HttpRunStartedMessage
+  | HttpRunCompletedMessage
   | SecretsUpdateMessage
   | SecretCreatedMessage
   | SecretUpdatedMessage

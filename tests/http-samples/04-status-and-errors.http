@@ -1,0 +1,27 @@
+### 200 OK — the happy path (green status pill)
+GET https://httpbin.org/status/200
+
+### 404 Not Found (orange pill)
+GET https://httpbin.org/status/404
+
+### 418 I'm a teapot
+GET https://httpbin.org/status/418
+
+### 500 Internal Server Error (red pill)
+GET https://httpbin.org/status/500
+
+### Redirect — follows to /get and shows the final URL
+GET https://httpbin.org/redirect-to?url=https%3A%2F%2Fhttpbin.org%2Fget&status_code=302
+
+### Slow response (~2s) — watch the timing readout
+GET https://httpbin.org/delay/2
+
+### Connection refused — transport error, no HTTP status
+GET http://localhost:59999/nobody-listens-here
+
+### Binary response — a PNG; the body is not displayed, only its size
+GET https://httpbin.org/image/png
+Accept: image/png
+
+### Local: Tide Commander's own health endpoint (works offline, env "local")
+GET {{baseUrl}}/api/health

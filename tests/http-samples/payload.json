@@ -1,0 +1,8 @@
+{
+  "loadedFrom": "payload.json",
+  "purpose": "demonstrates the '< file' body include",
+  "items": [
+    { "id": 1, "name": "alpha" },
+    { "id": 2, "name": "beta" }
+  ]
+}

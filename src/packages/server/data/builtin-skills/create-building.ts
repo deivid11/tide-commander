@@ -50,7 +50,7 @@ ${BT}name${BT}, ${BT}type${BT}, and ${BT}position${BT} are always required. Styl
 ${BT3}typescript
 {
   name: string,                                       // Display name
-  type: 'server'|'link'|'database'|'docker'|'monitor'|'folder'|'boss'|'terminal'|'tests',
+  type: 'server'|'link'|'database'|'docker'|'monitor'|'folder'|'boss'|'terminal'|'tests'|'http',
   position: { x: number, z: number },
   style?: 'server-rack'|'tower'|'dome'|'pyramid'|'desktop'
         | 'filing-cabinet'|'satellite'|'crystal'|'factory'|'command-center',
@@ -61,7 +61,7 @@ ${BT3}typescript
   docker?: { ... },                                   // Docker type — see below
   database?: { connections: [...] },                  // Database type
   terminal?: { ... },                                 // Terminal type
-  folderPath?: string,                                // Folder + tests types — required
+  folderPath?: string,                                // Folder + tests + http types — required
   urls?: [{ label, url }],                            // Link type — required
   commands?: { start, stop, restart, healthCheck, logs },  // Non-PM2 server custom commands
   subordinateBuildingIds?: string[],                  // Boss type
@@ -223,6 +223,11 @@ Requires ${BT}ttyd${BT} installed; ${BT}saveSession: true${BT} also needs ${BT}t
 - ${BT}{"name":"Projects","type":"folder","style":"filing-cabinet","position":{"x":8,"z":-2},"folderPath":"/home/user/projects"}${BT}
 - ${BT}{"name":"Docs","type":"link","style":"tower","position":{"x":10,"z":0},"urls":[{"label":"Internal Wiki","url":"https://wiki.example.com"}]}${BT}
 - ${BT}{"name":"Host Metrics","type":"monitor","style":"satellite","position":{"x":12,"z":4}}${BT}
+
+### Tests / HTTP requests
+
+- Tests browser (scan + run a folder's test suite): ${BT}{"name":"Core Tests","type":"tests","style":"dome","position":{"x":6,"z":3},"folderPath":"/home/user/projects/core"}${BT}
+- HTTP request tests (IntelliJ-style .http file runner; picks up ${BT}http-client.env.json${BT} / ${BT}http-client.private.env.json${BT} environments in the folder): ${BT}{"name":"Core API Requests","type":"http","style":"satellite","position":{"x":7,"z":3},"folderPath":"/home/user/projects/core/http-requests"}${BT}
 
 ### Boss
 

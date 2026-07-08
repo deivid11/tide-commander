@@ -29,6 +29,9 @@
 // Compact card for executed test-run results
 @forward 'test-results-card';
 
+// Compact card for executed HTTP-request results (.http building skill)
+@forward 'http-results-card';
+
 // Browser-extension context cards (picked element / network / error / files)
 @forward 'extension-context-cards';
 

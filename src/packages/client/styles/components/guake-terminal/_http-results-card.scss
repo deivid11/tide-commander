@@ -1,0 +1,352 @@
+// =============================================================================
+// Guake Terminal - HTTP Results Card
+// =============================================================================
+// Compact card rendered when an agent's output contains a Tide Commander
+// HTTP-request result JSON (see httpResultsParser / HttpResultsCard).
+// Visual language mirrors _test-results-card.scss.
+// =============================================================================
+
+@use '../../variables' as *;
+
+.http-results-card {
+  font-family: $font-mono;
+  font-size: 11.5px;
+  color: var(--tool-use-text, #{$text-primary});
+  background: color-mix(in srgb, var(--tool-use-bg, #{$bg-tertiary}) 85%, var(--bg-primary, #{$bg-primary}) 15%);
+  border: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 60%, transparent);
+  border-left-width: 3px;
+  border-left-color: $accent-cyan;
+  border-radius: $radius-md;
+  width: 100%;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  &.status-ok { border-left-color: $accent-green; }
+  &.status-http-error { border-left-color: $accent-orange; }
+  &.status-error { border-left-color: $accent-red; }
+
+  .hrc-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .hrc-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: $accent-cyan;
+  }
+
+  .hrc-method {
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+
+    &.big { font-size: 12px; }
+  }
+
+  .hrc-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--tool-use-text, #{$text-primary});
+  }
+
+  .hrc-status {
+    font-weight: 700;
+    font-size: 10.5px;
+    border: 1px solid;
+    border-radius: $radius-sm;
+    padding: 1px 7px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .hrc-meta {
+    color: $text-muted;
+    font-size: 11px;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+
+    &.type { color: $text-secondary; }
+    &.when { min-width: 56px; text-align: right; }
+  }
+
+  .hrc-env {
+    color: $accent-purple;
+    border: 1px solid rgba($accent-purple, 0.4);
+    border-radius: $radius-sm;
+    font-size: 10px;
+    padding: 0 5px;
+    flex-shrink: 0;
+  }
+
+  .hrc-url {
+    color: $text-muted;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .hrc-error,
+  .hrc-warn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+  }
+
+  .hrc-error { color: $accent-red; }
+  .hrc-warn { color: $accent-orange; }
+
+  .hrc-body {
+    margin: 0;
+    padding: 8px 10px;
+    background: var(--bg-primary, #{$bg-primary});
+    border-radius: $radius-sm;
+    color: $text-secondary;
+    max-height: 220px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .hrc-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-top: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 40%, transparent);
+    padding-top: 6px;
+  }
+
+  .hrc-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+
+    .hrc-method { width: 46px; text-align: right; }
+  }
+
+  .hrc-more {
+    color: $text-muted;
+    padding-left: 54px;
+  }
+}
+
+// Live inline HTTP-request card shown under the `curl /api/http-requests/run`
+// line in the terminal (mirrors .test-run-inline). Spinner while in flight,
+// then status/timing/body with Re-run + copy-curl actions.
+.http-run-inline {
+  font-family: $font-mono;
+  font-size: 11.5px;
+  color: var(--tool-use-text, #{$text-primary});
+  background: color-mix(in srgb, var(--tool-use-bg, #{$bg-tertiary}) 85%, var(--bg-primary, #{$bg-primary}) 15%);
+  border: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 60%, transparent);
+  border-left-width: 3px;
+  border-radius: $radius-md;
+  width: 100%;
+  overflow: hidden;
+  margin-top: 4px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+
+  &.status-running { border-left-color: $accent-blue; }
+  &.status-ok { border-left-color: $accent-green; }
+  &.status-http-error { border-left-color: $accent-orange; }
+  &.status-error { border-left-color: $accent-red; }
+
+  .hri-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .hri-method {
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  .hri-name {
+    flex: 1;
+    min-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .hri-running {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: $accent-blue;
+    flex-shrink: 0;
+  }
+
+  .hri-spin {
+    width: 9px;
+    height: 9px;
+    border: 2px solid $accent-blue;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: hri-spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+
+  .hri-status {
+    font-weight: 700;
+    font-size: 10.5px;
+    border: 1px solid;
+    border-radius: $radius-sm;
+    padding: 1px 7px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .hri-meta {
+    color: $text-muted;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .hri-env {
+    color: $accent-purple;
+    border: 1px solid rgba($accent-purple, 0.4);
+    border-radius: $radius-sm;
+    font-size: 10px;
+    padding: 0 5px;
+    flex-shrink: 0;
+  }
+
+  .hri-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  .hri-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 60%, transparent);
+    border-radius: $radius-sm;
+    color: $text-secondary;
+    font: inherit;
+    font-size: 10.5px;
+    padding: 2px 7px;
+    cursor: pointer;
+
+    &:hover {
+      color: $text-primary;
+      border-color: rgba($accent-blue, 0.6);
+    }
+
+    &.active {
+      color: $accent-blue;
+      border-color: rgba($accent-blue, 0.6);
+    }
+
+    &.rerun {
+      color: $accent-green;
+      border-color: rgba($accent-green, 0.5);
+
+      &:hover {
+        background: rgba($accent-green, 0.12);
+        color: $accent-green;
+      }
+    }
+  }
+
+  .hri-url {
+    color: $text-muted;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    .hri-redirect { color: $accent-cyan; }
+  }
+
+  .hri-error,
+  .hri-warn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+  }
+
+  .hri-error { color: $accent-red; }
+  .hri-warn { color: $accent-orange; }
+
+  .hri-headers {
+    max-height: 150px;
+    overflow-y: auto;
+    color: $text-secondary;
+    font-size: 11px;
+    border-top: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 40%, transparent);
+    padding-top: 5px;
+
+    .hri-header-line {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+
+      .hri-header-name { color: $accent-blue; }
+    }
+  }
+
+  .hri-body-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: transparent;
+    border: none;
+    color: $text-secondary;
+    font: inherit;
+    font-size: 10.5px;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+
+    &:hover { color: $text-primary; }
+  }
+
+  .hri-body {
+    margin: 0;
+    padding: 8px 10px;
+    background: var(--bg-primary, #{$bg-primary});
+    border-radius: $radius-sm;
+    color: $text-secondary;
+    max-height: 260px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .hri-truncated {
+    color: $text-muted;
+    font-size: 10.5px;
+    font-style: italic;
+  }
+}
+
+@keyframes hri-spin { to { transform: rotate(360deg); } }

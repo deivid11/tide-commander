@@ -1,6 +1,6 @@
 {
   "name": "tide-commander",
-  "version": "1.140.0",
+  "version": "1.141.0",
   "description": "Visual multi-agent orchestrator and manager for Claude Code with 3D/2D interface",
   "repository": {
     "type": "git",
@@ -14,7 +14,8 @@
     "dist",
     "scripts",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "dev": "concurrently \"bun run dev:client\" \"bun run dev:server\"",

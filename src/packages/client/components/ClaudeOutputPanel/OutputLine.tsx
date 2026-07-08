@@ -21,7 +21,10 @@ import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
 import { parseTestResults } from './testResultsParser';
 import { TestResultsCard } from './TestResultsCard';
+import { parseHttpResults } from './httpResultsParser';
+import { HttpResultsCard } from './HttpResultsCard';
 import { TestRunInline } from './TestRunInline';
+import { HttpRunInline, HttpRunLookup } from './HttpRunInline';
 import { renderContentWithImages, renderUserPromptContent, highlightText, isThumbnailableImagePath, getLocalFileImageUrl } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
@@ -50,6 +53,7 @@ interface OutputLineProps {
   agentId: string | null;
   execTasks?: ExecTask[];
   testRunHandles?: TestRunHandle[];
+  httpRunHandles?: TestRunHandle[];
   subagents?: Map<string, Subagent>;
   onImageClick?: (url: string, name: string) => void;
   onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
@@ -209,7 +213,7 @@ function TimestampWithMeta({ output, timeStr, debugHash, agentId }: { output: Cl
   );
 }
 
-export const OutputLine = memo(function OutputLine({ output, agentId, execTasks = [], testRunHandles = [], subagents, onImageClick, onFileClick, onBashClick, onViewMarkdown, highlight }: OutputLineProps) {
+export const OutputLine = memo(function OutputLine({ output, agentId, execTasks = [], testRunHandles = [], httpRunHandles = [], subagents, onImageClick, onFileClick, onBashClick, onViewMarkdown, highlight }: OutputLineProps) {
   const { t } = useTranslation(['tools', 'common', 'terminal']);
   const hideCost = useHideCost();
   const settings = useSettings();
@@ -812,6 +816,23 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         })()
       : null;
 
+    // A `curl … POST /api/http-requests/run` line → live inline result card.
+    // `/run` but not `/runs/` (the stored-run endpoint).
+    const isHttpRunCurl = Boolean(
+      isBashTool && bashCommand && looksLikeCurl(bashCommand) && /\/api\/http-requests\/run(?!s)/.test(bashCommand)
+    );
+    const matchingHttpRunId = isHttpRunCurl && httpRunHandles.length > 0
+      ? (() => {
+          const near = httpRunHandles.filter(
+            (r) => r.startedAt >= bashTimestampMs - 3000 && r.startedAt <= bashTimestampMs + 20000
+          );
+          if (near.length > 0) {
+            return near.reduce((latest, cur) => (cur.startedAt > latest.startedAt ? cur : latest)).runId;
+          }
+          return null;
+        })()
+      : null;
+
     // Match Task/Agent tool line to its subagent via uuid (which equals toolUseId)
     const matchingSubagent = (toolName === 'Task' || toolName === 'Agent') && subagents && output.uuid
       ? (() => {
@@ -1118,6 +1139,19 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           </div>
         )}
 
+        {/* Live HTTP-request result card below the `curl /api/http-requests/run`
+            line; without an in-store run (reload / no agentId) reconstruct it
+            from the persisted history. */}
+        {matchingHttpRunId ? (
+          <div className="exec-task-output-container">
+            <HttpRunInline runId={matchingHttpRunId} />
+          </div>
+        ) : isHttpRunCurl && bashCommand ? (
+          <div className="exec-task-output-container">
+            <HttpRunLookup command={bashCommand} timestampMs={bashTimestampMs} />
+          </div>
+        ) : null}
+
         {/* Inline subagent activity panel below Task tool line */}
         {matchingSubagent && <SubagentInline subagent={matchingSubagent} />}
       </>
@@ -1188,6 +1222,15 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         </div>
       );
     }
+    const httpCard = parseHttpResults(resultText);
+    if (httpCard) {
+      return (
+        <div className="output-line output-tool-result">
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          <HttpResultsCard data={httpCard} />
+        </div>
+      );
+    }
     const isError = resultText.toLowerCase().includes('error') || resultText.toLowerCase().includes('failed');
     if (output.toolName === 'AskUserQuestion' || output.toolName === 'AskFollowupQuestion') {
       return (
@@ -1215,6 +1258,15 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         <div className="output-line output-tool-result">
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           <TestResultsCard data={testCard} />
+        </div>
+      );
+    }
+    const httpCard = parseHttpResults(bashOutput);
+    if (httpCard) {
+      return (
+        <div className="output-line output-tool-result">
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          <HttpResultsCard data={httpCard} />
         </div>
       );
     }

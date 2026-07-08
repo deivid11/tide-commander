@@ -33,6 +33,7 @@ import { workflowBuilder } from './workflow-builder.js';
 import { backupRestore } from './backup-restore.js';
 import { browserControl } from './browser-control.js';
 import { runTests } from './run-tests.js';
+import { httpRequests } from './http-requests.js';
 
 // Re-export types
 export type { BuiltinSkillDefinition } from './types.js';
@@ -65,6 +66,7 @@ export const BUILTIN_SKILLS: BuiltinSkillDefinition[] = [
   backupRestore,
   browserControl,
   runTests,
+  httpRequests,
 ];
 
 /**

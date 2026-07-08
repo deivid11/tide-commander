@@ -113,6 +113,7 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
   const isPM2 = building.pm2?.enabled;
   const isDocker = building.docker?.enabled;
   const isTests = building.type === 'tests';
+  const isHttp = building.type === 'http';
   // Whether a test run is in flight for this tests building's folder.
   const runningTestRoots = useRunningTestRoots();
   const isTestsWorking =
@@ -270,9 +271,9 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
             ))}
           </span>
         )}
-        {isTests ? (
-          // start/stop status is meaningless for tests buildings — show the
-          // live run state instead (and nothing while idle).
+        {isTests || isHttp ? (
+          // start/stop status is meaningless for tests/http buildings — show
+          // the live run state instead (and nothing while idle).
           isTestsWorking && (
             <span className="building-popup-status building-popup-status--tests-working">
               running tests
@@ -416,8 +417,37 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
         </>
       )}
 
+      {/* HTTP building: browse/fire its .http requests — no start/stop semantics */}
+      {isHttp && (
+        <>
+          {building.folderPath && (
+            <div className="building-popup-metrics">
+              <span className="metric building-popup-metric--wide">
+                <span className="label">DIR</span>
+                <span className="value" title={building.folderPath}>
+                  {building.folderPath.split('/').filter(Boolean).slice(-2).join('/')}
+                </span>
+              </span>
+            </div>
+          )}
+          <div className="building-popup-actions">
+            <button
+              className="action-btn open-tests"
+              onClick={() => {
+                store.openHttpBuilding(building.id);
+                onClose();
+              }}
+              title="Browse and fire this folder's .http requests"
+            >
+              <span className="icon"><Icon name="globe" size={13} /></span>
+              Open Requests
+            </button>
+          </div>
+        </>
+      )}
+
       {/* Action Buttons */}
-      {!isTests && (
+      {!isTests && !isHttp && (
       <div className="building-popup-actions">
         <button
           className="action-btn start"

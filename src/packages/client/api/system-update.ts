@@ -43,6 +43,26 @@ export async function waitForServerBack(
   return false;
 }
 
+/**
+ * Fetch the changelog markdown. Prefers the locally-served bundled CHANGELOG.md
+ * (no rate limits, offline, matches the installed version); falls back to the
+ * raw file on GitHub's CDN (raw.githubusercontent, NOT the rate-limited API).
+ */
+export async function fetchChangelog(): Promise<string> {
+  try {
+    const res = await authFetch(`${getApiBaseUrl()}/api/system/changelog`);
+    if (res.ok) return await res.text();
+  } catch {
+    /* fall through to CDN */
+  }
+  const cdn = await fetch(
+    'https://raw.githubusercontent.com/deivid11/tide-commander/master/CHANGELOG.md',
+    { cache: 'no-store' },
+  );
+  if (!cdn.ok) throw new Error(`Changelog unavailable (${cdn.status})`);
+  return await cdn.text();
+}
+
 export async function fetchInstallInfo(): Promise<InstallInfo> {
   const response = await authFetch(`${getApiBaseUrl()}/api/system/install-info`);
   if (!response.ok) {

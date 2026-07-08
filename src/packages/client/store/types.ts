@@ -128,6 +128,24 @@ export interface TestRunHandle {
   startedAt: number;
 }
 
+// HTTP request run fired via POST /api/http-requests/run with an agentId —
+// rendered as a live inline card under the agent's `curl` line (like TestRun).
+export interface HttpInlineRun {
+  runId: string;
+  agentId?: string;
+  folder: string;
+  relFile: string;
+  requestIndex: number;
+  requestName: string;
+  method: string;
+  url: string; // raw URL as written (may contain {{vars}})
+  env?: string;
+  status: 'running' | 'done';
+  result?: import('../../shared/types').HttpRunResult;
+  startedAt: number;
+  completedAt?: number;
+}
+
 // Settings
 export interface Settings {
   historyLimit: number;
@@ -277,6 +295,10 @@ export interface StoreState {
   testResultsModalOpen?: boolean;
   // Tests building whose browser modal is open (null/undefined = closed).
   testsBuildingId?: string | null;
+  // HTTP-requests building whose browser modal is open (null/undefined = closed).
+  httpBuildingId?: string | null;
+  // Live/finished HTTP request runs (inline terminal cards), keyed by runId.
+  httpRuns?: Map<string, HttpInlineRun>;
   // Secrets (key-value pairs for placeholder replacement)
   secrets: Map<string, Secret>;
   // Database state per building
