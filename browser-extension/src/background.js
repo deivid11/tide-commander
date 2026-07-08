@@ -917,14 +917,18 @@ async function bridgeScreenshot(commanderId, rect, selector, tabId) {
   };
   // Prefer captureVisibleTab whenever the target is the ACTIVE tab of its window —
   // the current window OR a background one. captureVisibleTab(windowId) grabs that
-  // window's active tab WITHOUT focusing it (and with no debugger banner), so this
-  // works on background-window tabs. Skip it only while we're mid-debug on the tab.
-  if (target.active && !cdpAttached.has(target.id)) {
+  // window's active tab from the OS compositor WITHOUT bringing the window to the
+  // foreground, so it NEVER steals the user's focus (and shows no debugger banner). We
+  // use it even while mid-debug on the tab: CDP Page.captureScreenshot activates /
+  // foregrounds a backgrounded tab in headful Chrome (the "screenshot steals my focus"
+  // bug), so captureVisibleTab must win for any active tab regardless of attach state.
+  if (target.active) {
     shot = await cropIf(await captureVisible(target.id, target.windowId));
   }
-  // Otherwise (a hidden tab not active in its window, or the capture failed) → CDP
-  // Page.captureScreenshot — works without focus, but is refused when another
-  // extension injected a frame into the tab (LastPass et al.).
+  // Otherwise (a tab NOT active in its window, or captureVisibleTab returned null because
+  // the window is fully occluded/minimized) → CDP Page.captureScreenshot. This can pull
+  // the tab to the foreground, but it's the only option for a non-active/hidden tab; it's
+  // also refused when another extension injected a frame into the tab (LastPass et al.).
   if (!shot) {
     try {
       shot = await cdpScreenshot(target.id, rect);

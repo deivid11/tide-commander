@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.140.0] - 2026-07-08
+
+### Added
+- **Post-update changelog notice** — after a self-update, a "Updated to vX" notice appears with a "View changelog" action that opens a changelog modal showing the release notes for the new version (with a link to view the full changelog on GitHub).
+
+### Changed
+- **Browser bridge no longer steals focus** — `POST /api/browser/tab/activate` now makes a tab the active tab of its window (enough for full-viewport screenshots) without pulling the user's OS focus away; pass `focusWindow: true` to also raise the window. `tab/open` now opens in the background by default (`active: true` to switch). Browser-control skill docs updated to match.
+
+### Fixed
+- **Image reference rendering** — agent output like `[Image: <caption/instruction>]` where the text is a caption rather than a real path is now rendered as text instead of a broken thumbnail. Added a helper to stream arbitrary on-disk image paths for inline preview.
+
 ## [1.139.2] - 2026-07-08
 
 ### Changed

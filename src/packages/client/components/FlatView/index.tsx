@@ -45,6 +45,7 @@ import { AreaBuildingsPanel } from '../ClaudeOutputPanel/AreaBuildingsPanel';
 import { GuakeGitPanel } from '../ClaudeOutputPanel/GuakeGitPanel';
 import { agentDebugger } from '../../services/agentDebugger';
 import { ContextConfirmModal, ImageModal, BashModal, AgentInfoModal, AgentResponseModalWrapper, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
+import { useModalStackRegistration } from '../../hooks/useModalStack';
 import { useKeyboardHeight } from '../ClaudeOutputPanel/useKeyboardHeight';
 import { useBottomTerminalResize } from '../ClaudeOutputPanel/useBottomTerminalResize';
 import { useSidePanelResize } from '../ClaudeOutputPanel/useSidePanelResize';
@@ -1215,6 +1216,10 @@ export function FlatView({
   const [imageModal, setImageModal] = useState<{ url: string; name: string } | null>(null);
   const [bashModal, setBashModal] = useState<BashModalState | null>(null);
   const [responseModalContent, setResponseModalContent] = useState<string | null>(null);
+
+  // Register the image modal on the shared modal stack so ESC (handled globally
+  // in useKeyboardShortcuts → closeTopModal) closes it, matching AgentPanel.
+  useModalStackRegistration('flatview-image-modal', imageModal !== null, () => setImageModal(null));
   // Clear-subordinates confirmation modal — reuses the same modal component
   // the 3D overlay uses, so the two views share one source of truth for the
   // destructive action's UX.

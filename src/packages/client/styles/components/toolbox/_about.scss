@@ -193,6 +193,13 @@
   }
 }
 
+// Full-changelog button row
+.about-changelog-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
 // Update section
 .about-update {
   margin-bottom: 12px;

@@ -9,6 +9,9 @@ import {
 
 export type SelfUpdatePhase = 'idle' | 'running' | 'success' | 'failed';
 
+/** localStorage key: the version we just installed, read after the post-update reload. */
+export const POST_UPDATE_VERSION_KEY = 'post_update_version';
+
 /**
  * Shared engine for the npm global self-update flow. Drives both the
  * Settings → About panel and the global UpdateBanner so they never diverge.
@@ -108,13 +111,21 @@ export function useSelfUpdate() {
   useEffect(() => {
     if (phase !== 'success' || !autoRestart) return;
     let cancelled = false;
+    // Remember what we just installed so a post-reload notice can offer its changelog.
+    if (newVersion) {
+      try {
+        localStorage.setItem(POST_UPDATE_VERSION_KEY, newVersion);
+      } catch {
+        /* storage unavailable — skip the post-update notice */
+      }
+    }
     void waitForServerBack().then(() => {
       if (!cancelled) window.location.reload();
     });
     return () => {
       cancelled = true;
     };
-  }, [phase, autoRestart]);
+  }, [phase, autoRestart, newVersion]);
 
   return {
     installInfo,

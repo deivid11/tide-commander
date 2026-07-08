@@ -405,6 +405,54 @@
   border: 1px solid rgba($dracula-pink, 0.3);
 }
 
+// `[Image: <text>]` whose payload is a caption/instruction (e.g. coordinate
+// mapping for a resized screenshot), not a real path — shown as an info chip
+// with the instruction text instead of a broken thumbnail.
+.image-annotation {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  margin: 2px 4px;
+  background: rgba($dracula-cyan, 0.12);
+  border: 1px solid rgba($dracula-cyan, 0.35);
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: $dracula-cyan;
+  vertical-align: middle;
+
+  .image-annotation-icon {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+    opacity: 0.85;
+  }
+}
+
+// Inline thumbnail shown below a `Read` tool line when it targets an image file
+.output-read-image-preview {
+  padding: 2px 0 6px 26px; // indent to align under the tool name / file path
+
+  .read-image-thumb {
+    display: block;
+    max-width: 340px;
+    max-height: 220px;
+    object-fit: contain;
+    border-radius: $radius-sm;
+    border: 1px solid rgba($dracula-purple, 0.4);
+    background: rgba(#000, 0.2);
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &:hover {
+      border-color: $dracula-purple;
+      box-shadow: 0 2px 10px rgba($dracula-purple, 0.35);
+    }
+  }
+}
+
 // Clickable file reference in history/output
 .file-reference {
   display: inline-flex;

@@ -33,10 +33,12 @@ matter what's focused. \`/console\`, \`/network\` and \`/errors\` are SCOPED to 
 - **Multiple agents can drive different tabs at the same time.** Each agent must target its
   own tab by \`tab\`/\`tabId\`; never rely on "the active tab".
 - **Do NOT call \`/api/browser/tab/activate\` just to drive.** Clicks/typing/reads work on a
-  **background, unfocused tab** (the user may be on another screen/monitor) — activating
-  steals their focus and, with multiple agents, makes the tab fight over the foreground.
-  Activate ONLY if the user explicitly asks, or you need a full-viewport screenshot
-  (element-clip screenshots don't need it either).
+  **background, unfocused tab** (the user may be on another screen/monitor) — activate ONLY
+  if the user explicitly asks, or you need a full-viewport screenshot (element-clip
+  screenshots don't need it either). Note: \`/tab/activate\` now makes the tab the active
+  tab of its window WITHOUT stealing the user's OS focus (their current app stays in front) —
+  enough for \`captureVisibleTab\`. Pass \`"focusWindow":true\` to ALSO raise the window to the
+  foreground; that interrupts whatever the user is doing, so use it only when they ask.
 
 ## Reads (always available)
 - \`POST /api/browser/dom\` \`{selector, all?}\` → outerHTML/text/box/styles + **\`field\`** (live \`value\`/\`checked\`/\`selectedText\`/\`disabled\` for input/textarea/select). Read form state from \`field\`, NOT from the value attribute (React often doesn't mirror it) and NOT via \`evaluate\` (its content-script fallback is CSP-blocked). Bulky \`<svg>\` icon markup is stripped to a compact \`<svg data-icon>\` placeholder by default (token saver) — pass \`"keepSvg":true\` to keep it.
@@ -56,7 +58,7 @@ matter what's focused. \`/console\`, \`/network\` and \`/errors\` are SCOPED to 
 - \`POST /api/browser/wait\` \`{selector | text | ms}\` · \`/evaluate\` \`{expression}\` → \`{value}\`
 - \`POST /api/browser/drag\` \`{from, to}\` · \`/dialog\` \`{accept?, promptText?}\` · \`/cdp-raw\` \`{method, params?}\`
 - \`POST /api/browser/batch\` \`{tab|tabId, steps:[{cmd, …}]}\` — runs ANY steps in order (mixed click/type/wait/…), stops at first failure unless the step has \`continueOnError\`. Use for non-form multi-step flows; for pure form-filling prefer \`/fill\`.
-- Tabs: \`POST /api/browser/tab/{open,close,activate}\`
+- Tabs: \`POST /api/browser/tab/{open,close,activate}\` — \`tab/open\` opens in the BACKGROUND by default (drive/read it there without interrupting the user); pass \`"active":true\` only to actually switch the user to the new tab. \`tab/activate\` won't steal OS focus unless you pass \`"focusWindow":true\`.
 
 Every call returns \`{ok:true, result}\` or \`{ok:false, error}\`. **If you pipe to \`jq\`, use
 the right paths — wrong paths return \`null\`, which is NOT the API failing** (it's your

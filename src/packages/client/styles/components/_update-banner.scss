@@ -136,3 +136,166 @@
     opacity: 0.4;
   }
 }
+
+// "✓ Updated to vX" post-reload strip
+.update-banner-updated .update-banner-check {
+  color: $accent-green;
+  font-weight: 700;
+}
+
+// ── Changelog modal ──────────────────────────────────────────────
+.changelog-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000; // above the banner (1900) and toasts (2000)
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+  animation: update-banner-fade $transition-fast ease-out;
+}
+
+.changelog-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, 100%);
+  max-height: min(80vh, 720px);
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-lg;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.changelog-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid $border-color;
+}
+
+.changelog-modal-title {
+  font-family: $font-mono;
+  font-size: 14px;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.changelog-modal-close {
+  border: none;
+  background: transparent;
+  color: $text-secondary;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+
+  &:hover {
+    color: $text-primary;
+  }
+}
+
+.changelog-modal-body {
+  padding: 16px;
+  overflow-y: auto;
+  color: $text-primary;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.changelog-modal-loading,
+.changelog-modal-empty,
+.changelog-modal-error {
+  color: $text-secondary;
+}
+
+.changelog-modal-error {
+  color: $accent-orange;
+}
+
+.changelog-markdown {
+  h1,
+  h2,
+  h3 {
+    color: $text-primary;
+    margin: 14px 0 8px;
+    font-size: 15px;
+  }
+  ul,
+  ol {
+    padding-left: 20px;
+    margin: 6px 0;
+  }
+  li {
+    margin: 3px 0;
+  }
+  code {
+    font-family: $font-mono;
+    font-size: 12px;
+    background: $bg-tertiary;
+    padding: 1px 5px;
+    border-radius: $radius-sm;
+  }
+  a {
+    color: $accent-blue;
+  }
+  strong {
+    color: $text-primary;
+  }
+}
+
+// Full-list mode: each release block, separated
+.changelog-release {
+  & + & {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px dashed $border-color;
+  }
+}
+
+.changelog-release-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.changelog-release-version {
+  font-family: $font-mono;
+  font-size: 14px;
+  font-weight: 700;
+  color: $accent-blue;
+}
+
+.changelog-release-date {
+  font-size: 11px;
+  color: $text-muted;
+}
+
+.changelog-modal-footer {
+  padding: 10px 16px;
+  border-top: 1px solid $border-color;
+  text-align: right;
+}
+
+.changelog-modal-link {
+  color: $accent-blue;
+  font-size: 12px;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+@keyframes update-banner-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

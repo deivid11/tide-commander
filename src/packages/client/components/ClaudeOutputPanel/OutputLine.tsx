@@ -22,7 +22,7 @@ import { CurlCard } from './CurlCard';
 import { parseTestResults } from './testResultsParser';
 import { TestResultsCard } from './TestResultsCard';
 import { TestRunInline } from './TestRunInline';
-import { renderContentWithImages, renderUserPromptContent, highlightText } from './contentRendering';
+import { renderContentWithImages, renderUserPromptContent, highlightText, isThumbnailableImagePath, getLocalFileImageUrl } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
@@ -735,6 +735,11 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const isFilePath = !!resolvedFilePathForClick && (isFileTool || resolvedFilePathForClick.startsWith('/') || resolvedFilePathForClick.includes('/'));
     const isFileClickable = isFileTool && isFilePath && onFileClick;
 
+    // When Read targets an image, show an inline thumbnail preview below the line.
+    const readImageThumb = (toolName === 'Read' && isFilePath && resolvedFilePathForClick && isThumbnailableImagePath(resolvedFilePathForClick))
+      ? { url: getLocalFileImageUrl(resolvedFilePathForClick), name: getBasenameFromPath(resolvedFilePathForClick) }
+      : null;
+
     const editDataFallback = (toolName === 'Edit' && payloadInputRecord)
       ? {
           oldString: String(payloadInputRecord.old_string ?? ''),
@@ -1034,6 +1039,21 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           )}
           {isStreaming && <span className="output-tool-loading">...</span>}
         </div>
+
+        {/* Inline image thumbnail when a Read targets an image file */}
+        {readImageThumb && (
+          <div className="output-read-image-preview">
+            <img
+              src={readImageThumb.url}
+              alt={readImageThumb.name}
+              className="read-image-thumb"
+              loading="lazy"
+              title={t('terminal:content.clickToViewImage')}
+              onClick={(e) => { e.stopPropagation(); onImageClick?.(readImageThumb.url, readImageThumb.name); }}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+            />
+          </div>
+        )}
 
         {!recognizedTools.has(toolName) && unknownToolContent && (
           <div className="output-line output-tool-input output-tool-input-fallback">
