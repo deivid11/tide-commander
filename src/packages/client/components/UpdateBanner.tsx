@@ -55,27 +55,32 @@ export function UpdateBanner() {
     void refreshInstallInfo();
   }, [reset, refreshInstallInfo]);
 
-  const canUpdate = Boolean(
-    installInfo &&
-      installInfo.updateAvailable &&
-      installInfo.isGlobalInstall &&
-      installInfo.autoUpdateSupported,
+  // Auto-updatable = an npm global install: gets the full "update & restart" flow.
+  const isAutoUpdatable = Boolean(
+    installInfo?.isGlobalInstall && installInfo?.autoUpdateSupported,
   );
+  // Show whenever a newer version exists. Dev checkouts / non-npm globals can't
+  // self-update, so they get an informational variant (manual command) instead.
+  const canShow = Boolean(installInfo?.updateAvailable);
   const dismissed = Boolean(
     installInfo && dismissedVersion === installInfo.latestVersion,
   );
 
-  // Idle: only show for an actionable, non-dismissed update. Once an update is
+  // Idle: only show for a newer, non-dismissed version. Once an update is
   // running we keep the banner up to show progress regardless of dismissal.
-  if (phase === 'idle' && (!canUpdate || dismissed)) {
+  if (phase === 'idle' && (!canShow || dismissed)) {
     return null;
   }
 
   const latest = installInfo?.latestVersion ?? newVersion ?? '';
+  // In dev (checkout) the server offers no command; fall back to git pull.
+  const manualCommand =
+    installInfo?.suggestedManualCommand ??
+    (installInfo && !installInfo.isGlobalInstall ? 'git pull' : null);
 
   return (
     <div className="update-banner" role="status">
-      {phase === 'idle' && !confirming && (
+      {phase === 'idle' && !confirming && isAutoUpdatable && (
         <>
           <span className="update-banner-msg">
             <span className="update-banner-dot" />
@@ -88,6 +93,28 @@ export function UpdateBanner() {
             >
               {t('config:updateBanner.updateBtn')}
             </button>
+            <button className="update-banner-btn ghost" onClick={handleDismiss}>
+              {t('config:updateBanner.dismiss')}
+            </button>
+          </span>
+        </>
+      )}
+
+      {phase === 'idle' && !confirming && !isAutoUpdatable && (
+        <>
+          <span className="update-banner-msg">
+            <span className="update-banner-dot" />
+            {t('config:updateBanner.newVersion', { version: latest })}
+            {manualCommand && (
+              <>
+                <span className="update-banner-manualhint">
+                  {t('config:updateBanner.manualHint')}
+                </span>
+                <code className="update-banner-cmd">{manualCommand}</code>
+              </>
+            )}
+          </span>
+          <span className="update-banner-actions">
             <button className="update-banner-btn ghost" onClick={handleDismiss}>
               {t('config:updateBanner.dismiss')}
             </button>

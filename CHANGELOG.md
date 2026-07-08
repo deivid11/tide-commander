@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.139.0] - 2026-07-08
+
+### Added
+- **Per-project file explorer scoping** — the file explorer now keeps its open tabs and expanded folders scoped to each project, so switching projects no longer mixes or corrupts state across them. Introduces a dedicated `useFileTree` hook and reworks the panel's persisted storage.
+
+### Changed
+- Update banner styling and behavior refinements.
+
 ## [1.138.0] - 2026-07-07
 
 ### Added

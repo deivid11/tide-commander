@@ -333,6 +333,104 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
     await waitForPaint();
   }, [currentFolder, loadChildren]);
 
+  /**
+   * Restore a whole set of previously-expanded directory paths (from localStorage).
+   *
+   * The initial loadTree only fetches INITIAL_DEPTH levels, so any stored folder
+   * deeper than that has no children in the tree yet. Simply calling
+   * setExpandedPaths(stored) then leaves those rows "expanded" with nothing to
+   * render, AND stops compaction chains short (e.g. "java/opm" instead of the full
+   * "java/opm/mx/pagamento") because the deeper single-child dirs aren't loaded.
+   *
+   * Crucially, the stored paths are compaction TERMINALS (that's the key toggled by
+   * TreeNodeItem), so the compacted-away intermediates — "java", "opm", "mx" — are
+   * NOT in the set. To materialize a stored terminal we must therefore load every
+   * ancestor segment down from the root, not just the stored dirs themselves.
+   *
+   * Mirrors expandToPath's two-phase approach, generalized to a whole set:
+   *   PHASE 1 — expand each stored path into its full root→path segment chain, then
+   *             lazy-load every segment top-down (parents before children).
+   *   PHASE 2 — recompute the final compaction terminals and set expandedPaths.
+   */
+  const restoreExpandedPaths = useCallback(async (storedPaths: Set<string>) => {
+    if (storedPaths.size === 0) {
+      setExpandedPaths(new Set());
+      return;
+    }
+
+    const rootFolder = currentFolder?.replace(/\\/g, '/').replace(/\/+$/, '') || null;
+
+    const waitForPaint = () => new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+    const waitForNode = async (path: string, maxFrames = 20): Promise<TreeNode | null> => {
+      for (let i = 0; i < maxFrames; i++) {
+        const node = findNodeByPath(treeRef.current, path);
+        if (node) return node;
+        await waitForPaint();
+      }
+      return null;
+    };
+
+    // Only directories under the current root.
+    const storedDirs = Array.from(storedPaths)
+      .map((p) => p.replace(/\\/g, '/'))
+      .filter((p) => !rootFolder || p === rootFolder || p.startsWith(`${rootFolder}/`));
+
+    // Expand each stored path into every ancestor segment from root→path, so that
+    // compacted-away intermediate dirs (java/opm/mx) also get loaded. Union across
+    // all stored paths, then sort shallow→deep so each parent loads before its child.
+    const allSegments = new Set<string>();
+    for (const dirPath of storedDirs) {
+      if (rootFolder && (dirPath === rootFolder || dirPath.startsWith(`${rootFolder}/`))) {
+        allSegments.add(rootFolder);
+        const relative = dirPath.substring(rootFolder.length);
+        let currentPath = rootFolder;
+        for (const part of relative.split('/').filter(Boolean)) {
+          currentPath = `${currentPath}/${part}`;
+          allSegments.add(currentPath);
+        }
+      } else {
+        allSegments.add(dirPath);
+      }
+    }
+    const orderedSegments = Array.from(allSegments)
+      .sort((a, b) => a.split('/').length - b.split('/').length);
+
+    // PHASE 1: lazy-load children for every segment not yet loaded.
+    for (const segPath of orderedSegments) {
+      const node = await waitForNode(segPath);
+      if (!node?.isDirectory) continue;
+      if (!loadedPathsRef.current.has(node.path)) {
+        await loadChildren(node.path);
+        await waitForPaint();
+      }
+    }
+
+    // PHASE 2: with the tree now materialized, compute the compaction terminal for
+    // each stored path (as TreeNodeItem.getCompactChain does) and union it with the
+    // raw stored set. Intermediate chain paths are harmless — TreeNodeItem only ever
+    // checks the terminal — but keeping them makes re-collapse/re-expand stable.
+    const finalPaths = new Set<string>(storedPaths);
+    for (const dirPath of storedDirs) {
+      const node = findNodeByPath(treeRef.current, dirPath);
+      if (!node?.isDirectory) continue;
+
+      let terminal = node;
+      while (
+        terminal.children &&
+        terminal.children.length === 1 &&
+        terminal.children[0]?.isDirectory
+      ) {
+        terminal = terminal.children[0];
+      }
+      finalPaths.add(terminal.path);
+    }
+
+    setExpandedPaths(finalPaths);
+    await waitForPaint();
+  }, [currentFolder, loadChildren]);
+
   return {
     tree,
     loading,
@@ -342,6 +440,7 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
     renamePathInTree,
     togglePath,
     expandToPath,
+    restoreExpandedPaths,
     setExpandedPaths,
   };
 }

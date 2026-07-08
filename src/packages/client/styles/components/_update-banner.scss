@@ -45,6 +45,23 @@
   animation: update-banner-pulse 1.8s ease-in-out infinite;
 }
 
+.update-banner-manualhint {
+  margin-left: 6px;
+  color: $text-secondary;
+}
+
+.update-banner-cmd {
+  margin-left: 6px;
+  padding: 2px 7px;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  background: $bg-secondary;
+  color: $accent-cyan;
+  font-family: $font-mono;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .update-banner-actions {
   display: inline-flex;
   align-items: center;

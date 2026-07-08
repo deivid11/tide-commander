@@ -571,6 +571,7 @@
     "newVersion": "New version v{{version}} available",
     "updateBtn": "Update & restart",
     "dismiss": "Ignore",
+    "manualHint": "— update with:",
     "confirmWarning": "Restarting will interrupt agents currently working. Continue?",
     "confirmYes": "Yes, update & restart",
     "confirmCancel": "Cancel",

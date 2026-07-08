@@ -27,11 +27,69 @@
 
 .file-explorer-panel-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 8px;
   padding: 12px 16px;
   background: $bg-tertiary;
   border-bottom: 1px solid $border-color;
+}
+
+// Top row of the header: title/folder-selector on the left, action buttons on the right.
+.file-explorer-panel-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+// Recent-project chips row (bottom of the header) — quick project switching.
+.file-explorer-recent-projects {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.file-explorer-recent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 160px;
+  padding: 3px 9px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  color: $text-secondary;
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    color: $text-primary;
+    background: rgba($accent-blue, 0.12);
+    border-color: rgba($accent-blue, 0.4);
+  }
+
+  &.active {
+    color: $text-primary;
+    background: rgba($accent-blue, 0.18);
+    border-color: rgba($accent-blue, 0.55);
+    cursor: default;
+  }
+}
+
+.file-explorer-recent-chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.file-explorer-recent-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .file-explorer-panel-title {
@@ -225,42 +283,6 @@
     background: $dracula-red;
     border-color: $dracula-red;
     color: $dracula-fg;
-  }
-}
-
-.file-explorer-nav-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: $radius-sm;
-  flex-shrink: 0;
-}
-
-.file-explorer-nav-btn {
-  background: transparent;
-  border: none;
-  color: $text-muted;
-  width: 24px;
-  height: 22px;
-  padding: 0;
-  border-radius: calc(#{$radius-sm} - 2px);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: all $transition-fast;
-
-  &:hover:not(:disabled) {
-    color: $text-primary;
-    background: rgba(255, 255, 255, 0.06);
-  }
-
-  &:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
   }
 }
 

@@ -11,7 +11,7 @@ import { EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { syntaxHighlighting, defaultHighlightStyle, indentOnInput, bracketMatching, foldGutter, foldKeymap } from '@codemirror/language';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
-import { search, searchKeymap, highlightSelectionMatches } from '@codemirror/search';
+import { search, searchKeymap, highlightSelectionMatches, openSearchPanel } from '@codemirror/search';
 import { oneDark } from '@codemirror/theme-one-dark';
 import type { Extension } from '@codemirror/state';
 import { getLanguageExtension } from './cm-languages';
@@ -114,6 +114,24 @@ export const EmbeddedEditor: React.FC<EmbeddedEditorProps> = ({
       keymap.of([
         ...closeBracketsKeymap,
         ...defaultKeymap,
+        {
+          // Ctrl/Cmd+F: open the search panel AND move keyboard focus into its input.
+          // CM's own openSearchPanel relies on the panel's mount() calling
+          // searchField.select(), which doesn't reliably focus (e.g. when the field is
+          // empty), so we focus the [main-field] input explicitly on the next frame.
+          key: 'Mod-f',
+          run: (view) => {
+            openSearchPanel(view);
+            requestAnimationFrame(() => {
+              const input = view.dom.querySelector<HTMLInputElement>('[main-field]');
+              if (input) {
+                input.focus();
+                input.select();
+              }
+            });
+            return true;
+          },
+        },
         ...searchKeymap,
         ...historyKeymap,
         ...foldKeymap,

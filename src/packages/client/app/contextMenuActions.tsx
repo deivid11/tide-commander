@@ -1,3 +1,5 @@
+
+
 import React from 'react';
 import { store } from '../store';
 import type { SceneManager } from '../scene/SceneManager';
