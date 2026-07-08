@@ -578,7 +578,10 @@
     "installing": "Installing update…",
     "reconnecting": "Update installed — restarting, reconnecting shortly…",
     "failed": "Update failed",
-    "close": "Close"
+    "close": "Close",
+    "stuckHint": "Taking longer than expected?",
+    "reload": "Reload",
+    "recheck": "Recheck"
   },
   "shortcuts": {
     "pressKeys": "Press keys...",
