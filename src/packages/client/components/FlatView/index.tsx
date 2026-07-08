@@ -1502,9 +1502,15 @@ export function FlatView({
   }, []);
 
   const handleFileClick = useCallback((path: string, editData?: any) => {
-    // Reuse the global file-viewer flow from the store
-    store.setFileViewerPath(path, editData);
-  }, []);
+    // Reuse the global file-viewer flow from the store. Resolve relative paths
+    // against the CWD of the agent whose chat is open (ChatView is scoped to the
+    // selected agent) so a path like `tide-api/src/api-core.js` anchors at that
+    // agent's repo — NOT the commander's process.cwd(), which is the wrong base
+    // and produced the "Tried N candidate locations" miss.
+    const ownerId = selectedAgentIds.size > 0 ? Array.from(selectedAgentIds)[0] : null;
+    const cwd = ownerId ? store.getState().agents.get(ownerId)?.cwd : undefined;
+    store.setFileViewerPath(path, editData, cwd);
+  }, [selectedAgentIds]);
 
   const handleViewMarkdown = useCallback((content: string) => {
     setResponseModalContent(content);

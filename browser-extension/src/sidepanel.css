@@ -579,12 +579,9 @@ html, body {
   padding: 8px 11px;
   border-radius: 7px;
 }
-.msg.assistant.streaming .body::after {
-  content: "▋";
-  color: var(--term-green);
-  animation: blink 1.05s steps(1) infinite;
-}
-@keyframes blink { 50% { opacity: 0; } }
+/* No trailing blink cursor on the streaming bubble: the pinned "agent is
+   working" indicator below already signals live activity, so the extra
+   blinking block just adds noise. */
 
 /* ── subtle "agent is working" indicator (pinned above the composer) ──
    Calm, low-key motion: a soft slow sheen drifting across, a gently pulsing

@@ -447,6 +447,11 @@ export function FileExplorerPanel({
 
     setIsSearching(true);
 
+    // Abort in-flight requests when the query changes so a slow response for a
+    // stale query can't clobber fresher results (and the server stops working).
+    const controller = new AbortController();
+    const { signal } = controller;
+
     // Debounce search requests
     const timeoutId = setTimeout(async () => {
       try {
@@ -454,30 +459,38 @@ export function FileExplorerPanel({
 
         // Always search by filename
         const filenamePromise = authFetch(
-          apiUrl(`/api/files/search?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=200`)
+          apiUrl(`/api/files/search?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=200`),
+          { signal }
         ).then(res => res.json()).catch(() => ({ results: [] }));
 
         // Only search content if query is at least 2 chars and no line number specified
         const contentPromise = query.length >= 2 && !parsedSearch.lineNumber
           ? authFetch(
-              apiUrl(`/api/files/search-content?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=200`)
+              apiUrl(`/api/files/search-content?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=200`),
+              { signal }
             ).then(res => res.json()).catch(() => ({ results: [] }))
           : Promise.resolve({ results: [] });
 
         // Run both searches in parallel
         const [filenameData, contentData] = await Promise.all([filenamePromise, contentPromise]);
 
+        if (signal.aborted) return; // Superseded by a newer query — drop stale results
+
         setSearchResults(filenameData.results || []);
         setContentSearchResults(contentData.results || []);
       } catch (err) {
+        if (signal.aborted) return;
         console.error('[FileExplorer] Search failed:', err);
         setSearchResults([]);
         setContentSearchResults([]);
       }
-      setIsSearching(false);
+      if (!signal.aborted) setIsSearching(false);
     }, 300);
 
-    return () => clearTimeout(timeoutId);
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [parsedSearch.query, parsedSearch.lineNumber, currentFolder]);
 
   // -------------------------------------------------------------------------

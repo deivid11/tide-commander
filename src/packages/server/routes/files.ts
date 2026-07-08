@@ -204,6 +204,7 @@ export type ResolutionStrategy =
   | 'parent-walk'
   | 'git-root'
   | 'suffix-match'
+  | 'node-modules-match'
   | 'area-root'
   | 'area-suffix-match';
 
@@ -320,6 +321,56 @@ function findBySuffixMatch(rawPath: string, walkRoot: string): string | null {
   return null;
 }
 
+// The suffix walk skips node_modules for cost, but locally linked / installed
+// packages (e.g. a monorepo's own `tide-api`) legitimately live there — so a
+// path like `tide-api/src/api-core.js` can only be found under a node_modules
+// tree. Instead of walking all of node_modules (huge), we locate WHERE the
+// node_modules dirs are (shallow — they sit at workspace roots, and we never
+// descend INTO one) and then probe the requested path's tail-slices under each.
+const NODE_MODULES_SCAN_MAX_DEPTH = 4;
+const NODE_MODULES_MAX_DIRS = 24;
+
+function collectNodeModulesDirs(base: string, depth: number, out: string[]): void {
+  if (out.length >= NODE_MODULES_MAX_DIRS || depth > NODE_MODULES_SCAN_MAX_DEPTH) return;
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(base, { withFileTypes: true });
+  } catch { return; }
+  for (const e of entries) {
+    if (!e.isDirectory()) continue;
+    if (e.name === 'node_modules') {
+      out.push(path.join(base, e.name));
+      if (out.length >= NODE_MODULES_MAX_DIRS) return;
+      continue; // don't recurse into node_modules; tail-slice probing covers depth
+    }
+    if (e.name.startsWith('.') || SUFFIX_WALK_IGNORE.has(e.name)) continue;
+    collectNodeModulesDirs(path.join(base, e.name), depth + 1, out);
+    if (out.length >= NODE_MODULES_MAX_DIRS) return;
+  }
+}
+
+// Probe the requested path (and each of its tail-slices) under every
+// node_modules dir found beneath `base`. Uses the shared tryCandidate so hits
+// are validated + recorded in `tried`. Returns the first existing file.
+function findInNodeModules(
+  rawPath: string,
+  base: string,
+  tryCandidate: (p: string) => string | null,
+): string | null {
+  if (!fs.existsSync(base)) return null;
+  const segments = rawPath.replace(/^\/+/, '').split(path.sep).filter(Boolean);
+  if (segments.length === 0) return null;
+  const dirs: string[] = [];
+  collectNodeModulesDirs(base, 0, dirs);
+  for (const nm of dirs) {
+    for (let i = 0; i < segments.length; i++) {
+      const hit = tryCandidate(path.join(nm, ...segments.slice(i)));
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
 /**
  * Resolve a requested file path to an existing file on disk, with fallbacks.
  * Tries (in order):
@@ -328,8 +379,10 @@ function findBySuffixMatch(rawPath: string, walkRoot: string): string | null {
  *   3. parent-walk        — tail slices anchored at baseDir AND each ancestor up to /
  *   4. git-root           — tail slices anchored at the git toplevel from baseDir
  *   5. suffix-match       — depth-limited walk of baseDir, unique trailing-segment match
- *   6. area-root          — verbatim join against each user-configured area directory
- *   7. area-suffix-match  — same depth-limited walk but rooted at each area directory
+ *   6. node-modules-match — tail slices probed under each node_modules dir beneath baseDir
+ *   7. area-root          — verbatim join against each user-configured area directory
+ *   8. area-suffix-match  — same depth-limited walk but rooted at each area directory
+ *   9. node-modules-match — same node_modules probe but rooted at each area directory
  * On miss, returns the absolute path requested AND the list of paths tried so
  * the caller can surface a clear, debuggable error.
  */
@@ -346,6 +399,17 @@ export function findFileWithFallbacks(
   if (!resolution.ok) {
     return resolution;
   }
+
+  // A path that resolves directly to an existing directory is a "browse this
+  // folder" request, not a missing file. Short-circuit here so we return a
+  // clear directory signal instead of running the whole fallback walk — which
+  // rejects the directory at every candidate (tryCandidate skips directories)
+  // and would surface dozens of futile "tried" locations before 404-ing.
+  try {
+    if (fs.existsSync(resolution.path) && fs.statSync(resolution.path).isDirectory()) {
+      return { ok: false, status: 400, error: 'Path is a directory', requested: resolution.path };
+    }
+  } catch { /* stat failed (perms/broken symlink) — fall through to normal resolution */ }
 
   const tried: string[] = [];
   const seen = new Set<string>();
@@ -424,7 +488,18 @@ export function findFileWithFallbacks(
           return { ok: true, path: suffixHit, strategy: 'suffix-match' };
         }
       }
-    } catch { /* walk failed entirely — fall through to area strategies */ }
+    } catch { /* walk failed entirely — fall through to node_modules/area strategies */ }
+
+    // node_modules-anchored: the suffix walk above skips node_modules, so a
+    // locally-linked package path (e.g. tide-api/src/api-core.js) is only
+    // reachable here.
+    try {
+      const nmHit = findInNodeModules(rawPath, absBase, tryCandidate);
+      if (nmHit) {
+        rememberResolution(rawPath, nmHit, 'node-modules-match');
+        return { ok: true, path: nmHit, strategy: 'node-modules-match' };
+      }
+    } catch { /* scan failed — fall through to area strategies */ }
   }
 
   // Area strategies: try the user's configured area directories. Runs whether
@@ -463,6 +538,19 @@ export function findFileWithFallbacks(
         };
       }
     } catch { /* walk failed for this area — try next */ }
+  }
+
+  // node_modules-anchored search within each area dir (same reasoning as the
+  // baseDir pass above: locally-linked packages under an area's node_modules).
+  for (const { areaId, areaName, dir } of areaDirs) {
+    if (!fs.existsSync(dir)) continue;
+    try {
+      const nmHit = findInNodeModules(rawPath, dir, tryCandidate);
+      if (nmHit) {
+        rememberResolution(rawPath, nmHit, 'node-modules-match');
+        return { ok: true, path: nmHit, strategy: 'node-modules-match', areaId, areaName };
+      }
+    } catch { /* scan failed for this area — try next */ }
   }
 
   return {
@@ -576,10 +664,10 @@ router.get('/resolve', async (req: Request, res: Response) => {
       } catch { /* skip */ }
     }
 
-    // Search for files matching the basename (searchFiles may re-find .claude/ files)
+    // Search for files matching the basename (searchFilesAsync may re-find .claude/ files)
     const existingPaths = new Set(results.map(r => r.path));
     const searchResults: TreeNode[] = [];
-    searchFiles(searchRoot, basename, searchResults, 20);
+    await searchFilesAsync(searchRoot, basename.toLowerCase(), searchResults, 20);
     for (const r of searchResults) {
       if (!existingPaths.has(r.path)) results.push(r);
     }
@@ -1116,44 +1204,69 @@ router.post('/paste', (req: Request, res: Response) => {
   }
 });
 
-// Helper function to search files recursively
-function searchFiles(dirPath: string, query: string, results: TreeNode[], maxResults: number, depth: number = 0): void {
-  if (results.length >= maxResults || depth > 10) return;
+// Directories that are always skipped during file/content search. Kept as a
+// Set for O(1) lookups (this is checked once per directory entry during the
+// tree walk). Union of the old filename + content skip lists.
+const SEARCH_SKIP_DIRS = new Set([
+  'node_modules', 'dist', 'build', '.git', '__pycache__',
+  'venv', '.venv', 'target', 'vendor', '.next', '.cache',
+]);
+const MAX_SEARCH_DEPTH = 10;
 
+// Helper function to search files recursively (async / non-blocking).
+// Uses fs.promises so a deep tree walk never blocks the event loop, which
+// matters on a shared multi-agent server. `queryLower` must be pre-lowercased.
+async function searchFilesAsync(
+  dirPath: string,
+  queryLower: string,
+  results: TreeNode[],
+  maxResults: number,
+  depth: number = 0
+): Promise<void> {
+  if (results.length >= maxResults || depth > MAX_SEARCH_DEPTH) return;
+
+  let entries: fs.Dirent[];
   try {
-    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-
-    for (const entry of entries) {
-      if (results.length >= maxResults) break;
-
-      // Skip common non-essential directories
-      if (['node_modules', 'dist', '.git', '__pycache__', 'venv', '.venv'].includes(entry.name)) continue;
-
-      const fullPath = path.join(dirPath, entry.name);
-
-      // Check if name matches query (case-insensitive)
-      if (entry.name.toLowerCase().includes(query.toLowerCase())) {
-        try {
-          const stats = fs.statSync(fullPath);
-          results.push({
-            name: entry.name,
-            path: fullPath,
-            isDirectory: entry.isDirectory(),
-            size: stats.size,
-            extension: entry.isDirectory() ? '' : path.extname(entry.name).toLowerCase(),
-          });
-        } catch {
-          // Skip
-        }
-      }
-
-      // Recurse into directories
-      if (entry.isDirectory()) {
-        searchFiles(fullPath, query, results, maxResults, depth + 1);
-      }
-    }
+    entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
   } catch {
-    // Skip directories we can't read
+    return; // Skip directories we can't read
+  }
+
+  const subdirs: string[] = [];
+
+  for (const entry of entries) {
+    if (results.length >= maxResults) break;
+
+    const isDir = entry.isDirectory();
+    // Skip common non-essential directories
+    if (isDir && SEARCH_SKIP_DIRS.has(entry.name)) continue;
+
+    const fullPath = path.join(dirPath, entry.name);
+
+    // Check if name matches query (case-insensitive)
+    if (entry.name.toLowerCase().includes(queryLower)) {
+      let size = 0;
+      try {
+        size = (await fs.promises.stat(fullPath)).size;
+      } catch {
+        // Keep size 0 if stat fails (broken symlink etc.) but still surface it
+      }
+      results.push({
+        name: entry.name,
+        path: fullPath,
+        isDirectory: isDir,
+        size,
+        extension: isDir ? '' : path.extname(entry.name).toLowerCase(),
+      });
+    }
+
+    if (isDir) subdirs.push(fullPath);
+  }
+
+  // Recurse after listing this level so match/recurse order stays bounded.
+  for (const sub of subdirs) {
+    if (results.length >= maxResults) break;
+    await searchFilesAsync(sub, queryLower, results, maxResults, depth + 1);
   }
 }
 
@@ -1180,7 +1293,7 @@ router.get('/search', async (req: Request, res: Response) => {
     }
 
     const results: TreeNode[] = [];
-    searchFiles(dirPath, query, results, maxResults);
+    await searchFilesAsync(dirPath, query.toLowerCase(), results, maxResults);
 
     // Sort: files first (more likely what user wants), then by name
     results.sort((a, b) => {
@@ -1221,74 +1334,171 @@ const TEXT_EXTENSIONS = new Set([
   '.log', '.csv', '.tsv', '.svg', '.vue', '.svelte',
 ]);
 
-// Helper function to search file contents recursively
-function searchFileContents(
+// Max matches surfaced per file (both search paths respect this).
+const MAX_MATCHES_PER_FILE = 5;
+// Skip files larger than 1MB for content search.
+const MAX_CONTENT_FILE_SIZE = 1024 * 1024;
+
+// Primary content search: shell out to ripgrep. It runs off the event loop as
+// a child process (never blocking the server) and is orders of magnitude faster
+// than a JS tree walk. Resolves { ok:false } when rg is missing or errors, so
+// the caller can fall back to the pure-JS walker.
+function searchFileContentsRipgrep(
   dirPath: string,
   query: string,
+  maxResults: number
+): Promise<{ ok: boolean; results: ContentMatch[] }> {
+  return new Promise((resolve) => {
+    const args = [
+      '--json',
+      '--ignore-case',
+      '--fixed-strings',              // treat the query as a literal substring
+      '--max-count', String(MAX_MATCHES_PER_FILE),
+      '--max-filesize', String(MAX_CONTENT_FILE_SIZE),
+      '--max-depth', String(MAX_SEARCH_DEPTH + 1),
+      '--hidden',                     // include dotfiles (.env, .github, ...)
+      '--no-ignore',                  // don't honor .gitignore (match old behavior)
+      '--no-messages',                // suppress permission/binary warnings on stderr
+      ...[...SEARCH_SKIP_DIRS].flatMap((d) => ['--glob', `!**/${d}/**`]),
+      '--',
+      query,
+      dirPath,
+    ];
+
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn('rg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch {
+      resolve({ ok: false, results: [] });
+      return;
+    }
+
+    const byFile = new Map<string, ContentMatch>();
+    let buffer = '';
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      resolve({ ok, results: [...byFile.values()] });
+    };
+
+    // Spawn failure (e.g. rg not installed) → fall back to the JS walker.
+    child.on('error', () => finish(false));
+
+    child.stdout?.setEncoding('utf-8');
+    child.stdout?.on('data', (chunk: string) => {
+      buffer += chunk;
+      let nl: number;
+      while ((nl = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, nl);
+        buffer = buffer.slice(nl + 1);
+        if (!line) continue;
+
+        let evt: any;
+        try {
+          evt = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (evt.type !== 'match') continue;
+
+        const filePath: string | undefined = evt.data?.path?.text;
+        if (!filePath) continue;
+
+        let cm = byFile.get(filePath);
+        if (!cm) {
+          // Cap the number of distinct files we track.
+          if (byFile.size >= maxResults) {
+            child.kill();
+            break;
+          }
+          cm = {
+            path: filePath,
+            name: path.basename(filePath),
+            extension: path.extname(filePath).toLowerCase(),
+            matches: [],
+          };
+          byFile.set(filePath, cm);
+        }
+
+        if (cm.matches.length >= MAX_MATCHES_PER_FILE) continue;
+        const text: string = (evt.data?.lines?.text ?? '').replace(/\r?\n$/, '');
+        cm.matches.push({
+          line: evt.data?.line_number ?? 0,
+          content: text.slice(0, 200),
+        });
+      }
+    });
+
+    // rg exit codes: 0 = matches, 1 = no matches, 2 = error. Only a real error
+    // (or a kill, code null) that produced nothing should trigger the fallback.
+    child.on('close', (code) => finish(!(code === 2 && byFile.size === 0)));
+  });
+}
+
+// Fallback content search (async / non-blocking) used only when ripgrep is
+// unavailable. Mirrors the old behavior but with fs.promises so it never
+// blocks the event loop.
+async function searchFileContentsAsync(
+  dirPath: string,
+  queryLower: string,
   results: ContentMatch[],
   maxResults: number,
   depth: number = 0
-): void {
-  if (results.length >= maxResults || depth > 10) return;
+): Promise<void> {
+  if (results.length >= maxResults || depth > MAX_SEARCH_DEPTH) return;
 
+  let entries: fs.Dirent[];
   try {
-    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-    const queryLower = query.toLowerCase();
+    entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+  } catch {
+    return; // Skip directories we can't read
+  }
 
-    for (const entry of entries) {
-      if (results.length >= maxResults) break;
+  const subdirs: string[] = [];
 
-      // Skip common non-essential directories
-      if (['node_modules', 'dist', 'build', '.git', '__pycache__', 'venv', '.venv', 'target', 'vendor'].includes(entry.name)) continue;
+  for (const entry of entries) {
+    if (results.length >= maxResults) break;
 
-      const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      if (!SEARCH_SKIP_DIRS.has(entry.name)) subdirs.push(path.join(dirPath, entry.name));
+      continue;
+    }
 
-      if (entry.isDirectory()) {
-        // Recurse into directories
-        searchFileContents(fullPath, query, results, maxResults, depth + 1);
-      } else {
-        // Check if it's a text file we can search
-        const ext = path.extname(entry.name).toLowerCase();
-        if (!TEXT_EXTENSIONS.has(ext) && ext !== '') continue;
+    // Check if it's a text file we can search
+    const ext = path.extname(entry.name).toLowerCase();
+    if (!TEXT_EXTENSIONS.has(ext) && ext !== '') continue;
 
-        try {
-          const stats = fs.statSync(fullPath);
-          // Skip files larger than 1MB
-          if (stats.size > 1024 * 1024) continue;
+    const fullPath = path.join(dirPath, entry.name);
+    try {
+      const stats = await fs.promises.stat(fullPath);
+      if (stats.size > MAX_CONTENT_FILE_SIZE) continue;
 
-          const content = fs.readFileSync(fullPath, 'utf-8');
-          const lines = content.split('\n');
-          const matches: ContentMatch['matches'] = [];
+      const content = await fs.promises.readFile(fullPath, 'utf-8');
+      const lines = content.split('\n');
+      const matches: ContentMatch['matches'] = [];
 
-          for (let i = 0; i < lines.length && matches.length < 5; i++) {
-            const line = lines[i];
-            if (line.toLowerCase().includes(queryLower)) {
-              matches.push({
-                line: i + 1,
-                content: line.slice(0, 200), // Truncate long lines
-                context: {
-                  before: i > 0 ? lines[i - 1].slice(0, 100) : '',
-                  after: i < lines.length - 1 ? lines[i + 1].slice(0, 100) : '',
-                },
-              });
-            }
-          }
-
-          if (matches.length > 0) {
-            results.push({
-              path: fullPath,
-              name: entry.name,
-              extension: ext,
-              matches,
-            });
-          }
-        } catch {
-          // Skip files we can't read (binary, permission issues)
+      for (let i = 0; i < lines.length && matches.length < MAX_MATCHES_PER_FILE; i++) {
+        const line = lines[i];
+        if (line.toLowerCase().includes(queryLower)) {
+          matches.push({
+            line: i + 1,
+            content: line.slice(0, 200), // Truncate long lines
+          });
         }
       }
+
+      if (matches.length > 0) {
+        results.push({ path: fullPath, name: entry.name, extension: ext, matches });
+      }
+    } catch {
+      // Skip files we can't read (binary, permission issues)
     }
-  } catch {
-    // Skip directories we can't read
+  }
+
+  for (const sub of subdirs) {
+    if (results.length >= maxResults) break;
+    await searchFileContentsAsync(sub, queryLower, results, maxResults, depth + 1);
   }
 }
 
@@ -1319,8 +1529,14 @@ router.get('/search-content', async (req: Request, res: Response) => {
       return;
     }
 
-    const results: ContentMatch[] = [];
-    searchFileContents(dirPath, query, results, maxResults);
+    let results: ContentMatch[] = [];
+    const rg = await searchFileContentsRipgrep(dirPath, query, maxResults);
+    if (rg.ok) {
+      results = rg.results;
+    } else {
+      // ripgrep unavailable — fall back to the pure-JS async walker.
+      await searchFileContentsAsync(dirPath, query.toLowerCase(), results, maxResults);
+    }
 
     res.json({ results });
   } catch (err: any) {

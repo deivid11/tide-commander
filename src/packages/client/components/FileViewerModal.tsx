@@ -207,6 +207,7 @@ type ResolutionStrategy =
   | 'parent-walk'
   | 'git-root'
   | 'suffix-match'
+  | 'node-modules-match'
   | 'area-root'
   | 'area-suffix-match';
 
@@ -342,6 +343,10 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const [copyPathStatus, setCopyPathStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [resolvedCandidates, setResolvedCandidates] = useState<ResolveResult[]>([]);
   const [directoryEntries, setDirectoryEntries] = useState<ResolveResult[]>([]);
+  // Absolute path of the folder currently being browsed inside the modal (null
+  // when a file — not a directory — is being shown). Drives the in-modal
+  // directory listing + up-navigation instead of opening the File Explorer.
+  const [directoryPath, setDirectoryPath] = useState<string | null>(null);
   const [copyRichTextStatus, setCopyRichTextStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyHtmlStatus, setCopyHtmlStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyMarkdownStatus, setCopyMarkdownStatus] = useState<'idle' | 'copied' | 'error'>('idle');
@@ -370,6 +375,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     if (isOpen && effectivePath) {
       setResolvedCandidates([]);
       setDirectoryEntries([]);
+      setDirectoryPath(null);
       setFetchedUnifiedDiff(null);
       setFetchedOriginalContent(null);
       loadFile();
@@ -378,6 +384,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       setError(null);
       setResolvedCandidates([]);
       setDirectoryEntries([]);
+      setDirectoryPath(null);
       setFetchedUnifiedDiff(null);
       setFetchedOriginalContent(null);
     }
@@ -645,7 +652,10 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       const res = await authFetch(apiUrl(`/api/files/list?path=${encodeURIComponent(dirPath)}${baseDirParam}`));
       const data = await res.json();
       if (res.ok && data.files?.length > 0) {
-        return data.files.slice(0, 20).map((f: any) => ({
+        // The /list endpoint already sorts directories-first, then alphabetically.
+        // Cap generously (folders rarely exceed this) so a captures/images folder
+        // shows every entry rather than an arbitrary first-20 slice.
+        return data.files.slice(0, 1000).map((f: any) => ({
           name: f.name,
           path: f.path,
           isDirectory: f.isDirectory,
@@ -657,12 +667,50 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     return [];
   };
 
+  // A directory target has no file to render — list its entries inside THIS
+  // modal (reusing the same /api/files/list endpoint the File Explorer uses)
+  // instead of resolving it as a file. Folders are shown first, then files.
+  const loadDirectoryInto = async (dirPath: string) => {
+    // Drop the trailing slash (except root) so the listed path and up-navigation
+    // parent computation stay canonical.
+    const normalized = dirPath.length > 1 ? dirPath.replace(/\/+$/, '') : dirPath;
+    setLoading(true);
+    setError(null);
+    setNotFound(null);
+    setResolvedCandidates([]);
+    setFileData(null);
+    try {
+      const entries = await loadDirectoryContents(normalized);
+      setDirectoryEntries(entries);
+      setDirectoryPath(normalized);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Navigate the in-modal listing up to the parent folder.
+  const handleDirectoryUp = () => {
+    if (!directoryPath || directoryPath === '/') return;
+    const parent = directoryPath.substring(0, directoryPath.lastIndexOf('/')) || '/';
+    void loadDirectoryInto(parent);
+  };
+
   const loadFile = async () => {
+    // A trailing-slash absolute path is unambiguously a directory. Skip the
+    // whole file-resolution dance (which would reject the dir at every
+    // candidate and surface a bogus "Tried N candidate locations" error) and
+    // list its contents directly in the modal.
+    if (effectivePath.startsWith('/') && effectivePath.endsWith('/') && effectivePath !== '/') {
+      await loadDirectoryInto(effectivePath);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setNotFound(null);
     setResolvedCandidates([]);
     setDirectoryEntries([]);
+    setDirectoryPath(null);
 
     try {
       // Bare basenames (no directory component) can't be probed directly —
@@ -680,14 +728,11 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
           return;
         }
 
-        // If it's a directory, load its contents
+        // If it's a directory, list its contents inside the modal instead of
+        // trying to render it as a file. (The server reports this for absolute
+        // directory paths that arrive without a trailing slash.)
         if (result.isDirectory) {
-          const entries = await loadDirectoryContents(effectivePath);
-          if (entries.length > 0) {
-            setDirectoryEntries(entries);
-            return;
-          }
-          setError(result.error || t('terminal:fileExplorer.failedToLoad'));
+          await loadDirectoryInto(result.requested || effectivePath);
           return;
         }
 
@@ -778,34 +823,23 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
 
   const handleCandidateClick = async (candidate: ResolveResult) => {
     if (candidate.isDirectory) {
-      // Load directory contents
-      setLoading(true);
-      setResolvedCandidates([]);
-      setDirectoryEntries([]);
-      setError(null);
-      try {
-        const entries = await loadDirectoryContents(candidate.path);
-        if (entries.length > 0) {
-          setDirectoryEntries(entries);
-        } else {
-          setError('Empty directory');
-        }
-      } catch {
-        setError('Failed to load directory');
-      } finally {
-        setLoading(false);
-      }
+      // Navigate the in-modal listing into this subfolder.
+      await loadDirectoryInto(candidate.path);
       return;
     }
-    // Load the file
+    // Open the clicked file in this same viewer, replacing any directory listing.
     setLoading(true);
     setResolvedCandidates([]);
     setDirectoryEntries([]);
+    setDirectoryPath(null);
     setError(null);
     try {
       const result = await loadFileByPath(candidate.path);
       if (result.ok) {
         setFileData(result.data);
+      } else if (result.isDirectory) {
+        // Reported as a file but is actually a directory — browse it instead.
+        await loadDirectoryInto(result.requested || candidate.path);
       } else {
         setError(result.error || t('terminal:fileExplorer.failedToLoad'));
       }
@@ -982,7 +1016,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     setDownloadError(null);
     try {
       const url = apiUrl(
-        `/api/files/binary?path=${encodeURIComponent(effectivePath)}${baseDirParam}&download=true`,
+        `/api/files/binary?path=${encodeURIComponent(fileData?.path || effectivePath)}${baseDirParam}&download=true`,
       );
       const res = await authFetch(url);
       if (!res.ok) {
@@ -1011,7 +1045,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
         setDownloadError(null);
       }, 4000);
     }
-  }, [effectivePath, baseDirParam, fileData?.filename]);
+  }, [effectivePath, baseDirParam, fileData?.path, fileData?.filename]);
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -1024,9 +1058,16 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const isPdf = fileData && PDF_EXTENSIONS.includes(fileData.extension);
   const language = isImage ? 'Image' : isPdf ? 'PDF' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
   const authToken = getAuthToken();
-  const imageUrl = isImage ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}${baseDirParam}${authToken ? `&token=${encodeURIComponent(authToken)}` : ''}`) : null;
-  const pdfUrl = isPdf ? apiUrl(`/api/files/binary?path=${encodeURIComponent(effectivePath)}${baseDirParam}`) : null;
+  // Use the resolved file path (a clicked directory entry has its own path that
+  // differs from the modal's original effectivePath — which may be the folder).
+  const binaryPath = fileData?.path || effectivePath;
+  const imageUrl = isImage ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}${authToken ? `&token=${encodeURIComponent(authToken)}` : ''}`) : null;
+  const pdfUrl = isPdf ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}`) : null;
   const openInFileExplorerLabel = t('terminal:fileExplorer.openInFileExplorer');
+  // Folder name for the header/path when browsing a directory (basename of the
+  // current directory path, or '/' at the filesystem root).
+  const directoryName = directoryPath ? (directoryPath.split('/').filter(Boolean).pop() || '/') : null;
+  const headerName = fileData?.filename || directoryName || effectivePath.split('/').pop();
 
   if (!isOpen) return null;
 
@@ -1045,7 +1086,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
             <span className="file-viewer-action" style={{ color: getActionColor() }}>
               {getActionLabel()}
             </span>
-            <span className="file-viewer-filename">{fileData?.filename || effectivePath.split('/').pop()}</span>
+            <span className="file-viewer-filename">{headerName}</span>
             {fileData?.strategy && fileData.strategy !== 'exact' && (
               <span
                 className={`file-viewer-strategy-badge file-viewer-strategy-${fileData.strategy}`}
@@ -1166,7 +1207,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
         </div>
 
         <div className="file-viewer-path">
-          {fileData?.path || effectivePath}
+          {fileData?.path || directoryPath || effectivePath}
         </div>
 
         {fileData && (
@@ -1188,11 +1229,11 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
             <div className="file-viewer-loading">{t('terminal:fileExplorer.loadingFile')}</div>
           )}
 
-          {error && !resolvedCandidates.length && !directoryEntries.length && !notFound && (
+          {error && !resolvedCandidates.length && directoryPath === null && !notFound && (
             <div className="file-viewer-error">{error}</div>
           )}
 
-          {notFound && !resolvedCandidates.length && !directoryEntries.length && (
+          {notFound && !resolvedCandidates.length && directoryPath === null && (
             <div className="file-viewer-error file-viewer-not-found">
               <div className="file-viewer-not-found-headline">
                 {`Tried ${notFound.triedRoots.length} candidate location${notFound.triedRoots.length === 1 ? '' : 's'}. None matched.`}
@@ -1240,12 +1281,29 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
             </div>
           )}
 
-          {directoryEntries.length > 0 && (
+          {directoryPath !== null && !fileData && (
             <div className="file-viewer-resolve-results">
               <div className="file-viewer-resolve-header">
-                Directory contents ({directoryEntries.length} items):
+                {directoryEntries.length > 0
+                  ? `Directory contents (${directoryEntries.length} item${directoryEntries.length === 1 ? '' : 's'}):`
+                  : 'This folder is empty'}
               </div>
               <div className="file-viewer-resolve-list">
+                {directoryPath !== '/' && (
+                  <button
+                    type="button"
+                    className="file-viewer-resolve-item"
+                    onClick={handleDirectoryUp}
+                  >
+                    <span className="file-viewer-resolve-icon">{'⬆️'}</span>
+                    <span className="file-viewer-resolve-info">
+                      <span className="file-viewer-resolve-name">..</span>
+                      <span className="file-viewer-resolve-path">
+                        {directoryPath.substring(0, directoryPath.lastIndexOf('/')) || '/'}
+                      </span>
+                    </span>
+                  </button>
+                )}
                 {directoryEntries.map((entry) => (
                   <button
                     key={entry.path}
