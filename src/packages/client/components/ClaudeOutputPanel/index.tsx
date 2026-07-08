@@ -73,7 +73,6 @@ import {
   ImageModal,
   BashModal,
   ContextConfirmModal,
-  ContextModalFromGuake,
   AgentInfoModal,
   AgentResponseModalWrapper,
   type BashModalState,
@@ -2073,11 +2072,11 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
           onClearHistory={paneRef.current?.historyLoader.clearHistory ?? (() => {})}
         />
       )}
-      <ContextModalFromGuake />
-      {/* FileViewerFromGuake is mounted app-wide in App.tsx: this component
-          returns null whenever the guake terminal has no active agent (flat
-          view, fresh mobile load), which unmounted the file-viewer host while
-          FlatView/AgentPanel/Spotlight were still calling setFileViewerPath. */}
+      {/* FileViewerFromGuake and ContextModalFromGuake are mounted app-wide in
+          App.tsx: this component returns null whenever the guake terminal has
+          no active agent (flat view, fresh mobile load), which unmounted the
+          modal hosts while FlatView/AgentPanel/Spotlight were still calling
+          setFileViewerPath / setContextModalAgentId. */}
       <AgentInfoModal agent={activeAgent} isOpen={agentInfoOpen} onClose={() => setAgentInfoOpen(false)} />
       {(
         <AgentResponseModalWrapper agent={activeAgent} content={responseModalContent} onClose={() => setResponseModalContent(null)} />

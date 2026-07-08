@@ -377,4 +377,49 @@ describe('findFileWithFallbacks', () => {
       fs.rmSync(ttlRoot, { recursive: true, force: true });
     }
   });
+
+  it('reports a directory request as a directory instead of running the fallback walk', () => {
+    const dir = path.dirname(gitHit); // an existing directory in the fixture tree
+    const result = findFileWithFallbacks(dir, agentCwd);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(400);
+      expect(result.error).toBe('Path is a directory');
+      expect(result.requested).toBe(dir);
+      // No futile candidate walk was performed (that was the "55 candidates" bug).
+      expect(result.tried ?? []).toHaveLength(0);
+    }
+  });
+
+  it('reports a directory request with a trailing slash as a directory', () => {
+    const dir = path.dirname(gitHit) + path.sep;
+    const result = findFileWithFallbacks(dir, agentCwd);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(400);
+      expect(result.error).toBe('Path is a directory');
+      expect(result.tried ?? []).toHaveLength(0);
+    }
+  });
+
+  it('resolves a locally-linked package path that only exists inside node_modules', () => {
+    // The suffix walk skips node_modules, so a path like `tide-api/src/foo.js`
+    // that only lives under <workspace>/node_modules is unreachable without the
+    // node-modules-match strategy.
+    const nmRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'tc-resolver-nm-'));
+    try {
+      const target = path.join(nmRoot, 'client/node_modules/tide-api/src/api-core.js');
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, 'export const x = 1;');
+
+      const result = findFileWithFallbacks('tide-api/src/api-core.js', nmRoot);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.path).toBe(target);
+        expect(result.strategy).toBe('node-modules-match');
+      }
+    } finally {
+      fs.rmSync(nmRoot, { recursive: true, force: true });
+    }
+  });
 });

@@ -26,7 +26,7 @@ import { UnitPanel } from './components/UnitPanel';
 import { TrackingBoard } from './components/ClaudeOutputPanel/TrackingBoard';
 import { type SceneConfig } from './components/toolbox';
 import { GuakeOutputPanel } from './components/ClaudeOutputPanel';
-import { FileViewerFromGuake } from './components/ClaudeOutputPanel/TerminalModals';
+import { FileViewerFromGuake, ContextModalFromGuake } from './components/ClaudeOutputPanel/TerminalModals';
 import { AgentBar } from './components/AgentBar';
 import { DrawingModeIndicator } from './components/DrawingModeIndicator';
 import { AgentHoverPopup } from './components/AgentHoverPopup';
@@ -1250,11 +1250,13 @@ function AppContent() {
           <GuakeOutputPanel />
         </Profiler>
 
-        {/* File viewer modal host. Mounted here (not inside GuakeOutputPanel)
-            because the guake panel returns null without an active agent, while
-            setFileViewerPath is also called from FlatView, AgentPanel and
-            Spotlight — the modal must exist in every view mode. */}
+        {/* File viewer + context modal hosts. Mounted here (not inside
+            GuakeOutputPanel) because the guake panel returns null without an
+            active agent, while setFileViewerPath / setContextModalAgentId are
+            also called from FlatView, AgentPanel and Spotlight — the modals
+            must exist in every view mode. */}
         <FileViewerFromGuake />
+        <ContextModalFromGuake />
       </main>
 
       {/* Drawing Mode Indicator */}

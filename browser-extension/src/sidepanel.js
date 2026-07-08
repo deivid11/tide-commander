@@ -559,6 +559,13 @@ function isToolChunk(p) {
   if (p.toolName) return true;
   return /^(Using tool:|Tool input:|Tool result:|Tool output:|[\w.-]+ output:)/.test(p.text || '');
 }
+// Non-chat noise the canonical history omits (the session banner the server
+// emits on `init`). If we render it into the live prose bubble it flashes in,
+// then vanishes on the settle-time history reload — a visible mid-response
+// flicker. Mirror the commander client, which filters these everywhere.
+function isChatNoise(text) {
+  return text.startsWith('Session started:') || text.startsWith('Session initialized');
+}
 function renderHistory(messages) {
   // Preserve the reader's position across reloads: only snap to the newest
   // message if they were already at the bottom. If they've scrolled up to read
@@ -1531,6 +1538,7 @@ function onWsMessage(ev) {
 
     const text = p.text || '';
     if (!text) return;
+    if (isChatNoise(text)) return;
     liveStick = stick;
     if (!liveProse) {
       liveProse = document.createElement('div');
