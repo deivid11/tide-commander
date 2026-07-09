@@ -15,6 +15,10 @@ import { validateBackendUrlInput, checkBackendReachability } from '../utils/back
 import { Icon } from './Icon';
 
 const CONNECT_TIMEOUT_MS = 4000;
+// How long to show the small "Reconnecting…" toast before revealing the full
+// overlay. The window is (re)started from scratch whenever the app returns to
+// the foreground, so a reopen always gets the full grace — never an instant modal.
+const RECONNECT_GRACE_MS = 15000;
 
 export function NotConnectedOverlay() {
   const { t } = useTranslation(['config']);
@@ -33,6 +37,7 @@ export function NotConnectedOverlay() {
   const [connectStatus, setConnectStatus] = useState<string | null>(null);
   const mountedRef = useRef(true);
   const wasConnectedRef = useRef(false);
+  const graceTimerRef = useRef<number | null>(null);
 
   const waitForWsConnected = useCallback((timeoutMs: number = 7000): Promise<boolean> => {
     if (store.getState().isConnected) {
@@ -65,29 +70,65 @@ export function NotConnectedOverlay() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Reconnection grace period: when connection drops after being connected,
-  // show a small "Reconnecting..." toast for 15 seconds before showing the full overlay.
+  // (Re)start the "Reconnecting…" grace window: show the small toast for
+  // RECONNECT_GRACE_MS before revealing the full overlay. Held in a ref so both
+  // the drop-triggered and the foreground-triggered paths share one timer
+  // (restarting cancels any in-flight countdown instead of racing it).
+  const startReconnectGrace = useCallback(() => {
+    setGracePeriod(true);
+    setReconnecting(true);
+    if (graceTimerRef.current) clearTimeout(graceTimerRef.current);
+    graceTimerRef.current = window.setTimeout(() => {
+      graceTimerRef.current = null;
+      setGracePeriod(false);
+      setReconnecting(false);
+    }, RECONNECT_GRACE_MS);
+  }, []);
+
+  // Reconnection grace period: when the connection drops after having been
+  // connected, show the small toast before the full overlay.
   useEffect(() => {
     if (isConnected) {
       wasConnectedRef.current = true;
       setReconnecting(false);
+      if (graceTimerRef.current) {
+        clearTimeout(graceTimerRef.current);
+        graceTimerRef.current = null;
+      }
       return;
     }
     // Connection just dropped and we were previously connected
     if (wasConnectedRef.current) {
-      setGracePeriod(true);
-      setReconnecting(true);
-      const timer = setTimeout(() => {
-        setGracePeriod(false);
-        setReconnecting(false);
-      }, 15000);
-      return () => clearTimeout(timer);
+      startReconnectGrace();
     }
-  }, [isConnected]);
+  }, [isConnected, startReconnectGrace]);
+
+  // Returning to the foreground restarts the grace window from scratch. The
+  // countdown started at drop time may have elapsed while the app was
+  // backgrounded (mobile/PWA), which would otherwise flash the full overlay the
+  // instant the user reopens Tide Commander. Restarting here gives the fresh
+  // reconnect its full window measured from when the user is actually looking.
+  useEffect(() => {
+    const restartIfDisconnected = () => {
+      if (store.getState().isConnected) return;
+      if (!wasConnectedRef.current) return; // first-run load uses the initial grace
+      startReconnectGrace();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') restartIfDisconnected();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('tideAppResume', restartIfDisconnected);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('tideAppResume', restartIfDisconnected);
+    };
+  }, [startReconnectGrace]);
 
   useEffect(() => {
     return () => {
       mountedRef.current = false;
+      if (graceTimerRef.current) clearTimeout(graceTimerRef.current);
     };
   }, []);
 
@@ -204,7 +245,10 @@ export function NotConnectedOverlay() {
 
   if (isConnected || dismissed) return null;
 
-  if (gracePeriod && reconnecting && !connectionFailing) {
+  // Active reconnection grace: show the small toast for the whole window, even
+  // if a stale `connectionFailing` flag survived from before a background/resume
+  // — the fresh reconnect earns its full grace before the full overlay appears.
+  if (reconnecting) {
     return (
       <div className="reconnecting-toast">
         <span className="reconnecting-spinner" />
