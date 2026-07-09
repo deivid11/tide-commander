@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.142.1] - 2026-07-08
+
+### Fixed
+- **Reliable server start & auto-restart** — the CLI now waits for the server to actually accept connections on its port before reporting success, instead of a fixed 700ms grace. This catches background starts that silently died on `EADDRINUSE` seconds into boot (which used to print "Started in background" then leave a stale PID file).
+- **Post-update restart no longer races itself** — the relauncher is pinned to the exact process it must replace via a new internal `--replace-pid` flag, rather than trusting a PID file that can be clobbered by a failed duplicate start. Restart also escalates to SIGKILL if the old server won't stop, and waits for the port to be free before spawning.
+- **Self-healing stale PID file** — `stop`/`status` now detect when the tracked PID is gone but a server is still listening on the last known port, recover the real PID (Linux, via `/proc`), and rewrite the PID/meta files instead of falsely reporting "stopped".
+
 ## [1.142.0] - 2026-07-08
 
 ### Added

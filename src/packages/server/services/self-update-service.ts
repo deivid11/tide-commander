@@ -299,7 +299,10 @@ export function schedulePostUpdateRestart(delayMs = 600): boolean {
   // relauncher SIGTERMs us.
   const timer = setTimeout(() => {
     try {
-      const child = spawn(process.execPath, [cliPath, 'start', '--restart'], {
+      // --replace-pid pins the relauncher to THIS process: the PID file can be
+      // stale (clobbered by failed duplicate starts), and killing/waiting on
+      // the wrong PID makes the relauncher race the still-dying old server.
+      const child = spawn(process.execPath, [cliPath, 'start', '--restart', '--replace-pid', String(process.pid)], {
         detached: true,
         stdio: 'ignore',
         env: process.env,
@@ -309,7 +312,7 @@ export function schedulePostUpdateRestart(delayMs = 600): boolean {
         log.error(`Auto-restart relauncher failed to spawn: ${err.message}`);
       });
       child.unref();
-      log.log('Spawned detached relauncher: tide-commander start --restart');
+      log.log(`Spawned detached relauncher: tide-commander start --restart --replace-pid ${process.pid}`);
     } catch (err) {
       log.error(`Failed to spawn auto-restart relauncher: ${(err as Error).message}`);
     }
