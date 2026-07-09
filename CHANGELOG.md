@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.145.0] - 2026-07-09
+
+### Added
+- **Automatic update scheduler** - Settings now includes an opt-in unattended update toggle that checks npm periodically, installs updates only when agents are idle, and defers restarts while work is active.
+
+### Changed
+- Self-update locking is now shared between manual updates and the unattended scheduler so only one update can run at a time.
+
 ## [1.144.1] - 2026-07-09
 
 ### Fixed

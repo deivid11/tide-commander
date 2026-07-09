@@ -71,6 +71,40 @@ export async function fetchInstallInfo(): Promise<InstallInfo> {
   return response.json();
 }
 
+/** Status of the opt-in unattended-update scheduler (see server auto-update-service). */
+export interface AutoUpdateStatus {
+  enabled: boolean;
+  supported: boolean;
+  checkIntervalMinutes: number;
+  lastCheckAt: string | null;
+  lastResult: string | null;
+  lastError: string | null;
+  pendingRestartVersion: string | null;
+  busyAgents: number;
+  updateInProgress: boolean;
+}
+
+export async function fetchAutoUpdateStatus(): Promise<AutoUpdateStatus> {
+  const response = await authFetch(`${getApiBaseUrl()}/api/system/auto-update`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch auto-update status: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function setAutoUpdateEnabled(enabled: boolean): Promise<AutoUpdateStatus> {
+  const response = await authFetch(`${getApiBaseUrl()}/api/system/auto-update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to update auto-update setting: ${response.statusText}`);
+  }
+  return response.json();
+}
+
 export type SelfUpdateEvent =
   | { type: 'start'; message: string }
   | { type: 'stdout'; chunk: string }

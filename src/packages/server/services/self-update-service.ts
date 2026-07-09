@@ -188,6 +188,28 @@ export function isAutoUpdateSupported(info: InstallInfo = getInstallInfo()): boo
   return info.isGlobalInstall && info.packageManager === 'npm' && info.writable;
 }
 
+// ── Shared update lock ───────────────────────────────────────────────────────
+// One npm self-update at a time, across ALL initiators (the manual SSE route
+// and the auto-update scheduler). Module state is enough: both live in the
+// same process.
+
+let updateInProgress = false;
+
+export function isUpdateInProgress(): boolean {
+  return updateInProgress;
+}
+
+/** Acquire the update lock. Returns false if an update is already running. */
+export function tryBeginUpdate(): boolean {
+  if (updateInProgress) return false;
+  updateInProgress = true;
+  return true;
+}
+
+export function endUpdate(): void {
+  updateInProgress = false;
+}
+
 export interface RunUpdateCallbacks {
   onStdout?: (chunk: string) => void;
   onStderr?: (chunk: string) => void;

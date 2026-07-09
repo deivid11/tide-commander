@@ -9,19 +9,20 @@ import * as path from 'path';
 import { createLogger } from '../utils/logger.js';
 import { fetchLatestNpmVersion, getVersionRelation } from '../../shared/version.js';
 import {
+  endUpdate,
   getInstallInfo,
   isAutoUpdateSupported,
+  isUpdateInProgress,
   runNpmGlobalUpdate,
   schedulePostUpdateRestart,
+  tryBeginUpdate,
 } from '../services/self-update-service.js';
+import { getAutoUpdateStatus, setAutoUpdateEnabled } from '../services/auto-update-service.js';
 
 const log = createLogger('SystemRoutes');
 const router = Router();
 
 const PACKAGE_NAME = 'tide-commander';
-
-// Guard: only one self-update may run at a time
-let updateInProgress = false;
 
 /**
  * GET /api/system/install-info
@@ -49,7 +50,7 @@ router.get('/install-info', async (_req: Request, res: Response) => {
       writable: info.writable,
       suggestedManualCommand: info.suggestedManualCommand,
       reason: info.reason,
-      updateInProgress,
+      updateInProgress: isUpdateInProgress(),
     });
   } catch (err) {
     const message = (err as Error).message;
@@ -124,12 +125,10 @@ router.post('/self-update', async (_req: Request, res: Response) => {
     return;
   }
 
-  if (updateInProgress) {
+  if (!tryBeginUpdate()) {
     res.status(409).json({ error: 'An update is already in progress.' });
     return;
   }
-
-  updateInProgress = true;
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -186,7 +185,7 @@ router.post('/self-update', async (_req: Request, res: Response) => {
         // Safety net: if the relauncher never takes over, don't stay locked.
         setTimeout(() => {
           log.warn('Relauncher did not take over within 30s — clearing update lock.');
-          updateInProgress = false;
+          endUpdate();
         }, 30000).unref?.();
       } else {
         // Couldn't schedule an auto-restart — fall back to the old behaviour:
@@ -216,7 +215,7 @@ router.post('/self-update', async (_req: Request, res: Response) => {
       });
       clearInterval(keepalive);
       res.end();
-      updateInProgress = false;
+      endUpdate();
     }
   } catch (err) {
     clearInterval(keepalive);
@@ -225,8 +224,26 @@ router.post('/self-update', async (_req: Request, res: Response) => {
     send('error', { message, permissionDenied: false, suggestedManualCommand: info.suggestedManualCommand });
     send('done', { success: false, exitCode: -1, newVersion: null, requiresRestart: false });
     res.end();
-    updateInProgress = false;
+    endUpdate();
   }
+});
+
+/**
+ * GET /api/system/auto-update — unattended-update scheduler status.
+ * POST /api/system/auto-update { enabled } — opt in/out (persisted).
+ */
+router.get('/auto-update', (_req: Request, res: Response) => {
+  res.json(getAutoUpdateStatus());
+});
+
+router.post('/auto-update', (req: Request, res: Response) => {
+  const enabled = req.body?.enabled;
+  if (typeof enabled !== 'boolean') {
+    res.status(400).json({ error: 'Body must include { enabled: boolean }' });
+    return;
+  }
+  log.log(`Auto-update ${enabled ? 'enabled' : 'disabled'} via API`);
+  res.json(setAutoUpdateEnabled(enabled));
 });
 
 export default router;
