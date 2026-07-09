@@ -90,7 +90,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
   const [moveAreaId, setMoveAreaId] = useState<string>('');
   const [modelProvider, setModelProvider] = useState<ModelProvider>('claude');
   const [newClaudeModel, setNewClaudeModel] = useState<ClaudeModel>('claude-opus-4-8[1m]');
-  const [newCodexModel, setNewCodexModel] = useState<CodexModel>('gpt-5.3-codex');
+  const [newCodexModel, setNewCodexModel] = useState<CodexModel>('gpt-5.6-luna');
   // 'default' represents "leave unchanged / use default"; other values are ClaudeEffort levels
   const [newEffort, setNewEffort] = useState<ClaudeEffort | 'default'>('xHigh');
   const [error, setError] = useState<string | null>(null);

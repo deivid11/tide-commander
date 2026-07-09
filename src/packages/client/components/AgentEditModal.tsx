@@ -27,6 +27,14 @@ interface AgentEditModalProps {
 
 type AgentWithShortcut = Agent & { shortcut?: string };
 
+const DEFAULT_CODEX_MODEL: CodexModel = 'gpt-5.6-luna';
+
+function getSelectableCodexModel(model: Agent['codexModel']): CodexModel {
+  return model && Object.prototype.hasOwnProperty.call(CODEX_MODELS, model)
+    ? model
+    : DEFAULT_CODEX_MODEL;
+}
+
 export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) {
   const { t } = useTranslation(['terminal', 'common', 'tools']);
   const allSkills = useSkillsArray();
@@ -45,7 +53,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   });
   const [selectedModel, setSelectedModel] = useState<ClaudeModel>(agent.model || 'sonnet');
   const [selectedEffort, setSelectedEffort] = useState<ClaudeEffort | undefined>(agent.effort);
-  const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>(agent.codexModel || 'gpt-5.3-codex');
+  const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>(getSelectableCodexModel(agent.codexModel));
   const [opencodeModel, setOpencodeModel] = useState<string>((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k');
   const [useChrome, setUseChrome] = useState<boolean>(agent.useChrome || false);
   const [workdir, setWorkdir] = useState<string>(agent.cwd);
@@ -115,7 +123,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       });
       setSelectedModel(agent.model || 'sonnet');
       setSelectedEffort(agent.effort);
-      setSelectedCodexModel(agent.codexModel || 'gpt-5.3-codex');
+      setSelectedCodexModel(getSelectableCodexModel(agent.codexModel));
       setOpencodeModel((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k');
       setUseChrome(agent.useChrome || false);
       setWorkdir(agent.cwd);
@@ -227,7 +235,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (selectedProvider !== (agent.provider || 'claude')) return true;
     if (selectedProvider === 'claude' && selectedModel !== (agent.model || 'sonnet')) return true;
     if (selectedProvider === 'claude' && selectedEffort !== (agent.effort || undefined)) return true;
-    if (selectedProvider === 'codex' && selectedCodexModel !== (agent.codexModel || 'gpt-5.3-codex')) return true;
+    if (selectedProvider === 'codex' && selectedCodexModel !== getSelectableCodexModel(agent.codexModel)) return true;
     if (selectedProvider === 'codex' && JSON.stringify(codexConfig || {}) !== JSON.stringify(agent.codexConfig || {})) return true;
     if (selectedProvider === 'opencode' && opencodeModel !== ((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k')) return true;
     if (useChrome !== (agent.useChrome || false)) return true;
@@ -294,7 +302,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       updates.codexConfig = codexConfig;
     }
 
-    if (selectedProvider === 'codex' && selectedCodexModel !== (agent.codexModel || 'gpt-5.3-codex')) {
+    if (selectedProvider === 'codex' && selectedCodexModel !== getSelectableCodexModel(agent.codexModel)) {
       updates.codexModel = selectedCodexModel;
     }
 

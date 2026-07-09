@@ -74,13 +74,9 @@ export type OpencodeModel = string;
 export type CodexApprovalMode = 'untrusted' | 'on-failure' | 'on-request' | 'never';
 export type CodexSandboxMode = 'read-only' | 'workspace-write' | 'danger-full-access';
 export type CodexModel =
-  | 'gpt-5.5'
-  | 'gpt-5.4'
-  | 'gpt-5.3-codex'
-  | 'gpt-5.2-codex'
-  | 'gpt-5.1-codex-max'
-  | 'gpt-5.1-codex-mini'
-  | 'gpt-5.2';
+  | 'gpt-5.6-luna'
+  | 'gpt-5.6-terra'
+  | 'gpt-5.6-sol';
 
 // Valid values accepted by the codex CLI's `-c model_reasoning_effort=<value>` override.
 // Confirmed from `codex -c model_reasoning_effort=bogus exec …` error message.
@@ -105,40 +101,20 @@ export interface CodexConfig {
 }
 
 export const CODEX_MODELS: Record<CodexModel, { label: string; description: string; icon: string }> = {
-  'gpt-5.5': {
-    label: 'GPT-5.5',
-    description: 'Next-generation frontier model with advanced reasoning and coding',
-    icon: '✨',
+  'gpt-5.6-luna': {
+    label: 'GPT-5.6 Luna',
+    description: 'GPT-5.6 Luna model',
+    icon: '🌙',
   },
-  'gpt-5.4': {
-    label: 'GPT-5.4',
-    description: 'Latest frontier model with advanced reasoning and coding',
-    icon: '🌟',
+  'gpt-5.6-terra': {
+    label: 'GPT-5.6 Terra',
+    description: 'GPT-5.6 Terra model',
+    icon: '🌍',
   },
-  'gpt-5.3-codex': {
-    label: 'GPT-5.3 Codex',
-    description: 'Latest frontier agentic coding model',
-    icon: '⚙️',
-  },
-  'gpt-5.2-codex': {
-    label: 'GPT-5.2 Codex',
-    description: 'Frontier agentic coding model',
-    icon: '🧠',
-  },
-  'gpt-5.1-codex-max': {
-    label: 'GPT-5.1 Codex Max',
-    description: 'Codex-optimized flagship for deep and fast reasoning',
-    icon: '🚀',
-  },
-  'gpt-5.1-codex-mini': {
-    label: 'GPT-5.1 Codex Mini',
-    description: 'Optimized for codex, cheaper and faster',
-    icon: '⚡',
-  },
-  'gpt-5.2': {
-    label: 'GPT-5.2',
-    description: 'General frontier model with strong reasoning and coding',
-    icon: '🧩',
+  'gpt-5.6-sol': {
+    label: 'GPT-5.6 Sol',
+    description: 'GPT-5.6 Sol model',
+    icon: '☀️',
   },
 };
 

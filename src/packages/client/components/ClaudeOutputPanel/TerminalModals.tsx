@@ -651,7 +651,7 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
   if (!isOpen || !agent) return null;
 
   const model = agent.provider === 'codex'
-    ? (agent.codexModel || 'gpt-5.3-codex')
+    ? (agent.codexModel || 'gpt-5.6-luna')
     : agent.provider === 'opencode'
     ? ((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k')
     : (agent.model || 'sonnet');

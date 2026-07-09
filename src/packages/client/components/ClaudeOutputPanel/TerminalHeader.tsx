@@ -20,7 +20,7 @@ import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../../shared/typ
 // have both a model and a reasoning effort; Codex/OpenCode only carry a model.
 function getAgentModelLabel(agent: Agent): { model: string; effort?: string } {
   if (agent.provider === 'codex') {
-    const id = agent.codexModel || 'gpt-5.3-codex';
+    const id = agent.codexModel || 'gpt-5.6-luna';
     const meta = (CODEX_MODELS as Record<string, { label: string }>)[id];
     return { model: meta?.label || id };
   }

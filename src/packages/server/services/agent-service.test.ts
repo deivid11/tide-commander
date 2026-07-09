@@ -114,14 +114,14 @@ describe('agent-service context limits', () => {
       undefined,
       false,
       undefined,
-      'gpt-5.3-codex',
+      'gpt-5.6-luna',
       undefined,
       'codex'
     );
 
     expect(agent.contextLimit).toBe(258400);
     expect(agent.provider).toBe('codex');
-    expect(agent.codexModel).toBe('gpt-5.3-codex');
+    expect(agent.codexModel).toBe('gpt-5.6-luna');
   });
 
   const loadOneIdleAgent = (id: string) => {
