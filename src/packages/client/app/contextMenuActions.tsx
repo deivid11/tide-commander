@@ -429,7 +429,7 @@ export function buildContextMenuActions(
     id: 'open-commander',
     label: 'Commander View',
     icon: <Icon name="dashboard" size={14} />,
-    shortcut: '⌘K',
+    shortcut: 'Tab',
     onClick: () => {
       callbacks.openCommanderModal();
     },

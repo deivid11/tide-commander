@@ -193,7 +193,7 @@ export function useSpotlightSearch({
         id: 'cmd-commander',
         type: 'command',
         title: 'Commander View',
-        subtitle: commanderShortcut ? formatShortcut(commanderShortcut) : 'Ctrl+K',
+        subtitle: commanderShortcut?.key ? formatShortcut(commanderShortcut) : 'Tab',
         icon: <Icon name="dashboard" size={16} />,
         action: () => {
           onCloseRef.current();
