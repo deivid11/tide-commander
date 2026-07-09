@@ -249,6 +249,11 @@ function createHandlerContext(ws: WebSocket): HandlerContext {
 const noopHandler: MessageHandler = () => {};
 
 const messageHandlers = {
+  // Liveness probe: reply only to the pinging socket so mobile clients can
+  // detect zombie connections (dead TCP still reporting readyState OPEN).
+  ping: (ctx, payload) => {
+    ctx.sendToClient({ type: 'pong', payload: { ts: payload?.ts ?? Date.now() } });
+  },
   spawn_agent: handleSpawnAgent,
   clone_agent: handleCloneAgent,
   fork_agent: handleForkAgent,

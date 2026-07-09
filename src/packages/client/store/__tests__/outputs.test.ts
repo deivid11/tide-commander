@@ -290,6 +290,73 @@ describe('Output Store Actions', () => {
       expect(outputs[0].isUserPrompt).toBe(true);
       expect(outputs[0].isStreaming).toBe(false);
     });
+
+    it('marks the entry pendingEcho when requested', () => {
+      const { state, actions } = createMockStore();
+
+      actions.addUserPromptToOutput('agent-1', 'hola', { pendingEcho: true });
+      const outputs = state.agentOutputs.get('agent-1')!;
+
+      expect(outputs).toHaveLength(1);
+      expect(outputs[0].pendingEcho).toBe(true);
+      expect(outputs[0].isUserPrompt).toBe(true);
+    });
+  });
+
+  describe('confirmUserPromptEcho', () => {
+    it('confirms an exact-text pending prompt and clears the flag', () => {
+      const { state, actions } = createMockStore();
+      actions.addUserPromptToOutput('agent-1', 'arregla el bug', { pendingEcho: true });
+
+      const confirmed = actions.confirmUserPromptEcho('agent-1', 'arregla el bug');
+
+      expect(confirmed).toBe(true);
+      const outputs = state.agentOutputs.get('agent-1')!;
+      expect(outputs).toHaveLength(1);
+      expect(outputs[0].pendingEcho).toBeUndefined();
+      expect(outputs[0].text).toBe('arregla el bug');
+    });
+
+    it('adopts the server-expanded text when it wraps the raw prompt', () => {
+      const { state, actions } = createMockStore();
+      actions.addUserPromptToOutput('agent-1', 'revisa esto', { pendingEcho: true });
+
+      const expanded = '<archivos_contexto>...</archivos_contexto>\n\nPetición: revisa esto';
+      const confirmed = actions.confirmUserPromptEcho('agent-1', expanded);
+
+      expect(confirmed).toBe(true);
+      const outputs = state.agentOutputs.get('agent-1')!;
+      expect(outputs[0].text).toBe(expanded);
+      expect(outputs[0].pendingEcho).toBeUndefined();
+    });
+
+    it('resolves multiple in-flight prompts FIFO by exact text', () => {
+      const { state, actions } = createMockStore();
+      actions.addUserPromptToOutput('agent-1', 'primero', { pendingEcho: true });
+      actions.addUserPromptToOutput('agent-1', 'segundo', { pendingEcho: true });
+
+      expect(actions.confirmUserPromptEcho('agent-1', 'segundo')).toBe(true);
+
+      const outputs = state.agentOutputs.get('agent-1')!;
+      expect(outputs[0].pendingEcho).toBe(true); // 'primero' still pending
+      expect(outputs[1].pendingEcho).toBeUndefined();
+    });
+
+    it('returns false when nothing is pending (echo from another client)', () => {
+      const { state, actions } = createMockStore();
+      actions.addUserPromptToOutput('agent-1', 'ya confirmado');
+
+      expect(actions.confirmUserPromptEcho('agent-1', 'comando ajeno')).toBe(false);
+      expect(state.agentOutputs.get('agent-1')).toHaveLength(1);
+    });
+
+    it('ignores pending prompts of other agents', () => {
+      const { state, actions } = createMockStore();
+      actions.addUserPromptToOutput('agent-1', 'mensaje', { pendingEcho: true });
+
+      expect(actions.confirmUserPromptEcho('agent-2', 'mensaje')).toBe(false);
+      expect(state.agentOutputs.get('agent-1')![0].pendingEcho).toBe(true);
+    });
   });
 
   describe('lastPrompt', () => {

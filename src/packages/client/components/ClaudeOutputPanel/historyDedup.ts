@@ -79,6 +79,7 @@ export function shouldKeepOutput(
   output: ClaudeOutput,
   historyUuidSet: Set<string>,
   latestHistoryTsByKey: Map<string, number>,
+  historyUserMessages?: Array<{ content: string; ts: number }>,
 ): boolean {
   // UUID-bearing live output: keep unless the same UUID is already in history.
   // Pruning by timestamp here would silently kill optimistic chips/messages
@@ -95,6 +96,23 @@ export function shouldKeepOutput(
 
   if (historyTs !== undefined && Math.abs(outputTs - historyTs) <= HISTORY_LIVE_DEDUP_WINDOW_MS) {
     return false;
+  }
+
+  // A pendingEcho prompt whose command_started echo was lost can still be
+  // confirmed by the fetched history: the persisted user message may wrap the
+  // raw prompt this client rendered (expanded [@file:] mentions, boss
+  // context), so the exact-key check above misses it — match by containment
+  // within the same time window so the entry doesn't linger as a dimmed
+  // duplicate next to its history twin.
+  if (output.pendingEcho && historyUserMessages) {
+    const raw = normalizeMessage(output.text);
+    if (raw.length > 0) {
+      for (const m of historyUserMessages) {
+        if (Math.abs(outputTs - m.ts) <= HISTORY_LIVE_DEDUP_WINDOW_MS && m.content.includes(raw)) {
+          return false;
+        }
+      }
+    }
   }
 
   return true;
@@ -122,6 +140,7 @@ export function dedupeOutputsAgainstHistory(
 ): DedupedOutputsResult {
   const historyUuidSet = new Set<string>();
   const latestHistoryTsByKey = new Map<string, number>();
+  const historyUserMessages: Array<{ content: string; ts: number }> = [];
   for (const m of historyMessages) {
     if (typeof m.uuid === 'string' && m.uuid.length > 0) historyUuidSet.add(m.uuid);
     if (typeof m.toolUseId === 'string' && m.toolUseId.length > 0) historyUuidSet.add(m.toolUseId);
@@ -130,11 +149,15 @@ export function dedupeOutputsAgainstHistory(
     const msgTs = m.timestamp ? new Date(m.timestamp).getTime() : 0;
     const prev = latestHistoryTsByKey.get(key) ?? 0;
     if (msgTs > prev) latestHistoryTsByKey.set(key, msgTs);
+    if (m.type === 'user') {
+      historyUserMessages.push({ content: normalizeMessage(m.content), ts: msgTs });
+    }
   }
   const kept = currentOutputs.filter((output) => shouldKeepOutput(
     output,
     historyUuidSet,
     latestHistoryTsByKey,
+    historyUserMessages,
   ));
   return { kept, changed: kept.length !== currentOutputs.length };
 }

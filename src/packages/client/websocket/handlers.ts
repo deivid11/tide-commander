@@ -145,6 +145,12 @@ export function handleServerMessage(message: ServerMessage): void {
       break;
     }
 
+    case 'pong': {
+      // Liveness-probe reply. The mere arrival already updated the inbound
+      // tracker in connection.ts (any frame counts); nothing else to do.
+      break;
+    }
+
     case 'git_status_update': {
       store.applyGitStatusUpdate(message.payload as import('../../shared/types').GitWatchedDirStatus);
       break;
@@ -342,8 +348,12 @@ export function handleServerMessage(message: ServerMessage): void {
       if (trimmedCommand === '/context' || trimmedCommand === '/cost' || trimmedCommand === '/compact') {
         break;
       }
-      // Add user prompt to output when command actually starts executing
-      store.addUserPromptToOutput(agentId, command);
+      // Confirm this client's optimistic echo (added at send time by
+      // store.sendCommand). No pending match means the command came from
+      // another client/device — append it like before.
+      if (!store.confirmUserPromptEcho(agentId, command)) {
+        store.addUserPromptToOutput(agentId, command);
+      }
       break;
     }
 

@@ -82,6 +82,27 @@ export interface ServerTimeMessage extends WSMessage {
   };
 }
 
+// Application-level liveness probe (client → server). Mobile sockets can die
+// without a close event (doze, WiFi↔cellular switch, NAT timeout) and sit in
+// readyState OPEN for minutes while every send goes into a dead pipe. Clients
+// send a ping and expect ANY inbound frame within a deadline; if nothing
+// arrives they discard the socket and reconnect.
+export interface PingMessage extends WSMessage {
+  type: 'ping';
+  payload: {
+    ts: number;
+  };
+}
+
+// Server reply to PingMessage, echoing the client's timestamp. Sent only to
+// the pinging socket, never broadcast.
+export interface PongMessage extends WSMessage {
+  type: 'pong';
+  payload: {
+    ts: number;
+  };
+}
+
 // ============================================================================
 // Git Watch (server-side git polling pushed over WS)
 // ============================================================================
@@ -1699,6 +1720,7 @@ export type ServerMessage =
   | EventMessage
   | ActivityMessage
   | ServerTimeMessage
+  | PongMessage
   | GitStatusUpdateMessage
   | OutputMessage
   | ErrorMessage
@@ -1873,4 +1895,5 @@ export type ClientMessage =
   | PauseWorkflowMessage
   | ResumeWorkflowMessage
   | CancelWorkflowMessage
-  | ManualTransitionMessage;
+  | ManualTransitionMessage
+  | PingMessage;
