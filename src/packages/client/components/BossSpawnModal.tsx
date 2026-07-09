@@ -60,7 +60,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
     search: false,
   });
   const [selectedModel, setSelectedModel] = useState<ClaudeModel>('claude-opus-4-8[1m]');
-  const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>('gpt-5.3-codex');
+  const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>('gpt-5.6-luna');
   const [selectedSubordinates, setSelectedSubordinates] = useState<Set<string>>(new Set());
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
   const [classSearch, setClassSearch] = useState('');

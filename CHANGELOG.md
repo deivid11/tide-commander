@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.146.0] - 2026-07-09
+
+### Added
+- **Transfer Connect remote log skill** - added a reusable skill guide for inspecting Transfer Connect core and FEC proxy logs through the Tide SSH bastion.
+
+### Changed
+- **Codex model defaults** - updated Codex agent creation, editing, bulk management, terminal labels, docs, and tests to use the GPT-5.6 Luna/Terra/Sol model set, with Luna as the default fallback.
+
 ## [1.145.1] - 2026-07-09
 
 ### Fixed

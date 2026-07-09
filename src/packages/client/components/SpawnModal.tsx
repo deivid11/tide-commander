@@ -84,7 +84,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
   const [selectedModel, setSelectedModel] = useState<ClaudeModel>('claude-opus-4-8[1m]'); // Default to latest Opus with 1M context
   const [selectedEffort, setSelectedEffort] = useState<ClaudeEffort | undefined>('xHigh'); // Default: xHigh (extra high reasoning)
-  const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>('gpt-5.3-codex');
+  const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>('gpt-5.6-luna');
   const [opencodeModel, setOpencodeModel] = useState<string>('minimax/MiniMax-M1-80k');
   const [customInstructions, setCustomInstructions] = useState('');
   const [skillSearch, setSkillSearch] = useState('');
