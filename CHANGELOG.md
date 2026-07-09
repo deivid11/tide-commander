@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.143.2] - 2026-07-09
+
+### Fixed
+- **App resume reconnect grace** - reopening Tide Commander while disconnected now restarts the reconnect grace window, keeping the small reconnecting toast visible before showing the full disconnected overlay.
+
 ## [1.143.1] - 2026-07-09
 
 ### Changed
