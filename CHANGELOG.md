@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.144.0] - 2026-07-09
+
+### Added
+- **Resume into last active agent** - on a fresh app or web load, Tide Commander now opens the most recently active agent so the terminal is immediately visible without manually reselecting it.
+
 ## [1.143.2] - 2026-07-09
 
 ### Fixed

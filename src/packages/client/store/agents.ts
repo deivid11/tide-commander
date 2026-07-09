@@ -167,6 +167,11 @@ export function createAgentActions(
   saveUnseenAgents?: () => void,
   savePinnedAgents?: () => void
 ): AgentActions {
+  // One-shot guard: on a fresh load (app or web) the very first agent sync should
+  // auto-open the most-recently-active agent's Guake terminal. Scoped to this store
+  // instance so it resets on page reload and never re-fires mid-session (e.g. if the
+  // user later deselects every agent).
+  let firstAgentSyncHandled = false;
   return {
     setAgents(agentList: Agent[]): void {
       perf.start('store:setAgents');
@@ -181,17 +186,37 @@ export function createAgentActions(
         }
       }
 
-      // Find a working agent to auto-select (helps with page refresh during streaming)
-      const workingAgent = agentList.find((a) => a.status === 'working');
+      // On the FIRST sync of a fresh load, pick the most-recently-active agent so the
+      // app/web opens straight into that agent's Guake terminal (works in flat view and
+      // every other view mode). "Last active" = greatest lastActivity, which also covers
+      // the working-agent-on-refresh case. Deep links (handled in App.tsx) still override.
+      const isFirstSync = !firstAgentSyncHandled;
+      let lastActiveAgent: Agent | null = null;
+      if (isFirstSync && agentList.length > 0) {
+        for (const agent of agentList) {
+          if (!lastActiveAgent || (agent.lastActivity || 0) > (lastActiveAgent.lastActivity || 0)) {
+            lastActiveAgent = agent;
+          }
+        }
+      }
 
       setState((state) => {
         state.agents = newAgents;
-        // Auto-select working agent if no agent is currently selected
-        if (workingAgent && state.selectedAgentIds.size === 0) {
-          state.selectedAgentIds = new Set([workingAgent.id]);
-          state.terminalOpen = true;
+        // Auto-open the last-active agent only if the user hasn't already selected one
+        // (respects deep links / prior selection). Selecting the agent is what surfaces
+        // the chat in flat view; the Guake overlay is opened only outside flat view, where
+        // selection alone doesn't reveal it (and opening it in flat would stack a duplicate).
+        if (isFirstSync && lastActiveAgent && state.selectedAgentIds.size === 0) {
+          state.selectedAgentIds = new Set([lastActiveAgent.id]);
+          state.lastSelectedAgentId = lastActiveAgent.id;
+          if (state.viewMode !== 'flat') {
+            state.terminalOpen = true;
+          }
         }
       });
+      if (isFirstSync && agentList.length > 0) {
+        firstAgentSyncHandled = true;
+      }
       notify();
       perf.end('store:setAgents');
     },
