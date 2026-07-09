@@ -66,7 +66,7 @@ export function NotConnectedOverlay() {
   }, []);
 
   // Reconnection grace period: when connection drops after being connected,
-  // show a small "Reconnecting..." toast for 10 seconds before showing the full overlay.
+  // show a small "Reconnecting..." toast for 15 seconds before showing the full overlay.
   useEffect(() => {
     if (isConnected) {
       wasConnectedRef.current = true;
@@ -80,7 +80,7 @@ export function NotConnectedOverlay() {
       const timer = setTimeout(() => {
         setGracePeriod(false);
         setReconnecting(false);
-      }, 10000);
+      }, 15000);
       return () => clearTimeout(timer);
     }
   }, [isConnected]);

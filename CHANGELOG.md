@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.143.1] - 2026-07-09
+
+### Changed
+- **Connection recovery grace** - the disconnected overlay now waits 15 seconds before replacing the reconnecting toast, giving short mobile network handoffs more room to recover.
+
+### Fixed
+- **Welcome modal persistence** - dismissing onboarding now persists across browser sessions, and creating an agent permanently suppresses the empty-state onboarding modal even if all agents are later removed.
+
 ## [1.143.0] - 2026-07-09
 
 ### Added

@@ -1,9 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useIsConnected, useAgentCount } from '../store';
 import { ModalPortal } from './shared/ModalPortal';
 
-const SESSION_KEY = 'tide-onboarding-dismissed';
+// localStorage (not sessionStorage) so a single dismissal persists across
+// browser sessions — once seen, the welcome modal never shows again.
+const STORAGE_KEY = 'tide-onboarding-dismissed';
 
 interface OnboardingModalProps {
   onCreateAgent: () => void;
@@ -13,13 +15,22 @@ export function OnboardingModal({ onCreateAgent }: OnboardingModalProps) {
   const { t } = useTranslation('common');
   const isConnected = useIsConnected();
   const agentCount = useAgentCount();
-  const [dismissed, setDismissed] = useState(() => sessionStorage.getItem(SESSION_KEY) === '1');
+  const [dismissed, setDismissed] = useState(() => localStorage.getItem(STORAGE_KEY) === '1');
+
+  // Having ever had at least one agent counts as onboarded — permanently
+  // suppress the modal even if every agent is later deleted (agentCount → 0).
+  useEffect(() => {
+    if (agentCount > 0 && localStorage.getItem(STORAGE_KEY) !== '1') {
+      localStorage.setItem(STORAGE_KEY, '1');
+      setDismissed(true);
+    }
+  }, [agentCount]);
 
   const shouldShow = isConnected && !dismissed && agentCount === 0;
 
   const handleDismiss = useCallback(() => {
     setDismissed(true);
-    sessionStorage.setItem(SESSION_KEY, '1');
+    localStorage.setItem(STORAGE_KEY, '1');
   }, []);
 
   const handleCreate = useCallback(() => {
