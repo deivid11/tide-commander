@@ -237,19 +237,34 @@ function UnattendedUpdateToggle() {
     }
   }, [busy]);
 
-  if (!status?.supported) return null;
+  // Still loading (or hidden entirely when the fetch failed with no error —
+  // shouldn't happen, but don't render a broken empty block).
+  if (!status && !error) return null;
 
+  // Fetch failed (server restarting, or a pre-1.145 server without the
+  // endpoint): show the block with the error instead of silently vanishing.
+  if (!status) {
+    return (
+      <div className="about-autoupdate">
+        <div className="about-autoupdate-title">{t('config:about.unattendedTitle')}</div>
+        <div className="about-update-error">{error}</div>
+      </div>
+    );
+  }
+
+  // Always visible so the option is discoverable from the UI; unsupported
+  // installs (dev checkout, non-npm global) get a disabled toggle + a note.
   return (
     <div className="about-autoupdate">
       <div className="about-autoupdate-title">{t('config:about.unattendedTitle')}</div>
       <div className="about-autoupdate-row">
         <span className="about-autoupdate-devnote">{t('config:about.unattendedDesc')}</span>
-        <label className="config-toggle">
+        <label className="config-toggle" style={!status.supported ? { opacity: 0.5 } : undefined}>
           <input
             type="checkbox"
             className="config-toggle-input"
             checked={status.enabled}
-            disabled={busy}
+            disabled={busy || !status.supported}
             onChange={(e) => void handleToggle(e.target.checked)}
           />
           <span className="config-toggle-track">
@@ -257,12 +272,15 @@ function UnattendedUpdateToggle() {
           </span>
         </label>
       </div>
-      {status.enabled && status.pendingRestartVersion && (
+      {!status.supported && (
+        <div className="about-autoupdate-devnote">{t('config:about.unattendedUnsupported')}</div>
+      )}
+      {status.supported && status.enabled && status.pendingRestartVersion && (
         <div className="about-autoupdate-devnote">
           {t('config:about.unattendedPendingRestart', { version: status.pendingRestartVersion })}
         </div>
       )}
-      {status.enabled && !status.pendingRestartVersion && status.lastResult && (
+      {status.supported && status.enabled && !status.pendingRestartVersion && status.lastResult && (
         <div className="about-autoupdate-devnote">{status.lastResult}</div>
       )}
       {error && <div className="about-update-error">{error}</div>}

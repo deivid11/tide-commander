@@ -315,7 +315,8 @@
     "claudeCodeCredit": "por Anthropic, el motor de IA",
     "unattendedTitle": "Actualizaciones automáticas",
     "unattendedDesc": "Instalar actualizaciones automáticamente cuando ningún agente esté trabajando (revisa cada 30 min)",
-    "unattendedPendingRestart": "v{{version}} instalada — se reiniciará en cuanto todos los agentes estén libres"
+    "unattendedPendingRestart": "v{{version}} instalada — se reiniciará en cuanto todos los agentes estén libres",
+    "unattendedUnsupported": "Solo disponible en instalaciones globales de npm (corre en el servidor, no en modo dev)"
   },
   "shortcuts": {
     "pressKeys": "Presione teclas...",

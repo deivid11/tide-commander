@@ -568,7 +568,8 @@
     "autoUpdatePackageManagerNotice": "Auto-update only supports npm-installed globals. Detected: {{pm}}.",
     "unattendedTitle": "Automatic updates",
     "unattendedDesc": "Install updates automatically when no agent is working (checks every 30 min)",
-    "unattendedPendingRestart": "v{{version}} installed — will restart as soon as all agents are idle"
+    "unattendedPendingRestart": "v{{version}} installed — will restart as soon as all agents are idle",
+    "unattendedUnsupported": "Only available for npm global installs (runs on the server, not in dev mode)"
   },
   "updateBanner": {
     "newVersion": "New version v{{version}} available",

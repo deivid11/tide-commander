@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.147.0] - 2026-07-09
+
+### Added
+- **Slack socket reconciler** - Socket Mode can now run a background polling reconciler to recover messages missed during disconnects, ping-timeout flaps, or process restarts while deduplicating by `(channel, ts)`.
+- **Slack thread sweep registry** - polling now tracks active Slack threads with per-thread watermarks, seeds recent activity from SQLite on startup, and keeps replies on older thread parents visible.
+- **Slack message lookup migration** - added an index-backed `(channel_id, ts)` lookup path for fast reconciler dedup checks.
+
+### Changed
+- **Slack integration state** - integration context now exposes Slack message existence and recent thread activity queries for the reconciler and startup seeding flow.
+- **Slack configuration** - added the `socketReconcileEnabled` setting and localized configuration copy for the hybrid Socket Mode + polling behavior.
+
 ## [1.146.0] - 2026-07-09
 
 ### Added

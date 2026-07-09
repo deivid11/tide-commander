@@ -92,6 +92,8 @@ async function main(): Promise<void> {
     eventDb: {
       logTriggerFire: eventQueries.logTriggerFire as (...args: unknown[]) => unknown,
       logSlackMessage: eventQueries.logSlackMessage as (...args: unknown[]) => unknown,
+      hasSlackMessage: eventQueries.hasSlackMessage,
+      recentSlackThreadActivity: eventQueries.recentSlackThreadActivity,
       logWhatsAppMessage: eventQueries.logWhatsAppMessage as (...args: unknown[]) => unknown,
       logEmailMessage: eventQueries.logEmailMessage as (...args: unknown[]) => unknown,
       logApprovalEvent: eventQueries.logApprovalEvent as (...args: unknown[]) => unknown,
