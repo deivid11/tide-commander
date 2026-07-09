@@ -98,11 +98,27 @@ export type SelfUpdateEvent =
  * Returns a function that aborts the connection (the server-side install
  * itself can't be cancelled cleanly, but this stops listening).
  */
+// Abort the SSE stream if nothing arrives for this long. The server writes a
+// keepalive comment every 15s while npm runs, so 45s of silence = the stream
+// died without the browser noticing (sleep, network switch, server killed).
+// Without this, reader.read() stays pending forever and the UI never leaves
+// "Installing update…" even though the install finished.
+const STREAM_STALL_MS = 45_000;
+
 export function startSelfUpdate(
   onEvent: (event: SelfUpdateEvent) => void,
   onClose: (err?: Error) => void,
 ): () => void {
   const controller = new AbortController();
+  let lastActivity = Date.now();
+  let stalled = false;
+  const stallTimer = setInterval(() => {
+    if (Date.now() - lastActivity > STREAM_STALL_MS) {
+      stalled = true;
+      clearInterval(stallTimer);
+      controller.abort();
+    }
+  }, 5_000);
 
   void (async () => {
     try {
@@ -132,6 +148,7 @@ export function startSelfUpdate(
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
+        lastActivity = Date.now(); // any bytes count, keepalive comments included
         buffer += decoder.decode(value, { stream: true });
 
         // SSE frames separated by blank lines (\n\n)
@@ -168,12 +185,17 @@ export function startSelfUpdate(
       onClose();
     } catch (err) {
       if ((err as Error).name === 'AbortError') {
-        onClose();
+        onClose(stalled ? new Error('Update stream stalled — no data from the server for 45s') : undefined);
         return;
       }
       onClose(err as Error);
+    } finally {
+      clearInterval(stallTimer);
     }
   })();
 
-  return () => controller.abort();
+  return () => {
+    clearInterval(stallTimer);
+    controller.abort();
+  };
 }

@@ -22,6 +22,9 @@ import {
   getHasConnectedBefore, setHasConnectedBefore,
   clearSessionState,
   setConnectFn,
+  getLastInboundAt, noteInboundFrame,
+  getLivenessProbeTimer, setLivenessProbeTimer,
+  getHeartbeatTimer, setHeartbeatTimer,
 } from './state';
 import { cb } from './callbacks';
 import { handleServerMessage } from './handlers';
@@ -59,33 +62,35 @@ const WS_HANDSHAKE_TIMEOUT_MS = 10_000;
 // otherwise discard the socket immediately and let the reconnect path (which
 // resyncs + refetches history) take over.
 const HEARTBEAT_INTERVAL_MS = 25_000;
-const LIVENESS_PROBE_DEADLINE_MS = 8_000;
+const LIVENESS_PROBE_DEADLINE_MS = 10_000;
 // Traffic younger than this proves the pipe is alive — skip the probe.
 const FRESH_TRAFFIC_MS = 15_000;
 
-// Epoch ms of the last frame received on the CURRENT socket (any type counts).
-let lastInboundAt = 0;
-// Single-flight guard: at most one liveness probe pending at a time.
-let livenessProbeTimer: ReturnType<typeof setTimeout> | null = null;
+// NOTE: lastInboundAt / livenessProbeTimer / heartbeatTimer live in the
+// HMR-persisted window state (state.ts), NEVER as module-scoped variables.
+// Vite HMR re-executes this module while the live socket's onmessage closure
+// belongs to a previous instance; a module-scoped lastInboundAt would stay
+// frozen for every other instance and its heartbeat would kill a healthy
+// socket every cycle ("Connection Stale" loop).
 
 /** Send a ping and require any inbound frame within the deadline, else the
  * socket is a zombie and gets discarded. Any inbound frame counts as proof —
  * the pong itself, a broadcast, anything. */
 function probeSocketLiveness(socket: WebSocket, deadlineMs = LIVENESS_PROBE_DEADLINE_MS): void {
-  if (livenessProbeTimer !== null) return;
-  const baseline = lastInboundAt;
+  if (getLivenessProbeTimer() !== null) return; // single probe in flight
+  const baseline = getLastInboundAt();
   try {
     socket.send(JSON.stringify({ type: 'ping', payload: { ts: Date.now() } }));
   } catch {
     killZombieSocket(socket);
     return;
   }
-  livenessProbeTimer = setTimeout(() => {
-    livenessProbeTimer = null;
+  setLivenessProbeTimer(setTimeout(() => {
+    setLivenessProbeTimer(null);
     if (getWs() !== socket) return; // socket already replaced/cleaned up
-    if (lastInboundAt !== baseline) return; // something arrived — alive
+    if (getLastInboundAt() !== baseline) return; // something arrived — alive
     killZombieSocket(socket);
-  }, deadlineMs);
+  }, deadlineMs));
 }
 
 /** Discard a socket whose TCP is dead. close() on a dead pipe can take the
@@ -125,30 +130,36 @@ export function verifyConnection(): void {
     return;
   }
   if (ws.readyState === WebSocket.CONNECTING) return; // handshake timer owns this
-  if (Date.now() - lastInboundAt < FRESH_TRAFFIC_MS) return; // demonstrably alive
+  if (Date.now() - getLastInboundAt() < FRESH_TRAFFIC_MS) return; // demonstrably alive
   // Catch up over HTTP right away (the socket may have missed broadcasts
   // while the device slept) and prove the socket in parallel — if it fails
   // the probe, the reconnect path runs a second resync, which is harmless.
   // A probe already in flight means another wake-up signal (visibilitychange,
   // appStateChange, online — they often fire together) resynced moments ago.
-  if (livenessProbeTimer === null && getHasConnectedBefore()) {
+  if (getLivenessProbeTimer() === null && getHasConnectedBefore()) {
     cb.onReconnect?.();
   }
   probeSocketLiveness(ws);
 }
 
 // Heartbeat: while the app is visible and believes it is connected, make sure
-// traffic actually flows. Interval lives at module scope (started once at
-// load) so it needs no per-socket lifecycle management; each tick re-reads
-// the current socket from the HMR-persisted slot.
-setInterval(() => {
-  if (backgroundSuspended) return;
-  if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-  const ws = getWs();
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  if (Date.now() - lastInboundAt < HEARTBEAT_INTERVAL_MS) return;
-  probeSocketLiveness(ws);
-}, HEARTBEAT_INTERVAL_MS);
+// traffic actually flows. Exactly ONE interval must exist page-wide: the
+// handle lives in the HMR-persisted state, and each module (re-)execution
+// clears the previous instance's interval before installing its own —
+// otherwise every hot reload would add another prober whose closures could
+// disagree with the live one.
+{
+  const previousHeartbeat = getHeartbeatTimer();
+  if (previousHeartbeat) clearInterval(previousHeartbeat);
+  setHeartbeatTimer(setInterval(() => {
+    if (backgroundSuspended) return;
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+    const ws = getWs();
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (Date.now() - getLastInboundAt() < HEARTBEAT_INTERVAL_MS) return;
+    probeSocketLiveness(ws);
+  }, HEARTBEAT_INTERVAL_MS));
+}
 
 // ─── WS-handshake demotion ───────────────────────────────────────────────────
 // A URL whose /api/health answers but whose /ws upgrade keeps dying (e.g. a
@@ -508,7 +519,7 @@ async function openSocket(): Promise<void> {
       return;
     }
     opened = true;
-    lastInboundAt = Date.now(); // handshake completed — the pipe is provably alive
+    noteInboundFrame(); // handshake completed — the pipe is provably alive
     if (chosenHttpUrl) {
       wsHandshakeFailures.delete(chosenHttpUrl);
     }
@@ -555,7 +566,7 @@ async function openSocket(): Promise<void> {
 
   socket.onmessage = (event) => {
     if (getWs() !== socket) return; // abandoned socket
-    lastInboundAt = Date.now(); // any frame proves the pipe is alive
+    noteInboundFrame(); // any frame proves the pipe is alive
     try {
       const message = JSON.parse(event.data) as ServerMessage;
 

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.144.1] - 2026-07-09
+
+### Fixed
+- **Self-update completion recovery** - the update UI now detects stalled install streams and verifies the real server state instead of staying stuck on "Installing update...".
+- **WebSocket heartbeat under hot reload** - liveness tracking now survives Vite HMR without killing a healthy socket in a repeated "Connection Stale" loop.
+
 ## [1.144.0] - 2026-07-09
 
 ### Added
