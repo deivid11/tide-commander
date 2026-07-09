@@ -3,6 +3,7 @@
 import { execSync, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
@@ -31,6 +32,8 @@ type CliOptions = {
   lines?: number;
   help?: boolean;
   restart?: boolean;
+  /** Internal (post-update relauncher): exact PID of the server being replaced. */
+  replacePid?: number;
 };
 
 const PID_DIR = path.join(os.homedir(), '.local', 'share', 'tide-commander');
@@ -186,6 +189,22 @@ function parseArgs(argv: string[]): CliOptions {
       case '--restart':
         options.restart = true;
         break;
+      case '--replace-pid': {
+        // Internal flag used by the post-update relauncher: the exact PID of
+        // the server that scheduled the restart. More reliable than the PID
+        // file, which can be stale after failed starts.
+        const value = argv[i + 1];
+        if (!value || value.startsWith('-')) {
+          throw new Error(`Missing value for ${arg}`);
+        }
+        const replacePid = Number(value);
+        if (!Number.isInteger(replacePid) || replacePid < 1) {
+          throw new Error(`Invalid PID for ${arg}: ${value}`);
+        }
+        options.replacePid = replacePid;
+        i += 1;
+        break;
+      }
       case '--lines': {
         const value = argv[i + 1];
         if (!value || value.startsWith('-')) {
@@ -378,30 +397,156 @@ async function waitForProcessExit(pid: number, timeoutMs = 8000): Promise<boolea
   return !isRunning(pid);
 }
 
-async function waitForChildStartup(child: ReturnType<typeof spawn>, timeoutMs = 700): Promise<boolean> {
-  return await new Promise<boolean>((resolve) => {
+/** Host to use for TCP connect checks — wildcard binds are reachable via loopback. */
+function connectHostFor(host: string): string {
+  return host === '0.0.0.0' || host === '::' || host === '' ? '127.0.0.1' : host;
+}
+
+function isPortListening(host: string, port: number, timeoutMs = 500): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.connect({ host, port });
     let settled = false;
-
-    const timer = setTimeout(() => {
+    const done = (listening: boolean) => {
       if (settled) return;
       settled = true;
-      resolve(true);
-    }, timeoutMs);
-
-    child.once('exit', () => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(false);
-    });
-
-    child.once('error', () => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(false);
-    });
+      socket.destroy();
+      resolve(listening);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once('connect', () => done(true));
+    socket.once('timeout', () => done(false));
+    socket.once('error', () => done(false));
   });
+}
+
+async function waitForPortFree(host: string, port: number, timeoutMs: number): Promise<boolean> {
+  const started = Date.now();
+  while (await isPortListening(host, port)) {
+    if (Date.now() - started >= timeoutMs) return false;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  return true;
+}
+
+/**
+ * Best-effort lookup of the process listening on `port` (Linux only): match
+ * LISTEN sockets in /proc/net/tcp{,6} by port, then find the process holding
+ * that socket inode. Returns null on any failure or on other platforms.
+ */
+function findPidListeningOnPort(port: number): number | null {
+  try {
+    const hexPort = port.toString(16).toUpperCase().padStart(4, '0');
+    const inodes = new Set<string>();
+    for (const file of ['/proc/net/tcp', '/proc/net/tcp6']) {
+      let content: string;
+      try {
+        content = fs.readFileSync(file, 'utf8');
+      } catch {
+        continue;
+      }
+      for (const line of content.split('\n').slice(1)) {
+        const cols = line.trim().split(/\s+/);
+        // local_address is col 1, connection state col 3 ('0A' = LISTEN), socket inode col 9
+        if (cols.length < 10 || cols[3] !== '0A') continue;
+        if (!cols[1]?.endsWith(`:${hexPort}`)) continue;
+        inodes.add(cols[9]);
+      }
+    }
+    if (inodes.size === 0) return null;
+
+    for (const pidName of fs.readdirSync('/proc')) {
+      if (!/^\d+$/.test(pidName)) continue;
+      const fdDir = `/proc/${pidName}/fd`;
+      let fds: string[];
+      try {
+        fds = fs.readdirSync(fdDir);
+      } catch {
+        continue; // other users' processes
+      }
+      for (const fd of fds) {
+        let link: string;
+        try {
+          link = fs.readlinkSync(path.join(fdDir, fd));
+        } catch {
+          continue;
+        }
+        const match = link.match(/^socket:\[(\d+)\]$/);
+        if (match && inodes.has(match[1])) {
+          const pid = Number(pidName);
+          if (pid !== process.pid) return pid;
+        }
+      }
+    }
+  } catch {
+    // best-effort only
+  }
+  return null;
+}
+
+type ServerStartupResult = 'ready' | 'exited' | 'timeout';
+
+/**
+ * Wait until the spawned server actually accepts connections on its port, it
+ * exits, or the timeout lapses. A fixed short grace period is NOT enough here:
+ * the server binds its port seconds into boot, so an EADDRINUSE death happens
+ * long after a 700ms check — which used to make the CLI report "Started in
+ * background" for a child that was already doomed, leaving a stale PID file.
+ */
+function waitForServerReady(
+  child: ReturnType<typeof spawn>,
+  host: string,
+  port: number,
+  timeoutMs = 30000,
+): Promise<ServerStartupResult> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const settle = (result: ServerStartupResult) => {
+      if (settled) return;
+      settled = true;
+      clearInterval(poll);
+      clearTimeout(timer);
+      resolve(result);
+    };
+
+    child.once('exit', () => settle('exited'));
+    child.once('error', () => settle('exited'));
+
+    const poll = setInterval(() => {
+      void isPortListening(host, port).then((up) => {
+        if (up && child.exitCode === null && !settled) settle('ready');
+      });
+    }, 250);
+    const timer = setTimeout(() => settle('timeout'), timeoutMs);
+  });
+}
+
+/**
+ * When the PID file is missing or stale, check whether a server is still
+ * listening on the last known port (from the meta file, env, or default) and
+ * recover its real PID if possible. This self-heals the situation where the
+ * tracked PID died but the actual server lives on — e.g. after a post-update
+ * relaunch race or a failed duplicate start clobbered the PID file.
+ */
+async function recoverUntrackedServer(): Promise<{ pid: number | null; host: string; port: number; meta: ServerMeta | null } | null> {
+  const meta = readServerMeta();
+  const host = meta?.host ?? process.env.HOST ?? 'localhost';
+  const port = Number(meta?.port ?? process.env.PORT ?? '6200');
+  if (!Number.isInteger(port) || port < 1) return null;
+  if (!(await isPortListening(connectHostFor(host), port))) return null;
+
+  const pid = findPidListeningOnPort(port);
+  if (pid && isRunning(pid)) {
+    writePidFile(pid);
+    writeServerMeta({
+      pid,
+      host,
+      port: String(port),
+      https: meta?.https,
+      authEnabled: meta?.authEnabled,
+    });
+    return { pid, host, port, meta };
+  }
+  return { pid: null, host, port, meta };
 }
 
 function resolveServerLaunch(cliDir: string): ServerLaunchConfig {
@@ -424,22 +569,37 @@ function resolveServerLaunch(cliDir: string): ServerLaunchConfig {
   throw new Error(`Could not find server entrypoint in ${cliDir}`);
 }
 
-function stopCommand(): number {
-  const pid = readPidFile();
-  if (!pid) {
-    clearServerMeta();
-    console.log('Tide Commander is not running');
-    return 0;
+async function stopCommand(): Promise<number> {
+  let pid = readPidFile();
+
+  if (!pid || !isRunning(pid)) {
+    if (pid) {
+      clearPidFile();
+      console.log('Removed stale PID file');
+    }
+    // The tracked PID is gone, but a server may still be listening (stale
+    // tracking after a relaunch race) — find and stop the real process.
+    const recovered = await recoverUntrackedServer();
+    if (!recovered) {
+      clearServerMeta();
+      console.log('Tide Commander is not running');
+      return 0;
+    }
+    if (!recovered.pid) {
+      console.error(`A server is still listening on port ${recovered.port}, but its PID could not be determined.`);
+      console.error(`Find it with: ss -ltnp | grep :${recovered.port}`);
+      return 1;
+    }
+    console.log(`PID file was stale — recovered actual server PID ${recovered.pid} from port ${recovered.port}`);
+    pid = recovered.pid;
   }
 
-  if (!isRunning(pid)) {
-    clearPidFile();
-    clearServerMeta();
-    console.log('Removed stale PID file');
-    return 0;
+  try {
+    process.kill(pid, 'SIGTERM');
+  } catch (error) {
+    console.error(`Failed to stop Tide Commander (PID: ${pid}): ${(error as Error).message}`);
+    return 1;
   }
-
-  process.kill(pid, 'SIGTERM');
   console.log(`Sent SIGTERM to Tide Commander (PID: ${pid})`);
   return 0;
 }
@@ -453,18 +613,27 @@ async function statusCommand(): Promise<number> {
   const reset = '\x1b[0m';
   const blue = '\x1b[34m';
 
-  const pid = readPidFile();
-  if (!pid) {
-    clearServerMeta();
-    console.log(`\n${red}${bright}⨯ Tide Commander is stopped${reset}\n`);
-    return 1;
-  }
-
-  if (!isRunning(pid)) {
-    clearPidFile();
-    clearServerMeta();
-    console.log(`\n${red}${bright}⨯ Tide Commander is stopped${reset} (stale PID file removed)\n`);
-    return 1;
+  let pid = readPidFile();
+  let recoveredNote = '';
+  if (!pid || !isRunning(pid)) {
+    if (pid) clearPidFile();
+    // Before declaring the server stopped, check whether one is actually
+    // listening on the last known port — the PID file can go stale while the
+    // real server keeps running (post-update relaunch race, failed dup start).
+    const recovered = await recoverUntrackedServer();
+    if (!recovered) {
+      clearServerMeta();
+      console.log(`\n${red}${bright}⨯ Tide Commander is stopped${reset}${pid ? ' (stale PID file removed)' : ''}\n`);
+      return 1;
+    }
+    if (!recovered.pid) {
+      console.log(`\n${cyan}${bright}🌊 Tide Commander Status${reset}`);
+      console.log(`${green}✓ A server is listening on port ${recovered.port}${reset}, but the PID file is stale and its PID could not be determined.`);
+      console.log(`   Find it with: ss -ltnp | grep :${recovered.port}\n`);
+      return 0;
+    }
+    pid = recovered.pid;
+    recoveredNote = ' (PID file was stale — recovered from the listening port)';
   }
 
   const meta = readServerMeta();
@@ -478,7 +647,7 @@ async function statusCommand(): Promise<number> {
 
   console.log(`\n${cyan}${bright}🌊 Tide Commander Status${reset}`);
   console.log(`${cyan}${'═'.repeat(60)}${reset}`);
-  console.log(`${green}✓ Running${reset} (PID: ${pid})`);
+  console.log(`${green}✓ Running${reset} (PID: ${pid})${recoveredNote}`);
   console.log(`${blue}${bright}🚀 Access: ${url}${reset}`);
   console.log(`   Auth: ${authEnabled ? 'enabled' : 'disabled'}`);
   console.log(`   Version: ${version}`);
@@ -651,7 +820,7 @@ async function main(): Promise<void> {
   }
 
   if (options.command === 'stop') {
-    process.exit(stopCommand());
+    process.exit(await stopCommand());
   }
 
   if (options.command === 'status') {
@@ -735,7 +904,9 @@ async function main(): Promise<void> {
   const cliDir = path.dirname(fileURLToPath(import.meta.url));
   const serverLaunch = resolveServerLaunch(cliDir);
   const runInForeground = options.foreground === true || process.env.TIDE_COMMANDER_FOREGROUND === '1';
-  const existingPid = readPidFile();
+  // The relauncher passes the exact PID of the server it must replace; prefer
+  // it over the PID file, which can be stale after failed or raced starts.
+  const existingPid = options.replacePid ?? readPidFile();
   const hasStartupOverrides = options.port !== undefined
     || options.host !== undefined
     || options.listenAll === true
@@ -771,9 +942,16 @@ async function main(): Promise<void> {
         process.exit(1);
       }
 
-      const stopped = await waitForProcessExit(existingPid);
+      let stopped = await waitForProcessExit(existingPid);
       if (!stopped) {
-        console.error(`Failed to restart Tide Commander: process ${existingPid} did not stop in time`);
+        // Don't give up and leave NOTHING running (the old server may exit a
+        // moment later on its own force-shutdown timer) — escalate instead.
+        console.error(`Process ${existingPid} did not stop in time — sending SIGKILL`);
+        try { process.kill(existingPid, 'SIGKILL'); } catch {}
+        stopped = await waitForProcessExit(existingPid, 3000);
+      }
+      if (!stopped) {
+        console.error(`Failed to restart Tide Commander: process ${existingPid} survived SIGKILL`);
         process.exit(1);
       }
 
@@ -819,6 +997,20 @@ async function main(): Promise<void> {
   clearPidFile();
   clearServerMeta();
 
+  // The port must be free before spawning: the server only fails its bind
+  // seconds into boot (with stdio discarded in background mode), so starting
+  // into an occupied port used to yield a "Started in background" message for
+  // a process that silently died on EADDRINUSE moments later. After a restart
+  // the dying server may need a moment to release the port — wait briefly.
+  const targetPort = Number(process.env.PORT || '6200');
+  const targetHost = connectHostFor(process.env.HOST || 'localhost');
+  if (!(await waitForPortFree(targetHost, targetPort, 5000))) {
+    const holder = findPidListeningOnPort(targetPort);
+    console.error(`Failed to start Tide Commander: port ${targetPort} is already in use${holder ? ` by PID ${holder}` : ''}.`);
+    console.error(`Another Tide Commander (or app) is listening there. Check with: tide-commander status`);
+    process.exit(1);
+  }
+
   const child = spawn(
     serverLaunch.command,
     serverLaunch.args,
@@ -835,13 +1027,9 @@ async function main(): Promise<void> {
   });
 
   if (!runInForeground) {
-    const started = await waitForChildStartup(child);
-    if (!started) {
-      clearPidFile();
-      clearServerMeta();
-      console.error('Failed to start Tide Commander: process exited immediately');
-      process.exit(1);
-    }
+    // Record the PID/meta immediately: if this CLI process dies mid-wait
+    // (e.g. the old server's shutdown takes the relauncher down with it), the
+    // PID file must already point at the real child, not at a ghost.
     if (child.pid) {
       writePidFile(child.pid);
       writeServerMeta({
@@ -851,6 +1039,18 @@ async function main(): Promise<void> {
         https: process.env.HTTPS === '1',
         authEnabled: Boolean(process.env.AUTH_TOKEN),
       });
+    }
+
+    const startup = await waitForServerReady(child, targetHost, targetPort);
+    if (startup === 'exited') {
+      clearPidFile();
+      clearServerMeta();
+      console.error('Failed to start Tide Commander: the server process exited during startup.');
+      console.error('Check the logs with: tide-commander logs');
+      process.exit(1);
+    }
+    if (startup === 'timeout') {
+      console.log('Warning: server did not confirm startup within 30s — it may still be booting. Check: tide-commander status');
     }
     child.unref();
     const port = process.env.PORT || '6200';
