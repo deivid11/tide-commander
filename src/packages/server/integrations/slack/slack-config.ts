@@ -80,6 +80,17 @@ export interface SlackConfig {
   pollingUseSearch?: boolean;
 
   /**
+   * Socket Mode only: also run the polling client as a background
+   * reconciliation sweep. Socket Mode has no replay — envelopes dropped
+   * during disconnects, ping-timeout flaps, or process restarts are lost
+   * forever. The reconciler re-reads recent history on the polling cadence
+   * and dispatches anything the socket missed; overlap is suppressed by the
+   * (channel, ts) dedup in the dispatcher. Uses the polling* settings above.
+   * Default true.
+   */
+  socketReconcileEnabled?: boolean;
+
+  /**
    * If true, messages sent by the connected account itself are still logged +
    * broadcast (with `direction: 'outbound'`). Useful for personal-token (xoxp-)
    * instances that want to mirror sent + received traffic. Triggers do NOT
@@ -115,6 +126,7 @@ const DEFAULT_CONFIG: SlackConfig = {
   pollingDmsAlways: true,
   pollingMinMsBetweenCalls: 1500,
   pollingUseSearch: false,
+  socketReconcileEnabled: true,
   mirrorOwnMessages: false,
   reactOnTrigger: true,
   currentMode: 'none',
@@ -299,6 +311,14 @@ export const slackConfigSchema: ConfigField[] = [
     group: 'Polling',
   },
   {
+    key: 'socketReconcileEnabled',
+    label: 'Socket Mode: polling reconciler',
+    type: 'boolean',
+    description: 'When inbound mode is Socket, also run the polling sweep in the background to recover messages the socket dropped (disconnects, ping-timeout flaps, process restarts). Uses the Polling settings above; duplicates are filtered by (channel, ts). Default on.',
+    defaultValue: true,
+    group: 'Polling',
+  },
+  {
     key: 'mirrorOwnMessages',
     label: 'Mirror messages I send too',
     type: 'boolean',
@@ -364,6 +384,7 @@ export function getConfigValues(
     pollingDmsAlways: config.pollingDmsAlways ?? true,
     pollingMinMsBetweenCalls: config.pollingMinMsBetweenCalls ?? 1500,
     pollingUseSearch: config.pollingUseSearch ?? false,
+    socketReconcileEnabled: config.socketReconcileEnabled ?? true,
     mirrorOwnMessages: config.mirrorOwnMessages ?? false,
     reactOnTrigger: config.reactOnTrigger ?? true,
     currentMode: config.currentMode ?? 'none',
@@ -419,6 +440,9 @@ export async function setConfigValues(
   }
   if (typeof values.pollingUseSearch === 'boolean') {
     updates.pollingUseSearch = values.pollingUseSearch;
+  }
+  if (typeof values.socketReconcileEnabled === 'boolean') {
+    updates.socketReconcileEnabled = values.socketReconcileEnabled;
   }
   if (typeof values.mirrorOwnMessages === 'boolean') {
     updates.mirrorOwnMessages = values.mirrorOwnMessages;

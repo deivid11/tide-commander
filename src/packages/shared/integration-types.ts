@@ -123,6 +123,21 @@ export interface IntegrationContext {
   eventDb: {
     logTriggerFire: (...args: unknown[]) => unknown;
     logSlackMessage: (...args: unknown[]) => unknown;
+    /**
+     * True if a Slack message with (instanceId, channelId, ts) is already
+     * logged. Backs the socket-mode reconciler dedup. Optional so test
+     * harnesses building a minimal context don't have to provide it.
+     */
+    hasSlackMessage?: (instanceId: string, channelId: string, ts: string) => boolean;
+    /**
+     * Channels + threads with Slack activity since `sinceMs` — seeds the
+     * polling reconciler's per-thread sweep across restarts. Optional for
+     * the same reason as hasSlackMessage.
+     */
+    recentSlackThreadActivity?: (
+      instanceId: string,
+      sinceMs: number,
+    ) => Array<{ channelId: string; threadTs: string; lastActivityMs: number }>;
     logWhatsAppMessage: (...args: unknown[]) => unknown;
     logEmailMessage: (...args: unknown[]) => unknown;
     logApprovalEvent: (...args: unknown[]) => unknown;

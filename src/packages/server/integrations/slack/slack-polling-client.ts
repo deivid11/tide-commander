@@ -35,6 +35,11 @@ import { createLogger } from '../../utils/logger.js';
 
 const log = createLogger('SlackPolling');
 
+/** Tracked threads expire after this much inactivity. */
+const THREAD_TTL_MS = 6 * 60 * 60 * 1000;
+/** Per-channel cap on tracked threads — oldest activity evicted first. */
+const MAX_TRACKED_THREADS_PER_CHANNEL = 10;
+
 // ─── Types ───
 
 /**
@@ -301,6 +306,16 @@ export class SlackPollingClient {
   private channelBackoffUntil = new Map<string, number>();
   /** ChannelId set known from the most recent list refresh. */
   private knownChannels = new Set<string>();
+  /**
+   * Per-thread watermarks ("option 2" of the parent heuristic): channelId →
+   * threadTs → tracking state. `lastTs` is sweep-owned — it only advances as
+   * sweepThreads() reads replies in order, so a mid-thread reply the live
+   * socket dropped is still fetched on the next sweep (the dispatcher's
+   * (channel, ts) dedup drops the ones already delivered). New registrations
+   * start at lastTs = threadTs, i.e. the first sweep re-reads the whole
+   * thread and recovers any hole.
+   */
+  private readonly threadRegistry = new Map<string, Map<string, { lastTs: string; lastActivityMs: number }>>();
   /**
    * Search-mode only: the newest message `ts` observed in the previous search
    * cycle (dispatched or not). Lets the next cycle stop paging as soon as it
@@ -590,6 +605,116 @@ export class SlackPollingClient {
    *
    * Returns the number of messages dispatched.
    */
+  /**
+   * Register/refresh a tracked thread. Fed by three sources: the parent
+   * heuristic in pollChannel, every dispatched message carrying a thread_ts
+   * (both transports — the instance dispatcher calls this), and the SQLite
+   * seed on startup so tracking survives process restarts.
+   *
+   * Deliberately does NOT advance `lastTs` for known threads — that stays
+   * sweep-owned so a mid-thread reply the socket dropped can't be skipped
+   * because a newer reply arrived live first. `activityMs` defaults to now;
+   * the startup seed passes the stored time so stale threads still expire.
+   */
+  noteThreadActivity(channelId: string, threadTs: string, activityMs?: number): void {
+    let threads = this.threadRegistry.get(channelId);
+    if (!threads) {
+      threads = new Map();
+      this.threadRegistry.set(channelId, threads);
+    }
+    const existing = threads.get(threadTs);
+    if (existing) {
+      existing.lastActivityMs = Math.max(existing.lastActivityMs, activityMs ?? this.now());
+      return;
+    }
+    if (threads.size >= MAX_TRACKED_THREADS_PER_CHANNEL) {
+      let oldestKey: string | null = null;
+      let oldestMs = Infinity;
+      for (const [key, state] of threads) {
+        if (state.lastActivityMs < oldestMs) {
+          oldestMs = state.lastActivityMs;
+          oldestKey = key;
+        }
+      }
+      if (oldestKey) threads.delete(oldestKey);
+    }
+    threads.set(threadTs, { lastTs: threadTs, lastActivityMs: activityMs ?? this.now() });
+  }
+
+  /**
+   * Per-thread watermark sweep: fetch new replies for every tracked thread in
+   * this channel, independently of whether the parent resurfaces in
+   * conversations.history (it never does once the channel watermark passes
+   * it — the exact gap that made "thread replies on old parents" invisible
+   * to polling). Downstream (channel, ts) dedup makes overlap with the live
+   * socket harmless.
+   */
+  private async sweepThreads(channelId: string): Promise<number> {
+    const threads = this.threadRegistry.get(channelId);
+    if (!threads || threads.size === 0) return 0;
+
+    let dispatched = 0;
+    const nowMs = this.now();
+    for (const [threadTs, state] of threads) {
+      if (!this.running) break;
+      if (nowMs - state.lastActivityMs > THREAD_TTL_MS) {
+        threads.delete(threadTs);
+        continue;
+      }
+      try {
+        const res = await this.paceCall(() => this.webClient.conversations.replies({
+          channel: channelId,
+          ts: threadTs,
+          oldest: state.lastTs,
+          limit: 100,
+        }));
+        const replies = (res.messages ?? []).filter(
+          (r): r is SlackHistoryMessage =>
+            !!r && typeof r.ts === 'string' && r.ts !== threadTs && tsGt(r.ts, state.lastTs),
+        );
+        if (replies.length === 0) continue;
+        const ordered = [...replies].sort((a, b) => tsCmp(a.ts, b.ts));
+        for (const reply of ordered) {
+          const replyEvent: SocketLikeMessageEvent = {
+            ts: reply.ts,
+            thread_ts: reply.thread_ts ?? threadTs,
+            channel: channelId,
+            user: reply.user,
+            text: reply.text,
+            subtype: reply.subtype,
+            files: Array.isArray(reply.files) ? reply.files : undefined,
+          };
+          try {
+            await this.dispatch(replyEvent);
+            dispatched += 1;
+          } catch (err) {
+            log.error(`dispatch error (thread sweep) channel=${channelId} ts=${reply.ts}: ${describeErr(err)}`);
+          }
+          if (tsGt(reply.ts, state.lastTs)) {
+            state.lastTs = reply.ts;
+            state.lastActivityMs = nowMs;
+          }
+        }
+      } catch (err) {
+        if (isInvalidAuthError(err)) throw err;
+        if (isRateLimitedError(err)) {
+          const seconds = readRetryAfter(err) ?? 60;
+          const until = this.now() + seconds * 1000;
+          if (until > this.globalPauseUntil) this.globalPauseUntil = until;
+          log.warn(`429 on thread sweep channel=${channelId} thread=${threadTs}, deferred ${seconds}s`);
+          break; // Remaining threads would hit the same pause — next cycle retries.
+        }
+        const msg = describeErr(err);
+        if (msg.includes('thread_not_found') || msg.includes('message_not_found')) {
+          threads.delete(threadTs); // Parent deleted — stop tracking.
+        } else {
+          log.warn(`thread sweep failed channel=${channelId} thread=${threadTs}: ${msg}`);
+        }
+      }
+    }
+    return dispatched;
+  }
+
   private async pollChannel(channelId: string): Promise<number> {
     const wm = this.watermarkStore.get(channelId);
     const isFirstSight = !wm;
@@ -611,7 +736,15 @@ export class SlackPollingClient {
     }));
 
     const messages = (res.messages ?? []).filter((m): m is SlackHistoryMessage => !!m && typeof m.ts === 'string');
-    if (messages.length === 0) return 0;
+    if (messages.length === 0) {
+      // No new channel-level messages — but replies on tracked threads never
+      // resurface in history, so the thread sweep must still run.
+      const swept = await this.sweepThreads(channelId);
+      if (this.channelBackoffUntil.has(channelId)) {
+        this.channelBackoffUntil.delete(channelId);
+      }
+      return swept;
+    }
 
     // Slack returns newest-first; dispatch in chronological order so trigger
     // listeners and dedupe see them in real-world order. BigInt sort avoids
@@ -647,71 +780,22 @@ export class SlackPollingClient {
         highestTs = msg.ts;
       }
 
-      // ─── Cheap thread-reply heuristic ───
-      // If this message is a thread parent (reply_count > 0) and the latest
-      // reply is newer than what we've already seen for this channel, fetch
-      // the new replies. This catches replies in threads whose parent is in
-      // the current cycle's history window — which is the majority case for
-      // active conversations. Older threads with new replies are still
-      // missed (their parent doesn't re-surface in history) — option 2 would
-      // fix that with per-thread watermarks.
-      const parentTs = msg.ts;
-      const replyCount = msg.reply_count ?? 0;
-      const latestReply = msg.latest_reply;
-      const repliesAreNew = !!latestReply && tsGt(latestReply, wm?.lastTs ?? '0');
-      if (replyCount > 0 && repliesAreNew) {
-        const oldestForReplies = wm?.lastTs ?? parentTs;
-        try {
-          const repliesRes = await this.paceCall(() => this.webClient.conversations.replies({
-            channel: channelId,
-            ts: parentTs,
-            oldest: oldestForReplies,
-            limit: 100,
-          }));
-          const replies = (repliesRes.messages ?? []).filter(
-            (r): r is SlackHistoryMessage => !!r && typeof r.ts === 'string' && r.ts !== parentTs,
-          );
-          // conversations.replies returns oldest-first, but be defensive.
-          const orderedReplies = [...replies].sort((a, b) => tsCmp(a.ts, b.ts));
-          for (const reply of orderedReplies) {
-            // Defense: skip ts already at or below the watermark (handles overlap).
-            if (wm && tsLte(reply.ts, wm.lastTs)) continue;
-
-            const replyEvent: SocketLikeMessageEvent = {
-              ts: reply.ts,
-              thread_ts: reply.thread_ts ?? parentTs,
-              channel: channelId,
-              user: reply.user,
-              text: reply.text,
-              subtype: reply.subtype,
-              files: Array.isArray(reply.files) ? reply.files : undefined,
-            };
-            try {
-              await this.dispatch(replyEvent);
-              dispatched += 1;
-            } catch (err) {
-              log.error(`dispatch error (reply) channel=${channelId} ts=${reply.ts}: ${describeErr(err)}`);
-            }
-            if (tsGt(reply.ts, highestTs)) {
-              highestTs = reply.ts;
-            }
-          }
-        } catch (err) {
-          // 429 / invalid_auth on replies fetch are non-fatal for this cycle —
-          // we already dispatched the parent. Bubble auth errors to the outer
-          // caller so the loop halts; rate limits just skip this thread.
-          if (isInvalidAuthError(err)) throw err;
-          if (isRateLimitedError(err)) {
-            const seconds = readRetryAfter(err) ?? 60;
-            const until = this.now() + seconds * 1000;
-            if (until > this.globalPauseUntil) this.globalPauseUntil = until;
-            log.warn(`429 on conversations.replies channel=${channelId} thread=${parentTs}, deferred ${seconds}s`);
-          } else {
-            log.warn(`replies fetch failed channel=${channelId} thread=${parentTs}: ${describeErr(err)}`);
-          }
-        }
+      // ─── Thread tracking ───
+      // Any parent with replies gets registered; the per-thread sweep at the
+      // end of this cycle (sweepThreads) is the single path that fetches and
+      // dispatches replies. Once the channel watermark passes the parent it
+      // never resurfaces in history — the registry is what keeps its future
+      // replies visible (the old inline "latest_reply" heuristic could not
+      // see replies on parents behind the watermark).
+      if ((msg.reply_count ?? 0) > 0) {
+        this.noteThreadActivity(channelId, msg.ts);
       }
     }
+
+    // Sweep tracked threads too. Thread-reply ts values deliberately do NOT
+    // advance the channel watermark here — that stays owned by the history
+    // fetch above; the sweep keeps its own per-thread watermarks.
+    dispatched += await this.sweepThreads(channelId);
 
     if (highestTs !== (wm?.lastTs ?? '0')) {
       await this.watermarkStore.set(channelId, highestTs);

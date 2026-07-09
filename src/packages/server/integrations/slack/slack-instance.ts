@@ -205,8 +205,26 @@ export class SlackInstance {
   private readonly messageListeners = new Set<(message: SlackMessage) => void>();
   private readonly replyWaiters = new Set<ReplyWaiter>();
 
+  /**
+   * (channel:ts) keys already dispatched by THIS process. With the socket +
+   * reconciler hybrid both transports funnel into dispatchInboundMessage, so
+   * every message can arrive twice — the Set (insertion-ordered, capped)
+   * short-circuits the overlap synchronously; the SQLite check in the
+   * dispatcher covers keys dispatched before a restart wiped this Set.
+   */
+  private readonly dispatchedKeys = new Set<string>();
+  private static readonly DISPATCHED_KEYS_MAX = 4096;
+
   constructor(id: string) {
     this.id = id;
+  }
+
+  private rememberDispatched(key: string): void {
+    this.dispatchedKeys.add(key);
+    if (this.dispatchedKeys.size > SlackInstance.DISPATCHED_KEYS_MAX) {
+      const oldest = this.dispatchedKeys.values().next().value;
+      if (oldest !== undefined) this.dispatchedKeys.delete(oldest);
+    }
   }
 
   setContext(ctx: IntegrationContext): void {
@@ -297,6 +315,16 @@ export class SlackInstance {
         this.setupSocketHandlers();
         await this.socketClient.start();
         this.ctx?.log.info(`Slack[${this.id}] connected as @${botName} (${botUserId}) via socket mode`);
+        if (config.socketReconcileEnabled !== false) {
+          // Socket Mode has no replay: envelopes dropped during disconnects,
+          // ping-timeout flaps, or process restarts are lost forever. Run the
+          // polling sweep alongside as a reconciler — the (channel, ts) dedup
+          // in dispatchInboundMessage suppresses the overlap, so agents see
+          // each message exactly once: live via socket, or ≤1 poll cycle
+          // later if the socket dropped it.
+          await this.startPollingMode();
+          this.ctx?.log.info(`Slack[${this.id}] reconciler armed: polling sweep running alongside Socket Mode`);
+        }
       } else {
         await this.startPollingMode();
         this.ctx?.log.info(`Slack[${this.id}] connected as @${botName} (${botUserId}) via polling mode`);
@@ -332,7 +360,7 @@ export class SlackInstance {
     this.pollingClient = new SlackPollingClient({
       webClient: asPollingWebClient(this.webClient),
       watermarkStore,
-      dispatch: (event) => this.dispatchInboundMessage(event),
+      dispatch: (event) => this.dispatchInboundMessage(event, 'poll'),
       intervalSec: config.pollingIntervalSec ?? 45,
       backfillMessageCap: config.pollingBackfillMessageCap ?? 100,
       backfillSeconds: config.pollingBackfillSeconds ?? 24 * 60 * 60,
@@ -352,6 +380,21 @@ export class SlackInstance {
         payload: { instanceId: this.id, reason },
       });
     });
+
+    // Seed thread tracking from recent SQLite history so threads that were
+    // active before this process started are still swept — the in-memory
+    // registry dies with the process, and tsx-watch restarts are frequent.
+    // New registrations re-read from the thread parent and the (channel, ts)
+    // dedup drops what was already delivered, so this also retro-recovers
+    // replies that were lost while no reconciler was watching.
+    const seedSinceMs = Date.now() - 6 * 60 * 60 * 1000;
+    const seeds = this.ctx?.eventDb.recentSlackThreadActivity?.(this.id, seedSinceMs) ?? [];
+    for (const seed of seeds) {
+      this.pollingClient.noteThreadActivity(seed.channelId, seed.threadTs, seed.lastActivityMs);
+    }
+    if (seeds.length > 0) {
+      this.ctx?.log.info(`Slack[${this.id}] thread registry seeded with ${seeds.length} recent thread(s)`);
+    }
 
     await this.pollingClient.start();
   }
@@ -428,13 +471,40 @@ export class SlackInstance {
    * subtypes / self / empty messages, logs to SQLite, broadcasts WS, fires
    * trigger listeners, and resolves reply waiters.
    */
-  private async dispatchInboundMessage(event: SocketLikeMessageEvent): Promise<void> {
+  private async dispatchInboundMessage(
+    event: SocketLikeMessageEvent,
+    source: 'socket' | 'poll' = 'socket',
+  ): Promise<void> {
     if (event.subtype && SKIP_MESSAGE_SUBTYPES.has(event.subtype)) return;
 
     const hasFiles = Array.isArray(event.files) && event.files.length > 0;
     const text = event.text ?? '';
 
     if (!text && !hasFiles) return;
+
+    // Hybrid dedup: with the reconciler running alongside Socket Mode, every
+    // message can reach this dispatcher twice (live socket now, polling sweep
+    // ≤1 cycle later). Key on (channel, ts) — unique per Slack message. Both
+    // checks are synchronous (Set + better-sqlite3), so marking BEFORE the
+    // first await closes the in-process socket/poller race; the SQLite check
+    // covers messages dispatched before a restart wiped the in-memory Set.
+    if (event.ts) {
+      const dedupKey = `${event.channel}:${event.ts}`;
+      if (this.dispatchedKeys.has(dedupKey)) return;
+      if (this.ctx?.eventDb.hasSlackMessage?.(this.id, event.channel, event.ts)) {
+        this.rememberDispatched(dedupKey);
+        return;
+      }
+      this.rememberDispatched(dedupKey);
+    }
+
+    // Feed the reconciler's thread registry: any message carrying a thread_ts
+    // marks that thread active so the per-thread sweep keeps watching it —
+    // replies on parents behind the channel watermark never resurface in
+    // conversations.history, so this is the only way polling can see them.
+    if (event.thread_ts && event.thread_ts !== event.ts) {
+      this.pollingClient?.noteThreadActivity(event.channel, event.thread_ts);
+    }
 
     const config = loadConfig(this.id);
     const isOwnMessage = !!event.user && event.user === config.botUserId;
@@ -501,7 +571,7 @@ export class SlackInstance {
     // names/emails/text.
     const resolvedFlag = `userResolved=${userName && userName !== userId ? 'Y' : 'N'} channelResolved=${channelName ? 'Y' : 'N'}`;
     this.ctx?.log.info(
-      `Slack[${this.id}] dispatch: channel=${event.channel} user=${userId || '-'} ts=${event.ts} direction=${direction} files=${files?.length ?? 0}${event.thread_ts && event.thread_ts !== event.ts ? ` thread=${event.thread_ts}` : ''} ${resolvedFlag}`,
+      `Slack[${this.id}] dispatch: channel=${event.channel} user=${userId || '-'} ts=${event.ts} direction=${direction} via=${source} files=${files?.length ?? 0}${event.thread_ts && event.thread_ts !== event.ts ? ` thread=${event.thread_ts}` : ''} ${resolvedFlag}`,
     );
 
     this.ctx?.eventDb.logSlackMessage({

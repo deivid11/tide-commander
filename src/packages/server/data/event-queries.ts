@@ -146,6 +146,41 @@ function slackRowToEvent(row: SlackMessageRow): SlackMessageEvent {
   };
 }
 
+/**
+ * Channels + threads with Slack activity since `sinceMs` for one integration
+ * instance. Seeds the polling reconciler's thread registry on startup so
+ * per-thread sweeps survive process restarts. Only rows that carry a
+ * thread_ts count — a thread where an agent engaged always has at least the
+ * bot's own mirrored reply.
+ */
+export function recentSlackThreadActivity(
+  instanceId: string,
+  sinceMs: number,
+): Array<{ channelId: string; threadTs: string; lastActivityMs: number }> {
+  const rows = queryMany<{ channel_id: string; thread_ts: string; last_ms: number }>(
+    `SELECT channel_id, thread_ts, MAX(received_at) AS last_ms
+       FROM slack_messages
+      WHERE integration_instance_id = ? AND thread_ts IS NOT NULL AND received_at > ?
+      GROUP BY channel_id, thread_ts`,
+    [instanceId, sinceMs],
+  );
+  return rows.map((r) => ({ channelId: r.channel_id, threadTs: r.thread_ts, lastActivityMs: r.last_ms }));
+}
+
+/**
+ * True when a message with this (channel, ts) is already logged for the given
+ * integration instance. Used by the Slack socket-mode reconciler to skip
+ * messages the live socket already dispatched — including across process
+ * restarts, which the in-memory dedup set alone can't cover.
+ */
+export function hasSlackMessage(instanceId: string, channelId: string, ts: string): boolean {
+  const row = queryOne<{ id: number }>(
+    'SELECT id FROM slack_messages WHERE channel_id = ? AND ts = ? AND integration_instance_id = ? LIMIT 1',
+    [channelId, ts, instanceId],
+  );
+  return row !== undefined;
+}
+
 export function logSlackMessage(msg: SlackMessageEvent): number {
   return insertOne('slack_messages', {
     ts: msg.ts,

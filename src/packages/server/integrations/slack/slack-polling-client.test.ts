@@ -566,23 +566,26 @@ describe('SlackPollingClient', () => {
     await polling.start();
     await polling.runOnce();
 
-    // Parent + 2 replies + the unrelated post = 4 events dispatched.
+    // History messages first (ts order), then the thread sweep dispatches
+    // both replies = 4 events in true chronological order (the old inline
+    // heuristic emitted the replies BEFORE the older unrelated post).
     expect(dispatched.map((m) => m.ts)).toEqual([
-      '1700000010.000010',  // parent first
-      '1700000011.000050',  // reply 1
-      '1700000012.000020',  // reply 2
-      '1700000011.000011',  // unrelated post (its parent had no replies, so no thread fetch)
+      '1700000010.000010',  // parent
+      '1700000011.000011',  // unrelated post (no replies, so never tracked)
+      '1700000011.000050',  // reply 1 (thread sweep)
+      '1700000012.000020',  // reply 2 (thread sweep)
     ]);
-    // Replies API was called for the thread parent only — not for the unrelated post.
+    // Replies API was called for the tracked thread only — not for the unrelated post.
     const repliesCalls = calls.filter((c) => c.method === 'replies');
     expect(repliesCalls).toHaveLength(1);
     expect((repliesCalls[0].args as { ts: string }).ts).toBe('1700000010.000010');
-    // Watermark advanced to the highest dispatched ts (a reply, not the parent).
-    expect(store.get('C_threads')?.lastTs).toBe('1700000012.000020');
+    // The channel watermark is owned by the history fetch — it advances to the
+    // newest HISTORY ts; replies advance their own per-thread watermark.
+    expect(store.get('C_threads')?.lastTs).toBe('1700000011.000011');
     await polling.stop();
   });
 
-  it('does not refetch replies on a subsequent cycle if latest_reply is unchanged', async () => {
+  it('re-checks tracked threads each cycle but never re-dispatches old replies', async () => {
     const dispatched: SocketLikeMessageEvent[] = [];
     const store = await makeStore();
     const { scheduler } = createManualScheduler();
@@ -631,13 +634,15 @@ describe('SlackPollingClient', () => {
     phase = 'second';
     await polling.runOnce(); // second cycle: nothing new
 
-    // Total dispatch is just from the first cycle.
+    // Total dispatch is just from the first cycle — the second cycle's sweep
+    // re-checks the tracked thread (one paced replies call, that's the price
+    // of seeing replies on parents behind the watermark) but finds nothing
+    // newer than the thread's own watermark, so nothing is re-dispatched.
     expect(dispatched.map((m) => m.ts)).toEqual([
       '1700000020.000020',
       '1700000021.000021',
     ]);
-    // Only one replies call total.
-    expect(calls.filter((c) => c.method === 'replies')).toHaveLength(1);
+    expect(calls.filter((c) => c.method === 'replies')).toHaveLength(2);
     await polling.stop();
   });
 
