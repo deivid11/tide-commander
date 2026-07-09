@@ -38,7 +38,9 @@ function shortcut(
 // Default shortcuts configuration
 export const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
   // Global shortcuts
-  shortcut('toggle-commander', 'Toggle Commander', 'Open/close Commander View', 'k', { ctrl: true }),
+  // Ctrl+K belongs to Spotlight search (toggle-spotlight); Commander keeps Tab
+  // (toggle-commander-tab) and stays rebindable in Settings.
+  shortcut('toggle-commander', 'Toggle Commander', 'Open/close Commander View (unbound — Tab also toggles; set a key in Settings)', '', {}),
   shortcut('toggle-commander-tab', 'Toggle Commander (Tab)', 'Open/close Commander View with Tab', 'Tab', {}),
   shortcut('spawn-agent', 'Spawn Agent', 'Open new agent spawn modal', 'n', { alt: true }),
   shortcut('select-agent-1', 'Select Agent 1', 'Select first agent', '1', { ctrl: true }),
@@ -78,7 +80,7 @@ export const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
   shortcut('activate-message', 'Activate Message', 'Click on interactive element in selected message', 'Space', {}),
   shortcut('toggle-file-explorer', 'Toggle File Explorer', 'Open/close file explorer', 'e', { alt: true }),
   shortcut('file-explorer-close-tab', 'Close File Tab', 'Close active file tab in explorer', 'w', { alt: true }),
-  shortcut('toggle-spotlight', 'Toggle Spotlight', 'Open/close global search', 'p', { alt: true }),
+  shortcut('toggle-spotlight', 'Toggle Spotlight', 'Open/close global search (Alt+P also works)', 'k', { ctrl: true }),
   shortcut('toggle-recents', 'Toggle Recents', 'Open/close recently-accessed agents & buildings', 'l', { ctrl: true }),
   shortcut('open-session-finder', 'Open Session Finder', 'Open the global session finder modal', 'f', { ctrl: true, shift: true }),
   shortcut('toggle-test-results', 'Toggle Test Results', 'Open/close the test results panel', 't', { ctrl: true }),

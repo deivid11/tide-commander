@@ -50,18 +50,17 @@ describe('useKeyboardShortcuts', () => {
       expect(shortcut?.key).toBe('e');
     });
 
-    it('should match Alt+P shortcut (toggle-spotlight)', () => {
+    it('should match Ctrl+K shortcut (toggle-spotlight)', () => {
       const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-spotlight');
-      expect(shortcut).toBeDefined();
-      expect(shortcut?.modifiers.alt).toBe(true);
-      expect(shortcut?.key).toBe('p');
-    });
-
-    it('should match Ctrl+K shortcut (toggle-commander)', () => {
-      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-commander');
       expect(shortcut).toBeDefined();
       expect(shortcut?.modifiers.ctrl).toBe(true);
       expect(shortcut?.key).toBe('k');
+    });
+
+    it('should leave toggle-commander unbound by default (Tab still toggles)', () => {
+      const shortcut = DEFAULT_SHORTCUTS.find(s => s.id === 'toggle-commander');
+      expect(shortcut).toBeDefined();
+      expect(shortcut?.key).toBe('');
     });
   });
 
@@ -93,9 +92,9 @@ describe('useKeyboardShortcuts', () => {
       expect(conflicts.length).toBe(1);
     });
 
-    it('should not have conflicting Alt+P in global context', () => {
+    it('should not have conflicting Ctrl+K in global context', () => {
       const conflicts = DEFAULT_SHORTCUTS.filter(
-        s => s.modifiers.alt && !s.modifiers.shift && s.key === 'p' && s.context === 'global'
+        s => s.modifiers.ctrl && !s.modifiers.shift && s.key === 'k' && s.context === 'global'
       );
       expect(conflicts.length).toBe(1);
     });
@@ -196,7 +195,6 @@ describe('useKeyboardShortcuts', () => {
         'toggle-2d-view',
         'spawn-agent',
         'toggle-file-explorer',
-        'toggle-spotlight',
       ];
 
       globalAltShortcuts.forEach(id => {

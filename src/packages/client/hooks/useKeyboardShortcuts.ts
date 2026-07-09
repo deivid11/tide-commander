@@ -166,7 +166,8 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      // Toggle Commander View (Ctrl+K)
+      // Toggle Commander View (unbound by default — Ctrl+K now opens Spotlight;
+      // rebindable in Settings)
       const commanderShortcut = shortcuts.find(s => s.id === 'toggle-commander');
       if (matchesShortcut(e, commanderShortcut)) {
         e.preventDefault();
@@ -256,7 +257,7 @@ export function useKeyboardShortcuts({
         }
       }
 
-      // Toggle Spotlight (Alt+P)
+      // Toggle Spotlight (Ctrl+K by default, hardcoded Alt+P as alternative)
       const spotlightShortcut = shortcuts.find(s => s.id === 'toggle-spotlight');
       if (matchesShortcut(e, spotlightShortcut) || (e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyP')) {
         console.log('[useKeyboardShortcuts] Spotlight shortcut matched!', { spotlightShortcut, altKey: e.altKey, code: e.code });

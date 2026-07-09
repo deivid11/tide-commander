@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.147.1] - 2026-07-09
+
+### Changed
+- **Keyboard shortcut defaults** - Ctrl+K now opens Spotlight, Commander View stays on Tab by default, and the Commander shortcut remains rebindable in Settings.
+
 ## [1.147.0] - 2026-07-09
 
 ### Added
