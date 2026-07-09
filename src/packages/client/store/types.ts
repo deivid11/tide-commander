@@ -55,6 +55,7 @@ export interface AgentOutput {
   isStreaming: boolean;
   timestamp: number;
   isUserPrompt?: boolean; // True if this is a user-sent command
+  pendingEcho?: boolean; // Optimistic user prompt rendered at send time, awaiting the server's command_started echo
   isDelegation?: boolean; // True if this is a delegation message from a boss agent
   skillUpdate?: SkillUpdateData; // True if this is a skill update notification
   subagentName?: string; // Name of the subagent that produced this output (for badge display)

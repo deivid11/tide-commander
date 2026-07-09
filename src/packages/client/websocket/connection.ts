@@ -49,6 +49,107 @@ let disconnectToastShown = false;
 // a mobile network switch, and connect() refuses to act while one is pending.
 const WS_HANDSHAKE_TIMEOUT_MS = 10_000;
 
+// ─── Zombie-socket detection (application-level heartbeat) ───────────────────
+// On mobile, doze / WiFi↔cellular switches / NAT timeouts kill the TCP under a
+// socket WITHOUT a close event: readyState stays OPEN for minutes, ws.send()
+// "succeeds" into a dead pipe, and no broadcast ever arrives — the terminal
+// silently freezes until an HTTP history fetch (agent switch) papers over it.
+// There is no browser API to detect this, so we prove liveness ourselves:
+// send an app-level ping and require ANY inbound frame within a deadline;
+// otherwise discard the socket immediately and let the reconnect path (which
+// resyncs + refetches history) take over.
+const HEARTBEAT_INTERVAL_MS = 25_000;
+const LIVENESS_PROBE_DEADLINE_MS = 8_000;
+// Traffic younger than this proves the pipe is alive — skip the probe.
+const FRESH_TRAFFIC_MS = 15_000;
+
+// Epoch ms of the last frame received on the CURRENT socket (any type counts).
+let lastInboundAt = 0;
+// Single-flight guard: at most one liveness probe pending at a time.
+let livenessProbeTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Send a ping and require any inbound frame within the deadline, else the
+ * socket is a zombie and gets discarded. Any inbound frame counts as proof —
+ * the pong itself, a broadcast, anything. */
+function probeSocketLiveness(socket: WebSocket, deadlineMs = LIVENESS_PROBE_DEADLINE_MS): void {
+  if (livenessProbeTimer !== null) return;
+  const baseline = lastInboundAt;
+  try {
+    socket.send(JSON.stringify({ type: 'ping', payload: { ts: Date.now() } }));
+  } catch {
+    killZombieSocket(socket);
+    return;
+  }
+  livenessProbeTimer = setTimeout(() => {
+    livenessProbeTimer = null;
+    if (getWs() !== socket) return; // socket already replaced/cleaned up
+    if (lastInboundAt !== baseline) return; // something arrived — alive
+    killZombieSocket(socket);
+  }, deadlineMs);
+}
+
+/** Discard a socket whose TCP is dead. close() on a dead pipe can take the
+ * kernel minutes to surface as onclose, so we detach the slot NOW (the
+ * ws-slot guard turns the eventual onclose into a no-op) and schedule an
+ * immediate reconnect. */
+function killZombieSocket(socket: WebSocket): void {
+  if (getWs() !== socket) return;
+  stopFailbackWatch();
+  setWs(null);
+  setIsConnecting(false);
+  store.setConnected(false);
+  store.stopStatusPolling();
+  try {
+    socket.close(1000, 'Zombie socket discarded');
+  } catch {
+    // already dying — the slot guard makes its callbacks inert either way
+  }
+  if (backgroundSuspended) return;
+  if (!disconnectToastShown) {
+    cb.onToast?.('warning', 'Connection Stale', 'Socket unresponsive. Reconnecting…');
+    disconnectToastShown = true;
+  }
+  handleReconnectDelay();
+}
+
+/**
+ * Cheap health check for "we may have been asleep" moments (tab became
+ * visible, network came back, native app resumed). Never trusts
+ * readyState === OPEN: on mobile that is exactly what a zombie reports.
+ */
+export function verifyConnection(): void {
+  if (backgroundSuspended) return;
+  const ws = getWs();
+  if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+    connect();
+    return;
+  }
+  if (ws.readyState === WebSocket.CONNECTING) return; // handshake timer owns this
+  if (Date.now() - lastInboundAt < FRESH_TRAFFIC_MS) return; // demonstrably alive
+  // Catch up over HTTP right away (the socket may have missed broadcasts
+  // while the device slept) and prove the socket in parallel — if it fails
+  // the probe, the reconnect path runs a second resync, which is harmless.
+  // A probe already in flight means another wake-up signal (visibilitychange,
+  // appStateChange, online — they often fire together) resynced moments ago.
+  if (livenessProbeTimer === null && getHasConnectedBefore()) {
+    cb.onReconnect?.();
+  }
+  probeSocketLiveness(ws);
+}
+
+// Heartbeat: while the app is visible and believes it is connected, make sure
+// traffic actually flows. Interval lives at module scope (started once at
+// load) so it needs no per-socket lifecycle management; each tick re-reads
+// the current socket from the HMR-persisted slot.
+setInterval(() => {
+  if (backgroundSuspended) return;
+  if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+  const ws = getWs();
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (Date.now() - lastInboundAt < HEARTBEAT_INTERVAL_MS) return;
+  probeSocketLiveness(ws);
+}, HEARTBEAT_INTERVAL_MS);
+
 // ─── WS-handshake demotion ───────────────────────────────────────────────────
 // A URL whose /api/health answers but whose /ws upgrade keeps dying (e.g. a
 // proxy without WebSocket support) must not be re-picked forever just because
@@ -158,14 +259,18 @@ export function suspendForBackground(): void {
   store.stopStatusPolling();
 }
 
-/** Reconnect after a background park (no-op reconnect if never parked). */
+/** Reconnect after a background park. If the app was never parked (short
+ * background inside the grace window), the socket may still be a zombie the
+ * OS killed silently — verify it instead of trusting readyState OPEN. */
 export function resumeFromBackground(): void {
   if (backgroundSuspended) {
     backgroundSuspended = false;
     suppressNextReconnectToast = true;
     setReconnectAttempts(0);
+    connect();
+    return;
   }
-  connect();
+  verifyConnection();
 }
 
 // Clean up WebSocket on page unload (actual refresh/close, not HMR)
@@ -403,6 +508,7 @@ async function openSocket(): Promise<void> {
       return;
     }
     opened = true;
+    lastInboundAt = Date.now(); // handshake completed — the pipe is provably alive
     if (chosenHttpUrl) {
       wsHandshakeFailures.delete(chosenHttpUrl);
     }
@@ -449,6 +555,7 @@ async function openSocket(): Promise<void> {
 
   socket.onmessage = (event) => {
     if (getWs() !== socket) return; // abandoned socket
+    lastInboundAt = Date.now(); // any frame proves the pipe is alive
     try {
       const message = JSON.parse(event.data) as ServerMessage;
 

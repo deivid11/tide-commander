@@ -533,6 +533,27 @@
   vertical-align: middle;
 }
 
+// Optimistic user prompt awaiting the server's command_started echo — dimmed
+// with an hourglass so a queued/in-flight message is distinguishable from a
+// confirmed one (matters on flaky mobile connections).
+.output-user-pending {
+  opacity: 0.65;
+}
+
+.output-pending-echo {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 6px;
+  color: var(--text-secondary);
+  vertical-align: middle;
+  animation: pending-echo-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pending-echo-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
 .output-role-user-chip {
   color: color-mix(in srgb, var(--msg-user-text) 96%, #f2f6ff 4%);
   border-color: color-mix(in srgb, var(--msg-user-text) 46%, var(--border-color) 54%);

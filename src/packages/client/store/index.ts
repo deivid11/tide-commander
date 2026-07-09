@@ -1225,7 +1225,18 @@ class Store
   cloneAgent(...args: Parameters<AgentActions['cloneAgent']>) { return this.agentActions.cloneAgent(...args); }
   forkAgent(...args: Parameters<AgentActions['forkAgent']>) { return this.agentActions.forkAgent(...args); }
   createDirectoryAndSpawn(...args: Parameters<AgentActions['createDirectoryAndSpawn']>) { return this.agentActions.createDirectoryAndSpawn(...args); }
-  sendCommand(...args: Parameters<AgentActions['sendCommand']>) { return this.agentActions.sendCommand(...args); }
+  sendCommand(...args: Parameters<AgentActions['sendCommand']>) {
+    const [agentId, command] = args;
+    // Optimistic echo: paint the user's message immediately instead of waiting
+    // for the server's command_started broadcast — on a flaky/zombie socket
+    // (mobile) that echo can take minutes, making the send look lost. The
+    // command_started handler confirms this entry (confirmUserPromptEcho);
+    // slash commands are skipped because the server intercepts/hides them.
+    if (!command.trim().startsWith('/')) {
+      this.outputActions.addUserPromptToOutput(agentId, command, { pendingEcho: true });
+    }
+    return this.agentActions.sendCommand(...args);
+  }
   refreshAgentContext(...args: Parameters<AgentActions['refreshAgentContext']>) { return this.agentActions.refreshAgentContext(...args); }
   moveAgentLocal(...args: Parameters<AgentActions['moveAgentLocal']>) { return this.agentActions.moveAgentLocal(...args); }
   moveAgent(...args: Parameters<AgentActions['moveAgent']>) { return this.agentActions.moveAgent(...args); }
@@ -1255,6 +1266,7 @@ class Store
   clearOutputs(...args: Parameters<OutputActions['clearOutputs']>) { return this.outputActions.clearOutputs(...args); }
   getOutputs(...args: Parameters<OutputActions['getOutputs']>) { return this.outputActions.getOutputs(...args); }
   addUserPromptToOutput(...args: Parameters<OutputActions['addUserPromptToOutput']>) { return this.outputActions.addUserPromptToOutput(...args); }
+  confirmUserPromptEcho(...args: Parameters<OutputActions['confirmUserPromptEcho']>) { return this.outputActions.confirmUserPromptEcho(...args); }
   getLastPrompt(...args: Parameters<OutputActions['getLastPrompt']>) { return this.outputActions.getLastPrompt(...args); }
   setLastPrompt(...args: Parameters<OutputActions['setLastPrompt']>) { return this.outputActions.setLastPrompt(...args); }
   preserveOutputs() { return this.outputActions.preserveOutputs(); }
@@ -1542,7 +1554,7 @@ declare global {
 // Increment this when Store class has breaking changes that require fresh instance
 // (e.g. new methods) — otherwise HMR keeps the old singleton, which lacks them.
 // v4: added loadTestRunFromHistory (tests-building "Previous runs" list).
-const STORE_VERSION = 4;
+const STORE_VERSION = 5;
 
 // Singleton store instance - persisted on window for HMR
 function getOrCreateStore(): Store {

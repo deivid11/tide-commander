@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.143.0] - 2026-07-09
+
+### Added
+- **Optimistic prompt echo** — your message now paints in the terminal the instant you send it, instead of waiting for the server's confirmation broadcast. On a flaky or zombie mobile socket that round-trip could take minutes and made the send look lost; the echo is reconciled (and adopts the server's canonical text) once the real `command_started` arrives, resolving multiple in-flight prompts in order.
+- **Zombie-socket heartbeat detection** — the client now proves its WebSocket is actually alive with an application-level ping/liveness probe (heartbeat every 25s while visible, plus on tab-focus / network-back / app-resume). Mobile doze, WiFi↔cellular switches, and NAT timeouts can silently kill the TCP while the socket still reports OPEN; such dead sockets are now discarded immediately and the reconnect path (resync + history refetch) takes over, instead of the terminal freezing until the next agent switch.
+
+### Fixed
+- **Stale socket after short background** — resuming from a brief background no longer trusts `readyState === OPEN` (which is exactly what a zombie socket reports); the connection is verified and caught up over HTTP on resume.
+
 ## [1.142.1] - 2026-07-08
 
 ### Fixed

@@ -515,13 +515,18 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const isDelegatedTask = delegation && text.trim() === delegation.taskCommand.trim();
 
     return (
-      <div className="output-line output-user">
+      <div className={`output-line output-user${output.pendingEcho ? ' output-user-pending' : ''}`}>
         <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
         {isDelegatedTask ? (
           <DelegatedTaskHeader bossName={delegation.bossName} taskCommand={delegation.taskCommand} />
         ) : (
           <>
             <span className="output-role output-role-chip output-role-user-chip">{t('common:labels.you')}</span>
+            {output.pendingEcho && (
+              <span className="output-pending-echo" title="Sending…">
+                <Icon name="hourglass" size={10} />
+              </span>
+            )}
             {parsed.hasContext && parsed.context && (
               <BossContext key={`boss-stream-${text.slice(0, 50)}`} context={parsed.context} onFileClick={onFileClick} />
             )}

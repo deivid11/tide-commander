@@ -60,7 +60,15 @@ export interface OutputActions {
   addOutput(agentId: string, output: AgentOutput): void;
   clearOutputs(agentId: string): void;
   getOutputs(agentId: string): AgentOutput[];
-  addUserPromptToOutput(agentId: string, command: string): void;
+  addUserPromptToOutput(agentId: string, command: string, opts?: { pendingEcho?: boolean }): void;
+  /**
+   * Resolve an optimistic (pendingEcho) user prompt when the server's
+   * command_started echo arrives. Adopts the server's text (which may wrap the
+   * raw prompt with [@file:]/boss context) so later history-refetch dedup keys
+   * match. Returns false when no pending prompt matches — the echo then
+   * belongs to a command sent from another client and must be appended.
+   */
+  confirmUserPromptEcho(agentId: string, serverCommand: string): boolean;
   getLastPrompt(agentId: string): LastPrompt | undefined;
   setLastPrompt(agentId: string, text: string): void;
   /** Preserve current outputs before reconnect - returns snapshot to restore later */
@@ -168,7 +176,7 @@ export function createOutputActions(
       return getState().agentOutputs.get(agentId) || [];
     },
 
-    addUserPromptToOutput(agentId: string, command: string): void {
+    addUserPromptToOutput(agentId: string, command: string, opts?: { pendingEcho?: boolean }): void {
       this.addOutput(agentId, {
         text: command,
         isStreaming: false,
@@ -177,7 +185,42 @@ export function createOutputActions(
         // when this device's clock differs from the server's (e.g. on mobile).
         timestamp: serverNow(),
         isUserPrompt: true,
+        ...(opts?.pendingEcho ? { pendingEcho: true } : {}),
       });
+    },
+
+    confirmUserPromptEcho(agentId: string, serverCommand: string): boolean {
+      const server = serverCommand.trim();
+      if (server.length === 0) return false;
+      let confirmed = false;
+
+      setState((s) => {
+        const outputs = s.agentOutputs.get(agentId);
+        if (!outputs || outputs.length === 0) return;
+
+        // Exact-text match first so multiple in-flight prompts resolve FIFO
+        // against their own echo; fall back to containment because the server
+        // side may have wrapped the raw prompt this client rendered (expanded
+        // [@file:]/[@folder:] mentions, boss context, property notifications).
+        let idx = outputs.findIndex((o) => o.pendingEcho && o.text.trim() === server);
+        if (idx < 0) {
+          idx = outputs.findIndex((o) => o.pendingEcho && o.text.trim().length > 0 && server.includes(o.text.trim()));
+        }
+        if (idx < 0) return;
+
+        const next = [...outputs];
+        // Adopt the server's canonical text so the text-key dedup in
+        // useHistoryLoader matches what the session history will contain.
+        next[idx] = { ...next[idx], text: serverCommand, pendingEcho: undefined };
+
+        const newAgentOutputs = new Map(s.agentOutputs);
+        newAgentOutputs.set(agentId, next);
+        s.agentOutputs = newAgentOutputs;
+        confirmed = true;
+      });
+
+      if (confirmed) notify();
+      return confirmed;
     },
 
     getLastPrompt(agentId: string): LastPrompt | undefined {

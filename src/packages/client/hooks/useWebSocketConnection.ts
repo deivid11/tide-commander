@@ -10,7 +10,7 @@ import { useEffect } from 'react';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { store } from '../store';
-import { connect, setCallbacks, suspendForBackground, resumeFromBackground } from '../websocket';
+import { connect, setCallbacks, suspendForBackground, resumeFromBackground, verifyConnection } from '../websocket';
 import { runPostReconnectResync } from '../services/postReconnectResync';
 import {
   getWsConnected,
@@ -88,6 +88,29 @@ export function useWebSocketConnection({
       cleanupNotificationListeners?.();
     };
   }, [showToast, showAgentNotification, showWhatsAppMessage]);
+
+  // Wake-up verification (all platforms): when the tab becomes visible again
+  // or the network comes back, don't trust readyState — on mobile a socket
+  // whose TCP died during doze/a network switch keeps reporting OPEN for
+  // minutes while nothing flows. verifyConnection() proves the socket with a
+  // ping deadline and replaces it (reconnect → resync → history refetch) if
+  // it's a zombie. Browsers/PWA had NO wake-up hook at all before this.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        verifyConnection();
+      }
+    };
+    const handleOnline = () => {
+      verifyConnection();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleOnline);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, []);
 
   // Native app only: park the WebSocket while backgrounded. The Android
   // foreground service delivers notifications through its own native socket,
