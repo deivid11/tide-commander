@@ -5,6 +5,11 @@ import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../..
 import { Icon } from '../Icon';
 import { useSelfUpdate } from '../../hooks/useSelfUpdate';
 import { ChangelogModal } from '../ChangelogModal';
+import {
+  fetchAutoUpdateStatus,
+  setAutoUpdateEnabled,
+  type AutoUpdateStatus,
+} from '../../api/system-update';
 
 // Theme selector component
 export function ThemeSelector() {
@@ -202,6 +207,69 @@ function AutoUpdatePanel() {
   );
 }
 
+/**
+ * Opt-in unattended updates: the server checks npm periodically and installs +
+ * restarts on its own, but only while no agent is working. Disabled by default;
+ * hidden entirely when the install can't self-update (dev checkout, non-npm).
+ */
+function UnattendedUpdateToggle() {
+  const { t } = useTranslation(['config']);
+  const [status, setStatus] = useState<AutoUpdateStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchAutoUpdateStatus()
+      .then(setStatus)
+      .catch((err: Error) => setError(err.message));
+  }, []);
+
+  const handleToggle = useCallback(async (enabled: boolean) => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setStatus(await setAutoUpdateEnabled(enabled));
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }, [busy]);
+
+  if (!status?.supported) return null;
+
+  return (
+    <div className="about-autoupdate">
+      <div className="about-autoupdate-title">{t('config:about.unattendedTitle')}</div>
+      <div className="about-autoupdate-row">
+        <span className="about-autoupdate-devnote">{t('config:about.unattendedDesc')}</span>
+        <label className="config-toggle">
+          <input
+            type="checkbox"
+            className="config-toggle-input"
+            checked={status.enabled}
+            disabled={busy}
+            onChange={(e) => void handleToggle(e.target.checked)}
+          />
+          <span className="config-toggle-track">
+            <span className="config-toggle-thumb" />
+          </span>
+        </label>
+      </div>
+      {status.enabled && status.pendingRestartVersion && (
+        <div className="about-autoupdate-devnote">
+          {t('config:about.unattendedPendingRestart', { version: status.pendingRestartVersion })}
+        </div>
+      )}
+      {status.enabled && !status.pendingRestartVersion && status.lastResult && (
+        <div className="about-autoupdate-devnote">{status.lastResult}</div>
+      )}
+      {error && <div className="about-update-error">{error}</div>}
+    </div>
+  );
+}
+
 export function AboutSection() {
   const { t } = useTranslation(['config']);
   const {
@@ -267,6 +335,9 @@ export function AboutSection() {
 
       {/* Self-update from npm global (desktop/CLI). Renders only when relevant. */}
       <AutoUpdatePanel />
+
+      {/* Opt-in unattended updates (npm global installs only) */}
+      <UnattendedUpdateToggle />
 
       {/* Full changelog (all versions) in a modal */}
       <div className="about-changelog-row">

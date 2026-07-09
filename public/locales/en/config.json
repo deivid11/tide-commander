@@ -565,7 +565,10 @@
     "autoUpdateFailed": "Update failed.",
     "autoUpdateDevMode": "Auto-update is unavailable in dev mode.",
     "autoUpdateManualCommand": "Run this in your terminal to update manually:",
-    "autoUpdatePackageManagerNotice": "Auto-update only supports npm-installed globals. Detected: {{pm}}."
+    "autoUpdatePackageManagerNotice": "Auto-update only supports npm-installed globals. Detected: {{pm}}.",
+    "unattendedTitle": "Automatic updates",
+    "unattendedDesc": "Install updates automatically when no agent is working (checks every 30 min)",
+    "unattendedPendingRestart": "v{{version}} installed — will restart as soon as all agents are idle"
   },
   "updateBanner": {
     "newVersion": "New version v{{version}} available",

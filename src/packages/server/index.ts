@@ -19,6 +19,7 @@ import { logger, closeFileLogging, getLogFilePath, createLogger } from './utils/
 import { setupTerminalWsProxy } from './services/terminal-proxy.js';
 import { initIntegrations, shutdownIntegrations, getIntegrationTriggerHandlers } from './integrations/integration-registry.js';
 import { initBackupService, shutdownBackupService } from './services/backup-service.js';
+import { initAutoUpdateService, shutdownAutoUpdateService } from './services/auto-update-service.js';
 import { initAttachmentJanitor, shutdownAttachmentJanitor } from './services/attachment-janitor.js';
 import { stopAllAgentTerminals, sweepAllAgentTtyds } from './services/agent-terminal-service.js';
 import type { IntegrationContext } from '../shared/integration-types.js';
@@ -163,6 +164,9 @@ async function main(): Promise<void> {
   // Start hourly backup scheduler (reads persisted enabled/disabled setting)
   initBackupService();
 
+  // Start unattended-update scheduler (opt-in; disabled by default)
+  initAutoUpdateService();
+
   // Start hourly sweeper for the trigger-attachment temp dir.
   initAttachmentJanitor();
 
@@ -245,6 +249,7 @@ async function main(): Promise<void> {
 
     try {
       shutdownBackupService();
+      shutdownAutoUpdateService();
       shutdownAttachmentJanitor();
       triggerService.shutdown();
       autoCollapseService.shutdown();
