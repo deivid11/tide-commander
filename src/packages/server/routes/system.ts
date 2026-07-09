@@ -159,9 +159,9 @@ router.post('/self-update', async (_req: Request, res: Response) => {
       onStderr: (chunk) => send('stderr', { chunk }),
     });
 
-    clearInterval(keepalive);
-
     if (result.exitCode === 0) {
+      // Keepalive stays active through this fetch (up to 5s): the client's
+      // stall watchdog needs to keep seeing bytes until 'done' goes out.
       const newVersion = (await fetchLatestNpmVersion(PACKAGE_NAME)) ?? null;
 
       // Try to bring the new binary up automatically. The relauncher will
@@ -178,6 +178,7 @@ router.post('/self-update', async (_req: Request, res: Response) => {
           ? 'Update installed — Tide Commander is restarting automatically. The UI will reconnect in a few seconds.'
           : 'Update installed. Please restart Tide Commander from your terminal.',
       });
+      clearInterval(keepalive);
       res.end();
 
       if (autoRestart) {
@@ -213,6 +214,7 @@ router.post('/self-update', async (_req: Request, res: Response) => {
         newVersion: null,
         requiresRestart: false,
       });
+      clearInterval(keepalive);
       res.end();
       updateInProgress = false;
     }
