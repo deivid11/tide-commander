@@ -65,6 +65,20 @@ const HEARTBEAT_INTERVAL_MS = 25_000;
 const LIVENESS_PROBE_DEADLINE_MS = 10_000;
 // Traffic younger than this proves the pipe is alive — skip the probe.
 const FRESH_TRAFFIC_MS = 15_000;
+// How long after onopen a backend gets to answer the capability ping.
+const PING_CAPABILITY_DEADLINE_MS = 10_000;
+
+// Ping-capability flags live ON the socket object (it sits in the shared ws
+// slot, so every HMR module instance sees the same flags, and their lifetime
+// is exactly the socket's).
+//  - __tcPongSeen: the backend answered a ping at least once → zombie kills
+//    are trustworthy for this connection.
+//  - __tcNoPing: the backend never answered the onopen capability ping while
+//    the pipe was provably alive (initial sync had just flowed) → it is an
+//    OLDER SERVER without the ping handler, not a dead socket. Sending more
+//    pings is pointless and killing on silence would discard a healthy
+//    connection on every idle period (version-skew kill loop).
+type TcSocket = WebSocket & { __tcPongSeen?: boolean; __tcNoPing?: boolean };
 
 // NOTE: lastInboundAt / livenessProbeTimer / heartbeatTimer live in the
 // HMR-persisted window state (state.ts), NEVER as module-scoped variables.
@@ -75,8 +89,12 @@ const FRESH_TRAFFIC_MS = 15_000;
 
 /** Send a ping and require any inbound frame within the deadline, else the
  * socket is a zombie and gets discarded. Any inbound frame counts as proof —
- * the pong itself, a broadcast, anything. */
+ * the pong itself, a broadcast, anything. Kills only fire on connections
+ * whose backend has proven it answers pings (__tcPongSeen); against an older
+ * server silence is normal, not death. */
 function probeSocketLiveness(socket: WebSocket, deadlineMs = LIVENESS_PROBE_DEADLINE_MS): void {
+  const tcSocket = socket as TcSocket;
+  if (tcSocket.__tcNoPing) return; // backend can't answer — nothing to probe
   if (getLivenessProbeTimer() !== null) return; // single probe in flight
   const baseline = getLastInboundAt();
   try {
@@ -89,6 +107,7 @@ function probeSocketLiveness(socket: WebSocket, deadlineMs = LIVENESS_PROBE_DEAD
     setLivenessProbeTimer(null);
     if (getWs() !== socket) return; // socket already replaced/cleaned up
     if (getLastInboundAt() !== baseline) return; // something arrived — alive
+    if (!tcSocket.__tcPongSeen) return; // pong support unproven — never kill on silence
     killZombieSocket(socket);
   }, deadlineMs));
 }
@@ -156,6 +175,7 @@ export function verifyConnection(): void {
     if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
     const ws = getWs();
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if ((ws as TcSocket).__tcNoPing) return; // older backend — pings are pointless
     if (Date.now() - getLastInboundAt() < HEARTBEAT_INTERVAL_MS) return;
     probeSocketLiveness(ws);
   }, HEARTBEAT_INTERVAL_MS));
@@ -558,6 +578,25 @@ async function openSocket(): Promise<void> {
     // the watch list on every (re)connect.
     resyncGitWatch();
 
+    // Ping-capability probe: classify the backend NOW, while the pipe is
+    // provably alive (the handshake + initial sync just flowed). No pong
+    // within the deadline means an older server without the ping handler —
+    // mark the socket mute so the heartbeat never kills its healthy-but-
+    // silent connection (client-newer-than-server version skew).
+    try {
+      socket.send(JSON.stringify({ type: 'ping', payload: { ts: Date.now() } }));
+    } catch {
+      // dying socket — the onclose path owns recovery
+    }
+    setTimeout(() => {
+      const tcSocket = socket as TcSocket;
+      if (getWs() !== socket || tcSocket.__tcPongSeen) return;
+      tcSocket.__tcNoPing = true;
+      console.warn(
+        '[WS] Backend did not answer ping (older server version?) — zombie-socket detection disabled for this connection.'
+      );
+    }, PING_CAPABILITY_DEADLINE_MS);
+
     // Connected to a lower-priority URL? Watch for the better ones to recover.
     if (chosenHttpUrl) {
       startFailbackWatch(chosenHttpUrl);
@@ -577,6 +616,12 @@ async function openSocket(): Promise<void> {
       const agentId = extractAgentId(message);
       if (agentId) {
         agentDebugger.captureReceived(agentId, event.data);
+      }
+
+      if (message.type === 'pong') {
+        const tcSocket = socket as TcSocket;
+        tcSocket.__tcPongSeen = true;
+        tcSocket.__tcNoPing = false; // late pong re-enables detection
       }
 
       handleServerMessage(message);

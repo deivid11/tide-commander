@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.145.1] - 2026-07-09
+
+### Fixed
+- **WebSocket liveness with older servers** - the client now detects when a backend does not support ping/pong and avoids repeatedly killing an otherwise healthy connection during version skew.
+
 ## [1.145.0] - 2026-07-09
 
 ### Added
