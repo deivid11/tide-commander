@@ -2054,6 +2054,49 @@
   }
 }
 
+.bash-inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 6px;
+  padding: 2px 4px;
+  border-radius: $radius-sm;
+  color: $text-muted;
+  cursor: pointer;
+  opacity: 0.6;
+
+  &:hover {
+    opacity: 1;
+    background: rgba($accent-blue, 0.15);
+    color: $accent-blue;
+  }
+
+  &.active {
+    opacity: 1;
+    color: $accent-blue;
+  }
+}
+
+.bash-inline-output {
+  width: 100%;
+
+  pre {
+    margin: 2px 0 8px 0;
+    padding: 6px 10px;
+    max-height: 260px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: $font-mono;
+    font-size: 11px;
+    line-height: 1.45;
+    color: $text-muted;
+    background: rgba($bg-tertiary, 0.6);
+    border-left: 2px solid rgba($accent-blue, 0.4);
+    border-radius: 0 $radius-sm $radius-sm 0;
+  }
+}
+
 @keyframes bash-spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }

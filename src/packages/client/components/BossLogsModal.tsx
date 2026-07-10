@@ -6,7 +6,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useStore } from '../store';
+import { store, useBuildings } from '../store';
+import { useBossStreamingLogs } from '../store/selectors';
 import { LogViewerModal } from './LogViewerModal';
 import type { LogLine } from './LogViewerModal';
 import type { Building } from '../../shared/types';
@@ -32,7 +33,8 @@ function getSourceColor(name: string): string {
 
 export function BossLogsModal({ building, isOpen, onClose }: BossLogsModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
-  const { bossStreamingLogs, buildings } = useStore();
+  const bossStreamingLogs = useBossStreamingLogs();
+  const buildings = useBuildings();
   const logs = bossStreamingLogs.get(building.id) || [];
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
 

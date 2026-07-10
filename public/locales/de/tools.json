@@ -45,7 +45,9 @@
       "listFiles": "Dateien auflisten",
       "searchFiles": "Dateien durchsuchen",
       "executeCommand": "Befehl ausführen"
-    }
+    },
+    "showOutputsInline": "Alle Bash-Ausgaben inline anzeigen",
+    "hideOutputsInline": "Inline-Bash-Ausgaben ausblenden"
   },
   "metadata": {
     "messageInfo": "Nachrichteninfo",

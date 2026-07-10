@@ -242,11 +242,31 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
   const { orderedAgents, moveAgent } = useAgentOrder(baseAgents);
   const agents = orderedAgents;
 
-  // Get area info for each agent (for display purposes)
+  // O(1) id → flat index lookups for the nested group render below
+  // (findIndex per row was O(n²) per render).
+  const agentIndexById = useMemo(() => {
+    const map = new Map<string, number>();
+    agents.forEach((a, i) => map.set(a.id, i));
+    return map;
+  }, [agents]);
+
+  // Get area info for each agent (for display purposes). Single pass over the
+  // subscribed areas map instead of store.getAreaForAgent per agent (which
+  // re-reads store state and the agent on every call). Note: `agents` identity
+  // still churns on every agents tick (it derives from the agents map
+  // selector), so this recomputes per tick — but the pass is now lookup-free.
   const agentAreas = useMemo(() => {
     const areaMap = new Map<string, DrawingArea | null>();
+    const areaList = Array.from(areas.values());
     for (const agent of agents) {
-      areaMap.set(agent.id, store.getAreaForAgent(agent.id));
+      let match: DrawingArea | null = null;
+      for (const area of areaList) {
+        if (store.isPositionInArea({ x: agent.position.x, z: agent.position.z }, area)) {
+          match = area;
+          break;
+        }
+      }
+      areaMap.set(agent.id, match);
     }
     return areaMap;
   }, [agents, areas]);
@@ -720,7 +740,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
               {/* Agents in this group */}
               {groupAgents.map((agent) => {
                 const currentIndex = globalIndex++;
-                const agentIndex = agents.findIndex(a => a.id === agent.id);
+                const agentIndex = agentIndexById.get(agent.id) ?? -1;
                 return (
                   <AgentBarItem
                     key={agent.id}

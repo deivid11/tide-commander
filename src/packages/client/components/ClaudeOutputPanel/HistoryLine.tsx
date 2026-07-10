@@ -34,6 +34,7 @@ import { highlightText, renderContentWithImages, renderUserPromptContent, isThum
 import { useTTS } from '../../hooks/useTTS';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { Icon } from '../Icon';
+import { BashInlineToggle, BashInlineOutput } from './BashInlineOutput';
 import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
 import type { EnrichedHistoryMessage, EditData } from './types';
 import type { ExecTask, Subagent } from '../../../shared/types';
@@ -766,7 +767,15 @@ export const HistoryLine = memo(function HistoryLine({
                 </span>
               )
             )}
+            {isBashTool && <BashInlineToggle enabled={settings.inlineBashOutputs} />}
           </div>
+          {/* Global inline-output mode: show the captured output right below the
+              command. Skipped when the row already renders its result inline
+              (exec tasks, exec output, test runs, HTTP run cards). */}
+          {isBashTool && settings.inlineBashOutputs && _bashOutput
+            && matchingExecTasks.length === 0 && !execTaskOutput && !matchingTestRunId && !matchingHttpRunId && (
+            <BashInlineOutput text={_bashOutput} />
+          )}
           {/* Inline image thumbnail when a Read targets an image file */}
           {readImageThumb && (
             <div className="output-read-image-preview">
@@ -1193,10 +1202,14 @@ export const HistoryLine = memo(function HistoryLine({
               {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
               <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
               <span className="output-tool-name">{displayToolName}</span>
+              <BashInlineToggle enabled={settings.inlineBashOutputs} />
             </div>
             <div className="output-line output-tool-input">
               {chip}
             </div>
+            {settings.inlineBashOutputs && _bashOutput && (
+              <BashInlineOutput text={_bashOutput} />
+            )}
           </>
         );
       }

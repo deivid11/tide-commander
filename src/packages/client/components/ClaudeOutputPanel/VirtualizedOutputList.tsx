@@ -256,22 +256,38 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // Stable sort: ascending canonical timestamp, then uuid lex ascending,
   // then original insertion order (history-block first, then live-block).
   const allItems = useMemo<TaggedItem[]>(() => {
-    const tagged: TaggedItem[] = [];
+    // Decorate: precompute the canonical timestamp (a Date parse for history
+    // rows) and uuid ONCE per item — the comparator previously re-derived
+    // both per comparison (~2·N·logN Date parses per streamed chunk).
+    const decorated: Array<{ tagged: TaggedItem; tsMs: number; uuid: string }> = [];
     for (let i = 0; i < historyMessages.length; i++) {
-      tagged.push({ kind: 'history', item: historyMessages[i], originalIndex: i });
+      const tagged: TaggedItem = { kind: 'history', item: historyMessages[i], originalIndex: i };
+      decorated.push({ tagged, tsMs: getCanonicalTimestampMs(tagged), uuid: getCanonicalUuid(tagged) });
     }
     for (let i = 0; i < liveOutputs.length; i++) {
-      tagged.push({ kind: 'live', item: liveOutputs[i], originalIndex: historyMessages.length + i });
+      const tagged: TaggedItem = { kind: 'live', item: liveOutputs[i], originalIndex: historyMessages.length + i };
+      decorated.push({ tagged, tsMs: getCanonicalTimestampMs(tagged), uuid: getCanonicalUuid(tagged) });
     }
-    tagged.sort((a, b) => {
-      const ta = getCanonicalTimestampMs(a);
-      const tb = getCanonicalTimestampMs(b);
-      if (ta !== tb) return ta - tb;
-      const ua = getCanonicalUuid(a);
-      const ub = getCanonicalUuid(b);
-      if (ua !== ub) return ua < ub ? -1 : 1;
-      return a.originalIndex - b.originalIndex;
-    });
+    // Fast path: history is server-sorted and live outputs stream in order, so
+    // the merged array is usually already sorted — one O(N) pass confirms it
+    // and skips the sort. originalIndex ascends by construction, so a pair is
+    // in comparator order iff tsMs ascends, with uuid breaking ties.
+    let isSorted = true;
+    for (let i = 1; i < decorated.length; i++) {
+      const prev = decorated[i - 1];
+      const curr = decorated[i];
+      if (prev.tsMs > curr.tsMs || (prev.tsMs === curr.tsMs && prev.uuid > curr.uuid)) {
+        isSorted = false;
+        break;
+      }
+    }
+    if (!isSorted) {
+      decorated.sort((a, b) => {
+        if (a.tsMs !== b.tsMs) return a.tsMs - b.tsMs;
+        if (a.uuid !== b.uuid) return a.uuid < b.uuid ? -1 : 1;
+        return a.tagged.originalIndex - b.tagged.originalIndex;
+      });
+    }
     // Defensive de-dup: collapse any items that resolve to the same
     // virtualizer key. Without this, duplicate-key items (real-data dupes
     // from the source, optimistic+history coexisting briefly) cause
@@ -279,11 +295,11 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     // indices, which the user sees as stacked bubbles in one position.
     const seen = new Set<string>();
     const unique: TaggedItem[] = [];
-    for (const item of tagged) {
-      const key = buildItemKey(item, agentId);
+    for (const { tagged } of decorated) {
+      const key = buildItemKey(tagged, agentId);
       if (seen.has(key)) continue;
       seen.add(key);
-      unique.push(item);
+      unique.push(tagged);
     }
     return unique;
   }, [historyMessages, liveOutputs, agentId]);

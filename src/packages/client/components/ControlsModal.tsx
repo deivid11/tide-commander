@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useStore, store, useMouseControls, useTrackpadConfig } from '../store';
+import { store, useAgents, useShortcuts, useMouseControls, useTrackpadConfig } from '../store';
 import { ShortcutConfig, formatShortcut, formatShortcutString, matchesShortcutString } from '../store/shortcuts';
 import type { MouseControlConfig, CameraSensitivityConfig, TrackpadConfig } from '../store/mouseControls';
 import { formatMouseBinding, findConflictingMouseBindings } from '../store/mouseControls';
@@ -42,7 +42,8 @@ type AgentWithShortcut = { id: string; name: string; shortcut?: string };
 
 export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
-  const state = useStore();
+  const allShortcuts = useShortcuts();
+  const agents = useAgents();
   const mouseControls = useMouseControls();
   const trackpadConfig = useTrackpadConfig();
   const [activeTab, setActiveTab] = useState<ControlTab>('keyboard');
@@ -50,6 +51,7 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
   const [expandedContext, setExpandedContext] = useState<ShortcutConfig['context'] | 'all'>('all');
   const [findByShortcut, setFindByShortcut] = useState(false);
   const [capturedKeys, setCapturedKeys] = useState<{ key: string; modifiers: { ctrl?: boolean; alt?: boolean; shift?: boolean; meta?: boolean } } | null>(null);
+  const [resetConfirm, setResetConfirm] = useState<ControlTab | null>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
 
   // Must be called before any early returns to maintain hook order
@@ -128,7 +130,7 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
   if (!isOpen) return null;
 
   // Filter shortcuts by search query or captured keys
-  const filteredShortcuts = state.shortcuts.filter((shortcut) => {
+  const filteredShortcuts = allShortcuts.filter((shortcut) => {
     const localizedName = t(`terminal:controls.shortcuts.${shortcut.id}.name`, { defaultValue: shortcut.name });
     const localizedDescription = t(`terminal:controls.shortcuts.${shortcut.id}.description`, { defaultValue: shortcut.description });
 
@@ -160,7 +162,7 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
     );
   });
 
-  const agentTerminalShortcuts = Array.from(state.agents.values())
+  const agentTerminalShortcuts = Array.from(agents.values())
     .map((agent) => agent as typeof agent & AgentWithShortcut)
     .filter((agent) => agent.shortcut && agent.shortcut.trim().length > 0)
     .filter((agent) => {
@@ -209,7 +211,6 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
     store.updateShortcut(id, updates);
   };
 
-  const [resetConfirm, setResetConfirm] = useState<ControlTab | null>(null);
   const handleResetAll = () => {
     setResetConfirm(activeTab);
   };

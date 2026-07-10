@@ -45,7 +45,9 @@
       "listFiles": "ListFiles",
       "searchFiles": "SearchFiles",
       "executeCommand": "ExecuteCommand"
-    }
+    },
+    "showOutputsInline": "सभी bash आउटपुट इनलाइन दिखाएँ",
+    "hideOutputsInline": "इनलाइन bash आउटपुट छिपाएँ"
   },
   "metadata": {
     "messageInfo": "संदेश जानकारी",

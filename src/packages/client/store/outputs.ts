@@ -81,12 +81,37 @@ export interface OutputActions {
   ): AgentOutput[];
 }
 
+// Streaming text deltas arrive many times per second and every notify() fans
+// out synchronously to all mounted selector hooks. Coalesce addOutput
+// notifications: state is mutated immediately (reads are always current), the
+// first chunk notifies synchronously, and further chunks inside the window
+// share a single trailing notify.
+const OUTPUT_NOTIFY_WINDOW_MS = 50;
+
 export function createOutputActions(
   getState: () => StoreState,
   setState: (updater: (state: StoreState) => void) => void,
   notify: () => void,
   getListenerCount: () => number
 ): OutputActions {
+  let notifyTimer: ReturnType<typeof setTimeout> | null = null;
+  let notifyPending = false;
+
+  const scheduleNotify = (): void => {
+    if (notifyTimer !== null) {
+      notifyPending = true;
+      return;
+    }
+    notify();
+    notifyTimer = setTimeout(() => {
+      notifyTimer = null;
+      if (notifyPending) {
+        notifyPending = false;
+        scheduleNotify();
+      }
+    }, OUTPUT_NOTIFY_WINDOW_MS);
+  };
+
   return {
     addOutput(agentId: string, output: AgentOutput): void {
       perf.start('store:addOutput');
@@ -159,7 +184,7 @@ export function createOutputActions(
         s.agentOutputs = newAgentOutputs;
       });
 
-      notify();
+      scheduleNotify();
       perf.end('store:addOutput');
     },
 

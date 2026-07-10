@@ -17,7 +17,7 @@ import { highlightElement, getLanguageForExtension, ensureLanguageLoaded } from 
 import { apiUrl, authFetch } from '../../utils/storage';
 import { copyRichContentToClipboard, copyTextToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
 import { revealInFileExplorer } from '../../api/files';
-import { useStore } from '../../store';
+import { useSettings } from '../../store';
 import { useLessNavigation } from '../../hooks/useLessNavigation';
 import { SearchBar } from './SearchBar';
 import { KeybindingsHelp } from './KeybindingsHelp';
@@ -121,7 +121,7 @@ function FileViewerHeader({
   // expose their own Download button and carry no textual content).
   const canCopyOrDownloadText = file.fileType === 'text' && file.content != null;
 
-  const { settings } = useStore();
+  const settings = useSettings();
 
   const handleCopyAll = async () => {
     try {

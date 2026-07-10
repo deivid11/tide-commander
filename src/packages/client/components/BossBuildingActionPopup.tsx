@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo, memo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useStore } from '../store';
+import { store, useBuildings } from '../store';
 import type { Building } from '../../shared/types';
 import { BUILDING_STATUS_COLORS } from '../utils/colors';
 import { Icon } from './Icon';
@@ -42,7 +42,7 @@ export const BossBuildingActionPopup = memo(function BossBuildingActionPopup({ b
   const dragOffsetRef = useRef(dragOffset);
   dragOffsetRef.current = dragOffset;
 
-  const { buildings } = useStore();
+  const buildings = useBuildings();
 
   // Get subordinate buildings
   const subordinateIds = building.subordinateBuildingIds || [];

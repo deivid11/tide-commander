@@ -45,7 +45,9 @@
       "listFiles": "列出文件",
       "searchFiles": "搜索文件",
       "executeCommand": "执行命令"
-    }
+    },
+    "showOutputsInline": "内联显示所有 Bash 输出",
+    "hideOutputsInline": "隐藏内联 Bash 输出"
   },
   "metadata": {
     "messageInfo": "消息信息",

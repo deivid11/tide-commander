@@ -7,7 +7,8 @@
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useStore, store, useLatestTestRunId, useTestRun, useTestResultsModalOpen } from '../../store';
+import { store, useAreas, useFileViewerPath, useLatestTestRunId, useTestRun, useTestResultsModalOpen } from '../../store';
+import { useFileViewerRevealInTree } from '../../store/selectors';
 import { matchesShortcut } from '../../store/shortcuts';
 import { DiffViewer } from '../DiffViewer';
 import { apiUrl, authFetch } from '../../utils/storage';
@@ -83,7 +84,9 @@ export function FileExplorerPanel({
   folderPath,
 }: FileExplorerPanelProps) {
   const { t } = useTranslation(['terminal', 'common']);
-  const state = useStore();
+  const areas = useAreas();
+  const fileViewerPath = useFileViewerPath();
+  const fileViewerRevealInTree = useFileViewerRevealInTree();
 
   // -------------------------------------------------------------------------
   // AREA & FOLDER STATE
@@ -93,9 +96,9 @@ export function FileExplorerPanel({
   // If areaId is also present, we stay in area mode and use folderPath as initial folder selection.
   const isDirectFolderMode = !!folderPath && !areaId;
 
-  const area = !isDirectFolderMode && areaId ? state.areas.get(areaId) : null;
+  const area = !isDirectFolderMode && areaId ? areas.get(areaId) : null;
   const directories = isDirectFolderMode ? [folderPath] : (area?.directories || []);
-  const allAreas = Array.from(state.areas.values());
+  const allAreas = Array.from(areas.values());
 
   const [selectedFolderIndex, setSelectedFolderIndex] = useState(0);
   const [pendingFolderPath, setPendingFolderPath] = useState<string | null>(null);
@@ -599,10 +602,10 @@ export function FileExplorerPanel({
 
   // Listen for fileViewerPath from store
   useEffect(() => {
-    if (state.fileViewerPath && isOpen) {
-      const path = state.fileViewerPath;
+    if (fileViewerPath && isOpen) {
+      const path = fileViewerPath;
 
-      if (state.fileViewerRevealInTree) {
+      if (fileViewerRevealInTree) {
         const filename = getFilename(path);
         const extension = path.substring(path.lastIndexOf('.')).toLowerCase();
         // Open as a tab AND reveal in tree (expand ancestors, select, scroll).
@@ -614,7 +617,7 @@ export function FileExplorerPanel({
       }
       store.clearFileViewerPath();
     }
-  }, [state.fileViewerPath, state.fileViewerRevealInTree, isOpen, loadFile]);
+  }, [fileViewerPath, fileViewerRevealInTree, isOpen, loadFile]);
 
   // Auto-select git tab if there are changes (only if storage restore didn't load a saved view mode)
   useEffect(() => {
@@ -644,13 +647,13 @@ export function FileExplorerPanel({
 
       // Keep pending folder path until storage restore runs to avoid race conditions.
       if (pendingFolderPath) {
-        const newArea = state.areas.get(areaId);
+        const newArea = areas.get(areaId);
         if (!newArea?.directories.includes(pendingFolderPath)) {
           setPendingFolderPath(null);
         }
       }
     }
-  }, [areaId, pendingFolderPath, state.areas, clearFile]);
+  }, [areaId, pendingFolderPath, areas, clearFile]);
 
   // Keyboard shortcuts
   useEffect(() => {

@@ -3,7 +3,7 @@
  * Provides consistent open/close/toggle behavior and optional data passing
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 
 export interface ModalState<T = undefined> {
   /** Whether the modal is currently open */
@@ -59,14 +59,17 @@ export function useModalState<T = undefined>(
     setIsOpen(prev => !prev);
   }, []);
 
-  return {
-    isOpen,
-    data,
-    open,
-    close,
-    toggle,
-    setData,
-  };
+  return useMemo(
+    () => ({
+      isOpen,
+      data,
+      open,
+      close,
+      toggle,
+      setData,
+    }),
+    [isOpen, data, open, close, toggle]
+  );
 }
 
 /**
@@ -100,12 +103,15 @@ export function useModalStateWithId(): ModalStateWithId {
     setId(null);
   }, []);
 
-  return {
-    isOpen: id !== null,
-    id,
-    open,
-    close,
-  };
+  return useMemo(
+    () => ({
+      isOpen: id !== null,
+      id,
+      open,
+      close,
+    }),
+    [id, open, close]
+  );
 }
 
 export default useModalState;

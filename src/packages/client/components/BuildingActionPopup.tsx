@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo, memo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useStore, useRunningTestRoots, isTestPathRelated } from '../store';
+import { store, useBuildingLogs, useRunningTestRoots, isTestPathRelated } from '../store';
 import type { Building } from '../../shared/types';
 import { BUILDING_STATUS_COLORS } from '../utils/colors';
 import { Icon } from './Icon';
@@ -108,8 +108,8 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
   const dragOffsetRef = useRef(dragOffset);
   dragOffsetRef.current = dragOffset;
 
-  const { buildingLogs: _buildingLogs } = useStore();
-  const logs = store.getBuildingLogs(building.id);
+  const buildingLogs = useBuildingLogs();
+  const logs = buildingLogs.get(building.id) || [];
   const isPM2 = building.pm2?.enabled;
   const isDocker = building.docker?.enabled;
   const isTests = building.type === 'tests';

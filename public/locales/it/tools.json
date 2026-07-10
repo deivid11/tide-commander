@@ -45,7 +45,9 @@
       "listFiles": "ListFiles",
       "searchFiles": "SearchFiles",
       "executeCommand": "ExecuteCommand"
-    }
+    },
+    "showOutputsInline": "Mostra tutti gli output bash in linea",
+    "hideOutputsInline": "Nascondi gli output bash in linea"
   },
   "metadata": {
     "messageInfo": "Info messaggio",
@@ -85,7 +87,7 @@
     "builtIn": "Integrata",
     "notAssigned": "Non assegnata",
     "noSkillsDefined": "Nessuna skill definita ancora",
-    "createSkillsHint": "Crea skill per insegnare agli agenti capacit\u00e0 specifiche",
+    "createSkillsHint": "Crea skill per insegnare agli agenti capacità specifiche",
     "noCustomClasses": "Nessuna classe agente personalizzata ancora",
     "createClassesHint": "Crea classi personalizzate con skill predefinite associate",
     "noClassesMatch": "Nessuna classe corrisponde a \"{{query}}\"",
@@ -121,7 +123,7 @@
     "uploading": "Caricamento...",
     "createClass": "Crea classe",
     "viewBuiltInSkill": "Visualizza skill integrata",
-    "builtInNotice": "Questa \u00e8 una skill integrata di Tide Commander. Il contenuto non pu\u00f2 essere modificato, ma puoi cambiare a quali agenti e classi \u00e8 assegnata.",
+    "builtInNotice": "Questa è una skill integrata di Tide Commander. Il contenuto non può essere modificato, ma puoi cambiare a quali agenti e classi è assegnata.",
     "nameRequired": "Nome *",
     "slugLabel": "Slug",
     "slugHint": "Identificativo URL-safe (generato automaticamente)",
@@ -138,8 +140,8 @@
     "disabledSkillsHint": "Le skill disabilitate non saranno disponibili per gli agenti",
     "saveAssignments": "Salva assegnazioni",
     "createSkill": "Crea skill",
-    "deleteSkillConfirm": "Eliminare questa skill? Questa azione non pu\u00f2 essere annullata.",
-    "updateSkillConfirm": "L'aggiornamento di questa skill riavvier\u00e0 tutti gli agenti che la utilizzano.\n\nDovrai riprendere manualmente gli agenti che stavano lavorando.\n\nContinuare?",
+    "deleteSkillConfirm": "Eliminare questa skill? Questa azione non può essere annullata.",
+    "updateSkillConfirm": "L'aggiornamento di questa skill riavvierà tutti gli agenti che la utilizzano.\n\nDovrai riprendere manualmente gli agenti che stavano lavorando.\n\nContinuare?",
     "deleteClassConfirm": "Sei sicuro di voler eliminare questa classe agente personalizzata?",
     "classCount": "{{count}} classi",
     "agentCount": "{{count}} agente/i",
@@ -164,7 +166,7 @@
     "classScout": "Scout",
     "classScoutDesc": "Esplorazione del codebase",
     "classBuilder": "Builder",
-    "classBuilderDesc": "Implementazione funzionalit\u00e0",
+    "classBuilderDesc": "Implementazione funzionalità",
     "classDebugger": "Debugger",
     "classDebuggerDesc": "Ricerca e correzione bug",
     "classArchitect": "Architetto",
@@ -196,7 +198,7 @@
     "customToolPlaceholder": "Strumento personalizzato (es. Bash(make:*))"
   },
   "subagent": {
-    "subagentTask": "Attivit\u00e0 sottoagente",
+    "subagentTask": "Attività sottoagente",
     "spawned": "Generato",
     "completed": "Completato",
     "duration": "Durata"
@@ -223,24 +225,24 @@
     "replaceAll": "Sostituisci tutto"
   },
   "todoList": {
-    "title": "Lista attivit\u00e0"
+    "title": "Lista attività"
   },
   "bossContext": {
     "teamContext": "Contesto team",
     "injectedInstructions": "Istruzioni agente iniettate"
   },
   "delegation": {
-    "taskDelegated": "Attivit\u00e0 delegata",
+    "taskDelegated": "Attività delegata",
     "to": "A:",
-    "task": "Attivit\u00e0:",
-    "why": "Perch\u00e9:",
+    "task": "Attività:",
+    "why": "Perché:",
     "alternatives": "Alternative:",
     "autoForwarding": "Inoltro automatico a {{name}}...",
     "via": "tramite"
   },
   "workPlan": {
     "phases": "{{count}} fasi",
-    "tasks": "{{count}} attivit\u00e0",
+    "tasks": "{{count}} attività",
     "parallel": "parallelo",
     "sequential": "sequenziale",
     "dependsOn": "dipende da:",
@@ -251,13 +253,13 @@
   },
   "progress": {
     "workingOn": "sta lavorando su...",
-    "taskFinished": "Attivit\u00e0 completata",
-    "taskFailed": "Attivit\u00e0 fallita"
+    "taskFinished": "Attività completata",
+    "taskFailed": "Attività fallita"
   },
   "exec": {
-    "runningTasks": "Attivit\u00e0 in esecuzione",
+    "runningTasks": "Attività in esecuzione",
     "running": "in esecuzione",
-    "stopTask": "Ferma attivit\u00e0",
+    "stopTask": "Ferma attività",
     "dismiss": "Chiudi",
     "clearCompleted": "Cancella completate"
   },

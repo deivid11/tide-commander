@@ -264,10 +264,19 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   const [mentionIndex, setMentionIndex] = useState(0);
   const mentionFetchRef = useRef<AbortController | null>(null);
 
-  // Poll pending messages so the queue UI stays in sync across tabs / reconnects
+  // Poll pending messages so the queue UI stays in sync across tabs / reconnects.
+  // getPendingMessagesForAgent always builds a fresh array; keep the previous
+  // reference when the contents are unchanged so the poll doesn't re-render
+  // this whole component every tick.
   useEffect(() => {
     const refresh = () => {
-      setPendingMessages(getPendingMessagesForAgent(selectedAgentId));
+      setPendingMessages((prev) => {
+        const next = getPendingMessagesForAgent(selectedAgentId);
+        const unchanged =
+          prev.length === next.length &&
+          prev.every((p, i) => p.command === next[i].command && p.queuedAt === next[i].queuedAt);
+        return unchanged ? prev : next;
+      });
     };
     refresh();
     const id = setInterval(refresh, 2000);

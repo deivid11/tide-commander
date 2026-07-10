@@ -16,8 +16,8 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  useAgents,
   useAgent,
+  useAgentCount,
   useSelectedAgentIds,
   useTerminalOpen,
   useMobileView,
@@ -52,6 +52,7 @@ import { HttpRequestsBrowser } from '../HttpRequestsBuildingModal';
 import { TestsBrowser } from '../TestsBuildingModal';
 import { BottomPm2LogContent } from './BottomPm2LogContent';
 import { getBuildingViewMode, expandBuilding } from '../../utils/buildingViewMode';
+import type { Agent } from '../../../shared/types';
 
 // Import types
 import type { ViewMode } from './types';
@@ -213,8 +214,13 @@ const _BottomTerminalIframe = memo(function BottomTerminalIframe({
 
 export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   const { t } = useTranslation(['terminal', 'common']);
-  // Store selectors
-  const agents = useAgents();
+  // Store selectors — deliberately no useAgents() here: this panel is always
+  // mounted, and that broad subscription re-renders it on every property
+  // change of ANY agent (~20x/s while any agent streams). Consumers of the
+  // full map read store.getState().agents at event/render time instead;
+  // useAgentCount still re-renders on agent add/remove so render-time
+  // snapshots stay structurally fresh.
+  useAgentCount();
   const selectedAgentIds = useSelectedAgentIds();
   const terminalOpen = useTerminalOpen();
   const mobileView = useMobileView();
@@ -236,6 +242,13 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   }, [terminalOpen, selectedAgentId]);
   const activeAgentId = terminalOpen ? selectedAgentId : heldAgentId;
   const activeAgent = useAgent(activeAgentId) || null;
+  // GuakeGitPanel only ever looks up the active agent in the map it receives;
+  // hand it a single-entry map so it doesn't need the broad agents map.
+  const activeAgentMap = useMemo(() => {
+    const map = new Map<string, Agent>();
+    if (activeAgent) map.set(activeAgent.id, activeAgent);
+    return map;
+  }, [activeAgent]);
 
   // Agent-switch crossfade (shared with the Flat view — see useAgentSwitchFade):
   // the keyed pane remounts atomically once the short fade-out of the outgoing
@@ -256,6 +269,10 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   // Get area folders for the active agent
   const areas = useAreas();
   const buildings = useBuildings();
+  // Only the active agent's position is read below; key the memo on the
+  // primitives so it doesn't recompute on unrelated activeAgent updates.
+  const activeAgentPosX = activeAgent?.position.x;
+  const activeAgentPosZ = activeAgent?.position.z;
   const agentAreaDirectories = useMemo(() => {
     if (!activeAgentId) return null;
     const matchedAreaIds = new Set<string>();
@@ -271,11 +288,10 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
 
     // Also include areas containing the agent position.
     // This keeps folder badges visible when area assignment state is stale.
-    const agent = agents.get(activeAgentId);
-    if (agent) {
+    if (activeAgentPosX !== undefined && activeAgentPosZ !== undefined) {
       for (const area of areas.values()) {
         if (area.archived || area.directories.length === 0 || matchedAreaIds.has(area.id)) continue;
-        if (isPositionInArea({ x: agent.position.x, z: agent.position.z }, area)) {
+        if (isPositionInArea({ x: activeAgentPosX, z: activeAgentPosZ }, area)) {
           matchedAreaIds.add(area.id);
           matchedAreas.push(area);
         }
@@ -287,7 +303,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
     return matchedAreas.flatMap((area) => area.directories
       .filter((dir) => dir && dir.trim().length > 0)
       .map((dir) => ({ areaId: area.id, areaName: area.name, dir })));
-  }, [activeAgentId, areas, agents]);
+  }, [activeAgentId, areas, activeAgentPosX, activeAgentPosZ]);
 
   // Terminal buildings in the active agent's area (for status-bar toggle buttons)
   const areaTerminalBuildings = useMemo(() => {
@@ -846,7 +862,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
     let nextIndex = agentNavigationIndexRef.current + direction;
     while (nextIndex >= 0 && nextIndex < history.length) {
       const targetAgentId = history[nextIndex];
-      if (agents.has(targetAgentId)) {
+      if (store.getState().agents.has(targetAgentId)) {
         isHistoryNavigationRef.current = true;
         agentNavigationIndexRef.current = nextIndex;
         updateAgentNavigationAvailability();
@@ -856,7 +872,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
       // Skip removed/non-existent agents in history
       nextIndex += direction;
     }
-  }, [agents, updateAgentNavigationAvailability]);
+  }, [updateAgentNavigationAvailability]);
 
   const handleNavigateBack = useCallback(() => {
     navigateAgentHistory(-1);
@@ -892,7 +908,10 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   // Swipe navigation hook (horizontal agent switching)
   // Uses paneRef for output ref and loading state from the pane
   const swipe = useSwipeNavigation({
-    agents,
+    // Render-time snapshot: refreshed on every re-render of this panel
+    // (useAgentCount above covers agent add/remove) without paying a broad
+    // per-agent-update subscription.
+    agents: store.getState().agents,
     selectedAgentId: activeAgentId,
     isOpen,
     overviewPanelOpen,
@@ -1118,7 +1137,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
     const handlePopState = (event: PopStateEvent) => {
       const targetAgentId = event.state?.__guakeAgentNav?.agentId;
       if (!targetAgentId || typeof targetAgentId !== 'string') return;
-      if (!agents.has(targetAgentId)) return;
+      if (!store.getState().agents.has(targetAgentId)) return;
       if (targetAgentId === selectedAgentId) return;
 
       // Route browser history navigation through the same terminal selection flow.
@@ -1139,7 +1158,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [isOpen, agents, selectedAgentId, updateAgentNavigationAvailability]);
+  }, [isOpen, selectedAgentId, updateAgentNavigationAvailability]);
 
   // Clear unseen badge when terminal is open and agent is visible
   useEffect(() => {
@@ -1401,7 +1420,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
 
       {/* Git Panel */}
       {gitPanelOpen && isOpen && activeAgentId && (
-        <GuakeGitPanel agentId={activeAgentId} agents={agents} onClose={() => setGitPanelOpen(false)} branchInfoMap={areaBranches} fetchRemote={fetchGitRemote} fetchingDirs={gitFetchingDirs} />
+        <GuakeGitPanel agentId={activeAgentId} agents={activeAgentMap} onClose={() => setGitPanelOpen(false)} branchInfoMap={areaBranches} fetchRemote={fetchGitRemote} fetchingDirs={gitFetchingDirs} />
       )}
 
       {/* Area Buildings Panel */}

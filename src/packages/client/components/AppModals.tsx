@@ -1,5 +1,6 @@
 import React, { Suspense, Profiler } from 'react';
-import { store, useStore } from '../store';
+import { store, useAgents, useBuildings, useSelectedAgentIds, useSelectedBuildingIds } from '../store';
+import { useExplorerAreaId } from '../store/selectors';
 import { type SceneConfig } from './toolbox';
 import { ContextMenu, type ContextMenuAction } from './ContextMenu';
 import { GlobalTestRunnerModal } from './GlobalTestRunnerModal';
@@ -128,13 +129,17 @@ export function AppModals({
   onOpenDatabasePanel,
   onSyncScene,
 }: AppModalsProps) {
-  const state = useStore();
+  const agents = useAgents();
+  const buildings = useBuildings();
+  const selectedAgentIds = useSelectedAgentIds();
+  const selectedBuildingIds = useSelectedBuildingIds();
+  const explorerAreaId = useExplorerAreaId();
 
   const isSelectedBuildingsDelete = pendingBuildingDelete === 'selected';
   const pendingBuilding = pendingBuildingDelete && pendingBuildingDelete !== 'selected'
-    ? state.buildings.get(pendingBuildingDelete)
+    ? buildings.get(pendingBuildingDelete)
     : null;
-  const selectedBuildingCount = state.selectedBuildingIds.size;
+  const selectedBuildingCount = selectedBuildingIds.size;
 
   return (
     <Suspense fallback={null}>
@@ -188,7 +193,7 @@ export function AppModals({
 
       {/* Agent Edit Modal */}
       {agentEditModal.isOpen && agentEditModal.data && (() => {
-        const agent = state.agents.get(agentEditModal.data);
+        const agent = agents.get(agentEditModal.data);
         if (!agent) return null;
         return (
           <AgentEditModal
@@ -212,7 +217,7 @@ export function AppModals({
           <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">Remove Agents</div>
             <div className="modal-body confirm-modal-body">
-              <p>Remove {state.selectedAgentIds.size} selected agent{state.selectedAgentIds.size > 1 ? 's' : ''} from the battlefield?</p>
+              <p>Remove {selectedAgentIds.size} selected agent{selectedAgentIds.size > 1 ? 's' : ''} from the battlefield?</p>
               <p className="confirm-modal-note">Claude Code sessions will continue running in the background.</p>
             </div>
             <div className="modal-footer">
@@ -286,17 +291,22 @@ export function AppModals({
         </div>
       )}
 
-      <Profiler id="CommanderView" onRender={profileRender}>
-        <CommanderView
-          isOpen={commanderModal.isOpen}
-          onClose={commanderModal.close}
-        />
-      </Profiler>
+      {/* Mounted only while open: CommanderView pays its full agents/tabs/
+          filter selector pipeline before its own isOpen early-return, and it
+          already resets its internal state on close, so unmounting is safe. */}
+      {commanderModal.isOpen && (
+        <Profiler id="CommanderView" onRender={profileRender}>
+          <CommanderView
+            isOpen={commanderModal.isOpen}
+            onClose={commanderModal.close}
+          />
+        </Profiler>
+      )}
 
       {/* File Explorer Panel (right side) */}
       <FileExplorerPanel
-        isOpen={explorerModal.isOpen || explorerFolderPath !== null || state.explorerAreaId !== null}
-        areaId={explorerModal.id || state.explorerAreaId || null}
+        isOpen={explorerModal.isOpen || explorerFolderPath !== null || explorerAreaId !== null}
+        areaId={explorerModal.id || explorerAreaId || null}
         folderPath={explorerFolderPath}
         onChangeArea={(newAreaId) => {
           // Clear any direct-folder path (opened via the terminal cwd or spotlight)

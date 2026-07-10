@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useStore, useDockerContainersList } from '../../store';
+import { store, useBuildings, useBuildingLogs, useDockerContainersList } from '../../store';
+import { useBossStreamingLogs } from '../../store/selectors';
 import {
   BUILDING_TYPES,
   BUILDING_STYLES,
@@ -41,7 +42,9 @@ export function BuildingConfigModal({
   initialPosition,
 }: BuildingConfigModalProps) {
   const { t } = useTranslation(['config', 'common']);
-  const { buildings, buildingLogs, bossStreamingLogs } = useStore();
+  const buildings = useBuildings();
+  const buildingLogs = useBuildingLogs();
+  const bossStreamingLogs = useBossStreamingLogs();
   const dockerContainersList = useDockerContainersList();
   const building = buildingId ? buildings.get(buildingId) : null;
   const currentBossLogs = buildingId ? (bossStreamingLogs.get(buildingId) || []) : [];
