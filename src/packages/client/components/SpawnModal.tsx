@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { store, useSkillsArray, useCustomAgentClassesArray, useCustomAgentNames } from '../store';
 import { AGENT_CLASS_CONFIG, BUILTIN_AGENT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
-import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, CODEX_REASONING_EFFORTS } from '../../shared/types';
+import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, CODEX_REASONING_EFFORTS, GROK_MODELS, DEFAULT_GROK_MODEL } from '../../shared/types';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl, authFetch } from '../utils/storage';
 import { BUILT_IN_AGENT_CLASSES } from '../../shared/agent-types';
 import { ModelPreview } from './ModelPreview';
@@ -86,6 +86,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   const [selectedEffort, setSelectedEffort] = useState<ClaudeEffort | undefined>('xHigh'); // Default: xHigh (extra high reasoning)
   const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>('gpt-5.6-luna');
   const [opencodeModel, setOpencodeModel] = useState<string>('minimax/MiniMax-M1-80k');
+  const [grokModel, setGrokModel] = useState<string>(DEFAULT_GROK_MODEL);
   const [customInstructions, setCustomInstructions] = useState('');
   const [skillSearch, setSkillSearch] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -417,6 +418,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
       codexConfig: selectedProvider === 'codex' ? codexConfig : undefined,
       codexModel: selectedProvider === 'codex' ? selectedCodexModel : undefined,
       opencodeModel: selectedProvider === 'opencode' ? opencodeModel : undefined,
+      grokModel: selectedProvider === 'grok' ? grokModel : undefined,
       initialSkillIds,
       model: selectedProvider === 'claude' ? selectedModel : undefined,
       customInstructions: trimmedInstructions ? `${trimmedInstructions.length} chars` : undefined,
@@ -439,8 +441,9 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
       selectedProvider === 'codex' ? selectedCodexModel : undefined,
       selectedProvider === 'claude' ? selectedModel : undefined,
       trimmedInstructions,
-      selectedProvider === 'claude' ? selectedEffort : undefined,
-      selectedProvider === 'opencode' ? opencodeModel : undefined
+      selectedProvider === 'claude' || selectedProvider === 'grok' ? selectedEffort : undefined,
+      selectedProvider === 'opencode' ? opencodeModel : undefined,
+      selectedProvider === 'grok' ? grokModel : undefined
     );
   };
 
@@ -548,65 +551,67 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
         <div className="modal-header">{t('terminal:spawn.deployTitle')}</div>
 
         <div className="modal-body spawn-modal-body">
-          {/* Top: Preview + Class Selection */}
-          <div className="spawn-top-section">
-            <div className="spawn-preview-compact">
-              <ModelPreview
-                agentClass={previewAgentClass}
-                modelFile={previewModelFile}
-                customModelUrl={previewCustomModelUrl}
-                modelScale={previewModelScale}
-                width={100}
-                height={120}
-              />
+          {/* Identity: Preview + Class + Name/CWD */}
+          <div className="spawn-section">
+            <div className="spawn-section-header">
+              <h4 className="spawn-section-title">{t('terminal:spawn.agentClass')}</h4>
+              <span className="spawn-section-hint">{selectedCustomClass?.name || selectedClass}</span>
             </div>
-            <div className="spawn-class-section">
-              <div className="spawn-class-label">{t('terminal:spawn.agentClass')}</div>
-              {(customClasses.length + CHARACTER_MODELS.length) > 6 && (
-                <input
-                  type="text"
-                  className="spawn-input class-search-input"
-                  placeholder={t('terminal:spawn.filterClasses')}
-                  value={classSearch}
-                  onChange={(e) => setClassSearch(e.target.value)}
+            <div className="spawn-top-section">
+              <div className="spawn-preview-compact">
+                <ModelPreview
+                  agentClass={previewAgentClass}
+                  modelFile={previewModelFile}
+                  customModelUrl={previewCustomModelUrl}
+                  modelScale={previewModelScale}
+                  width={110}
+                  height={130}
                 />
-              )}
-              <div className="class-selector-inline">
-                {filteredCustomClasses.map((customClass) => (
-                  <button
-                    key={customClass.id}
-                    className={`class-chip ${selectedClass === customClass.id ? 'selected' : ''}`}
-                    onClick={() => setSelectedClass(customClass.id)}
-                    title={customClass.description}
-                  >
-                    <AgentIcon classId={customClass.id} size={18} className="class-chip-icon" />
-                    <span className="class-chip-name">{customClass.name}</span>
-                  </button>
-                ))}
-                {filteredBuiltInClasses.map((char) => {
-                  const config = AGENT_CLASS_CONFIG[char.id];
-                  return (
-                    <button
-                      key={char.id}
-                      className={`class-chip ${selectedClass === char.id ? 'selected' : ''}`}
-                      onClick={() => setSelectedClass(char.id)}
-                      title={config.description}
-                    >
-                      <AgentIcon classId={char.id} size={18} className="class-chip-icon" />
-                      <span className="class-chip-name">{char.name}</span>
-                    </button>
-                  );
-                })}
-                {classSearch && filteredCustomClasses.length === 0 && filteredBuiltInClasses.length === 0 && (
-                  <div className="class-search-empty">{t('terminal:spawn.noClassesMatch', { query: classSearch })}</div>
+                <div className="spawn-preview-label">{selectedCustomClass?.name || selectedClass}</div>
+              </div>
+              <div className="spawn-class-section">
+                {(customClasses.length + CHARACTER_MODELS.length) > 6 && (
+                  <input
+                    type="text"
+                    className="spawn-input class-search-input"
+                    placeholder={t('terminal:spawn.filterClasses')}
+                    value={classSearch}
+                    onChange={(e) => setClassSearch(e.target.value)}
+                  />
                 )}
+                <div className="class-selector-inline">
+                  {filteredCustomClasses.map((customClass) => (
+                    <button
+                      key={customClass.id}
+                      className={`class-chip ${selectedClass === customClass.id ? 'selected' : ''}`}
+                      onClick={() => setSelectedClass(customClass.id)}
+                      title={customClass.description}
+                    >
+                      <AgentIcon classId={customClass.id} size={18} className="class-chip-icon" />
+                      <span className="class-chip-name">{customClass.name}</span>
+                    </button>
+                  ))}
+                  {filteredBuiltInClasses.map((char) => {
+                    const config = AGENT_CLASS_CONFIG[char.id];
+                    return (
+                      <button
+                        key={char.id}
+                        className={`class-chip ${selectedClass === char.id ? 'selected' : ''}`}
+                        onClick={() => setSelectedClass(char.id)}
+                        title={config.description}
+                      >
+                        <AgentIcon classId={char.id} size={18} className="class-chip-icon" />
+                        <span className="class-chip-name">{char.name}</span>
+                      </button>
+                    );
+                  })}
+                  {classSearch && filteredCustomClasses.length === 0 && filteredBuiltInClasses.length === 0 && (
+                    <div className="class-search-empty">{t('terminal:spawn.noClassesMatch', { query: classSearch })}</div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Form Fields */}
-          <div className="spawn-form-section">
-            {/* Row 1: Name + CWD */}
             <div className="spawn-form-row">
               <div className="spawn-field">
                 <label className="spawn-label">{t('common:labels.name')}</label>
@@ -641,12 +646,18 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                 />
               </div>
             </div>
+          </div>
 
-            {/* Row 2: Runtime + Permission */}
+          {/* Runtime / Model / Permissions */}
+          <div className="spawn-section">
+            <div className="spawn-section-header">
+              <h4 className="spawn-section-title">{t('terminal:spawn.selectRuntime')}</h4>
+            </div>
+
             <div className="spawn-form-row">
               <div className="spawn-field">
                 <label className="spawn-label">
-                  {t('terminal:spawn.selectRuntime')}
+                  {t('common:labels.runtime')}
                   <HelpTooltip
                     text={t('terminal:spawn.helpRuntime')}
                     title={t('terminal:spawn.runtimeTitle')}
@@ -679,6 +690,14 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     <img src={`${import.meta.env.BASE_URL}assets/opencode.svg`} alt="OpenCode" className="spawn-provider-icon" />
                     <span>OpenCode</span>
                   </button>
+                  <button
+                    className={`spawn-select-btn spawn-select-btn--grok ${selectedProvider === 'grok' ? 'selected' : ''}`}
+                    onClick={() => setSelectedProvider('grok')}
+                    title="Use Grok CLI (headless)"
+                  >
+                    <img src={`${import.meta.env.BASE_URL}assets/grok.png`} alt="Grok" className="spawn-provider-icon" />
+                    <span>Grok</span>
+                  </button>
                 </div>
               </div>
               <div className="spawn-field">
@@ -707,7 +726,6 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
               </div>
             </div>
 
-            {/* Row 3: Model */}
             <div className="spawn-form-row">
               <div className="spawn-field">
                 <label className="spawn-label">
@@ -755,15 +773,28 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     onChange={setOpencodeModel}
                     inputId="spawn-opencode-model"
                   />
+                ) : selectedProvider === 'grok' ? (
+                  <div className="spawn-select-row spawn-select-row--wrap">
+                    {Object.keys(GROK_MODELS).map((model) => (
+                      <button
+                        key={model}
+                        className={`spawn-select-btn ${grokModel === model ? 'selected' : ''}`}
+                        onClick={() => setGrokModel(model)}
+                        title={GROK_MODELS[model].description}
+                      >
+                        <span>{GROK_MODELS[model].icon}</span>
+                        <span>{GROK_MODELS[model].label}</span>
+                      </button>
+                    ))}
+                  </div>
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.chooseCodexModel')}</div>
                 )}
               </div>
             </div>
 
-            {/* Row 4: Effort + Browser */}
             <div className="spawn-form-row">
-              {selectedProvider === 'claude' && (
+              {(selectedProvider === 'claude' || selectedProvider === 'grok') && (
                 <div className="spawn-field">
                   <label className="spawn-label">Effort</label>
                   <div className="spawn-select-row spawn-select-row--effort">
@@ -814,7 +845,6 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
               <div className="codex-config-section">
                 <div className="codex-config-title">{t('terminal:spawn.codex.configuration')}</div>
                 <div className="codex-config-options">
-                  {/* Flags section */}
                   <div className="codex-option-group">
                     <label className="spawn-checkbox">
                       <input
@@ -856,7 +886,6 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     </label>
                   </div>
 
-                  {/* Conditional options when not full-auto */}
                   {codexConfig.fullAuto === false && (
                     <div className="codex-option-group">
                       <div className="codex-option-header">{t('terminal:spawn.codex.restrictions')}</div>
@@ -892,7 +921,6 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     </div>
                   )}
 
-                  {/* Profile option */}
                   <div className="codex-option-group">
                     <div className="codex-option-header">{t('terminal:spawn.codex.profile')}</div>
                     <input
@@ -909,7 +937,6 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     />
                   </div>
 
-                  {/* Reasoning effort option */}
                   <div className="codex-option-group">
                     <div className="codex-option-header">{t('terminal:spawn.codex.reasoningEffort')}</div>
                     <select
@@ -933,136 +960,145 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                 </div>
               </div>
             )}
+          </div>
 
-            {/* Skills section */}
-            {availableSkills.length > 0 && (
-              <div className="spawn-skills-section">
-                <label className="spawn-label">
-                  {t('terminal:spawn.skills')} <span className="spawn-label-hint">({t('common:labels.optional')})</span>
+          {/* Skills */}
+          {availableSkills.length > 0 && (
+            <div className="spawn-section spawn-skills-section">
+              <div className="spawn-section-header">
+                <h4 className="spawn-section-title">
+                  {t('terminal:spawn.skills')}
                   <HelpTooltip
                     text={t('terminal:spawn.helpSkills')}
                     title={t('terminal:spawn.skillsTitle')}
                     position="top"
                     size="sm"
                   />
+                </h4>
+                <span className="spawn-section-hint">
+                  {selectedSkillIds.size} selected · {t('common:labels.optional')}
+                </span>
+              </div>
+              {availableSkills.length > 6 && (
+                <input
+                  type="text"
+                  className="spawn-input skill-search-input"
+                  placeholder={t('terminal:spawn.filterSkills')}
+                  value={skillSearch}
+                  onChange={(e) => setSkillSearch(e.target.value)}
+                />
+              )}
+              <div className="spawn-skills-inline">
+                {filteredSkills.map((skill) => {
+                  const isSelected = selectedSkillIds.has(skill.id);
+                  const isClassDefault = classDefaultSkills.some(s => s.id === skill.id);
+                  if (isClassDefault) return null;
+                  return (
+                    <button
+                      key={skill.id}
+                      className={`spawn-skill-chip ${isSelected ? 'selected' : ''}`}
+                      onClick={() => toggleSkill(skill.id)}
+                      title={skill.description}
+                    >
+                      {isSelected && <span className="spawn-skill-check"><Icon name="check" size={10} /></span>}
+                      <span>{skill.name}</span>
+                      {skill.builtin && <span className="spawn-skill-builtin">TC</span>}
+                    </button>
+                  );
+                })}
+                {skillSearch && filteredSkills.length === 0 && (
+                  <div className="skill-search-empty">{t('terminal:spawn.noSkillsMatch', { query: skillSearch })}</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Advanced: instructions + sessions */}
+          <details className="spawn-advanced">
+            <summary>{t('terminal:spawn.customInstructions')} &amp; {t('terminal:spawn.linkSession')}</summary>
+            <div className="spawn-advanced-body">
+              <div className="spawn-custom-instructions-section">
+                <label className="spawn-label">
+                  {t('terminal:spawn.customInstructions')} <span className="spawn-label-hint">({t('common:labels.optional')})</span>
+                  <HelpTooltip
+                    text={t('terminal:spawn.helpCustomInstructions')}
+                    title={t('terminal:spawn.customInstructions')}
+                    position="top"
+                    size="sm"
+                  />
                 </label>
-                {availableSkills.length > 6 && (
+                <textarea
+                  className="spawn-input spawn-textarea"
+                  placeholder={t('terminal:spawn.customInstructionsPlaceholder')}
+                  value={customInstructions}
+                  onChange={(e) => setCustomInstructions(e.target.value)}
+                  rows={3}
+                />
+              </div>
+
+              <div className="spawn-sessions-section">
+                <label className="spawn-label">
+                  {t('terminal:spawn.linkSession')} <span className="spawn-label-hint">({t('common:labels.optional')})</span>
+                  <HelpTooltip
+                    text={t('terminal:spawn.helpLinkSession')}
+                    title={t('terminal:spawn.linkSessionTitle')}
+                    position="top"
+                    size="sm"
+                  />
+                </label>
+                {sessions.length > 0 && (
                   <input
                     type="text"
-                    className="spawn-input skill-search-input"
-                    placeholder={t('terminal:spawn.filterSkills')}
-                    value={skillSearch}
-                    onChange={(e) => setSkillSearch(e.target.value)}
+                    className="spawn-input session-search-input"
+                    placeholder={t('terminal:spawn.searchSessions')}
+                    value={sessionSearch}
+                    onChange={(e) => setSessionSearch(e.target.value)}
                   />
                 )}
-                <div className="spawn-skills-inline">
-                  {filteredSkills.map((skill) => {
-                    const isSelected = selectedSkillIds.has(skill.id);
-                    const isClassDefault = classDefaultSkills.some(s => s.id === skill.id);
-                    if (isClassDefault) return null;
-                    return (
-                      <button
-                        key={skill.id}
-                        className={`spawn-skill-chip ${isSelected ? 'selected' : ''}`}
-                        onClick={() => toggleSkill(skill.id)}
-                        title={skill.description}
-                      >
-                        {isSelected && <span className="spawn-skill-check"><Icon name="check" size={10} /></span>}
-                        <span>{skill.name}</span>
-                        {skill.builtin && <span className="spawn-skill-builtin">TC</span>}
-                      </button>
-                    );
-                  })}
-                  {skillSearch && filteredSkills.length === 0 && (
-                    <div className="skill-search-empty">{t('terminal:spawn.noSkillsMatch', { query: skillSearch })}</div>
+                <div className="sessions-list">
+                  {loadingSessions ? (
+                    <div className="sessions-loading">{t('terminal:spawn.loadingSessions')}</div>
+                  ) : sessions.length === 0 ? (
+                    <div className="sessions-empty">{t('terminal:spawn.noSessions')}</div>
+                  ) : filteredSessions.length === 0 ? (
+                    <div className="sessions-empty">{t('terminal:spawn.noSessionsMatch', { query: sessionSearch })}</div>
+                  ) : (
+                    filteredSessions.map((session) => {
+                      const isSelected = selectedSessionId === session.sessionId;
+                      const age = Date.now() - new Date(session.lastModified).getTime();
+                      const ageStr = age < 60000 ? t('common:time.justNow')
+                        : age < 3600000 ? t('common:time.minutesAgo', { count: Math.floor(age / 60000) })
+                        : age < 86400000 ? t('common:time.hoursAgo', { count: Math.floor(age / 3600000) })
+                        : t('common:time.daysAgo', { count: Math.floor(age / 86400000) });
+
+                      return (
+                        <div
+                          key={session.sessionId}
+                          className={`session-item ${isSelected ? 'selected' : ''}`}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedSessionId(null);
+                            } else {
+                              setSelectedSessionId(session.sessionId);
+                              setCwd(session.projectPath);
+                            }
+                          }}
+                        >
+                          <div className="session-item-header">
+                            <span className="session-item-path">{session.projectPath}</span>
+                            <span className="session-item-age">{ageStr}</span>
+                          </div>
+                          <div className="session-item-preview">
+                            {session.firstMessage || t('terminal:spawn.messagesCount', { count: session.messageCount })}
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
                 </div>
               </div>
-            )}
-
-            {/* Custom Instructions */}
-            <div className="spawn-custom-instructions-section">
-              <label className="spawn-label">
-                {t('terminal:spawn.customInstructions')} <span className="spawn-label-hint">({t('common:labels.optional')})</span>
-                <HelpTooltip
-                  text={t('terminal:spawn.helpCustomInstructions')}
-                  title={t('terminal:spawn.customInstructions')}
-                  position="top"
-                  size="sm"
-                />
-              </label>
-              <textarea
-                className="spawn-input spawn-textarea"
-                placeholder={t('terminal:spawn.customInstructionsPlaceholder')}
-                value={customInstructions}
-                onChange={(e) => setCustomInstructions(e.target.value)}
-                rows={3}
-              />
             </div>
-
-            {/* Sessions */}
-            <div className="spawn-sessions-section">
-              <label className="spawn-label">
-                {t('terminal:spawn.linkSession')} <span className="spawn-label-hint">({t('common:labels.optional')})</span>
-                <HelpTooltip
-                  text={t('terminal:spawn.helpLinkSession')}
-                  title={t('terminal:spawn.linkSessionTitle')}
-                  position="top"
-                  size="sm"
-                />
-              </label>
-              {sessions.length > 0 && (
-                <input
-                  type="text"
-                  className="spawn-input session-search-input"
-                  placeholder={t('terminal:spawn.searchSessions')}
-                  value={sessionSearch}
-                  onChange={(e) => setSessionSearch(e.target.value)}
-                />
-              )}
-              <div className="sessions-list">
-                {loadingSessions ? (
-                  <div className="sessions-loading">{t('terminal:spawn.loadingSessions')}</div>
-                ) : sessions.length === 0 ? (
-                  <div className="sessions-empty">{t('terminal:spawn.noSessions')}</div>
-                ) : filteredSessions.length === 0 ? (
-                  <div className="sessions-empty">{t('terminal:spawn.noSessionsMatch', { query: sessionSearch })}</div>
-                ) : (
-                  filteredSessions.map((session) => {
-                    const isSelected = selectedSessionId === session.sessionId;
-                    const age = Date.now() - new Date(session.lastModified).getTime();
-                    const ageStr = age < 60000 ? t('common:time.justNow')
-                      : age < 3600000 ? t('common:time.minutesAgo', { count: Math.floor(age / 60000) })
-                      : age < 86400000 ? t('common:time.hoursAgo', { count: Math.floor(age / 3600000) })
-                      : t('common:time.daysAgo', { count: Math.floor(age / 86400000) });
-
-                    return (
-                      <div
-                        key={session.sessionId}
-                        className={`session-item ${isSelected ? 'selected' : ''}`}
-                        onClick={() => {
-                          if (isSelected) {
-                            setSelectedSessionId(null);
-                          } else {
-                            setSelectedSessionId(session.sessionId);
-                            setCwd(session.projectPath);
-                          }
-                        }}
-                      >
-                        <div className="session-item-header">
-                          <span className="session-item-path">{session.projectPath}</span>
-                          <span className="session-item-age">{ageStr}</span>
-                        </div>
-                        <div className="session-item-preview">
-                          {session.firstMessage || t('terminal:spawn.messagesCount', { count: session.messageCount })}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
+          </details>
         </div>
 
         <div className="modal-footer">

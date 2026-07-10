@@ -363,7 +363,7 @@ export function AgentPanel({
           </span>
           <span className={`agent-panel-status-label ${agent.status}`}>{agent.status}</span>
           <span className="agent-panel-class">{agent.class}</span>
-          <span className={`agent-panel-provider ${agent.provider === 'codex' ? 'codex' : agent.provider === 'opencode' ? 'opencode' : 'claude'}`}>
+          <span className={`agent-panel-provider ${agent.provider === 'codex' ? 'codex' : agent.provider === 'opencode' ? 'opencode' : agent.provider === 'grok' ? 'grok' : 'claude'}`}>
             {agent.provider || 'claude'}
           </span>
           <span className="agent-panel-id" title={`ID: ${agent.id}`}>

@@ -41,6 +41,7 @@ import { ConfirmModal } from '../shared/ConfirmModal';
 import { TaskProgressDots } from '../shared/TaskProgressDots';
 import { SubordinateProgressDots } from '../shared/SubordinateProgressDots';
 import { AgentHoverTooltip } from '../shared/AgentHoverTooltip';
+import { providerAssetUrl, providerAgentTitle } from '../../utils/providerDisplay';
 
 /** Persisted config shape for the overview panel */
 interface AopConfig {
@@ -1443,10 +1444,10 @@ const AgentCard = React.memo(function AgentCard({
         >
           <AgentIcon agent={agent} size="100%" customClasses={customClasses} />
           <img
-            src={agent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : agent.provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+            src={providerAssetUrl(agent.provider, import.meta.env.BASE_URL)}
             alt={agent.provider}
             className="aop-provider-icon"
-            title={agent.provider === 'codex' ? 'Codex Agent' : agent.provider === 'opencode' ? 'OpenCode Agent' : 'Claude Agent'}
+            title={providerAgentTitle(agent.provider)}
           />
         </div>
         <div className="aop-card-content">

@@ -136,8 +136,10 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
         ? agentService.sanitizeModelForProvider(agent.provider, agent.model)
         : agent.provider === 'opencode'
           ? agentService.sanitizeOpencodeModel(agent.opencodeModel)
-          : agentService.sanitizeCodexModel(agent.codexModel),
-      effort: agent.provider === 'claude' ? agent.effort : undefined,
+          : agent.provider === 'grok'
+            ? agentService.sanitizeGrokModel(agent.grokModel)
+            : agentService.sanitizeCodexModel(agent.codexModel),
+      effort: agent.provider === 'claude' || agent.provider === 'grok' ? agent.effort : undefined,
       useChrome: agent.useChrome,
       permissionMode: agent.permissionMode,
       codexConfig: agent.codexConfig,

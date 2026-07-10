@@ -290,6 +290,8 @@ export interface ActiveProcess {
   // watchdog can tell when the inner CLI died but the wrapping shell pipeline
   // kept the tmux session alive (zombie session).
   tmuxExpectedCommand?: string;
+  /** Optional side-channel cleanup (e.g. Grok session file watcher). */
+  sideChannelStop?: () => void;
 }
 
 // Process death info for diagnostics

@@ -250,8 +250,11 @@ export interface SpawnAgentMessage extends WSMessage {
     provider?: AgentProvider; // defaults to 'claude' for backwards compatibility
     codexConfig?: CodexConfig;
     codexModel?: CodexModel;
+    opencodeModel?: string;
+    grokModel?: string;
     initialSkillIds?: string[]; // Skills to assign on creation
     model?: ClaudeModel; // Claude model to use (defaults to sonnet)
+    effort?: ClaudeEffort;
     customInstructions?: string;  // Custom instructions to append to system prompt
   };
 }
@@ -428,6 +431,7 @@ export interface UpdateAgentPropertiesMessage extends WSMessage {
       codexModel?: CodexModel;
       codexConfig?: CodexConfig;
       opencodeModel?: string;
+      grokModel?: string;
       effort?: ClaudeEffort;
       useChrome?: boolean;
       skillIds?: string[];  // Complete list of skill IDs to assign (replaces existing)

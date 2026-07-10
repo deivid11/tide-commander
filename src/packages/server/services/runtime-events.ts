@@ -21,6 +21,8 @@ import {
 
 const DEFAULT_CLAUDE_CONTEXT_WINDOW = 200000;
 const DEFAULT_CODEX_CONTEXT_WINDOW = 258400;
+/** Practical Grok Build window observed in session signals.json (model catalog may list 2M). */
+const DEFAULT_GROK_CONTEXT_WINDOW = 500000;
 const CODEX_ROLLING_CONTEXT_TURNS = 40;
 const CODEX_PLAUSIBLE_USAGE_MULTIPLIER = 1.2;
 const CODEX_RECOVERABLE_RESUME_ERRORS = [
@@ -96,9 +98,10 @@ function estimateTokensFromText(text: string | undefined): number {
   return Math.max(1, Math.ceil(normalized.length / 4));
 }
 
-function getDefaultContextWindow(provider: 'claude' | 'codex' | 'opencode' | undefined): number {
+function getDefaultContextWindow(provider: 'claude' | 'codex' | 'opencode' | 'grok' | undefined): number {
   if (provider === 'codex') return DEFAULT_CODEX_CONTEXT_WINDOW;
   if (provider === 'opencode') return DEFAULT_CLAUDE_CONTEXT_WINDOW;
+  if (provider === 'grok') return DEFAULT_GROK_CONTEXT_WINDOW;
   return DEFAULT_CLAUDE_CONTEXT_WINDOW;
 }
 
@@ -316,22 +319,32 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         // Real-time context tracking from streaming usage data.
         // Context window usage = input tokens only (output tokens don't count toward the limit).
         // total_input = cache_read + cache_creation + input_tokens (the full prompt size).
+        // Grok: session-watcher maps signals.json contextTokensUsed → tokens.input.
         if (event.tokens) {
           const isClaudeProvider = (agent.provider ?? 'claude') === 'claude';
           const isOpencodeProvider = (agent.provider ?? 'claude') === 'opencode';
-          if (isClaudeProvider || isOpencodeProvider) {
+          const isGrokProvider = (agent.provider ?? 'claude') === 'grok';
+          if (isClaudeProvider || isOpencodeProvider || isGrokProvider) {
             const cacheRead = event.tokens.cacheRead || 0;
             const cacheCreation = event.tokens.cacheCreation || 0;
             const inputTokens = event.tokens.input || 0;
             // Context window = input side only (system prompt + tools + messages).
             // Output tokens are the model's response and don't count toward the limit.
+            // For Grok, inputTokens is already the full context fill from signals.json.
             const snapshotContextUsed = cacheRead + cacheCreation + inputTokens;
 
             if (snapshotContextUsed > 0) {
-              const effectiveLimit = agent.contextLimit || getDefaultContextWindow(agent.provider);
+              // Grok signals also carry the authoritative window size.
+              const modelWindow = event.modelUsage?.contextWindow;
+              const effectiveLimit = Math.max(
+                1,
+                modelWindow || agent.contextLimit || getDefaultContextWindow(agent.provider)
+              );
               // Guard against cumulative session totals: if the sum exceeds the
               // context window, it can't represent per-request context fill.
-              if (snapshotContextUsed > effectiveLimit) {
+              // Grok signals can report used slightly over window during compaction —
+              // clamp instead of skip so the bar still moves.
+              if (snapshotContextUsed > effectiveLimit && !isGrokProvider) {
                 log.log(`[usage_snapshot] ${agentId}: sum ${snapshotContextUsed} exceeds limit ${effectiveLimit} (likely cumulative); skipping`);
                 // If the agent's existing contextUsed is also stale (exceeds limit),
                 // reset it to 0 so the UI doesn't keep showing an impossible value.
@@ -340,9 +353,10 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
                   log.log(`[usage_snapshot] ${agentId}: reset stale contextUsed ${agent.contextUsed} to 0`);
                 }
               } else {
-                const safeContextUsed = Math.max(0, snapshotContextUsed);
+                const safeContextUsed = Math.max(0, Math.min(snapshotContextUsed, effectiveLimit));
                 const updates: Record<string, unknown> = {
                   contextUsed: safeContextUsed,
+                  contextLimit: effectiveLimit,
                 };
                 // Always keep contextStats.totalTokens in sync with contextUsed.
                 // If authoritative stats exist (from /context), merge the new total
@@ -354,14 +368,27 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
                     effectiveLimit,
                   );
                 } else {
+                  const modelLabel = isClaudeProvider
+                    ? (agent.model || 'claude')
+                    : isOpencodeProvider
+                      ? (agent.opencodeModel || 'opencode')
+                      : (agent.grokModel || 'grok');
                   updates.contextStats = buildEstimatedContextStats(
                     safeContextUsed,
                     effectiveLimit,
-                    isClaudeProvider ? (agent.model || 'claude') : (agent.opencodeModel || 'opencode')
+                    modelLabel
                   );
                 }
+                // Lifetime tokensUsed: for Grok we don't get per-turn usage, so
+                // keep the high-water mark of context fill as a lower bound on work done.
+                if (isGrokProvider) {
+                  const prev = agent.tokensUsed || 0;
+                  if (safeContextUsed > prev) {
+                    updates.tokensUsed = safeContextUsed;
+                  }
+                }
                 agentService.updateAgent(agentId, updates, false);
-                log.log(`[usage_snapshot] ${agentId}: input=${inputTokens} + cacheRead=${cacheRead} + cacheCreation=${cacheCreation} = ${snapshotContextUsed} (output=${event.tokens.output || 0}) limit=${effectiveLimit}`);
+                log.log(`[usage_snapshot] ${agentId}: input=${inputTokens} + cacheRead=${cacheRead} + cacheCreation=${cacheCreation} = ${snapshotContextUsed} (output=${event.tokens.output || 0}) limit=${effectiveLimit}${isGrokProvider ? ' [grok]' : ''}`);
               }
             }
           }
@@ -389,6 +416,7 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         const isClaudeProvider = (agent.provider ?? 'claude') === 'claude';
         const isCodexProvider = (agent.provider ?? 'claude') === 'codex';
         const isOpencodeProvider = (agent.provider ?? 'claude') === 'opencode';
+        const isGrokProviderStep = (agent.provider ?? 'claude') === 'grok';
         const lastTask = agent.lastAssignedTask?.trim() || '';
         const isContextCommand = lastTask === '/context' || lastTask === '/cost' || lastTask === '/compact';
 
@@ -421,6 +449,15 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
           contextUsed = agent.contextUsed || 0;
           contextLimit = agent.contextLimit || getDefaultContextWindow('opencode');
           log.log(`[step_complete] OpenCode agent ${agentId}: preserving usage_snapshot contextUsed=${contextUsed}, contextLimit=${contextLimit}`);
+        } else if (isGrokProviderStep) {
+          // Grok: streaming-json has no usage; session-watcher feeds usage_snapshot
+          // from signals.json. Preserve those values on step_complete.
+          contextUsed = agent.contextUsed || 0;
+          contextLimit = agent.contextLimit || getDefaultContextWindow('grok');
+          if (hasModelUsageData && event.modelUsage?.contextWindow) {
+            contextLimit = event.modelUsage.contextWindow;
+          }
+          log.log(`[step_complete] Grok agent ${agentId}: preserving signals usage_snapshot contextUsed=${contextUsed}, contextLimit=${contextLimit}`);
         } else if (hasModelUsageData && event.modelUsage) {
           const inputTokens = event.modelUsage.inputTokens || 0;
           const outputTokens = event.modelUsage.outputTokens || 0;
@@ -485,13 +522,16 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         // Always keep contextStats in sync. If authoritative stats exist (from
         // /context), merge the updated totalTokens while preserving category
         // breakdowns. Otherwise build fresh estimated stats.
+        const isGrokProvider = (agent.provider ?? 'claude') === 'grok';
         const modelForStats = isClaudeProvider
           ? (agent.model || 'claude')
           : isCodexProvider
             ? (agent.codexModel || agent.model)
             : isOpencodeProvider
               ? (agent.opencodeModel || 'opencode')
-              : (agent.model || 'unknown');
+              : isGrokProvider
+                ? (agent.grokModel || 'grok')
+                : (agent.model || 'unknown');
         if (agent.contextStats && agent.contextStats.lastUpdated) {
           updates.contextStats = updateContextStatsTokens(
             agent.contextStats,

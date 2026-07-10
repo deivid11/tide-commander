@@ -12,7 +12,7 @@ import { FolderInput } from './shared/FolderInput';
 import { OpencodeModelSelect } from './OpencodeModelSelect';
 import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
 import { CODEX_REASONING_EFFORTS } from '../../shared/types';
-import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../shared/types';
+import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, GROK_MODELS, DEFAULT_GROK_MODEL } from '../../shared/types';
 import { ShortcutConfig, formatShortcutString, parseShortcutString, shortcutValueToString } from '../store/shortcuts';
 import { apiUrl } from '../utils/storage';
 import { useModalClose } from '../hooks';
@@ -55,6 +55,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const [selectedEffort, setSelectedEffort] = useState<ClaudeEffort | undefined>(agent.effort);
   const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>(getSelectableCodexModel(agent.codexModel));
   const [opencodeModel, setOpencodeModel] = useState<string>((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k');
+  const [grokModel, setGrokModel] = useState<string>((agent as any).grokModel || DEFAULT_GROK_MODEL);
   const [useChrome, setUseChrome] = useState<boolean>(agent.useChrome || false);
   const [workdir, setWorkdir] = useState<string>(agent.cwd);
   const [shortcut, setShortcut] = useState<string>(((agent as AgentWithShortcut).shortcut || '').trim());
@@ -125,6 +126,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       setSelectedEffort(agent.effort);
       setSelectedCodexModel(getSelectableCodexModel(agent.codexModel));
       setOpencodeModel((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k');
+      setGrokModel((agent as any).grokModel || DEFAULT_GROK_MODEL);
       setUseChrome(agent.useChrome || false);
       setWorkdir(agent.cwd);
       setShortcut((((agent as AgentWithShortcut).shortcut) || '').trim());
@@ -234,10 +236,11 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (permissionMode !== agent.permissionMode) return true;
     if (selectedProvider !== (agent.provider || 'claude')) return true;
     if (selectedProvider === 'claude' && selectedModel !== (agent.model || 'sonnet')) return true;
-    if (selectedProvider === 'claude' && selectedEffort !== (agent.effort || undefined)) return true;
+    if ((selectedProvider === 'claude' || selectedProvider === 'grok') && selectedEffort !== (agent.effort || undefined)) return true;
     if (selectedProvider === 'codex' && selectedCodexModel !== getSelectableCodexModel(agent.codexModel)) return true;
     if (selectedProvider === 'codex' && JSON.stringify(codexConfig || {}) !== JSON.stringify(agent.codexConfig || {})) return true;
     if (selectedProvider === 'opencode' && opencodeModel !== ((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k')) return true;
+    if (selectedProvider === 'grok' && grokModel !== ((agent as any).grokModel || DEFAULT_GROK_MODEL)) return true;
     if (useChrome !== (agent.useChrome || false)) return true;
     if (workdir !== agent.cwd) return true;
     if (shortcut !== (((agent as AgentWithShortcut).shortcut || '').trim())) return true;
@@ -257,7 +260,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (currentDirectSkills !== newSkills) return true;
 
     return false;
-  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedEffort, selectedCodexModel, codexConfig, opencodeModel, useChrome, workdir, shortcut, customInstructions, autoCollapse, autoCollapseCron, autoCollapseTz, autoCollapsePrompt, selectedSkillIds, agent, allSkills]);
+  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedEffort, selectedCodexModel, codexConfig, opencodeModel, grokModel, useChrome, workdir, shortcut, customInstructions, autoCollapse, autoCollapseCron, autoCollapseTz, autoCollapsePrompt, selectedSkillIds, agent, allSkills]);
 
   // Handle save
   const handleSave = () => {
@@ -269,6 +272,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       codexConfig?: CodexConfig;
       codexModel?: CodexModel;
       opencodeModel?: string;
+      grokModel?: string;
       model?: ClaudeModel;
       effort?: ClaudeEffort;
       useChrome?: boolean;
@@ -310,11 +314,15 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       updates.opencodeModel = opencodeModel;
     }
 
+    if (selectedProvider === 'grok' && grokModel !== ((agent as any).grokModel || DEFAULT_GROK_MODEL)) {
+      updates.grokModel = grokModel;
+    }
+
     if (selectedProvider === 'claude' && selectedModel !== (agent.model || 'sonnet')) {
       updates.model = selectedModel;
     }
 
-    if (selectedProvider === 'claude' && selectedEffort !== (agent.effort || undefined)) {
+    if ((selectedProvider === 'claude' || selectedProvider === 'grok') && selectedEffort !== (agent.effort || undefined)) {
       updates.effort = selectedEffort;
     }
 
@@ -398,110 +406,62 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
         </div>
 
         <div className="modal-body spawn-modal-body">
-          {/* Top: Preview + Class Selection */}
-          <div className="spawn-top-section">
-            <div className="spawn-preview-compact">
-              <ModelPreview
-                agentClass={previewAgentClass}
-                modelFile={previewModelFile}
-                customModelUrl={previewCustomModelUrl}
-                modelScale={previewModelScale}
-                width={100}
-                height={120}
-              />
+          {/* Identity: Preview + Class + Name */}
+          <div className="spawn-section">
+            <div className="spawn-section-header">
+              <h4 className="spawn-section-title">{t('terminal:spawn.agentClass')}</h4>
+              <span className="spawn-section-hint">{selectedCustomClass?.name || selectedClass}</span>
             </div>
-            <div className="spawn-class-section">
-              <div className="spawn-class-label">{t('terminal:spawn.agentClass')}</div>
-              <input
-                type="text"
-                className="spawn-input class-search-input"
-                placeholder="Filter classes..."
-                value={classSearch}
-                onChange={(e) => setClassSearch(e.target.value)}
-              />
-              <div className="class-selector-inline">
-                {filteredCustomClasses.map((customClass) => (
-                  <button
-                    key={customClass.id}
-                    className={`class-chip ${selectedClass === customClass.id ? 'selected' : ''}`}
-                    onClick={() => setSelectedClass(customClass.id)}
-                    title={customClass.description}
-                  >
-                    <AgentIcon classId={customClass.id} size={18} className="class-chip-icon" />
-                    <span className="class-chip-name">{customClass.name}</span>
-                  </button>
-                ))}
-                {filteredBuiltInClasses.map(([key, config]) => (
-                  <button
-                    key={key}
-                    className={`class-chip ${selectedClass === key ? 'selected' : ''}`}
-                    onClick={() => setSelectedClass(key as AgentClass)}
-                    title={config.description}
-                  >
-                    <AgentIcon classId={key} size={18} className="class-chip-icon" />
-                    <span className="class-chip-name">{key.charAt(0).toUpperCase() + key.slice(1)}</span>
-                  </button>
-                ))}
-                {filteredCustomClasses.length === 0 && filteredBuiltInClasses.length === 0 && (
-                  <div className="class-search-empty">No classes match "{classSearch}"</div>
-                )}
+            <div className="spawn-top-section">
+              <div className="spawn-preview-compact">
+                <ModelPreview
+                  agentClass={previewAgentClass}
+                  modelFile={previewModelFile}
+                  customModelUrl={previewCustomModelUrl}
+                  modelScale={previewModelScale}
+                  width={110}
+                  height={130}
+                />
+                <div className="spawn-preview-label">{selectedCustomClass?.name || selectedClass}</div>
+              </div>
+              <div className="spawn-class-section">
+                <input
+                  type="text"
+                  className="spawn-input class-search-input"
+                  placeholder="Filter classes..."
+                  value={classSearch}
+                  onChange={(e) => setClassSearch(e.target.value)}
+                />
+                <div className="class-selector-inline">
+                  {filteredCustomClasses.map((customClass) => (
+                    <button
+                      key={customClass.id}
+                      className={`class-chip ${selectedClass === customClass.id ? 'selected' : ''}`}
+                      onClick={() => setSelectedClass(customClass.id)}
+                      title={customClass.description}
+                    >
+                      <AgentIcon classId={customClass.id} size={18} className="class-chip-icon" />
+                      <span className="class-chip-name">{customClass.name}</span>
+                    </button>
+                  ))}
+                  {filteredBuiltInClasses.map(([key, config]) => (
+                    <button
+                      key={key}
+                      className={`class-chip ${selectedClass === key ? 'selected' : ''}`}
+                      onClick={() => setSelectedClass(key as AgentClass)}
+                      title={config.description}
+                    >
+                      <AgentIcon classId={key} size={18} className="class-chip-icon" />
+                      <span className="class-chip-name">{key.charAt(0).toUpperCase() + key.slice(1)}</span>
+                    </button>
+                  ))}
+                  {filteredCustomClasses.length === 0 && filteredBuiltInClasses.length === 0 && (
+                    <div className="class-search-empty">No classes match "{classSearch}"</div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Custom Class Instructions */}
-          {selectedCustomClass && (
-            <div className="custom-class-notice">
-              <div className="custom-class-notice-header" onClick={() => setEditingInstructions(!editingInstructions)} style={{ cursor: 'pointer' }}>
-                <span><Icon name="task" size={14} /></span>
-                <span>{selectedCustomClass.instructions ? t('terminal:spawn.hasCustomInstructions') : 'Add custom instructions'}</span>
-                <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}><Icon name={editingInstructions ? 'caret-up' : 'caret-down'} size={11} /></span>
-              </div>
-              {!editingInstructions && selectedCustomClass.instructions && (
-                <div className="custom-class-notice-info">
-                  {t('terminal:spawn.instructionsInjected', { count: selectedCustomClass.instructions.length })}
-                </div>
-              )}
-              {editingInstructions && (
-                <div className="custom-class-instructions-editor">
-                  <textarea
-                    value={instructionsText}
-                    onChange={(e) => setInstructionsText(e.target.value)}
-                    placeholder="CLAUDE.md instructions for this agent class..."
-                    rows={6}
-                    style={{ width: '100%', resize: 'vertical', fontFamily: 'monospace', fontSize: 12, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, color: 'var(--text-primary)', padding: '6px 8px', outline: 'none' }}
-                  />
-                  <div style={{ display: 'flex', gap: 6, marginTop: 4, justifyContent: 'flex-end' }}>
-                    <button
-                      onClick={() => {
-                        store.updateCustomAgentClass(selectedCustomClass.id, { instructions: instructionsText });
-                        setEditingInstructions(false);
-                      }}
-                      style={{ padding: '2px 10px', borderRadius: 4, fontSize: 11, cursor: 'pointer', background: 'rgba(0,200,200,0.2)', color: 'var(--accent-cyan)', border: '1px solid rgba(0,200,200,0.3)' }}
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={() => {
-                        setInstructionsText(selectedCustomClass.instructions || '');
-                        setEditingInstructions(false);
-                      }}
-                      style={{ padding: '2px 10px', borderRadius: 4, fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid rgba(255,255,255,0.1)' }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
-                    These instructions are injected as system prompt for all agents of this class.
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Form Fields */}
-          <div className="spawn-form-section">
-            {/* Row 1: Runtime + Permission */}
             <div className="spawn-form-row">
               <div className="spawn-field">
                 <label className="spawn-label">{t('common:labels.name')}</label>
@@ -513,9 +473,80 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                   placeholder={t('terminal:spawn.agentNamePlaceholder')}
                 />
               </div>
+              <div className="spawn-field spawn-field-wide">
+                <label className="spawn-label">{t('terminal:spawn.workingDir')}</label>
+                <FolderInput
+                  value={workdir}
+                  onChange={setWorkdir}
+                  placeholder={t('terminal:spawn.workingDirPlaceholder')}
+                  className="spawn-input"
+                  directoriesOnly={true}
+                />
+              </div>
             </div>
 
-            {/* Row 2: Runtime + Permission */}
+            {workdir !== agent.cwd && (
+              <div className="model-change-notice warning">
+                {t('terminal:spawn.newSessionWarning')}
+              </div>
+            )}
+
+            {selectedCustomClass && (
+              <div className="custom-class-notice">
+                <div className="custom-class-notice-header" onClick={() => setEditingInstructions(!editingInstructions)} style={{ cursor: 'pointer' }}>
+                  <span><Icon name="task" size={14} /></span>
+                  <span>{selectedCustomClass.instructions ? t('terminal:spawn.hasCustomInstructions') : 'Add custom instructions'}</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}><Icon name={editingInstructions ? 'caret-up' : 'caret-down'} size={11} /></span>
+                </div>
+                {!editingInstructions && selectedCustomClass.instructions && (
+                  <div className="custom-class-notice-info">
+                    {t('terminal:spawn.instructionsInjected', { count: selectedCustomClass.instructions.length })}
+                  </div>
+                )}
+                {editingInstructions && (
+                  <div className="custom-class-instructions-editor">
+                    <textarea
+                      value={instructionsText}
+                      onChange={(e) => setInstructionsText(e.target.value)}
+                      placeholder="CLAUDE.md instructions for this agent class..."
+                      rows={6}
+                      style={{ width: '100%', resize: 'vertical', fontFamily: 'monospace', fontSize: 12, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, color: 'var(--text-primary)', padding: '6px 8px', outline: 'none' }}
+                    />
+                    <div style={{ display: 'flex', gap: 6, marginTop: 4, justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={() => {
+                          store.updateCustomAgentClass(selectedCustomClass.id, { instructions: instructionsText });
+                          setEditingInstructions(false);
+                        }}
+                        style={{ padding: '2px 10px', borderRadius: 4, fontSize: 11, cursor: 'pointer', background: 'rgba(0,200,200,0.2)', color: 'var(--accent-cyan)', border: '1px solid rgba(0,200,200,0.3)' }}
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => {
+                          setInstructionsText(selectedCustomClass.instructions || '');
+                          setEditingInstructions(false);
+                        }}
+                        style={{ padding: '2px 10px', borderRadius: 4, fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid rgba(255,255,255,0.1)' }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
+                      These instructions are injected as system prompt for all agents of this class.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Runtime / Model / Permissions */}
+          <div className="spawn-section">
+            <div className="spawn-section-header">
+              <h4 className="spawn-section-title">{t('common:labels.runtime')}</h4>
+            </div>
+
             <div className="spawn-form-row">
               <div className="spawn-field">
                 <label className="spawn-label">{t('common:labels.runtime')}</label>
@@ -541,6 +572,13 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     <img src={`${import.meta.env.BASE_URL}assets/opencode.svg`} alt="OpenCode" className="spawn-provider-icon" />
                     <span>OpenCode</span>
                   </button>
+                  <button
+                    className={`spawn-select-btn spawn-select-btn--grok ${selectedProvider === 'grok' ? 'selected' : ''}`}
+                    onClick={() => setSelectedProvider('grok')}
+                  >
+                    <img src={`${import.meta.env.BASE_URL}assets/grok.png`} alt="Grok" className="spawn-provider-icon" />
+                    <span>Grok</span>
+                  </button>
                 </div>
               </div>
               <div className="spawn-field">
@@ -561,16 +599,12 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
               </div>
             </div>
 
-            {/* Row 3: Model + Effort */}
             <div className="spawn-form-row">
               <div className="spawn-field">
                 <label className="spawn-label">{t('common:labels.model')}</label>
                 {selectedProvider === 'claude' ? (
                   <div className="spawn-select-row spawn-select-row--wrap">
                     {(Object.keys(CLAUDE_MODELS) as ClaudeModel[])
-                      // Hide deprecated models in the edit picker unless the
-                      // agent is already using one (so users can still see the
-                      // current value and optionally migrate to a newer one).
                       .filter((model) => !CLAUDE_MODELS[model].deprecated || selectedModel === model)
                       .map((model) => (
                       <button
@@ -604,11 +638,28 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     onChange={setOpencodeModel}
                     inputId="edit-opencode-model"
                   />
+                ) : selectedProvider === 'grok' ? (
+                  <div className="spawn-select-row spawn-select-row--wrap">
+                    {Object.keys(GROK_MODELS).map((model) => (
+                      <button
+                        key={model}
+                        className={`spawn-select-btn ${grokModel === model ? 'selected' : ''}`}
+                        onClick={() => setGrokModel(model)}
+                        title={GROK_MODELS[model].description}
+                      >
+                        <span>{GROK_MODELS[model].icon}</span>
+                        <span>{GROK_MODELS[model].label}</span>
+                      </button>
+                    ))}
+                  </div>
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.codex.configuration')}</div>
                 )}
               </div>
-              {selectedProvider === 'claude' && (
+            </div>
+
+            <div className="spawn-form-row">
+              {(selectedProvider === 'claude' || selectedProvider === 'grok') && (
                 <div className="spawn-field">
                   <label className="spawn-label">Effort</label>
                   <div className="spawn-select-row spawn-select-row--effort">
@@ -632,7 +683,25 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                   </div>
                 </div>
               )}
+              <div className="spawn-field">
+                <label className="spawn-label">{t('terminal:spawn.browser')}</label>
+                <label className="spawn-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={useChrome}
+                    onChange={(e) => setUseChrome(e.target.checked)}
+                    disabled={selectedProvider !== 'claude'}
+                  />
+                  <span>{t('terminal:spawn.chromeBrowser')}</span>
+                </label>
+              </div>
             </div>
+
+            {selectedProvider === 'claude' && (selectedModel !== (agent.model || 'sonnet') || selectedEffort !== (agent.effort || undefined)) && (
+              <div className="model-change-notice">
+                {t('terminal:spawn.contextPreserved')}
+              </div>
+            )}
 
             {selectedProvider === 'codex' && (
               <div className="spawn-form-row">
@@ -701,210 +770,173 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                 </div>
               </div>
             )}
+          </div>
 
-            {/* Model/effort change notice */}
-            {selectedProvider === 'claude' && (selectedModel !== (agent.model || 'sonnet') || selectedEffort !== (agent.effort || undefined)) && (
-              <div className="model-change-notice">
-                {t('terminal:spawn.contextPreserved')}
-              </div>
+          {/* Skills */}
+          <div className="spawn-section spawn-skills-section">
+            <div className="spawn-section-header">
+              <h4 className="spawn-section-title">{t('terminal:spawn.skills')}</h4>
+              <span className="spawn-section-hint">{t('terminal:spawn.clickToToggle')}</span>
+            </div>
+            {availableSkills.length > 6 && (
+              <input
+                type="text"
+                className="spawn-input skill-search-input"
+                placeholder={t('terminal:spawn.filterSkills')}
+                value={skillSearch}
+                onChange={(e) => setSkillSearch(e.target.value)}
+              />
             )}
+            <div className="skills-chips-compact">
+              {availableSkills.length === 0 ? (
+                <div className="skills-empty">{t('terminal:spawn.noEnabledSkills')}</div>
+              ) : filteredSkills.length === 0 ? (
+                <div className="skills-empty">{t('terminal:spawn.noSkillsMatch', { query: skillSearch })}</div>
+              ) : (
+                filteredSkills.map(skill => {
+                  const isWildcard = wildcardSkills.includes(skill);
+                  const isClassBased = classBasedSkills.includes(skill);
+                  const isDirectlyAssigned = selectedSkillIds.has(skill.id);
+                  const isActive = isDirectlyAssigned || isClassBased;
+                  const isReadOnly = isClassBased;
 
-            {/* Row 4: Chrome toggle */}
-            <div className="spawn-form-row spawn-options-row">
-              <label className="spawn-checkbox">
-                <input
-                  type="checkbox"
-                  checked={useChrome}
-                  onChange={(e) => setUseChrome(e.target.checked)}
-                  disabled={selectedProvider !== 'claude'}
-                />
-                <span>{t('terminal:spawn.chromeBrowser')}</span>
-              </label>
-            </div>
-
-            {/* Row 5: Working Directory */}
-            <div className="spawn-form-row">
-              <div className="spawn-field">
-                <label className="spawn-label">{t('terminal:spawn.workingDir')}</label>
-                <FolderInput
-                  value={workdir}
-                  onChange={setWorkdir}
-                  placeholder={t('terminal:spawn.workingDirPlaceholder')}
-                  className="spawn-input"
-                  directoriesOnly={true}
-                />
-              </div>
-            </div>
-
-            <div className="spawn-form-row">
-              <div className="spawn-field">
-                <label className="spawn-label">Terminal Shortcut</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <KeyCaptureInput
-                    shortcut={shortcutConfig}
-                    onUpdate={(updates) => setShortcut(shortcutValueToString(updates))}
-                  />
-                  <div className="spawn-inline-hint">
-                    {shortcut ? `Opens this agent terminal with ${formatShortcutString(shortcut)}` : 'Capture a global shortcut for this agent terminal'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Workdir change notice */}
-            {workdir !== agent.cwd && (
-              <div className="model-change-notice warning">
-                {t('terminal:spawn.newSessionWarning')}
-              </div>
-            )}
-
-            {/* Custom Instructions */}
-            <div className="spawn-form-row">
-              <div className="spawn-field">
-                <label className="spawn-label">Custom Instructions</label>
-                <textarea
-                  className="spawn-input"
-                  value={customInstructions}
-                  onChange={(e) => setCustomInstructions(e.target.value)}
-                  placeholder="Additional instructions appended to this agent's system prompt..."
-                  rows={7}
-                  style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
-                />
-              </div>
-            </div>
-
-            {/* Auto-collapse: scheduled context collapse for unattended agents */}
-            <div className="spawn-form-row spawn-options-row">
-              <label className="spawn-checkbox">
-                <input
-                  type="checkbox"
-                  checked={autoCollapse}
-                  onChange={(e) => setAutoCollapse(e.target.checked)}
-                />
-                <span>Auto-collapse context on a schedule</span>
-              </label>
-            </div>
-            {autoCollapse && (
-              <div className="spawn-form-row">
-                <div className="spawn-field">
-                  <label className="spawn-label">Collapse schedule (cron)</label>
-                  <input
-                    type="text"
-                    className="spawn-input"
-                    value={autoCollapseCron}
-                    onChange={(e) => setAutoCollapseCron(e.target.value)}
-                    placeholder="0 3 * * *  (every day at 3:00 AM)"
-                    style={{ fontFamily: 'monospace' }}
-                  />
-                  <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-                    {[
-                      { label: 'Nightly 3am', cron: '0 3 * * *' },
-                      { label: 'Every 6h', cron: '0 */6 * * *' },
-                      { label: 'Weekdays 2am', cron: '0 2 * * MON-FRI' },
-                    ].map(p => (
-                      <button
-                        key={p.cron}
-                        type="button"
-                        className="spawn-preset-chip"
-                        onClick={() => setAutoCollapseCron(p.cron)}
-                        style={{
-                          fontSize: 11, padding: '3px 8px', borderRadius: 4,
-                          border: '1px solid var(--border-color, #444)', cursor: 'pointer',
-                          background: autoCollapseCron === p.cron ? 'var(--accent-color, #4a9eff)' : 'transparent',
-                          color: 'inherit',
-                        }}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="spawn-inline-hint">
-                    5-field cron (minute hour day month weekday). Collapse waits for the agent to be idle before running.
-                  </div>
-                  <label className="spawn-label" style={{ marginTop: 10 }}>Timezone</label>
-                  <input
-                    type="text"
-                    className="spawn-input"
-                    value={autoCollapseTz}
-                    onChange={(e) => setAutoCollapseTz(e.target.value)}
-                    placeholder={browserTz}
-                    style={{ fontFamily: 'monospace' }}
-                  />
-                  <div className="spawn-inline-hint">
-                    IANA timezone. Leave blank to use this browser's zone ({browserTz}).
-                  </div>
-                  <label className="spawn-label" style={{ marginTop: 10 }}>Post-collapse prompt (optional)</label>
-                  <textarea
-                    className="spawn-input"
-                    value={autoCollapsePrompt}
-                    onChange={(e) => setAutoCollapsePrompt(e.target.value)}
-                    placeholder="Prompt sent to the agent after each scheduled collapse completes..."
-                    rows={3}
-                    style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
-                  />
-                  <div className="spawn-inline-hint">
-                    Sent as a new task once the /compact finishes — use it to re-seed instructions after the context is wiped.
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Skills section */}
-            <div className="spawn-skills-section">
-              <label className="spawn-label">
-                {t('terminal:spawn.skills')} <span className="spawn-label-hint">({t('terminal:spawn.clickToToggle')})</span>
-              </label>
-              {availableSkills.length > 6 && (
-                <input
-                  type="text"
-                  className="spawn-input skill-search-input"
-                  placeholder={t('terminal:spawn.filterSkills')}
-                  value={skillSearch}
-                  onChange={(e) => setSkillSearch(e.target.value)}
-                />
+                  return (
+                    <button
+                      key={skill.id}
+                      className={`skill-chip ${isActive ? 'selected' : ''} ${isReadOnly ? 'class-based' : ''}`}
+                      onClick={() => !isReadOnly && toggleSkill(skill.id)}
+                      title={
+                        isWildcard
+                          ? 'Applied to all agents (assigned via "*" wildcard — not editable per-agent)'
+                          : isClassBased
+                          ? t('terminal:spawn.assignedViaClass')
+                          : skill.name
+                      }
+                    >
+                      {isActive && <span className="skill-check"><Icon name="check" size={12} /></span>}
+                      <span className="skill-chip-name">{skill.name}</span>
+                      {skill.builtin && <span className="skill-chip-badge builtin">TC</span>}
+                      {isWildcard ? (
+                        <span className="skill-chip-badge">all</span>
+                      ) : isClassBased ? (
+                        <span className="skill-chip-badge">class</span>
+                      ) : null}
+                    </button>
+                  );
+                })
               )}
-              <div className="skills-chips-compact">
-                {availableSkills.length === 0 ? (
-                  <div className="skills-empty">{t('terminal:spawn.noEnabledSkills')}</div>
-                ) : filteredSkills.length === 0 ? (
-                  <div className="skills-empty">{t('terminal:spawn.noSkillsMatch', { query: skillSearch })}</div>
-                ) : (
-                  filteredSkills.map(skill => {
-                    const isWildcard = wildcardSkills.includes(skill);
-                    const isClassBased = classBasedSkills.includes(skill);
-                    const isDirectlyAssigned = selectedSkillIds.has(skill.id);
-                    const isActive = isDirectlyAssigned || isClassBased;
-                    // Wildcard and class-assigned skills are framework-level — can't be toggled per-agent.
-                    const isReadOnly = isClassBased;
-
-                    return (
-                      <button
-                        key={skill.id}
-                        className={`skill-chip ${isActive ? 'selected' : ''} ${isReadOnly ? 'class-based' : ''}`}
-                        onClick={() => !isReadOnly && toggleSkill(skill.id)}
-                        title={
-                          isWildcard
-                            ? 'Applied to all agents (assigned via "*" wildcard — not editable per-agent)'
-                            : isClassBased
-                            ? t('terminal:spawn.assignedViaClass')
-                            : skill.name
-                        }
-                      >
-                        {isActive && <span className="skill-check"><Icon name="check" size={12} /></span>}
-                        <span className="skill-chip-name">{skill.name}</span>
-                        {skill.builtin && <span className="skill-chip-badge builtin">TC</span>}
-                        {isWildcard ? (
-                          <span className="skill-chip-badge">all</span>
-                        ) : isClassBased ? (
-                          <span className="skill-chip-badge">class</span>
-                        ) : null}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
             </div>
           </div>
+
+          {/* Advanced: instructions, shortcut, auto-collapse */}
+          <details className="spawn-advanced">
+            <summary>Advanced options</summary>
+            <div className="spawn-advanced-body">
+              <div className="spawn-form-row">
+                <div className="spawn-field">
+                  <label className="spawn-label">Custom Instructions</label>
+                  <textarea
+                    className="spawn-input spawn-textarea"
+                    value={customInstructions}
+                    onChange={(e) => setCustomInstructions(e.target.value)}
+                    placeholder="Additional instructions appended to this agent's system prompt..."
+                    rows={5}
+                    style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
+                  />
+                </div>
+              </div>
+
+              <div className="spawn-form-row">
+                <div className="spawn-field">
+                  <label className="spawn-label">Terminal Shortcut</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <KeyCaptureInput
+                      shortcut={shortcutConfig}
+                      onUpdate={(updates) => setShortcut(shortcutValueToString(updates))}
+                    />
+                    <div className="spawn-inline-hint">
+                      {shortcut ? `Opens this agent terminal with ${formatShortcutString(shortcut)}` : 'Capture a global shortcut for this agent terminal'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="spawn-form-row spawn-options-row">
+                <label className="spawn-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={autoCollapse}
+                    onChange={(e) => setAutoCollapse(e.target.checked)}
+                  />
+                  <span>Auto-collapse context on a schedule</span>
+                </label>
+              </div>
+              {autoCollapse && (
+                <div className="spawn-form-row">
+                  <div className="spawn-field">
+                    <label className="spawn-label">Collapse schedule (cron)</label>
+                    <input
+                      type="text"
+                      className="spawn-input"
+                      value={autoCollapseCron}
+                      onChange={(e) => setAutoCollapseCron(e.target.value)}
+                      placeholder="0 3 * * *  (every day at 3:00 AM)"
+                      style={{ fontFamily: 'monospace' }}
+                    />
+                    <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                      {[
+                        { label: 'Nightly 3am', cron: '0 3 * * *' },
+                        { label: 'Every 6h', cron: '0 */6 * * *' },
+                        { label: 'Weekdays 2am', cron: '0 2 * * MON-FRI' },
+                      ].map(p => (
+                        <button
+                          key={p.cron}
+                          type="button"
+                          className="spawn-preset-chip"
+                          onClick={() => setAutoCollapseCron(p.cron)}
+                          style={{
+                            fontSize: 11, padding: '3px 8px', borderRadius: 4,
+                            border: '1px solid var(--border-color, #444)', cursor: 'pointer',
+                            background: autoCollapseCron === p.cron ? 'var(--accent-color, #4a9eff)' : 'transparent',
+                            color: 'inherit',
+                          }}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="spawn-inline-hint">
+                      5-field cron (minute hour day month weekday). Collapse waits for the agent to be idle before running.
+                    </div>
+                    <label className="spawn-label" style={{ marginTop: 10 }}>Timezone</label>
+                    <input
+                      type="text"
+                      className="spawn-input"
+                      value={autoCollapseTz}
+                      onChange={(e) => setAutoCollapseTz(e.target.value)}
+                      placeholder={browserTz}
+                      style={{ fontFamily: 'monospace' }}
+                    />
+                    <div className="spawn-inline-hint">
+                      IANA timezone. Leave blank to use this browser's zone ({browserTz}).
+                    </div>
+                    <label className="spawn-label" style={{ marginTop: 10 }}>Post-collapse prompt (optional)</label>
+                    <textarea
+                      className="spawn-input"
+                      value={autoCollapsePrompt}
+                      onChange={(e) => setAutoCollapsePrompt(e.target.value)}
+                      placeholder="Prompt sent to the agent after each scheduled collapse completes..."
+                      rows={3}
+                      style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
+                    />
+                    <div className="spawn-inline-hint">
+                      Sent as a new task once the /compact finishes — use it to re-seed instructions after the context is wiped.
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </details>
         </div>
 
         <div className="modal-footer">

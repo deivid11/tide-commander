@@ -23,8 +23,15 @@ describe('tool-formatting', () => {
     expect(getToolKeyParam('AskUserQuestion', {})).toBe('clarification');
   });
 
+  it('extracts Grok-style target_file / target_directory params', () => {
+    expect(getToolKeyParam('Read', { target_file: '/tmp/project/README.md' })).toBe('/tmp/project/README.md');
+    expect(getToolKeyParam('ListFiles', { target_directory: '/tmp/project/src' })).toBe('/tmp/project/src');
+    expect(getToolKeyParam('Bash', { command: 'ls -la', description: 'list files' })).toBe('ls -la');
+  });
+
   it('formats concise activity labels', () => {
     expect(formatToolActivity('Read', { file_path: '/tmp/project/src/main.ts' })).toBe('Read: /tmp/project/src/main.ts');
+    expect(formatToolActivity('Read', { target_file: '/tmp/project/src/main.ts' })).toBe('Read: /tmp/project/src/main.ts');
     expect(formatToolActivity('Bash', { command: 'echo hello' })).toBe('Bash: echo hello');
     expect(formatToolActivity(undefined, undefined)).toBe('Using unknown tool');
   });

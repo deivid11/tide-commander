@@ -1148,7 +1148,9 @@ export const TerminalInputArea = memo(function TerminalInputArea({
           {(() => {
             const stats = selectedAgent.contextStats;
             const totalTokens = stats ? stats.totalTokens : (selectedAgent.contextUsed || 0);
-            const contextWindow = stats ? stats.contextWindow : (selectedAgent.contextLimit || 200000);
+            const contextWindow = stats
+              ? stats.contextWindow
+              : (selectedAgent.contextLimit || (selectedAgent.provider === 'grok' ? 500000 : 200000));
             const rawUsedPercent = stats ? stats.usedPercent : Math.round((totalTokens / contextWindow) * 100);
             const usedPercent = Math.max(0, Math.min(100, rawUsedPercent));
             const freePercent = Math.max(0, 100 - usedPercent);

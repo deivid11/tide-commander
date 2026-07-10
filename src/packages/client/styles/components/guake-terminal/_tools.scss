@@ -67,6 +67,14 @@
     opacity: 0.6;
   }
 
+  // Plain bash command (not a special notify/tracking chip)
+  &.bash-command {
+    color: var(--text-primary);
+    opacity: 1;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
   // Clickable file paths
   &.clickable-path {
     cursor: pointer;
@@ -475,6 +483,22 @@
   border: 1px solid color-mix(in srgb, var(--text-muted) 25%, transparent);
   border-radius: $radius-sm;
   padding: 8px 10px;
+
+  &.unknown-tool-input--chips {
+    background: transparent;
+    border: none;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  &.is-chips-only {
+    // Inline on the tool row — no card chrome
+    flex: 1 1 auto;
+    min-width: 0;
+  }
 }
 
 .unknown-tool-header {
@@ -509,6 +533,17 @@
   padding: 2px 8px;
   font-size: 11px;
   cursor: pointer;
+
+  &.unknown-tool-toggle--raw {
+    margin-left: 0;
+    font-size: 10px;
+    opacity: 0.75;
+
+    &:hover {
+      opacity: 1;
+      color: var(--text-primary);
+    }
+  }
 }
 
 .unknown-tool-preview {
@@ -517,6 +552,123 @@
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--text-muted);
+}
+
+// Structured tool param chips (ListFiles, task wait, generic JSON tools)
+.tool-input-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.tool-input-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.3;
+  background: color-mix(in srgb, var(--accent-cyan) 10%, var(--bg-tertiary));
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 28%, transparent);
+  color: var(--text-primary);
+
+  &--id {
+    background: color-mix(in srgb, var(--accent-purple) 12%, var(--bg-tertiary));
+    border-color: color-mix(in srgb, var(--accent-purple) 30%, transparent);
+  }
+
+  &--timeout {
+    background: color-mix(in srgb, var(--accent-orange, #ff9e4a) 12%, var(--bg-tertiary));
+    border-color: color-mix(in srgb, var(--accent-orange, #ff9e4a) 30%, transparent);
+  }
+}
+
+.tool-input-chip-key {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.tool-input-chip-val {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+
+  &.mono {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// ListFiles path chip
+.list-files-input {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.list-files-path {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0;
+  min-width: 0;
+  max-width: 100%;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-family: $font-mono;
+  font-size: 11px;
+  background: color-mix(in srgb, var(--accent-blue) 10%, var(--bg-tertiary));
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 30%, transparent);
+  color: var(--text-primary);
+
+  &.clickable-path:hover {
+    border-color: var(--accent-blue);
+    background: color-mix(in srgb, var(--accent-blue) 16%, var(--bg-tertiary));
+  }
+}
+
+.list-files-parent {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 18rem;
+}
+
+.list-files-base {
+  color: var(--accent-cyan);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.task-output-wait-input {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.output-list-files-inline,
+.output-task-wait-inline,
+.output-structured-tool-inline {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 // =============================================================================

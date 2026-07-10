@@ -13,6 +13,7 @@ import {
   killTmuxSession,
   interruptTmuxSession,
 } from './tmux-helper.js';
+import { startGrokSessionWatcher } from '../../grok/session-watcher.js';
 
 const log = createLogger('Runner');
 
@@ -49,6 +50,41 @@ export class RunnerProcessLifecycle {
     this.stdoutPipeline = deps.stdoutPipeline;
     this.recoveryStore = deps.recoveryStore;
     this.onDisableAutoRestart = deps.onDisableAutoRestart;
+  }
+
+  /**
+   * Grok headless does not stream tool events on stdout. Tail session files
+   * and inject tool_start/tool_result into the same pipeline as stdout events.
+   */
+  private attachGrokSideChannel(
+    activeProcess: ActiveProcess,
+    agentId: string,
+    workingDir: string,
+    sessionId: string | undefined
+  ): void {
+    if (this.backend.name !== 'grok') return;
+
+    const watcher = startGrokSessionWatcher({
+      agentId,
+      workingDir,
+      sessionId,
+      startedAt: activeProcess.startTime,
+      onEvent: (event) => {
+        this.stdoutPipeline.emitStandardEvent(agentId, event);
+      },
+      onSessionId: (sid) => {
+        const proc = this.activeProcesses.get(agentId);
+        if (proc && !proc.sessionId) {
+          proc.sessionId = sid;
+          if (proc.lastRequest && !proc.lastRequest.sessionId) {
+            proc.lastRequest.sessionId = sid;
+          }
+        }
+        this.bus.emit({ type: 'runner.session_id', agentId, sessionId: sid });
+        this.callbacks.onSessionId(agentId, sid);
+      },
+    });
+    activeProcess.sideChannelStop = () => watcher.stop();
   }
 
   async run(request: RunnerRequest): Promise<void> {
@@ -137,6 +173,7 @@ export class RunnerProcessLifecycle {
         tmuxExpectedCommand: path.basename(executable),
       };
       this.activeProcesses.set(agentId, activeProcess);
+      this.attachGrokSideChannel(activeProcess, agentId, workingDir, forceNewSession ? undefined : sessionId);
 
       // Use file-tailing stdout pipeline for tmux mode
       const tailer = this.stdoutPipeline.handleTmuxLog(agentId, tmuxResult.logFile);
@@ -190,12 +227,26 @@ export class RunnerProcessLifecycle {
       turnState: 'processing',
     };
     this.activeProcesses.set(agentId, activeProcess);
+    this.attachGrokSideChannel(activeProcess, agentId, workingDir, forceNewSession ? undefined : sessionId);
 
     const stdoutDone = this.stdoutPipeline.handleStdout(agentId, childProcess);
     this.handleStderr(agentId, childProcess);
 
     childProcess.on('close', async (code, signal) => {
       await stdoutDone;
+      // Keep tailing session files briefly so the last tool_result lines flush to disk
+      // after the CLI exits (common race on Grok headless).
+      const sideStop = activeProcess.sideChannelStop;
+      activeProcess.sideChannelStop = undefined;
+      if (sideStop) {
+        setTimeout(() => {
+          try {
+            sideStop();
+          } catch {
+            // ignore
+          }
+        }, 2000);
+      }
       this.bus.emit({
         type: 'runner.process_closed',
         agentId,
@@ -284,6 +335,13 @@ export class RunnerProcessLifecycle {
     if (activeProcess.tmuxTailer) {
       activeProcess.tmuxTailer.stop();
     }
+
+    try {
+      activeProcess.sideChannelStop?.();
+    } catch {
+      // ignore
+    }
+    activeProcess.sideChannelStop = undefined;
 
     this.activeProcesses.delete(agentId);
     this.activityCallbacks.delete(agentId);

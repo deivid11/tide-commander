@@ -58,7 +58,31 @@ function normalizeOpencodeToolName(raw: string): string {
   return OPENCODE_TOOL_NAME_MAP[raw.toLowerCase()] || raw;
 }
 
-type SessionProvider = 'claude' | 'codex' | 'opencode';
+// Grok CLI tool names → Tide UI names (keep in sync with grok/session-watcher.ts)
+const GROK_TOOL_NAME_MAP: Record<string, string> = {
+  list_dir: 'ListFiles',
+  read_file: 'Read',
+  search_replace: 'Edit',
+  write: 'Write',
+  run_terminal_cmd: 'Bash',
+  run_terminal_command: 'Bash',
+  grep: 'Grep',
+  web_search: 'WebSearch',
+  web_fetch: 'WebFetch',
+  open_page: 'WebFetch',
+  open_page_with_find: 'WebFetch',
+  spawn_subagent: 'Task',
+  todo_write: 'TodoWrite',
+};
+
+function normalizeGrokToolName(raw: string): string {
+  return GROK_TOOL_NAME_MAP[raw.toLowerCase()] || raw;
+}
+
+const GROK_DIR = path.join(os.homedir(), '.grok');
+const GROK_SESSIONS_DIR = path.join(GROK_DIR, 'sessions');
+
+type SessionProvider = 'claude' | 'codex' | 'opencode' | 'grok';
 
 interface ResolvedSessionFile {
   provider: SessionProvider;
@@ -66,6 +90,8 @@ interface ResolvedSessionFile {
   // When set, the opencode session lives in the SQLite DB and filePath points
   // at opencode.db (used only for a stat-based fallback mtime).
   opencodeDbSessionId?: string;
+  // Grok: path to the session directory (chat_history.jsonl lives inside).
+  grokSessionDir?: string;
 }
 
 const codexSessionFileById = new Map<string, string>();
@@ -561,6 +587,47 @@ function findOpencodeSessionFile(sessionId: string): string | null {
   return null;
 }
 
+/**
+ * Locate a Grok session directory for (cwd, sessionId).
+ * Grok keys projects by encodeURIComponent(absolute cwd) under ~/.grok/sessions/.
+ */
+function findGrokSessionDir(cwd: string, sessionId: string): string | null {
+  if (!sessionId) return null;
+
+  const candidates = new Set<string>();
+  try {
+    candidates.add(path.resolve(cwd));
+  } catch {
+    // ignore
+  }
+  candidates.add(cwd.replace(/\/+$/, ''));
+  candidates.add(cwd);
+
+  for (const c of candidates) {
+    if (!c) continue;
+    const dir = path.join(GROK_SESSIONS_DIR, encodeURIComponent(c), sessionId);
+    const chatPath = path.join(dir, 'chat_history.jsonl');
+    if (fs.existsSync(chatPath)) {
+      return dir;
+    }
+  }
+
+  // Fallback: scan all project keys for this session id (slower, rare)
+  if (!fs.existsSync(GROK_SESSIONS_DIR)) return null;
+  try {
+    for (const entry of fs.readdirSync(GROK_SESSIONS_DIR, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const dir = path.join(GROK_SESSIONS_DIR, entry.name, sessionId);
+      if (fs.existsSync(path.join(dir, 'chat_history.jsonl'))) {
+        return dir;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 function resolveSessionFile(cwd: string, sessionId: string): ResolvedSessionFile | null {
   const claudeFile = path.join(getProjectDir(cwd), `${sessionId}.jsonl`);
   if (fs.existsSync(claudeFile)) {
@@ -584,6 +651,15 @@ function resolveSessionFile(cwd: string, sessionId: string): ResolvedSessionFile
   const opencodeFile = findOpencodeSessionFile(sessionId);
   if (opencodeFile && fs.existsSync(opencodeFile)) {
     return { provider: 'opencode', filePath: opencodeFile };
+  }
+
+  const grokDir = findGrokSessionDir(cwd, sessionId);
+  if (grokDir) {
+    return {
+      provider: 'grok',
+      filePath: path.join(grokDir, 'chat_history.jsonl'),
+      grokSessionDir: grokDir,
+    };
   }
 
   return null;
@@ -1616,6 +1692,203 @@ async function parseOpencodeSessionMessages(
   };
 }
 
+function extractGrokTextContent(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  const parts: string[] = [];
+  for (const block of content) {
+    if (!block || typeof block !== 'object') continue;
+    const b = block as { type?: string; text?: string };
+    if (b.type === 'text' && typeof b.text === 'string') {
+      parts.push(b.text);
+    }
+  }
+  return parts.join('\n');
+}
+
+/** Prefer the Tide-injected <user_query> body when present. */
+function extractGrokUserDisplayText(content: unknown): string {
+  const raw = extractGrokTextContent(content).trim();
+  if (!raw) return '';
+  const queryMatch = raw.match(/<user_query>\s*([\s\S]*?)\s*<\/user_query>/i);
+  if (queryMatch?.[1]) {
+    return queryMatch[1].trim();
+  }
+  return raw;
+}
+
+function parseGrokToolArguments(args: unknown): Record<string, unknown> {
+  if (!args) return {};
+  if (typeof args === 'object' && args !== null && !Array.isArray(args)) {
+    return args as Record<string, unknown>;
+  }
+  if (typeof args === 'string') {
+    try {
+      const parsed = JSON.parse(args);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+      return { raw: args };
+    } catch {
+      return { raw: args };
+    }
+  }
+  return {};
+}
+
+/**
+ * Parse Grok chat_history.jsonl into Tide SessionMessages.
+ * chat_history has no per-line timestamps — we synthesize monotonic ISO times
+ * so the client sort order matches file order.
+ */
+function parseGrokSessionMessages(
+  chatHistoryPath: string
+): { messages: SessionMessage[]; lastMessageType: SessionActivityMessageType; lastMessageTimestamp: Date | null } {
+  const messages: SessionMessage[] = [];
+  if (!fs.existsSync(chatHistoryPath)) {
+    return { messages: [], lastMessageType: null, lastMessageTimestamp: null };
+  }
+
+  // Base clock from file mtime so relative times feel recent; +1s per line for order.
+  let baseMs = Date.now() - 3_600_000;
+  try {
+    baseMs = fs.statSync(chatHistoryPath).mtimeMs - 3_600_000;
+  } catch {
+    // ignore
+  }
+
+  const content = fs.readFileSync(chatHistoryPath, 'utf-8');
+  const lines = content.split('\n');
+  let lineIndex = 0;
+  const toolUseIdToName = new Map<string, string>();
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    lineIndex += 1;
+    let entry: Record<string, unknown>;
+    try {
+      entry = JSON.parse(line) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+
+    const type = typeof entry.type === 'string' ? entry.type : '';
+    const ts = new Date(baseMs + lineIndex * 1000).toISOString();
+
+    // Skip system prompt and synthetic MCP/system-reminder injections
+    if (type === 'system') continue;
+    if (type === 'user' && entry.synthetic_reason === 'system_reminder') continue;
+
+    if (type === 'user') {
+      const text = extractGrokUserDisplayText(entry.content);
+      if (!text) continue;
+      // Skip pure scaffolding (user_info / system-reminder without user_query)
+      if (
+        text.startsWith('<user_info>') ||
+        text.startsWith('<system-reminder>') ||
+        (text.includes('<system-reminder>') && !text.includes('<user_query>'))
+      ) {
+        continue;
+      }
+      messages.push({
+        type: 'user',
+        content: text,
+        timestamp: ts,
+        uuid: `grok-user-${lineIndex}`,
+      });
+      continue;
+    }
+
+    if (type === 'reasoning') {
+      // Optional thinking summaries — surface as assistant thinking lines
+      const summary = entry.summary;
+      let thinking = '';
+      if (Array.isArray(summary)) {
+        thinking = summary
+          .map((s) => {
+            if (s && typeof s === 'object' && typeof (s as { text?: string }).text === 'string') {
+              return (s as { text: string }).text;
+            }
+            return '';
+          })
+          .filter(Boolean)
+          .join('\n');
+      }
+      if (thinking) {
+        messages.push({
+          type: 'assistant',
+          content: `[thinking] ${thinking}`,
+          timestamp: ts,
+          uuid: typeof entry.id === 'string' ? entry.id : `grok-reasoning-${lineIndex}`,
+        });
+      }
+      continue;
+    }
+
+    if (type === 'assistant') {
+      const text = typeof entry.content === 'string' ? entry.content : extractGrokTextContent(entry.content);
+      if (text.trim()) {
+        messages.push({
+          type: 'assistant',
+          content: text,
+          timestamp: ts,
+          uuid: `grok-assistant-${lineIndex}`,
+        });
+      }
+
+      const toolCalls = entry.tool_calls;
+      if (Array.isArray(toolCalls)) {
+        for (let ti = 0; ti < toolCalls.length; ti++) {
+          const call = toolCalls[ti] as {
+            id?: string;
+            name?: string;
+            arguments?: unknown;
+          };
+          const callId = call.id || `grok-call-${lineIndex}-${ti}`;
+          const toolName = normalizeGrokToolName(call.name || 'unknown');
+          toolUseIdToName.set(callId, toolName);
+          messages.push({
+            type: 'tool_use',
+            content: '',
+            timestamp: ts,
+            uuid: callId,
+            toolName,
+            toolInput: parseGrokToolArguments(call.arguments),
+            toolUseId: callId,
+          });
+        }
+      }
+      continue;
+    }
+
+    if (type === 'tool_result') {
+      const callId = typeof entry.tool_call_id === 'string' ? entry.tool_call_id : `grok-result-${lineIndex}`;
+      const content =
+        typeof entry.content === 'string'
+          ? entry.content
+          : entry.content != null
+            ? JSON.stringify(entry.content)
+            : '';
+      messages.push({
+        type: 'tool_result',
+        content,
+        timestamp: ts,
+        uuid: `${callId}-result`,
+        toolUseId: callId,
+        toolName: toolUseIdToName.get(callId) || 'unknown',
+      });
+    }
+  }
+
+  const dedupedMessages = deduplicateSessionMessages(messages);
+  const last = dedupedMessages.length > 0 ? dedupedMessages[dedupedMessages.length - 1] : null;
+  return {
+    messages: dedupedMessages,
+    lastMessageType: last?.type ?? null,
+    lastMessageTimestamp: last?.timestamp ? new Date(last.timestamp) : null,
+  };
+}
+
 async function parseSessionMessages(
   resolved: ResolvedSessionFile
 ): Promise<{ messages: SessionMessage[]; lastMessageType: SessionActivityMessageType; lastMessageTimestamp: Date | null }> {
@@ -1624,6 +1897,10 @@ async function parseSessionMessages(
       return parseOpencodeDbSessionMessages(resolved.opencodeDbSessionId);
     }
     return parseOpencodeSessionMessages(resolved.filePath);
+  }
+
+  if (resolved.provider === 'grok') {
+    return parseGrokSessionMessages(resolved.filePath);
   }
 
   const messages: SessionMessage[] = [];
@@ -2004,6 +2281,8 @@ const PROVIDER_PROCESS_PATTERNS: Record<SessionProvider, string> = {
   claude: '(claude$|/claude( |$)|claude\\.cmd|claude\\.exe)',
   codex: '(codex($| )|/codex( |$)|codex\\.cmd|codex\\.exe|codex\\.js|@openai/codex)',
   opencode: '(opencode($| )|/opencode( |$)|opencode\\.cmd|opencode\\.exe)',
+  // Match `grok` CLI but not unrelated tools with "grok" in the path/name as a substring of a longer token.
+  grok: '(^|/)grok($| )|grok\\.cmd|grok\\.exe',
 };
 
 type ExecSyncFn = typeof import('child_process').execSync;
@@ -2011,6 +2290,7 @@ type ExecSyncFn = typeof import('child_process').execSync;
 function providerDisplayName(provider: SessionProvider): string {
   if (provider === 'codex') return 'Codex';
   if (provider === 'opencode') return 'OpenCode';
+  if (provider === 'grok') return 'Grok';
   return 'Claude';
 }
 
@@ -2233,6 +2513,25 @@ export async function findOpencodeProcessPidInCwd(cwd: string): Promise<number |
  */
 export async function killOpencodeProcessInCwd(cwd: string): Promise<boolean> {
   return killProviderProcessInCwd(cwd, 'opencode');
+}
+
+/**
+ * Check if there's a Grok process running in a specific directory.
+ */
+export async function isGrokProcessRunningInCwd(cwd: string): Promise<boolean> {
+  return isProviderProcessRunningInCwd(cwd, 'grok');
+}
+
+export async function findGrokProcessPidInCwd(cwd: string): Promise<number | undefined> {
+  return findProviderProcessPidInCwd(cwd, 'grok');
+}
+
+/**
+ * Kill any Grok process running in the specified directory.
+ * Returns true if a process was found and killed.
+ */
+export async function killGrokProcessInCwd(cwd: string): Promise<boolean> {
+  return killProviderProcessInCwd(cwd, 'grok');
 }
 
 export async function loadToolHistory(

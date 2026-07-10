@@ -23,6 +23,7 @@ import { store, useSettings } from '../../store';
 import { ConfirmModal } from '../shared/ConfirmModal';
 import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../../shared/types';
 import type { Agent, DrawingArea } from '../../../shared/types';
+import { providerAssetUrl, providerAgentTitle } from '../../utils/providerDisplay';
 import type { Building } from '../../../shared/building-types';
 import { BUILDING_TYPES } from '../../../shared/building-types';
 import { AgentIcon } from '../AgentIcon';
@@ -201,6 +202,14 @@ function getAgentModelLabel(agent: Agent): { model: string; effort?: string } {
   }
   if (agent.provider === 'opencode') {
     return { model: (agent as unknown as { opencodeModel?: string }).opencodeModel || 'opencode' };
+  }
+  if (agent.provider === 'grok') {
+    const id = (agent as unknown as { grokModel?: string }).grokModel || 'grok-4.5';
+    const effortId = agent.effort;
+    const effortMeta = effortId
+      ? (CLAUDE_EFFORTS as Record<string, { label: string }>)[effortId]
+      : undefined;
+    return { model: id, effort: effortMeta?.label };
   }
   const id = agent.model || 'sonnet';
   const meta = (CLAUDE_MODELS as Record<string, { label: string }>)[id];
@@ -681,7 +690,7 @@ const ChatView = React.memo(function ChatView({
     : agent.contextUsed || 0;
   const contextWindow = contextStats
     ? contextStats.contextWindow
-    : agent.contextLimit || 200000;
+    : agent.contextLimit || (agent.provider === 'grok' ? 500000 : 200000);
   const contextUsedPercentRaw = contextStats
     ? contextStats.usedPercent
     : Math.round((contextTotalTokens / contextWindow) * 100);
@@ -744,22 +753,10 @@ const ChatView = React.memo(function ChatView({
           )}
           <span className="flat-terminal-wrapper__header-model">
             <img
-              src={
-                agent.provider === 'codex'
-                  ? `${import.meta.env.BASE_URL}assets/codex.png`
-                  : agent.provider === 'opencode'
-                    ? `${import.meta.env.BASE_URL}assets/opencode.png`
-                    : `${import.meta.env.BASE_URL}assets/claude.png`
-              }
+              src={providerAssetUrl(agent.provider, import.meta.env.BASE_URL)}
               alt={agent.provider}
               className="flat-terminal-wrapper__header-provider-icon"
-              title={
-                agent.provider === 'codex'
-                  ? 'Codex Agent'
-                  : agent.provider === 'opencode'
-                    ? 'OpenCode Agent'
-                    : 'Claude Agent'
-              }
+              title={providerAgentTitle(agent.provider)}
             />
             {(() => {
               const { model, effort } = getAgentModelLabel(agent);
@@ -2820,22 +2817,10 @@ export function FlatView({
                                 )}
                                 <span className="flat-map-agent-chip__name">{agent.name}</span>
                                 <img
-                                  src={
-                                    agent.provider === 'codex'
-                                      ? `${import.meta.env.BASE_URL}assets/codex.png`
-                                      : agent.provider === 'opencode'
-                                        ? `${import.meta.env.BASE_URL}assets/opencode.png`
-                                        : `${import.meta.env.BASE_URL}assets/claude.png`
-                                  }
+                                  src={providerAssetUrl(agent.provider, import.meta.env.BASE_URL)}
                                   alt={agent.provider}
                                   className="flat-map-agent-chip__provider-icon"
-                                  title={
-                                    agent.provider === 'codex'
-                                      ? 'Codex Agent'
-                                      : agent.provider === 'opencode'
-                                        ? 'OpenCode Agent'
-                                        : 'Claude Agent'
-                                  }
+                                  title={providerAgentTitle(agent.provider)}
                                 />
                                 <span
                                   className="flat-map-agent-chip__dot"

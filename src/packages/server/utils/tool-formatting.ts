@@ -32,32 +32,65 @@ export function getToolKeyParam(
   input: Record<string, unknown>
 ): string | null {
   switch (toolName) {
-    case 'WebSearch':
-      return truncate(input.query as string, 50);
-    case 'WebFetch':
-      return truncate(input.url as string, 60);
+    case 'WebSearch': {
+      const query = (input.query || input.q || input.search) as string | undefined;
+      return query ? `"${truncate(query, 40)}"` : null;
+    }
+    case 'WebFetch': {
+      const url = (input.url || input.target_url || input.targetUrl) as string | undefined;
+      return url ? truncate(url, 60) : null;
+    }
     case 'Read':
     case 'Write':
-    case 'Edit':
-      const filePath = (input.file_path || input.path) as string;
+    case 'Edit': {
+      // Claude: file_path; Grok: target_file
+      const filePath = (
+        input.file_path
+        || input.filePath
+        || input.target_file
+        || input.targetFile
+        || input.path
+      ) as string | undefined;
       return getShortPath(filePath);
+    }
+    case 'ListFiles':
+    case 'list_dir': {
+      const dir = (
+        input.target_directory
+        || input.targetDirectory
+        || input.path
+        || input.directory
+      ) as string | undefined;
+      return getShortPath(dir);
+    }
     case 'Bash':
-      const cmd = input.command as string;
-      return cmd ? truncate(cmd, 60) : null;
+    case 'ExecuteCommand': {
+      const cmd = (input.command || input.cmd) as string | undefined;
+      if (cmd) return truncate(cmd, 60);
+      const desc = input.description as string | undefined;
+      return desc ? truncate(desc, 60) : null;
+    }
     case 'Grep':
-      return input.pattern ? `"${truncate(input.pattern as string, 40)}"` : null;
+    case 'SearchFiles': {
+      const pattern = (input.pattern || input.query) as string | undefined;
+      return pattern ? `"${truncate(pattern, 40)}"` : null;
+    }
     case 'Glob':
-      return truncate(input.pattern as string, 50);
+      return truncate((input.pattern || input.glob) as string, 50);
     case 'Task':
+    case 'Agent':
       return truncate(input.description as string, 50);
-    case 'TodoWrite':
+    case 'TodoWrite': {
       const todos = input.todos as unknown[];
       if (todos?.length) {
         return `${todos.length} item${todos.length > 1 ? 's' : ''}`;
       }
       return null;
+    }
     case 'NotebookEdit':
-      return getFileName(input.notebook_path as string);
+      return getFileName(
+        (input.notebook_path || input.notebookPath || input.target_file || input.file_path) as string
+      );
     case 'AskUserQuestion':
       return 'clarification';
     default:

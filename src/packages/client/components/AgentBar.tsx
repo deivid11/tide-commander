@@ -25,6 +25,7 @@ import { Tooltip } from './shared/Tooltip';
 import { useWorkspaceFilter, isAgentVisibleInWorkspace } from './WorkspaceSwitcher';
 import { AgentIcon } from './AgentIcon';
 import { Icon } from './Icon';
+import { providerAssetUrl, providerAgentTitle } from '../utils/providerDisplay';
 
 interface AgentBarProps {
   onFocusAgent?: (agentId: string) => void;
@@ -847,10 +848,10 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
               </span>
               <span className="agent-bar-tooltip-name">
                 <img
-                  src={hoveredAgent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : hoveredAgent.provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+                  src={providerAssetUrl(hoveredAgent.provider, import.meta.env.BASE_URL)}
                   alt={hoveredAgent.provider}
                   className="agent-bar-provider-icon"
-                  title={hoveredAgent.provider === 'codex' ? 'Codex Agent' : hoveredAgent.provider === 'opencode' ? 'OpenCode Agent' : 'Claude Agent'}
+                  title={providerAgentTitle(hoveredAgent.provider)}
                 />
                 {hoveredAgent.name}
               </span>

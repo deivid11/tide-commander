@@ -42,7 +42,8 @@ import type { Agent, AgentPrompt } from '../../../shared/types';
 import type { AttachedFile } from '../shared/outputTypes';
 
 // Types
-import type { ViewMode, EnrichedHistoryMessage } from './types';
+import type { ViewMode, EnrichedHistoryMessage, TodoItem } from './types';
+import { resolveTodoWriteDisplay, type MergeableTodo } from '../../utils/todoMerge';
 
 // Hooks
 import { useHistoryLoader } from './useHistoryLoader';
@@ -346,6 +347,9 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
     const enrichHistory = (messages: typeof history): EnrichedHistoryMessage[] => {
       const out: EnrichedHistoryMessage[] = [];
+      // Running TodoWrite snapshot so Grok merge:true status-only updates can
+      // re-attach content from earlier full lists when rendering history.
+      let runningTodos: MergeableTodo[] = [];
       for (const msg of messages) {
         if (msg.type === 'tool_result' && msg.toolUseId && suppressedToolResultIds.has(msg.toolUseId)) {
           continue;
@@ -364,6 +368,20 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
             bashCommand = input.command;
           } catch { /* ignore */ }
           out.push({ ...msg, _bashOutput: bashOutput, _bashCommand: bashCommand });
+          continue;
+        }
+        if (msg.type === 'tool_use' && msg.toolName === 'TodoWrite') {
+          const prior: TodoItem[] = runningTodos.map((t) => ({
+            id: t.id,
+            content: t.content,
+            status: t.status,
+            activeForm: t.activeForm,
+          }));
+          const rawInput = msg.toolInput
+            ? JSON.stringify(msg.toolInput)
+            : (msg.content || '{}');
+          runningTodos = resolveTodoWriteDisplay(rawInput, runningTodos);
+          out.push({ ...msg, _priorTodos: prior });
           continue;
         }
         if (msg.type === 'tool_use' && (msg.toolName === 'AskUserQuestion' || msg.toolName === 'AskFollowupQuestion') && msg.toolUseId) {
