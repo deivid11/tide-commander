@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.148.0] - 2026-07-10
+
+### Added
+- **Inline Bash outputs** - terminal Bash rows now include a toggle to show captured command output inline below the command, with localized labels and persisted settings.
+
+### Changed
+- **Terminal and panel performance** - reduced broad store subscriptions and unstable render props across the terminal, dashboard, flat view, unit panel, toolbox, file explorer, modal, and log surfaces.
+- **Output rendering performance** - memoized markdown rendering, coalesced output notifications, and added narrower selectors for streaming logs, session history, file explorer state, and related UI state.
+
 ## [1.147.1] - 2026-07-09
 
 ### Changed

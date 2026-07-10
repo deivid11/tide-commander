@@ -5,7 +5,19 @@
 
 import React, { useState, useRef, useEffect, useMemo, memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useStore, store, useCustomAgentClassesArray } from '../../store';
+import {
+  store,
+  useAgent,
+  useAgents,
+  useAreas,
+  useAgentOutputs,
+  useBossAgents,
+  useLastPrompt,
+  useDelegationHistory,
+  usePendingDelegation,
+  useCustomAgentClassesArray,
+} from '../../store';
+import { useSessionHistory } from '../../store/selectors';
 import { getClassConfig } from '../../utils/classConfig';
 import { AGENT_STATUS_COLORS } from '../../utils/colors';
 import { ModelPreview } from '../ModelPreview';
@@ -54,12 +66,11 @@ export function SingleAgentPanel({
   onOpenAreaExplorer: _onOpenAreaExplorer,
 }: SingleAgentPanelProps) {
   const { t } = useTranslation(['common']);
-  const state = useStore();
   const customClasses = useCustomAgentClassesArray();
   const { showToast } = useToast();
 
   // Get the latest agent data from the store to ensure we have current values
-  const agent = state.agents.get(agentProp.id) || agentProp;
+  const agent = useAgent(agentProp.id) || agentProp;
   const classConfig = getClassConfig(agent.class, customClasses);
 
   // Get model file for custom classes
@@ -123,15 +134,21 @@ export function SingleAgentPanel({
     [agent.contextStats, agent.contextUsed, agent.contextLimit]
   );
 
-  // Get assigned area for this agent
-  const assignedArea = store.getAreaForAgent(agent.id);
+  // Get assigned area for this agent (areas subscription keeps it fresh on
+  // area edits). getAreaForAgent only reads the agent's position + the areas,
+  // so keying on those avoids recomputing on every tick of the agent object.
+  const areas = useAreas();
+  const assignedArea = useMemo(
+    () => store.getAreaForAgent(agent.id),
+    [agent.id, agent.position.x, agent.position.z, areas]
+  );
 
   // Get last output message for this agent
-  const agentOutputs = state.agentOutputs.get(agent.id) || [];
+  const agentOutputs = useAgentOutputs(agent.id);
   const lastOutput = agentOutputs.length > 0 ? agentOutputs[agentOutputs.length - 1] : null;
 
   // Get last prompt for this agent
-  const lastPrompt = state.lastPrompts.get(agent.id);
+  const lastPrompt = useLastPrompt(agent.id);
 
   // Handlers
   const handleRemovePattern = async (tool: string, pattern: string) => {
@@ -557,8 +574,7 @@ const SessionHistorySection = memo(function SessionHistorySection({ agentId }: S
   const [previewMessages, setPreviewMessages] = useState<PreviewMessage[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [finderOpen, setFinderOpen] = useState(false);
-  const state = useStore();
-  const entries = state.sessionHistories.get(agentId) || [];
+  const entries = useSessionHistory(agentId);
 
   const handleToggle = () => {
     const next = !collapsed;
@@ -770,7 +786,7 @@ const ContextConfirmModal = memo(function ContextConfirmModal({
 
 const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSectionProps) {
   const { t } = useTranslation(['common']);
-  const state = useStore();
+  const agents = useAgents();
   const customClasses = useCustomAgentClassesArray();
   const [showSubordinates, setShowSubordinates] = useState(true);
   const [showDelegationHistory, setShowDelegationHistory] = useState(true);
@@ -778,16 +794,16 @@ const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSect
   // Get subordinates reactively from the agent's subordinateIds
   // This ensures re-render when subordinateIds change via WebSocket
   const subordinates = useMemo(() => {
-    const boss = state.agents.get(agent.id);
+    const boss = agents.get(agent.id);
     // Check for isBoss flag OR class === 'boss' to support both boss types
     if (!boss || (!boss.isBoss && boss.class !== 'boss') || !boss.subordinateIds) return [];
     return boss.subordinateIds
-      .map((id) => state.agents.get(id))
+      .map((id) => agents.get(id))
       .filter((a): a is Agent => a !== undefined);
-  }, [state.agents, agent.id]);
+  }, [agents, agent.id]);
 
-  const delegationHistory = store.getDelegationHistory(agent.id);
-  const pendingDelegation = state.pendingDelegation;
+  const delegationHistory = useDelegationHistory(agent.id);
+  const pendingDelegation = usePendingDelegation();
   const isPendingForThisBoss = pendingDelegation?.bossId === agent.id;
 
   // Request delegation history when boss is selected
@@ -910,9 +926,8 @@ const BossAgentSection = memo(function BossAgentSection({ agent }: BossAgentSect
 const DelegationDecisionItem = memo(function DelegationDecisionItem({ decision }: DelegationDecisionItemProps) {
   const { t } = useTranslation(['common']);
   const [expanded, setExpanded] = useState(false);
-  const state = useStore();
 
-  const targetAgent = state.agents.get(decision.selectedAgentId);
+  const targetAgent = useAgent(decision.selectedAgentId);
   const targetClassConfig = targetAgent ? AGENT_CLASSES[targetAgent.class as keyof typeof AGENT_CLASSES] : null;
 
   const confidenceColors: Record<string, string> = {
@@ -968,8 +983,7 @@ const DelegationDecisionItem = memo(function DelegationDecisionItem({ decision }
 
 const SubordinateBadge = memo(function SubordinateBadge({ agentId, bossId }: SubordinateBadgeProps) {
   const { t } = useTranslation(['common']);
-  const state = useStore();
-  const boss = state.agents.get(bossId);
+  const boss = useAgent(bossId);
 
   if (!boss) return null;
 
@@ -1004,11 +1018,10 @@ const SubordinateBadge = memo(function SubordinateBadge({ agentId, bossId }: Sub
 
 const LinkToBossSection = memo(function LinkToBossSection({ agentId }: LinkToBossSectionProps) {
   const { t } = useTranslation(['common']);
-  const state = useStore();
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Get all boss agents
-  const bossAgents = Array.from(state.agents.values()).filter((a) => a.isBoss === true || a.class === 'boss');
+  // Get all boss agents (ref-stable selector)
+  const bossAgents = useBossAgents();
 
   if (bossAgents.length === 0) {
     return null; // No bosses available
@@ -1017,7 +1030,7 @@ const LinkToBossSection = memo(function LinkToBossSection({ agentId }: LinkToBos
   const bossConfig = AGENT_CLASSES.boss;
 
   const handleLinkToBoss = (bossId: string) => {
-    const boss = state.agents.get(bossId);
+    const boss = store.getState().agents.get(bossId);
     if (!boss) return;
 
     // Add this agent to the boss's subordinates

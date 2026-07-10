@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useStore, store } from '../../store';
+import { useBuildingLogs, store } from '../../store';
 import type { Building } from '../../../shared/types';
 import { BUILDING_STYLES } from '../../../shared/types';
 import { BUILDING_STATUS_COLORS } from '../../utils/colors';
@@ -15,8 +15,8 @@ interface BuildingEditorProps {
 
 export function BuildingEditor({ building, onClose, onOpenModal }: BuildingEditorProps) {
   const { t } = useTranslation(['config', 'common']);
-  const { buildingLogs: _buildingLogs } = useStore();
-  const logs = store.getBuildingLogs(building.id);
+  const buildingLogs = useBuildingLogs();
+  const logs = buildingLogs.get(building.id) || [];
   const styleInfo = BUILDING_STYLES[building.style || 'server-rack'];
 
   const handleCommand = (cmd: 'start' | 'stop' | 'restart' | 'healthCheck' | 'logs') => {

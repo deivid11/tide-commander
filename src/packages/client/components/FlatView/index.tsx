@@ -22,7 +22,7 @@ import {
 import { store, useSettings } from '../../store';
 import { ConfirmModal } from '../shared/ConfirmModal';
 import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../../shared/types';
-import type { Agent } from '../../../shared/types';
+import type { Agent, DrawingArea } from '../../../shared/types';
 import type { Building } from '../../../shared/building-types';
 import { BUILDING_TYPES } from '../../../shared/building-types';
 import { AgentIcon } from '../AgentIcon';
@@ -1481,6 +1481,15 @@ const ChatView = React.memo(function ChatView({
 // Main Component
 // ============================================================================
 
+// Stable empty result for the emptyChatGroups memo while a chat is open — the
+// empty-state map isn't rendered then, so the grouping work can be skipped.
+const EMPTY_FLAT_MAP_GROUPS: {
+  groups: { area: DrawingArea; agents: Agent[]; buildings: Building[] }[];
+  gridCols: number;
+  gridRows: number;
+  positions: Map<string, { row: number; col: number }>;
+} = { groups: [], gridCols: 1, gridRows: 1, positions: new Map() };
+
 export function FlatView({
   onAgentClick,
   onBuildingClick,
@@ -1825,6 +1834,17 @@ export function FlatView({
     return selectedAgentIds.size > 0 ? Array.from(selectedAgentIds)[0] : null;
   }, [selectedAgentIds]);
 
+  // Stable context-menu handlers for ChatView — inline lambdas here would be
+  // the only unstable props and would defeat its React.memo on every render.
+  const handleHeaderContextMenu = useCallback((position: { x: number; y: number }) => {
+    if (!selectedAgentId) return;
+    setEmptyAgentContextMenu({ agentId: selectedAgentId, position });
+  }, [selectedAgentId]);
+
+  const handleBuildingContextMenuOpen = useCallback((buildingId: string, position: { x: number; y: number }) => {
+    setBuildingContextMenu({ buildingId, position });
+  }, []);
+
   // Close the agent-info modal whenever the selected agent changes so it
   // doesn't linger on top of a different agent's chat.
   useEffect(() => {
@@ -2142,6 +2162,11 @@ export function FlatView({
   const buildingsMap = useBuildings();
   const [activeWorkspace] = useWorkspaceFilter();
   const emptyChatGroups = useMemo(() => {
+    // Only consumed by the empty-chat map (and handleFocusArea, which is only
+    // reachable from it) — skip the O(agents×areas + buildings×areas) work
+    // while a chat is open.
+    if (selectedAgentId) return EMPTY_FLAT_MAP_GROUPS;
+
     const agentsByAreaId = new Map<string, typeof agents>();
     const unassigned: typeof agents = [];
     for (const agent of agents) {
@@ -2313,7 +2338,7 @@ export function FlatView({
     for (const g of unassignedGroups) sortAgents(g.agents);
 
     return { groups: [...assignedGroups, ...unassignedGroups], gridCols, gridRows, positions };
-  }, [agents, areas, buildingsMap, activeWorkspace]);
+  }, [agents, areas, buildingsMap, activeWorkspace, selectedAgentId]);
 
   // Right-click menu actions for agent chips in the empty-state overview.
   // Mirrors the Edit Agent / Delete Agent actions wired in AgentOverviewPanel so
@@ -2665,13 +2690,8 @@ export function FlatView({
             onNavigateForward={handleNavigateForward}
             agentInfoOpen={agentInfoOpen}
             onToggleAgentInfo={handleToggleAgentInfo}
-            onHeaderContextMenu={(position) => {
-              if (!selectedAgentId) return;
-              setEmptyAgentContextMenu({ agentId: selectedAgentId, position });
-            }}
-            onBuildingContextMenu={(buildingId, position) => {
-              setBuildingContextMenu({ buildingId, position });
-            }}
+            onHeaderContextMenu={handleHeaderContextMenu}
+            onBuildingContextMenu={handleBuildingContextMenuOpen}
           />
         ) : (
           <div className="flat-chat flat-chat--empty">

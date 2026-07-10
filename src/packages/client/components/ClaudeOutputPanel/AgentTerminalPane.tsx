@@ -472,8 +472,10 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     }
   }, [dedupedHistory, onLiveBashResultLinked]);
 
-  // Remove live outputs that duplicate history
-  const dedupedOutputs = useMemo(() => {
+  // History-derived dedup indexes, keyed only on dedupedHistory: rebuilding
+  // them per live chunk (dedupedOutputs recomputes ~20x/s while streaming)
+  // meant a Date parse + normalize pass over the whole history every time.
+  const historyDedupIndexes = useMemo(() => {
     const latestHistoryUserTsByKey = new Map<string, number>();
     // Covers any non-user history uuid (assistant, tool_use, tool_result) so
     // that bash/tool live outputs replaying a persisted turn get deduped too.
@@ -502,6 +504,12 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       const prev = latestHistoryAssistantTsByKey.get(key) ?? 0;
       if (ts > prev) latestHistoryAssistantTsByKey.set(key, ts);
     }
+    return { latestHistoryUserTsByKey, historyKnownUuidSet, latestHistoryAssistantTsByKey };
+  }, [dedupedHistory]);
+
+  // Remove live outputs that duplicate history
+  const dedupedOutputs = useMemo(() => {
+    const { latestHistoryUserTsByKey, historyKnownUuidSet, latestHistoryAssistantTsByKey } = historyDedupIndexes;
 
     const result: typeof filteredOutputs = [];
     let lastLiveUserKey: string | null = null;
@@ -549,7 +557,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     }
 
     return result;
-  }, [filteredOutputs, dedupedHistory]);
+  }, [filteredOutputs, historyDedupIndexes]);
 
   // ── Search ──
   const allSearchItems = useMemo(

@@ -12,11 +12,13 @@ interface AgentCardProps {
   agent: Agent;
   isSelected: boolean;
   isKeyboardFocused?: boolean;
-  onSelect: () => void;
-  onDoubleClick: () => void;
-  onChat?: () => void;
-  onFocus?: () => void;
-  onKill?: () => void;
+  // Handlers receive the agent id so the parent can pass stable callbacks
+  // instead of per-card inline lambdas (which would defeat React.memo).
+  onSelect: (agentId: string) => void;
+  onDoubleClick: (agentId: string) => void;
+  onChat?: (agentId: string) => void;
+  onFocus?: (agentId: string) => void;
+  onKill?: (agentId: string) => void;
   onDragStart?: (agent: Agent) => void;
 }
 
@@ -53,10 +55,10 @@ export const AgentCard = React.memo(({
     <div
       className={`dash-card dash-card--${statusColor} ${isSelected ? 'dash-card--selected' : ''} ${isKeyboardFocused ? 'dash-card--keyboard-focused' : ''}`}
       data-agent-id={agent.id}
-      onClick={onSelect}
+      onClick={() => onSelect(agent.id)}
       onDoubleClick={(e) => {
         e.stopPropagation();
-        onDoubleClick();
+        onDoubleClick(agent.id);
       }}
       onDragStart={(e) => {
         onDragStart?.(agent);
@@ -132,7 +134,7 @@ export const AgentCard = React.memo(({
         {onChat && (
           <button
             className="dash-card__action-btn dash-card__action-btn--chat"
-            onClick={(e) => { e.stopPropagation(); onChat(); }}
+            onClick={(e) => { e.stopPropagation(); onChat(agent.id); }}
             title={t('cards.openTerminal')}
           >
             {t('cards.chat')}
@@ -141,7 +143,7 @@ export const AgentCard = React.memo(({
         {onKill && (
           <button
             className="dash-card__action-btn dash-card__action-btn--danger"
-            onClick={(e) => { e.stopPropagation(); onKill(); }}
+            onClick={(e) => { e.stopPropagation(); onKill(agent.id); }}
             title={t('cards.killAgent')}
           >
             {t('cards.stop')}

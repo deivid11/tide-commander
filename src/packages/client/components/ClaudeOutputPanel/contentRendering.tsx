@@ -177,6 +177,33 @@ function getFileTypeIcon(filename: string): string {
   return iconMap[ext] || iconMap.default;
 }
 
+const REMARK_PLUGINS = [remarkGfm];
+
+/**
+ * Memoized markdown block. Markdown parsing is the most expensive part of
+ * rendering an output row; wrapping it in React.memo lets a re-render of the
+ * row (selection, streaming flags, etc.) skip the re-parse whenever the text
+ * itself is unchanged. linkifyFilePathsForMarkdown runs inside the memo for
+ * the same reason.
+ */
+const MarkdownBlock = React.memo(function MarkdownBlock({
+  text,
+  onFileClick,
+}: {
+  text: string;
+  onFileClick?: (path: string) => void;
+}) {
+  const components = React.useMemo(() => createMarkdownComponents({ onFileClick }), [onFileClick]);
+  const linkified = React.useMemo(() => linkifyFilePathsForMarkdown(text), [text]);
+  return (
+    <div className="markdown-content">
+      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
+        {linkified}
+      </ReactMarkdown>
+    </div>
+  );
+});
+
 export function renderContentWithImages(
   content: string,
   onImageClick?: (url: string, name: string) => void,
@@ -187,18 +214,12 @@ export function renderContentWithImages(
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match;
-  const markdownComponents = createMarkdownComponents({ onFileClick });
 
   while ((match = combinedPattern.exec(content)) !== null) {
     // Add text before the match
     if (match.index > lastIndex) {
-      const textBefore = linkifyFilePathsForMarkdown(content.slice(lastIndex, match.index));
       parts.push(
-        <div key={`text-${lastIndex}`} className="markdown-content">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-            {textBefore}
-          </ReactMarkdown>
-        </div>
+        <MarkdownBlock key={`text-${lastIndex}`} text={content.slice(lastIndex, match.index)} onFileClick={onFileClick} />
       );
     }
 
@@ -250,25 +271,14 @@ export function renderContentWithImages(
 
   // Add remaining text after last match
   if (lastIndex < content.length) {
-    const textAfter = linkifyFilePathsForMarkdown(content.slice(lastIndex));
     parts.push(
-      <div key={`text-${lastIndex}`} className="markdown-content">
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-          {textAfter}
-        </ReactMarkdown>
-      </div>
+      <MarkdownBlock key={`text-${lastIndex}`} text={content.slice(lastIndex)} onFileClick={onFileClick} />
     );
   }
 
   // If no images/files found, just return markdown wrapped in markdown-content
   if (parts.length === 0) {
-    return (
-      <div className="markdown-content">
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-          {linkifyFilePathsForMarkdown(content)}
-        </ReactMarkdown>
-      </div>
-    );
+    return <MarkdownBlock text={content} onFileClick={onFileClick} />;
   }
 
   return <>{parts}</>;

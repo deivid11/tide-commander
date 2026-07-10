@@ -18,7 +18,7 @@
  */
 
 import React from 'react';
-import { useStore, store } from '../../store';
+import { useSelectedAgentIds, useSelectedAgents } from '../../store';
 import { AgentsList } from './AgentsList';
 import { SingleAgentPanel } from './SingleAgentPanel';
 import { MultiAgentPanel } from './MultiAgentPanel';
@@ -34,16 +34,16 @@ export function UnitPanel({
   onCallSubordinates,
   onOpenAreaExplorer,
 }: UnitPanelProps) {
-  const state = useStore();
-  const selectedAgents = store.getSelectedAgents();
+  const selectedAgentIds = useSelectedAgentIds();
+  const selectedAgents = useSelectedAgents();
 
   // No selection: show agents list
-  if (state.selectedAgentIds.size === 0) {
+  if (selectedAgentIds.size === 0) {
     return <AgentsList onOpenAreaExplorer={onOpenAreaExplorer} />;
   }
 
   // Single selection: show single agent panel
-  if (state.selectedAgentIds.size === 1) {
+  if (selectedAgentIds.size === 1) {
     const agent = selectedAgents[0];
     if (!agent) return <AgentsList onOpenAreaExplorer={onOpenAreaExplorer} />;
     return (

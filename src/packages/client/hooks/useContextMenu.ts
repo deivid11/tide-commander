@@ -3,7 +3,7 @@
  * Tracks screen position, world position, and target for the right-click context menu
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 
 /** Target information for context menu */
 export interface ContextMenuTarget {
@@ -62,14 +62,17 @@ export function useContextMenu(): ContextMenuState {
     setIsOpen(false);
   }, []);
 
-  return {
-    isOpen,
-    screenPosition,
-    worldPosition,
-    target,
-    open,
-    close,
-  };
+  return useMemo(
+    () => ({
+      isOpen,
+      screenPosition,
+      worldPosition,
+      target,
+      open,
+      close,
+    }),
+    [isOpen, screenPosition, worldPosition, target, open, close]
+  );
 }
 
 export default useContextMenu;

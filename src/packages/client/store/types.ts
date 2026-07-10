@@ -176,6 +176,9 @@ export interface Settings {
   vibrationIntensity: number;
   // Custom browser tab title (empty = default "Tide Commander")
   tabTitle?: string;
+  // Show bash command output inline below the command row in the terminal
+  // (global: applies to every bash output, live and history)
+  inlineBashOutputs: boolean;
   // tmux process persistence (server-synced)
   tmuxMode: boolean;
   // Experimental: run Claude agents as the real interactive TUI inside tmux,
@@ -196,6 +199,7 @@ export const DEFAULT_SETTINGS: Settings = {
   externalEditorCommand: '',
   vibrationIntensity: 1,
   tabTitle: '',
+  inlineBashOutputs: false,
   tmuxMode: false,
   interactiveMode: false,
 };

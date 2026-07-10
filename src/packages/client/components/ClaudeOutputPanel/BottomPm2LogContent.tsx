@@ -7,7 +7,7 @@
 
 import { memo, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useStore } from '../../store';
+import { useStreamingBuildingLogs } from '../../store/selectors';
 import { trimLogBufferByLines } from '../../utils/logRetention';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 
@@ -20,7 +20,7 @@ export const BottomPm2LogContent = memo(function BottomPm2LogContent({
   filterText: string;
   maxRetention: number | null;
 }) {
-  const { streamingBuildingLogs } = useStore();
+  const streamingBuildingLogs = useStreamingBuildingLogs();
   const logs = streamingBuildingLogs.get(buildingId) || '';
   const logRef = useRef<HTMLDivElement>(null);
   const isUserScrolledUpRef = useRef(false);

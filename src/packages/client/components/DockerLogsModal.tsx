@@ -5,7 +5,8 @@
 
 import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useStore } from '../store';
+import { store } from '../store';
+import { useStreamingBuildingLogs, useStreamingBuildingIds } from '../store/selectors';
 import { LogViewerModal } from './LogViewerModal';
 import type { LogLine } from './LogViewerModal';
 import type { Building } from '../../shared/types';
@@ -20,7 +21,8 @@ interface DockerLogsModalProps {
 
 export function DockerLogsModal({ building, isOpen, onClose, onMinimize }: DockerLogsModalProps) {
   const { t } = useTranslation(['terminal']);
-  const { streamingBuildingLogs, streamingBuildingIds } = useStore();
+  const streamingBuildingLogs = useStreamingBuildingLogs();
+  const streamingBuildingIds = useStreamingBuildingIds();
   const logs = streamingBuildingLogs.get(building.id) || '';
   const isStreaming = streamingBuildingIds.has(building.id);
 

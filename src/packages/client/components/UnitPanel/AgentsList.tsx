@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useEffect, useMemo, memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useStore, store, useCustomAgentClassesArray } from '../../store';
+import { store, useAgentsArray, useAreas, useSelectedAgentIds, useAgentsWithUnseenOutput, useCustomAgentClassesArray } from '../../store';
 import { getClassConfig } from '../../utils/classConfig';
 import { formatIdleTime } from '../../utils/formatting';
 import { getIdleTimerColor } from '../../utils/colors';
@@ -31,9 +31,9 @@ type StatusFilter = 'all' | 'active' | 'idle' | 'error' | 'waiting';
 
 export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
   const { t } = useTranslation(['common']);
-  const state = useStore();
-  const agentsArray = Array.from(state.agents.values());
-  const areasArray = Array.from(state.areas.values());
+  const areas = useAreas();
+  const agentsArray = useAgentsArray();
+  const areasArray = useMemo(() => Array.from(areas.values()), [areas]);
 
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -46,7 +46,7 @@ export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Agents with unseen output (completed work but user hasn't viewed yet)
-  const unseenAgents = state.agentsWithUnseenOutput;
+  const unseenAgents = useAgentsWithUnseenOutput();
 
   // Compute status counts for filter chips
   const statusCounts = useMemo(() => {
@@ -88,23 +88,53 @@ export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
   // Sort filtered agents by activity (working first, then by recency)
   const sortedAgents = useMemo(() => sortAgentsByActivity(filteredAgents), [filteredAgents]);
 
-  // Group sorted agents by area
-  const agentsByArea = groupAgentsByArea(sortedAgents, (id) => store.getAreaForAgent(id));
+  // Group sorted agents by area and sort the area ids (areas first
+  // alphabetically, then unassigned). getAreaForAgent reads agent positions +
+  // areas from the store; both are covered by the deps (a position change
+  // replaces the agent object, which changes sortedAgents).
+  const { agentsByArea, sortedAreaIds } = useMemo(() => {
+    const grouped = groupAgentsByArea(sortedAgents, (id) => store.getAreaForAgent(id));
 
-  // Make sure all areas are included (even empty ones) only when not filtering
-  if (!searchQuery && statusFilter === 'all') {
-    for (const area of areasArray) {
-      if (!agentsByArea.has(area.id)) {
-        agentsByArea.set(area.id, []);
+    // Make sure all areas are included (even empty ones) only when not filtering
+    if (!searchQuery && statusFilter === 'all') {
+      for (const area of areasArray) {
+        if (!grouped.has(area.id)) {
+          grouped.set(area.id, []);
+        }
       }
     }
-  }
 
-  // Sort: areas first (alphabetically), then unassigned
-  const sortedAreaIds = sortAreaIds(
-    Array.from(agentsByArea.keys()),
-    (id) => state.areas.get(id)
-  );
+    const ids = sortAreaIds(
+      Array.from(grouped.keys()),
+      (id) => areas.get(id)
+    );
+    return { agentsByArea: grouped, sortedAreaIds: ids };
+  }, [sortedAgents, areas, areasArray, searchQuery, statusFilter]);
+
+  // Resolve subordinate Agent[] per boss here (the parent already re-renders
+  // on every agents tick) so each memoized AgentListItem doesn't need its own
+  // broad useAgents() subscription. Previous arrays are reused via a ref cache
+  // when contents are unchanged so fresh identities don't defeat the row memo.
+  const subordinatesCacheRef = useRef(new Map<string, Agent[]>());
+  const subordinatesByBoss = useMemo(() => {
+    const byId = new Map(agentsArray.map((a) => [a.id, a]));
+    const cache = subordinatesCacheRef.current;
+    const result = new Map<string, Agent[]>();
+    for (const agent of agentsArray) {
+      const isBoss = agent.isBoss === true || agent.class === 'boss';
+      if (!isBoss || !agent.subordinateIds) continue;
+      const subs = agent.subordinateIds
+        .map((id) => byId.get(id))
+        .filter((a): a is Agent => a !== undefined);
+      const prev = cache.get(agent.id);
+      const reused = prev && prev.length === subs.length && prev.every((a, i) => a === subs[i])
+        ? prev
+        : subs;
+      cache.set(agent.id, reused);
+      result.set(agent.id, reused);
+    }
+    return result;
+  }, [agentsArray]);
 
   const handleFilterChange = useCallback((filter: StatusFilter) => {
     setStatusFilter(filter);
@@ -213,7 +243,7 @@ export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
       <div className="agents-list-scroll">
         {sortedAreaIds.map((areaId) => {
           const agents = agentsByArea.get(areaId)!;
-          const area = areaId ? state.areas.get(areaId) : null;
+          const area = areaId ? areas.get(areaId) : null;
 
           // Hide empty groups when filtering
           if (isFiltering && agents.length === 0) return null;
@@ -253,7 +283,13 @@ export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
                   style={area ? { background: `${area.color}08` } : undefined}
                 >
                   {agents.map((agent) => (
-                    <AgentListItem key={agent.id} agent={agent} area={area} searchQuery={searchQuery} />
+                    <AgentListItem
+                      key={agent.id}
+                      agent={agent}
+                      area={area}
+                      searchQuery={searchQuery}
+                      subordinates={subordinatesByBoss.get(agent.id)}
+                    />
                   ))}
                 </div>
               )}
@@ -279,14 +315,20 @@ export function AgentsList({ onOpenAreaExplorer }: AgentsListProps) {
 
 interface EnhancedAgentListItemProps extends AgentListItemProps {
   searchQuery?: string;
+  /** Resolved subordinate agents for boss rows — computed by the parent so
+   * this memoized row doesn't need a broad useAgents() subscription. */
+  subordinates?: Agent[];
 }
 
-const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQuery = '' }: EnhancedAgentListItemProps) {
-  const state = useStore();
+const EMPTY_SUBORDINATES: Agent[] = [];
+
+const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQuery = '', subordinates = EMPTY_SUBORDINATES }: EnhancedAgentListItemProps) {
+  const selectedAgentIds = useSelectedAgentIds();
+  const unseenAgents = useAgentsWithUnseenOutput();
   const customClasses = useCustomAgentClassesArray();
   const classConfig = getClassConfig(agent.class, customClasses);
-  const isSelected = state.selectedAgentIds.has(agent.id);
-  const hasUnread = state.agentsWithUnseenOutput.has(agent.id);
+  const isSelected = selectedAgentIds.has(agent.id);
+  const hasUnread = unseenAgents.has(agent.id);
   const [, setTick] = useState(0);
 
   // Update idle timer every 15 seconds when agent is idle
@@ -314,14 +356,6 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQu
   // Provider info
   const providerLabel = agent.provider === 'codex' ? 'CX' : agent.provider === 'opencode' ? 'OC' : 'CL';
   const providerTitle = agent.provider === 'codex' ? 'OpenAI Codex' : agent.provider === 'opencode' ? 'OpenCode' : 'Claude';
-
-  // Boss subordinates (for the progress dots indicator)
-  const isBoss = agent.isBoss === true || agent.class === 'boss';
-  const subordinates: Agent[] = isBoss && agent.subordinateIds
-    ? agent.subordinateIds
-        .map((id) => state.agents.get(id))
-        .filter((a): a is Agent => a !== undefined)
-    : [];
 
   // Highlight matching text
   const highlightText = (text: string) => {

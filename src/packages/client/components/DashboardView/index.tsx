@@ -107,20 +107,26 @@ export function DashboardView({
     return `${grouping}:${group.label}`;
   }, [grouping]);
 
+  // Sort each group's agents once — both the rendered grid and visibleAgents
+  // derive from this.
+  const sortedGroups = useMemo(() => groups.map((group) => ({
+    ...group,
+    sortedAgents: grouping === 'status'
+      ? sortAgentsInGroupWithOptions(group.agents, { prioritizeRecentlyIdle: true })
+      : sortAgentsInGroup(group.agents),
+  })), [groups, grouping]);
+
   const visibleAgents = useMemo(() => {
     const agentsInView: Agent[] = [];
-    groups.forEach((group) => {
+    sortedGroups.forEach((group) => {
       const groupKey = getGroupKey(group);
       if (collapsedGroups.has(groupKey)) {
         return;
       }
-      const sorted = grouping === 'status'
-        ? sortAgentsInGroupWithOptions(group.agents, { prioritizeRecentlyIdle: true })
-        : sortAgentsInGroup(group.agents);
-      agentsInView.push(...sorted);
+      agentsInView.push(...group.sortedAgents);
     });
     return agentsInView;
-  }, [groups, collapsedGroups, grouping, getGroupKey]);
+  }, [sortedGroups, collapsedGroups, getGroupKey]);
 
   const toggleGroup = useCallback((groupKey: string) => {
     setCollapsedGroups(prev => {
@@ -132,6 +138,18 @@ export function DashboardView({
   }, []);
 
   const handleDoubleClick = useCallback((agentId: string) => {
+    onOpenTerminal?.(agentId);
+  }, [onOpenTerminal]);
+
+  // Stable per-id handlers so the memoized AgentCards aren't re-rendered by
+  // fresh inline lambdas on every parent render.
+  const handleSelect = useCallback((agentId: string) => {
+    onSelectAgent?.(agentId);
+    setKeyboardSelectorEnabled(true);
+    setKeyboardFocusedAgentId(agentId);
+  }, [onSelectAgent]);
+
+  const handleChat = useCallback((agentId: string) => {
     onOpenTerminal?.(agentId);
   }, [onOpenTerminal]);
 
@@ -474,12 +492,10 @@ export function DashboardView({
       {/* Scrollable content */}
       <div className="dashboard-view__content">
         {/* Zone groups */}
-        {groups.map((group) => {
+        {sortedGroups.map((group) => {
           const groupKey = getGroupKey(group);
           const isCollapsed = collapsedGroups.has(groupKey);
-          const sorted = grouping === 'status'
-            ? sortAgentsInGroupWithOptions(group.agents, { prioritizeRecentlyIdle: true })
-            : sortAgentsInGroup(group.agents);
+          const sorted = group.sortedAgents;
           const workingCount = group.agents.filter(a => a.status === 'working' || a.status === 'waiting' || a.status === 'waiting_permission').length;
           const unseenCount = group.agents.filter(a => agentsWithUnseenOutput.has(a.id)).length;
 
@@ -532,15 +548,11 @@ export function DashboardView({
                       agent={agent}
                       isSelected={selectedAgentIds.has(agent.id)}
                       isKeyboardFocused={keyboardSelectorEnabled && keyboardFocusedAgentId === agent.id}
-                      onSelect={() => {
-                        onSelectAgent?.(agent.id);
-                        setKeyboardSelectorEnabled(true);
-                        setKeyboardFocusedAgentId(agent.id);
-                      }}
-                      onDoubleClick={() => handleDoubleClick(agent.id)}
-                      onChat={() => onOpenTerminal?.(agent.id)}
-                      onFocus={onFocusAgent ? () => onFocusAgent(agent.id) : undefined}
-                      onKill={onKillAgent ? () => onKillAgent(agent.id) : undefined}
+                      onSelect={handleSelect}
+                      onDoubleClick={handleDoubleClick}
+                      onChat={handleChat}
+                      onFocus={onFocusAgent}
+                      onKill={onKillAgent}
                       onDragStart={handleDragStart}
                     />
                   ))}

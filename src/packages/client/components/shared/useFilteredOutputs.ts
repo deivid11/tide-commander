@@ -174,6 +174,16 @@ export function sortOutputsChronologically(outputs: ClaudeOutput[]): ClaudeOutpu
   return indexed.map((x) => x.o);
 }
 
+/** Value equality for computed edit enrichment (a fresh object is parsed per pass). */
+function editDataEquals(a: EditData | undefined, b: EditData | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.oldString === b.oldString
+    && a.newString === b.newString
+    && a.operation === b.operation
+    && a.unifiedDiff === b.unifiedDiff;
+}
+
 /**
  * Hook to filter and enrich outputs based on view mode
  * - Advanced: show all outputs as-is
@@ -184,6 +194,15 @@ export function useFilteredOutputs({
   outputs,
   viewMode,
 }: UseFilteredOutputsOptions): EnrichedOutput[] {
+  // Reuses the previous enriched object for a tool row when both the source
+  // output identity and every computed enrichment field are unchanged — a
+  // fresh `{ ...output }` per streamed chunk mints new identities that defeat
+  // React.memo on every visible tool row downstream. Keyed by source object
+  // identity (the store replaces output objects immutably, never mutates).
+  // Rebuilt from scratch each pass, so it only ever holds entries for the
+  // current outputs array — no growth across agents or after truncation.
+  const enrichedToolCacheRef = useRef(new Map<ClaudeOutput, EnrichedOutput>());
+
   return useMemo(() => {
     if (viewMode === 'advanced') return outputs;
 
@@ -208,6 +227,9 @@ export function useFilteredOutputs({
         bashOutputByUuid.set(o.uuid, o.text.replace('Bash output:', '').trim());
       }
     }
+
+    const prevEnriched = enrichedToolCacheRef.current;
+    const nextEnriched = new Map<ClaudeOutput, EnrichedOutput>();
 
     const result: EnrichedOutput[] = [];
     for (let i = 0; i < outputs.length; i++) {
@@ -306,15 +328,27 @@ export function useFilteredOutputs({
         // For Bash: if no output captured yet, mark as running
         const isRunning = toolName === 'Bash' && !bashOutput;
 
-        result.push({
-          ...output,
-          _toolKeyParam: keyParam || undefined,
-          _editData: editData,
-          _todoInput: todoInputText,
-          _bashOutput: bashOutput,
-          _bashCommand: bashCommand,
-          _isRunning: isRunning,
-        } as EnrichedOutput);
+        const toolKeyParam = keyParam || undefined;
+        const cached = prevEnriched.get(output);
+        const enriched: EnrichedOutput = cached
+          && cached._toolKeyParam === toolKeyParam
+          && editDataEquals(cached._editData, editData)
+          && cached._todoInput === todoInputText
+          && cached._bashOutput === bashOutput
+          && cached._bashCommand === bashCommand
+          && cached._isRunning === isRunning
+          ? cached
+          : ({
+              ...output,
+              _toolKeyParam: toolKeyParam,
+              _editData: editData,
+              _todoInput: todoInputText,
+              _bashOutput: bashOutput,
+              _bashCommand: bashCommand,
+              _isRunning: isRunning,
+            } as EnrichedOutput);
+        nextEnriched.set(output, enriched);
+        result.push(enriched);
         continue;
       }
 
@@ -322,6 +356,7 @@ export function useFilteredOutputs({
         result.push(output);
       }
     }
+    enrichedToolCacheRef.current = nextEnriched;
     return result;
   }, [outputs, viewMode]);
 }

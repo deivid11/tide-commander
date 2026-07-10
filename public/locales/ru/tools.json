@@ -45,7 +45,9 @@
       "listFiles": "ListFiles",
       "searchFiles": "SearchFiles",
       "executeCommand": "ExecuteCommand"
-    }
+    },
+    "showOutputsInline": "Показывать все выводы bash в строке",
+    "hideOutputsInline": "Скрыть встроенные выводы bash"
   },
   "metadata": {
     "messageInfo": "Информация о сообщении",

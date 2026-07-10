@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
-import { useStore, store, useCustomAgentClassesArray } from '../../store';
+import { useSettings, store, useCustomAgentClassesArray } from '../../store';
 import { getBackendUrls, setBackendUrls, subscribeBackendUrlChange, STORAGE_KEYS, setStorageString, getStorageString, getAuthToken } from '../../utils/storage';
 import { BUILT_IN_AGENT_CLASSES } from '../../../shared/agent-types';
 import { reconnect } from '../../websocket';
@@ -225,10 +225,10 @@ const LANGUAGE_OPTIONS: { value: string; label: string; icon: string }[] = [
 
 export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegrationsModal, onOpenMonitoringModal, onOpenStatisticsModal, onOpenWorkflowEditor, onOpenTriggerManager }: ConfigSectionProps) {
   const { t } = useTranslation(['config', 'common']);
-  const state = useStore();
+  const settings = useSettings();
   const customClasses = useCustomAgentClassesArray();
   const [defaultSpawnClass, setDefaultSpawnClassState] = useState(() => getStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS) || 'scout');
-  const [historyLimit, setHistoryLimit] = useState(state.settings.historyLimit);
+  const [historyLimit, setHistoryLimit] = useState(settings.historyLimit);
   const [backendUrls, setBackendUrlsState] = useState<string[]>(() => getBackendUrls());
   const [backendUrlsDirty, setBackendUrlsDirty] = useState(false);
   const [newBackendUrl, setNewBackendUrl] = useState('');
@@ -252,7 +252,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
   // Sync echo prompt setting from server on mount
   useEffect(() => {
     fetchEchoPromptSetting().then((enabled) => {
-      if (enabled !== state.settings.experimentalEchoPrompt) {
+      if (enabled !== settings.experimentalEchoPrompt) {
         store.updateSettings({ experimentalEchoPrompt: enabled });
       }
     }).catch(() => { /* ignore fetch errors on mount */ });
@@ -261,7 +261,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
   // Sync tmux mode setting from server on mount
   useEffect(() => {
     fetchTmuxModeSetting().then((enabled) => {
-      if (enabled !== state.settings.tmuxMode) {
+      if (enabled !== settings.tmuxMode) {
         store.updateSettings({ tmuxMode: enabled });
       }
     }).catch(() => { /* ignore fetch errors on mount */ });
@@ -270,7 +270,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
   // Sync experimental interactive-TUI mode setting from server on mount
   useEffect(() => {
     fetchInteractiveModeSetting().then((enabled) => {
-      if (enabled !== state.settings.interactiveMode) {
+      if (enabled !== settings.interactiveMode) {
         store.updateSettings({ interactiveMode: enabled });
       }
     }).catch(() => { /* ignore fetch errors on mount */ });
@@ -309,7 +309,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
 
   const anyIntegrationsMatch = shouldShowSection('integrations');
 
-  const customAgentNames = state.settings.customAgentNames || [];
+  const customAgentNames = settings.customAgentNames || [];
   const effectiveNames = customAgentNames.length > 0 ? customAgentNames : BUILTIN_AGENT_NAMES;
 
   const handleAddAgentName = () => {
@@ -424,7 +424,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         </div>
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('config:general.hideCosts')} query={searchQuery} /></span>
-          <Toggle checked={state.settings.hideCost} onChange={(checked) => store.updateSettings({ hideCost: checked })} />
+          <Toggle checked={settings.hideCost} onChange={(checked) => store.updateSettings({ hideCost: checked })} />
         </div>
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('config:general.grid')} query={searchQuery} /></span>
@@ -432,7 +432,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         </div>
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('config:general.showFPS')} query={searchQuery} /></span>
-          <Toggle checked={state.settings.showFPS} onChange={(checked) => store.updateSettings({ showFPS: checked })} />
+          <Toggle checked={settings.showFPS} onChange={(checked) => store.updateSettings({ showFPS: checked })} />
         </div>
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('config:general.fpsLimit')} query={searchQuery} /></span>
@@ -441,11 +441,11 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         </div>
         <div className="config-row">
           <span className="config-label" title="Experimental: Reduce FPS when idle to save power"><HighlightText text={t('config:general.powerSaving')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
-          <Toggle checked={state.settings.powerSaving} onChange={(checked) => store.updateSettings({ powerSaving: checked })} />
+          <Toggle checked={settings.powerSaving} onChange={(checked) => store.updateSettings({ powerSaving: checked })} />
         </div>
         <div className="config-row">
           <span className="config-label" title="Wrap agent processes in tmux sessions so they survive server restarts (requires tmux installed)"><HighlightText text={t('config:general.tmuxMode')} query={searchQuery} /></span>
-          <Toggle checked={state.settings.tmuxMode} onChange={async (checked) => {
+          <Toggle checked={settings.tmuxMode} onChange={async (checked) => {
             store.updateSettings({ tmuxMode: checked });
             try {
               await updateTmuxModeSetting(checked);
@@ -456,7 +456,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         </div>
         <div className="config-row">
           <span className="config-label" title="Experimental: run Claude agents as the real interactive `claude` TUI inside tmux, reconstructing the conversation from the session transcript (requires tmux). Takes effect on server restart."><HighlightText text={t('config:general.interactiveMode')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
-          <Toggle checked={state.settings.interactiveMode} onChange={async (checked) => {
+          <Toggle checked={settings.interactiveMode} onChange={async (checked) => {
             store.updateSettings({ interactiveMode: checked });
             try {
               await updateInteractiveModeSetting(checked);
@@ -467,28 +467,28 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         </div>
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('config:general.vibrationIntensity')} query={searchQuery} /></span>
-          <input type="range" className="config-slider" min="0" max="5" step="1" value={state.settings.vibrationIntensity} onChange={(e) => store.updateSettings({ vibrationIntensity: parseInt(e.target.value) })} />
+          <input type="range" className="config-slider" min="0" max="5" step="1" value={settings.vibrationIntensity} onChange={(e) => store.updateSettings({ vibrationIntensity: parseInt(e.target.value) })} />
           <span className="config-value">
-            {state.settings.vibrationIntensity === 0
+            {settings.vibrationIntensity === 0
               ? t('config:vibrationValues.off')
-              : state.settings.vibrationIntensity === 1
+              : settings.vibrationIntensity === 1
                 ? t('config:vibrationValues.ultraLight')
-                : state.settings.vibrationIntensity === 2
+                : settings.vibrationIntensity === 2
                   ? t('config:vibrationValues.veryLight')
-                  : state.settings.vibrationIntensity === 3
+                  : settings.vibrationIntensity === 3
                     ? t('config:vibrationValues.light')
-                    : state.settings.vibrationIntensity === 4
+                    : settings.vibrationIntensity === 4
                       ? t('config:vibrationValues.medium')
                       : t('config:vibrationValues.heavy')}
           </span>
         </div>
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('config:general.externalEditor')} query={searchQuery} /></span>
-          <input type="text" className="config-input" placeholder={t('config:general.externalEditorPlaceholder')} value={state.settings.externalEditorCommand || ''} onChange={(e) => store.updateSettings({ externalEditorCommand: e.target.value })} />
+          <input type="text" className="config-input" placeholder={t('config:general.externalEditorPlaceholder')} value={settings.externalEditorCommand || ''} onChange={(e) => store.updateSettings({ externalEditorCommand: e.target.value })} />
         </div>
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('config:general.tabTitle')} query={searchQuery} /></span>
-          <input type="text" className="config-input" placeholder={t('config:general.tabTitlePlaceholder')} value={state.settings.tabTitle || ''} onChange={(e) => store.updateSettings({ tabTitle: e.target.value })} />
+          <input type="text" className="config-input" placeholder={t('config:general.tabTitlePlaceholder')} value={settings.tabTitle || ''} onChange={(e) => store.updateSettings({ tabTitle: e.target.value })} />
         </div>
         <div className="config-group">
           <span className="config-label"><HighlightText text={t('config:general.language')} query={searchQuery} /></span>
@@ -889,19 +889,19 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       <CollapsibleSection title={t('config:sections.experimental')} storageKey="experimental" defaultOpen={false} forceOpen={isSearching && shouldShowSection('experimental')}>
         <div className="config-row">
           <span className="config-label" title="Lightweight 2D top-down view for better performance"><HighlightText text={t('config:experimental.2dView')} query={searchQuery} /> <Icon name="map" size={12} /></span>
-          <Toggle checked={state.settings.experimental2DView} onChange={(checked) => store.updateSettings({ experimental2DView: checked })} />
+          <Toggle checked={settings.experimental2DView} onChange={(checked) => store.updateSettings({ experimental2DView: checked })} />
         </div>
         <div className="config-row">
           <span className="config-label" title="Voice assistant for hands-free agent control"><HighlightText text={t('config:experimental.voiceAssistant')} query={searchQuery} /> <Icon name="microphone" size={12} /></span>
-          <Toggle checked={state.settings.experimentalVoiceAssistant} onChange={(checked) => store.updateSettings({ experimentalVoiceAssistant: checked })} />
+          <Toggle checked={settings.experimentalVoiceAssistant} onChange={(checked) => store.updateSettings({ experimentalVoiceAssistant: checked })} />
         </div>
         <div className="config-row">
           <span className="config-label" title="Text-to-speech for reading agent responses"><HighlightText text={t('config:experimental.tts')} query={searchQuery} /> <Icon name="speaker-on" size={12} /></span>
-          <Toggle checked={state.settings.experimentalTTS} onChange={(checked) => store.updateSettings({ experimentalTTS: checked })} />
+          <Toggle checked={settings.experimentalTTS} onChange={(checked) => store.updateSettings({ experimentalTTS: checked })} />
         </div>
         <div className="config-row">
           <span className="config-label" title="Duplicate system prompt for improved LLM attention coverage. Increases input token usage."><HighlightText text={t('config:experimental.echoPrompt')} query={searchQuery} /></span>
-          <Toggle checked={state.settings.experimentalEchoPrompt} onChange={async (checked) => {
+          <Toggle checked={settings.experimentalEchoPrompt} onChange={async (checked) => {
             store.updateSettings({ experimentalEchoPrompt: checked });
             try {
               await updateEchoPromptSetting(checked);

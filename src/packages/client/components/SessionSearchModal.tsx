@@ -13,7 +13,7 @@ import { ModalPortal } from './shared/ModalPortal';
 import { Icon } from './Icon';
 import { AgentIcon } from './AgentIcon';
 import type { Agent } from '../../shared/types';
-import { store, useStore } from '../store';
+import { store, useAgents, useSelectedAgentIds } from '../store';
 import {
   fetchGlobalSessions,
   searchGlobalSessions,
@@ -113,17 +113,18 @@ export const SessionSearchModal = memo(function SessionSearchModal({
   onClose,
   initialAgentId,
 }: SessionSearchModalProps) {
-  const state = useStore();
+  const agentsMap = useAgents();
+  const selectedAgentIds = useSelectedAgentIds();
   const agents = useMemo(
-    () => Array.from(state.agents.values()).sort((a, b) => a.name.localeCompare(b.name)),
-    [state.agents]
+    () => Array.from(agentsMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+    [agentsMap]
   );
   const defaultSelectedAgentId = useMemo(() => {
-    if (initialAgentId && state.agents.has(initialAgentId)) return initialAgentId;
-    const ids = Array.from(state.selectedAgentIds);
-    if (ids.length > 0 && state.agents.has(ids[0])) return ids[0];
+    if (initialAgentId && agentsMap.has(initialAgentId)) return initialAgentId;
+    const ids = Array.from(selectedAgentIds);
+    if (ids.length > 0 && agentsMap.has(ids[0])) return ids[0];
     return agents[0]?.id ?? '';
-  }, [initialAgentId, state.agents, state.selectedAgentIds, agents]);
+  }, [initialAgentId, agentsMap, selectedAgentIds, agents]);
 
   const [targetAgentId, setTargetAgentId] = useState(defaultSelectedAgentId);
   const [query, setQuery] = useState('');
@@ -140,7 +141,7 @@ export const SessionSearchModal = memo(function SessionSearchModal({
   const matchRefs = useRef<HTMLElement[]>([]);
   const previewMessagesRef = useRef<HTMLDivElement | null>(null);
 
-  const targetAgent = state.agents.get(targetAgentId);
+  const targetAgent = agentsMap.get(targetAgentId);
   const selectedRow = useMemo(
     () => results.find((r) => `${r.projectPath}::${r.sessionId}` === selectedKey) || null,
     [results, selectedKey]
@@ -151,11 +152,11 @@ export const SessionSearchModal = memo(function SessionSearchModal({
   // current at a time, so a one-to-one map is fine.
   const sessionToAgent = useMemo(() => {
     const map = new Map<string, Agent>();
-    for (const a of state.agents.values()) {
+    for (const a of agentsMap.values()) {
       if (a.sessionId) map.set(a.sessionId, a);
     }
     return map;
-  }, [state.agents]);
+  }, [agentsMap]);
 
   // Reset agent target when modal reopens
   useEffect(() => {

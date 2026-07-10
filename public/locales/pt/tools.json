@@ -45,7 +45,9 @@
       "listFiles": "ListFiles",
       "searchFiles": "SearchFiles",
       "executeCommand": "ExecuteCommand"
-    }
+    },
+    "showOutputsInline": "Mostrar todas as saídas do bash em linha",
+    "hideOutputsInline": "Ocultar as saídas do bash em linha"
   },
   "metadata": {
     "messageInfo": "Info da Mensagem",

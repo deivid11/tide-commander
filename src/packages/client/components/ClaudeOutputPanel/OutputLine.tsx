@@ -31,6 +31,7 @@ import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { useTTS } from '../../hooks/useTTS';
 import { Icon, type IconName } from '../Icon';
+import { BashInlineToggle, BashInlineOutput } from './BashInlineOutput';
 import type { EditData } from './types';
 import type { ExecTask, Subagent } from '../../../shared/types';
 import { SubagentInline } from './SubagentInline';
@@ -1055,8 +1056,17 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               <Icon name={execTasks.some(t => t.status === 'completed') ? 'success' : (hasBashOutput ? 'file-text' : 'terminal')} size={12} />
             </span>
           )}
+          {isBashTool && <BashInlineToggle enabled={settings.inlineBashOutputs} />}
           {isStreaming && <span className="output-tool-loading">...</span>}
         </div>
+
+        {/* Global inline-output mode: show the captured output right below the
+            command. Skipped for rows that already stream their result inline
+            (exec tasks, test runs, HTTP run cards). */}
+        {isBashTool && settings.inlineBashOutputs && !_isRunning
+          && !showInlineRunningTasks && !matchingTestRunId && !matchingHttpRunId && (
+          <BashInlineOutput text={_bashOutput || (typeof payloadToolOutput === 'string' ? payloadToolOutput : '')} />
+        )}
 
         {/* Inline image thumbnail when a Read targets an image file */}
         {readImageThumb && (

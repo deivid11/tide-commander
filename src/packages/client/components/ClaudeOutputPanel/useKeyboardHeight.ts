@@ -10,7 +10,7 @@
  * Viewport API detection is skipped to avoid conflicts.
  */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 declare global {
   interface Window {
@@ -255,11 +255,14 @@ export function useKeyboardHeight(): UseKeyboardHeightReturn {
     };
   }, [setKeyboardState]);
 
-  return {
+  // Stable return identity: every member is a ref or useCallback, but a fresh
+  // object literal per render re-fired consumers' effects keyed on the whole
+  // object (e.g. AgentTerminalPane's unmount-cleanup effect).
+  return useMemo(() => ({
     isInputFocusedRef,
     keyboardScrollLockRef,
     handleInputFocus,
     handleInputBlur,
     cleanup,
-  };
+  }), [isInputFocusedRef, keyboardScrollLockRef, handleInputFocus, handleInputBlur, cleanup]);
 }

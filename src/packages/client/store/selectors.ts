@@ -21,6 +21,7 @@ import type {
   QueryHistoryEntry,
   Subagent,
   GitWatchedDirStatus,
+  SessionHistoryEntry,
 } from '../../shared/types';
 import type {
   StoreState,
@@ -459,6 +460,36 @@ export function useBuildingLogs(): Map<string, string[]> {
   );
 }
 
+/**
+ * Get streaming log buffers per building. Only re-renders when a buffer changes.
+ */
+export function useStreamingBuildingLogs(): Map<string, string> {
+  return useSelector(
+    useCallback((state: StoreState) => state.streamingBuildingLogs, []),
+    shallowMapEqual
+  );
+}
+
+/**
+ * Get building IDs currently streaming logs. Only re-renders when the set changes.
+ */
+export function useStreamingBuildingIds(): Set<string> {
+  return useSelector(
+    useCallback((state: StoreState) => state.streamingBuildingIds, []),
+    shallowSetEqual
+  );
+}
+
+/**
+ * Get boss streaming logs (subordinate chunks per boss). Only re-renders when they change.
+ */
+export function useBossStreamingLogs(): StoreState['bossStreamingLogs'] {
+  return useSelector(
+    useCallback((state: StoreState) => state.bossStreamingLogs, []),
+    shallowMapEqual
+  );
+}
+
 // ============================================================================
 // PERMISSION SELECTORS
 // ============================================================================
@@ -490,7 +521,10 @@ export function useAgentPrompts(agentId: string | null | undefined): AgentPrompt
         return filtered.length === 0 ? emptyArray.current : filtered;
       },
       [agentId]
-    )
+    ),
+    // The selector builds a fresh array whenever prompts are pending; without
+    // shallow equality every subscriber re-renders on every store notify.
+    shallowArrayEqual
   );
 }
 
@@ -661,6 +695,38 @@ export function useExplorerFolderPath(): string | null {
 }
 
 /**
+ * Get file explorer area ID. Only re-renders when it changes.
+ */
+export function useExplorerAreaId(): string | null {
+  return useSelector(useCallback((state: StoreState) => state.explorerAreaId, []));
+}
+
+/**
+ * Whether the file viewer should reveal the file in the tree. Only re-renders when it changes.
+ */
+export function useFileViewerRevealInTree(): boolean {
+  return useSelector(useCallback((state: StoreState) => state.fileViewerRevealInTree, []));
+}
+
+/**
+ * Get session history entries for a specific agent. Only re-renders when that
+ * agent's history changes.
+ */
+export function useSessionHistory(agentId: string | null): SessionHistoryEntry[] {
+  const emptyArray = useRef<SessionHistoryEntry[]>([]);
+  return useSelector(
+    useCallback(
+      (state: StoreState) => {
+        if (!agentId) return emptyArray.current;
+        return state.sessionHistories.get(agentId) || emptyArray.current;
+      },
+      [agentId]
+    ),
+    shallowArrayEqual
+  );
+}
+
+/**
  * Get context modal agent ID. Only re-renders when it changes.
  */
 export function useContextModalAgentId(): string | null {
@@ -743,6 +809,7 @@ export function useSkill(skillId: string | null): Skill | undefined {
  */
 export function useAgentSkills(agentId: string | null): Skill[] {
   const emptyArray = useRef<Skill[]>([]);
+  const arrayRef = useRef<Skill[]>(emptyArray.current);
   const agents = useAgents();
   const skills = useSkills();
 
@@ -758,7 +825,10 @@ export function useAgentSkills(agentId: string | null): Skill[] {
     return false;
   });
 
-  return matchingSkills;
+  if (!shallowArrayEqual(arrayRef.current, matchingSkills)) {
+    arrayRef.current = matchingSkills;
+  }
+  return arrayRef.current;
 }
 
 // ============================================================================
@@ -1176,7 +1246,7 @@ export function useExecutingQuery(buildingId: string | null): boolean {
  */
 export function useDockerContainersList(): import('../../shared/types').ExistingDockerContainer[] {
   return useSelector(
-    (state: StoreState) => state.dockerContainersList,
+    useCallback((state: StoreState) => state.dockerContainersList, []),
     shallowArrayEqual
   );
 }
@@ -1186,7 +1256,7 @@ export function useDockerContainersList(): import('../../shared/types').Existing
  */
 export function useDockerComposeProjectsList(): import('../../shared/types').ExistingComposeProject[] {
   return useSelector(
-    (state: StoreState) => state.dockerComposeProjectsList,
+    useCallback((state: StoreState) => state.dockerComposeProjectsList, []),
     shallowArrayEqual
   );
 }
@@ -1199,7 +1269,10 @@ export function useDockerComposeProjectsList(): import('../../shared/types').Exi
  * Get all subagents map
  */
 export function useSubagents(): Map<string, Subagent> {
-  return useSelector((state: StoreState) => state.subagents, shallowMapEqual);
+  return useSelector(
+    useCallback((state: StoreState) => state.subagents, []),
+    shallowMapEqual
+  );
 }
 
 /**
@@ -1254,7 +1327,7 @@ export function useSubagentsMapForAgent(parentAgentId: string | null): Map<strin
  * Get current view mode
  */
 export function useViewMode(): StoreState['viewMode'] {
-  return useSelector((state: StoreState) => state.viewMode);
+  return useSelector(useCallback((state: StoreState) => state.viewMode, []));
 }
 
 export function useOverviewPanelOpen(): boolean {

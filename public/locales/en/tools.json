@@ -49,7 +49,9 @@
       "spawnAgent": "Spawn Agent",
       "sendInput": "Send Input",
       "wait": "Wait"
-    }
+    },
+    "showOutputsInline": "Show all bash outputs inline",
+    "hideOutputsInline": "Hide inline bash outputs"
   },
   "metadata": {
     "messageInfo": "Message Info",

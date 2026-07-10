@@ -45,7 +45,9 @@
       "listFiles": "ListFiles",
       "searchFiles": "SearchFiles",
       "executeCommand": "ExecuteCommand"
-    }
+    },
+    "showOutputsInline": "すべてのBash出力をインライン表示",
+    "hideOutputsInline": "インラインBash出力を非表示"
   },
   "metadata": {
     "messageInfo": "メッセージ情報",

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useStore, store } from '../../store';
+import { useAreas, useBuildings, useSelectedBuildingIds, useSelectedAreaId, useActiveTool, store } from '../../store';
 import type { DrawingTool } from '../../../shared/types';
 import type { ToolboxProps } from './types';
 import { CollapsibleSection } from './CollapsibleSection';
@@ -12,9 +12,13 @@ import { ConfigSection } from './ConfigSection';
 
 export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose, onOpenBuildingModal, onOpenAreaExplorer, onOpenIntegrationsModal, onOpenMonitoringModal, onOpenStatisticsModal, onOpenWorkflowEditor, onOpenTriggerManager }: ToolboxProps) {
   const { t } = useTranslation(['config', 'common']);
-  const state = useStore();
-  const areasArray = Array.from(state.areas.values());
-  const buildingsArray = Array.from(state.buildings.values());
+  const areas = useAreas();
+  const buildings = useBuildings();
+  const selectedBuildingIds = useSelectedBuildingIds();
+  const selectedAreaId = useSelectedAreaId();
+  const activeTool = useActiveTool();
+  const areasArray = Array.from(areas.values());
+  const buildingsArray = Array.from(buildings.values());
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -47,12 +51,12 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
   if (!isOpen) return null;
 
   const handleToolSelect = (tool: DrawingTool) => {
-    const newTool = state.activeTool === tool ? null : tool;
+    const newTool = activeTool === tool ? null : tool;
     onToolChange(newTool);
   };
 
   const handleAreaClick = (areaId: string) => {
-    store.selectArea(state.selectedAreaId === areaId ? null : areaId);
+    store.selectArea(selectedAreaId === areaId ? null : areaId);
     onToolChange('select');
   };
 
@@ -107,7 +111,7 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
               {/* Drawing Tools */}
               <div className="tool-buttons">
                 <button
-                  className={`tool-btn ${state.activeTool === 'select' ? 'active' : ''}`}
+                  className={`tool-btn ${activeTool === 'select' ? 'active' : ''}`}
                   onClick={() => handleToolSelect('select')}
                   title={t('config:tools.select')}
                 >
@@ -118,7 +122,7 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
                   </span>
                 </button>
                 <button
-                  className={`tool-btn ${state.activeTool === 'rectangle' ? 'active' : ''}`}
+                  className={`tool-btn ${activeTool === 'rectangle' ? 'active' : ''}`}
                   onClick={() => handleToolSelect('rectangle')}
                   title={t('config:tools.rectangle')}
                 >
@@ -129,7 +133,7 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
                   </span>
                 </button>
                 <button
-                  className={`tool-btn ${state.activeTool === 'circle' ? 'active' : ''}`}
+                  className={`tool-btn ${activeTool === 'circle' ? 'active' : ''}`}
                   onClick={() => handleToolSelect('circle')}
                   title={t('config:tools.circle')}
                 >
@@ -152,7 +156,7 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
                     <AreaItem
                       key={area.id}
                       area={area}
-                      isSelected={state.selectedAreaId === area.id}
+                      isSelected={selectedAreaId === area.id}
                       onClick={() => handleAreaClick(area.id)}
                       onDelete={(e) => handleDeleteArea(e, area.id)}
                     />
@@ -163,9 +167,9 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
           </div>
 
           {/* Area Editor */}
-          {state.selectedAreaId && (
+          {selectedAreaId && (
             <AreaEditor
-              area={state.areas.get(state.selectedAreaId)!}
+              area={areas.get(selectedAreaId)!}
               onClose={() => store.selectArea(null)}
               onOpenFolder={onOpenAreaExplorer}
             />
@@ -199,10 +203,10 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
                     <BuildingItem
                       key={building.id}
                       building={building}
-                      isSelected={state.selectedBuildingIds.has(building.id)}
+                      isSelected={selectedBuildingIds.has(building.id)}
                       onClick={() => {
                         store.selectBuilding(
-                          state.selectedBuildingIds.has(building.id) ? null : building.id
+                          selectedBuildingIds.has(building.id) ? null : building.id
                         );
                       }}
                       onEdit={() => onOpenBuildingModal?.(building.id)}
@@ -214,9 +218,9 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
           </div>
 
           {/* Building Editor - show for single selection */}
-          {state.selectedBuildingIds.size === 1 && (() => {
-            const selectedId = Array.from(state.selectedBuildingIds)[0];
-            const building = state.buildings.get(selectedId);
+          {selectedBuildingIds.size === 1 && (() => {
+            const selectedId = Array.from(selectedBuildingIds)[0];
+            const building = buildings.get(selectedId);
             return building ? (
               <BuildingEditor
                 building={building}

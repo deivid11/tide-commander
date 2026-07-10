@@ -13,7 +13,8 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useStore } from '../store';
+import { store } from '../store';
+import { useStreamingBuildingLogs, useStreamingBuildingIds } from '../store/selectors';
 import { LogViewerModal } from './LogViewerModal';
 import type { LogLine } from './LogViewerModal';
 import { apiUrl, authFetch } from '../utils/storage';
@@ -31,7 +32,8 @@ type ProcessCommand = 'restart' | 'stop';
 
 export function PM2LogsModal({ building, isOpen, onClose, onMinimize }: PM2LogsModalProps) {
   const { t } = useTranslation(['terminal']);
-  const { streamingBuildingLogs, streamingBuildingIds } = useStore();
+  const streamingBuildingLogs = useStreamingBuildingLogs();
+  const streamingBuildingIds = useStreamingBuildingIds();
   const logs = streamingBuildingLogs.get(building.id) || '';
   const isStreaming = streamingBuildingIds.has(building.id);
 
