@@ -9,6 +9,8 @@ import remarkGfm from 'remark-gfm';
 import { Icon } from '../Icon';
 import { TaskListView } from '../shared/TaskListView';
 import { store } from '../../store';
+import { resolveTodoWriteDisplay } from '../../utils/todoMerge';
+import type { BashMemoryKind, BashMemoryCommandInfo, BashMemoryResponseInfo } from '../../utils/outputRendering';
 import type { DiffLine, EditData, TodoItem } from './types';
 
 // ============================================================================
@@ -419,14 +421,33 @@ export function ReadToolInput({ content, onFileClick }: ReadToolInputProps) {
 
 interface TodoWriteInputProps {
   content: string;
+  /**
+   * Prior snapshot used to fill missing `content` on Grok-style merge:true
+   * updates that only send { id, status }.
+   */
+  priorTodos?: TodoItem[];
 }
 
-export function TodoWriteInput({ content }: TodoWriteInputProps) {
+export function TodoWriteInput({ content, priorTodos = [] }: TodoWriteInputProps) {
   try {
-    const input = JSON.parse(content);
-    const todos: TodoItem[] = input.todos;
+    const resolved = resolveTodoWriteDisplay(
+      content,
+      priorTodos.map((t) => ({
+        id: t.id,
+        content: t.content,
+        status: t.status,
+        activeForm: t.activeForm,
+      }))
+    );
 
-    if (!Array.isArray(todos) || todos.length === 0) {
+    const todos: TodoItem[] = resolved.map((t) => ({
+      id: t.id,
+      content: t.content,
+      status: t.status,
+      activeForm: t.activeForm,
+    }));
+
+    if (todos.length === 0) {
       return <pre className="output-input-content">{content}</pre>;
     }
 
@@ -949,8 +970,6 @@ export function TaskUpdateInput({ content, subject }: TaskUpdateInputProps) {
   );
 }
 
-import type { BashMemoryKind, BashMemoryCommandInfo, BashMemoryResponseInfo } from '../../utils/outputRendering';
-
 interface MemoryOpInputProps {
   info: BashMemoryCommandInfo;
   response?: BashMemoryResponseInfo;
@@ -1010,6 +1029,140 @@ export function MemoryOpInput({ info, response }: MemoryOpInputProps) {
 interface UnknownToolInputProps {
   toolName: string;
   content: string;
+  /** When true, only show the compact chips (no raw JSON toggle). */
+  chipsOnly?: boolean;
+}
+
+/** Pretty key/value chips for simple tool payloads (Grok ListFiles, task output, etc.). */
+export function ToolInputChips({
+  data,
+  preferKeys,
+}: {
+  data: Record<string, unknown>;
+  preferKeys?: string[];
+}) {
+  const entries = Object.entries(data).filter(([, v]) => v !== undefined && v !== null && v !== '');
+  if (entries.length === 0) return null;
+
+  // Prefer important keys first when provided
+  const ordered = preferKeys
+    ? [
+        ...preferKeys
+          .map((k) => entries.find(([ek]) => ek === k))
+          .filter((e): e is [string, unknown] => !!e),
+        ...entries.filter(([k]) => !preferKeys.includes(k)),
+      ]
+    : entries;
+
+  return (
+    <div className="tool-input-chips">
+      {ordered.map(([key, value]) => {
+        let display: string;
+        if (Array.isArray(value)) {
+          if (value.length === 0) display = '[]';
+          else if (value.every((v) => typeof v === 'string' || typeof v === 'number')) {
+            display = value.map((v) => String(v)).join(', ');
+            if (display.length > 80) {
+              display = `${value.length} item${value.length === 1 ? '' : 's'}`;
+            }
+          } else {
+            display = `${value.length} item${value.length === 1 ? '' : 's'}`;
+          }
+        } else if (typeof value === 'object') {
+          display = JSON.stringify(value);
+          if (display.length > 60) display = '{…}';
+        } else if (typeof value === 'number' && /timeout|ms$/i.test(key) && value >= 1000) {
+          display = `${Math.round(value / 1000)}s`;
+        } else {
+          display = String(value);
+        }
+        if (display.length > 100) display = `${display.slice(0, 97)}…`;
+
+        const label = key
+          .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+          .replace(/[_-]+/g, ' ')
+          .toLowerCase();
+
+        return (
+          <span key={key} className="tool-input-chip" title={`${key}: ${String(value)}`}>
+            <span className="tool-input-chip-key">{label}</span>
+            <span className="tool-input-chip-val">{display}</span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+/** ListFiles / list_dir — folder chip with last path segment emphasized. */
+export function ListFilesInput({
+  content,
+  onFileClick,
+}: {
+  content: string;
+  onFileClick?: (path: string) => void;
+}) {
+  try {
+    const input = JSON.parse(content) as Record<string, unknown>;
+    const dir = String(
+      input.target_directory || input.targetDirectory || input.path || input.directory || ''
+    );
+    if (!dir) return <ToolInputChips data={input} preferKeys={['target_directory', 'path']} />;
+    const base = dir.replace(/\/+$/, '').split('/').pop() || dir;
+    const parent = dir.replace(/\/+$/, '').replace(/\/[^/]+$/, '') || '/';
+    return (
+      <div className="list-files-input">
+        <span
+          className={`list-files-path ${onFileClick ? 'clickable-path' : ''}`}
+          onClick={onFileClick ? (e) => { e.stopPropagation(); onFileClick(dir); } : undefined}
+          title={dir}
+          style={onFileClick ? { cursor: 'pointer' } : undefined}
+        >
+          <span className="list-files-parent">{parent}/</span>
+          <span className="list-files-base">{base}</span>
+        </span>
+      </div>
+    );
+  } catch {
+    return <pre className="output-input-content">{content}</pre>;
+  }
+}
+
+/** get_command_or_subagent_output — task id chips + timeout. */
+export function TaskOutputWaitInput({ content }: { content: string }) {
+  try {
+    const input = JSON.parse(content) as Record<string, unknown>;
+    const idsRaw = input.task_ids ?? input.taskIds ?? input.task_id ?? input.taskId;
+    const ids = Array.isArray(idsRaw)
+      ? idsRaw.map(String)
+      : typeof idsRaw === 'string'
+        ? [idsRaw]
+        : [];
+    const timeout = Number(input.timeout_ms ?? input.timeoutMs ?? input.timeout);
+    return (
+      <div className="task-output-wait-input">
+        {ids.map((id) => (
+          <span key={id} className="tool-input-chip tool-input-chip--id" title={id}>
+            <span className="tool-input-chip-key">task</span>
+            <span className="tool-input-chip-val mono">{id.length > 16 ? `${id.slice(0, 10)}…${id.slice(-4)}` : id}</span>
+          </span>
+        ))}
+        {Number.isFinite(timeout) && timeout > 0 && (
+          <span className="tool-input-chip tool-input-chip--timeout" title={`${timeout}ms`}>
+            <span className="tool-input-chip-key">wait</span>
+            <span className="tool-input-chip-val">
+              {timeout >= 1000 ? `${Math.round(timeout / 1000)}s` : `${timeout}ms`}
+            </span>
+          </span>
+        )}
+        {ids.length === 0 && (
+          <ToolInputChips data={input} preferKeys={['task_ids', 'timeout_ms']} />
+        )}
+      </div>
+    );
+  } catch {
+    return <pre className="output-input-content">{content}</pre>;
+  }
 }
 
 interface ParsedToolSearchContent {
@@ -1238,11 +1391,56 @@ export function ToolSearchInput({ content }: ToolSearchInputProps) {
   );
 }
 
-export function UnknownToolInput({ toolName: _toolName, content }: UnknownToolInputProps) {
+export function UnknownToolInput({ toolName, content, chipsOnly = false }: UnknownToolInputProps) {
   const [expanded, setExpanded] = useState(false);
 
   // Don't render if content is empty or just '{}'
   if (!content || content.trim() === '{}') return null;
+
+  // Specialized renderers for known Grok / runtime tools
+  const lower = toolName.toLowerCase();
+  if (lower === 'listfiles' || lower === 'list_dir') {
+    return <ListFilesInput content={content} />;
+  }
+  if (
+    lower === 'get_command_or_subagent_output'
+    || lower === 'get_task_output'
+    || lower === 'getcommandorsubagentoutput'
+  ) {
+    return <TaskOutputWaitInput content={content} />;
+  }
+
+  // Prefer structured chips over raw JSON dump for plain objects
+  let parsed: Record<string, unknown> | null = null;
+  try {
+    const raw = JSON.parse(content);
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      parsed = raw as Record<string, unknown>;
+    }
+  } catch {
+    /* not JSON */
+  }
+
+  if (parsed && Object.keys(parsed).length > 0) {
+    return (
+      <div className={`unknown-tool-input unknown-tool-input--chips ${chipsOnly ? 'is-chips-only' : ''}`}>
+        <ToolInputChips data={parsed} />
+        {!chipsOnly && (
+          <>
+            <button
+              type="button"
+              className="unknown-tool-toggle unknown-tool-toggle--raw"
+              onClick={() => setExpanded((prev) => !prev)}
+              title={expanded ? 'Hide raw JSON' : 'Show raw JSON'}
+            >
+              <Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} /> {expanded ? 'Hide raw' : 'Raw'}
+            </button>
+            {expanded && <pre className="output-input-content">{content}</pre>}
+          </>
+        )}
+      </div>
+    );
+  }
 
   const preview = content.length > 220 ? `${content.slice(0, 220)}...` : content;
 

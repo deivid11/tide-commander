@@ -56,11 +56,20 @@ export const TOOL_ICON_NAMES: Record<string, IconName> = {
   AskUserQuestion: 'question',
   AttemptCompletion: 'sparkle',
   ListFiles: 'folder-open',
+  list_dir: 'folder-open',
   SearchFiles: 'search',
   ExecuteCommand: 'gear',
+  // Grok / agent runtime tools
+  get_command_or_subagent_output: 'terminal',
+  get_task_output: 'terminal',
+  spawn_subagent: 'dna',
   spawn_agent: 'dna',
   send_input: 'send',
+  send_message_to_agent: 'send',
   wait: 'hourglass',
+  web_search: 'globe-hemisphere',
+  open_page: 'globe',
+  open_page_with_find: 'globe',
   default: 'bolt',
 };
 
@@ -95,24 +104,50 @@ const TOOL_NAME_TRANSLATION_KEYS: Record<string, string> = {
   AskUserQuestion: 'tools:display.toolNames.askUserQuestion',
   AttemptCompletion: 'tools:display.toolNames.attemptCompletion',
   ListFiles: 'tools:display.toolNames.listFiles',
+  list_dir: 'tools:display.toolNames.listFiles',
   SearchFiles: 'tools:display.toolNames.searchFiles',
   ExecuteCommand: 'tools:display.toolNames.executeCommand',
   // Codex subagent collab tools
   spawn_agent: 'tools:display.toolNames.spawnAgent',
   send_input: 'tools:display.toolNames.sendInput',
   wait: 'tools:display.toolNames.wait',
+  // Grok / Tide runtime tools (friendly labels)
+  get_command_or_subagent_output: 'tools:display.toolNames.taskOutput',
+  get_task_output: 'tools:display.toolNames.taskOutput',
+  spawn_subagent: 'tools:display.toolNames.spawnAgent',
+  send_message_to_agent: 'tools:display.toolNames.sendMessage',
+  web_search: 'tools:display.toolNames.webSearch',
+  open_page: 'tools:display.toolNames.webFetch',
+  open_page_with_find: 'tools:display.toolNames.webFetch',
 };
 
+/** Prettify snake_case / camelCase tool ids when no i18n key exists. */
+export function prettifyToolName(toolName: string): string {
+  if (!toolName) return toolName;
+  return toolName
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 /**
- * Resolve a localized tool label with fallback to the raw tool name.
+ * Resolve a localized tool label with fallback to a prettified raw tool name.
  */
 export function getLocalizedToolName(
   toolName: string,
   t: (key: string, options?: Record<string, unknown>) => string
 ): string {
   const key = TOOL_NAME_TRANSLATION_KEYS[toolName];
-  if (!key) return toolName;
-  return t(key, { defaultValue: toolName }) || toolName;
+  if (!key) return prettifyToolName(toolName);
+  return t(key, { defaultValue: prettifyToolName(toolName) }) || prettifyToolName(toolName);
+}
+
+/** Shorten long ids like call-d2f2a9b9-…-290 for chip display. */
+export function shortenId(id: string, head = 8, tail = 4): string {
+  if (!id || id.length <= head + tail + 1) return id;
+  return `${id.slice(0, head)}…${id.slice(-tail)}`;
 }
 
 /**
@@ -171,51 +206,117 @@ export function extractToolKeyParam(toolName: string, inputJson: string): string
       case 'Write':
       case 'Edit':
       case 'NotebookEdit': {
-        const filePath = input.file_path || input.filePath || input.path || input.notebook_path || input.notebookPath;
-        if (filePath) {
+        // Claude uses file_path; Grok/OpenCode-style tools use target_file / path.
+        const filePath =
+          input.file_path
+          || input.filePath
+          || input.target_file
+          || input.targetFile
+          || input.path
+          || input.notebook_path
+          || input.notebookPath;
+        if (typeof filePath === 'string' && filePath) {
           return filePath; // Full path, no truncation
         }
         break;
       }
-      case 'Bash': {
-        const cmd = input.command;
-        if (cmd) {
-          return extractExecWrappedCommand(cmd);
+      case 'ListFiles':
+      case 'list_dir': {
+        const dir =
+          input.target_directory
+          || input.targetDirectory
+          || input.path
+          || input.directory;
+        if (typeof dir === 'string' && dir) {
+          return dir;
         }
         break;
       }
-      case 'Grep': {
-        const pattern = input.pattern;
-        const path = input.path;
+      case 'get_command_or_subagent_output':
+      case 'get_task_output': {
+        const ids = input.task_ids ?? input.taskIds ?? input.task_id ?? input.taskId;
+        const timeout = input.timeout_ms ?? input.timeoutMs ?? input.timeout;
+        const idList = Array.isArray(ids)
+          ? ids.map((x) => String(x))
+          : typeof ids === 'string'
+            ? [ids]
+            : [];
+        const parts: string[] = [];
+        if (idList.length === 1) {
+          parts.push(shortenId(idList[0]));
+        } else if (idList.length > 1) {
+          parts.push(`${idList.length} tasks`);
+        }
+        if (typeof timeout === 'number' && timeout > 0) {
+          parts.push(timeout >= 1000 ? `${Math.round(timeout / 1000)}s` : `${timeout}ms`);
+        }
+        if (parts.length > 0) return parts.join(' · ');
+        break;
+      }
+      case 'spawn_subagent':
+      case 'spawn_agent': {
+        const desc = input.description || input.prompt || input.name;
+        if (typeof desc === 'string' && desc) {
+          return desc.length > 120 ? `${desc.slice(0, 117)}…` : desc;
+        }
+        break;
+      }
+      case 'send_message_to_agent':
+      case 'send_input': {
+        const to = input.agent_id || input.agentId || input.to || input.receiver_thread_ids;
+        const msg = input.message || input.prompt || input.text;
+        if (typeof to === 'string' && typeof msg === 'string') {
+          return `→ ${shortenId(to)}: ${msg.length > 80 ? `${msg.slice(0, 77)}…` : msg}`;
+        }
+        if (typeof msg === 'string' && msg) {
+          return msg.length > 100 ? `${msg.slice(0, 97)}…` : msg;
+        }
+        break;
+      }
+      case 'Bash':
+      case 'ExecuteCommand': {
+        const cmd = input.command || input.cmd;
+        if (typeof cmd === 'string' && cmd) {
+          return extractExecWrappedCommand(cmd);
+        }
+        if (typeof input.description === 'string' && input.description) {
+          return input.description;
+        }
+        break;
+      }
+      case 'Grep':
+      case 'SearchFiles': {
+        const pattern = input.pattern || input.query;
+        const path = input.path || input.target_directory || input.targetDirectory;
         if (pattern && path) {
           return `"${pattern}" in ${path}`;
         }
-        if (pattern) {
+        if (typeof pattern === 'string' && pattern) {
           return `"${pattern}"`;
         }
         break;
       }
       case 'Glob': {
-        const pattern = input.pattern;
-        const path = input.path;
+        const pattern = input.pattern || input.glob;
+        const path = input.path || input.target_directory || input.targetDirectory;
         if (pattern && path) {
           return `${pattern} in ${path}`;
         }
-        if (pattern) {
+        if (typeof pattern === 'string' && pattern) {
           return pattern;
         }
         break;
       }
       case 'WebFetch': {
-        const url = input.url;
-        if (url) {
+        const url = input.url || input.target_url || input.targetUrl;
+        if (typeof url === 'string' && url) {
           return url; // Full URL
         }
         break;
       }
       case 'WebSearch': {
-        const query = input.query;
-        if (query) {
+        const query = input.query || input.q || input.search;
+        if (typeof query === 'string' && query) {
           return `"${query}"`; // Full query
         }
         break;
@@ -223,7 +324,7 @@ export function extractToolKeyParam(toolName: string, inputJson: string): string
       case 'Task':
       case 'Agent': {
         const desc = input.description;
-        const agentType = input.subagent_type;
+        const agentType = input.subagent_type || input.subagentType;
         if (desc) {
           return agentType ? `[${agentType}] ${desc}` : desc;
         }

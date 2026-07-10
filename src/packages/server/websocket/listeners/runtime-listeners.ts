@@ -167,8 +167,9 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
       ctx.sendActivity(agentId, details);
 
       if (event.toolName === 'TodoWrite' && !event.parentToolUseId) {
-        const todos = parseTodoWriteInput(event.toolInput);
-        if (todos) {
+        const existing = agentService.getAgent(agentId)?.latestTodos || [];
+        const todos = parseTodoWriteInput(event.toolInput, existing);
+        if (todos && todos.length > 0) {
           agentService.updateAgent(agentId, { latestTodos: todos }, false);
         }
       }
@@ -710,25 +711,89 @@ function findGitRoot(startDir: string): string | null {
   }
 }
 
-function parseTodoWriteInput(toolInput: Record<string, unknown> | undefined): AgentTodoItem[] | null {
+function parseTodoWriteInput(
+  toolInput: Record<string, unknown> | undefined,
+  existing: AgentTodoItem[] = []
+): AgentTodoItem[] | null {
   if (!toolInput || typeof toolInput !== 'object') return null;
   const rawTodos = (toolInput as { todos?: unknown }).todos;
   if (!Array.isArray(rawTodos)) return null;
   const validStatuses: AgentTodoStatus[] = ['pending', 'in_progress', 'completed'];
-  const todos: AgentTodoItem[] = [];
+  const merge = (toolInput as { merge?: unknown }).merge === true;
+
+  const existingById = new Map<string, AgentTodoItem>();
+  for (const t of existing) {
+    if (t.id) existingById.set(t.id, t);
+  }
+
+  type RawTodo = {
+    id?: unknown;
+    content?: unknown;
+    subject?: unknown;
+    text?: unknown;
+    description?: unknown;
+    status?: unknown;
+    activeForm?: unknown;
+  };
+
+  const pickContent = (item: RawTodo, id?: string): string => {
+    if (typeof item.content === 'string' && item.content) return item.content;
+    if (typeof item.subject === 'string' && item.subject) return item.subject;
+    if (typeof item.text === 'string' && item.text) return item.text;
+    if (typeof item.description === 'string' && item.description) return item.description;
+    if (id && existingById.has(id)) return existingById.get(id)!.content;
+    return id ? `Task ${id}` : '';
+  };
+
+  const incoming: AgentTodoItem[] = [];
   for (const raw of rawTodos) {
     if (!raw || typeof raw !== 'object') continue;
-    const item = raw as { content?: unknown; status?: unknown; activeForm?: unknown };
-    const content = typeof item.content === 'string' ? item.content : '';
+    const item = raw as RawTodo;
+    const id = typeof item.id === 'string' || typeof item.id === 'number'
+      ? String(item.id)
+      : undefined;
+    const content = pickContent(item, id);
     const status = typeof item.status === 'string' ? item.status as AgentTodoStatus : 'pending';
     if (!content || !validStatuses.includes(status)) continue;
     const todo: AgentTodoItem = { content, status };
+    if (id) todo.id = id;
     if (typeof item.activeForm === 'string' && item.activeForm.length > 0) {
       todo.activeForm = item.activeForm;
     }
-    todos.push(todo);
+    incoming.push(todo);
   }
-  return todos;
+
+  if (incoming.length === 0) {
+    // Status-only empty parse should not wipe the banner.
+    return null;
+  }
+
+  if (!merge) {
+    return incoming;
+  }
+
+  // merge:true — overlay onto existing list by id (Grok partial updates).
+  const next = existing.map((t) => ({ ...t }));
+  const indexById = new Map<string, number>();
+  next.forEach((t, i) => {
+    if (t.id) indexById.set(t.id, i);
+  });
+  for (const t of incoming) {
+    if (t.id && indexById.has(t.id)) {
+      const idx = indexById.get(t.id)!;
+      next[idx] = {
+        ...next[idx],
+        status: t.status,
+        content: t.content || next[idx].content,
+        activeForm: t.activeForm ?? next[idx].activeForm,
+        id: t.id,
+      };
+    } else {
+      if (t.id) indexById.set(t.id, next.length);
+      next.push(t);
+    }
+  }
+  return next;
 }
 
 function readHeadFileIfSmall(gitRoot: string, relativePath: string): string | null {

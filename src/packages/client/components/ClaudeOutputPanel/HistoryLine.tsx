@@ -21,7 +21,7 @@ import { parseEmailMessage, GmailMessageBubble } from './GmailMessageBubble';
 import { parseSlackMessage, SlackMessageBubble } from './SlackMessageBubble';
 import { AgentChatMessageCard, parseAgentChatMessage } from './AgentChatMessageCard';
 import { parseExtensionContext, ExtensionContextCard } from './ExtensionContextCard';
-import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, AskQuestionResult, ExitPlanModeInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, MemoryOpInput, isToolSearchContent } from './ToolRenderers';
+import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, AskQuestionResult, ExitPlanModeInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, MemoryOpInput, isToolSearchContent, ListFilesInput, TaskOutputWaitInput, UnknownToolInput } from './ToolRenderers';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
 import { parseTestResults } from './testResultsParser';
@@ -39,6 +39,8 @@ import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils
 import type { EnrichedHistoryMessage, EditData } from './types';
 import type { ExecTask, Subagent } from '../../../shared/types';
 import { SubagentInline } from './SubagentInline';
+import { providerAssetUrl, providerLabel } from '../../utils/providerDisplay';
+import { ThinkingBlock } from './ThinkingBlock';
 
 /** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
 function getExtFromPath(filePath: string): string {
@@ -106,7 +108,7 @@ export const HistoryLine = memo(function HistoryLine({
   const [sessionExpanded, setSessionExpanded] = useState(false);
   const hideCost = useHideCost();
   const settings = useSettings();
-  const { type, content: rawContent, toolName, toolUseId, timestamp, _bashOutput, _bashCommand, _askQuestionAnswers, _taskSubject, _pendingPromptId } = message;
+  const { type, content: rawContent, toolName, toolUseId, timestamp, _bashOutput, _bashCommand, _askQuestionAnswers, _taskSubject, _pendingPromptId, _priorTodos } = message;
   // `_pendingPromptId` is enriched by AgentTerminalPane.enrichHistory from the
   // pending agent-prompts map. We still keep a defensive fallback via the
   // store hook here in case a future call site renders HistoryLine outside the
@@ -138,7 +140,7 @@ export const HistoryLine = memo(function HistoryLine({
   // For Task tool_use messages, show the subagent name instead of parent agent
   const parentAgentName = agentId ? store.getState().agents.get(agentId)?.name : null;
   const provider = agentId ? store.getState().agents.get(agentId)?.provider : undefined;
-  const assistantRoleLabel = provider === 'codex' ? 'Codex' : provider === 'opencode' ? 'OpenCode' : 'Claude';
+  const assistantRoleLabel = providerLabel(provider);
   const subagentNameFromInput = (type === 'tool_use' && (toolName === 'Task' || toolName === 'Agent') && message.toolInput)
     ? ((message.toolInput.name as string) || (message.toolInput.description as string) || null)
     : null;
@@ -163,7 +165,7 @@ export const HistoryLine = memo(function HistoryLine({
         <span className="history-role">
           {provider && (
             <img
-              src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+              src={providerAssetUrl(provider, import.meta.env.BASE_URL)}
               alt=""
               className="history-role-icon"
             />
@@ -172,6 +174,21 @@ export const HistoryLine = memo(function HistoryLine({
         </span>
         <span className="empty-message-label">{t('terminal:history.emptyMessage', 'empty message')}</span>
       </div>
+    );
+  }
+
+  // History loads Grok/Codex reasoning as assistant lines with a `[thinking]`
+  // prefix (session-loader). Render the same ThinkingBlock as live stream rows
+  // instead of "Grok [thinking] …" plain assistant markdown.
+  if (type === 'assistant' && /^\s*\[thinking\]/i.test(content)) {
+    return (
+      <ThinkingBlock
+        text={content}
+        agentName={parentAgentName}
+        provider={provider}
+        timeStr={timeStr}
+        timestampTitle={`${timestampMs} | ${debugHash}`}
+      />
     );
   }
 
@@ -416,9 +433,23 @@ export const HistoryLine = memo(function HistoryLine({
         ? { url: getLocalFileImageUrl(keyParam), name: getBasenameFromPath(keyParam) }
         : null;
 
-      // Bash tools are clickable if we have onBashClick handler
-      const isBashTool = toolName === 'Bash' && onBashClick;
-      const bashCommand = _bashCommand || keyParam || '';
+      // Bash is identified by tool name. Clickability is separate so we still
+      // render the command when onBashClick is not wired for some reason.
+      const isBashTool = toolName === 'Bash';
+      // Prefer enrichment → key param → description field (Grok often sends both).
+      let bashDescription: string | undefined;
+      try {
+        const parsed = toolInputContent ? JSON.parse(toolInputContent) : null;
+        if (parsed && typeof parsed.description === 'string' && parsed.description.trim()) {
+          bashDescription = parsed.description.trim();
+        }
+      } catch { /* ignore */ }
+      const bashCommand = _bashCommand || keyParam || bashDescription || '';
+      // Grok early tool_started cards arrive with empty toolInput {}. Hide them
+      // rather than rendering a bare "BASH" chip with no command.
+      if (isBashTool && !bashCommand) {
+        return null;
+      }
       const bashSearchCommand = isBashTool && bashCommand ? parseBashSearchCommand(bashCommand) : null;
       const bashNotificationCommand = isBashTool && bashCommand ? parseBashNotificationCommand(bashCommand) : null;
       const bashTrackingStatusCommand = isBashTool && bashCommand ? parseBashTrackingStatusCommand(bashCommand) : null;
@@ -522,19 +553,20 @@ export const HistoryLine = memo(function HistoryLine({
       };
 
       const handleBashClick = () => {
-        if (isBashTool && bashCommand) {
+        if (isBashTool && bashCommand && onBashClick) {
           onBashClick(bashCommand, _bashOutput || t('tools:display.noOutputAvailable'));
         }
       };
 
       const renderBashCommandWithFileLinks = () => {
-        if (!keyParam) return null;
+        const cmd = bashCommand || keyParam;
+        if (!cmd) return null;
         if (!onFileClick) {
-          return <span dangerouslySetInnerHTML={{ __html: highlightCode(keyParam, 'bash') }} />;
+          return <span dangerouslySetInnerHTML={{ __html: highlightCode(cmd, 'bash') }} />;
         }
 
         const agentCwd = agentId ? store.getState().agents.get(agentId)?.cwd : undefined;
-        const segments = splitCommandForFileLinks(keyParam);
+        const segments = splitCommandForFileLinks(cmd);
 
         return segments.map((segment, idx) => {
           if (!segment.fileRef) {
@@ -582,7 +614,7 @@ export const HistoryLine = memo(function HistoryLine({
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
-            <TodoWriteInput content={toolInputContent} />
+            <TodoWriteInput content={toolInputContent} priorTodos={_priorTodos} />
           </div>
         );
       }
@@ -650,13 +682,72 @@ export const HistoryLine = memo(function HistoryLine({
         );
       }
 
+      // ListFiles / list_dir — folder chip instead of raw JSON
+      if ((toolName === 'ListFiles' || toolName === 'list_dir') && toolInputContent) {
+        return (
+          <div className={`output-line output-tool-use output-tool-simple output-list-files-inline`}>
+            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
+            <span className="output-tool-name">{displayToolName}</span>
+            <ListFilesInput
+              content={toolInputContent}
+              onFileClick={onFileClick ? (p) => onFileClick(p) : undefined}
+            />
+          </div>
+        );
+      }
+
+      // get_command_or_subagent_output — task wait chips
+      if (
+        (toolName === 'get_command_or_subagent_output' || toolName === 'get_task_output')
+        && toolInputContent
+      ) {
+        return (
+          <div className={`output-line output-tool-use output-tool-simple output-task-wait-inline`}>
+            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
+            <span className="output-tool-name">{displayToolName}</span>
+            <TaskOutputWaitInput content={toolInputContent} />
+          </div>
+        );
+      }
+
+      // Other structured JSON tools (web_search, etc.) — chips instead of raw dump
+      if (
+        toolInputContent
+        && toolInputContent.trim().startsWith('{')
+        && !isBashTool
+        && !['Read', 'Write', 'Edit', 'Grep', 'Glob', 'NotebookEdit'].includes(toolName || '')
+      ) {
+        try {
+          const parsed = JSON.parse(toolInputContent);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length > 0) {
+            // If we already have a one-line keyParam, show chip row only when it adds more than one field
+            const keys = Object.keys(parsed);
+            if (keys.length > 1 || !keyParam) {
+              return (
+                <div className={`output-line output-tool-use output-tool-simple output-structured-tool-inline`}>
+                  {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+                  {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+                  <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
+                  <span className="output-tool-name">{displayToolName}</span>
+                  <UnknownToolInput toolName={toolName || 'tool'} content={toolInputContent} chipsOnly />
+                </div>
+              );
+            }
+          }
+        } catch { /* fall through */ }
+      }
+
       return (
         <>
           <div
-            className={`output-line output-tool-use output-tool-simple ${isBashTool ? 'clickable-bash' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''} ${bashTrackingStatusCommand ? 'bash-tracking-use' : ''}`}
-            onClick={isBashTool ? handleBashClick : undefined}
-            style={isBashTool ? { cursor: 'pointer' } : undefined}
-            title={isBashTool ? t('tools:display.clickToViewOutput') : undefined}
+            className={`output-line output-tool-use output-tool-simple ${isBashTool && onBashClick ? 'clickable-bash' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''} ${bashTrackingStatusCommand ? 'bash-tracking-use' : ''}`}
+            onClick={isBashTool && onBashClick ? handleBashClick : undefined}
+            style={isBashTool && onBashClick ? { cursor: 'pointer' } : undefined}
+            title={isBashTool && onBashClick ? t('tools:display.clickToViewOutput') : undefined}
           >
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
@@ -750,6 +841,15 @@ export const HistoryLine = memo(function HistoryLine({
               <div className="output-tool-param bash-curl-param">
                 <CurlCard parsed={bashCurlParsed} rawCommand={bashCommand} />
               </div>
+            ) : isBashTool && bashCommand ? (
+              <span
+                className="output-tool-param bash-command"
+                onClick={onBashClick ? handleBashClick : undefined}
+                title={onBashClick ? t('tools:display.clickToViewOutput') : bashCommand}
+                style={onBashClick ? { cursor: 'pointer' } : undefined}
+              >
+                {renderBashCommandWithFileLinks()}
+              </span>
             ) : (
               keyParam && (
                 <span
@@ -763,7 +863,7 @@ export const HistoryLine = memo(function HistoryLine({
                     const iconPath = ext ? getIconForExtension(ext) : '';
                     return iconPath ? <img className="output-tool-file-icon" src={iconPath} alt="" /> : null;
                   })()}
-                  {isBashTool ? renderBashCommandWithFileLinks() : (['Read', 'Write', 'Edit', 'NotebookEdit'].includes(toolName || '') && isFilePath ? getBasenameFromPath(keyParam) : keyParam)}
+                  {(['Read', 'Write', 'Edit', 'NotebookEdit'].includes(toolName || '') && isFilePath ? getBasenameFromPath(keyParam) : keyParam)}
                 </span>
               )
             )}
@@ -953,7 +1053,7 @@ export const HistoryLine = memo(function HistoryLine({
             <span className="output-tool-name">{displayToolName}</span>
           </div>
           <div className="output-line output-tool-input">
-            <TodoWriteInput content={toolInputContent} />
+            <TodoWriteInput content={toolInputContent} priorTodos={_priorTodos} />
           </div>
         </>
       );
@@ -1080,7 +1180,14 @@ export const HistoryLine = memo(function HistoryLine({
     // no command we can pull out — the default rendering below handles that.
     if (toolName === 'Bash' && toolInputContent) {
       const bashKeyParam = extractToolKeyParam('Bash', toolInputContent);
-      const bashCommand = _bashCommand || bashKeyParam || '';
+      let bashDescription: string | undefined;
+      try {
+        const parsed = JSON.parse(toolInputContent);
+        if (parsed && typeof parsed.description === 'string' && parsed.description.trim()) {
+          bashDescription = parsed.description.trim();
+        }
+      } catch { /* ignore */ }
+      const bashCommand = _bashCommand || bashKeyParam || bashDescription || '';
       if (bashCommand) {
         const bashSearchCommand = parseBashSearchCommand(bashCommand);
         const bashNotificationCommand = parseBashNotificationCommand(bashCommand);
@@ -1494,10 +1601,10 @@ export const HistoryLine = memo(function HistoryLine({
         <span className="history-role">
           {!isSystemMessage && provider && (
             <img
-              src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+              src={providerAssetUrl(provider, import.meta.env.BASE_URL)}
               alt=""
               className="history-role-icon"
-              title={provider === 'codex' ? t('terminal:history.codexAgent') : provider === 'opencode' ? 'OpenCode Agent' : t('terminal:history.claudeAgent')}
+              title={provider === 'codex' ? t('terminal:history.codexAgent') : provider === 'opencode' ? 'OpenCode Agent' : provider === 'grok' ? 'Grok Agent' : t('terminal:history.claudeAgent')}
             />
           )}
           {assistantOrSystemRoleLabel}
@@ -1558,10 +1665,10 @@ export const HistoryLine = memo(function HistoryLine({
       <span className={`history-role ${isUser ? 'history-role-chip' : ''}`}>
         {!isUser && !isSystemMessage && provider && (
           <img
-            src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+            src={providerAssetUrl(provider, import.meta.env.BASE_URL)}
             alt=""
             className="history-role-icon"
-            title={provider === 'codex' ? t('terminal:history.codexAgent') : provider === 'opencode' ? 'OpenCode Agent' : t('terminal:history.claudeAgent')}
+            title={provider === 'codex' ? t('terminal:history.codexAgent') : provider === 'opencode' ? 'OpenCode Agent' : provider === 'grok' ? 'Grok Agent' : t('terminal:history.claudeAgent')}
           />
         )}
         {isUser ? t('common:labels.you') : assistantOrSystemRoleLabel}

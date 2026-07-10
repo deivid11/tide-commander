@@ -62,7 +62,30 @@ const CATEGORY_DESCRIPTION_KEYS = {
 
 export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextViewModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
-  const stats = agent.contextStats;
+  // Prefer authoritative contextStats; fall back to live tracked fields so Grok
+  // (and others) still show a bar while stats are seeding from signals/usage.
+  const stats: ContextStats | null = useMemo(() => {
+    if (agent.contextStats) return agent.contextStats;
+    const limit = Math.max(1, Math.round(agent.contextLimit || 0));
+    const used = Math.max(0, Math.round(agent.contextUsed || 0));
+    if (limit <= 0 || used <= 0) return null;
+    const usedPercent = Math.min(100, Math.round((used / limit) * 100));
+    const free = Math.max(0, limit - used);
+    return {
+      model: agent.grokModel || agent.opencodeModel || agent.codexModel || agent.model || agent.provider || 'unknown',
+      contextWindow: limit,
+      totalTokens: used,
+      usedPercent,
+      categories: {
+        systemPrompt: { tokens: 0, percent: 0 },
+        systemTools: { tokens: 0, percent: 0 },
+        messages: { tokens: used, percent: Number(((used / limit) * 100).toFixed(1)) },
+        freeSpace: { tokens: free, percent: Number(((free / limit) * 100).toFixed(1)) },
+        autocompactBuffer: { tokens: 0, percent: 0 },
+      },
+      lastUpdated: Date.now(),
+    };
+  }, [agent.contextStats, agent.contextUsed, agent.contextLimit, agent.model, agent.grokModel, agent.opencodeModel, agent.codexModel, agent.provider]);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Claude-only usage snapshot. Populated lazily when the modal opens for a

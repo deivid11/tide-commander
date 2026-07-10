@@ -6,8 +6,8 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type { Agent, AgentClass, PermissionMode, ClaudeModel, ClaudeEffort, AgentProvider, CodexConfig, CodexModel, OpencodeModel, DrawingArea, SessionHistoryEntry } from '../../shared/types.js';
-import { CLAUDE_MODELS as CLAUDE_MODEL_METADATA } from '../../shared/agent-types.js';
+import type { Agent, AgentClass, PermissionMode, ClaudeModel, ClaudeEffort, AgentProvider, CodexConfig, CodexModel, OpencodeModel, GrokModel, DrawingArea, SessionHistoryEntry } from '../../shared/types.js';
+import { CLAUDE_MODELS as CLAUDE_MODEL_METADATA, GROK_MODELS, DEFAULT_GROK_MODEL } from '../../shared/agent-types.js';
 import { loadAgents, saveAgents, saveAgentsAsync, getDataDir, loadAreas, saveAreas, loadSessionHistory, saveSessionHistory, addSessionHistoryEntry, getSessionHistoryForAgent } from '../data/index.js';
 import {
   listSessions,
@@ -28,6 +28,8 @@ const VALID_CLAUDE_MODELS = new Set<ClaudeModel>(
 const DEFAULT_CLAUDE_CONTEXT_LIMIT = 200000;
 const DEFAULT_CODEX_CONTEXT_LIMIT = 258400;
 const DEFAULT_OPENCODE_CONTEXT_LIMIT = 200000;
+/** Matches live Grok Build signals.json contextWindowTokens (catalog may list 2M). */
+const DEFAULT_GROK_CONTEXT_LIMIT = 500000;
 
 interface CodexContextSnapshot {
   contextUsed: number;
@@ -36,10 +38,17 @@ interface CodexContextSnapshot {
 
 function getDefaultContextLimit(
   provider: AgentProvider | undefined,
-  model?: ClaudeModel
+  model?: ClaudeModel,
+  grokModel?: GrokModel
 ): number {
   if (provider === 'codex') return DEFAULT_CODEX_CONTEXT_LIMIT;
   if (provider === 'opencode') return DEFAULT_OPENCODE_CONTEXT_LIMIT;
+  if (provider === 'grok') {
+    if (grokModel && GROK_MODELS[grokModel]?.contextWindow) {
+      return GROK_MODELS[grokModel].contextWindow;
+    }
+    return DEFAULT_GROK_CONTEXT_LIMIT;
+  }
   if (model && CLAUDE_MODEL_METADATA[model]) {
     return CLAUDE_MODEL_METADATA[model].contextWindow;
   }
@@ -107,6 +116,12 @@ export function sanitizeOpencodeModel(model: unknown): OpencodeModel | undefined
   if (typeof model !== 'string') return undefined;
   const trimmed = model.trim();
   return trimmed.length > 0 ? (trimmed as OpencodeModel) : undefined;
+}
+
+export function sanitizeGrokModel(model: unknown): GrokModel | undefined {
+  if (typeof model !== 'string') return undefined;
+  const trimmed = model.trim();
+  return trimmed.length > 0 ? (trimmed as GrokModel) : undefined;
 }
 
 function findFileRecursively(rootDir: string, pattern: string): string | null {
@@ -275,6 +290,7 @@ export function initAgents(): void {
         codexModel: sanitizeCodexModel(stored.codexModel),
         codexConfig: stored.codexConfig,
         opencodeModel: sanitizeOpencodeModel(stored.opencodeModel),
+        grokModel: sanitizeGrokModel(stored.grokModel),
         // Boss field - fallback to checking class for backward compatibility
         isBoss: stored.isBoss ?? stored.class === 'boss',
       };
@@ -363,7 +379,8 @@ export async function createAgent(
   provider: AgentProvider = 'claude',
   codexConfig?: CodexConfig,
   effort?: ClaudeEffort,
-  opencodeModel?: OpencodeModel
+  opencodeModel?: OpencodeModel,
+  grokModel?: GrokModel
 ): Promise<Agent> {
   log.log('🎆 [CREATE_AGENT] Starting agent creation:', {
     name,
@@ -376,6 +393,8 @@ export async function createAgent(
     model,
     codexModel,
     codexConfig,
+    opencodeModel,
+    grokModel,
     customInstructions: customInstructions ? `${customInstructions.length} chars` : undefined,
   });
 
@@ -389,6 +408,10 @@ export async function createAgent(
     throw new Error(`Directory does not exist: ${cwd}`);
   }
   log.log(`  ✅ Directory exists`);
+
+  const sanitizedGrokModel = provider === 'grok'
+    ? (sanitizeGrokModel(grokModel) || DEFAULT_GROK_MODEL)
+    : undefined;
 
   // Create agent object
   // SessionId can be provided to link to an existing Claude session
@@ -407,13 +430,14 @@ export async function createAgent(
     useChrome,
     permissionMode,
     model: sanitizeModelForProvider(provider, model),
-    effort: provider === 'claude' ? effort : undefined,
+    effort: provider === 'claude' || provider === 'grok' ? effort : undefined,
     codexModel: provider === 'codex' ? sanitizeCodexModel(codexModel) : undefined,
     codexConfig,
     opencodeModel: provider === 'opencode' ? sanitizeOpencodeModel(opencodeModel) : undefined,
+    grokModel: sanitizedGrokModel,
     tokensUsed: 0,
     contextUsed: 0,
-    contextLimit: getDefaultContextLimit(provider, sanitizeModelForProvider(provider, model)),
+    contextLimit: getDefaultContextLimit(provider, sanitizeModelForProvider(provider, model), sanitizedGrokModel),
     taskCount: 0, // Initialize task counter
     createdAt: Date.now(),
     lastActivity: Date.now(),

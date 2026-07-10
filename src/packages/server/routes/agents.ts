@@ -567,7 +567,7 @@ router.post('/bulk/change-model', async (req: Request, res: Response) => {
   try {
     const { agentIds, provider, model, effort } = req.body as {
       agentIds?: string[];
-      provider?: 'claude' | 'codex' | 'opencode';
+      provider?: 'claude' | 'codex' | 'opencode' | 'grok';
       model?: string;
       effort?: string | null;
     };
@@ -588,6 +588,8 @@ router.post('/bulk/change-model', async (req: Request, res: Response) => {
       sanitized = agentService.sanitizeCodexModel(model);
     } else if (provider === 'opencode') {
       sanitized = agentService.sanitizeOpencodeModel(model);
+    } else if (provider === 'grok') {
+      sanitized = agentService.sanitizeGrokModel(model);
     }
 
     if (!sanitized) {
@@ -595,10 +597,10 @@ router.post('/bulk/change-model', async (req: Request, res: Response) => {
       return;
     }
 
-    // Effort is Claude-only. `null` means "clear back to default"; undefined means "leave unchanged".
+    // Effort is Claude/Grok. `null` means "clear back to default"; undefined means "leave unchanged".
     const VALID_EFFORTS = new Set(['low', 'medium', 'high', 'xHigh', 'max']);
     let effortUpdate: { set: true; value: string | undefined } | { set: false } = { set: false };
-    if (effort !== undefined && provider === 'claude') {
+    if (effort !== undefined && (provider === 'claude' || provider === 'grok')) {
       if (effort === null) {
         effortUpdate = { set: true, value: undefined };
       } else if (typeof effort === 'string' && VALID_EFFORTS.has(effort)) {
@@ -634,6 +636,7 @@ router.post('/bulk/change-model', async (req: Request, res: Response) => {
         if (provider === 'claude') modelUpdates.model = sanitized;
         else if (provider === 'codex') modelUpdates.codexModel = sanitized;
         else if (provider === 'opencode') modelUpdates.opencodeModel = sanitized;
+        else if (provider === 'grok') modelUpdates.grokModel = sanitized;
 
         if (effortUpdate.set) modelUpdates.effort = effortUpdate.value;
 

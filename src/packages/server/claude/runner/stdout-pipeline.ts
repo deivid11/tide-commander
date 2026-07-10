@@ -27,11 +27,31 @@ export class RunnerStdoutPipeline {
   // loops (respond → notify → respond → notify → ...). Once the notification is sent,
   // suppress all further text/tool output until a new user message arrives.
   private notificationSent: Set<string> = new Set();
+  // Streaming thinking blocks share a uuid across token deltas. The UI marks a
+  // row as thinking via a single leading `[thinking]` prefix — only the first
+  // chunk of each stream should get it, otherwise merges become
+  // `[thinking] a[thinking] b…`.
+  private thinkingStreamPrefixed: Set<string> = new Set();
+  // High-frequency token streams (Grok headless) produce dozens of tiny deltas
+  // per second. Coalesce them into ~one flush every STREAM_COALESCE_MS so the
+  // client doesn't remeasure/redraw the virtual list on every token.
+  private streamCoalesce: Map<string, {
+    agentId: string;
+    uuid: string;
+    kind: 'text' | 'thinking';
+    chunks: string[];
+    timer: ReturnType<typeof setTimeout> | null;
+  }> = new Map();
 
   constructor(deps: StdoutPipelineDeps) {
     this.backend = deps.backend;
     this.callbacks = deps.callbacks;
     this.bus = deps.bus;
+  }
+
+  /** Backends that emit token-sized streaming-json deltas. */
+  private shouldCoalesceStreaming(): boolean {
+    return this.backend.name === 'grok';
   }
 
   handleStdout(agentId: string, process: ChildProcess): Promise<void> {
@@ -159,27 +179,75 @@ export class RunnerStdoutPipeline {
       case 'init':
         this.lastEmittedText.delete(agentId);
         this.notificationSent.delete(agentId);
+        this.clearThinkingPrefixState(agentId);
         this.callbacks.onOutput(agentId, `Session started: ${event.sessionId} (${event.model})`);
         break;
 
       case 'text':
         if (event.text) {
           // Suppress consecutive identical text (extra safety for OpenCode agentic loop)
+          // Skip for streaming chunks — token-level deltas are intentionally small and
+          // may legitimately repeat, and they are merged client-side by uuid.
           const prevText = this.lastEmittedText.get(agentId);
-          if (prevText && prevText === event.text.trim()) {
+          if (!event.isStreaming && prevText && prevText === event.text.trim()) {
             log.log(`[text] Suppressing duplicate text for agent ${agentId.slice(0, 4)}`);
             this.textEmittedInTurn.add(agentId);
             break;
           }
-          this.lastEmittedText.set(agentId, event.text.trim());
-          this.callbacks.onOutput(agentId, event.text, event.isStreaming, undefined, event.uuid);
+          if (event.isStreaming && event.uuid && this.shouldCoalesceStreaming()) {
+            this.enqueueStreamChunk(agentId, event.uuid, 'text', event.text);
+          } else {
+            // Flush any pending coalesced deltas before a final/non-stream emit
+            // so the client never applies final full-text over a stale partial.
+            if (event.uuid) {
+              this.flushStreamCoalesce(`${agentId}:text:${event.uuid}`);
+            }
+            if (!event.isStreaming) {
+              this.lastEmittedText.set(agentId, event.text.trim());
+            }
+            this.callbacks.onOutput(agentId, event.text, event.isStreaming, undefined, event.uuid);
+          }
           this.textEmittedInTurn.add(agentId);
         }
         break;
 
       case 'thinking':
         if (event.text) {
-          this.callbacks.onOutput(agentId, `[thinking] ${event.text}`, event.isStreaming, undefined, event.uuid);
+          const streamKey = event.uuid ? `${agentId}:${event.uuid}` : undefined;
+          if (!event.isStreaming) {
+            if (event.uuid) {
+              this.flushStreamCoalesce(`${agentId}:thinking:${event.uuid}`);
+            }
+            const thinkingOut = event.text.startsWith('[thinking]')
+              ? event.text
+              : `[thinking] ${event.text}`;
+            this.callbacks.onOutput(agentId, thinkingOut, false, undefined, event.uuid);
+            if (streamKey) {
+              this.thinkingStreamPrefixed.delete(streamKey);
+            }
+            break;
+          }
+
+          // Streaming path
+          if (event.uuid && this.shouldCoalesceStreaming()) {
+            let chunk = event.text;
+            if (streamKey && !this.thinkingStreamPrefixed.has(streamKey)) {
+              this.thinkingStreamPrefixed.add(streamKey);
+              chunk = `[thinking] ${event.text}`;
+            }
+            this.enqueueStreamChunk(agentId, event.uuid, 'thinking', chunk);
+          } else {
+            let thinkingOut = event.text;
+            if (streamKey) {
+              if (!this.thinkingStreamPrefixed.has(streamKey)) {
+                this.thinkingStreamPrefixed.add(streamKey);
+                thinkingOut = `[thinking] ${event.text}`;
+              }
+            } else if (!event.text.startsWith('[thinking]')) {
+              thinkingOut = `[thinking] ${event.text}`;
+            }
+            this.callbacks.onOutput(agentId, thinkingOut, true, undefined, event.uuid);
+          }
         }
         break;
 
@@ -225,6 +293,8 @@ export class RunnerStdoutPipeline {
       }
 
       case 'step_complete': {
+        // Flush any pending coalesced stream chunks before finalizing the turn
+        this.flushAllStreamCoalesceForAgent(agentId);
         const hasErrorResultText = this.isLikelyErrorResultText(event.resultText);
         if (event.resultText && (!this.textEmittedInTurn.has(agentId) || hasErrorResultText)) {
           log.log(`[step_complete] Emitting resultText as fallback (no prior text events) for agent ${agentId.slice(0, 4)}`);
@@ -232,6 +302,8 @@ export class RunnerStdoutPipeline {
         } else if (event.resultText) {
           log.log(`[step_complete] Skipping resultText (already emitted via text events) for agent ${agentId.slice(0, 4)}`);
         }
+        this.textEmittedInTurn.delete(agentId);
+        this.clearThinkingPrefixState(agentId);
         if (event.permissionDenials && event.permissionDenials.length > 0) {
           for (const denial of event.permissionDenials) {
             // Suppress the "[System] Permission denied" line for the two tools
@@ -277,6 +349,67 @@ export class RunnerStdoutPipeline {
 
       default:
         break;
+    }
+  }
+
+  private clearThinkingPrefixState(agentId: string): void {
+    const prefix = `${agentId}:`;
+    for (const key of this.thinkingStreamPrefixed) {
+      if (key.startsWith(prefix)) {
+        this.thinkingStreamPrefixed.delete(key);
+      }
+    }
+    // Drop any pending coalesced chunks for this agent
+    for (const [key, buf] of this.streamCoalesce) {
+      if (buf.agentId === agentId) {
+        if (buf.timer) clearTimeout(buf.timer);
+        this.streamCoalesce.delete(key);
+      }
+    }
+  }
+
+  private static readonly STREAM_COALESCE_MS = 80;
+
+  private enqueueStreamChunk(
+    agentId: string,
+    uuid: string,
+    kind: 'text' | 'thinking',
+    chunk: string
+  ): void {
+    const key = `${agentId}:${kind}:${uuid}`;
+    let buf = this.streamCoalesce.get(key);
+    if (!buf) {
+      buf = { agentId, uuid, kind, chunks: [], timer: null };
+      this.streamCoalesce.set(key, buf);
+    }
+    buf.chunks.push(chunk);
+    if (buf.timer) return;
+    buf.timer = setTimeout(() => {
+      this.flushStreamCoalesce(key);
+    }, RunnerStdoutPipeline.STREAM_COALESCE_MS);
+  }
+
+  private flushStreamCoalesce(key: string): void {
+    const buf = this.streamCoalesce.get(key);
+    if (!buf) return;
+    if (buf.timer) {
+      clearTimeout(buf.timer);
+      buf.timer = null;
+    }
+    if (buf.chunks.length === 0) {
+      this.streamCoalesce.delete(key);
+      return;
+    }
+    const text = buf.chunks.join('');
+    buf.chunks = [];
+    this.streamCoalesce.delete(key);
+    this.callbacks.onOutput(buf.agentId, text, true, undefined, buf.uuid);
+  }
+
+  private flushAllStreamCoalesceForAgent(agentId: string): void {
+    const keys = [...this.streamCoalesce.keys()].filter((k) => k.startsWith(`${agentId}:`));
+    for (const key of keys) {
+      this.flushStreamCoalesce(key);
     }
   }
 

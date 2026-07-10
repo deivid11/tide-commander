@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.149.0] - 2026-07-10
+
+### Added
+- **Grok provider** - full fourth CLI runtime alongside Claude, Codex, and OpenCode: `GrokBackend`, streaming-json event parser, session watcher (tools, usage, thinking), and runtime provider registration.
+- **Grok agent model/effort options** - spawn, edit, and bulk-manage flows support Grok models and reasoning effort; provider icons/labels across agent bars, unit panel, dashboard, and terminal.
+- **Thinking blocks in Guake** - expandable thinking cards instead of flat `Grok [thinking]…` text lines.
+- **Richer tool cards** - improved ListFiles, task-output wait, and related tool renderers with clearer parameter and result display.
+- **Todo list merge** - TodoWrite history merges by task `id` so updates keep prior content instead of rendering empty lists.
+
+### Changed
+- **Spawn / edit agent modals** - wider layout, clearer section hierarchy, and improved class/skills spacing (including mobile).
+- **Guake tool output** - provider-aware history loading, better empty-state handling for Bash/`{}` early events, and READ tools that surface `target_file` when path params were missing.
+- **Grok token usage** - context/token counts from the Grok session watcher now flow into the terminal header usage UI.
+
+### Fixed
+- **Runtime service tests** - mock includes `createGrokRuntimeProvider` so detached/codex runtime tests stay green with the new provider.
+
 ## [1.148.0] - 2026-07-10
 
 ### Added

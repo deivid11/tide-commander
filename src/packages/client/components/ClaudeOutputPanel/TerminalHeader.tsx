@@ -27,6 +27,14 @@ function getAgentModelLabel(agent: Agent): { model: string; effort?: string } {
   if (agent.provider === 'opencode') {
     return { model: (agent as unknown as { opencodeModel?: string }).opencodeModel || 'opencode' };
   }
+  if (agent.provider === 'grok') {
+    const id = (agent as unknown as { grokModel?: string }).grokModel || 'grok-4.5';
+    const effortId = agent.effort;
+    const effortMeta = effortId
+      ? (CLAUDE_EFFORTS as Record<string, { label: string }>)[effortId]
+      : undefined;
+    return { model: id, effort: effortMeta?.label };
+  }
   const id = agent.model || 'sonnet';
   const meta = (CLAUDE_MODELS as Record<string, { label: string }>)[id];
   const effortId = agent.effort;
@@ -43,6 +51,7 @@ import { ConfirmModal } from '../shared/ConfirmModal';
 import { ContextMenu } from '../ContextMenu';
 import { ModalPortal } from '../shared/ModalPortal';
 import { buildAgentContextMenuActions } from './agentContextMenuActions';
+import { providerAssetUrl, providerAgentTitle } from '../../utils/providerDisplay';
 
 export interface TerminalHeaderProps {
   selectedAgent: Agent;
@@ -330,10 +339,10 @@ export const TerminalHeader = memo(function TerminalHeader({
               </span>
               <span className="guake-title-accessory">
                 <img
-                  src={selectedAgent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : selectedAgent.provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+                  src={providerAssetUrl(selectedAgent.provider, import.meta.env.BASE_URL)}
                   alt={selectedAgent.provider}
                   className="guake-provider-icon"
-                  title={selectedAgent.provider === 'codex' ? 'Codex Agent' : selectedAgent.provider === 'opencode' ? 'OpenCode Agent' : 'Claude Agent'}
+                  title={providerAgentTitle(selectedAgent.provider)}
                 />
                 {(() => {
                   const { model, effort } = getAgentModelLabel(selectedAgent);
@@ -370,10 +379,10 @@ export const TerminalHeader = memo(function TerminalHeader({
               </span>
               <span className="guake-title-accessory">
                 <img
-                  src={selectedAgent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : selectedAgent.provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+                  src={providerAssetUrl(selectedAgent.provider, import.meta.env.BASE_URL)}
                   alt={selectedAgent.provider}
                   className="guake-provider-icon"
-                  title={selectedAgent.provider === 'codex' ? 'Codex Agent' : selectedAgent.provider === 'opencode' ? 'OpenCode Agent' : 'Claude Agent'}
+                  title={providerAgentTitle(selectedAgent.provider)}
                 />
                 {(() => {
                   const { model, effort } = getAgentModelLabel(selectedAgent);

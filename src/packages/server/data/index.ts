@@ -63,6 +63,7 @@ export interface StoredAgent {
   codexModel?: Agent['codexModel']; // May be missing in older data
   codexConfig?: Agent['codexConfig']; // May be missing in older data
   opencodeModel?: Agent['opencodeModel']; // May be missing in older data
+  grokModel?: Agent['grokModel']; // May be missing in older data
   createdAt: number;
   lastActivity: number;
   sessionId?: string;
@@ -205,6 +206,7 @@ function toStoredAgents(agents: Agent[]): StoredAgent[] {
     codexModel: agent.codexModel,
     codexConfig: agent.codexConfig,
     opencodeModel: agent.opencodeModel,
+    grokModel: agent.grokModel,
     createdAt: agent.createdAt,
     lastActivity: agent.lastActivity,
     sessionId: agent.sessionId,
@@ -686,7 +688,7 @@ export interface RunningProcessInfo {
   agentStatus?: string; // Agent status at persist time - only 'working' agents should be resumed
   tmuxSession?: string; // tmux session name (when using TIDE_USE_TMUX)
   tmuxLogOffset?: number; // byte offset into the tmux log file for resuming
-  provider?: string; // Runtime provider ('claude', 'codex', 'opencode')
+  provider?: string; // Runtime provider ('claude', 'codex', 'opencode', 'grok')
 }
 
 interface RunningProcessesData {

@@ -1654,7 +1654,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
             const stats = activeAgent.contextStats;
             const hasData = !!stats;
             const totalTokens = stats ? stats.totalTokens : (activeAgent.contextUsed || 0);
-            const contextWindow = stats ? stats.contextWindow : (activeAgent.contextLimit || 200000);
+            const contextWindow = stats
+              ? stats.contextWindow
+              : (activeAgent.contextLimit || (activeAgent.provider === 'grok' ? 500000 : 200000));
             const rawUsedPercent = stats ? stats.usedPercent : Math.round((totalTokens / contextWindow) * 100);
             const usedPercent = Math.max(0, Math.min(100, rawUsedPercent));
             const freePercent = Math.max(0, 100 - usedPercent);

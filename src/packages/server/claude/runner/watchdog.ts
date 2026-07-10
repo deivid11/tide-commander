@@ -85,6 +85,11 @@ export class RunnerWatchdog {
             log.error(`🐕 [WATCHDOG] Agent ${agentId}: tailer drain failed: ${String(err)}`);
           }
           activeProcess.tmuxTailer?.stop();
+          try {
+            activeProcess.sideChannelStop?.();
+          } catch {
+            // ignore
+          }
           this.recordDeath({
             agentId,
             pid: activeProcess.process.pid ?? 0,
@@ -142,6 +147,11 @@ export class RunnerWatchdog {
           stderr: this.lastStderr.get(agentId),
         });
 
+        try {
+          activeProcess.sideChannelStop?.();
+        } catch {
+          // ignore
+        }
         this.activeProcesses.delete(agentId);
         this.lastStderr.delete(agentId);
 

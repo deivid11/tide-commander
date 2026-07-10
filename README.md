@@ -2,7 +2,7 @@
   <img src="https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/tide-commander-logo.png" alt="Tide Commander" width="400" />
 </p>
 
-<p align="center"><strong>A visual multi-agent orchestrator for Claude Code, Codex, and OpenCode</strong></p>
+<p align="center"><strong>A visual multi-agent orchestrator for Claude Code, Codex, OpenCode, and Grok</strong></p>
 
 ![Tide Commander Preview](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/preview-3d.png)
 
@@ -20,6 +20,7 @@ Requirements:
   - **Claude Code** — `claude` command in PATH
   - **Codex** — `codex` command in PATH (OpenAI Codex CLI)
   - **OpenCode** — `opencode` command in PATH ([opencode CLI](https://github.com/nicholasgriffintn/opencode))
+  - **Grok** — `grok` command in PATH (Grok Build CLI headless mode)
 
 Install and run:
 
@@ -301,10 +302,11 @@ Tide Commander is a Claude Code, Codex, and OpenCode-compatible orchestrator tha
 - WebSocket server for real-time event streaming
 - Process manager that spawns and controls Claude, Codex, and OpenCode CLI instances
 
-**🤖 CLI Integration (Claude + Codex + OpenCode)**
+**🤖 CLI Integration (Claude + Codex + OpenCode + Grok)**
 - Claude agents run `claude` with `--output-format stream-json` and use stdin for follow-up messages
 - Codex agents run `codex exec --experimental-json` and resume via session-based command args
 - OpenCode agents run `opencode run --format json` for NDJSON streaming and resume via `-s <sessionId>`
+- Grok agents run `grok -p … --output-format streaming-json` (headless) and resume via `--resume <sessionId>`
 - Events (tool usage, text output, errors) are parsed from stdout for all providers
 - Sessions are persisted and can be resumed
 - OpenCode reads `.claude/CLAUDE.md` natively (like Claude Code)
@@ -412,7 +414,7 @@ docker run -p 5174:5174 \
   tide-commander
 ```
 
-> Note: The Docker container needs at least one CLI (`claude`, `codex`, or `opencode`) accessible inside the container for agent processes to work.
+> Note: The Docker container needs at least one CLI (`claude`, `codex`, `opencode`, or `grok`) accessible inside the container for agent processes to work.
 
 ## 📱 Android APK (Optional)
 
@@ -467,6 +469,7 @@ Planned features and improvements — contributions and feedback welcome:
 - [x] **Multilingual Support** — i18n with 10 languages (EN, ES, FR, DE, IT, PT, RU, ZH, JA, HI)
 - [x] **Codex Integration** — Compatible with OpenAI Codex CLI alongside Claude Code
 - [x] **OpenCode Integration** — Compatible with OpenCode CLI as a third provider
+- [x] **Grok Integration** — Compatible with Grok Build CLI headless mode as a fourth provider
 - [ ] **Buildings Plugin System** — External plugin API for community-built building types
 - [x] **API Documentation** — OpenAPI/Swagger spec for the REST and WebSocket APIs
 - [ ] **Observability** — Error tracking, logging aggregation, and performance monitoring

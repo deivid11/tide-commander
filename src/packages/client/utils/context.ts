@@ -2,6 +2,8 @@ import type { Agent, ContextStats } from '../../shared/types';
 
 const DEFAULT_CLAUDE_CONTEXT_LIMIT = 200000;
 const DEFAULT_CODEX_CONTEXT_LIMIT = 258400;
+/** Matches live Grok Build signals.json contextWindowTokens. */
+const DEFAULT_GROK_CONTEXT_LIMIT = 500000;
 
 export interface DisplayContextInfo {
   totalTokens: number;
@@ -22,9 +24,13 @@ function clampPercent(value: number): number {
 }
 
 export function getDisplayContextInfo(agent: DisplayContextAgent): DisplayContextInfo {
-  const defaultContextLimit = agent.provider === 'codex' || agent.provider === 'opencode'
+  const defaultContextLimit = agent.provider === 'codex'
     ? DEFAULT_CODEX_CONTEXT_LIMIT
-    : DEFAULT_CLAUDE_CONTEXT_LIMIT;
+    : agent.provider === 'grok'
+      ? DEFAULT_GROK_CONTEXT_LIMIT
+      : agent.provider === 'opencode'
+        ? DEFAULT_CLAUDE_CONTEXT_LIMIT
+        : DEFAULT_CLAUDE_CONTEXT_LIMIT;
   const trackedWindow = Math.max(1, Math.round(agent.contextLimit || defaultContextLimit));
   const trackedTokens = Math.max(0, Math.min(Math.round(agent.contextUsed || 0), trackedWindow));
   const trackedUsedPercent = clampPercent(Number(((trackedTokens / trackedWindow) * 100).toFixed(1)));

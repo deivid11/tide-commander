@@ -7,12 +7,15 @@ import {
   isClaudeProcessRunningInCwd,
   isCodexProcessRunningInCwd,
   isOpencodeProcessRunningInCwd,
+  isGrokProcessRunningInCwd,
   killClaudeProcessInCwd,
   killCodexProcessInCwd,
   killOpencodeProcessInCwd,
+  killGrokProcessInCwd,
   findClaudeProcessPidInCwd,
   findCodexProcessPidInCwd,
   findOpencodeProcessPidInCwd,
+  findGrokProcessPidInCwd,
 } from '../claude/session-loader.js';
 import * as agentService from './agent-service.js';
 import { loadRunningProcesses, isProcessRunning } from '../data/index.js';
@@ -21,6 +24,7 @@ import {
   createClaudeRuntimeProvider,
   createCodexRuntimeProvider,
   createOpencodeRuntimeProvider,
+  createGrokRuntimeProvider,
   type RuntimeProvider,
   type RuntimeRunner,
   type RuntimeEvent,
@@ -59,6 +63,7 @@ const runtimeProviders: Record<AgentProvider, RuntimeProvider> = {
   claude: createClaudeRuntimeProvider(),
   codex: createCodexRuntimeProvider(),
   opencode: createOpencodeRuntimeProvider(),
+  grok: createGrokRuntimeProvider(),
 };
 const runners = new Map<AgentProvider, RuntimeRunner>();
 
@@ -115,6 +120,9 @@ async function isProviderProcessRunningInCwd(provider: AgentProvider, cwd: strin
   if (provider === 'opencode') {
     return isOpencodeProcessRunningInCwd(cwd);
   }
+  if (provider === 'grok') {
+    return isGrokProcessRunningInCwd(cwd);
+  }
   return isClaudeProcessRunningInCwd(cwd);
 }
 
@@ -124,6 +132,9 @@ async function killDetachedProviderProcessInCwd(provider: AgentProvider, cwd: st
   }
   if (provider === 'opencode') {
     return killOpencodeProcessInCwd(cwd);
+  }
+  if (provider === 'grok') {
+    return killGrokProcessInCwd(cwd);
   }
   return killClaudeProcessInCwd(cwd);
 }
@@ -222,6 +233,13 @@ export function init(): void {
     onError: runtimeEvents.handleError,
   }));
   runners.set('opencode', runtimeProviders.opencode.createRunner({
+    onEvent: runtimeEvents.handleEvent,
+    onOutput: runtimeEvents.handleOutput,
+    onSessionId: runtimeEvents.handleSessionId,
+    onComplete: runtimeEvents.handleComplete,
+    onError: runtimeEvents.handleError,
+  }));
+  runners.set('grok', runtimeProviders.grok.createRunner({
     onEvent: runtimeEvents.handleEvent,
     onOutput: runtimeEvents.handleOutput,
     onSessionId: runtimeEvents.handleSessionId,
@@ -394,7 +412,9 @@ export async function getAgentRuntimeProcessInfo(agentId: string): Promise<Agent
         ? await findCodexProcessPidInCwd(agent.cwd)
         : provider === 'opencode'
           ? await findOpencodeProcessPidInCwd(agent.cwd)
-          : await findClaudeProcessPidInCwd(agent.cwd);
+          : provider === 'grok'
+            ? await findGrokProcessPidInCwd(agent.cwd)
+            : await findClaudeProcessPidInCwd(agent.cwd);
 
     if (discoveredPid && isProcessRunning(discoveredPid)) {
       return {

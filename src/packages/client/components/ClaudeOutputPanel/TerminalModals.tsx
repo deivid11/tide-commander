@@ -28,6 +28,7 @@ import { useModalClose } from '../../hooks';
 import { ModalPortal } from '../shared/ModalPortal';
 import { fetchAgentInjectedPrompt } from '../../api/agent-prompt';
 import { Icon } from '../Icon';
+import { providerAssetUrl, providerAgentTitle, providerLabel } from '../../utils/providerDisplay';
 
 // Image modal props
 export interface ImageModalProps {
@@ -654,6 +655,8 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
     ? (agent.codexModel || 'gpt-5.6-luna')
     : agent.provider === 'opencode'
     ? ((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k')
+    : agent.provider === 'grok'
+    ? ((agent as any).grokModel || 'grok-4.5')
     : (agent.model || 'sonnet');
 
   const classInstructions = customClass?.instructions?.trim() || '';
@@ -688,12 +691,12 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
                   <span>{t('terminal:agentInfo.backend')}</span>
                   <strong>
                     <img
-                      src={agent.provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : agent.provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+                      src={providerAssetUrl(agent.provider, import.meta.env.BASE_URL)}
                       alt={agent.provider}
                       className="agent-info-provider-icon"
-                      title={agent.provider === 'codex' ? 'Codex Agent' : agent.provider === 'opencode' ? 'OpenCode Agent' : 'Claude Agent'}
+                      title={providerAgentTitle(agent.provider)}
                     />
-                    {agent.provider === 'codex' ? 'Codex' : agent.provider === 'opencode' ? 'OpenCode' : 'Claude'}
+                    {providerLabel(agent.provider)}
                   </strong>
                 </div>
                 <div className="agent-info-item"><span>{t('terminal:agentInfo.model')}</span><strong>{model}</strong></div>

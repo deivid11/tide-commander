@@ -102,6 +102,7 @@ export interface DiffLine {
 
 // Todo item structure for TodoWrite tool
 export interface TodoItem {
+  id?: string;
   content: string;
   status: 'pending' | 'in_progress' | 'completed';
   activeForm?: string;
@@ -137,6 +138,9 @@ export interface EnrichedHistoryMessage {
   // "Task #N created successfully: <subject>"). When present, the chip can
   // show the task name instead of just "status: completed".
   _taskSubject?: string;
+  // Running TodoWrite snapshot before this tool_use (Grok merge:true updates
+  // only send {id,status} — we resolve content from this prior list).
+  _priorTodos?: TodoItem[];
   // For AskUserQuestion / ExitPlanMode tool_use: the matching pending
   // agent-prompt id (= toolUseId). When set, the chip renders an interactive
   // UI inline so the user can answer/approve. Computed in AgentTerminalPane so

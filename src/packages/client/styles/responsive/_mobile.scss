@@ -1665,23 +1665,57 @@
   // Generic modal height reduction for mobile
   .spawn-modal,
   .agent-edit-modal {
-    max-height: 75vh;
+    width: 96vw;
+    max-height: 88vh;
+    max-height: 88dvh;
+
+    .modal-header {
+      padding: 12px 14px;
+      font-size: 15px;
+    }
+
+    .modal-footer {
+      padding: 12px 14px;
+    }
+  }
+
+  .spawn-modal-body {
+    padding: 12px 14px 16px;
+    gap: 12px;
+  }
+
+  .spawn-section {
+    padding: 12px;
+    gap: 10px;
   }
 
   // Spawn modal mobile layout - stack rows vertically
   .spawn-top-section {
     flex-direction: column;
     align-items: stretch;
+    gap: 12px;
   }
 
   .spawn-preview-compact {
     display: flex;
+    flex-direction: row;
     justify-content: center;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 10px;
+  }
+
+  .class-selector-inline {
+    max-height: 160px;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 6px;
+    padding: 8px;
   }
 
   .spawn-form-row {
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
   }
 
   .spawn-field.spawn-field-wide {
@@ -1691,6 +1725,15 @@
   // Model buttons: single row, full width
   .spawn-select-row {
     flex-wrap: wrap;
+  }
+
+  .spawn-select-row--wrap {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  }
+
+  .spawn-skills-inline,
+  .skills-chips-compact {
+    max-height: 140px;
   }
 
   .image-modal-header {

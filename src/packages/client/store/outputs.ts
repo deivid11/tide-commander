@@ -163,6 +163,31 @@ export function createOutputActions(
               // Exact resend - skip.
               return;
             }
+
+            // Grok early tool_start cards arrive with empty toolInput; when the
+            // chat_history line lands we re-emit the same uuid with full args.
+            // Merge into the existing row instead of stacking a duplicate chip.
+            const existingIsToolStart = typeof existing.text === 'string' && existing.text.startsWith('Using tool:');
+            const incomingIsToolStart = typeof output.text === 'string' && output.text.startsWith('Using tool:');
+            const existingInputEmpty = !existing.toolInput || Object.keys(existing.toolInput).length === 0;
+            const incomingHasInput = !!output.toolInput && Object.keys(output.toolInput).length > 0;
+            if (existingIsToolStart && incomingIsToolStart && existingInputEmpty && incomingHasInput) {
+              const updatedOutputs = [...currentOutputs];
+              updatedOutputs[existingIndex] = {
+                ...existing,
+                ...output,
+                timestamp: existing.timestamp,
+                text: existing.text || output.text,
+                toolName: output.toolName ?? existing.toolName,
+                toolInput: output.toolInput,
+              };
+              const limitedOutputs = enforceOutputBufferLimits(updatedOutputs);
+              const newAgentOutputs = new Map(s.agentOutputs);
+              newAgentOutputs.set(agentId, limitedOutputs);
+              s.agentOutputs = newAgentOutputs;
+              return;
+            }
+
             // Same UUID with different non-streaming text is valid for tool
             // blocks such as "Using tool:" followed by "Tool input:".
             // Fall through and append it as a distinct output row.

@@ -95,7 +95,8 @@ export interface AgentActions {
     model?: ClaudeModel,
     customInstructions?: string,
     effort?: ClaudeEffort,
-    opencodeModel?: string
+    opencodeModel?: string,
+    grokModel?: string
   ): void;
   cloneAgent(
     sourceAgentId: string,
@@ -131,6 +132,7 @@ export interface AgentActions {
       codexConfig?: CodexConfig;
       codexModel?: CodexModel;
       opencodeModel?: string;
+      grokModel?: string;
       model?: ClaudeModel;
       effort?: ClaudeEffort;
       useChrome?: boolean;
@@ -479,7 +481,8 @@ export function createAgentActions(
       model?: ClaudeModel,
       customInstructions?: string,
       effort?: ClaudeEffort,
-      opencodeModel?: string
+      opencodeModel?: string,
+      grokModel?: string
     ): void {
       logAgentStore('[Store] spawnAgent called with:', {
         name,
@@ -496,6 +499,7 @@ export function createAgentActions(
         model,
         effort,
         opencodeModel,
+        grokModel,
         customInstructions: customInstructions ? `${customInstructions.length} chars` : undefined,
       });
 
@@ -515,6 +519,7 @@ export function createAgentActions(
           codexConfig,
           codexModel,
           opencodeModel,
+          grokModel,
           model,
           effort,
           customInstructions,
@@ -823,6 +828,7 @@ export function createAgentActions(
         codexConfig?: CodexConfig;
         codexModel?: CodexModel;
         opencodeModel?: string;
+        grokModel?: string;
         model?: ClaudeModel;
         effort?: ClaudeEffort;
         useChrome?: boolean;
@@ -865,6 +871,9 @@ export function createAgentActions(
           }
           if (updates.opencodeModel !== undefined) {
             (updatedAgent as any).opencodeModel = updates.opencodeModel;
+          }
+          if (updates.grokModel !== undefined) {
+            (updatedAgent as any).grokModel = updates.grokModel;
           }
           if (updates.useChrome !== undefined) {
             updatedAgent.useChrome = updates.useChrome;

@@ -543,6 +543,14 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                     <span><Icon name="status-pending" size={14} weight="fill" color="#4ade80" /></span>
                     <span>OpenCode</span>
                   </button>
+                  <button
+                    className={`spawn-select-btn spawn-select-btn--grok ${selectedProvider === 'grok' ? 'selected' : ''}`}
+                    onClick={() => setSelectedProvider('grok')}
+                    title="Use Grok CLI (headless)"
+                  >
+                    <img src={`${import.meta.env.BASE_URL}assets/grok.png`} alt="Grok" className="spawn-provider-icon" />
+                    <span>Grok</span>
+                  </button>
                 </div>
               </div>
               <div className="spawn-field">
@@ -604,6 +612,8 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                     defaultValue="minimax/MiniMax-M1-80k"
                     placeholder="provider/model (e.g., minimax/MiniMax-M1-80k)"
                   />
+                ) : selectedProvider === 'grok' ? (
+                  <div className="spawn-inline-hint">grok-4.5</div>
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.codex.configuration')}</div>
                 )}

@@ -139,12 +139,12 @@ export async function bulkRemoveSkills(agentIds: string[], skillIds: string[]): 
 
 export async function bulkChangeModel(
   agentIds: string[],
-  provider: 'claude' | 'codex' | 'opencode',
+  provider: 'claude' | 'codex' | 'opencode' | 'grok',
   model: string,
   effort?: ClaudeEffort | null
 ): Promise<BulkActionResult> {
   const body: Record<string, unknown> = { agentIds, provider, model };
-  if (provider === 'claude' && effort !== undefined) {
+  if ((provider === 'claude' || provider === 'grok') && effort !== undefined) {
     body.effort = effort;
   }
   return postBulkAction('/api/agents/bulk/change-model', body);

@@ -6,7 +6,7 @@ import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHideCost, useSettings, ClaudeOutput, store, useAgentPrompts, type TestRunHandle, type HttpRunHandle } from '../../store';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay, parseTaskNotification, TaskNotificationDisplay } from './BossContext';
@@ -16,7 +16,7 @@ import { parseSlackMessage, SlackMessageBubble } from './SlackMessageBubble';
 import { DelegationMessageCard, parseDelegationMessage } from './DelegationMessageCard';
 import { AgentChatMessageCard, parseAgentChatMessage } from './AgentChatMessageCard';
 import { parseExtensionContext, ExtensionContextCard } from './ExtensionContextCard';
-import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, AskQuestionResult, ExitPlanModeInput, UnknownToolInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, MemoryOpInput, isToolSearchContent } from './ToolRenderers';
+import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, AskQuestionResult, ExitPlanModeInput, UnknownToolInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, MemoryOpInput, isToolSearchContent, ListFilesInput, TaskOutputWaitInput } from './ToolRenderers';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
 import { parseTestResults } from './testResultsParser';
@@ -35,6 +35,8 @@ import { BashInlineToggle, BashInlineOutput } from './BashInlineOutput';
 import type { EditData } from './types';
 import type { ExecTask, Subagent } from '../../../shared/types';
 import { SubagentInline } from './SubagentInline';
+import { providerAssetUrl, providerAgentTitle, providerLabel } from '../../utils/providerDisplay';
+import { ThinkingBlock } from './ThinkingBlock';
 
 /** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
 function getExtFromPath(filePath: string): string {
@@ -282,7 +284,35 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       if (pending > 0) parts.push(`${pending} pending`);
       toolKeyParamOrFallback = `${todos.length} items (${parts.join(', ')})`;
     } else {
-      toolKeyParamOrFallback = (input.file_path || input.filePath || input.path || input.notebook_path || input.notebookPath || input.command || input.pattern || input.url || input.query || input.description) as string;
+      // Prefer extractToolKeyParam so Grok fields (target_file, target_directory)
+      // resolve the same way as history tool_use rows.
+      try {
+        const extracted = extractToolKeyParam(
+          payloadToolName || '',
+          JSON.stringify(input)
+        );
+        if (extracted) {
+          toolKeyParamOrFallback = extracted;
+        }
+      } catch { /* ignore */ }
+      if (!toolKeyParamOrFallback) {
+        toolKeyParamOrFallback = (
+          input.file_path
+          || input.filePath
+          || input.target_file
+          || input.targetFile
+          || input.target_directory
+          || input.targetDirectory
+          || input.path
+          || input.notebook_path
+          || input.notebookPath
+          || input.command
+          || input.pattern
+          || input.url
+          || input.query
+          || input.description
+        ) as string;
+      }
       // Fallback: JSON serialize for any unrecognized tool inputs
       if (!toolKeyParamOrFallback) {
         try {
@@ -299,7 +329,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   const parentAgentName = agentId ? store.getState().agents.get(agentId)?.name : null;
   const agentName = output.subagentName || parentAgentName;
   const provider = agentId ? store.getState().agents.get(agentId)?.provider : undefined;
-  const assistantRoleLabel = provider === 'codex' ? 'Codex' : provider === 'opencode' ? 'OpenCode' : 'Claude';
+  const assistantRoleLabel = providerLabel(provider);
 
   // All hooks must be called before any conditional returns (Rules of Hooks)
   const [sessionExpanded, setSessionExpanded] = useState(false);
@@ -558,6 +588,18 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const displayToolName = getLocalizedToolName(toolName, t);
     const iconName = getToolIconName(toolName);
 
+    // Grok emits early tool_started with empty toolInput {}. Those cards would
+    // render as bare "BASH" / "READ" with no params — hide until args upgrade
+    // arrives (same uuid, merge in store).
+    const earlyEmptyInput =
+      !payloadToolInput
+      || (typeof payloadToolInput === 'object'
+        && !Array.isArray(payloadToolInput)
+        && Object.keys(payloadToolInput as object).length === 0);
+    if (earlyEmptyInput && (toolName === 'Bash' || toolName === 'Read' || toolName === 'Write' || toolName === 'Edit' || toolName === 'ListFiles' || toolName === 'Grep' || toolName === 'Glob')) {
+      return null;
+    }
+
     const recognizedTools = new Set([
       'Bash',
       'Read',
@@ -574,7 +616,19 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       'ExitPlanMode',
       'EnterPlanMode',
       'web_search',
+      'WebSearch',
+      'WebFetch',
       'ToolSearch',
+      'ListFiles',
+      'list_dir',
+      'SearchFiles',
+      // Grok / Tide runtime tools (have dedicated chips below)
+      'get_command_or_subagent_output',
+      'get_task_output',
+      'spawn_subagent',
+      'send_message_to_agent',
+      'open_page',
+      'open_page_with_find',
       // Codex subagent collab tools
       'spawn_agent',
       'send_input',
@@ -589,13 +643,18 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         : undefined
     );
     if (toolName === 'TodoWrite' && todoContent) {
+      // Prefer agent.latestTodos as prior snapshot so Grok merge:true status-only
+      // updates still show content from the last full TodoWrite.
+      const priorTodos = agentId
+        ? (store.getState().agents.get(agentId)?.latestTodos || [])
+        : [];
       return (
         <div className={`output-line output-tool-use output-todo-inline ${isStreaming ? 'output-streaming' : ''}`}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
-          <TodoWriteInput content={todoContent} />
+          <TodoWriteInput content={todoContent} priorTodos={priorTodos} />
         </div>
       );
     }
@@ -686,6 +745,41 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       );
     }
 
+    // ListFiles / list_dir — folder path chip (no raw JSON dump)
+    if (
+      (toolName === 'ListFiles' || toolName === 'list_dir')
+      && payloadToolInput && typeof payloadToolInput === 'object'
+    ) {
+      return (
+        <div className={`output-line output-tool-use output-list-files-inline ${isStreaming ? 'output-streaming' : ''}`}>
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
+          <span className="output-tool-name">{displayToolName}</span>
+          <ListFilesInput
+            content={JSON.stringify(payloadToolInput)}
+            onFileClick={onFileClick ? (p) => onFileClick(p) : undefined}
+          />
+        </div>
+      );
+    }
+
+    // get_command_or_subagent_output — task wait chips
+    if (
+      (toolName === 'get_command_or_subagent_output' || toolName === 'get_task_output')
+      && payloadToolInput && typeof payloadToolInput === 'object'
+    ) {
+      return (
+        <div className={`output-line output-tool-use output-task-wait-inline ${isStreaming ? 'output-streaming' : ''}`}>
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
+          <span className="output-tool-name">{displayToolName}</span>
+          <TaskOutputWaitInput content={JSON.stringify(payloadToolInput)} />
+        </div>
+      );
+    }
+
     // Codex subagent collab tools: spawn_agent, send_input, wait
     const collabTools = ['spawn_agent', 'send_input', 'wait'];
     if (collabTools.includes(toolName)) {
@@ -734,9 +828,13 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       ? (
           (typeof payloadInputRecord.file_path === 'string' ? payloadInputRecord.file_path : undefined)
           || (typeof payloadInputRecord.filePath === 'string' ? payloadInputRecord.filePath : undefined)
+          || (typeof payloadInputRecord.target_file === 'string' ? payloadInputRecord.target_file : undefined)
+          || (typeof payloadInputRecord.targetFile === 'string' ? payloadInputRecord.targetFile : undefined)
           || (typeof payloadInputRecord.path === 'string' ? payloadInputRecord.path : undefined)
           || (typeof payloadInputRecord.notebook_path === 'string' ? payloadInputRecord.notebook_path : undefined)
           || (typeof payloadInputRecord.notebookPath === 'string' ? payloadInputRecord.notebookPath : undefined)
+          || (typeof payloadInputRecord.target_directory === 'string' ? payloadInputRecord.target_directory : undefined)
+          || (typeof payloadInputRecord.targetDirectory === 'string' ? payloadInputRecord.targetDirectory : undefined)
         )
       : undefined;
 
@@ -762,11 +860,19 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       ? { highlightRange: { offset: payloadInputRecord.offset, limit: payloadInputRecord.limit } }
       : undefined;
 
-    // Check if this is a Bash tool that should be clickable (with command or output)
-    const isBashTool = toolName === 'Bash' && onBashClick;
+    // Bash is identified by tool name; click handler is optional for display.
+    const isBashTool = toolName === 'Bash';
     const hasBashOutput = !!_bashOutput || !!payloadToolOutput;
-    const bashCommand = _bashCommand || _toolKeyParam || toolKeyParamOrFallback || '';
-    const displayCommand = extractExecWrappedCommand(bashCommand);
+    const bashDescription =
+      payloadInputRecord && typeof payloadInputRecord.description === 'string'
+        ? payloadInputRecord.description.trim()
+        : '';
+    const bashCommand = _bashCommand || _toolKeyParam || toolKeyParamOrFallback || bashDescription || '';
+    const displayCommand = bashCommand ? extractExecWrappedCommand(bashCommand) : '';
+    // Empty Bash chip (no command/description) — don't render a blank row.
+    if (isBashTool && !bashCommand) {
+      return null;
+    }
     const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
 
 
@@ -875,7 +981,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     };
 
     const handleBashClick = () => {
-      if (isBashTool && bashCommand) {
+      if (isBashTool && bashCommand && onBashClick) {
         // If command is still running (no output yet), show loading message
         const outputMessage = _isRunning
           ? t('tools:display.running')
@@ -918,9 +1024,9 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     return (
       <>
         <div
-          className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''} ${isBashTool ? 'bash-clickable' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''} ${bashTrackingStatusCommand ? 'bash-tracking-use' : ''}`}
-          onClick={isBashTool ? handleBashClick : undefined}
-          title={isBashTool ? t('tools:display.clickToViewOutput') : undefined}
+          className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''} ${isBashTool && onBashClick ? 'bash-clickable' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''} ${bashTrackingStatusCommand ? 'bash-tracking-use' : ''}`}
+          onClick={isBashTool && onBashClick ? handleBashClick : undefined}
+          title={isBashTool && onBashClick ? t('tools:display.clickToViewOutput') : undefined}
         >
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
@@ -1198,10 +1304,13 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         );
       }
       if (Array.isArray(parsed.todos)) {
+        const priorTodos = agentId
+          ? (store.getState().agents.get(agentId)?.latestTodos || [])
+          : [];
         return (
           <div className="output-line output-tool-input">
             <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-            <TodoWriteInput content={inputText} />
+            <TodoWriteInput content={inputText} priorTodos={priorTodos} />
           </div>
         );
       }
@@ -1334,13 +1443,6 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   }
 
   const isThinking = text.startsWith('[thinking]');
-  const thinkingText = isThinking ? text.replace(/^\[thinking\]\s*/, '') : '';
-  const thinkingInlineText = isThinking
-    ? (thinkingText || '(processing)')
-      .replace(/\*+/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-    : '';
   const systemMessageMatch = text.match(/^\s*([\u{1F300}-\u{1FAFF}\u2600-\u27BF])?\s*\[System\]([\s\S]*)$/u);
   const isSystemMessage = Boolean(systemMessageMatch);
   const systemEmoji = systemMessageMatch?.[1];
@@ -1381,7 +1483,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     className += ' output-stats';
     useMarkdown = false;
   } else if (isThinking) {
-    className += ' output-thinking output-tool-use';
+    // Rendered via ThinkingBlock below (early return)
     useMarkdown = false;
   } else if (text.startsWith('[raw]')) {
     className += ' output-raw';
@@ -1409,10 +1511,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           <span className="output-role">
             {provider && (
               <img
-                src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+                src={providerAssetUrl(provider, import.meta.env.BASE_URL)}
                 alt=""
                 className="output-role-icon"
-                title={provider === 'codex' ? 'Codex Agent' : provider === 'opencode' ? 'OpenCode Agent' : 'Claude Agent'}
+                title={providerAgentTitle(provider)}
               />
             )}
             {assistantRoleLabel}
@@ -1471,6 +1573,19 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     return null;
   }
 
+  if (isThinking) {
+    return (
+      <ThinkingBlock
+        text={text}
+        isStreaming={isStreaming}
+        agentName={agentName}
+        provider={provider}
+        timeStr={timeStr}
+        timestampTitle={`${timestamp || Date.now()} | ${debugHash}`}
+      />
+    );
+  }
+
   const outputRoleLabel = isClaudeMessage ? assistantRoleLabel : (isSystemMessage ? t('tools:display.system') : null);
 
   return (
@@ -1480,10 +1595,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         <span className="output-role">
           {isClaudeMessage && provider && (
             <img
-              src={provider === 'codex' ? `${import.meta.env.BASE_URL}assets/codex.png` : provider === 'opencode' ? `${import.meta.env.BASE_URL}assets/opencode.png` : `${import.meta.env.BASE_URL}assets/claude.png`}
+              src={providerAssetUrl(provider, import.meta.env.BASE_URL)}
               alt=""
               className="output-role-icon"
-              title={provider === 'codex' ? 'Codex Agent' : provider === 'opencode' ? 'OpenCode Agent' : 'Claude Agent'}
+              title={providerAgentTitle(provider)}
             />
           )}
           {outputRoleLabel}
@@ -1509,16 +1624,6 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             renderContentWithImages(text, onImageClick, onFileClick)
           )}
         </div>
-      ) : isThinking ? (
-        <>
-          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-          <span className="output-tool-name output-thinking-label">
-            {provider === 'codex' ? t('tools:display.codexThinking') : t('tools:display.thinking')}
-          </span>
-          <span className="output-tool-param output-thinking-content" title={thinkingInlineText}>
-            {thinkingInlineText}
-          </span>
-        </>
       ) : (
         text
       )}

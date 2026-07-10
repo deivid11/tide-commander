@@ -65,10 +65,25 @@ export const PERMISSION_MODES: Record<PermissionMode, { label: string; descripti
 };
 
 // Agent runtime provider
-export type AgentProvider = 'claude' | 'codex' | 'opencode';
+export type AgentProvider = 'claude' | 'codex' | 'opencode' | 'grok';
 
 // OpenCode model - uses provider/model format (e.g. 'minimax/MiniMax-M1-80k')
 export type OpencodeModel = string;
+
+// Grok CLI model id (e.g. 'grok-4.5')
+export type GrokModel = string;
+
+export const GROK_MODELS: Record<string, { label: string; description: string; icon: string; contextWindow: number }> = {
+  'grok-4.5': {
+    label: 'Grok 4.5',
+    description: 'Default Grok Build model',
+    icon: '⚡',
+    // Authoritative window from live Grok Build signals.json (contextWindowTokens).
+    contextWindow: 500000,
+  },
+};
+
+export const DEFAULT_GROK_MODEL = 'grok-4.5';
 
 // Codex CLI execution controls
 export type CodexApprovalMode = 'untrusted' | 'on-failure' | 'on-request' | 'never';
@@ -209,6 +224,8 @@ export interface ContextStats {
 export type AgentTodoStatus = 'pending' | 'in_progress' | 'completed';
 
 export interface AgentTodoItem {
+  /** Stable id when the provider supports merge updates (e.g. Grok todo_write). */
+  id?: string;
   content: string;
   status: AgentTodoStatus;
   activeForm?: string;
@@ -242,6 +259,7 @@ export interface Agent {
   codexModel?: CodexModel; // Codex model to use (for provider='codex')
   codexConfig?: CodexConfig; // Codex CLI config (only for provider='codex')
   opencodeModel?: OpencodeModel; // OpenCode model to use (for provider='opencode')
+  grokModel?: GrokModel; // Grok model to use (for provider='grok')
 
   // Resources
   tokensUsed: number;
