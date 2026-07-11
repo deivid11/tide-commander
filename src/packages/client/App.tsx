@@ -53,6 +53,7 @@ import { recordRecentAgent, recordRecentBuilding } from './components/Spotlight/
 const IframeModal = React.lazy(() => import('./components/IframeModal').then(m => ({ default: m.IframeModal })));
 import { NotConnectedOverlay } from './components/NotConnectedOverlay';
 import { UpdateBanner } from './components/UpdateBanner';
+import { AppUpdateBanner } from './components/AppUpdateBanner';
 import { PostUpdateNotice } from './components/PostUpdateNotice';
 import { OnboardingModal } from './components/OnboardingModal';
 import { profileRender, useRenderCounter } from './utils/profiling';
@@ -834,6 +835,8 @@ function AppContent() {
       <NotConnectedOverlay />
       {/* Global "update available" banner (dismissible, conscious restart) */}
       <UpdateBanner />
+      {/* Android APK update banner (store-less in-app update) */}
+      <AppUpdateBanner />
       {/* One-time "updated — view changelog" notice after a self-update reload */}
       <PostUpdateNotice />
       <OnboardingModal onCreateAgent={spawnModal.open} />

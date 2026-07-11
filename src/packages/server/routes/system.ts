@@ -88,6 +88,114 @@ router.get('/changelog', (_req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/system/app-update
+ *
+ * Update metadata for the Android APK, checked server-side. The device asks
+ * its own server instead of api.github.com because phones sit behind carrier
+ * CGNAT where GitHub's unauthenticated 60 req/hour/IP quota routinely 403s —
+ * the same failure that forced the changelog to be served locally. Responses
+ * are cached; on a GitHub outage the last good payload is served stale.
+ */
+const GITHUB_REPO = 'deivid11/tide-commander';
+const APP_UPDATE_CACHE_TTL_MS = 10 * 60 * 1000;
+
+interface GitHubReleaseAsset {
+  name: string;
+  size: number;
+  browser_download_url: string;
+  content_type: string;
+}
+
+interface GitHubRelease {
+  tag_name: string;
+  name: string | null;
+  body: string | null;
+  html_url: string;
+  published_at: string;
+  assets: GitHubReleaseAsset[];
+}
+
+interface AppUpdateInfo {
+  latestVersion: string;
+  name: string | null;
+  changelog: string | null;
+  releaseUrl: string;
+  apkUrl: string | null;
+  apkSize: number | null;
+  publishedAt: string | null;
+  recentReleases: Array<{
+    version: string;
+    name: string | null;
+    publishedAt: string;
+    releaseUrl: string;
+  }>;
+}
+
+let appUpdateCache: { fetchedAt: number; payload: AppUpdateInfo } | null = null;
+
+router.get('/app-update', async (_req: Request, res: Response) => {
+  if (appUpdateCache && Date.now() - appUpdateCache.fetchedAt < APP_UPDATE_CACHE_TTL_MS) {
+    res.json(appUpdateCache.payload);
+    return;
+  }
+
+  try {
+    const headers: Record<string, string> = {
+      Accept: 'application/vnd.github.v3+json',
+      // GitHub rejects requests without a User-Agent
+      'User-Agent': 'tide-commander-server',
+    };
+    if (process.env.GITHUB_TOKEN) {
+      headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+    }
+
+    const [latestRes, listRes] = await Promise.all([
+      fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, { headers }),
+      fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=3`, { headers }),
+    ]);
+    if (!latestRes.ok) {
+      throw new Error(`GitHub API error: ${latestRes.status}`);
+    }
+
+    const release = (await latestRes.json()) as GitHubRelease;
+    const list = listRes.ok ? ((await listRes.json()) as GitHubRelease[]) : [];
+    const apkAsset = release.assets.find(
+      (asset) =>
+        asset.name.endsWith('.apk') &&
+        asset.content_type === 'application/vnd.android.package-archive',
+    );
+
+    const payload: AppUpdateInfo = {
+      latestVersion: release.tag_name,
+      name: release.name,
+      changelog: release.body,
+      releaseUrl: release.html_url,
+      apkUrl: apkAsset?.browser_download_url ?? null,
+      apkSize: apkAsset?.size ?? null,
+      publishedAt: release.published_at ?? null,
+      recentReleases: list.map((r) => ({
+        version: r.tag_name,
+        name: r.name,
+        publishedAt: r.published_at,
+        releaseUrl: r.html_url,
+      })),
+    };
+
+    appUpdateCache = { fetchedAt: Date.now(), payload };
+    res.json(payload);
+  } catch (err) {
+    const message = (err as Error).message;
+    if (appUpdateCache) {
+      log.warn(`App-update check failed (${message}) — serving stale cache`);
+      res.json(appUpdateCache.payload);
+      return;
+    }
+    log.error(`App-update check failed: ${message}`);
+    res.status(502).json({ error: message });
+  }
+});
+
+/**
  * POST /api/system/self-update
  *
  * Streams the output of `npm install -g tide-commander@latest` via SSE.

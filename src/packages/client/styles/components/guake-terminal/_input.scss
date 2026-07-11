@@ -159,36 +159,49 @@
     box-shadow: 0 0 0 2px rgba($dracula-cyan, 0.18);
   }
 
-  // Working state - single animated bar using GPU-composited transform
+  // Working state - animated gradient border on all four sides
   .is-working & {
-    --border-color: rgba($dracula-comment, 0.25);
-    border: 2px solid var(--border-color) !important;
+    border: 2px solid transparent !important;
     background: rgba($dracula-bg, 0.95) !important;
     position: relative;
     overflow: hidden;
+    // Soft ambient glow so the busy state reads even at a glance
+    box-shadow:
+      0 0 0 1px rgba($dracula-cyan, 0.12),
+      0 0 14px rgba($dracula-purple, 0.22) !important;
 
-    // Single bar - full width bottom border with shimmer
+    // Full perimeter traveling gradient (masked to the border only)
     &::before {
       content: '';
       position: absolute;
-      width: 200%;
-      height: 2px;
-      bottom: 0;
-      left: 0;
-      background: linear-gradient(
-        90deg,
+      inset: 0;
+      border-radius: inherit;
+      padding: 2px;
+      box-sizing: border-box;
+      pointer-events: none;
+      z-index: 2;
+      background: conic-gradient(
+        from var(--working-border-angle, 0deg),
         $dracula-cyan 0%,
-        $dracula-pink 15%,
-        $dracula-purple 30%,
-        $dracula-green 45%,
-        $dracula-cyan 50%,
-        $dracula-pink 65%,
-        $dracula-purple 80%,
-        $dracula-green 95%,
+        $dracula-pink 18%,
+        $dracula-purple 36%,
+        $dracula-green 54%,
+        $dracula-cyan 72%,
+        $dracula-pink 90%,
         $dracula-cyan 100%
       );
-      will-change: transform;
-      animation: shimmer-slide 2s linear infinite;
+      // Show gradient only in the 2px padding ring; punch out the center
+      -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      animation:
+        working-border-spin 1.6s linear infinite,
+        working-border-glow 1.8s ease-in-out infinite;
     }
   }
 
@@ -201,13 +214,29 @@
   }
 }
 
-// Shimmer slide animation (GPU-accelerated transform)
-@keyframes shimmer-slide {
-  0% {
-    transform: translateX(0);
+// Animatable custom property for rotating the conic border without spinning the box
+@property --working-border-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+// Full-border loading: spin the conic gradient around the input perimeter
+@keyframes working-border-spin {
+  to {
+    --working-border-angle: 360deg;
   }
-  100% {
-    transform: translateX(-50%);
+}
+
+// Gentle brightness pulse so the ring stays noticeable without being harsh
+@keyframes working-border-glow {
+  0%, 100% {
+    filter: brightness(1) saturate(1);
+    opacity: 0.92;
+  }
+  50% {
+    filter: brightness(1.25) saturate(1.15);
+    opacity: 1;
   }
 }
 

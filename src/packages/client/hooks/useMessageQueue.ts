@@ -61,24 +61,32 @@ function newId(): string {
 export function useMessageQueue(agentId: string | null | undefined): UseMessageQueueResult {
   const safeAgentId = agentId || '';
   const [queue, setQueue] = useState<QueuedMessage[]>(() => loadQueue(safeAgentId));
-  const queueRef = useRef(queue);
-  queueRef.current = queue;
+  // Ref is the mutation source of truth. Do NOT assign queueRef.current = queue
+  // on every render — a stale render after persist() would resurrect removed
+  // entries (rocket chip reappearing / double-send).
+  const queueRef = useRef<QueuedMessage[]>(queue);
 
   useEffect(() => {
-    setQueue(loadQueue(safeAgentId));
+    const loaded = loadQueue(safeAgentId);
+    queueRef.current = loaded;
+    setQueue(loaded);
   }, [safeAgentId]);
 
   useEffect(() => {
     if (!safeAgentId) return;
     const onStorage = (event: StorageEvent) => {
       if (event.key !== storageKey(safeAgentId)) return;
-      setQueue(loadQueue(safeAgentId));
+      const loaded = loadQueue(safeAgentId);
+      queueRef.current = loaded;
+      setQueue(loaded);
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, [safeAgentId]);
 
   const persist = useCallback((next: QueuedMessage[]) => {
+    // Synchronous ref update — critical for same-tick remove + send paths.
+    queueRef.current = next;
     setQueue(next);
     saveQueue(safeAgentId, next);
   }, [safeAgentId]);
@@ -98,8 +106,9 @@ export function useMessageQueue(agentId: string | null | undefined): UseMessageQ
   }, [persist, safeAgentId]);
 
   const removeById = useCallback((id: string) => {
-    const next = queueRef.current.filter((m) => m.id !== id);
-    if (next.length !== queueRef.current.length) persist(next);
+    const current = queueRef.current;
+    const next = current.filter((m) => m.id !== id);
+    if (next.length !== current.length) persist(next);
   }, [persist]);
 
   const clear = useCallback(() => {
@@ -115,12 +124,18 @@ export function useMessageQueue(agentId: string | null | undefined): UseMessageQ
   }, [persist]);
 
   const markError = useCallback((id: string, message: string) => {
-    const next = queueRef.current.map((m) => (m.id === id ? { ...m, error: message } : m));
+    const current = queueRef.current;
+    if (!current.some((m) => m.id === id)) return; // already removed
+    const next = current.map((m) => (m.id === id ? { ...m, error: message } : m));
     persist(next);
   }, [persist]);
 
   const clearError = useCallback((id: string) => {
-    const next = queueRef.current.map((m) => (m.id === id && m.error ? { ...m, error: null } : m));
+    const current = queueRef.current;
+    const entry = current.find((m) => m.id === id);
+    // No-op if missing or already clean — never re-hydrate a removed entry.
+    if (!entry?.error) return;
+    const next = current.map((m) => (m.id === id ? { ...m, error: null } : m));
     persist(next);
   }, [persist]);
 

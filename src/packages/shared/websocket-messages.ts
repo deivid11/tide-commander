@@ -211,6 +211,8 @@ export interface CommandStartedMessage extends WSMessage {
   payload: {
     agentId: string;
     command: string;
+    /** True when the prompt was queued for delivery after the current turn (stdin-closed backends). */
+    queued?: boolean;
   };
 }
 
@@ -286,6 +288,12 @@ export interface SendCommandMessage extends WSMessage {
   payload: {
     agentId: string;
     command: string;
+    /**
+     * For stdin-closed backends (Grok/Codex/OpenCode): when true, interrupt the
+     * in-flight turn and respawn with this prompt immediately. Default is to
+     * queue the message until the agent is free.
+     */
+    forceInterrupt?: boolean;
   };
 }
 

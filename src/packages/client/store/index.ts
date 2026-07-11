@@ -1238,6 +1238,8 @@ class Store
     // (mobile) that echo can take minutes, making the send look lost. The
     // command_started handler confirms this entry (confirmUserPromptEcho);
     // slash commands are skipped because the server intercepts/hides them.
+    // Mid-run client-only queue (Enter while Grok/Codex/OpenCode is working)
+    // never reaches here — TerminalInputArea enqueues without calling sendCommand.
     if (!command.trim().startsWith('/')) {
       this.outputActions.addUserPromptToOutput(agentId, command, { pendingEcho: true });
     }

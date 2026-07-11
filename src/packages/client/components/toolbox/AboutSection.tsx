@@ -298,6 +298,8 @@ export function AboutSection() {
     error,
     currentVersion,
     isAndroid,
+    downloadPhase,
+    downloadProgress,
     checkForUpdate,
     downloadAndInstall,
     openReleasePage,
@@ -384,8 +386,16 @@ export function AboutSection() {
                 {t('config:about.changelog')}
               </button>
               {isAndroid && updateInfo.apkUrl ? (
-                <button className="about-update-btn download" onClick={downloadAndInstall}>
-                  {t('config:about.downloadAPK')}
+                <button
+                  className="about-update-btn download"
+                  onClick={() => void downloadAndInstall()}
+                  disabled={downloadPhase !== 'idle'}
+                >
+                  {downloadPhase === 'downloading'
+                    ? t('config:appUpdateBanner.downloadingPct', { percent: downloadProgress ?? 0 })
+                    : downloadPhase === 'installing'
+                      ? t('config:appUpdateBanner.installHint')
+                      : t('config:about.downloadAPK')}
                 </button>
               ) : (
                 <button className="about-update-btn download" onClick={openReleasePage}>

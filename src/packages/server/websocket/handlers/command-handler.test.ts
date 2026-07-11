@@ -201,7 +201,7 @@ describe('Command Handler', () => {
       await handleSendCommand(mockCtx, { agentId: 'boss-1', command: 'deploy app' }, mockBuildBossMessage);
 
       expect(mockBuildBossMessage).toHaveBeenCalledWith('boss-1', 'deploy app');
-      expect(runtimeService.sendCommand).toHaveBeenCalledWith('boss-1', 'boss context message', 'boss system prompt', undefined, undefined);
+      expect(runtimeService.sendCommand).toHaveBeenCalledWith('boss-1', 'boss context message', 'boss system prompt', undefined, undefined, undefined);
     });
 
     it('routes regular agent commands with custom config', async () => {
@@ -223,7 +223,8 @@ describe('Command Handler', () => {
           definition: expect.objectContaining({
             prompt: expect.stringContaining('Scout instructions'),
           }),
-        })
+        }),
+        undefined,
       );
     });
 
@@ -254,7 +255,31 @@ describe('Command Handler', () => {
       await handleSendCommand(mockCtx, { agentId: 'boss-1', command: 'do stuff' }, mockBuildBossMessage);
 
       // Should fall back to sending raw command
-      expect(runtimeService.sendCommand).toHaveBeenCalledWith('boss-1', 'do stuff');
+      expect(runtimeService.sendCommand).toHaveBeenCalledWith('boss-1', 'do stuff', undefined, undefined, undefined, undefined);
+    });
+
+    it('forwards forceInterrupt to runtimeService for regular agents', async () => {
+      vi.mocked(agentService.getAgent).mockReturnValue({
+        id: 'agent-1', name: 'Worker', class: 'scout', status: 'working', provider: 'grok',
+      } as any);
+      vi.mocked(customClassService.getClassInstructions).mockReturnValue('');
+      vi.mocked(skillService.buildSkillPromptContent).mockReturnValue('');
+      vi.mocked(customClassService.getCustomClass).mockReturnValue(undefined);
+
+      await handleSendCommand(
+        mockCtx,
+        { agentId: 'agent-1', command: 'do it now', forceInterrupt: true },
+        mockBuildBossMessage,
+      );
+
+      expect(runtimeService.sendCommand).toHaveBeenCalledWith(
+        'agent-1',
+        'do it now',
+        undefined,
+        undefined,
+        expect.anything(),
+        { forceInterrupt: true },
+      );
     });
   });
 });

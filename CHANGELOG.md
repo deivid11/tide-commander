@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.151.0] - 2026-07-11
+
+### Added
+- **In-app APK updates (Android)** - store-less Android builds now update in-app: a new dismissible banner (and the Settings → About screen) downloads the APK natively with a live progress bar and hands it to the system installer in one confirmation tap, instead of bouncing out to the browser. Release info is checked through the server so it works behind carrier NAT, with an automatic browser-download fallback for older builds that lack the native plugin.
+- **Send now (interrupt current work)** - queued messages for Grok, Codex, and OpenCode agents get a "Send now (interrupt current work)" action that stops the running turn and delivers the prompt immediately.
+
+### Changed
+- **Mid-run messages queue instead of interrupting** - sending a prompt to a busy Grok, Codex, or OpenCode agent now queues it and auto-delivers when the agent becomes free, rather than cutting off the current turn; the queue bar explains this and Grok now follows the same flow as the other backends.
+- **Working-input border** - the busy terminal input shows an animated full-perimeter gradient glow instead of the single bottom shimmer bar, making the working state easier to spot at a glance.
+- **Mobile toasts** - notifications now span full width edge-to-edge and respect the device safe-area inset on phones.
+
+### Fixed
+- **Thinking blocks stay open while reading** - a live reasoning block no longer snaps shut when the stream settles into a tool call or the next message, and its expanded/collapsed state now survives scrolling through long transcripts.
+- **In-app updater no longer loops** - release APKs now embed the correct version (the Android versionName/versionCode derive from package.json and the APK is built after the version bump), so freshly-updated phones stop immediately reporting themselves as outdated.
+
 ## [1.150.6] - 2026-07-11
 
 ### Changed

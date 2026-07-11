@@ -40,10 +40,23 @@ export function QueuedMessagesBar({
 
   const shown = shownId ? queue.find((m) => m.id === shownId) ?? null : null;
 
+  const barTooltip = isWorking
+    ? t('terminal:queue.tooltipWorking', {
+        count: queue.length,
+        defaultValue: `${queue.length} message(s) queued — will send when agent is free. Use Send now to interrupt.`,
+      })
+    : t('terminal:queue.tooltip', {
+        count: queue.length,
+        defaultValue: `${queue.length} message(s) queued — will send when agent is free`,
+      });
+  const enforceTitle = isWorking
+    ? t('terminal:queue.enforceInterrupt', { defaultValue: 'Send now (interrupt current work)' })
+    : t('terminal:queue.enforce', { defaultValue: 'Send now' });
+
   return (
     <>
       <div className={`queued-messages-bar ${isWorking ? 'is-working' : 'is-idle'}`}>
-        <span className="queued-messages-bar__label" title={t('terminal:queue.tooltip', { count: queue.length, defaultValue: `${queue.length} message(s) queued — will send when agent is idle` })}>
+        <span className="queued-messages-bar__label" title={barTooltip}>
           <span className="queued-messages-bar__indicator" />
           <span className="queued-messages-bar__count">{queue.length}</span>
           <span className="queued-messages-bar__hint">{t('terminal:queue.queued', { defaultValue: 'queued' })}</span>
@@ -72,7 +85,7 @@ export function QueuedMessagesBar({
                   <button
                     type="button"
                     className="queued-pill__action queued-pill__action--enforce"
-                    title={t('terminal:queue.enforce', { defaultValue: 'Send now' })}
+                    title={enforceTitle}
                     onClick={(e) => { e.stopPropagation(); onEnforce(msg.id); }}
                   >
                     🚀

@@ -1,12 +1,20 @@
 /**
- * Hook for checking and downloading app updates from GitHub releases
- * Works on Android (via Capacitor) by downloading APK and triggering install intent
+ * Hook for checking and installing APK app updates (store-less Android).
  *
- * Uses CapacitorHttp for native HTTP requests on mobile to avoid CORS issues
+ * The update check goes through our own server (/api/system/app-update) —
+ * phones behind carrier CGNAT hit GitHub's unauthenticated 60 req/hour/IP
+ * limit, so the device never talks to api.github.com directly unless the
+ * server predates the endpoint (older install) and we must fall back.
+ *
+ * Installing uses the native AppUpdate plugin when the APK ships it:
+ * native download with progress events, then the system package installer.
+ * Older APKs without the plugin fall back to opening the APK URL in the
+ * system browser (manual download + install).
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { Capacitor, CapacitorHttp, registerPlugin, type PluginListenerHandle } from '@capacitor/core';
+import { fetchAppUpdateInfo } from '../api/system-update';
 
 const GITHUB_REPO = 'deivid11/tide-commander';
 const GITHUB_RELEASES_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
@@ -16,6 +24,16 @@ const STORAGE_KEY = 'app_update_dismissed_version';
 
 // Get current app version from package.json (injected at build time via Vite)
 const CURRENT_VERSION = __APP_VERSION__;
+
+interface AppUpdateNativePlugin {
+  downloadAndInstall(options: { url: string }): Promise<{ installStarted: boolean }>;
+  addListener(
+    eventName: 'downloadProgress',
+    listener: (progress: { percent: number; downloadedBytes: number; totalBytes: number }) => void,
+  ): Promise<PluginListenerHandle>;
+}
+
+const AppUpdateNative = registerPlugin<AppUpdateNativePlugin>('AppUpdate');
 
 interface GitHubRelease {
   tag_name: string;
@@ -48,6 +66,14 @@ interface ReleaseHistoryItem {
   releaseUrl: string;
 }
 
+/** Unified shape produced by both the server check and the GitHub fallback. */
+interface LatestReleaseData {
+  updateInfo: UpdateInfo;
+  recentReleases: ReleaseHistoryItem[];
+}
+
+export type ApkDownloadPhase = 'idle' | 'downloading' | 'installing';
+
 interface AppUpdateState {
   isChecking: boolean;
   updateAvailable: boolean;
@@ -55,6 +81,9 @@ interface AppUpdateState {
   recentReleases: ReleaseHistoryItem[];
   error: string | null;
   currentVersion: string;
+  downloadPhase: ApkDownloadPhase;
+  /** 0-100 while downloading natively; null when size is unknown. */
+  downloadProgress: number | null;
 }
 
 export function useAppUpdate() {
@@ -65,9 +94,12 @@ export function useAppUpdate() {
     recentReleases: [],
     error: null,
     currentVersion: CURRENT_VERSION,
+    downloadPhase: 'idle',
+    downloadProgress: null,
   });
 
   const isAndroid = Capacitor?.getPlatform?.() === 'android' || false;
+  const nativeInstallAvailable = isAndroid && Capacitor.isPluginAvailable('AppUpdate');
 
   /**
    * Parse version string to comparable number
@@ -120,36 +152,84 @@ export function useAppUpdate() {
     }
   };
 
+  /** Preferred path: our own server checks GitHub (cached, token-capable). */
+  const checkViaServer = async (): Promise<LatestReleaseData> => {
+    const info = await fetchAppUpdateInfo();
+    return {
+      updateInfo: {
+        version: info.latestVersion,
+        name: info.name ?? info.latestVersion,
+        changelog: info.changelog ?? '',
+        releaseUrl: info.releaseUrl,
+        apkUrl: info.apkUrl,
+        apkSize: info.apkSize,
+        publishedAt: info.publishedAt ?? '',
+      },
+      recentReleases: info.recentReleases.map(r => ({
+        version: r.version,
+        name: r.name ?? r.version,
+        publishedAt: r.publishedAt,
+        releaseUrl: r.releaseUrl,
+      })),
+    };
+  };
+
+  /** Fallback for servers that predate /api/system/app-update. */
+  const checkViaGitHub = async (): Promise<LatestReleaseData> => {
+    const [latestResult, listResult] = await Promise.all([
+      fetchJson<GitHubRelease>(GITHUB_RELEASES_URL),
+      fetchJson<GitHubRelease[]>(GITHUB_RELEASES_LIST_URL),
+    ]);
+
+    if (latestResult.status !== 200) {
+      throw new Error(`GitHub API error: ${latestResult.status}`);
+    }
+
+    const release = latestResult.data;
+    const apkAsset = release.assets.find(
+      asset => asset.name.endsWith('.apk') && asset.content_type === 'application/vnd.android.package-archive'
+    );
+
+    let recentReleases: ReleaseHistoryItem[] = [];
+    if (listResult.status === 200 && listResult.data) {
+      recentReleases = listResult.data.map(r => ({
+        version: r.tag_name,
+        name: r.name,
+        publishedAt: r.published_at,
+        releaseUrl: r.html_url,
+      }));
+    }
+
+    return {
+      updateInfo: {
+        version: release.tag_name,
+        name: release.name,
+        changelog: release.body,
+        releaseUrl: release.html_url,
+        apkUrl: apkAsset?.browser_download_url || null,
+        apkSize: apkAsset?.size || null,
+        publishedAt: release.published_at,
+      },
+      recentReleases,
+    };
+  };
+
   /**
-   * Check for updates from GitHub releases
+   * Check for updates (server-first, GitHub fallback)
    */
   const checkForUpdate = useCallback(async (force = false): Promise<UpdateInfo | null> => {
     setState(s => ({ ...s, isChecking: true, error: null }));
 
     try {
-      // Fetch both latest release and recent releases list in parallel
-      const [latestResult, listResult] = await Promise.all([
-        fetchJson<GitHubRelease>(GITHUB_RELEASES_URL),
-        fetchJson<GitHubRelease[]>(GITHUB_RELEASES_LIST_URL),
-      ]);
-
-      if (latestResult.status !== 200) {
-        throw new Error(`GitHub API error: ${latestResult.status}`);
+      let data: LatestReleaseData;
+      try {
+        data = await checkViaServer();
+      } catch {
+        data = await checkViaGitHub();
       }
 
-      const release = latestResult.data;
-      const latestVersion = release.tag_name;
-
-      // Parse recent releases for history
-      let recentReleases: ReleaseHistoryItem[] = [];
-      if (listResult.status === 200 && listResult.data) {
-        recentReleases = listResult.data.map(r => ({
-          version: r.tag_name,
-          name: r.name,
-          publishedAt: r.published_at,
-          releaseUrl: r.html_url,
-        }));
-      }
+      const { updateInfo, recentReleases } = data;
+      const latestVersion = updateInfo.version;
 
       // Check if this version was dismissed
       const dismissedVersion = localStorage.getItem(STORAGE_KEY);
@@ -165,21 +245,6 @@ export function useAppUpdate() {
         setState(s => ({ ...s, isChecking: false, updateAvailable: false, recentReleases }));
         return null;
       }
-
-      // Find APK asset
-      const apkAsset = release.assets.find(
-        asset => asset.name.endsWith('.apk') && asset.content_type === 'application/vnd.android.package-archive'
-      );
-
-      const updateInfo: UpdateInfo = {
-        version: latestVersion,
-        name: release.name,
-        changelog: release.body,
-        releaseUrl: release.html_url,
-        apkUrl: apkAsset?.browser_download_url || null,
-        apkSize: apkAsset?.size || null,
-        publishedAt: release.published_at,
-      };
 
       setState(s => ({
         ...s,
@@ -198,48 +263,67 @@ export function useAppUpdate() {
   }, []);
 
   /**
-   * Download and install APK update (Android only)
+   * Download and install the APK update (Android only).
    *
-   * On mobile, we can't use fetch() to download the APK due to CORS restrictions
-   * on GitHub's CDN. Instead, we open the URL directly which triggers the native
-   * download manager and bypasses CORS entirely.
+   * With the native AppUpdate plugin (new APKs): downloads in-process with
+   * progress events, then launches the system package installer — one confirm
+   * tap. Without it (old APKs): opens the APK URL so the system browser's
+   * download manager takes over (manual flow).
    */
   const downloadAndInstall = useCallback(async () => {
-    if (!state.updateInfo?.apkUrl) {
-      // No APK URL available, open release page
-      if (state.updateInfo?.releaseUrl) {
-        window.open(state.updateInfo.releaseUrl, '_blank');
+    const info = state.updateInfo;
+    if (!info) return;
+
+    if (!isAndroid || !info.apkUrl) {
+      // No APK to install here — open the release page instead
+      if (info.releaseUrl) {
+        window.open(info.releaseUrl, '_blank');
       }
       return;
     }
 
-    if (!isAndroid) {
-      // On non-Android, open release page
-      if (state.updateInfo?.releaseUrl) {
-        window.open(state.updateInfo.releaseUrl, '_blank');
+    if (!nativeInstallAvailable) {
+      // Legacy APK without the plugin: hand the URL to the system browser
+      try {
+        window.open(info.apkUrl, '_system');
+        setState(s => ({ ...s, error: null }));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to open download';
+        setState(s => ({ ...s, error: message }));
       }
       return;
     }
 
-    // On Android, open the APK URL directly in the browser
-    // This triggers the native download manager which:
-    // 1. Bypasses CORS restrictions (not a JavaScript fetch)
-    // 2. Shows download progress in system UI
-    // 3. Prompts user to install when complete
-    // 4. Handles large files better than in-memory blob
+    let listener: PluginListenerHandle | null = null;
     try {
-      // Use window.open to open the APK URL
-      // The browser will handle the download natively
-      window.open(state.updateInfo.apkUrl, '_system');
-
-      // Update state to indicate download was initiated
-      // We can't track progress since it's handled by the system
-      setState(s => ({ ...s, error: null }));
+      setState(s => ({ ...s, error: null, downloadPhase: 'downloading', downloadProgress: 0 }));
+      listener = await AppUpdateNative.addListener('downloadProgress', (progress) => {
+        setState(s =>
+          s.downloadPhase === 'downloading'
+            ? { ...s, downloadProgress: progress.percent >= 0 ? progress.percent : null }
+            : s
+        );
+      });
+      await AppUpdateNative.downloadAndInstall({ url: info.apkUrl });
+      // Download done; the system install dialog is now up. If the user
+      // completes it the process is replaced — this state only lingers when
+      // they cancel, so the UI offers a way back to 'idle' (resetDownload).
+      setState(s => ({ ...s, downloadPhase: 'installing', downloadProgress: 100 }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to open download';
-      setState(s => ({ ...s, error: message }));
+      const raw = error instanceof Error ? error.message : String(error);
+      const message = raw.includes('install_permission_denied')
+        ? 'Install permission was not granted — allow "install unknown apps" for Tide Commander and retry'
+        : raw;
+      setState(s => ({ ...s, downloadPhase: 'idle', downloadProgress: null, error: message }));
+    } finally {
+      void listener?.remove();
     }
-  }, [state.updateInfo, isAndroid]);
+  }, [state.updateInfo, isAndroid, nativeInstallAvailable]);
+
+  /** Return the download UI to idle (e.g. the user cancelled the installer). */
+  const resetDownload = useCallback(() => {
+    setState(s => ({ ...s, downloadPhase: 'idle', downloadProgress: null, error: null }));
+  }, []);
 
   /**
    * Dismiss the update notification for this version
@@ -286,8 +370,10 @@ export function useAppUpdate() {
   return {
     ...state,
     isAndroid,
+    nativeInstallAvailable,
     checkForUpdate,
     downloadAndInstall,
+    resetDownload,
     dismissUpdate,
     openReleasePage,
   };

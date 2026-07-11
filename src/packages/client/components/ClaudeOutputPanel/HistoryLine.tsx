@@ -191,6 +191,7 @@ export const HistoryLine = memo(function HistoryLine({
         provider={provider}
         timeStr={timeStr}
         timestampTitle={`${timestampMs} | ${debugHash}`}
+        streamId={toolUseId || message.uuid || (timestampMs ? `hist-${timestampMs}` : undefined)}
         onImageClick={onImageClick}
         onFileClick={onFileClick}
       />

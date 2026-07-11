@@ -63,6 +63,31 @@ export async function fetchChangelog(): Promise<string> {
   return await cdn.text();
 }
 
+/** APK release metadata served by our own server (see /api/system/app-update). */
+export interface AppUpdateInfo {
+  latestVersion: string;
+  name: string | null;
+  changelog: string | null;
+  releaseUrl: string;
+  apkUrl: string | null;
+  apkSize: number | null;
+  publishedAt: string | null;
+  recentReleases: Array<{
+    version: string;
+    name: string | null;
+    publishedAt: string;
+    releaseUrl: string;
+  }>;
+}
+
+export async function fetchAppUpdateInfo(): Promise<AppUpdateInfo> {
+  const response = await authFetch(`${getApiBaseUrl()}/api/system/app-update`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch app update info: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function fetchInstallInfo(): Promise<InstallInfo> {
   const response = await authFetch(`${getApiBaseUrl()}/api/system/install-info`);
   if (!response.ok) {

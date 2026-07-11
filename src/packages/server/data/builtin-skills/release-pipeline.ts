@@ -3,7 +3,7 @@ import type { BuiltinSkillDefinition } from './types.js';
 export const releasePipeline: BuiltinSkillDefinition = {
   slug: 'release-pipeline',
   name: 'TC Release Pipeline',
-  description: 'Full release workflow: lint, type-check, test, build, APK artifacts, version bump, changelog, git tag, GitHub release, npm public publish. Use when asked to release, publish, ship, or do a full build pipeline.',
+  description: 'Full release workflow: lint, type-check, test, version bump, changelog, build + APK artifact, git tag, GitHub release, npm public publish. Use when asked to release, publish, ship, or do a full build pipeline.',
   allowedTools: [
     'Bash(git:*)',
     'Bash(npm:*)',
@@ -18,7 +18,9 @@ export const releasePipeline: BuiltinSkillDefinition = {
   ],
   content: `# Release Pipeline
 
-Full Tide Commander release: quality checks, web app + APK builds, version bump, changelog, tag, push, GitHub release with APKs attached, public npm publish.
+Full Tide Commander release: quality checks, version bump, changelog, web app + APK build, tag, push, GitHub release with the APK attached, public npm publish.
+
+PHASE ORDER IS LOAD-BEARING: the version bump (Phase 3) MUST run BEFORE the build (Phase 5). The web bundle bakes \`__APP_VERSION__\` and the Android build reads versionName/versionCode from package.json at build time — bumping after building shipped APKs that reported the PREVIOUS version (the v1.150.6 release APK embedded 1.150.5), so freshly-updated phones immediately saw themselves as outdated again and the in-app updater looped forever.
 
 ## Execution Model: Sub-Agent Delegation
 
@@ -83,17 +85,7 @@ Spawn all 3 Agent calls in a single response, each using the curl template above
 
 On FAIL, the sub-agent reports the lint output / type errors / failing test details. If ANY of the 3 reports FAIL: STOP and report all failures. Proceed only if all 3 PASS.
 
-### Phase 3: Build (sub-agents; APK builds depend on web build output)
-
-First spawn one sub-agent: \`npm run build\` — PASS if exitCode 0, else FAIL with the build error output.
-
-If web build PASSED, spawn 2 APK sub-agents in parallel (one response):
-- Debug APK: \`make apk\` (runs npx cap sync android + gradlew assembleDebug). Output APK: android/app/build/outputs/apk/debug/app-debug.apk
-- Non-dev debug APK (signing-safe artifact): \`make apk-release-nondev\`. Output APK: android/app/build/outputs/apk/debug/app-debug.apk
-
-Each reports PASS if exitCode 0, else FAIL with the error. If any build sub-agent FAILs: STOP and report.
-
-### Phase 4: Version Bump (run yourself — requires judgment, sequential)
+### Phase 3: Version Bump (run yourself — requires judgment, sequential; MUST precede the build)
 
 \`\`\`bash
 npm pkg get version
@@ -108,7 +100,9 @@ Analyze commits since the last tag and decide the bump yourself from conventiona
 npm version <patch|minor|major> --no-git-tag-version
 \`\`\`
 
-### Phase 5: Update Changelog (run yourself)
+The Android versionCode/versionName derive automatically from package.json (android/app/build.gradle reads it at build time) — do NOT edit build.gradle and do NOT worry about versionCode; bumping package.json is enough.
+
+### Phase 4: Update Changelog (run yourself)
 
 \`\`\`bash
 git log --oneline $(git describe --tags --abbrev=0 2>/dev/null || echo "HEAD~20")..HEAD
@@ -133,6 +127,14 @@ Add the new version entry at the top of \`CHANGELOG.md\` (directly below the \`#
 \`\`\`
 
 CRITICAL — keep the per-version header EXACTLY \`## [X.Y.Z] - YYYY-MM-DD\` (Keep a Changelog): one header per release, newest at the top. The in-app changelog modal extracts a single release by matching the line \`## [X.Y.Z]\`; any other header format breaks the per-version view (the full-changelog view still works). Do NOT drop the \`[\` \`]\` brackets, the version number, or change the \` - YYYY-MM-DD\` suffix.
+
+### Phase 5: Build (ONE sub-agent, AFTER the version bump)
+
+Spawn a single sub-agent: \`make apk-release-nondev\` — it clears CAP_SERVER_URL, builds the web app (\`npm run build\`), syncs Capacitor, and builds the APK. Output: android/app/build/outputs/apk/debug/app-debug.apk. PASS if exitCode 0 and the APK file exists, else FAIL with the error output.
+
+Do NOT also run \`make apk\`, and NEVER run two APK builds in parallel: both write the same dist/ and the same output APK path (a race that can publish a corrupted or wrong artifact), and \`make apk\` inherits any ambient CAP_SERVER_URL — which bakes a private dev-server URL into a public release. \`make apk-release-nondev\` is the ONLY release artifact build.
+
+(The npm tarball does not depend on this build — package.json \`prepack\` rebuilds dist at publish time.)
 
 ### Phase 6: Commit, Tag, Push (run yourself — sequential git ops)
 
@@ -197,8 +199,8 @@ If the sub-agent reports FAIL: STOP and report the error to the user.
 ## Partial Workflows
 
 - "check quality" / "run checks" / "lint and test" / "pre-release check": Phase 2 only (parallel sub-agents); report results without proceeding.
-- "build" / "build everything" / "build apk": Phase 3 only; skip version bump and release.
-- "tag" / "create release" / "push release" (version already bumped): skip Phases 2-4; run Phases 5-6 directly, Phase 7 via sub-agent.
+- "build" / "build everything" / "build apk": Phase 5 only (builds the current package.json version); skip version bump and release.
+- "tag" / "create release" / "push release" (version already bumped): skip Phases 2-3; run Phases 4-6 directly (changelog, build, commit/tag/push), Phase 7 via sub-agent.
 
 ## Failure Handling
 
