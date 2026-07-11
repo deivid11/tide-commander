@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.150.3] - 2026-07-11
+
+### Fixed
+- **Can't scroll up during word streaming** - a genuine upward scroll now disarms auto-follow as soon as you move more than a few pixels off the bottom, instead of requiring 150px. The old dead zone re-classified each wheel tick as "at bottom" and the next streamed chunk yanked the view back down before a second tick could land, making it impossible to scroll up while an agent was typing.
+- **View jumping to bottom mid-stream** - removed a second per-chunk scroll writer in the terminal pane that raced the virtualized list's auto-scroll; the view no longer gets pulled back down after you scroll up. Auto-scroll now has a single owner (VirtualizedOutputList).
+
 ## [1.150.2] - 2026-07-10
 
 ### Fixed
