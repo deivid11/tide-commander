@@ -88,6 +88,25 @@ export async function fetchAppUpdateInfo(): Promise<AppUpdateInfo> {
   return response.json();
 }
 
+/** Identity of the web bundle (client dist) this server serves — for OTA UI sync. */
+export interface WebBundleInfo {
+  version: string;
+  hash: string;
+  fileCount: number;
+  totalBytes: number;
+}
+
+export async function fetchWebBundleInfo(): Promise<WebBundleInfo> {
+  const response = await authFetch(`${getApiBaseUrl()}/api/system/web-bundle-info`);
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(
+      (err as { error?: string }).error || `Failed to fetch web bundle info: ${response.status}`,
+    );
+  }
+  return response.json();
+}
+
 export async function fetchInstallInfo(): Promise<InstallInfo> {
   const response = await authFetch(`${getApiBaseUrl()}/api/system/install-info`);
   if (!response.ok) {

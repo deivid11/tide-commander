@@ -19,6 +19,11 @@ export {
   hasModalsAbove,
 } from './useModalStack';
 export { useSwipeGesture, type SwipeGestureOptions } from './useSwipeGesture';
+export {
+  useSwipeToDismiss,
+  type UseSwipeToDismissOptions,
+  type UseSwipeToDismissResult,
+} from './useSwipeToDismiss';
 export { useTwoFingerSelector, type TwoFingerSelectorOptions, type TwoFingerSelectorState } from './useTwoFingerSelector';
 
 // Scene management hooks

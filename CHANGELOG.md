@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.152.0] - 2026-07-11
+
+### Added
+- **UI over-the-air sync (Android)** - the app can pull the web UI bundle from the connected server and run it directly, so UI-only updates arrive without reinstalling the APK. Runs an hourly auto-sync with a transient "Updating UI from server…" progress banner, and safely rolls back to the APK's bundled UI if a synced bundle fails to boot.
+- **UI over-the-air controls in About (Android)** - a new "UI over-the-air" panel shows the current UI source (bundled vs. synced) and the APK/server bundle versions, with an auto-sync toggle, a "Sync UI now" button, and "Reset to bundled UI".
+- **Swipe-to-dismiss toasts** - generic toasts and WhatsApp message toasts can now be swiped away on mobile, matching agent-notification toasts (shared `useSwipeToDismiss` hook).
+
+### Fixed
+- **Reliable swipe-to-dismiss on mobile** - notification and toast entrance animations no longer fight the swipe gesture (they now fade in via opacity only), so a swipe-to-dismiss tracks your finger and commits reliably instead of intermittently snapping back.
+
 ## [1.151.2] - 2026-07-11
 
 ### Changed

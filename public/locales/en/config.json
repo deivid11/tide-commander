@@ -618,5 +618,23 @@
     "close": "Close",
     "retry": "Retry",
     "failed": "App update failed"
+  },
+  "webBundle": {
+    "title": "UI over-the-air",
+    "sourceOta": "UI source: synced bundle ({{hash}})",
+    "sourceBundled": "UI source: bundled with APK",
+    "apkVersion": "APK v{{version}}",
+    "serverBundle": "Server UI: v{{version}} ({{hash}})",
+    "updateAvailable": "update available",
+    "upToDate": "up to date",
+    "serverUnavailable": "The server has no built UI bundle to serve (run npm run build on the server)",
+    "autoSync": "Sync UI from server automatically",
+    "syncNow": "Sync UI now",
+    "syncingPct": "Syncing… {{percent}}%",
+    "reset": "Reset to bundled UI",
+    "bannerSyncing": "Updating UI from server…",
+    "bannerSyncingPct": "Updating UI from server… {{percent}}%",
+    "bannerFailed": "UI sync failed",
+    "close": "Close"
   }
 }

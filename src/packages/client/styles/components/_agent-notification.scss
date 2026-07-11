@@ -26,10 +26,12 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 20px rgba(var(--agent-color-rgb, 74, 224, 255), 0.1);
   pointer-events: auto;
   cursor: pointer;
-  animation: agent-notification-in 0.4s ease-out;
-  // transform & opacity are controlled by inline styles for swipe; box-shadow/border via CSS
+  // Entrance uses opacity only so swipe translateX is never fought by a
+  // transform keyframe (which was breaking swipe-to-dismiss on mobile).
+  animation: agent-notification-in 0.35s ease-out;
+  // transform & opacity also controlled by inline styles for swipe
   transition: box-shadow $transition-fast, border-color $transition-fast;
-  touch-action: pan-y; // allow vertical scroll, we handle horizontal
+  touch-action: pan-y; // allow vertical scroll; horizontal is JS swipe-dismiss
 
   &:hover {
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6), 0 0 30px rgba(var(--agent-color-rgb, 74, 224, 255), 0.2);
@@ -44,11 +46,9 @@
 @keyframes agent-notification-in {
   from {
     opacity: 0;
-    transform: translateY(-100%);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 

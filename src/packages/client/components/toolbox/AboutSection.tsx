@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import { useAppUpdate } from '../../hooks/useAppUpdate';
+import { useWebBundle } from '../../hooks/useWebBundle';
 import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
 import { Icon } from '../Icon';
 import { useSelfUpdate } from '../../hooks/useSelfUpdate';
@@ -309,6 +311,104 @@ function UnattendedUpdateToggle() {
   );
 }
 
+/**
+ * OTA UI sync (Android only): pull the web bundle the connected server serves
+ * and run the UI from it — no APK install. Status + manual controls; the
+ * automatic path lives in WebBundleSyncBanner.
+ */
+function WebBundlePanel() {
+  const { t } = useTranslation(['config']);
+  const {
+    isAndroid,
+    supported,
+    otaActive,
+    bundleState,
+    serverInfo,
+    infoError,
+    updateAvailable,
+    phase,
+    progress,
+    error,
+    autoSync,
+    checkNow,
+    syncNow,
+    resetToBundled,
+    setAutoSync,
+  } = useWebBundle();
+  const [nativeVersion, setNativeVersion] = useState<string | null>(null);
+  const checkNowRef = useRef(checkNow);
+  checkNowRef.current = checkNow;
+
+  useEffect(() => {
+    if (!isAndroid) return;
+    void checkNowRef.current(false);
+    CapacitorApp.getInfo()
+      .then((info) => setNativeVersion(info.version))
+      .catch(() => {});
+  }, [isAndroid]);
+
+  if (!isAndroid || supported === false) return null;
+
+  return (
+    <div className="about-autoupdate">
+      <div className="about-autoupdate-title">{t('config:webBundle.title')}</div>
+      <div className="about-autoupdate-devnote">
+        {otaActive
+          ? t('config:webBundle.sourceOta', { hash: bundleState?.hash?.slice(0, 8) ?? '?' })
+          : t('config:webBundle.sourceBundled')}
+        {nativeVersion && ` · ${t('config:webBundle.apkVersion', { version: nativeVersion })}`}
+      </div>
+      {serverInfo ? (
+        <div className="about-autoupdate-devnote">
+          {t('config:webBundle.serverBundle', {
+            version: serverInfo.version,
+            hash: serverInfo.hash.slice(0, 8),
+          })}
+          {' — '}
+          {updateAvailable
+            ? t('config:webBundle.updateAvailable')
+            : t('config:webBundle.upToDate')}
+        </div>
+      ) : (
+        infoError && (
+          <div className="about-autoupdate-devnote">{t('config:webBundle.serverUnavailable')}</div>
+        )
+      )}
+      {error && <div className="about-update-error">{error}</div>}
+      <div className="about-autoupdate-row">
+        <span className="about-autoupdate-devnote">{t('config:webBundle.autoSync')}</span>
+        <label className="config-toggle">
+          <input
+            type="checkbox"
+            className="config-toggle-input"
+            checked={autoSync}
+            onChange={(e) => setAutoSync(e.target.checked)}
+          />
+          <span className="config-toggle-track">
+            <span className="config-toggle-thumb" />
+          </span>
+        </label>
+      </div>
+      <div className="about-update-actions">
+        <button
+          className="about-update-btn download"
+          onClick={() => void syncNow()}
+          disabled={phase !== 'idle' || !serverInfo}
+        >
+          {phase === 'syncing'
+            ? t('config:webBundle.syncingPct', { percent: progress ?? 0 })
+            : t('config:webBundle.syncNow')}
+        </button>
+        {otaActive && (
+          <button className="about-update-btn changelog" onClick={() => void resetToBundled()}>
+            {t('config:webBundle.reset')}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function AboutSection() {
   const { t } = useTranslation(['config']);
   const {
@@ -379,6 +479,9 @@ export function AboutSection() {
 
       {/* Opt-in unattended updates (npm global installs only) */}
       <UnattendedUpdateToggle />
+
+      {/* OTA UI sync from the connected server (Android only) */}
+      <WebBundlePanel />
 
       {/* Full changelog (all versions) in a modal */}
       <div className="about-changelog-row">

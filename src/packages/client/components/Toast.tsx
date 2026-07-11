@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Icon, type IconName } from './Icon';
+import { useSwipeToDismiss } from '../hooks/useSwipeToDismiss';
 
 export type ToastType = 'error' | 'success' | 'warning' | 'info';
 
@@ -25,6 +26,37 @@ const TOAST_ICONS: Record<ToastType, IconName> = {
 };
 
 let toastId = 0;
+
+function SwipeableToast({
+  toast,
+  onDismiss,
+}: {
+  toast: Toast;
+  onDismiss: () => void;
+}) {
+  const { ref, style, isDismissing } = useSwipeToDismiss({
+    onDismiss,
+    threshold: 72,
+    ignoreTapSelector: '.toast-close, button',
+  });
+
+  return (
+    <div
+      ref={ref}
+      className={`toast ${toast.type}${isDismissing ? ' is-dismissing' : ''}`}
+      style={style}
+    >
+      <span className="toast-icon"><Icon name={TOAST_ICONS[toast.type]} size={16} /></span>
+      <div className="toast-content">
+        <div className="toast-title">{toast.title}</div>
+        <div className="toast-message">{toast.message}</div>
+      </div>
+      <button type="button" className="toast-close" onClick={onDismiss}>
+        &times;
+      </button>
+    </div>
+  );
+}
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [currentToast, setCurrentToast] = useState<Toast | null>(null);
@@ -100,16 +132,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       <div id="toast-container">
         {currentToast && (
-          <div key={currentToast.id} className={`toast ${currentToast.type}`}>
-            <span className="toast-icon"><Icon name={TOAST_ICONS[currentToast.type]} size={16} /></span>
-            <div className="toast-content">
-              <div className="toast-title">{currentToast.title}</div>
-              <div className="toast-message">{currentToast.message}</div>
-            </div>
-            <button className="toast-close" onClick={dismissToast}>
-              &times;
-            </button>
-          </div>
+          <SwipeableToast
+            key={currentToast.id}
+            toast={currentToast}
+            onDismiss={dismissToast}
+          />
         )}
       </div>
     </ToastContext.Provider>
