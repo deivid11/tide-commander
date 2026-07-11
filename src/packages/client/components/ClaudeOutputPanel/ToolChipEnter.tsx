@@ -1,49 +1,29 @@
 /**
- * Soft fade-in for tool chips (BASH / READ / EDIT / LIST FILES / …).
+ * Soft enter fade for LIVE terminal rows only:
+ *  - tool chips (BASH / READ / EDIT / …)
+ *  - final assistant responses (output-claude)
  *
- * Same spirit as StreamFadeText: injects styles and applies enter motion via
- * element.style so it works even if SCSS is stale. Kept subtle — opacity +
- * a light rise only (no scale pop / blur).
+ * History rows must NOT animate — pass animate={false}.
  *
- * Intentionally does NOT honor prefers-reduced-motion — StreamFadeText also
- * ignores it; both are live-terminal polish.
- *
- * Watches the row with MutationObserver so Grok empty→args upgrades (null →
- * chip) still animate on first real paint. Each DOM node animates once
- * (data-tide-chip-animated).
+ * Session-scoped enterIds so virtualizer remounts do not re-flash chips.
+ * MutationObserver covers Grok empty→args tool upgrades.
  */
 
 import React, { useLayoutEffect, useRef, type ReactNode } from 'react';
 
-const STYLE_ID = 'tide-tool-chip-keyframes-v5';
+/** Live lines that should soft-enter when they first appear. */
+const ENTER_SELECTOR = [
+  '.output-line.output-tool-use:not(.output-thinking)',
+  '.output-line.output-claude',
+].join(', ');
 
-const KEYFRAMES_CSS = `
-@keyframes tide-tool-chip-in {
-  0% {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-`.trim();
+/** Each logical row id animates at most once per page session. */
+const seenEnterIds = new Set<string>();
 
-function ensureKeyframes(): void {
-  if (typeof document === 'undefined') return;
-  if (document.getElementById(STYLE_ID)) return;
-  const el = document.createElement('style');
-  el.id = STYLE_ID;
-  el.textContent = KEYFRAMES_CSS;
-  document.head.appendChild(el);
-}
-
-function animateChipElement(el: HTMLElement, delayMs = 0): void {
+function animateEnterElement(el: HTMLElement, delayMs = 0): void {
   if (el.dataset.tideChipAnimated === '1') return;
   el.dataset.tideChipAnimated = '1';
 
-  // Soft transition: opacity + slight rise only (no scale/blur "pop").
   el.style.transition = 'none';
   el.style.opacity = '0';
   el.style.transform = 'translateY(4px)';
@@ -70,17 +50,17 @@ function animateChipElement(el: HTMLElement, delayMs = 0): void {
   el.addEventListener('transitionend', onEnd);
 }
 
-function scanAndAnimate(root: HTMLElement, delayMs: number): number {
-  const chips = root.querySelectorAll<HTMLElement>(
-    '.output-line.output-tool-use:not(.output-thinking)',
-  );
-  if (chips.length === 0) return 0;
+function scanAndAnimate(root: HTMLElement, enterId: string, delayMs: number): number {
+  if (seenEnterIds.has(enterId)) return 0;
 
-  ensureKeyframes();
+  const nodes = root.querySelectorAll<HTMLElement>(ENTER_SELECTOR);
+  if (nodes.length === 0) return 0;
+
+  seenEnterIds.add(enterId);
   let n = 0;
-  chips.forEach((chip) => {
-    if (chip.dataset.tideChipAnimated === '1') return;
-    animateChipElement(chip, delayMs);
+  nodes.forEach((node) => {
+    if (node.dataset.tideChipAnimated === '1') return;
+    animateEnterElement(node, delayMs);
     n += 1;
   });
   return n;
@@ -91,27 +71,44 @@ export interface ToolChipEnterProps {
   children: ReactNode;
   className?: string;
   staggerMs?: number;
+  /** When false, skip enter animation (history / already-loaded rows). */
+  animate?: boolean;
 }
 
-export function ToolChipEnter({ enterId, children, className, staggerMs = 0 }: ToolChipEnterProps) {
+export function ToolChipEnter({
+  enterId,
+  children,
+  className,
+  staggerMs = 0,
+  animate = true,
+}: ToolChipEnterProps) {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
+    if (!animate) return;
     const root = rootRef.current;
-    if (!root) return;
+    if (!root || !enterId) return;
 
-    ensureKeyframes();
     const delay = Math.max(0, Math.min(staggerMs, 240));
 
     let raf2 = 0;
     const raf1 = requestAnimationFrame(() => {
       raf2 = requestAnimationFrame(() => {
-        scanAndAnimate(root, delay);
+        scanAndAnimate(root, enterId, delay);
       });
     });
 
+    // Empty Grok tool rows render null first; chip mounts later under same key.
+    if (seenEnterIds.has(enterId)) {
+      return () => {
+        cancelAnimationFrame(raf1);
+        cancelAnimationFrame(raf2);
+      };
+    }
+
     const mo = new MutationObserver(() => {
-      scanAndAnimate(root, 0);
+      scanAndAnimate(root, enterId, 0);
+      if (seenEnterIds.has(enterId)) mo.disconnect();
     });
     mo.observe(root, { childList: true, subtree: true });
 
@@ -120,7 +117,7 @@ export function ToolChipEnter({ enterId, children, className, staggerMs = 0 }: T
       cancelAnimationFrame(raf2);
       mo.disconnect();
     };
-  }, [enterId, staggerMs]);
+  }, [enterId, staggerMs, animate]);
 
   return (
     <div ref={rootRef} className={className} data-chip-enter={enterId}>

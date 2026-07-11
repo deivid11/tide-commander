@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.150.1] - 2026-07-10
+
+### Changed
+- **Live stream markdown** - streaming assistant/thinking text re-renders through the markdown pipeline as chunks arrive, instead of showing raw markup mid-stream.
+- **Stream settle polish** - soft block fade for finalized content that never word-streamed; thinking cards stop the caret when the agent goes idle.
+
+### Fixed
+- **Stuck streaming rows** - open thinking/text streams settle when a tool card arrives, a new stream uuid starts, or the agent returns to idle (missed Grok finalize races no longer leave a permanent caret and raw markdown).
+- **History thinking cards** - history rows with a `[thinking]` prefix render the shared ThinkingBlock instead of plain assistant markdown.
+
 ## [1.150.0] - 2026-07-11
 
 ### Added

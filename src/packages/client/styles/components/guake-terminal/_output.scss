@@ -293,22 +293,8 @@
     background: color-mix(in srgb, var(--output-line-bg) 100%, var(--accent-cyan) 5%);
   }
 
-  // Fallback soft enter for tool chips. Primary path is ToolChipEnter.tsx.
-  // Keep subtle: opacity + slight rise only (no scale/blur pop).
-  &.output-tool-use:not(.output-thinking) {
-    animation: tide-tool-chip-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-}
-
-@keyframes tide-tool-chip-in {
-  0% {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  // Enter fade for live tool chips / assistant is applied by ToolChipEnter.tsx
+  // (not CSS) so history rows and virtualizer remounts stay static.
 }
 
 // Claude/Assistant message styling for live output
@@ -905,6 +891,7 @@
   }
 
   &.is-full {
+    // Plain streaming text keeps pre-wrap; markdown uses normal flow below.
     white-space: pre-wrap;
     word-break: break-word;
     max-height: 280px;
@@ -912,7 +899,13 @@
     padding: 2px 0;
   }
 
-  // Legacy nested selectors when content was markdown
+  // Markdown body inside thinking (completed / expanded).
+  &.markdown-content,
+  &.is-full.markdown-content {
+    white-space: normal;
+    font-family: inherit;
+  }
+
   p {
     margin: 0.3em 0;
     line-height: 1.5;
@@ -927,12 +920,12 @@
   }
 
   strong {
-    color: rgba(139, 233, 253, 0.9);
+    color: color-mix(in srgb, var(--accent-cyan) 70%, white);
     font-weight: 600;
   }
 
   em {
-    color: rgba(189, 147, 249, 0.85);
+    color: color-mix(in srgb, var(--accent-purple) 75%, white);
   }
 
   code {
@@ -943,6 +936,20 @@
     font-size: 0.9em;
   }
 
+  pre {
+    margin: 0.4em 0;
+    padding: 6px 8px;
+    border-radius: 4px;
+    overflow-x: auto;
+    background: color-mix(in srgb, var(--bg-primary) 80%, black);
+    font-size: 0.9em;
+
+    code {
+      background: transparent;
+      padding: 0;
+    }
+  }
+
   ul, ol {
     margin: 0.3em 0;
     padding-left: 1.2em;
@@ -950,6 +957,24 @@
     li {
       margin: 0.1em 0;
     }
+  }
+
+  h1, h2, h3, h4 {
+    margin: 0.45em 0 0.25em;
+    font-size: 1em;
+    font-weight: 600;
+    color: color-mix(in srgb, var(--text-primary) 90%, var(--accent-purple));
+  }
+
+  a {
+    color: var(--accent-cyan);
+  }
+
+  blockquote {
+    margin: 0.35em 0;
+    padding-left: 0.75em;
+    border-left: 2px solid color-mix(in srgb, var(--accent-purple) 50%, transparent);
+    opacity: 0.9;
   }
 }
 

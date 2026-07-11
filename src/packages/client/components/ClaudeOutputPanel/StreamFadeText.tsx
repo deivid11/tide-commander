@@ -1,20 +1,50 @@
 /**
- * Word-by-word fade-in for live assistant / thinking streams.
+ * Live stream rendering for assistant / thinking text.
+ *
+ * - With `renderComplete` (markdown pipeline): re-render the full buffer as
+ *   rich content on every chunk. Incomplete fences briefly look odd; still
+ *   far better than raw `**` / `#` showing mid-stream.
+ * - Without `renderComplete`: word-by-word fade of plain text deltas.
+ * - Complete (non-streaming) first paint: soft block fade when we never streamed.
  *
  * Self-contained: injects @keyframes once and applies animation via inline
  * styles so the effect works even if SCSS is stale, purged, or overridden.
  */
 
-import React, { memo, useEffect, useRef, useState } from 'react';
+import React, { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 export interface StreamFadeTextProps {
   text: string;
   isStreaming?: boolean;
   className?: string;
+  /** When set, used for both live streaming and settled complete content (e.g. markdown). */
   renderComplete?: (text: string) => React.ReactNode;
 }
 
-const STYLE_ID = 'tide-stream-fade-keyframes-v2';
+function StreamCaret() {
+  return (
+    <span
+      aria-hidden
+      className="tide-stream-caret"
+      style={{
+        display: 'inline-block',
+        width: '0.4em',
+        height: '1em',
+        marginLeft: 2,
+        verticalAlign: 'text-bottom',
+        borderRadius: 1,
+        background: 'var(--accent-cyan, #22d3ee)',
+        boxShadow: '0 0 8px color-mix(in srgb, var(--accent-cyan, #22d3ee) 60%, transparent)',
+        animationName: 'tide-stream-caret-blink',
+        animationDuration: '0.85s',
+        animationTimingFunction: 'ease-in-out',
+        animationIterationCount: 'infinite',
+      }}
+    />
+  );
+}
+
+const STYLE_ID = 'tide-stream-fade-keyframes-v3';
 
 const KEYFRAMES_CSS = `
 @keyframes tide-stream-word-in {
@@ -30,6 +60,16 @@ const KEYFRAMES_CSS = `
 @keyframes tide-stream-caret-blink {
   0%, 100% { opacity: 0.2; }
   50% { opacity: 1; }
+}
+@keyframes tide-stream-block-in {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 `.trim();
 
@@ -100,20 +140,66 @@ function FadeWords({ delta, gen }: { delta: string; gen: number }) {
   );
 }
 
+/** Soft block enter for complete (final) content that never word-streamed. */
+function CompleteBlockFade({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useLayoutEffect(() => {
+    ensureKeyframes();
+    const el = ref.current;
+    if (!el) return;
+    if (el.dataset.tideBlockFaded === '1') return;
+    el.dataset.tideBlockFaded = '1';
+
+    el.style.display = 'block';
+    el.style.transition = 'none';
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(4px)';
+    void el.offsetWidth;
+    el.style.transition =
+      'opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1), transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)';
+    el.style.opacity = '1';
+    el.style.transform = 'translateY(0)';
+
+    const onEnd = (ev: TransitionEvent) => {
+      if (ev.target !== el || ev.propertyName !== 'opacity') return;
+      el.style.transition = '';
+      el.style.transform = '';
+      el.removeEventListener('transitionend', onEnd);
+    };
+    el.addEventListener('transitionend', onEnd);
+    return () => el.removeEventListener('transitionend', onEnd);
+  }, []);
+
+  return (
+    <span ref={ref} className={className} data-stream-complete-fade="1">
+      {children}
+    </span>
+  );
+}
+
 export const StreamFadeText = memo(function StreamFadeText({
   text,
   isStreaming = false,
   className,
   renderComplete,
 }: StreamFadeTextProps) {
-  // Inject keyframes on mount (once globally).
   useEffect(() => {
     ensureKeyframes();
   }, []);
 
-  // Previous full text after the last committed render.
+  // True if this instance ever rendered live deltas — used so a later finalize
+  // does not re-run the complete-block fade after the user already watched words.
+  const didStreamRef = useRef(false);
+  if (isStreaming) didStreamRef.current = true;
+
   const prevFullRef = useRef('');
-  // Generation counter so React remounts FadeWords and restarts CSS animations.
   const genRef = useRef(0);
   const [paint, setPaint] = useState<{ solid: string; fade: string | null; gen: number }>({
     solid: '',
@@ -121,8 +207,6 @@ export const StreamFadeText = memo(function StreamFadeText({
     gen: 0,
   });
 
-  // null = never synced (first paint). setState during render is the
-  // React-recommended "adjust state when props change" pattern.
   const [seenText, setSeenText] = useState<string | null>(null);
   const [seenStreaming, setSeenStreaming] = useState(isStreaming);
 
@@ -142,18 +226,37 @@ export const StreamFadeText = memo(function StreamFadeText({
       } else {
         setPaint({ solid: text, fade: null, gen: genRef.current });
       }
-      // Commit full text as the base for the *next* delta.
       prevFullRef.current = text;
     }
   }
 
   if (!isStreaming) {
-    if (renderComplete) {
-      return <>{renderComplete(text)}</>;
+    const body = renderComplete ? renderComplete(text) : <span className={className}>{text}</span>;
+    // Final-only (or streamTextLive off): soft block fade so the answer doesn't pop.
+    // If we already streamed live, keep the settle instant — content already arrived.
+    if (!didStreamRef.current && text) {
+      return <CompleteBlockFade className={className}>{body}</CompleteBlockFade>;
     }
-    return <span className={className}>{text}</span>;
+    return <>{body}</>;
   }
 
+  // Live markdown / rich path: re-parse the full buffer each chunk so **bold**,
+  // lists, and code look right while tokens arrive (no raw markers).
+  if (renderComplete) {
+    return (
+      <span
+        className={className}
+        data-stream-fade="1"
+        data-stream-live-md="1"
+        style={{ display: 'block', wordBreak: 'break-word' }}
+      >
+        {renderComplete(text)}
+        <StreamCaret />
+      </span>
+    );
+  }
+
+  // Plain-text path: word-by-word fade for non-markdown streams.
   const { solid, fade, gen } = paint;
   const hasFade = typeof fade === 'string' && fade.length > 0;
 
@@ -165,23 +268,7 @@ export const StreamFadeText = memo(function StreamFadeText({
     >
       {hasFade ? solid : text}
       {hasFade && <FadeWords delta={fade} gen={gen} />}
-      <span
-        aria-hidden
-        style={{
-          display: 'inline-block',
-          width: '0.4em',
-          height: '1em',
-          marginLeft: 2,
-          verticalAlign: 'text-bottom',
-          borderRadius: 1,
-          background: 'var(--accent-cyan, #22d3ee)',
-          boxShadow: '0 0 8px color-mix(in srgb, var(--accent-cyan, #22d3ee) 60%, transparent)',
-          animationName: 'tide-stream-caret-blink',
-          animationDuration: '0.85s',
-          animationTimingFunction: 'ease-in-out',
-          animationIterationCount: 'infinite',
-        }}
-      />
+      <StreamCaret />
     </span>
   );
 });

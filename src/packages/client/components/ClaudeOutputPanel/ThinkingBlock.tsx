@@ -1,6 +1,7 @@
 /**
  * Shared thinking / reasoning row for live OutputLine and history HistoryLine.
  * Collapses long thoughts to a one-line preview; expands on click for the full text.
+ * Full body renders as markdown (same pipeline as assistant replies).
  */
 
 import React, { memo, useMemo, useState } from 'react';
@@ -9,30 +10,46 @@ import { Icon } from '../Icon';
 import { providerAssetUrl } from '../../utils/providerDisplay';
 import type { AgentProvider } from '../../../shared/types';
 import { StreamFadeText } from './StreamFadeText';
+import { renderContentWithImages } from './contentRendering';
+import { store } from '../../store';
 
 export interface ThinkingBlockProps {
   text: string;
   /** When true, force expanded (e.g. still streaming). */
   isStreaming?: boolean;
+  agentId?: string;
   agentName?: string | null;
   provider?: AgentProvider | string | null;
   timeStr?: string;
   timestampTitle?: string;
   /** Compact single-line threshold (chars). Longer text gets expand/collapse. */
   collapseAt?: number;
+  onImageClick?: (url: string, name: string) => void;
+  onFileClick?: (path: string) => void;
 }
 
+/** Strip the legacy `[thinking]` prefix and tidy blank lines — keep markdown. */
 function normalizeThinkingText(raw: string): string {
   return raw
     .replace(/^\[thinking\]\s*/i, '')
-    .replace(/\*+/g, '')
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
+/** One-line collapsed preview without raw markdown noise. */
 function previewLine(text: string, maxLen: number): string {
-  const oneLine = text.replace(/\s+/g, ' ').trim();
+  const oneLine = text
+    .replace(/```[\s\S]*?```/g, '…')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+    .replace(/#{1,6}\s+/g, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (oneLine.length <= maxLen) return oneLine;
   return `${oneLine.slice(0, maxLen - 1).trimEnd()}…`;
 }
@@ -40,32 +57,47 @@ function previewLine(text: string, maxLen: number): string {
 export const ThinkingBlock = memo(function ThinkingBlock({
   text,
   isStreaming = false,
+  agentId,
   agentName,
   provider,
   timeStr,
   timestampTitle,
   collapseAt = 140,
+  onImageClick,
+  onFileClick,
 }: ThinkingBlockProps) {
   const { t } = useTranslation(['tools']);
   const body = useMemo(() => normalizeThinkingText(text), [text]);
   const canCollapse = body.length > collapseAt || body.includes('\n');
   const [expanded, setExpanded] = useState(false);
-  const showFull = isStreaming || expanded || !canCollapse;
+
+  // Never keep the stream caret/pulse after the agent is idle, even if a
+  // missed finalize left isStreaming stuck true on the output row.
+  const agentWorking = agentId
+    ? store.getState().agents.get(agentId)?.status === 'working'
+    : true;
+  const liveStream = Boolean(isStreaming && agentWorking);
+
+  const showFull = liveStream || expanded || !canCollapse;
   const label =
     provider === 'codex'
       ? t('tools:display.codexThinking')
       : t('tools:display.thinking');
 
-  if (!body && !isStreaming) return null;
+  if (!body && !liveStream) return null;
+
+  const markdown = body
+    ? renderContentWithImages(body, onImageClick, onFileClick)
+    : null;
 
   return (
     <div
-      className={`output-line output-thinking output-tool-use ${isStreaming ? 'output-streaming' : ''} ${showFull ? 'is-expanded' : 'is-collapsed'} ${canCollapse ? 'is-collapsible' : ''}`}
-      onClick={canCollapse && !isStreaming ? () => setExpanded((v) => !v) : undefined}
-      role={canCollapse && !isStreaming ? 'button' : undefined}
-      tabIndex={canCollapse && !isStreaming ? 0 : undefined}
+      className={`output-line output-thinking output-tool-use ${liveStream ? 'output-streaming' : ''} ${showFull ? 'is-expanded' : 'is-collapsed'} ${canCollapse ? 'is-collapsible' : ''}`}
+      onClick={canCollapse && !liveStream ? () => setExpanded((v) => !v) : undefined}
+      role={canCollapse && !liveStream ? 'button' : undefined}
+      tabIndex={canCollapse && !liveStream ? 0 : undefined}
       onKeyDown={
-        canCollapse && !isStreaming
+        canCollapse && !liveStream
           ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
@@ -74,7 +106,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
             }
           : undefined
       }
-      title={canCollapse && !isStreaming ? (showFull ? 'Collapse thinking' : 'Expand thinking') : undefined}
+      title={canCollapse && !liveStream ? (showFull ? 'Collapse thinking' : 'Expand thinking') : undefined}
     >
       {timeStr && (
         <span className="output-timestamp" title={timestampTitle || timeStr}>
@@ -98,19 +130,31 @@ export const ThinkingBlock = memo(function ThinkingBlock({
         />
       )}
       <span className="output-tool-name output-thinking-label">{label}</span>
-      {isStreaming && <span className="output-thinking-pulse" aria-hidden />}
-      <span className={`output-thinking-content ${showFull ? 'is-full' : 'is-preview'}`}>
+      {liveStream && <span className="output-thinking-pulse" aria-hidden />}
+      <span
+        className={`output-thinking-content ${showFull ? 'is-full' : 'is-preview'} ${showFull ? 'markdown-content' : ''}`}
+      >
         {showFull ? (
-          isStreaming ? (
-            body ? <StreamFadeText text={body} isStreaming /> : '…'
+          liveStream ? (
+            body ? (
+              // Live MD: StreamFadeText re-renders markdown each chunk when
+              // renderComplete is set (no raw ** / half fences as plain text).
+              <StreamFadeText
+                text={body}
+                isStreaming
+                renderComplete={(t) => renderContentWithImages(t, onImageClick, onFileClick)}
+              />
+            ) : (
+              '…'
+            )
           ) : (
-            body || ''
+            markdown
           )
         ) : (
           previewLine(body, collapseAt)
         )}
       </span>
-      {canCollapse && !isStreaming && (
+      {canCollapse && !liveStream && (
         <span className="output-thinking-toggle" aria-hidden>
           <Icon name={showFull ? 'caret-up' : 'caret-down'} size={11} />
         </span>

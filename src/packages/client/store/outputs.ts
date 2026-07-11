@@ -52,6 +52,31 @@ function isSameOutputEvent(a: AgentOutput, b: AgentOutput): boolean {
     && toolInputEquals(a.toolInput, b.toolInput);
 }
 
+/**
+ * Mark open stream rows as complete. Grok/Claude sometimes never emit the
+ * isStreaming:false finalize (missed tool boundary / side-channel race), which
+ * leaves thinking cards stuck with a caret + raw markdown forever.
+ */
+export function settleStreamingOutputs(
+  outputs: AgentOutput[],
+  opts?: { exceptUuid?: string },
+): AgentOutput[] {
+  let changed = false;
+  const next = outputs.map((o) => {
+    if (!o.isStreaming) return o;
+    if (opts?.exceptUuid && o.uuid && o.uuid === opts.exceptUuid) return o;
+    changed = true;
+    return { ...o, isStreaming: false };
+  });
+  return changed ? next : outputs;
+}
+
+function looksLikeToolCard(output: AgentOutput): boolean {
+  if (output.toolName) return true;
+  const t = output.text || '';
+  return t.startsWith('Using tool:') || t.startsWith('Tool input:');
+}
+
 // ─── Server clock alignment ──────────────────────────────────────────────────
 // Agent/response outputs are timestamped by the SERVER, but optimistic
 // client-side items (the user's own prompt) are stamped with the local clock.
@@ -81,6 +106,8 @@ export function serverNow(): number {
 export interface OutputActions {
   addOutput(agentId: string, output: AgentOutput): void;
   clearOutputs(agentId: string): void;
+  /** Force any open isStreaming rows for this agent to settle (e.g. agent went idle). */
+  settleOpenStreams(agentId: string): void;
   getOutputs(agentId: string): AgentOutput[];
   addUserPromptToOutput(agentId: string, command: string, opts?: { pendingEcho?: boolean }): void;
   /**
@@ -142,7 +169,22 @@ export function createOutputActions(
       // IMPORTANT: All state reads and mutations must happen inside setState
       // to avoid race conditions when multiple outputs arrive rapidly
       setState((s) => {
-        const currentOutputs = s.agentOutputs.get(agentId) || [];
+        let currentOutputs = s.agentOutputs.get(agentId) || [];
+
+        // Tool cards / non-stream finals mean prior text/thinking streams are done.
+        // Without this, Grok thinking rows can stay isStreaming forever (caret + raw MD).
+        if (looksLikeToolCard(output) || (!output.isStreaming && !output.isUserPrompt)) {
+          currentOutputs = settleStreamingOutputs(currentOutputs, {
+            exceptUuid: output.uuid,
+          });
+        }
+        // A brand-new stream uuid also closes any other open streams.
+        if (output.isStreaming && output.uuid) {
+          const hasSame = currentOutputs.some((o) => o.uuid === output.uuid);
+          if (!hasSame) {
+            currentOutputs = settleStreamingOutputs(currentOutputs);
+          }
+        }
 
         // DEDUPLICATION: UUIDs identify a message/tool block, not always a
         // single WebSocket output. Claude text deltas reuse the same UUID, so
@@ -172,6 +214,7 @@ export function createOutputActions(
                     // Keep the original timestamp so the in-progress row does
                     // not jump to the end again when the final message arrives.
                     timestamp: existing.timestamp,
+                    isStreaming: false,
                   };
 
               const limitedOutputs = enforceOutputBufferLimits(updatedOutputs);
@@ -277,6 +320,21 @@ export function createOutputActions(
         state.agentOutputs = newAgentOutputs;
       });
       notify();
+    },
+
+    settleOpenStreams(agentId: string): void {
+      let changed = false;
+      setState((s) => {
+        const current = s.agentOutputs.get(agentId);
+        if (!current || current.length === 0) return;
+        const settled = settleStreamingOutputs(current);
+        if (settled === current) return;
+        const newAgentOutputs = new Map(s.agentOutputs);
+        newAgentOutputs.set(agentId, settled);
+        s.agentOutputs = newAgentOutputs;
+        changed = true;
+      });
+      if (changed) notify();
     },
 
     getOutputs(agentId: string): AgentOutput[] {

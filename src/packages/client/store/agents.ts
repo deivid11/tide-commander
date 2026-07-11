@@ -269,6 +269,16 @@ export function createAgentActions(
             logAgentStore(`[Store] Agent ${normalizedAgent.name} completed work - marked as unseen`);
             unseenChanged = true;
           }
+
+          // Close any stuck live streams (thinking caret / raw MD) when the
+          // agent goes idle — server finalize can be missed on Grok tool races.
+          const outs = s.agentOutputs.get(normalizedAgent.id);
+          if (outs && outs.some((o) => o.isStreaming)) {
+            const settled = outs.map((o) => (o.isStreaming ? { ...o, isStreaming: false } : o));
+            const nextOutputs = new Map(s.agentOutputs);
+            nextOutputs.set(normalizedAgent.id, settled);
+            s.agentOutputs = nextOutputs;
+          }
         }
       });
       if (unseenChanged && saveUnseenAgents) {

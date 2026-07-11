@@ -153,6 +153,41 @@ describe('Output Store Actions', () => {
       expect(outputs[0].timestamp).toBe(100);
     });
 
+    it('settles stuck thinking streams when a tool card arrives', () => {
+      const { state, actions } = createMockStore();
+
+      actions.addOutput('agent-1', makeOutput({
+        text: '[thinking] plan',
+        isStreaming: true,
+        timestamp: 100,
+        uuid: 'think-1',
+      }));
+      actions.addOutput('agent-1', makeOutput({
+        text: 'Using tool: Bash',
+        isStreaming: false,
+        timestamp: 200,
+        uuid: 'tool-1',
+        toolName: 'Bash',
+      }));
+
+      const outputs = state.agentOutputs.get('agent-1')!;
+      expect(outputs).toHaveLength(2);
+      expect(outputs[0].uuid).toBe('think-1');
+      expect(outputs[0].isStreaming).toBe(false);
+      expect(outputs[1].toolName).toBe('Bash');
+    });
+
+    it('settleOpenStreams closes all open streams for an agent', () => {
+      const { state, actions } = createMockStore();
+      actions.addOutput('agent-1', makeOutput({
+        text: '[thinking] a',
+        isStreaming: true,
+        uuid: 't1',
+      }));
+      actions.settleOpenStreams('agent-1');
+      expect(state.agentOutputs.get('agent-1')![0].isStreaming).toBe(false);
+    });
+
     it('allows different non-streaming tool rows with the same UUID', () => {
       const { state, actions } = createMockStore();
 
