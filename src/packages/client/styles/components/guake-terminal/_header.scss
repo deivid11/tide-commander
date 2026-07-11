@@ -33,7 +33,8 @@
   align-items: center;
   flex-wrap: nowrap;
   gap: 8px;
-  overflow: hidden;
+  // Visible so the working avatar ring/glow is not clipped
+  overflow: visible;
 }
 
 .guake-header-title-row {
@@ -42,7 +43,8 @@
   gap: 10px;
   min-width: 0;
   flex: 1 1 auto;
-  overflow: hidden;
+  // Visible so the working avatar ring/glow is not clipped
+  overflow: visible;
 }
 
 .guake-header-meta {
@@ -67,25 +69,111 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   width: 30px;
   height: 30px;
-  overflow: hidden;
+  // Visible so the working ring/glow is not clipped
+  overflow: visible;
   flex-shrink: 0;
   border-radius: 9px;
   background:
     linear-gradient(145deg,
       color-mix(in srgb, var(--accent-pink) 22%, var(--bg-primary)),
       color-mix(in srgb, var(--accent-cyan) 14%, var(--bg-primary)));
-  border: 1px solid color-mix(in srgb, var(--accent-pink) 28%, var(--border-color));
+  border: 1.5px solid color-mix(in srgb, var(--accent-pink) 28%, var(--border-color));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.07),
     0 8px 18px rgba(0, 0, 0, 0.18);
   font-size: 14px;
+  transform-origin: center center;
+  box-sizing: border-box;
 
-  img {
+  // Clip icon art to the rounded rect without clipping the outer pulse ring
+  > * {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    border-radius: 7px;
+  }
+
+  // Clear pulse while the agent is loading / working (matches agent-bar)
+  &.is-working {
+    border-color: color-mix(in srgb, var(--accent-cyan) 85%, var(--border-color));
+    animation: guake-avatar-working 1.4s ease-in-out infinite;
+    z-index: 1;
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 12px;
+      border: 2px solid color-mix(in srgb, var(--accent-cyan) 80%, transparent);
+      pointer-events: none;
+      animation: guake-avatar-ring 1.4s ease-out infinite;
+    }
+
+    > * {
+      animation: guake-avatar-working-icon 0.7s ease-in-out infinite;
+    }
+  }
+}
+
+@keyframes guake-avatar-working {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 0 8px color-mix(in srgb, var(--accent-cyan) 45%, transparent),
+      0 8px 18px rgba(0, 0, 0, 0.18);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 0 16px color-mix(in srgb, var(--accent-cyan) 80%, transparent),
+      0 0 28px color-mix(in srgb, var(--accent-cyan) 35%, transparent),
+      0 8px 18px rgba(0, 0, 0, 0.18);
+    filter: brightness(1.12);
+  }
+}
+
+@keyframes guake-avatar-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.92);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes guake-avatar-working-icon {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guake-agent-avatar.is-working {
+    animation: none;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 0 10px color-mix(in srgb, var(--accent-cyan) 55%, transparent);
+
+    &::after {
+      animation: none;
+      opacity: 0.55;
+      transform: none;
+    }
+
+    > * {
+      animation: none;
+    }
   }
 }
 

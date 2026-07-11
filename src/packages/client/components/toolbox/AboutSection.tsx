@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Capacitor } from '@capacitor/core';
 import { useAppUpdate } from '../../hooks/useAppUpdate';
 import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
 import { Icon } from '../Icon';
@@ -100,6 +101,13 @@ function AutoUpdatePanel() {
     void refreshInstallInfo();
   }, [reset, refreshInstallInfo]);
 
+  // This panel updates the SERVER's npm install. In the native app it reads
+  // like the APK updater ("Auto-update is unavailable in dev mode" on a phone
+  // whose app updates fine), so: hide the non-actionable informational
+  // variants there, and retitle the actionable one as a server update.
+  const isNative = Capacitor.isNativePlatform();
+  const title = t(isNative ? 'config:about.autoUpdateServerTitle' : 'config:about.autoUpdateTitle');
+
   // Decide what to render
   if (!installInfo) {
     return null;
@@ -107,9 +115,10 @@ function AutoUpdatePanel() {
 
   // Dev mode — show a small informational note instead of the button
   if (!installInfo.isGlobalInstall) {
+    if (isNative) return null;
     return (
       <div className="about-autoupdate">
-        <div className="about-autoupdate-title">{t('config:about.autoUpdateTitle')}</div>
+        <div className="about-autoupdate-title">{title}</div>
         <div className="about-autoupdate-devnote">{t('config:about.autoUpdateDevMode')}</div>
       </div>
     );
@@ -117,9 +126,10 @@ function AutoUpdatePanel() {
 
   // Global install but not npm — show manual command
   if (!installInfo.autoUpdateSupported) {
+    if (isNative) return null;
     return (
       <div className="about-autoupdate">
-        <div className="about-autoupdate-title">{t('config:about.autoUpdateTitle')}</div>
+        <div className="about-autoupdate-title">{title}</div>
         <div className="about-autoupdate-devnote">
           {t('config:about.autoUpdatePackageManagerNotice', { pm: installInfo.packageManager })}
         </div>
@@ -141,7 +151,7 @@ function AutoUpdatePanel() {
 
   return (
     <div className="about-autoupdate">
-      <div className="about-autoupdate-title">{t('config:about.autoUpdateTitle')}</div>
+      <div className="about-autoupdate-title">{title}</div>
 
       {phase === 'idle' && !confirming && installInfo.updateAvailable && (
         <div className="about-autoupdate-row">
@@ -237,6 +247,12 @@ function UnattendedUpdateToggle() {
     }
   }, [busy]);
 
+  // Server-scoped feature (unattended npm updates of the SERVER install). On
+  // the native app it reads like an APK setting, so hide everything that
+  // isn't actionable from a phone and retitle what remains.
+  const isNative = Capacitor.isNativePlatform();
+  const title = t(isNative ? 'config:about.unattendedServerTitle' : 'config:about.unattendedTitle');
+
   // Still loading (or hidden entirely when the fetch failed with no error —
   // shouldn't happen, but don't render a broken empty block).
   if (!status && !error) return null;
@@ -244,19 +260,24 @@ function UnattendedUpdateToggle() {
   // Fetch failed (server restarting, or a pre-1.145 server without the
   // endpoint): show the block with the error instead of silently vanishing.
   if (!status) {
+    if (isNative) return null;
     return (
       <div className="about-autoupdate">
-        <div className="about-autoupdate-title">{t('config:about.unattendedTitle')}</div>
+        <div className="about-autoupdate-title">{title}</div>
         <div className="about-update-error">{error}</div>
       </div>
     );
   }
 
+  // Unsupported install (dev checkout, non-npm global): on the phone the
+  // disabled toggle + "not in dev mode" note is pure noise — skip it.
+  if (isNative && !status.supported) return null;
+
   // Always visible so the option is discoverable from the UI; unsupported
   // installs (dev checkout, non-npm global) get a disabled toggle + a note.
   return (
     <div className="about-autoupdate">
-      <div className="about-autoupdate-title">{t('config:about.unattendedTitle')}</div>
+      <div className="about-autoupdate-title">{title}</div>
       <div className="about-autoupdate-row">
         <span className="about-autoupdate-devnote">{t('config:about.unattendedDesc')}</span>
         <label className="config-toggle" style={!status.supported ? { opacity: 0.5 } : undefined}>

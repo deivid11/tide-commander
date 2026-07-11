@@ -930,7 +930,8 @@ body.flat-splitter-dragging {
     gap: 10px;
     min-width: 0;
     flex: 1 1 auto;
-    overflow: hidden;
+    // Keep visible so the working avatar glow/ring is not clipped
+    overflow: visible;
     // Button reset — the header-main is a <button> so clicking it opens the
     // AgentInfoModal (mirrors the guake-title-btn behavior in the 3D view).
     padding: 4px 6px;
@@ -955,6 +956,52 @@ body.flat-splitter-dragging {
 
       &:hover {
         background: rgba($accent-purple, 0.26);
+      }
+    }
+  }
+
+  // Header agent icon — clear working/loading pulse (mirrors agent-bar)
+  &__header-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    overflow: visible;
+    transform-origin: center center;
+    border: 1.5px solid transparent;
+    box-sizing: border-box;
+
+    // Clip the icon art itself without clipping the outer ring/glow
+    > * {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 7px;
+    }
+
+    &.is-working {
+      border-color: rgba(139, 233, 253, 0.85);
+      animation: flat-header-avatar-working 1.4s ease-in-out infinite;
+      z-index: 1;
+
+      // Expanding pulse ring
+      &::after {
+        content: '';
+        position: absolute;
+        inset: -4px;
+        border-radius: 11px;
+        border: 2px solid rgba(139, 233, 253, 0.75);
+        pointer-events: none;
+        animation: flat-header-avatar-ring 1.4s ease-out infinite;
+      }
+
+      > * {
+        animation: flat-header-avatar-icon 0.7s ease-in-out infinite;
       }
     }
   }
@@ -1289,6 +1336,7 @@ body.flat-splitter-dragging {
     align-items: baseline;
     gap: 8px;
     min-width: 0;
+    flex: 1 1 auto;
     overflow: hidden;
   }
 
@@ -2424,4 +2472,57 @@ body.flat-splitter-dragging {
 @keyframes flat-tests-glow {
   0%, 100% { box-shadow: 0 0 0 1px rgba(139, 233, 253, 0.3); }
   50% { box-shadow: 0 0 6px 1px rgba(139, 233, 253, 0.7); }
+}
+
+// Flat terminal header agent icon — working / loading feedback
+@keyframes flat-header-avatar-working {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 8px rgba(139, 233, 253, 0.45);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow:
+      0 0 16px rgba(139, 233, 253, 0.85),
+      0 0 28px rgba(74, 158, 255, 0.4);
+    filter: brightness(1.12);
+  }
+}
+
+@keyframes flat-header-avatar-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.92);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes flat-header-avatar-icon {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flat-terminal-wrapper__header-avatar.is-working {
+    animation: none;
+    box-shadow: 0 0 10px rgba(139, 233, 253, 0.55);
+
+    &::after {
+      animation: none;
+      opacity: 0.55;
+      transform: none;
+    }
+
+    > * {
+      animation: none;
+    }
+  }
 }

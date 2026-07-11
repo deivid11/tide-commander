@@ -553,6 +553,7 @@
     "kenneyCredit": "for the agent character models",
     "claudeCodeCredit": "by Anthropic, the AI backbone",
     "autoUpdateTitle": "Auto-update",
+    "autoUpdateServerTitle": "Server auto-update (npm)",
     "autoUpdateButton": "Update now",
     "autoUpdateRunning": "Installing update...",
     "autoUpdateConfirmTitle": "Update Tide Commander?",
@@ -569,6 +570,7 @@
     "autoUpdateManualCommand": "Run this in your terminal to update manually:",
     "autoUpdatePackageManagerNotice": "Auto-update only supports npm-installed globals. Detected: {{pm}}.",
     "unattendedTitle": "Automatic updates",
+    "unattendedServerTitle": "Server automatic updates",
     "unattendedDesc": "Install updates automatically when no agent is working (checks every 30 min)",
     "unattendedPendingRestart": "v{{version}} installed — will restart as soon as all agents are idle",
     "unattendedUnsupported": "Only available for npm global installs (runs on the server, not in dev mode)"
