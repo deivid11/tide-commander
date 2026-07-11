@@ -25,6 +25,21 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // OTA web-bundle rollback: an applied bundle sets pendingConfirm=true
+        // and the freshly booted JS clears it via confirmWebBundle(). If we
+        // reach a cold start with the flag still set, the bundle never booted
+        // — drop it (and Capacitor's persisted serverBasePath) BEFORE the
+        // Bridge is created so this launch serves the APK's bundled assets.
+        android.content.SharedPreferences bundlePrefs =
+            getSharedPreferences(AppUpdatePlugin.WEB_BUNDLE_PREFS, MODE_PRIVATE);
+        if (bundlePrefs.getBoolean(AppUpdatePlugin.PREF_BUNDLE_PENDING, false)) {
+            bundlePrefs.edit().clear().apply();
+            getSharedPreferences(com.getcapacitor.plugin.WebView.WEBVIEW_PREFS_NAME, MODE_PRIVATE)
+                .edit()
+                .remove(com.getcapacitor.plugin.WebView.CAP_SERVER_PATH)
+                .apply();
+        }
+
         // Register custom Capacitor plugins before super.onCreate()
         registerPlugin(ServerConfigPlugin.class);
         registerPlugin(AppUpdatePlugin.class);

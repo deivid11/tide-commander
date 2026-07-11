@@ -13,8 +13,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Capacitor, CapacitorHttp, registerPlugin, type PluginListenerHandle } from '@capacitor/core';
+import { Capacitor, CapacitorHttp, type PluginListenerHandle } from '@capacitor/core';
 import { fetchAppUpdateInfo } from '../api/system-update';
+import { AppUpdateNative } from '../utils/app-update-plugin';
 
 const GITHUB_REPO = 'deivid11/tide-commander';
 const GITHUB_RELEASES_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
@@ -24,16 +25,6 @@ const STORAGE_KEY = 'app_update_dismissed_version';
 
 // Get current app version from package.json (injected at build time via Vite)
 const CURRENT_VERSION = __APP_VERSION__;
-
-interface AppUpdateNativePlugin {
-  downloadAndInstall(options: { url: string }): Promise<{ installStarted: boolean }>;
-  addListener(
-    eventName: 'downloadProgress',
-    listener: (progress: { percent: number; downloadedBytes: number; totalBytes: number }) => void,
-  ): Promise<PluginListenerHandle>;
-}
-
-const AppUpdateNative = registerPlugin<AppUpdateNativePlugin>('AppUpdate');
 
 interface GitHubRelease {
   tag_name: string;

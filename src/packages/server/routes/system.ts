@@ -4,8 +4,10 @@
  */
 
 import { Router, Request, Response } from 'express';
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import archiver from 'archiver';
 import { createLogger } from '../utils/logger.js';
 import { fetchLatestNpmVersion, getVersionRelation } from '../../shared/version.js';
 import {
@@ -84,6 +86,120 @@ router.get('/changelog', (_req: Request, res: Response) => {
     const message = (err as Error).message;
     log.error(`Failed to read changelog: ${message}`);
     res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * Web bundle (OTA UI sync for the Android app)
+ *
+ * The APK can swap its WebView assets for a bundle pulled from this server
+ * (Capacitor setServerBasePath — Expo-updates style), so UI-only releases
+ * reach phones without installing a new APK. These endpoints expose the
+ * client build this server serves (installRoot/dist).
+ */
+
+/** Root of the served client build, or null when no build exists (dev without dist). */
+function getClientDistDir(): string | null {
+  const installRoot = getInstallInfo().installRoot;
+  if (!installRoot) return null;
+  const dir = path.join(installRoot, 'dist');
+  return fs.existsSync(path.join(dir, 'index.html')) ? dir : null;
+}
+
+// dist/ also holds the compiled server (src/) — never ship that to the WebView.
+const WEB_BUNDLE_EXCLUDED_ROOTS = new Set(['src']);
+
+function walkClientFiles(root: string): Array<{ path: string; size: number }> {
+  const files: Array<{ path: string; size: number }> = [];
+  const walk = (rel: string) => {
+    for (const entry of fs.readdirSync(path.join(root, rel), { withFileTypes: true })) {
+      const childRel = rel ? `${rel}/${entry.name}` : entry.name;
+      if (!rel && WEB_BUNDLE_EXCLUDED_ROOTS.has(entry.name)) continue;
+      if (entry.isDirectory()) {
+        walk(childRel);
+      } else if (entry.isFile() && !entry.name.endsWith('.map')) {
+        files.push({ path: childRel, size: fs.statSync(path.join(root, childRel)).size });
+      }
+    }
+  };
+  walk('');
+  files.sort((a, b) => a.path.localeCompare(b.path));
+  return files;
+}
+
+interface WebBundleInfo {
+  version: string;
+  hash: string;
+  fileCount: number;
+  totalBytes: number;
+}
+
+/**
+ * Bundle identity = file list + sizes + full index.html content. Vite
+ * content-hashes asset filenames (so index.html captures every JS/CSS
+ * change), and sizes catch edits to runtime-fetched files (locales, sw.js).
+ */
+function computeWebBundleInfo(): WebBundleInfo | null {
+  const dir = getClientDistDir();
+  if (!dir) return null;
+  const files = walkClientFiles(dir);
+  const indexContent = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
+  const hash = crypto
+    .createHash('sha256')
+    .update(JSON.stringify(files))
+    .update(indexContent)
+    .digest('hex')
+    .slice(0, 16);
+  return {
+    version: getInstallInfo().currentVersion,
+    hash,
+    fileCount: files.length,
+    totalBytes: files.reduce((sum, f) => sum + f.size, 0),
+  };
+}
+
+router.get('/web-bundle-info', (_req: Request, res: Response) => {
+  try {
+    const info = computeWebBundleInfo();
+    if (!info) {
+      res.status(404).json({ error: 'No client build to serve — run npm run build on the server first.' });
+      return;
+    }
+    res.json(info);
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`Failed to compute web bundle info: ${message}`);
+    res.status(500).json({ error: message });
+  }
+});
+
+router.get('/web-bundle', (_req: Request, res: Response) => {
+  const dir = getClientDistDir();
+  if (!dir) {
+    res.status(404).json({ error: 'No client build to serve — run npm run build on the server first.' });
+    return;
+  }
+  try {
+    const info = computeWebBundleInfo();
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', 'attachment; filename="web-bundle.zip"');
+    if (info) res.setHeader('X-Bundle-Hash', info.hash);
+
+    const archive = archiver('zip', { zlib: { level: 6 } });
+    archive.on('error', (err) => {
+      log.error(`Web bundle zip failed: ${err.message}`);
+      res.destroy(err);
+    });
+    archive.pipe(res);
+    for (const file of walkClientFiles(dir)) {
+      archive.file(path.join(dir, file.path), { name: file.path });
+    }
+    void archive.finalize();
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`Failed to stream web bundle: ${message}`);
+    if (!res.headersSent) res.status(500).json({ error: message });
+    else res.destroy();
   }
 });
 

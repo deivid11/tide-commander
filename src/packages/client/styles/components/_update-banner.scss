@@ -143,6 +143,12 @@
   margin-top: 52px;
 }
 
+// OTA UI-sync strip (Android): third slot in the stack; transient (visible
+// only while a bundle downloads or after a failed sync).
+.update-banner-ota {
+  margin-top: 96px;
+}
+
 // "✓ Updated to vX" post-reload strip
 .update-banner-updated .update-banner-check {
   color: $accent-green;

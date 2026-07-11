@@ -54,6 +54,7 @@ const IframeModal = React.lazy(() => import('./components/IframeModal').then(m =
 import { NotConnectedOverlay } from './components/NotConnectedOverlay';
 import { UpdateBanner } from './components/UpdateBanner';
 import { AppUpdateBanner } from './components/AppUpdateBanner';
+import { WebBundleSyncBanner } from './components/WebBundleSyncBanner';
 import { PostUpdateNotice } from './components/PostUpdateNotice';
 import { OnboardingModal } from './components/OnboardingModal';
 import { profileRender, useRenderCounter } from './utils/profiling';
@@ -837,6 +838,8 @@ function AppContent() {
       <UpdateBanner />
       {/* Android APK update banner (store-less in-app update) */}
       <AppUpdateBanner />
+      {/* Android OTA UI sync (pulls the web bundle from the connected server) */}
+      <WebBundleSyncBanner />
       {/* One-time "updated — view changelog" notice after a self-update reload */}
       <PostUpdateNotice />
       <OnboardingModal onCreateAgent={spawnModal.open} />

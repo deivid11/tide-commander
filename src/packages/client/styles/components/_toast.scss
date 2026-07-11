@@ -37,11 +37,17 @@
   border-radius: $radius-md;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   pointer-events: auto;
+  // Opacity entrance so swipe translateX can control transform freely
   animation: toast-in $transition-slow ease-out;
   width: 100%;
   max-width: 500px;
   box-sizing: border-box;
   font-size: 13px;
+  touch-action: pan-y;
+
+  &.is-dismissing {
+    pointer-events: none;
+  }
 
   @media (max-width: 768px) {
     max-width: none;
@@ -72,11 +78,9 @@
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(-100%);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 

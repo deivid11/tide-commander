@@ -11,6 +11,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import { useTranslation } from 'react-i18next';
 import type { WhatsAppMessagePayload } from '../websocket/callbacks';
 import { fetchWhatsAppConfig } from '../api/whatsapp-settings';
+import { useSwipeToDismiss } from '../hooks/useSwipeToDismiss';
 import '../styles/components/whatsapp-message-toast.scss';
 
 interface WhatsAppMessageContextType {
@@ -131,11 +132,26 @@ function WhatsAppToastItem({ toast, onDismiss }: ToastProps) {
     }).catch(() => { /* ignore clipboard failures */ });
   }, [toast.from]);
 
+  const handleDismiss = useCallback(() => {
+    onDismiss(toast.toastId);
+  }, [onDismiss, toast.toastId]);
+
+  const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+  const { ref, style, isDismissing } = useSwipeToDismiss({
+    onDismiss: handleDismiss,
+    onTap: handleDismiss,
+    threshold: 72,
+    ignoreTapSelector: '.whatsapp-toast-close, .whatsapp-toast-copy, button, a',
+  });
+
   return (
     <div
-      className="whatsapp-toast"
-      onClick={() => onDismiss(toast.toastId)}
+      ref={ref}
+      className={`whatsapp-toast${isDismissing ? ' is-dismissing' : ''}`}
+      onClick={isTouchDevice ? undefined : handleDismiss}
       role="alert"
+      style={style}
     >
       <span className="whatsapp-toast-icon" aria-hidden="true">💬</span>
       <div className="whatsapp-toast-content">
@@ -165,6 +181,7 @@ function WhatsAppToastItem({ toast, onDismiss }: ToastProps) {
         </div>
       </div>
       <button
+        type="button"
         className="whatsapp-toast-close"
         onClick={(e) => { e.stopPropagation(); onDismiss(toast.toastId); }}
         aria-label="Dismiss"
