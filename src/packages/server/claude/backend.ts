@@ -167,6 +167,22 @@ export function buildAppendedProjectInstructions(config: BackendConfig): string 
   return sections.join('\n\n');
 }
 
+/** Per-agent token-stream parsing state (see comment on `streamStates`). */
+interface ClaudeStreamState {
+  currentStreamMessageId: string | null;
+  streamUuids: Map<string, string>; // key = `${kind}:${index}`
+  /** After the full assistant text finalizes, ignore late stream deltas for this turn. */
+  suppressTextDeltas: boolean;
+}
+
+function resetClaudeStreamState(state: ClaudeStreamState): void {
+  state.currentStreamMessageId = null;
+  state.streamUuids.clear();
+  // suppressTextDeltas is intentionally NOT cleared here — only message_start
+  // opens a new turn. That way late content_block_delta lines after the final
+  // assistant event cannot open a second bubble with a new stream uuid.
+}
+
 export class ClaudeBackend implements CLIBackend {
   readonly name = 'claude';
 
@@ -178,12 +194,27 @@ export class ClaudeBackend implements CLIBackend {
   // emits tiny tokens with no uuid and we mint one). We pin a stable stream id
   // per (message_id, content_block index, kind) so addOutput merges into one
   // terminal row. The final assistant message reuses the same id to finalize.
+  //
+  // ONE ClaudeBackend instance serves every Claude agent (single runner per
+  // provider), so this state is keyed by agentId — otherwise two concurrent
+  // agents reset each other's stream uuids mid-turn (dropped deltas, stuck
+  // streaming rows, duplicate final bubbles).
   // ---------------------------------------------------------------------------
-  private currentStreamMessageId: string | null = null;
-  private streamUuids = new Map<string, string>(); // key = `${kind}:${index}`
-  private streamTextEmitted = false;
-  /** After the full assistant text finalizes, ignore late stream deltas for this turn. */
-  private suppressTextDeltas = false;
+  private streamStates = new Map<string, ClaudeStreamState>();
+
+  private streamState(agentId?: string): ClaudeStreamState {
+    const key = agentId || '__default';
+    let state = this.streamStates.get(key);
+    if (!state) {
+      state = {
+        currentStreamMessageId: null,
+        streamUuids: new Map(),
+        suppressTextDeltas: false,
+      };
+      this.streamStates.set(key, state);
+    }
+    return state;
+  }
 
   /**
    * Build CLI arguments for Claude Code
@@ -284,7 +315,7 @@ export class ClaudeBackend implements CLIBackend {
   /**
    * Parse Claude CLI raw event into normalized StandardEvent
    */
-  parseEvent(rawEvent: unknown): StandardEvent | StandardEvent[] | null {
+  parseEvent(rawEvent: unknown, agentId?: string): StandardEvent | StandardEvent[] | null {
     const event = rawEvent as ClaudeRawEvent;
 
     // Log ALL events to understand what we're receiving
@@ -309,7 +340,7 @@ export class ClaudeBackend implements CLIBackend {
         break;
 
       case 'assistant':
-        result = this.parseAssistantEvent(event);
+        result = this.parseAssistantEvent(event, agentId);
         break;
 
       case 'tool_use':
@@ -321,7 +352,7 @@ export class ClaudeBackend implements CLIBackend {
         break;
 
       case 'stream_event':
-        result = this.parseStreamEvent(event);
+        result = this.parseStreamEvent(event, agentId);
         break;
 
       case 'user':
@@ -504,10 +535,11 @@ export class ClaudeBackend implements CLIBackend {
     return null;
   }
 
-  private parseAssistantEvent(event: ClaudeRawEvent): StandardEvent | StandardEvent[] | null {
+  private parseAssistantEvent(event: ClaudeRawEvent, agentId?: string): StandardEvent | StandardEvent[] | null {
     // Check for content blocks in assistant message
     // Claude CLI sends both text and tool_use as content blocks within assistant events
     if (event.message?.content && Array.isArray(event.message.content)) {
+      const state = this.streamState(agentId);
       const events: StandardEvent[] = [];
       // Use event UUID if available (unique identifier from Claude)
       const uuid = event.uuid;
@@ -519,8 +551,8 @@ export class ClaudeBackend implements CLIBackend {
         typeof (event.message as { id?: unknown })?.id === 'string'
           ? (event.message as { id: string }).id
           : null;
-      if (messageId && !this.currentStreamMessageId) {
-        this.currentStreamMessageId = messageId;
+      if (messageId && !state.currentStreamMessageId) {
+        state.currentStreamMessageId = messageId;
       }
 
       // Extract text blocks - emit as non-streaming final text.
@@ -534,7 +566,7 @@ export class ClaudeBackend implements CLIBackend {
       // Never wipe stream state on thinking-only assistant events — that used to
       // force the later full-text assistant onto a new uuid → duplicate bubbles.
       const content = event.message.content as Array<{ type: string; text?: string }>;
-      const textStreamUuids = [...this.streamUuids.entries()]
+      const textStreamUuids = [...state.streamUuids.entries()]
         .filter(([key]) => key.startsWith('text:'))
         .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
         .map(([, id]) => id);
@@ -546,7 +578,7 @@ export class ClaudeBackend implements CLIBackend {
           // Prefer ordinal text stream uuid, then index key, then outer uuid.
           const streamUuid =
             textStreamUuids[textStreamOrdinal] ||
-            this.streamUuids.get(`text:${i}`) ||
+            state.streamUuids.get(`text:${i}`) ||
             null;
           textStreamOrdinal += 1;
           events.push({
@@ -561,8 +593,8 @@ export class ClaudeBackend implements CLIBackend {
       // Only clear stream state after we actually finalized a text row. Intermediate
       // thinking-only assistant events must leave stream uuids intact for later deltas.
       if (emittedFinalText) {
-        this.suppressTextDeltas = true;
-        this.resetStreamState();
+        state.suppressTextDeltas = true;
+        resetClaudeStreamState(state);
       }
 
       // Extract tool_use blocks
@@ -705,28 +737,19 @@ export class ClaudeBackend implements CLIBackend {
     };
   }
 
-  private resetStreamState(): void {
-    this.currentStreamMessageId = null;
-    this.streamUuids.clear();
-    this.streamTextEmitted = false;
-    // suppressTextDeltas is intentionally NOT cleared here — only message_start
-    // opens a new turn. That way late content_block_delta lines after the final
-    // assistant event cannot open a second bubble with a new stream uuid.
-  }
-
   /** Stable uuid so token-sized Claude deltas merge into one terminal row. */
-  private ensureStreamUuid(kind: 'text' | 'thinking', index: number): string {
+  private ensureStreamUuid(state: ClaudeStreamState, kind: 'text' | 'thinking', index: number): string {
     const key = `${kind}:${index}`;
-    let id = this.streamUuids.get(key);
+    let id = state.streamUuids.get(key);
     if (!id) {
-      const msg = this.currentStreamMessageId || 'anon';
+      const msg = state.currentStreamMessageId || 'anon';
       id = `claude-stream-${msg}-${kind}-${index}`;
-      this.streamUuids.set(key, id);
+      state.streamUuids.set(key, id);
     }
     return id;
   }
 
-  private parseStreamEvent(event: ClaudeRawEvent): StandardEvent | null {
+  private parseStreamEvent(event: ClaudeRawEvent, agentId?: string): StandardEvent | null {
     const streamEvent = event.event as {
       type?: string;
       index?: number;
@@ -736,14 +759,16 @@ export class ClaudeBackend implements CLIBackend {
     } | undefined;
     if (!streamEvent) return null;
 
+    const state = this.streamState(agentId);
+
     // Capture Anthropic message id so every delta in this turn shares a stream key.
     if (streamEvent.type === 'message_start') {
       const mid = streamEvent.message?.id;
       // New message — drop any stale stream ids and reopen the stream gate.
-      this.suppressTextDeltas = false;
-      this.resetStreamState();
+      state.suppressTextDeltas = false;
+      resetClaudeStreamState(state);
       if (typeof mid === 'string' && mid) {
-        this.currentStreamMessageId = mid;
+        state.currentStreamMessageId = mid;
       }
       return null;
     }
@@ -756,35 +781,34 @@ export class ClaudeBackend implements CLIBackend {
     if (streamEvent.type === 'content_block_delta') {
       if (streamEvent.delta?.type === 'text_delta' && streamEvent.delta.text) {
         // Drop late deltas that race after the full assistant text already finalized.
-        if (this.suppressTextDeltas) {
+        if (state.suppressTextDeltas) {
           return null;
         }
-        this.streamTextEmitted = true;
         return {
           type: 'text',
           text: streamEvent.delta.text,
           isStreaming: true,
           // Stable per-block id (NOT event.uuid — those differ every delta).
-          uuid: this.ensureStreamUuid('text', blockIndex),
+          uuid: this.ensureStreamUuid(state, 'text', blockIndex),
         };
       } else if (
         streamEvent.delta?.type === 'thinking_delta' &&
         streamEvent.delta.text
       ) {
-        if (this.suppressTextDeltas) {
+        if (state.suppressTextDeltas) {
           return null;
         }
         return {
           type: 'thinking',
           text: streamEvent.delta.text,
           isStreaming: true,
-          uuid: this.ensureStreamUuid('thinking', blockIndex),
+          uuid: this.ensureStreamUuid(state, 'thinking', blockIndex),
         };
       }
     } else if (streamEvent.type === 'content_block_start') {
       const blockType = streamEvent.content_block?.type;
       if (blockType === 'text' || blockType === 'thinking') {
-        const streamUuid = this.ensureStreamUuid(blockType, blockIndex);
+        const streamUuid = this.ensureStreamUuid(state, blockType, blockIndex);
         return {
           type: 'block_start',
           blockType: blockType,

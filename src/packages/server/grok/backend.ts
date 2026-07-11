@@ -99,7 +99,20 @@ function shouldPassGrokModel(model: string | undefined): model is string {
 
 export class GrokBackend implements CLIBackend {
   readonly name = 'grok';
-  private parser = new GrokJsonEventParser();
+  // ONE GrokBackend serves every Grok agent — parser state (stream uuids,
+  // accumulated text for breakOpenStreams) must be per agent or concurrent
+  // agents leak each other's text into their finalize events.
+  private parsers = new Map<string, GrokJsonEventParser>();
+
+  private parserFor(agentId?: string): GrokJsonEventParser {
+    const key = agentId || '__default';
+    let parser = this.parsers.get(key);
+    if (!parser) {
+      parser = new GrokJsonEventParser();
+      this.parsers.set(key, parser);
+    }
+    return parser;
+  }
   /** Temp prompt files created for this process; cleaned after formatStdin (no-op) or next buildArgs. */
   private lastPromptFile: string | undefined;
 
@@ -168,15 +181,15 @@ export class GrokBackend implements CLIBackend {
     return args;
   }
 
-  parseEvent(rawEvent: unknown): StandardEvent | StandardEvent[] | null {
-    const events = this.parser.parseEvent(rawEvent);
+  parseEvent(rawEvent: unknown, agentId?: string): StandardEvent | StandardEvent[] | null {
+    const events = this.parserFor(agentId).parseEvent(rawEvent);
     if (events.length === 0) return null;
     return events.length === 1 ? events[0] : events;
   }
 
   /** See CLIBackend.breakOpenStreams — tool-boundary stream split for Grok. */
-  breakOpenStreams(): StandardEvent[] {
-    return this.parser.breakOpenStreams();
+  breakOpenStreams(agentId?: string): StandardEvent[] {
+    return this.parserFor(agentId).breakOpenStreams();
   }
 
   extractSessionId(rawEvent: unknown): string | null {

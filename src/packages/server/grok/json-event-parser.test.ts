@@ -131,3 +131,27 @@ describe('GrokJsonEventParser', () => {
     expect(finalText!.text).not.toContain('Status:');
   });
 });
+
+describe('GrokBackend per-agent parser isolation', () => {
+  it('concurrent agents get separate stream uuids and never leak text across finalize', async () => {
+    const { GrokBackend } = await import('./backend.js');
+    const backend = new GrokBackend();
+
+    const a = backend.parseEvent({ type: 'text', data: 'text from A' }, 'agent-a');
+    const b = backend.parseEvent({ type: 'text', data: 'text from B' }, 'agent-b');
+
+    expect((a as { uuid?: string }).uuid).toBeTruthy();
+    expect((b as { uuid?: string }).uuid).toBeTruthy();
+    expect((a as { uuid?: string }).uuid).not.toBe((b as { uuid?: string }).uuid);
+
+    // A hits a tool boundary — its finalize must contain ONLY A's text.
+    // (With the old shared parser, lastTextContent held A+B interleaved.)
+    const breaks = backend.breakOpenStreams('agent-a');
+    const finalized = breaks.find((e) => e.type === 'text');
+    expect(finalized?.text).toBe('text from A');
+
+    // B's stream is untouched by A's break: same uuid keeps accumulating.
+    const b2 = backend.parseEvent({ type: 'text', data: ' more B' }, 'agent-b');
+    expect((b2 as { uuid?: string }).uuid).toBe((b as { uuid?: string }).uuid);
+  });
+});

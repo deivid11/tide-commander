@@ -1,11 +1,15 @@
 /**
  * Live stream rendering for assistant / thinking text.
  *
- * - With `renderComplete` (markdown pipeline): re-render the full buffer as
- *   rich content on every chunk. Incomplete fences briefly look odd; still
- *   far better than raw `**` / `#` showing mid-stream.
+ * - With `renderComplete` (markdown pipeline): render rich content while tokens
+ *   arrive. The buffer is split into a STABLE head (completed paragraphs —
+ *   parsed once, then served from MarkdownBlock's memo) and a live tail (the
+ *   current paragraph — the only part re-parsed per chunk). Without the split,
+ *   remark re-parsed the whole buffer on every chunk: O(n²) per stream and the
+ *   #1 CPU sink while agents type.
  * - Without `renderComplete`: word-by-word fade of plain text deltas.
- * - Complete (non-streaming) first paint: soft block fade when we never streamed.
+ * - Complete (non-streaming) first paint: soft block fade when we never
+ *   streamed — once per row per page session (virtualizer remounts stay static).
  *
  * Self-contained: injects @keyframes once and applies animation via inline
  * styles so the effect works even if SCSS is stale, purged, or overridden.
@@ -19,6 +23,33 @@ export interface StreamFadeTextProps {
   className?: string;
   /** When set, used for both live streaming and settled complete content (e.g. markdown). */
   renderComplete?: (text: string) => React.ReactNode;
+  /**
+   * Stable row id (e.g. `${agentId}:${uuid}`). Gates the complete-block fade to
+   * once per page session so scrolling a virtualized list doesn't re-fade rows.
+   */
+  fadeId?: string;
+}
+
+/** Rows that already played the complete-block fade this page session. */
+const seenFadeIds = new Set<string>();
+
+/**
+ * Split streamed markdown at the last paragraph boundary that is not inside a
+ * code fence. `head` (incl. the trailing blank line) is stable across chunks,
+ * so its parsed MarkdownBlock memo-hits; only `tail` re-parses per chunk.
+ * Exported for unit tests.
+ */
+export function splitStableMarkdown(text: string): { head: string; tail: string } {
+  let boundary = text.lastIndexOf('\n\n');
+  while (boundary > 0) {
+    const head = text.slice(0, boundary);
+    const fenceCount = (head.match(/^[ \t]*(```|~~~)/gm) || []).length;
+    if (fenceCount % 2 === 0) {
+      return { head: text.slice(0, boundary + 2), tail: text.slice(boundary + 2) };
+    }
+    boundary = text.lastIndexOf('\n\n', boundary - 1);
+  }
+  return { head: '', tail: text };
 }
 
 function StreamCaret() {
@@ -140,7 +171,13 @@ function FadeWords({ delta, gen }: { delta: string; gen: number }) {
   );
 }
 
-/** Soft block enter for complete (final) content that never word-streamed. */
+/**
+ * Soft block enter for complete (final) content that never word-streamed.
+ * CSS animation only — no forced reflow (`offsetWidth`) and no transition
+ * bookkeeping, so a wave of rows mounting (agent switch, scroll) doesn't
+ * layout-thrash. The lingering translateY(0) fill is cleared on animation end
+ * so the row doesn't keep a transform-induced containing block.
+ */
 function CompleteBlockFade({
   children,
   className,
@@ -152,33 +189,24 @@ function CompleteBlockFade({
 
   useLayoutEffect(() => {
     ensureKeyframes();
-    const el = ref.current;
-    if (!el) return;
-    if (el.dataset.tideBlockFaded === '1') return;
-    el.dataset.tideBlockFaded = '1';
-
-    el.style.display = 'block';
-    el.style.transition = 'none';
-    el.style.opacity = '0';
-    el.style.transform = 'translateY(4px)';
-    void el.offsetWidth;
-    el.style.transition =
-      'opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1), transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)';
-    el.style.opacity = '1';
-    el.style.transform = 'translateY(0)';
-
-    const onEnd = (ev: TransitionEvent) => {
-      if (ev.target !== el || ev.propertyName !== 'opacity') return;
-      el.style.transition = '';
-      el.style.transform = '';
-      el.removeEventListener('transitionend', onEnd);
-    };
-    el.addEventListener('transitionend', onEnd);
-    return () => el.removeEventListener('transitionend', onEnd);
   }, []);
 
   return (
-    <span ref={ref} className={className} data-stream-complete-fade="1">
+    <span
+      ref={ref}
+      className={className}
+      data-stream-complete-fade="1"
+      style={{
+        display: 'block',
+        animation: 'tide-stream-block-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both',
+      }}
+      onAnimationEnd={(ev) => {
+        const el = ref.current;
+        if (el && ev.target === el) {
+          el.style.animation = '';
+        }
+      }}
+    >
       {children}
     </span>
   );
@@ -189,6 +217,7 @@ export const StreamFadeText = memo(function StreamFadeText({
   isStreaming = false,
   className,
   renderComplete,
+  fadeId,
 }: StreamFadeTextProps) {
   useEffect(() => {
     ensureKeyframes();
@@ -197,7 +226,16 @@ export const StreamFadeText = memo(function StreamFadeText({
   // True if this instance ever rendered live deltas — used so a later finalize
   // does not re-run the complete-block fade after the user already watched words.
   const didStreamRef = useRef(false);
-  if (isStreaming) didStreamRef.current = true;
+  if (isStreaming) {
+    didStreamRef.current = true;
+    // A row that streams also counts as "entered" — after it settles, a
+    // virtualizer remount must not replay the complete-block fade.
+    if (fadeId) seenFadeIds.add(fadeId);
+  }
+
+  // Latch the fade decision once per mount: fade only rows that never streamed
+  // AND haven't already faded this page session (scroll remounts stay static).
+  const completeFadeRef = useRef<boolean | null>(null);
 
   const prevFullRef = useRef('');
   const genRef = useRef(0);
@@ -234,15 +272,21 @@ export const StreamFadeText = memo(function StreamFadeText({
     const body = renderComplete ? renderComplete(text) : <span className={className}>{text}</span>;
     // Final-only (or streamTextLive off): soft block fade so the answer doesn't pop.
     // If we already streamed live, keep the settle instant — content already arrived.
-    if (!didStreamRef.current && text) {
+    if (completeFadeRef.current === null) {
+      completeFadeRef.current =
+        !didStreamRef.current && !!text && (!fadeId || !seenFadeIds.has(fadeId));
+      if (fadeId) seenFadeIds.add(fadeId);
+    }
+    if (completeFadeRef.current) {
       return <CompleteBlockFade className={className}>{body}</CompleteBlockFade>;
     }
     return <>{body}</>;
   }
 
-  // Live markdown / rich path: re-parse the full buffer each chunk so **bold**,
-  // lists, and code look right while tokens arrive (no raw markers).
+  // Live markdown / rich path: completed paragraphs render from the memoized
+  // head (parsed once); only the current paragraph (tail) re-parses per chunk.
   if (renderComplete) {
+    const { head, tail } = splitStableMarkdown(text);
     return (
       <span
         className={className}
@@ -250,7 +294,8 @@ export const StreamFadeText = memo(function StreamFadeText({
         data-stream-live-md="1"
         style={{ display: 'block', wordBreak: 'break-word' }}
       >
-        {renderComplete(text)}
+        {head ? renderComplete(head) : null}
+        {tail ? renderComplete(tail) : null}
         <StreamCaret />
       </span>
     );

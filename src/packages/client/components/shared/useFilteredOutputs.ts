@@ -184,6 +184,81 @@ function editDataEquals(a: EditData | undefined, b: EditData | undefined): boole
     && a.unifiedDiff === b.unifiedDiff;
 }
 
+// ─── Per-row JSON enrichment caches ──────────────────────────────────────────
+// The simple-view enrichment pass reruns on EVERY outputs-array change — during
+// word-streaming that's up to ~20×/s. Output objects are immutable (the store
+// replaces, never mutates), so the expensive JSON.stringify/JSON.parse work per
+// tool row is cached by object identity. WeakMaps let dropped rows GC normally.
+
+interface ToolRowEnrichment {
+  keyParam: string | null;
+  editData?: EditData;
+  todoInputText?: string;
+  bashCommand?: string;
+}
+
+function computeToolRowEnrichment(toolName: string, inputJson: string, parsed: Record<string, unknown>): ToolRowEnrichment {
+  const enrichment: ToolRowEnrichment = {
+    keyParam: extractToolKeyParam(toolName, inputJson),
+  };
+  if (toolName === 'Edit') {
+    if (parsed.old_string !== undefined || parsed.new_string !== undefined || parsed.unified_diff !== undefined) {
+      enrichment.editData = {
+        oldString: (parsed.old_string as string) || '',
+        newString: (parsed.new_string as string) || '',
+        operation: typeof parsed.operation === 'string' ? parsed.operation : undefined,
+        unifiedDiff: typeof parsed.unified_diff === 'string' ? parsed.unified_diff : undefined,
+      };
+    }
+  }
+  if (toolName === 'TodoWrite' && Array.isArray((parsed as { todos?: unknown }).todos)) {
+    enrichment.todoInputText = inputJson;
+  }
+  if (toolName === 'Bash') {
+    const cmd = (parsed as { command?: unknown }).command;
+    if (typeof cmd === 'string' && cmd) enrichment.bashCommand = cmd;
+  }
+  return enrichment;
+}
+
+/** "Using tool:" rows with a toolInput payload → computed once per row object. */
+const payloadEnrichmentCache = new WeakMap<ClaudeOutput, ToolRowEnrichment>();
+
+function getPayloadEnrichment(output: ClaudeOutput, toolName: string): ToolRowEnrichment | null {
+  const cached = payloadEnrichmentCache.get(output);
+  if (cached) return cached;
+  try {
+    const inputJson = JSON.stringify(output.toolInput);
+    const enrichment = computeToolRowEnrichment(toolName, inputJson, output.toolInput as Record<string, unknown>);
+    payloadEnrichmentCache.set(output, enrichment);
+    return enrichment;
+  } catch {
+    return null;
+  }
+}
+
+/** "Tool input: {...}" look-ahead rows → parsed once per (row object, toolName). */
+const toolInputRowCache = new WeakMap<ClaudeOutput, { toolName: string; enrichment: ToolRowEnrichment | null }>();
+
+function getToolInputRowEnrichment(row: ClaudeOutput, toolName: string, inputJson: string): ToolRowEnrichment | null {
+  const cached = toolInputRowCache.get(row);
+  if (cached && cached.toolName === toolName) return cached.enrichment;
+  let enrichment: ToolRowEnrichment | null = null;
+  try {
+    const parsed = JSON.parse(inputJson);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      enrichment = computeToolRowEnrichment(toolName, inputJson, parsed as Record<string, unknown>);
+    } else {
+      enrichment = { keyParam: extractToolKeyParam(toolName, inputJson) };
+    }
+  } catch {
+    // Malformed/partial JSON — key param extraction still handles raw strings.
+    enrichment = { keyParam: extractToolKeyParam(toolName, inputJson) };
+  }
+  toolInputRowCache.set(row, { toolName, enrichment });
+  return enrichment;
+}
+
 /**
  * Hook to filter and enrich outputs based on view mode
  * - Advanced: show all outputs as-is
@@ -257,31 +332,15 @@ export function useFilteredOutputs({
 
         // Prefer payload toolInput (Grok upgrades the early tool card in-place with
         // full args on the same uuid — there may be no separate "Tool input:" row
-        // with the full payload, or the sibling still shows "{}").
+        // with the full payload, or the sibling still shows "{}"). Cached per
+        // row object — streaming re-passes don't re-stringify every payload.
         if (output.toolInput && typeof output.toolInput === 'object' && Object.keys(output.toolInput).length > 0) {
-          try {
-            const inputJson = JSON.stringify(output.toolInput);
-            keyParam = extractToolKeyParam(toolName, inputJson);
-            if (toolName === 'Edit') {
-              const parsed = output.toolInput as Record<string, unknown>;
-              if (parsed.old_string !== undefined || parsed.new_string !== undefined || parsed.unified_diff !== undefined) {
-                editData = {
-                  oldString: (parsed.old_string as string) || '',
-                  newString: (parsed.new_string as string) || '',
-                  operation: typeof parsed.operation === 'string' ? parsed.operation : undefined,
-                  unifiedDiff: typeof parsed.unified_diff === 'string' ? parsed.unified_diff : undefined,
-                };
-              }
-            }
-            if (toolName === 'TodoWrite' && Array.isArray((output.toolInput as { todos?: unknown }).todos)) {
-              todoInputText = inputJson;
-            }
-            if (toolName === 'Bash') {
-              const cmd = (output.toolInput as { command?: unknown }).command;
-              if (typeof cmd === 'string' && cmd) bashCommand = cmd;
-            }
-          } catch {
-            /* ignore */
+          const payload = getPayloadEnrichment(output, toolName);
+          if (payload) {
+            keyParam = payload.keyParam;
+            if (payload.editData) editData = payload.editData;
+            if (payload.todoInputText) todoInputText = payload.todoInputText;
+            if (payload.bashCommand) bashCommand = payload.bashCommand;
           }
         }
 
@@ -294,44 +353,13 @@ export function useFilteredOutputs({
             if (inputJson === '{}' || inputJson === '') {
               continue;
             }
-            const lookedUp = extractToolKeyParam(toolName, inputJson);
-            if (lookedUp) keyParam = lookedUp;
-            if (toolName === 'Edit') {
-              try {
-                const parsed = JSON.parse(inputJson);
-                if (parsed.old_string !== undefined || parsed.new_string !== undefined || parsed.unified_diff !== undefined) {
-                  editData = {
-                    oldString: parsed.old_string || '',
-                    newString: parsed.new_string || '',
-                    operation: typeof parsed.operation === 'string' ? parsed.operation : undefined,
-                    unifiedDiff: typeof parsed.unified_diff === 'string' ? parsed.unified_diff : undefined,
-                  };
-                }
-              } catch {
-                /* ignore parse errors */
-              }
-            }
-            // For TodoWrite, capture the full input so we can render it inline
-            if (toolName === 'TodoWrite') {
-              try {
-                const parsed = JSON.parse(inputJson);
-                if (Array.isArray(parsed.todos)) {
-                  todoInputText = inputJson;
-                }
-              } catch {
-                /* ignore parse errors */
-              }
-            }
-            // For Bash, capture the full command
-            if (toolName === 'Bash') {
-              try {
-                const parsed = JSON.parse(inputJson);
-                if (parsed.command) {
-                  bashCommand = parsed.command;
-                }
-              } catch {
-                /* ignore parse errors */
-              }
+            // Parsed once per row object — streaming re-passes hit the cache.
+            const rowEnrichment = getToolInputRowEnrichment(nextOutput, toolName, inputJson);
+            if (rowEnrichment) {
+              if (rowEnrichment.keyParam) keyParam = rowEnrichment.keyParam;
+              if (toolName === 'Edit' && rowEnrichment.editData) editData = rowEnrichment.editData;
+              if (toolName === 'TodoWrite' && rowEnrichment.todoInputText) todoInputText = rowEnrichment.todoInputText;
+              if (toolName === 'Bash' && rowEnrichment.bashCommand) bashCommand = rowEnrichment.bashCommand;
             }
           }
           // Capture Bash output. uuid-tagged result rows belong to a specific

@@ -4,7 +4,7 @@
  * Full body renders as markdown (same pipeline as assistant replies).
  */
 
-import React, { memo, useMemo, useState } from 'react';
+import React, { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '../Icon';
 import { providerAssetUrl } from '../../utils/providerDisplay';
@@ -84,11 +84,26 @@ export const ThinkingBlock = memo(function ThinkingBlock({
       ? t('tools:display.codexThinking')
       : t('tools:display.thinking');
 
-  if (!body && !liveStream) return null;
+  // Stable identity so MarkdownBlock's memo survives re-renders (an inline
+  // arrow here forced a full remark re-parse on every parent render).
+  const renderMarkdown = useCallback(
+    (content: string) => renderContentWithImages(content, onImageClick, onFileClick),
+    [onImageClick, onFileClick],
+  );
 
-  const markdown = body
-    ? renderContentWithImages(body, onImageClick, onFileClick)
-    : null;
+  // Settled markdown only — never computed while live-streaming (StreamFadeText
+  // owns that path) and memoized so expand/collapse toggles don't re-parse.
+  const settledMarkdown = useMemo(
+    () => (!liveStream && showFull && body ? renderMarkdown(body) : null),
+    [liveStream, showFull, body, renderMarkdown],
+  );
+
+  const preview = useMemo(
+    () => (showFull ? '' : previewLine(body, collapseAt)),
+    [showFull, body, collapseAt],
+  );
+
+  if (!body && !liveStream) return null;
 
   return (
     <div
@@ -137,21 +152,17 @@ export const ThinkingBlock = memo(function ThinkingBlock({
         {showFull ? (
           liveStream ? (
             body ? (
-              // Live MD: StreamFadeText re-renders markdown each chunk when
-              // renderComplete is set (no raw ** / half fences as plain text).
-              <StreamFadeText
-                text={body}
-                isStreaming
-                renderComplete={(t) => renderContentWithImages(t, onImageClick, onFileClick)}
-              />
+              // Live MD: StreamFadeText renders completed paragraphs from its
+              // memoized head and re-parses only the current paragraph.
+              <StreamFadeText text={body} isStreaming renderComplete={renderMarkdown} />
             ) : (
               '…'
             )
           ) : (
-            markdown
+            settledMarkdown
           )
         ) : (
-          previewLine(body, collapseAt)
+          preview
         )}
       </span>
       {canCollapse && !liveStream && (

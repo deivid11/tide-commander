@@ -1640,7 +1640,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         timeStr={timeStr}
         timestampTitle={`${timestamp || Date.now()} | ${debugHash}`}
         onImageClick={onImageClick}
-        onFileClick={onFileClick ? (path) => onFileClick(path) : undefined}
+        onFileClick={onFileClick}
       />
     );
   }
@@ -1682,16 +1682,22 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           ) : (
             // Streaming: word fade. Final/complete: soft block fade when the
             // answer never word-streamed (e.g. streamTextLive off, or a single
-            // isStreaming:false payload after tools).
+            // isStreaming:false payload after tools). fadeId keeps the fade to
+            // one play per row per session — virtualizer remounts stay static.
             <StreamFadeText
               text={text}
               isStreaming={!!isStreaming}
+              fadeId={output.uuid ? `${agentId ?? ''}:${output.uuid}` : undefined}
               renderComplete={(t) => renderContentWithImages(t, onImageClick, onFileClick)}
             />
           )}
         </div>
       ) : (
-        <StreamFadeText text={text} isStreaming={!!isStreaming} />
+        <StreamFadeText
+          text={text}
+          isStreaming={!!isStreaming}
+          fadeId={output.uuid ? `${agentId ?? ''}:${output.uuid}` : undefined}
+        />
       )}
       {isSubagentCompletion && payloadToolOutput && (
         <div className="subagent-result-section">

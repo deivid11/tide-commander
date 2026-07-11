@@ -192,7 +192,7 @@ export const HistoryLine = memo(function HistoryLine({
         timeStr={timeStr}
         timestampTitle={`${timestampMs} | ${debugHash}`}
         onImageClick={onImageClick}
-        onFileClick={onFileClick ? (path) => onFileClick(path) : undefined}
+        onFileClick={onFileClick}
       />
     );
   }

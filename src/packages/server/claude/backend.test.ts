@@ -422,6 +422,65 @@ describe('ClaudeBackend', () => {
         expect((a as any).uuid).toBe((b as any).uuid);
       });
 
+      it('keeps stream state isolated per agent (one backend serves all agents)', () => {
+        // Agent A opens a message, then agent B opens ITS OWN message — B's
+        // message_start must not reset A's stream uuids (that used to drop A's
+        // deltas / split A's bubble when two Claude agents streamed at once).
+        backend.parseEvent({
+          type: 'stream_event',
+          uuid: 'a-start',
+          event: { type: 'message_start', message: { id: 'msg_A' } },
+        }, 'agent-a');
+        backend.parseEvent({
+          type: 'stream_event',
+          uuid: 'b-start',
+          event: { type: 'message_start', message: { id: 'msg_B' } },
+        }, 'agent-b');
+
+        const aDelta = backend.parseEvent({
+          type: 'stream_event',
+          uuid: 'a-delta',
+          event: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'text_delta', text: 'from A' },
+          },
+        }, 'agent-a');
+        const bDelta = backend.parseEvent({
+          type: 'stream_event',
+          uuid: 'b-delta',
+          event: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'text_delta', text: 'from B' },
+          },
+        }, 'agent-b');
+
+        expect((aDelta as any).uuid).toBe('claude-stream-msg_A-text-0');
+        expect((bDelta as any).uuid).toBe('claude-stream-msg_B-text-0');
+
+        // A's finalize must not suppress B's still-live deltas.
+        backend.parseEvent({
+          type: 'assistant',
+          uuid: 'a-final',
+          message: {
+            id: 'msg_A',
+            content: [{ type: 'text', text: 'from A' }],
+          },
+        }, 'agent-a');
+        const bDelta2 = backend.parseEvent({
+          type: 'stream_event',
+          uuid: 'b-delta-2',
+          event: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'text_delta', text: ' more B' },
+          },
+        }, 'agent-b');
+        expect(bDelta2).not.toBeNull();
+        expect((bDelta2 as any).uuid).toBe('claude-stream-msg_B-text-0');
+      });
+
       it('parses thinking_delta streaming with a stable stream uuid', () => {
         backend.parseEvent({
           type: 'stream_event',

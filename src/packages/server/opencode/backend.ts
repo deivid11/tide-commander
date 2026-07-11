@@ -84,8 +84,20 @@ export function buildOpencodePrompt(config: BackendConfig): string {
 
 export class OpencodeBackend implements CLIBackend {
   readonly name = 'opencode';
-  private parser = new OpencodeJsonEventParser();
+  // ONE OpencodeBackend serves every OpenCode agent — parser turn state
+  // (streamed text accumulators, open stream uuids) must be per agent.
+  private parsers = new Map<string, OpencodeJsonEventParser>();
   private pendingStdinPrompt: string | undefined;
+
+  private parserFor(agentId?: string): OpencodeJsonEventParser {
+    const key = agentId || '__default';
+    let parser = this.parsers.get(key);
+    if (!parser) {
+      parser = new OpencodeJsonEventParser();
+      this.parsers.set(key, parser);
+    }
+    return parser;
+  }
 
   buildArgs(config: BackendConfig): string[] {
     const args: string[] = ['run', '--format', 'json'];
@@ -116,8 +128,8 @@ export class OpencodeBackend implements CLIBackend {
     return args;
   }
 
-  parseEvent(rawEvent: unknown): StandardEvent | StandardEvent[] | null {
-    const events = this.parser.parseEvent(rawEvent);
+  parseEvent(rawEvent: unknown, agentId?: string): StandardEvent | StandardEvent[] | null {
+    const events = this.parserFor(agentId).parseEvent(rawEvent);
     if (events.length === 0) return null;
     return events.length === 1 ? events[0] : events;
   }
