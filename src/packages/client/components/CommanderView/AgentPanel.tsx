@@ -295,6 +295,12 @@ export function AgentPanel({
 
     store.sendCommand(agent.id, fullCommand);
 
+    // Jump to the bottom for your own message — the list's sticky-bottom write
+    // gate refuses auto-scroll while the viewport is up, so pin explicitly.
+    isUserScrolledUpRef.current = false;
+    setShouldAutoScroll(true);
+    setPinToBottom(true);
+
     // Reset input state
     setCommand('');
     setForceTextarea(false);
