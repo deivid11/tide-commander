@@ -568,12 +568,14 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     }
 
     // Disable auto-scroll only on a genuine UPWARD user scroll (scrollTop
-    // decreased). When new content grows under the viewport, isAtBottom goes
-    // false without scrollTop decreasing — treating that as "user scrolled up"
-    // is what made the view jump up off the latest agent message/reasoning.
-    // Also skip during the post-agent-switch grace period and programmatic scrolls.
-    const isAtBottom = distanceFromBottom < 150;
-    if (!isAtBottom && scrolledUp && !isProgrammaticScrollRef.current && !agentSwitchGraceRef.current && onUserScroll) {
+    // decreased while meaningfully above the bottom). When new content grows
+    // under the viewport, distanceFromBottom grows without scrollTop
+    // decreasing — that must NOT count as "user scrolled up". Programmatic
+    // writes always land AT the bottom (shrink-clamps included), so >4px is
+    // enough to identify the user; the old >150px dead zone made escaping a
+    // word-stream impossible (each ~100px wheel tick was yanked back to the
+    // bottom by the next chunk before a second tick could land).
+    if (scrolledUp && distanceFromBottom > 4 && !isProgrammaticScrollRef.current && !agentSwitchGraceRef.current && onUserScroll) {
       onUserScroll();
     }
 

@@ -826,42 +826,42 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     const { scrollTop, scrollHeight, clientHeight } = outputScrollRef.current;
     const prevScrollTop = lastScrollTopRef.current;
     lastScrollTopRef.current = scrollTop;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 150;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    const isAtBottom = distanceFromBottom < 150;
     // A genuine upward move (scrollTop decreased) means the user left the
     // bottom. Content growing under the viewport (a new agent message or
     // reasoning completion) makes isAtBottom momentarily false WITHOUT scrollTop
     // decreasing — that must NOT disable auto-scroll, else the view jumps up.
     const scrolledUp = scrollTop < prevScrollTop - 1;
 
-    if (isAtBottom) {
+    if (scrolledUp && distanceFromBottom > 4) {
+      // ANY genuine upward move disables auto-scroll — even inside the 150px
+      // "at bottom" zone. Programmatic settle scrolls land AT the bottom
+      // (shrink-clamps included) and content growth never decreases scrollTop,
+      // so up-and-meaningfully-above-bottom can only be the user. The old
+      // >150px requirement made escape impossible during word streaming: each
+      // ~100px wheel tick was re-classified "at bottom", auto-scroll re-armed,
+      // and the next chunk (≤80ms) yanked the view down before a second tick.
+      // Deliberately NOT gated on the post-switch grace window (see below).
+      isUserScrolledUpRef.current = true;
+      setShouldAutoScroll(false);
+    } else if (isAtBottom && !scrolledUp) {
+      // Re-arm only when arriving at/staying near the bottom moving DOWN (or
+      // stationary) — an upward tick near the bottom must never re-enable.
       if (!agentSwitchGraceRef.current) {
         isUserScrolledUpRef.current = false;
         setShouldAutoScroll(true);
       }
-    } else if (scrolledUp) {
-      // Deliberately NOT gated on the post-switch grace window: programmatic
-      // settle scrolls land AT the bottom (shrink-clamps included) and content
-      // growth never decreases scrollTop, so up-and-away-from-bottom can only
-      // be the user. Ignoring it here let streaming auto-scroll drag the user
-      // back down for the full 3s grace after switching agents on mobile.
-      isUserScrolledUpRef.current = true;
-      setShouldAutoScroll(false);
     }
 
     historyLoaderHandleScrollRef.current(keyboard.keyboardScrollLockRef);
   }, [outputScrollRef, keyboard.keyboardScrollLockRef]);
 
-  // Auto-scroll on new output
-  const lastOutputLength = outputs.length > 0 ? outputs[outputs.length - 1]?.text?.length || 0 : 0;
-  useEffect(() => {
-    if (keyboard.keyboardScrollLockRef.current) return;
-    if (isUserScrolledUpRef.current) return;
-    requestAnimationFrame(() => {
-      if (outputScrollRef.current) {
-        outputScrollRef.current.scrollTop = outputScrollRef.current.scrollHeight;
-      }
-    });
-  }, [outputs.length, lastOutputLength, keyboard.keyboardScrollLockRef, outputScrollRef]);
+  // Auto-scroll is owned by VirtualizedOutputList (item-count + totalSize
+  // effects + pin loop). A second per-chunk scrollTop writer here raced those
+  // during word streaming: its in-flight rAF writes landed AFTER the user's
+  // upward scroll, re-classifying them as "at bottom" and yanking the view.
+  // ONE writer only — do not re-add a scroll effect keyed on output length.
 
   // ── History fade-in & agent switching ──
   const [historyFadeIn, setHistoryFadeIn] = useState(false);
