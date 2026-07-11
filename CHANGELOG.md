@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.151.2] - 2026-07-11
+
+### Changed
+- **Working agent avatar animation** - the busy agent avatar (terminal header and flat-view header) now does a soft bounce instead of the previous glow-and-pulse-ring, and always animates while the agent is working so the live-activity cue reads clearly. The header gained a little top room so the bounce isn't clipped.
+
+### Fixed
+- **Reduced-motion made the working cue look broken** - the avatar working indicator no longer disables itself under `prefers-reduced-motion`, which previously left only a static cyan border that read as a glitch; the bounce is a deliberate live-status signal.
+
 ## [1.151.1] - 2026-07-11
 
 ### Added
