@@ -13,6 +13,7 @@ import { PastedTextChip } from './PastedTextChip';
 import { FileMentionDropdown, type FileMentionItem } from './FileMentionDropdown';
 import { useSTT } from '../../hooks/useSTT';
 import type { Agent, PermissionRequest } from '../../../shared/types';
+import { providerClosesStdinAfterPrompt } from '../../../shared/types';
 import type { AttachedFile } from './types';
 import { Icon } from '../Icon';
 import { getPendingMessagesForAgent, removePendingMessageForAgent } from '../../websocket/send';
@@ -293,21 +294,38 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   const pinnedAgentIds = usePinnedAgentIds();
   const isPinned = pinnedAgentIds.includes(selectedAgentId);
 
+  // Grok/Codex/OpenCode cannot inject mid-turn via stdin — queue by default.
+  const closesStdin = providerClosesStdinAfterPrompt(selectedAgent.provider);
+
   const messageQueue = useMessageQueue(selectedAgentId);
-  const sendQueuedMessage = useCallback((entry: QueuedMessage) => {
+
+  // In-flight force-send ids — ignore auto-drain while a rocket send is running
+  // so a brief working→idle→working blip cannot re-deliver the same prompt.
+  const forceSendLockRef = useRef(false);
+
+  const sendQueuedMessage = useCallback((entry: QueuedMessage, opts?: { forceInterrupt?: boolean }) => {
     if (!selectedAgentId) return;
     try {
-      store.sendCommand(selectedAgentId, entry.text);
+      store.sendCommand(selectedAgentId, entry.text, opts);
+      // Entry is already removed from the queue before send; clearError is a
+      // no-op when the id is gone and must never re-add it.
       messageQueue.clearError(entry.id);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'send failed';
-      messageQueue.markError(entry.id, msg);
+      // Put it back so the user can retry / delete.
+      const restored = messageQueue.enqueue(entry.text);
+      if (restored) messageQueue.markError(restored.id, msg);
     }
   }, [selectedAgentId, messageQueue]);
 
   useAgentStatusTransition({
     status: selectedAgent.status,
     onLeaveWorking: () => {
+      if (forceSendLockRef.current) return;
+      // Confirm still idle — forceInterrupt briefly leaves working then comes back.
+      const live = store.getState().agents.get(selectedAgentId);
+      if (!live || live.status === 'working') return;
+      // Agent just became free — deliver the next queued prompt without interrupt.
       const next = messageQueue.drainOne();
       if (next) sendQueuedMessage(next);
     },
@@ -317,7 +335,11 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     if (isWorking) return;
     if (messageQueue.queue.length === 0) return;
     if (selectedAgent.status === 'working') return;
+    if (forceSendLockRef.current) return;
     const timer = setTimeout(() => {
+      if (forceSendLockRef.current) return;
+      const live = store.getState().agents.get(selectedAgentId);
+      if (!live || live.status === 'working') return;
       const next = messageQueue.drainOne();
       if (next) sendQueuedMessage(next);
     }, 500);
@@ -329,9 +351,20 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   const handleEnforceQueued = useCallback((id: string) => {
     const entry = messageQueue.queue.find((m) => m.id === id);
     if (!entry) return;
+    // Remove first so the chip disappears immediately and auto-drain cannot
+    // pick this entry up during the forceInterrupt status blip.
     messageQueue.removeById(id);
-    sendQueuedMessage(entry);
-  }, [messageQueue, sendQueuedMessage]);
+    forceSendLockRef.current = true;
+    try {
+      // Send now: interrupt the in-flight turn for stdin-closed backends.
+      sendQueuedMessage(entry, { forceInterrupt: isWorking && closesStdin });
+    } finally {
+      // Hold the lock long enough to cover stop→respawn status churn.
+      window.setTimeout(() => {
+        forceSendLockRef.current = false;
+      }, 1500);
+    }
+  }, [messageQueue, sendQueuedMessage, isWorking, closesStdin]);
 
   const handleDeleteQueued = useCallback((id: string) => {
     messageQueue.removeById(id);
@@ -710,6 +743,27 @@ export const TerminalInputArea = memo(function TerminalInputArea({
         )
         .join('\n');
       fullCommand = fullCommand ? `${fullCommand}\n\n${mentionTokens}` : mentionTokens;
+    }
+
+    // Stdin-closed backends (Grok/Codex/OpenCode) mid-run: queue until free
+    // instead of interrupting. User can force-send via the queue bar "Send now".
+    // Claude still injects mid-turn via stdin (sendCommand path below).
+    if (isWorking && closesStdin) {
+      messageQueue.enqueue(fullCommand);
+      onSendCommand?.();
+      setCommand('');
+      setForceTextarea(false);
+      setPastedTexts(new Map());
+      setAttachedFiles([]);
+      setFileMentions([]);
+      closeMention();
+      resetPastedCount();
+      const isMobileQueued = window.innerWidth <= 768;
+      if (isMobileQueued) {
+        inputRef.current?.blur();
+        textareaRef.current?.blur();
+      }
+      return;
     }
 
     store.sendCommand(selectedAgentId, fullCommand);

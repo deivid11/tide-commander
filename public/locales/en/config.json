@@ -604,5 +604,17 @@
     "clickToChange": "Click to change shortcut",
     "clearShortcut": "Clear shortcut",
     "conflictsWith": "Conflicts with: {{names}}"
+  },
+  "appUpdateBanner": {
+    "newVersion": "App update {{version}} available",
+    "update": "Update",
+    "download": "Download",
+    "dismiss": "Ignore",
+    "downloading": "Downloading update…",
+    "downloadingPct": "Downloading update… {{percent}}%",
+    "installHint": "Download complete — confirm the install prompt to finish updating",
+    "close": "Close",
+    "retry": "Retry",
+    "failed": "App update failed"
   }
 }

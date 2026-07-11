@@ -1,5 +1,13 @@
 apply plugin: 'com.android.application'
 
+// Single source of truth for the app version: the repo root package.json.
+// versionCode packs semver as major*1_000_000 + minor*1_000 + patch so every
+// release is monotonically increasing and in-app APK updates install cleanly.
+def packageJson = new groovy.json.JsonSlurper().parse(rootProject.file('../package.json'))
+def semverMatch = (packageJson.version =~ /(\d+)\.(\d+)\.(\d+)/)[0]
+def appVersionCode = semverMatch[1].toInteger() * 1000000 + semverMatch[2].toInteger() * 1000 + semverMatch[3].toInteger()
+def appVersionName = packageJson.version as String
+
 android {
     namespace "com.tidecommander.app"
     compileSdk rootProject.ext.compileSdkVersion
@@ -7,8 +15,8 @@ android {
         applicationId "com.tidecommander.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 31
-        versionName "0.31.0"
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

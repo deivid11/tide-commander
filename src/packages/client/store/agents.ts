@@ -109,7 +109,7 @@ export interface AgentActions {
     position?: { x: number; z: number }
   ): void;
   createDirectoryAndSpawn(path: string, name: string, agentClass: AgentClass): void;
-  sendCommand(agentId: string, command: string): void;
+  sendCommand(agentId: string, command: string, opts?: { forceInterrupt?: boolean }): void;
   refreshAgentContext(agentId: string): void;
   moveAgentLocal(agentId: string, position: { x: number; y: number; z: number }): void;
   moveAgent(agentId: string, position: { x: number; y: number; z: number }): void;
@@ -603,7 +603,7 @@ export function createAgentActions(
       });
     },
 
-    sendCommand(agentId: string, command: string): void {
+    sendCommand(agentId: string, command: string, opts?: { forceInterrupt?: boolean }): void {
       setState((state) => {
         state.lastPrompts.set(agentId, {
           text: command,
@@ -614,7 +614,11 @@ export function createAgentActions(
 
       const msg: ClientMessage = {
         type: 'send_command',
-        payload: { agentId, command },
+        payload: {
+          agentId,
+          command,
+          ...(opts?.forceInterrupt ? { forceInterrupt: true } : {}),
+        },
       };
 
       const sendMessage = getSendMessage();

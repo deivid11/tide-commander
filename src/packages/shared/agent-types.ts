@@ -67,6 +67,34 @@ export const PERMISSION_MODES: Record<PermissionMode, { label: string; descripti
 // Agent runtime provider
 export type AgentProvider = 'claude' | 'codex' | 'opencode' | 'grok';
 
+/**
+ * Providers whose CLI takes the prompt via argv/file and closes stdin after
+ * launch. Mid-run follow-ups cannot be written to stdin — they must be queued
+ * until the process exits (or force-interrupted and respawned with --resume).
+ */
+export function providerClosesStdinAfterPrompt(
+  provider?: AgentProvider | string | null,
+): boolean {
+  return provider === 'codex' || provider === 'opencode' || provider === 'grok';
+}
+
+export function providerDisplayName(
+  provider?: AgentProvider | string | null,
+): string {
+  switch (provider) {
+    case 'codex':
+      return 'Codex';
+    case 'opencode':
+      return 'OpenCode';
+    case 'grok':
+      return 'Grok';
+    case 'claude':
+      return 'Claude';
+    default:
+      return provider ? String(provider) : 'agent';
+  }
+}
+
 // OpenCode model - uses provider/model format (e.g. 'minimax/MiniMax-M1-80k')
 export type OpencodeModel = string;
 

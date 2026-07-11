@@ -137,6 +137,12 @@
   }
 }
 
+// APK update banner (Android): stacked below the server-update banner so both
+// can show at once right after a release (server + app update land together).
+.update-banner-apk {
+  margin-top: 52px;
+}
+
 // "✓ Updated to vX" post-reload strip
 .update-banner-updated .update-banner-check {
   color: $accent-green;

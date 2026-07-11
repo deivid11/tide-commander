@@ -11,6 +11,20 @@
   align-items: center;
   gap: 6px;
   pointer-events: none;
+  // Prevent shrink-to-fit collapse when toast content uses flex min-width: 0
+  width: min(500px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+
+  @media (max-width: 768px) {
+    // Full-width edge-to-edge band on mobile (connected/disconnected toasts etc.)
+    top: max(8px, env(safe-area-inset-top, 0px));
+    left: 8px;
+    right: 8px;
+    transform: none;
+    width: auto;
+    max-width: none;
+    align-items: stretch;
+  }
 }
 
 .toast {
@@ -24,8 +38,15 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   pointer-events: auto;
   animation: toast-in $transition-slow ease-out;
+  width: 100%;
   max-width: 500px;
+  box-sizing: border-box;
   font-size: 13px;
+
+  @media (max-width: 768px) {
+    max-width: none;
+    padding: 10px 14px;
+  }
 
   &.error {
     border-color: $accent-red;

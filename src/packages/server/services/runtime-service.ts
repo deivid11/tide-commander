@@ -94,15 +94,17 @@ function isAnyRunnerActive(agentId: string): boolean {
 }
 
 // Command started callback (set by websocket handler)
-let commandStartedCallback: ((agentId: string, command: string) => void) | null = null;
+let commandStartedCallback: ((agentId: string, command: string, opts?: { queued?: boolean }) => void) | null = null;
 
-export function setCommandStartedCallback(callback: (agentId: string, command: string) => void): void {
+export function setCommandStartedCallback(
+  callback: (agentId: string, command: string, opts?: { queued?: boolean }) => void
+): void {
   commandStartedCallback = callback;
 }
 
-function notifyCommandStarted(agentId: string, command: string): void {
+function notifyCommandStarted(agentId: string, command: string, opts?: { queued?: boolean }): void {
   if (commandStartedCallback) {
-    commandStartedCallback(agentId, command);
+    commandStartedCallback(agentId, command, opts);
   }
 }
 
@@ -298,9 +300,10 @@ export async function sendCommand(
   command: string,
   systemPrompt?: string,
   forceNewSession?: boolean,
-  customAgent?: CustomAgentConfig
+  customAgent?: CustomAgentConfig,
+  opts?: { forceInterrupt?: boolean }
 ): Promise<void> {
-  await commandExecution.sendCommand(agentId, command, systemPrompt, forceNewSession, customAgent);
+  await commandExecution.sendCommand(agentId, command, systemPrompt, forceNewSession, customAgent, opts);
 }
 
 export async function sendSilentCommand(agentId: string, command: string): Promise<void> {

@@ -2,9 +2,13 @@
  * Shared thinking / reasoning row for live OutputLine and history HistoryLine.
  * Collapses long thoughts to a one-line preview; expands on click for the full text.
  * Full body renders as markdown (same pipeline as assistant replies).
+ *
+ * Expand state is sticky after a live stream: settling the stream (tool card /
+ * next message / idle) must NOT snap the block shut while the user is still
+ * reading. Virtualization remounts restore the preference via `streamId`.
  */
 
-import React, { memo, useCallback, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '../Icon';
 import { providerAssetUrl } from '../../utils/providerDisplay';
@@ -12,6 +16,18 @@ import type { AgentProvider } from '../../../shared/types';
 import { StreamFadeText } from './StreamFadeText';
 import { renderContentWithImages } from './contentRendering';
 import { store } from '../../store';
+
+/** Per-stream expand prefs — survives virtualized row remounts within a session. */
+const expandPrefs = new Map<string, boolean>();
+const EXPAND_PREFS_MAX = 250;
+
+function rememberExpand(key: string, value: boolean): void {
+  expandPrefs.set(key, value);
+  if (expandPrefs.size > EXPAND_PREFS_MAX) {
+    const oldest = expandPrefs.keys().next().value;
+    if (oldest !== undefined) expandPrefs.delete(oldest);
+  }
+}
 
 export interface ThinkingBlockProps {
   text: string;
@@ -24,6 +40,11 @@ export interface ThinkingBlockProps {
   timestampTitle?: string;
   /** Compact single-line threshold (chars). Longer text gets expand/collapse. */
   collapseAt?: number;
+  /**
+   * Stable stream identity (usually the output uuid). Used to remember expand
+   * preference across re-renders and virtualized remounts.
+   */
+  streamId?: string;
   onImageClick?: (url: string, name: string) => void;
   onFileClick?: (path: string) => void;
 }
@@ -63,13 +84,35 @@ export const ThinkingBlock = memo(function ThinkingBlock({
   timeStr,
   timestampTitle,
   collapseAt = 140,
+  streamId,
   onImageClick,
   onFileClick,
 }: ThinkingBlockProps) {
   const { t } = useTranslation(['tools']);
   const body = useMemo(() => normalizeThinkingText(text), [text]);
   const canCollapse = body.length > collapseAt || body.includes('\n');
-  const [expanded, setExpanded] = useState(false);
+
+  const prefKey = streamId
+    ? `think:${agentId ?? ''}:${streamId}`
+    : undefined;
+
+  // Live streams open by default. Settled history stays collapsed unless the
+  // user (or a prior live stream for this streamId) expanded it.
+  const [expanded, setExpanded] = useState(() => {
+    if (prefKey && expandPrefs.has(prefKey)) return expandPrefs.get(prefKey)!;
+    return Boolean(isStreaming);
+  });
+
+  const setExpandedPersist = useCallback(
+    (next: boolean | ((prev: boolean) => boolean)) => {
+      setExpanded((prev) => {
+        const value = typeof next === 'function' ? next(prev) : next;
+        if (prefKey) rememberExpand(prefKey, value);
+        return value;
+      });
+    },
+    [prefKey],
+  );
 
   // Never keep the stream caret/pulse after the agent is idle, even if a
   // missed finalize left isStreaming stuck true on the output row.
@@ -77,6 +120,15 @@ export const ThinkingBlock = memo(function ThinkingBlock({
     ? store.getState().agents.get(agentId)?.status === 'working'
     : true;
   const liveStream = Boolean(isStreaming && agentWorking);
+
+  // While streaming, keep expanded. When the stream settles (tool/message
+  // arrives and isStreaming flips false), leave expanded alone so the user
+  // can finish reading — do NOT auto-collapse.
+  useEffect(() => {
+    if (liveStream) {
+      setExpandedPersist(true);
+    }
+  }, [liveStream, setExpandedPersist]);
 
   const showFull = liveStream || expanded || !canCollapse;
   const label =
@@ -103,12 +155,16 @@ export const ThinkingBlock = memo(function ThinkingBlock({
     [showFull, body, collapseAt],
   );
 
+  const toggleExpanded = useCallback(() => {
+    setExpandedPersist((v) => !v);
+  }, [setExpandedPersist]);
+
   if (!body && !liveStream) return null;
 
   return (
     <div
       className={`output-line output-thinking output-tool-use ${liveStream ? 'output-streaming' : ''} ${showFull ? 'is-expanded' : 'is-collapsed'} ${canCollapse ? 'is-collapsible' : ''}`}
-      onClick={canCollapse && !liveStream ? () => setExpanded((v) => !v) : undefined}
+      onClick={canCollapse && !liveStream ? toggleExpanded : undefined}
       role={canCollapse && !liveStream ? 'button' : undefined}
       tabIndex={canCollapse && !liveStream ? 0 : undefined}
       onKeyDown={
@@ -116,7 +172,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
           ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                setExpanded((v) => !v);
+                toggleExpanded();
               }
             }
           : undefined

@@ -257,8 +257,9 @@ export class GrokBackend implements CLIBackend {
   }
 
   /**
-   * Mark as stdin-closed so follow-up messages queue and respawn with --resume
-   * (same delivery path as Codex/OpenCode).
+   * Mark as stdin-closed so mid-run follow-ups queue until the process exits,
+   * then respawn with --resume (same delivery path as Codex/OpenCode).
+   * Callers may force-interrupt instead via sendCommand({ forceInterrupt: true }).
    */
   shouldCloseStdinAfterPrompt(): boolean {
     return true;

@@ -515,10 +515,10 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
     ctx.sendActivity(agentId, `Error: ${error}`);
   });
 
-  runtimeService.setCommandStartedCallback((agentId, command) => {
+  runtimeService.setCommandStartedCallback((agentId, command, opts) => {
     ctx.broadcast({
       type: 'command_started',
-      payload: { agentId, command },
+      payload: { agentId, command, queued: opts?.queued },
     });
   });
 

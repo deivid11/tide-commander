@@ -309,10 +309,10 @@ export function buildCustomAgentConfig(agentId: string, agentClass: string): { n
  */
 export async function handleSendCommand(
   ctx: HandlerContext,
-  payload: { agentId: string; command: string },
+  payload: { agentId: string; command: string; forceInterrupt?: boolean },
   buildBossMessage: (bossId: string, command: string) => Promise<{ message: string; systemPrompt: string }>
 ): Promise<void> {
-  const { agentId, command } = payload;
+  const { agentId, command, forceInterrupt } = payload;
   const agent = agentService.getAgent(agentId);
 
   if (!agent) {
@@ -353,12 +353,13 @@ export async function handleSendCommand(
 
   // Expand [@file:path] and [@folder:path] mentions by injecting file content
   const finalCommand = await expandFileMentions(command, agent.cwd);
+  const sendOpts = forceInterrupt ? { forceInterrupt: true } : undefined;
 
   // If this is a boss agent, handle differently
   if (agent.isBoss || agent.class === 'boss') {
-    await handleBossCommand(ctx, agentId, finalCommand, agent.name, buildBossMessage);
+    await handleBossCommand(ctx, agentId, finalCommand, agent.name, buildBossMessage, sendOpts);
   } else {
-    await handleRegularAgentCommand(ctx, agentId, finalCommand, agent);
+    await handleRegularAgentCommand(ctx, agentId, finalCommand, agent, sendOpts);
   }
 }
 
@@ -371,7 +372,8 @@ async function handleBossCommand(
   agentId: string,
   command: string,
   agentName: string,
-  buildBossMessage: (bossId: string, command: string) => Promise<{ message: string; systemPrompt: string }>
+  buildBossMessage: (bossId: string, command: string) => Promise<{ message: string; systemPrompt: string }>,
+  sendOpts?: { forceInterrupt?: boolean }
 ): Promise<void> {
   log.log(` Boss ${agentName} received command: "${command.slice(0, 50)}..."`);
 
@@ -387,11 +389,11 @@ async function handleBossCommand(
     // Also build customAgentConfig so boss gets its assigned skills (e.g. boss-instructions)
     const agent = agentService.getAgent(agentId);
     const customAgentConfig = agent ? buildCustomAgentConfig(agentId, agent.class) : undefined;
-    runtimeService.sendCommand(agentId, bossMessage, systemPrompt, undefined, customAgentConfig);
+    runtimeService.sendCommand(agentId, bossMessage, systemPrompt, undefined, customAgentConfig, sendOpts);
   } catch (err: any) {
     log.error(` Boss ${agentName}: failed to build boss message:`, err);
     // Fallback to sending raw command
-    runtimeService.sendCommand(agentId, command);
+    runtimeService.sendCommand(agentId, command, undefined, undefined, undefined, sendOpts);
   }
 
   if (isTeamQuestion) {
@@ -409,7 +411,8 @@ async function handleRegularAgentCommand(
   ctx: HandlerContext,
   agentId: string,
   command: string,
-  agent: { id: string; name: string; class: string; provider?: 'claude' | 'codex' | 'opencode' | 'grok'; contextUsed?: number; contextLimit?: number }
+  agent: { id: string; name: string; class: string; provider?: 'claude' | 'codex' | 'opencode' | 'grok'; contextUsed?: number; contextLimit?: number },
+  sendOpts?: { forceInterrupt?: boolean }
 ): Promise<void> {
   // Note: /context, /cost, /compact are intercepted at the handleSendCommand level
   // so they never reach here. This function only handles actual commands to send to the agent.
@@ -456,7 +459,7 @@ async function handleRegularAgentCommand(
   }
 
   try {
-    await runtimeService.sendCommand(agentId, finalCommand, undefined, undefined, customAgentConfig);
+    await runtimeService.sendCommand(agentId, finalCommand, undefined, undefined, customAgentConfig, sendOpts);
   } catch (err: any) {
     log.error(' Failed to send command:', err);
     ctx.sendActivity(agentId, `Error: ${err.message}`);

@@ -1,4 +1,5 @@
 import type { AgentProvider } from '../../shared/types.js';
+import { providerDisplayName } from '../../shared/types.js';
 import type { CustomAgentDefinition, RuntimeRunner } from '../runtime/index.js';
 import * as agentService from './agent-service.js';
 import { withAgentContext } from '../utils/log-context.js';
@@ -15,6 +16,15 @@ export interface CustomAgentConfig {
   definition: CustomAgentDefinition;
 }
 
+export interface SendCommandOptions {
+  /**
+   * For stdin-closed backends (Grok/Codex/OpenCode): interrupt the in-flight
+   * turn and respawn with this prompt immediately. Default is to queue until
+   * the agent process exits, then deliver via session resume.
+   */
+  forceInterrupt?: boolean;
+}
+
 interface RuntimeCommandExecutionDeps {
   log: {
     log: (message: string) => void;
@@ -22,7 +32,7 @@ interface RuntimeCommandExecutionDeps {
   };
   getRunner: (provider: AgentProvider) => RuntimeRunner | null;
   getRunnerForAgent: (agentId: string) => RuntimeRunner | null;
-  notifyCommandStarted: (agentId: string, command: string) => void;
+  notifyCommandStarted: (agentId: string, command: string, opts?: { queued?: boolean }) => void;
   emitOutput: (agentId: string, text: string, isStreaming?: boolean, subagentName?: string, uuid?: string) => void;
   killDetachedProviderProcessInCwd: (provider: AgentProvider, cwd: string) => Promise<boolean>;
 }
@@ -42,7 +52,8 @@ export interface RuntimeCommandExecutionApi {
     command: string,
     systemPrompt?: string,
     forceNewSession?: boolean,
-    customAgent?: CustomAgentConfig
+    customAgent?: CustomAgentConfig,
+    opts?: SendCommandOptions
   ) => Promise<void>;
   sendSilentCommand: (agentId: string, command: string) => Promise<void>;
   stopAgent: (agentId: string) => Promise<void>;
@@ -154,9 +165,10 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
     command: string,
     systemPrompt?: string,
     forceNewSession?: boolean,
-    customAgent?: CustomAgentConfig
+    customAgent?: CustomAgentConfig,
+    opts?: SendCommandOptions
   ): Promise<void> {
-    return withAgentContext(agentId, () => sendCommandImpl(agentId, command, systemPrompt, forceNewSession, customAgent));
+    return withAgentContext(agentId, () => sendCommandImpl(agentId, command, systemPrompt, forceNewSession, customAgent, opts));
   }
 
   async function sendCommandImpl(
@@ -164,7 +176,8 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
     command: string,
     systemPrompt?: string,
     forceNewSession?: boolean,
-    customAgent?: CustomAgentConfig
+    customAgent?: CustomAgentConfig,
+    opts?: SendCommandOptions
   ): Promise<void> {
     const agent = agentService.getAgent(agentId);
     if (!agent) {
@@ -177,44 +190,76 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
 
     const processRunning = runner.isRunning(agentId);
 
-    // For backends that close stdin after the initial prompt (codex, opencode),
-    // a new user prompt arriving while the process is alive should INTERRUPT
-    // the current work and RESTART the session with the new prompt — not wait
-    // for the current turn to finish and then deliver the queued message via
-    // session-resume (which is the default queue-based behavior).
+    // Backends that close stdin after the initial prompt (Grok, Codex, OpenCode)
+    // cannot receive mid-run follow-ups via a pipe. Two delivery modes:
     //
-    // Why no turnState gate: stdin is closed, so there's literally no way to
-    // deliver a follow-up prompt without respawning. 'waiting_for_input' is
-    // also not a reliable "turn is over" signal across these backends —
-    // opencode's NDJSON emits `step_finish` per LLM step (see
-    // src/packages/server/opencode/json-event-parser.ts:197-207), so during a
-    // single conversational turn the runner's turnState oscillates
-    // processing → waiting_for_input → processing → … between steps. Gating
-    // on 'waiting_for_input' would strand the new prompt on those mid-turn
-    // windows: sendMessage would queue it, but the process isn't exiting
-    // (it's starting the next step), so the queue-respawn path never fires.
-    // Codex happens to emit `step_complete` once per turn (via
-    // src/packages/server/codex/json-event-parser.ts:300-301), so the old
-    // gate looked fine there — but the correct invariant for ALL stdin-closed
-    // backends is: process-alive + new-prompt ⇒ interrupt + respawn.
+    //   1. Default — QUEUE until the process exits, then respawn with session
+    //      resume and deliver via ClaudeRunner.messageQueue
+    //      (respawnWithQueuedMessage). Soft mid-run guidance ("continua",
+    //      "also do X") should not burn the in-flight turn.
     //
-    // SIGINT on a process already at true turn-end (about to exit cleanly on
-    // its own) is harmless — process-lifecycle's stop() just short-circuits
-    // the natural exit, and the fresh spawn still resumes the same sessionId.
+    //   2. forceInterrupt — stop the process (clearQueue=true so prior queued
+    //      mid-run messages are dropped as stale) and immediately respawn with
+    //      this prompt. Used when the user explicitly wants "do this now
+    //      instead" (UI "Send now" / forceInterrupt flag).
     //
-    // Safe for tmux mode: runner.stop() routes through
-    // src/packages/server/claude/runner/process-lifecycle.ts:281-284 which
-    // calls killTmuxSession — this destroys only the agent's detached tmux
-    // session (created by spawnInTmux), NOT the user's own pane/window. The
-    // subsequent executeCommand spawns a fresh tmux session for the new turn.
+    // Why no turnState gate on the queue path: 'waiting_for_input' is not a
+    // reliable "turn is over" signal across these backends — OpenCode's NDJSON
+    // emits `step_finish` per LLM step, so turnState oscillates within a single
+    // conversational turn. The queue is drained on process exit (the only
+    // trustworthy boundary for stdin-closed CLIs).
     //
-    // clearQueue=true is intentional: user is replacing whatever was pending
-    // with this new command, so any queued messages from prior mid-turn sends
-    // are stale and must be dropped.
+    // Safe for tmux mode: runner.stop() only kills the agent's detached tmux
+    // session (spawnInTmux), not the user's own pane.
     const backendClosesStdin = runner.closesStdinAfterPrompt?.() === true;
     if (processRunning && backendClosesStdin && !forceNewSession) {
       const turnState = runner.getTurnState?.(agentId);
-      log.log(`[sendCommand] Agent ${agentId} (${agent.provider}): in-flight prompt (turnState=${turnState ?? 'unknown'}) — interrupting current work and restarting session with new prompt`);
+      const providerLabel = providerDisplayName(agent.provider);
+
+      if (opts?.forceInterrupt) {
+        log.log(`[sendCommand] Agent ${agentId} (${agent.provider}): forceInterrupt mid-run (turnState=${turnState ?? 'unknown'}) — interrupting and restarting with new prompt`);
+        emitOutput(
+          agentId,
+          '🛑 [System] Interrupting current work to process new prompt…',
+          false,
+          undefined,
+          'system-interrupt-restart'
+        );
+        // clearQueue=true: user is replacing pending mid-run work with this command
+        await runner.stop(agentId, true);
+        agentService.updateAgent(agentId, { taskCount: (agent.taskCount || 0) + 1 });
+        await executeCommand(agentId, command, systemPrompt, forceNewSession, customAgent);
+        return;
+      }
+
+      // Default: queue for delivery after the current turn completes.
+      const queued = runner.sendMessage(agentId, command);
+      if (queued) {
+        log.log(`[sendCommand] Agent ${agentId} (${agent.provider}): mid-run prompt queued (turnState=${turnState ?? 'unknown'}, ${command.length} chars)`);
+        notifyCommandStarted(agentId, command, { queued: true });
+        emitOutput(
+          agentId,
+          `⏳ [System] Mid-run message for ${providerLabel} will be sent when the agent is free`,
+          false,
+          undefined,
+          `system-midrun-queued-${Date.now()}`
+        );
+        const isSystemMessage = command.startsWith('[System:');
+        if (!isSystemMessage) {
+          agentService.updateAgent(agentId, {
+            taskCount: (agent.taskCount || 0) + 1,
+            lastAssignedTask: command,
+            lastAssignedTaskTime: Date.now(),
+          });
+        } else {
+          agentService.updateAgent(agentId, { taskCount: (agent.taskCount || 0) + 1 });
+        }
+        return;
+      }
+
+      // sendMessage failed (no active process race) — fall through to interrupt
+      // so the prompt is not dropped.
+      log.warn(`[sendCommand] Agent ${agentId}: mid-run queue failed, falling through to interrupt+respawn`);
       emitOutput(
         agentId,
         '🛑 [System] Interrupting current work to process new prompt…',

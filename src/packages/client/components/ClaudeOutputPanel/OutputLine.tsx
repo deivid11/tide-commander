@@ -1639,6 +1639,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         provider={provider}
         timeStr={timeStr}
         timestampTitle={`${timestamp || Date.now()} | ${debugHash}`}
+        streamId={output.uuid}
         onImageClick={onImageClick}
         onFileClick={onFileClick}
       />

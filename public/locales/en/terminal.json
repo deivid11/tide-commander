@@ -53,8 +53,10 @@
     "queued": "queued",
     "show": "Show",
     "enforce": "Send now",
+    "enforceInterrupt": "Send now (interrupt current work)",
     "delete": "Delete",
-    "tooltip": "{{count}} message(s) queued — will send when agent is idle",
+    "tooltip": "{{count}} message(s) queued — will send when agent is free",
+    "tooltipWorking": "{{count}} message(s) queued — will send when agent is free. Use Send now to interrupt.",
     "modal": {
       "title": "Queued message"
     }
