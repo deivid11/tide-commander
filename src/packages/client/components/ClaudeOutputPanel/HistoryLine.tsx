@@ -185,10 +185,14 @@ export const HistoryLine = memo(function HistoryLine({
     return (
       <ThinkingBlock
         text={content}
+        isStreaming={false}
+        agentId={agentId ?? undefined}
         agentName={parentAgentName}
         provider={provider}
         timeStr={timeStr}
         timestampTitle={`${timestampMs} | ${debugHash}`}
+        onImageClick={onImageClick}
+        onFileClick={onFileClick ? (path) => onFileClick(path) : undefined}
       />
     );
   }

@@ -1634,10 +1634,13 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       <ThinkingBlock
         text={text}
         isStreaming={isStreaming}
+        agentId={agentId ?? undefined}
         agentName={agentName}
         provider={provider}
         timeStr={timeStr}
         timestampTitle={`${timestamp || Date.now()} | ${debugHash}`}
+        onImageClick={onImageClick}
+        onFileClick={onFileClick ? (path) => onFileClick(path) : undefined}
       />
     );
   }
@@ -1676,17 +1679,19 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             </>
           ) : highlight ? (
             <div>{highlightText(text, highlight)}</div>
-          ) : isStreaming ? (
-            // Any streaming assistant/system text — self-contained word fade-in.
-            <StreamFadeText text={text} isStreaming />
           ) : (
-            renderContentWithImages(text, onImageClick, onFileClick)
+            // Streaming: word fade. Final/complete: soft block fade when the
+            // answer never word-streamed (e.g. streamTextLive off, or a single
+            // isStreaming:false payload after tools).
+            <StreamFadeText
+              text={text}
+              isStreaming={!!isStreaming}
+              renderComplete={(t) => renderContentWithImages(t, onImageClick, onFileClick)}
+            />
           )}
         </div>
-      ) : isStreaming ? (
-        <StreamFadeText text={text} isStreaming />
       ) : (
-        text
+        <StreamFadeText text={text} isStreaming={!!isStreaming} />
       )}
       {isSubagentCompletion && payloadToolOutput && (
         <div className="subagent-result-section">

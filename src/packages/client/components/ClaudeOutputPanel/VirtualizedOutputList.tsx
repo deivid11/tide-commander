@@ -196,9 +196,11 @@ const VirtualRow = memo(function VirtualRow({
       data-message-index={messageIndex}
       className={`message-nav-wrapper ${isSelected ? 'message-selected' : ''}${isSearchActive ? ' search-active' : ''}`}
     >
+      {/* History: no enter animation. Live only: soft fade new chips/answers. */}
       <ToolChipEnter
-        enterId={`${agentId}:${enterId}`}
-        staggerMs={isHistory ? Math.min(messageIndex % 12, 11) * 28 : 0}
+        enterId={`${agentId}:${isHistory ? 'h' : 'l'}:${enterId}`}
+        animate={!isHistory}
+        staggerMs={0}
       >
         {isHistory ? (
           <HistoryLine
