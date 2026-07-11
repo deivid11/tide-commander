@@ -377,30 +377,63 @@ describe('ClaudeBackend', () => {
     });
 
     describe('stream events', () => {
-      it('parses text_delta streaming', () => {
-        const result = backend.parseEvent({
+      it('mints a stable stream uuid across text_delta chunks (outer event uuids differ)', () => {
+        backend.parseEvent({
           type: 'stream_event',
-          uuid: 'stream-uuid-1',
+          uuid: 'evt-start',
           event: {
-            type: 'content_block_delta',
-            delta: { type: 'text_delta', text: 'Hello' },
+            type: 'message_start',
+            message: { id: 'msg_abc' },
           },
         });
 
-        expect(result).toEqual({
-          type: 'text',
-          text: 'Hello',
-          isStreaming: true,
-          uuid: 'stream-uuid-1',
+        const a = backend.parseEvent({
+          type: 'stream_event',
+          uuid: 'evt-delta-1',
+          event: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'text_delta', text: 'Hel' },
+          },
         });
+        const b = backend.parseEvent({
+          type: 'stream_event',
+          uuid: 'evt-delta-2',
+          event: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'text_delta', text: 'lo' },
+          },
+        });
+
+        expect(a).toEqual({
+          type: 'text',
+          text: 'Hel',
+          isStreaming: true,
+          uuid: 'claude-stream-msg_abc-text-0',
+        });
+        expect(b).toEqual({
+          type: 'text',
+          text: 'lo',
+          isStreaming: true,
+          uuid: 'claude-stream-msg_abc-text-0',
+        });
+        // Same uuid → client merges into one typewriter row
+        expect((a as any).uuid).toBe((b as any).uuid);
       });
 
-      it('parses thinking_delta streaming', () => {
+      it('parses thinking_delta streaming with a stable stream uuid', () => {
+        backend.parseEvent({
+          type: 'stream_event',
+          uuid: 'evt-start',
+          event: { type: 'message_start', message: { id: 'msg_think' } },
+        });
         const result = backend.parseEvent({
           type: 'stream_event',
           uuid: 'think-uuid-1',
           event: {
             type: 'content_block_delta',
+            index: 0,
             delta: { type: 'thinking_delta', text: 'Let me think...' },
           },
         });
@@ -409,16 +442,22 @@ describe('ClaudeBackend', () => {
           type: 'thinking',
           text: 'Let me think...',
           isStreaming: true,
-          uuid: 'think-uuid-1',
+          uuid: 'claude-stream-msg_think-thinking-0',
         });
       });
 
-      it('parses content_block_start', () => {
+      it('parses content_block_start with stream uuid', () => {
+        backend.parseEvent({
+          type: 'stream_event',
+          uuid: 'evt-start',
+          event: { type: 'message_start', message: { id: 'msg_block' } },
+        });
         const result = backend.parseEvent({
           type: 'stream_event',
           uuid: 'block-uuid',
           event: {
             type: 'content_block_start',
+            index: 0,
             content_block: { type: 'text' },
           },
         });
@@ -426,7 +465,7 @@ describe('ClaudeBackend', () => {
         expect(result).toEqual({
           type: 'block_start',
           blockType: 'text',
-          uuid: 'block-uuid',
+          uuid: 'claude-stream-msg_block-text-0',
         });
       });
 
@@ -443,12 +482,119 @@ describe('ClaudeBackend', () => {
         });
       });
 
-      it('returns null for unknown stream event types', () => {
+      it('returns null for message_start (state only)', () => {
         const result = backend.parseEvent({
           type: 'stream_event',
-          event: { type: 'message_start' },
+          event: { type: 'message_start', message: { id: 'msg_x' } },
         });
         expect(result).toBeNull();
+      });
+
+      it('final assistant text reuses the stream uuid so the row finalizes', () => {
+        backend.parseEvent({
+          type: 'stream_event',
+          uuid: 's1',
+          event: { type: 'message_start', message: { id: 'msg_final' } },
+        });
+        backend.parseEvent({
+          type: 'stream_event',
+          uuid: 's2',
+          event: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'text_delta', text: 'Hi' },
+          },
+        });
+        const result = backend.parseEvent({
+          type: 'assistant',
+          uuid: 'assistant-outer-uuid',
+          message: {
+            id: 'msg_final',
+            content: [{ type: 'text', text: 'Hi there' }],
+          },
+        });
+        const events = Array.isArray(result) ? result : [result];
+        const textEv = events.find((e: any) => e?.type === 'text');
+        expect(textEv).toMatchObject({
+          type: 'text',
+          text: 'Hi there',
+          isStreaming: false,
+          uuid: 'claude-stream-msg_final-text-0',
+        });
+      });
+
+      it('does not reset stream uuids on thinking-only assistant (avoids duplicate bubbles)', () => {
+        // Real Claude order with --include-partial-messages + thinking:
+        // message_start → thinking block 0 → intermediate assistant(thinking) →
+        // text block 1 deltas → final assistant(text only at content[0]).
+        backend.parseEvent({
+          type: 'stream_event',
+          uuid: 's0',
+          event: { type: 'message_start', message: { id: 'msg_think_text' } },
+        });
+        backend.parseEvent({
+          type: 'stream_event',
+          uuid: 's1',
+          event: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'thinking_delta', text: 'hmm' },
+          },
+        });
+        // Intermediate assistant: thinking only — must NOT wipe stream state.
+        backend.parseEvent({
+          type: 'assistant',
+          uuid: 'asst-thinking',
+          message: {
+            id: 'msg_think_text',
+            content: [{ type: 'thinking', thinking: 'hmm' } as any],
+          },
+        });
+        const delta = backend.parseEvent({
+          type: 'stream_event',
+          uuid: 's2',
+          event: {
+            type: 'content_block_delta',
+            index: 1,
+            delta: { type: 'text_delta', text: 'Te explico' },
+          },
+        });
+        expect(delta).toMatchObject({
+          type: 'text',
+          text: 'Te explico',
+          isStreaming: true,
+          // Still keyed by the original message id (not "anon")
+          uuid: 'claude-stream-msg_think_text-text-1',
+        });
+        // Final assistant content array has text at index 0 (thinking stripped),
+        // but stream block was index 1 — must still reuse the text stream uuid.
+        const final = backend.parseEvent({
+          type: 'assistant',
+          uuid: 'asst-final-outer',
+          message: {
+            id: 'msg_think_text',
+            content: [{ type: 'text', text: 'Te explico paso a paso' }],
+          },
+        });
+        const events = Array.isArray(final) ? final : [final];
+        const textEv = events.find((e: any) => e?.type === 'text');
+        expect(textEv).toMatchObject({
+          type: 'text',
+          text: 'Te explico paso a paso',
+          isStreaming: false,
+          uuid: 'claude-stream-msg_think_text-text-1',
+        });
+      });
+
+      it('buildArgs includes --include-partial-messages for token streaming', () => {
+        const args = backend.buildArgs({
+          agentId: 'a1',
+          prompt: 'hi',
+          workingDir: '/tmp',
+        } as never);
+        expect(args).toContain('--include-partial-messages');
+        expect(args).toContain('--output-format');
+        expect(args[args.indexOf('--output-format') + 1]).toBe('stream-json');
       });
     });
 

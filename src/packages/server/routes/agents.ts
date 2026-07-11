@@ -23,6 +23,7 @@ import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnable
 import { markInstructionsDirtyForAll } from '../services/instruction-refresh.js';
 import { startAgentTerminal, stopAgentTerminal } from '../services/agent-terminal-service.js';
 import { buildClaudeUsageByAgentSummary, buildClaudeUsageByDaySummary, buildClaudeUsageSnapshot } from '../services/claude-usage-service.js';
+import { buildGrokUsageSnapshot } from '../services/grok-usage-service.js';
 import { getBackupStatus, setBackupEnabled } from '../services/backup-service.js';
 import type { ServerMessage } from '../../shared/types.js';
 
@@ -1069,29 +1070,32 @@ router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
   res.status(204).end();
 });
 
-// GET /api/agents/:id/usage - Claude usage snapshot for a single agent
+// GET /api/agents/:id/usage - Claude or Grok usage snapshot for a single agent
 //
-// Mirrors what the Claude CLI's `/usage` slash command surfaces: local agent
-// stats plus the live rate-limit gauges fetched with the CLI's own OAuth
-// credentials. See services/claude-usage-service.ts for the source list.
+// Claude: local agent stats + Anthropic OAuth rate-limit gauges (CLI `/usage`).
+// Grok: local agent stats + CLI chat-proxy billing/credit gauges (CLI `/usage`).
 router.get('/:id/usage', async (req: Request<{ id: string }>, res: Response) => {
   const agent = agentService.getAgent(req.params.id);
   if (!agent) {
     res.status(404).json({ error: 'Agent not found' });
     return;
   }
-  if (agent.provider !== 'claude') {
+  const provider = agent.provider ?? 'claude';
+  if (provider !== 'claude' && provider !== 'grok') {
     res.status(400).json({
-      error: 'Usage data is only available for Claude agents',
-      provider: agent.provider,
+      error: 'Usage data is only available for Claude and Grok agents',
+      provider,
     });
     return;
   }
   try {
-    const snapshot = await buildClaudeUsageSnapshot(agent);
+    const snapshot =
+      provider === 'grok'
+        ? await buildGrokUsageSnapshot(agent)
+        : await buildClaudeUsageSnapshot(agent);
     res.json(snapshot);
   } catch (err: any) {
-    log.error('Failed to build Claude usage snapshot:', err);
+    log.error(`Failed to build ${provider} usage snapshot:`, err);
     res.status(500).json({ error: err?.message ?? 'Failed to build usage snapshot' });
   }
 });

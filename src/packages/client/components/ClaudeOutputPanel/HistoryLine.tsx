@@ -22,6 +22,7 @@ import { parseSlackMessage, SlackMessageBubble } from './SlackMessageBubble';
 import { AgentChatMessageCard, parseAgentChatMessage } from './AgentChatMessageCard';
 import { parseExtensionContext, ExtensionContextCard } from './ExtensionContextCard';
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, AskQuestionResult, ExitPlanModeInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, MemoryOpInput, isToolSearchContent, ListFilesInput, TaskOutputWaitInput, UnknownToolInput } from './ToolRenderers';
+import { TaskListView } from '../shared/TaskListView';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
 import { parseTestResults } from './testResultsParser';
@@ -108,7 +109,7 @@ export const HistoryLine = memo(function HistoryLine({
   const [sessionExpanded, setSessionExpanded] = useState(false);
   const hideCost = useHideCost();
   const settings = useSettings();
-  const { type, content: rawContent, toolName, toolUseId, timestamp, _bashOutput, _bashCommand, _askQuestionAnswers, _taskSubject, _pendingPromptId, _priorTodos } = message;
+  const { type, content: rawContent, toolName, toolUseId, timestamp, _bashOutput, _bashCommand, _askQuestionAnswers, _taskSubject, _taskSnapshot, _pendingPromptId, _priorTodos } = message;
   // `_pendingPromptId` is enriched by AgentTerminalPane.enrichHistory from the
   // pending agent-prompts map. We still keep a defensive fallback via the
   // store hook here in case a future call site renders HistoryLine outside the
@@ -607,7 +608,16 @@ export const HistoryLine = memo(function HistoryLine({
       }
 
       // Special case: TodoWrite renders the formatted checklist inline
-      if (toolName === 'TodoWrite' && toolInputContent) {
+      if (toolName === 'TodoWrite') {
+        let hasTodos = false;
+        try {
+          const parsed = toolInputContent ? JSON.parse(toolInputContent) : null;
+          hasTodos = Array.isArray(parsed?.todos) && parsed.todos.length > 0;
+        } catch { /* ignore */ }
+        // Empty / early cards without todos would render a bare TODOWRITE label.
+        if (!hasTodos) {
+          return null;
+        }
         return (
           <div className={`output-line output-tool-use output-tool-simple output-todo-inline`}>
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
@@ -677,13 +687,25 @@ export const HistoryLine = memo(function HistoryLine({
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
-            <TaskUpdateInput content={toolInputContent} subject={_taskSubject} />
+            {_taskSnapshot && _taskSnapshot.length > 0
+              ? <TaskListView todos={_taskSnapshot} />
+              : <TaskUpdateInput content={toolInputContent} subject={_taskSubject} />}
           </div>
         );
       }
 
       // ListFiles / list_dir — folder chip instead of raw JSON
-      if ((toolName === 'ListFiles' || toolName === 'list_dir') && toolInputContent) {
+      if (toolName === 'ListFiles' || toolName === 'list_dir') {
+        let fromInput = '';
+        try {
+          const parsed = toolInputContent ? JSON.parse(toolInputContent) : null;
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            fromInput = String(parsed.target_directory || parsed.targetDirectory || parsed.path || parsed.directory || '');
+          }
+        } catch { /* ignore */ }
+        // Empty `{}` must not block keyParam / extractToolKeyParam fallback.
+        const listDir = fromInput || keyParam || '';
+        if (!listDir) return null;
         return (
           <div className={`output-line output-tool-use output-tool-simple output-list-files-inline`}>
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
@@ -691,7 +713,9 @@ export const HistoryLine = memo(function HistoryLine({
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
             <ListFilesInput
-              content={toolInputContent}
+              content={fromInput && toolInputContent
+                ? toolInputContent
+                : JSON.stringify({ target_directory: listDir })}
               onFileClick={onFileClick ? (p) => onFileClick(p) : undefined}
             />
           </div>
@@ -699,17 +723,27 @@ export const HistoryLine = memo(function HistoryLine({
       }
 
       // get_command_or_subagent_output — task wait chips
-      if (
-        (toolName === 'get_command_or_subagent_output' || toolName === 'get_task_output')
-        && toolInputContent
-      ) {
+      if (toolName === 'get_command_or_subagent_output' || toolName === 'get_task_output') {
+        let hasIds = false;
+        try {
+          const parsed = toolInputContent ? JSON.parse(toolInputContent) : null;
+          const idsRaw = parsed?.task_ids ?? parsed?.taskIds ?? parsed?.task_id ?? parsed?.taskId;
+          hasIds = Array.isArray(idsRaw)
+            ? idsRaw.length > 0
+            : typeof idsRaw === 'string' && idsRaw.length > 0;
+        } catch { /* ignore */ }
+        if (!hasIds && !keyParam) return null;
         return (
           <div className={`output-line output-tool-use output-tool-simple output-task-wait-inline`}>
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
-            <TaskOutputWaitInput content={toolInputContent} />
+            <TaskOutputWaitInput
+              content={hasIds && toolInputContent
+                ? toolInputContent
+                : JSON.stringify({ task_ids: keyParam ? [keyParam] : [] })}
+            />
           </div>
         );
       }
@@ -1085,7 +1119,9 @@ export const HistoryLine = memo(function HistoryLine({
             <span className="output-tool-name">{displayToolName}</span>
           </div>
           <div className="output-line output-tool-input">
-            <TaskUpdateInput content={toolInputContent} subject={_taskSubject} />
+            {_taskSnapshot && _taskSnapshot.length > 0
+              ? <TaskListView todos={_taskSnapshot} />
+              : <TaskUpdateInput content={toolInputContent} subject={_taskSubject} />}
           </div>
         </>
       );

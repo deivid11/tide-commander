@@ -35,7 +35,9 @@
     "compactView": "Vista compatta",
     "autoScroll": "Scorrimento automatico",
     "notifications": "Notifiche",
-    "soundEffects": "Effetti sonori"
+    "soundEffects": "Effetti sonori",
+    "streamTextLive": "Streaming parola per parola",
+    "streamTextLiveTitle": "Mostra testo/pensiero di Claude e Grok mentre vengono generati. Disattiva per vedere solo le risposte complete."
   },
   "agentNames": {
     "customConfigured": "{{count}} nomi personalizzati configurati",

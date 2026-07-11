@@ -18,6 +18,24 @@ function enforceOutputBufferLimits(outputs: AgentOutput[]): AgentOutput[] {
   return outputs.slice(-MAX_OUTPUTS_PER_AGENT);
 }
 
+function toolInputEquals(
+  a: Record<string, unknown> | undefined,
+  b: Record<string, unknown> | undefined,
+): boolean {
+  if (a === b) return true;
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length === 0 && bKeys.length === 0) return true;
+  if (aKeys.length !== bKeys.length) return false;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
+
 function isSameOutputEvent(a: AgentOutput, b: AgentOutput): boolean {
   return a.uuid === b.uuid
     && a.text === b.text
@@ -27,7 +45,11 @@ function isSameOutputEvent(a: AgentOutput, b: AgentOutput): boolean {
     && a.subagentName === b.subagentName
     && a.toolName === b.toolName
     && a.toolOutput === b.toolOutput
-    && a.isError === b.isError;
+    && a.isError === b.isError
+    // Grok re-emits the same "Using tool: X" uuid with empty then full toolInput.
+    // Without this, the upgrade is treated as an exact resend and the merge
+    // path below never runs — chips stay empty and the UI hides them forever.
+    && toolInputEquals(a.toolInput, b.toolInput);
 }
 
 // ─── Server clock alignment ──────────────────────────────────────────────────
@@ -186,6 +208,41 @@ export function createOutputActions(
               newAgentOutputs.set(agentId, limitedOutputs);
               s.agentOutputs = newAgentOutputs;
               return;
+            }
+
+            // Same uuid "Tool input: {...}" after an empty early "Using tool:" —
+            // fold args onto the chip (still append the Tool input row so
+            // advanced view / look-ahead keep working).
+            const incomingIsToolInput = typeof output.text === 'string' && output.text.startsWith('Tool input:');
+            if (existingIsToolStart && incomingIsToolInput && existingInputEmpty) {
+              let parsedInput: Record<string, unknown> | undefined = output.toolInput;
+              if (!parsedInput || Object.keys(parsedInput).length === 0) {
+                try {
+                  const raw = output.text.replace(/^Tool input:\s*/, '').trim();
+                  if (raw && raw !== '{}') {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                      parsedInput = parsed as Record<string, unknown>;
+                    }
+                  }
+                } catch {
+                  /* ignore */
+                }
+              }
+              if (parsedInput && Object.keys(parsedInput).length > 0) {
+                const updatedOutputs = [...currentOutputs];
+                updatedOutputs[existingIndex] = {
+                  ...existing,
+                  toolInput: parsedInput,
+                  toolName: output.toolName ?? existing.toolName,
+                };
+                // Fall through to also append the Tool input row itself.
+                const withMerged = enforceOutputBufferLimits([...updatedOutputs, output]);
+                const newAgentOutputs = new Map(s.agentOutputs);
+                newAgentOutputs.set(agentId, withMerged);
+                s.agentOutputs = newAgentOutputs;
+                return;
+              }
             }
 
             // Same UUID with different non-streaming text is valid for tool

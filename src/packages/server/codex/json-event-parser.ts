@@ -263,6 +263,16 @@ export class CodexJsonEventParser {
   private enableFileDiffEnrichment: boolean;
   private workingDirectory: string;
   private gitRootCache = new Map<string, string | null>();
+  /**
+   * Progressive agent_message text per item.id (for item.updated / delta streams).
+   * Current `codex exec --json` only emits agent_message on item.completed, but
+   * app-server / newer CLIs can stream via item.updated or agentMessage deltas.
+   */
+  private streamedAgentTextByItemId = new Map<string, string>();
+  private openAgentTextUuids = new Set<string>();
+  private streamedThinkingByItemId = new Map<string, string>();
+  private openThinkingUuids = new Set<string>();
+
   constructor(options: CodexJsonEventParserOptions = {}) {
     this.enableFileDiffEnrichment = options.enableFileDiffEnrichment === true;
     this.workingDirectory = options.workingDirectory || process.cwd();
@@ -300,12 +310,23 @@ export class CodexJsonEventParser {
     if (event.type === 'item.started') {
       return this.parseItemStarted(event.item);
     }
+    if (event.type === 'item.updated') {
+      return this.parseItemUpdated(event.item);
+    }
     if (event.type === 'item.completed') {
       // Capture agent message text for later use in step_complete
       if (event.item?.type === 'agent_message' && event.item?.text) {
         this.lastAgentMessageText = event.item.text;
       }
       return this.parseItemCompleted(event.item);
+    }
+    // App-server style notification (when present on exec stream): streaming text delta.
+    if (
+      event.type === 'item/agentMessage/delta' ||
+      event.type === 'item.agentMessage.delta' ||
+      event.type === 'agent_message_delta'
+    ) {
+      return this.parseAgentMessageDelta(rawEvent);
     }
     if (event.type === 'turn.completed') {
       return this.parseTurnCompleted(event.usage);
@@ -343,11 +364,30 @@ export class CodexJsonEventParser {
       return [];
     }
 
-    // agent_reasoning: Map to thinking event
+    // agent_reasoning: Map to thinking event (stable uuid when item id present)
     if (payloadType === 'agent_reasoning') {
       const text = asString(payload.text);
       if (!text) return [];
-      return [{ type: 'thinking', text, isStreaming: false }];
+      const itemId = asString((payload as { item_id?: string }).item_id) || asString((payload as { id?: string }).id);
+      const uuid = itemId ? `codex-thinking-${itemId}` : undefined;
+      return [{ type: 'thinking', text, isStreaming: false, uuid }];
+    }
+
+    // Streaming agent message delta (app-server / experimental envelopes)
+    if (
+      payloadType === 'agent_message_delta' ||
+      payloadType === 'agent_message/delta' ||
+      payloadType === 'output_text_delta'
+    ) {
+      const delta =
+        asString(payload.text) ||
+        asString((payload as { delta?: string }).delta);
+      if (!delta) return [];
+      const itemId =
+        asString((payload as { item_id?: string }).item_id) ||
+        asString((payload as { id?: string }).id) ||
+        'anon';
+      return this.appendAgentTextDelta(itemId, delta);
     }
 
     // turn_aborted: Silent. The interruption is already visible from the agent stopping.
@@ -527,8 +567,121 @@ export class CodexJsonEventParser {
     }];
   }
 
+  /** Stable uuid for a Codex agent_message item so streaming chunks merge. */
+  private agentTextUuid(itemId: string): string {
+    return `codex-text-${itemId}`;
+  }
+
+  private appendAgentTextDelta(itemId: string, delta: string): RuntimeEvent[] {
+    if (!delta) return [];
+    const prev = this.streamedAgentTextByItemId.get(itemId) || '';
+    const next = prev + delta;
+    this.streamedAgentTextByItemId.set(itemId, next);
+    this.lastAgentMessageText = next;
+    const uuid = this.agentTextUuid(itemId);
+    this.openAgentTextUuids.add(uuid);
+    return [{ type: 'text', text: delta, isStreaming: true, uuid }];
+  }
+
+  /**
+   * Progressive snapshot for agent_message / reasoning on item.updated.
+   * Emits only the new suffix when text grows (prefix match).
+   */
+  private emitProgressiveItemText(
+    kind: 'text' | 'thinking',
+    itemId: string | undefined,
+    fullText: string,
+    isFinal: boolean,
+  ): RuntimeEvent[] {
+    if (!fullText) return [];
+    const id = itemId || 'anon';
+    const map = kind === 'text' ? this.streamedAgentTextByItemId : this.streamedThinkingByItemId;
+    const openSet = kind === 'text' ? this.openAgentTextUuids : this.openThinkingUuids;
+    const uuid = kind === 'text' ? this.agentTextUuid(id) : `codex-thinking-${id}`;
+    const prev = map.get(id) || '';
+
+    if (kind === 'text') this.lastAgentMessageText = fullText;
+
+    if (fullText === prev) {
+      if (isFinal && openSet.has(uuid)) {
+        openSet.delete(uuid);
+        map.delete(id);
+        return [{ type: kind === 'text' ? 'text' : 'thinking', text: fullText, isStreaming: false, uuid }];
+      }
+      return [];
+    }
+
+    map.set(id, fullText);
+
+    if (!isFinal && fullText.startsWith(prev)) {
+      const delta = fullText.slice(prev.length);
+      if (!delta) return [];
+      openSet.add(uuid);
+      return [{ type: kind === 'text' ? 'text' : 'thinking', text: delta, isStreaming: true, uuid }];
+    }
+
+    openSet.delete(uuid);
+    if (isFinal) map.delete(id);
+    return [{ type: kind === 'text' ? 'text' : 'thinking', text: fullText, isStreaming: false, uuid }];
+  }
+
+  private parseItemUpdated(item?: CodexItem): RuntimeEvent[] {
+    if (!item?.type) return [];
+
+    // Progressive agent_message text (when CLI emits item.updated for messages).
+    if (item.type === 'agent_message' && item.text) {
+      const sanitized = sanitizeCodexMessageText(item.text);
+      if (!sanitized.text) return [];
+      return this.emitProgressiveItemText('text', item.id, sanitized.text, false);
+    }
+
+    if (item.type === 'reasoning' && item.text) {
+      return this.emitProgressiveItemText('thinking', item.id, item.text, false);
+    }
+
+    // todo_list updates are already handled elsewhere as non-text progress;
+    // leave other item.updated types silent to avoid raw dumps.
+    if (item.type === 'todo_list') {
+      return [];
+    }
+
+    return [];
+  }
+
+  private parseAgentMessageDelta(rawEvent: unknown): RuntimeEvent[] {
+    if (!isObject(rawEvent)) return [];
+    const item = isObject(rawEvent.item) ? (rawEvent.item as CodexItem) : undefined;
+    const params = isObject(rawEvent.params) ? rawEvent.params : undefined;
+    const delta =
+      asString(rawEvent.delta) ||
+      asString(rawEvent.text) ||
+      asString(item?.text) ||
+      (params ? asString(params.delta) || asString(params.text) : undefined);
+    if (!delta) return [];
+    const itemId =
+      asString(item?.id) ||
+      asString(rawEvent.item_id) ||
+      asString(rawEvent.id) ||
+      (params ? asString(params.item_id) || asString(params.id) : undefined) ||
+      'anon';
+    return this.appendAgentTextDelta(itemId, delta);
+  }
+
   private parseItemStarted(item?: CodexItem): RuntimeEvent[] {
     if (!item?.type) return [];
+
+    // Some Codex builds open agent_message with empty text on item.started;
+    // pin the stream uuid so later updates merge into one row.
+    if (item.type === 'agent_message') {
+      if (item.id) {
+        const uuid = this.agentTextUuid(item.id);
+        this.openAgentTextUuids.add(uuid);
+        if (item.text) {
+          return this.emitProgressiveItemText('text', item.id, item.text, false);
+        }
+      }
+      return [];
+    }
 
     if (item.type === 'web_search') {
       const toolName = 'web_search';
@@ -588,7 +741,12 @@ export class CodexJsonEventParser {
     }
 
     if (item.type === 'reasoning' && item.text) {
-      return [{ type: 'thinking', text: item.text, isStreaming: false }];
+      const uuid = item.id ? `codex-thinking-${item.id}` : undefined;
+      if (item.id) {
+        this.streamedThinkingByItemId.delete(item.id);
+        this.openThinkingUuids.delete(uuid!);
+      }
+      return [{ type: 'thinking', text: item.text, isStreaming: false, uuid }];
     }
 
     // Handle agent_message regardless of whether `text` is present. An empty
@@ -608,7 +766,13 @@ export class CodexJsonEventParser {
       }
       // Empty message → render nothing (no empty bubble, no raw debug line).
       if (!sanitized.text) return [];
-      return [{ type: 'text', text: sanitized.text, isStreaming: false }];
+      const uuid = item.id ? `codex-text-${item.id}` : undefined;
+      if (item.id) {
+        this.streamedAgentTextByItemId.delete(item.id);
+        if (uuid) this.openAgentTextUuids.delete(uuid);
+      }
+      // isStreaming:false finalizes any prior streaming row with the same uuid.
+      return [{ type: 'text', text: sanitized.text, isStreaming: false, uuid }];
     }
 
     if (item.type === 'web_search') {

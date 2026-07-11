@@ -179,6 +179,12 @@ export interface Settings {
   // Show bash command output inline below the command row in the terminal
   // (global: applies to every bash output, live and history)
   inlineBashOutputs: boolean;
+  /**
+   * Word-by-word / token live streaming for Claude Code and Grok assistant
+   * text (and thinking). When false, partial isStreaming chunks are ignored
+   * and only complete messages are shown. Default true.
+   */
+  streamTextLive: boolean;
   // tmux process persistence (server-synced)
   tmuxMode: boolean;
   // Experimental: run Claude agents as the real interactive TUI inside tmux,
@@ -200,6 +206,7 @@ export const DEFAULT_SETTINGS: Settings = {
   vibrationIntensity: 1,
   tabTitle: '',
   inlineBashOutputs: false,
+  streamTextLive: true,
   tmuxMode: false,
   interactiveMode: false,
 };

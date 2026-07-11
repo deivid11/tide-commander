@@ -169,6 +169,161 @@ describe('startGrokSessionWatcher', () => {
     watcher.stop();
   });
 
+  it('emits real Bash stdout from chat_history even when tool_completed races first', async () => {
+    const events: StandardEvent[] = [];
+    const watcher = startGrokSessionWatcher({
+      agentId: 'agent-bash-out',
+      workingDir: projectDir,
+      sessionId,
+      startedAt: Date.now(),
+      onEvent: (e) => events.push(e),
+    });
+
+    // Fast Bash: started + completed before chat_history has the call
+    fs.appendFileSync(
+      path.join(sessionDir, 'events.jsonl'),
+      JSON.stringify({ ts: new Date().toISOString(), type: 'tool_started', tool_name: 'run_terminal_command' }) + '\n',
+      'utf8'
+    );
+    await new Promise((r) => setTimeout(r, 300));
+    fs.appendFileSync(
+      path.join(sessionDir, 'events.jsonl'),
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        type: 'tool_completed',
+        tool_name: 'run_terminal_command',
+        outcome: 'success',
+      }) + '\n',
+      'utf8'
+    );
+    await new Promise((r) => setTimeout(r, 300));
+
+    // Must NOT have emitted placeholder "(ok)" bash result
+    const earlyOk = events.filter(
+      (e) => e.type === 'tool_result' && (e.toolOutput === '(ok)' || e.toolOutput === '(error)')
+    );
+    expect(earlyOk).toHaveLength(0);
+
+    fs.appendFileSync(
+      path.join(sessionDir, 'chat_history.jsonl'),
+      JSON.stringify({
+        type: 'assistant',
+        content: '',
+        tool_calls: [
+          {
+            id: 'call-bash-1',
+            name: 'run_terminal_command',
+            arguments: JSON.stringify({ command: 'echo hello-from-bash' }),
+          },
+        ],
+      }) + '\n',
+      'utf8'
+    );
+    fs.appendFileSync(
+      path.join(sessionDir, 'chat_history.jsonl'),
+      JSON.stringify({
+        type: 'tool_result',
+        tool_call_id: 'call-bash-1',
+        content: 'hello-from-bash\n',
+      }) + '\n',
+      'utf8'
+    );
+    await new Promise((r) => setTimeout(r, 350));
+
+    const fullResults = events.filter(
+      (e) => e.type === 'tool_result' && (e.toolOutput || '').includes('hello-from-bash')
+    );
+    expect(fullResults.length).toBeGreaterThanOrEqual(1);
+
+    // Card uuid (early) should carry the real stdout for UI pairing
+    const start = events.find(
+      (e) => e.type === 'tool_start' && e.toolName === 'Bash' && (e.toolInput as { command?: string })?.command
+    );
+    expect(start).toBeDefined();
+    const cardResult = fullResults.find((e) => e.uuid === start!.uuid || e.toolUseId === start!.uuid);
+    expect(cardResult).toBeDefined();
+    expect(cardResult!.toolOutput).toContain('hello-from-bash');
+
+    watcher.stop();
+  });
+
+  it('still upgrades early TodoWrite when tool_completed races ahead of chat_history', async () => {
+    const events: StandardEvent[] = [];
+    const watcher = startGrokSessionWatcher({
+      agentId: 'agent-todo-race',
+      workingDir: projectDir,
+      sessionId,
+      startedAt: Date.now(),
+      onEvent: (e) => events.push(e),
+    });
+
+    // Fast path: start → complete BEFORE chat_history has the call (TodoWrite often does this).
+    fs.appendFileSync(
+      path.join(sessionDir, 'events.jsonl'),
+      JSON.stringify({ ts: new Date().toISOString(), type: 'tool_started', tool_name: 'todo_write' }) + '\n',
+      'utf8'
+    );
+    await new Promise((r) => setTimeout(r, 350));
+
+    fs.appendFileSync(
+      path.join(sessionDir, 'events.jsonl'),
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        type: 'tool_completed',
+        tool_name: 'todo_write',
+        outcome: 'success',
+      }) + '\n',
+      'utf8'
+    );
+    await new Promise((r) => setTimeout(r, 350));
+
+    const earlyEmpty = events.find(
+      (e) => e.type === 'tool_start' && e.toolName === 'TodoWrite' && e.uuid?.startsWith('grok-early-')
+    );
+    expect(earlyEmpty).toBeDefined();
+    const earlyUuid = earlyEmpty!.uuid!;
+
+    // chat_history lands after complete — must upgrade the same early uuid, not mint call-*.
+    fs.appendFileSync(
+      path.join(sessionDir, 'chat_history.jsonl'),
+      JSON.stringify({
+        type: 'assistant',
+        content: '',
+        tool_calls: [
+          {
+            id: 'call-todo-1',
+            name: 'todo_write',
+            arguments: JSON.stringify({
+              todos: [{ id: '1', content: 'Do the thing', status: 'in_progress' }],
+              merge: false,
+            }),
+          },
+        ],
+      }) + '\n',
+      'utf8'
+    );
+    await new Promise((r) => setTimeout(r, 350));
+
+    const upgraded = events.filter(
+      (e) => e.type === 'tool_start' && e.toolName === 'TodoWrite' && e.uuid === earlyUuid
+    );
+    expect(upgraded.length).toBeGreaterThanOrEqual(2); // empty early + full upgrade
+    const withTodos = upgraded.find(
+      (e) => Array.isArray((e.toolInput as { todos?: unknown })?.todos)
+        && ((e.toolInput as { todos: unknown[] }).todos.length > 0)
+    );
+    expect(withTodos).toBeDefined();
+    expect((withTodos!.toolInput as { todos: Array<{ content: string }> }).todos[0].content).toBe('Do the thing');
+
+    // Must not leave a second full chip under the real call id.
+    const callIdStarts = events.filter(
+      (e) => e.type === 'tool_start' && e.toolName === 'TodoWrite' && e.uuid === 'call-todo-1'
+    );
+    expect(callIdStarts).toHaveLength(0);
+
+    watcher.stop();
+  });
+
   it('reads context usage from signals.json and emits usage_snapshot', async () => {
     const events: StandardEvent[] = [];
     const watcher = startGrokSessionWatcher({

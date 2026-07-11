@@ -59,6 +59,7 @@ import {
   parseBashNotificationCommand,
   parseBashReportTaskCommand,
   parseBashMemoryCommand,
+  extractToolKeyParam,
 } from '../../utils/outputRendering';
 
 // Components
@@ -76,6 +77,10 @@ import { VirtualizedOutputList } from './VirtualizedOutputList';
 const LIVE_DUPLICATE_WINDOW_MS = 10_000;
 const HISTORY_OUTPUT_DUPLICATE_WINDOW_MS = 30_000;
 const HISTORY_ASSISTANT_OUTPUT_DUPLICATE_WINDOW_MS = 120_000;
+/** Live tool chip vs history tool_use: Grok early uuid ≠ call id, so uuid dedup misses. */
+const HISTORY_TOOL_OUTPUT_DUPLICATE_WINDOW_MS = 180_000;
+/** Two live rows for the same tool call (early + call-* dual emit). */
+const LIVE_TOOL_DUPLICATE_WINDOW_MS = 15_000;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -102,6 +107,49 @@ function isToolOrSystemOutput(text: string): boolean {
     || text.startsWith('🔄 [System]')
     || text.startsWith('📋 [System]')
     || text.startsWith('[System]');
+}
+
+/**
+ * Stable key for a tool invocation: toolName + primary param (command, path, …).
+ * Used to collapse live `grok-early-*` chips against history `call-*` rows and
+ * dual live emissions of the same call.
+ */
+function makeToolInvocationKey(
+  toolName: string | undefined,
+  toolInput: Record<string, unknown> | undefined,
+  textFallback?: string,
+): string | null {
+  const name = (toolName || '').trim();
+  if (!name && textFallback?.startsWith('Using tool:')) {
+    return makeToolInvocationKey(textFallback.replace('Using tool:', '').trim(), toolInput);
+  }
+  if (!name) return null;
+  let keyParam: string | null = null;
+  if (toolInput && typeof toolInput === 'object' && Object.keys(toolInput).length > 0) {
+    try {
+      keyParam = extractToolKeyParam(name, JSON.stringify(toolInput));
+    } catch { /* ignore */ }
+  }
+  // Prefer a real param so two Reads of different files stay distinct.
+  // Empty early cards (no input yet) use name-only and dedupe carefully by time.
+  return keyParam ? `${name}::${keyParam}` : `${name}::`;
+}
+
+function historyToolInvocationKey(msg: {
+  toolName?: string;
+  toolInput?: Record<string, unknown>;
+  content?: string;
+}): string | null {
+  let input = msg.toolInput;
+  if ((!input || Object.keys(input).length === 0) && msg.content) {
+    try {
+      const parsed = JSON.parse(msg.content);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        input = parsed as Record<string, unknown>;
+      }
+    } catch { /* ignore */ }
+  }
+  return makeToolInvocationKey(msg.toolName, input);
 }
 
 // ─── Props & Handle ─────────────────────────────────────────────────────────
@@ -350,6 +398,14 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       // Running TodoWrite snapshot so Grok merge:true status-only updates can
       // re-attach content from earlier full lists when rendering history.
       let runningTodos: MergeableTodo[] = [];
+      // Running harness Task-tool state (TaskCreate/TaskUpdate) so each
+      // TaskUpdate line can render the full consolidated task list — same
+      // presentation as TodoWrite — instead of a lone status chip.
+      const runningTasks = new Map<string, { subject?: string; status: TodoItem['status'] }>();
+      const taskSnapshot = (): TodoItem[] =>
+        [...runningTasks.entries()]
+          .sort((a, b) => Number(a[0]) - Number(b[0]))
+          .map(([id, t]) => ({ id, content: t.subject || `Task #${id}`, status: t.status }));
       for (const msg of messages) {
         if (msg.type === 'tool_result' && msg.toolUseId && suppressedToolResultIds.has(msg.toolUseId)) {
           continue;
@@ -396,12 +452,34 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
           out.push({ ...msg, _pendingPromptId: pendingPromptId });
           continue;
         }
+        if (msg.type === 'tool_result' && msg.toolName === 'TaskCreate') {
+          const text = typeof msg.content === 'string' ? msg.content : '';
+          const m = TASK_CREATE_RE.exec(text);
+          if (m && m[1]) {
+            const prev = runningTasks.get(m[1]);
+            runningTasks.set(m[1], { subject: m[2]?.trim() || prev?.subject, status: prev?.status ?? 'pending' });
+          }
+          out.push(msg as EnrichedHistoryMessage);
+          continue;
+        }
         if (msg.type === 'tool_use' && msg.toolName === 'TaskUpdate') {
           const ti = (msg.toolInput || {}) as Record<string, unknown>;
           const rawId = ti.taskId ?? ti.task_id ?? ti.id;
           const id = (typeof rawId === 'string' || typeof rawId === 'number') ? String(rawId) : undefined;
           const subject = id ? taskIdToSubject.get(id) : undefined;
-          out.push({ ...msg, _taskSubject: subject });
+          if (id) {
+            if (ti.status === 'deleted') {
+              runningTasks.delete(id);
+            } else {
+              const prev = runningTasks.get(id);
+              const status = ti.status === 'pending' || ti.status === 'in_progress' || ti.status === 'completed'
+                ? ti.status
+                : prev?.status ?? 'pending';
+              runningTasks.set(id, { subject: subject ?? prev?.subject, status });
+            }
+          }
+          const snapshot = taskSnapshot();
+          out.push({ ...msg, _taskSubject: subject, _taskSnapshot: snapshot.length > 0 ? snapshot : undefined });
           continue;
         }
         out.push(msg as EnrichedHistoryMessage);
@@ -499,6 +577,8 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     // that bash/tool live outputs replaying a persisted turn get deduped too.
     const historyKnownUuidSet = new Set<string>();
     const latestHistoryAssistantTsByKey = new Map<string, number>();
+    // toolName::keyParam → latest history timestamp (Grok early≠call uuid)
+    const latestHistoryToolTsByKey = new Map<string, number>();
     for (const msg of dedupedHistory) {
       const ts = msg.timestamp ? new Date(msg.timestamp).getTime() : 0;
       if (msg.type === 'user') {
@@ -517,21 +597,41 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       if (msg.toolUseId) {
         historyKnownUuidSet.add(msg.toolUseId);
       }
+      if (msg.type === 'tool_use') {
+        const toolKey = historyToolInvocationKey(msg);
+        if (toolKey) {
+          const prev = latestHistoryToolTsByKey.get(toolKey) ?? 0;
+          if (ts > prev) latestHistoryToolTsByKey.set(toolKey, ts);
+        }
+        continue;
+      }
       if (msg.type !== 'assistant') continue;
       const key = normalizeAssistantMessage(msg.content);
       const prev = latestHistoryAssistantTsByKey.get(key) ?? 0;
       if (ts > prev) latestHistoryAssistantTsByKey.set(key, ts);
     }
-    return { latestHistoryUserTsByKey, historyKnownUuidSet, latestHistoryAssistantTsByKey };
+    return {
+      latestHistoryUserTsByKey,
+      historyKnownUuidSet,
+      latestHistoryAssistantTsByKey,
+      latestHistoryToolTsByKey,
+    };
   }, [dedupedHistory]);
 
-  // Remove live outputs that duplicate history
+  // Remove live outputs that duplicate history (or each other for tools)
   const dedupedOutputs = useMemo(() => {
-    const { latestHistoryUserTsByKey, historyKnownUuidSet, latestHistoryAssistantTsByKey } = historyDedupIndexes;
+    const {
+      latestHistoryUserTsByKey,
+      historyKnownUuidSet,
+      latestHistoryAssistantTsByKey,
+      latestHistoryToolTsByKey,
+    } = historyDedupIndexes;
 
     const result: typeof filteredOutputs = [];
     let lastLiveUserKey: string | null = null;
     let lastLiveUserTs = 0;
+    // toolKey → last kept live timestamp (collapse early + call-* twins)
+    const latestLiveToolTsByKey = new Map<string, number>();
 
     for (const output of filteredOutputs) {
       if (!output.isUserPrompt) {
@@ -545,9 +645,38 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
         if (output.uuid && historyKnownUuidSet.has(output.uuid)) {
           continue;
         }
-        if (!output.isStreaming && !isToolOrSystemOutput(output.text)) {
-          const key = normalizeAssistantMessage(output.text);
-          const ts = output.timestamp || 0;
+
+        const text = output.text || '';
+        const ts = output.timestamp || 0;
+
+        // Tool chips: Grok live uses grok-early-* uuids; history uses call-*.
+        // Match by tool name + key param so history wins after refresh, and so
+        // dual live emits (early + call-*) of the same invocation collapse.
+        if (text.startsWith('Using tool:')) {
+          const toolKey = makeToolInvocationKey(output.toolName, output.toolInput, text);
+          // Require a real key param (not bare "Bash::") so unrelated empty
+          // early cards of the same tool name are not collapsed together.
+          if (toolKey && !toolKey.endsWith('::')) {
+            const historyTs = latestHistoryToolTsByKey.get(toolKey);
+            if (
+              historyTs !== undefined
+              && Math.abs(ts - historyTs) <= HISTORY_TOOL_OUTPUT_DUPLICATE_WINDOW_MS
+            ) {
+              continue;
+            }
+            const liveTs = latestLiveToolTsByKey.get(toolKey);
+            if (
+              liveTs !== undefined
+              && Math.abs(ts - liveTs) <= LIVE_TOOL_DUPLICATE_WINDOW_MS
+            ) {
+              continue;
+            }
+            latestLiveToolTsByKey.set(toolKey, ts);
+          }
+        }
+
+        if (!output.isStreaming && !isToolOrSystemOutput(text)) {
+          const key = normalizeAssistantMessage(text);
           const historyTs = latestHistoryAssistantTsByKey.get(key);
           if (historyTs && Math.abs(ts - historyTs) <= HISTORY_ASSISTANT_OUTPUT_DUPLICATE_WINDOW_MS) {
             continue;

@@ -98,4 +98,36 @@ describe('GrokJsonEventParser', () => {
     const second = parser.parseEvent({ type: 'text', data: 'b' });
     expect(first[0].uuid).not.toBe(second[0].uuid);
   });
+
+  it('breakOpenStreams finalizes intermediate text so tool rounds do not mash bubbles', () => {
+    const parser = new GrokJsonEventParser();
+    const t1 = parser.parseEvent({ type: 'text', data: 'Status: starting…' });
+    expect(t1[0].uuid).toBeTruthy();
+
+    // Tool boundary mid-turn (no `end` from Grok)
+    const breaks = parser.breakOpenStreams('sess-1');
+    expect(breaks).toHaveLength(1);
+    expect(breaks[0]).toMatchObject({
+      type: 'text',
+      text: 'Status: starting…',
+      isStreaming: false,
+      uuid: t1[0].uuid,
+    });
+    // No step_complete — agent stays working
+    expect(breaks.some((e) => e.type === 'step_complete')).toBe(false);
+
+    const t2 = parser.parseEvent({ type: 'text', data: 'Final answer' });
+    expect(t2[0].uuid).not.toBe(t1[0].uuid);
+    expect(t2[0].text).toBe('Final answer');
+
+    const end = parser.parseEvent({ type: 'end', stopReason: 'EndTurn', sessionId: 'sess-1' });
+    const finalText = end.find((e) => e.type === 'text');
+    expect(finalText).toMatchObject({
+      text: 'Final answer',
+      isStreaming: false,
+      uuid: t2[0].uuid,
+    });
+    // Must NOT be "Status: starting…Final answer"
+    expect(finalText!.text).not.toContain('Status:');
+  });
 });

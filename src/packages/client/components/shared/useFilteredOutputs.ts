@@ -255,12 +255,47 @@ export function useFilteredOutputs({
         let bashOutput: string | undefined;
         let bashCommand: string | undefined;
 
+        // Prefer payload toolInput (Grok upgrades the early tool card in-place with
+        // full args on the same uuid — there may be no separate "Tool input:" row
+        // with the full payload, or the sibling still shows "{}").
+        if (output.toolInput && typeof output.toolInput === 'object' && Object.keys(output.toolInput).length > 0) {
+          try {
+            const inputJson = JSON.stringify(output.toolInput);
+            keyParam = extractToolKeyParam(toolName, inputJson);
+            if (toolName === 'Edit') {
+              const parsed = output.toolInput as Record<string, unknown>;
+              if (parsed.old_string !== undefined || parsed.new_string !== undefined || parsed.unified_diff !== undefined) {
+                editData = {
+                  oldString: (parsed.old_string as string) || '',
+                  newString: (parsed.new_string as string) || '',
+                  operation: typeof parsed.operation === 'string' ? parsed.operation : undefined,
+                  unifiedDiff: typeof parsed.unified_diff === 'string' ? parsed.unified_diff : undefined,
+                };
+              }
+            }
+            if (toolName === 'TodoWrite' && Array.isArray((output.toolInput as { todos?: unknown }).todos)) {
+              todoInputText = inputJson;
+            }
+            if (toolName === 'Bash') {
+              const cmd = (output.toolInput as { command?: unknown }).command;
+              if (typeof cmd === 'string' && cmd) bashCommand = cmd;
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+
         // Look ahead for tool input and output (use generous window; breaks at next "Using tool:")
         for (let j = i + 1; j < outputs.length && j <= i + 20; j++) {
           const nextOutput = outputs[j];
           if (nextOutput.text.startsWith('Tool input:')) {
             const inputJson = nextOutput.text.replace('Tool input:', '').trim();
-            keyParam = extractToolKeyParam(toolName, inputJson);
+            // Empty early "Tool input: {}" must not wipe payload-based enrichment.
+            if (inputJson === '{}' || inputJson === '') {
+              continue;
+            }
+            const lookedUp = extractToolKeyParam(toolName, inputJson);
+            if (lookedUp) keyParam = lookedUp;
             if (toolName === 'Edit') {
               try {
                 const parsed = JSON.parse(inputJson);

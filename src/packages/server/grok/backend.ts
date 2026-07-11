@@ -174,6 +174,11 @@ export class GrokBackend implements CLIBackend {
     return events.length === 1 ? events[0] : events;
   }
 
+  /** See CLIBackend.breakOpenStreams — tool-boundary stream split for Grok. */
+  breakOpenStreams(): StandardEvent[] {
+    return this.parser.breakOpenStreams();
+  }
+
   extractSessionId(rawEvent: unknown): string | null {
     const event = rawEvent as GrokRawEvent;
     if (event?.sessionId && typeof event.sessionId === 'string') {

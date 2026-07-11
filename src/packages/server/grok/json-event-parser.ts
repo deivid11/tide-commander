@@ -109,19 +109,24 @@ export class GrokJsonEventParser {
     }];
   }
 
-  private parseEnd(event: GrokRawEvent): StandardEvent[] {
+  /**
+   * Finalize open text/thinking streams and mint new uuids for the next
+   * generation — WITHOUT step_complete (agent stays "working").
+   *
+   * Grok keeps one agentic turn across many tool rounds and does not emit
+   * `end` between them. Without this break, every intermediate status line
+   * concatenates into a single mashed bubble until the final end.
+   */
+  breakOpenStreams(sessionId?: string): StandardEvent[] {
     const events: StandardEvent[] = [];
 
-    // Finalize open streams so the client stops treating the row as "live"
-    // and stops re-mounting/blinking. Final payload replaces the merged row
-    // (same uuid, isStreaming=false) with the full accumulated text.
     if (this.thinkingStreamUuid && this.lastThinkingContent) {
       events.push({
         type: 'thinking',
         text: this.lastThinkingContent,
         isStreaming: false,
         uuid: this.thinkingStreamUuid,
-        sessionId: event.sessionId,
+        sessionId,
       });
     }
 
@@ -131,30 +136,44 @@ export class GrokJsonEventParser {
         text: this.lastTextContent,
         isStreaming: false,
         uuid: this.textStreamUuid,
-        sessionId: event.sessionId,
+        sessionId,
       });
     }
+
+    this.lastTextContent = '';
+    this.lastThinkingContent = '';
+    // Keep textEventEmittedInTurn so a later end/step_complete still knows
+    // we produced text this turn (avoids empty-thinking fallback).
+    this.textStreamUuid = undefined;
+    this.thinkingStreamUuid = undefined;
+
+    return events;
+  }
+
+  private parseEnd(event: GrokRawEvent): StandardEvent[] {
+    // Finalize open streams (same as a tool-boundary break) then step_complete.
+    const events = this.breakOpenStreams(event.sessionId);
+
+    // breakOpenStreams cleared accumulators — re-read is not possible. Capture
+    // resultText from the finalize events we just built.
+    const finalizedText = events.find((e) => e.type === 'text' && e.text)?.text;
+    const finalizedThinking = events.find((e) => e.type === 'thinking' && e.text)?.text;
 
     const stepComplete: StandardEvent = {
       type: 'step_complete',
       sessionId: event.sessionId,
     };
 
-    if (this.lastTextContent) {
-      stepComplete.resultText = this.lastTextContent;
-    } else if (this.lastThinkingContent && !this.textEventEmittedInTurn) {
+    if (finalizedText) {
+      stepComplete.resultText = finalizedText;
+    } else if (finalizedThinking && !this.textEventEmittedInTurn) {
       // Thinking-only turn — surface a marker so the terminal isn't blank
       stepComplete.resultText = `(Empty response: thinking only, stopReason=${event.stopReason || 'EndTurn'})`;
     }
 
     events.push(stepComplete);
 
-    // Reset per-turn accumulators / stream ids
-    this.lastTextContent = '';
-    this.lastThinkingContent = '';
     this.textEventEmittedInTurn = false;
-    this.textStreamUuid = undefined;
-    this.thinkingStreamUuid = undefined;
 
     return events;
   }

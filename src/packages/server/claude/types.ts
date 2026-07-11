@@ -194,6 +194,13 @@ export interface CLIBackend {
   // Parse raw event to normalized format (may return array for events with multiple tool_use blocks)
   parseEvent(rawEvent: unknown): StandardEvent | StandardEvent[] | null;
 
+  /**
+   * Grok only: finalize open text/thinking streams (new uuids next) without
+   * step_complete. Called when a tool_start arrives mid-turn so intermediate
+   * status lines don't concatenate into one bubble across tool rounds.
+   */
+  breakOpenStreams?(): StandardEvent[];
+
   // Extract session ID from raw event
   extractSessionId(rawEvent: unknown): string | null;
 

@@ -35,7 +35,9 @@
     "compactView": "कॉम्पैक्ट दृश्य",
     "autoScroll": "ऑटो स्क्रॉल",
     "notifications": "सूचनाएं",
-    "soundEffects": "ध्वनि प्रभाव"
+    "soundEffects": "ध्वनि प्रभाव",
+    "streamTextLive": "शब्द-दर-शब्द स्ट्रीमिंग",
+    "streamTextLiveTitle": "Claude और Grok का टेक्स्ट/सोच स्ट्रीम होते हुए दिखाएँ। केवल पूरी प्रतिक्रियाएँ देखने के लिए बंद करें।"
   },
   "agentNames": {
     "customConfigured": "{{count}} कस्टम नाम कॉन्फ़िगर किए गए",

@@ -24,11 +24,12 @@ describe('CodexJsonEventParser', () => {
     });
   });
 
-  it('maps agent_message item completion to text event', () => {
+  it('maps agent_message item completion to text event with stable item uuid', () => {
     const parser = new CodexJsonEventParser();
     const events = parser.parseEvent({
       type: 'item.completed',
       item: {
+        id: 'item_3',
         type: 'agent_message',
         text: 'Here are some taco recipes.',
       },
@@ -39,6 +40,56 @@ describe('CodexJsonEventParser', () => {
       type: 'text',
       text: 'Here are some taco recipes.',
       isStreaming: false,
+      uuid: 'codex-text-item_3',
+    });
+  });
+
+  it('streams progressive agent_message via item.updated then finalizes on completed', () => {
+    const parser = new CodexJsonEventParser();
+    const partial = parser.parseEvent({
+      type: 'item.updated',
+      item: { id: 'item_9', type: 'agent_message', text: 'Hel' },
+    });
+    expect(partial[0]).toMatchObject({
+      type: 'text',
+      text: 'Hel',
+      isStreaming: true,
+      uuid: 'codex-text-item_9',
+    });
+    const more = parser.parseEvent({
+      type: 'item.updated',
+      item: { id: 'item_9', type: 'agent_message', text: 'Hello' },
+    });
+    expect(more[0]).toMatchObject({
+      type: 'text',
+      text: 'lo',
+      isStreaming: true,
+      uuid: 'codex-text-item_9',
+    });
+    const done = parser.parseEvent({
+      type: 'item.completed',
+      item: { id: 'item_9', type: 'agent_message', text: 'Hello world' },
+    });
+    expect(done[0]).toMatchObject({
+      type: 'text',
+      text: 'Hello world',
+      isStreaming: false,
+      uuid: 'codex-text-item_9',
+    });
+  });
+
+  it('maps agent message delta envelopes to streaming chunks', () => {
+    const parser = new CodexJsonEventParser();
+    const events = parser.parseEvent({
+      type: 'item/agentMessage/delta',
+      item: { id: 'item_d' },
+      delta: 'Hi',
+    });
+    expect(events[0]).toMatchObject({
+      type: 'text',
+      text: 'Hi',
+      isStreaming: true,
+      uuid: 'codex-text-item_d',
     });
   });
 

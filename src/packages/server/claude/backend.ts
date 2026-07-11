@@ -170,6 +170,21 @@ export function buildAppendedProjectInstructions(config: BackendConfig): string 
 export class ClaudeBackend implements CLIBackend {
   readonly name = 'claude';
 
+  // ---------------------------------------------------------------------------
+  // Token-stream state (--include-partial-messages)
+  //
+  // Claude's stream_event lines each carry a *different* outer `uuid`, so the
+  // client cannot merge word-by-word deltas by that field (unlike Grok, which
+  // emits tiny tokens with no uuid and we mint one). We pin a stable stream id
+  // per (message_id, content_block index, kind) so addOutput merges into one
+  // terminal row. The final assistant message reuses the same id to finalize.
+  // ---------------------------------------------------------------------------
+  private currentStreamMessageId: string | null = null;
+  private streamUuids = new Map<string, string>(); // key = `${kind}:${index}`
+  private streamTextEmitted = false;
+  /** After the full assistant text finalizes, ignore late stream deltas for this turn. */
+  private suppressTextDeltas = false;
+
   /**
    * Build CLI arguments for Claude Code
    */
@@ -183,6 +198,10 @@ export class ClaudeBackend implements CLIBackend {
     args.push('--verbose');
     args.push('--output-format', 'stream-json');
     args.push('--input-format', 'stream-json');
+    // Without this flag, stream-json only emits complete assistant messages —
+    // no content_block_delta / text_delta tokens — so the UI cannot typewriter
+    // the reply the way Grok's streaming-json does by default.
+    args.push('--include-partial-messages');
 
     // Resume existing session if available
     if (config.sessionId) {
@@ -494,18 +513,56 @@ export class ClaudeBackend implements CLIBackend {
       const uuid = event.uuid;
       const usage = event.message.usage;
 
-      // Extract text blocks - emit as non-streaming final text
-      // This ensures text is captured even if streaming deltas were missed
-      const textBlocks = event.message.content.filter((b: any) => b.type === 'text');
-      for (const block of textBlocks) {
-        if (block.text && block.text.trim()) {
+      // Capture message id from the assistant payload when stream_event's
+      // message_start was missed or arrived without an id.
+      const messageId =
+        typeof (event.message as { id?: unknown })?.id === 'string'
+          ? (event.message as { id: string }).id
+          : null;
+      if (messageId && !this.currentStreamMessageId) {
+        this.currentStreamMessageId = messageId;
+      }
+
+      // Extract text blocks - emit as non-streaming final text.
+      //
+      // IMPORTANT: with --include-partial-messages Claude may emit *multiple*
+      // assistant events per turn (e.g. thinking-only first, then full text).
+      // Stream content_block indexes (thinking=0, text=1) do NOT match the final
+      // assistant content array (text-only → index 0). Match stream uuids by the
+      // order of text blocks among open text streams, not raw content index.
+      //
+      // Never wipe stream state on thinking-only assistant events — that used to
+      // force the later full-text assistant onto a new uuid → duplicate bubbles.
+      const content = event.message.content as Array<{ type: string; text?: string }>;
+      const textStreamUuids = [...this.streamUuids.entries()]
+        .filter(([key]) => key.startsWith('text:'))
+        .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+        .map(([, id]) => id);
+      let textStreamOrdinal = 0;
+      let emittedFinalText = false;
+      for (let i = 0; i < content.length; i++) {
+        const block = content[i];
+        if (block?.type === 'text' && block.text && block.text.trim()) {
+          // Prefer ordinal text stream uuid, then index key, then outer uuid.
+          const streamUuid =
+            textStreamUuids[textStreamOrdinal] ||
+            this.streamUuids.get(`text:${i}`) ||
+            null;
+          textStreamOrdinal += 1;
           events.push({
             type: 'text' as const,
             text: block.text,
             isStreaming: false, // Mark as final, non-streaming text
-            uuid, // Add message UUID for deduplication
+            uuid: streamUuid || uuid,
           });
+          emittedFinalText = true;
         }
+      }
+      // Only clear stream state after we actually finalized a text row. Intermediate
+      // thinking-only assistant events must leave stream uuids intact for later deltas.
+      if (emittedFinalText) {
+        this.suppressTextDeltas = true;
+        this.resetStreamState();
       }
 
       // Extract tool_use blocks
@@ -557,7 +614,9 @@ export class ClaudeBackend implements CLIBackend {
       }
 
       if (events.length > 0) {
-        log.log(`parseAssistantEvent: extracted ${textBlocks.length} text block(s), ${toolUseBlocks.length} tool_use block(s), usage=${usage ? 'yes' : 'no'}, uuid=${uuid}`);
+        const textCount = events.filter((e) => e.type === 'text').length;
+        const toolCount = events.filter((e) => e.type === 'tool_start').length;
+        log.log(`parseAssistantEvent: extracted ${textCount} text block(s), ${toolCount} tool_use block(s), usage=${usage ? 'yes' : 'no'}, uuid=${uuid}`);
         return events.length === 1 ? events[0] : events;
       }
     }
@@ -646,43 +705,102 @@ export class ClaudeBackend implements CLIBackend {
     };
   }
 
+  private resetStreamState(): void {
+    this.currentStreamMessageId = null;
+    this.streamUuids.clear();
+    this.streamTextEmitted = false;
+    // suppressTextDeltas is intentionally NOT cleared here — only message_start
+    // opens a new turn. That way late content_block_delta lines after the final
+    // assistant event cannot open a second bubble with a new stream uuid.
+  }
+
+  /** Stable uuid so token-sized Claude deltas merge into one terminal row. */
+  private ensureStreamUuid(kind: 'text' | 'thinking', index: number): string {
+    const key = `${kind}:${index}`;
+    let id = this.streamUuids.get(key);
+    if (!id) {
+      const msg = this.currentStreamMessageId || 'anon';
+      id = `claude-stream-${msg}-${kind}-${index}`;
+      this.streamUuids.set(key, id);
+    }
+    return id;
+  }
+
   private parseStreamEvent(event: ClaudeRawEvent): StandardEvent | null {
-    const streamEvent = event.event;
+    const streamEvent = event.event as {
+      type?: string;
+      index?: number;
+      delta?: { type?: string; text?: string };
+      content_block?: { type?: string };
+      message?: { id?: string };
+    } | undefined;
     if (!streamEvent) return null;
+
+    // Capture Anthropic message id so every delta in this turn shares a stream key.
+    if (streamEvent.type === 'message_start') {
+      const mid = streamEvent.message?.id;
+      // New message — drop any stale stream ids and reopen the stream gate.
+      this.suppressTextDeltas = false;
+      this.resetStreamState();
+      if (typeof mid === 'string' && mid) {
+        this.currentStreamMessageId = mid;
+      }
+      return null;
+    }
+
+    const blockIndex =
+      typeof streamEvent.index === 'number' && Number.isFinite(streamEvent.index)
+        ? streamEvent.index
+        : 0;
 
     if (streamEvent.type === 'content_block_delta') {
       if (streamEvent.delta?.type === 'text_delta' && streamEvent.delta.text) {
+        // Drop late deltas that race after the full assistant text already finalized.
+        if (this.suppressTextDeltas) {
+          return null;
+        }
+        this.streamTextEmitted = true;
         return {
           type: 'text',
           text: streamEvent.delta.text,
           isStreaming: true,
-          uuid: event.uuid, // Propagate UUID for streaming chunks
+          // Stable per-block id (NOT event.uuid — those differ every delta).
+          uuid: this.ensureStreamUuid('text', blockIndex),
         };
       } else if (
         streamEvent.delta?.type === 'thinking_delta' &&
         streamEvent.delta.text
       ) {
+        if (this.suppressTextDeltas) {
+          return null;
+        }
         return {
           type: 'thinking',
           text: streamEvent.delta.text,
           isStreaming: true,
-          uuid: event.uuid, // Propagate UUID for streaming chunks
+          uuid: this.ensureStreamUuid('thinking', blockIndex),
         };
       }
     } else if (streamEvent.type === 'content_block_start') {
       const blockType = streamEvent.content_block?.type;
       if (blockType === 'text' || blockType === 'thinking') {
+        const streamUuid = this.ensureStreamUuid(blockType, blockIndex);
         return {
           type: 'block_start',
           blockType: blockType,
-          uuid: event.uuid, // Include UUID for block markers too
+          uuid: streamUuid,
         };
       }
     } else if (streamEvent.type === 'content_block_stop') {
+      // Keep stream uuids alive until the assistant final message lands so
+      // parseAssistantEvent can reuse them for isStreaming:false finalize.
       return {
         type: 'block_end',
         uuid: event.uuid,
       };
+    } else if (streamEvent.type === 'message_stop') {
+      // If no assistant event follows (rare), leave state for next message_start.
+      return null;
     }
     return null;
   }

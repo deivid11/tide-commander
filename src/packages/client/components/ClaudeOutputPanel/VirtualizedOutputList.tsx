@@ -9,6 +9,7 @@ import React, { useRef, useEffect, useLayoutEffect, useCallback, useMemo, useSta
 import { useVirtualizer, defaultRangeExtractor, type Range } from '@tanstack/react-virtual';
 import { HistoryLine } from './HistoryLine';
 import { OutputLine } from './OutputLine';
+import { ToolChipEnter } from './ToolChipEnter';
 import type { EnrichedHistoryMessage, EditData } from './types';
 import type { ClaudeOutput } from '../../store';
 import type { ExecTask, Subagent } from '../../../shared/types';
@@ -180,41 +181,56 @@ const VirtualRow = memo(function VirtualRow({
   onBashClick?: (command: string, output: string) => void;
   onViewMarkdown?: (content: string) => void;
 }) {
+  // Stable id for chip enter animation (uuid preferred; fall back to index).
+  const enterId = (() => {
+    if (isHistory) {
+      const m = item as EnrichedHistoryMessage;
+      return m.uuid || `history-${messageIndex}`;
+    }
+    const o = item as EnrichedOutput;
+    return o.uuid || `live-${messageIndex}`;
+  })();
+
   return (
     <div
       data-message-index={messageIndex}
       className={`message-nav-wrapper ${isSelected ? 'message-selected' : ''}${isSearchActive ? ' search-active' : ''}`}
     >
-      {isHistory ? (
-        <HistoryLine
-          message={item as EnrichedHistoryMessage}
-          agentId={agentId}
-          simpleView={simpleView}
-          highlight={searchHighlight}
-          subagents={subagents}
-          execTasks={execTasks}
-          testRunHandles={testRunHandles}
-          httpRunHandles={httpRunHandles}
-          onImageClick={onImageClick}
-          onFileClick={onFileClick}
-          onBashClick={onBashClick}
-          onViewMarkdown={onViewMarkdown}
-        />
-      ) : (
-        <OutputLine
-          output={item as EnrichedOutput}
-          agentId={agentId}
-          execTasks={execTasks}
-          testRunHandles={testRunHandles}
-          httpRunHandles={httpRunHandles}
-          subagents={subagents}
-          highlight={searchHighlight}
-          onImageClick={onImageClick}
-          onFileClick={onFileClick}
-          onBashClick={onBashClick}
-          onViewMarkdown={onViewMarkdown}
-        />
-      )}
+      <ToolChipEnter
+        enterId={`${agentId}:${enterId}`}
+        staggerMs={isHistory ? Math.min(messageIndex % 12, 11) * 28 : 0}
+      >
+        {isHistory ? (
+          <HistoryLine
+            message={item as EnrichedHistoryMessage}
+            agentId={agentId}
+            simpleView={simpleView}
+            highlight={searchHighlight}
+            subagents={subagents}
+            execTasks={execTasks}
+            testRunHandles={testRunHandles}
+            httpRunHandles={httpRunHandles}
+            onImageClick={onImageClick}
+            onFileClick={onFileClick}
+            onBashClick={onBashClick}
+            onViewMarkdown={onViewMarkdown}
+          />
+        ) : (
+          <OutputLine
+            output={item as EnrichedOutput}
+            agentId={agentId}
+            execTasks={execTasks}
+            testRunHandles={testRunHandles}
+            httpRunHandles={httpRunHandles}
+            subagents={subagents}
+            highlight={searchHighlight}
+            onImageClick={onImageClick}
+            onFileClick={onFileClick}
+            onBashClick={onBashClick}
+            onViewMarkdown={onViewMarkdown}
+          />
+        )}
+      </ToolChipEnter>
     </div>
   );
 });

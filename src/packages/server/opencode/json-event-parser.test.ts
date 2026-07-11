@@ -2,14 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { OpencodeJsonEventParser } from './json-event-parser.js';
 
 describe('OpencodeJsonEventParser', () => {
-  it('maps text event to text standard event', () => {
+  it('maps final text event (time.end set) to non-streaming text', () => {
     const parser = new OpencodeJsonEventParser();
     const events = parser.parseEvent({
       type: 'text',
       sessionID: 'ses_123',
       part: {
+        id: 'prt_1',
+        messageID: 'msg_1',
         type: 'text',
         text: 'Hello world',
+        time: { start: 1, end: 2 },
       },
     });
 
@@ -18,6 +21,50 @@ describe('OpencodeJsonEventParser', () => {
       type: 'text',
       text: 'Hello world',
       isStreaming: false,
+      uuid: 'opencode-text-prt_1',
+    });
+  });
+
+  it('maps progressive text snapshots to streaming deltas with a stable uuid', () => {
+    const parser = new OpencodeJsonEventParser();
+    const a = parser.parseEvent({
+      type: 'text',
+      part: { id: 'prt_grow', type: 'text', text: 'Hel' },
+    });
+    const b = parser.parseEvent({
+      type: 'text',
+      part: { id: 'prt_grow', type: 'text', text: 'Hello' },
+    });
+    expect(a[0]).toMatchObject({
+      type: 'text',
+      text: 'Hel',
+      isStreaming: true,
+      uuid: 'opencode-text-prt_grow',
+    });
+    expect(b[0]).toMatchObject({
+      type: 'text',
+      text: 'lo',
+      isStreaming: true,
+      uuid: 'opencode-text-prt_grow',
+    });
+  });
+
+  it('maps message.part.delta to streaming text chunks', () => {
+    const parser = new OpencodeJsonEventParser();
+    const events = parser.parseEvent({
+      type: 'message.part.delta',
+      properties: {
+        partID: 'prt_d',
+        messageID: 'msg_d',
+        field: 'text',
+        delta: 'Hi',
+      },
+    });
+    expect(events[0]).toMatchObject({
+      type: 'text',
+      text: 'Hi',
+      isStreaming: true,
+      uuid: 'opencode-text-prt_d',
     });
   });
 
@@ -27,8 +74,10 @@ describe('OpencodeJsonEventParser', () => {
       type: 'reasoning',
       sessionID: 'ses_123',
       part: {
+        id: 'prt_r',
         type: 'reasoning',
         text: 'Let me think about this...',
+        time: { start: 1, end: 2 },
       },
     });
 
@@ -37,6 +86,7 @@ describe('OpencodeJsonEventParser', () => {
       type: 'thinking',
       text: 'Let me think about this...',
       isStreaming: false,
+      uuid: 'opencode-thinking-prt_r',
     });
   });
 

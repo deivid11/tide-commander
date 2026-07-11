@@ -1107,7 +1107,11 @@ export function ListFilesInput({
     const dir = String(
       input.target_directory || input.targetDirectory || input.path || input.directory || ''
     );
-    if (!dir) return <ToolInputChips data={input} preferKeys={['target_directory', 'path']} />;
+    // Grok early empty `{}` — render nothing (parent should hide the row).
+    if (!dir) {
+      const chips = <ToolInputChips data={input} preferKeys={['target_directory', 'path']} />;
+      return chips;
+    }
     const base = dir.replace(/\/+$/, '').split('/').pop() || dir;
     const parent = dir.replace(/\/+$/, '').replace(/\/[^/]+$/, '') || '/';
     return (
@@ -1139,6 +1143,10 @@ export function TaskOutputWaitInput({ content }: { content: string }) {
         ? [idsRaw]
         : [];
     const timeout = Number(input.timeout_ms ?? input.timeoutMs ?? input.timeout);
+    // Empty early `{}` — no chips (parent should hide the whole tool row).
+    if (ids.length === 0 && !(Number.isFinite(timeout) && timeout > 0)) {
+      return <ToolInputChips data={input} preferKeys={['task_ids', 'timeout_ms']} />;
+    }
     return (
       <div className="task-output-wait-input">
         {ids.map((id) => (
@@ -1154,9 +1162,6 @@ export function TaskOutputWaitInput({ content }: { content: string }) {
               {timeout >= 1000 ? `${Math.round(timeout / 1000)}s` : `${timeout}ms`}
             </span>
           </span>
-        )}
-        {ids.length === 0 && (
-          <ToolInputChips data={input} preferKeys={['task_ids', 'timeout_ms']} />
         )}
       </div>
     );

@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Icon } from '../Icon';
 import { providerAssetUrl } from '../../utils/providerDisplay';
 import type { AgentProvider } from '../../../shared/types';
+import { StreamFadeText } from './StreamFadeText';
 
 export interface ThinkingBlockProps {
   text: string;
@@ -99,7 +100,15 @@ export const ThinkingBlock = memo(function ThinkingBlock({
       <span className="output-tool-name output-thinking-label">{label}</span>
       {isStreaming && <span className="output-thinking-pulse" aria-hidden />}
       <span className={`output-thinking-content ${showFull ? 'is-full' : 'is-preview'}`}>
-        {showFull ? (body || (isStreaming ? '…' : '')) : previewLine(body, collapseAt)}
+        {showFull ? (
+          isStreaming ? (
+            body ? <StreamFadeText text={body} isStreaming /> : '…'
+          ) : (
+            body || ''
+          )
+        ) : (
+          previewLine(body, collapseAt)
+        )}
       </span>
       {canCollapse && !isStreaming && (
         <span className="output-thinking-toggle" aria-hidden>

@@ -4,25 +4,31 @@
  *
  * For Claude agents it surfaces the same "Plan limits" gauges the CLI's /usage
  * panel (and the ContextViewModal) show — current session + weekly rate-limit
- * windows with their reset times. The usage snapshot is fetched lazily the
- * first time the tooltip is shown and cached briefly so repeated hovers don't
- * hammer the rate-limit endpoint.
+ * windows with their reset times.
+ *
+ * For Grok agents it surfaces the billing-period credit limit (weekly or
+ * monthly, matching the CLI's `/usage` panel) from the chat-proxy billing API.
+ *
+ * The usage snapshot is fetched lazily the first time the tooltip is shown and
+ * cached briefly so repeated hovers don't hammer the rate-limit endpoint.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Tooltip } from '../shared/Tooltip';
 import {
-  fetchClaudeUsage,
+  fetchProviderUsage,
   type ClaudeRateLimitWindow,
   type ClaudeUsageSnapshot,
+  type GrokUsageSnapshot,
+  type ProviderUsageSnapshot,
 } from '../../api/claude-usage';
 import { getUsedPercentColor, formatResetTime } from '../../utils/claude-usage-format';
 
 // Short-lived module cache so re-hovering the chip (or switching back to an
-// agent) reuses a recent snapshot instead of re-hitting Anthropic each time.
+// agent) reuses a recent snapshot instead of re-hitting the upstream each time.
 interface CacheEntry {
-  snapshot: ClaudeUsageSnapshot;
+  snapshot: ProviderUsageSnapshot;
   fetchedAt: number;
 }
 const usageCache = new Map<string, CacheEntry>();
@@ -34,13 +40,67 @@ interface PlanLimitsContentProps {
   contextSummary?: string;
 }
 
+function formatCreditAmount(value: number): string {
+  if (!Number.isFinite(value)) return String(value);
+  if (Math.abs(value) >= 1000) {
+    return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  }
+  return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+function buildWindows(
+  snapshot: ProviderUsageSnapshot,
+  t: (key: string) => string,
+): Array<{ key: string; label: string; window: ClaudeRateLimitWindow }> {
+  const windows: Array<{ key: string; label: string; window: ClaudeRateLimitWindow }> = [];
+  if (!snapshot.rateLimits) return windows;
+
+  if (snapshot.provider === 'claude') {
+    const claude = snapshot as ClaudeUsageSnapshot;
+    const candidates = [
+      { key: 'fiveHour', label: t('terminal:usage.currentSession'), window: claude.rateLimits!.fiveHour },
+      { key: 'sevenDay', label: t('terminal:usage.currentWeekAll'), window: claude.rateLimits!.sevenDay },
+      { key: 'sevenDayOpus', label: t('terminal:usage.currentWeekOpus'), window: claude.rateLimits!.sevenDayOpus },
+      { key: 'sevenDaySonnet', label: t('terminal:usage.currentWeekSonnet'), window: claude.rateLimits!.sevenDaySonnet },
+    ];
+    for (const candidate of candidates) {
+      if (candidate.window) windows.push({ ...candidate, window: candidate.window });
+    }
+    return windows;
+  }
+
+  const grok = snapshot as GrokUsageSnapshot;
+  if (grok.rateLimits?.weekly) {
+    windows.push({
+      key: 'weekly',
+      label: t('terminal:usage.weeklyLimit'),
+      window: grok.rateLimits.weekly,
+    });
+  }
+  if (grok.rateLimits?.monthly) {
+    windows.push({
+      key: 'monthly',
+      label: t('terminal:usage.monthlyLimit'),
+      window: grok.rateLimits.monthly,
+    });
+  }
+  if (grok.rateLimits?.onDemand) {
+    windows.push({
+      key: 'onDemand',
+      label: t('terminal:usage.onDemandLimit'),
+      window: grok.rateLimits.onDemand,
+    });
+  }
+  return windows;
+}
+
 /**
  * Tooltip body. Only mounted while the tooltip is visible (the shared Tooltip
  * defers rendering its `content`), so the fetch fires lazily on first hover.
  */
 function PlanLimitsContent({ agentId, contextSummary }: PlanLimitsContentProps) {
   const { t } = useTranslation(['terminal', 'common']);
-  const [snapshot, setSnapshot] = useState<ClaudeUsageSnapshot | null>(
+  const [snapshot, setSnapshot] = useState<ProviderUsageSnapshot | null>(
     () => usageCache.get(agentId)?.snapshot ?? null,
   );
   const [loading, setLoading] = useState(false);
@@ -56,7 +116,7 @@ function PlanLimitsContent({ agentId, contextSummary }: PlanLimitsContentProps) 
     const reqId = ++reqRef.current;
     setLoading(true);
     setError(null);
-    fetchClaudeUsage(agentId)
+    fetchProviderUsage(agentId)
       .then((snap) => {
         if (reqId !== reqRef.current) return; // stale
         usageCache.set(agentId, { snapshot: snap, fetchedAt: Date.now() });
@@ -70,19 +130,7 @@ function PlanLimitsContent({ agentId, contextSummary }: PlanLimitsContentProps) 
       });
   }, [agentId]);
 
-  // Rate-limit windows in the CLI's /usage display order; absent buckets skip.
-  const windows: Array<{ key: string; label: string; window: ClaudeRateLimitWindow }> = [];
-  if (snapshot?.rateLimits) {
-    const candidates = [
-      { key: 'fiveHour', label: t('terminal:usage.currentSession'), window: snapshot.rateLimits.fiveHour },
-      { key: 'sevenDay', label: t('terminal:usage.currentWeekAll'), window: snapshot.rateLimits.sevenDay },
-      { key: 'sevenDayOpus', label: t('terminal:usage.currentWeekOpus'), window: snapshot.rateLimits.sevenDayOpus },
-      { key: 'sevenDaySonnet', label: t('terminal:usage.currentWeekSonnet'), window: snapshot.rateLimits.sevenDaySonnet },
-    ];
-    for (const candidate of candidates) {
-      if (candidate.window) windows.push({ ...candidate, window: candidate.window });
-    }
-  }
+  const windows = snapshot ? buildWindows(snapshot, t) : [];
 
   return (
     <div className="plan-limits-tooltip">
@@ -107,6 +155,11 @@ function PlanLimitsContent({ agentId, contextSummary }: PlanLimitsContentProps) 
           {windows.map(({ key, label, window }) => {
             const percent = Math.max(0, Math.min(100, window.utilization));
             const color = getUsedPercentColor(percent);
+            const hasCredits =
+              typeof window.used === 'number' &&
+              typeof window.limit === 'number' &&
+              Number.isFinite(window.used) &&
+              Number.isFinite(window.limit);
             return (
               <div key={key} className="plan-limits-tooltip__gauge">
                 <div className="plan-limits-tooltip__gauge-head">
@@ -123,6 +176,14 @@ function PlanLimitsContent({ agentId, contextSummary }: PlanLimitsContentProps) 
                 </div>
                 <div className="plan-limits-tooltip__reset">
                   {t('terminal:usage.resets', { time: formatResetTime(window.resetsAt) })}
+                  {hasCredits && (
+                    <span style={{ marginLeft: 8 }}>
+                      {t('terminal:usage.creditsUsed', {
+                        used: formatCreditAmount(window.used!),
+                        limit: formatCreditAmount(window.limit!),
+                      })}
+                    </span>
+                  )}
                 </div>
               </div>
             );
@@ -143,7 +204,7 @@ function PlanLimitsContent({ agentId, contextSummary }: PlanLimitsContentProps) 
 
 interface PlanLimitsTooltipProps {
   agentId: string;
-  /** Disable to fall back to no tooltip (e.g. non-Claude agents). */
+  /** Disable to fall back to no tooltip (e.g. non-Claude/Grok agents). */
   disabled?: boolean;
   /** Optional context-usage summary rendered above the plan limits. */
   contextSummary?: string;

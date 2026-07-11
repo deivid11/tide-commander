@@ -138,6 +138,11 @@ export interface EnrichedHistoryMessage {
   // "Task #N created successfully: <subject>"). When present, the chip can
   // show the task name instead of just "status: completed".
   _taskSubject?: string;
+  // For TaskUpdate tool_use: full snapshot of the harness task list as of this
+  // update (built from prior TaskCreate results + TaskUpdate statuses in stream
+  // order). When present, the line renders the consolidated Task List card —
+  // same look as TodoWrite — instead of a lone status chip.
+  _taskSnapshot?: TodoItem[];
   // Running TodoWrite snapshot before this tool_use (Grok merge:true updates
   // only send {id,status} — we resolve content from this prior list).
   _priorTodos?: TodoItem[];

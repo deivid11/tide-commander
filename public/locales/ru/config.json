@@ -35,7 +35,9 @@
     "compactView": "Компактный вид",
     "autoScroll": "Автопрокрутка",
     "notifications": "Уведомления",
-    "soundEffects": "Звуковые эффекты"
+    "soundEffects": "Звуковые эффекты",
+    "streamTextLive": "Потоковая передача по словам",
+    "streamTextLiveTitle": "Показывать текст/мысли Claude и Grok по мере генерации. Отключите, чтобы видеть только готовые ответы."
   },
   "agentNames": {
     "customConfigured": "{{count}} пользовательских имён настроено",

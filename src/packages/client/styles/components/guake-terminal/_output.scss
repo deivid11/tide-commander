@@ -292,6 +292,23 @@
   &:hover {
     background: color-mix(in srgb, var(--output-line-bg) 100%, var(--accent-cyan) 5%);
   }
+
+  // Fallback soft enter for tool chips. Primary path is ToolChipEnter.tsx.
+  // Keep subtle: opacity + slight rise only (no scale/blur pop).
+  &.output-tool-use:not(.output-thinking) {
+    animation: tide-tool-chip-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@keyframes tide-tool-chip-in {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 // Claude/Assistant message styling for live output
@@ -974,6 +991,89 @@
 // was flickering while the reply loaded.
 .output-streaming {
   border-right: 2px solid color-mix(in srgb, var(--accent-blue) 70%, transparent);
+}
+
+// Word/token fade-in: only the newest stream suffix animates (see StreamFadeText).
+// IMPORTANT: animated spans must be inline-block — `transform`/`filter` are
+// ignored on pure `display:inline` boxes, which made the effect invisible.
+.stream-fade-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.stream-fade-chunk-group {
+  display: inline;
+}
+
+.stream-fade-ws {
+  // Preserve whitespace outside the animated box
+  white-space: pre-wrap;
+}
+
+.stream-fade-word {
+  display: inline-block;
+  vertical-align: baseline;
+  // Start invisible so even a late paint still catches the animation
+  opacity: 0;
+  animation: stream-word-fade-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  // Subtle pop so coalesced multi-token chunks still read as "arriving"
+  will-change: opacity, transform, filter;
+}
+
+@keyframes stream-word-fade-in {
+  0% {
+    opacity: 0;
+    filter: blur(3px);
+    transform: translateY(0.28em) scale(0.96);
+  }
+  55% {
+    opacity: 1;
+    filter: blur(0.4px);
+    transform: translateY(-0.04em) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+// Soft caret while the model is still typing
+.output-streaming .stream-fade-text::after {
+  content: '';
+  display: inline-block;
+  width: 0.42em;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--accent-cyan, #22d3ee) 85%, white 10%);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent-cyan, #22d3ee) 50%, transparent);
+  animation: stream-caret-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes stream-caret-pulse {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stream-fade-word {
+    animation: none;
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+
+  .output-streaming .stream-fade-text::after {
+    animation: none;
+    opacity: 0.55;
+  }
 }
 
 // Context stats line styling

@@ -44,6 +44,7 @@ import { PlanLimitsTooltip } from './PlanLimitsTooltip';
 import { AgentDebugPanel } from '../ClaudeOutputPanel/AgentDebugPanel';
 import { AreaBuildingsPanel } from '../ClaudeOutputPanel/AreaBuildingsPanel';
 import { GuakeGitPanel } from '../ClaudeOutputPanel/GuakeGitPanel';
+import { GuakeTaskBanner } from '../ClaudeOutputPanel/GuakeTaskBanner';
 import { agentDebugger } from '../../services/agentDebugger';
 import { ContextConfirmModal, ImageModal, BashModal, AgentInfoModal, AgentResponseModalWrapper, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
 import { useModalStackRegistration } from '../../hooks/useModalStack';
@@ -123,6 +124,8 @@ interface ChatViewProps {
   onTerminalViewModeChange: (mode: TerminalViewMode) => void;
   inspectorOpen: boolean;
   onToggleInspector: () => void;
+  /** Open the inspector on its Tracking tab (current-task banner click-through). */
+  onShowTaskBoard: () => void;
   onImageClick: (url: string, name: string) => void;
   onFileClick: (path: string, editData?: any) => void;
   onBashClick: (command: string, output: string) => void;
@@ -250,6 +253,7 @@ const ChatView = React.memo(function ChatView({
   onTerminalViewModeChange,
   inspectorOpen,
   onToggleInspector,
+  onShowTaskBoard,
   onImageClick,
   onFileClick,
   onBashClick,
@@ -1001,6 +1005,10 @@ const ChatView = React.memo(function ChatView({
           </button>
         </div>
       </div>
+
+      {/* Current-task banner — what this agent is working on right now. */}
+      <GuakeTaskBanner agent={agent} onClick={onShowTaskBoard} />
+
       {classicTuiOpen && classicTuiAvailable ? (
         <AgentClassicTerminal agentId={agentId} />
       ) : displayedAgentId && displayedAgent ? (
@@ -1228,7 +1236,10 @@ const ChatView = React.memo(function ChatView({
         })}
         <PlanLimitsTooltip
           agentId={agentId}
-          disabled={(agent?.provider ?? 'claude') !== 'claude'}
+          disabled={
+            (agent?.provider ?? 'claude') !== 'claude' &&
+            (agent?.provider ?? 'claude') !== 'grok'
+          }
           contextSummary={
             contextHasData
               ? `Context: ${contextUsedK}k / ${contextLimitK}k tokens (${contextUsedPercentDisplay}% used)`
@@ -1246,10 +1257,11 @@ const ChatView = React.memo(function ChatView({
                 store.setContextModalAgentId(agentId);
               }
             }}
-            // Native title only for non-Claude agents; Claude agents get the
-            // richer plan-limits tooltip from PlanLimitsTooltip instead.
+            // Native title only for providers without plan-limits tooltip
+            // (Claude/Grok get the richer PlanLimitsTooltip instead).
             title={
-              (agent?.provider ?? 'claude') !== 'claude'
+              (agent?.provider ?? 'claude') !== 'claude' &&
+              (agent?.provider ?? 'claude') !== 'grok'
                 ? (contextHasData
                     ? `Context usage: ${contextUsedK}k / ${contextLimitK}k tokens (${contextUsedPercentDisplay}% used). Click to view stats.`
                     : 'Click to fetch context stats')
@@ -1782,6 +1794,14 @@ export function FlatView({
     setInspectorOpen(false);
     setStorageBoolean(STORAGE_KEYS.FLAT_INSPECTOR_OPEN, false);
   }, []);
+
+  // Current-task banner click-through: open the inspector on its Tracking tab
+  // (the Flat view's equivalent of the guake terminal's TrackingBoard toggle).
+  const handleShowTaskBoard = useCallback(() => {
+    setInspectorView('tracking');
+    setInspectorOpen(true);
+    setStorageBoolean(STORAGE_KEYS.FLAT_INSPECTOR_OPEN, true);
+  }, [setInspectorView]);
 
   // Shared keyboard-height hook for mobile (must be stable across rerenders)
   const keyboard = useKeyboardHeight();
@@ -2675,6 +2695,7 @@ export function FlatView({
             onTerminalViewModeChange={handleTerminalViewModeChange}
             inspectorOpen={inspectorOpen}
             onToggleInspector={handleToggleInspector}
+            onShowTaskBoard={handleShowTaskBoard}
             onImageClick={handleImageClick}
             onFileClick={handleFileClick}
             onBashClick={handleBashClick}

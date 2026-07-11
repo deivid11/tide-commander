@@ -168,6 +168,88 @@ describe('Output Store Actions', () => {
       expect(state.agentOutputs.get('agent-1')).toHaveLength(2);
     });
 
+    it('merges Grok early empty toolInput into full args on same Using-tool UUID', () => {
+      const { state, actions } = createMockStore();
+      const uuid = 'grok-early-search_replace-1';
+
+      actions.addOutput('agent-1', makeOutput({
+        text: 'Using tool: Edit',
+        uuid,
+        toolName: 'Edit',
+        toolInput: {},
+        timestamp: 100,
+      }));
+      // Same text + uuid, fuller toolInput — must NOT be dropped as a resend.
+      actions.addOutput('agent-1', makeOutput({
+        text: 'Using tool: Edit',
+        uuid,
+        toolName: 'Edit',
+        toolInput: {
+          file_path: '/tmp/a.ts',
+          old_string: 'a',
+          new_string: 'b',
+        },
+        timestamp: 200,
+      }));
+
+      const outputs = state.agentOutputs.get('agent-1')!;
+      expect(outputs).toHaveLength(1);
+      expect(outputs[0].text).toBe('Using tool: Edit');
+      expect(outputs[0].timestamp).toBe(100);
+      expect(outputs[0].toolInput).toEqual({
+        file_path: '/tmp/a.ts',
+        old_string: 'a',
+        new_string: 'b',
+      });
+    });
+
+    it('merges empty toolInput when args arrive only on the Using-tool upgrade', () => {
+      const { state, actions } = createMockStore();
+      const uuid = 'grok-early-read_file-1';
+
+      actions.addOutput('agent-1', makeOutput({
+        text: 'Using tool: Read',
+        uuid,
+        toolName: 'Read',
+        toolInput: {},
+      }));
+      actions.addOutput('agent-1', makeOutput({
+        text: 'Using tool: Read',
+        uuid,
+        toolName: 'Read',
+        toolInput: { target_file: '/home/riven/d/tide-commander/README.md' },
+      }));
+
+      const outputs = state.agentOutputs.get('agent-1')!;
+      expect(outputs).toHaveLength(1);
+      expect(outputs[0].toolInput).toEqual({
+        target_file: '/home/riven/d/tide-commander/README.md',
+      });
+    });
+
+    it('folds full Tool input args onto an empty early Using-tool chip', () => {
+      const { state, actions } = createMockStore();
+      const uuid = 'grok-early-write-1';
+
+      actions.addOutput('agent-1', makeOutput({
+        text: 'Using tool: Write',
+        uuid,
+        toolName: 'Write',
+        toolInput: {},
+      }));
+      actions.addOutput('agent-1', makeOutput({
+        text: 'Tool input: {"target_file":"/tmp/x.ts","content":"hi"}',
+        uuid,
+        toolInput: { target_file: '/tmp/x.ts', content: 'hi' },
+      }));
+
+      const outputs = state.agentOutputs.get('agent-1')!;
+      expect(outputs).toHaveLength(2);
+      expect(outputs[0].text).toBe('Using tool: Write');
+      expect(outputs[0].toolInput).toEqual({ target_file: '/tmp/x.ts', content: 'hi' });
+      expect(outputs[1].text.startsWith('Tool input:')).toBe(true);
+    });
+
     it('allows different UUIDs with same text', () => {
       const { state, actions } = createMockStore();
 
