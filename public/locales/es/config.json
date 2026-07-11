@@ -21,6 +21,8 @@
   "general": {
     "history": "Historial",
     "hideCosts": "Ocultar costos",
+    "streamTextLive": "Streaming palabra por palabra",
+    "streamTextLiveTitle": "Mostrar el texto/pensamiento de Claude y Grok mientras se genera. Desactívalo para ver solo respuestas completas.",
     "grid": "Cuadricula",
     "showFPS": "Mostrar FPS",
     "fpsLimit": "Limite de FPS",

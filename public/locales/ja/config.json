@@ -35,7 +35,9 @@
     "compactView": "コンパクト表示",
     "autoScroll": "自動スクロール",
     "notifications": "通知",
-    "soundEffects": "効果音"
+    "soundEffects": "効果音",
+    "streamTextLive": "単語ごとのストリーミング",
+    "streamTextLiveTitle": "Claude と Grok のテキスト/思考をストリーミング表示します。オフにすると完成した返答のみ表示します。"
   },
   "agentNames": {
     "customConfigured": "{{count}}個のカスタム名が設定済み",

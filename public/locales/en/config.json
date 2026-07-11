@@ -25,6 +25,8 @@
   "general": {
     "history": "History",
     "hideCosts": "Hide Costs",
+    "streamTextLive": "Word-by-word streaming",
+    "streamTextLiveTitle": "Show Claude and Grok text/thinking as it streams. Turn off to only show complete replies.",
     "grid": "Grid",
     "showFPS": "Show FPS",
     "fpsLimit": "FPS Limit",

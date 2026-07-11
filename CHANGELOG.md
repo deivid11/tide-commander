@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.150.0] - 2026-07-11
+
+### Added
+- **Word-by-word streaming** - optional live text/thinking fade-in for Claude and Grok replies (`StreamFadeText`), with a Settings toggle to disable and only show complete messages.
+- **Tool chip enter motion** - tool invocation chips animate in as they appear in the Guake terminal.
+- **Grok plan usage gauges** - weekly/monthly (and pay-as-you-go) limits from the Grok billing API, shown in the usage panel alongside token context usage.
+- **Cross-provider stream fidelity** - richer JSON event parsing for Codex, OpenCode, and Grok (tool results, bash stdout upgrades, TodoWrite races, thinking/content deltas).
+
+### Changed
+- **Guake output virtualization** - smoother streaming updates while lists stay virtualized.
+- **Claude backend prompt/event path** - more complete streaming and usage plumbing for live terminal rendering.
+
+### Fixed
+- **Grok tool timing races** - session watcher upgrades early tool chips when `tool_completed` arrives before full chat_history content.
+- **Provider usage titles** - Grok usage panel uses Grok-specific labels and credit limit copy.
+
 ## [1.149.0] - 2026-07-10
 
 ### Added

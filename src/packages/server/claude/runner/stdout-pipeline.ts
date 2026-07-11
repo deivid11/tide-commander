@@ -51,7 +51,15 @@ export class RunnerStdoutPipeline {
 
   /** Backends that emit token-sized streaming-json deltas. */
   private shouldCoalesceStreaming(): boolean {
-    return this.backend.name === 'grok';
+    // Grok always streams token-sized NDJSON; Claude does with
+    // --include-partial-messages. Codex/OpenCode stream when their CLI
+    // surfaces item.updated / message.part.delta (stable-uuid parsers ready).
+    return (
+      this.backend.name === 'grok' ||
+      this.backend.name === 'claude' ||
+      this.backend.name === 'codex' ||
+      this.backend.name === 'opencode'
+    );
   }
 
   handleStdout(agentId: string, process: ChildProcess): Promise<void> {
@@ -267,13 +275,27 @@ export class RunnerStdoutPipeline {
         if (event.parentToolUseId) {
           break;
         }
+        const toolInput = event.toolInput as Record<string, unknown> | undefined;
+        const hasToolInput = !!toolInput
+          && typeof toolInput === 'object'
+          && !Array.isArray(toolInput)
+          && Object.keys(toolInput).length > 0;
+        // Grok events.jsonl fires tool_started with name only (empty {}). Emitting
+        // those as terminal cards creates bare "LIST FILES" / "TASK OUTPUT" /
+        // "TODOWRITE" rows; chat_history re-emits the same uuid with full args.
+        // Still forward onEvent (above) for activity badges — only skip terminal text.
+        if (!hasToolInput && this.backend.name === 'grok') {
+          break;
+        }
         const toolStartSubName = event.subagentName || this.activeSubagentName.get(agentId);
         this.callbacks.onOutput(agentId, `Using tool: ${event.toolName}`, false, toolStartSubName, event.uuid, {
           toolName: event.toolName,
-          toolInput: event.toolInput as Record<string, unknown> | undefined,
+          toolInput,
         });
-        if (event.toolInput) {
-          this.callbacks.onOutput(agentId, `Tool input: ${JSON.stringify(event.toolInput)}`, false, toolStartSubName, event.uuid);
+        // Never emit "Tool input: {}" — empty object is truthy in JS and was
+        // producing useless sibling rows for every Grok early tool_start.
+        if (hasToolInput) {
+          this.callbacks.onOutput(agentId, `Tool input: ${JSON.stringify(toolInput)}`, false, toolStartSubName, event.uuid);
         }
         break;
       }

@@ -35,7 +35,9 @@
     "compactView": "Visualizacao Compacta",
     "autoScroll": "Rolagem Automatica",
     "notifications": "Notificacoes",
-    "soundEffects": "Efeitos Sonoros"
+    "soundEffects": "Efeitos Sonoros",
+    "streamTextLive": "Streaming palavra a palavra",
+    "streamTextLiveTitle": "Mostrar texto/pensamento do Claude e Grok à medida que são gerados. Desative para ver apenas respostas completas."
   },
   "agentNames": {
     "customConfigured": "{{count}} nomes personalizados configurados",

@@ -17,6 +17,8 @@ import { DelegationMessageCard, parseDelegationMessage } from './DelegationMessa
 import { AgentChatMessageCard, parseAgentChatMessage } from './AgentChatMessageCard';
 import { parseExtensionContext, ExtensionContextCard } from './ExtensionContextCard';
 import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, AskQuestionResult, ExitPlanModeInput, UnknownToolInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, MemoryOpInput, isToolSearchContent, ListFilesInput, TaskOutputWaitInput } from './ToolRenderers';
+import { StreamFadeText } from './StreamFadeText';
+import { TaskListView } from '../shared/TaskListView';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
 import { parseTestResults } from './testResultsParser';
@@ -589,14 +591,23 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const iconName = getToolIconName(toolName);
 
     // Grok emits early tool_started with empty toolInput {}. Those cards would
-    // render as bare "BASH" / "READ" with no params — hide until args upgrade
-    // arrives (same uuid, merge in store).
+    // render as bare "LIST FILES" / "TASK OUTPUT" / "READ" with no params —
+    // hide until args upgrade arrives (same uuid, merge in store) OR look-ahead
+    // finds a sibling "Tool input:" row (_toolKeyParam / _bashCommand / …).
     const earlyEmptyInput =
       !payloadToolInput
       || (typeof payloadToolInput === 'object'
         && !Array.isArray(payloadToolInput)
         && Object.keys(payloadToolInput as object).length === 0);
-    if (earlyEmptyInput && (toolName === 'Bash' || toolName === 'Read' || toolName === 'Write' || toolName === 'Edit' || toolName === 'ListFiles' || toolName === 'Grep' || toolName === 'Glob')) {
+    const hasLookAheadArgs = !!(
+      _toolKeyParam
+      || _bashCommand
+      || _editData
+      || _todoInput
+    );
+    // Any recognized tool with no args yet should stay hidden. Empty `{}` is
+    // truthy in JS, so special-case renderers below must not paint bare labels.
+    if (earlyEmptyInput && !hasLookAheadArgs) {
       return null;
     }
 
@@ -642,7 +653,12 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         ? JSON.stringify(payloadToolInput)
         : undefined
     );
-    if (toolName === 'TodoWrite' && todoContent) {
+    if (toolName === 'TodoWrite') {
+      // Grok early tool_started has empty toolInput — hide bare TODOWRITE chip
+      // until args upgrade (or look-ahead) arrives. Same idea as Read/Edit/Bash.
+      if (!todoContent) {
+        return null;
+      }
       // Prefer agent.latestTodos as prior snapshot so Grok merge:true status-only
       // updates still show content from the last full TodoWrite.
       const priorTodos = agentId
@@ -718,13 +734,29 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         : undefined
     );
     if (toolName === 'TaskUpdate' && taskUpdateContent) {
+      // Prefer the server-maintained task snapshot (agent.latestTodos mirrors
+      // TaskCreate/TaskUpdate state) so the line renders the same consolidated
+      // Task List card as TodoWrite. Overlay this update's status locally in
+      // case the agent-store broadcast hasn't landed yet.
+      const ti = payloadToolInput as Record<string, unknown>;
+      const rawId = ti.taskId ?? ti.task_id ?? ti.id;
+      const updId = (typeof rawId === 'string' || typeof rawId === 'number') ? String(rawId) : undefined;
+      const updStatus: 'pending' | 'in_progress' | 'completed' | undefined =
+        ti.status === 'pending' || ti.status === 'in_progress' || ti.status === 'completed'
+          ? ti.status
+          : undefined;
+      const snapshot = (agentId ? (store.getState().agents.get(agentId)?.latestTodos || []) : [])
+        .filter((t) => !(ti.status === 'deleted' && t.id === updId))
+        .map((t) => (updId && updStatus && t.id === updId ? { ...t, status: updStatus } : t));
       return (
         <div className={`output-line output-tool-use output-task-inline ${isStreaming ? 'output-streaming' : ''}`}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
-          <TaskUpdateInput content={taskUpdateContent} />
+          {snapshot.length > 0
+            ? <TaskListView todos={snapshot} />
+            : <TaskUpdateInput content={taskUpdateContent} />}
         </div>
       );
     }
@@ -746,10 +778,21 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     }
 
     // ListFiles / list_dir — folder path chip (no raw JSON dump)
-    if (
-      (toolName === 'ListFiles' || toolName === 'list_dir')
-      && payloadToolInput && typeof payloadToolInput === 'object'
-    ) {
+    if (toolName === 'ListFiles' || toolName === 'list_dir') {
+      const listInput = payloadToolInput && typeof payloadToolInput === 'object' && !Array.isArray(payloadToolInput)
+        ? payloadToolInput as Record<string, unknown>
+        : null;
+      // Empty early `{}` is truthy — must still fall through to look-ahead keyParam.
+      const fromInput = listInput
+        ? String(listInput.target_directory || listInput.targetDirectory || listInput.path || listInput.directory || '')
+        : '';
+      const listDir = fromInput || _toolKeyParam || '';
+      if (!listDir) {
+        return null;
+      }
+      const listContent = fromInput && listInput
+        ? JSON.stringify(listInput)
+        : JSON.stringify({ target_directory: listDir });
       return (
         <div className={`output-line output-tool-use output-list-files-inline ${isStreaming ? 'output-streaming' : ''}`}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
@@ -757,7 +800,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
           <ListFilesInput
-            content={JSON.stringify(payloadToolInput)}
+            content={listContent}
             onFileClick={onFileClick ? (p) => onFileClick(p) : undefined}
           />
         </div>
@@ -765,17 +808,30 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     }
 
     // get_command_or_subagent_output — task wait chips
-    if (
-      (toolName === 'get_command_or_subagent_output' || toolName === 'get_task_output')
-      && payloadToolInput && typeof payloadToolInput === 'object'
-    ) {
+    if (toolName === 'get_command_or_subagent_output' || toolName === 'get_task_output') {
+      const waitInput = payloadToolInput && typeof payloadToolInput === 'object' && !Array.isArray(payloadToolInput)
+        ? payloadToolInput as Record<string, unknown>
+        : null;
+      const idsRaw = waitInput
+        ? (waitInput.task_ids ?? waitInput.taskIds ?? waitInput.task_id ?? waitInput.taskId)
+        : undefined;
+      const hasIds = Array.isArray(idsRaw)
+        ? idsRaw.length > 0
+        : typeof idsRaw === 'string' && idsRaw.length > 0;
+      // Prefer payload; if early `{}`, use look-ahead keyParam (task id summary).
+      if (!hasIds && !_toolKeyParam) {
+        return null;
+      }
+      const waitContent = hasIds && waitInput
+        ? JSON.stringify(waitInput)
+        : JSON.stringify({ task_ids: _toolKeyParam ? [_toolKeyParam] : [] });
       return (
         <div className={`output-line output-tool-use output-task-wait-inline ${isStreaming ? 'output-streaming' : ''}`}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
-          <TaskOutputWaitInput content={JSON.stringify(payloadToolInput)} />
+          <TaskOutputWaitInput content={waitContent} />
         </div>
       );
     }
@@ -1620,10 +1676,15 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             </>
           ) : highlight ? (
             <div>{highlightText(text, highlight)}</div>
+          ) : isStreaming ? (
+            // Any streaming assistant/system text — self-contained word fade-in.
+            <StreamFadeText text={text} isStreaming />
           ) : (
             renderContentWithImages(text, onImageClick, onFileClick)
           )}
         </div>
+      ) : isStreaming ? (
+        <StreamFadeText text={text} isStreaming />
       ) : (
         text
       )}

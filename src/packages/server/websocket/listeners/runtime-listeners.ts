@@ -95,11 +95,10 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
 
   // Mirror an agent's tracked tasks (id order) into latestTodos for display.
   function pushTaskTodos(agentId: string, tasks: Map<string, TrackedTask>): void {
-    if (tasks.size === 0) return;
     const items: AgentTodoItem[] = [...tasks.entries()]
       .sort((a, b) => Number(a[0]) - Number(b[0]))
-      .map(([id, t]) => ({ content: t.subject || `Task #${id}`, status: t.status }));
-    agentService.updateAgent(agentId, { latestTodos: items }, false);
+      .map(([id, t]) => ({ id, content: t.subject || `Task #${id}`, status: t.status }));
+    agentService.updateAgent(agentId, { latestTodos: items.length > 0 ? items : undefined }, false);
   }
 
   function armSubagentJsonlWatcher(agentId: string, toolUseId: string, options?: { startAtEnd?: boolean }): void {
@@ -182,9 +181,13 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
         const id = typeof rawId === 'string' || typeof rawId === 'number' ? String(rawId) : undefined;
         if (id) {
           const tasks = taskStateFor(agentId);
-          const existing = tasks.get(id) ?? { status: 'pending' as AgentTodoStatus };
-          existing.status = normalizeTaskStatus(ti?.status);
-          tasks.set(id, existing);
+          if (ti?.status === 'deleted') {
+            tasks.delete(id);
+          } else {
+            const existing = tasks.get(id) ?? { status: 'pending' as AgentTodoStatus };
+            existing.status = normalizeTaskStatus(ti?.status);
+            tasks.set(id, existing);
+          }
           pushTaskTodos(agentId, tasks);
         }
       }

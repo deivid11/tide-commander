@@ -1,12 +1,11 @@
 /**
- * Claude Usage API client — pairs with
+ * Provider Usage API client — pairs with
  * `src/packages/server/routes/agents.ts` (`GET /api/agents/:id/usage`).
  *
- * Returns the snapshot the server assembles from local data sources (agent
- * tracking + ~/.claude/stats-cache.json) plus the live session/weekly
- * rate-limit gauges fetched from Anthropic with the CLI's own OAuth
- * credentials — the same data the CLI's `/usage` panel shows. When that
- * fetch fails, `rateLimits` is null and `cliHint` is shown as fallback.
+ * Claude: local tracking + ~/.claude/stats-cache.json + Anthropic OAuth
+ * session/weekly rate-limit gauges (CLI `/usage`).
+ * Grok: local tracking + CLI chat-proxy billing/credit gauges (CLI `/usage`).
+ * When a live fetch fails, `rateLimits` is null and `cliHint` is shown.
  */
 
 import { authFetch, apiUrl } from '../utils/storage';
@@ -29,6 +28,10 @@ export interface ClaudeUsageSession {
 export interface ClaudeRateLimitWindow {
   utilization: number;   // 0-100 percent used
   resetsAt: string;      // ISO timestamp when the window resets
+  /** Absolute credits used (Grok billing gauges). */
+  used?: number;
+  /** Absolute credit limit (Grok billing gauges). */
+  limit?: number;
 }
 
 export interface ClaudeRateLimits {
@@ -49,6 +52,26 @@ export interface ClaudeUsageSnapshot {
   rateLimitsError: string | null;
   cliHint: string;
 }
+
+export interface GrokRateLimits {
+  /** Rolling weekly usage allotment (CLI "Weekly limit"). */
+  weekly: ClaudeRateLimitWindow | null;
+  /** Calendar / plan monthly allotment (CLI "Monthly limit"). */
+  monthly: ClaudeRateLimitWindow | null;
+  /** Optional pay-as-you-go / on-demand cap when enabled. */
+  onDemand: ClaudeRateLimitWindow | null;
+}
+
+export interface GrokUsageSnapshot {
+  provider: 'grok';
+  fetchedAt: number;
+  session: ClaudeUsageSession;
+  rateLimits: GrokRateLimits | null;
+  rateLimitsError: string | null;
+  cliHint: string;
+}
+
+export type ProviderUsageSnapshot = ClaudeUsageSnapshot | GrokUsageSnapshot;
 
 export interface ClaudeTokenTotals {
   input: number;
@@ -109,6 +132,15 @@ export interface ClaudeUsageByDaySummary {
 }
 
 export async function fetchClaudeUsage(agentId: string): Promise<ClaudeUsageSnapshot> {
+  const snapshot = await fetchProviderUsage(agentId);
+  if (snapshot.provider !== 'claude') {
+    throw new Error(`Expected Claude usage snapshot, got ${snapshot.provider}`);
+  }
+  return snapshot;
+}
+
+/** Fetch Claude or Grok usage snapshot for an agent (same endpoint). */
+export async function fetchProviderUsage(agentId: string): Promise<ProviderUsageSnapshot> {
   const response = await authFetch(apiUrl(`/api/agents/${encodeURIComponent(agentId)}/usage`));
   if (!response.ok) {
     let message = `Failed to fetch usage: ${response.status}`;
@@ -120,7 +152,7 @@ export async function fetchClaudeUsage(agentId: string): Promise<ClaudeUsageSnap
     }
     throw new Error(message);
   }
-  return (await response.json()) as ClaudeUsageSnapshot;
+  return (await response.json()) as ProviderUsageSnapshot;
 }
 
 export async function fetchClaudeUsageByAgent(opts: { since?: number; until?: number } = {}): Promise<ClaudeUsageByAgentSummary> {

@@ -214,4 +214,65 @@ describe('RunnerStdoutPipeline', () => {
       },
     );
   });
+
+  it('does not emit terminal rows for Grok early empty tool_start (name only)', () => {
+    const { callbacks, pipeline } = createPipeline('grok');
+
+    (pipeline as any).handleEvent('agent-grok', {
+      type: 'tool_start',
+      toolName: 'ListFiles',
+      toolInput: {},
+      uuid: 'grok-early-list_dir-1',
+      toolUseId: 'grok-early-list_dir-1',
+    } satisfies StandardEvent);
+
+    // Activity / event bus still receive the event via onEvent
+    expect(callbacks.onEvent).toHaveBeenCalled();
+    // But no bare "Using tool: ListFiles" / "Tool input: {}" terminal rows
+    expect(callbacks.onOutput).not.toHaveBeenCalled();
+  });
+
+  it('emits Grok tool_start once full args arrive (upgrade after early empty)', () => {
+    const { callbacks, pipeline } = createPipeline('grok');
+    const uuid = 'grok-early-list_dir-1';
+
+    (pipeline as any).handleEvent('agent-grok', {
+      type: 'tool_start',
+      toolName: 'ListFiles',
+      toolInput: {},
+      uuid,
+      toolUseId: uuid,
+    } satisfies StandardEvent);
+    (pipeline as any).handleEvent('agent-grok', {
+      type: 'tool_start',
+      toolName: 'ListFiles',
+      toolInput: { target_directory: '/tmp/project' },
+      uuid,
+      toolUseId: uuid,
+    } satisfies StandardEvent);
+
+    expect(callbacks.onOutput).toHaveBeenCalledWith(
+      'agent-grok',
+      'Using tool: ListFiles',
+      false,
+      undefined,
+      uuid,
+      {
+        toolName: 'ListFiles',
+        toolInput: { target_directory: '/tmp/project' },
+      },
+    );
+    expect(callbacks.onOutput).toHaveBeenCalledWith(
+      'agent-grok',
+      'Tool input: {"target_directory":"/tmp/project"}',
+      false,
+      undefined,
+      uuid,
+    );
+    // Empty early never produced a row
+    const emptyInputCalls = (callbacks.onOutput as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (c) => typeof c[1] === 'string' && c[1].includes('Tool input: {}')
+    );
+    expect(emptyInputCalls).toHaveLength(0);
+  });
 });

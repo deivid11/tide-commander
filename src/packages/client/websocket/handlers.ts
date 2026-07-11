@@ -192,7 +192,12 @@ export function handleServerMessage(message: ServerMessage): void {
         store.addToolExecution(event.agentId, event.toolName, event.toolInput);
         // Track file changes from file-related tools
         if (event.toolInput) {
-          const filePath = (event.toolInput.file_path || event.toolInput.path) as string | undefined;
+          // Claude: file_path; Grok: target_file / path
+          const filePath = (
+            event.toolInput.file_path
+            || event.toolInput.target_file
+            || event.toolInput.path
+          ) as string | undefined;
           if (filePath) {
             if (event.toolName === 'Write') {
               store.addFileChange(event.agentId, 'created', filePath);
@@ -269,6 +274,20 @@ export function handleServerMessage(message: ServerMessage): void {
         uuid: output.uuid,
         toolName: output.toolName,
       }, 'ws:output');
+
+      // Optional: suppress word-by-word text/thinking for Claude & Grok when the
+      // user turns off streamTextLive. Final isStreaming:false rows still land.
+      if (output.isStreaming && !output.skillUpdate && !output.toolName) {
+        const streamLive = store.getSettings().streamTextLive !== false;
+        if (!streamLive) {
+          const agent = store.getState().agents.get(output.agentId);
+          const provider = agent?.provider || 'claude';
+          if (provider === 'claude' || provider === 'grok') {
+            break;
+          }
+        }
+      }
+
       noteServerTimestamp(output.timestamp);
       store.addOutput(output.agentId, {
         text: output.text,
@@ -624,6 +643,17 @@ export function handleServerMessage(message: ServerMessage): void {
         toolInput?: Record<string, unknown>;
         toolOutput?: string;
       };
+      // Same live-stream gate as terminal `output` for Claude/Grok subordinates.
+      if (isStreaming && !toolName) {
+        const streamLive = store.getSettings().streamTextLive !== false;
+        if (!streamLive) {
+          const agent = store.getState().agents.get(subordinateId);
+          const provider = agent?.provider || 'claude';
+          if (provider === 'claude' || provider === 'grok') {
+            break;
+          }
+        }
+      }
       store.handleAgentTaskOutput(bossId, subordinateId, {
         text: output,
         isStreaming: isStreaming || false,

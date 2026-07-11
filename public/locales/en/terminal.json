@@ -1267,6 +1267,7 @@
   },
   "usage": {
     "title": "Claude Usage",
+    "titleGrok": "Grok Usage",
     "session": "Session",
     "tokensUsed": "Tokens used",
     "taskCount": "Tasks sent",
@@ -1283,6 +1284,11 @@
     "currentWeekAll": "Current week (all models)",
     "currentWeekOpus": "Current week (Opus only)",
     "currentWeekSonnet": "Current week (Sonnet only)",
+    "weeklyLimit": "Weekly limit",
+    "monthlyLimit": "Monthly limit",
+    "periodLimit": "Plan period limit",
+    "onDemandLimit": "Pay-as-you-go limit",
+    "creditsUsed": "{{used}} / {{limit}} credits",
     "percentUsed": "{{percent}}% used",
     "resets": "Resets {{time}}",
     "limitsError": "Live limits unavailable: {{message}}"

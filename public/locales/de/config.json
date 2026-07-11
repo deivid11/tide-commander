@@ -35,7 +35,9 @@
     "compactView": "Kompakte Ansicht",
     "autoScroll": "Automatisches Scrollen",
     "notifications": "Benachrichtigungen",
-    "soundEffects": "Soundeffekte"
+    "soundEffects": "Soundeffekte",
+    "streamTextLive": "Wort-für-Wort-Streaming",
+    "streamTextLiveTitle": "Claude- und Grok-Text/Denken während des Streamings anzeigen. Deaktivieren, um nur vollständige Antworten zu sehen."
   },
   "agentNames": {
     "customConfigured": "{{count}} benutzerdefinierte Namen konfiguriert",

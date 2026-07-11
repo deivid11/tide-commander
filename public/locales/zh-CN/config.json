@@ -35,7 +35,9 @@
     "compactView": "紧凑视图",
     "autoScroll": "自动滚动",
     "notifications": "通知",
-    "soundEffects": "音效"
+    "soundEffects": "音效",
+    "streamTextLive": "逐字流式输出",
+    "streamTextLiveTitle": "实时显示 Claude 和 Grok 的文本/思考。关闭后仅显示完整回复。"
   },
   "agentNames": {
     "customConfigured": "已配置 {{count}} 个自定义名称",

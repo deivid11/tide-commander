@@ -231,10 +231,40 @@ export function startGrokSessionWatcher(opts: GrokSessionWatcherOptions): GrokSe
 
   const emittedToolStarts = new Set<string>();
   const emittedToolResults = new Set<string>();
-  /** raw tool_name → queue of early synthetic ids (events.jsonl, no call id) */
+  /**
+   * raw tool_name → early synthetic ids still running (events tool_started,
+   * no tool_completed yet). chat_history prefers these first.
+   */
   const pendingEarlyByName = new Map<string, string[]>();
+  /**
+   * raw tool_name → early ids that already got tool_completed BEFORE
+   * chat_history wrote the real call. Fast tools (TodoWrite) often complete
+   * in <100ms; if we only kept them in pending and shifted on complete, the
+   * upgrade path was empty and we emitted a second call-* chip — leaving the
+   * original early card stuck with empty toolInput (bare "TODOWRITE").
+   */
+  const completedEarlyByName = new Map<string, string[]>();
   const earlyToReal = new Map<string, string>();
   const realToEarly = new Map<string, string>();
+
+  /** Pop the next early id eligible for upgrade (still running, else completed). */
+  const takeEarlyForUpgrade = (rawName: string): string | undefined => {
+    const pending = pendingEarlyByName.get(rawName);
+    if (pending && pending.length > 0) {
+      const id = pending.shift()!;
+      if (pending.length === 0) pendingEarlyByName.delete(rawName);
+      else pendingEarlyByName.set(rawName, pending);
+      return id;
+    }
+    const completed = completedEarlyByName.get(rawName);
+    if (completed && completed.length > 0) {
+      const id = completed.shift()!;
+      if (completed.length === 0) completedEarlyByName.delete(rawName);
+      else completedEarlyByName.set(rawName, completed);
+      return id;
+    }
+    return undefined;
+  };
 
   const emit = (event: StandardEvent) => {
     if (stopped) return;
@@ -311,24 +341,23 @@ export function startGrokSessionWatcher(opts: GrokSessionWatcherOptions): GrokSe
       if (queue.length === 0) pendingEarlyByName.delete(rawName);
       else pendingEarlyByName.set(rawName, queue);
 
-      // If chat_history already completed the real call, skip empty early result.
-      if (emittedToolResults.has(synthId)) return;
-      // If this early was upgraded to a real call id that already has a result, skip.
-      const realId = earlyToReal.get(synthId);
-      if (realId && emittedToolResults.has(realId)) {
-        emittedToolResults.add(synthId);
-        return;
+      // Keep the early id available for chat_history upgrade even after complete.
+      // TodoWrite / list_dir often finish before the assistant tool_calls line
+      // is flushed — without this, upgrade fails and the UI keeps an empty chip.
+      if (!earlyToReal.has(synthId)) {
+        const completedQ = completedEarlyByName.get(rawName) || [];
+        completedQ.push(synthId);
+        completedEarlyByName.set(rawName, completedQ);
       }
 
-      emittedToolResults.add(synthId);
-      emit({
-        type: 'tool_result',
-        toolName: normalizeGrokToolName(rawName),
-        toolUseId: synthId,
-        uuid: synthId,
-        toolOutput: line.outcome === 'success' ? '(ok)' : `(${line.outcome || 'done'})`,
-      });
-      // Tools change context fill — re-read signals after completions.
+      // Do NOT emit tool_result from events.jsonl.
+      // events only has outcome (success/error) — no stdout. Emitting
+      // "Bash output:\n(ok)" here races ahead of chat_history, marks the early
+      // uuid as done, and blocks the real dual-emit with full stdout. The UI
+      // then pairs the Bash chip to "(ok)" forever ("No output available").
+      // Real tool_result content always comes from chat_history.jsonl below.
+      //
+      // Still refresh context usage — tools change fill.
       pollSignalsUsage();
       return;
     }
@@ -352,13 +381,11 @@ export function startGrokSessionWatcher(opts: GrokSessionWatcherOptions): GrokSe
         const toolName = normalizeGrokToolName(rawName);
         const toolInput = parseToolInput(call.arguments);
 
-        // Link to a pending early card for this tool name (if any)
-        const earlyQueue = pendingEarlyByName.get(rawName);
-        if (earlyQueue && earlyQueue.length > 0) {
-          const earlyId = earlyQueue.shift()!;
-          if (earlyQueue.length === 0) pendingEarlyByName.delete(rawName);
-          earlyToReal.set(earlyId, callId);
-          realToEarly.set(callId, earlyId);
+        // Link to an early card for this tool name (running or already completed).
+        const linkedEarlyId = takeEarlyForUpgrade(rawName);
+        if (linkedEarlyId) {
+          earlyToReal.set(linkedEarlyId, callId);
+          realToEarly.set(callId, linkedEarlyId);
         }
 
         emittedToolStarts.add(callId);
@@ -391,7 +418,6 @@ export function startGrokSessionWatcher(opts: GrokSessionWatcherOptions): GrokSe
     if (line.type === 'tool_result' && line.tool_call_id) {
       const callId = line.tool_call_id;
       if (emittedToolResults.has(callId)) return;
-      emittedToolResults.add(callId);
 
       const content = typeof line.content === 'string'
         ? line.content
@@ -400,20 +426,27 @@ export function startGrokSessionWatcher(opts: GrokSessionWatcherOptions): GrokSe
           : '';
       const out = truncateOutput(content);
 
+      // Prefer the live card uuid (early synth id) so Bash output pairs with the
+      // "Using tool: Bash" row the UI already rendered under that uuid.
+      const earlyId = realToEarly.get(callId);
+      const cardUuid = earlyId || callId;
+
+      emittedToolResults.add(callId);
+      if (earlyId) emittedToolResults.add(earlyId);
+
       emit({
         type: 'tool_result',
-        toolUseId: callId,
-        uuid: callId,
+        toolUseId: cardUuid,
+        uuid: cardUuid,
         toolOutput: out,
       });
 
-      const earlyId = realToEarly.get(callId);
-      if (earlyId && !emittedToolResults.has(earlyId)) {
-        emittedToolResults.add(earlyId);
+      // Also emit under callId when different so any call-id-keyed consumers match.
+      if (cardUuid !== callId) {
         emit({
           type: 'tool_result',
-          toolUseId: earlyId,
-          uuid: earlyId,
+          toolUseId: callId,
+          uuid: callId,
           toolOutput: out,
         });
       }

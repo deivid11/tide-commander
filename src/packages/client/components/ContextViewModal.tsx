@@ -9,7 +9,13 @@ import type { Agent, ContextStats } from '../../shared/types';
 import { useModalClose } from '../hooks';
 import { ModalPortal } from './shared/ModalPortal';
 import { Icon } from './Icon';
-import { fetchClaudeUsage, type ClaudeRateLimitWindow, type ClaudeUsageSnapshot } from '../api/claude-usage';
+import {
+  fetchProviderUsage,
+  type ClaudeRateLimitWindow,
+  type ClaudeUsageSnapshot,
+  type GrokUsageSnapshot,
+  type ProviderUsageSnapshot,
+} from '../api/claude-usage';
 import { getUsedPercentColor, formatResetTime } from '../utils/claude-usage-format';
 
 interface ContextViewModalProps {
@@ -88,14 +94,14 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
   }, [agent.contextStats, agent.contextUsed, agent.contextLimit, agent.model, agent.grokModel, agent.opencodeModel, agent.codexModel, agent.provider]);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Claude-only usage snapshot. Populated lazily when the modal opens for a
-  // claude agent — codex/opencode agents skip this entirely.
-  const [usage, setUsage] = useState<ClaudeUsageSnapshot | null>(null);
+  // Claude/Grok usage snapshot. Populated lazily when the modal opens —
+  // codex/opencode agents skip this entirely.
+  const [usage, setUsage] = useState<ProviderUsageSnapshot | null>(null);
   const [usageLoading, setUsageLoading] = useState(false);
   const [usageError, setUsageError] = useState<string | null>(null);
   const usageReqRef = useRef(0);
 
-  const showUsageSection = agent.provider === 'claude';
+  const showUsageSection = agent.provider === 'claude' || agent.provider === 'grok';
 
   const loadUsage = useMemo(() => {
     return () => {
@@ -103,7 +109,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
       const reqId = ++usageReqRef.current;
       setUsageLoading(true);
       setUsageError(null);
-      fetchClaudeUsage(agent.id)
+      fetchProviderUsage(agent.id)
         .then((snapshot) => {
           if (reqId !== usageReqRef.current) return; // stale
           setUsage(snapshot);
@@ -364,7 +370,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
           )}
 
           {showUsageSection && (
-            <ClaudeUsageSection
+            <ProviderUsageSection
               snapshot={usage}
               loading={usageLoading}
               error={usageError}
@@ -390,11 +396,11 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
 }
 
 // ---------------------------------------------------------------------------
-// Claude Usage section
+// Provider Usage section (Claude plan limits + Grok credit/week limits)
 // ---------------------------------------------------------------------------
 
-interface ClaudeUsageSectionProps {
-  snapshot: ClaudeUsageSnapshot | null;
+interface ProviderUsageSectionProps {
+  snapshot: ProviderUsageSnapshot | null;
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
@@ -409,18 +415,22 @@ function formatActivityDate(isoDate: string): string {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function ClaudeUsageSection({ snapshot, loading, error, onRefresh }: ClaudeUsageSectionProps) {
-  const { t } = useTranslation(['terminal', 'common']);
+function formatCreditAmount(value: number): string {
+  if (!Number.isFinite(value)) return String(value);
+  if (Math.abs(value) >= 1000) {
+    return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  }
+  return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
 
-  // Compute peak so the day bars share a stable scale across the range.
-  const peakMessages = snapshot
-    ? snapshot.recentDays.reduce((max, d) => Math.max(max, d.messageCount), 0)
-    : 0;
+function buildRateLimitWindows(
+  snapshot: ProviderUsageSnapshot,
+  t: (key: string) => string,
+): Array<{ key: string; label: string; window: ClaudeRateLimitWindow }> {
+  const windows: Array<{ key: string; label: string; window: ClaudeRateLimitWindow }> = [];
+  if (!snapshot.rateLimits) return windows;
 
-  // Rate-limit gauges in the CLI's /usage display order; absent windows
-  // (e.g. no Opus bucket on this plan) are skipped.
-  const rateLimitWindows: Array<{ key: string; label: string; window: ClaudeRateLimitWindow }> = [];
-  if (snapshot?.rateLimits) {
+  if (snapshot.provider === 'claude') {
     const candidates = [
       { key: 'fiveHour', label: t('terminal:usage.currentSession'), window: snapshot.rateLimits.fiveHour },
       { key: 'sevenDay', label: t('terminal:usage.currentWeekAll'), window: snapshot.rateLimits.sevenDay },
@@ -428,9 +438,49 @@ function ClaudeUsageSection({ snapshot, loading, error, onRefresh }: ClaudeUsage
       { key: 'sevenDaySonnet', label: t('terminal:usage.currentWeekSonnet'), window: snapshot.rateLimits.sevenDaySonnet },
     ];
     for (const candidate of candidates) {
-      if (candidate.window) rateLimitWindows.push({ ...candidate, window: candidate.window });
+      if (candidate.window) windows.push({ ...candidate, window: candidate.window });
     }
+    return windows;
   }
+
+  // Grok — same dual gauges as the CLI `/usage` panel (weekly + monthly).
+  const grok = snapshot as GrokUsageSnapshot;
+  if (grok.rateLimits?.weekly) {
+    windows.push({
+      key: 'weekly',
+      label: t('terminal:usage.weeklyLimit'),
+      window: grok.rateLimits.weekly,
+    });
+  }
+  if (grok.rateLimits?.monthly) {
+    windows.push({
+      key: 'monthly',
+      label: t('terminal:usage.monthlyLimit'),
+      window: grok.rateLimits.monthly,
+    });
+  }
+  if (grok.rateLimits?.onDemand) {
+    windows.push({
+      key: 'onDemand',
+      label: t('terminal:usage.onDemandLimit'),
+      window: grok.rateLimits.onDemand,
+    });
+  }
+  return windows;
+}
+
+function ProviderUsageSection({ snapshot, loading, error, onRefresh }: ProviderUsageSectionProps) {
+  const { t } = useTranslation(['terminal', 'common']);
+
+  const claudeSnapshot = snapshot?.provider === 'claude' ? (snapshot as ClaudeUsageSnapshot) : null;
+
+  // Compute peak so the day bars share a stable scale across the range.
+  const peakMessages = claudeSnapshot
+    ? claudeSnapshot.recentDays.reduce((max, d) => Math.max(max, d.messageCount), 0)
+    : 0;
+
+  const rateLimitWindows = snapshot ? buildRateLimitWindows(snapshot, t) : [];
+  const titleKey = snapshot?.provider === 'grok' ? 'terminal:usage.titleGrok' : 'terminal:usage.title';
 
   return (
     <div
@@ -453,7 +503,7 @@ function ClaudeUsageSection({ snapshot, loading, error, onRefresh }: ClaudeUsage
           textTransform: 'uppercase',
           letterSpacing: '0.5px',
         }}>
-          {t('terminal:usage.title')}
+          {t(titleKey)}
         </div>
         <button
           className="btn btn-secondary"
@@ -567,92 +617,95 @@ function ClaudeUsageSection({ snapshot, loading, error, onRefresh }: ClaudeUsage
             </div>
           )}
 
-          {/* Today */}
-          <div style={{
-            marginBottom: '12px',
-            padding: '10px 12px',
-            background: 'var(--bg-secondary)',
-            borderRadius: '6px',
-          }}>
-            <div style={{
-              fontSize: '11px',
-              color: 'var(--text-secondary)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              marginBottom: '6px',
-            }}>
-              {t('terminal:usage.today')}
-            </div>
-            {snapshot.today ? (
+          {/* Today + recent days — Claude only (stats-cache / transcript scan) */}
+          {claudeSnapshot && (
+            <>
               <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr 1fr',
-                gap: '8px',
-                fontSize: '12px',
+                marginBottom: '12px',
+                padding: '10px 12px',
+                background: 'var(--bg-secondary)',
+                borderRadius: '6px',
               }}>
-                <UsageStat label={t('terminal:usage.messages')} value={snapshot.today.messageCount} />
-                <UsageStat label={t('terminal:usage.sessions')} value={snapshot.today.sessionCount} />
-                <UsageStat label={t('terminal:usage.toolCalls')} value={snapshot.today.toolCallCount} />
+                <div style={{
+                  fontSize: '11px',
+                  color: 'var(--text-secondary)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  marginBottom: '6px',
+                }}>
+                  {t('terminal:usage.today')}
+                </div>
+                {claudeSnapshot.today ? (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr 1fr',
+                    gap: '8px',
+                    fontSize: '12px',
+                  }}>
+                    <UsageStat label={t('terminal:usage.messages')} value={claudeSnapshot.today.messageCount} />
+                    <UsageStat label={t('terminal:usage.sessions')} value={claudeSnapshot.today.sessionCount} />
+                    <UsageStat label={t('terminal:usage.toolCalls')} value={claudeSnapshot.today.toolCallCount} />
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    {t('terminal:usage.noActivityToday')}
+                  </div>
+                )}
               </div>
-            ) : (
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                {t('terminal:usage.noActivityToday')}
-              </div>
-            )}
-          </div>
 
-          {/* Recent activity bars */}
-          {snapshot.recentDays.length > 0 && (
-            <div style={{
-              marginBottom: '12px',
-              padding: '10px 12px',
-              background: 'var(--bg-secondary)',
-              borderRadius: '6px',
-            }}>
-              <div style={{
-                fontSize: '11px',
-                color: 'var(--text-secondary)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                marginBottom: '8px',
-              }}>
-                {t('terminal:usage.recentDays')}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {snapshot.recentDays.slice(0, 8).map((day) => {
-                  const ratio = peakMessages > 0 ? day.messageCount / peakMessages : 0;
-                  return (
-                    <div key={day.date} style={{
-                      display: 'grid',
-                      gridTemplateColumns: '60px 1fr 60px',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontSize: '11px',
-                    }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>
-                        {formatActivityDate(day.date)}
-                      </span>
-                      <div style={{
-                        height: '8px',
-                        background: 'var(--bg-tertiary)',
-                        borderRadius: '4px',
-                        overflow: 'hidden',
-                      }}>
-                        <div style={{
-                          width: `${Math.max(2, ratio * 100)}%`,
-                          height: '100%',
-                          background: '#4a9eff',
-                          transition: 'width 0.3s ease',
-                        }} />
-                      </div>
-                      <span style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                        {day.messageCount}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+              {claudeSnapshot.recentDays.length > 0 && (
+                <div style={{
+                  marginBottom: '12px',
+                  padding: '10px 12px',
+                  background: 'var(--bg-secondary)',
+                  borderRadius: '6px',
+                }}>
+                  <div style={{
+                    fontSize: '11px',
+                    color: 'var(--text-secondary)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    marginBottom: '8px',
+                  }}>
+                    {t('terminal:usage.recentDays')}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {claudeSnapshot.recentDays.slice(0, 8).map((day) => {
+                      const ratio = peakMessages > 0 ? day.messageCount / peakMessages : 0;
+                      return (
+                        <div key={day.date} style={{
+                          display: 'grid',
+                          gridTemplateColumns: '60px 1fr 60px',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: '11px',
+                        }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>
+                            {formatActivityDate(day.date)}
+                          </span>
+                          <div style={{
+                            height: '8px',
+                            background: 'var(--bg-tertiary)',
+                            borderRadius: '4px',
+                            overflow: 'hidden',
+                          }}>
+                            <div style={{
+                              width: `${Math.max(2, ratio * 100)}%`,
+                              height: '100%',
+                              background: '#4a9eff',
+                              transition: 'width 0.3s ease',
+                            }} />
+                          </div>
+                          <span style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                            {day.messageCount}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* CLI hint — fallback when the live rate-limit fetch failed */}
@@ -684,6 +737,11 @@ function RateLimitGauge({ label, window }: { label: string; window: ClaudeRateLi
   const { t } = useTranslation(['terminal']);
   const percent = Math.max(0, Math.min(100, window.utilization));
   const color = getUsedPercentColor(percent);
+  const hasCredits =
+    typeof window.used === 'number' &&
+    typeof window.limit === 'number' &&
+    Number.isFinite(window.used) &&
+    Number.isFinite(window.limit);
 
   return (
     <div>
@@ -712,8 +770,23 @@ function RateLimitGauge({ label, window }: { label: string; window: ClaudeRateLi
           transition: 'width 0.3s ease',
         }} />
       </div>
-      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '3px' }}>
-        {t('terminal:usage.resets', { time: formatResetTime(window.resetsAt) })}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: '8px',
+        fontSize: '11px',
+        color: 'var(--text-secondary)',
+        marginTop: '3px',
+      }}>
+        <span>{t('terminal:usage.resets', { time: formatResetTime(window.resetsAt) })}</span>
+        {hasCredits && (
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {t('terminal:usage.creditsUsed', {
+              used: formatCreditAmount(window.used!),
+              limit: formatCreditAmount(window.limit!),
+            })}
+          </span>
+        )}
       </div>
     </div>
   );

@@ -1749,10 +1749,14 @@ function parseGrokSessionMessages(
     return { messages: [], lastMessageType: null, lastMessageTimestamp: null };
   }
 
-  // Base clock from file mtime so relative times feel recent; +1s per line for order.
-  let baseMs = Date.now() - 3_600_000;
+  // Timestamps: assign AFTER parse so the LAST message is file mtime and each
+  // prior message is 1s earlier. Using (mtime - 1h + lineIndex) put the whole
+  // history page ~50min behind wall-clock live events, so the merged
+  // history+live list buried all tools ABOVE the live stream (user pin-to-
+  // bottom only saw thinking + final text).
+  let fileMtimeMs = Date.now();
   try {
-    baseMs = fs.statSync(chatHistoryPath).mtimeMs - 3_600_000;
+    fileMtimeMs = fs.statSync(chatHistoryPath).mtimeMs;
   } catch {
     // ignore
   }
@@ -1773,7 +1777,8 @@ function parseGrokSessionMessages(
     }
 
     const type = typeof entry.type === 'string' ? entry.type : '';
-    const ts = new Date(baseMs + lineIndex * 1000).toISOString();
+    // Placeholder — rewritten below from file mtime once we know message count.
+    const ts = new Date(fileMtimeMs).toISOString();
 
     // Skip system prompt and synthetic MCP/system-reminder injections
     if (type === 'system') continue;
@@ -1881,7 +1886,19 @@ function parseGrokSessionMessages(
   }
 
   const dedupedMessages = deduplicateSessionMessages(messages);
-  const last = dedupedMessages.length > 0 ? dedupedMessages[dedupedMessages.length - 1] : null;
+
+  // Restamp so last message ≈ file mtime and order is preserved (1s steps).
+  const n = dedupedMessages.length;
+  if (n > 0) {
+    for (let i = 0; i < n; i++) {
+      dedupedMessages[i] = {
+        ...dedupedMessages[i],
+        timestamp: new Date(fileMtimeMs - (n - 1 - i) * 1000).toISOString(),
+      };
+    }
+  }
+
+  const last = n > 0 ? dedupedMessages[n - 1] : null;
   return {
     messages: dedupedMessages,
     lastMessageType: last?.type ?? null,

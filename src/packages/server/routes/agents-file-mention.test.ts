@@ -95,6 +95,10 @@ vi.mock('../services/claude-usage-service.js', () => ({
   buildClaudeUsageSnapshot: vi.fn(() => ({})),
 }));
 
+vi.mock('../services/grok-usage-service.js', () => ({
+  buildGrokUsageSnapshot: vi.fn(() => ({})),
+}));
+
 vi.mock('../services/backup-service.js', () => ({
   getBackupStatus: vi.fn(() => ({ enabled: false })),
   setBackupEnabled: vi.fn(),

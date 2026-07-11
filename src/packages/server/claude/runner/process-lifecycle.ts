@@ -70,6 +70,15 @@ export class RunnerProcessLifecycle {
       sessionId,
       startedAt: activeProcess.startTime,
       onEvent: (event) => {
+        // Grok does not emit stdout `end` between tool rounds in one agentic
+        // turn. Finalize open text/thinking streams before the tool card so
+        // intermediate status lines stay separate from the final answer.
+        if (event.type === 'tool_start' && typeof this.backend.breakOpenStreams === 'function') {
+          const breaks = this.backend.breakOpenStreams();
+          for (const ev of breaks) {
+            this.stdoutPipeline.emitStandardEvent(agentId, ev);
+          }
+        }
         this.stdoutPipeline.emitStandardEvent(agentId, event);
       },
       onSessionId: (sid) => {
