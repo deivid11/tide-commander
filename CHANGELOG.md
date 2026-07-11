@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.150.4] - 2026-07-11
+
+### Fixed
+- **Duplicate thinking/reasoning blocks** - a reasoning block no longer renders twice (once as the live streamed row, once as the reloaded `[thinking]` history entry). Live thinking rows and persisted reasoning entries never share a uuid, so they now dedupe by normalized content within a wide window, tolerating whitespace differences between the streamed chunks and the joined history summary.
+
 ## [1.150.3] - 2026-07-11
 
 ### Fixed
