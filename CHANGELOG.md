@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.150.6] - 2026-07-11
+
+### Changed
+- **Swipe-to-switch-agent feel** - mobile agent swipe now commits on a fast flick even below the distance threshold, plays an entrance slide as the incoming agent settles in from the side it arrives from, and gives a light haptic tick the moment the arm indicator appears (a visible indicator now always means "release will switch").
+
+### Fixed
+- **Swipe vs horizontal scroll** - a swipe that starts on a wide code block already at its scroll edge is no longer eaten by the scroll container; the gesture only yields to ancestors that can actually scroll further in that direction, decided on the first directional move.
+- **Multi-touch and rotation robustness** - the gesture tracks a single touch by id, yields cleanly when a second finger lands, and re-checks the mobile layout per gesture so rotating or resizing while mounted never leaves stale bindings; committed horizontal drags no longer cancel on natural vertical thumb-arc.
+
 ## [1.150.5] - 2026-07-11
 
 ### Fixed
