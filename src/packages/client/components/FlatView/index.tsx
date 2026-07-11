@@ -740,7 +740,9 @@ const ChatView = React.memo(function ChatView({
           title={agentInfoOpen ? 'Hide agent info' : 'Show agent info'}
           aria-pressed={agentInfoOpen}
         >
-          <AgentIcon agent={agent} size={28} />
+          <span className={`flat-terminal-wrapper__header-avatar${agent.status === 'working' ? ' is-working' : ''}`}>
+            <AgentIcon agent={agent} size={28} />
+          </span>
           <span className="flat-terminal-wrapper__header-info">
             <span className="flat-terminal-wrapper__header-name">{agent.name}</span>
             <span

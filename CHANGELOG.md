@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.151.1] - 2026-07-11
+
+### Added
+- **Agent avatar working indicator** - the agent avatar in the terminal header and flat-view header now gently breathes and glows while the agent is working, giving an at-a-glance busy cue (respects `prefers-reduced-motion`).
+
+### Changed
+- **Clearer update controls in the app** - on the native (APK) app, the About screen's npm-based "Auto-update" and "Automatic updates" controls are retitled "Server auto-update" so they aren't confused with the in-app APK updater, and their non-actionable variants (dev mode, non-npm global, unsupported install) are hidden on the phone where they were pure noise.
+
 ## [1.151.0] - 2026-07-11
 
 ### Added
