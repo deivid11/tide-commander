@@ -74,7 +74,7 @@ export class RunnerProcessLifecycle {
         // turn. Finalize open text/thinking streams before the tool card so
         // intermediate status lines stay separate from the final answer.
         if (event.type === 'tool_start' && typeof this.backend.breakOpenStreams === 'function') {
-          const breaks = this.backend.breakOpenStreams();
+          const breaks = this.backend.breakOpenStreams(agentId);
           for (const ev of breaks) {
             this.stdoutPipeline.emitStandardEvent(agentId, ev);
           }

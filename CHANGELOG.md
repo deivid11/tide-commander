@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.150.2] - 2026-07-10
+
+### Fixed
+- **Concurrent-agent stream corruption** - Claude, Codex, Grok, and OpenCode backends now key their per-turn parser state (stream uuids, accumulated text, working dir) by `agentId`. A single backend instance serves every agent of a provider, so two agents streaming at once no longer reset each other's stream state — no more dropped deltas, stuck streaming rows, or duplicate final bubbles.
+- **Re-fading rows on scroll** - the complete-block fade is gated to once per row per page session, so scrolling a virtualized output list (or an agent switch remount) keeps settled rows static instead of replaying the fade.
+
+### Changed
+- **Live markdown streaming performance** - streamed markdown is split into a stable head (completed paragraphs, parsed once and memoized) and a live tail (only the current paragraph re-parses per chunk), replacing the O(n²) full-buffer re-parse that was the top CPU sink while agents type.
+- **Stream settle animation** - the complete-block fade uses a pure CSS animation with no forced reflow, so a wave of rows mounting on agent switch or scroll no longer layout-thrashes.
+
 ## [1.150.1] - 2026-07-10
 
 ### Changed

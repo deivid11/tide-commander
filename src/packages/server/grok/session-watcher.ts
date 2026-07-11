@@ -228,6 +228,8 @@ export function startGrokSessionWatcher(opts: GrokSessionWatcherOptions): GrokSe
   let tailTimer: ReturnType<typeof setInterval> | null = null;
   /** Dedupe key for last-emitted signals usage snapshot. */
   let lastSignalsUsageKey = '';
+  /** mtime+size of signals.json at last read — skip the 200ms-tick read+parse when unchanged. */
+  let lastSignalsStatKey = '';
 
   const emittedToolStarts = new Set<string>();
   const emittedToolResults = new Set<string>();
@@ -273,6 +275,16 @@ export function startGrokSessionWatcher(opts: GrokSessionWatcherOptions): GrokSe
 
   const pollSignalsUsage = () => {
     if (!sessionDirPath) return;
+    // signals.json is rewritten in place; stat is far cheaper than read+parse
+    // on every 200ms tick, and the file only changes a few times per turn.
+    try {
+      const st = fs.statSync(path.join(sessionDirPath, 'signals.json'));
+      const statKey = `${st.mtimeMs}:${st.size}`;
+      if (statKey === lastSignalsStatKey) return;
+      lastSignalsStatKey = statKey;
+    } catch {
+      return; // missing file — nothing to read
+    }
     const usage = readGrokSignalsUsage(sessionDirPath);
     if (!usage) return;
     const key = `${usage.contextTokensUsed}:${usage.contextWindowTokens}`;
@@ -470,6 +482,7 @@ export function startGrokSessionWatcher(opts: GrokSessionWatcherOptions): GrokSe
 
     // Seed context bar from existing signals (resume / mid-session attach).
     lastSignalsUsageKey = '';
+    lastSignalsStatKey = '';
     pollSignalsUsage();
 
     if (discoverTimer) {

@@ -1,21 +1,21 @@
 /**
- * Soft enter fade for LIVE terminal rows only:
- *  - tool chips (BASH / READ / EDIT / …)
- *  - final assistant responses (output-claude)
+ * Soft enter fade for LIVE tool chips (BASH / READ / EDIT / …) only.
+ * Assistant text rows fade via StreamFadeText's CompleteBlockFade — keeping
+ * them out of this selector avoids double-animating the same row.
  *
  * History rows must NOT animate — pass animate={false}.
  *
  * Session-scoped enterIds so virtualizer remounts do not re-flash chips.
- * MutationObserver covers Grok empty→args tool upgrades.
+ * MutationObserver covers Grok empty→args tool upgrades — attached ONLY while
+ * the row is still empty; rows that render non-matching content (thinking,
+ * user prompts, text) are marked seen immediately so live-stream DOM mutations
+ * don't re-run the scan dozens of times per second.
  */
 
 import React, { useLayoutEffect, useRef, type ReactNode } from 'react';
 
 /** Live lines that should soft-enter when they first appear. */
-const ENTER_SELECTOR = [
-  '.output-line.output-tool-use:not(.output-thinking)',
-  '.output-line.output-claude',
-].join(', ');
+const ENTER_SELECTOR = '.output-line.output-tool-use:not(.output-thinking)';
 
 /** Each logical row id animates at most once per page session. */
 const seenEnterIds = new Set<string>();
@@ -88,34 +88,40 @@ export function ToolChipEnter({
     if (!animate) return;
     const root = rootRef.current;
     if (!root || !enterId) return;
+    // Already animated this session (virtualizer remount) — nothing to do.
+    if (seenEnterIds.has(enterId)) return;
 
     const delay = Math.max(0, Math.min(staggerMs, 240));
 
+    let mo: MutationObserver | null = null;
     let raf2 = 0;
     const raf1 = requestAnimationFrame(() => {
       raf2 = requestAnimationFrame(() => {
         scanAndAnimate(root, enterId, delay);
+        if (seenEnterIds.has(enterId)) return;
+
+        if (root.childElementCount > 0) {
+          // The row rendered real content that doesn't match the selector
+          // (thinking / user / text rows). It will never become a tool chip —
+          // mark it seen so streaming DOM mutations don't keep re-scanning.
+          seenEnterIds.add(enterId);
+          return;
+        }
+
+        // Row rendered null (Grok early tool card without args) — the chip
+        // mounts later under the same key. Watch until it appears.
+        mo = new MutationObserver(() => {
+          scanAndAnimate(root, enterId, 0);
+          if (seenEnterIds.has(enterId)) mo?.disconnect();
+        });
+        mo.observe(root, { childList: true, subtree: true });
       });
     });
-
-    // Empty Grok tool rows render null first; chip mounts later under same key.
-    if (seenEnterIds.has(enterId)) {
-      return () => {
-        cancelAnimationFrame(raf1);
-        cancelAnimationFrame(raf2);
-      };
-    }
-
-    const mo = new MutationObserver(() => {
-      scanAndAnimate(root, enterId, 0);
-      if (seenEnterIds.has(enterId)) mo.disconnect();
-    });
-    mo.observe(root, { childList: true, subtree: true });
 
     return () => {
       cancelAnimationFrame(raf1);
       cancelAnimationFrame(raf2);
-      mo.disconnect();
+      mo?.disconnect();
     };
   }, [enterId, staggerMs, animate]);
 

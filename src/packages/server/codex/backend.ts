@@ -92,14 +92,27 @@ export function buildCodexPrompt(config: BackendConfig): string {
 
 export class CodexBackend implements CLIBackend {
   readonly name = 'codex';
-  private parser = new CodexJsonEventParser({ enableFileDiffEnrichment: true });
+  // ONE CodexBackend serves every Codex agent — parser state (streamed text
+  // accumulators, working dir for diff enrichment) must be per agent or
+  // concurrent agents corrupt each other's turn state.
+  private parsers = new Map<string, CodexJsonEventParser>();
   // Prompts are passed via stdin (not argv) so large prompts (skills + system
   // prompt + class instructions) don't blow past tmux's ~16KB argv limit,
   // which silently rejects the spawn with "command too long".
   private pendingStdinPrompt: string | undefined;
 
+  private parserFor(agentId?: string): CodexJsonEventParser {
+    const key = agentId || '__default';
+    let parser = this.parsers.get(key);
+    if (!parser) {
+      parser = new CodexJsonEventParser({ enableFileDiffEnrichment: true });
+      this.parsers.set(key, parser);
+    }
+    return parser;
+  }
+
   buildArgs(config: BackendConfig): string[] {
-    this.parser.setWorkingDirectory(config.workingDir);
+    this.parserFor(config.agentId).setWorkingDirectory(config.workingDir);
     this.pendingStdinPrompt = buildCodexPrompt(config);
     const args: string[] = ['exec', '--experimental-json'];
     // Codex renamed [features].collab → [features].multi_agent. Enable the new
@@ -156,8 +169,8 @@ export class CodexBackend implements CLIBackend {
     return args;
   }
 
-  parseEvent(rawEvent: unknown): StandardEvent | StandardEvent[] | null {
-    const events = this.parser.parseEvent(rawEvent);
+  parseEvent(rawEvent: unknown, agentId?: string): StandardEvent | StandardEvent[] | null {
+    const events = this.parserFor(agentId).parseEvent(rawEvent);
     if (events.length === 0) return null;
     return events.length === 1 ? events[0] : events;
   }
