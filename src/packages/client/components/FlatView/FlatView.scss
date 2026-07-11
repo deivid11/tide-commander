@@ -917,11 +917,13 @@ body.flat-splitter-dragging {
     flex-direction: row;
     align-items: center;
     gap: 12px;
-    padding: 6px 12px;
+    // Extra top pad so the working avatar bounce is not clipped by the wrapper
+    padding: 10px 12px 6px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     background: $bg-secondary;
     flex-shrink: 0;
     min-height: 40px;
+    overflow: visible;
   }
 
   &__header-main {
@@ -985,24 +987,12 @@ body.flat-splitter-dragging {
     }
 
     &.is-working {
-      border-color: rgba(139, 233, 253, 0.85);
-      animation: flat-header-avatar-working 1.4s ease-in-out infinite;
+      border-color: rgba(139, 233, 253, 0.55);
+      // Status feedback — always animate while working (do not honor
+      // prefers-reduced-motion here; users treat this as a live activity cue).
+      animation: flat-header-avatar-bounce 0.9s ease-in-out infinite !important;
       z-index: 1;
-
-      // Expanding pulse ring
-      &::after {
-        content: '';
-        position: absolute;
-        inset: -4px;
-        border-radius: 11px;
-        border: 2px solid rgba(139, 233, 253, 0.75);
-        pointer-events: none;
-        animation: flat-header-avatar-ring 1.4s ease-out infinite;
-      }
-
-      > * {
-        animation: flat-header-avatar-icon 0.7s ease-in-out infinite;
-      }
+      will-change: transform;
     }
   }
 
@@ -2144,9 +2134,11 @@ body.flat-splitter-dragging {
   // complaint). Identity flexes to fill, meta hugs its content on the right.
   .flat-terminal-wrapper__header {
     flex-wrap: nowrap;
-    padding: 6px 10px;
+    // Keep top room so the working avatar bounce is not clipped
+    padding: 10px 10px 6px;
     gap: 8px;
     min-height: 40px;
+    overflow: visible;
   }
 
   .flat-terminal-wrapper__header-main {
@@ -2474,55 +2466,16 @@ body.flat-splitter-dragging {
   50% { box-shadow: 0 0 6px 1px rgba(139, 233, 253, 0.7); }
 }
 
-// Flat terminal header agent icon — working / loading feedback
-@keyframes flat-header-avatar-working {
+// Flat terminal header agent icon — soft bounce while working / loading
+@keyframes flat-header-avatar-bounce {
   0%, 100% {
-    transform: scale(1);
-    box-shadow: 0 0 8px rgba(139, 233, 253, 0.45);
-    filter: brightness(1);
+    transform: translateY(0) scale(1);
   }
   50% {
-    transform: scale(1.08);
-    box-shadow:
-      0 0 16px rgba(139, 233, 253, 0.85),
-      0 0 28px rgba(74, 158, 255, 0.4);
-    filter: brightness(1.12);
+    transform: translateY(-5px) scale(1.03);
   }
 }
 
-@keyframes flat-header-avatar-ring {
-  0% {
-    opacity: 0.9;
-    transform: scale(0.92);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1.35);
-  }
-}
-
-@keyframes flat-header-avatar-icon {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-2px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .flat-terminal-wrapper__header-avatar.is-working {
-    animation: none;
-    box-shadow: 0 0 10px rgba(139, 233, 253, 0.55);
-
-    &::after {
-      animation: none;
-      opacity: 0.55;
-      transform: none;
-    }
-
-    > * {
-      animation: none;
-    }
-  }
-}
+// Note: intentionally no prefers-reduced-motion kill for header avatar bounce.
+// That media query left only a cyan border on systems with reduced-motion on,
+// which made the working indicator look broken.
