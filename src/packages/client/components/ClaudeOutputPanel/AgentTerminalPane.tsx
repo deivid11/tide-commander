@@ -77,6 +77,13 @@ import { VirtualizedOutputList } from './VirtualizedOutputList';
 const LIVE_DUPLICATE_WINDOW_MS = 10_000;
 const HISTORY_OUTPUT_DUPLICATE_WINDOW_MS = 30_000;
 const HISTORY_ASSISTANT_OUTPUT_DUPLICATE_WINDOW_MS = 120_000;
+/**
+ * Live thinking rows vs persisted reasoning entries: uuids never match (live
+ * mints grok-thinking-* / claude-stream-*; history has the entry id), so dedup
+ * is content-based. Wide window — a long reasoning block can stream minutes
+ * before the entry is flushed, and identical reasoning twice in 10min = same turn.
+ */
+const HISTORY_THINKING_OUTPUT_DUPLICATE_WINDOW_MS = 600_000;
 /** Live tool chip vs history tool_use: Grok early uuid ≠ call id, so uuid dedup misses. */
 const HISTORY_TOOL_OUTPUT_DUPLICATE_WINDOW_MS = 180_000;
 /** Two live rows for the same tool call (early + call-* dual emit). */
@@ -92,6 +99,18 @@ function normalizeUserMessage(text: string): string {
 
 function normalizeAssistantMessage(text: string): string {
   return text.trim().replace(/\r\n/g, '\n');
+}
+
+/**
+ * Dedup key for thinking rows. Live rows accumulate streamed chunks while
+ * session history joins reasoning summary parts with '\n' — the same reasoning
+ * can differ in internal whitespace between the two, so collapse it.
+ */
+function normalizeThinkingMessage(text: string): string {
+  return text
+    .replace(/^\s*\[thinking\]\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function isToolOrSystemOutput(text: string): boolean {
@@ -577,6 +596,8 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     // that bash/tool live outputs replaying a persisted turn get deduped too.
     const historyKnownUuidSet = new Set<string>();
     const latestHistoryAssistantTsByKey = new Map<string, number>();
+    // Normalized reasoning text → latest history ts ([thinking] assistant lines)
+    const latestHistoryThinkingTsByKey = new Map<string, number>();
     // toolName::keyParam → latest history timestamp (Grok early≠call uuid)
     const latestHistoryToolTsByKey = new Map<string, number>();
     for (const msg of dedupedHistory) {
@@ -606,6 +627,17 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
         continue;
       }
       if (msg.type !== 'assistant') continue;
+      // Reasoning entries load as assistant lines with a [thinking] prefix
+      // (session-loader) — index them under the thinking key so live thinking
+      // rows (whose uuids never match) can dedup by content.
+      if (/^\s*\[thinking\]/i.test(msg.content)) {
+        const thinkingKey = normalizeThinkingMessage(msg.content);
+        if (thinkingKey) {
+          const prevThinking = latestHistoryThinkingTsByKey.get(thinkingKey) ?? 0;
+          if (ts > prevThinking) latestHistoryThinkingTsByKey.set(thinkingKey, ts);
+        }
+        continue;
+      }
       const key = normalizeAssistantMessage(msg.content);
       const prev = latestHistoryAssistantTsByKey.get(key) ?? 0;
       if (ts > prev) latestHistoryAssistantTsByKey.set(key, ts);
@@ -614,6 +646,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       latestHistoryUserTsByKey,
       historyKnownUuidSet,
       latestHistoryAssistantTsByKey,
+      latestHistoryThinkingTsByKey,
       latestHistoryToolTsByKey,
     };
   }, [dedupedHistory]);
@@ -624,6 +657,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       latestHistoryUserTsByKey,
       historyKnownUuidSet,
       latestHistoryAssistantTsByKey,
+      latestHistoryThinkingTsByKey,
       latestHistoryToolTsByKey,
     } = historyDedupIndexes;
 
@@ -672,6 +706,19 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
               continue;
             }
             latestLiveToolTsByKey.set(toolKey, ts);
+          }
+        }
+
+        // Thinking rows: the live uuid (grok-thinking-*/claude-stream-*) never
+        // matches the persisted reasoning entry's uuid, so once the mid-turn
+        // history refresh delivers the same reasoning as a [thinking] assistant
+        // line, dedup by normalized content — otherwise every thinking block
+        // renders twice (live streamed row + history row).
+        if (!output.isStreaming && text.startsWith('[thinking]')) {
+          const thinkingKey = normalizeThinkingMessage(text);
+          const historyTs = thinkingKey ? latestHistoryThinkingTsByKey.get(thinkingKey) : undefined;
+          if (historyTs && Math.abs(ts - historyTs) <= HISTORY_THINKING_OUTPUT_DUPLICATE_WINDOW_MS) {
+            continue;
           }
         }
 
