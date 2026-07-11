@@ -315,7 +315,8 @@ export function useSwipeNavigation({
 
   const swipeEnabled = isOpen && sortedAgents.length > 1 && pinnedNavCount < 2;
   const sharedSwipeOpts = {
-    // Gesture direction intentionally inverted: swipe-left gesture → prev agent, swipe-right → next
+    // Physical swipe-left pulls in the NEXT agent, swipe-right the PREVIOUS one
+    // (handleSwipeLeft/Right are named after list direction, hence the crossed wiring)
     onSwipeLeft: handleSwipeRight,
     onSwipeRight: handleSwipeLeft,
     onDragStart: handleDragStart,
