@@ -511,6 +511,37 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
   const filteredOutputs = useFilteredOutputsWithLogging({ outputs: displayOutputs, viewMode });
 
+  // ── History freeze while reading scrolled-up ──
+  // Mid-turn session refreshes swap live rows for their persisted twins
+  // (different row keys, fresh height estimates) exactly where the user is
+  // reading — the virtualizer treats that as remove+insert and the viewport
+  // jumps. While auto-scroll is off, hold the APPLIED history constant; the
+  // pending refresh lands when the user returns to the very bottom (where
+  // auto-scroll immediately re-anchors), on send, or on agent switch.
+  // Exception: a changed FIRST entry means load-more prepended an older page —
+  // apply it (the list's prepend anchoring compensates scrollTop).
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  const frozenHistoryRef = useRef<{
+    items: EnrichedHistoryMessage[];
+    headUuid: string | undefined;
+  } | null>(null);
+  useEffect(() => {
+    frozenHistoryRef.current = null;
+  }, [agentId]);
+  const displayHistory = useMemo((): EnrichedHistoryMessage[] => {
+    if (shouldAutoScroll) {
+      frozenHistoryRef.current = null;
+      return filteredHistory;
+    }
+    const headUuid = filteredHistory[0]?.uuid;
+    const frozen = frozenHistoryRef.current;
+    if (!frozen || frozen.headUuid !== headUuid) {
+      frozenHistoryRef.current = { items: filteredHistory, headUuid };
+      return filteredHistory;
+    }
+    return frozen.items;
+  }, [filteredHistory, shouldAutoScroll]);
+
   // Remove duplicate user prompts from history
   const dedupedHistory = useMemo((): EnrichedHistoryMessage[] => {
     const result: EnrichedHistoryMessage[] = [];
@@ -520,7 +551,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     let lastUserKey: string | null = null;
     let lastUserTs = 0;
 
-    for (const msg of filteredHistory) {
+    for (const msg of displayHistory) {
       if (msg.type === 'assistant') {
         const assistantKey = msg.uuid
           ? `uuid:${msg.uuid}:${normalizeAssistantMessage(msg.content)}`
@@ -566,7 +597,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     }
 
     return result;
-  }, [filteredHistory]);
+  }, [displayHistory]);
 
   // Notify the parent the first time a Bash tool_use in dedupedHistory gains
   // its tool_result link (_bashOutput). Lets the parent close out a still-open
@@ -826,7 +857,8 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   //  We expose dedupedOutputs via ref so parent can do this if needed.)
 
   // ── Scroll management ──
-  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  // (shouldAutoScroll state is declared above the history-freeze memo, which
+  // depends on it to decide whether refreshes apply.)
   const isUserScrolledUpRef = useRef(false);
   const agentSwitchGraceRef = useRef(false);
   // Last observed scrollTop, so we can tell a genuine upward user scroll from
@@ -849,6 +881,10 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   const handleSendCommand = useCallback(() => {
     isUserScrolledUpRef.current = false;
     setShouldAutoScroll(true);
+    // Force the jump: the list's sticky-bottom write gate refuses auto-scroll
+    // while the viewport is up — sending your own message must still land the
+    // view at the bottom, and the pin loop is the sanctioned force path.
+    setPinToBottom(true);
   }, []);
 
   // Reset auto-scroll on agent change
@@ -874,10 +910,9 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     const prevScrollTop = lastScrollTopRef.current;
     lastScrollTopRef.current = scrollTop;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    const isAtBottom = distanceFromBottom < 150;
     // A genuine upward move (scrollTop decreased) means the user left the
     // bottom. Content growing under the viewport (a new agent message or
-    // reasoning completion) makes isAtBottom momentarily false WITHOUT scrollTop
+    // reasoning completion) grows distanceFromBottom WITHOUT scrollTop
     // decreasing — that must NOT disable auto-scroll, else the view jumps up.
     const scrolledUp = scrollTop < prevScrollTop - 1;
 
@@ -892,9 +927,10 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       // Deliberately NOT gated on the post-switch grace window (see below).
       isUserScrolledUpRef.current = true;
       setShouldAutoScroll(false);
-    } else if (isAtBottom && !scrolledUp) {
-      // Re-arm only when arriving at/staying near the bottom moving DOWN (or
-      // stationary) — an upward tick near the bottom must never re-enable.
+    } else if (distanceFromBottom <= 8 && !scrolledUp) {
+      // Re-arm ONLY at the very bottom moving DOWN (or stationary). The old
+      // 150px zone re-armed while the user was still reading just above the
+      // stream and the next chunk yanked them; "very bottom" is the contract.
       if (!agentSwitchGraceRef.current) {
         isUserScrolledUpRef.current = false;
         setShouldAutoScroll(true);

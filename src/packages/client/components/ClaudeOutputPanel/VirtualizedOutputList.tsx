@@ -324,6 +324,15 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
 
   // Track if we're programmatically scrolling (to avoid triggering onUserScroll)
   const isProgrammaticScrollRef = useRef(false);
+
+  // THE auto-scroll contract: follow the stream ONLY while the viewport sits at
+  // the very bottom. Updated synchronously on every scroll event (user or
+  // programmatic — programmatic writes land at the bottom, so they keep it
+  // latched), and checked at WRITE time by the auto-scroll effects below. This
+  // is immune to state-machine races: the moment the user scrolls up even a
+  // few px, the next write is refused no matter what shouldAutoScroll says.
+  // The pin path (agent switch / send / history load) bypasses it on purpose.
+  const stickyBottomRef = useRef(true);
   const prevItemCountRef = useRef(allItems.length);
   const agentSwitchGraceRef = useRef(false);
   // Ref for allItems count so scrollToBottom can read it without being recreated
@@ -379,6 +388,31 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
       return element.getBoundingClientRect().height;
     },
   });
+
+  // Anchor corrections: when a row whose start sits above the viewport
+  // re-measures, virtual-core shifts scrollTop by the delta so the visible
+  // content stays put (required for prepends/warm-up — see
+  // project_virtualized_prepend_anchor). EXCEPT the LAST row while the user
+  // reads scrolled-up: a big streaming response grows at its BOTTOM (below
+  // the reading point) but its start is above the viewport top, so the
+  // default correction dragged the view down on every chunk. Same for
+  // transient shrinks from live-markdown re-parses. Skip it there; when the
+  // user is at the bottom the auto-scroll follow makes it moot anyway.
+  // (Instance property in this virtual-core version, not a constructor option.)
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => {
+    if (!stickyBottomRef.current && item.index === allItemsCountRef.current - 1) {
+      return false;
+    }
+    // Replicate the library default. getScrollOffset/scrollAdjustments are
+    // private in the types but present at runtime (the default condition is
+    // `item.start < getScrollOffset() + scrollAdjustments`).
+    const inst = instance as unknown as {
+      getScrollOffset?: () => number;
+      scrollAdjustments?: number;
+    };
+    const offset = inst.getScrollOffset ? inst.getScrollOffset() : (instance.scrollOffset ?? 0);
+    return item.start < offset + (inst.scrollAdjustments ?? 0);
+  };
 
   // Release all DOM element references held by the virtualizer's internal
   // elementsCache when this component unmounts.  @tanstack/virtual-core's
@@ -510,6 +544,10 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
 
     prevItemCountRef.current = allItems.length;
 
+    // Write-time position gate: never move the viewport unless it was at the
+    // very bottom. New rows while the user reads just grow the scrollbar.
+    if (!stickyBottomRef.current) return;
+
     // Normal streaming case: scroll to bottom once when new content arrives.
     isProgrammaticScrollRef.current = true;
     scrollToBottom();
@@ -533,6 +571,8 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     if (pinToBottom) return; // pinToBottom has its own RAF loop
     if (totalSize <= prev) return; // only care about growth
     if (totalSize - prev < 2) return; // ignore sub-pixel changes
+    // Write-time position gate — see stickyBottomRef.
+    if (!stickyBottomRef.current) return;
 
     isProgrammaticScrollRef.current = true;
     scrollToBottom();
@@ -552,6 +592,9 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
 
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
     const scrolledUp = scrollTop < prevScrollTop - 1;
+
+    // Latch/unlatch the sticky-bottom write gate from the live position.
+    stickyBottomRef.current = distanceFromBottom <= 8;
 
     // Cancel pin mode on a genuine user scroll so we don't fight their finger.
     // isProgrammaticScrollRef cannot make that call here: the pin enforce loop

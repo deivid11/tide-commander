@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.150.5] - 2026-07-11
+
+### Fixed
+- **View jumping while you read scrolled-up** - the output list now follows the stream only when the viewport sits at the very bottom, enforced by a write-time position gate that is immune to state-machine races: the moment you scroll up even a few pixels, the next auto-scroll write is refused. Re-arming happens only at the very bottom (was a 150px zone that re-armed while you were still reading just above the stream).
+- **History refresh yanking the viewport** - a mid-turn session refresh no longer swaps live rows for their persisted twins under your reading point; the applied history is held frozen while you read scrolled-up and lands when you return to the bottom, send a message, or switch agents (a prepended older page still applies immediately).
+- **Streaming growth dragging the view down** - anchor corrections are skipped for the last row while you read scrolled-up, so a large streaming response growing at its bottom no longer pulls the viewport with it.
+- **Sending your own message** - sending now explicitly pins the view to the bottom, since the sticky-bottom write gate would otherwise refuse the jump while the viewport is up.
+
 ## [1.150.4] - 2026-07-11
 
 ### Fixed
