@@ -38,6 +38,7 @@
     "tmuxMode": "Tmux Process Persistence",
     "interactiveMode": "Interactive TUI Mode (Experimental)",
     "codexAppServerMode": "Codex Streaming / app-server (Experimental)",
+    "opencodeServerMode": "OpenCode Streaming / serve (Experimental)",
     "tts": "Text-to-Speech",
     "stt": "Speech-to-Text",
     "externalEditor": "External Editor",

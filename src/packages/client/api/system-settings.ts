@@ -234,6 +234,41 @@ export async function updateCodexAppServerModeSetting(enabled: boolean): Promise
 }
 
 /**
+ * Get the current experimental OpenCode server (streaming) mode setting
+ */
+export async function fetchOpencodeServerModeSetting(): Promise<boolean> {
+  const token = getAuthToken();
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/opencode-server-mode`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch opencode server mode setting: ${response.statusText}`);
+  }
+  const data = await response.json();
+  return data.enabled || false;
+}
+
+/**
+ * Update the experimental OpenCode server (streaming) mode setting
+ */
+export async function updateOpencodeServerModeSetting(enabled: boolean): Promise<void> {
+  const token = getAuthToken();
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/opencode-server-mode`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ enabled }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update opencode server mode setting: ${response.statusText}`);
+  }
+}
+
+/**
  * Backup scheduler status returned by the backend.
  */
 export interface BackupStatus {

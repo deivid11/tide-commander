@@ -197,6 +197,9 @@ export interface Settings {
   // Experimental: run Codex agents through a persistent `codex app-server`
   // process so replies stream word-by-word (server-synced)
   codexAppServerMode: boolean;
+  // Experimental: run OpenCode agents through a persistent `opencode serve`
+  // process so replies stream word-by-word (server-synced)
+  opencodeServerMode: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -217,7 +220,9 @@ export const DEFAULT_SETTINGS: Settings = {
   streamTextLive: true,
   tmuxMode: false,
   interactiveMode: false,
-  codexAppServerMode: false,
+  // Streaming (persistent server) is the default for Codex + OpenCode agents.
+  codexAppServerMode: true,
+  opencodeServerMode: true,
 };
 
 // Store state

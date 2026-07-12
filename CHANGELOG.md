@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.155.0] - 2026-07-12
+
+### Added
+- **OpenCode streaming (serve) mode** - a new experimental Settings toggle ("OpenCode Streaming / serve") runs OpenCode agents through a persistent `opencode serve` (SSE) process so replies type out word-by-word instead of landing as one block. The server runs detached and survives commander restarts (in-flight turns keep running and auto-reconnect), reuses the existing OpenCode event parser, and a per-launch router picks run-vs-serve; the toggle applies to new turns with no server restart needed. This mirrors the Codex app-server streaming mode.
+
 ## [1.154.0] - 2026-07-12
 
 ### Added
