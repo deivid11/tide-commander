@@ -348,3 +348,56 @@ export function setInteractiveModeEnabled(enabled: boolean): void {
     throw error;
   }
 }
+
+// ============================================================================
+// Codex App-Server Mode Setting
+// ============================================================================
+//
+// Experimental: when enabled, Codex agents run through a persistent
+// `codex app-server` JSON-RPC process instead of one `codex exec` process per
+// turn. The app-server protocol streams word-by-word agent-message deltas
+// (item/agentMessage/delta), which `codex exec --experimental-json` never
+// emits, so this is the only way Codex replies can typewriter in the UI.
+// Like interactive mode, the setting is read live at each launch — no server
+// restart needed to switch.
+
+const CODEX_APP_SERVER_MODE_FILE = path.join(DATA_DIR, 'codex-app-server-mode.json');
+
+interface CodexAppServerModeSetting {
+  enabled: boolean;
+  updatedAt: number;
+}
+
+/**
+ * Check if experimental Codex app-server (streaming) mode is enabled.
+ */
+export function isCodexAppServerModeEnabled(): boolean {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(CODEX_APP_SERVER_MODE_FILE)) {
+      const data: CodexAppServerModeSetting = JSON.parse(fs.readFileSync(CODEX_APP_SERVER_MODE_FILE, 'utf-8'));
+      return data.enabled;
+    }
+  } catch (error: any) {
+    log.error(` Failed to load codex app-server mode setting: ${error.message}`);
+  }
+  return false;
+}
+
+/**
+ * Enable/disable experimental Codex app-server (streaming) mode.
+ */
+export function setCodexAppServerModeEnabled(enabled: boolean): void {
+  ensureDataDir();
+  const data: CodexAppServerModeSetting = {
+    enabled,
+    updatedAt: Date.now(),
+  };
+  try {
+    fs.writeFileSync(CODEX_APP_SERVER_MODE_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    log.log(` Codex app-server mode setting updated: enabled=${enabled}`);
+  } catch (error: any) {
+    log.error(` Failed to save codex app-server mode setting: ${error.message}`);
+    throw error;
+  }
+}

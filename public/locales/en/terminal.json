@@ -1323,6 +1323,12 @@
     "renamed": "Renamed \"{{from}}\" → \"{{to}}\".",
     "deleted": "Deleted profile \"{{name}}\".",
     "noProfiles": "No named profiles yet. Save the active account with a name (e.g. david, jc) to create one.",
-    "tokenExpires": "token expires {{time}}"
+    "tokenExpires": "token expires {{time}}",
+    "gaugeSession": "Session",
+    "gaugeWeek": "Week",
+    "gaugeWeekOpus": "Opus wk",
+    "gaugeNoSession": "no active session",
+    "providerTitle": "{{provider}} Accounts",
+    "providerHelp": "Named copies of {{dir}}/auth.json. Switch the active {{provider}} account when you hit rate limits — same as renaming the file manually."
   }
 }

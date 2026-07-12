@@ -25,6 +25,7 @@
     "showFPS": "FPS anzeigen",
     "fpsLimit": "FPS-Limit",
     "powerSaving": "Energiesparmodus",
+    "lowPowerMode": "Energiesparmodus (niedrig)",
     "tts": "Text-zu-Sprache",
     "stt": "Sprache-zu-Text",
     "externalEditor": "Externer Editor",

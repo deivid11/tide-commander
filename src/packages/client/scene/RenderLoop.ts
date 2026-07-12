@@ -56,6 +56,12 @@ export class RenderLoop {
   private idleThreshold = 2000;
   private idleFpsLimit = 10;
 
+  // Low power mode (mobile battery saver): hard-caps active FPS and drops
+  // idle FPS below the regular power-saving floor.
+  private lowPowerMode = false;
+  private lowPowerMaxFps = 20;
+  private lowPowerIdleFpsLimit = 5;
+
   // Indicator scaling
   private scale3d = 1.0;
   private performanceProfile = getScenePerformanceProfile();
@@ -86,10 +92,18 @@ export class RenderLoop {
 
   setPowerSaving(enabled: boolean): void {
     this.powerSavingEnabled = enabled;
-    if (!enabled) {
+    if (!enabled && !this.lowPowerMode) {
       this.isIdle = false;
     }
     console.log(`[Tide] Power saving ${enabled ? 'enabled' : 'disabled'}`);
+  }
+
+  setLowPowerMode(enabled: boolean): void {
+    this.lowPowerMode = enabled;
+    if (!enabled && !this.powerSavingEnabled) {
+      this.isIdle = false;
+    }
+    console.log(`[Tide] Low power mode ${enabled ? 'enabled' : 'disabled'}`);
   }
 
   setScale3D(scale: number): void {
@@ -180,14 +194,22 @@ export class RenderLoop {
     // Check idle state
     const hasWorkingAgents = this.hasWorkingAgents();
 
-    if (this.powerSavingEnabled && !hasWorkingAgents && !this.isIdle && now - this.lastActivityTime > this.idleThreshold) {
+    const powerSavingActive = this.powerSavingEnabled || this.lowPowerMode;
+    if (powerSavingActive && !hasWorkingAgents && !this.isIdle && now - this.lastActivityTime > this.idleThreshold) {
       this.isIdle = true;
     } else if (hasWorkingAgents && this.isIdle) {
       this.isIdle = false;
     }
 
     // FPS limiting
-    let effectiveFpsLimit = (this.powerSavingEnabled && this.isIdle) ? this.idleFpsLimit : this.fpsLimit;
+    let effectiveFpsLimit = (powerSavingActive && this.isIdle)
+      ? (this.lowPowerMode ? this.lowPowerIdleFpsLimit : this.idleFpsLimit)
+      : this.fpsLimit;
+    if (this.lowPowerMode) {
+      effectiveFpsLimit = effectiveFpsLimit > 0
+        ? Math.min(effectiveFpsLimit, this.lowPowerMaxFps)
+        : this.lowPowerMaxFps;
+    }
     if (this.performanceProfile.maxFps > 0) {
       effectiveFpsLimit = effectiveFpsLimit > 0
         ? Math.min(effectiveFpsLimit, this.performanceProfile.maxFps)

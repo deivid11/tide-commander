@@ -180,3 +180,15 @@ export function usePowerSaving(
     sceneRef.current?.setPowerSaving(powerSaving);
   }, [sceneRef, powerSaving]);
 }
+
+/**
+ * Hook to apply low power mode (mobile battery saver) to the scene.
+ */
+export function useLowPowerMode(
+  sceneRef: React.RefObject<SceneManager | null>,
+  lowPowerMode: boolean
+): void {
+  useEffect(() => {
+    sceneRef.current?.setLowPowerMode(lowPowerMode);
+  }, [sceneRef, lowPowerMode]);
+}

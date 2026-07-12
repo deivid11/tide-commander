@@ -25,6 +25,7 @@
     "showFPS": "Afficher les FPS",
     "fpsLimit": "Limite de FPS",
     "powerSaving": "Économie d'énergie",
+    "lowPowerMode": "Mode basse consommation",
     "tts": "Synthèse vocale",
     "stt": "Reconnaissance vocale",
     "externalEditor": "Éditeur externe",

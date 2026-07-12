@@ -413,6 +413,12 @@ export function useSceneSetup({
           scene.setWorkingAnimation(savedConfig.animations.workingAnimation);
           scene.setFpsLimit(savedConfig.fpsLimit);
 
+          // Apply power settings now — the scene can be created after the
+          // usePowerSaving/useLowPowerMode effects already ran against a null ref.
+          const settings = store.getSettings();
+          scene.setPowerSaving(settings.powerSaving === true);
+          scene.setLowPowerMode(settings.lowPowerMode === true);
+
           // Sync areas and buildings immediately (don't need to wait for models)
           scene.syncAreas();
           scene.syncBuildings();

@@ -174,6 +174,8 @@ export function useSpotlightSearch({
   const commands: SearchResult[] = useMemo(() => {
     if (!isOpen) return [];
 
+    // Keyboard-shortcut subtitles are meaningless on touch devices
+    const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
     const spawnShortcut = shortcuts.find((s) => s.id === 'spawn-agent');
     const commanderShortcut = shortcuts.find((s) => s.id === 'toggle-commander');
 
@@ -182,7 +184,7 @@ export function useSpotlightSearch({
         id: 'cmd-spawn',
         type: 'command',
         title: 'Spawn New Agent',
-        subtitle: spawnShortcut ? formatShortcut(spawnShortcut) : 'Alt+N',
+        subtitle: coarsePointer ? '' : (spawnShortcut ? formatShortcut(spawnShortcut) : 'Alt+N'),
         icon: <Icon name="plus" size={16} />,
         action: () => {
           onCloseRef.current();
@@ -193,7 +195,7 @@ export function useSpotlightSearch({
         id: 'cmd-commander',
         type: 'command',
         title: 'Commander View',
-        subtitle: commanderShortcut?.key ? formatShortcut(commanderShortcut) : 'Tab',
+        subtitle: coarsePointer ? '' : (commanderShortcut?.key ? formatShortcut(commanderShortcut) : 'Tab'),
         icon: <Icon name="dashboard" size={16} />,
         action: () => {
           onCloseRef.current();

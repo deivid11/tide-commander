@@ -163,6 +163,10 @@ export interface Settings {
   hideCost: boolean;
   showFPS: boolean;
   powerSaving: boolean; // Experimental: Reduce FPS when idle to save power
+  // Low power mode (aimed at mobile): caps scene FPS, freezes decorative CSS
+  // animations (html.low-power) and suppresses word-by-word streaming.
+  // false = current/normal behavior.
+  lowPowerMode: boolean;
   // Custom agent names for random selection
   customAgentNames: string[];
   // Experimental features (disabled by default)
@@ -190,6 +194,9 @@ export interface Settings {
   // Experimental: run Claude agents as the real interactive TUI inside tmux,
   // reconstructing the conversation from the session transcript (server-synced)
   interactiveMode: boolean;
+  // Experimental: run Codex agents through a persistent `codex app-server`
+  // process so replies stream word-by-word (server-synced)
+  codexAppServerMode: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -197,6 +204,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hideCost: true,
   showFPS: false,
   powerSaving: false,
+  lowPowerMode: false,
   customAgentNames: [],
   experimental2DView: false,
   experimentalVoiceAssistant: false,
@@ -209,6 +217,7 @@ export const DEFAULT_SETTINGS: Settings = {
   streamTextLive: true,
   tmuxMode: false,
   interactiveMode: false,
+  codexAppServerMode: false,
 };
 
 // Store state

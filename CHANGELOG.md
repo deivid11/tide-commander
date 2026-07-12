@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.154.0] - 2026-07-12
+
+### Added
+- **Grok & Codex account switching** - new "Grok Accounts" and "Codex Accounts" settings sections with the same switcher UX as Claude: list saved account profiles, switch the active account when rate-limited, and save/rename/delete named profiles (optionally stashing the current login first). Each row shows email, plan label, and token expiry; tokens never leave the server.
+- **Per-account Claude usage gauges** - the Claude Accounts switcher now shows session (5h), weekly, and Opus-weekly rate-limit gauges for each stored account, transparently refreshing dormant tokens so limits stay visible even for accounts that haven't run in days.
+- **Codex streaming (app-server) mode** - a new experimental Settings toggle runs Codex agents through a persistent `codex app-server` process so replies type out word-by-word instead of landing as one block. The daemon runs detached and survives commander restarts (in-flight turns keep running and auto-reconnect); the toggle applies to new turns with no server restart needed.
+- **Low Power mode** - a new Settings toggle (mobile battery saver) hard-caps the 3D scene to 20 FPS active / 5 idle, freezes decorative CSS animations (status pulses, shimmers, spinners, avatar sway), and disables word-by-word text streaming.
+
+### Changed
+- **Mobile UI pass** - touch targets across the app lifted to comfortable tap sizes, text inputs bumped to 16px so iOS Safari stops auto-zooming on focus, agent header action icons wrap to their own full-width row, the chat header shows a two-line model/harness subtitle, and Spotlight adapts to touch (hides keyboard-shortcut hints, swipeable category tabs).
+- **Localization** - added translations for the new Grok/Codex account sections and usage-gauge labels across the supported languages.
+
+### Fixed
+- **Android UI update delivery** - the APK now retries its first web-bundle check with backoff and re-checks each time the app returns to the foreground (throttled), so phones pick up new UI releases within minutes instead of potentially waiting up to an hour on the old interface.
+
 ## [1.153.0] - 2026-07-11
 
 ### Added

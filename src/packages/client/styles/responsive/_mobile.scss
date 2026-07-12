@@ -1160,6 +1160,8 @@
     // Use min-height but don't auto-resize beyond a reasonable amount
     min-height: 36px;
     max-height: 120px;
+    // ≥16px so iOS Safari doesn't auto-zoom the page when the input focuses
+    font-size: 16px;
   }
 
   // Hide guake agent links on mobile - use the bottom agent bar instead
@@ -1636,14 +1638,23 @@
     display: none;
   }
 
-  // Agent header action icons — touch-friendly sizing
+  // Agent header actions — drop to their own full-width row under the agent
+  // name (side-column wrapping left a tall dead-space grid next to the name).
+  .unit-panel-header {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
   .unit-header-actions {
-    gap: 2px;
+    flex-basis: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+    gap: 6px;
   }
 
   .unit-action-icon {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     font-size: 14px;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
@@ -2307,5 +2318,92 @@
       justify-content: center;
       font-size: 1em;
     }
+  }
+
+  // ── Touch-target minimums ──────────────────────────────────────────────
+  // Controls audited at 16–28px on a 360px viewport; lift them to a usable
+  // tap size without reflowing their rows.
+
+  // Agents drawer (AgentOverviewPanel) header + area-group controls
+  .aop-search-toggle,
+  .aop-filters-toggle {
+    min-width: 36px;
+    min-height: 36px;
+    padding: 6px 10px;
+  }
+
+  .aop-area-eye-btn,
+  .aop-area-add-btn {
+    min-width: 32px;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  // Chat message + composer controls
+  .history-view-md-btn {
+    min-width: 36px;
+    min-height: 32px;
+  }
+
+  .guake-stop-btn {
+    min-height: 38px;
+    padding: 6px 14px;
+  }
+
+  .guake-expand-btn {
+    min-width: 38px;
+    min-height: 38px;
+  }
+
+  .guake-task-banner {
+    min-height: 36px;
+  }
+
+  // Inspector (UnitPanel) small controls
+  .unit-session-history-find-btn {
+    min-height: 34px;
+    padding: 6px 12px;
+  }
+
+  .subordinate-badge-goto,
+  .subordinate-badge-unlink {
+    min-width: 38px;
+    min-height: 34px;
+  }
+
+  // Settings (Toolbox) small controls
+  .toolbox-close-btn {
+    min-width: 40px;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  // ≥16px so iOS Safari doesn't auto-zoom the page when these inputs focus,
+  // and wider than the desktop 50-60px so 16px text isn't truncated.
+  .toolbox-search-input,
+  .toolbox .config-input {
+    font-size: 16px;
+  }
+
+  .toolbox .config-input:not(.config-input-full) {
+    width: 150px;
+    max-width: 45vw;
+  }
+
+  .add-building-btn {
+    min-width: 36px;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .toolbox .chip {
+    min-height: 34px;
+    padding: 6px 12px;
   }
 }

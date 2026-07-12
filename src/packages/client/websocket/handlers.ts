@@ -276,9 +276,11 @@ export function handleServerMessage(message: ServerMessage): void {
       }, 'ws:output');
 
       // Optional: suppress word-by-word text/thinking for Claude & Grok when the
-      // user turns off streamTextLive. Final isStreaming:false rows still land.
+      // user turns off streamTextLive (or low power mode is on). Final
+      // isStreaming:false rows still land.
       if (output.isStreaming && !output.skillUpdate && !output.toolName) {
-        const streamLive = store.getSettings().streamTextLive !== false;
+        const settings = store.getSettings();
+        const streamLive = settings.streamTextLive !== false && settings.lowPowerMode !== true;
         if (!streamLive) {
           const agent = store.getState().agents.get(output.agentId);
           const provider = agent?.provider || 'claude';
@@ -645,7 +647,8 @@ export function handleServerMessage(message: ServerMessage): void {
       };
       // Same live-stream gate as terminal `output` for Claude/Grok subordinates.
       if (isStreaming && !toolName) {
-        const streamLive = store.getSettings().streamTextLive !== false;
+        const settings = store.getSettings();
+        const streamLive = settings.streamTextLive !== false && settings.lowPowerMode !== true;
         if (!streamLive) {
           const agent = store.getState().agents.get(subordinateId);
           const provider = agent?.provider || 'claude';

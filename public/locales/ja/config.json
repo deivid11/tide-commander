@@ -25,6 +25,7 @@
     "showFPS": "FPSを表示",
     "fpsLimit": "FPS制限",
     "powerSaving": "省電力モード",
+    "lowPowerMode": "低電力モード",
     "tts": "テキスト読み上げ",
     "stt": "音声認識",
     "externalEditor": "外部エディタ",

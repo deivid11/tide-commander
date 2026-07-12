@@ -25,6 +25,7 @@
     "showFPS": "显示帧率",
     "fpsLimit": "帧率限制",
     "powerSaving": "省电模式",
+    "lowPowerMode": "低功耗模式",
     "tts": "文字转语音",
     "stt": "语音转文字",
     "externalEditor": "外部编辑器",

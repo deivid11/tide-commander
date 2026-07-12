@@ -16,7 +16,9 @@
     "experimental": "Experimental",
     "about": "Acerca de",
     "sky": "Color del Cielo",
-    "systemPrompt": "Prompt de sistema"
+    "systemPrompt": "Prompt de sistema",
+    "grokAccounts": "Cuentas de Grok",
+    "codexAccounts": "Cuentas de Codex"
   },
   "general": {
     "history": "Historial",
@@ -27,6 +29,7 @@
     "showFPS": "Mostrar FPS",
     "fpsLimit": "Limite de FPS",
     "powerSaving": "Ahorro de energia",
+    "lowPowerMode": "Modo bajo consumo",
     "tts": "Texto a voz",
     "stt": "Voz a texto",
     "externalEditor": "Editor externo",

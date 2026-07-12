@@ -35,6 +35,7 @@ export {
   useBuildingSync,
   useAreaHighlight,
   usePowerSaving,
+  useLowPowerMode,
 } from './useSceneSync';
 export { useKeyboardShortcuts } from './useKeyboardShortcuts';
 export { useBackNavigation } from './useBackNavigation';

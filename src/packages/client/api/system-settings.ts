@@ -199,6 +199,41 @@ export async function updateInteractiveModeSetting(enabled: boolean): Promise<vo
 }
 
 /**
+ * Get the current experimental Codex app-server (streaming) mode setting
+ */
+export async function fetchCodexAppServerModeSetting(): Promise<boolean> {
+  const token = getAuthToken();
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/codex-app-server-mode`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch codex app-server mode setting: ${response.statusText}`);
+  }
+  const data = await response.json();
+  return data.enabled || false;
+}
+
+/**
+ * Update the experimental Codex app-server (streaming) mode setting
+ */
+export async function updateCodexAppServerModeSetting(enabled: boolean): Promise<void> {
+  const token = getAuthToken();
+  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/codex-app-server-mode`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ enabled }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update codex app-server mode setting: ${response.statusText}`);
+  }
+}
+
+/**
  * Backup scheduler status returned by the backend.
  */
 export interface BackupStatus {

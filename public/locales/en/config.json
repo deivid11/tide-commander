@@ -21,7 +21,9 @@
     "integrations": "Integrations",
     "experimental": "Experimental",
     "about": "About",
-    "sky": "Sky Color"
+    "sky": "Sky Color",
+    "grokAccounts": "Grok Accounts",
+    "codexAccounts": "Codex Accounts"
   },
   "general": {
     "history": "History",
@@ -32,8 +34,10 @@
     "showFPS": "Show FPS",
     "fpsLimit": "FPS Limit",
     "powerSaving": "Power Saving",
+    "lowPowerMode": "Low Power Mode",
     "tmuxMode": "Tmux Process Persistence",
     "interactiveMode": "Interactive TUI Mode (Experimental)",
+    "codexAppServerMode": "Codex Streaming / app-server (Experimental)",
     "tts": "Text-to-Speech",
     "stt": "Speech-to-Text",
     "externalEditor": "External Editor",

@@ -991,6 +991,11 @@ body.flat-splitter-dragging {
       // Status feedback — always animate while working (do not honor
       // prefers-reduced-motion here; users treat this as a live activity cue).
       animation: flat-header-avatar-sway 1.2s ease-in-out infinite !important;
+
+      // Low power mode wins over the always-animate exception (battery saver).
+      html.low-power & {
+        animation: none !important;
+      }
       z-index: 1;
       will-change: transform;
       transform-origin: center center;
@@ -1981,6 +1986,21 @@ body.flat-splitter-dragging {
   .flat-inspector--closing {
     transform: translateX(100%);
   }
+
+  // Inspector chrome at touch sizes (tabs measured 22px, close 24px)
+  .flat-inspector__tab {
+    min-height: 36px;
+    padding: 6px 14px;
+  }
+
+  .flat-inspector__close {
+    min-width: 40px;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
 }
 
 // Tablet tweak: smaller left gutter and lighter header paddings. The FAB
@@ -2041,8 +2061,10 @@ body.flat-splitter-dragging {
   // horizontal room runs out instead of overflowing off-screen.
   .flat-middle__header {
     flex-wrap: wrap;
-    padding: 10px 12px;
-    gap: 8px;
+    // Tighter: this row stacks on top of the drawer's own header (stats +
+    // search + filters), so every px of chrome costs list space.
+    padding: 6px 10px;
+    gap: 6px;
   }
 
   .flat-middle__content {
@@ -2147,13 +2169,28 @@ body.flat-splitter-dragging {
   .flat-terminal-wrapper__header-main {
     flex: 1 1 auto;
     min-width: 0;
-    // Avatar + name + status only — model chip hides on narrow phones
     overflow: hidden;
+    // Two-line identity: name + status on top, model/harness subtitle below,
+    // avatar spanning both rows. Keeps the single header row (identity +
+    // toolbar side by side) while still showing which model the agent runs.
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'avatar info'
+      'avatar model';
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 0;
+  }
+
+  .flat-terminal-wrapper__header-avatar {
+    grid-area: avatar;
   }
 
   .flat-terminal-wrapper__header-info {
+    grid-area: info;
     min-width: 0;
-    flex: 1 1 auto;
+    align-self: end;
   }
 
   .flat-terminal-wrapper__header-name {
@@ -2172,9 +2209,29 @@ body.flat-splitter-dragging {
     text-overflow: ellipsis;
   }
 
-  // Hide model/provider chrome on mobile chat — available in agent info modal
+  // Model/harness subtitle — borderless compact variant of the desktop chip:
+  // provider icon + "model · effort" reads as a second line under the name.
   .flat-terminal-wrapper__header-model {
-    display: none;
+    grid-area: model;
+    align-self: start;
+    justify-self: start;
+    min-width: 0;
+    max-width: 100%;
+    gap: 4px;
+  }
+
+  .flat-terminal-wrapper__header-provider-icon {
+    width: 11px;
+    height: 11px;
+  }
+
+  .flat-terminal-wrapper__header-model-chip {
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+    font-size: 9px;
+    max-width: 100%;
   }
 
   .flat-terminal-wrapper__header-meta {
@@ -2345,9 +2402,10 @@ body.flat-splitter-dragging {
     font-size: 12px;
   }
 
+  // Model subtitle keeps its own grid row (see the 768px block), so no width
+  // cap — it may use the full identity column.
   .flat-terminal-wrapper__header-model-chip {
-    font-size: 9px;
-    max-width: 130px;
+    max-width: 100%;
   }
 
   // Fullscreen inspector overlay uses the standard header close, so the

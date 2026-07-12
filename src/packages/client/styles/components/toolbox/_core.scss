@@ -566,6 +566,10 @@
   animation: slide-in-left $transition-normal ease-out;
 
   @media (max-width: 768px) {
+    // Full width: the desktop 280px column cramps rows on a 360px phone
+    // (toggles clipped at the panel edge, inputs truncated).
+    width: 100vw;
+    max-width: 100vw;
     height: calc(100dvh - var(--mobile-bottom-stack-height, 72px));
   }
 }

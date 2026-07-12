@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Capacitor, type PluginListenerHandle } from '@capacitor/core';
+import { App } from '@capacitor/app';
 import { AppUpdateNative, type WebBundleNativeState } from '../utils/app-update-plugin';
 import { fetchWebBundleInfo, type WebBundleInfo } from '../api/system-update';
 import { getApiBaseUrl, getAuthToken } from '../utils/storage';
@@ -24,6 +25,16 @@ import { getVersionRelation } from '../../shared/version';
 const AUTO_SYNC_KEY = 'web_bundle_auto_sync';
 const CHECK_INTERVAL = 60 * 60 * 1000; // hourly, matches the other update checks
 const INITIAL_CHECK_DELAY = 8000; // let boot/WS settle before pulling a bundle
+// If that first check can't reach the server (WS still connecting, dist not
+// built yet, auth blip), retry with backoff instead of waiting a full hour —
+// otherwise a phone that opened just before the server was ready sits on the
+// old UI for up to CHECK_INTERVAL. Backoff caps once we assume it's genuinely
+// offline; the hourly tick and foreground re-check take over from there.
+const INITIAL_RETRY_BASE_DELAY = 15_000;
+const INITIAL_RETRY_MAX_DELAY = 5 * 60 * 1000;
+// Throttle foreground-triggered re-checks so rapid app switches don't hammer
+// the endpoint; still far tighter than the hourly poll.
+const MIN_RECHECK_MS = 2 * 60 * 1000;
 
 const CURRENT_VERSION = __APP_VERSION__;
 
@@ -46,6 +57,8 @@ export function useWebBundle({ manageLifecycle = false }: { manageLifecycle?: bo
   const syncingRef = useRef(false);
   const autoSyncRef = useRef(autoSync);
   autoSyncRef.current = autoSync;
+  // Timestamp of the last check attempt — throttles foreground re-checks.
+  const lastCheckAtRef = useRef(0);
 
   const refreshState = useCallback(async (): Promise<WebBundleNativeState | null> => {
     if (!isAndroid) return null;
@@ -104,9 +117,10 @@ export function useWebBundle({ manageLifecycle = false }: { manageLifecycle?: bo
    * assets at the same version we assume they match the release.
    */
   const checkNow = useCallback(
-    async (triggerAuto: boolean) => {
+    async (triggerAuto: boolean): Promise<boolean> => {
       const state = await refreshState();
-      if (!state) return;
+      if (!state) return false;
+      lastCheckAtRef.current = Date.now();
       setPhase((p) => (p === 'idle' ? 'checking' : p));
       try {
         const info = await fetchWebBundleInfo();
@@ -126,12 +140,16 @@ export function useWebBundle({ manageLifecycle = false }: { manageLifecycle?: bo
         setUpdateAvailable(needsSync);
         if (needsSync && triggerAuto && autoSyncRef.current) {
           await syncNow(info);
-          return;
         }
+        return true;
       } catch (err) {
-        // Typical in dev: the server has no built dist to serve (404)
+        // Typical in dev: the server has no built dist to serve (404).
+        // Also fires transiently right after boot before the server/WS are
+        // reachable — the caller retries so this doesn't strand the phone on
+        // the old UI until the next hourly tick.
         setServerInfo(null);
         setInfoError(err instanceof Error ? err.message : String(err));
+        return false;
       } finally {
         if (!syncingRef.current) setPhase('idle');
       }
@@ -156,17 +174,53 @@ export function useWebBundle({ manageLifecycle = false }: { manageLifecycle?: bo
   const clearError = useCallback(() => setError(null), []);
 
   // Lifecycle owner: confirm a healthy boot (disarms the native rollback),
-  // then check/auto-sync on a delay + hourly.
+  // then check/auto-sync on a delay + hourly + on every foreground.
   useEffect(() => {
     if (!manageLifecycle || !isAndroid) return;
     AppUpdateNative.confirmWebBundle().catch(() => {
       /* plugin missing on old APKs — nothing to confirm */
     });
-    const initial = setTimeout(() => void checkNow(true), INITIAL_CHECK_DELAY);
+
+    let cancelled = false;
+    const timers = new Set<ReturnType<typeof setTimeout>>();
+    let appListener: PluginListenerHandle | null = null;
+
+    // Initial check, retried with backoff until the server answers once. A
+    // single fixed-delay probe loses the race when boot/WS/dist aren't ready
+    // yet, then leaves the phone on the old UI until the hourly tick.
+    const scheduleInitial = (delay: number, nextDelay: number) => {
+      const timer = setTimeout(async () => {
+        timers.delete(timer);
+        if (cancelled) return;
+        const ok = await checkNow(true);
+        if (!ok && !cancelled && !syncingRef.current) {
+          scheduleInitial(nextDelay, Math.min(nextDelay * 2, INITIAL_RETRY_MAX_DELAY));
+        }
+      }, delay);
+      timers.add(timer);
+    };
+    scheduleInitial(INITIAL_CHECK_DELAY, INITIAL_RETRY_BASE_DELAY);
+
     const interval = setInterval(() => void checkNow(true), CHECK_INTERVAL);
+
+    // Re-check whenever the app returns to the foreground (throttled). Mobile
+    // spends most of its life backgrounded — and the JS socket is parked while
+    // it is — so without this a release can sit unseen until the hourly tick
+    // even though the user just reopened the app expecting the latest UI.
+    void App.addListener('appStateChange', ({ isActive }) => {
+      if (!isActive || cancelled || syncingRef.current) return;
+      if (Date.now() - lastCheckAtRef.current < MIN_RECHECK_MS) return;
+      void checkNow(true);
+    }).then((h) => {
+      if (cancelled) void h.remove();
+      else appListener = h;
+    });
+
     return () => {
-      clearTimeout(initial);
+      cancelled = true;
+      for (const timer of timers) clearTimeout(timer);
       clearInterval(interval);
+      if (appListener) void appListener.remove();
     };
   }, [manageLifecycle, isAndroid, checkNow]);
 
