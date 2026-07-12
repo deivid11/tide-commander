@@ -431,6 +431,21 @@ export function getCodexExecEditPaths(input: unknown): string[] {
   return paths;
 }
 
+/** Extract one file's section from a Codex `*** Begin Patch` payload. */
+export function getCodexExecPatchForFile(input: unknown, filePath: string): string | null {
+  const script = typeof input === 'string'
+    ? input
+    : input && typeof input === 'object'
+      ? String((input as Record<string, unknown>).input || (input as Record<string, unknown>).code || (input as Record<string, unknown>).script || '')
+      : '';
+  const normalized = script.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n');
+  const escaped = filePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = normalized.match(new RegExp(`^\\*\\*\\* (?:Update|Add|Delete) File:\\s*${escaped}\\s*$([\\s\\S]*?)(?=^\\*\\*\\* (?:Update|Add|Delete|End Patch)|(?![\\s\\S]))`, 'm'));
+  if (!match) return null;
+  const header = normalized.match(new RegExp(`^\\*\\*\\* (?:Update|Add|Delete) File:\\s*${escaped}\\s*$`, 'm'))?.[0];
+  return header ? `${header}${match[1]}`.trim() : null;
+}
+
 export interface CodexExecFileTarget {
   path: string;
   highlightRange?: { offset: number; limit: number };
