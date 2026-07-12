@@ -2277,13 +2277,11 @@ export function FlatView({
     });
   }, []);
 
-  // ── Mobile flat-map: areas collapse to header-only tiles so all of them
-  // fit on screen at once (preserving the spatial grid layout); tapping a
-  // header expands that area in place to reveal its agents. Single-selection
-  // — only one area is expanded at a time, so tapping a different area
-  // collapses the previous one. `null` means everything is collapsed. Only
-  // consulted while the (max-width: 768px) breakpoint is active; on desktop
-  // the area cards always render their full content.
+  // ── Mobile flat-map: areas collapse to readable two-column browse cards;
+  // tapping a header expands that area to full width to reveal its contents.
+  // Single-selection — only one area is expanded at a time, so tapping a
+  // different area collapses the previous one. `null` means everything is
+  // collapsed. Desktop continues to use the exact spatial map positions.
   const [isFlatMobile, setIsFlatMobile] = useState<boolean>(() =>
     typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
   );
@@ -2481,6 +2479,20 @@ export function FlatView({
 
     return { groups: [...assignedGroups, ...unassignedGroups], gridCols, gridRows, positions };
   }, [agents, areas, buildingsMap, activeWorkspace, selectedAgentId]);
+
+  const emptyChatStats = useMemo(() => {
+    let agentCount = 0;
+    let workingCount = 0;
+    for (const group of emptyChatGroups.groups) {
+      agentCount += group.agents.length;
+      workingCount += group.agents.filter(agent => agent.status === 'working').length;
+    }
+    return {
+      areaCount: emptyChatGroups.groups.length,
+      agentCount,
+      workingCount,
+    };
+  }, [emptyChatGroups]);
 
   // Right-click menu actions for agent chips in the empty-state overview.
   // Mirrors the Edit Agent / Delete Agent actions wired in AgentOverviewPanel so
@@ -2842,11 +2854,25 @@ export function FlatView({
               <div className="flat-map__header">
                 <span className="flat-map__title">🗺️ Areas</span>
                 <span className="flat-map__hint">Click an area to focus it, or an agent to chat</span>
+                <span className="flat-map__stats">
+                  <span>{emptyChatStats.areaCount} areas</span>
+                  <span>{emptyChatStats.agentCount} agents</span>
+                  {emptyChatStats.workingCount > 0 && (
+                    <span className="flat-map__stats-working">
+                      <span className="flat-map__stats-dot" aria-hidden="true" />
+                      {emptyChatStats.workingCount} working
+                    </span>
+                  )}
+                </span>
                 <ViewModeToggle className="flat-map__view-mode" />
               </div>
               <div
                 className="flat-map__grid"
-                style={{ gridTemplateColumns: `repeat(${emptyChatGroups.gridCols}, 1fr)` }}
+                style={{
+                  gridTemplateColumns: isFlatMobile
+                    ? 'repeat(2, minmax(0, 1fr))'
+                    : `repeat(${emptyChatGroups.gridCols}, 1fr)`,
+                }}
               >
                 {emptyChatGroups.groups.length === 0 ? (
                   <div className="flat-map__empty">
@@ -2854,34 +2880,32 @@ export function FlatView({
                   </div>
                 ) : (
                   (() => {
-                    // Compute the spatial row of the currently-expanded area
-                    // (mobile only) so we can drop the other cards on that
-                    // row from the render — the expanded card spans the full
-                    // grid width on its original row, and showing the other
-                    // chips underneath it would overlap or look broken.
-                    const expandedRow = (isFlatMobile && mobileExpandedAreaId)
-                      ? emptyChatGroups.positions.get(mobileExpandedAreaId)?.row ?? null
-                      : null;
-                    return emptyChatGroups.groups.map(group => {
+                    // Mobile keeps the map's broad spatial reading order, but
+                    // removes empty scene cells so every card has enough room
+                    // for its name and status. Desktop keeps exact positions.
+                    const visibleGroups = isFlatMobile
+                      ? [...emptyChatGroups.groups].sort((a, b) => {
+                          const aPos = emptyChatGroups.positions.get(a.area.id);
+                          const bPos = emptyChatGroups.positions.get(b.area.id);
+                          if (!aPos && !bPos) return 0;
+                          if (!aPos) return 1;
+                          if (!bPos) return -1;
+                          return aPos.row - bPos.row || aPos.col - bPos.col;
+                        })
+                      : emptyChatGroups.groups;
+                    return visibleGroups.map(group => {
                     const areaKey = group.area.id;
                     const pos = emptyChatGroups.positions.get(areaKey);
                     const isMobileCollapsed = isFlatMobile && mobileExpandedAreaId !== areaKey;
-                    if (
-                      isFlatMobile
-                      && expandedRow != null
-                      && pos?.row === expandedRow
-                      && areaKey !== mobileExpandedAreaId
-                    ) {
-                      return null;
-                    }
+                    const isMobileExpanded = isFlatMobile && !isMobileCollapsed;
                     return (
                       <div
                         key={areaKey}
-                        className={`flat-map-area-card${isMobileCollapsed ? ' flat-map-area-card--collapsed' : ''}`}
+                        className={`flat-map-area-card${isMobileCollapsed ? ' flat-map-area-card--collapsed' : ''}${isMobileExpanded ? ' flat-map-area-card--expanded' : ''}`}
                         style={{
                           '--area-color': group.area.color,
-                          gridRow: pos?.row,
-                          gridColumn: pos?.col,
+                          gridRow: isFlatMobile ? undefined : pos?.row,
+                          gridColumn: isFlatMobile ? undefined : pos?.col,
                         } as React.CSSProperties}
                         onContextMenu={(e) => {
                           if (!onAreaContextMenu) return;
@@ -2890,15 +2914,6 @@ export function FlatView({
                           onAreaContextMenu(areaKey, { x: e.clientX, y: e.clientY });
                         }}
                       >
-                        {group.area.logo?.filename && (
-                          <img
-                            className="flat-map-area-card__logo"
-                            src={getAreaLogoUrl(group.area.logo.filename)}
-                            alt=""
-                            aria-hidden="true"
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                          />
-                        )}
                         <button
                           type="button"
                           className="flat-map-area-card__header"
@@ -2912,8 +2927,24 @@ export function FlatView({
                             className="flat-map-area-card__color"
                             style={{ background: group.area.color }}
                           />
+                          {group.area.logo?.filename && (
+                            <img
+                              className="flat-map-area-card__logo"
+                              src={getAreaLogoUrl(group.area.logo.filename)}
+                              alt=""
+                              aria-hidden="true"
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
+                          )}
                           <span className="flat-map-area-card__name">{group.area.name}</span>
-                          <span className="flat-map-area-card__count">{group.agents.length}</span>
+                          <span
+                            className="flat-map-area-card__count"
+                            title={`${group.agents.length} agent${group.agents.length === 1 ? '' : 's'}`}
+                            aria-label={`${group.agents.length} agent${group.agents.length === 1 ? '' : 's'}`}
+                          >
+                            <Icon name="users" size={10} />
+                            {group.agents.length}
+                          </span>
                           {isFlatMobile && (
                             <Icon
                               name={isMobileCollapsed ? 'caret-down' : 'caret-up'}

@@ -6,7 +6,7 @@ import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHideCost, useSettings, ClaudeOutput, store, useAgentPrompts, type TestRunHandle, type HttpRunHandle } from '../../store';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getCodexExecEditPaths, getCodexExecFileTarget, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay, parseTaskNotification, TaskNotificationDisplay } from './BossContext';
@@ -223,6 +223,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   const hideCost = useHideCost();
   const settings = useSettings();
   const [expandedExecTasks, setExpandedExecTasks] = useState<Set<string>>(new Set());
+  const [execDetailExpanded, setExecDetailExpanded] = useState(false);
   const { text: rawText, isStreaming, isUserPrompt, timestamp, skillUpdate, _toolKeyParam, _editData, _todoInput, _bashOutput, _bashCommand, _isRunning } = output;
   const text = filterCostText(rawText, hideCost);
 
@@ -587,8 +588,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   // Handle tool usage with nice formatting
   if (text.startsWith('Using tool:')) {
     const toolName = text.replace('Using tool:', '').trim();
-    const displayToolName = getLocalizedToolName(toolName, t);
-    const iconName = getToolIconName(toolName);
+    const execPresentation = toolName === 'exec' ? getCodexExecPresentation(payloadToolInput) : null;
+    const renderedToolName = execPresentation?.toolName || toolName;
+    const displayToolName = getLocalizedToolName(renderedToolName, t);
+    const iconName = getToolIconName(renderedToolName);
 
     // Grok emits early tool_started with empty toolInput {}. Those cards would
     // render as bare "LIST FILES" / "TASK OUTPUT" / "READ" with no params —
@@ -865,6 +868,71 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             <span className="collab-prompt-preview" title={prompt}>{promptPreview}</span>
           )}
         </div>
+      );
+    }
+
+    if (execPresentation) {
+      const execScript = payloadToolInput && typeof payloadToolInput === 'object'
+        ? String((payloadToolInput as Record<string, unknown>).input || (payloadToolInput as Record<string, unknown>).code || (payloadToolInput as Record<string, unknown>).script || JSON.stringify(payloadToolInput, null, 2))
+        : String(payloadToolInput || '');
+      const execEditPaths = execPresentation.toolName === 'Edit' ? getCodexExecEditPaths(payloadToolInput) : [];
+      const opensDiffModal = execEditPaths.length > 0 && !!onFileClick;
+      const execFileTarget = (execPresentation.toolName === 'Read' || execPresentation.toolName === 'Grep')
+        ? getCodexExecFileTarget(payloadToolInput, payloadToolOutput)
+        : null;
+      const opensFileModal = !!execFileTarget && !!onFileClick;
+      const handleExecActivate = () => {
+        if (opensDiffModal) {
+          onFileClick(execEditPaths[0], { oldString: '', newString: '', operation: 'codex-patch' });
+          return;
+        }
+        if (opensFileModal && execFileTarget) {
+          onFileClick(execFileTarget.path, execFileTarget.highlightRange
+            ? { highlightRange: execFileTarget.highlightRange }
+            : undefined);
+          return;
+        }
+        setExecDetailExpanded((value) => !value);
+      };
+      return (
+        <>
+          <div
+            className={`output-line output-tool-use output-tool-simple codex-exec-row ${execDetailExpanded ? 'is-expanded' : ''} ${isStreaming ? 'output-streaming' : ''}`}
+            onClick={handleExecActivate}
+            role="button"
+            tabIndex={0}
+            aria-expanded={execDetailExpanded}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                handleExecActivate();
+              }
+            }}
+          >
+            <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
+            <span className="output-tool-name">{displayToolName}</span>
+            {execPresentation.filePaths?.slice(0, 2).map((path) => (
+              <span key={path} className="codex-file-chip" title={path}>
+                <Icon name="file-code" size={11} />
+                <span>{path.split('/').pop() || path}</span>
+              </span>
+            ))}
+            {(execPresentation.filePaths?.length || 0) > 2 && (
+              <span className="codex-file-chip codex-file-chip-more">+{execPresentation.filePaths!.length - 2}</span>
+            )}
+            <span className="output-tool-param">{execPresentation.detail}</span>
+            <span className="codex-exec-chevron"><Icon name={opensDiffModal || opensFileModal ? 'open-external' : execDetailExpanded ? 'caret-up' : 'caret-down'} size={13} /></span>
+          </div>
+          {execDetailExpanded && (
+            <div className="codex-exec-detail">
+              <div className="codex-exec-detail-label">Command details</div>
+              <pre>{execScript}</pre>
+              {payloadToolOutput && <><div className="codex-exec-detail-label">Result</div><pre>{payloadToolOutput}</pre></>}
+            </div>
+          )}
+        </>
       );
     }
 

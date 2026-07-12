@@ -76,4 +76,35 @@ describe('OpencodeServerEventAdapter', () => {
     expect(a.handle({ type: 'server.connected', properties: {} })).toEqual([]);
     expect(a.handle({ type: 'session.status', properties: { sessionID: SID } })).toEqual([]);
   });
+
+  it('renders reasoning deltas (field:text on a reasoning part) as thinking, NOT duplicated text', () => {
+    const a = new OpencodeServerEventAdapter();
+    // Real OpenCode shape: the reasoning part is announced first (type=reasoning,
+    // empty text), THEN its deltas arrive tagged field:'text'.
+    const announce = a.handle({ type: 'message.part.updated', properties: { sessionID: SID, part: { id: 'prt_r', type: 'reasoning', messageID: 'msg_a', text: '' } } });
+    const d1 = a.handle({ type: 'message.part.delta', properties: { sessionID: SID, partID: 'prt_r', messageID: 'msg_a', field: 'text', delta: 'Let me think' } });
+    const d2 = a.handle({ type: 'message.part.delta', properties: { sessionID: SID, partID: 'prt_r', messageID: 'msg_a', field: 'text', delta: ' about it' } });
+
+    expect(announce).toEqual([]); // empty text → nothing
+    // Deltas classified as THINKING (aligned to the part's real type), single uuid.
+    expect(d1).toEqual([{ type: 'thinking', text: 'Let me think', isStreaming: true, uuid: 'opencode-thinking-prt_r' }]);
+    expect(d2).toEqual([{ type: 'thinking', text: ' about it', isStreaming: true, uuid: 'opencode-thinking-prt_r' }]);
+    // No stray text row was produced for the reasoning content.
+    expect(d1.every((e) => e.type !== 'text')).toBe(true);
+  });
+
+  it('does NOT echo the user prompt: skips parts belonging to a user-role message', () => {
+    const a = new OpencodeServerEventAdapter();
+    // OpenCode announces the user message (role user), then streams its text part.
+    a.handle({ type: 'message.updated', properties: { sessionID: SID, info: { id: 'msg_user', role: 'user' } } });
+    const userDelta = a.handle({ type: 'message.part.delta', properties: { sessionID: SID, partID: 'prt_u', messageID: 'msg_user', field: 'text', delta: 'te gusta queen?' } });
+    const userUpdated = a.handle({ type: 'message.part.updated', properties: { sessionID: SID, part: { id: 'prt_u', type: 'text', messageID: 'msg_user', text: 'te gusta queen?' } } });
+    // The assistant reply must still render.
+    a.handle({ type: 'message.updated', properties: { sessionID: SID, info: { id: 'msg_asst', role: 'assistant' } } });
+    const asstDelta = a.handle({ type: 'message.part.delta', properties: { sessionID: SID, partID: 'prt_a', messageID: 'msg_asst', field: 'text', delta: 'Objetivamente' } });
+
+    expect(userDelta).toEqual([]);
+    expect(userUpdated).toEqual([]);
+    expect(asstDelta).toEqual([{ type: 'text', text: 'Objetivamente', isStreaming: true, uuid: 'opencode-text-prt_a' }]);
+  });
 });

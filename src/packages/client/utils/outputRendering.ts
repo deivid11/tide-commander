@@ -28,6 +28,7 @@ export const TOOL_ICONS: Record<string, string> = {
   ListFiles: '📂',
   SearchFiles: '🔎',
   ExecuteCommand: '⚙️',
+  exec: '🧩',
   // Codex subagent collab tools
   spawn_agent: '🧬',
   send_input: '📨',
@@ -59,6 +60,7 @@ export const TOOL_ICON_NAMES: Record<string, IconName> = {
   list_dir: 'folder-open',
   SearchFiles: 'search',
   ExecuteCommand: 'gear',
+  exec: 'bolt',
   // Grok / agent runtime tools
   get_command_or_subagent_output: 'terminal',
   get_task_output: 'terminal',
@@ -202,6 +204,15 @@ export function extractToolKeyParam(toolName: string, inputJson: string): string
     const input = JSON.parse(inputJson);
 
     switch (toolName) {
+      case 'exec': {
+        const script = typeof input === 'string'
+          ? input
+          : (input.input || input.code || input.script);
+        if (typeof script === 'string' && script.trim()) {
+          return summarizeCodexExecScript(script);
+        }
+        break;
+      }
       case 'Read':
       case 'Write':
       case 'Edit':
@@ -384,6 +395,164 @@ export function extractToolKeyParam(toolName: string, inputJson: string): string
     // Not valid JSON
   }
   return null;
+}
+
+/**
+ * Turn Codex's JavaScript orchestration wrapper into an activity a human can
+ * scan. The complete script remains in the tool payload/metadata; this is only
+ * the compact Guake/history label.
+ */
+export function summarizeCodexExecScript(script: string): string {
+  const presentation = getCodexExecPresentation(script);
+  return presentation.detail;
+}
+
+export interface CodexExecPresentation {
+  toolName: 'Read' | 'Edit' | 'Grep' | 'Glob' | 'Bash' | 'WebSearch' | 'AskUserQuestion' | 'TodoWrite' | 'ExecuteCommand';
+  detail: string;
+  filePaths?: string[];
+}
+
+/** File paths touched by a Codex apply_patch payload, in patch order. */
+export function getCodexExecEditPaths(input: unknown): string[] {
+  const script = typeof input === 'string'
+    ? input
+    : input && typeof input === 'object'
+      ? String((input as Record<string, unknown>).input || (input as Record<string, unknown>).code || (input as Record<string, unknown>).script || '')
+      : '';
+  // Persisted exec input is JavaScript source, so patch newlines commonly
+  // appear as the two characters `\n` rather than real line breaks.
+  const normalized = script.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n');
+  const paths: string[] = [];
+  for (const match of normalized.matchAll(/^\*\*\* (?:Update|Add|Delete) File:\s*(.+?)\s*$/gm)) {
+    const path = match[1].trim();
+    if (path && !paths.includes(path)) paths.push(path);
+  }
+  return paths;
+}
+
+export interface CodexExecFileTarget {
+  path: string;
+  highlightRange?: { offset: number; limit: number };
+}
+
+/** Locate the file/lines represented by a Codex READ or GREP exec card. */
+export function getCodexExecFileTarget(input: unknown, output?: string): CodexExecFileTarget | null {
+  const script = typeof input === 'string'
+    ? input
+    : input && typeof input === 'object'
+      ? String((input as Record<string, unknown>).input || (input as Record<string, unknown>).code || (input as Record<string, unknown>).script || '')
+      : '';
+  const command = extractJavaScriptStringField(script, 'cmd') || extractJavaScriptStringField(script, 'command') || '';
+
+  // sed -n '440,545p' path — the dominant Codex file-reading form.
+  const sed = command.match(/\bsed\s+-n\s+["']?(\d+)\s*,\s*(\d+)p["']?\s+(?:--\s+)?["']?([^"';&|]+?)["']?\s*$/);
+  if (sed) {
+    const start = Number(sed[1]);
+    const end = Number(sed[2]);
+    return { path: sed[3].trim(), highlightRange: { offset: start, limit: Math.max(1, end - start + 1) } };
+  }
+
+  const simpleRead = command.match(/^\s*(?:cat|head|tail)\b[^;&|]*?\s+(?:--\s+)?["']?([^"'\s;&|]+)["']?\s*$/);
+  if (simpleRead) return { path: simpleRead[1] };
+
+  // rg --line-number output normally starts `path:line:text` (or path-line-text
+  // when context mode is enabled). Open the first concrete match.
+  if (output) {
+    const match = output.match(/(?:^|\n)([^\n:]+?):(\d+):/);
+    if (match) return { path: match[1].trim(), highlightRange: { offset: Number(match[2]), limit: 1 } };
+  }
+  return null;
+}
+
+/** Resolve an opaque Codex `exec` wrapper to the activity it represents. */
+export function getCodexExecPresentation(input: unknown): CodexExecPresentation {
+  const script = typeof input === 'string'
+    ? input
+    : input && typeof input === 'object'
+      ? String((input as Record<string, unknown>).input || (input as Record<string, unknown>).code || (input as Record<string, unknown>).script || '')
+      : '';
+  const toolCalls = [...script.matchAll(/\btools\.([A-Za-z0-9_]+)\s*\(/g)].map((match) => match[1]);
+  if (toolCalls.length === 0) return { toolName: 'ExecuteCommand', detail: 'Run orchestration step' };
+
+  const counts = new Map<string, number>();
+  for (const name of toolCalls) counts.set(name, (counts.get(name) || 0) + 1);
+  const total = toolCalls.length;
+  const parallel = /Promise\.all\s*\(/.test(script);
+  const plural = (noun: string, count = total) => `${count} ${noun}${count === 1 ? '' : 's'}`;
+
+  // Surface the inner operation as a familiar Claude-style activity.
+  if (counts.size === 1) {
+    const name = toolCalls[0];
+    switch (name) {
+      case 'exec_command': {
+        if (total > 1) return { toolName: 'Bash', detail: `Run ${plural('command')}${parallel ? ' in parallel' : ''}` };
+        const command = extractJavaScriptStringField(script, 'cmd') || extractJavaScriptStringField(script, 'command') || '';
+        return classifyTerminalCommand(command);
+      }
+      case 'write_stdin':
+        return { toolName: 'Bash', detail: total > 1 ? `Send input to ${plural('terminal')}` : 'Continue terminal command' };
+      case 'view_image': {
+        const path = extractJavaScriptStringField(script, 'path');
+        return { toolName: 'Read', detail: path ? 'image' : 'Inspect image', filePaths: path ? [path] : undefined };
+      }
+      case 'apply_patch': {
+        const paths = getCodexExecEditPaths(script);
+        return {
+          toolName: 'Edit',
+          detail: paths.length > 1 ? `${paths.length} files` : paths.length === 1 ? 'modified' : 'Project files',
+          filePaths: paths.length > 0 ? paths : undefined,
+        };
+      }
+      case 'web__run': return { toolName: 'WebSearch', detail: 'Search and inspect web sources' };
+      case 'request_user_input': return { toolName: 'AskUserQuestion', detail: 'Ask for input' };
+      case 'update_plan': return { toolName: 'TodoWrite', detail: 'Update work plan' };
+      case 'wait': return { toolName: 'Bash', detail: 'Wait for running command' };
+      default: return { toolName: 'ExecuteCommand', detail: `${prettifyToolName(name)}${total > 1 ? ` · ${total} calls` : ''}` };
+    }
+  }
+
+  const commandCount = counts.get('exec_command') || 0;
+  const inputCount = counts.get('write_stdin') || 0;
+  if (commandCount + inputCount === total) {
+    const parts: string[] = [];
+    if (commandCount) parts.push(plural('command', commandCount));
+    if (inputCount) parts.push(`${inputCount} terminal input${inputCount === 1 ? '' : 's'}`);
+    return { toolName: 'Bash', detail: `Run ${parts.join(' + ')}${parallel ? ' in parallel' : ''}` };
+  }
+
+  return { toolName: 'ExecuteCommand', detail: `Run ${plural('tool action')}${parallel ? ' in parallel' : ''}` };
+}
+
+function extractJavaScriptStringField(script: string, field: string): string | null {
+  const match = script.match(new RegExp(`\\b${field}\\s*:\\s*(["'\x60])((?:\\\\[\\s\\S]|(?!\\1)[\\s\\S])*)\\1`));
+  return match?.[2]?.replace(/\\n/g, '\n').replace(/\\(["'\x60\\])/g, '$1') || null;
+}
+
+function classifyTerminalCommand(command: string): CodexExecPresentation {
+  const clean = command.replace(/^\/usr\/bin\/(?:zsh|bash)\s+-lc\s+/, '').trim();
+  if (/\b(?:rg\s+--files|find|ls)(?:\s|$)/.test(clean)) {
+    return { toolName: 'Glob', detail: clean };
+  }
+  if (/\b(?:rg|grep)\b/.test(clean)) {
+    return { toolName: 'Grep', detail: clean };
+  }
+  if (/^(?:sed\s+-n|cat|head|tail)\b/.test(clean)) {
+    const sed = clean.match(/\bsed\s+-n\s+["']?(\d+)\s*,\s*(\d+)p["']?\s+(?:--\s+)?["']?([^"';&|]+?)["']?\s*$/);
+    if (sed) return { toolName: 'Read', detail: `lines ${sed[1]}–${sed[2]}`, filePaths: [sed[3].trim()] };
+    const simple = clean.match(/^\s*(?:cat|head|tail)\b[^;&|]*?\s+(?:--\s+)?["']?([^"'\s;&|]+)["']?\s*$/);
+    return simple
+      ? { toolName: 'Read', detail: 'viewed', filePaths: [simple[1]] }
+      : { toolName: 'Read', detail: clean };
+  }
+  if (/\b(?:apply_patch|perl\s+-[pi]|git\s+apply)\b/.test(clean)) {
+    return { toolName: 'Edit', detail: clean };
+  }
+  if (/^git\s+(?:diff|show|status)\b/.test(clean)) {
+    const path = clean.match(/\s--\s+["']?([^"']+)["']?\s*$/)?.[1];
+    return { toolName: 'Read', detail: 'Git changes', filePaths: path ? [path.trim()] : undefined };
+  }
+  return { toolName: 'Bash', detail: clean || 'Run terminal command' };
 }
 
 export function extractExecPayloadCommand(cmd: string): string | null {

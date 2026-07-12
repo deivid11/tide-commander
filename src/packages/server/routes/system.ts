@@ -20,6 +20,7 @@ import {
   tryBeginUpdate,
 } from '../services/self-update-service.js';
 import { getAutoUpdateStatus, setAutoUpdateEnabled } from '../services/auto-update-service.js';
+import { isDevInstall, maybeTriggerWebBundleRebuild } from '../services/web-bundle-builder.js';
 import {
   deleteClaudeCredentialProfile,
   getClaudeCredentialProfilesUsage,
@@ -148,6 +149,13 @@ interface WebBundleInfo {
   hash: string;
   fileCount: number;
   totalBytes: number;
+  /**
+   * True on a dev checkout (auto-rebuilt bundle). Tells the client it may pull
+   * a same-version bundle whose hash moved even onto APK-bundled assets — a
+   * released install (dev:false) keeps the conservative "same version ⇒ same
+   * content" assumption.
+   */
+  dev: boolean;
 }
 
 /**
@@ -187,11 +195,16 @@ function computeWebBundleInfo(): WebBundleInfo | null {
     hash,
     fileCount: files.length,
     totalBytes: files.reduce((sum, f) => sum + f.size, 0),
+    dev: isDevInstall(getInstallInfo().installRoot),
   };
 }
 
 router.get('/web-bundle-info', (_req: Request, res: Response) => {
   try {
+    // Dev checkouts: if UI source has changed since the served dist was built,
+    // kick off a single-flight background rebuild so this and future checks
+    // eventually advertise the fresh bundle. Non-blocking — returns current info.
+    maybeTriggerWebBundleRebuild();
     const info = computeWebBundleInfo();
     if (!info) {
       res.status(404).json({ error: 'No client build to serve — run npm run build on the server first.' });

@@ -94,6 +94,12 @@ export interface WebBundleInfo {
   hash: string;
   fileCount: number;
   totalBytes: number;
+  /**
+   * True when the server is a dev checkout that auto-rebuilds its bundle. Lets
+   * the client pull a same-version bundle whose hash moved even onto APK assets
+   * (see useWebBundle). Absent/false on released installs → conservative pull.
+   */
+  dev?: boolean;
 }
 
 export async function fetchWebBundleInfo(): Promise<WebBundleInfo> {
