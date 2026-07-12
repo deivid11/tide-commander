@@ -10,7 +10,7 @@ import { useHideCost, useSettings, useAgentPrompts } from '../../store';
 import { store, type TestRunHandle, type HttpRunHandle } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getCodexExecEditPaths, getCodexExecFileTarget, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getCodexExecEditPaths, getCodexExecFileTarget, getCodexExecCommand, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
@@ -434,10 +434,20 @@ export const HistoryLine = memo(function HistoryLine({
       const execFileTarget = (execPresentation.toolName === 'Read' || execPresentation.toolName === 'Grep')
         ? getCodexExecFileTarget(message.toolInput || content, _toolOutput)
         : null;
+      const visibleFilePaths = execPresentation.filePaths?.length
+        ? execPresentation.filePaths
+        : execFileTarget?.path ? [execFileTarget.path] : [];
       const opensFileModal = !!execFileTarget && !!onFileClick;
+      const execCommand = getCodexExecCommand(message.toolInput || content);
+      const opensCommandModal = !!execCommand && !!onBashClick
+        && (execPresentation.toolName === 'Bash' || execPresentation.toolName === 'ExecuteCommand');
       const handleExecActivate = () => {
         if (opensDiffModal) {
           onFileClick(execEditPaths[0], { oldString: '', newString: '', operation: 'codex-patch' });
+          return;
+        }
+        if (opensCommandModal && execCommand) {
+          onBashClick(execCommand, _toolOutput || t('tools:display.noOutputCaptured'));
           return;
         }
         if (opensFileModal && execFileTarget) {
@@ -447,6 +457,11 @@ export const HistoryLine = memo(function HistoryLine({
           return;
         }
         setExecDetailExpanded((value) => !value);
+      };
+      const handleFileChipActivate = (event: React.MouseEvent | React.KeyboardEvent, path: string) => {
+        if (execPresentation.toolName !== 'Edit' || !onFileClick) return;
+        event.stopPropagation();
+        onFileClick(path, { oldString: '', newString: '', operation: 'codex-patch' });
       };
       return (
         <>
@@ -467,17 +482,32 @@ export const HistoryLine = memo(function HistoryLine({
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
-            {execPresentation.filePaths?.slice(0, 2).map((path) => (
-              <span key={path} className="codex-file-chip" title={path}>
+            {visibleFilePaths.slice(0, 2).map((path) => (
+              <span
+                key={path}
+                className={`codex-file-chip ${execPresentation.toolName === 'Edit' && onFileClick ? 'is-clickable' : ''}`}
+                title={path}
+                role={execPresentation.toolName === 'Edit' && onFileClick ? 'button' : undefined}
+                tabIndex={execPresentation.toolName === 'Edit' && onFileClick ? 0 : undefined}
+                onClick={(event) => handleFileChipActivate(event, path)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    handleFileChipActivate(event, path);
+                  }
+                }}
+              >
                 <Icon name="file-code" size={11} />
                 <span>{path.split('/').pop() || path}</span>
               </span>
             ))}
-            {(execPresentation.filePaths?.length || 0) > 2 && (
-              <span className="codex-file-chip codex-file-chip-more">+{execPresentation.filePaths!.length - 2}</span>
+            {visibleFilePaths.length > 2 && (
+              <span className="codex-file-chip codex-file-chip-more">+{visibleFilePaths.length - 2}</span>
             )}
-            <span className="output-tool-param">{execPresentation.detail}</span>
-            <span className="codex-exec-chevron"><Icon name={opensDiffModal || opensFileModal ? 'open-external' : execDetailExpanded ? 'caret-up' : 'caret-down'} size={13} /></span>
+            {!(execPresentation.toolName === 'Edit' && visibleFilePaths.length > 0) && (
+              <span className="output-tool-param">{execPresentation.detail}</span>
+            )}
+            <span className="codex-exec-chevron"><Icon name={opensDiffModal || opensFileModal || opensCommandModal ? 'open-external' : execDetailExpanded ? 'caret-up' : 'caret-down'} size={13} /></span>
           </div>
           {execDetailExpanded && (
             <div className="codex-exec-detail">
@@ -818,6 +848,22 @@ export const HistoryLine = memo(function HistoryLine({
                 ? toolInputContent
                 : JSON.stringify({ task_ids: keyParam ? [keyParam] : [] })}
             />
+          </div>
+        );
+      }
+
+      if (toolName === 'wait') {
+        let cellId: unknown;
+        try {
+          const parsed = toolInputContent ? JSON.parse(toolInputContent) : null;
+          cellId = parsed?.cell_id ?? parsed?.cellId;
+        } catch { /* compact row still renders without an id */ }
+        return (
+          <div className="output-line output-tool-use output-tool-simple output-wait-compact">
+            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
+            <span className="output-tool-icon"><Icon name={iconName} size={12} /></span>
+            <span className="output-tool-name">{displayToolName}</span>
+            {cellId !== undefined && <span className="wait-cell-id">#{String(cellId)}</span>}
           </div>
         );
       }
