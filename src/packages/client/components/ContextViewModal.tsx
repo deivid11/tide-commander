@@ -17,6 +17,7 @@ import {
   type ProviderUsageSnapshot,
 } from '../api/claude-usage';
 import { getUsedPercentColor, formatResetTime } from '../utils/claude-usage-format';
+import { ClaudeCredentialsPanel } from './ClaudeCredentialsPanel';
 
 interface ContextViewModalProps {
   agent: Agent;
@@ -375,6 +376,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
               loading={usageLoading}
               error={usageError}
               onRefresh={loadUsage}
+              showClaudeAccounts={agent.provider === 'claude'}
             />
           )}
         </div>
@@ -404,6 +406,8 @@ interface ProviderUsageSectionProps {
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
+  /** When true, render the Claude OAuth account switcher under the gauges. */
+  showClaudeAccounts?: boolean;
 }
 
 function formatActivityDate(isoDate: string): string {
@@ -469,7 +473,7 @@ function buildRateLimitWindows(
   return windows;
 }
 
-function ProviderUsageSection({ snapshot, loading, error, onRefresh }: ProviderUsageSectionProps) {
+function ProviderUsageSection({ snapshot, loading, error, onRefresh, showClaudeAccounts = false }: ProviderUsageSectionProps) {
   const { t } = useTranslation(['terminal', 'common']);
 
   const claudeSnapshot = snapshot?.provider === 'claude' ? (snapshot as ClaudeUsageSnapshot) : null;
@@ -727,7 +731,13 @@ function ProviderUsageSection({ snapshot, loading, error, onRefresh }: ProviderU
               {snapshot.cliHint}
             </div>
           )}
+
         </>
+      )}
+
+      {/* Switch Claude OAuth accounts when rate-limited (always for Claude). */}
+      {showClaudeAccounts && (
+        <ClaudeCredentialsPanel compact onSwitched={onRefresh} />
       )}
     </div>
   );

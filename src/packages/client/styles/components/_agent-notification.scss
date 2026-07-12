@@ -2,16 +2,19 @@
 
 #agent-notification-container {
   position: fixed;
-  top: 16px;
+  top: max(12px, env(safe-area-inset-top, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 2100;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 6px;
   pointer-events: none;
-  max-width: 360px;
-  width: 90%;
+  // Compact pill — not a full-width stretch band
+  width: min(340px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  box-sizing: border-box;
 }
 
 .agent-notification {

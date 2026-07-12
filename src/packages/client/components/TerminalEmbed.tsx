@@ -8,12 +8,18 @@
  * - Debounced resize with @xterm/addon-fit
  * - Low scrollback for performance
  * - ttyd binary protocol handled natively
+ * - Bundled Nerd Font symbols fallback so prompt/eza icons render on devices
+ *   without a system Nerd Font (phones)
+ * - Touch devices get a quick-keys bar (Esc/Tab/Ctrl latch/arrows/^C/zoom/
+ *   paste) and pinch-to-zoom font sizing (persisted)
  */
 
-import React, { useRef, useEffect, useCallback, memo } from 'react';
+import React, { useRef, useEffect, useCallback, useMemo, useState, memo } from 'react';
 import type { Terminal } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
 import { authUrl } from '../utils/storage';
+import { Icon } from './Icon';
+import nerdSymbolsFontUrl from '../assets/fonts/SymbolsNerdFontMono-Regular.woff2';
 
 /** ttyd binary protocol constants (ASCII char codes) */
 const CMD_OUTPUT = 48;      // '0' - server→client: terminal output
@@ -52,6 +58,50 @@ interface TerminalEmbedProps {
   terminalUrl: string;
   /** Whether this terminal is currently visible */
   visible: boolean;
+}
+
+// 'Symbols Nerd Font Mono' last so PUA icon glyphs (eza --icons, starship
+// prompts, …) fall through to it on devices without a system Nerd Font
+// (phones render them as tofu boxes otherwise).
+const TERMINAL_FONT_FAMILY =
+  "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Menlo', 'Monaco', 'Courier New', 'Symbols Nerd Font Mono', monospace";
+
+// Lazy-loaded once, shared by every terminal instance. Resolves (never
+// rejects) so a failed font fetch degrades to tofu icons, not a dead terminal.
+let nerdSymbolsFontPromise: Promise<void> | null = null;
+function loadNerdSymbolsFont(): Promise<void> {
+  if (!nerdSymbolsFontPromise) {
+    nerdSymbolsFontPromise = (async () => {
+      const face = new FontFace(
+        'Symbols Nerd Font Mono',
+        `url(${JSON.stringify(nerdSymbolsFontUrl)}) format('woff2')`
+      );
+      await face.load();
+      document.fonts.add(face);
+    })().catch((err) => {
+      log('Nerd symbols font failed to load (terminal icons may show as boxes):', err);
+    });
+  }
+  return nerdSymbolsFontPromise;
+}
+
+const FONT_SIZE_STORAGE_KEY = 'tc-terminal-font-size';
+const FONT_SIZE_DEFAULT = 13;
+const FONT_SIZE_MIN = 8;
+const FONT_SIZE_MAX = 24;
+
+function clampFontSize(px: number): number {
+  return Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, Math.round(px)));
+}
+
+function getStoredFontSize(): number {
+  try {
+    const raw = localStorage.getItem(FONT_SIZE_STORAGE_KEY);
+    const parsed = raw ? parseInt(raw, 10) : NaN;
+    return Number.isFinite(parsed) ? clampFontSize(parsed) : FONT_SIZE_DEFAULT;
+  } catch {
+    return FONT_SIZE_DEFAULT;
+  }
 }
 
 /**
@@ -180,6 +230,12 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
   const initRef = useRef(false);
   const encoderRef = useRef(new TextEncoder());
 
+  // Touch-device extras: quick-keys bar (Esc/Tab/Ctrl/arrows aren't reachable
+  // from a soft keyboard) + pinch/button font zoom.
+  const showKeyBar = useMemo(() => window.matchMedia('(pointer: coarse)').matches, []);
+  const [ctrlLatched, setCtrlLatched] = useState(false);
+  const ctrlLatchRef = useRef(false);
+
   /** Send input to ttyd via binary protocol */
   const sendInput = useCallback((data: string) => {
     const ws = wsRef.current;
@@ -196,6 +252,40 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     ws.send('1' + JSON.stringify({ columns: cols, rows: rows }));
+  }, []);
+
+  /** Change the terminal font size (persisted), refit and notify the pty */
+  const applyFontSize = useCallback((px: number) => {
+    const size = clampFontSize(px);
+    try { localStorage.setItem(FONT_SIZE_STORAGE_KEY, String(size)); } catch { /* private mode */ }
+    const term = termRef.current;
+    const fit = fitRef.current;
+    if (term && fit && term.options.fontSize !== size) {
+      term.options.fontSize = size;
+      fit.fit();
+      sendResize(term.cols, term.rows);
+    }
+    return size;
+  }, [sendResize]);
+
+  const setCtrlLatch = useCallback((on: boolean) => {
+    ctrlLatchRef.current = on;
+    setCtrlLatched(on);
+  }, []);
+
+  /** Arrow keys honor DECCKM (application cursor keys) so TUIs behave */
+  const sendArrow = useCallback((dir: 'A' | 'B' | 'C' | 'D') => {
+    const app = termRef.current?.modes.applicationCursorKeysMode;
+    sendInput((app ? '\x1bO' : '\x1b[') + dir);
+  }, [sendInput]);
+
+  const pasteFromClipboard = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) termRef.current?.paste(text);
+    } catch (err) {
+      log('clipboard read failed:', err);
+    }
   }, []);
 
   /** Initialize terminal when visible */
@@ -229,6 +319,29 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
     dropEl.addEventListener('dragover', handleDropDragOver, true);
     dropEl.addEventListener('drop', handleFileDrop, true);
 
+    // Two-finger pinch → terminal font zoom (mobile). Native non-passive
+    // listeners because React's root touchmove handlers can't preventDefault.
+    let pinchStart: { dist: number; fontSize: number } | null = null;
+    const touchDist = (t: TouchList) =>
+      Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const handleTouchStart = (ev: TouchEvent) => {
+      if (ev.touches.length !== 2) { pinchStart = null; return; }
+      pinchStart = {
+        dist: touchDist(ev.touches),
+        fontSize: termRef.current?.options.fontSize ?? getStoredFontSize(),
+      };
+    };
+    const handleTouchMove = (ev: TouchEvent) => {
+      if (!pinchStart || ev.touches.length !== 2) return;
+      ev.preventDefault(); // keep the browser from page-zooming instead
+      applyFontSize(pinchStart.fontSize * (touchDist(ev.touches) / pinchStart.dist));
+    };
+    const handleTouchEnd = () => { pinchStart = null; };
+    dropEl.addEventListener('touchstart', handleTouchStart, { passive: true });
+    dropEl.addEventListener('touchmove', handleTouchMove, { passive: false });
+    dropEl.addEventListener('touchend', handleTouchEnd, { passive: true });
+    dropEl.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+
     let destroyed = false;
     let term: Terminal | null = null;
     let fit: FitAddon | null = null;
@@ -239,12 +352,14 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
 
     (async () => {
       log('Lazy-loading xterm.js modules...');
-      // Lazy-load xterm.js and addons in parallel
+      // Lazy-load xterm.js and addons in parallel (+ the Nerd Font symbols so
+      // icon glyphs measure correctly from the first render)
       const [xtermMod, fitMod, clipboardMod, webLinksMod] = await Promise.all([
         import('@xterm/xterm'),
         import('@xterm/addon-fit'),
         import('@xterm/addon-clipboard'),
         import('@xterm/addon-web-links'),
+        loadNerdSymbolsFont(),
       ]);
 
       if (destroyed) { log('Destroyed after module load, aborting'); return; }
@@ -263,9 +378,9 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
 
       term = new Terminal({
         theme: DRACULA_THEME,
-        fontSize: 13,
+        fontSize: getStoredFontSize(),
         scrollback: 5000,
-        fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Menlo', 'Monaco', 'Courier New', monospace",
+        fontFamily: TERMINAL_FONT_FAMILY,
         cursorBlink: true,
         allowProposedApi: true,
         disableStdin: false,
@@ -351,8 +466,20 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
       containerRef.current.addEventListener('contextmenu', handleContextMenu);
 
 
-      // Handle input → ttyd
-      term.onData((data) => sendInput(data));
+      // Handle input → ttyd. When the key bar's Ctrl latch is armed, the next
+      // single soft-keyboard character is converted to its control code
+      // (a → ^A) — phones have no physical Ctrl key.
+      term.onData((data) => {
+        if (ctrlLatchRef.current && data.length === 1) {
+          setCtrlLatch(false);
+          const code = data.toUpperCase().charCodeAt(0);
+          if (code >= 0x40 && code <= 0x5f) { // @ A-Z [ \ ] ^ _
+            sendInput(String.fromCharCode(code & 0x1f));
+            return;
+          }
+        }
+        sendInput(data);
+      });
 
       // Handle binary input (for paste, etc.)
       term.onBinary((data) => {
@@ -490,6 +617,10 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
       dropEl.removeEventListener('dragenter', handleDropDragOver, true);
       dropEl.removeEventListener('dragover', handleDropDragOver, true);
       dropEl.removeEventListener('drop', handleFileDrop, true);
+      dropEl.removeEventListener('touchstart', handleTouchStart);
+      dropEl.removeEventListener('touchmove', handleTouchMove);
+      dropEl.removeEventListener('touchend', handleTouchEnd);
+      dropEl.removeEventListener('touchcancel', handleTouchEnd);
       if (handleContextMenu) containerRef.current?.removeEventListener('contextmenu', handleContextMenu);
       if (ws && ws.readyState <= WebSocket.OPEN) ws.close();
       wsRef.current = null;
@@ -497,7 +628,7 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
       termRef.current = null;
       fitRef.current = null;
     };
-  }, [visible, terminalUrl, sendInput, sendResize]);
+  }, [visible, terminalUrl, sendInput, sendResize, applyFontSize, setCtrlLatch]);
 
   // Re-fit when visibility changes
   useEffect(() => {
@@ -512,12 +643,55 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
     }
   }, [visible, sendResize]);
 
+  // Prevent key-bar taps from stealing focus (keeps xterm's hidden textarea
+  // focused so the soft keyboard stays open).
+  const keepFocus = useCallback((e: React.PointerEvent | React.MouseEvent) => e.preventDefault(), []);
+
   return (
     <div
-      ref={containerRef}
       className="guake-bottom-terminal-embed"
       style={{ display: visible ? undefined : 'none' }}
-    />
+    >
+      <div ref={containerRef} className="terminal-embed-mount" />
+      {showKeyBar && (
+        <div className="terminal-key-bar">
+          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendInput('\x1b')} title="Escape">Esc</button>
+          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendInput('\t')} title="Tab">Tab</button>
+          <button
+            className={`terminal-key-btn ${ctrlLatched ? 'latched' : ''}`}
+            onPointerDown={keepFocus}
+            onClick={() => setCtrlLatch(!ctrlLatchRef.current)}
+            title="Ctrl — arms the next typed key as a control key"
+          >
+            Ctrl
+          </button>
+          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendInput('\x03')} title="Interrupt (Ctrl+C)">^C</button>
+          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendArrow('D')} title="Left">←</button>
+          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendArrow('B')} title="Down">↓</button>
+          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendArrow('A')} title="Up">↑</button>
+          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendArrow('C')} title="Right">→</button>
+          <button
+            className="terminal-key-btn"
+            onPointerDown={keepFocus}
+            onClick={() => applyFontSize((termRef.current?.options.fontSize ?? FONT_SIZE_DEFAULT) - 1)}
+            title="Smaller text"
+          >
+            A−
+          </button>
+          <button
+            className="terminal-key-btn"
+            onPointerDown={keepFocus}
+            onClick={() => applyFontSize((termRef.current?.options.fontSize ?? FONT_SIZE_DEFAULT) + 1)}
+            title="Larger text"
+          >
+            A+
+          </button>
+          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={pasteFromClipboard} title="Paste from clipboard">
+            <Icon name="clipboard" size={14} />
+          </button>
+        </div>
+      )}
+    </div>
   );
 });
 

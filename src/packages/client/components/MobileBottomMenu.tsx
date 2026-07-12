@@ -55,8 +55,17 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
   if (sidebarOpen) return null;
   if (trackingBoardVisible) return null;
 
+  // When an agent chat is open, trim secondary items so the nav stays tappable
+  // (Agents / Settings / Search / Inspector / Close). Spawn and Commander stay
+  // available from the empty-state map, FAB, or header — Search must NOT be
+  // trimmed: it has no other reachable surface while a chat is open on mobile.
+  const agentChatOpen = !!onCloseAgent;
+
   return (
-    <nav className="mobile-bottom-menu" aria-label={t('common:mobileBottomMenu.label', { defaultValue: 'Quick actions' })}>
+    <nav
+      className={`mobile-bottom-menu${agentChatOpen ? ' mobile-bottom-menu--chat-open' : ''}`}
+      aria-label={t('common:mobileBottomMenu.label', { defaultValue: 'Quick actions' })}
+    >
       {onToggleAgentsDrawer && (
         <button
           type="button"
@@ -83,28 +92,32 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
         <span className="mobile-bottom-menu__label">{t('common:mobileBottomMenu.settings', { defaultValue: 'Settings' })}</span>
       </button>
 
-      <button
-        type="button"
-        className={`mobile-bottom-menu__btn ${activeView === 'commander' ? 'mobile-bottom-menu__btn--active' : ''}`}
-        onClick={onOpenCommander}
-        title={t('common:floatingButtons.commanderView')}
-        aria-label={t('common:floatingButtons.commanderView')}
-        aria-pressed={activeView === 'commander'}
-      >
-        <span className="mobile-bottom-menu__icon"><Icon name="dashboard" size={18} /></span>
-        <span className="mobile-bottom-menu__label">{t('common:mobileBottomMenu.commander', { defaultValue: 'Commander' })}</span>
-      </button>
+      {!agentChatOpen && (
+        <button
+          type="button"
+          className={`mobile-bottom-menu__btn ${activeView === 'commander' ? 'mobile-bottom-menu__btn--active' : ''}`}
+          onClick={onOpenCommander}
+          title={t('common:floatingButtons.commanderView')}
+          aria-label={t('common:floatingButtons.commanderView')}
+          aria-pressed={activeView === 'commander'}
+        >
+          <span className="mobile-bottom-menu__icon"><Icon name="dashboard" size={18} /></span>
+          <span className="mobile-bottom-menu__label">{t('common:mobileBottomMenu.commander', { defaultValue: 'Commander' })}</span>
+        </button>
+      )}
 
-      <button
-        type="button"
-        className="mobile-bottom-menu__btn mobile-bottom-menu__btn--primary"
-        onClick={onSpawnAgent}
-        title={t('common:mobileBottomMenu.spawn', { defaultValue: 'Spawn Agent' })}
-        aria-label={t('common:mobileBottomMenu.spawn', { defaultValue: 'Spawn Agent' })}
-      >
-        <span className="mobile-bottom-menu__icon"><Icon name="plus" size={18} /></span>
-        <span className="mobile-bottom-menu__label">{t('common:mobileBottomMenu.spawn', { defaultValue: 'Spawn' })}</span>
-      </button>
+      {!agentChatOpen && (
+        <button
+          type="button"
+          className="mobile-bottom-menu__btn mobile-bottom-menu__btn--primary"
+          onClick={onSpawnAgent}
+          title={t('common:mobileBottomMenu.spawn', { defaultValue: 'Spawn Agent' })}
+          aria-label={t('common:mobileBottomMenu.spawn', { defaultValue: 'Spawn Agent' })}
+        >
+          <span className="mobile-bottom-menu__icon"><Icon name="plus" size={18} /></span>
+          <span className="mobile-bottom-menu__label">{t('common:mobileBottomMenu.spawn', { defaultValue: 'Spawn' })}</span>
+        </button>
+      )}
 
       <button
         type="button"

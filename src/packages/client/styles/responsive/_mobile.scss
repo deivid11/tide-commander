@@ -358,47 +358,24 @@
       min-height: 0;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
-      // Add padding at bottom so the last message is scrollable past the
-      // fixed UI that overlays the bottom of the screen:
-      //   - keyboard (when open)
-      //   - agent toolbar / mobile-bottom-stack (always visible on mobile)
-      //   - input wrapper (~120px: context bar + stop bar + input)
-      //   - the floating pinned-agents pill, only when present (see below)
+      // Clear the fixed composer stack (input ~70–100px + optional pin strip)
+      // and the bottom nav / keyboard. Pin clearance uses measured bar height.
       padding-bottom: calc(
         var(--keyboard-height, 0px)
         + var(--mobile-bottom-stack-height, 72px)
-        + 120px
+        + 100px
         + var(--pinned-bar-clearance, 0px)
       ) !important;
     }
 
-    // The pinned-agents bar floats up over the bottom of the chat (margin-top
-    // pulls it into the conversation). When pins exist, reserve scroll clearance
-    // equal to the bar's LIVE measured height (published as --pinned-agents-bar-
-    // height by PinnedAgentsBar) plus a gap, so the newest lines always clear the
-    // pill regardless of miniature / grouping / row count. Falls back to a
-    // generous fixed value until the first measurement lands.
-    // `has-pinned-agents` is toggled by AgentTerminalPane.
+    // Pin strip is part of the fixed composer — reserve its measured height.
     .guake-output.has-pinned-agents {
-      // + 24px covers the bar's negative-margin pull into the chat plus a small gap.
-      --pinned-bar-clearance: calc(var(--pinned-agents-bar-height, 80px) + 24px);
+      --pinned-bar-clearance: calc(var(--pinned-agents-bar-height, 40px) + 8px);
     }
 
-    // Input wrapper - FIXED at bottom. The vertical anchor is computed in a
-    // single `bottom` calc so we avoid combining `transform` with `position: fixed`
-    // (the transform creates a containing block which made the input drift to
-    // the top of the screen — "the ceiling" — on some Android browsers when the
-    // measured keyboard height was wrong).
-    //
-    // Composition (px, all driven by JS / native insets listener):
-    //   - var(--keyboard-height)            — keyboard overlap on iOS-style WebViews
-    //                                          where the layout viewport does NOT shrink.
-    //                                          0 on Android Chrome/Capacitor where the
-    //                                          layout viewport already shrinks for us.
-    //   - var(--mobile-bottom-stack-height) — always reserve room for the agent toolbar
-    //                                          (the stack stays visible on mobile, just
-    //                                          lifts above the keyboard when shown).
-    .guake-input-wrapper {
+    // Composer stack (pinned + input) — FIXED as one unit above the bottom nav.
+    // Avoids the pin pill floating over chat (old negative-margin approach).
+    .guake-composer-stack {
       position: fixed !important;
       bottom: calc(
         var(--keyboard-height, 0px)
@@ -407,14 +384,23 @@
       left: 0 !important;
       right: 0 !important;
       z-index: 200 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      // No transform — Android WebViews break fixed positioning with containing blocks.
+    }
+
+    // Input lives inside the fixed stack; drop its own fixed positioning.
+    .guake-input-wrapper {
+      position: relative !important;
+      bottom: auto !important;
+      left: auto !important;
+      right: auto !important;
+      z-index: auto !important;
       background: rgba(40, 42, 54, 0.98) !important;
-      min-height: 70px !important;
-      padding: 8px !important;
-      padding-bottom: calc(8px + env(safe-area-inset-bottom, 0)) !important;
+      min-height: 56px !important;
+      padding: 6px 8px !important;
+      padding-bottom: 6px !important;
       border-top: 1px solid rgba(139, 233, 253, 0.2) !important;
-      // No `transform` here — see comment above. Browsers create a containing
-      // block on transformed elements which can break fixed positioning relative
-      // to the visual viewport on certain Android WebViews.
     }
 
     &.keyboard-visible {
@@ -908,17 +894,17 @@
     overflow: hidden;
     text-overflow: ellipsis;
     letter-spacing: 0.3px;
+    min-width: 0;
+    flex: 1 1 auto;
     background: linear-gradient(135deg, var(--accent-pink) 0%, var(--accent-purple) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
+  // Task chip competes with the name — hide on mobile
   .guake-title-task-chip {
-    max-width: 100px;
-    font-size: 9px;
-    padding: 0 5px;
-    min-height: 16px;
+    display: none;
   }
 
   .guake-mobile-title-context {
@@ -941,6 +927,93 @@
     .guake-title-info {
       display: none;
     }
+
+    .guake-model-chip {
+      max-width: 88px;
+    }
+  }
+
+  // ── Compact tool / thinking cards on mobile (density) ──────────────────
+  // Base dense header+body is in _tools.scss; tighten further on phones.
+  .output-tool-use {
+    gap: 2px 6px;
+    padding: 4px 8px;
+    margin: 2px 0;
+  }
+
+  .output-tool-name {
+    font-size: 10px;
+  }
+
+  .output-tool-icon {
+    font-size: 13px;
+  }
+
+  .output-tool-param {
+    font-size: 10px;
+  }
+
+  .output-tool-use .output-timestamp {
+    font-size: 9px;
+    opacity: 0.7;
+  }
+
+  .output-tool-use .output-agent-badge {
+    font-size: 9px;
+    max-width: 5.5em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .output-thinking {
+    padding: 5px 8px;
+    margin: 2px 0;
+    gap: 2px;
+
+    &.is-collapsed {
+      padding: 4px 8px;
+    }
+  }
+
+  .output-thinking-header {
+    gap: 5px;
+  }
+
+  .output-thinking-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .output-thinking-label {
+    font-size: 9px;
+    letter-spacing: 0.05em;
+  }
+
+  .output-thinking-agent {
+    max-width: 6.5em;
+    font-size: 10px;
+  }
+
+  .output-thinking-time {
+    font-size: 9px;
+  }
+
+  .output-thinking-content {
+    font-size: 11px;
+    line-height: 1.3;
+
+    &.is-preview {
+      font-size: 10.5px;
+    }
+
+    &.is-full {
+      max-height: 200px;
+    }
+  }
+
+  .history-tool-line,
+  .output-line:not(.output-thinking) {
+    font-size: 12px;
   }
 
   .guake-status-line {
@@ -1132,14 +1205,12 @@
         flex-shrink: 0;
       }
 
-      // Force param to its own line
+      // Param shares the tool row (one-liner cards) — it shrinks and
+      // ellipsizes via the base _tools.scss rule instead of wrapping below.
       .output-tool-param {
-        flex-basis: 100%;
         margin-left: 0;
-        padding-left: 22px;
         font-size: 11px;
         line-height: 1.5;
-        word-break: break-word;
         color: rgba(139, 233, 253, 0.95); // brighter cyan
 
         &::before {
@@ -1778,6 +1849,40 @@
   .spotlight-container {
     width: 95vw;
     max-width: 95vw;
+  }
+
+  // Terminal building modal — full-screen, but raised above the bottom nav
+  // stack (z-index 2100): the shell prompt sits at the bottom edge of the
+  // terminal and must never hide under the nav.
+  .modal-overlay:has(.terminal-modal-container) {
+    padding: 0 0 var(--mobile-bottom-stack-height, 72px);
+  }
+
+  .terminal-modal-container {
+    max-width: 100vw;
+    width: 100vw;
+    height: 100%;
+    border-radius: 0;
+    border: none;
+  }
+
+  .terminal-modal-header {
+    padding: 8px 12px;
+    padding-top: calc(8px + env(safe-area-inset-top, 0px));
+    gap: 8px;
+  }
+
+  .terminal-modal-title {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .terminal-modal-close {
+    min-width: 38px;
+    min-height: 38px;
+    justify-content: center;
   }
 
   // Database Explorer Modal - full-screen on mobile

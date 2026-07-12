@@ -83,7 +83,8 @@ export const ThinkingBlock = memo(function ThinkingBlock({
   provider,
   timeStr,
   timestampTitle,
-  collapseAt = 140,
+  // Slightly shorter default so collapsed preview fits a phone width cleanly
+  collapseAt = 100,
   streamId,
   onImageClick,
   onFileClick,
@@ -163,7 +164,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
 
   return (
     <div
-      className={`output-line output-thinking output-tool-use ${liveStream ? 'output-streaming' : ''} ${showFull ? 'is-expanded' : 'is-collapsed'} ${canCollapse ? 'is-collapsible' : ''}`}
+      className={`output-line output-thinking ${liveStream ? 'output-streaming' : ''} ${showFull ? 'is-expanded' : 'is-collapsed'} ${canCollapse ? 'is-collapsible' : ''}`}
       onClick={canCollapse && !liveStream ? toggleExpanded : undefined}
       role={canCollapse && !liveStream ? 'button' : undefined}
       tabIndex={canCollapse && !liveStream ? 0 : undefined}
@@ -179,30 +180,38 @@ export const ThinkingBlock = memo(function ThinkingBlock({
       }
       title={canCollapse && !liveStream ? (showFull ? 'Collapse thinking' : 'Expand thinking') : undefined}
     >
-      {timeStr && (
-        <span className="output-timestamp" title={timestampTitle || timeStr}>
-          {timeStr}
+      {/* Dense header: time (left) · icon · agent · label · pulse · caret (right) */}
+      <div className="output-thinking-header">
+        {timeStr && (
+          <span className="output-timestamp output-thinking-time" title={timestampTitle || timeStr}>
+            {timeStr}
+          </span>
+        )}
+        <span className="output-thinking-icon" aria-hidden>
+          <Icon name="brain" size={13} />
         </span>
-      )}
-      {agentName && (
-        <span className="output-agent-badge" title={`Agent: ${agentName}`}>
-          {agentName}
-        </span>
-      )}
-      <span className="output-thinking-icon" aria-hidden>
-        <Icon name="brain" size={14} />
-      </span>
-      {provider && (
-        <img
-          src={providerAssetUrl(provider as AgentProvider, import.meta.env.BASE_URL)}
-          alt=""
-          className="output-thinking-provider"
-          title={String(provider)}
-        />
-      )}
-      <span className="output-tool-name output-thinking-label">{label}</span>
-      {liveStream && <span className="output-thinking-pulse" aria-hidden />}
-      <span
+        {agentName && (
+          <span className="output-agent-badge output-thinking-agent" title={`Agent: ${agentName}`}>
+            {agentName}
+          </span>
+        )}
+        {provider && (
+          <img
+            src={providerAssetUrl(provider as AgentProvider, import.meta.env.BASE_URL)}
+            alt=""
+            className="output-thinking-provider"
+            title={String(provider)}
+          />
+        )}
+        <span className="output-thinking-label">{label}</span>
+        {liveStream && <span className="output-thinking-pulse" aria-hidden />}
+        {canCollapse && !liveStream && (
+          <span className="output-thinking-toggle" aria-hidden>
+            <Icon name={showFull ? 'caret-up' : 'caret-down'} size={11} />
+          </span>
+        )}
+      </div>
+      <div
         className={`output-thinking-content ${showFull ? 'is-full' : 'is-preview'} ${showFull ? 'markdown-content' : ''}`}
       >
         {showFull ? (
@@ -220,12 +229,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
         ) : (
           preview
         )}
-      </span>
-      {canCollapse && !liveStream && (
-        <span className="output-thinking-toggle" aria-hidden>
-          <Icon name={showFull ? 'caret-up' : 'caret-down'} size={11} />
-        </span>
-      )}
+      </div>
     </div>
   );
 });

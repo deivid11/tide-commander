@@ -20,6 +20,13 @@ import {
   tryBeginUpdate,
 } from '../services/self-update-service.js';
 import { getAutoUpdateStatus, setAutoUpdateEnabled } from '../services/auto-update-service.js';
+import {
+  deleteClaudeCredentialProfile,
+  listClaudeCredentialProfiles,
+  renameClaudeCredentialProfile,
+  saveActiveClaudeCredentialProfile,
+  switchClaudeCredentialProfile,
+} from '../services/claude-credentials-service.js';
 
 const log = createLogger('SystemRoutes');
 const router = Router();
@@ -150,8 +157,24 @@ function computeWebBundleInfo(): WebBundleInfo | null {
     .update(indexContent)
     .digest('hex')
     .slice(0, 16);
+
+  // The version must describe the dist we SERVE, not the live package.json —
+  // package.json moves ahead of the last build (version bumps, dev work), and
+  // advertising a version the bundle doesn't contain sends phones into an
+  // eternal re-sync loop (pull → still "behind" → pull …). build-info.json is
+  // emitted by the vite build; fall back to package.json for older dists.
+  let version = getInstallInfo().currentVersion;
+  try {
+    const buildInfo = JSON.parse(fs.readFileSync(path.join(dir, 'build-info.json'), 'utf8')) as {
+      version?: string;
+    };
+    if (buildInfo.version) version = buildInfo.version;
+  } catch {
+    /* pre-build-info dist — package.json is the best guess */
+  }
+
   return {
-    version: getInstallInfo().currentVersion,
+    version,
     hash,
     fileCount: files.length,
     totalBytes: files.reduce((sum, f) => sum + f.size, 0),
@@ -468,6 +491,97 @@ router.post('/auto-update', (req: Request, res: Response) => {
   }
   log.log(`Auto-update ${enabled ? 'enabled' : 'disabled'} via API`);
   res.json(setAutoUpdateEnabled(enabled));
+});
+
+/**
+ * Claude CLI OAuth credential profiles (~/.claude/.credentials.json and
+ * ~/.claude/.credentials.<name>.json). Used to switch the active Claude
+ * account when rate limits are hit without manually renaming files.
+ *
+ * Tokens are never returned — only non-secret metadata + fingerprints.
+ */
+router.get('/claude-credentials', (_req: Request, res: Response) => {
+  try {
+    res.json(listClaudeCredentialProfiles());
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`Failed to list Claude credentials: ${message}`);
+    res.status(500).json({ error: message });
+  }
+});
+
+router.post('/claude-credentials/switch', (req: Request, res: Response) => {
+  try {
+    const name = req.body?.name;
+    const stashActiveAs = req.body?.stashActiveAs;
+    if (typeof name !== 'string' || !name.trim()) {
+      res.status(400).json({ error: 'Body must include { name: string }' });
+      return;
+    }
+    if (stashActiveAs !== undefined && typeof stashActiveAs !== 'string') {
+      res.status(400).json({ error: 'stashActiveAs must be a string when provided' });
+      return;
+    }
+    const result = switchClaudeCredentialProfile(name.trim(), {
+      stashActiveAs: typeof stashActiveAs === 'string' ? stashActiveAs.trim() : undefined,
+    });
+    res.json(result);
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`Failed to switch Claude credentials: ${message}`);
+    const status = /not found|Invalid|required|already exists|cannot be/i.test(message) ? 400 : 500;
+    res.status(status).json({ error: message });
+  }
+});
+
+router.post('/claude-credentials/save', (req: Request, res: Response) => {
+  try {
+    const name = req.body?.name;
+    const force = Boolean(req.body?.force);
+    if (typeof name !== 'string' || !name.trim()) {
+      res.status(400).json({ error: 'Body must include { name: string }' });
+      return;
+    }
+    res.json(saveActiveClaudeCredentialProfile(name.trim(), { force }));
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`Failed to save Claude credentials profile: ${message}`);
+    const status = /not found|Invalid|already exists|No valid/i.test(message) ? 400 : 500;
+    res.status(status).json({ error: message });
+  }
+});
+
+router.post('/claude-credentials/rename', (req: Request, res: Response) => {
+  try {
+    const from = req.body?.from;
+    const to = req.body?.to;
+    if (typeof from !== 'string' || !from.trim() || typeof to !== 'string' || !to.trim()) {
+      res.status(400).json({ error: 'Body must include { from: string, to: string }' });
+      return;
+    }
+    res.json(renameClaudeCredentialProfile(from.trim(), to.trim()));
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`Failed to rename Claude credentials profile: ${message}`);
+    const status = /not found|Invalid|already exists/i.test(message) ? 400 : 500;
+    res.status(status).json({ error: message });
+  }
+});
+
+router.delete('/claude-credentials/:name', (req: Request, res: Response) => {
+  try {
+    const name = typeof req.params.name === 'string' ? req.params.name : '';
+    if (!name) {
+      res.status(400).json({ error: 'Profile name required' });
+      return;
+    }
+    res.json(deleteClaudeCredentialProfile(name));
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`Failed to delete Claude credentials profile: ${message}`);
+    const status = /not found|Invalid/i.test(message) ? 400 : 500;
+    res.status(status).json({ error: message });
+  }
 });
 
 export default router;

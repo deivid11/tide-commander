@@ -990,9 +990,10 @@ body.flat-splitter-dragging {
       border-color: rgba(139, 233, 253, 0.55);
       // Status feedback — always animate while working (do not honor
       // prefers-reduced-motion here; users treat this as a live activity cue).
-      animation: flat-header-avatar-bounce 0.9s ease-in-out infinite !important;
+      animation: flat-header-avatar-sway 1.2s ease-in-out infinite !important;
       z-index: 1;
       will-change: transform;
+      transform-origin: center center;
     }
   }
 
@@ -1323,8 +1324,8 @@ body.flat-splitter-dragging {
   &__header-info {
     display: flex;
     flex-direction: row;
-    align-items: baseline;
-    gap: 8px;
+    align-items: center;
+    gap: 6px;
     min-width: 0;
     flex: 1 1 auto;
     overflow: hidden;
@@ -1337,6 +1338,8 @@ body.flat-splitter-dragging {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    min-width: 0;
+    flex: 1 1 auto;
   }
 
   &__header-status {
@@ -2144,6 +2147,34 @@ body.flat-splitter-dragging {
   .flat-terminal-wrapper__header-main {
     flex: 1 1 auto;
     min-width: 0;
+    // Avatar + name + status only — model chip hides on narrow phones
+    overflow: hidden;
+  }
+
+  .flat-terminal-wrapper__header-info {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .flat-terminal-wrapper__header-name {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  // Status as a small pill; don't let it steal the name
+  .flat-terminal-wrapper__header-status {
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    max-width: 72px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  // Hide model/provider chrome on mobile chat — available in agent info modal
+  .flat-terminal-wrapper__header-model {
+    display: none;
   }
 
   .flat-terminal-wrapper__header-meta {
@@ -2156,6 +2187,18 @@ body.flat-splitter-dragging {
   // Hide the task chip — redundant with the agent name on a cramped header.
   .flat-terminal-wrapper__header-task {
     display: none;
+  }
+
+  .flat-terminal-wrapper__header-avatar,
+  .flat-terminal-wrapper__header-avatar > * {
+    width: 32px;
+    height: 32px;
+  }
+
+  .flat-terminal-wrapper__action-btn,
+  .flat-terminal-wrapper__building-btn {
+    min-width: 36px;
+    min-height: 36px;
   }
 
   // Status bar: let chips wrap to avoid horizontal scroll.
@@ -2466,13 +2509,16 @@ body.flat-splitter-dragging {
   50% { box-shadow: 0 0 6px 1px rgba(139, 233, 253, 0.7); }
 }
 
-// Flat terminal header agent icon — soft bounce while working / loading
-@keyframes flat-header-avatar-bounce {
+// Flat terminal header agent icon — soft side-to-side tilt while working
+@keyframes flat-header-avatar-sway {
   0%, 100% {
-    transform: translateY(0) scale(1);
+    transform: rotate(0deg);
   }
-  50% {
-    transform: translateY(-5px) scale(1.03);
+  25% {
+    transform: rotate(-8deg);
+  }
+  75% {
+    transform: rotate(8deg);
   }
 }
 

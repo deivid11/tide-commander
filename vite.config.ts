@@ -41,7 +41,25 @@ function resolveTlsPath(filePath: string): string {
 }
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // Records which version this dist was built as. The OTA web-bundle
+    // endpoint reports THIS (not the live package.json, which can move ahead
+    // of the last build) — advertising a version the served bundle doesn't
+    // contain sent phones into an eternal re-sync loop. Version only, no
+    // timestamp: identical sources must produce an identical bundle hash.
+    {
+      name: 'emit-build-info',
+      apply: 'build' as const,
+      generateBundle() {
+        this.emitFile({
+          type: 'asset',
+          fileName: 'build-info.json',
+          source: JSON.stringify({ version: pkg.version }),
+        });
+      },
+    },
+  ],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __SERVER_PORT__: JSON.stringify(Number(SERVER_PORT)),

@@ -751,6 +751,16 @@
 }
 
 // =============================================================================
+// Composer stack — pinned bar + input (one unit on mobile)
+// =============================================================================
+.guake-composer-stack {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  min-width: 0;
+}
+
+// =============================================================================
 // Pinned agents quick-select bar (above the terminal input)
 // =============================================================================
 .pinned-agents-bar {
@@ -1065,23 +1075,20 @@
 // tapping a chip — removal is only via the input-area pin button. This keeps a tap
 // reserved for switching agents (no accidental unpin) and saves horizontal space.
 @media (max-width: 768px) {
-  // The × badge is hidden on mobile, so drop the tall padding that reserved room
-  // for it and keep comfortable side padding so the chips aren't flush to the edge.
-  // Tight vertical footprint: minimal top/bottom padding on both the bar and the
-  // chips (kept a little horizontal inset so icons aren't flush / touching). No
-  // fill/divider — the empty space to the right of the chips stays transparent.
-  // ONE rounded background bar, sized to the pins (align-self: flex-start =>
-  // content width, NOT full width), floating over the bottom of the chat (the
-  // negative margin pulls it up so the conversation shows on either side of it).
+  // Pin strip sits in the composer stack above the input — no negative margin
+  // (that was overlapping the last chat messages). Compact pill, content-width.
   .pinned-agents-bar {
     align-self: flex-start;
-    max-width: 100%;
-    gap: 6px; padding: 4px 8px;
-    background: $bg-tertiary;
+    max-width: calc(100% - 16px);
+    gap: 6px;
+    padding: 5px 8px;
+    margin: 0 8px 4px;
+    background: rgba($bg-tertiary, 0.98);
     border-top: none;
     border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
-    position: relative; z-index: 5; margin-top: -30px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+    position: relative;
+    z-index: 5;
   }
   // Chips are just icons sitting ON the bar — transparent, no per-chip box.
   // !important beats the &.has-area / &.active / &.sel backgrounds + borders.
@@ -1124,15 +1131,10 @@
   .pinned-group-toggle .pgt-label { display: none; }
   .pinned-group { gap: 6px; padding-left: 6px; }
 
-  // The pill pulls itself 30px up over the chat (margin-top above), so wherever
-  // it renders — Guake overlay AND Flat mode — the output needs that overlap +
-  // a gap reserved at the bottom or the newest message sits under the pill.
-  // Baseline lives HERE, next to the pull it compensates. The mobile terminal
-  // view's higher-specificity rule (responsive/_mobile.scss, .app.mobile-view-
-  // terminal) still wins there with its bigger keyboard/stack calc; this is the
-  // one Flat mode gets. `has-pinned-agents` is toggled by AgentTerminalPane.
+  // Pinned bar is no longer overlapping the chat; clearance is handled by the
+  // fixed composer-stack height reservation in _mobile.scss.
   .guake-output.has-pinned-agents {
-    padding-bottom: 56px !important;
+    padding-bottom: 12px !important;
   }
 }
 

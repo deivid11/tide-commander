@@ -69,7 +69,8 @@
   top: 0;
   bottom: 0;
   width: var(--guake-side-panel-width);
-  background: color-mix(in srgb, var(--bg-primary) 98%, transparent);
+  // Opaque — translucent bg let chat text bleed through on mobile overlay mode
+  background: var(--bg-primary);
   border-left: 2px solid color-mix(in srgb, var(--accent-cyan) 68%, transparent);
   display: flex;
   flex-direction: column;

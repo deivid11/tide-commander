@@ -26,8 +26,10 @@
     align-items: center;
     justify-content: center;
     gap: 2px;
-    min-height: 36px;
-    padding: 2px 2px;
+    // Comfortable touch target (44px min for primary nav)
+    min-height: 44px;
+    min-width: 44px;
+    padding: 4px 2px;
     background: transparent;
     border: none;
     border-radius: $radius-md;
@@ -49,6 +51,11 @@
         color: $dracula-purple;
       }
     }
+  }
+
+  // Chat open: fewer items → roomier taps
+  .mobile-bottom-menu--chat-open .mobile-bottom-menu__btn {
+    min-width: 56px;
   }
 
   .mobile-bottom-menu__btn--primary {

@@ -327,9 +327,9 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     }
   }
 
-  // Resolve agent name for tool attribution (prefer subagent name if present)
-  const parentAgentName = agentId ? store.getState().agents.get(agentId)?.name : null;
-  const agentName = output.subagentName || parentAgentName;
+  // Tool attribution badge: only subagent names add information — the parent
+  // agent's own name is redundant inside its own chat, so it's not shown.
+  const agentName = output.subagentName || null;
   const provider = agentId ? store.getState().agents.get(agentId)?.provider : undefined;
   const assistantRoleLabel = providerLabel(provider);
 

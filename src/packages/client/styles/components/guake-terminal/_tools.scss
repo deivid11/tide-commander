@@ -5,30 +5,62 @@
 @use '../../variables' as *;
 
 // Tool usage in live streaming
-// Using theme-specific tool colors
+// Dense card: header row (time · agent · icon · NAME) + body line(s) for params
+// Matches ThinkingBlock layout so every chip reads compact on mobile/desktop.
 .output-tool-use {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 6px 12px;
-  margin: 4px 0;
+  align-items: center;
+  gap: 3px 8px;
+  padding: 5px 10px;
+  margin: 3px 0;
   background: var(--tool-use-bg);
   border-left: 3px solid var(--tool-use-border);
   border-radius: $radius-sm;
+
+  // Header chips stay on the first row
+  > .output-timestamp,
+  > .output-agent-badge,
+  > .output-tool-icon,
+  > .output-tool-name,
+  > .bash-output-indicator,
+  > .bash-inline-toggle,
+  > .output-tool-loading {
+    flex: 0 0 auto;
+  }
+
+  // Simple params (file path, pattern, bash command) share the header row —
+  // one-liner cards, always. Basis 0 removes them from flex line-breaking
+  // (a nonzero basis/min-width made longer names wrap to a second row), so
+  // they grow into whatever space remains after the header chips and
+  // ellipsize there (the title attribute holds the full text).
+  > .output-tool-param,
+  > .output-tool-param.bash-command {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  // Big bodies still take a full-width row below the header
+  // (todo lists, plan bodies, structured tool UIs, …)
+  > *:not(.output-timestamp):not(.output-agent-badge):not(.output-tool-icon):not(.output-tool-name):not(.output-tool-param):not(.bash-output-indicator):not(.bash-inline-toggle):not(.output-tool-loading) {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
 }
 
 .output-tool-icon {
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1;
   flex-shrink: 0;
   color: var(--tool-use-text);
+  display: inline-flex;
+  align-items: center;
 }
 
 .output-tool-name {
   font-family: $font-mono;
   font-weight: 600;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--tool-use-name, var(--tool-use-text));
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -52,12 +84,13 @@
   font-size: 11px;
   color: var(--tool-use-text);
   opacity: 0.9;
-  margin-left: 4px;
-  // NO truncation - show full content
-  white-space: pre-wrap;
-  word-break: break-word;
-  min-width: 0; // Allow shrinking in flex context
-  flex: 1 1 auto;
+  margin-left: 0;
+  min-width: 0;
+  // Collapsed body: one ellipsis line (title attribute still has full text)
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: normal;
 
   // Add a subtle separator before the param (but not when file icon is present)
   &::before {
@@ -71,8 +104,6 @@
   &.bash-command {
     color: var(--text-primary);
     opacity: 1;
-    white-space: pre-wrap;
-    word-break: break-word;
   }
 
   // Clickable file paths
@@ -90,19 +121,53 @@
   }
 }
 
-.output-tool-param.bash-search-param {
-  display: inline-flex;
+// Chip-style bash params: keep inner layout horizontal, still one outer line
+.output-tool-param.bash-search-param,
+.output-tool-param.bash-notify-param,
+.output-tool-param.bash-task-label-param,
+.output-tool-param.bash-report-task-param,
+.output-tool-param.bash-tracking-param,
+.output-tool-param.bash-memory-param {
+  display: flex;
   align-items: center;
   gap: 6px;
-}
-
-.output-tool-param.bash-notify-param {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
+
+  &::before {
+    flex-shrink: 0;
+  }
+}
+
+// Rich / multi-line tool bodies keep their own layout (curl cards, etc.)
+// and still take a full-width row (exempt from the one-liner param rule).
+.output-tool-param.bash-curl-param {
+  flex: 1 1 100%;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+
+  &::before {
+    display: none;
+  }
+}
+
+// Inline structured tools (todos, plans, questions) still get a full-width
+// second row, but can grow vertically inside it.
+.output-todo-inline,
+.output-ask-question-inline,
+.output-plan-inline,
+.output-task-inline,
+.output-list-files-inline,
+.output-task-wait-inline,
+.output-toolsearch-inline,
+.output-structured-tool-inline {
+  align-items: flex-start;
+
+  > *:not(.output-timestamp):not(.output-agent-badge):not(.output-tool-icon):not(.output-tool-name) {
+    white-space: normal;
+    overflow: visible;
+  }
 }
 
 .bash-notify-chip {
