@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.153.0] - 2026-07-11
+
+### Added
+- **Claude account switcher** - manage multiple Claude Code OAuth profiles (`~/.claude/.credentials.json` plus named copies like `.credentials.david.json`) from Settings → Claude Accounts and from the Context / Usage modal. Switch the active account when rate-limited, save the current account under a name, rename, or delete named profiles — without manually renaming files. Tokens never leave the server.
+
 ## [1.152.0] - 2026-07-11
 
 ### Added

@@ -114,8 +114,15 @@ export function useWebBundle({ manageLifecycle = false }: { manageLifecycle?: bo
         setInfoError(null);
         const active = Boolean(state.bridgePath && state.bridgePath.includes('web-bundles'));
         const relation = getVersionRelation(CURRENT_VERSION, info.version);
+        // Loop-breaker: a bundle we already run is NEVER re-pulled, whatever
+        // the version fields claim. Without this, a server advertising a
+        // version its dist doesn't contain (stale build vs bumped
+        // package.json) makes every pull land "still behind" → eternal
+        // re-sync. With it, any server bundle is pulled at most once.
+        const alreadyRunningServerBundle = active && state.hash === info.hash;
         const needsSync =
-          relation === 'behind' || (relation === 'equal' && active && state.hash !== info.hash);
+          !alreadyRunningServerBundle &&
+          (relation === 'behind' || (relation === 'equal' && active && state.hash !== info.hash));
         setUpdateAvailable(needsSync);
         if (needsSync && triggerAuto && autoSyncRef.current) {
           await syncNow(info);

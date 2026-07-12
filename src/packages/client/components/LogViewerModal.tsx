@@ -333,7 +333,7 @@ export function LogViewerModal({
         <div className="pm2-logs-modal-header">
           <div className="header-left">
             <span className="modal-icon">{icon}</span>
-            <span className="modal-title">{title}</span>
+            <span className="modal-title" title={title}>{title}</span>
             {isStreaming && (
               <span className="streaming-indicator" title="Live streaming">
                 <span className="pulse"></span>

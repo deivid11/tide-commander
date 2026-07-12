@@ -17,7 +17,8 @@
   top: 0;
   bottom: 0;
   width: var(--guake-side-panel-width);
-  background: rgba($dracula-bg-darker, 0.98);
+  // Opaque — translucent bg let chat text bleed through on mobile overlay mode
+  background: $dracula-bg-darker;
   border-left: 2px solid $dracula-purple;
   display: flex;
   flex-direction: column;

@@ -544,18 +544,76 @@
   contain: strict;
 }
 
-// Direct xterm.js embed container
+// Direct xterm.js embed container (column: xterm mount + optional touch key bar)
 .guake-bottom-terminal-embed {
   flex: 1;
   width: 100%;
   background: #1a1a2e;
   overflow: hidden;
   contain: content;
+  display: flex;
+  flex-direction: column;
+
+  // The div xterm.js opens into — fills everything above the key bar
+  .terminal-embed-mount {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
 
   // xterm.js container fills the embed div
   .xterm {
     height: 100%;
     padding: 4px 0 0 4px;
+  }
+
+  // Touch quick keys (Esc/Tab/Ctrl/arrows/^C/zoom/paste) — rendered only on
+  // coarse-pointer devices; soft keyboards have none of these keys.
+  .terminal-key-bar {
+    flex-shrink: 0;
+    display: flex;
+    gap: 6px;
+    padding: 6px 8px;
+    background: rgba(0, 0, 0, 0.35);
+    border-top: 1px solid rgba($dracula-comment, 0.25);
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .terminal-key-btn {
+    flex: 1 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    min-height: 38px;
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba($dracula-comment, 0.35);
+    border-radius: $radius-md;
+    color: $dracula-fg;
+    font-family: $font-mono;
+    font-size: 12px;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+
+    &:active {
+      background: rgba($dracula-cyan, 0.25);
+    }
+
+    // Ctrl latch armed — next typed key becomes a control key
+    &.latched {
+      background: rgba($dracula-purple, 0.35);
+      border-color: $dracula-purple;
+      color: #fff;
+    }
   }
 
   // Custom scrollbar matching Commander's theme.

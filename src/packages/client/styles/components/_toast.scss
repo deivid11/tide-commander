@@ -11,19 +11,14 @@
   align-items: center;
   gap: 6px;
   pointer-events: none;
-  // Prevent shrink-to-fit collapse when toast content uses flex min-width: 0
-  width: min(500px, calc(100vw - 24px));
+  // Wide enough for multi-line messages, not a full-screen stretch
+  width: min(420px, calc(100vw - 24px));
   max-width: calc(100vw - 24px);
+  box-sizing: border-box;
 
   @media (max-width: 768px) {
-    // Full-width edge-to-edge band on mobile (connected/disconnected toasts etc.)
     top: max(8px, env(safe-area-inset-top, 0px));
-    left: 8px;
-    right: 8px;
-    transform: none;
-    width: auto;
-    max-width: none;
-    align-items: stretch;
+    width: min(360px, calc(100vw - 24px));
   }
 }
 
@@ -40,7 +35,7 @@
   // Opacity entrance so swipe translateX can control transform freely
   animation: toast-in $transition-slow ease-out;
   width: 100%;
-  max-width: 500px;
+  max-width: 100%;
   box-sizing: border-box;
   font-size: 13px;
   touch-action: pan-y;
@@ -50,7 +45,6 @@
   }
 
   @media (max-width: 768px) {
-    max-width: none;
     padding: 10px 14px;
   }
 

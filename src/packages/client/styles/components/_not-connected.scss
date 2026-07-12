@@ -239,21 +239,32 @@
 // Small non-blocking toast shown during server reconnection
 .reconnecting-toast {
   position: fixed;
-  bottom: 24px;
+  // Prefer top so it never collides with the mobile bottom nav / composer
+  top: max(8px, env(safe-area-inset-top, 0px));
+  bottom: auto;
   left: 50%;
   transform: translateX(-50%);
   z-index: 9999;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 18px;
-  background: $bg-tertiary;
+  padding: 6px 14px;
+  background: rgba($bg-tertiary, 0.96);
   border: 1px solid $border-color;
-  border-radius: 8px;
-  font-size: 0.82rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
   color: $text-secondary;
   animation: not-connected-fade-in 0.3s ease-out;
   pointer-events: none;
+  max-width: calc(100vw - 24px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+
+  @media (max-width: 768px) {
+    // Slim top strip under the status bar — not over the nav
+    top: max(6px, env(safe-area-inset-top, 0px));
+    padding: 5px 12px;
+    font-size: 0.72rem;
+  }
 }
 
 .reconnecting-spinner {

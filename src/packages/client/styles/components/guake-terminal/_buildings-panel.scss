@@ -23,7 +23,9 @@
   top: 0;
   bottom: 0;
   width: var(--guake-side-panel-width);
-  background: rgba($dracula-bg-darker, 0.98);
+  // Fully opaque: on mobile the panel overlays the chat (no margin-push), and
+  // any translucency lets the chat text bleed through and wreck readability.
+  background: $dracula-bg-darker;
   border-left: 2px solid $dracula-orange;
   display: flex;
   flex-direction: column;

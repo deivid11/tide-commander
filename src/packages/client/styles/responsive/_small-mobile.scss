@@ -175,9 +175,10 @@
         font-size: 10px;
       }
 
+      // No left indent: params share the header row (one-liner cards) — the
+      // 18px indent was for the old params-on-their-own-line layout.
       .output-tool-param {
         font-size: 10px;
-        padding-left: 18px;
         line-height: 1.4;
       }
     }

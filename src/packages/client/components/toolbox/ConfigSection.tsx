@@ -10,6 +10,7 @@ import { SecretsSection } from './SecretsSection';
 import { DataSection } from './DataSection';
 import { AboutSection, ThemeSelector } from './AboutSection';
 import { IntegrationStatusPanel } from './IntegrationStatusPanel';
+import { ClaudeCredentialsPanel } from '../ClaudeCredentialsPanel';
 import { SystemPromptModal } from '../SystemPromptModal';
 import { WhatsAppConfigModal } from '../WhatsAppConfigModal';
 import { WhatsAppNotificationsModal } from '../WhatsAppNotificationsModal';
@@ -198,6 +199,7 @@ const SETTINGS_SECTIONS = [
   { id: 'modelStyle', title: 'Agent Model Style', keywords: ['saturation', 'roughness', 'metalness', 'glow', 'emissive', 'reflections', 'wireframe', 'color mode', 'material', 'shader'] },
   { id: 'animations', title: 'Animations', keywords: ['idle', 'working', 'animation', 'walk', 'run', 'sprint', 'jump', 'sit', 'crouch'] },
   { id: 'secrets', title: 'Secrets', keywords: ['secrets', 'api', 'key', 'password', 'credentials', 'env', 'environment'] },
+  { id: 'claudeAccounts', title: 'Claude Accounts', keywords: ['claude', 'accounts', 'credentials', 'oauth', 'rate limit', 'session', 'david', 'profile', 'switch account', 'subscription'] },
   { id: 'systemPrompt', title: 'System Prompt', keywords: ['system', 'prompt', 'global', 'instructions', 'ai', 'agent', 'rules', 'guidelines'] },
   { id: 'data', title: 'Data', keywords: ['export', 'import', 'backup', 'restore', 'save', 'load', 'json'] },
   { id: 'integrations', title: 'Integrations', keywords: ['integrations', 'integraciones', 'plugins', 'gmail', 'slack', 'jira', 'calendar', 'docx', 'email', 'whatsapp', 'notifications', 'notification', 'baileys', 'history', 'historial', 'chat', 'messages', 'inbox', 'config', 'setup'] },
@@ -796,6 +798,12 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       {shouldShowSection('secrets') && (
       <CollapsibleSection title={t('config:sections.secrets')} storageKey="secrets" defaultOpen={false} forceOpen={isSearching && shouldShowSection('secrets')}>
         <SecretsSection />
+      </CollapsibleSection>
+      )}
+
+      {shouldShowSection('claudeAccounts') && (
+      <CollapsibleSection title={t('config:sections.claudeAccounts', { defaultValue: 'Claude Accounts' })} storageKey="claudeAccounts" defaultOpen={false} forceOpen={isSearching && shouldShowSection('claudeAccounts')}>
+        <ClaudeCredentialsPanel />
       </CollapsibleSection>
       )}
 

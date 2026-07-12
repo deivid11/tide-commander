@@ -137,15 +137,15 @@ export const HistoryLine = memo(function HistoryLine({
     }
   }, []);
 
-  // Resolve agent name for tool attribution badge
-  // For Task tool_use messages, show the subagent name instead of parent agent
-  const parentAgentName = agentId ? store.getState().agents.get(agentId)?.name : null;
+  // Tool attribution badge: only subagent names (from Task/Agent tool_use)
+  // add information — the parent agent's own name is redundant inside its own
+  // chat, so it's not shown.
   const provider = agentId ? store.getState().agents.get(agentId)?.provider : undefined;
   const assistantRoleLabel = providerLabel(provider);
   const subagentNameFromInput = (type === 'tool_use' && (toolName === 'Task' || toolName === 'Agent') && message.toolInput)
     ? ((message.toolInput.name as string) || (message.toolInput.description as string) || null)
     : null;
-  const agentName = subagentNameFromInput || parentAgentName;
+  const agentName = subagentNameFromInput;
 
   // Format timestamp for display (HistoryMessage has ISO string timestamp)
   const timeStr = timestamp ? formatTimestamp(new Date(timestamp).getTime()) : '';
@@ -187,7 +187,6 @@ export const HistoryLine = memo(function HistoryLine({
         text={content}
         isStreaming={false}
         agentId={agentId ?? undefined}
-        agentName={parentAgentName}
         provider={provider}
         timeStr={timeStr}
         timestampTitle={`${timestampMs} | ${debugHash}`}

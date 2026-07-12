@@ -12,6 +12,7 @@
     "modelStyle": "Agent Model Style",
     "animations": "Animations",
     "secrets": "Secrets",
+    "claudeAccounts": "Claude Accounts",
     "systemPrompt": "System Prompt",
     "whatsapp": "WhatsApp Integration",
     "whatsappNotifications": "WhatsApp Notifications",

@@ -649,3 +649,146 @@
     }
   }
 }
+
+// =============================================================================
+// Mobile (≤768px) — full-screen viewer that leaves the bottom nav stack tappable
+// =============================================================================
+@media (max-width: 768px) {
+  .pm2-logs-modal-overlay {
+    // .mobile-bottom-stack (z-index 2100) intentionally sits above modal
+    // overlays; reserve its height so no modal controls hide under it.
+    padding-bottom: var(--mobile-bottom-stack-height, 72px);
+    backdrop-filter: none;
+  }
+
+  .pm2-logs-modal {
+    width: 100vw;
+    max-width: none;
+    height: 100%;
+    border: none;
+    border-radius: 0;
+
+    .pm2-logs-modal-header {
+      padding: 0.5rem 0.75rem;
+      gap: 0.5rem;
+
+      // Row 1: icon + ellipsized title; badges (LIVE / status / ports) wrap below
+      .header-left {
+        flex: 1;
+        min-width: 0;
+        flex-wrap: wrap;
+        row-gap: 0.3rem;
+
+        .modal-title {
+          flex: 1;
+          min-width: 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+      }
+
+      .header-right {
+        gap: 0.5rem;
+        flex-shrink: 0;
+
+        .line-count {
+          white-space: nowrap;
+        }
+
+        .modal-close {
+          width: 36px;
+          height: 36px;
+        }
+      }
+    }
+
+    // One horizontally swipeable row instead of squeezed buttons with wrapped labels
+    .pm2-logs-modal-toolbar {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
+      padding: 0.5rem 0.75rem;
+      scrollbar-width: none;
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
+
+      .toolbar-left,
+      .toolbar-right,
+      .pm2-process-controls {
+        flex-shrink: 0;
+        flex-wrap: nowrap;
+      }
+
+      .toolbar-btn {
+        flex-shrink: 0;
+        white-space: nowrap;
+        padding: 0.5rem 0.7rem;
+        touch-action: manipulation;
+      }
+    }
+
+    .pm2-logs-search-bar {
+      flex-wrap: wrap;
+      padding: 0.5rem 0.75rem;
+
+      // Search input on its own full-width row; option buttons wrap below
+      > input {
+        flex: 1 1 100%;
+        font-size: 16px; // ≥16px so mobile browsers don't zoom the page on focus
+      }
+
+      .toolbar-btn.small {
+        padding: 0.45rem 0.65rem;
+        touch-action: manipulation;
+      }
+
+      .context-control .context-input {
+        width: 52px;
+        font-size: 16px;
+      }
+
+      .match-count {
+        min-width: 0;
+      }
+    }
+
+    .pm2-logs-goto-line {
+      input {
+        flex: 1;
+        min-width: 0;
+        font-size: 16px;
+      }
+    }
+
+    .pm2-logs-content {
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+
+      // Narrow gutter — the desktop 50px+ line-number chrome is too wide at 360px
+      .log-line .line-number {
+        min-width: 30px;
+        padding-right: 0.35rem;
+        margin-right: 0.4rem;
+        font-size: 0.7rem;
+      }
+    }
+
+    // Keyboard shortcut hints are meaningless on touch — show the footer only
+    // when a host injected real content (e.g. the Boss source-filter note).
+    .pm2-logs-modal-footer {
+      display: none;
+      padding: 0.4rem 0.75rem;
+
+      &:has(> :not(.shortcut)) {
+        display: flex;
+      }
+
+      .shortcut {
+        display: none;
+      }
+    }
+  }
+}

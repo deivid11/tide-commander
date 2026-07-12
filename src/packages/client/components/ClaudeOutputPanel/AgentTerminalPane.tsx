@@ -1307,6 +1307,9 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
           We keep the lookup wired (pendingAgentPrompts) so it stays referenced
           if we ever need a fallback panel. */}
 
+      {/* Composer stack: pinned bar + input share one fixed bottom unit on mobile
+          so the pin pill never floats over chat messages. */}
+      <div className="guake-composer-stack">
       {/* Pinned-agent quick-select strip, directly above the composer */}
       <PinnedAgentsBar activeAgentId={agentId} />
 
@@ -1343,6 +1346,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
         onSwipeCloseOffsetChange={onSwipeCloseOffsetChange}
         onSwipeClose={onSwipeClose}
       />
+      </div>
     </>
   );
 }));
