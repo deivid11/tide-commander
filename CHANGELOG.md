@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.157.1] - 2026-07-12
+
+### Changed
+- **Richer Codex activity cards** - Codex Bash/command cards now open the full command and its output in a modal when clicked, Edit cards' file chips are individually clickable to open that file's diff, and multi-step shell commands get a readable summary (e.g. "3 steps · build → tests → lint") with tool-aware labels for type-check/build/lint/test steps. Codex `wait` orchestration steps render as a compact card.
+
+### Fixed
+- **Edit cards misclassified as command runs** - a Codex `apply_patch` whose patch body contains tool-call text (e.g. `tools.exec_command(`) is now detected as the outer Edit operation instead of being turned into a misleading mixed command card.
+
 ## [1.157.0] - 2026-07-12
 
 ### Added

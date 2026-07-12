@@ -42,7 +42,7 @@
 
   // Big bodies still take a full-width row below the header
   // (todo lists, plan bodies, structured tool UIs, …)
-  > *:not(.output-timestamp):not(.output-agent-badge):not(.output-tool-icon):not(.output-tool-name):not(.output-tool-param):not(.bash-output-indicator):not(.bash-inline-toggle):not(.output-tool-loading):not(.codex-file-chip):not(.codex-exec-chevron) {
+  > *:not(.output-timestamp):not(.output-agent-badge):not(.output-tool-icon):not(.output-tool-name):not(.output-tool-param):not(.bash-output-indicator):not(.bash-inline-toggle):not(.output-tool-loading):not(.codex-file-chip):not(.codex-exec-chevron):not(.wait-cell-id) {
     flex: 1 1 100%;
     min-width: 0;
   }
@@ -69,11 +69,46 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
+  &.is-clickable {
+    cursor: pointer;
+    touch-action: manipulation;
+
+    &:hover,
+    &:focus-visible {
+      color: #b6f4ff;
+      background: rgba(80, 180, 210, 0.24);
+      border-color: rgba(130, 225, 245, 0.55);
+      outline: none;
+    }
+  }
 }
 
 .codex-file-chip-more {
   flex-shrink: 0;
   color: var(--text-muted);
+}
+
+.output-wait-compact {
+  flex-wrap: nowrap !important;
+  min-height: 0;
+  padding: 2px 8px !important;
+  margin: 1px 0 !important;
+  gap: 5px !important;
+  line-height: 1.15 !important;
+  opacity: 0.72;
+
+  .output-tool-name {
+    font-size: 10px;
+  }
+}
+
+.wait-cell-id {
+  flex: 0 0 auto !important;
+  color: var(--text-muted);
+  font-family: $font-mono;
+  font-size: 10px;
+  white-space: nowrap;
 }
 
 .codex-exec-row {

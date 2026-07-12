@@ -436,6 +436,16 @@ export interface CodexExecFileTarget {
   highlightRange?: { offset: number; limit: number };
 }
 
+/** The actual shell command inside a Codex JavaScript exec wrapper. */
+export function getCodexExecCommand(input: unknown): string | null {
+  const script = typeof input === 'string'
+    ? input
+    : input && typeof input === 'object'
+      ? String((input as Record<string, unknown>).input || (input as Record<string, unknown>).code || (input as Record<string, unknown>).script || '')
+      : '';
+  return extractJavaScriptStringField(script, 'cmd') || extractJavaScriptStringField(script, 'command');
+}
+
 /** Locate the file/lines represented by a Codex READ or GREP exec card. */
 export function getCodexExecFileTarget(input: unknown, output?: string): CodexExecFileTarget | null {
   const script = typeof input === 'string'
@@ -472,6 +482,17 @@ export function getCodexExecPresentation(input: unknown): CodexExecPresentation 
     : input && typeof input === 'object'
       ? String((input as Record<string, unknown>).input || (input as Record<string, unknown>).code || (input as Record<string, unknown>).script || '')
       : '';
+  // Patch bodies may themselves contain strings such as `tools.exec_command(`.
+  // Detect the outer apply_patch operation first so those contents do not turn
+  // an EDIT card into a misleading mixed EXECUTECOMMAND card.
+  const patchPaths = getCodexExecEditPaths(script);
+  if (/\btools\.apply_patch\s*\(/.test(script) && patchPaths.length > 0) {
+    return {
+      toolName: 'Edit',
+      detail: patchPaths.length > 1 ? `${patchPaths.length} files` : 'modified',
+      filePaths: patchPaths,
+    };
+  }
   const toolCalls = [...script.matchAll(/\btools\.([A-Za-z0-9_]+)\s*\(/g)].map((match) => match[1]);
   if (toolCalls.length === 0) return { toolName: 'ExecuteCommand', detail: 'Run orchestration step' };
 
@@ -552,7 +573,28 @@ function classifyTerminalCommand(command: string): CodexExecPresentation {
     const path = clean.match(/\s--\s+["']?([^"']+)["']?\s*$/)?.[1];
     return { toolName: 'Read', detail: 'Git changes', filePaths: path ? [path.trim()] : undefined };
   }
-  return { toolName: 'Bash', detail: clean || 'Run terminal command' };
+  return { toolName: 'Bash', detail: summarizeShellCommand(clean) };
+}
+
+function summarizeShellCommand(command: string): string {
+  if (!command) return 'Run terminal command';
+  const steps = command.split(/\s*(?:&&|;)\s*/).filter(Boolean);
+  if (steps.length > 1) {
+    const labels = steps.slice(0, 3).map((step) => {
+      if (/\bvitest\b/.test(step)) return 'tests';
+      if (/\btsc\b/.test(step)) return 'type check';
+      if (/\b(?:vite|npm\s+run)\s+build\b/.test(step)) return 'build';
+      if (/\beslint\b/.test(step)) return 'lint';
+      if (/\bgit\s+diff\s+--check\b/.test(step)) return 'check diff';
+      return step.trim().split(/\s+/).slice(0, 2).join(' ');
+    });
+    return `${steps.length} steps · ${labels.join(' → ')}`;
+  }
+  if (/\bvitest\b/.test(command)) return `Tests · ${command.replace(/^.*?\bvitest\s+(?:run\s+)?/, '') || 'test suite'}`;
+  if (/\btsc\b/.test(command)) return 'Type check';
+  if (/\b(?:vite|npm\s+run)\s+build\b/.test(command)) return 'Build project';
+  if (/\beslint\b/.test(command)) return 'Lint project';
+  return command;
 }
 
 export function extractExecPayloadCommand(cmd: string): string | null {
