@@ -381,7 +381,9 @@ export function isCodexAppServerModeEnabled(): boolean {
   } catch (error: any) {
     log.error(` Failed to load codex app-server mode setting: ${error.message}`);
   }
-  return false;
+  // Default ON: streaming (app-server) is the default for Codex agents. An
+  // explicit toggle-off is still respected (the file above wins).
+  return true;
 }
 
 /**
@@ -398,6 +400,59 @@ export function setCodexAppServerModeEnabled(enabled: boolean): void {
     log.log(` Codex app-server mode setting updated: enabled=${enabled}`);
   } catch (error: any) {
     log.error(` Failed to save codex app-server mode setting: ${error.message}`);
+    throw error;
+  }
+}
+
+// ============================================================================
+// OpenCode Server Mode Setting
+// ============================================================================
+//
+// Experimental: when enabled, OpenCode agents run through a persistent, detached
+// `opencode serve` HTTP server instead of one `opencode run` process per turn.
+// The server streams word-by-word `message.part.delta` tokens over SSE (which
+// `opencode run --format json` never emits) and survives commander restarts.
+// Read live at each launch — no server restart needed to switch.
+
+const OPENCODE_SERVER_MODE_FILE = path.join(DATA_DIR, 'opencode-server-mode.json');
+
+interface OpencodeServerModeSetting {
+  enabled: boolean;
+  updatedAt: number;
+}
+
+/**
+ * Check if experimental OpenCode server (streaming) mode is enabled.
+ */
+export function isOpencodeServerModeEnabled(): boolean {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(OPENCODE_SERVER_MODE_FILE)) {
+      const data: OpencodeServerModeSetting = JSON.parse(fs.readFileSync(OPENCODE_SERVER_MODE_FILE, 'utf-8'));
+      return data.enabled;
+    }
+  } catch (error: any) {
+    log.error(` Failed to load opencode server mode setting: ${error.message}`);
+  }
+  // Default ON: streaming (opencode serve) is the default for OpenCode agents.
+  // An explicit toggle-off is still respected (the file above wins).
+  return true;
+}
+
+/**
+ * Enable/disable experimental OpenCode server (streaming) mode.
+ */
+export function setOpencodeServerModeEnabled(enabled: boolean): void {
+  ensureDataDir();
+  const data: OpencodeServerModeSetting = {
+    enabled,
+    updatedAt: Date.now(),
+  };
+  try {
+    fs.writeFileSync(OPENCODE_SERVER_MODE_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    log.log(` OpenCode server mode setting updated: enabled=${enabled}`);
+  } catch (error: any) {
+    log.error(` Failed to save opencode server mode setting: ${error.message}`);
     throw error;
   }
 }

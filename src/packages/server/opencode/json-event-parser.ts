@@ -113,7 +113,9 @@ export class OpencodeJsonEventParser {
       return [];
     }
 
-    log.log(`parseEvent: type=${event.type}, sessionID=${event.sessionID || 'none'}`);
+    // debug-level: in `opencode serve` mode this fires once per token delta, so
+    // keep it out of the default log stream to avoid per-token log spam.
+    log.debug(`parseEvent: type=${event.type}, sessionID=${event.sessionID || 'none'}`);
 
     switch (event.type) {
       case 'step_start':

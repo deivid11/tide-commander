@@ -17,7 +17,7 @@ import { WhatsAppConfigModal } from '../WhatsAppConfigModal';
 import { WhatsAppNotificationsModal } from '../WhatsAppNotificationsModal';
 import { WhatsAppHistoryPanel } from '../WhatsAppHistory/WhatsAppHistoryPanel';
 import { WhatsAppHubModal } from '../WhatsAppHub/WhatsAppHubModal';
-import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath, fetchTmuxModeSetting, updateTmuxModeSetting, fetchInteractiveModeSetting, updateInteractiveModeSetting, fetchCodexAppServerModeSetting, updateCodexAppServerModeSetting } from '../../api/system-settings';
+import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath, fetchTmuxModeSetting, updateTmuxModeSetting, fetchInteractiveModeSetting, updateInteractiveModeSetting, fetchCodexAppServerModeSetting, updateCodexAppServerModeSetting, fetchOpencodeServerModeSetting, updateOpencodeServerModeSetting } from '../../api/system-settings';
 import { BUILTIN_AGENT_NAMES } from '../../scene/config';
 import { Icon } from '../Icon';
 import type {
@@ -190,7 +190,7 @@ function HighlightText({ text, query }: { text: string; query: string }) {
 
 // Define searchable settings configuration (English keywords for search matching)
 const SETTINGS_SECTIONS = [
-  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'low power', 'battery', 'bajo consumo', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title', 'tmux', 'process persistence', 'interactive', 'tui', 'terminal', 'experimental', 'claude', 'stream', 'streaming', 'word by word', 'live text', 'grok', 'codex', 'app-server', 'app server'] },
+  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'low power', 'battery', 'bajo consumo', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title', 'tmux', 'process persistence', 'interactive', 'tui', 'terminal', 'experimental', 'claude', 'stream', 'streaming', 'word by word', 'live text', 'grok', 'codex', 'app-server', 'app server', 'opencode', 'serve'] },
   { id: 'agentNames', title: 'Agent Names', keywords: ['agent', 'names', 'custom', 'characters', 'rename'] },
   { id: 'defaultClass', title: 'Default Spawn Class', keywords: ['default', 'class', 'spawn', 'agent', 'scout', 'builder', 'random'] },
   { id: 'appearance', title: 'Appearance', keywords: ['theme', 'appearance', 'color', 'dark', 'light', 'style', 'look'] },
@@ -286,6 +286,15 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
     fetchCodexAppServerModeSetting().then((enabled) => {
       if (enabled !== settings.codexAppServerMode) {
         store.updateSettings({ codexAppServerMode: enabled });
+      }
+    }).catch(() => { /* ignore fetch errors on mount */ });
+  }, []);
+
+  // Sync experimental OpenCode server (streaming) mode setting from server on mount
+  useEffect(() => {
+    fetchOpencodeServerModeSetting().then((enabled) => {
+      if (enabled !== settings.opencodeServerMode) {
+        store.updateSettings({ opencodeServerMode: enabled });
       }
     }).catch(() => { /* ignore fetch errors on mount */ });
   }, []);
@@ -503,6 +512,17 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
               await updateCodexAppServerModeSetting(checked);
             } catch (err) {
               console.error('Failed to sync codex app-server mode setting to server:', err);
+            }
+          }} />
+        </div>
+        <div className="config-row">
+          <span className="config-label" title="Experimental: run OpenCode agents through a persistent, detached `opencode serve` HTTP server so replies stream word-by-word (token deltas over SSE) instead of appearing as one block. The server survives commander restarts — in-flight turns keep running and reconnect automatically. Applies to new OpenCode turns; no server restart needed to toggle."><HighlightText text={t('config:general.opencodeServerMode')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
+          <Toggle checked={settings.opencodeServerMode} onChange={async (checked) => {
+            store.updateSettings({ opencodeServerMode: checked });
+            try {
+              await updateOpencodeServerModeSetting(checked);
+            } catch (err) {
+              console.error('Failed to sync opencode server mode setting to server:', err);
             }
           }} />
         </div>
