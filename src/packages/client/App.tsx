@@ -71,6 +71,7 @@ import {
   useBuildingSync,
   useAreaHighlight,
   usePowerSaving,
+  useLowPowerMode,
   useKeyboardShortcuts,
   useBackNavigation,
   useBuildingGitStatus,
@@ -292,6 +293,13 @@ function AppContent() {
   useBuildingGitStatus();
   useAreaHighlight(sceneRef, selectedAreaId);
   usePowerSaving(sceneRef, settings.powerSaving);
+  useLowPowerMode(sceneRef, settings.lowPowerMode);
+
+  // Low power mode: freeze decorative CSS animations via a global class
+  // (see styles/_low-power.scss)
+  useEffect(() => {
+    document.documentElement.classList.toggle('low-power', settings.lowPowerMode === true);
+  }, [settings.lowPowerMode]);
 
   // Configurable browser tab title
   useEffect(() => {

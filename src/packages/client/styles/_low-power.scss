@@ -1,0 +1,18 @@
+// Low power mode (Settings → General → Low Power Mode).
+// App.tsx toggles the `low-power` class on <html> from settings.lowPowerMode.
+//
+// Completes every animation in one instant frame (iteration-count 1 keeps
+// `forwards` fill states intact, so enter-fades still end visible) and makes
+// transitions effectively instant. This stops the infinite decorative
+// animations (status pulses, shimmers, sweeps, typing dots, spinners) from
+// keeping the compositor awake — the main CSS battery drain on mobile.
+// Durations stay at 0.01ms instead of 0 so animationend/transitionend
+// listeners still fire.
+html.low-power *,
+html.low-power *::before,
+html.low-power *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}

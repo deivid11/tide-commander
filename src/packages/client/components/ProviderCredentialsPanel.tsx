@@ -1,136 +1,61 @@
 /**
- * ClaudeCredentialsPanel — manage Claude Code OAuth credential profiles.
+ * ProviderCredentialsPanel — manage Grok / Codex OAuth credential profiles.
  *
- * Lists ~/.claude/.credentials.json (active) and named copies
- * (.credentials.david.json, etc.) so operators can switch the live account
- * when rate-limited, without manually renaming files on disk.
+ * Same account-switcher UX as ClaudeCredentialsPanel, generalized: lists the
+ * active ~/.<provider>/auth.json and named copies (auth.david.json, etc.) so
+ * operators can switch the live account when rate-limited, without renaming
+ * files on disk. Shows email · plan · token expiry per profile (these
+ * providers expose no per-account rate-limit gauges the way Claude does).
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  deleteClaudeCredentials,
-  fetchClaudeCredentials,
-  fetchClaudeCredentialsUsage,
-  renameClaudeCredentials,
-  saveClaudeCredentials,
-  switchClaudeCredentials,
-  type ClaudeCredentialProfileMeta,
-  type ClaudeCredentialsList,
-  type ClaudeProfileRateLimitWindow,
-  type ClaudeProfileUsage,
-} from '../api/claude-credentials';
-import { getUsedPercentColor } from '../utils/claude-usage-format';
+  deleteProviderCredentials,
+  fetchProviderCredentials,
+  renameProviderCredentials,
+  saveProviderCredentials,
+  switchProviderCredentials,
+  type CredentialProviderId,
+  type ProviderCredentialProfileMeta,
+  type ProviderCredentialsList,
+} from '../api/provider-credentials';
 import { Icon } from './Icon';
 
-export interface ClaudeCredentialsPanelProps {
-  /** Called after a successful switch so parent can refresh usage gauges. */
+export interface ProviderCredentialsPanelProps {
+  provider: CredentialProviderId;
   onSwitched?: () => void;
-  /** Compact layout for embedding under the usage section. */
   compact?: boolean;
 }
+
+const PROVIDER_LABEL: Record<CredentialProviderId, string> = {
+  grok: 'Grok',
+  codex: 'Codex',
+};
 
 function formatExpiry(ms: number | null): string {
   if (ms == null || !Number.isFinite(ms)) return '—';
   const d = new Date(ms);
   if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-// Reset time, compact: same-day → "3:00 PM"; otherwise "Wed 3:00 PM".
-function formatResetShort(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  if (d.toDateString() === new Date().toDateString()) return time;
-  return `${d.toLocaleDateString(undefined, { weekday: 'short' })} ${time}`;
-}
-
-/**
- * One compact gauge row: label · bar · % · reset time. A null window renders
- * an empty bar with "no active session" — the usage endpoint omits the 5h
- * window entirely while an account has no session running, and hiding the row
- * read as a bug ("where's my session limit?").
- */
-function LimitGauge({ label, window }: { label: string; window: ClaudeProfileRateLimitWindow | null }) {
-  const { t } = useTranslation(['terminal']);
-  const percent = window ? Math.max(0, Math.min(100, window.utilization)) : 0;
-  const color = window ? getUsedPercentColor(percent) : 'var(--text-muted)';
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', marginTop: '3px' }}>
-      <span style={{ width: '52px', flexShrink: 0, color: 'var(--text-secondary)' }}>{label}</span>
-      <div
-        style={{
-          flex: 1,
-          minWidth: '36px',
-          height: '5px',
-          background: 'var(--bg-primary)',
-          borderRadius: '3px',
-          overflow: 'hidden',
-        }}
-      >
-        {window && <div style={{ width: `${percent}%`, height: '100%', background: color }} />}
-      </div>
-      <span style={{ color, fontVariantNumeric: 'tabular-nums', width: '34px', textAlign: 'right', flexShrink: 0 }}>
-        {window ? `${Math.round(percent)}%` : '0%'}
-      </span>
-      <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
-        {window
-          ? t('terminal:usage.resets', { time: formatResetShort(window.resetsAt) })
-          : t('terminal:credentials.gaugeNoSession', { defaultValue: 'no active session' })}
-      </span>
-    </div>
-  );
-}
-
-/** Session + weekly gauges for one credential profile (or its error state). */
-function ProfileLimits({ usage }: { usage: ClaudeProfileUsage | undefined }) {
-  const { t } = useTranslation(['terminal']);
-  if (!usage) return null;
-
-  const limits = usage.rateLimits;
-  return (
-    <div style={{ marginTop: '4px' }}>
-      {limits && (
-        <LimitGauge label={t('terminal:credentials.gaugeSession', { defaultValue: 'Session' })} window={limits.fiveHour} />
-      )}
-      {limits?.sevenDay && (
-        <LimitGauge label={t('terminal:credentials.gaugeWeek', { defaultValue: 'Week' })} window={limits.sevenDay} />
-      )}
-      {limits?.sevenDayOpus && (
-        <LimitGauge label={t('terminal:credentials.gaugeWeekOpus', { defaultValue: 'Opus wk' })} window={limits.sevenDayOpus} />
-      )}
-      {usage.error && (
-        <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>{usage.error}</div>
-      )}
-    </div>
-  );
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 function ProfileRow({
   profile,
-  usage,
   busy,
   onUse,
   onRename,
   onDelete,
 }: {
-  profile: ClaudeCredentialProfileMeta;
-  usage: ClaudeProfileUsage | undefined;
+  profile: ProviderCredentialProfileMeta;
   busy: boolean;
   onUse: (name: string) => void;
   onRename: (name: string) => void;
   onDelete: (name: string) => void;
 }) {
   const { t } = useTranslation(['terminal', 'common']);
-  const sub = profile.subscriptionType ?? '—';
-  const tier = profile.rateLimitTier ?? '';
-  const meta = [sub, tier].filter(Boolean).join(' · ');
+  const expired = profile.expiresAt != null && profile.expiresAt <= Date.now();
+  const meta = [profile.label, profile.email].filter(Boolean).join(' · ');
 
   return (
     <div
@@ -140,9 +65,7 @@ function ProfileRow({
         gap: '10px',
         padding: '8px 10px',
         background: profile.isActive ? 'rgba(74, 158, 255, 0.1)' : 'var(--bg-tertiary, var(--bg-secondary))',
-        border: profile.isActive
-          ? '1px solid rgba(74, 158, 255, 0.45)'
-          : '1px solid var(--border-color)',
+        border: profile.isActive ? '1px solid rgba(74, 158, 255, 0.45)' : '1px solid var(--border-color)',
         borderRadius: '6px',
         marginBottom: '6px',
       }}
@@ -165,19 +88,17 @@ function ProfileRow({
               {t('terminal:credentials.activeBadge')}
             </span>
           )}
-          {!profile.valid && (
-            <span style={{ fontSize: '10px', color: '#ff8a8a' }}>
-              {t('terminal:credentials.invalid')}
-            </span>
-          )}
+          {!profile.valid && <span style={{ fontSize: '10px', color: '#ff8a8a' }}>{t('terminal:credentials.invalid')}</span>}
         </div>
         <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
           {meta}
           {profile.expiresAt != null && (
-            <span> · {t('terminal:credentials.tokenExpires', { time: formatExpiry(profile.expiresAt) })}</span>
+            <span style={{ color: expired ? '#ff8a8a' : undefined }}>
+              {meta ? ' · ' : ''}
+              {t('terminal:credentials.tokenExpires', { time: formatExpiry(profile.expiresAt) })}
+            </span>
           )}
         </div>
-        <ProfileLimits usage={usage} />
       </div>
       <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
         {!profile.isActive && (
@@ -217,9 +138,9 @@ function ProfileRow({
   );
 }
 
-export function ClaudeCredentialsPanel({ onSwitched, compact }: ClaudeCredentialsPanelProps) {
+export function ProviderCredentialsPanel({ provider, onSwitched, compact }: ProviderCredentialsPanelProps) {
   const { t } = useTranslation(['terminal', 'common']);
-  const [data, setData] = useState<ClaudeCredentialsList | null>(null);
+  const [data, setData] = useState<ProviderCredentialsList | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -227,47 +148,24 @@ export function ClaudeCredentialsPanel({ onSwitched, compact }: ClaudeCredential
   const [stashName, setStashName] = useState('');
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  // Session/weekly gauges per profile id ("active" or name), server-cached
-  const [usageById, setUsageById] = useState<Record<string, ClaudeProfileUsage>>({});
-
-  const loadUsage = useCallback(async () => {
-    try {
-      const result = await fetchClaudeCredentialsUsage();
-      const byId: Record<string, ClaudeProfileUsage> = {};
-      for (const entry of result.usage) byId[entry.id] = entry;
-      setUsageById(byId);
-    } catch {
-      // Gauges are best-effort decoration; the profile list stays usable.
-    }
-  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const list = await fetchClaudeCredentials();
-      setData(list);
-      // Prefill stash name when active is unsaved
-      if (list.active && !list.active.matchesNamed && !stashName) {
-        setStashName('');
-      }
-      void loadUsage();
+      setData(await fetchProviderCredentials(provider));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  }, [stashName, loadUsage]);
+  }, [provider]);
 
   useEffect(() => {
-    // load once on mount
     void load();
-  }, []);
+  }, [load]);
 
-  const applyList = (list: ClaudeCredentialsList) => {
-    setData(list);
-  };
-
+  const applyList = (list: ProviderCredentialsList) => setData(list);
   const needsStash = Boolean(data?.active?.valid && !data.active.matchesNamed);
 
   const handleUse = async (name: string) => {
@@ -279,15 +177,10 @@ export function ClaudeCredentialsPanel({ onSwitched, compact }: ClaudeCredential
     }
     setBusy(true);
     try {
-      const result = await switchClaudeCredentials(name);
-      setData({
-        claudeDir: data?.claudeDir ?? '',
-        active: result.active,
-        profiles: result.profiles,
-      });
+      const result = await switchProviderCredentials(provider, name);
+      setData({ provider, dir: data?.dir ?? '', active: result.active, profiles: result.profiles });
       setMessage(t('terminal:credentials.switched', { name }));
       setPendingSwitch(null);
-      void loadUsage();
       onSwitched?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -306,12 +199,8 @@ export function ClaudeCredentialsPanel({ onSwitched, compact }: ClaudeCredential
     setBusy(true);
     setError(null);
     try {
-      const result = await switchClaudeCredentials(pendingSwitch, { stashActiveAs: stash });
-      setData({
-        claudeDir: data?.claudeDir ?? '',
-        active: result.active,
-        profiles: result.profiles,
-      });
+      const result = await switchProviderCredentials(provider, pendingSwitch, { stashActiveAs: stash });
+      setData({ provider, dir: data?.dir ?? '', active: result.active, profiles: result.profiles });
       setMessage(
         result.stashedAs
           ? t('terminal:credentials.switchedWithStash', { name: pendingSwitch, stash: result.stashedAs })
@@ -319,7 +208,6 @@ export function ClaudeCredentialsPanel({ onSwitched, compact }: ClaudeCredential
       );
       setPendingSwitch(null);
       setStashName('');
-      void loadUsage();
       onSwitched?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -338,26 +226,22 @@ export function ClaudeCredentialsPanel({ onSwitched, compact }: ClaudeCredential
     setError(null);
     setMessage(null);
     try {
-      const list = await saveClaudeCredentials(name);
-      applyList(list);
+      applyList(await saveProviderCredentials(provider, name));
       setSaveName('');
       setMessage(t('terminal:credentials.saved', { name }));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (/already exists/i.test(msg)) {
-        if (window.confirm(t('terminal:credentials.confirmOverwrite', { name }))) {
-          try {
-            const list = await saveClaudeCredentials(name, { force: true });
-            applyList(list);
-            setSaveName('');
-            setMessage(t('terminal:credentials.saved', { name }));
-            setBusy(false);
-            return;
-          } catch (err2) {
-            setError(err2 instanceof Error ? err2.message : String(err2));
-            setBusy(false);
-            return;
-          }
+      if (/already exists/i.test(msg) && window.confirm(t('terminal:credentials.confirmOverwrite', { name }))) {
+        try {
+          applyList(await saveProviderCredentials(provider, name, { force: true }));
+          setSaveName('');
+          setMessage(t('terminal:credentials.saved', { name }));
+          setBusy(false);
+          return;
+        } catch (err2) {
+          setError(err2 instanceof Error ? err2.message : String(err2));
+          setBusy(false);
+          return;
         }
       }
       setError(msg);
@@ -372,8 +256,7 @@ export function ClaudeCredentialsPanel({ onSwitched, compact }: ClaudeCredential
     setBusy(true);
     setError(null);
     try {
-      const list = await renameClaudeCredentials(from, to.trim());
-      applyList(list);
+      applyList(await renameProviderCredentials(provider, from, to.trim()));
       setMessage(t('terminal:credentials.renamed', { from, to: to.trim() }));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -387,8 +270,7 @@ export function ClaudeCredentialsPanel({ onSwitched, compact }: ClaudeCredential
     setBusy(true);
     setError(null);
     try {
-      const list = await deleteClaudeCredentials(name);
-      applyList(list);
+      applyList(await deleteProviderCredentials(provider, name));
       setMessage(t('terminal:credentials.deleted', { name }));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -412,40 +294,19 @@ export function ClaudeCredentialsPanel({ onSwitched, compact }: ClaudeCredential
         borderTop: compact ? '1px solid var(--border-color)' : undefined,
       }}
     >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '10px',
-          gap: '8px',
-        }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', gap: '8px' }}>
         <div>
-          <div
-            style={{
-              fontSize: '12px',
-              color: 'var(--text-secondary)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-            }}
-          >
-            {t('terminal:credentials.title')}
+          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            {t('terminal:credentials.providerTitle', {
+              provider: PROVIDER_LABEL[provider],
+              defaultValue: `${PROVIDER_LABEL[provider]} Accounts`,
+            })}
           </div>
           <div style={{ fontSize: '12px', marginTop: '4px' }}>
             {t('terminal:credentials.current', { name: activeLabel })}
-            {data?.active?.subscriptionType && (
-              <span style={{ color: 'var(--text-secondary)' }}>
-                {' '}
-                · {data.active.subscriptionType}
-                {data.active.rateLimitTier ? ` (${data.active.rateLimitTier})` : ''}
-              </span>
-            )}
+            {data?.active?.email && <span style={{ color: 'var(--text-secondary)' }}> · {data.active.email}</span>}
+            {data?.active?.label && <span style={{ color: 'var(--text-secondary)' }}> ({data.active.label})</span>}
           </div>
-          {/* Unsaved active account has no profile row below — show its gauges here */}
-          {data?.active && !data.active.matchesNamed && (
-            <ProfileLimits usage={usageById['active']} />
-          )}
         </div>
         <button
           type="button"
@@ -462,7 +323,11 @@ export function ClaudeCredentialsPanel({ onSwitched, compact }: ClaudeCredential
       </div>
 
       <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.45 }}>
-        {t('terminal:credentials.help')}
+        {t('terminal:credentials.providerHelp', {
+          provider: PROVIDER_LABEL[provider],
+          dir: data?.dir ?? `~/.${provider}`,
+          defaultValue: `Named copies of ${data?.dir ?? `~/.${provider}`}/auth.json. Switch the active ${PROVIDER_LABEL[provider]} account when you hit rate limits — same as renaming the file manually.`,
+        })}
       </p>
 
       {error && (
@@ -528,22 +393,10 @@ export function ClaudeCredentialsPanel({ onSwitched, compact }: ClaudeCredential
                 color: 'var(--text-primary)',
               }}
             />
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={busy}
-              onClick={() => void confirmSwitchWithStash()}
-              style={{ padding: '6px 12px', fontSize: '12px' }}
-            >
+            <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void confirmSwitchWithStash()} style={{ padding: '6px 12px', fontSize: '12px' }}>
               {t('terminal:credentials.confirmSwitch')}
             </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={busy}
-              onClick={() => setPendingSwitch(null)}
-              style={{ padding: '6px 12px', fontSize: '12px' }}
-            >
+            <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setPendingSwitch(null)} style={{ padding: '6px 12px', fontSize: '12px' }}>
               {t('common:buttons.cancel')}
             </button>
           </div>
@@ -551,22 +404,17 @@ export function ClaudeCredentialsPanel({ onSwitched, compact }: ClaudeCredential
       )}
 
       {loading && !data && (
-        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', padding: '8px 0' }}>
-          {t('common:status.loading')}…
-        </div>
+        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', padding: '8px 0' }}>{t('common:status.loading')}…</div>
       )}
 
       {data && data.profiles.length === 0 && (
-        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
-          {t('terminal:credentials.noProfiles')}
-        </div>
+        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>{t('terminal:credentials.noProfiles')}</div>
       )}
 
       {data?.profiles.map((profile) => (
         <ProfileRow
           key={profile.name}
           profile={profile}
-          usage={usageById[profile.id]}
           busy={busy}
           onUse={(n) => void handleUse(n)}
           onRename={(n) => void handleRename(n)}
@@ -574,15 +422,7 @@ export function ClaudeCredentialsPanel({ onSwitched, compact }: ClaudeCredential
         />
       ))}
 
-      <div
-        style={{
-          display: 'flex',
-          gap: '6px',
-          marginTop: '10px',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-        }}
-      >
+      <div style={{ display: 'flex', gap: '6px', marginTop: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           type="text"
           value={saveName}
@@ -611,10 +451,8 @@ export function ClaudeCredentialsPanel({ onSwitched, compact }: ClaudeCredential
         </button>
       </div>
 
-      {data?.claudeDir && (
-        <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '8px', wordBreak: 'break-all' }}>
-          {data.claudeDir}
-        </div>
+      {data?.dir && (
+        <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '8px', wordBreak: 'break-all' }}>{data.dir}</div>
       )}
     </div>
   );

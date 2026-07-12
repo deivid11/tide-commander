@@ -11,12 +11,13 @@ import { DataSection } from './DataSection';
 import { AboutSection, ThemeSelector } from './AboutSection';
 import { IntegrationStatusPanel } from './IntegrationStatusPanel';
 import { ClaudeCredentialsPanel } from '../ClaudeCredentialsPanel';
+import { ProviderCredentialsPanel } from '../ProviderCredentialsPanel';
 import { SystemPromptModal } from '../SystemPromptModal';
 import { WhatsAppConfigModal } from '../WhatsAppConfigModal';
 import { WhatsAppNotificationsModal } from '../WhatsAppNotificationsModal';
 import { WhatsAppHistoryPanel } from '../WhatsAppHistory/WhatsAppHistoryPanel';
 import { WhatsAppHubModal } from '../WhatsAppHub/WhatsAppHubModal';
-import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath, fetchTmuxModeSetting, updateTmuxModeSetting, fetchInteractiveModeSetting, updateInteractiveModeSetting } from '../../api/system-settings';
+import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath, fetchTmuxModeSetting, updateTmuxModeSetting, fetchInteractiveModeSetting, updateInteractiveModeSetting, fetchCodexAppServerModeSetting, updateCodexAppServerModeSetting } from '../../api/system-settings';
 import { BUILTIN_AGENT_NAMES } from '../../scene/config';
 import { Icon } from '../Icon';
 import type {
@@ -189,7 +190,7 @@ function HighlightText({ text, query }: { text: string; query: string }) {
 
 // Define searchable settings configuration (English keywords for search matching)
 const SETTINGS_SECTIONS = [
-  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title', 'tmux', 'process persistence', 'interactive', 'tui', 'terminal', 'experimental', 'claude', 'stream', 'streaming', 'word by word', 'live text', 'grok'] },
+  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'low power', 'battery', 'bajo consumo', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title', 'tmux', 'process persistence', 'interactive', 'tui', 'terminal', 'experimental', 'claude', 'stream', 'streaming', 'word by word', 'live text', 'grok', 'codex', 'app-server', 'app server'] },
   { id: 'agentNames', title: 'Agent Names', keywords: ['agent', 'names', 'custom', 'characters', 'rename'] },
   { id: 'defaultClass', title: 'Default Spawn Class', keywords: ['default', 'class', 'spawn', 'agent', 'scout', 'builder', 'random'] },
   { id: 'appearance', title: 'Appearance', keywords: ['theme', 'appearance', 'color', 'dark', 'light', 'style', 'look'] },
@@ -200,6 +201,8 @@ const SETTINGS_SECTIONS = [
   { id: 'animations', title: 'Animations', keywords: ['idle', 'working', 'animation', 'walk', 'run', 'sprint', 'jump', 'sit', 'crouch'] },
   { id: 'secrets', title: 'Secrets', keywords: ['secrets', 'api', 'key', 'password', 'credentials', 'env', 'environment'] },
   { id: 'claudeAccounts', title: 'Claude Accounts', keywords: ['claude', 'accounts', 'credentials', 'oauth', 'rate limit', 'session', 'david', 'profile', 'switch account', 'subscription'] },
+  { id: 'grokAccounts', title: 'Grok Accounts', keywords: ['grok', 'xai', 'x.ai', 'accounts', 'credentials', 'oauth', 'session', 'profile', 'switch account', 'subscription'] },
+  { id: 'codexAccounts', title: 'Codex Accounts', keywords: ['codex', 'openai', 'chatgpt', 'accounts', 'credentials', 'oauth', 'session', 'profile', 'switch account', 'subscription'] },
   { id: 'systemPrompt', title: 'System Prompt', keywords: ['system', 'prompt', 'global', 'instructions', 'ai', 'agent', 'rules', 'guidelines'] },
   { id: 'data', title: 'Data', keywords: ['export', 'import', 'backup', 'restore', 'save', 'load', 'json'] },
   { id: 'integrations', title: 'Integrations', keywords: ['integrations', 'integraciones', 'plugins', 'gmail', 'slack', 'jira', 'calendar', 'docx', 'email', 'whatsapp', 'notifications', 'notification', 'baileys', 'history', 'historial', 'chat', 'messages', 'inbox', 'config', 'setup'] },
@@ -274,6 +277,15 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
     fetchInteractiveModeSetting().then((enabled) => {
       if (enabled !== settings.interactiveMode) {
         store.updateSettings({ interactiveMode: enabled });
+      }
+    }).catch(() => { /* ignore fetch errors on mount */ });
+  }, []);
+
+  // Sync experimental Codex app-server (streaming) mode setting from server on mount
+  useEffect(() => {
+    fetchCodexAppServerModeSetting().then((enabled) => {
+      if (enabled !== settings.codexAppServerMode) {
+        store.updateSettings({ codexAppServerMode: enabled });
       }
     }).catch(() => { /* ignore fetch errors on mount */ });
   }, []);
@@ -458,6 +470,10 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           <Toggle checked={settings.powerSaving} onChange={(checked) => store.updateSettings({ powerSaving: checked })} />
         </div>
         <div className="config-row">
+          <span className="config-label" title="Battery saver for mobile: caps scene FPS (20 active / 5 idle), freezes decorative animations and disables word-by-word streaming. Off = normal mode."><HighlightText text={t('config:general.lowPowerMode')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
+          <Toggle checked={settings.lowPowerMode === true} onChange={(checked) => store.updateSettings({ lowPowerMode: checked })} />
+        </div>
+        <div className="config-row">
           <span className="config-label" title="Wrap agent processes in tmux sessions so they survive server restarts (requires tmux installed)"><HighlightText text={t('config:general.tmuxMode')} query={searchQuery} /></span>
           <Toggle checked={settings.tmuxMode} onChange={async (checked) => {
             store.updateSettings({ tmuxMode: checked });
@@ -476,6 +492,17 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
               await updateInteractiveModeSetting(checked);
             } catch (err) {
               console.error('Failed to sync interactive mode setting to server:', err);
+            }
+          }} />
+        </div>
+        <div className="config-row">
+          <span className="config-label" title="Experimental: run Codex agents through a persistent `codex app-server` so replies stream word-by-word (token deltas) instead of appearing as one block. The app-server runs detached and survives commander restarts — in-flight turns keep running and reconnect automatically. Applies to new Codex turns; no server restart needed to toggle."><HighlightText text={t('config:general.codexAppServerMode')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
+          <Toggle checked={settings.codexAppServerMode} onChange={async (checked) => {
+            store.updateSettings({ codexAppServerMode: checked });
+            try {
+              await updateCodexAppServerModeSetting(checked);
+            } catch (err) {
+              console.error('Failed to sync codex app-server mode setting to server:', err);
             }
           }} />
         </div>
@@ -804,6 +831,18 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       {shouldShowSection('claudeAccounts') && (
       <CollapsibleSection title={t('config:sections.claudeAccounts', { defaultValue: 'Claude Accounts' })} storageKey="claudeAccounts" defaultOpen={false} forceOpen={isSearching && shouldShowSection('claudeAccounts')}>
         <ClaudeCredentialsPanel />
+      </CollapsibleSection>
+      )}
+
+      {shouldShowSection('grokAccounts') && (
+      <CollapsibleSection title={t('config:sections.grokAccounts', { defaultValue: 'Grok Accounts' })} storageKey="grokAccounts" defaultOpen={false} forceOpen={isSearching && shouldShowSection('grokAccounts')}>
+        <ProviderCredentialsPanel provider="grok" />
+      </CollapsibleSection>
+      )}
+
+      {shouldShowSection('codexAccounts') && (
+      <CollapsibleSection title={t('config:sections.codexAccounts', { defaultValue: 'Codex Accounts' })} storageKey="codexAccounts" defaultOpen={false} forceOpen={isSearching && shouldShowSection('codexAccounts')}>
+        <ProviderCredentialsPanel provider="codex" />
       </CollapsibleSection>
       )}
 

@@ -106,3 +106,39 @@ export async function deleteClaudeCredentials(name: string): Promise<ClaudeCrede
   }
   return (await response.json()) as ClaudeCredentialsList;
 }
+
+// ---------------------------------------------------------------------------
+// Per-profile rate-limit gauges (session + weekly), keyed by profile id
+// ("active" for the live credentials file, else the profile name)
+// ---------------------------------------------------------------------------
+
+export interface ClaudeProfileRateLimitWindow {
+  utilization: number; // 0-100 percent used
+  resetsAt: string;    // ISO timestamp
+}
+
+export interface ClaudeProfileRateLimits {
+  fiveHour: ClaudeProfileRateLimitWindow | null;
+  sevenDay: ClaudeProfileRateLimitWindow | null;
+  sevenDayOpus: ClaudeProfileRateLimitWindow | null;
+  sevenDaySonnet: ClaudeProfileRateLimitWindow | null;
+}
+
+export interface ClaudeProfileUsage {
+  id: string;
+  rateLimits: ClaudeProfileRateLimits | null;
+  error: string | null;
+  fetchedAt: number;
+}
+
+export interface ClaudeProfilesUsage {
+  usage: ClaudeProfileUsage[];
+}
+
+export async function fetchClaudeCredentialsUsage(): Promise<ClaudeProfilesUsage> {
+  const response = await authFetch(apiUrl('/api/system/claude-credentials/usage'));
+  if (!response.ok) {
+    throw new Error(await readError(response, `Failed to fetch Claude credentials usage: ${response.status}`));
+  }
+  return (await response.json()) as ClaudeProfilesUsage;
+}

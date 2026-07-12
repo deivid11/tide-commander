@@ -146,7 +146,8 @@
 
   .guake-input textarea,
   .guake-input input {
-    font-size: 13px;
+    // ≥16px so iOS Safari doesn't auto-zoom the page when the input focuses
+    font-size: 16px;
     padding: 6px 8px;
   }
 
@@ -284,17 +285,18 @@
     padding: 0 10px;
   }
 
-  // Unit panel actions — allow wrapping on tiny screens
+  // Unit panel actions — full-width row under the name (set in _mobile.scss);
+  // the old max-width:100px side column stacked buttons into dead space.
   .unit-header-actions {
-    gap: 1px;
+    gap: 4px;
     flex-wrap: wrap;
-    max-width: 100px;
+    max-width: none;
   }
 
   .unit-action-icon {
-    width: 28px;
-    height: 28px;
-    font-size: 12px;
+    width: 38px;
+    height: 38px;
+    font-size: 13px;
   }
 
   .unit-stat {

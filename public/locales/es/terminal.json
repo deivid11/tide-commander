@@ -1132,5 +1132,13 @@
     "can-clear-context": "Completado — contexto listo para limpiar",
     "waiting-subordinates": "Esperando trabajo delegado",
     "working": "Trabajando"
+  },
+  "credentials": {
+    "gaugeSession": "Sesión",
+    "gaugeWeek": "Semana",
+    "gaugeWeekOpus": "Opus sem",
+    "gaugeNoSession": "sin sesión activa",
+    "providerTitle": "Cuentas de {{provider}}",
+    "providerHelp": "Copias nombradas de {{dir}}/auth.json. Cambia la cuenta activa de {{provider}} cuando llegues a los límites — igual que renombrar el archivo a mano."
   }
 }

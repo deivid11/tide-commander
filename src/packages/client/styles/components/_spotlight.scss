@@ -739,3 +739,37 @@
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
 }
+
+// =============================================================================
+// Mobile — no physical keyboard: hide shortcut chrome; category tabs become a
+// swipeable row with touch-sized targets.
+// =============================================================================
+@media (max-width: 768px) {
+  .spotlight-input-hints,
+  .spotlight-tabs-hint {
+    display: none;
+  }
+
+  // ≥16px so iOS Safari doesn't auto-zoom the page when the input focuses
+  .spotlight-input {
+    font-size: 16px;
+  }
+
+  .spotlight-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .spotlight-tab {
+    flex-shrink: 0;
+    min-height: 36px;
+    padding: 6px 12px;
+  }
+}

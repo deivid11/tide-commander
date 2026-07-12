@@ -22,11 +22,20 @@ import {
 import { getAutoUpdateStatus, setAutoUpdateEnabled } from '../services/auto-update-service.js';
 import {
   deleteClaudeCredentialProfile,
+  getClaudeCredentialProfilesUsage,
   listClaudeCredentialProfiles,
   renameClaudeCredentialProfile,
   saveActiveClaudeCredentialProfile,
   switchClaudeCredentialProfile,
 } from '../services/claude-credentials-service.js';
+import {
+  deleteProviderCredentialProfile,
+  listProviderCredentialProfiles,
+  renameProviderCredentialProfile,
+  saveActiveProviderCredentialProfile,
+  switchProviderCredentialProfile,
+  type CredentialProviderId,
+} from '../services/provider-credentials-service.js';
 
 const log = createLogger('SystemRoutes');
 const router = Router();
@@ -510,6 +519,21 @@ router.get('/claude-credentials', (_req: Request, res: Response) => {
   }
 });
 
+/**
+ * Session (5h) + weekly rate-limit gauges per stored credential profile,
+ * keyed by token fingerprint. Cached server-side; expired dormant tokens are
+ * reported (with last-known gauges when available) instead of fetched.
+ */
+router.get('/claude-credentials/usage', async (_req: Request, res: Response) => {
+  try {
+    res.json(await getClaudeCredentialProfilesUsage());
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`Failed to fetch Claude credentials usage: ${message}`);
+    res.status(500).json({ error: message });
+  }
+});
+
 router.post('/claude-credentials/switch', (req: Request, res: Response) => {
   try {
     const name = req.body?.name;
@@ -583,5 +607,101 @@ router.delete('/claude-credentials/:name', (req: Request, res: Response) => {
     res.status(status).json({ error: message });
   }
 });
+
+/**
+ * Grok + Codex OAuth credential profiles — same account-switcher model as
+ * Claude, generalized (~/.grok/auth.json, ~/.codex/auth.json + named copies).
+ * Mounted per provider at /grok-credentials/* and /codex-credentials/*.
+ * Tokens are never returned — only non-secret metadata + fingerprints.
+ */
+function mountProviderCredentialRoutes(provider: CredentialProviderId, basePath: string): void {
+  router.get(basePath, (_req: Request, res: Response) => {
+    try {
+      res.json(listProviderCredentialProfiles(provider));
+    } catch (err) {
+      const message = (err as Error).message;
+      log.error(`Failed to list ${provider} credentials: ${message}`);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  router.post(`${basePath}/switch`, (req: Request, res: Response) => {
+    try {
+      const name = req.body?.name;
+      const stashActiveAs = req.body?.stashActiveAs;
+      if (typeof name !== 'string' || !name.trim()) {
+        res.status(400).json({ error: 'Body must include { name: string }' });
+        return;
+      }
+      if (stashActiveAs !== undefined && typeof stashActiveAs !== 'string') {
+        res.status(400).json({ error: 'stashActiveAs must be a string when provided' });
+        return;
+      }
+      res.json(
+        switchProviderCredentialProfile(provider, name.trim(), {
+          stashActiveAs: typeof stashActiveAs === 'string' ? stashActiveAs.trim() : undefined,
+        }),
+      );
+    } catch (err) {
+      const message = (err as Error).message;
+      log.error(`Failed to switch ${provider} credentials: ${message}`);
+      const status = /not found|Invalid|required|already exists|cannot be|no valid/i.test(message) ? 400 : 500;
+      res.status(status).json({ error: message });
+    }
+  });
+
+  router.post(`${basePath}/save`, (req: Request, res: Response) => {
+    try {
+      const name = req.body?.name;
+      const force = Boolean(req.body?.force);
+      if (typeof name !== 'string' || !name.trim()) {
+        res.status(400).json({ error: 'Body must include { name: string }' });
+        return;
+      }
+      res.json(saveActiveProviderCredentialProfile(provider, name.trim(), { force }));
+    } catch (err) {
+      const message = (err as Error).message;
+      log.error(`Failed to save ${provider} credentials profile: ${message}`);
+      const status = /not found|Invalid|already exists|No valid/i.test(message) ? 400 : 500;
+      res.status(status).json({ error: message });
+    }
+  });
+
+  router.post(`${basePath}/rename`, (req: Request, res: Response) => {
+    try {
+      const from = req.body?.from;
+      const to = req.body?.to;
+      if (typeof from !== 'string' || !from.trim() || typeof to !== 'string' || !to.trim()) {
+        res.status(400).json({ error: 'Body must include { from: string, to: string }' });
+        return;
+      }
+      res.json(renameProviderCredentialProfile(provider, from.trim(), to.trim()));
+    } catch (err) {
+      const message = (err as Error).message;
+      log.error(`Failed to rename ${provider} credentials profile: ${message}`);
+      const status = /not found|Invalid|already exists/i.test(message) ? 400 : 500;
+      res.status(status).json({ error: message });
+    }
+  });
+
+  router.delete(`${basePath}/:name`, (req: Request, res: Response) => {
+    try {
+      const name = typeof req.params.name === 'string' ? req.params.name : '';
+      if (!name) {
+        res.status(400).json({ error: 'Profile name required' });
+        return;
+      }
+      res.json(deleteProviderCredentialProfile(provider, name));
+    } catch (err) {
+      const message = (err as Error).message;
+      log.error(`Failed to delete ${provider} credentials profile: ${message}`);
+      const status = /not found|Invalid/i.test(message) ? 400 : 500;
+      res.status(status).json({ error: message });
+    }
+  });
+}
+
+mountProviderCredentialRoutes('grok', '/grok-credentials');
+mountProviderCredentialRoutes('codex', '/codex-credentials');
 
 export default router;

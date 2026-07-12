@@ -102,6 +102,11 @@
     // Status feedback — always animate while working (do not honor
     // prefers-reduced-motion here; users treat this as a live activity cue).
     animation: guake-avatar-sway 1.2s ease-in-out infinite !important;
+
+    // Low power mode wins over the always-animate exception (battery saver).
+    html.low-power & {
+      animation: none !important;
+    }
     z-index: 1;
     will-change: transform;
     transform-origin: center center;

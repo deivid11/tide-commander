@@ -19,7 +19,7 @@ import { truncateOrEmpty } from '../utils/string.js';
 import { buildCustomAgentConfig, expandFileMentions } from '../websocket/handlers/command-handler.js';
 import { clearDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
 import { OpencodeBackend } from '../opencode/backend.js';
-import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled, isInteractiveModeEnabled, setInteractiveModeEnabled } from '../services/system-prompt-service.js';
+import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled, isInteractiveModeEnabled, setInteractiveModeEnabled, isCodexAppServerModeEnabled, setCodexAppServerModeEnabled } from '../services/system-prompt-service.js';
 import { markInstructionsDirtyForAll } from '../services/instruction-refresh.js';
 import { startAgentTerminal, stopAgentTerminal } from '../services/agent-terminal-service.js';
 import { buildClaudeUsageByAgentSummary, buildClaudeUsageByDaySummary, buildClaudeUsageSnapshot } from '../services/claude-usage-service.js';
@@ -1649,6 +1649,34 @@ router.post('/system-settings/interactive-mode', (req: Request, res: Response) =
     res.json({ success: true, enabled });
   } catch (err: any) {
     log.error(' Failed to set interactive mode setting:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/system-settings/codex-app-server-mode - Get experimental Codex app-server (streaming) mode setting
+router.get('/system-settings/codex-app-server-mode', (_req: Request, res: Response) => {
+  try {
+    const enabled = isCodexAppServerModeEnabled();
+    res.json({ enabled });
+  } catch (err: any) {
+    log.error(' Failed to get codex app-server mode setting:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/system-settings/codex-app-server-mode - Update experimental Codex app-server (streaming) mode setting
+router.post('/system-settings/codex-app-server-mode', (req: Request, res: Response) => {
+  try {
+    const { enabled } = req.body;
+    if (typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'enabled must be a boolean' });
+      return;
+    }
+    setCodexAppServerModeEnabled(enabled);
+    log.log(` Codex app-server mode setting updated: enabled=${enabled}`);
+    res.json({ success: true, enabled });
+  } catch (err: any) {
+    log.error(' Failed to set codex app-server mode setting:', err);
     res.status(500).json({ error: err.message });
   }
 });

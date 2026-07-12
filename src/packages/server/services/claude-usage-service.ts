@@ -453,7 +453,7 @@ function parseRateLimitWindow(value: unknown): ClaudeRateLimitWindow | null {
   };
 }
 
-interface RateLimitFetchResult {
+export interface RateLimitFetchResult {
   rateLimits: ClaudeRateLimits | null;
   error: string | null;
   // HTTP status when Anthropic responded (used to pick the backoff length).
@@ -473,35 +473,12 @@ function parseRetryAfterMs(headerValue: string | null): number | undefined {
 }
 
 /**
- * Fetch the live session/weekly rate-limit gauges — the data behind the
- * progress bars in the CLI's `/usage` panel — using the OAuth token the CLI
- * keeps in `~/.claude/.credentials.json`. Returns the gauges or an error
- * string (never throws); the caller folds either into the snapshot.
- *
- * This is the RAW network call. Go through `getClaudeRateLimits()` instead —
- * it caches, dedupes, and rate-limits calls to this so we don't hammer (and get
- * 429'd by) the Anthropic endpoint.
+ * Fetch the `/usage` gauges for an arbitrary Claude OAuth access token.
+ * RAW network call, no caching — exported for the multi-account switcher,
+ * which shows each stored profile's session/weekly limits and does its own
+ * per-fingerprint caching (claude-credentials-service).
  */
-async function fetchClaudeRateLimitsFromApi(): Promise<RateLimitFetchResult> {
-  let accessToken: string;
-  try {
-    if (!fs.existsSync(CREDENTIALS_PATH)) {
-      return { rateLimits: null, error: 'No Claude CLI credentials found' };
-    }
-    const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf-8'));
-    const oauth = credentials?.claudeAiOauth;
-    if (!oauth || typeof oauth.accessToken !== 'string' || oauth.accessToken === '') {
-      return { rateLimits: null, error: 'Claude CLI credentials are missing an OAuth token' };
-    }
-    if (typeof oauth.expiresAt === 'number' && oauth.expiresAt <= Date.now()) {
-      return { rateLimits: null, error: 'Claude CLI OAuth token has expired — run any Claude session to refresh it' };
-    }
-    accessToken = oauth.accessToken;
-  } catch (err) {
-    log.warn(`Failed to read Claude credentials at ${CREDENTIALS_PATH}: ${err}`);
-    return { rateLimits: null, error: 'Failed to read Claude CLI credentials' };
-  }
-
+export async function fetchClaudeRateLimitsForToken(accessToken: string): Promise<RateLimitFetchResult> {
   try {
     const response = await fetch(OAUTH_USAGE_URL, {
       headers: {
@@ -534,6 +511,36 @@ async function fetchClaudeRateLimitsFromApi(): Promise<RateLimitFetchResult> {
     log.warn(`Failed to fetch Claude rate limits: ${err}`);
     const reason = err?.name === 'TimeoutError' ? 'request timed out' : (err?.message ?? 'request failed');
     return { rateLimits: null, error: `Could not reach Anthropic usage endpoint (${reason})` };
+  }
+}
+
+/**
+ * Fetch the live session/weekly rate-limit gauges — the data behind the
+ * progress bars in the CLI's `/usage` panel — using the OAuth token the CLI
+ * keeps in `~/.claude/.credentials.json`. Returns the gauges or an error
+ * string (never throws); the caller folds either into the snapshot.
+ *
+ * This is the RAW network call. Go through `getClaudeRateLimits()` instead —
+ * it caches, dedupes, and rate-limits calls to this so we don't hammer (and get
+ * 429'd by) the Anthropic endpoint.
+ */
+async function fetchClaudeRateLimitsFromApi(): Promise<RateLimitFetchResult> {
+  try {
+    if (!fs.existsSync(CREDENTIALS_PATH)) {
+      return { rateLimits: null, error: 'No Claude CLI credentials found' };
+    }
+    const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf-8'));
+    const oauth = credentials?.claudeAiOauth;
+    if (!oauth || typeof oauth.accessToken !== 'string' || oauth.accessToken === '') {
+      return { rateLimits: null, error: 'Claude CLI credentials are missing an OAuth token' };
+    }
+    if (typeof oauth.expiresAt === 'number' && oauth.expiresAt <= Date.now()) {
+      return { rateLimits: null, error: 'Claude CLI OAuth token has expired — run any Claude session to refresh it' };
+    }
+    return await fetchClaudeRateLimitsForToken(oauth.accessToken);
+  } catch (err) {
+    log.warn(`Failed to read Claude credentials at ${CREDENTIALS_PATH}: ${err}`);
+    return { rateLimits: null, error: 'Failed to read Claude CLI credentials' };
   }
 }
 
