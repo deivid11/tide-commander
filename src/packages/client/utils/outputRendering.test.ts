@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeTideFileHref, extractExecWrappedCommand, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, summarizeCodexExecScript, extractToolKeyParam, getCodexExecPresentation, getCodexExecEditPaths, getCodexExecFileTarget, getCodexExecCommand } from './outputRendering';
+import { decodeTideFileHref, extractExecWrappedCommand, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, summarizeCodexExecScript, extractToolKeyParam, getCodexExecPresentation, getCodexExecEditPaths, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults } from './outputRendering';
 
 describe('Codex exec activity summaries', () => {
   it('describes parallel terminal commands without exposing orchestration code', () => {
@@ -31,6 +31,9 @@ describe('Codex exec activity summaries', () => {
       .toEqual({ toolName: 'Read', detail: 'lines 1–80', filePaths: ['src/App.tsx'] });
     expect(getCodexExecPresentation('const r = await tools.exec_command({ cmd: "rg --files src" });'))
       .toEqual({ toolName: 'Glob', detail: 'rg --files src' });
+    expect(getCodexExecPresentation({
+      input: `const r = await tools.exec_command({ cmd: "/usr/bin/zsh -lc \\\"sed -n '1335,1362p' src/GrepPanel.tsx\\\"" });`,
+    })).toEqual({ toolName: 'Read', detail: 'lines 1335–1362', filePaths: ['src/GrepPanel.tsx'] });
   });
 
   it('extracts touched files from apply_patch calls for the diff modal', () => {
@@ -47,6 +50,17 @@ describe('Codex exec activity summaries', () => {
   it('resolves exact read ranges and grep result lines for the file modal', () => {
     expect(getCodexExecFileTarget({ input: `const r = await tools.exec_command({cmd: "sed -n '440,545p' src/Panel.tsx"});` }))
       .toEqual({ path: 'src/Panel.tsx', highlightRange: { offset: 440, limit: 106 } });
+    expect(getCodexExecFileTarget({ input: `const r = await tools.exec_command({cmd: "/usr/bin/zsh -lc \\\"sed -n '10,12p' src/Panel.tsx\\\""});` }))
+      .toEqual({ path: 'src/Panel.tsx', highlightRange: { offset: 10, limit: 3 } });
+    expect(getShellReadTarget(`/usr/bin/zsh -lc "sed -n '1335,1362p' src/OutputLine.tsx"`))
+      .toEqual({ path: 'src/OutputLine.tsx', highlightRange: { offset: 1335, limit: 28 } });
+    const compound = `sed -n '10,12p' src/A.ts; sed -n '20,25p' src/B.ts; rg -n needle src`;
+    expect(getShellReadTargets(compound)).toEqual([
+      { path: 'src/A.ts', highlightRange: { offset: 10, limit: 3 } },
+      { path: 'src/B.ts', highlightRange: { offset: 20, limit: 6 } },
+    ]);
+    expect(getCodexExecPresentation({ input: `const r = await tools.exec_command({cmd: "${compound}"});` }))
+      .toEqual({ toolName: 'Read', detail: '2 ranges', filePaths: ['src/A.ts', 'src/B.ts'] });
     expect(getCodexExecFileTarget(
       { input: 'const r = await tools.exec_command({cmd: "rg -n needle src"});' },
       'src/App.tsx:37:const needle = true;\nsrc/Other.ts:8:needle',
@@ -65,6 +79,18 @@ describe('Codex exec activity summaries', () => {
   it('does not misclassify tool names contained inside a patch body', () => {
     const input = { input: String.raw`const patch = "*** Begin Patch\n*** Update File: src/a.ts\n@@\n+tools.exec_command({})\n+tools.write_stdin({})\n*** End Patch"; await tools.apply_patch(patch);` };
     expect(getCodexExecPresentation(input)).toEqual({ toolName: 'Edit', detail: 'modified', filePaths: ['src/a.ts'] });
+  });
+
+  it('parses rg output for a grouped clickable results modal', () => {
+    const input = { input: 'const r = await tools.exec_command({cmd: "rg -n \\\"needle\\\" src"});' };
+    expect(parseCodexGrepResults(input, 'src/A.ts:12:const needle = 1;\nsrc/B.ts:7:// needle'))
+      .toEqual({
+        query: 'needle',
+        matches: [
+          { path: 'src/A.ts', line: 12, text: 'const needle = 1;' },
+          { path: 'src/B.ts', line: 7, text: '// needle' },
+        ],
+      });
   });
 });
 

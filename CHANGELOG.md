@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.158.0] - 2026-07-12
+
+### Added
+- **Codex Grep results modal** - clicking a Codex Grep/search activity card now opens a modal that lists the matches grouped by file, with the search query highlighted in each line and match/file counts up top; click any match (or a file name) to jump straight to that line in the file viewer.
+
+### Fixed
+- **Codex read/grep card misclassification** - a file read whose path contains "grep" (e.g. `sed -n … GrepPanel.tsx`) is no longer shown as a Grep card — reads are now classified before grep. Shell wrappers (`zsh`/`bash`/`sh -lc` and surrounding quotes) are unwrapped more reliably, and a single command reading multiple line ranges now renders as one "N ranges" Read card.
+
 ## [1.157.1] - 2026-07-12
 
 ### Changed

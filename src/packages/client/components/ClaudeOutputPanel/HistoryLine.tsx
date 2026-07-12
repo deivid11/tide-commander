@@ -10,7 +10,7 @@ import { useHideCost, useSettings, useAgentPrompts } from '../../store';
 import { store, type TestRunHandle, type HttpRunHandle } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getCodexExecEditPaths, getCodexExecFileTarget, getCodexExecCommand, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getCodexExecEditPaths, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
@@ -42,6 +42,7 @@ import type { ExecTask, Subagent } from '../../../shared/types';
 import { SubagentInline } from './SubagentInline';
 import { providerAssetUrl, providerLabel } from '../../utils/providerDisplay';
 import { ThinkingBlock } from './ThinkingBlock';
+import { GrepResultsModal } from './GrepResultsModal';
 
 /** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
 function getExtFromPath(filePath: string): string {
@@ -107,6 +108,7 @@ export const HistoryLine = memo(function HistoryLine({
   const { t } = useTranslation(['tools', 'common', 'terminal']);
   const [expandedExecTasks, setExpandedExecTasks] = useState<Set<string>>(new Set());
   const [execDetailExpanded, setExecDetailExpanded] = useState(false);
+  const [grepResultsModal, setGrepResultsModal] = useState<CodexGrepResults | null>(null);
   const [sessionExpanded, setSessionExpanded] = useState(false);
   const hideCost = useHideCost();
   const settings = useSettings();
@@ -437,13 +439,32 @@ export const HistoryLine = memo(function HistoryLine({
       const visibleFilePaths = execPresentation.filePaths?.length
         ? execPresentation.filePaths
         : execFileTarget?.path ? [execFileTarget.path] : [];
+      const execImagePath = execPresentation.detail === 'image'
+        ? visibleFilePaths.find((path) => isThumbnailableImagePath(path))
+        : undefined;
+      const execImagePreview = execImagePath
+        ? { url: getLocalFileImageUrl(execImagePath), name: getBasenameFromPath(execImagePath) }
+        : null;
+      const opensImageViewer = !!execImagePreview && !!onImageClick;
       const opensFileModal = !!execFileTarget && !!onFileClick;
       const execCommand = getCodexExecCommand(message.toolInput || content);
+      const execReadTargets = execCommand ? getShellReadTargets(execCommand) : [];
       const opensCommandModal = !!execCommand && !!onBashClick
         && (execPresentation.toolName === 'Bash' || execPresentation.toolName === 'ExecuteCommand');
+      const grepResults = execPresentation.toolName === 'Grep'
+        ? parseCodexGrepResults(message.toolInput || content, _toolOutput)
+        : null;
       const handleExecActivate = () => {
+        if (opensImageViewer && execImagePreview) {
+          onImageClick(execImagePreview.url, execImagePreview.name);
+          return;
+        }
         if (opensDiffModal) {
           onFileClick(execEditPaths[0], { oldString: '', newString: '', operation: 'codex-patch' });
+          return;
+        }
+        if (grepResults) {
+          setGrepResultsModal(grepResults);
           return;
         }
         if (opensCommandModal && execCommand) {
@@ -459,9 +480,17 @@ export const HistoryLine = memo(function HistoryLine({
         setExecDetailExpanded((value) => !value);
       };
       const handleFileChipActivate = (event: React.MouseEvent | React.KeyboardEvent, path: string) => {
-        if (execPresentation.toolName !== 'Edit' || !onFileClick) return;
+        if (!onFileClick) return;
+        const readTarget = execPresentation.toolName === 'Read'
+          ? execReadTargets.find((target) => target.path === path)
+          : undefined;
+        if (execPresentation.toolName !== 'Edit' && !readTarget) return;
         event.stopPropagation();
-        onFileClick(path, { oldString: '', newString: '', operation: 'codex-patch' });
+        if (readTarget) {
+          onFileClick(path, readTarget.highlightRange ? { highlightRange: readTarget.highlightRange } : undefined);
+        } else {
+          onFileClick(path, { oldString: '', newString: '', operation: 'codex-patch' });
+        }
       };
       return (
         <>
@@ -485,10 +514,10 @@ export const HistoryLine = memo(function HistoryLine({
             {visibleFilePaths.slice(0, 2).map((path) => (
               <span
                 key={path}
-                className={`codex-file-chip ${execPresentation.toolName === 'Edit' && onFileClick ? 'is-clickable' : ''}`}
+                className={`codex-file-chip ${(execPresentation.toolName === 'Edit' || execReadTargets.some((target) => target.path === path)) && onFileClick ? 'is-clickable' : ''}`}
                 title={path}
-                role={execPresentation.toolName === 'Edit' && onFileClick ? 'button' : undefined}
-                tabIndex={execPresentation.toolName === 'Edit' && onFileClick ? 0 : undefined}
+                role={(execPresentation.toolName === 'Edit' || execReadTargets.some((target) => target.path === path)) && onFileClick ? 'button' : undefined}
+                tabIndex={(execPresentation.toolName === 'Edit' || execReadTargets.some((target) => target.path === path)) && onFileClick ? 0 : undefined}
                 onClick={(event) => handleFileChipActivate(event, path)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
@@ -507,8 +536,24 @@ export const HistoryLine = memo(function HistoryLine({
             {!(execPresentation.toolName === 'Edit' && visibleFilePaths.length > 0) && (
               <span className="output-tool-param">{execPresentation.detail}</span>
             )}
-            <span className="codex-exec-chevron"><Icon name={opensDiffModal || opensFileModal || opensCommandModal ? 'open-external' : execDetailExpanded ? 'caret-up' : 'caret-down'} size={13} /></span>
+            <span className="codex-exec-chevron"><Icon name={opensImageViewer || opensDiffModal || opensFileModal || opensCommandModal ? 'open-external' : execDetailExpanded ? 'caret-up' : 'caret-down'} size={13} /></span>
           </div>
+          {execImagePreview && (
+            <div className="output-read-image-preview codex-exec-image-preview">
+              <img
+                src={execImagePreview.url}
+                alt={execImagePreview.name}
+                className="read-image-thumb"
+                loading="lazy"
+                title={t('terminal:content.clickToViewImage')}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onImageClick?.(execImagePreview.url, execImagePreview.name);
+                }}
+                onError={(event) => { (event.currentTarget as HTMLImageElement).style.display = 'none'; }}
+              />
+            </div>
+          )}
           {execDetailExpanded && (
             <div className="codex-exec-detail">
               <div className="codex-exec-detail-label">Command details</div>
@@ -516,6 +561,7 @@ export const HistoryLine = memo(function HistoryLine({
               {_toolOutput && <><div className="codex-exec-detail-label">Result</div><pre>{_toolOutput}</pre></>}
             </div>
           )}
+          {grepResultsModal && <GrepResultsModal results={grepResultsModal} onClose={() => setGrepResultsModal(null)} onFileClick={onFileClick} />}
         </>
       );
     }
@@ -550,6 +596,8 @@ export const HistoryLine = memo(function HistoryLine({
         }
       } catch { /* ignore */ }
       const bashCommand = _bashCommand || keyParam || bashDescription || '';
+      const bashReadTarget = isBashTool && bashCommand ? getShellReadTarget(bashCommand) : null;
+      const isBashClickable = isBashTool && (!!onBashClick || (!!bashReadTarget && !!onFileClick));
       // Grok early tool_started cards arrive with empty toolInput {}. Hide them
       // rather than rendering a bare "BASH" chip with no command.
       if (isBashTool && !bashCommand) {
@@ -658,6 +706,12 @@ export const HistoryLine = memo(function HistoryLine({
       };
 
       const handleBashClick = () => {
+        if (bashReadTarget && onFileClick) {
+          onFileClick(bashReadTarget.path, bashReadTarget.highlightRange
+            ? { highlightRange: bashReadTarget.highlightRange }
+            : undefined);
+          return;
+        }
         if (isBashTool && bashCommand && onBashClick) {
           onBashClick(bashCommand, _bashOutput || t('tools:display.noOutputAvailable'));
         }
@@ -898,10 +952,10 @@ export const HistoryLine = memo(function HistoryLine({
       return (
         <>
           <div
-            className={`output-line output-tool-use output-tool-simple ${isBashTool && onBashClick ? 'clickable-bash' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''} ${bashTrackingStatusCommand ? 'bash-tracking-use' : ''}`}
-            onClick={isBashTool && onBashClick ? handleBashClick : undefined}
-            style={isBashTool && onBashClick ? { cursor: 'pointer' } : undefined}
-            title={isBashTool && onBashClick ? t('tools:display.clickToViewOutput') : undefined}
+            className={`output-line output-tool-use output-tool-simple ${isBashClickable ? 'clickable-bash' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''} ${bashTrackingStatusCommand ? 'bash-tracking-use' : ''}`}
+            onClick={isBashClickable ? handleBashClick : undefined}
+            style={isBashClickable ? { cursor: 'pointer' } : undefined}
+            title={bashReadTarget ? t('tools:display.clickToViewFile') : isBashClickable ? t('tools:display.clickToViewOutput') : undefined}
           >
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
