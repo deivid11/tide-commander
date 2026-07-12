@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.158.1] - 2026-07-12
+
+### Fixed
+- **Codex edit diffs now render** - clicking a Codex Edit activity card (or its file chip) now shows the real before/after diff: the file viewer understands Codex's `*** Begin Patch` / `*** Update/Add/Delete File:` apply_patch format and reconstructs the original content, and a multi-file patch opens just the clicked file's section instead of failing to resolve the diff.
+
 ## [1.158.0] - 2026-07-12
 
 ### Added

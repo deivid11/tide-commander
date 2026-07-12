@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeTideFileHref, extractExecWrappedCommand, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, summarizeCodexExecScript, extractToolKeyParam, getCodexExecPresentation, getCodexExecEditPaths, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults } from './outputRendering';
+import { decodeTideFileHref, extractExecWrappedCommand, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, summarizeCodexExecScript, extractToolKeyParam, getCodexExecPresentation, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults } from './outputRendering';
 
 describe('Codex exec activity summaries', () => {
   it('describes parallel terminal commands without exposing orchestration code', () => {
@@ -43,6 +43,8 @@ describe('Codex exec activity summaries', () => {
 
     const persisted = String.raw`const patch = "*** Begin Patch\n*** Update File: /workspace/src/Panel.tsx\n@@\n-old\n+new\n*** End Patch"; await tools.apply_patch(patch);`;
     expect(getCodexExecEditPaths({ input: persisted })).toEqual(['/workspace/src/Panel.tsx']);
+    expect(getCodexExecPatchForFile({ input: persisted }, '/workspace/src/Panel.tsx'))
+      .toContain("*** Update File: /workspace/src/Panel.tsx\n@@\n-old\n+new");
     expect(getCodexExecPresentation({ input: persisted }))
       .toEqual({ toolName: 'Edit', detail: 'modified', filePaths: ['/workspace/src/Panel.tsx'] });
   });

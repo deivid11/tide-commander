@@ -6,7 +6,7 @@ import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHideCost, useSettings, ClaudeOutput, store, useAgentPrompts, type TestRunHandle, type HttpRunHandle } from '../../store';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getCodexExecEditPaths, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay, parseTaskNotification, TaskNotificationDisplay } from './BossContext';
@@ -918,7 +918,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           return;
         }
         if (opensDiffModal) {
-          onFileClick(execEditPaths[0], { oldString: '', newString: '', operation: 'codex-patch' });
+          onFileClick(execEditPaths[0], { oldString: '', newString: '', operation: 'codex-patch', unifiedDiff: getCodexExecPatchForFile(payloadToolInput, execEditPaths[0]) || undefined });
           return;
         }
         if (grepResults) {
@@ -949,7 +949,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         if (readTarget) {
           onFileClick(path, readTarget.highlightRange ? { highlightRange: readTarget.highlightRange } : undefined);
         } else {
-          onFileClick(path, { oldString: '', newString: '', operation: 'codex-patch' });
+          onFileClick(path, { oldString: '', newString: '', operation: 'codex-patch', unifiedDiff: getCodexExecPatchForFile(payloadToolInput, path) || undefined });
         }
       };
       return (

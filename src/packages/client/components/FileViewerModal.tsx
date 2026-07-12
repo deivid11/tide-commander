@@ -235,6 +235,34 @@ interface NotFoundDetail {
  */
 function reconstructOriginalFromUnifiedDiff(currentContent: string, diffText: string): string | null {
   try {
+    if (/^\*\*\* (?:Update|Add|Delete) File:/m.test(diffText)) {
+      const header = diffText.match(/^\*\*\* (Update|Add|Delete) File:/m)?.[1];
+      if (header === 'Add') return '';
+      let reconstructed = currentContent;
+      const body = diffText.replace(/^\*\*\* (?:Update|Add|Delete) File:.*$/m, '');
+      const hunks = body.split(/^@@.*$/m).filter((part) => part.trim());
+      for (const hunk of hunks) {
+        const oldLines: string[] = [];
+        const newLines: string[] = [];
+        for (const line of hunk.replace(/^\n/, '').split('\n')) {
+          if (line.startsWith('***')) continue;
+          if (line.startsWith('-')) oldLines.push(line.slice(1));
+          else if (line.startsWith('+')) newLines.push(line.slice(1));
+          else {
+            const context = line.startsWith(' ') ? line.slice(1) : line;
+            oldLines.push(context);
+            newLines.push(context);
+          }
+        }
+        const oldBlock = oldLines.join('\n');
+        const newBlock = newLines.join('\n');
+        if (!newBlock) continue;
+        const index = reconstructed.indexOf(newBlock);
+        if (index < 0) return null;
+        reconstructed = reconstructed.slice(0, index) + oldBlock + reconstructed.slice(index + newBlock.length);
+      }
+      return reconstructed;
+    }
     const currentLines = currentContent.split('\n');
     const diffLines = diffText.split('\n');
     const result: string[] = [];

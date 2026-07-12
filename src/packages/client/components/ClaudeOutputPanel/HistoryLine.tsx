@@ -10,7 +10,7 @@ import { useHideCost, useSettings, useAgentPrompts } from '../../store';
 import { store, type TestRunHandle, type HttpRunHandle } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getCodexExecEditPaths, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
@@ -460,7 +460,7 @@ export const HistoryLine = memo(function HistoryLine({
           return;
         }
         if (opensDiffModal) {
-          onFileClick(execEditPaths[0], { oldString: '', newString: '', operation: 'codex-patch' });
+          onFileClick(execEditPaths[0], { oldString: '', newString: '', operation: 'codex-patch', unifiedDiff: getCodexExecPatchForFile(message.toolInput || content, execEditPaths[0]) || undefined });
           return;
         }
         if (grepResults) {
@@ -489,7 +489,7 @@ export const HistoryLine = memo(function HistoryLine({
         if (readTarget) {
           onFileClick(path, readTarget.highlightRange ? { highlightRange: readTarget.highlightRange } : undefined);
         } else {
-          onFileClick(path, { oldString: '', newString: '', operation: 'codex-patch' });
+          onFileClick(path, { oldString: '', newString: '', operation: 'codex-patch', unifiedDiff: getCodexExecPatchForFile(message.toolInput || content, path) || undefined });
         }
       };
       return (
