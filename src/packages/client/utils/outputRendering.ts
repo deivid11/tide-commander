@@ -436,6 +436,43 @@ export interface CodexExecFileTarget {
   highlightRange?: { offset: number; limit: number };
 }
 
+export interface CodexGrepMatch { path: string; line: number; text: string }
+export interface CodexGrepResults { query: string; matches: CodexGrepMatch[] }
+
+/** Parse an rg/grep exec command and its captured output for the results modal. */
+export function parseCodexGrepResults(input: unknown, output?: string): CodexGrepResults | null {
+  const command = getCodexExecCommand(input) || '';
+  const normalized = normalizeShellWrapper(command);
+  const queryMatch = normalized.match(/\b(?:rg|grep)\b(?:\s+--?[\w-]+)*\s+(?:(["'])(.*?)\1|([^\s]+))/);
+  const query = (queryMatch?.[2] || queryMatch?.[3] || '').trim();
+  if (!query) return null;
+
+  let searchable = output || '';
+  try {
+    const parsed = JSON.parse(searchable) as unknown;
+    const strings: string[] = [];
+    const collect = (value: unknown) => {
+      if (typeof value === 'string') strings.push(value);
+      else if (Array.isArray(value)) value.forEach(collect);
+      else if (value && typeof value === 'object') Object.values(value as Record<string, unknown>).forEach(collect);
+    };
+    collect(parsed);
+    searchable = strings.join('\n');
+  } catch { /* plain tool output */ }
+  searchable = searchable.replace(/\\n/g, '\n');
+
+  const matches: CodexGrepMatch[] = [];
+  for (const line of searchable.split('\n')) {
+    const match = line.match(/^(.+?):(\d+):(.*)$/);
+    if (!match) continue;
+    const path = match[1].trim();
+    const lineNumber = Number(match[2]);
+    if (!path || !lineNumber) continue;
+    matches.push({ path, line: lineNumber, text: match[3].trim() });
+  }
+  return { query, matches };
+}
+
 /** The actual shell command inside a Codex JavaScript exec wrapper. */
 export function getCodexExecCommand(input: unknown): string | null {
   const script = typeof input === 'string'
@@ -453,18 +490,9 @@ export function getCodexExecFileTarget(input: unknown, output?: string): CodexEx
     : input && typeof input === 'object'
       ? String((input as Record<string, unknown>).input || (input as Record<string, unknown>).code || (input as Record<string, unknown>).script || '')
       : '';
-  const command = extractJavaScriptStringField(script, 'cmd') || extractJavaScriptStringField(script, 'command') || '';
-
-  // sed -n '440,545p' path — the dominant Codex file-reading form.
-  const sed = command.match(/\bsed\s+-n\s+["']?(\d+)\s*,\s*(\d+)p["']?\s+(?:--\s+)?["']?([^"';&|]+?)["']?\s*$/);
-  if (sed) {
-    const start = Number(sed[1]);
-    const end = Number(sed[2]);
-    return { path: sed[3].trim(), highlightRange: { offset: start, limit: Math.max(1, end - start + 1) } };
-  }
-
-  const simpleRead = command.match(/^\s*(?:cat|head|tail)\b[^;&|]*?\s+(?:--\s+)?["']?([^"'\s;&|]+)["']?\s*$/);
-  if (simpleRead) return { path: simpleRead[1] };
+  const rawCommand = extractJavaScriptStringField(script, 'cmd') || extractJavaScriptStringField(script, 'command') || '';
+  const readTarget = getShellReadTarget(rawCommand);
+  if (readTarget) return readTarget;
 
   // rg --line-number output normally starts `path:line:text` (or path-line-text
   // when context mode is enabled). Open the first concrete match.
@@ -473,6 +501,27 @@ export function getCodexExecFileTarget(input: unknown, output?: string): CodexEx
     if (match) return { path: match[1].trim(), highlightRange: { offset: Number(match[2]), limit: 1 } };
   }
   return null;
+}
+
+/** Resolve a direct shell file-read command to the file and exact line range. */
+export function getShellReadTarget(rawCommand: string): CodexExecFileTarget | null {
+  return getShellReadTargets(rawCommand)[0] || null;
+}
+
+/** All sed/head/cat read targets in a possibly chained shell command. */
+export function getShellReadTargets(rawCommand: string): CodexExecFileTarget[] {
+  const command = normalizeShellWrapper(rawCommand);
+  const targets: CodexExecFileTarget[] = [];
+  for (const sed of command.matchAll(/\bsed\s+-n\s+["']?(\d+)\s*,\s*(\d+)p["']?\s+(?:--\s+)?["']?([^"';&|]+?)["']?(?=\s*(?:;|&&|\||$))/g)) {
+    const start = Number(sed[1]);
+    const end = Number(sed[2]);
+    targets.push({ path: sed[3].trim(), highlightRange: { offset: start, limit: Math.max(1, end - start + 1) } });
+  }
+  if (targets.length > 0) return targets;
+
+  const simpleRead = command.match(/^\s*(?:cat|head|tail)\b[^;&|]*?\s+(?:--\s+)?["']?([^"'\s;&|]+)["']?\s*$/);
+  if (simpleRead) return [{ path: simpleRead[1] }];
+  return [];
 }
 
 /** Resolve an opaque Codex `exec` wrapper to the activity it represents. */
@@ -551,20 +600,26 @@ function extractJavaScriptStringField(script: string, field: string): string | n
 }
 
 function classifyTerminalCommand(command: string): CodexExecPresentation {
-  const clean = command.replace(/^\/usr\/bin\/(?:zsh|bash)\s+-lc\s+/, '').trim();
-  if (/\b(?:rg\s+--files|find|ls)(?:\s|$)/.test(clean)) {
-    return { toolName: 'Glob', detail: clean };
-  }
-  if (/\b(?:rg|grep)\b/.test(clean)) {
-    return { toolName: 'Grep', detail: clean };
-  }
+  const clean = normalizeShellWrapper(command);
+  // Reads take precedence: a filename/path may itself contain words such as
+  // "grep", which must not turn `sed -n ... GrepPanel.tsx` into GREP.
   if (/^(?:sed\s+-n|cat|head|tail)\b/.test(clean)) {
+    const readTargets = getShellReadTargets(clean);
+    if (readTargets.length > 1) {
+      return { toolName: 'Read', detail: `${readTargets.length} ranges`, filePaths: readTargets.map((target) => target.path) };
+    }
     const sed = clean.match(/\bsed\s+-n\s+["']?(\d+)\s*,\s*(\d+)p["']?\s+(?:--\s+)?["']?([^"';&|]+?)["']?\s*$/);
     if (sed) return { toolName: 'Read', detail: `lines ${sed[1]}–${sed[2]}`, filePaths: [sed[3].trim()] };
     const simple = clean.match(/^\s*(?:cat|head|tail)\b[^;&|]*?\s+(?:--\s+)?["']?([^"'\s;&|]+)["']?\s*$/);
     return simple
       ? { toolName: 'Read', detail: 'viewed', filePaths: [simple[1]] }
       : { toolName: 'Read', detail: clean };
+  }
+  if (/\b(?:rg\s+--files|find|ls)(?:\s|$)/.test(clean)) {
+    return { toolName: 'Glob', detail: clean };
+  }
+  if (/\b(?:rg|grep)\b/.test(clean)) {
+    return { toolName: 'Grep', detail: clean };
   }
   if (/\b(?:apply_patch|perl\s+-[pi]|git\s+apply)\b/.test(clean)) {
     return { toolName: 'Edit', detail: clean };
@@ -574,6 +629,17 @@ function classifyTerminalCommand(command: string): CodexExecPresentation {
     return { toolName: 'Read', detail: 'Git changes', filePaths: path ? [path.trim()] : undefined };
   }
   return { toolName: 'Bash', detail: summarizeShellCommand(clean) };
+}
+
+function normalizeShellWrapper(command: string): string {
+  let clean = command.replace(/^\s*(?:\/usr\/bin\/|\/bin\/)?(?:zsh|bash|sh)\s+-lc\s+/, '').trim();
+  if (clean.length >= 2) {
+    const quote = clean[0];
+    if ((quote === '"' || quote === "'") && clean.endsWith(quote)) {
+      clean = clean.slice(1, -1).trim();
+    }
+  }
+  return clean.replace(/\\"/g, '"').replace(/\\'/g, "'");
 }
 
 function summarizeShellCommand(command: string): string {
