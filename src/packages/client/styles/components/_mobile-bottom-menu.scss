@@ -53,9 +53,11 @@
     }
   }
 
-  // Chat open: fewer items → roomier taps
+  // Chat open: a focused set (Agents / Settings / Search / Inspector / Actions
+  // / Close). Slightly smaller floor than the wide layout so all six fit
+  // without horizontal overflow on narrow phones; flex:1 still fills wider ones.
   .mobile-bottom-menu--chat-open .mobile-bottom-menu__btn {
-    min-width: 56px;
+    min-width: 50px;
   }
 
   .mobile-bottom-menu__btn--primary {

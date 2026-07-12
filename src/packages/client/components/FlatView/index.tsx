@@ -288,9 +288,26 @@ const ChatView = React.memo(function ChatView({
   const classicTuiAvailable =
     !!settings.interactiveMode && (agent?.provider ?? 'claude') === 'claude' && !!agent?.sessionId;
   const [classicTuiOpen, setClassicTuiOpen] = useState(false);
+  // Mobile-only bottom sheet that relocates the header action cluster (search /
+  // clear / git / buildings / debug / destructive ops) into a thumb-reachable
+  // surface. On phones the top-right cluster is hidden (CSS) and a single
+  // trigger opens this sheet; desktop keeps the inline cluster. Registered on
+  // the modal stack so Escape / Android-back close it.
+  const [actionsSheetOpen, setActionsSheetOpen] = useState(false);
+  const closeActionsSheet = useCallback(() => setActionsSheetOpen(false), []);
+  useModalStackRegistration('flat-chat-actions', actionsSheetOpen, closeActionsSheet);
+  // Bridge: the mobile bottom-nav "Actions" button lives in App's
+  // MobileBottomMenu (a separate React tree), so it toggles this sheet via a
+  // window event rather than a prop.
+  useEffect(() => {
+    const handler = () => setActionsSheetOpen((o) => !o);
+    window.addEventListener('tide:toggle-chat-actions', handler);
+    return () => window.removeEventListener('tide:toggle-chat-actions', handler);
+  }, []);
   // Reset when switching agents or when it stops being available.
   useEffect(() => {
     setClassicTuiOpen(false);
+    setActionsSheetOpen(false);
   }, [agentId]);
   useEffect(() => {
     if (!classicTuiAvailable && classicTuiOpen) setClassicTuiOpen(false);
@@ -1007,6 +1024,112 @@ const ChatView = React.memo(function ChatView({
           </button>
         </div>
       </div>
+
+      {/* Mobile-only chat-actions bottom sheet — the header cluster relocated
+          into a thumb-reachable surface that slides up above the bottom-nav. */}
+      {actionsSheetOpen && (
+        <div className="flat-chat-actions-sheet-root" role="presentation">
+          <div className="flat-chat-actions-sheet__backdrop" onClick={closeActionsSheet} />
+          <div className="flat-chat-actions-sheet" role="menu" aria-label="Chat actions">
+            <div className="flat-chat-actions-sheet__grabber" aria-hidden="true" />
+            <div className="flat-chat-actions-sheet__title-row">
+              <span className="flat-chat-actions-sheet__title">{agent.name}</span>
+              <button
+                type="button"
+                className="flat-chat-actions-sheet__done"
+                onClick={closeActionsSheet}
+              >
+                Done
+              </button>
+            </div>
+            <div className="flat-chat-actions-sheet__grid">
+              <button
+                type="button"
+                role="menuitem"
+                className={`flat-chat-actions-sheet__item ${searchMode ? 'is-active' : ''}`}
+                onClick={() => { handleSearchToggle(); closeActionsSheet(); }}
+              >
+                <Icon name={searchMode ? 'cross' : 'search'} size={20} />
+                <span>{searchMode ? 'Close search' : 'Search'}</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className={`flat-chat-actions-sheet__item ${gitPanelOpen ? 'is-active' : ''}`}
+                onClick={() => { toggleGitPanel(); closeActionsSheet(); }}
+              >
+                <Icon name="git-branch" size={20} />
+                <span>Git changes</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className={`flat-chat-actions-sheet__item ${buildingsPanelOpen ? 'is-active' : ''}`}
+                onClick={() => { toggleBuildingsPanel(); closeActionsSheet(); }}
+              >
+                <Icon name="buildings" size={20} />
+                <span>Buildings</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className={`flat-chat-actions-sheet__item ${debugPanelOpen ? 'is-active' : ''}`}
+                onClick={() => { toggleDebugPanel(); closeActionsSheet(); }}
+              >
+                <Icon name="bug" size={20} />
+                <span>Debug</span>
+              </button>
+            </div>
+            <div className="flat-chat-actions-sheet__list">
+              <button
+                type="button"
+                role="menuitem"
+                className={`flat-chat-actions-sheet__row flat-chat-actions-sheet__row--danger ${isClearArmed ? 'is-armed' : ''}`}
+                onClick={() =>
+                  clearConfirm.handleClick(CLEAR_CONFIRM_ID, () => {
+                    store.clearContext(agentId);
+                    paneRef.current?.historyLoader.clearHistory();
+                    closeActionsSheet();
+                  })
+                }
+              >
+                <Icon name={isClearArmed ? 'question' : 'clear'} size={18} />
+                <span>{isClearArmed ? 'Tap again to confirm clear' : 'Clear context'}</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="flat-chat-actions-sheet__row"
+                disabled={agent.status !== 'idle'}
+                onClick={() => { store.collapseContext(agentId); closeActionsSheet(); }}
+              >
+                <Icon name="package" size={18} />
+                <span>Collapse context</span>
+              </button>
+              {hasSubordinates && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flat-chat-actions-sheet__row flat-chat-actions-sheet__row--danger"
+                  onClick={() => { onRequestClearSubordinates(agentId, subordinateCount); closeActionsSheet(); }}
+                >
+                  <Icon name="crown" size={18} />
+                  <span>Clear {subordinateCount} subordinate{subordinateCount === 1 ? '' : 's'}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                role="menuitem"
+                className="flat-chat-actions-sheet__row flat-chat-actions-sheet__row--danger"
+                onClick={() => { store.killAgent(agentId); closeActionsSheet(); }}
+              >
+                <Icon name="cross" size={18} />
+                <span>Remove agent</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Current-task banner — what this agent is working on right now. */}
       <GuakeTaskBanner agent={agent} onClick={onShowTaskBoard} />

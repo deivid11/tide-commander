@@ -145,6 +145,20 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
         </button>
       )}
 
+      {agentChatOpen && (
+        <button
+          type="button"
+          className="mobile-bottom-menu__btn"
+          onClick={() => window.dispatchEvent(new CustomEvent('tide:toggle-chat-actions'))}
+          title={t('common:mobileBottomMenu.chatActions', { defaultValue: 'Chat actions' })}
+          aria-label={t('common:mobileBottomMenu.chatActions', { defaultValue: 'Chat actions' })}
+          aria-haspopup="menu"
+        >
+          <span className="mobile-bottom-menu__icon"><Icon name="more" size={18} /></span>
+          <span className="mobile-bottom-menu__label">{t('common:mobileBottomMenu.actions', { defaultValue: 'Actions' })}</span>
+        </button>
+      )}
+
       {onCloseAgent && (
         <button
           type="button"
