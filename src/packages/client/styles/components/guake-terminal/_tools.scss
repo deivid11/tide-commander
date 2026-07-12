@@ -42,10 +42,93 @@
 
   // Big bodies still take a full-width row below the header
   // (todo lists, plan bodies, structured tool UIs, …)
-  > *:not(.output-timestamp):not(.output-agent-badge):not(.output-tool-icon):not(.output-tool-name):not(.output-tool-param):not(.bash-output-indicator):not(.bash-inline-toggle):not(.output-tool-loading) {
+  > *:not(.output-timestamp):not(.output-agent-badge):not(.output-tool-icon):not(.output-tool-name):not(.output-tool-param):not(.bash-output-indicator):not(.bash-inline-toggle):not(.output-tool-loading):not(.codex-file-chip):not(.codex-exec-chevron) {
     flex: 1 1 100%;
     min-width: 0;
   }
+}
+
+.codex-file-chip {
+  display: inline-flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 150px;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  color: var(--accent-cyan, #67d4e8);
+  background: rgba(80, 180, 210, 0.12);
+  border: 1px solid rgba(100, 200, 225, 0.25);
+  border-radius: 999px;
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 600;
+
+  > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.codex-file-chip-more {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.codex-exec-row {
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+
+  &:hover,
+  &:focus-visible,
+  &.is-expanded {
+    filter: brightness(1.08);
+    outline: none;
+  }
+}
+
+.codex-exec-chevron {
+  display: inline-flex;
+  flex: 0 0 auto !important;
+  align-items: center;
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+.codex-exec-detail {
+  margin: -1px 0 6px;
+  padding: 8px 10px 10px 34px;
+  background: var(--tool-use-bg);
+  border-left: 3px solid var(--tool-use-border);
+  border-radius: 0 0 $radius-sm $radius-sm;
+  min-width: 0;
+
+  pre {
+    max-height: 280px;
+    margin: 4px 0 8px;
+    padding: 8px;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--text-primary);
+    background: rgba(0, 0, 0, 0.18);
+    border-radius: 4px;
+    font-family: $font-mono;
+    font-size: 11px;
+    line-height: 1.45;
+    user-select: text;
+  }
+}
+
+.codex-exec-detail-label {
+  color: var(--text-muted);
+  font-family: $font-mono;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .output-tool-icon {

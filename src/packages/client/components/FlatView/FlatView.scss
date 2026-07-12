@@ -367,6 +367,10 @@ body.flat-splitter-dragging {
     color: $text-muted;
   }
 
+  &__stats {
+    display: none;
+  }
+
   &__view-mode {
     position: absolute;
     top: 10px;
@@ -475,6 +479,9 @@ body.flat-splitter-dragging {
   }
 
   &__count {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
     font-size: 10px;
     font-weight: 500;
     color: $text-muted;
@@ -2198,6 +2205,13 @@ body.flat-splitter-dragging {
     padding-top: calc(6px + env(safe-area-inset-top, 0px));
   }
 
+  // The chat identity header has less chrome than the other FlatView headers.
+  // Keep the Android status-bar inset, but reclaim the extra breathing room so
+  // the conversation gets more height on short mobile viewports.
+  .app.view-mode-flat .flat-terminal-wrapper__header {
+    padding-top: calc(2px + env(safe-area-inset-top, 0px));
+  }
+
   // Inspector + agents drawer extend to the bottom of the viewport but the
   // bottom-nav (z-index 2100) sits on top. Reserve room at the bottom of
   // their scrollable bodies so the last item isn't hidden behind the nav.
@@ -2233,11 +2247,10 @@ body.flat-splitter-dragging {
     min-height: 34px;
   }
 
-  // Empty-state map: collapse all areas to header-only tiles by default so
-  // the user can see every area at once on a phone-sized viewport, while
-  // preserving the spatial grid (each card stays in the row/col its world
-  // position assigns it). Tapping an area header toggles its expansion in
-  // place — the agent chips reveal underneath without breaking the grid.
+  // Empty-state map: use a dense, readable browse view on phones. Exact scene
+  // coordinates remain a desktop concern; on mobile a two-column reading
+  // order avoids tiny cards and empty spatial cells. Tapping a card expands it
+  // to the full width and exposes touch-friendly agent/building rows.
   .flat-chat--empty {
     align-items: stretch;
     justify-content: flex-start;
@@ -2245,7 +2258,7 @@ body.flat-splitter-dragging {
 
   .flat-map {
     width: 100%;
-    padding: 10px 12px;
+    padding: 0 10px 12px;
     gap: 8px;
     overflow-x: hidden;
     overflow-y: auto;
@@ -2253,26 +2266,118 @@ body.flat-splitter-dragging {
     touch-action: pan-y;
   }
 
-  // Honour the inline grid-template-columns from emptyChatGroups.gridCols so
-  // the spatial layout stays intact; just shrink the gaps for mobile.
+  // Sticky map chrome keeps the view switcher reachable without allowing it
+  // to overlap the Android status bar or the Areas title.
+  .app.view-mode-flat .flat-map__header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'title toggle'
+      'stats stats';
+    align-items: center;
+    gap: 3px 10px;
+    position: sticky;
+    top: 0;
+    z-index: 8;
+    margin: 0 -10px;
+    padding: calc(6px + env(safe-area-inset-top, 0px)) 10px 8px;
+    background: color-mix(in srgb, #{$bg-primary} 94%, transparent);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .flat-map__title {
+    grid-area: title;
+    font-size: 15px;
+  }
+
+  .flat-map__hint {
+    display: none;
+  }
+
+  .flat-map__stats {
+    grid-area: stats;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: $text-muted;
+    font-size: 10px;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+  }
+
+  .flat-map__stats-working {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: color-mix(in srgb, $status-working 78%, $text-secondary);
+  }
+
+  .flat-map__stats-dot {
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: $status-working;
+    box-shadow: 0 0 6px rgba($status-working, 0.55);
+  }
+
+  .flat-map__view-mode {
+    grid-area: toggle;
+    position: relative;
+    top: auto;
+    right: auto;
+    justify-self: end;
+
+    .view-mode-toggle__btn {
+      min-width: 40px;
+      min-height: 40px;
+      padding: 6px 9px;
+    }
+  }
+
   .flat-map__grid {
     width: 100%;
-    gap: 6px;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px;
+  }
+
+  .flat-map-area-card {
+    min-width: 0;
+    grid-row: auto !important;
+    grid-column: auto !important;
+    border-radius: 12px;
   }
 
   .flat-map-area-card__header {
-    padding: 8px 6px;
-    gap: 4px;
-    min-height: 36px;
+    padding: 7px 8px;
+    gap: 6px;
+    min-height: 48px;
   }
 
   .flat-map-area-card__name {
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .flat-map-area-card__count {
     font-size: 9px;
-    padding: 0 4px;
+    padding: 2px 5px;
+  }
+
+  // On desktop the area logo is a large watermark. In the mobile browse card
+  // it becomes a crisp thumbnail so it identifies the area without obscuring
+  // its name or counters.
+  .flat-map-area-card__logo {
+    position: static;
+    width: 22px;
+    height: 22px;
+    max-width: 22px;
+    max-height: 22px;
+    flex-shrink: 0;
+    opacity: 0.82;
+    z-index: 0;
+    border-radius: 5px;
   }
 
   .flat-map-area-card__caret {
@@ -2290,23 +2395,37 @@ body.flat-splitter-dragging {
     }
   }
 
-  // Expanded card stays on its spatial row but spans the full grid width
-  // so the agent chips render directly underneath the title chip the user
-  // tapped. The cards that originally shared that row are hidden in JSX
-  // (single-area expansion) so this full-width card has the row to itself
-  // and doesn't overlap any siblings. Rows above and below are untouched.
-  .flat-map-area-card:not(.flat-map-area-card--collapsed) {
+  .flat-map-area-card--expanded {
     grid-column: 1 / -1 !important;
+    border-color: color-mix(in srgb, var(--area-color, #6272a4) 72%, transparent);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
   }
 
   .flat-map-area-card__agents {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
+    padding: 2px 8px 8px;
   }
 
   .flat-map-agent-chip {
+    width: 100%;
     padding: 7px 10px 9px;
     font-size: 12px;
-    min-height: 34px;
+    min-height: 40px;
+  }
+
+  .flat-map-area-card__folders,
+  .flat-map-area-card__buildings {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .flat-map-folder-chip,
+  .flat-map-building-chip {
+    width: 100%;
+    min-height: 36px;
   }
 
   // Chat header: keep a single row on mobile to avoid stacking identity +
@@ -2314,8 +2433,9 @@ body.flat-splitter-dragging {
   // complaint). Identity flexes to fill, meta hugs its content on the right.
   .flat-terminal-wrapper__header {
     flex-wrap: nowrap;
-    // Keep top room so the working avatar bounce is not clipped
-    padding: 10px 10px 6px;
+    // Keep enough clearance for the working-avatar sway without spending a
+    // second row's worth of vertical space.
+    padding: 6px 10px 4px;
     gap: 8px;
     min-height: 40px;
     overflow: visible;
@@ -2336,6 +2456,7 @@ body.flat-splitter-dragging {
     align-items: center;
     column-gap: 8px;
     row-gap: 0;
+    padding: 2px 4px;
   }
 
   .flat-terminal-wrapper__header-avatar {
@@ -2403,8 +2524,8 @@ body.flat-splitter-dragging {
 
   .flat-terminal-wrapper__header-avatar,
   .flat-terminal-wrapper__header-avatar > * {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
   }
 
   .flat-terminal-wrapper__action-btn,

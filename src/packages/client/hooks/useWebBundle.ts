@@ -134,9 +134,15 @@ export function useWebBundle({ manageLifecycle = false }: { manageLifecycle?: bo
         // package.json) makes every pull land "still behind" → eternal
         // re-sync. With it, any server bundle is pulled at most once.
         const alreadyRunningServerBundle = active && state.hash === info.hash;
+        // Same-version, hash moved: pull when we're already on an OTA bundle
+        // (dev-rebuild iteration) OR when the server is a dev checkout that
+        // auto-rebuilds (`info.dev`) — the latter lets a git-checkout server
+        // push UI edits onto phones still on APK-bundled assets. The
+        // `alreadyRunningServerBundle` guard above keeps this from looping.
         const needsSync =
           !alreadyRunningServerBundle &&
-          (relation === 'behind' || (relation === 'equal' && active && state.hash !== info.hash));
+          (relation === 'behind' ||
+            (relation === 'equal' && state.hash !== info.hash && (active || info.dev === true)));
         setUpdateAvailable(needsSync);
         if (needsSync && triggerAuto && autoSyncRef.current) {
           await syncNow(info);

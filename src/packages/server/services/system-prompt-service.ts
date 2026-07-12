@@ -381,9 +381,9 @@ export function isCodexAppServerModeEnabled(): boolean {
   } catch (error: any) {
     log.error(` Failed to load codex app-server mode setting: ${error.message}`);
   }
-  // Default ON: streaming (app-server) is the default for Codex agents. An
-  // explicit toggle-off is still respected (the file above wins).
-  return true;
+  // Opt-in (experimental): default OFF until the streaming path is hardened
+  // (idle↔working flapping + reasoning-model event handling still being fixed).
+  return false;
 }
 
 /**
@@ -434,9 +434,9 @@ export function isOpencodeServerModeEnabled(): boolean {
   } catch (error: any) {
     log.error(` Failed to load opencode server mode setting: ${error.message}`);
   }
-  // Default ON: streaming (opencode serve) is the default for OpenCode agents.
-  // An explicit toggle-off is still respected (the file above wins).
-  return true;
+  // Opt-in (experimental): default OFF until the streaming path is hardened
+  // (message ordering / reasoning-model rendering still being fixed).
+  return false;
 }
 
 /**

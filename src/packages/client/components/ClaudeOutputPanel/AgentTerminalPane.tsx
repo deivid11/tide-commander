@@ -445,6 +445,10 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
           out.push({ ...msg, _bashOutput: bashOutput, _bashCommand: bashCommand });
           continue;
         }
+        if (msg.type === 'tool_use' && msg.toolName === 'exec' && msg.toolUseId) {
+          out.push({ ...msg, _toolOutput: toolResultMap.get(msg.toolUseId) });
+          continue;
+        }
         if (msg.type === 'tool_use' && msg.toolName === 'TodoWrite') {
           const prior: TodoItem[] = runningTodos.map((t) => ({
             id: t.id,

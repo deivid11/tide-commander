@@ -220,9 +220,9 @@ export const DEFAULT_SETTINGS: Settings = {
   streamTextLive: true,
   tmuxMode: false,
   interactiveMode: false,
-  // Streaming (persistent server) is the default for Codex + OpenCode agents.
-  codexAppServerMode: true,
-  opencodeServerMode: true,
+  // Opt-in (experimental): streaming server modes default OFF until hardened.
+  codexAppServerMode: false,
+  opencodeServerMode: false,
 };
 
 // Store state

@@ -127,6 +127,7 @@ export interface EnrichedHistoryMessage {
   toolInput?: Record<string, unknown>;
   // Enrichment fields
   _bashOutput?: string; // Linked tool_result content for Bash tools
+  _toolOutput?: string; // Linked result for generic/Codex exec tool cards
   _bashCommand?: string; // Full bash command for display
   _editData?: EditData; // For Edit tool diffs
   // For AskUserQuestion tool_use: the user's picks resolved from the matching

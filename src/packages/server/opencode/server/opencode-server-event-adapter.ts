@@ -32,6 +32,7 @@ function normalizeToolName(raw: string): string {
 
 interface OpencodePartLike {
   id?: string;
+  messageID?: string;
   type?: string;
   tool?: string;
   callID?: string;
@@ -50,6 +51,11 @@ export class OpencodeServerEventAdapter {
   private readonly toolStarted = new Set<string>();
   private readonly toolInputSent = new Set<string>();
   private readonly toolDone = new Set<string>();
+  /** messageID → role, so we can drop the user message's own echoed parts. */
+  private readonly messageRole = new Map<string, string>();
+  /** partID → part.type (from message.part.updated), to classify deltas by the
+   *  part's REAL kind — the server sends reasoning deltas with field:'text'. */
+  private readonly partType = new Map<string, string>();
   private lastTokens: CapturedTokens | undefined;
   private lastCost: number | undefined;
 
@@ -59,11 +65,31 @@ export class OpencodeServerEventAdapter {
     const props = (event.properties as Record<string, unknown> | undefined) || {};
 
     switch (type) {
-      case 'message.part.delta':
+      case 'message.part.delta': {
+        // OpenCode streams a part for the USER message too (the prompt itself);
+        // rendering it would echo the user's prompt as an assistant message.
+        const msgId = props.messageID as string | undefined;
+        if (msgId && this.messageRole.get(msgId) === 'user') return [];
+        // The server tags reasoning-part deltas with field:'text', but the part
+        // was announced (message.part.updated, which arrives first) as
+        // type:'reasoning'. Align the field to the real part type so the parser
+        // classifies these as thinking — otherwise reasoning renders TWICE: once
+        // as a streamed text row (from these deltas) and once as a thinking row
+        // (from the reasoning message.part.updated).
+        const partID = props.partID as string | undefined;
+        const kind = partID ? this.partType.get(partID) : undefined;
+        if (kind === 'reasoning' || kind === 'thinking') {
+          const aligned = { ...event, properties: { ...props, field: 'reasoning' } };
+          return this.parser.parseEvent(aligned);
+        }
         return this.parser.parseEvent(event);
+      }
 
       case 'message.part.updated': {
         const part = (props.part as OpencodePartLike | undefined) || undefined;
+        if (part?.id && part.type) this.partType.set(part.id, part.type);
+        const msgId = part?.messageID;
+        if (msgId && this.messageRole.get(msgId) === 'user') return [];
         const out: StandardEvent[] = [];
         // Text/reasoning parts stream through the shared parser (tool parts have
         // no `text`, so the parser safely ignores them).
@@ -73,7 +99,8 @@ export class OpencodeServerEventAdapter {
       }
 
       case 'message.updated': {
-        const info = props.info as { role?: string; tokens?: CapturedTokens; cost?: number } | undefined;
+        const info = props.info as { id?: string; role?: string; tokens?: CapturedTokens; cost?: number } | undefined;
+        if (info?.id && info.role) this.messageRole.set(info.id, info.role);
         if (info?.role === 'assistant') {
           if (info.tokens) this.lastTokens = info.tokens;
           if (typeof info.cost === 'number') this.lastCost = info.cost;

@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.157.0] - 2026-07-12
+
+### Added
+- **Codex activity cards** - Codex `exec` orchestration steps now render as familiar Read/Edit/Grep/Glob/Bash/WebSearch-style activity cards (matching icon + one-line summary) in both the live terminal and history, instead of opaque `exec` blobs. Each card expands to reveal the full command and its result, and clicking an edit or read card opens the file's diff or jumps straight to the referenced lines in the file viewer.
+- **Auto-rebuilt UI bundle (dev checkouts)** - a self-hosted/git-checkout server now rebuilds its served web bundle in the background whenever the UI source is newer than the last build, so phones pull the fresh interface over OTA without a manual release build. A new `dev` flag lets those same-version bundle updates reach phones still running APK-bundled assets.
+
+### Changed
+- **Compact Flat mode mobile header** - reduced the Flat chat header's mobile-only padding and avatar footprint while preserving the Android safe-area inset, leaving more vertical room for conversation content on phones.
+- **Useful Flat map on mobile** - replaced the squeezed desktop-spatial grid with a readable two-column area browser: cards retain their broad map order without empty cells, area names/logos/counts stay visible, the sticky header keeps the safe-area-aware view switcher and live summary in reach, and an expanded area spans the full width with touch-sized agent, folder, and building controls.
+- **Streaming agent modes back to opt-in** - the Codex app-server and OpenCode `serve` word-by-word streaming modes are experimental again and default OFF until further hardened (reversing the 1.155.0 default-on rollout); enable either per preference in Settings.
+
+### Fixed
+- **OpenCode streaming glitches** - in OpenCode streaming (`serve`) mode, the agent no longer echoes your own prompt back as an assistant message, and reasoning-model thinking no longer renders twice (once as a streamed text row and once as a thinking row).
+
 ## [1.156.0] - 2026-07-12
 
 ### Added
