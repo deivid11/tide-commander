@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.156.0] - 2026-07-12
+
+### Added
+- **Mobile chat actions sheet** - on phones, the chat header's action cluster (search, git changes, buildings, debug, clear/collapse context, clear subordinates, remove agent) now lives in a thumb-reachable bottom sheet opened by a new "Actions" button in the bottom nav, instead of being crammed into the top-right corner. The sheet slides up above the bottom nav, closes on Escape / Android-back / backdrop tap, and desktop keeps its inline header cluster unchanged.
+
 ## [1.155.0] - 2026-07-12
 
 ### Added
