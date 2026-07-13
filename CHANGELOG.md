@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.160.0] - 2026-07-13
+
+### Added
+- **Fork Codex agents** - forking a Codex agent now continues its conversation history in the new agent, matching Claude/OpenCode/Grok, instead of degrading to a plain fresh-session clone. The fork's first turn runs through the Codex app-server's `thread/fork` (even when normal turns use `codex exec`), then later turns resume the new thread normally. If the fork can't be performed (e.g. an older Codex without `thread/fork`), the agent surfaces an error and stays retryable instead of silently starting an empty conversation.
+
 ## [1.159.3] - 2026-07-13
 
 ### Fixed
