@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.159.3] - 2026-07-13
+
+### Fixed
+- **Agents silently failing to start after a reboot (tmux mode)** - when the commander was launched from inside a tmux pane (e.g. pm2 started from an agent's own session, with `pm2 save` baking that environment into the process definition), it inherited a stale `TMUX=<socket>` variable. tmux takes its socket path from `$TMUX` when set and, unlike its default path, will not create the parent directory for it — so once a reboot wiped `/tmp`, every `tmux new-session` failed with `error creating /tmp/tmux-<uid>/default` while still exiting 0. The session never started, the agent's output log stayed empty, and the watchdog later misreported it as a crashed process. `TMUX`/`TMUX_PANE` are now stripped from every tmux invocation, so tmux computes its own socket path and creates the directory as needed. tmux's stderr is also captured instead of discarded: a failed `new-session` now logs the real error and reports a spawn failure, rather than going silent and surfacing minutes later as a bogus agent death.
+
 ## [1.159.2] - 2026-07-13
 
 ### Fixed
