@@ -20,6 +20,38 @@ import { isTmuxModeEnabled } from '../../services/system-prompt-service.js';
 const log = createLogger('Tmux');
 
 // ---------------------------------------------------------------------------
+// Environment sanitisation
+// ---------------------------------------------------------------------------
+
+/**
+ * Strip the caller's tmux client vars before invoking tmux.
+ *
+ * If the commander itself was launched from inside a tmux pane (e.g. pm2 was
+ * started from an agent's own tmux session, and `pm2 save` then baked that env
+ * into the process definition), we inherit `TMUX=<socket>,<pid>,<pane>`.
+ * tmux takes its socket path from `$TMUX` when set — and, unlike the default
+ * path, it will NOT create the parent directory for it. After a reboot wipes
+ * /tmp, that socket dir is gone, so every `tmux new-session` fails with
+ *   "error creating /tmp/tmux-1000/default (No such file or directory)"
+ * ...while still exiting 0. The session never starts, the agent's log stays
+ * empty, and the failure is completely silent.
+ *
+ * Dropping TMUX/TMUX_PANE makes tmux compute its own socket path and create
+ * the directory as needed, so spawning works regardless of how we were started.
+ */
+function withoutTmuxClientVars<T extends Record<string, string | undefined>>(env: T): T {
+  const clean = { ...env };
+  delete clean.TMUX;
+  delete clean.TMUX_PANE;
+  return clean;
+}
+
+/** Sanitised copy of the current process env, for tmux control commands. */
+function tmuxEnv(): NodeJS.ProcessEnv {
+  return withoutTmuxClientVars(process.env);
+}
+
+// ---------------------------------------------------------------------------
 // Public helpers
 // ---------------------------------------------------------------------------
 
@@ -103,7 +135,7 @@ export function spawnInTmux(
 
   // Kill any stale session with the same name (ignore errors)
   try {
-    execSync(`tmux kill-session -t ${sessionName} 2>/dev/null`, { stdio: 'ignore' });
+    execSync(`tmux kill-session -t ${sessionName} 2>/dev/null`, { stdio: 'ignore', env: tmuxEnv() });
   } catch {
     // no existing session — that's fine
   }
@@ -173,16 +205,51 @@ export function spawnInTmux(
     ],
     {
       cwd: options.cwd,
-      env: options.env as NodeJS.ProcessEnv,
+      env: withoutTmuxClientVars(options.env) as NodeJS.ProcessEnv,
       detached: true,
-      stdio: ['ignore', 'ignore', 'ignore'],
+      // stderr is piped, not ignored: tmux reports fatal errors (bad socket
+      // dir, unusable session name) on stderr *and still exits 0*. Discarding
+      // it turned a failed spawn into a silent no-op that only surfaced later
+      // as a bogus "process died" from the watchdog.
+      stdio: ['ignore', 'ignore', 'pipe'],
     },
   );
   launcherProcess.unref();
 
+  watchLauncherForFailure(launcherProcess, sessionName);
+
   log.log(`Spawned tmux session ${sessionName}: ${executable} ${escapedArgs} (stdout -> ${logFile})`);
 
   return { launcherProcess, sessionName, logFile };
+}
+
+/**
+ * Surface a failed `tmux new-session`. tmux exits 0 even when it could not
+ * create the session, so the exit code alone tells us nothing — anything on
+ * stderr means the session did not start.
+ *
+ * Re-emits as an 'error' on the launcher so callers already listening for
+ * spawn failures report it, instead of waiting for the watchdog to misdiagnose
+ * the missing session as a crashed agent.
+ */
+function watchLauncherForFailure(launcherProcess: ChildProcess, sessionName: string): void {
+  let stderr = '';
+  launcherProcess.stderr?.on('data', (chunk) => {
+    stderr += String(chunk);
+  });
+
+  launcherProcess.on('exit', (code) => {
+    const message = stderr.trim();
+    if (!message && code === 0) {
+      return;
+    }
+    const detail = message || `tmux exited with code ${code}`;
+    log.error(`Failed to create tmux session ${sessionName}: ${detail}`);
+    // Only emit if someone is listening — an unhandled 'error' event throws.
+    if (launcherProcess.listenerCount('error') > 0) {
+      launcherProcess.emit('error', new Error(`tmux new-session failed: ${detail}`));
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -207,7 +274,7 @@ export function sendToTmux(agentId: string, text: string): boolean {
     fs.writeFileSync(tmpFile, text + '\n');
     execSync(
       `tmux load-buffer -b ${bufferName} ${tmpFile} && tmux paste-buffer -b ${bufferName} -t ${sessionName} -r -d`,
-      { stdio: 'ignore', timeout: 5000 },
+      { stdio: 'ignore', timeout: 5000, env: tmuxEnv() },
     );
     fs.unlinkSync(tmpFile);
     return true;
@@ -225,7 +292,7 @@ export function sendToTmux(agentId: string, text: string): boolean {
 export function hasTmuxSession(agentId: string): boolean {
   const sessionName = tmuxSessionName(agentId);
   try {
-    execSync(`tmux has-session -t ${sessionName} 2>/dev/null`, { stdio: 'ignore' });
+    execSync(`tmux has-session -t ${sessionName} 2>/dev/null`, { stdio: 'ignore', env: tmuxEnv() });
     return true;
   } catch {
     return false;
@@ -239,7 +306,7 @@ export function killTmuxSession(agentId: string): void {
   const stderrFile = `${logFile}.stderr`;
 
   try {
-    execSync(`tmux kill-session -t ${sessionName} 2>/dev/null`, { stdio: 'ignore' });
+    execSync(`tmux kill-session -t ${sessionName} 2>/dev/null`, { stdio: 'ignore', env: tmuxEnv() });
     log.log(`Killed tmux session ${sessionName}`);
   } catch {
     // already gone
@@ -265,7 +332,7 @@ export function listAgentTmuxSessions(): string[] {
   try {
     const out = execSync(
       `tmux list-sessions -F '#{session_name}' 2>/dev/null`,
-      { encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] },
+      { encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'], env: tmuxEnv() },
     );
     return out
       .split('\n')
@@ -284,7 +351,7 @@ export function listAgentTmuxSessions(): string[] {
 export function interruptTmuxSession(agentId: string): boolean {
   const sessionName = tmuxSessionName(agentId);
   try {
-    execSync(`tmux send-keys -t ${sessionName} C-c`, { stdio: 'ignore', timeout: 5000 });
+    execSync(`tmux send-keys -t ${sessionName} C-c`, { stdio: 'ignore', timeout: 5000, env: tmuxEnv() });
     return true;
   } catch {
     return false;
@@ -430,7 +497,7 @@ export function getTmuxPanePid(agentId: string): number | undefined {
   try {
     const output = execSync(
       `tmux list-panes -t ${sessionName} -F '#{pane_pid}'`,
-      { encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] },
+      { encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'], env: tmuxEnv() },
     ).trim();
     const pid = parseInt(output.split('\n')[0], 10);
     return Number.isFinite(pid) ? pid : undefined;
@@ -529,7 +596,7 @@ export function spawnInTmuxInteractive(
 
   // Kill any stale session with the same name (ignore errors)
   try {
-    execSync(`tmux kill-session -t ${sessionName} 2>/dev/null`, { stdio: 'ignore' });
+    execSync(`tmux kill-session -t ${sessionName} 2>/dev/null`, { stdio: 'ignore', env: tmuxEnv() });
   } catch {
     // no existing session — that's fine
   }
@@ -557,12 +624,14 @@ export function spawnInTmuxInteractive(
     ],
     {
       cwd: options.cwd,
-      env: options.env as NodeJS.ProcessEnv,
+      env: withoutTmuxClientVars(options.env) as NodeJS.ProcessEnv,
       detached: true,
-      stdio: ['ignore', 'ignore', 'ignore'],
+      stdio: ['ignore', 'ignore', 'pipe'],
     },
   );
   launcherProcess.unref();
+
+  watchLauncherForFailure(launcherProcess, sessionName);
 
   log.log(`Spawned interactive tmux session ${sessionName}: ${executable} ${args.join(' ')}`);
   return { launcherProcess, sessionName };
@@ -589,7 +658,7 @@ export function sendPromptToTmuxInteractive(agentId: string, text: string): bool
       `tmux load-buffer -b ${bufferName} ${tmpFile} && ` +
       `tmux paste-buffer -b ${bufferName} -t ${sessionName} -p -r -d && ` +
       `sleep 0.15 && tmux send-keys -t ${sessionName} Enter`,
-      { stdio: 'ignore', timeout: 8000 },
+      { stdio: 'ignore', timeout: 8000, env: tmuxEnv() },
     );
     try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
     return true;
@@ -604,7 +673,7 @@ export function sendPromptToTmuxInteractive(agentId: string, text: string): bool
 export function hasInteractiveTmuxSession(agentId: string): boolean {
   const sessionName = interactiveTmuxSessionName(agentId);
   try {
-    execSync(`tmux has-session -t ${sessionName} 2>/dev/null`, { stdio: 'ignore' });
+    execSync(`tmux has-session -t ${sessionName} 2>/dev/null`, { stdio: 'ignore', env: tmuxEnv() });
     return true;
   } catch {
     return false;
@@ -615,7 +684,7 @@ export function hasInteractiveTmuxSession(agentId: string): boolean {
 export function killInteractiveTmuxSession(agentId: string): void {
   const sessionName = interactiveTmuxSessionName(agentId);
   try {
-    execSync(`tmux kill-session -t ${sessionName} 2>/dev/null`, { stdio: 'ignore' });
+    execSync(`tmux kill-session -t ${sessionName} 2>/dev/null`, { stdio: 'ignore', env: tmuxEnv() });
     log.log(`Killed interactive tmux session ${sessionName}`);
   } catch {
     // already gone
@@ -626,7 +695,7 @@ export function killInteractiveTmuxSession(agentId: string): void {
 export function interruptInteractiveTmuxSession(agentId: string): boolean {
   const sessionName = interactiveTmuxSessionName(agentId);
   try {
-    execSync(`tmux send-keys -t ${sessionName} Escape`, { stdio: 'ignore', timeout: 5000 });
+    execSync(`tmux send-keys -t ${sessionName} Escape`, { stdio: 'ignore', timeout: 5000, env: tmuxEnv() });
     return true;
   } catch {
     return false;
@@ -641,7 +710,7 @@ export function listInteractiveTmuxSessions(): string[] {
   try {
     const out = execSync(
       `tmux list-sessions -F '#{session_name}' 2>/dev/null`,
-      { encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] },
+      { encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'], env: tmuxEnv() },
     );
     return out
       .split('\n')
@@ -659,7 +728,7 @@ export function getInteractiveTmuxPanePid(agentId: string): number | undefined {
   try {
     const output = execSync(
       `tmux list-panes -t ${sessionName} -F '#{pane_pid}'`,
-      { encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] },
+      { encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'], env: tmuxEnv() },
     ).trim();
     const pid = parseInt(output.split('\n')[0], 10);
     return Number.isFinite(pid) ? pid : undefined;
