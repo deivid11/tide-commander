@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.159.0] - 2026-07-13
+
+### Added
+- **Computer Use skill** - a new opt-in built-in skill that lets an agent inspect and control the local Linux desktop (list windows/apps, read accessibility trees, capture screenshots, focus/move/resize windows, click, drag, type, press keys, and run semantic accessibility actions) via the `tide-computer-use-linux` CLI. Disabled by default; enable it per agent or class.
+- **Collapse all areas** - a new button in the agent overview collapses every area group at once.
+
+### Changed
+- **Semantic command cards** - native Bash read/search commands (`sed`, `cat`, `head`, `tail`, `rg`, `grep`) now render as Read or Grep cards with clickable file chips and line-range detail (e.g. "lines 1–55"), matching the Codex exec cards, instead of showing the raw command line.
+- **Compact tool rows in history** - Read, Edit, and Bash entries in scrollback collapse to a single line with a clickable filename chip that opens the file or diff modal, replacing the older two-line input blocks.
+- **Agent identity in history** - past messages show the agent's own avatar and name rather than a generic provider logo and label.
+- **All touched files shown** - command cards list every affected file as a chip instead of capping at two with a "+N" badge.
+- **Recent-first pinned agents** - in the status-grouped pinned agents bar, the most recently active agents sort first within each group.
+- **Alphabetical area groups** - agent-overview area groups order A–Z with the Unassigned group trailing.
+
+### Fixed
+- **Duplicate command cards** - Codex sessions that persist both an exec wrapper and its native command/edit twin now render a single semantic card instead of two overlapping ones, and the legacy duplicate Edit/Read input card no longer appears alongside the primary tool row.
+
 ## [1.158.1] - 2026-07-12
 
 ### Fixed

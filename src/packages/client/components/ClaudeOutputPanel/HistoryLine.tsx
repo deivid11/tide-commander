@@ -10,7 +10,7 @@ import { useHideCost, useSettings, useAgentPrompts } from '../../store';
 import { store, type TestRunHandle, type HttpRunHandle } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
@@ -21,7 +21,7 @@ import { parseEmailMessage, GmailMessageBubble } from './GmailMessageBubble';
 import { parseSlackMessage, SlackMessageBubble } from './SlackMessageBubble';
 import { AgentChatMessageCard, parseAgentChatMessage } from './AgentChatMessageCard';
 import { parseExtensionContext, ExtensionContextCard } from './ExtensionContextCard';
-import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, AskQuestionResult, ExitPlanModeInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, MemoryOpInput, isToolSearchContent, ListFilesInput, TaskOutputWaitInput, UnknownToolInput } from './ToolRenderers';
+import { TodoWriteInput, AskQuestionInput, AskQuestionResult, ExitPlanModeInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, MemoryOpInput, isToolSearchContent, ListFilesInput, TaskOutputWaitInput, UnknownToolInput } from './ToolRenderers';
 import { TaskListView } from '../shared/TaskListView';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
 import { CurlCard } from './CurlCard';
@@ -35,12 +35,13 @@ import { highlightText, renderContentWithImages, renderUserPromptContent, isThum
 import { useTTS } from '../../hooks/useTTS';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { Icon } from '../Icon';
+import { AgentIcon } from '../AgentIcon';
 import { BashInlineToggle, BashInlineOutput } from './BashInlineOutput';
 import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
 import type { EnrichedHistoryMessage, EditData } from './types';
 import type { ExecTask, Subagent } from '../../../shared/types';
 import { SubagentInline } from './SubagentInline';
-import { providerAssetUrl, providerLabel } from '../../utils/providerDisplay';
+import { providerLabel } from '../../utils/providerDisplay';
 import { ThinkingBlock } from './ThinkingBlock';
 import { GrepResultsModal } from './GrepResultsModal';
 
@@ -143,8 +144,10 @@ export const HistoryLine = memo(function HistoryLine({
   // Tool attribution badge: only subagent names (from Task/Agent tool_use)
   // add information — the parent agent's own name is redundant inside its own
   // chat, so it's not shown.
-  const provider = agentId ? store.getState().agents.get(agentId)?.provider : undefined;
+  const currentAgent = agentId ? store.getState().agents.get(agentId) : undefined;
+  const provider = currentAgent?.provider;
   const assistantRoleLabel = providerLabel(provider);
+  const agentRoleLabel = currentAgent?.name || assistantRoleLabel;
   const subagentNameFromInput = (type === 'tool_use' && (toolName === 'Task' || toolName === 'Agent') && message.toolInput)
     ? ((message.toolInput.name as string) || (message.toolInput.description as string) || null)
     : null;
@@ -167,14 +170,8 @@ export const HistoryLine = memo(function HistoryLine({
       <div className="output-line output-empty-message">
         {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
         <span className="history-role">
-          {provider && (
-            <img
-              src={providerAssetUrl(provider, import.meta.env.BASE_URL)}
-              alt=""
-              className="history-role-icon"
-            />
-          )}
-          {assistantRoleLabel}
+          {currentAgent && <AgentIcon agent={currentAgent} size={14} className="history-role-icon" />}
+          {agentRoleLabel}
         </span>
         <span className="empty-message-label">{t('terminal:history.emptyMessage', 'empty message')}</span>
       </div>
@@ -409,9 +406,13 @@ export const HistoryLine = memo(function HistoryLine({
 
   if (type === 'tool_use') {
     const toolInputContent = message.toolInput ? JSON.stringify(message.toolInput) : content;
-    const execPresentation = toolName === 'exec'
+    let parsedToolInput: Record<string, unknown> = message.toolInput || {};
+    if (!message.toolInput) { try { parsedToolInput = content ? JSON.parse(content) : {}; } catch { /* ignore */ } }
+    const nativeBashCommand = toolName === 'Bash' ? String(parsedToolInput.command || parsedToolInput.cmd || '') : '';
+    const nativeBashPresentation = nativeBashCommand ? getShellCommandPresentation(nativeBashCommand) : null;
+    const execPresentation = toolName === 'exec' || (toolName === 'Bash' && isCodexExecWrapper(message.toolInput || content))
       ? getCodexExecPresentation(message.toolInput || content)
-      : null;
+      : toolName === 'Bash' && nativeBashPresentation?.toolName !== 'Bash' ? nativeBashPresentation : null;
     const renderedToolName = execPresentation?.toolName || toolName || '';
     const iconName = getToolIconName(renderedToolName);
     const displayToolName = renderedToolName ? getLocalizedToolName(renderedToolName, t) : '';
@@ -428,13 +429,14 @@ export const HistoryLine = memo(function HistoryLine({
       : undefined;
 
     if (execPresentation) {
+      const execLinkedOutput = _toolOutput || _bashOutput;
       const execScript = message.toolInput && typeof message.toolInput === 'object'
         ? String(message.toolInput.input || message.toolInput.code || message.toolInput.script || JSON.stringify(message.toolInput, null, 2))
         : content;
       const execEditPaths = execPresentation.toolName === 'Edit' ? getCodexExecEditPaths(message.toolInput || content) : [];
       const opensDiffModal = execEditPaths.length > 0 && !!onFileClick;
       const execFileTarget = (execPresentation.toolName === 'Read' || execPresentation.toolName === 'Grep')
-        ? getCodexExecFileTarget(message.toolInput || content, _toolOutput)
+        ? getCodexExecFileTarget(message.toolInput || content, execLinkedOutput)
         : null;
       const visibleFilePaths = execPresentation.filePaths?.length
         ? execPresentation.filePaths
@@ -446,13 +448,14 @@ export const HistoryLine = memo(function HistoryLine({
         ? { url: getLocalFileImageUrl(execImagePath), name: getBasenameFromPath(execImagePath) }
         : null;
       const opensImageViewer = !!execImagePreview && !!onImageClick;
-      const opensFileModal = !!execFileTarget && !!onFileClick;
-      const execCommand = getCodexExecCommand(message.toolInput || content);
+      const execCommand = getCodexExecCommand(message.toolInput || content) || nativeBashCommand;
       const execReadTargets = execCommand ? getShellReadTargets(execCommand) : [];
+      const primaryFileTarget = execFileTarget || execReadTargets[0] || null;
+      const opensFileModal = !!primaryFileTarget && !!onFileClick;
       const opensCommandModal = !!execCommand && !!onBashClick
         && (execPresentation.toolName === 'Bash' || execPresentation.toolName === 'ExecuteCommand');
       const grepResults = execPresentation.toolName === 'Grep'
-        ? parseCodexGrepResults(message.toolInput || content, _toolOutput)
+        ? parseCodexGrepResults(message.toolInput || content, execLinkedOutput)
         : null;
       const handleExecActivate = () => {
         if (opensImageViewer && execImagePreview) {
@@ -468,12 +471,12 @@ export const HistoryLine = memo(function HistoryLine({
           return;
         }
         if (opensCommandModal && execCommand) {
-          onBashClick(execCommand, _toolOutput || t('tools:display.noOutputCaptured'));
+          onBashClick(execCommand, execLinkedOutput || t('tools:display.noOutputCaptured'));
           return;
         }
-        if (opensFileModal && execFileTarget) {
-          onFileClick(execFileTarget.path, execFileTarget.highlightRange
-            ? { highlightRange: execFileTarget.highlightRange }
+        if (opensFileModal && primaryFileTarget) {
+          onFileClick(primaryFileTarget.path, primaryFileTarget.highlightRange
+            ? { highlightRange: primaryFileTarget.highlightRange }
             : undefined);
           return;
         }
@@ -511,7 +514,7 @@ export const HistoryLine = memo(function HistoryLine({
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
-            {visibleFilePaths.slice(0, 2).map((path) => (
+            {visibleFilePaths.map((path) => (
               <span
                 key={path}
                 className={`codex-file-chip ${(execPresentation.toolName === 'Edit' || execReadTargets.some((target) => target.path === path)) && onFileClick ? 'is-clickable' : ''}`}
@@ -530,9 +533,6 @@ export const HistoryLine = memo(function HistoryLine({
                 <span>{path.split('/').pop() || path}</span>
               </span>
             ))}
-            {visibleFilePaths.length > 2 && (
-              <span className="codex-file-chip codex-file-chip-more">+{visibleFilePaths.length - 2}</span>
-            )}
             {!(execPresentation.toolName === 'Edit' && visibleFilePaths.length > 0) && (
               <span className="output-tool-param">{execPresentation.detail}</span>
             )}
@@ -558,7 +558,7 @@ export const HistoryLine = memo(function HistoryLine({
             <div className="codex-exec-detail">
               <div className="codex-exec-detail-label">Command details</div>
               <pre>{execScript}</pre>
-              {_toolOutput && <><div className="codex-exec-detail-label">Result</div><pre>{_toolOutput}</pre></>}
+              {execLinkedOutput && <><div className="codex-exec-detail-label">Result</div><pre>{execLinkedOutput}</pre></>}
             </div>
           )}
           {grepResultsModal && <GrepResultsModal results={grepResultsModal} onClose={() => setGrepResultsModal(null)} onFileClick={onFileClick} />}
@@ -1218,35 +1218,37 @@ export const HistoryLine = memo(function HistoryLine({
 
     // Special rendering for Edit tool - show diff view
     if (toolName === 'Edit' && toolInputContent) {
+      const filePath = extractToolKeyParam('Edit', toolInputContent);
       return (
-        <>
-          <div className="output-line output-tool-use">
-            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
-            <span className="output-tool-name">{displayToolName}</span>
-          </div>
-          <div className="output-line output-tool-input">
-            <EditToolDiff content={toolInputContent} onFileClick={onFileClick} />
-          </div>
-        </>
+        <div className="output-line output-tool-use output-tool-simple">
+          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
+          <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
+          <span className="output-tool-name">{displayToolName}</span>
+          {filePath && <button className="codex-file-chip is-clickable" title={filePath} onClick={() => {
+            try {
+              const parsed = JSON.parse(toolInputContent);
+              onFileClick?.(filePath, { oldString: parsed.old_string || '', newString: parsed.new_string || '', unifiedDiff: parsed.unified_diff });
+            } catch { onFileClick?.(filePath); }
+          }}><Icon name="file-code" size={11} /><span>{getBasenameFromPath(filePath)}</span></button>}
+        </div>
       );
     }
 
     // Special rendering for Read tool - show file link
     if (toolName === 'Read' && toolInputContent) {
+      const filePath = extractToolKeyParam('Read', toolInputContent);
       return (
-        <>
-          <div className="output-line output-tool-use">
-            {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
-            <span className="output-tool-name">{displayToolName}</span>
-          </div>
-          <div className="output-line output-tool-input">
-            <ReadToolInput content={toolInputContent} onFileClick={onFileClick} />
-          </div>
-        </>
+        <div className="output-line output-tool-use output-tool-simple">
+          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
+          <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
+          <span className="output-tool-name">{displayToolName}</span>
+          {filePath && <button className="codex-file-chip is-clickable" title={filePath} onClick={() => {
+            try {
+              const parsed = JSON.parse(toolInputContent);
+              onFileClick?.(filePath, parsed.offset !== undefined && parsed.limit !== undefined ? { highlightRange: { offset: parsed.offset, limit: parsed.limit } } : undefined);
+            } catch { onFileClick?.(filePath); }
+          }}><Icon name="file-code" size={11} /><span>{getBasenameFromPath(filePath)}</span></button>}
+        </div>
       );
     }
 
@@ -1333,7 +1335,7 @@ export const HistoryLine = memo(function HistoryLine({
       if (hasQuestions) {
         return (
           <>
-            <div className="output-line output-tool-use">
+            <div className="output-line output-tool-use output-tool-simple">
               {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
               {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
               <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
@@ -1504,7 +1506,7 @@ export const HistoryLine = memo(function HistoryLine({
           </div>
         ) : (
           <pre
-            className="output-input-content bash-command"
+            className="output-tool-param output-input-content bash-command"
             onClick={handleBashClick}
             style={handleBashClick ? { cursor: 'pointer' } : undefined}
             title={handleBashClick ? t('tools:display.clickToViewOutput') : undefined}
@@ -1514,15 +1516,13 @@ export const HistoryLine = memo(function HistoryLine({
 
         return (
           <>
-            <div className="output-line output-tool-use">
+            <div className="output-line output-tool-use output-tool-simple">
               {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
               {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
               <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
               <span className="output-tool-name">{displayToolName}</span>
-              <BashInlineToggle enabled={settings.inlineBashOutputs} />
-            </div>
-            <div className="output-line output-tool-input">
               {chip}
+              <BashInlineToggle enabled={settings.inlineBashOutputs} />
             </div>
             {settings.inlineBashOutputs && _bashOutput && (
               <BashInlineOutput text={_bashOutput} />
@@ -1625,7 +1625,7 @@ export const HistoryLine = memo(function HistoryLine({
   const isUser = type === 'user';
   const isSystemMessage = !isUser && /^\s*(?:[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\s*)?\[System\]/u.test(content);
   const className = isUser ? 'history-line history-user' : (isSystemMessage ? 'history-line history-system' : 'history-line history-assistant');
-  const assistantOrSystemRoleLabel = isSystemMessage ? t('tools:display.system') : assistantRoleLabel;
+  const assistantOrSystemRoleLabel = isSystemMessage ? t('tools:display.system') : agentRoleLabel;
 
   // For user messages, check for boss context
   if (isUser && parsedBoss) {
@@ -1809,14 +1809,7 @@ export const HistoryLine = memo(function HistoryLine({
       <div className={className}>
         {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
         <span className="history-role">
-          {!isSystemMessage && provider && (
-            <img
-              src={providerAssetUrl(provider, import.meta.env.BASE_URL)}
-              alt=""
-              className="history-role-icon"
-              title={provider === 'codex' ? t('terminal:history.codexAgent') : provider === 'opencode' ? 'OpenCode Agent' : provider === 'grok' ? 'Grok Agent' : t('terminal:history.claudeAgent')}
-            />
-          )}
+          {!isSystemMessage && currentAgent && <AgentIcon agent={currentAgent} size={14} className="history-role-icon" />}
           {assistantOrSystemRoleLabel}
         </span>
         <span ref={markdownContentRef} className="history-content markdown-content">
@@ -1873,14 +1866,7 @@ export const HistoryLine = memo(function HistoryLine({
     <div className={className}>
       {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
       <span className={`history-role ${isUser ? 'history-role-chip' : ''}`}>
-        {!isUser && !isSystemMessage && provider && (
-          <img
-            src={providerAssetUrl(provider, import.meta.env.BASE_URL)}
-            alt=""
-            className="history-role-icon"
-            title={provider === 'codex' ? t('terminal:history.codexAgent') : provider === 'opencode' ? 'OpenCode Agent' : provider === 'grok' ? 'Grok Agent' : t('terminal:history.claudeAgent')}
-          />
-        )}
+        {!isUser && !isSystemMessage && currentAgent && <AgentIcon agent={currentAgent} size={14} className="history-role-icon" />}
         {isUser ? t('common:labels.you') : assistantOrSystemRoleLabel}
       </span>
       <span ref={markdownContentRef} className={`history-content ${isUser ? 'user-prompt-text' : 'markdown-content'}`}>

@@ -64,6 +64,8 @@ interface AgentOverviewPanelProps {
   collapsedAreas?: Set<string>;
   /** Optional external handler for area toggle. */
   onToggleArea?: (areaKey: string) => void;
+  /** Optional bulk-collapse action, exposed by surfaces that own collapsed state. */
+  onCollapseAllAreas?: (areaKeys: string[]) => void;
 }
 
 type SortMode = 'name' | 'status' | 'recent';
@@ -159,7 +161,7 @@ interface AreaGroup {
   agents: Agent[];
 }
 
-export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agentListRef: externalAgentListRef, twoFingerState, collapsedAreas: externalCollapsedAreas, onToggleArea: externalOnToggleArea }: AgentOverviewPanelProps) {
+export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agentListRef: externalAgentListRef, twoFingerState, collapsedAreas: externalCollapsedAreas, onToggleArea: externalOnToggleArea, onCollapseAllAreas }: AgentOverviewPanelProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const allAgents = useAgentsArray();
   const [activeWorkspace] = useWorkspaceFilter();
@@ -602,6 +604,14 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       groups.push({ area: null, agents: sortAgents(unassignedAgents, '__unassigned__') });
     }
 
+    groups.sort((a, b) => {
+      // Keep Unassigned after named areas, while ordering named areas A-Z.
+      if (!a.area && !b.area) return 0;
+      if (!a.area) return 1;
+      if (!b.area) return -1;
+      return a.area.name.localeCompare(b.area.name, undefined, { sensitivity: 'base' });
+    });
+
     return groups;
   }, [areas, filteredAgents, sortAgents, groupByArea, visibleAreaIds]);
 
@@ -1005,6 +1015,16 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
               </div>
             )}
           </div>
+        )}
+        {groupByArea && onCollapseAllAreas && areaGroups.length > 0 && (
+          <button
+            type="button"
+            onClick={() => onCollapseAllAreas(areaGroups.map(group => group.area?.id || '__unassigned__'))}
+            className="action-btn"
+            title="Collapse all areas"
+          >
+            Collapse all
+          </button>
         )}
         <button onClick={() => setSameAreaOnly(v => !v)} className={`action-btn action-btn--toggle${sameAreaOnly ? ' active' : ''}`} title={t('terminal:overview.sameAreaOnly')}>
           {t('terminal:overview.sameAreaOnly')}

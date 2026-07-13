@@ -2276,6 +2276,9 @@ export function FlatView({
       return next;
     });
   }, []);
+  const handleCollapseAllAreas = useCallback((areaKeys: string[]) => {
+    setCollapsedAreas(new Set(areaKeys));
+  }, []);
 
   // ── Mobile flat-map: areas collapse to readable two-column browse cards;
   // tapping a header expands that area to full width to reveal its contents.
@@ -2788,6 +2791,7 @@ export function FlatView({
             onSelectAgent={handleOverviewSelectAgent}
             collapsedAreas={collapsedAreas}
             onToggleArea={handleToggleArea}
+            onCollapseAllAreas={handleCollapseAllAreas}
             agentListRef={agentListRef}
           />
         </div>

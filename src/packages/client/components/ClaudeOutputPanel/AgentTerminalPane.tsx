@@ -60,6 +60,12 @@ import {
   parseBashReportTaskCommand,
   parseBashMemoryCommand,
   extractToolKeyParam,
+  isCodexExecWrapper,
+  getCodexExecCommand,
+  getCodexExecEditPaths,
+  getCodexExecPresentation,
+  getShellCommandPresentation,
+  normalizeShellCommand,
 } from '../../utils/outputRendering';
 
 // Components
@@ -143,6 +149,24 @@ function makeToolInvocationKey(
     return makeToolInvocationKey(textFallback.replace('Using tool:', '').trim(), toolInput);
   }
   if (!name) return null;
+  if (toolInput && isCodexExecWrapper(toolInput)) {
+    const command = getCodexExecCommand(toolInput);
+    if (command) {
+      const semantic = getCodexExecPresentation(toolInput);
+      return `${semantic.toolName}::${normalizeShellCommand(command)}`;
+    }
+  }
+  if (name === 'Bash' && toolInput) {
+    const command = typeof toolInput.command === 'string'
+      ? toolInput.command
+      : typeof toolInput.cmd === 'string' ? toolInput.cmd : '';
+    if (command) {
+      const semantic = getShellCommandPresentation(command);
+      if (semantic.toolName !== 'Bash') {
+        return `${semantic.toolName}::${normalizeShellCommand(command)}`;
+      }
+    }
+  }
   let keyParam: string | null = null;
   if (toolInput && typeof toolInput === 'object' && Object.keys(toolInput).length > 0) {
     try {
@@ -349,6 +373,9 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   const filteredHistory = useMemo((): EnrichedHistoryMessage[] => {
     const { history } = historyLoader;
     const toolResultMap = new Map<string, string>();
+    const wrappedCommandsBySecond = new Map<number, Set<string>>();
+    const wrappedEditPathsBySecond = new Map<number, Set<string>>();
+    const duplicateBashToolIds = new Set<string>();
     // Collect tool_use_ids whose bash command was a self-invoked Tide Commander
     // API curl (tracking/taskLabel/notification/report-task). The tool_use itself
     // renders as a styled chip (HistoryLine resolves these via the bash*Command
@@ -373,6 +400,50 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
           || parseBashMemoryCommand(bashCommand)
         )) {
           suppressedToolResultIds.add(msg.toolUseId);
+        }
+      }
+      if (msg.type === 'tool_use' && msg.toolName === 'Bash') {
+        const input = msg.toolInput || (() => { try { return msg.content ? JSON.parse(msg.content) : {}; } catch { return {}; } })();
+        if (isCodexExecWrapper(input)) {
+          const inner = getCodexExecCommand(input);
+          if (inner) {
+            const second = Math.floor(new Date(msg.timestamp).getTime() / 1000);
+            const commands = wrappedCommandsBySecond.get(second) || new Set<string>();
+            commands.add(normalizeShellCommand(inner));
+            wrappedCommandsBySecond.set(second, commands);
+          }
+          const editPaths = getCodexExecEditPaths(input);
+          if (editPaths.length > 0) {
+            const second = Math.floor(new Date(msg.timestamp).getTime() / 1000);
+            const paths = wrappedEditPathsBySecond.get(second) || new Set<string>();
+            editPaths.forEach((path) => paths.add(path));
+            wrappedEditPathsBySecond.set(second, paths);
+          }
+        }
+      }
+    }
+
+    // Codex may persist both the JS exec wrapper and its native command_execution
+    // item. Mark the native twin so only the semantic wrapper card is rendered.
+    for (const msg of history) {
+      if (msg.type !== 'tool_use' || (msg.toolName !== 'Bash' && msg.toolName !== 'Edit')) continue;
+      const input = msg.toolInput || (() => { try { return msg.content ? JSON.parse(msg.content) : {}; } catch { return {}; } })();
+      if (isCodexExecWrapper(input)) continue;
+      const second = Math.floor(new Date(msg.timestamp).getTime() / 1000);
+      if (msg.toolName === 'Bash') {
+        const command = typeof input.command === 'string' ? input.command : typeof input.cmd === 'string' ? input.cmd : '';
+        if (command && wrappedCommandsBySecond.get(second)?.has(normalizeShellCommand(command)) && msg.toolUseId) {
+          duplicateBashToolIds.add(msg.toolUseId);
+        }
+      }
+      if (msg.toolName === 'Edit') {
+        const path = typeof input.file_path === 'string' ? input.file_path : typeof input.filePath === 'string' ? input.filePath : '';
+        const wrappedPaths = wrappedEditPathsBySecond.get(second);
+        const pathMatches = path && wrappedPaths && [...wrappedPaths].some((wrappedPath) =>
+          wrappedPath === path || wrappedPath.endsWith(`/${path}`) || path.endsWith(`/${wrappedPath}`)
+        );
+        if (pathMatches && msg.toolUseId) {
+          duplicateBashToolIds.add(msg.toolUseId);
         }
       }
     }
@@ -426,6 +497,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
           .sort((a, b) => Number(a[0]) - Number(b[0]))
           .map(([id, t]) => ({ id, content: t.subject || `Task #${id}`, status: t.status }));
       for (const msg of messages) {
+        if (msg.toolUseId && duplicateBashToolIds.has(msg.toolUseId)) continue;
         if (msg.type === 'tool_result' && msg.toolUseId && suppressedToolResultIds.has(msg.toolUseId)) {
           continue;
         }

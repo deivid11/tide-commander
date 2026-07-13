@@ -195,8 +195,8 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId }: 
   );
 
   // Build the grouped sections (null in flat mode). Group membership derives from
-  // live status/area; within each group the flat pin order is preserved, so
-  // drag-to-reorder still orders chips inside a group.
+  // live status/area. Status groups show the most recently active agents first;
+  // area groups preserve the flat pin order so drag-to-reorder still applies.
   const groups = useMemo<PinGroup[] | null>(() => {
     if (groupMode === 'none') return null;
     const byKey = new Map<string, PinGroup>();
@@ -221,6 +221,9 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId }: 
     const list = Array.from(byKey.values());
     if (groupMode === 'status') {
       list.sort((a, b) => (STATUS_RANK[a.key as StatusBucket] ?? 9) - (STATUS_RANK[b.key as StatusBucket] ?? 9));
+      for (const group of list) {
+        group.agents.sort((a, b) => b.lastActivity - a.lastActivity);
+      }
     } else {
       // Alphabetical by area name; the catch-all "No area" always trails.
       list.sort((a, b) => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeTideFileHref, extractExecWrappedCommand, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, summarizeCodexExecScript, extractToolKeyParam, getCodexExecPresentation, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults } from './outputRendering';
+import { decodeTideFileHref, extractExecWrappedCommand, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, summarizeCodexExecScript, extractToolKeyParam, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults } from './outputRendering';
 
 describe('Codex exec activity summaries', () => {
   it('describes parallel terminal commands without exposing orchestration code', () => {
@@ -34,6 +34,13 @@ describe('Codex exec activity summaries', () => {
     expect(getCodexExecPresentation({
       input: `const r = await tools.exec_command({ cmd: "/usr/bin/zsh -lc \\\"sed -n '1335,1362p' src/GrepPanel.tsx\\\"" });`,
     })).toEqual({ toolName: 'Read', detail: 'lines 1335–1362', filePaths: ['src/GrepPanel.tsx'] });
+  });
+
+  it('classifies direct compound Bash reads semantically', () => {
+    expect(getShellCommandPresentation(`/usr/bin/zsh -lc "sed -n '1,55p' src/A.ts; rg -n needle src"`))
+      .toEqual({ toolName: 'Read', detail: 'lines 1–55', filePaths: ['src/A.ts'] });
+    expect(getShellCommandPresentation(`/usr/bin/zsh -lc "sed -n '50,75p' src/A.ts; sed -n '420,450p' src/B.ts"`))
+      .toEqual({ toolName: 'Read', detail: '2 ranges', filePaths: ['src/A.ts', 'src/B.ts'] });
   });
 
   it('extracts touched files from apply_patch calls for the diff modal', () => {
@@ -93,6 +100,22 @@ describe('Codex exec activity summaries', () => {
           { path: 'src/B.ts', line: 7, text: '// needle' },
         ],
       });
+  });
+
+  it('recognizes a Codex exec wrapper persisted inside a Bash command field', () => {
+    const input = { command: 'const r = await tools.exec_command({cmd: "rg -n \\\"flat mode\\\" src"}); text(r.output)' };
+    expect(isCodexExecWrapper(input)).toBe(true);
+    expect(getCodexExecCommand(input)).toBe('rg -n "flat mode" src');
+    expect(getCodexExecPresentation(input)).toEqual({ toolName: 'Grep', detail: 'rg -n "flat mode" src' });
+  });
+
+  it('extracts commands from wrappers with JSON-style quoted keys', () => {
+    const input = { command: 'const r = await tools.exec_command({"cmd":"./install.sh --skip-system-deps --skip-ydotool","workdir":"/tmp/project"}); text(JSON.stringify(r))' };
+    expect(getCodexExecCommand(input)).toBe('./install.sh --skip-system-deps --skip-ydotool');
+    expect(getCodexExecPresentation(input)).toEqual({
+      toolName: 'Bash',
+      detail: './install.sh --skip-system-deps --skip-ydotool',
+    });
   });
 });
 

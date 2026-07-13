@@ -413,13 +413,25 @@ export interface CodexExecPresentation {
   filePaths?: string[];
 }
 
+function codexExecScript(input: unknown): string {
+  if (typeof input === 'string') return input;
+  if (!input || typeof input !== 'object') return '';
+  const record = input as Record<string, unknown>;
+  const direct = record.input || record.code || record.script;
+  if (typeof direct === 'string') return direct;
+  // Some persisted sessions normalize the outer Codex `exec` call to Bash and
+  // place its JavaScript wrapper in the command field.
+  if (typeof record.command === 'string' && /\btools\.[A-Za-z0-9_]+\s*\(/.test(record.command)) return record.command;
+  return '';
+}
+
+export function isCodexExecWrapper(input: unknown): boolean {
+  return /\btools\.[A-Za-z0-9_]+\s*\(/.test(codexExecScript(input));
+}
+
 /** File paths touched by a Codex apply_patch payload, in patch order. */
 export function getCodexExecEditPaths(input: unknown): string[] {
-  const script = typeof input === 'string'
-    ? input
-    : input && typeof input === 'object'
-      ? String((input as Record<string, unknown>).input || (input as Record<string, unknown>).code || (input as Record<string, unknown>).script || '')
-      : '';
+  const script = codexExecScript(input);
   // Persisted exec input is JavaScript source, so patch newlines commonly
   // appear as the two characters `\n` rather than real line breaks.
   const normalized = script.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n');
@@ -433,11 +445,7 @@ export function getCodexExecEditPaths(input: unknown): string[] {
 
 /** Extract one file's section from a Codex `*** Begin Patch` payload. */
 export function getCodexExecPatchForFile(input: unknown, filePath: string): string | null {
-  const script = typeof input === 'string'
-    ? input
-    : input && typeof input === 'object'
-      ? String((input as Record<string, unknown>).input || (input as Record<string, unknown>).code || (input as Record<string, unknown>).script || '')
-      : '';
+  const script = codexExecScript(input);
   const normalized = script.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n');
   const escaped = filePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = normalized.match(new RegExp(`^\\*\\*\\* (?:Update|Add|Delete) File:\\s*${escaped}\\s*$([\\s\\S]*?)(?=^\\*\\*\\* (?:Update|Add|Delete|End Patch)|(?![\\s\\S]))`, 'm'));
@@ -456,7 +464,10 @@ export interface CodexGrepResults { query: string; matches: CodexGrepMatch[] }
 
 /** Parse an rg/grep exec command and its captured output for the results modal. */
 export function parseCodexGrepResults(input: unknown, output?: string): CodexGrepResults | null {
-  const command = getCodexExecCommand(input) || '';
+  const directCommand = input && typeof input === 'object' && typeof (input as Record<string, unknown>).command === 'string'
+    ? String((input as Record<string, unknown>).command)
+    : '';
+  const command = getCodexExecCommand(input) || directCommand;
   const normalized = normalizeShellWrapper(command);
   const queryMatch = normalized.match(/\b(?:rg|grep)\b(?:\s+--?[\w-]+)*\s+(?:(["'])(.*?)\1|([^\s]+))/);
   const query = (queryMatch?.[2] || queryMatch?.[3] || '').trim();
@@ -490,21 +501,13 @@ export function parseCodexGrepResults(input: unknown, output?: string): CodexGre
 
 /** The actual shell command inside a Codex JavaScript exec wrapper. */
 export function getCodexExecCommand(input: unknown): string | null {
-  const script = typeof input === 'string'
-    ? input
-    : input && typeof input === 'object'
-      ? String((input as Record<string, unknown>).input || (input as Record<string, unknown>).code || (input as Record<string, unknown>).script || '')
-      : '';
+  const script = codexExecScript(input);
   return extractJavaScriptStringField(script, 'cmd') || extractJavaScriptStringField(script, 'command');
 }
 
 /** Locate the file/lines represented by a Codex READ or GREP exec card. */
 export function getCodexExecFileTarget(input: unknown, output?: string): CodexExecFileTarget | null {
-  const script = typeof input === 'string'
-    ? input
-    : input && typeof input === 'object'
-      ? String((input as Record<string, unknown>).input || (input as Record<string, unknown>).code || (input as Record<string, unknown>).script || '')
-      : '';
+  const script = codexExecScript(input);
   const rawCommand = extractJavaScriptStringField(script, 'cmd') || extractJavaScriptStringField(script, 'command') || '';
   const readTarget = getShellReadTarget(rawCommand);
   if (readTarget) return readTarget;
@@ -541,11 +544,7 @@ export function getShellReadTargets(rawCommand: string): CodexExecFileTarget[] {
 
 /** Resolve an opaque Codex `exec` wrapper to the activity it represents. */
 export function getCodexExecPresentation(input: unknown): CodexExecPresentation {
-  const script = typeof input === 'string'
-    ? input
-    : input && typeof input === 'object'
-      ? String((input as Record<string, unknown>).input || (input as Record<string, unknown>).code || (input as Record<string, unknown>).script || '')
-      : '';
+  const script = codexExecScript(input);
   // Patch bodies may themselves contain strings such as `tools.exec_command(`.
   // Detect the outer apply_patch operation first so those contents do not turn
   // an EDIT card into a misleading mixed EXECUTECOMMAND card.
@@ -610,7 +609,9 @@ export function getCodexExecPresentation(input: unknown): CodexExecPresentation 
 }
 
 function extractJavaScriptStringField(script: string, field: string): string | null {
-  const match = script.match(new RegExp(`\\b${field}\\s*:\\s*(["'\x60])((?:\\\\[\\s\\S]|(?!\\1)[\\s\\S])*)\\1`));
+  // Accept both JS object keys (`cmd: "..."`) and JSON-style quoted keys
+  // (`"cmd":"..."`) used by persisted Codex wrappers.
+  const match = script.match(new RegExp(`\\b${field}["']?\\s*:\\s*(["'\x60])((?:\\\\[\\s\\S]|(?!\\1)[\\s\\S])*)\\1`));
   return match?.[2]?.replace(/\\n/g, '\n').replace(/\\(["'\x60\\])/g, '$1') || null;
 }
 
@@ -622,6 +623,11 @@ function classifyTerminalCommand(command: string): CodexExecPresentation {
     const readTargets = getShellReadTargets(clean);
     if (readTargets.length > 1) {
       return { toolName: 'Read', detail: `${readTargets.length} ranges`, filePaths: readTargets.map((target) => target.path) };
+    }
+    if (readTargets.length === 1) {
+      const range = readTargets[0].highlightRange;
+      const detail = range ? `lines ${range.offset}–${range.offset + range.limit - 1}` : 'viewed';
+      return { toolName: 'Read', detail, filePaths: [readTargets[0].path] };
     }
     const sed = clean.match(/\bsed\s+-n\s+["']?(\d+)\s*,\s*(\d+)p["']?\s+(?:--\s+)?["']?([^"';&|]+?)["']?\s*$/);
     if (sed) return { toolName: 'Read', detail: `lines ${sed[1]}–${sed[2]}`, filePaths: [sed[3].trim()] };
@@ -646,6 +652,11 @@ function classifyTerminalCommand(command: string): CodexExecPresentation {
   return { toolName: 'Bash', detail: summarizeShellCommand(clean) };
 }
 
+/** Semantic presentation for a direct native Bash command, when applicable. */
+export function getShellCommandPresentation(command: string): CodexExecPresentation {
+  return classifyTerminalCommand(command);
+}
+
 function normalizeShellWrapper(command: string): string {
   let clean = command.replace(/^\s*(?:\/usr\/bin\/|\/bin\/)?(?:zsh|bash|sh)\s+-lc\s+/, '').trim();
   if (clean.length >= 2) {
@@ -655,6 +666,11 @@ function normalizeShellWrapper(command: string): string {
     }
   }
   return clean.replace(/\\"/g, '"').replace(/\\'/g, "'");
+}
+
+/** Stable comparison form for wrapped vs direct shell command deduplication. */
+export function normalizeShellCommand(command: string): string {
+  return normalizeShellWrapper(command).replace(/\s+/g, ' ').trim();
 }
 
 function summarizeShellCommand(command: string): string {

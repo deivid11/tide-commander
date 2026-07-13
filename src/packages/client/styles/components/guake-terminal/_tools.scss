@@ -19,6 +19,7 @@
   border-radius: $radius-sm;
 
   // Header chips stay on the first row
+  > .output-timestamp-wrapper,
   > .output-timestamp,
   > .output-agent-badge,
   > .output-tool-icon,
@@ -42,7 +43,7 @@
 
   // Big bodies still take a full-width row below the header
   // (todo lists, plan bodies, structured tool UIs, …)
-  > *:not(.output-timestamp):not(.output-agent-badge):not(.output-tool-icon):not(.output-tool-name):not(.output-tool-param):not(.bash-output-indicator):not(.bash-inline-toggle):not(.output-tool-loading):not(.codex-file-chip):not(.codex-exec-chevron):not(.wait-cell-id) {
+  > *:not(.output-timestamp-wrapper):not(.output-timestamp):not(.output-agent-badge):not(.output-tool-icon):not(.output-tool-name):not(.output-tool-param):not(.bash-output-indicator):not(.bash-inline-toggle):not(.output-tool-loading):not(.codex-file-chip):not(.codex-exec-chevron):not(.wait-cell-id) {
     flex: 1 1 100%;
     min-width: 0;
   }

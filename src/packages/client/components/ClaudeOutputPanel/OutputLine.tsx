@@ -6,7 +6,7 @@ import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHideCost, useSettings, ClaudeOutput, store, useAgentPrompts, type TestRunHandle, type HttpRunHandle } from '../../store';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay, parseTaskNotification, TaskNotificationDisplay } from './BossContext';
@@ -16,7 +16,7 @@ import { parseSlackMessage, SlackMessageBubble } from './SlackMessageBubble';
 import { DelegationMessageCard, parseDelegationMessage } from './DelegationMessageCard';
 import { AgentChatMessageCard, parseAgentChatMessage } from './AgentChatMessageCard';
 import { parseExtensionContext, ExtensionContextCard } from './ExtensionContextCard';
-import { EditToolDiff, ReadToolInput, TodoWriteInput, AskQuestionInput, AskQuestionResult, ExitPlanModeInput, UnknownToolInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, MemoryOpInput, isToolSearchContent, ListFilesInput, TaskOutputWaitInput } from './ToolRenderers';
+import { TodoWriteInput, AskQuestionInput, AskQuestionResult, ExitPlanModeInput, UnknownToolInput, ToolSearchInput, TaskCreateInput, TaskUpdateInput, MemoryOpInput, isToolSearchContent, ListFilesInput, TaskOutputWaitInput } from './ToolRenderers';
 import { StreamFadeText } from './StreamFadeText';
 import { TaskListView } from '../shared/TaskListView';
 import { parseCurlCommand, looksLikeCurl } from './curlParser';
@@ -590,7 +590,13 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   // Handle tool usage with nice formatting
   if (text.startsWith('Using tool:')) {
     const toolName = text.replace('Using tool:', '').trim();
-    const execPresentation = toolName === 'exec' ? getCodexExecPresentation(payloadToolInput) : null;
+    const nativeBashCommand = toolName === 'Bash' && payloadToolInput && typeof payloadToolInput === 'object'
+      ? String((payloadToolInput as Record<string, unknown>).command || (payloadToolInput as Record<string, unknown>).cmd || '')
+      : '';
+    const nativeBashPresentation = nativeBashCommand ? getShellCommandPresentation(nativeBashCommand) : null;
+    const execPresentation = toolName === 'exec' || (toolName === 'Bash' && isCodexExecWrapper(payloadToolInput))
+      ? getCodexExecPresentation(payloadToolInput)
+      : toolName === 'Bash' && nativeBashPresentation?.toolName !== 'Bash' ? nativeBashPresentation : null;
     const renderedToolName = execPresentation?.toolName || toolName;
     const displayToolName = getLocalizedToolName(renderedToolName, t);
     const iconName = getToolIconName(renderedToolName);
@@ -904,9 +910,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         ? { url: getLocalFileImageUrl(execImagePath), name: getBasenameFromPath(execImagePath) }
         : null;
       const opensImageViewer = !!execImagePreview && !!onImageClick;
-      const opensFileModal = !!execFileTarget && !!onFileClick;
-      const execCommand = getCodexExecCommand(payloadToolInput);
+      const execCommand = getCodexExecCommand(payloadToolInput) || nativeBashCommand;
       const execReadTargets = execCommand ? getShellReadTargets(execCommand) : [];
+      const primaryFileTarget = execFileTarget || execReadTargets[0] || null;
+      const opensFileModal = !!primaryFileTarget && !!onFileClick;
       const opensCommandModal = !!execCommand && !!onBashClick
         && (execPresentation.toolName === 'Bash' || execPresentation.toolName === 'ExecuteCommand');
       const grepResults = execPresentation.toolName === 'Grep'
@@ -931,9 +938,9 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             : (payloadToolOutput || t('tools:display.noOutputCaptured')));
           return;
         }
-        if (opensFileModal && execFileTarget) {
-          onFileClick(execFileTarget.path, execFileTarget.highlightRange
-            ? { highlightRange: execFileTarget.highlightRange }
+        if (opensFileModal && primaryFileTarget) {
+          onFileClick(primaryFileTarget.path, primaryFileTarget.highlightRange
+            ? { highlightRange: primaryFileTarget.highlightRange }
             : undefined);
           return;
         }
@@ -971,7 +978,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
-            {visibleFilePaths.slice(0, 2).map((path) => (
+            {visibleFilePaths.map((path) => (
               <span
                 key={path}
                 className={`codex-file-chip ${(execPresentation.toolName === 'Edit' || execReadTargets.some((target) => target.path === path)) && onFileClick ? 'is-clickable' : ''}`}
@@ -990,9 +997,6 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 <span>{path.split('/').pop() || path}</span>
               </span>
             ))}
-            {visibleFilePaths.length > 2 && (
-              <span className="codex-file-chip codex-file-chip-more">+{visibleFilePaths.length - 2}</span>
-            )}
             {!(execPresentation.toolName === 'Edit' && visibleFilePaths.length > 0) && (
               <span className="output-tool-param">{execPresentation.detail}</span>
             )}
@@ -1510,20 +1514,14 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     try {
       const parsed = JSON.parse(inputText);
       if (parsed.file_path && (parsed.old_string !== undefined || parsed.new_string !== undefined)) {
-        return (
-          <div className="output-line output-tool-input">
-            <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-            <EditToolDiff content={inputText} onFileClick={onFileClick} />
-          </div>
-        );
+        // The paired tool-use row already renders a standardized filename chip
+        // and carries this edit data into the diff modal. Avoid a duplicate,
+        // two-line legacy Tool input card.
+        return null;
       }
       if (parsed.file_path && parsed.old_string === undefined && parsed.new_string === undefined) {
-        return (
-          <div className="output-line output-tool-input">
-            <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-            <ReadToolInput content={inputText} onFileClick={onFileClick} />
-          </div>
-        );
+        // Read details are likewise folded into the primary READ row.
+        return null;
       }
       if (Array.isArray(parsed.todos)) {
         const priorTodos = agentId
