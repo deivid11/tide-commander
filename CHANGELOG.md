@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.159.2] - 2026-07-13
+
+### Fixed
+- **Self-update restart race under PM2/systemd/docker** - when the server runs under a process supervisor, a successful self-update now simply exits and lets the supervisor restart into the freshly-installed build, instead of spawning its own detached relauncher that raced the supervisor for the port. Previously the loser of that race died with `EADDRINUSE` and — in containers whose PID 1 doesn't reap children — could linger as a zombie that tripped the next boot's port guard, causing a multi-day crash loop. Standalone installs keep the detached relauncher; set `TIDE_COMMANDER_SUPERVISED=1` to opt other auto-restarting supervisors into the exit-and-be-restarted behavior. (Foreground runs are not treated as supervised.)
+
 ## [1.159.1] - 2026-07-13
 
 ### Fixed

@@ -288,20 +288,66 @@ export function runNpmGlobalUpdate(callbacks: RunUpdateCallbacks = {}): Promise<
 }
 
 /**
+ * Detect a process supervisor that already restarts us on exit.
+ *
+ * Under PM2 (the common `tide-commander --foreground` deployment) spawning our
+ * own detached relauncher is actively harmful: PM2 ALSO restarts the process the
+ * moment the old server exits, so the relauncher's new server and PM2's fresh
+ * server race for the same port. The loser dies with EADDRINUSE and — in
+ * containers whose PID 1 doesn't reap — lingers as a zombie that then trips the
+ * launcher's port guard on the next boot (the multi-day crash loop).
+ *
+ * PM2 injects pm_id / PM2_HOME into every managed process, and the launcher
+ * passes its env straight to the server child, so these are visible here. An
+ * explicit TIDE_COMMANDER_SUPERVISED=1 lets other auto-restarting supervisors
+ * (systemd Restart=, docker restart-policy) opt into the same behaviour.
+ *
+ * NOTE: we deliberately do NOT key on TIDE_COMMANDER_FOREGROUND — foreground is
+ * not the same as supervised. A bare `--foreground` attached in a terminal has
+ * nothing to restart it, so there the detached relauncher must stay.
+ */
+function isSupervisedRestart(): boolean {
+  return (
+    process.env.pm_id !== undefined ||
+    Boolean(process.env.PM2_HOME) ||
+    process.env.TIDE_COMMANDER_SUPERVISED === '1'
+  );
+}
+
+/**
  * After a successful global update, bring up the freshly installed binary
  * without the user having to relaunch by hand.
  *
- * Spawns a fully detached `tide-commander start --restart` that inherits the
- * current server's environment (same PORT/HOST/AUTH_TOKEN/HTTPS). That process
- * SIGTERMs the still-running old server (triggering its graceful shutdown so the
- * port is released), waits for it to exit, then starts the new server and
- * rewrites the PID file. The caller MUST NOT exit — the relauncher drives the
- * handoff.
+ * When supervised (PM2/systemd/docker — see isSupervisedRestart), we simply exit:
+ * the supervisor restarts the process into the already-on-disk new code, and
+ * spawning our own relauncher would only race it for the port.
  *
- * Returns true if the relauncher was scheduled, false if it could not be
- * (in which case the caller should fall back to exiting for a manual restart).
+ * Otherwise (standalone install) spawns a fully detached
+ * `tide-commander start --restart` that inherits the current server's
+ * environment (same PORT/HOST/AUTH_TOKEN/HTTPS). That process SIGTERMs the
+ * still-running old server (triggering its graceful shutdown so the port is
+ * released), waits for it to exit, then starts the new server and rewrites the
+ * PID file. The caller MUST NOT exit — the relauncher (or, when supervised, our
+ * own scheduled exit) drives the handoff.
+ *
+ * Returns true if a restart was scheduled (relauncher spawned, or supervised
+ * exit queued), false if it could not be (in which case the caller should fall
+ * back to exiting for a manual restart).
  */
 export function schedulePostUpdateRestart(delayMs = 600): boolean {
+  // Supervised deployment: don't spawn a competing relauncher. Exit after the
+  // same flush grace so any in-flight SSE 'done' frame reaches the client, then
+  // let the process manager restart us into the freshly-installed build.
+  if (isSupervisedRestart()) {
+    log.log('Supervised restart (PM2/systemd/docker) detected — exiting for the process manager to restart into the updated build.');
+    const timer = setTimeout(() => {
+      log.log('Exiting now; the process manager will restart Tide Commander.');
+      process.exit(0);
+    }, delayMs);
+    timer.unref?.();
+    return true;
+  }
+
   let cliPath: string;
   try {
     // self-update-service.js lives at dist/.../server/services/, the CLI entry
