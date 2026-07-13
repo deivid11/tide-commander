@@ -13,6 +13,7 @@ Skills are instruction sets that extend what agents can do. Each skill contains 
 | Streaming Exec | Execute long-running commands with real-time output |
 | Bitbucket PR | Bitbucket pull request management |
 | PM2 Logs | PM2 process manager log access |
+| Computer Use | Inspect and control the local Linux desktop through the Tide Computer Use CLI |
 
 Built-in skills cannot be deleted but can be disabled.
 
