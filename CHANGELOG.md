@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.159.1] - 2026-07-13
+
+### Fixed
+- **Startup crash-loop on zombie launcher (containers)** - the server's is-it-already-running check now treats a zombie process (exited but not yet reaped) as dead by inspecting `/proc/<pid>/stat`, instead of trusting a bare signal probe that a zombie still passes. In containers whose PID 1 doesn't reap children, an unreaped launcher was mistaken for a live server, so the startup guard waited on it forever and the launch crash-looped; it now starts cleanly. Non-Linux hosts fall back to the signal probe.
+
 ## [1.159.0] - 2026-07-13
 
 ### Added
