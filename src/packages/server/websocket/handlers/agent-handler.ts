@@ -209,10 +209,9 @@ function duplicateOffset(source: Agent): { x: number; y: number; z: number } {
   return { x: source.position.x + 2, y: 0, z: source.position.z + 2 };
 }
 
-// Providers whose conversation history can be forked (resume + native fork flag).
-// Codex is intentionally excluded for now (no headless fork; would need rollout
-// duplication) — forking a Codex agent gracefully degrades to a plain clone.
-const FORKABLE_PROVIDERS: ReadonlySet<AgentProvider> = new Set(['claude', 'opencode', 'grok']);
+// Providers whose conversation history can be forked. Codex forks through the
+// app-server `thread/fork` method even when regular turns use `codex exec`.
+const FORKABLE_PROVIDERS: ReadonlySet<AgentProvider> = new Set(['claude', 'codex', 'opencode', 'grok']);
 
 /**
  * Handle clone_agent message - duplicates an existing agent's configuration
@@ -254,9 +253,9 @@ export async function handleCloneAgent(
  * Handle fork_agent message - like clone, but the new agent also CONTINUES the
  * source's conversation history. On the new agent's first run the backend
  * resumes the source session and forks it into a fresh one (Claude
- * --fork-session / OpenCode --fork); the new session id is then captured and
+ * --fork-session / Codex thread/fork / OpenCode --fork); the new session id is then captured and
  * forkSourceSessionId is cleared. If the source has no session or its provider
- * isn't forkable (e.g. Codex), this degrades to a plain clone (fresh session).
+ * isn't forkable, this degrades to a plain clone (fresh session).
  */
 export async function handleForkAgent(
   ctx: HandlerContext,

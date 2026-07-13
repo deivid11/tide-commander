@@ -273,7 +273,10 @@ export class CodexAppServerRunner implements RuntimeRunner {
       };
       this.agents.set(agentId, state);
       this.threadToAgent.set(threadId, agentId);
-      agentService.updateAgent(agentId, { sessionId: threadId });
+      agentService.updateAgent(agentId, {
+        sessionId: threadId,
+        ...(request.forkSession ? { forkSourceSessionId: undefined } : {}),
+      });
       this.callbacks.onSessionId(agentId, threadId);
       this.pipeline.emitStandardEvent(agentId, {
         type: 'init',
@@ -306,16 +309,27 @@ export class CodexAppServerRunner implements RuntimeRunner {
 
     try {
       if (!wantNew && request.sessionId) {
-        const result = (await proc.request('thread/resume', {
+        const method = request.forkSession ? 'thread/fork' : 'thread/resume';
+        const result = (await proc.request(method, {
           ...baseParams,
           threadId: request.sessionId,
         })) as { thread?: { id?: string } };
-        const id = result?.thread?.id || request.sessionId;
-        log.log(`🔄 Resumed thread ${id.slice(0, 8)} for agent ${agentId.slice(0, 8)}`);
+        // A fork must always return its own id. Falling back to the source id
+        // would make both agents write to the same conversation.
+        const id = result?.thread?.id || (request.forkSession ? undefined : request.sessionId);
+        if (!id) throw new Error(`${method} returned no thread id`);
+        log.log(`${request.forkSession ? '🌿 Forked' : '🔄 Resumed'} thread ${id.slice(0, 8)} for agent ${agentId.slice(0, 8)}`);
         return id;
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      if (request.forkSession) {
+        // Do not silently create an empty thread: keep forkSourceSessionId in
+        // place so the user can retry after upgrading/fixing Codex.
+        log.error(`thread/fork failed for ${agentId.slice(0, 8)}: ${msg}`);
+        this.callbacks.onError(agentId, `Codex session fork failed: ${msg}`);
+        return null;
+      }
       log.warn(`thread/resume failed for ${agentId.slice(0, 8)} (${msg}) — starting a fresh thread`);
     }
 

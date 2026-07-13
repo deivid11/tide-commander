@@ -63,7 +63,11 @@ export class CodexRunnerRouter implements RuntimeRunner {
   }
 
   async run(request: RuntimeCommandRequest): Promise<void> {
-    const mode = this.currentMode();
+    // `codex exec` can resume threads but has no headless fork command. The
+    // app-server does (`thread/fork`), so route the first turn of a fork through
+    // it regardless of the streaming preference. Later turns may switch back
+    // to exec and resume the newly-created thread normally.
+    const mode: Mode = request.forkSession ? 'app-server' : this.currentMode();
     const prev = this.ownerOf(request.agentId);
     if (prev && prev !== mode) {
       log.log(`Agent ${request.agentId.slice(0, 8)} switching ${prev} → ${mode}; stopping old runner first`);

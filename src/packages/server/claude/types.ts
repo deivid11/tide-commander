@@ -84,7 +84,7 @@ export interface BackendConfig {
   agentId?: string;  // Used for prompt file naming
   sessionId?: string;
   // Fork the resumed session into a NEW one on this run (Claude --fork-session /
-  // OpenCode --fork). Used for the first run of a forked agent. Requires sessionId.
+  // Codex thread/fork / OpenCode --fork). Used for the first run of a forked agent. Requires sessionId.
   forkSession?: boolean;
   model?: string;
   effort?: string;  // Reasoning effort level (low, medium, high, xHigh, max)
