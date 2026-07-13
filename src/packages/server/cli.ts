@@ -377,13 +377,32 @@ function readPidFile(): number | null {
   }
 }
 
+/**
+ * True only if `pid` is a *live* process. A bare `kill(pid, 0)` probe is not
+ * enough: on Linux a zombie (State: Z — exited but not yet reaped by its parent)
+ * still occupies the process table, so the probe succeeds for it too. In
+ * containers whose PID 1 doesn't reap children, an unreaped launcher would then
+ * be mistaken for a running server — the startup guard waits on it forever, the
+ * follow-up SIGKILL no-ops, and the launch crash-loops. Treat zombies as dead by
+ * inspecting /proc/<pid>/stat; if /proc is unavailable (non-Linux) or the read
+ * races, fall back to trusting the signal probe.
+ */
 function isRunning(pid: number): boolean {
   try {
     process.kill(pid, 0);
-    return true;
   } catch {
     return false;
   }
+  try {
+    const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+    // Format: "pid (comm) state ...". comm may contain spaces or ')', so key off
+    // the final ')' to locate the single-char state field that follows it.
+    const state = stat.slice(stat.lastIndexOf(')') + 1).trim()[0];
+    if (state === 'Z') return false;
+  } catch {
+    // /proc missing (non-Linux) or the process vanished mid-read — trust kill(0).
+  }
+  return true;
 }
 
 async function waitForProcessExit(pid: number, timeoutMs = 8000): Promise<boolean> {
