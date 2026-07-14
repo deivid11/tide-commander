@@ -1270,6 +1270,7 @@
   "usage": {
     "title": "Claude Usage",
     "titleGrok": "Grok Usage",
+    "titleCodex": "Codex Usage",
     "session": "Session",
     "tokensUsed": "Tokens used",
     "taskCount": "Tasks sent",
@@ -1288,6 +1289,7 @@
     "currentWeekFable": "Current week (Fable)",
     "currentWeekSonnet": "Current week (Sonnet only)",
     "weeklyLimit": "Weekly limit",
+    "dailyLimit": "Daily limit",
     "monthlyLimit": "Monthly limit",
     "periodLimit": "Plan period limit",
     "onDemandLimit": "Pay-as-you-go limit",

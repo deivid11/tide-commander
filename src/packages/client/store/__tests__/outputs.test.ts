@@ -48,6 +48,29 @@ function makeOutput(overrides: Partial<AgentOutput> = {}): AgentOutput {
 }
 
 describe('Output Store Actions', () => {
+  describe('attachToolResult', () => {
+    it('enriches the matching live tool card without adding a result row', () => {
+      const { state, actions } = createMockStore();
+      actions.addOutput('agent-1', makeOutput({
+        text: 'Using tool: Grep',
+        uuid: 'toolu-1',
+        toolName: 'Grep',
+        toolInput: { pattern: 'needle', path: 'src' },
+      }));
+      actions.addOutput('agent-1', makeOutput({
+        text: 'Tool input: {"pattern":"needle","path":"src"}',
+        uuid: 'toolu-1',
+      }));
+
+      actions.attachToolResult('agent-1', 'toolu-1', 'src/a.ts:4:needle');
+
+      const outputs = state.agentOutputs.get('agent-1')!;
+      expect(outputs).toHaveLength(2);
+      expect(outputs[0].toolOutput).toBe('src/a.ts:4:needle');
+      expect(outputs[1].toolOutput).toBeUndefined();
+    });
+  });
+
   describe('addOutput', () => {
     it('adds output to agent', () => {
       const { state, actions } = createMockStore();

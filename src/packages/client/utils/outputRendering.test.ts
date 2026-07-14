@@ -102,6 +102,40 @@ describe('Codex exec activity summaries', () => {
       });
   });
 
+  it('skips grep options with values when extracting the query', () => {
+    const input = { command: 'rg -n -C 10 --glob "*.ts" "Order with id" src' };
+    expect(parseCodexGrepResults(input, 'src/order.ts:41:Order with id'))
+      .toMatchObject({ query: 'Order with id' });
+  });
+
+  it('extracts an explicit -e grep pattern', () => {
+    const input = { command: "grep -R -e 'Order with id' src" };
+    expect(parseCodexGrepResults(input, 'src/order.ts:41:Order with id'))
+      .toMatchObject({ query: 'Order with id' });
+  });
+
+  it('parses native Claude Grep input and scoped output', () => {
+    expect(parseCodexGrepResults(
+      { pattern: 'needle', path: 'src/A.ts', output_mode: 'content' },
+      '12:const needle = 1;\n18-// needle context',
+    )).toEqual({
+      query: 'needle',
+      matches: [
+        { path: 'src/A.ts', line: 12, text: 'const needle = 1;' },
+      ],
+    });
+  });
+
+  it('parses native Claude Grep context separators', () => {
+    expect(parseCodexGrepResults(
+      { pattern: 'needle', path: 'src' },
+      'src/A.ts-12-const needle = 1;',
+    )).toEqual({
+      query: 'needle',
+      matches: [{ path: 'src/A.ts', line: 12, text: 'const needle = 1;' }],
+    });
+  });
+
   it('recognizes a Codex exec wrapper persisted inside a Bash command field', () => {
     const input = { command: 'const r = await tools.exec_command({cmd: "rg -n \\\"flat mode\\\" src"}); text(r.output)' };
     expect(isCodexExecWrapper(input)).toBe(true);

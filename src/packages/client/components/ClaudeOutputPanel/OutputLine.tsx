@@ -1089,6 +1089,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const displayCommand = bashCommand ? extractExecWrappedCommand(bashCommand) : '';
     const bashReadTarget = isBashTool && bashCommand ? getShellReadTarget(bashCommand) : null;
     const isBashClickable = isBashTool && (!!onBashClick || (!!bashReadTarget && !!onFileClick));
+    const grepResults = toolName === 'Grep' && payloadToolOutput !== undefined
+      ? parseCodexGrepResults(payloadToolInput, payloadToolOutput)
+      : null;
+    const isGrepClickable = !!grepResults;
     // Empty Bash chip (no command/description) — don't render a blank row.
     if (isBashTool && !bashCommand) {
       return null;
@@ -1216,6 +1220,14 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       }
     };
 
+    const handleToolClick = () => {
+      if (isGrepClickable && grepResults) {
+        setGrepResultsModal(grepResults);
+        return;
+      }
+      if (isBashClickable) handleBashClick();
+    };
+
     const renderBashCommandWithFileLinks = () => {
       if (!displayCommand) return null;
       if (!onFileClick) {
@@ -1250,9 +1262,9 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     return (
       <>
         <div
-          className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''} ${isBashClickable ? 'bash-clickable' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''} ${bashTrackingStatusCommand ? 'bash-tracking-use' : ''}`}
-          onClick={isBashClickable ? handleBashClick : undefined}
-          title={bashReadTarget ? t('tools:display.clickToViewFile') : isBashClickable ? t('tools:display.clickToViewOutput') : undefined}
+          className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''} ${isBashClickable || isGrepClickable ? 'bash-clickable' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''} ${bashTrackingStatusCommand ? 'bash-tracking-use' : ''}`}
+          onClick={isBashClickable || isGrepClickable ? handleToolClick : undefined}
+          title={bashReadTarget ? t('tools:display.clickToViewFile') : isBashClickable || isGrepClickable ? t('tools:display.clickToViewOutput') : undefined}
         >
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
@@ -1391,6 +1403,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           {isBashTool && <BashInlineToggle enabled={settings.inlineBashOutputs} />}
           {isStreaming && <span className="output-tool-loading">...</span>}
         </div>
+
+        {grepResultsModal && <GrepResultsModal results={grepResultsModal} onClose={() => setGrepResultsModal(null)} onFileClick={onFileClick} />}
 
         {/* Global inline-output mode: show the captured output right below the
             command. Skipped for rows that already stream their result inline

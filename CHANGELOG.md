@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.162.0] - 2026-07-14
+
+### Added
+- **Codex usage gauges** - the Context/Usage modal now works for Codex agents, showing the account's native daily and weekly usage limits (utilization percentage and reset time) read from the Codex app-server, with a "Codex Usage" title and a graceful error state when the limits can't be fetched.
+- **Inline Codex generated images** - images produced by Codex's image-generation tool now render as a clickable inline preview (opening in the full image viewer) in both the live activity view and reloaded history, instead of a wall of base64 JSON; the PNG is validated and saved to the server's uploads directory.
+- **Agent activity dock** - the agent overview panel gains a bottom dock that surfaces currently-working and recently-active agents as clickable thumbnails (provider badge, unread-output dot, hover tooltips) so you can jump straight to a busy agent; it animates entries in/out, reorders smoothly, and can be collapsed (the choice is remembered).
+- **Live working indicators** - area groups now show an animated "working" badge with a count whenever any agent inside them is running — in both the agent-overview headers and the flat-view map cards (which gain a subtle pulse) — and individual working/compacting agent cards get a refreshed animated-bars indicator and aurora glow.
+
+### Changed
+- **Flat-map area order** - area groups on the flat-view map now appear in a stable alphabetical order (Unassigned included) instead of mirroring their scene positions, giving a predictable reading order.
+
+### Fixed
+- **Grep results appear live** - Grep activity cards become clickable and open their match list (each match a clickable file:line link) as soon as the search finishes, instead of only after history reload. Result parsing is also more robust: native Claude Grep output, single-file-scoped results, context-flag separators, ANSI color codes, and rg/grep commands with valued options (`-C`, `--glob`, `-e`, etc.) are now handled correctly.
+
 ## [1.161.0] - 2026-07-14
 
 ### Added

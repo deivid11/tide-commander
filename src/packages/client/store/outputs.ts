@@ -105,6 +105,8 @@ export function serverNow(): number {
 
 export interface OutputActions {
   addOutput(agentId: string, output: AgentOutput): void;
+  /** Attach a tool result to its existing live tool-use card. */
+  attachToolResult(agentId: string, toolUseId: string, toolOutput: string): void;
   clearOutputs(agentId: string): void;
   /** Force any open isStreaming rows for this agent to settle (e.g. agent went idle). */
   settleOpenStreams(agentId: string): void;
@@ -311,6 +313,34 @@ export function createOutputActions(
 
       scheduleNotify();
       perf.end('store:addOutput');
+    },
+
+    attachToolResult(agentId: string, toolUseId: string, toolOutput: string): void {
+      if (!toolUseId) return;
+      let changed = false;
+      setState((s) => {
+        const currentOutputs = s.agentOutputs.get(agentId);
+        if (!currentOutputs) return;
+
+        // A tool invocation may also have a legacy "Tool input:" sibling with
+        // the same uuid. Enrich the semantic "Using tool:" card only.
+        const index = currentOutputs.findIndex((output) =>
+          output.uuid === toolUseId && output.text.startsWith('Using tool:')
+        );
+        if (index < 0 || currentOutputs[index].toolOutput === toolOutput) return;
+
+        const updatedOutputs = [...currentOutputs];
+        updatedOutputs[index] = {
+          ...updatedOutputs[index],
+          toolOutput,
+          isStreaming: false,
+        };
+        const newAgentOutputs = new Map(s.agentOutputs);
+        newAgentOutputs.set(agentId, updatedOutputs);
+        s.agentOutputs = newAgentOutputs;
+        changed = true;
+      });
+      if (changed) scheduleNotify();
     },
 
     clearOutputs(agentId: string): void {

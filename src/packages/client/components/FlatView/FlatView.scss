@@ -424,6 +424,17 @@ body.flat-splitter-dragging {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   }
 
+  // Lift working activity to the area level so busy projects are visible even
+  // before the user scans their individual agent chips.
+  &--working {
+    border-color: color-mix(in srgb, var(--area-color, #6272a4) 72%, #8be9fd);
+    animation: flat-map-area-working-pulse 2.4s ease-in-out infinite;
+
+    .flat-map-area-card__color {
+      animation: flat-map-area-working-dot 1.2s ease-in-out infinite;
+    }
+  }
+
   &__header {
     display: flex;
     align-items: center;
@@ -491,6 +502,48 @@ body.flat-splitter-dragging {
     flex-shrink: 0;
   }
 
+  &__working {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 18px;
+    padding: 1px 5px;
+    flex-shrink: 0;
+    color: #8be9fd;
+    background: rgba(139, 233, 253, 0.12);
+    border: 1px solid rgba(139, 233, 253, 0.32);
+    border-radius: 8px;
+    box-shadow: 0 0 7px rgba(139, 233, 253, 0.16);
+  }
+
+  &__working-bars {
+    display: inline-flex;
+    align-items: center;
+    gap: 1.5px;
+    height: 10px;
+
+    i {
+      display: block;
+      width: 2px;
+      height: 100%;
+      border-radius: 2px;
+      background: currentColor;
+      transform-origin: center bottom;
+      animation: flat-map-area-working-bar 0.72s ease-in-out infinite alternate;
+
+      &:nth-child(2) { animation-delay: -0.48s; }
+      &:nth-child(3) { animation-delay: -0.24s; }
+    }
+  }
+
+  &__working-count {
+    min-width: 6px;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+  }
+
   &__caret {
     font-size: 10px;
     color: $text-muted;
@@ -504,6 +557,41 @@ body.flat-splitter-dragging {
     flex-wrap: wrap;
     gap: 4px;
     padding: 0 8px 8px;
+  }
+}
+
+@keyframes flat-map-area-working-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 rgba(139, 233, 253, 0);
+  }
+  50% {
+    box-shadow: 0 0 14px color-mix(in srgb, var(--area-color, #6272a4) 40%, rgba(139, 233, 253, 0.45));
+  }
+}
+
+@keyframes flat-map-area-working-dot {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 rgba(139, 233, 253, 0); }
+  50% { transform: scale(1.45); box-shadow: 0 0 8px rgba(139, 233, 253, 0.9); }
+}
+
+@keyframes flat-map-area-working-bar {
+  0% { transform: scaleY(0.25); opacity: 0.55; }
+  100% { transform: scaleY(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flat-map-area-card--working {
+    animation: none;
+    box-shadow: 0 0 0 1px rgba(139, 233, 253, 0.22);
+
+    .flat-map-area-card__color {
+      animation: none;
+    }
+
+    .flat-map-area-card__working-bars i {
+      // Keep a slow live-status change without moving the surrounding layout.
+      animation-duration: 1.8s;
+    }
   }
 }
 

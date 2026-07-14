@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { RuntimeEvent } from '../runtime/types.js';
 import { createLogger } from '../utils/logger.js';
+import { materializeCodexGeneratedImage } from './generated-image.js';
 
 type JsonObject = Record<string, unknown>;
 
@@ -381,6 +382,29 @@ export class CodexJsonEventParser {
 
     if (payloadType === 'web_search_begin' || payloadType === 'web_search_end') {
       return this.parseWebSearchEvent(payload, payloadType === 'web_search_end');
+    }
+
+    // Codex returns generated PNGs inline as base64. Persist the bytes in the
+    // existing uploads directory and let Guake's normal image-reference
+    // renderer show a clickable thumbnail instead of dumping the JSON/base64.
+    if (payloadType === 'image_generation_begin') {
+      return [];
+    }
+    if (payloadType === 'image_generation_end') {
+      const imagePath = materializeCodexGeneratedImage(payload.result);
+      if (!imagePath) {
+        return [{
+          type: 'text',
+          text: '[codex-event] Image generation completed, but the PNG result was invalid.',
+          isStreaming: false,
+        }];
+      }
+      return [{
+        type: 'text',
+        text: `[Image: ${imagePath}]`,
+        isStreaming: false,
+        uuid: asString(payload.call_id) || undefined,
+      }];
     }
 
     // agent_reasoning: Map to thinking event (stable uuid when item id present)

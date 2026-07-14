@@ -209,6 +209,27 @@ export function renderContentWithImages(
   onImageClick?: (url: string, name: string) => void,
   onFileClick?: (path: string) => void
 ): React.ReactNode {
+  // Generated images are emitted as a standalone image reference. Give them a
+  // proper inline preview instead of the compact attachment chip used for
+  // references embedded in prose.
+  const generatedImageMatch = /^\s*\[Image:\s*([^\]]*\/codex-generated-[a-f0-9]+\.png)\]\s*$/i.exec(content);
+  if (generatedImageMatch) {
+    const imagePath = generatedImageMatch[1].trim();
+    const imageName = imagePath.split('/').pop() || 'generated-image.png';
+    const imageUrl = getLocalFileImageUrl(imagePath);
+    return (
+      <span className="generated-image-preview">
+        <img
+          src={imageUrl}
+          alt={imageName}
+          loading="lazy"
+          title={i18n.t('terminal:content.clickToViewImage')}
+          onClick={() => onImageClick?.(imageUrl, imageName)}
+        />
+      </span>
+    );
+  }
+
   // Pattern to match [Image: /path/to/image.png] or [File: /path/to/file.pdf]
   const combinedPattern = /\[(Image|File):\s*([^\]]+)\]/g;
   const parts: React.ReactNode[] = [];

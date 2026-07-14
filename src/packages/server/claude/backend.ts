@@ -422,6 +422,10 @@ export class ClaudeBackend implements CLIBackend {
             toolName,
             toolOutput: content,
             toolUseId: block.tool_use_id, // Preserve for subagent correlation
+            // The matching tool_start uses the tool_use id as its live-output
+            // uuid. Reuse it for the result so clients can enrich that card in
+            // place instead of waiting for a session-history reconstruction.
+            uuid: block.tool_use_id,
           };
           // Extract subagent stats from Task/Agent tool completion metadata
           if ((toolName === 'Task' || toolName === 'Agent') && event.tool_use_result) {

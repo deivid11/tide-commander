@@ -11,6 +11,255 @@
   }
 }
 
+// Fast lane for agents currently doing work. This mirrors the compact pinned
+// thumbnails, but is automatic and disappears when nobody is running.
+.aop-working-strip {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: none;
+  min-height: 40px;
+  margin: 5px 9px 7px;
+  padding: 6px 11px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  border: 1px solid color-mix(in srgb, var(--accent-green) 24%, var(--border-color));
+  border-radius: 10px;
+  background: linear-gradient(
+    105deg,
+    color-mix(in srgb, var(--bg-secondary) 96%, var(--accent-cyan)),
+    color-mix(in srgb, var(--bg-secondary) 92%, var(--accent-green))
+  );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 5%, transparent),
+    0 3px 10px rgba(#000, 0.2);
+  transform-origin: right bottom;
+  transition: background 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+
+  &::-webkit-scrollbar { display: none; }
+
+  &.no-working {
+    background: color-mix(in srgb, var(--bg-secondary) 96%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--border-color) 56%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent),
+      0 2px 7px rgba(#000, 0.16);
+  }
+
+  &.collapsed {
+    min-height: 28px;
+    margin-top: 3px;
+    margin-bottom: 5px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+    background: color-mix(in srgb, var(--bg-secondary) 96%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--border-color) 48%, transparent);
+    box-shadow: none;
+  }
+}
+
+.aop-working-strip-toggle {
+  display: inline-grid;
+  place-items: center;
+  order: 99;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--border-color) 68%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-primary) 72%, transparent);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease, transform 140ms ease;
+
+  &:hover {
+    color: var(--accent-cyan);
+    border-color: color-mix(in srgb, var(--accent-cyan) 56%, var(--border-color));
+    background: color-mix(in srgb, var(--accent-cyan) 10%, var(--bg-secondary));
+    transform: translateY(-1px);
+  }
+}
+
+.aop-working-strip-divider {
+  width: 1px;
+  height: 22px;
+  flex: none;
+  margin: 0 5px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--accent-green) 55%, var(--border-color)),
+    transparent
+  );
+}
+
+.aop-split-areas-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 2px 6px;
+  color: var(--text-muted);
+  font-family: $font-mono;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+
+  &::before,
+  &::after {
+    content: '';
+    height: 1px;
+    flex: 1;
+    background: color-mix(in srgb, var(--border-color) 66%, transparent);
+  }
+}
+
+.aop-working-thumb {
+  --aop-thumb-area: var(--accent-green);
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 25px;
+  height: 25px;
+  padding: 2px;
+  border: 1px solid color-mix(in srgb, var(--aop-thumb-area) 48%, var(--border-color));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--aop-thumb-area) 10%, var(--bg-secondary));
+  cursor: pointer;
+  transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.16s ease, box-shadow 0.16s ease;
+  animation: aop-working-thumb-in 240ms cubic-bezier(0.18, 0.9, 0.28, 1.25) both;
+
+  > img:not(.aop-working-thumb-provider),
+  > span:not(.aop-working-thumb-unread) {
+    width: 100%;
+    height: 100%;
+    border-radius: 4.5px;
+    object-fit: cover;
+  }
+
+  &:hover {
+    z-index: 2;
+    transform: translateY(-3px) scale(1.18) rotate(-2deg);
+    border-color: var(--accent-green);
+    box-shadow:
+      0 5px 12px rgba(#000, 0.34),
+      0 0 10px color-mix(in srgb, var(--accent-green) 42%, transparent);
+  }
+
+  &.active {
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 0 1px var(--bg-primary), 0 0 0 2px var(--accent-cyan);
+  }
+
+  &.recent {
+    border-color: color-mix(in srgb, var(--aop-thumb-area) 28%, var(--border-color));
+    background: color-mix(in srgb, var(--aop-thumb-area) 6%, var(--bg-secondary));
+    opacity: 0.78;
+
+    &:hover,
+    &.active {
+      opacity: 1;
+    }
+
+    &.exiting-recent {
+      pointer-events: none;
+      animation: aop-recent-thumb-out 260ms cubic-bezier(0.4, 0, 1, 1) both;
+    }
+  }
+
+  &.exiting {
+    pointer-events: none;
+    animation: aop-working-thumb-out 220ms ease-in both;
+  }
+}
+
+.aop-working-thumb-provider {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--bg-secondary);
+  background: var(--bg-secondary);
+  pointer-events: none;
+}
+
+.aop-working-thumb-unread {
+  position: absolute;
+  left: -2px;
+  bottom: -2px;
+  display: block;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--bg-secondary);
+  border-radius: 50%;
+  background: var(--accent-blue);
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.aop-dock-tooltip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 3px 10px;
+  min-width: 150px;
+  font-family: $font-mono;
+
+  strong {
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  small {
+    grid-column: 1 / -1;
+    color: var(--text-muted);
+    font-size: 9px;
+    text-transform: capitalize;
+  }
+}
+
+.aop-dock-tooltip-status {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+
+  &.working { color: var(--accent-green); }
+  &.recent { color: var(--accent-purple); }
+}
+
+.aop-dock-tooltip-unread {
+  grid-column: 1 / -1;
+  color: var(--accent-blue);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+
+@keyframes aop-working-thumb-in {
+  from { opacity: 0; transform: translateX(8px) scale(0.65); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes aop-working-thumb-out {
+  from { opacity: 1; transform: translateX(0) scale(1); }
+  to { opacity: 0; transform: translateX(7px) scale(0.62); }
+}
+
+@keyframes aop-recent-thumb-out {
+  from { opacity: 0.78; transform: translateX(0) scale(1); filter: blur(0); }
+  to { opacity: 0; transform: translateX(-7px) scale(0.72); filter: blur(2px); }
+}
+
 // Toggle button in header
 .guake-overview-toggle.active {
   border-color: color-mix(in srgb, var(--accent-cyan) 34%, transparent);
@@ -396,6 +645,7 @@
     }
   }
 
+
   // Agent list (scrollable)
   // touch-action: pan-y allows one-finger vertical scroll but blocks pinch-zoom,
   // ensuring two-finger gestures are handled by our JS (useTwoFingerSelector).
@@ -442,6 +692,16 @@
 
     &:hover {
       background: color-mix(in srgb, var(--bg-tertiary) 80%, var(--border-color));
+    }
+
+    &--working {
+      border-color: color-mix(in srgb, var(--aop-area-color, #6272a4) 70%, var(--accent-green));
+      background: color-mix(in srgb, var(--aop-area-color, #6272a4) 12%, var(--bg-tertiary));
+      animation: aop-area-working-breathe 2.4s ease-in-out infinite;
+
+      .aop-area-color {
+        animation: aop-area-working-color 1.2s ease-in-out infinite;
+      }
     }
 
     .aop-area-expand {
@@ -524,6 +784,43 @@
       border-radius: $radius-sm;
       flex-shrink: 0;
     }
+
+    .aop-area-working {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      height: 18px;
+      padding: 1px 5px;
+      flex-shrink: 0;
+      color: var(--accent-green);
+      background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent-green) 34%, transparent);
+      border-radius: $radius-sm;
+      font-size: 9px;
+      font-weight: 700;
+      line-height: 1;
+      box-shadow: 0 0 7px color-mix(in srgb, var(--accent-green) 16%, transparent);
+    }
+
+    .aop-area-working-bars {
+      display: inline-flex;
+      align-items: center;
+      gap: 1.5px;
+      height: 10px;
+
+      i {
+        display: block;
+        width: 2px;
+        height: 100%;
+        border-radius: 2px;
+        background: currentColor;
+        transform-origin: center bottom;
+        animation: aop-area-working-bar 0.72s ease-in-out infinite alternate;
+
+        &:nth-child(2) { animation-delay: -0.48s; }
+        &:nth-child(3) { animation-delay: -0.24s; }
+      }
+    }
   }
 
   .aop-area-prompt-editor {
@@ -593,6 +890,50 @@
     border-left: 1px solid color-mix(in srgb, var(--border-color) 65%, transparent);
     border-radius: 0 0 $radius-sm $radius-sm;
     background: color-mix(in srgb, var(--bg-secondary) 50%, var(--bg-primary));
+  }
+}
+
+@keyframes aop-area-working-breathe {
+  0%, 100% {
+    box-shadow: 0 0 0 color-mix(in srgb, var(--accent-green) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 8px color-mix(in srgb, var(--aop-area-color, #6272a4) 32%, color-mix(in srgb, var(--accent-green) 28%, transparent));
+  }
+}
+
+@keyframes aop-area-working-color {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 color-mix(in srgb, var(--accent-green) 0%, transparent); }
+  50% { transform: scale(1.35); box-shadow: 0 0 7px color-mix(in srgb, var(--accent-green) 80%, transparent); }
+}
+
+@keyframes aop-area-working-bar {
+  0% { transform: scaleY(0.25); opacity: 0.55; }
+  100% { transform: scaleY(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aop-area-header--working {
+    animation: none;
+
+    .aop-area-color {
+      animation: none;
+    }
+
+    .aop-area-working-bars i {
+      animation-duration: 1.8s;
+    }
+  }
+
+  .aop-agent-working-bars i {
+    animation-duration: 1.8s;
+  }
+
+  .aop-agent-card.working::before,
+  .aop-agent-card.compacting::before {
+    animation: none;
+    opacity: 0.24;
+    transform: rotate(28deg) scale(1);
   }
 }
 
@@ -748,27 +1089,40 @@
   &.compacting {
     border-left-color: var(--accent-green);
     border-color: color-mix(in srgb, var(--accent-green) 35%, var(--border-color));
-    background: color-mix(in srgb, var(--accent-green) 12%, var(--bg-secondary));
+    background: linear-gradient(
+      110deg,
+      color-mix(in srgb, var(--accent-green) 11%, var(--bg-secondary)),
+      color-mix(in srgb, var(--accent-cyan) 5%, var(--bg-secondary))
+    );
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-green) 15%, transparent);
-    animation: aop-working-card-breathe 2.4s ease-in-out infinite;
+    animation: aop-working-card-breathe 2.8s ease-in-out infinite;
 
-    .aop-agent-header::after {
+    // Soft orbital aurora. It is deliberately oversized and blurred, so its
+    // motion never exposes a hard gradient edge inside the clipped card.
+    &::before {
       content: '';
       position: absolute;
-      top: 0;
-      bottom: 0;
-      left: -52%;
-      width: 52%;
-      pointer-events: none;
+      inset: -130% -55%;
       z-index: 0;
-      opacity: 0.72;
-      background: linear-gradient(
-        90deg,
-        transparent,
-        color-mix(in srgb, var(--accent-green) 24%, transparent),
-        transparent
+      pointer-events: none;
+      border-radius: 50%;
+      opacity: 0.3;
+      background: conic-gradient(
+        from 20deg,
+        transparent 0deg 72deg,
+        color-mix(in srgb, var(--accent-green) 72%, transparent) 118deg,
+        color-mix(in srgb, var(--accent-cyan) 58%, transparent) 164deg,
+        transparent 218deg 360deg
       );
-      animation: aop-working-header-sweep 1.9s ease-in-out infinite;
+      filter: blur(16px);
+      transform-origin: center;
+      will-change: transform, opacity;
+      animation: aop-working-aurora 6.5s linear infinite;
+    }
+
+    > * {
+      position: relative;
+      z-index: 1;
     }
   }
 
@@ -781,14 +1135,6 @@
     border-color: color-mix(in srgb, var(--text-muted) 30%, var(--border-color));
     background: color-mix(in srgb, var(--text-muted) 8%, var(--bg-secondary));
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-muted) 12%, transparent);
-  }
-
-  &.unread {
-    border-color: color-mix(in srgb, var(--accent-cyan) 40%, var(--border-color));
-    background: color-mix(in srgb, var(--accent-cyan) 14%, var(--bg-secondary));
-    box-shadow:
-      inset 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 22%, transparent),
-      0 0 0 1px color-mix(in srgb, var(--accent-cyan) 10%, transparent);
   }
 
   &.active.working,
@@ -806,6 +1152,17 @@
       inset 0 0 0 1px color-mix(in srgb, var(--aop-selected) 35%, transparent),
       0 0 0 2px color-mix(in srgb, var(--aop-selected) 55%, transparent),
       0 2px 8px color-mix(in srgb, var(--aop-selected) 28%, transparent);
+  }
+
+  // Keep the selected-agent outline, but do not hide the working motion under
+  // the otherwise solid selected background.
+  &.active.working,
+  &.active.compacting {
+    background: linear-gradient(
+      110deg,
+      color-mix(in srgb, var(--accent-green) 12%, color-mix(in srgb, var(--aop-selected) 14%, var(--bg-secondary))),
+      color-mix(in srgb, var(--accent-cyan) 6%, color-mix(in srgb, var(--aop-selected) 10%, var(--bg-secondary)))
+    );
   }
 
   // Two-finger scroll selector hover highlight
@@ -885,15 +1242,32 @@
       font-size: 14px;
     }
 
-    .aop-working-indicator {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
+    .aop-agent-working-bars {
+      display: inline-flex;
+      align-items: center;
+      gap: 1.5px;
+      width: 14px;
+      height: 16px;
+      padding: 3px;
       flex-shrink: 0;
-      background: color-mix(in srgb, var(--accent-green) 82%, #ffffff);
-      box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-green) 40%, transparent);
-      animation: aop-working-dot-pulse 1.6s ease-out infinite;
-      margin-left: -2px;
+      color: var(--accent-green);
+      background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent-green) 34%, transparent);
+      border-radius: $radius-sm;
+      box-shadow: 0 0 7px color-mix(in srgb, var(--accent-green) 16%, transparent);
+
+      i {
+        display: block;
+        width: 2px;
+        height: 100%;
+        border-radius: 2px;
+        background: currentColor;
+        transform-origin: center bottom;
+        animation: aop-area-working-bar 0.72s ease-in-out infinite alternate;
+
+        &:nth-child(2) { animation-delay: -0.48s; }
+        &:nth-child(3) { animation-delay: -0.24s; }
+      }
     }
 
     .aop-provider-icon {
@@ -1205,15 +1579,6 @@
   }
 }
 
-@keyframes aop-working-header-sweep {
-  0% {
-    left: -52%;
-  }
-  100% {
-    left: 108%;
-  }
-}
-
 @keyframes aop-working-card-breathe {
   0%,
   100% {
@@ -1228,22 +1593,12 @@
   }
 }
 
-@keyframes aop-working-dot-pulse {
-  0% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-green) 35%, transparent);
-    transform: scale(1);
-    opacity: 0.9;
-  }
-  70% {
-    box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent-green) 0%, transparent);
-    transform: scale(1.06);
-    opacity: 1;
-  }
-  100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-green) 0%, transparent);
-    transform: scale(1);
-    opacity: 0.9;
-  }
+@keyframes aop-working-aurora {
+  0% { transform: rotate(0deg) scale(0.92); opacity: 0.22; }
+  25% { opacity: 0.34; }
+  50% { transform: rotate(180deg) scale(1.06); opacity: 0.27; }
+  75% { opacity: 0.36; }
+  100% { transform: rotate(360deg) scale(0.92); opacity: 0.22; }
 }
 
 // Subordinate-of-active-boss tether breathe — the left edge gently brightens
@@ -1685,5 +2040,3 @@
     --guake-mobile-overview-height: clamp(170px, 32dvh, 250px);
   }
 }
-
-

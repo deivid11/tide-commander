@@ -13,6 +13,7 @@ import {
   fetchProviderUsage,
   type ClaudeRateLimitWindow,
   type ClaudeUsageSnapshot,
+  type CodexUsageSnapshot,
   type GrokUsageSnapshot,
   type ProviderUsageSnapshot,
 } from '../api/claude-usage';
@@ -95,14 +96,13 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
   }, [agent.contextStats, agent.contextUsed, agent.contextLimit, agent.model, agent.grokModel, agent.opencodeModel, agent.codexModel, agent.provider]);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Claude/Grok usage snapshot. Populated lazily when the modal opens —
-  // codex/opencode agents skip this entirely.
+  // Provider usage snapshot. Populated lazily when the modal opens.
   const [usage, setUsage] = useState<ProviderUsageSnapshot | null>(null);
   const [usageLoading, setUsageLoading] = useState(false);
   const [usageError, setUsageError] = useState<string | null>(null);
   const usageReqRef = useRef(0);
 
-  const showUsageSection = agent.provider === 'claude' || agent.provider === 'grok';
+  const showUsageSection = agent.provider === 'claude' || agent.provider === 'codex' || agent.provider === 'grok';
 
   const loadUsage = useMemo(() => {
     return () => {
@@ -447,6 +447,13 @@ function buildRateLimitWindows(
     return windows;
   }
 
+  if (snapshot.provider === 'codex') {
+    const codex = snapshot as CodexUsageSnapshot;
+    if (codex.rateLimits?.daily) windows.push({ key: 'daily', label: t('terminal:usage.dailyLimit'), window: codex.rateLimits.daily });
+    if (codex.rateLimits?.weekly) windows.push({ key: 'weekly', label: t('terminal:usage.weeklyLimit'), window: codex.rateLimits.weekly });
+    return windows;
+  }
+
   // Grok — same dual gauges as the CLI `/usage` panel (weekly + monthly).
   const grok = snapshot as GrokUsageSnapshot;
   if (grok.rateLimits?.weekly) {
@@ -477,6 +484,7 @@ function ProviderUsageSection({ snapshot, loading, error, onRefresh, showClaudeA
   const { t } = useTranslation(['terminal', 'common']);
 
   const claudeSnapshot = snapshot?.provider === 'claude' ? (snapshot as ClaudeUsageSnapshot) : null;
+  const session = snapshot && 'session' in snapshot ? snapshot.session : null;
 
   // Compute peak so the day bars share a stable scale across the range.
   const peakMessages = claudeSnapshot
@@ -484,7 +492,11 @@ function ProviderUsageSection({ snapshot, loading, error, onRefresh, showClaudeA
     : 0;
 
   const rateLimitWindows = snapshot ? buildRateLimitWindows(snapshot, t) : [];
-  const titleKey = snapshot?.provider === 'grok' ? 'terminal:usage.titleGrok' : 'terminal:usage.title';
+  const titleKey = snapshot?.provider === 'grok'
+    ? 'terminal:usage.titleGrok'
+    : snapshot?.provider === 'codex'
+      ? 'terminal:usage.titleCodex'
+      : 'terminal:usage.title';
 
   return (
     <div
@@ -559,8 +571,8 @@ function ProviderUsageSection({ snapshot, loading, error, onRefresh, showClaudeA
 
       {snapshot && (
         <>
-          {/* Session — totals tracked by Tide for this specific agent */}
-          <div style={{
+          {/* Session — totals tracked by Tide for providers that expose it. */}
+          {session && <div style={{
             marginBottom: '12px',
             padding: '10px 12px',
             background: 'var(--bg-secondary)',
@@ -585,16 +597,16 @@ function ProviderUsageSection({ snapshot, loading, error, onRefresh, showClaudeA
                 <div style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
                   {t('terminal:usage.tokensUsed')}
                 </div>
-                <div style={{ fontWeight: 500 }}>{formatTokens(snapshot.session.tokensUsed)}</div>
+                <div style={{ fontWeight: 500 }}>{formatTokens(session.tokensUsed)}</div>
               </div>
               <div>
                 <div style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
                   {t('terminal:usage.taskCount')}
                 </div>
-                <div style={{ fontWeight: 500 }}>{snapshot.session.taskCount}</div>
+                <div style={{ fontWeight: 500 }}>{session.taskCount}</div>
               </div>
             </div>
-          </div>
+          </div>}
 
           {/* Rate-limit gauges — same data the CLI's /usage tab renders */}
           {rateLimitWindows.length > 0 && (
