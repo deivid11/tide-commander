@@ -73,7 +73,18 @@ export interface GrokUsageSnapshot {
   cliHint: string;
 }
 
-export type ProviderUsageSnapshot = ClaudeUsageSnapshot | GrokUsageSnapshot;
+export interface CodexUsageSnapshot {
+  provider: 'codex';
+  fetchedAt: number;
+  rateLimits: {
+    daily: ClaudeRateLimitWindow | null;
+    weekly: ClaudeRateLimitWindow | null;
+  } | null;
+  rateLimitsError: string | null;
+  cliHint: string;
+}
+
+export type ProviderUsageSnapshot = ClaudeUsageSnapshot | CodexUsageSnapshot | GrokUsageSnapshot;
 
 export interface ClaudeTokenTotals {
   input: number;

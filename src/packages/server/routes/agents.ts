@@ -24,6 +24,7 @@ import { markInstructionsDirtyForAll } from '../services/instruction-refresh.js'
 import { startAgentTerminal, stopAgentTerminal } from '../services/agent-terminal-service.js';
 import { buildClaudeUsageByAgentSummary, buildClaudeUsageByDaySummary, buildClaudeUsageSnapshot } from '../services/claude-usage-service.js';
 import { buildGrokUsageSnapshot } from '../services/grok-usage-service.js';
+import { buildCodexUsageSnapshot } from '../services/codex-usage-service.js';
 import { getBackupStatus, setBackupEnabled } from '../services/backup-service.js';
 import type { ServerMessage } from '../../shared/types.js';
 
@@ -1070,7 +1071,7 @@ router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
   res.status(204).end();
 });
 
-// GET /api/agents/:id/usage - Claude or Grok usage snapshot for a single agent
+// GET /api/agents/:id/usage - provider usage snapshot for a single agent
 //
 // Claude: local agent stats + Anthropic OAuth rate-limit gauges (CLI `/usage`).
 // Grok: local agent stats + CLI chat-proxy billing/credit gauges (CLI `/usage`).
@@ -1081,16 +1082,18 @@ router.get('/:id/usage', async (req: Request<{ id: string }>, res: Response) => 
     return;
   }
   const provider = agent.provider ?? 'claude';
-  if (provider !== 'claude' && provider !== 'grok') {
+  if (provider !== 'claude' && provider !== 'grok' && provider !== 'codex') {
     res.status(400).json({
-      error: 'Usage data is only available for Claude and Grok agents',
+      error: 'Usage data is only available for Claude, Codex, and Grok agents',
       provider,
     });
     return;
   }
   try {
     const snapshot =
-      provider === 'grok'
+      provider === 'codex'
+        ? await buildCodexUsageSnapshot(agent)
+        : provider === 'grok'
         ? await buildGrokUsageSnapshot(agent)
         : await buildClaudeUsageSnapshot(agent);
     res.json(snapshot);

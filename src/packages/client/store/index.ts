@@ -1271,6 +1271,7 @@ class Store
   // ============================================================================
 
   addOutput(...args: Parameters<OutputActions['addOutput']>) { return this.outputActions.addOutput(...args); }
+  attachToolResult(...args: Parameters<OutputActions['attachToolResult']>) { return this.outputActions.attachToolResult(...args); }
   clearOutputs(...args: Parameters<OutputActions['clearOutputs']>) { return this.outputActions.clearOutputs(...args); }
   settleOpenStreams(...args: Parameters<OutputActions['settleOpenStreams']>) { return this.outputActions.settleOpenStreams(...args); }
   getOutputs(...args: Parameters<OutputActions['getOutputs']>) { return this.outputActions.getOutputs(...args); }

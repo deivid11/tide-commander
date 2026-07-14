@@ -405,6 +405,38 @@
   border: 1px solid rgba($dracula-pink, 0.3);
 }
 
+// Codex image-generation results: a substantial inline preview rather than the
+// tiny generic image-reference chip. The full image opens in the existing
+// viewer on click.
+.generated-image-preview {
+  display: block;
+  width: fit-content;
+  max-width: min(420px, calc(100% - 28px));
+  margin: 8px 14px 10px 26px;
+  padding: 5px;
+  border: 1px solid rgba($dracula-cyan, 0.38);
+  border-radius: $radius-md;
+  background: linear-gradient(145deg, rgba($dracula-current, 0.72), rgba(#000, 0.28));
+  box-shadow: 0 5px 18px rgba(#000, 0.24);
+
+  img {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 320px;
+    object-fit: contain;
+    border-radius: calc(#{$radius-md} - 3px);
+    cursor: zoom-in;
+    transition: filter $transition-fast, transform $transition-fast;
+
+    &:hover {
+      filter: brightness(1.06);
+      transform: scale(1.005);
+    }
+  }
+}
+
 // `[Image: <text>]` whose payload is a caption/instruction (e.g. coordinate
 // mapping for a resized screenshot), not a real path — shown as an info chip
 // with the instruction text instead of a broken thumbnail.

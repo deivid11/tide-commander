@@ -477,15 +477,55 @@ export interface CodexExecFileTarget {
 export interface CodexGrepMatch { path: string; line: number; text: string }
 export interface CodexGrepResults { query: string; matches: CodexGrepMatch[] }
 
+function extractGrepQuery(command: string): string {
+  // Enough shell tokenization for generated rg/grep commands: preserve quoted
+  // phrases and escaped spaces without attempting to execute or fully parse
+  // shell syntax.
+  const tokens: string[] = [];
+  const tokenPattern = /(?:^|\s)(?:"((?:\\.|[^"\\])*)"|'([^']*)'|([^\s]+))/g;
+  let tokenMatch: RegExpExecArray | null;
+  while ((tokenMatch = tokenPattern.exec(command)) !== null) {
+    const token = tokenMatch[1] ?? tokenMatch[2] ?? tokenMatch[3] ?? '';
+    tokens.push(token.replace(/\\([\\"'\s])/g, '$1'));
+  }
+
+  const commandIndex = tokens.findIndex((token) => /(?:^|\/)(?:rg|grep)$/.test(token));
+  if (commandIndex < 0) return '';
+
+  const optionsWithValue = new Set([
+    '-A', '-B', '-C', '-f', '-g', '-m', '-T', '-t',
+    '--after-context', '--before-context', '--context', '--file', '--glob',
+    '--iglob', '--max-count', '--type', '--type-not',
+  ]);
+  for (let index = commandIndex + 1; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === '--') return tokens[index + 1] || '';
+    if (token === '-e' || token === '--regexp') return tokens[index + 1] || '';
+    if (token.startsWith('--regexp=')) return token.slice('--regexp='.length);
+    if (optionsWithValue.has(token)) {
+      index += 1;
+      continue;
+    }
+    if (token.startsWith('-')) continue;
+    return token;
+  }
+  return '';
+}
+
 /** Parse an rg/grep exec command and its captured output for the results modal. */
 export function parseCodexGrepResults(input: unknown, output?: string): CodexGrepResults | null {
+  const inputRecord = input && typeof input === 'object'
+    ? input as Record<string, unknown>
+    : null;
   const directCommand = input && typeof input === 'object' && typeof (input as Record<string, unknown>).command === 'string'
     ? String((input as Record<string, unknown>).command)
     : '';
   const command = getCodexExecCommand(input) || directCommand;
   const normalized = normalizeShellWrapper(command);
-  const queryMatch = normalized.match(/\b(?:rg|grep)\b(?:\s+--?[\w-]+)*\s+(?:(["'])(.*?)\1|([^\s]+))/);
-  const query = (queryMatch?.[2] || queryMatch?.[3] || '').trim();
+  // Claude's native Grep tool sends `{ pattern, path, output_mode, ... }`
+  // rather than a shell command. Prefer that explicit pattern when present.
+  const nativePattern = typeof inputRecord?.pattern === 'string' ? inputRecord.pattern : '';
+  const query = (nativePattern || extractGrepQuery(normalized)).trim();
   if (!query) return null;
 
   let searchable = output || '';
@@ -500,16 +540,29 @@ export function parseCodexGrepResults(input: unknown, output?: string): CodexGre
     collect(parsed);
     searchable = strings.join('\n');
   } catch { /* plain tool output */ }
-  searchable = searchable.replace(/\\n/g, '\n');
+  searchable = searchable
+    .replace(/\\n/g, '\n')
+    // ANSI color flags occasionally leak into captured rg output and break
+    // the path/line matcher.
+    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '');
 
   const matches: CodexGrepMatch[] = [];
+  const nativePath = typeof inputRecord?.path === 'string' ? inputRecord.path : '';
   for (const line of searchable.split('\n')) {
-    const match = line.match(/^(.+?):(\d+):(.*)$/);
-    if (!match) continue;
-    const path = match[1].trim();
-    const lineNumber = Number(match[2]);
+    // Normal rg format: path:line:text. With context flags, rg uses `-` as
+    // the separator. A native Grep scoped to one file can also return
+    // line:text, in which case its input path supplies the missing filename.
+    const match = line.match(/^(.+?)(?::|-)(\d+)(?::|-)(.*)$/);
+    const scopedMatch = !match && nativePath ? line.match(/^(\d+):(.*)$/) : null;
+    if (!match && !scopedMatch) continue;
+    const path = match ? match[1].trim() : nativePath;
+    const lineNumber = Number(match ? match[2] : scopedMatch![1]);
     if (!path || !lineNumber) continue;
-    matches.push({ path, line: lineNumber, text: match[3].trim() });
+    matches.push({
+      path,
+      line: lineNumber,
+      text: (match ? match[3] : scopedMatch![2]).trim(),
+    });
   }
   return { query, matches };
 }

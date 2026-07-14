@@ -505,6 +505,33 @@ describe('CodexJsonEventParser', () => {
     expect(events).toHaveLength(0);
   });
 
+  it('renders image_generation_end as an image reference instead of base64 JSON', () => {
+    const parser = new CodexJsonEventParser();
+    const png = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      Buffer.from('test-image'),
+    ]).toString('base64');
+    const events = parser.parseEvent({
+      type: 'event_msg',
+      payload: { type: 'image_generation_end', call_id: 'image-1', result: png },
+    });
+
+    expect(events).toEqual([expect.objectContaining({
+      type: 'text',
+      text: expect.stringMatching(/^\[Image: \/.*tide-commander-uploads\/codex-generated-[a-f0-9]{16}\.png\]$/),
+      uuid: 'image-1',
+    })]);
+    expect(events[0].text).not.toContain(png);
+  });
+
+  it('silently ignores image_generation_begin', () => {
+    const parser = new CodexJsonEventParser();
+    expect(parser.parseEvent({
+      type: 'event_msg',
+      payload: { type: 'image_generation_begin', call_id: 'image-1' },
+    })).toEqual([]);
+  });
+
   it('maps event_msg.agent_reasoning to thinking event', () => {
     const parser = new CodexJsonEventParser();
     const events = parser.parseEvent({

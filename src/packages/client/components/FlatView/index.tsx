@@ -2480,7 +2480,23 @@ export function FlatView({
     for (const g of assignedGroups) sortAgents(g.agents);
     for (const g of unassignedGroups) sortAgents(g.agents);
 
-    return { groups: [...assignedGroups, ...unassignedGroups], gridCols, gridRows, positions };
+    // The flat map is a browse surface rather than a spatial projection of the
+    // battlefield. Keep its reading order stable and predictable regardless of
+    // where an area happens to be positioned in the 2D/3D scene.
+    const alphabetizedGroups = [...assignedGroups, ...unassignedGroups].sort((a, b) =>
+      a.area.name.localeCompare(b.area.name, undefined, { sensitivity: 'base', numeric: true })
+        || a.area.id.localeCompare(b.area.id)
+    );
+    positions.clear();
+    alphabetizedGroups.forEach((group, index) => {
+      positions.set(group.area.id, {
+        row: Math.floor(index / gridCols) + 1,
+        col: (index % gridCols) + 1,
+      });
+    });
+    gridRows = Math.max(1, Math.ceil(alphabetizedGroups.length / gridCols));
+
+    return { groups: alphabetizedGroups, gridCols, gridRows, positions };
   }, [agents, areas, buildingsMap, activeWorkspace, selectedAgentId]);
 
   const emptyChatStats = useMemo(() => {
@@ -2900,12 +2916,14 @@ export function FlatView({
                     return visibleGroups.map(group => {
                     const areaKey = group.area.id;
                     const pos = emptyChatGroups.positions.get(areaKey);
+                    const workingAgentCount = group.agents.filter(agent => agent.status === 'working').length;
+                    const hasWorkingAgents = workingAgentCount > 0;
                     const isMobileCollapsed = isFlatMobile && mobileExpandedAreaId !== areaKey;
                     const isMobileExpanded = isFlatMobile && !isMobileCollapsed;
                     return (
                       <div
                         key={areaKey}
-                        className={`flat-map-area-card${isMobileCollapsed ? ' flat-map-area-card--collapsed' : ''}${isMobileExpanded ? ' flat-map-area-card--expanded' : ''}`}
+                        className={`flat-map-area-card${hasWorkingAgents ? ' flat-map-area-card--working' : ''}${isMobileCollapsed ? ' flat-map-area-card--collapsed' : ''}${isMobileExpanded ? ' flat-map-area-card--expanded' : ''}`}
                         style={{
                           '--area-color': group.area.color,
                           gridRow: isFlatMobile ? undefined : pos?.row,
@@ -2949,6 +2967,20 @@ export function FlatView({
                             <Icon name="users" size={10} />
                             {group.agents.length}
                           </span>
+                          {hasWorkingAgents && (
+                            <span
+                              className="flat-map-area-card__working"
+                              title={`${workingAgentCount} working agent${workingAgentCount === 1 ? '' : 's'}`}
+                              aria-label={`${workingAgentCount} working agent${workingAgentCount === 1 ? '' : 's'}`}
+                            >
+                              <span className="flat-map-area-card__working-bars" aria-hidden="true">
+                                <i />
+                                <i />
+                                <i />
+                              </span>
+                              <span className="flat-map-area-card__working-count">{workingAgentCount}</span>
+                            </span>
+                          )}
                           {isFlatMobile && (
                             <Icon
                               name={isMobileCollapsed ? 'caret-down' : 'caret-up'}

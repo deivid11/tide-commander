@@ -682,6 +682,7 @@ describe('ClaudeBackend', () => {
         expect(result.type).toBe('tool_result');
         expect(result.toolName).toBe('Bash');
         expect(result.toolOutput).toBe('hi');
+        expect(result.uuid).toBe('tu-abc');
         expect(result.toolUseId).toBe('tu-abc');
       });
 

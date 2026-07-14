@@ -168,6 +168,7 @@ export function handleServerMessage(message: ServerMessage): void {
         // Present on subagent-internal tools: the tool_use id of the Task/Agent
         // that spawned the subagent. Absent on the parent agent's own tools.
         parentToolUseId?: string;
+        toolUseId?: string;
         uuid?: string;
       };
       debugLog.debug(`Event: ${event.type}`, {
@@ -231,6 +232,13 @@ export function handleServerMessage(message: ServerMessage): void {
       } else if (event.type === 'tool_result') {
         // Mirror of the server-side behavior: any tool_result clears the badge.
         store.setAgentCurrentTool(event.agentId, undefined);
+        const toolUseId = event.toolUseId || event.uuid;
+        if (toolUseId && typeof event.toolOutput === 'string') {
+          // Live events used to discard non-Bash results. History later linked
+          // the same ids, making Grep (and other result-aware cards) appear to
+          // start working only after /history loaded.
+          store.attachToolResult(event.agentId, toolUseId, event.toolOutput);
+        }
         if (event.parentToolUseId && event.toolName === 'Bash') {
           // Mirror the parent-agent behavior (only Bash results get a terminal
           // card) for a subagent's Bash commands so their output is visible too.

@@ -12,6 +12,7 @@ import * as os from 'os';
 import * as readline from 'readline';
 import Database from 'better-sqlite3';
 import { createLogger } from '../utils/logger.js';
+import { materializeCodexGeneratedImage } from '../codex/generated-image.js';
 
 const log = createLogger('Session');
 
@@ -1324,6 +1325,24 @@ function parseCodexEntryMessages(
           toolUseId: callId,
         });
       }
+      return;
+    }
+
+    if (payload.type === 'image_generation_begin') {
+      return;
+    }
+    if (payload.type === 'image_generation_end') {
+      const imagePath = materializeCodexGeneratedImage(payload.result);
+      messages.push({
+        type: 'assistant',
+        content: imagePath
+          ? `[Image: ${imagePath}]`
+          : '[codex-event] Image generation completed, but the PNG result was invalid.',
+        timestamp: entry.timestamp,
+        uuid: typeof payload.call_id === 'string'
+          ? payload.call_id
+          : `${entry.timestamp}-assistant-generated-image`,
+      });
       return;
     }
 
