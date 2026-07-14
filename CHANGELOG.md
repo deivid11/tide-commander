@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.164.0] - 2026-07-14
+
+### Added
+- **Update via git pull** - dev checkouts (repo installs) now get an "Update (git pull)" button directly in the update banner, with running/success/failure states; conflicts and diverged branches are reported inline instead of silently failing, and the checkout is never left with conflict markers.
+- **Recent agents in dock** - a new Settings control (General, shown when the dock is visible) sets how many recently-active agents the dock and pinned bar show alongside the ones working right now; defaults to 4, and 0 shows only working agents.
+
+### Changed
+- **Zoomable chat images** - inline chat image previews now open in the shared zoom/pan viewer (wheel, pinch and drag) instead of a static, fixed-size image.
+- **WhatsApp image attachments** - images now open in that same zoomable viewer, with a `type · size` subtitle and a download button in the header; other media keep their existing preview.
+- **Pinned bar chips** - unpinned agents render at full strength instead of dimmed, working ones show a slow green comet sweep around their dashed border in place of the avatar opacity pulse, and green lane dividers (matching the overview dock) now separate pinned, recent and working chips instead of a bare gap.
+
+### Fixed
+- **Scroll to bottom on agent click** - selecting an agent always lands the terminal at the newest output, including re-clicking the agent already on screen after scrolling up.
+- **Dock recency order** - an agent that just stopped working now enters the recent lane at the front, where the most recent belongs, rather than queuing behind the agents already docked.
+
 ## [1.163.0] - 2026-07-14
 
 ### Added

@@ -84,6 +84,9 @@ export interface DockRosterOptions {
    * keyed by agent id, so EVERY selection remounts) resets slots and holds —
    * i.e. the bar reshuffles on click. Real dock hosts must pass one. */
   scope?: string;
+  /** Size of the "recently active" lane (default DOCK_RECENT_SIZE). 0 hides the
+   * lane entirely — the dock then only shows agents working right now. */
+  recentSize?: number;
 }
 
 export function useDockRoster(agents: Agent[], options?: DockRosterOptions): DockRoster {
@@ -123,14 +126,15 @@ export function useDockRoster(agents: Agent[], options?: DockRosterOptions): Doc
     return () => window.clearTimeout(timer);
   }, [agents, releaseAt]);
 
+  const recentSize = options?.recentSize;
   const slotsRef = useRef<DockSlots>(EMPTY_DOCK_SLOTS);
   const entries = useMemo(() => {
     const previousSlots = scope ? scope.slots : slotsRef.current;
-    const roster = buildDockRoster(agents, workingIds, previousSlots, effectiveRecency);
+    const roster = buildDockRoster(agents, workingIds, previousSlots, effectiveRecency, recentSize);
     if (scope) scope.slots = roster.slots;
     else slotsRef.current = roster.slots;
     return roster.entries;
-  }, [agents, workingIds, effectiveRecency, scope]);
+  }, [agents, workingIds, effectiveRecency, scope, recentSize]);
 
   const [visible, setVisible] = useState<DockEntry[]>(entries);
   const [exitingIds, setExitingIds] = useState<Set<string>>(() => new Set());

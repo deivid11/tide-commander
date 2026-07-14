@@ -563,13 +563,19 @@
 .image-modal-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   padding: 12px 16px;
   background: rgba($dracula-current, 0.5);
   border-bottom: 1px solid $dracula-current;
 }
 
+.image-modal-heading {
+  flex: 1;
+  min-width: 0;
+}
+
 .image-modal-title {
+  display: block;
   font-family: $font-mono;
   font-size: 13px;
   font-weight: 600;
@@ -579,10 +585,41 @@
   white-space: nowrap;
 }
 
+.image-modal-subtitle {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: $dracula-comment;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-modal-download {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 1px solid $dracula-current;
+  border-radius: $radius-sm;
+  background: rgba($dracula-current, 0.5);
+  color: $dracula-fg;
+  text-decoration: none;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: $dracula-current;
+    border-color: $dracula-purple;
+  }
+}
+
 .image-modal-close {
   background: rgba($dracula-red, 0.2);
   border: 1px solid $dracula-red;
   color: $dracula-red;
+  flex-shrink: 0;
   width: 28px;
   height: 28px;
   border-radius: $radius-sm;
@@ -602,10 +639,22 @@
 
 .image-modal-content {
   padding: 16px;
-  overflow: auto;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
+
+  // The modal is sized by its image rather than filling a fixed frame, so the
+  // viewport shrink-wraps instead of taking the wrapper-relative 100%/100% it
+  // uses in the file viewer. Zoomed content is clipped to the image box.
+  .zoomable-image-viewport {
+    width: auto;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+    max-width: 100%;
+    max-height: calc(90vh - 80px);
+  }
 
   img {
     max-width: 100%;

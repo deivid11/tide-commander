@@ -13,6 +13,10 @@ import { Icon, type IconName } from '../Icon';
 import { ModalPortal } from '../shared/ModalPortal';
 import { useModalClose } from '../../hooks/useModalClose';
 import { getApiBaseUrl } from '../../utils/storage';
+// Deliberately the leaf module, not './TerminalModals' — that one imports the
+// store/hooks barrels, which reach websocket/state.ts and break the
+// node-environment suites that render this component's ancestors.
+import { ImageModal } from '../shared/ImageModal';
 
 interface WhatsAppAttachmentPreviewProps {
   /** Absolute on-disk path: `/tmp/tide-commander-uploads/triggers/whatsapp/<msgId>/<file>`. */
@@ -109,10 +113,21 @@ export function WhatsAppAttachmentPreview({ path, mimetype, filename, size, onCl
 
   if (!url) return null;
 
+  // Images get the shared zoomable viewer rather than a second, flatter copy of
+  // the same chrome. Everything below stays on the bespoke media container.
+  if (kind === 'image') {
+    return (
+      <ImageModal
+        url={url}
+        name={effectiveName}
+        subtitle={[mimetype || 'unknown type', humanSize(size)].filter(Boolean).join(' · ')}
+        downloadName={effectiveName}
+        onClose={onClose}
+      />
+    );
+  }
+
   const body = (() => {
-    if (kind === 'image') {
-      return <img src={url} alt={effectiveName} style={{ maxWidth: '85vw', maxHeight: '70vh', display: 'block', margin: '0 auto', borderRadius: 6 }} />;
-    }
     if (kind === 'video') {
       return <video controls src={url} style={{ maxWidth: '85vw', maxHeight: '70vh', display: 'block', margin: '0 auto', borderRadius: 6 }} />;
     }
@@ -227,7 +242,7 @@ export function WhatsAppAttachmentPreview({ path, mimetype, filename, size, onCl
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: kind === 'image' || kind === 'video' ? 'rgba(0,0,0,0.4)' : 'transparent',
+            background: kind === 'video' ? 'rgba(0,0,0,0.4)' : 'transparent',
           }}>
             {body}
           </div>

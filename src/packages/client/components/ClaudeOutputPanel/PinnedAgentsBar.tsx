@@ -5,7 +5,9 @@ import { STORAGE_KEYS, getStorage, getStorageString, setStorageString, removeSto
 import { isAgentVisibleInWorkspace, useWorkspaceFilter } from '../WorkspaceSwitcher';
 import { prefetchAgentHistory } from './useHistoryLoader';
 import { useDockRoster, useWorkRecency } from './useDockRoster';
+import { useAgentDockRecentSize } from './agentDockPosition';
 import { useDockFlip } from './useDockFlip';
+import type { DockLane } from './dockRoster';
 import type { Agent } from '../../../shared/types';
 
 /**
@@ -72,10 +74,12 @@ interface PinnedAgentsBarProps {
   includeActiveAgents?: boolean;
 }
 
-/** One chip in the row. `pinned` drives the × badge, the border and dragging. */
+/** One chip in the row. `pinned` drives the × badge, the border and dragging;
+ * `lane` (dock entries only) places the divider before the working agents. */
 interface RowEntry {
   agent: Agent;
   pinned: boolean;
+  lane?: DockLane;
 }
 
 /** One rendered section: `label === null` means flat (chips inline, no header). */
@@ -192,7 +196,8 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
     });
   }, [includeActiveAgents, pinnedIds, agents, activeWorkspace]);
 
-  const { entries: dockEntries, exitingIds } = useDockRoster(unpinnedCandidates, { recency: workRecency, scope: 'pinned-bar' });
+  const dockRecentSize = useAgentDockRecentSize();
+  const { entries: dockEntries, exitingIds } = useDockRoster(unpinnedCandidates, { recency: workRecency, scope: 'pinned-bar', recentSize: dockRecentSize });
 
   // Build the sections. Flat mode is a single header-less group. Grouped modes
   // bucket the PINS by live status/area; within every bucket the order is pin
@@ -201,7 +206,7 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
   // trailing "Active" section, so grouping and the dock compose without
   // duplicating anyone.
   const groups = useMemo<ChipGroup[]>(() => {
-    const unpinnedEntries = dockEntries.map(({ agent }): RowEntry => ({ agent, pinned: false }));
+    const unpinnedEntries = dockEntries.map(({ agent, lane }): RowEntry => ({ agent, pinned: false, lane }));
     const pinnedEntries = pinned.map((agent): RowEntry => ({ agent, pinned: true }));
 
     if (groupMode === 'none') {
@@ -255,14 +260,6 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
   // measures for nothing.
   const rowSignature = useMemo(() => row.map((entry) => entry.agent.id).join(','), [row]);
   const { registerItem } = useDockFlip(rowSignature, exitingIds);
-
-  // In flat mode a plain gap separates the pins from the unpinned actives; in
-  // grouped modes the "Active" section header does that job.
-  const firstUnpinnedId = useMemo(() => {
-    if (groupMode !== 'none') return null;
-    const idx = row.findIndex((entry) => !entry.pinned);
-    return idx > 0 ? row[idx].agent.id : null;
-  }, [groupMode, row]);
 
   // Resolve each chip's area color (by spatial position, like the board).
   // `areas` is a dep so the tint re-resolves when areas move/recolor.
@@ -365,13 +362,12 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
     const isBoss = agent.class === 'boss' || !!agent.isBoss;
     return (
       <button
-        key={agent.id}
         ref={registerItem(agent.id)}
         type="button"
         draggable={isPinned}
         className={`pinned-agent${isActive ? ' active' : ''}${working ? ' working' : ''}${isBoss ? ' is-boss' : ''}${areaColor ? ' has-area' : ''}${
           hasUnread ? ' has-unread' : ''
-        }${isPinned ? '' : ' pinned-agent--unpinned'}${agent.id === firstUnpinnedId ? ' starts-active-group' : ''}${
+        }${isPinned ? '' : ' pinned-agent--unpinned'}${
           exitingIds.has(agent.id) ? ' exiting' : ''
         }${draggingId === agent.id ? ' dragging' : ''}${dropTarget && dropTarget.id === agent.id ? (dropTarget.after ? ' drop-after' : ' drop-before') : ''}`}
         title={`${agent.name} — ${agent.status}${hasUnread ? ' — new output' : ''}${isPinned ? '' : ' — not pinned (right-click to pin)'}`}
@@ -407,7 +403,22 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
         )}
       </button>
     );
-  }, [activeAgentId, areaColorById, unseenAgents, firstUnpinnedId, exitingIds, draggingId, dropTarget, customClasses, registerItem, handleSelect, handleTogglePin, handleDragStart, handleDragOver, handleDrop, handleDragEnd]);
+  }, [activeAgentId, areaColorById, unseenAgents, exitingIds, draggingId, dropTarget, customClasses, registerItem, handleSelect, handleTogglePin, handleDragStart, handleDragOver, handleDrop, handleDragEnd]);
+
+  // Interleave lane separators, mirroring the overview dock's divider: one where
+  // the unpinned actives start, one where their working lane starts. A real rule
+  // reads better than the bare gap this row used to rely on.
+  const renderChips = useCallback((entries: RowEntry[]) => entries.map((entry, index) => {
+    const previous = index > 0 ? entries[index - 1] : null;
+    const dividerBefore = previous !== null && !entry.pinned
+      && (previous.pinned || (previous.lane === 'recent' && entry.lane === 'working'));
+    return (
+      <React.Fragment key={entry.agent.id}>
+        {dividerBefore && <span className="pinned-lane-divider" aria-hidden="true" />}
+        {renderChip(entry)}
+      </React.Fragment>
+    );
+  }), [renderChip]);
 
   // Hide only when nothing COULD render in any mode. If the current mode merely
   // filtered everything out, the bar must survive — it hosts the only button
@@ -434,7 +445,7 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
       </button>
       {groups.map((g) => (
         g.label === null
-          ? <React.Fragment key={g.key}>{g.entries.map(renderChip)}</React.Fragment>
+          ? <React.Fragment key={g.key}>{renderChips(g.entries)}</React.Fragment>
           : (
             <div className="pinned-group" key={g.key}>
               <span
@@ -445,7 +456,7 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
                 <span className="pinned-group-name">{g.label}</span>
                 <span className="pinned-group-count">{g.entries.length}</span>
               </span>
-              <div className="pinned-group-chips">{g.entries.map(renderChip)}</div>
+              <div className="pinned-group-chips">{renderChips(g.entries)}</div>
             </div>
           )
       ))}

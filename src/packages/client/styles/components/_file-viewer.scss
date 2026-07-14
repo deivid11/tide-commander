@@ -297,6 +297,9 @@
 }
 
 .zoomable-image-viewport {
+  // Anchors .zoomable-image-controls, so the viewport stays self-contained and
+  // can be dropped into any host without a positioned wrapper of its own.
+  position: relative;
   width: 100%;
   height: 100%;
   display: flex;

@@ -230,6 +230,10 @@ export interface StoreState {
   agents: Map<string, Agent>;
   selectedAgentIds: Set<string>;
   lastSelectedAgentId: string | null; // Track last selected agent for Escape key behavior
+  // Monotonic counter bumped on EVERY selectAgent(id) call — including
+  // re-selecting the already-selected agent (selectedAgentIds is identical
+  // then, so subscribers can't observe the click without this).
+  agentSelectionSeq: number;
   activities: Activity[];
   isConnected: boolean;
   resyncInProgress: boolean;

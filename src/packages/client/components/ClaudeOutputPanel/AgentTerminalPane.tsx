@@ -34,6 +34,7 @@ import {
   usePermissionRequests,
   useAgentPrompts,
   usePinnedAgentIds,
+  useAgentSelectionSeq,
   store,
   type ClaudeOutput,
 } from '../../store';
@@ -956,6 +957,26 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
   const [pinToBottom, setPinToBottom] = useState(false);
   const handlePinCancel = useCallback(() => setPinToBottom(false), []);
+
+  // Re-pin on EVERY explicit agent selection click — including re-selecting
+  // the agent this pane already shows. agentId doesn't change on a same-agent
+  // re-click (and neither does selectedAgentIds), so the [agentId] pin effect
+  // below can't fire; the selection seq observes the click itself. Clicking an
+  // agent must always land the view at the very bottom, even if the user had
+  // scrolled up earlier and the pane stayed mounted (held agent on a closed
+  // panel, same-agent click on the board/dock/pinned bar).
+  const agentSelectionSeq = useAgentSelectionSeq();
+  const prevSelectionSeqRef = useRef(agentSelectionSeq);
+  useEffect(() => {
+    if (agentSelectionSeq === prevSelectionSeqRef.current) return;
+    prevSelectionSeqRef.current = agentSelectionSeq;
+    // Split layouts mount one pane per agent — only the pane showing the
+    // just-clicked agent re-pins; the others keep their scroll position.
+    if (!agentId || store.getState().lastSelectedAgentId !== agentId) return;
+    isUserScrolledUpRef.current = false;
+    setShouldAutoScroll(true);
+    setPinToBottom(true);
+  }, [agentSelectionSeq, agentId]);
 
   const handleSendCommand = useCallback(() => {
     isUserScrolledUpRef.current = false;

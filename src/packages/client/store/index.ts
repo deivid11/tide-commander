@@ -89,6 +89,7 @@ export {
   useAgent,
   useSelectedAgentIds,
   useLastSelectedAgentId,
+  useAgentSelectionSeq,
   usePinnedAgentIds,
   useSelectedAgents,
   useBossAgents,
@@ -226,6 +227,7 @@ class Store
       agents: new Map(),
       selectedAgentIds: new Set(),
       lastSelectedAgentId: null,
+      agentSelectionSeq: 0,
       activities: [],
       isConnected: false,
       resyncInProgress: false,
@@ -1564,7 +1566,7 @@ declare global {
 // Increment this when Store class has breaking changes that require fresh instance
 // (e.g. new methods) — otherwise HMR keeps the old singleton, which lacks them.
 // v4: added loadTestRunFromHistory (tests-building "Previous runs" list).
-const STORE_VERSION = 5;
+const STORE_VERSION = 6;
 
 // Singleton store instance - persisted on window for HMR
 function getOrCreateStore(): Store {

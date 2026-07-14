@@ -13,7 +13,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { STORAGE_KEYS, getStorageString, setStorageString } from '../../utils/storage';
+import { STORAGE_KEYS, getStorageString, setStorageString, getStorageNumber, setStorageNumber } from '../../utils/storage';
+import { DOCK_RECENT_SIZE } from './dockRoster';
 
 export type AgentDockPosition = 'overview' | 'composer' | 'hidden';
 
@@ -55,4 +56,42 @@ export function useAgentDockPosition(): AgentDockPosition {
   }, []);
 
   return position;
+}
+
+// ── Recent-lane size ─────────────────────────────────────────────────────────
+// How many recently-active agents the dock shows alongside the working ones.
+// 0 is valid — the dock then only shows agents working right now.
+
+const RECENT_SIZE_CHANGE_EVENT = 'tide:agent-dock-recent-size';
+const RECENT_SIZE_MAX = 50;
+
+function clampRecentSize(size: number): number {
+  if (!Number.isFinite(size)) return DOCK_RECENT_SIZE;
+  return Math.max(0, Math.min(RECENT_SIZE_MAX, Math.round(size)));
+}
+
+export function getAgentDockRecentSize(): number {
+  return clampRecentSize(getStorageNumber(STORAGE_KEYS.AGENT_DOCK_RECENT_SIZE, DOCK_RECENT_SIZE));
+}
+
+export function setAgentDockRecentSize(size: number): void {
+  setStorageNumber(STORAGE_KEYS.AGENT_DOCK_RECENT_SIZE, clampRecentSize(size));
+  window.dispatchEvent(new CustomEvent(RECENT_SIZE_CHANGE_EVENT));
+}
+
+/** The live recent-lane size — re-reads on changes from this tab and from others. */
+export function useAgentDockRecentSize(): number {
+  const [size, setSize] = useState<number>(getAgentDockRecentSize);
+
+  useEffect(() => {
+    const sync = () => setSize(getAgentDockRecentSize());
+    window.addEventListener(RECENT_SIZE_CHANGE_EVENT, sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener(RECENT_SIZE_CHANGE_EVENT, sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, []);
+
+  return size;
 }
