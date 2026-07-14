@@ -38,7 +38,9 @@ export interface ClaudeRateLimits {
   fiveHour: ClaudeRateLimitWindow | null;       // "Current session" in the CLI
   sevenDay: ClaudeRateLimitWindow | null;       // "Current week (all models)"
   sevenDayOpus: ClaudeRateLimitWindow | null;   // "Current week (Opus only)"
-  sevenDaySonnet: ClaudeRateLimitWindow | null; // "Current week (Sonnet only)"
+  sevenDayFable: ClaudeRateLimitWindow | null;  // "Current week (Fable)"
+  /** @deprecated Compatibility alias. */
+  sevenDaySonnet: ClaudeRateLimitWindow | null;
 }
 
 export interface ClaudeUsageSnapshot {

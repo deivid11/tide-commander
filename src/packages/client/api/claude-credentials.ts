@@ -121,6 +121,8 @@ export interface ClaudeProfileRateLimits {
   fiveHour: ClaudeProfileRateLimitWindow | null;
   sevenDay: ClaudeProfileRateLimitWindow | null;
   sevenDayOpus: ClaudeProfileRateLimitWindow | null;
+  sevenDayFable: ClaudeProfileRateLimitWindow | null;
+  /** @deprecated Compatibility alias. */
   sevenDaySonnet: ClaudeProfileRateLimitWindow | null;
 }
 

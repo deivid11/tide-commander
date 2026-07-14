@@ -261,6 +261,14 @@ const OAUTH_TOKEN_URL = 'https://console.anthropic.com/v1/oauth/token';
 const OAUTH_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e';
 const OAUTH_REFRESH_TIMEOUT_MS = 10_000;
 
+// Claude Code refreshes an access token when it is within five minutes of
+// expiry. Tide goes a little earlier so it normally owns token rotation for
+// every saved account (including the active one) and can persist the rotated
+// grant to all duplicate profile files before a CLI process needs it.
+const KEEP_ALIVE_INTERVAL_MS = 5 * 60 * 1000;
+const KEEP_ALIVE_REFRESH_WINDOW_MS = 15 * 60 * 1000;
+const KEEP_ALIVE_REFRESH_TOKEN_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 const GRANT_USAGE_TTL_OK_MS = 2 * 60 * 1000;
 const GRANT_USAGE_TTL_ERR_MS = 45 * 1000;
 // After a failed refresh, leave the grant alone for a while — retrying a
@@ -287,6 +295,8 @@ interface ProfileTokens {
   expiresAt: number | null;
   refreshToken: string | null;
   refreshTokenExpiresAt: number | null;
+  scopes: string[];
+  clientId: string | null;
 }
 
 /** Read the OAuth tokens from a credentials file (they never leave the server). */
@@ -299,9 +309,20 @@ function readProfileTokens(filePath: string): ProfileTokens {
       expiresAt: typeof oauth?.expiresAt === 'number' ? oauth.expiresAt : null,
       refreshToken: typeof oauth?.refreshToken === 'string' && oauth.refreshToken ? oauth.refreshToken : null,
       refreshTokenExpiresAt: typeof oauth?.refreshTokenExpiresAt === 'number' ? oauth.refreshTokenExpiresAt : null,
+      scopes: Array.isArray(oauth?.scopes)
+        ? (oauth.scopes as unknown[]).filter((scope): scope is string => typeof scope === 'string')
+        : [],
+      clientId: typeof oauth?.clientId === 'string' && oauth.clientId ? oauth.clientId : null,
     };
   } catch {
-    return { accessToken: null, expiresAt: null, refreshToken: null, refreshTokenExpiresAt: null };
+    return {
+      accessToken: null,
+      expiresAt: null,
+      refreshToken: null,
+      refreshTokenExpiresAt: null,
+      scopes: [],
+      clientId: null,
+    };
   }
 }
 
@@ -309,18 +330,22 @@ interface RefreshedTokens {
   accessToken: string;
   refreshToken: string | null; // null → endpoint didn't rotate it
   expiresAt: number;
+  refreshTokenExpiresAt: number | null; // null → preserve the stored expiry
+  scopes: string[] | null;
 }
 
 /** Refresh an OAuth grant the way the CLI does. Returns tokens or an error string. */
-async function refreshOAuthGrant(refreshToken: string): Promise<RefreshedTokens | { error: string }> {
+async function refreshOAuthGrant(tokens: ProfileTokens): Promise<RefreshedTokens | { error: string }> {
+  if (!tokens.refreshToken) return { error: 'No refresh token stored' };
   try {
     const response = await fetch(OAUTH_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-        client_id: OAUTH_CLIENT_ID,
+        refresh_token: tokens.refreshToken,
+        client_id: tokens.clientId ?? OAUTH_CLIENT_ID,
+        ...(tokens.scopes.length > 0 ? { scope: tokens.scopes.join(' ') } : {}),
       }),
       signal: AbortSignal.timeout(OAUTH_REFRESH_TIMEOUT_MS),
     });
@@ -331,10 +356,19 @@ async function refreshOAuthGrant(refreshToken: string): Promise<RefreshedTokens 
     const accessToken = typeof body.access_token === 'string' ? body.access_token : '';
     if (!accessToken) return { error: 'Token refresh returned no access token' };
     const expiresIn = typeof body.expires_in === 'number' ? body.expires_in : 3600;
+    const refreshTokenExpiresIn = typeof body.refresh_token_expires_in === 'number'
+      ? body.refresh_token_expires_in
+      : null;
     return {
       accessToken,
       refreshToken: typeof body.refresh_token === 'string' && body.refresh_token ? body.refresh_token : null,
       expiresAt: Date.now() + expiresIn * 1000,
+      refreshTokenExpiresAt: refreshTokenExpiresIn == null
+        ? null
+        : Date.now() + refreshTokenExpiresIn * 1000,
+      scopes: typeof body.scope === 'string'
+        ? body.scope.split(' ').filter(Boolean)
+        : null,
     };
   } catch (err: any) {
     const reason = err?.name === 'TimeoutError' ? 'request timed out' : (err?.message ?? 'request failed');
@@ -349,8 +383,39 @@ function writeRefreshedTokens(filePath: string, refreshed: RefreshedTokens): voi
   oauth.accessToken = refreshed.accessToken;
   oauth.expiresAt = refreshed.expiresAt;
   if (refreshed.refreshToken) oauth.refreshToken = refreshed.refreshToken;
+  if (refreshed.refreshTokenExpiresAt != null) {
+    oauth.refreshTokenExpiresAt = refreshed.refreshTokenExpiresAt;
+  }
+  if (refreshed.scopes) oauth.scopes = refreshed.scopes;
   data.claudeAiOauth = oauth;
   writeCredentialsAtomic(filePath, JSON.stringify(data));
+}
+
+/**
+ * Persist one rotated grant to all of its copies. If another process (usually
+ * Claude Code) changed any refresh token while our request was in flight, do
+ * not overwrite its newer credentials with our response.
+ */
+function persistRefreshedGrant(group: GrantGroup, refreshed: RefreshedTokens): boolean {
+  const expectedRefreshToken = group.tokens.refreshToken;
+  const changedPath = group.paths.find(
+    (filePath) => readProfileTokens(filePath).refreshToken !== expectedRefreshToken,
+  );
+  if (changedPath) {
+    log.warn(
+      `Claude credentials changed during refresh; leaving newer on-disk grant untouched (${group.ids.join(', ')})`,
+    );
+    return false;
+  }
+
+  for (const filePath of group.paths) {
+    try {
+      writeRefreshedTokens(filePath, refreshed);
+    } catch (err) {
+      log.warn(`Refreshed grant but failed to persist to ${filePath}: ${err}`);
+    }
+  }
+  return true;
 }
 
 function grantCacheKey(token: string): string {
@@ -396,7 +461,7 @@ function fetchUsageForGrant(cacheKey: string, group: GrantGroup): Promise<GrantU
         accessToken = null;
         error = 'Session expired — sign in to this account again';
       } else {
-        const refreshed = await refreshOAuthGrant(tokens.refreshToken);
+        const refreshed = await refreshOAuthGrant(tokens);
         if ('error' in refreshed) {
           accessToken = null;
           error = refreshed.error;
@@ -409,13 +474,7 @@ function fetchUsageForGrant(cacheKey: string, group: GrantGroup): Promise<GrantU
           grantUsageCache.set(cacheKey, entry);
           return entry;
         }
-        for (const filePath of group.paths) {
-          try {
-            writeRefreshedTokens(filePath, refreshed);
-          } catch (err) {
-            log.warn(`Refreshed grant but failed to persist to ${filePath}: ${err}`);
-          }
-        }
+        persistRefreshedGrant(group, refreshed);
         log.log(`Refreshed dormant Claude credentials for profile(s): ${group.ids.join(', ')}`);
         accessToken = refreshed.accessToken;
       }
@@ -499,6 +558,131 @@ export async function getClaudeCredentialProfilesUsage(): Promise<ClaudeProfiles
   );
 
   return { usage };
+}
+
+// ---------------------------------------------------------------------------
+// App-lifetime credential keepalive.
+// ---------------------------------------------------------------------------
+
+export interface ClaudeCredentialKeepAliveResult {
+  checkedGrants: number;
+  refreshedGrants: number;
+  skippedGrants: number;
+  failedGrants: number;
+}
+
+let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+let keepAliveInFlight: Promise<ClaudeCredentialKeepAliveResult> | null = null;
+const keepAliveFailureCooldown = new Map<string, number>();
+
+/** Run one keepalive pass. Exported to make the credential lifecycle testable. */
+export function runClaudeCredentialKeepAliveNow(): Promise<ClaudeCredentialKeepAliveResult> {
+  if (keepAliveInFlight) return keepAliveInFlight;
+
+  keepAliveInFlight = (async () => {
+    const now = Date.now();
+    const list = listClaudeCredentialProfiles();
+    const candidates = [...(list.active ? [list.active] : []), ...list.profiles];
+    const groups = new Map<string, GrantGroup>();
+
+    for (const meta of candidates) {
+      if (!meta.valid) continue;
+      const tokens = readProfileTokens(meta.path);
+      if (!tokens.refreshToken) continue;
+      const key = grantCacheKey(tokens.refreshToken);
+      const existing = groups.get(key);
+      if (existing) {
+        existing.ids.push(meta.id);
+        if (!existing.paths.includes(meta.path)) existing.paths.push(meta.path);
+        existing.includesActive = existing.includesActive || meta.id === 'active';
+        // Copies can have different access-token expiries even while they still
+        // share a refresh grant. Refresh according to the freshest copy.
+        if ((tokens.expiresAt ?? 0) > (existing.tokens.expiresAt ?? 0)) existing.tokens = tokens;
+      } else {
+        groups.set(key, {
+          ids: [meta.id],
+          paths: [meta.path],
+          includesActive: meta.id === 'active',
+          tokens,
+        });
+      }
+    }
+
+    const result: ClaudeCredentialKeepAliveResult = {
+      checkedGrants: groups.size,
+      refreshedGrants: 0,
+      skippedGrants: 0,
+      failedGrants: 0,
+    };
+
+    await Promise.all(Array.from(groups.entries()).map(async ([key, group]) => {
+      const { tokens } = group;
+      const refreshExpired = tokens.refreshTokenExpiresAt != null
+        && tokens.refreshTokenExpiresAt <= now;
+      const refreshDue = tokens.expiresAt == null
+        || tokens.expiresAt <= now + KEEP_ALIVE_REFRESH_WINDOW_MS
+        || (tokens.refreshTokenExpiresAt != null
+          && tokens.refreshTokenExpiresAt <= now + KEEP_ALIVE_REFRESH_TOKEN_WINDOW_MS);
+      const retryAfter = keepAliveFailureCooldown.get(key) ?? 0;
+
+      if (refreshExpired || !refreshDue || retryAfter > now) {
+        result.skippedGrants += 1;
+        return;
+      }
+
+      const refreshed = await refreshOAuthGrant(tokens);
+      if ('error' in refreshed) {
+        keepAliveFailureCooldown.set(key, Date.now() + GRANT_REFRESH_FAIL_COOLDOWN_MS);
+        result.failedGrants += 1;
+        log.warn(`Claude credential keepalive failed for ${group.ids.join(', ')}: ${refreshed.error}`);
+        return;
+      }
+
+      if (persistRefreshedGrant(group, refreshed)) {
+        result.refreshedGrants += 1;
+        keepAliveFailureCooldown.delete(key);
+        // Cached gauges contain the previous access token/fingerprint.
+        grantUsageCache.delete(key);
+        resetClaudeRateLimitCache();
+        log.log(`Kept Claude account session alive: ${group.ids.join(', ')}`);
+      } else {
+        result.skippedGrants += 1;
+      }
+    }));
+
+    return result;
+  })().finally(() => {
+    keepAliveInFlight = null;
+  });
+
+  return keepAliveInFlight;
+}
+
+/** Start refreshing saved Claude account sessions for the server lifetime. */
+export function initClaudeCredentialKeepAlive(): void {
+  if (keepAliveTimer || process.env.CLAUDE_CREDENTIAL_KEEPALIVE === '0') return;
+  void runClaudeCredentialKeepAliveNow().catch((err) => {
+    log.warn(`Initial Claude credential keepalive failed: ${err}`);
+  });
+  keepAliveTimer = setInterval(() => {
+    void runClaudeCredentialKeepAliveNow().catch((err) => {
+      log.warn(`Claude credential keepalive pass failed: ${err}`);
+    });
+  }, KEEP_ALIVE_INTERVAL_MS);
+  keepAliveTimer.unref?.();
+  log.log('Claude credential keepalive started');
+}
+
+/** Stop the keepalive scheduler during graceful shutdown. */
+export function shutdownClaudeCredentialKeepAlive(): void {
+  if (keepAliveTimer) clearInterval(keepAliveTimer);
+  keepAliveTimer = null;
+}
+
+export function resetClaudeCredentialKeepAliveForTests(): void {
+  shutdownClaudeCredentialKeepAlive();
+  keepAliveFailureCooldown.clear();
+  keepAliveInFlight = null;
 }
 
 function assertValidName(name: string): void {

@@ -43,6 +43,7 @@ public class MainActivity extends BridgeActivity {
         // Register custom Capacitor plugins before super.onCreate()
         registerPlugin(ServerConfigPlugin.class);
         registerPlugin(AppUpdatePlugin.class);
+        registerPlugin(FileDownloadPlugin.class);
 
         super.onCreate(savedInstanceState);
 

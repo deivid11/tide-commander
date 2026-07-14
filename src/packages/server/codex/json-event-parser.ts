@@ -79,6 +79,9 @@ interface CodexResponsePayload {
   name?: string;       // Tool name (e.g. "apply_patch")
   input?: string;      // Tool input string (e.g. patch content)
   output?: string;     // Tool output string (JSON-encoded)
+  query?: string;
+  invocation?: JsonObject;
+  result?: unknown;
   // For reasoning events
   summary?: Array<{ type?: string; text?: string }>;
 }
@@ -242,6 +245,9 @@ function parseResponsePayload(payload: unknown): CodexResponsePayload | undefine
     name: asString(payload.name),
     input: asString(payload.input),
     output: asString(payload.output),
+    query: asString(payload.query),
+    invocation: isObject(payload.invocation) ? payload.invocation : undefined,
+    result: payload.result,
     summary: parseSummaryArray(payload.summary),
   };
 }
@@ -252,6 +258,7 @@ function parseResponsePayload(payload: unknown): CodexResponsePayload | undefine
  */
 export class CodexJsonEventParser {
   private activeToolByItemId = new Map<string, string>();
+  private activeEventToolCalls = new Map<string, { toolName: string; toolInput: Record<string, unknown> }>();
   private lastAgentMessageText: string | undefined;
   private lastErrorText: string | undefined;
   private lastModelUsageSnapshot: {
@@ -364,6 +371,18 @@ export class CodexJsonEventParser {
       return [];
     }
 
+    // Newer Codex builds expose MCP and web activity as event_msg progress
+    // events instead of response_item entries. Normalize them into the same
+    // compact tool rows; otherwise Guake receives a multi-kilobyte raw JSON
+    // fallback for every completed call.
+    if (payloadType === 'mcp_tool_call_begin' || payloadType === 'mcp_tool_call_end') {
+      return this.parseMcpToolCallEvent(payload, payloadType === 'mcp_tool_call_end');
+    }
+
+    if (payloadType === 'web_search_begin' || payloadType === 'web_search_end') {
+      return this.parseWebSearchEvent(payload, payloadType === 'web_search_end');
+    }
+
     // agent_reasoning: Map to thinking event (stable uuid when item id present)
     if (payloadType === 'agent_reasoning') {
       const text = asString(payload.text);
@@ -426,6 +445,91 @@ export class CodexJsonEventParser {
     }
 
     return [this.buildUnknownEventFallback(`Unhandled Codex event_msg type: ${payloadType}`, payload)];
+  }
+
+  private parseMcpToolCallEvent(payload: CodexResponsePayload, completed: boolean): RuntimeEvent[] {
+    const invocation = payload.invocation;
+    const callId = payload.call_id;
+    const active = callId ? this.activeEventToolCalls.get(callId) : undefined;
+    if (!invocation && !active) return [];
+    const server = invocation ? (asString(invocation.server) || 'mcp') : 'mcp';
+    const tool = invocation ? (asString(invocation.tool) || 'tool') : 'tool';
+    const toolName = active?.toolName ?? `mcp__${server}__${tool}`;
+    const args = invocation && isObject(invocation.arguments) ? invocation.arguments : {};
+    const toolInput: Record<string, unknown> = active?.toolInput ?? { ...args, server };
+    const hadStart = !!active;
+
+    if (!completed) {
+      if (callId) this.activeEventToolCalls.set(callId, { toolName, toolInput });
+      return [{ type: 'tool_start', toolName, toolInput, uuid: callId, toolUseId: callId }];
+    }
+    if (callId) this.activeEventToolCalls.delete(callId);
+
+    const result: RuntimeEvent = {
+      type: 'tool_result',
+      toolName,
+      toolOutput: this.extractMcpToolOutput(payload.result),
+      uuid: callId,
+      toolUseId: callId,
+    };
+    return hadStart
+      ? [result]
+      : [{ type: 'tool_start', toolName, toolInput, uuid: callId, toolUseId: callId }, result];
+  }
+
+  private parseWebSearchEvent(payload: CodexResponsePayload, completed: boolean): RuntimeEvent[] {
+    const callId = payload.call_id;
+    const toolName = 'web_search';
+    const active = callId ? this.activeEventToolCalls.get(callId) : undefined;
+    const currentInput: Record<string, unknown> = {
+      query: payload.query || payload.action?.query,
+      actionType: payload.action?.type,
+      actionQuery: payload.action?.query,
+      actionQueries: payload.action?.queries,
+      actionUrl: payload.action?.url,
+    };
+    const toolInput = active?.toolInput ?? currentInput;
+    const hadStart = !!active;
+
+    if (!completed) {
+      if (callId) this.activeEventToolCalls.set(callId, { toolName, toolInput });
+      return [{ type: 'tool_start', toolName, toolInput, uuid: callId, toolUseId: callId }];
+    }
+    if (callId) this.activeEventToolCalls.delete(callId);
+
+    const result: RuntimeEvent = {
+      type: 'tool_result',
+      toolName,
+      toolOutput: JSON.stringify(toolInput),
+      uuid: callId,
+      toolUseId: callId,
+    };
+    return hadStart
+      ? [result]
+      : [{ type: 'tool_start', toolName, toolInput, uuid: callId, toolUseId: callId }, result];
+  }
+
+  private extractMcpToolOutput(result: unknown): string {
+    if (!isObject(result)) return result === undefined ? '' : String(result);
+    const envelope = isObject(result.Ok) ? result.Ok : isObject(result.Err) ? result.Err : result;
+    if (Array.isArray(envelope.content)) {
+      const texts = envelope.content
+        .filter(isObject)
+        .map((entry) => asString(entry.text))
+        .filter((text): text is string => !!text);
+      if (texts.length > 0) return this.truncateToolOutput(texts.join('\n'));
+    }
+    try {
+      return this.truncateToolOutput(JSON.stringify(result));
+    } catch {
+      return String(result);
+    }
+  }
+
+  private truncateToolOutput(output: string): string {
+    return output.length > MAX_FALLBACK_EVENT_TEXT
+      ? `${output.slice(0, MAX_FALLBACK_EVENT_TEXT)}...`
+      : output;
   }
 
   private parseResponseItem(payload?: CodexResponsePayload): RuntimeEvent[] {

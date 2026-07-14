@@ -49,7 +49,9 @@ export interface ClaudeRateLimits {
   fiveHour: ClaudeRateLimitWindow | null;       // "Current session" in the CLI
   sevenDay: ClaudeRateLimitWindow | null;       // "Current week (all models)"
   sevenDayOpus: ClaudeRateLimitWindow | null;   // "Current week (Opus only)"
-  sevenDaySonnet: ClaudeRateLimitWindow | null; // "Current week (Sonnet only)"
+  sevenDayFable: ClaudeRateLimitWindow | null;  // CLI "Current week (Fable)"
+  /** @deprecated Compatibility alias for clients older than Claude Code's Fable label. */
+  sevenDaySonnet: ClaudeRateLimitWindow | null;
 }
 
 export interface ClaudeUsageSnapshot {
@@ -497,12 +499,16 @@ export async function fetchClaudeRateLimitsForToken(accessToken: string): Promis
       };
     }
     const body = await response.json() as Record<string, unknown>;
+    // Claude Code 2.1.207 labels this allowance "Fable", although the live
+    // endpoint still exposes it under the legacy seven_day_sonnet key.
+    const sevenDayFable = parseRateLimitWindow(body.seven_day_fable ?? body.seven_day_sonnet);
     return {
       rateLimits: {
         fiveHour: parseRateLimitWindow(body.five_hour),
         sevenDay: parseRateLimitWindow(body.seven_day),
         sevenDayOpus: parseRateLimitWindow(body.seven_day_opus),
-        sevenDaySonnet: parseRateLimitWindow(body.seven_day_sonnet),
+        sevenDayFable,
+        sevenDaySonnet: sevenDayFable,
       },
       error: null,
       status: response.status,

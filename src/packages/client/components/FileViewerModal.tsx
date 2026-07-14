@@ -8,6 +8,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { DiffViewer } from './DiffViewer';
 import { apiUrl, authFetch, getAuthToken } from '../utils/storage';
 import { copyRichContentToClipboard, copyTextToClipboard, inlineStylesForRichCopy } from '../utils/clipboard';
+import { downloadServerFile } from '../utils/file-download';
 import { revealInFileExplorer } from '../api/files';
 import { store } from '../store';
 import { useModalClose } from '../hooks';
@@ -15,6 +16,7 @@ import { parseFilePathReference, resolveAgentFilePath } from '../utils/filePaths
 import { ModalPortal } from './shared/ModalPortal';
 import { getLanguageForExtension, ensureLanguageLoaded, Prism } from './FileExplorerPanel/syntaxHighlighting';
 import { Icon } from './Icon';
+import { ZoomableImage } from './shared/ZoomableImage';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
 
@@ -997,20 +999,17 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     }
   }, [fileData]);
 
-  // Client-side download of the in-memory text content as a Blob. Images/PDFs
-  // keep using the server-backed handleDownload below (they carry no content).
-  const handleDownloadTextFile = useCallback(() => {
+  const handleDownloadTextFile = useCallback(async () => {
     if (!fileData) return;
-    const blob = new Blob([fileData.content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = fileData.filename || effectivePath.split('/').pop() || 'download';
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }, [fileData, effectivePath]);
+    const url = apiUrl(
+      `/api/files/binary?path=${encodeURIComponent(fileData.path || effectivePath)}${baseDirParam}&download=true`,
+    );
+    await downloadServerFile(
+      url,
+      fileData.filename || effectivePath.split('/').pop() || 'download',
+      'text/plain;charset=utf-8',
+    );
+  }, [fileData, effectivePath, baseDirParam]);
 
   const handleRevealInFileExplorer = useCallback(async () => {
     if (!fileData?.path || revealStatus === 'opening') return;
@@ -1051,24 +1050,9 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       const url = apiUrl(
         `/api/files/binary?path=${encodeURIComponent(fileData?.path || effectivePath)}${baseDirParam}&download=true`,
       );
-      const res = await authFetch(url);
-      if (!res.ok) {
-        const hint = res.status === 401
-          ? 'Auth token missing or expired'
-          : `${res.status} ${res.statusText || ''}`.trim();
-        throw new Error(hint);
-      }
-      const blob = await res.blob();
-      const objectUrl = URL.createObjectURL(blob);
       const filename = fileData?.filename || effectivePath.split('/').pop() || 'download';
-      const anchor = document.createElement('a');
-      anchor.href = objectUrl;
-      anchor.download = filename;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      // Give the browser a tick to start the download before revoking.
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      const mimeType = fileData?.extension?.toLowerCase() === '.pdf' ? 'application/pdf' : undefined;
+      await downloadServerFile(url, filename, mimeType);
       setDownloadStatus('idle');
     } catch (err: any) {
       setDownloadError(err?.message || 'Download failed');
@@ -1078,7 +1062,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
         setDownloadError(null);
       }, 4000);
     }
-  }, [effectivePath, baseDirParam, fileData?.path, fileData?.filename]);
+  }, [effectivePath, baseDirParam, fileData?.path, fileData?.filename, fileData?.extension]);
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -1360,12 +1344,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
           {fileData && !loading && !error && (
             isImage && imageUrl ? (
               // Show image viewer
-              <div className="file-viewer-image-wrapper">
-                <img
-                  src={imageUrl}
-                  alt={fileData.filename}
-                  className="file-viewer-image"
-                />
+              <div className="file-viewer-image-wrapper zoomable">
+                <ZoomableImage src={imageUrl} alt={fileData.filename} />
               </div>
             ) : isPdf && pdfUrl ? (
               <PdfJsViewer url={pdfUrl} authToken={authToken || undefined} />

@@ -22,6 +22,10 @@ import { initBackupService, shutdownBackupService } from './services/backup-serv
 import { initAutoUpdateService, shutdownAutoUpdateService } from './services/auto-update-service.js';
 import { initAttachmentJanitor, shutdownAttachmentJanitor } from './services/attachment-janitor.js';
 import { stopAllAgentTerminals, sweepAllAgentTtyds } from './services/agent-terminal-service.js';
+import {
+  initClaudeCredentialKeepAlive,
+  shutdownClaudeCredentialKeepAlive,
+} from './services/claude-credentials-service.js';
 import type { IntegrationContext } from '../shared/integration-types.js';
 
 // Configuration
@@ -172,6 +176,9 @@ async function main(): Promise<void> {
   // Start hourly sweeper for the trigger-attachment temp dir.
   initAttachmentJanitor();
 
+  // Keep every saved Claude OAuth account warm while Tide Commander is on.
+  initClaudeCredentialKeepAlive();
+
   logger.server.log(`Data directory: ${getDataDir()}`);
   logger.server.log(`Log file: ${getLogFilePath()}`);
 
@@ -253,6 +260,7 @@ async function main(): Promise<void> {
       shutdownBackupService();
       shutdownAutoUpdateService();
       shutdownAttachmentJanitor();
+      shutdownClaudeCredentialKeepAlive();
       triggerService.shutdown();
       autoCollapseService.shutdown();
       workflowService.shutdown();

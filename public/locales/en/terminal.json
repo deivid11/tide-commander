@@ -1285,6 +1285,7 @@
     "currentSession": "Current session",
     "currentWeekAll": "Current week (all models)",
     "currentWeekOpus": "Current week (Opus only)",
+    "currentWeekFable": "Current week (Fable)",
     "currentWeekSonnet": "Current week (Sonnet only)",
     "weeklyLimit": "Weekly limit",
     "monthlyLimit": "Monthly limit",
@@ -1327,6 +1328,7 @@
     "gaugeSession": "Session",
     "gaugeWeek": "Week",
     "gaugeWeekOpus": "Opus wk",
+    "gaugeWeekFable": "Fable wk",
     "gaugeNoSession": "no active session",
     "providerTitle": "{{provider}} Accounts",
     "providerHelp": "Named copies of {{dir}}/auth.json. Switch the active {{provider}} account when you hit rate limits — same as renaming the file manually."

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeTideFileHref, extractExecWrappedCommand, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, summarizeCodexExecScript, extractToolKeyParam, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults } from './outputRendering';
+import { decodeTideFileHref, extractExecWrappedCommand, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, summarizeCodexExecScript, extractToolKeyParam, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, prettifyToolName } from './outputRendering';
 
 describe('Codex exec activity summaries', () => {
   it('describes parallel terminal commands without exposing orchestration code', () => {
@@ -116,6 +116,18 @@ describe('Codex exec activity summaries', () => {
       toolName: 'Bash',
       detail: './install.sh --skip-system-deps --skip-ydotool',
     });
+  });
+});
+
+describe('MCP tool presentation', () => {
+  it('renders a friendly provider/tool label and concise target', () => {
+    const toolName = 'mcp__onshape__eval_featurescript';
+    expect(prettifyToolName(toolName)).toBe('MCP · Onshape · Eval Featurescript');
+    expect(extractToolKeyParam(toolName, JSON.stringify({
+      server: 'onshape',
+      documentId: 'ee9cd63f067d1f70c44369e5',
+      script: 'function(context is Context) { return []; }',
+    }))).toBe('onshape · ee9cd63f067d1f70c44369e5');
   });
 });
 

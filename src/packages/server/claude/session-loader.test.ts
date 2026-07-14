@@ -312,6 +312,45 @@ describe('session-loader codex normalization', () => {
     expect(history?.messages).toHaveLength(0);
   });
 
+  it('loads end-only event_msg MCP calls as structured tool history', async () => {
+    const sessionId = 'session-mcp-event';
+    const sessionDir = path.join(tempHomeDir, '.codex', 'sessions', '2026', '07', '13');
+    fs.mkdirSync(sessionDir, { recursive: true });
+    const sessionFile = path.join(sessionDir, `run-${sessionId}.jsonl`);
+    const entry = {
+      timestamp: '2026-07-13T00:00:00.000Z',
+      type: 'event_msg',
+      payload: {
+        type: 'mcp_tool_call_end',
+        call_id: 'exec-mcp-1',
+        invocation: {
+          server: 'onshape',
+          tool: 'create_fillet',
+          arguments: { documentId: 'doc-1', radius: 0.118 },
+        },
+        result: { Ok: { content: [{ type: 'text', text: 'Error creating fillet: API returned 400.' }] } },
+      },
+    };
+    fs.writeFileSync(sessionFile, `${JSON.stringify(entry)}\n`, 'utf8');
+
+    const { loadSession } = await import('./session-loader.js');
+    const history = await loadSession('/workspace/project', sessionId, 20, 0);
+
+    expect(history?.messages).toHaveLength(2);
+    expect(history?.messages[0]).toMatchObject({
+      type: 'tool_use',
+      toolName: 'mcp__onshape__create_fillet',
+      toolInput: { server: 'onshape', documentId: 'doc-1', radius: 0.118 },
+      toolUseId: 'exec-mcp-1',
+    });
+    expect(history?.messages[1]).toMatchObject({
+      type: 'tool_result',
+      toolName: 'mcp__onshape__create_fillet',
+      content: 'Error creating fillet: API returned 400.',
+    });
+    expect(history?.messages.some((message) => message.content.includes('[codex-event]'))).toBe(false);
+  });
+
   it('enriches apply_patch Edit rows with the unified diff from patch_apply_end', async () => {
     const sessionId = 'session-apply-patch';
     const sessionDir = path.join(tempHomeDir, '.codex', 'sessions', '2026', '05', '25');

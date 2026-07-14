@@ -22,6 +22,8 @@ import { useLessNavigation } from '../../hooks/useLessNavigation';
 import { SearchBar } from './SearchBar';
 import { KeybindingsHelp } from './KeybindingsHelp';
 import { Icon } from '../Icon';
+import { downloadServerFile } from '../../utils/file-download';
+import { ZoomableImage } from '../shared/ZoomableImage';
 
 const LazyEmbeddedEditor = lazy(() => import('./EmbeddedEditor').then(m => ({ default: m.EmbeddedEditor })));
 
@@ -134,16 +136,9 @@ function FileViewerHeader({
     }
   };
 
-  const handleDownloadTextFile = () => {
-    const blob = new Blob([file.content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = file.filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const handleDownloadTextFile = async () => {
+    const url = apiUrl(`/api/files/binary?path=${encodeURIComponent(file.path)}&download=true`);
+    await downloadServerFile(url, file.filename, 'text/plain;charset=utf-8');
   };
 
   const handleOpenInEditor = async () => {
@@ -624,13 +619,9 @@ function PlantUmlFileViewer({
 
 function ImageFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTree?: (path: string) => void }) {
   const { t } = useTranslation(['common', 'terminal']);
-  const handleDownload = () => {
-    if (file.dataUrl) {
-      const link = document.createElement('a');
-      link.href = file.dataUrl;
-      link.download = file.filename;
-      link.click();
-    }
+  const handleDownload = async () => {
+    const url = apiUrl(`/api/files/binary?path=${encodeURIComponent(file.path)}&download=true`);
+    await downloadServerFile(url, file.filename);
   };
 
   return (
@@ -644,13 +635,9 @@ function ImageFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInT
           </button>
         }
       />
-      <div className="file-viewer-image-wrapper">
+      <div className="file-viewer-image-wrapper zoomable">
         {file.dataUrl ? (
-          <img
-            src={file.dataUrl}
-            alt={file.filename}
-            className="file-viewer-image"
-          />
+          <ZoomableImage src={file.dataUrl} alt={file.filename} />
         ) : (
           <div className="file-viewer-placeholder">{t('terminal:fileExplorer.failedToLoadImage')}</div>
         )}
@@ -661,13 +648,9 @@ function ImageFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInT
 
 function PdfFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTree?: (path: string) => void }) {
   const { t } = useTranslation(['common', 'terminal']);
-  const handleDownload = () => {
-    if (file.dataUrl) {
-      const link = document.createElement('a');
-      link.href = file.dataUrl;
-      link.download = file.filename;
-      link.click();
-    }
+  const handleDownload = async () => {
+    const url = apiUrl(`/api/files/binary?path=${encodeURIComponent(file.path)}&download=true`);
+    await downloadServerFile(url, file.filename, 'application/pdf');
   };
 
   return (
@@ -698,13 +681,9 @@ function PdfFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTre
 
 function BinaryFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTree?: (path: string) => void }) {
   const { t } = useTranslation(['terminal', 'common']);
-  const handleDownload = () => {
-    if (file.dataUrl) {
-      const link = document.createElement('a');
-      link.href = file.dataUrl;
-      link.download = file.filename;
-      link.click();
-    }
+  const handleDownload = async () => {
+    const url = apiUrl(`/api/files/binary?path=${encodeURIComponent(file.path)}&download=true`);
+    await downloadServerFile(url, file.filename);
   };
 
   const getIcon = () => {

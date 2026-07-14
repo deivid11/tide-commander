@@ -45,6 +45,7 @@ function okResponse(utilization = 42) {
     json: async () => ({
       five_hour: { utilization, resets_at: '2026-07-08T00:00:00Z' },
       seven_day: { utilization, resets_at: '2026-07-14T00:00:00Z' },
+      seven_day_sonnet: { utilization: 7, resets_at: '2026-07-14T00:00:00Z' },
     }),
   };
 }
@@ -77,6 +78,8 @@ describe('claude-usage-service rate-limit throttle', () => {
     ]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(a.rateLimits?.fiveHour?.utilization).toBe(42);
+    expect(a.rateLimits?.sevenDayFable?.utilization).toBe(7);
+    expect(a.rateLimits?.sevenDaySonnet).toEqual(a.rateLimits?.sevenDayFable);
     expect(b.rateLimits).not.toBeNull();
     expect(c.rateLimits).not.toBeNull();
   });

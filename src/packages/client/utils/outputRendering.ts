@@ -126,6 +126,11 @@ const TOOL_NAME_TRANSLATION_KEYS: Record<string, string> = {
 /** Prettify snake_case / camelCase tool ids when no i18n key exists. */
 export function prettifyToolName(toolName: string): string {
   if (!toolName) return toolName;
+  if (toolName.startsWith('mcp__')) {
+    const [, server = 'MCP', ...toolParts] = toolName.split('__');
+    const tool = toolParts.join('__');
+    return `MCP · ${prettifyToolName(server)} · ${prettifyToolName(tool)}`;
+  }
   return toolName
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/[_-]+/g, ' ')
@@ -202,6 +207,16 @@ export function truncateFilePath(filePath: string, maxLength: number = 50): stri
 export function extractToolKeyParam(toolName: string, inputJson: string): string | null {
   try {
     const input = JSON.parse(inputJson);
+
+    if (toolName.startsWith('mcp__')) {
+      const server = typeof input.server === 'string' ? input.server : undefined;
+      const primary = input.query || input.url || input.path || input.file_path || input.documentId || input.script;
+      if (typeof primary === 'string' && primary) {
+        const value = primary.length > 140 ? `${primary.slice(0, 137)}...` : primary;
+        return server ? `${server} · ${value}` : value;
+      }
+      return server || null;
+    }
 
     switch (toolName) {
       case 'exec': {
