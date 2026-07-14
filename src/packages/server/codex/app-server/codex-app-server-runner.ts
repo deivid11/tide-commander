@@ -57,6 +57,9 @@ interface AgentState {
   lastRequest: RunnerRequest;
   /** Follow-up prompts sent while a turn was in flight (delivered on turn end). */
   queue: string[];
+  /** Set while a user-requested interrupt is in flight so the expected abort
+   *  fallout (interrupt/abort error events) renders quiet. */
+  interruptRequested?: boolean;
 }
 
 export class CodexAppServerRunner implements RuntimeRunner {
@@ -218,6 +221,19 @@ export class CodexAppServerRunner implements RuntimeRunner {
   private applyEvent(agentId: string, state: AgentState, event: StandardEvent): void {
     if (event.type === 'text' || event.type === 'tool_start' || event.type === 'thinking' || event.type === 'init') {
       state.turnState = 'processing';
+    }
+
+    // A user-requested interrupt ("Send now") can surface as an error event
+    // from the aborted turn. The 🛑 system line already tells the user what
+    // happened — keep the expected fallout quiet.
+    if (state.interruptRequested) {
+      if (event.type === 'error' && /interrupt|abort/i.test(event.errorMessage || '')) {
+        log.log(`Suppressing expected interrupt error for ${agentId.slice(0, 8)} (user interrupt)`);
+        return;
+      }
+      if (event.type === 'step_complete') {
+        state.interruptRequested = false;
+      }
     }
 
     this.pipeline.emitStandardEvent(agentId, event);
@@ -419,6 +435,42 @@ export class CodexAppServerRunner implements RuntimeRunner {
       }
 
       void this.startTurn(agentId, state, message, proc);
+      return true;
+    });
+  }
+
+  getQueuedMessages(agentId: string): string[] {
+    return [...(this.agents.get(agentId)?.queue ?? [])];
+  }
+
+  removeQueuedMessage(agentId: string, index: number, expectedText: string): boolean {
+    const queue = this.agents.get(agentId)?.queue;
+    if (!queue || index < 0 || index >= queue.length || queue[index] !== expectedText) return false;
+    queue.splice(index, 1);
+    log.log(`🗑️ Removed queued message at ${index} for ${agentId.slice(0, 8)} (${queue.length} remaining)`);
+    return true;
+  }
+
+  async interruptTurn(agentId: string, clearQueue: boolean = true): Promise<boolean> {
+    return withAgentContext(agentId, async () => {
+      const state = this.agents.get(agentId);
+      if (!state) return false;
+      const proc = this.process;
+      if (!proc || !proc.isAlive()) return false;
+      if (state.turnState === 'processing') {
+        state.interruptRequested = true;
+        try {
+          await proc.request('turn/interrupt', { threadId: state.threadId });
+        } catch (err) {
+          state.interruptRequested = false;
+          const msg = err instanceof Error ? err.message : String(err);
+          log.warn(`turn/interrupt failed for ${agentId.slice(0, 8)}: ${msg}`);
+          return false;
+        }
+      }
+      // Clear only after a successful interrupt so a failed request never
+      // silently drops queued messages.
+      if (clearQueue) state.queue.length = 0;
       return true;
     });
   }

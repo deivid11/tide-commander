@@ -130,7 +130,15 @@
   border-radius: 7px;
   background: color-mix(in srgb, var(--aop-thumb-area) 10%, var(--bg-secondary));
   cursor: pointer;
-  transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.16s ease, box-shadow 0.16s ease;
+  // A thumb keeps its DOM node when it moves between the recent and working
+  // lanes, so the lane styling has to crossfade over the same window as the
+  // FLIP glide — otherwise the border and dimming would snap mid-slide.
+  transition:
+    transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 320ms ease,
+    background 320ms ease,
+    opacity 320ms ease,
+    box-shadow 0.16s ease;
   animation: aop-working-thumb-in 240ms cubic-bezier(0.18, 0.9, 0.28, 1.25) both;
 
   > img:not(.aop-working-thumb-provider),
@@ -165,15 +173,18 @@
       opacity: 1;
     }
 
-    &.exiting-recent {
-      pointer-events: none;
+    // Leaving the dock from the recent lane — the more specific selector wins
+    // over the working-lane exit below. Both last DOCK_EXIT_MS (dockRoster.ts).
+    &.exiting {
       animation: aop-recent-thumb-out 260ms cubic-bezier(0.4, 0, 1, 1) both;
     }
   }
 
+  // Only a thumb leaving the dock entirely animates out. Moving between the
+  // recent and working lanes is a FLIP glide, not an exit.
   &.exiting {
     pointer-events: none;
-    animation: aop-working-thumb-out 220ms ease-in both;
+    animation: aop-working-thumb-out 260ms ease-in both;
   }
 }
 
@@ -642,6 +653,26 @@
       font-size: 11px;
       color: var(--text-muted);
       font-style: italic;
+    }
+
+    // Runtime (provider) filter dropdown — reuses the .aop-area-filter-* option,
+    // dropdown and divider styles; only needs its own positioning + icon rules.
+    .aop-runtime-filter {
+      position: relative;
+
+      .aop-area-filter-caret {
+        margin-left: 3px;
+        font-size: 9px;
+        opacity: 0.7;
+      }
+    }
+
+    .aop-runtime-filter-icon {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      border-radius: 3px;
+      object-fit: contain;
     }
   }
 

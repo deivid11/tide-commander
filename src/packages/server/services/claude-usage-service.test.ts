@@ -54,6 +54,106 @@ function statusResponse(status: number, retryAfter: string | null = null) {
   return { ok: false, status, headers: { get: (h: string) => (h.toLowerCase() === 'retry-after' ? retryAfter : null) } };
 }
 
+// The endpoint's current shape: every per-model gauge lives in `limits`, and the
+// legacy top-level `seven_day_*` keys read null even while those gauges are live.
+function limitsArrayResponse() {
+  return {
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    json: async () => ({
+      five_hour: { utilization: 64, resets_at: '2026-07-14T20:00:00Z' },
+      seven_day: { utilization: 19, resets_at: '2026-07-20T19:00:00Z' },
+      seven_day_opus: null,
+      seven_day_sonnet: null,
+      limits: [
+        { kind: 'session', group: 'session', percent: 64, resets_at: '2026-07-14T20:00:00Z', scope: null },
+        { kind: 'weekly_all', group: 'weekly', percent: 19, resets_at: '2026-07-20T19:00:00Z', scope: null },
+        {
+          kind: 'weekly_scoped',
+          group: 'weekly',
+          percent: 21,
+          resets_at: '2026-07-20T19:00:00Z',
+          scope: { model: { id: null, display_name: 'Fable' }, surface: null },
+        },
+        {
+          kind: 'weekly_scoped',
+          group: 'weekly',
+          percent: 33,
+          resets_at: '2026-07-20T19:00:00Z',
+          scope: { model: { id: null, display_name: 'Opus' }, surface: null },
+        },
+      ],
+    }),
+  };
+}
+
+describe('claude-usage-service rate-limit payload parsing', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-14T12:00:00Z'));
+    resetClaudeRateLimitCache();
+    fetchMock = vi.fn(async () => limitsArrayResponse());
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('reads the per-model weekly gauges from limits[] when the legacy keys are null', async () => {
+    const snapshot = await buildClaudeUsageSnapshot(agent);
+    expect(snapshot.rateLimits?.sevenDayFable?.utilization).toBe(21);
+    expect(snapshot.rateLimits?.sevenDayFable?.resetsAt).toBe('2026-07-20T19:00:00Z');
+    expect(snapshot.rateLimits?.sevenDayOpus?.utilization).toBe(33);
+    expect(snapshot.rateLimits?.sevenDaySonnet).toEqual(snapshot.rateLimits?.sevenDayFable);
+  });
+
+  it('reads the session and all-models gauges from limits[]', async () => {
+    const snapshot = await buildClaudeUsageSnapshot(agent);
+    expect(snapshot.rateLimits?.fiveHour?.utilization).toBe(64);
+    expect(snapshot.rateLimits?.sevenDay?.utilization).toBe(19);
+  });
+
+  it('matches a scoped model by display name regardless of case or suffix', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({
+        limits: [{
+          kind: 'weekly_scoped',
+          percent: 12,
+          resets_at: '2026-07-20T19:00:00Z',
+          scope: { model: { id: null, display_name: 'Claude Fable 5' } },
+        }],
+      }),
+    });
+    const snapshot = await buildClaudeUsageSnapshot(agent);
+    expect(snapshot.rateLimits?.sevenDayFable?.utilization).toBe(12);
+  });
+
+  it('ignores a limits entry with no usable percent or reset', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({
+        seven_day_sonnet: { utilization: 7, resets_at: '2026-07-20T19:00:00Z' },
+        limits: [
+          { kind: 'weekly_scoped', percent: null, resets_at: '2026-07-20T19:00:00Z', scope: { model: { display_name: 'Fable' } } },
+        ],
+      }),
+    });
+    const snapshot = await buildClaudeUsageSnapshot(agent);
+    // Falls back to the legacy key rather than reporting a bogus 0%.
+    expect(snapshot.rateLimits?.sevenDayFable?.utilization).toBe(7);
+  });
+});
+
 describe('claude-usage-service rate-limit throttle', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 

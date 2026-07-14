@@ -62,6 +62,10 @@ export const STORAGE_KEYS = {
   FLAT_MIDDLE_WIDTH: 'tide-flat-middle-width',
   FLAT_INSPECTOR_WIDTH: 'tide-flat-inspector-width',
 
+  // Agent activity dock (recent + working thumbs)
+  AGENT_DOCK_POSITION: 'tide-agent-dock-position',
+  AGENT_DOCK_COLLAPSED: 'tide-agent-dock-collapsed',
+
   // Agent Overview Panel
   AOP_CONFIG: 'tide-aop-config',
   AOP_OPEN: 'tide-aop-open',
@@ -92,10 +96,15 @@ export const STORAGE_KEYS = {
 
   // Pinned agents (quick-select thumbnail bar above the terminal input)
   PINNED_AGENTS: 'tide-pinned-agents',
-  // Grouping mode for the pinned-agents bar: 'none' | 'status' | 'area'
+  // View mode cycled by the bar's single button:
+  // 'none' | 'status' | 'area' | 'active'
   PINNED_GROUP_MODE: 'tide-pinned-group-mode',
-  // Past this many pinned agents the bar renders icon-only miniature chips (number, default 6)
+  // Past this many pinned agents the bar renders icon-only miniature chips
+  // (number, default 0 = always icon-only)
   PINNED_MINIATURE_THRESHOLD: 'tide-pinned-miniature-threshold',
+  // Legacy: the old separate "active only" toggle. Read once to migrate into
+  // PINNED_GROUP_MODE='active', removed on the next mode change — never written.
+  PINNED_ACTIVE_ONLY: 'tide-pinned-active-only',
 
   // Pending messages (queued when offline)
   PENDING_MESSAGES: 'tide-pending-messages',

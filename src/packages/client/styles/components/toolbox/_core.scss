@@ -860,6 +860,24 @@
   }
 }
 
+// Dropdown for config rows whose choice is one of a few named values, where a
+// Toggle would not do and a chip row would not fit on one line.
+.config-select {
+  padding: 3px 6px;
+  font-size: 11px;
+  font-family: $font-mono;
+  background: $bg-primary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  cursor: pointer;
+
+  &:focus {
+    outline: none;
+    border-color: $dracula-purple;
+  }
+}
+
 .config-row-stacked {
   flex-direction: column;
   align-items: flex-start;

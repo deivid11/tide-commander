@@ -840,6 +840,9 @@ export class CodexJsonEventParser {
           type: 'tool_start',
           toolName,
           toolInput: pureRead ?? this.buildCommandExecutionToolInput(item),
+          // item.id lets the client attach the eventual tool_result output to
+          // this card live (attachToolResult) instead of waiting for /history.
+          ...(item.id ? { uuid: item.id, toolUseId: item.id } : {}),
         },
       ];
     }
@@ -922,6 +925,9 @@ export class CodexJsonEventParser {
       if (item.id) {
         this.activeToolByItemId.delete(item.id);
       }
+      // Same id as the matching tool_start so the client enriches that card
+      // in place (attachToolResult) instead of waiting for a /history reload.
+      const resultIds = item.id ? { uuid: item.id, toolUseId: item.id } : {};
       // Pure-read commands were mapped to a Read tool at item.started — emit a
       // single Read result and skip the inferred-tool/Bash duplication.
       if (toolName === 'Read') {
@@ -930,6 +936,7 @@ export class CodexJsonEventParser {
             type: 'tool_result',
             toolName: 'Read',
             toolOutput: this.buildCommandExecutionToolOutput(item),
+            ...resultIds,
           },
         ];
       }
@@ -940,6 +947,7 @@ export class CodexJsonEventParser {
           type: 'tool_result',
           toolName,
           toolOutput: this.buildCommandExecutionToolOutput(item),
+          ...resultIds,
         },
       ];
     }

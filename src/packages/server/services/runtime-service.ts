@@ -310,6 +310,18 @@ export async function sendSilentCommand(agentId: string, command: string): Promi
   await commandExecution.sendSilentCommand(agentId, command);
 }
 
+/** Snapshot of the agent's server-side mid-run message queue (runner-owned). */
+export function getQueuedMessagesForAgent(agentId: string): string[] {
+  const runner = getRunnerForAgent(agentId);
+  return runner?.getQueuedMessages?.(agentId) ?? [];
+}
+
+/** Remove one queued mid-run message by position (guarded by expectedText). */
+export function removeQueuedMessageForAgent(agentId: string, index: number, expectedText: string): boolean {
+  const runner = getRunnerForAgent(agentId);
+  return runner?.removeQueuedMessage?.(agentId, index, expectedText) ?? false;
+}
+
 /**
  * Send Claude Code's `/compact` slash command to collapse an agent's context.
  * Only fires when the agent exists AND is idle — the CLI rejects slash commands

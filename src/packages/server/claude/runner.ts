@@ -606,6 +606,19 @@ export class ClaudeRunner {
     });
   }
 
+  getQueuedMessages(agentId: string): string[] {
+    return [...(this.messageQueue.get(agentId) ?? [])];
+  }
+
+  removeQueuedMessage(agentId: string, index: number, expectedText: string): boolean {
+    const queue = this.messageQueue.get(agentId);
+    if (!queue || index < 0 || index >= queue.length || queue[index] !== expectedText) return false;
+    queue.splice(index, 1);
+    if (queue.length === 0) this.messageQueue.delete(agentId);
+    log.log(`🗑️ [QUEUE] Agent ${agentId}: removed queued message at ${index} (${queue.length} remaining)`);
+    return true;
+  }
+
   /**
    * Reconnect to a live tmux session after a server restart.
    * Creates a minimal ActiveProcess and starts tailing the log file from the saved offset.

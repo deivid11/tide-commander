@@ -57,6 +57,27 @@ export interface RuntimeRunner {
   closesStdinAfterPrompt?(): boolean;
   /** Get the current turn state of a process (processing vs waiting for input) */
   getTurnState?(agentId: string): 'processing' | 'waiting_for_input' | undefined;
+  /**
+   * Interrupt the in-flight turn WITHOUT tearing down the agent's session
+   * (persistent-stream runners: codex app-server, opencode serve). The thread/
+   * session stays alive so a follow-up sendMessage() is delivered as soon as
+   * the aborted turn finalizes. clearQueue drops previously queued mid-run
+   * messages (they are stale once the user says "do this now instead").
+   * Returns false when there is nothing to interrupt or the request failed.
+   */
+  interruptTurn?(agentId: string, clearQueue?: boolean): Promise<boolean>;
+  /**
+   * Snapshot of mid-run messages queued inside this runner awaiting delivery
+   * (drained autonomously at turn end). Positional: entry i is identified to
+   * clients as index i of THIS snapshot.
+   */
+  getQueuedMessages?(agentId: string): string[];
+  /**
+   * Remove one queued message by position. expectedText guards against the
+   * queue having drained/mutated since the caller's snapshot — on mismatch
+   * nothing is removed and false is returned.
+   */
+  removeQueuedMessage?(agentId: string, index: number, expectedText: string): boolean;
 }
 
 export interface RuntimeProvider {

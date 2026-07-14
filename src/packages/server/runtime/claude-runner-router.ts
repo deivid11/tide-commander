@@ -122,6 +122,14 @@ export class ClaudeRunnerRouter implements RuntimeRunner {
     return this.ownerRunner(agentId).getTurnState?.(agentId);
   }
 
+  getQueuedMessages(agentId: string): string[] {
+    return this.ownerRunner(agentId).getQueuedMessages?.(agentId) ?? [];
+  }
+
+  removeQueuedMessage(agentId: string, index: number, expectedText: string): boolean {
+    return this.ownerRunner(agentId).removeQueuedMessage?.(agentId, index, expectedText) ?? false;
+  }
+
   /** PID lookup used by runtime-service.getAgentRuntimeProcessInfo. */
   getActiveProcessesState(): Array<{ agentId: string; pid: number | undefined }> {
     const headlessState = this.headless.getActiveProcessesState().map((p) => ({ agentId: p.agentId, pid: p.pid }));

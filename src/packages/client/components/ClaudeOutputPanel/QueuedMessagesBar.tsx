@@ -3,10 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { ModalPortal } from '../shared/ModalPortal';
 import { Tooltip } from '../shared/Tooltip';
 import { Icon } from '../Icon';
-import type { QueuedMessage } from '../../hooks/useMessageQueue';
+import type { ServerQueuedMessage } from '../../hooks/useServerMessageQueue';
 
 interface QueuedMessagesBarProps {
-  queue: QueuedMessage[];
+  queue: ServerQueuedMessage[];
   isWorking: boolean;
   onShow?: (id: string) => void;
   onEnforce: (id: string) => void;

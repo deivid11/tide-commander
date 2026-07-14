@@ -383,6 +383,9 @@ export function handleServerMessage(message: ServerMessage): void {
       if (!store.confirmUserPromptEcho(agentId, command)) {
         store.addUserPromptToOutput(agentId, command);
       }
+      // The server-side mid-run queue may have grown (queued command) or
+      // drained (turn start) — let queue views refetch (useServerMessageQueue).
+      window.dispatchEvent(new CustomEvent('tide:agent-queue-maybe-changed', { detail: { agentId } }));
       break;
     }
 
