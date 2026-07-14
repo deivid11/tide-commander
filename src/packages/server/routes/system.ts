@@ -15,6 +15,7 @@ import {
   getInstallInfo,
   isAutoUpdateSupported,
   isUpdateInProgress,
+  runGitPull,
   runNpmGlobalUpdate,
   schedulePostUpdateRestart,
   tryBeginUpdate,
@@ -66,6 +67,7 @@ router.get('/install-info', async (_req: Request, res: Response) => {
       latestVersion,
       updateAvailable,
       autoUpdateSupported: isAutoUpdateSupported(info),
+      gitPullSupported: isDevInstall(info.installRoot),
       writable: info.writable,
       suggestedManualCommand: info.suggestedManualCommand,
       reason: info.reason,
@@ -493,6 +495,63 @@ router.post('/self-update', async (_req: Request, res: Response) => {
     send('error', { message, permissionDenied: false, suggestedManualCommand: info.suggestedManualCommand });
     send('done', { success: false, exitCode: -1, newVersion: null, requiresRestart: false });
     res.end();
+    endUpdate();
+  }
+});
+
+/**
+ * POST /api/system/git-pull
+ *
+ * Dev checkouts only (install root has .git/): updates the running install by
+ * executing `git pull --ff-only` in the checkout. A conflict / diverged branch
+ * is a NORMAL outcome — git aborts without touching the tree and we return
+ * { success: false, conflict: true, error } for the UI to display; only
+ * unexpected server errors produce a 5xx. On success the dev tooling picks the
+ * new code up by itself (tsx watch restarts the server, the web bundle
+ * auto-rebuilds); the client just reloads.
+ */
+router.post('/git-pull', async (_req: Request, res: Response) => {
+  const info = getInstallInfo();
+
+  if (!info.installRoot || !isDevInstall(info.installRoot)) {
+    res.status(400).json({
+      error: 'git pull update is only available when running from a repo checkout (dev mode).',
+      reason: info.reason,
+    });
+    return;
+  }
+
+  if (!tryBeginUpdate()) {
+    res.status(409).json({ error: 'An update is already in progress.' });
+    return;
+  }
+
+  try {
+    const result = await runGitPull(info.installRoot);
+    const combined = `${result.stdout}\n${result.stderr}`.trim();
+
+    if (result.exitCode === 0) {
+      const upToDate = /already up.to.date/i.test(result.stdout);
+      // Re-read package.json — the pull may have bumped the version.
+      const newVersion = getInstallInfo().currentVersion;
+      log.log(`git pull succeeded${upToDate ? ' (already up to date)' : ''} — now at v${newVersion}`);
+      res.json({ success: true, upToDate, newVersion, output: combined });
+      return;
+    }
+
+    // Conflict-shaped failures: diverged history, overlapping local changes,
+    // or an unfinished merge. --ff-only aborted cleanly — just report it.
+    const conflict = /not possible to fast-forward|divergent branches|would be overwritten by|conflict|needs merge|unmerged/i.test(combined);
+    const error = result.timedOut
+      ? 'git pull timed out.'
+      : result.stderr.trim() || `git pull exited with code ${result.exitCode}.`;
+    log.warn(`git pull failed (conflict=${conflict}): ${error}`);
+    res.json({ success: false, conflict, error, output: combined });
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`git pull update failed: ${message}`);
+    res.status(500).json({ error: message });
+  } finally {
     endUpdate();
   }
 });

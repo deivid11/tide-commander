@@ -138,12 +138,32 @@ describe('buildDockRoster', () => {
     expect(second.entries.map((entry) => entry.agent.id)).toEqual(['x', 'y']);
   });
 
-  it('places newcomers behind the agents already docked, most recent first', () => {
+  it('inserts newcomers by recency relative to held members, without reordering them', () => {
     const agents = [agent('a', 'working', 100), agent('new-old', 'working', 200), agent('new-fresh', 'working', 800)];
 
     const { slots } = buildDockRoster(agents, new Set(['a', 'new-old', 'new-fresh']), { working: ['a'], recent: [] });
 
-    expect(slots.working).toEqual(['a', 'new-fresh', 'new-old']);
+    // Both newcomers outrank held 'a', so they land in front of it, newest first.
+    expect(slots.working).toEqual(['new-fresh', 'new-old', 'a']);
+  });
+
+  it('re-enters a just-finished agent at the FRONT of the recent lane', () => {
+    const recency = new Map([['fin', 1_000], ['r1', 500], ['r2', 400]]);
+    const agents = [agent('fin', 'idle', 0), agent('r1', 'idle', 0), agent('r2', 'idle', 0)];
+
+    // 'fin' held a working slot until its hold expired; r1/r2 hold the recent lane.
+    const { slots } = buildDockRoster(agents, new Set(), { working: ['fin'], recent: ['r1', 'r2'] }, recency);
+
+    expect(slots.recent).toEqual(['fin', 'r1', 'r2']);
+  });
+
+  it('appends a newcomer older than every held member at the back', () => {
+    const recency = new Map([['a', 900], ['b', 800], ['old', 100]]);
+    const agents = [agent('a', 'idle', 0), agent('b', 'idle', 0), agent('old', 'idle', 0)];
+
+    const { slots } = buildDockRoster(agents, new Set(), { working: [], recent: ['a', 'b'] }, recency);
+
+    expect(slots.recent).toEqual(['a', 'b', 'old']);
   });
 
   it('frees the slot of an agent that left, without disturbing the others', () => {
@@ -162,6 +182,17 @@ describe('buildDockRoster', () => {
     expect(entries).toHaveLength(DOCK_RECENT_SIZE);
     expect(entries.every((entry) => entry.lane === 'recent')).toBe(true);
     expect(entries[0].agent.id).toBe(`idle-${DOCK_RECENT_SIZE + 2}`);
+  });
+
+  it('honors a custom recent-lane size, including 0 (working lane only)', () => {
+    const idle = Array.from({ length: 5 }, (_, i) => agent(`idle-${i}`, 'idle', i));
+    const busy = agent('busy', 'working', 100);
+
+    const two = buildDockRoster([...idle, busy], new Set(['busy']), EMPTY_DOCK_SLOTS, undefined, 2);
+    expect(two.entries.map((entry) => entry.lane)).toEqual(['recent', 'recent', 'working']);
+
+    const none = buildDockRoster([...idle, busy], new Set(['busy']), EMPTY_DOCK_SLOTS, undefined, 0);
+    expect(none.entries.map((entry) => [entry.agent.id, entry.lane])).toEqual([['busy', 'working']]);
   });
 
   it('renders the recent lane before the working lane and never lists an agent twice', () => {

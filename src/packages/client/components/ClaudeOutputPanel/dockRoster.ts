@@ -24,7 +24,8 @@ export function isWorkingStatus(status: Agent['status']): boolean {
   return status === 'working' || status === 'waiting' || status === 'waiting_permission';
 }
 
-/** Icons kept in the "recently active" lane. */
+/** Default size of the "recently active" lane — the user can override it via
+ * Settings (see useAgentDockRecentSize in agentDockPosition.ts). */
 export const DOCK_RECENT_SIZE = 4;
 
 /** How long an agent keeps its working-lane slot after its last sign of work. */
@@ -117,8 +118,14 @@ export interface DockSlots {
 export const EMPTY_DOCK_SLOTS: DockSlots = { working: [], recent: [] };
 
 /**
- * Keep whoever is already docked in the slot they occupy; newcomers go behind
- * them, most recent first. Departures simply free their slot.
+ * Keep whoever is already docked in the slot they occupy; departures simply
+ * free their slot. Newcomers are inserted by recency RELATIVE to the held
+ * members — in front of the first member they outrank — without ever
+ * reordering the held members among themselves. So an agent that just finished
+ * working (recency ≈ now) enters the recent lane at the FRONT, where "most
+ * recent" belongs, while an agent that merely re-qualified for a freed slot
+ * (older than everyone held) joins at the back. Clicks still move nothing:
+ * recency here is WORK recency (settleWorkRecency), which clicks don't touch.
  */
 function orderBySlots(
   agents: readonly Agent[],
@@ -133,7 +140,14 @@ function orderBySlots(
   const joined = agents
     .filter((agent) => !heldIds.has(agent.id))
     .sort((a, b) => recencyOf(b) - recencyOf(a));
-  return [...held, ...joined];
+
+  const result = [...held];
+  for (const agent of joined) {
+    const at = result.findIndex((existing) => recencyOf(existing) < recencyOf(agent));
+    if (at === -1) result.push(agent);
+    else result.splice(at, 0, agent);
+  }
+  return result;
 }
 
 /**
@@ -149,6 +163,7 @@ export function buildDockRoster(
   workingIds: ReadonlySet<string>,
   previousSlots: DockSlots,
   recency?: ReadonlyMap<string, number>,
+  recentSize: number = DOCK_RECENT_SIZE,
 ): { entries: DockEntry[]; slots: DockSlots } {
   const recencyOf = (agent: Agent) => recency?.get(agent.id) ?? agent.lastActivity ?? 0;
 
@@ -162,7 +177,7 @@ export function buildDockRoster(
   const recentMembers = agents
     .filter((agent) => !workingIds.has(agent.id))
     .sort((a, b) => recencyOf(b) - recencyOf(a))
-    .slice(0, DOCK_RECENT_SIZE);
+    .slice(0, recentSize);
   const recent = orderBySlots(recentMembers, previousSlots.recent, recencyOf);
 
   return {

@@ -287,6 +287,61 @@ export function runNpmGlobalUpdate(callbacks: RunUpdateCallbacks = {}): Promise<
   });
 }
 
+export interface GitPullResult {
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+  timedOut: boolean;
+}
+
+/**
+ * Run `git pull --ff-only` in the dev checkout. --ff-only keeps the failure
+ * mode clean: on diverged history or overlapping local changes git aborts
+ * WITHOUT touching the working tree (no conflict markers left behind), so the
+ * caller can simply report the message. Never throws; always resolves with the
+ * captured output and exit code.
+ */
+export function runGitPull(cwd: string, timeoutMs = 180_000): Promise<GitPullResult> {
+  return new Promise((resolve) => {
+    log.log(`Running: git pull --ff-only (in ${cwd})`);
+    const child = spawn('git', ['pull', '--ff-only'], {
+      cwd,
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGKILL');
+    }, timeoutMs);
+    timer.unref?.();
+
+    const finish = (exitCode: number | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ exitCode, stdout, stderr, timedOut });
+    };
+
+    child.stdout?.on('data', (buf: Buffer) => {
+      stdout += buf.toString('utf8');
+    });
+    child.stderr?.on('data', (buf: Buffer) => {
+      stderr += buf.toString('utf8');
+    });
+    child.on('error', (err) => {
+      stderr += `Failed to spawn git: ${err.message}\n`;
+      finish(-1);
+    });
+    child.on('close', (code) => finish(code));
+  });
+}
+
 /**
  * Detect a process supervisor that already restarts us on exit.
  *

@@ -391,6 +391,10 @@ export function createAgentActions(
         state.selectedAgentIds = new Set(agentId ? [agentId] : []);
         if (agentId) {
           state.lastSelectedAgentId = agentId;
+          // Bump even when re-selecting the same agent: the terminal pane
+          // re-pins to the bottom on every explicit click, and selectedAgentIds
+          // alone can't observe a same-agent re-click.
+          state.agentSelectionSeq = (state.agentSelectionSeq ?? 0) + 1;
 
           // NEW: Clear unseen badge when agent is selected
           if (state.agentsWithUnseenOutput.has(agentId)) {

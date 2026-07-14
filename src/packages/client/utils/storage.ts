@@ -65,6 +65,8 @@ export const STORAGE_KEYS = {
   // Agent activity dock (recent + working thumbs)
   AGENT_DOCK_POSITION: 'tide-agent-dock-position',
   AGENT_DOCK_COLLAPSED: 'tide-agent-dock-collapsed',
+  // How many recently-active agents the dock shows (number, default 4)
+  AGENT_DOCK_RECENT_SIZE: 'tide-agent-dock-recent-size',
 
   // Agent Overview Panel
   AOP_CONFIG: 'tide-aop-config',

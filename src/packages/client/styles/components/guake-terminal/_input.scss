@@ -867,9 +867,9 @@
     animation: pinned-agent-glow 1.6s ease-in-out infinite;
   }
 
-  &.working .pinned-agent-av {
-    animation: pinned-agent-pulse 1.1s ease-in-out infinite;
-  }
+  // Deliberately NO opacity animation on the avatar itself — a working agent
+  // fading in and out read as "transparent/broken", not as activity. Working is
+  // signalled by the border/glow/ring channels only.
 
   // Expanding ring around the avatar while the agent works (extension style).
   &.working .pinned-agent-av::after {
@@ -894,26 +894,55 @@
 }
 
 // Working / recently-active agents you have NOT pinned, appended to the row.
-// Dashed + dimmed: they behave like a pin (click to open, right-click to pin)
-// but are transient — they leave on their own, so they must not read as
-// permanent. No × badge, since there is no pin to remove.
+// They render at full strength like every other chip — dimming them read as
+// "transparent"/broken — and only the dashed border marks them as transient
+// (click to open, right-click to pin). No × badge: there is no pin to remove.
 .pinned-agent--unpinned {
   border-style: dashed;
 
-  // Anything working stays full strength — the row exists to surface live work.
-  &:not(.working) {
-    opacity: 0.68;
-  }
+  // Working: the dashed border stays STATIC (calm, green-tinted) and a soft
+  // luminous arc — a comet with a fading ~70° tail — glides around it, drawn on
+  // a masked ring with the same @property-angle technique as the input's
+  // working border. One continuous graceful motion instead of the earlier
+  // marching-ants dashes, and it replaces the avatar ripple here: one motion
+  // channel per chip.
+  &.working {
+    border-color: color-mix(in srgb, $dracula-green 55%, transparent);
 
-  &:hover,
-  &.active {
-    opacity: 1;
-  }
+    &::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 9px; // chip radius (8px) + the 1px border it glides over
+      padding: 1.5px;
+      // Mostly transparent; the tail fades in behind the bright head, which
+      // leads the clockwise sweep and cuts off cleanly in front.
+      background: conic-gradient(
+        from var(--pinned-dash-angle),
+        transparent 0deg,
+        transparent 288deg,
+        color-mix(in srgb, $dracula-green 40%, transparent) 322deg,
+        $dracula-green 352deg,
+        color-mix(in srgb, #fff 30%, $dracula-green) 359deg,
+        transparent 360deg
+      );
+      // Show the gradient only in the padding ring; punch out the center.
+      -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+      // One revolution every 5s — a glide, not a spinner.
+      animation: pinned-dash-rotate 5s linear infinite;
+    }
 
-  // A plain gap, not a rule: enough to read the two sections apart without
-  // adding another line to a row that is already dense.
-  &.starts-active-group {
-    margin-left: 14px;
+    // The sweeping arc is the working signal — the avatar ripple on top of it
+    // was two animations fighting over one 30px chip.
+    .pinned-agent-av::after { content: none; }
   }
 
   // Leaving the row entirely — matches DOCK_EXIT_MS in dockRoster.ts.
@@ -923,8 +952,36 @@
   }
 }
 
+// Animatable custom property so the dash ring spins smoothly (a transform
+// rotation would spin the chip's box, not the gradient).
+@property --pinned-dash-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes pinned-dash-rotate {
+  to { --pinned-dash-angle: 360deg; }
+}
+
+// Lane separator: one where the unpinned actives start, one where their working
+// lane starts. Same green gradient as the overview dock's
+// .aop-working-strip-divider, so both docks read identically.
+.pinned-lane-divider {
+  width: 1px;
+  height: 24px;
+  flex: none;
+  margin: 0 3px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--accent-green) 55%, var(--border-color)),
+    transparent
+  );
+}
+
 @keyframes pinned-activity-out {
-  from { opacity: 0.68; transform: scale(1); }
+  from { opacity: 1; transform: scale(1); }
   to { opacity: 0; transform: scale(0.72); }
 }
 
@@ -1176,19 +1233,14 @@
     box-shadow: 0 0 0 1.5px #d4af37;
   }
   .pinned-group { gap: 6px; padding-left: 6px; }
-  // A tighter gap before the unpinned agents — horizontal space is scarcest here.
-  .pinned-agent--unpinned.starts-active-group { margin-left: 8px; }
+  // Tighter separators — horizontal space is scarcest here.
+  .pinned-lane-divider { margin: 0 1px; }
 
   // Pinned bar is no longer overlapping the chat; clearance is handled by the
   // fixed composer-stack height reservation in _mobile.scss.
   .guake-output.has-pinned-agents {
     padding-bottom: 12px !important;
   }
-}
-
-@keyframes pinned-agent-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.55; }
 }
 
 // Gentle breathe on the unseen-output dot — scale only (an opacity pulse makes

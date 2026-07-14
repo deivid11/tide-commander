@@ -23,6 +23,7 @@ import { Tooltip } from '../shared/Tooltip';
 import { providerAssetUrl } from '../../utils/providerDisplay';
 import { prefetchAgentHistory } from './useHistoryLoader';
 import { useDockRoster } from './useDockRoster';
+import { useAgentDockRecentSize } from './agentDockPosition';
 import { useDockFlip } from './useDockFlip';
 
 interface AgentActivityDockProps {
@@ -44,8 +45,9 @@ export function AgentActivityDock({ activeAgentId, onSelectAgent }: AgentActivit
     return allAgents.filter((agent) => isAgentVisibleInWorkspace(store.getAreaForAgent(agent.id)?.id ?? null));
   }, [allAgents, activeWorkspace]);
 
+  const recentSize = useAgentDockRecentSize();
   // Scoped so the roster survives host remounts (see DockScopeState).
-  const { entries, exitingIds, workingIds, layoutSignature } = useDockRoster(agents, { scope: 'overview-dock' });
+  const { entries, exitingIds, workingIds, layoutSignature } = useDockRoster(agents, { scope: 'overview-dock', recentSize });
 
   const [expanded, setExpanded] = useState<boolean>(() => getStorage<boolean>(STORAGE_KEYS.AGENT_DOCK_COLLAPSED, false) !== true);
   const toggleExpanded = useCallback(() => {

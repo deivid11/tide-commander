@@ -30,33 +30,11 @@ import { fetchAgentInjectedPrompt } from '../../api/agent-prompt';
 import { Icon } from '../Icon';
 import { providerAssetUrl, providerAgentTitle, providerLabel } from '../../utils/providerDisplay';
 
-// Image modal props
-export interface ImageModalProps {
-  url: string;
-  name: string;
-  onClose: () => void;
-}
-
-export function ImageModal({ url, name, onClose }: ImageModalProps) {
-  const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
-  return (
-    <ModalPortal>
-      <div className="image-modal-overlay" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
-        <div className="image-modal">
-          <div className="image-modal-header">
-            <span className="image-modal-title">{name}</span>
-            <button className="image-modal-close" onClick={onClose}>
-              ×
-            </button>
-          </div>
-          <div className="image-modal-content">
-            <img src={url} alt={name} />
-          </div>
-        </div>
-      </div>
-    </ModalPortal>
-  );
-}
+// ImageModal lives in shared/ so that light consumers (e.g.
+// WhatsAppAttachmentPreview, reachable from node-environment unit tests) can
+// use it without dragging this module's store/barrel imports. Re-exported here
+// for the panels that already import it from TerminalModals.
+export { ImageModal, type ImageModalProps } from '../shared/ImageModal';
 
 // JSON Viewer component for bash modal output
 

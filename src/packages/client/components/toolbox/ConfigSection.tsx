@@ -13,7 +13,7 @@ import { IntegrationStatusPanel } from './IntegrationStatusPanel';
 import { ClaudeCredentialsPanel } from '../ClaudeCredentialsPanel';
 import { ProviderCredentialsPanel } from '../ProviderCredentialsPanel';
 import { SystemPromptModal } from '../SystemPromptModal';
-import { AGENT_DOCK_POSITIONS, AGENT_DOCK_POSITION_LABELS, setAgentDockPosition, useAgentDockPosition } from '../ClaudeOutputPanel/agentDockPosition';
+import { AGENT_DOCK_POSITIONS, AGENT_DOCK_POSITION_LABELS, setAgentDockPosition, useAgentDockPosition, setAgentDockRecentSize, useAgentDockRecentSize } from '../ClaudeOutputPanel/agentDockPosition';
 import { WhatsAppConfigModal } from '../WhatsAppConfigModal';
 import { WhatsAppNotificationsModal } from '../WhatsAppNotificationsModal';
 import { WhatsAppHistoryPanel } from '../WhatsAppHistory/WhatsAppHistoryPanel';
@@ -235,6 +235,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
   const customClasses = useCustomAgentClassesArray();
   const [defaultSpawnClass, setDefaultSpawnClassState] = useState(() => getStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS) || 'scout');
   const agentDockPosition = useAgentDockPosition();
+  const agentDockRecentSize = useAgentDockRecentSize();
   const [historyLimit, setHistoryLimit] = useState(settings.historyLimit);
   const [backendUrls, setBackendUrlsState] = useState<string[]>(() => getBackendUrls());
   const [backendUrlsDirty, setBackendUrlsDirty] = useState(false);
@@ -475,6 +476,20 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
             ))}
           </select>
         </div>
+        {agentDockPosition !== 'hidden' && (
+          <div className="config-row">
+            <span className="config-label" title="How many recently-active agents the dock shows alongside the ones working right now. 0 shows only working agents."><HighlightText text="Recent agents in dock" query={searchQuery} /></span>
+            <input
+              type="number"
+              className="config-input config-input-sm"
+              value={agentDockRecentSize}
+              min={0}
+              max={20}
+              step={1}
+              onChange={(e) => setAgentDockRecentSize(parseInt(e.target.value, 10) || 0)}
+            />
+          </div>
+        )}
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('config:general.grid')} query={searchQuery} /></span>
           <Toggle checked={config.gridVisible} onChange={(checked) => onChange({ ...config, gridVisible: checked })} />

@@ -15,6 +15,8 @@ export interface InstallInfo {
   latestVersion: string | null;
   updateAvailable: boolean;
   autoUpdateSupported: boolean;
+  /** Dev checkout (.git present) — the server can update itself via git pull. */
+  gitPullSupported?: boolean;
   writable?: boolean;
   suggestedManualCommand: string | null;
   reason: string;
@@ -111,6 +113,31 @@ export async function fetchWebBundleInfo(): Promise<WebBundleInfo> {
     );
   }
   return response.json();
+}
+
+/** Result of the dev-checkout git pull update (see /api/system/git-pull). */
+export interface GitPullUpdateResult {
+  success: boolean;
+  upToDate?: boolean;
+  /** True when the pull failed because of a conflict / diverged branch. */
+  conflict?: boolean;
+  newVersion?: string | null;
+  output?: string;
+  error?: string;
+}
+
+/**
+ * Dev checkouts: update by running `git pull --ff-only` server-side. A pull
+ * that fails on a conflict resolves normally with { success: false, conflict };
+ * only transport/guard errors throw.
+ */
+export async function runGitPullUpdate(): Promise<GitPullUpdateResult> {
+  const response = await authFetch(`${getApiBaseUrl()}/api/system/git-pull`, { method: 'POST' });
+  const body = (await response.json().catch(() => ({}))) as GitPullUpdateResult & { error?: string };
+  if (!response.ok) {
+    throw new Error(body.error || `git pull failed: ${response.status} ${response.statusText}`);
+  }
+  return body;
 }
 
 export async function fetchInstallInfo(): Promise<InstallInfo> {

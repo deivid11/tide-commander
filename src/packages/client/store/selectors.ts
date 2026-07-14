@@ -197,6 +197,16 @@ export function useLastSelectedAgentId(): string | null {
 }
 
 /**
+ * Monotonic counter bumped on EVERY selectAgent(id) click, including
+ * re-selecting the already-selected agent. Lets the terminal pane scroll to
+ * the bottom on every explicit agent click (agentId alone can't observe a
+ * same-agent re-click).
+ */
+export function useAgentSelectionSeq(): number {
+  return useSelector(useCallback((state: StoreState) => state.agentSelectionSeq, []));
+}
+
+/**
  * Get pinned agent IDs (quick-select bar). Only re-renders when the list changes.
  */
 export function usePinnedAgentIds(): string[] {
