@@ -1137,6 +1137,7 @@
     "gaugeSession": "Sesión",
     "gaugeWeek": "Semana",
     "gaugeWeekOpus": "Opus sem",
+    "gaugeWeekFable": "Fable sem",
     "gaugeNoSession": "sin sesión activa",
     "providerTitle": "Cuentas de {{provider}}",
     "providerHelp": "Copias nombradas de {{dir}}/auth.json. Cambia la cuenta activa de {{provider}} cuando llegues a los límites — igual que renombrar el archivo a mano."

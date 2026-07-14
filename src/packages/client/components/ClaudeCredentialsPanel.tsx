@@ -57,7 +57,15 @@ function formatResetShort(iso: string): string {
  * window entirely while an account has no session running, and hiding the row
  * read as a bug ("where's my session limit?").
  */
-function LimitGauge({ label, window }: { label: string; window: ClaudeProfileRateLimitWindow | null }) {
+function LimitGauge({
+  label,
+  window,
+  emptyDetail,
+}: {
+  label: string;
+  window: ClaudeProfileRateLimitWindow | null;
+  emptyDetail?: string;
+}) {
   const { t } = useTranslation(['terminal']);
   const percent = window ? Math.max(0, Math.min(100, window.utilization)) : 0;
   const color = window ? getUsedPercentColor(percent) : 'var(--text-muted)';
@@ -82,7 +90,7 @@ function LimitGauge({ label, window }: { label: string; window: ClaudeProfileRat
       <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
         {window
           ? t('terminal:usage.resets', { time: formatResetShort(window.resetsAt) })
-          : t('terminal:credentials.gaugeNoSession', { defaultValue: 'no active session' })}
+          : (emptyDetail ?? t('terminal:credentials.gaugeNoSession', { defaultValue: 'no active session' }))}
       </span>
     </div>
   );
@@ -104,6 +112,13 @@ function ProfileLimits({ usage }: { usage: ClaudeProfileUsage | undefined }) {
       )}
       {limits?.sevenDayOpus && (
         <LimitGauge label={t('terminal:credentials.gaugeWeekOpus', { defaultValue: 'Opus wk' })} window={limits.sevenDayOpus} />
+      )}
+      {limits && (
+        <LimitGauge
+          label={t('terminal:credentials.gaugeWeekFable', { defaultValue: 'Fable wk' })}
+          window={limits.sevenDayFable}
+          emptyDetail=""
+        />
       )}
       {usage.error && (
         <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>{usage.error}</div>

@@ -51,8 +51,8 @@ function formatCreditAmount(value: number): string {
 function buildWindows(
   snapshot: ProviderUsageSnapshot,
   t: (key: string) => string,
-): Array<{ key: string; label: string; window: ClaudeRateLimitWindow }> {
-  const windows: Array<{ key: string; label: string; window: ClaudeRateLimitWindow }> = [];
+): Array<{ key: string; label: string; window: ClaudeRateLimitWindow | null }> {
+  const windows: Array<{ key: string; label: string; window: ClaudeRateLimitWindow | null }> = [];
   if (!snapshot.rateLimits) return windows;
 
   if (snapshot.provider === 'claude') {
@@ -61,10 +61,10 @@ function buildWindows(
       { key: 'fiveHour', label: t('terminal:usage.currentSession'), window: claude.rateLimits!.fiveHour },
       { key: 'sevenDay', label: t('terminal:usage.currentWeekAll'), window: claude.rateLimits!.sevenDay },
       { key: 'sevenDayOpus', label: t('terminal:usage.currentWeekOpus'), window: claude.rateLimits!.sevenDayOpus },
-      { key: 'sevenDaySonnet', label: t('terminal:usage.currentWeekSonnet'), window: claude.rateLimits!.sevenDaySonnet },
+      { key: 'sevenDayFable', label: t('terminal:usage.currentWeekFable'), window: claude.rateLimits!.sevenDayFable },
     ];
     for (const candidate of candidates) {
-      if (candidate.window) windows.push({ ...candidate, window: candidate.window });
+      if (candidate.window || candidate.key === 'sevenDayFable') windows.push(candidate);
     }
     return windows;
   }
@@ -153,9 +153,10 @@ function PlanLimitsContent({ agentId, contextSummary }: PlanLimitsContentProps) 
       {windows.length > 0 ? (
         <div className="plan-limits-tooltip__gauges">
           {windows.map(({ key, label, window }) => {
-            const percent = Math.max(0, Math.min(100, window.utilization));
+            const percent = window ? Math.max(0, Math.min(100, window.utilization)) : 0;
             const color = getUsedPercentColor(percent);
             const hasCredits =
+              window != null &&
               typeof window.used === 'number' &&
               typeof window.limit === 'number' &&
               Number.isFinite(window.used) &&
@@ -175,7 +176,7 @@ function PlanLimitsContent({ agentId, contextSummary }: PlanLimitsContentProps) 
                   />
                 </div>
                 <div className="plan-limits-tooltip__reset">
-                  {t('terminal:usage.resets', { time: formatResetTime(window.resetsAt) })}
+                  {window && t('terminal:usage.resets', { time: formatResetTime(window.resetsAt) })}
                   {hasCredits && (
                     <span style={{ marginLeft: 8 }}>
                       {t('terminal:usage.creditsUsed', {

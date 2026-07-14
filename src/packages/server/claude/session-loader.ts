@@ -441,12 +441,51 @@ function normalizeCodexWebSearchToolInput(payload: Record<string, unknown>): Rec
     : undefined;
 
   return {
+    query: typeof payload.query === 'string'
+      ? payload.query
+      : typeof action.query === 'string' ? action.query : undefined,
     actionType: typeof action.type === 'string' ? action.type : undefined,
     actionQuery: typeof action.query === 'string' ? action.query : undefined,
     actionQueries,
     actionUrl: typeof action.url === 'string' ? action.url : undefined,
     status: typeof payload.status === 'string' ? payload.status : undefined,
   };
+}
+
+function normalizeCodexMcpToolCall(payload: Record<string, unknown>): {
+  toolName: string;
+  toolInput: Record<string, unknown>;
+} | null {
+  if (!isObject(payload.invocation)) return null;
+  const invocation = payload.invocation;
+  const server = typeof invocation.server === 'string' ? invocation.server : 'mcp';
+  const tool = typeof invocation.tool === 'string' ? invocation.tool : 'tool';
+  const args = isObject(invocation.arguments) ? invocation.arguments : {};
+  return {
+    toolName: `mcp__${server}__${tool}`,
+    toolInput: { ...args, server },
+  };
+}
+
+function normalizeCodexMcpToolOutput(result: unknown): string {
+  if (!isObject(result)) return result === undefined ? '' : String(result);
+  const envelope = isObject(result.Ok) ? result.Ok : isObject(result.Err) ? result.Err : result;
+  if (Array.isArray(envelope.content)) {
+    const texts = envelope.content
+      .filter(isObject)
+      .map((entry) => typeof entry.text === 'string' ? entry.text : undefined)
+      .filter((text): text is string => !!text);
+    if (texts.length > 0) {
+      const output = texts.join('\n');
+      return output.length > 4000 ? `${output.slice(0, 4000)}...` : output;
+    }
+  }
+  try {
+    const output = JSON.stringify(result);
+    return output.length > 4000 ? `${output.slice(0, 4000)}...` : output;
+  } catch {
+    return String(result);
+  }
 }
 
 function normalizeCodexEventFallbackText(eventType: string, payload: unknown): string {
@@ -1223,6 +1262,68 @@ function parseCodexEntryMessages(
 
     // token_count: Skip in history (token accounting shown via turn.completed)
     if (payload.type === 'token_count') {
+      return;
+    }
+
+    if (payload.type === 'mcp_tool_call_begin' || payload.type === 'mcp_tool_call_end') {
+      const callId = typeof payload.call_id === 'string' ? payload.call_id : `${entry.timestamp}-mcp`;
+      const normalized = normalizeCodexMcpToolCall(payload);
+      const priorToolName = toolUseIdToName.get(callId);
+      if (!normalized && !priorToolName) return;
+      const toolName = normalized?.toolName ?? priorToolName!;
+      const alreadyStarted = toolUseIdToName.has(callId);
+      if (!alreadyStarted && normalized) {
+        toolUseIdToName.set(callId, toolName);
+        messages.push({
+          type: 'tool_use',
+          content: JSON.stringify(normalized.toolInput, null, 2),
+          timestamp: entry.timestamp,
+          uuid: `${entry.timestamp}-tool-use-mcp`,
+          toolName,
+          toolInput: normalized.toolInput,
+          toolUseId: callId,
+        });
+      }
+      if (payload.type === 'mcp_tool_call_end') {
+        messages.push({
+          type: 'tool_result',
+          content: normalizeCodexMcpToolOutput(payload.result),
+          timestamp: entry.timestamp,
+          uuid: `${entry.timestamp}-tool-result-mcp`,
+          toolName,
+          toolUseId: callId,
+        });
+      }
+      return;
+    }
+
+    if (payload.type === 'web_search_begin' || payload.type === 'web_search_end') {
+      const toolName = 'web_search';
+      const toolInput = normalizeCodexWebSearchToolInput(payload);
+      const callId = typeof payload.call_id === 'string' ? payload.call_id : `${entry.timestamp}-web-search`;
+      const alreadyStarted = toolUseIdToName.has(callId);
+      if (!alreadyStarted) {
+        toolUseIdToName.set(callId, toolName);
+        messages.push({
+          type: 'tool_use',
+          content: JSON.stringify(toolInput, null, 2),
+          timestamp: entry.timestamp,
+          uuid: `${entry.timestamp}-tool-use-web-search`,
+          toolName,
+          toolInput,
+          toolUseId: callId,
+        });
+      }
+      if (payload.type === 'web_search_end') {
+        messages.push({
+          type: 'tool_result',
+          content: JSON.stringify(toolInput, null, 2),
+          timestamp: entry.timestamp,
+          uuid: `${entry.timestamp}-tool-result-web-search`,
+          toolName,
+          toolUseId: callId,
+        });
+      }
       return;
     }
 

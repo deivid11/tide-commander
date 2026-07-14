@@ -7,6 +7,7 @@ const resetCache = vi.hoisted(() => vi.fn());
 
 vi.mock('./claude-usage-service.js', () => ({
   resetClaudeRateLimitCache: resetCache,
+  fetchClaudeRateLimitsForToken: vi.fn(),
 }));
 
 vi.mock('../utils/logger.js', () => ({
@@ -18,6 +19,8 @@ import {
   isValidProfileName,
   listClaudeCredentialProfiles,
   renameClaudeCredentialProfile,
+  resetClaudeCredentialKeepAliveForTests,
+  runClaudeCredentialKeepAliveNow,
   saveActiveClaudeCredentialProfile,
   setClaudeCredentialsDirForTests,
   switchClaudeCredentialProfile,
@@ -47,6 +50,8 @@ describe('claude-credentials-service', () => {
   });
 
   afterEach(() => {
+    resetClaudeCredentialKeepAliveForTests();
+    vi.unstubAllGlobals();
     setClaudeCredentialsDirForTests(null);
     fs.rmSync(tmp, { recursive: true, force: true });
   });
@@ -142,5 +147,82 @@ describe('claude-credentials-service', () => {
     expect(fs.existsSync(path.join(tmp, '.credentials.david.json'))).toBe(false);
     deleteClaudeCredentialProfile('dave');
     expect(fs.existsSync(path.join(tmp, '.credentials.dave.json'))).toBe(false);
+  });
+
+  it('keeps every unique Claude grant alive and updates all duplicate files', async () => {
+    const expiring = Date.now() + 60_000;
+    const shared = cred('tok-shared', {
+      refreshToken: 'refresh-shared',
+      expiresAt: expiring,
+      refreshTokenExpiresAt: Date.now() + 86_400_000,
+    });
+    fs.writeFileSync(path.join(tmp, '.credentials.json'), shared);
+    fs.writeFileSync(path.join(tmp, '.credentials.primary.json'), shared);
+    fs.writeFileSync(path.join(tmp, '.credentials.backup.json'), cred('tok-backup', {
+      refreshToken: 'refresh-backup',
+      expiresAt: expiring,
+    }));
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        access_token: 'new-shared-access',
+        refresh_token: 'new-shared-refresh',
+        expires_in: 3600,
+        refresh_token_expires_in: 2_592_000,
+        scope: 'user:inference',
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        access_token: 'new-backup-access',
+        refresh_token: 'new-backup-refresh',
+        expires_in: 3600,
+        refresh_token_expires_in: 2_592_000,
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await runClaudeCredentialKeepAliveNow();
+
+    expect(result).toEqual({ checkedGrants: 2, refreshedGrants: 2, skippedGrants: 0, failedGrants: 0 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const active = JSON.parse(fs.readFileSync(path.join(tmp, '.credentials.json'), 'utf-8')).claudeAiOauth;
+    const primary = JSON.parse(fs.readFileSync(path.join(tmp, '.credentials.primary.json'), 'utf-8')).claudeAiOauth;
+    const backup = JSON.parse(fs.readFileSync(path.join(tmp, '.credentials.backup.json'), 'utf-8')).claudeAiOauth;
+    expect(active.refreshToken).toBe('new-shared-refresh');
+    expect(primary.refreshToken).toBe('new-shared-refresh');
+    expect(active.accessToken).toBe('new-shared-access');
+    expect(active.refreshTokenExpiresAt).toBeGreaterThan(Date.now() + 29 * 86_400_000);
+    expect(backup.refreshToken).toBe('new-backup-refresh');
+    expect(resetCache).toHaveBeenCalled();
+  });
+
+  it('does not refresh grants whose access token is comfortably valid', async () => {
+    fs.writeFileSync(path.join(tmp, '.credentials.json'), cred('tok-active', {
+      expiresAt: Date.now() + 3_600_000,
+    }));
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await runClaudeCredentialKeepAliveNow();
+
+    expect(result).toEqual({ checkedGrants: 1, refreshedGrants: 0, skippedGrants: 1, failedGrants: 0 });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refreshes before the refresh token itself can expire', async () => {
+    fs.writeFileSync(path.join(tmp, '.credentials.json'), cred('tok-active', {
+      expiresAt: Date.now() + 3_600_000,
+      refreshTokenExpiresAt: Date.now() + 3_600_000,
+    }));
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      access_token: 'renewed-access',
+      refresh_token: 'renewed-refresh',
+      expires_in: 3600,
+      refresh_token_expires_in: 2_592_000,
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await runClaudeCredentialKeepAliveNow();
+
+    expect(result.refreshedGrants).toBe(1);
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 });

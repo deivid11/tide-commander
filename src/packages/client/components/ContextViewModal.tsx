@@ -430,8 +430,8 @@ function formatCreditAmount(value: number): string {
 function buildRateLimitWindows(
   snapshot: ProviderUsageSnapshot,
   t: (key: string) => string,
-): Array<{ key: string; label: string; window: ClaudeRateLimitWindow }> {
-  const windows: Array<{ key: string; label: string; window: ClaudeRateLimitWindow }> = [];
+): Array<{ key: string; label: string; window: ClaudeRateLimitWindow | null }> {
+  const windows: Array<{ key: string; label: string; window: ClaudeRateLimitWindow | null }> = [];
   if (!snapshot.rateLimits) return windows;
 
   if (snapshot.provider === 'claude') {
@@ -439,10 +439,10 @@ function buildRateLimitWindows(
       { key: 'fiveHour', label: t('terminal:usage.currentSession'), window: snapshot.rateLimits.fiveHour },
       { key: 'sevenDay', label: t('terminal:usage.currentWeekAll'), window: snapshot.rateLimits.sevenDay },
       { key: 'sevenDayOpus', label: t('terminal:usage.currentWeekOpus'), window: snapshot.rateLimits.sevenDayOpus },
-      { key: 'sevenDaySonnet', label: t('terminal:usage.currentWeekSonnet'), window: snapshot.rateLimits.sevenDaySonnet },
+      { key: 'sevenDayFable', label: t('terminal:usage.currentWeekFable'), window: snapshot.rateLimits.sevenDayFable },
     ];
     for (const candidate of candidates) {
-      if (candidate.window) windows.push({ ...candidate, window: candidate.window });
+      if (candidate.window || candidate.key === 'sevenDayFable') windows.push(candidate);
     }
     return windows;
   }
@@ -743,11 +743,11 @@ function ProviderUsageSection({ snapshot, loading, error, onRefresh, showClaudeA
   );
 }
 
-function RateLimitGauge({ label, window }: { label: string; window: ClaudeRateLimitWindow }) {
+function RateLimitGauge({ label, window }: { label: string; window: ClaudeRateLimitWindow | null }) {
   const { t } = useTranslation(['terminal']);
-  const percent = Math.max(0, Math.min(100, window.utilization));
+  const percent = window ? Math.max(0, Math.min(100, window.utilization)) : 0;
   const color = getUsedPercentColor(percent);
-  const hasCredits =
+  const hasCredits = window != null &&
     typeof window.used === 'number' &&
     typeof window.limit === 'number' &&
     Number.isFinite(window.used) &&
@@ -788,7 +788,7 @@ function RateLimitGauge({ label, window }: { label: string; window: ClaudeRateLi
         color: 'var(--text-secondary)',
         marginTop: '3px',
       }}>
-        <span>{t('terminal:usage.resets', { time: formatResetTime(window.resetsAt) })}</span>
+        {window && <span>{t('terminal:usage.resets', { time: formatResetTime(window.resetsAt) })}</span>}
         {hasCredits && (
           <span style={{ fontVariantNumeric: 'tabular-nums' }}>
             {t('terminal:usage.creditsUsed', {

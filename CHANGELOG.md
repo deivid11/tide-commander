@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.161.0] - 2026-07-14
+
+### Added
+- **Zoom & pan image previews** - image previews in the file viewer (both the modal and the file-explorer panel) now support wheel/trackpad zoom, touch pinch-zoom, drag-to-pan, on-screen zoom in/out controls, a live zoom-percentage readout, and double-click to reset.
+- **File downloads in the mobile app** - downloading a file (text, image, PDF, or binary) from the file viewer now works in the Android app: files are fetched from the authenticated server route and saved to Downloads/Tide Commander via a native plugin (the WebView previously ignored blob-URL anchor downloads, so nothing was saved). Desktop/web downloads are unchanged.
+- **Claude account session keepalive** - while Tide Commander is running, every saved Claude OAuth account is refreshed shortly before its access token expires. Rotated access/refresh tokens and renewed refresh-token expiries are written atomically to every profile copy that shares the grant, keeping dormant accounts signed in without generating model traffic. Set `CLAUDE_CREDENTIAL_KEEPALIVE=0` to disable if another process owns token rotation.
+- **Fable usage gauges** - Claude account cards, the Context/Usage modal, and plan-limit tooltips now show the CLI's weekly Fable allowance, including the empty 0% state when Anthropic returns no active window. Tide accepts both the current legacy `seven_day_sonnet` API field and a future `seven_day_fable` field.
+
+### Changed
+- **Readable MCP tool cards** - MCP tool activity now renders with a friendly "MCP · server · tool" label and a key argument (query/url/path/file/document/script) instead of a raw `mcp__…` id, across both the live activity view and reloaded history.
+- **Compact Codex MCP & web-search cards** - Codex agents' MCP tool calls and web searches now appear as compact activity cards with server/tool labels and readable (truncated) output in both the live view and reloaded history, instead of dumping multi-kilobyte raw JSON for every completed call.
+
 ## [1.160.0] - 2026-07-13
 
 ### Added

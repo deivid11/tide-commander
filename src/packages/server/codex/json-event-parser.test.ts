@@ -234,6 +234,61 @@ describe('CodexJsonEventParser', () => {
     });
   });
 
+  it('maps an end-only MCP event to a compact tool call instead of raw JSON', () => {
+    const parser = new CodexJsonEventParser();
+    const events = parser.parseEvent({
+      type: 'event_msg',
+      payload: {
+        type: 'mcp_tool_call_end',
+        call_id: 'exec-mcp-1',
+        invocation: {
+          server: 'onshape',
+          tool: 'eval_featurescript',
+          arguments: { documentId: 'doc-1', script: 'return ["JHZ"]' },
+        },
+        result: { Ok: { content: [{ type: 'text', text: 'FeatureScript result: ["JHZ"]' }] } },
+      },
+    });
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        type: 'tool_start',
+        toolName: 'mcp__onshape__eval_featurescript',
+        toolInput: { server: 'onshape', documentId: 'doc-1', script: 'return ["JHZ"]' },
+        uuid: 'exec-mcp-1',
+      }),
+      expect.objectContaining({
+        type: 'tool_result',
+        toolName: 'mcp__onshape__eval_featurescript',
+        toolOutput: 'FeatureScript result: ["JHZ"]',
+      }),
+    ]);
+  });
+
+  it('does not duplicate the tool row for paired web search begin/end events', () => {
+    const parser = new CodexJsonEventParser();
+    const begin = parser.parseEvent({
+      type: 'event_msg',
+      payload: { type: 'web_search_begin', call_id: 'search-1', query: 'Onshape fillet parameters' },
+    });
+    const end = parser.parseEvent({
+      type: 'event_msg',
+      payload: {
+        type: 'web_search_end',
+        call_id: 'search-1',
+        query: 'Onshape fillet parameters',
+        action: { type: 'search', query: 'Onshape fillet parameters' },
+      },
+    });
+
+    expect(begin).toEqual([expect.objectContaining({
+      type: 'tool_start',
+      toolName: 'web_search',
+      toolInput: expect.objectContaining({ query: 'Onshape fillet parameters' }),
+    })]);
+    expect(end).toEqual([expect.objectContaining({ type: 'tool_result', toolName: 'web_search' })]);
+  });
+
   it('maps command_execution started/completed to Bash tool events', () => {
     const parser = new CodexJsonEventParser();
 
