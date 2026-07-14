@@ -21,6 +21,9 @@ export function GrepResultsModal({ results, onClose, onFileClick }: Props) {
     if (index < 0) return text;
     return <>{text.slice(0, index)}<mark>{text.slice(index, index + results.query.length)}</mark>{text.slice(index + results.query.length)}</>;
   };
+  // Files-only searches (rg -l / files_with_matches) parse as line-0 entries:
+  // no per-line rows to show, and no line to highlight on click.
+  const filesOnly = results.matches.length > 0 && results.matches.every((match) => match.line === 0);
 
   return (
     <ModalPortal>
@@ -32,16 +35,16 @@ export function GrepResultsModal({ results, onClose, onFileClick }: Props) {
           </div>
           <div className="grep-results-summary">
             <code>{results.query}</code>
-            <span>{results.matches.length} matches · {groups.size} files</span>
+            <span>{filesOnly ? `${groups.size} files` : `${results.matches.length} matches · ${groups.size} files`}</span>
           </div>
           <div className="modal-body grep-results-body">
             {results.matches.length === 0 ? <div className="grep-results-empty">No captured matches</div> : [...groups].map(([path, matches]) => (
               <section className="grep-result-file" key={path}>
-                <button className="grep-result-file-name" onClick={() => onFileClick?.(path, { highlightRange: { offset: matches[0].line, limit: 1 } })} title={path}>
+                <button className="grep-result-file-name" onClick={() => onFileClick?.(path, matches[0].line > 0 ? { highlightRange: { offset: matches[0].line, limit: 1 } } : undefined)} title={path}>
                   <Icon name="file-code" size={13} /> {path.split('/').pop() || path}
-                  <span>{matches.length}</span>
+                  {matches[0].line > 0 && <span>{matches.length}</span>}
                 </button>
-                {matches.map((match, index) => (
+                {matches.filter((match) => match.line > 0).map((match, index) => (
                   <button className="grep-result-match" key={`${match.line}-${index}`} onClick={() => onFileClick?.(path, { highlightRange: { offset: match.line, limit: 1 } })}>
                     <span className="grep-result-line">{match.line}</span>
                     <code>{highlight(match.text)}</code>

@@ -6,7 +6,7 @@
  * Inspired by the AgentDebugPanel layout.
  */
 
-import React, { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   useAgentsArray,
@@ -23,6 +23,8 @@ import { getToolIconName, formatTimestamp } from '../../utils/outputRendering';
 import { STORAGE_KEYS, getStorage, setStorage } from '../../utils/storage';
 import { getClassConfig } from '../../utils/classConfig';
 import { makeAgentOverviewComparator } from './agentOverviewSort';
+import { AgentActivityDock } from './AgentActivityDock';
+import { useAgentDockPosition } from './agentDockPosition';
 import { prefetchAgentHistory } from './useHistoryLoader';
 import type { Agent, Subagent, DrawingArea } from '../../../shared/types';
 import type { ToolExecution, ClaudeOutput } from '../../store/types';
@@ -41,8 +43,7 @@ import { ConfirmModal } from '../shared/ConfirmModal';
 import { TaskProgressDots } from '../shared/TaskProgressDots';
 import { SubordinateProgressDots } from '../shared/SubordinateProgressDots';
 import { AgentHoverTooltip } from '../shared/AgentHoverTooltip';
-import { Tooltip } from '../shared/Tooltip';
-import { providerAssetUrl, providerAgentTitle } from '../../utils/providerDisplay';
+import { providerAssetUrl, providerAgentTitle, providerLabel } from '../../utils/providerDisplay';
 
 /** Persisted config shape for the overview panel */
 interface AopConfig {
@@ -51,7 +52,7 @@ interface AopConfig {
   filterMode: FilterMode;
   sameAreaOnly: boolean; // only show agents in the same area as the active agent
   visibleAreaIds: string[] | null; // null = all areas visible; string[] = only these area IDs
-  showAgentDock: boolean;
+  visibleProviders: string[] | null; // null = all runtimes visible; string[] = only these providers
   splitAreas: boolean;
 }
 
@@ -63,12 +64,12 @@ interface AgentOverviewPanelProps {
   agentListRef?: React.RefObject<HTMLDivElement | null>;
   /** Two-finger selector state driven from the parent (GuakeOutputPanel). */
   twoFingerState?: TwoFingerSelectorState;
-  /** Optional external control of which areas are collapsed. */
-  collapsedAreas?: Set<string>;
+  /** Optional external control of which areas are expanded (all others render collapsed). */
+  expandedAreas?: Set<string>;
   /** Optional external handler for area toggle. */
   onToggleArea?: (areaKey: string) => void;
-  /** Optional bulk-collapse action, exposed by surfaces that own collapsed state. */
-  onCollapseAllAreas?: (areaKeys: string[]) => void;
+  /** Optional bulk replace of the expanded set ([] collapses everything), exposed by surfaces that own expanded state. */
+  onSetExpandedAreas?: (areaKeys: string[]) => void;
 }
 
 type SortMode = 'name' | 'status' | 'recent';
@@ -164,7 +165,7 @@ interface AreaGroup {
   agents: Agent[];
 }
 
-export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agentListRef: externalAgentListRef, twoFingerState, collapsedAreas: externalCollapsedAreas, onToggleArea: externalOnToggleArea, onCollapseAllAreas }: AgentOverviewPanelProps) {
+export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agentListRef: externalAgentListRef, twoFingerState, expandedAreas: externalExpandedAreas, onToggleArea: externalOnToggleArea, onSetExpandedAreas }: AgentOverviewPanelProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const allAgents = useAgentsArray();
   const [activeWorkspace] = useWorkspaceFilter();
@@ -176,94 +177,11 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     });
   }, [allAgents, activeWorkspace]);
   const agentsWithUnseenOutput = useAgentsWithUnseenOutput();
-  const customClasses = useCustomAgentClassesArray();
   const toolExecutions = useToolExecutions();
   const subagents = useSubagents();
   const areas = useAreas();
   const fileChanges = useFileChanges();
-  const workingAgents = useMemo(
-    () => agents
-      .filter((agent) => agent.status === 'working')
-      .sort((a, b) => b.lastActivity - a.lastActivity),
-    [agents],
-  );
-  const [visibleWorkingAgents, setVisibleWorkingAgents] = useState<Agent[]>(workingAgents);
-  const [exitingWorkingIds, setExitingWorkingIds] = useState<Set<string>>(new Set());
-
-  // Keep agents (and the dock itself) mounted briefly after they stop so CSS
-  // can animate them away instead of collapsing the panel in a single frame.
-  useEffect(() => {
-    const activeIds = new Set(workingAgents.map((agent) => agent.id));
-    const removedIds = new Set(
-      visibleWorkingAgents
-        .filter((agent) => !activeIds.has(agent.id))
-        .map((agent) => agent.id),
-    );
-    const priorById = new Map(visibleWorkingAgents.map((agent) => [agent.id, agent]));
-
-    setVisibleWorkingAgents([
-      ...workingAgents,
-      ...Array.from(removedIds).map((id) => priorById.get(id)!).filter(Boolean),
-    ]);
-    setExitingWorkingIds(removedIds);
-
-    if (removedIds.size === 0) return;
-    const timer = window.setTimeout(() => {
-      setVisibleWorkingAgents((current) => current.filter((agent) => !removedIds.has(agent.id)));
-      setExitingWorkingIds(new Set());
-    }, 280);
-    return () => window.clearTimeout(timer);
-  // visibleWorkingAgents is intentionally read as the previous rendered set;
-  // reacting to our own transition state would restart the exit timer.
-  }, [workingAgents]);
-  const recentAgents = useMemo(() => {
-    const shownWorkingIds = new Set(visibleWorkingAgents.map((agent) => agent.id));
-    return agents
-      .filter((agent) => !shownWorkingIds.has(agent.id))
-      .sort((a, b) => b.lastActivity - a.lastActivity)
-      .slice(0, 4);
-  }, [agents, visibleWorkingAgents]);
-  const [visibleRecentAgents, setVisibleRecentAgents] = useState<Agent[]>(recentAgents);
-  const [exitingRecentIds, setExitingRecentIds] = useState<Set<string>>(new Set());
-  const dockItemRefs = useRef(new Map<string, HTMLButtonElement>());
-  const previousDockPositions = useRef(new Map<string, DOMRect>());
-
-  useEffect(() => {
-    const nextIds = new Set(recentAgents.map((agent) => agent.id));
-    const removed = visibleRecentAgents.filter((agent) => !nextIds.has(agent.id));
-    const removedIds = new Set(removed.map((agent) => agent.id));
-    setVisibleRecentAgents([...recentAgents, ...removed]);
-    setExitingRecentIds(removedIds);
-
-    if (removed.length === 0) return;
-    const timer = window.setTimeout(() => {
-      setVisibleRecentAgents((current) => current.filter((agent) => !removedIds.has(agent.id)));
-      setExitingRecentIds(new Set());
-    }, 260);
-    return () => window.clearTimeout(timer);
-  }, [recentAgents]);
-
-  // FLIP animation: surviving icons glide from their previous screen position
-  // to the new one when recent ordering/membership changes.
-  useLayoutEffect(() => {
-    const nextPositions = new Map<string, DOMRect>();
-    for (const [id, element] of dockItemRefs.current) {
-      const next = element.getBoundingClientRect();
-      nextPositions.set(id, next);
-      const previous = previousDockPositions.current.get(id);
-      if (!previous || exitingRecentIds.has(id)) continue;
-      const deltaX = previous.left - next.left;
-      if (Math.abs(deltaX) < 1) continue;
-      element.animate(
-        [
-          { transform: `translateX(${deltaX}px)` },
-          { transform: 'translateX(0)' },
-        ],
-        { duration: 320, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
-      );
-    }
-    previousDockPositions.current = nextPositions;
-  }, [visibleRecentAgents, visibleWorkingAgents, exitingRecentIds]);
+  const dockPosition = useAgentDockPosition();
 
   // Resolve subordinate Agent objects per boss for the SubordinateProgressDots indicator.
   const subordinatesByBoss = useMemo(() => {
@@ -297,13 +215,15 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     filterMode: 'all',
     sameAreaOnly: false,
     visibleAreaIds: null,
-    showAgentDock: true,
+    visibleProviders: null,
     splitAreas: false,
   }), []);
 
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(() => new Set());
-  const [internalCollapsedAreas, setInternalCollapsedAreas] = useState<Set<string>>(new Set());
-  const collapsedAreas = externalCollapsedAreas ?? internalCollapsedAreas;
+  // Areas render collapsed unless present in this set, so every page load
+  // starts with all areas collapsed.
+  const [internalExpandedAreas, setInternalExpandedAreas] = useState<Set<string>>(new Set());
+  const expandedAreas = externalExpandedAreas ?? internalExpandedAreas;
   const [editingPromptAreaId, setEditingPromptAreaId] = useState<string | null>(null);
   const [editingPromptText, setEditingPromptText] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>(savedConfig.sortMode);
@@ -315,15 +235,19 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   const [areaSearchQuery, setAreaSearchQuery] = useState('');
   const [groupByArea, setGroupByArea] = useState(savedConfig.groupByArea);
   const [sameAreaOnly, setSameAreaOnly] = useState(savedConfig.sameAreaOnly);
-  const [showAgentDock, setShowAgentDock] = useState(savedConfig.showAgentDock !== false);
   const [splitAreas, setSplitAreas] = useState(savedConfig.splitAreas === true);
   const [visibleAreaIds, setVisibleAreaIds] = useState<Set<string> | null>(
     savedConfig.visibleAreaIds ? new Set(savedConfig.visibleAreaIds) : null
   );
+  const [visibleProviders, setVisibleProviders] = useState<Set<string> | null>(
+    savedConfig.visibleProviders ? new Set(savedConfig.visibleProviders) : null
+  );
   const [areaFilterOpen, setAreaFilterOpen] = useState(false);
   const [areaFilterSearch, setAreaFilterSearch] = useState('');
+  const [runtimeFilterOpen, setRuntimeFilterOpen] = useState(false);
   const [bulkManageOpen, setBulkManageOpen] = useState(false);
   const areaFilterRef = useRef<HTMLDivElement>(null);
+  const runtimeFilterRef = useRef<HTMLDivElement>(null);
   const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false
   );
@@ -401,6 +325,18 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     return () => document.removeEventListener('mousedown', handleClick);
   }, [areaFilterOpen]);
 
+  // Close runtime filter dropdown on outside click
+  useEffect(() => {
+    if (!runtimeFilterOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (runtimeFilterRef.current && !runtimeFilterRef.current.contains(e.target as Node)) {
+        setRuntimeFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [runtimeFilterOpen]);
+
   // Focus overview search with Alt+Shift+F, or the "search area" input with
   // Ctrl/Cmd+L, when the panel is open.
   useEffect(() => {
@@ -441,10 +377,10 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       filterMode,
       sameAreaOnly,
       visibleAreaIds: visibleAreaIds ? Array.from(visibleAreaIds) : null,
-      showAgentDock,
+      visibleProviders: visibleProviders ? Array.from(visibleProviders) : null,
       splitAreas,
     } as AopConfig);
-  }, [groupByArea, sortMode, filterMode, sameAreaOnly, visibleAreaIds, showAgentDock, splitAreas]);
+  }, [groupByArea, sortMode, filterMode, sameAreaOnly, visibleAreaIds, visibleProviders, splitAreas]);
 
   // List of non-archived areas for the filter dropdown
   const availableAreas = useMemo(() => {
@@ -490,6 +426,41 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
 
   const toggleAllAreas = useCallback(() => {
     setVisibleAreaIds(prev => (prev === null ? new Set<string>() : null));
+  }, []);
+
+  // Distinct agent runtimes (providers) currently present, in a stable order.
+  // Drives the runtime filter dropdown — hidden entirely when only one runtime
+  // is in use, since filtering by it would be a no-op.
+  const availableProviders = useMemo(() => {
+    const present = new Set<string>();
+    for (const agent of agents) present.add(agent.provider || 'claude');
+    const order = ['claude', 'codex', 'opencode', 'grok'];
+    const known = order.filter(p => present.has(p));
+    const extras = Array.from(present).filter(p => !order.includes(p)).sort();
+    return [...known, ...extras];
+  }, [agents]);
+
+  // Runtime filter helpers (mirror the area filter: null = show all runtimes)
+  const isAllRuntimesVisible = visibleProviders === null;
+  const toggleProviderVisibility = useCallback((provider: string) => {
+    setVisibleProviders(prev => {
+      if (prev === null) {
+        // Switch from "all" to "all except this one"
+        const next = new Set(availableProviders);
+        next.delete(provider);
+        return next;
+      }
+      const next = new Set(prev);
+      if (next.has(provider)) next.delete(provider);
+      else next.add(provider);
+      // If every available runtime is now selected, collapse back to null (= "all")
+      if (next.size >= availableProviders.length) return null;
+      return next;
+    });
+  }, [availableProviders]);
+
+  const toggleAllRuntimes = useCallback(() => {
+    setVisibleProviders(prev => (prev === null ? new Set<string>() : null));
   }, []);
 
   // Map agent -> area info (color + name) for badge display
@@ -559,6 +530,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       if (filterMode === 'working' && a.status !== 'working') return false;
       if (filterMode === 'idle' && a.status !== 'idle') return false;
       if (filterMode === 'error' && a.status !== 'error') return false;
+      if (visibleProviders && !visibleProviders.has(a.provider || 'claude')) return false;
       if (sameAreaOnly) {
         const aAreaId = agentToAreaId.get(a.id) ?? null;
         if (aAreaId !== activeAreaId) return false;
@@ -602,7 +574,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     });
 
     return [result, contexts] as const;
-  }, [agents, filterMode, searchQuery, areaSearchQuery, agentAreaSearchName, sameAreaOnly, agentToAreaId, activeAgentId, fileChanges]);
+  }, [agents, filterMode, searchQuery, areaSearchQuery, agentAreaSearchName, sameAreaOnly, agentToAreaId, activeAgentId, fileChanges, visibleProviders]);
 
   // Sort agents within groups — uses stable ordering to prevent scroll-jumping.
   // A full re-sort only happens when the agent set changes (add/remove) or when
@@ -793,31 +765,19 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   };
 
   const toggleArea = (areaKey: string) => {
-    if (splitAreas && groupByArea && !collapsedAreas.has(areaKey)) {
-      // The currently open area is being closed.
-      if (externalOnToggleArea) externalOnToggleArea(areaKey);
-      else setInternalCollapsedAreas((previous) => new Set(previous).add(areaKey));
-      return;
-    }
     if (splitAreas && groupByArea) {
-      const otherAreaKeys = areaGroups
-        .map((group) => group.area?.id || '__unassigned__')
-        .filter((key) => key !== areaKey);
-      if (externalOnToggleArea) {
-        // Order matters for React's queued parent-state updates: open the
-        // target first, then replace the collapsed set with every other area.
-        externalOnToggleArea(areaKey);
-        onCollapseAllAreas?.(otherAreaKeys);
-      } else {
-        setInternalCollapsedAreas(new Set(otherAreaKeys));
-      }
+      // Accordion: opening an area closes every other one; closing the open
+      // area leaves everything collapsed.
+      const nextKeys = expandedAreas.has(areaKey) ? [] : [areaKey];
+      if (onSetExpandedAreas) onSetExpandedAreas(nextKeys);
+      else setInternalExpandedAreas(new Set(nextKeys));
       return;
     }
     if (externalOnToggleArea) {
       externalOnToggleArea(areaKey);
       return;
     }
-    setInternalCollapsedAreas(prev => {
+    setInternalExpandedAreas(prev => {
       const next = new Set(prev);
       if (next.has(areaKey)) next.delete(areaKey);
       else next.add(areaKey);
@@ -832,15 +792,18 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   useEffect(() => {
     if (!activeAgentId) return;
     const areaKey = agentToAreaId.get(activeAgentId) ?? '__unassigned__';
-    if (!collapsedAreas.has(areaKey)) return;
-    if (externalOnToggleArea) {
+    if (expandedAreas.has(areaKey)) return;
+    if (splitAreas && groupByArea) {
+      // Accordion mode: the selected agent's area replaces the open one
+      // instead of piling up next to it.
+      if (onSetExpandedAreas) onSetExpandedAreas([areaKey]);
+      else setInternalExpandedAreas(new Set([areaKey]));
+    } else if (externalOnToggleArea) {
       externalOnToggleArea(areaKey);
     } else {
-      setInternalCollapsedAreas(prev => {
-        if (!prev.has(areaKey)) return prev;
-        const next = new Set(prev);
-        next.delete(areaKey);
-        return next;
+      setInternalExpandedAreas(prev => {
+        if (prev.has(areaKey)) return prev;
+        return new Set(prev).add(areaKey);
       });
     }
     // Depend only on the agent id so a later user-driven collapse of the same
@@ -1083,7 +1046,19 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         <button
           type="button"
           className={`action-btn action-btn--toggle${splitAreas ? ' active' : ''}`}
-          onClick={() => setSplitAreas((enabled) => !enabled)}
+          onClick={() => {
+            const enabling = !splitAreas;
+            setSplitAreas(enabling);
+            // Entering accordion mode with several areas already expanded
+            // would violate the one-open-area invariant; keep only the
+            // active agent's area (when expanded) and collapse the rest.
+            if (enabling && groupByArea && expandedAreas.size > 1) {
+              const activeAreaKey = agentToAreaId.get(activeAgentId) ?? '__unassigned__';
+              const keep = expandedAreas.has(activeAreaKey) ? [activeAreaKey] : [];
+              if (onSetExpandedAreas) onSetExpandedAreas(keep);
+              else setInternalExpandedAreas(new Set(keep));
+            }
+          }}
           title="Show areas in the bottom dock"
           aria-pressed={splitAreas}
         >
@@ -1161,10 +1136,42 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
             )}
           </div>
         )}
-        {groupByArea && onCollapseAllAreas && areaGroups.length > 0 && (
+        {availableProviders.length > 1 && (
+          <div className="aop-runtime-filter" ref={runtimeFilterRef}>
+            <button
+              className={`action-btn action-btn--toggle${!isAllRuntimesVisible ? ' active' : ''}`}
+              onClick={() => setRuntimeFilterOpen(v => !v)}
+              title="Filter runtimes"
+            >
+              {isAllRuntimesVisible ? 'All runtimes' : `${visibleProviders!.size} runtimes`}
+              <span className="aop-area-filter-caret"><Icon name={runtimeFilterOpen ? 'caret-up' : 'caret-down'} size={10} /></span>
+            </button>
+            {runtimeFilterOpen && (
+              <div className="aop-area-filter-dropdown">
+                <label className="aop-area-filter-option" onClick={(e) => { e.preventDefault(); toggleAllRuntimes(); }}>
+                  <input type="checkbox" checked={isAllRuntimesVisible} readOnly />
+                  <span className="aop-area-filter-color" style={{ background: '#6272a4' }} />
+                  <span>All</span>
+                </label>
+                <div className="aop-area-filter-divider" />
+                {availableProviders.map(provider => {
+                  const checked = isAllRuntimesVisible || (visibleProviders?.has(provider) ?? false);
+                  return (
+                    <label key={provider} className="aop-area-filter-option" onClick={(e) => { e.preventDefault(); toggleProviderVisibility(provider); }}>
+                      <input type="checkbox" checked={checked} readOnly />
+                      <img src={providerAssetUrl(provider, import.meta.env.BASE_URL)} alt="" className="aop-runtime-filter-icon" />
+                      <span className="aop-area-filter-name">{providerLabel(provider)}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+        {groupByArea && onSetExpandedAreas && areaGroups.length > 0 && (
           <button
             type="button"
-            onClick={() => onCollapseAllAreas(areaGroups.map(group => group.area?.id || '__unassigned__'))}
+            onClick={() => onSetExpandedAreas([])}
             className="action-btn"
             title="Collapse all areas"
           >
@@ -1190,7 +1197,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
             const areaName = group.area?.name || (groupByArea ? t('terminal:overview.unassigned') : '');
             const areaColor = group.area?.color || '#6272a4';
             const workingAgentCount = group.agents.filter(agent => agent.status === 'working').length;
-            const isCollapsed = collapsedAreas.has(areaKey);
+            const isCollapsed = !expandedAreas.has(areaKey);
 
             return (
               <React.Fragment key={`${splitAreas && groupIndex < splitAreaDividerIndex ? 'recent' : 'all'}-${areaKey}-${groupIndex}`}>
@@ -1345,116 +1352,9 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         )}
       </div>
 
-      <div
-        className={`aop-working-strip${workingAgents.length === 0 ? ' no-working' : ''}${showAgentDock ? '' : ' collapsed'}`}
-        role="toolbar"
-        aria-label="Recent and working agents"
-      >
-        <Tooltip
-          content={showAgentDock ? 'Hide agent activity dock' : 'Show agent activity dock'}
-          position="top"
-          delay={120}
-          triggerStyle={{ display: 'contents' }}
-        >
-          <button
-            type="button"
-            className="aop-working-strip-toggle"
-            onClick={() => setShowAgentDock((shown) => !shown)}
-            aria-label={showAgentDock ? 'Hide agent activity dock' : 'Show agent activity dock'}
-            aria-expanded={showAgentDock}
-          >
-            <Icon name={showAgentDock ? 'caret-down' : 'caret-up'} size={11} />
-          </button>
-        </Tooltip>
-        {showAgentDock && (
-          <>
-        {visibleRecentAgents.map((agent) => {
-          const isActive = agent.id === activeAgentId;
-          const hasUnread = agentsWithUnseenOutput.has(agent.id);
-          const area = store.getAreaForAgent(agent.id);
-          const areaColor = area?.color;
-          return (
-            <Tooltip
-              key={`recent-${agent.id}`}
-              position="top"
-              delay={120}
-              maxWidth={240}
-              triggerStyle={{ display: 'contents' }}
-              content={(
-                <div className="aop-dock-tooltip">
-                  <strong>{agent.name}</strong>
-                  <span className="aop-dock-tooltip-status recent">Recently active</span>
-                  <small>{agent.provider}{area?.name ? ` · ${area.name}` : ''}</small>
-                  {hasUnread && <span className="aop-dock-tooltip-unread">Unread output</span>}
-                </div>
-              )}
-            >
-              <button
-                ref={(element) => {
-                  if (element) dockItemRefs.current.set(agent.id, element);
-                  else dockItemRefs.current.delete(agent.id);
-                }}
-                type="button"
-                className={`aop-working-thumb recent${isActive ? ' active' : ''}${exitingRecentIds.has(agent.id) ? ' exiting-recent' : ''}`}
-                style={areaColor ? ({ '--aop-thumb-area': areaColor } as React.CSSProperties) : undefined}
-                aria-label={`Open ${agent.name}, recently active`}
-                onClick={() => onSelectAgent(agent.id)}
-                onMouseEnter={() => prefetchAgentHistory(agent.id)}
-              >
-                <AgentIcon agent={agent} size="100%" customClasses={customClasses} />
-                <img src={providerAssetUrl(agent.provider, import.meta.env.BASE_URL)} alt="" className="aop-working-thumb-provider" />
-                {hasUnread && <span className="aop-working-thumb-unread" aria-hidden="true" />}
-              </button>
-            </Tooltip>
-          );
-        })}
-        {visibleRecentAgents.length > 0 && visibleWorkingAgents.length > 0 && (
-          <span className="aop-working-strip-divider" aria-hidden="true" />
-        )}
-          {visibleWorkingAgents.map((agent) => {
-            const isActive = agent.id === activeAgentId;
-            const hasUnread = agentsWithUnseenOutput.has(agent.id);
-            const area = store.getAreaForAgent(agent.id);
-            const areaColor = area?.color;
-            return (
-              <Tooltip
-                key={agent.id}
-                position="top"
-                delay={120}
-                maxWidth={240}
-                triggerStyle={{ display: 'contents' }}
-                content={(
-                  <div className="aop-dock-tooltip">
-                    <strong>{agent.name}</strong>
-                    <span className="aop-dock-tooltip-status working">Working now</span>
-                    <small>{agent.provider}{area?.name ? ` · ${area.name}` : ''}</small>
-                    {hasUnread && <span className="aop-dock-tooltip-unread">Unread output</span>}
-                  </div>
-                )}
-              >
-                <button
-                  ref={(element) => {
-                    const refKey = `working:${agent.id}`;
-                    if (element) dockItemRefs.current.set(refKey, element);
-                    else dockItemRefs.current.delete(refKey);
-                  }}
-                  type="button"
-                  className={`aop-working-thumb${isActive ? ' active' : ''}${exitingWorkingIds.has(agent.id) ? ' exiting' : ''}`}
-                  style={areaColor ? ({ '--aop-thumb-area': areaColor } as React.CSSProperties) : undefined}
-                  aria-label={`Open ${agent.name}, working`}
-                  onClick={() => onSelectAgent(agent.id)}
-                  onMouseEnter={() => prefetchAgentHistory(agent.id)}
-                >
-                  <AgentIcon agent={agent} size="100%" customClasses={customClasses} />
-                  <img src={providerAssetUrl(agent.provider, import.meta.env.BASE_URL)} alt="" className="aop-working-thumb-provider" />
-                  {hasUnread && <span className="aop-working-thumb-unread" aria-hidden="true" />}
-                </button>
-              </Tooltip>
-            );
-          })}
-          </>
-        )}
-      </div>
+      {dockPosition === 'overview' && (
+        <AgentActivityDock activeAgentId={activeAgentId} onSelectAgent={onSelectAgent} />
+      )}
 
       <ContextMenu
         isOpen={areaContextMenu !== null}

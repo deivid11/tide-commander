@@ -1,0 +1,184 @@
+import { describe, expect, it } from 'vitest';
+import {
+  buildDockRoster,
+  settleWorkingHolds,
+  settleWorkRecency,
+  DOCK_RECENT_SIZE,
+  DOCK_WORKING_HOLD_MS,
+  EMPTY_DOCK_SLOTS,
+} from '../dockRoster';
+import type { Agent } from '../../../../shared/types';
+
+function agent(id: string, status: Agent['status'], lastActivity: number): Agent {
+  return { id, status, lastActivity } as Agent;
+}
+
+describe('settleWorkingHolds', () => {
+  it('keeps an agent working across the idle gaps between tool calls', () => {
+    const releaseAt = new Map<string, number>();
+
+    settleWorkingHolds([agent('a', 'working', 0)], releaseAt, 1_000);
+    // The agent blinks to idle a moment later, as it does between tool calls.
+    const gap = settleWorkingHolds([agent('a', 'idle', 0)], releaseAt, 1_500);
+
+    expect(gap.workingIds).toEqual(new Set(['a']));
+    expect(gap.nextDeadline).toBe(1_000 + DOCK_WORKING_HOLD_MS);
+  });
+
+  it('releases the slot once the agent stays idle past the hold', () => {
+    const releaseAt = new Map<string, number>();
+    settleWorkingHolds([agent('a', 'working', 0)], releaseAt, 1_000);
+
+    const settled = settleWorkingHolds([agent('a', 'idle', 0)], releaseAt, 1_000 + DOCK_WORKING_HOLD_MS + 1);
+
+    expect(settled.workingIds.size).toBe(0);
+    expect(settled.nextDeadline).toBeNull();
+    expect(releaseAt.size).toBe(0);
+  });
+
+  it('re-arms the hold while the agent keeps working', () => {
+    const releaseAt = new Map<string, number>();
+    settleWorkingHolds([agent('a', 'working', 0)], releaseAt, 1_000);
+
+    const later = settleWorkingHolds([agent('a', 'working', 0)], releaseAt, 5_000);
+
+    expect(later.workingIds).toEqual(new Set(['a']));
+    expect(later.nextDeadline).toBe(5_000 + DOCK_WORKING_HOLD_MS);
+  });
+
+  it('drops an agent that left the roster instead of holding its slot', () => {
+    const releaseAt = new Map<string, number>();
+    settleWorkingHolds([agent('a', 'working', 0)], releaseAt, 1_000);
+
+    const removed = settleWorkingHolds([], releaseAt, 1_100);
+
+    expect(removed.workingIds.size).toBe(0);
+    expect(releaseAt.has('a')).toBe(false);
+  });
+});
+
+describe('settleWorkRecency', () => {
+  it('seeds from lastActivity on first sight, clamped to now', () => {
+    const state = new Map<string, number>();
+
+    settleWorkRecency([agent('old', 'idle', 500), agent('skewed', 'idle', 99_999)], state, 1_000);
+
+    expect(state.get('old')).toBe(500);
+    expect(state.get('skewed')).toBe(1_000);
+  });
+
+  it('ignores later lastActivity bumps — a click must not create recency', () => {
+    const state = new Map<string, number>();
+    settleWorkRecency([agent('a', 'idle', 500)], state, 1_000);
+
+    // The user clicks the agent; the server restamps lastActivity.
+    settleWorkRecency([agent('a', 'idle', 2_000)], state, 2_000);
+
+    expect(state.get('a')).toBe(500);
+  });
+
+  it('advances recency when the agent is actually observed working', () => {
+    const state = new Map<string, number>();
+    settleWorkRecency([agent('a', 'idle', 500)], state, 1_000);
+
+    settleWorkRecency([agent('a', 'working', 500)], state, 3_000);
+
+    expect(state.get('a')).toBe(3_000);
+  });
+
+  it('drops agents that left the roster', () => {
+    const state = new Map<string, number>();
+    settleWorkRecency([agent('a', 'idle', 500)], state, 1_000);
+
+    settleWorkRecency([], state, 2_000);
+
+    expect(state.size).toBe(0);
+  });
+});
+
+describe('buildDockRoster', () => {
+  it('keeps recent-lane membership fixed when only lastActivity moves (a click)', () => {
+    // Five idle agents, four slots; 'e' is the least recent and stays out.
+    const ids = ['a', 'b', 'c', 'd', 'e'];
+    const recency = new Map(ids.map((id, i) => [id, 1_000 - i]));
+    const before = ids.map((id) => agent(id, 'idle', 0));
+    const first = buildDockRoster(before, new Set(), EMPTY_DOCK_SLOTS, recency);
+    expect(first.slots.recent).toEqual(['a', 'b', 'c', 'd']);
+
+    // The user clicks 'e' — the server restamps its lastActivity sky-high, but
+    // its settled recency is unchanged, so the lane must not churn.
+    const afterClick = before.map((a) => (a.id === 'e' ? agent('e', 'idle', 999_999) : a));
+    const second = buildDockRoster(afterClick, new Set(), first.slots, recency);
+
+    expect(second.slots.recent).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('holds each working agent in the slot it already occupies', () => {
+    const agents = [agent('a', 'working', 100), agent('b', 'working', 900)];
+    const workingIds = new Set(['a', 'b']);
+
+    // 'b' is now the more recent, but reordering live would be pure churn.
+    const { entries, slots } = buildDockRoster(agents, workingIds, { working: ['a', 'b'], recent: [] });
+
+    expect(slots.working).toEqual(['a', 'b']);
+    expect(entries.map((entry) => entry.agent.id)).toEqual(['a', 'b']);
+  });
+
+  it('holds recent slots too, so opening an agent does not reshuffle the lane', () => {
+    // Merely opening an agent provokes an updateAgent, which restamps
+    // lastActivity — the lane must not jump it to the front under the cursor.
+    const before = [agent('x', 'idle', 100), agent('y', 'idle', 90)];
+    const first = buildDockRoster(before, new Set(), EMPTY_DOCK_SLOTS);
+    expect(first.slots.recent).toEqual(['x', 'y']);
+
+    const afterClick = [agent('x', 'idle', 100), agent('y', 'idle', 5_000)];
+    const second = buildDockRoster(afterClick, new Set(), first.slots);
+
+    expect(second.slots.recent).toEqual(['x', 'y']);
+    expect(second.entries.map((entry) => entry.agent.id)).toEqual(['x', 'y']);
+  });
+
+  it('places newcomers behind the agents already docked, most recent first', () => {
+    const agents = [agent('a', 'working', 100), agent('new-old', 'working', 200), agent('new-fresh', 'working', 800)];
+
+    const { slots } = buildDockRoster(agents, new Set(['a', 'new-old', 'new-fresh']), { working: ['a'], recent: [] });
+
+    expect(slots.working).toEqual(['a', 'new-fresh', 'new-old']);
+  });
+
+  it('frees the slot of an agent that left, without disturbing the others', () => {
+    const agents = [agent('a', 'working', 0), agent('c', 'working', 0)];
+
+    const { slots } = buildDockRoster(agents, new Set(['a', 'c']), { working: ['a', 'b', 'c'], recent: [] });
+
+    expect(slots.working).toEqual(['a', 'c']);
+  });
+
+  it('picks recent-lane membership by activity and caps it', () => {
+    const agents = Array.from({ length: DOCK_RECENT_SIZE + 3 }, (_, i) => agent(`idle-${i}`, 'idle', i));
+
+    const { entries } = buildDockRoster(agents, new Set(), EMPTY_DOCK_SLOTS);
+
+    expect(entries).toHaveLength(DOCK_RECENT_SIZE);
+    expect(entries.every((entry) => entry.lane === 'recent')).toBe(true);
+    expect(entries[0].agent.id).toBe(`idle-${DOCK_RECENT_SIZE + 2}`);
+  });
+
+  it('renders the recent lane before the working lane and never lists an agent twice', () => {
+    const agents = [agent('busy', 'working', 500), agent('done', 'idle', 400)];
+
+    const { entries } = buildDockRoster(agents, new Set(['busy']), EMPTY_DOCK_SLOTS);
+
+    expect(entries.map((entry) => [entry.agent.id, entry.lane])).toEqual([
+      ['done', 'recent'],
+      ['busy', 'working'],
+    ]);
+  });
+
+  it('keeps an agent held by the working hold out of the recent lane', () => {
+    // 'a' reads as idle but still holds its working slot — it must not appear twice.
+    const { entries } = buildDockRoster([agent('a', 'idle', 100)], new Set(['a']), { working: ['a'], recent: [] });
+
+    expect(entries.map((entry) => [entry.agent.id, entry.lane])).toEqual([['a', 'working']]);
+  });
+});

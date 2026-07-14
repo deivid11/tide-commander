@@ -17,8 +17,7 @@ import { providerClosesStdinAfterPrompt } from '../../../shared/types';
 import type { AttachedFile } from './types';
 import { Icon } from '../Icon';
 import { getPendingMessagesForAgent, removePendingMessageForAgent } from '../../websocket/send';
-import { useMessageQueue, type QueuedMessage } from '../../hooks/useMessageQueue';
-import { useAgentStatusTransition } from '../../hooks/useAgentStatusTransition';
+import { useServerMessageQueue } from '../../hooks/useServerMessageQueue';
 import { QueuedMessagesBar } from './QueuedMessagesBar';
 import { apiUrl, authFetch } from '../../utils/storage';
 
@@ -297,78 +296,55 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   // Grok/Codex/OpenCode cannot inject mid-turn via stdin — queue by default.
   const closesStdin = providerClosesStdinAfterPrompt(selectedAgent.provider);
 
-  const messageQueue = useMessageQueue(selectedAgentId);
+  // Server-side mid-run queue view: messages typed while the agent is busy are
+  // sent to the server right away (sendCommand), which queues and delivers them
+  // itself at turn end — front open or not. This hook only renders/edits it.
+  const serverQueue = useServerMessageQueue(selectedAgentId, isWorking);
 
-  // In-flight force-send ids — ignore auto-drain while a rocket send is running
-  // so a brief working→idle→working blip cannot re-deliver the same prompt.
-  const forceSendLockRef = useRef(false);
-
-  const sendQueuedMessage = useCallback((entry: QueuedMessage, opts?: { forceInterrupt?: boolean }) => {
-    if (!selectedAgentId) return;
-    try {
-      store.sendCommand(selectedAgentId, entry.text, opts);
-      // Entry is already removed from the queue before send; clearError is a
-      // no-op when the id is gone and must never re-add it.
-      messageQueue.clearError(entry.id);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'send failed';
-      // Put it back so the user can retry / delete.
-      const restored = messageQueue.enqueue(entry.text);
-      if (restored) messageQueue.markError(restored.id, msg);
-    }
-  }, [selectedAgentId, messageQueue]);
-
-  useAgentStatusTransition({
-    status: selectedAgent.status,
-    onLeaveWorking: () => {
-      if (forceSendLockRef.current) return;
-      // Confirm still idle — forceInterrupt briefly leaves working then comes back.
-      const live = store.getState().agents.get(selectedAgentId);
-      if (!live || live.status === 'working') return;
-      // Agent just became free — deliver the next queued prompt without interrupt.
-      const next = messageQueue.drainOne();
-      if (next) sendQueuedMessage(next);
-    },
-  });
-
+  // One-time migration: older builds held queued messages in localStorage
+  // (tc-message-queue:<agentId>) and only delivered them while this panel was
+  // open. Flush any leftovers to the server so they deliver back-side.
   useEffect(() => {
-    if (isWorking) return;
-    if (messageQueue.queue.length === 0) return;
-    if (selectedAgent.status === 'working') return;
-    if (forceSendLockRef.current) return;
-    const timer = setTimeout(() => {
-      if (forceSendLockRef.current) return;
-      const live = store.getState().agents.get(selectedAgentId);
-      if (!live || live.status === 'working') return;
-      const next = messageQueue.drainOne();
-      if (next) sendQueuedMessage(next);
-    }, 500);
-    return () => clearTimeout(timer);
-    // Intentionally depend on selectedAgentId only; we want this to fire when
-    // an agent is mounted with a non-empty queue and is idle.
+    if (!selectedAgentId) return;
+    const key = `tc-message-queue:${selectedAgentId}`;
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return;
+      localStorage.removeItem(key);
+      const entries = JSON.parse(raw);
+      if (!Array.isArray(entries)) return;
+      const texts = entries
+        .map((e) => (e && typeof e.text === 'string' ? e.text : null))
+        .filter((t): t is string => !!t);
+      texts.forEach((text, i) => {
+        // Stagger so multi-entry legacy queues keep their order server-side.
+        window.setTimeout(() => store.sendCommand(selectedAgentId, text), 750 * i);
+      });
+    } catch {
+      // Corrupt legacy entry — drop it.
+    }
   }, [selectedAgentId]);
 
   const handleEnforceQueued = useCallback((id: string) => {
-    const entry = messageQueue.queue.find((m) => m.id === id);
+    const entry = serverQueue.queue.find((m) => m.id === id);
     if (!entry) return;
-    // Remove first so the chip disappears immediately and auto-drain cannot
-    // pick this entry up during the forceInterrupt status blip.
-    messageQueue.removeById(id);
-    forceSendLockRef.current = true;
-    try {
+    void (async () => {
+      // Remove from the server queue first so the runner cannot also deliver
+      // it at turn end (double-send). A false result means the queue changed
+      // (likely drained) — the hook already refetched, nothing to send.
+      const removed = await serverQueue.remove(entry);
+      if (!removed) return;
+      const live = store.getState().agents.get(selectedAgentId);
+      const stillWorking = live?.status === 'working';
       // Send now: interrupt the in-flight turn for stdin-closed backends.
-      sendQueuedMessage(entry, { forceInterrupt: isWorking && closesStdin });
-    } finally {
-      // Hold the lock long enough to cover stop→respawn status churn.
-      window.setTimeout(() => {
-        forceSendLockRef.current = false;
-      }, 1500);
-    }
-  }, [messageQueue, sendQueuedMessage, isWorking, closesStdin]);
+      store.sendCommand(selectedAgentId, entry.text, { forceInterrupt: stillWorking && closesStdin });
+    })();
+  }, [serverQueue, selectedAgentId, closesStdin]);
 
   const handleDeleteQueued = useCallback((id: string) => {
-    messageQueue.removeById(id);
-  }, [messageQueue]);
+    const entry = serverQueue.queue.find((m) => m.id === id);
+    if (entry) void serverQueue.remove(entry);
+  }, [serverQueue]);
 
   const focusGuakeInputContainer = useCallback(() => {
     const container = inputContainerRef.current;
@@ -745,27 +721,10 @@ export const TerminalInputArea = memo(function TerminalInputArea({
       fullCommand = fullCommand ? `${fullCommand}\n\n${mentionTokens}` : mentionTokens;
     }
 
-    // Stdin-closed backends (Grok/Codex/OpenCode) mid-run: queue until free
-    // instead of interrupting. User can force-send via the queue bar "Send now".
-    // Claude still injects mid-turn via stdin (sendCommand path below).
-    if (isWorking && closesStdin) {
-      messageQueue.enqueue(fullCommand);
-      onSendCommand?.();
-      setCommand('');
-      setForceTextarea(false);
-      setPastedTexts(new Map());
-      setAttachedFiles([]);
-      setFileMentions([]);
-      closeMention();
-      resetPastedCount();
-      const isMobileQueued = window.innerWidth <= 768;
-      if (isMobileQueued) {
-        inputRef.current?.blur();
-        textareaRef.current?.blur();
-      }
-      return;
-    }
-
+    // Mid-run messages for stdin-closed backends (Grok/Codex/OpenCode) are
+    // queued SERVER-side by sendCommand and delivered when the turn ends —
+    // no front needs to stay open. The queue bar (server snapshot) offers
+    // "Send now" to interrupt instead. Claude injects mid-turn via stdin.
     store.sendCommand(selectedAgentId, fullCommand);
     onSendCommand?.();
     setCommand('');
@@ -820,7 +779,9 @@ export const TerminalInputArea = memo(function TerminalInputArea({
           return;
         }
         e.preventDefault();
-        messageQueue.enqueue(text);
+        // Queue-without-interrupt is server-side now: sending while the agent
+        // is busy queues on the server and delivers at turn end.
+        store.sendCommand(selectedAgentId, text);
         setCommand('');
         setForceTextarea(false);
         setPastedTexts(new Map());
@@ -1184,7 +1145,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
       )}
 
       <QueuedMessagesBar
-        queue={messageQueue.queue}
+        queue={serverQueue.queue}
         isWorking={isWorking}
         onEnforce={handleEnforceQueued}
         onDelete={handleDeleteQueued}

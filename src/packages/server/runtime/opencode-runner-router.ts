@@ -72,6 +72,21 @@ export class OpencodeRunnerRouter implements RuntimeRunner {
     return this.ownerRunner(agentId).sendMessage(agentId, message);
   }
 
+  async interruptTurn(agentId: string, clearQueue?: boolean): Promise<boolean> {
+    const owner = this.ownerRunner(agentId);
+    // Only the server runner can interrupt a turn in place; `opencode run`
+    // falls back to the caller's stop+respawn path.
+    return owner.interruptTurn ? owner.interruptTurn(agentId, clearQueue) : false;
+  }
+
+  getQueuedMessages(agentId: string): string[] {
+    return this.ownerRunner(agentId).getQueuedMessages?.(agentId) ?? [];
+  }
+
+  removeQueuedMessage(agentId: string, index: number, expectedText: string): boolean {
+    return this.ownerRunner(agentId).removeQueuedMessage?.(agentId, index, expectedText) ?? false;
+  }
+
   async stop(agentId: string, clearQueue?: boolean): Promise<void> {
     await this.run_.stop(agentId, clearQueue);
     await this.server.stop(agentId, clearQueue);

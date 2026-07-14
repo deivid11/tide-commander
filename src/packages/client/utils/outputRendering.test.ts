@@ -136,6 +136,84 @@ describe('Codex exec activity summaries', () => {
     });
   });
 
+  it('parses rg -l files-only output as whole-file entries (line 0)', () => {
+    const input = { command: 'rg -l "needle|other" /home/user/project --glob \'!node_modules\' -i' };
+    expect(parseCodexGrepResults(input, '/home/user/project/src/A.ts\n/home/user/project/src/B.tsx\n'))
+      .toEqual({
+        query: 'needle|other',
+        matches: [
+          { path: '/home/user/project/src/A.ts', line: 0, text: '' },
+          { path: '/home/user/project/src/B.tsx', line: 0, text: '' },
+        ],
+      });
+  });
+
+  it('parses native Grep files_with_matches output, skipping the Found header', () => {
+    expect(parseCodexGrepResults(
+      { pattern: 'needle', path: 'src', output_mode: 'files_with_matches' },
+      'Found 2 files\nsrc/A.ts\nsrc/B.ts',
+    )).toEqual({
+      query: 'needle',
+      matches: [
+        { path: 'src/A.ts', line: 0, text: '' },
+        { path: 'src/B.ts', line: 0, text: '' },
+      ],
+    });
+  });
+
+  it('parses count-mode output by stripping the :count suffix', () => {
+    expect(parseCodexGrepResults(
+      { pattern: 'needle', path: 'src', output_mode: 'count' },
+      'src/A.ts:3\nsrc/B.ts:1',
+    )).toEqual({
+      query: 'needle',
+      matches: [
+        { path: 'src/A.ts', line: 0, text: '' },
+        { path: 'src/B.ts', line: 0, text: '' },
+      ],
+    });
+  });
+
+  it('does not misread arbitrary command output as a file list', () => {
+    expect(parseCodexGrepResults(
+      { command: 'rg -l "needle" src' },
+      'error: something went wrong while searching',
+    )).toEqual({ query: 'needle', matches: [] });
+  });
+
+  it('attributes single-file rg output without path prefixes to the command target', () => {
+    const input = { command: 'rg -n \'"test"|"typecheck"|"check"|vitest\' /home/user/project/package.json | head' };
+    expect(parseCodexGrepResults(input, '35:    "test": "vitest run",\n139:    "vitest": "^4.0.17"'))
+      .toEqual({
+        query: '"test"|"typecheck"|"check"|vitest',
+        matches: [
+          { path: '/home/user/project/package.json', line: 35, text: '"test": "vitest run",' },
+          { path: '/home/user/project/package.json', line: 139, text: '"vitest": "^4.0.17"' },
+        ],
+      });
+  });
+
+  it('keeps prefixed parsing for multi-file grep commands', () => {
+    const input = { command: 'rg -n "toolOutput" src/a.ts src/b.ts 2>/dev/null | head -40' };
+    expect(parseCodexGrepResults(input, 'src/a.ts:5:toolOutput x\nsrc/b.ts:9:toolOutput y'))
+      .toEqual({
+        query: 'toolOutput',
+        matches: [
+          { path: 'src/a.ts', line: 5, text: 'toolOutput x' },
+          { path: 'src/b.ts', line: 9, text: 'toolOutput y' },
+        ],
+      });
+  });
+
+  it('does not scope a directory target (its output keeps path prefixes)', () => {
+    const input = { command: 'rg -n "needle" src --glob \'!node_modules\' | head' };
+    expect(parseCodexGrepResults(input, 'src/A.ts:12:const needle = 1;'))
+      .toEqual({
+        query: 'needle',
+        matches: [{ path: 'src/A.ts', line: 12, text: 'const needle = 1;' }],
+      });
+  });
+
   it('recognizes a Codex exec wrapper persisted inside a Bash command field', () => {
     const input = { command: 'const r = await tools.exec_command({cmd: "rg -n \\\"flat mode\\\" src"}); text(r.output)' };
     expect(isCodexExecWrapper(input)).toBe(true);

@@ -39,8 +39,8 @@ describe('CodexAppServerEventAdapter', () => {
       item: { id: 'c1', type: 'commandExecution', command: 'echo hi', aggregatedOutput: 'hi\n', exitCode: 0 },
     });
 
-    expect(start).toEqual([{ type: 'tool_start', toolName: 'Bash', toolInput: { command: 'echo hi', status: 'in_progress' } }]);
-    expect(done).toEqual([{ type: 'tool_result', toolName: 'Bash', toolOutput: 'hi\n' }]);
+    expect(start).toEqual([{ type: 'tool_start', toolName: 'Bash', toolInput: { command: 'echo hi', status: 'in_progress' }, uuid: 'c1', toolUseId: 'c1' }]);
+    expect(done).toEqual([{ type: 'tool_result', toolName: 'Bash', toolOutput: 'hi\n', uuid: 'c1', toolUseId: 'c1' }]);
   });
 
   it('renders a file change as an Edit with the inline unified diff', () => {

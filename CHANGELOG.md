@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.163.0] - 2026-07-14
+
+### Added
+- **Agent activity dock placement** - Settings → General → "Agent activity dock" now picks where the recent/working agent thumbnails live: the overview panel, the pinned agents row above the composer, or hidden entirely.
+- **Active view for the agents row** - the pinned bar's mode button cycles All → Status → Area → Active, where Active narrows the row to pins that are working or were active in the last 10 minutes.
+- **Runtime filter in the agent overview** - filter the agent list by runtime (Claude / Codex / OpenCode / Grok); shown only when more than one runtime is in use, and the selection persists.
+- **Pin straight from the agents row** - right-click an unpinned working/recently-active chip to pin it; right-click still unpins a pin.
+
+### Changed
+- **Mid-run message queue moved to the server** - messages sent while an agent is busy are now queued by the server and delivered the moment the turn ends, whether or not a browser is open. The queue bar shows the same queue on every device and survives reloads; queues left in older builds migrate automatically on first open.
+- **"Send now" keeps the session alive** - on Codex app-server and OpenCode serve, forcing a queued message interrupts the running turn in place instead of killing and respawning the agent, so the thread/session and the other queued messages survive.
+- **Queued-message feedback for streaming backends** - mid-run messages to Codex app-server / OpenCode serve now show the queued chip and system line like the other backends, instead of queueing invisibly.
+- **Pinned agents row** - chips are icon-only by default, hold your manual pin order instead of reshuffling by recency, glide to their new slot rather than teleporting, and the row itself is more compact.
+- **Overview areas start collapsed** - every page load opens with all areas collapsed instead of all expanded.
+- **Dock ordering ignores clicks** - merely opening an agent no longer counts as activity, so the dock and pinned row stop reshuffling under the cursor; working thumbnails also hold their slot across the brief gaps between tool calls instead of flickering out and back.
+
+### Fixed
+- **Interrupt noise** - "Send now" no longer leaves a bogus "Aborted" error or an "(Empty response: …)" dump in the chat.
+- **Codex command output on tool cards** - Bash/Read/Grep results attach to their card live instead of reading "No output captured" until a history reload.
+- **Files-only searches** - `rg -l` / `grep -l` / files_with_matches results now list the matching files instead of showing "No captured matches", and the header counts files rather than matches.
+- **Single-file grep attribution** - matches from a search scoped to one file now resolve to that file and open it at the right line.
+- **Claude weekly usage gauges** - per-model weekly allowances (Opus / Fable) are read from the endpoint's `limits` array, restoring gauges that had gone blank.
+
 ## [1.162.0] - 2026-07-14
 
 ### Added

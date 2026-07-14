@@ -76,58 +76,7 @@ export function formatRelativeTime(timestamp: number): string {
  * pick contributes to an agent's "recently used" recency even when that agent has
  * no recent server-side activity. Capped to the most-recent entries.
  */
-const RECENT_AGENTS_STORAGE_KEY = 'tide-commander:spotlight-recent-agents';
-const RECENT_AGENTS_MAX = 15;
-
-/**
- * Read the map of agentId -> last-selected timestamp (epoch ms). Safe if storage
- * is unavailable. Legacy values (a plain id array from older builds) are ignored
- * — recency cleanly falls back to server activity until new selections are made.
- */
-export function getRecentAgentTimes(): Record<string, number> {
-  try {
-    const raw = localStorage.getItem(RECENT_AGENTS_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    const out: Record<string, number> = {};
-    for (const [id, ts] of Object.entries(parsed)) {
-      if (typeof id === 'string' && typeof ts === 'number') out[id] = ts;
-    }
-    return out;
-  } catch {
-    return {};
-  }
-}
-
-/** Record an agent as just-used from Spotlight (stamps it with the current time). */
-export function recordRecentAgent(agentId: string): void {
-  try {
-    const times = getRecentAgentTimes();
-    times[agentId] = Date.now();
-    // Keep only the most-recent entries so the map cannot grow unbounded.
-    const trimmed = Object.entries(times)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, RECENT_AGENTS_MAX);
-    localStorage.setItem(RECENT_AGENTS_STORAGE_KEY, JSON.stringify(Object.fromEntries(trimmed)));
-  } catch {
-    // Ignore storage failures (private mode, quota) — the MRU boost is a nicety.
-  }
-}
-
-/**
- * Absolute "recently used" timestamp for an agent (epoch ms): the later of its
- * server-side last activity and its last explicit Spotlight selection. Higher =
- * more recent. Used as the descending sort key for the empty-query agent list.
- */
-export function agentRecency(
-  agentId: string | undefined,
-  lastActivity: number | undefined,
-  recentTimes: Record<string, number>
-): number {
-  const selected = agentId ? recentTimes[agentId] ?? 0 : 0;
-  return Math.max(lastActivity ?? 0, selected);
-}
+export { getRecentAgentTimes, recordRecentAgent, agentRecency } from '../../utils/agentRecency';
 
 /**
  * MRU tracking for buildings opened/focused, mirroring the agent MRU above.

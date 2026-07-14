@@ -73,6 +73,7 @@ import { SearchBar } from './TerminalHeader';
 import { SearchResultsPanel } from './SearchResultsPanel';
 import { TerminalInputArea } from './TerminalInputArea';
 import { PinnedAgentsBar } from './PinnedAgentsBar';
+import { useAgentDockPosition } from './agentDockPosition';
 import { VirtualizedOutputList } from './VirtualizedOutputList';
 // AgentPromptCard import removed — interactive prompt UI now renders inline
 // in the matching tool_use chip via AskQuestionInput / ExitPlanModeInput
@@ -596,6 +597,8 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // auto-scroll immediately re-anchors), on send, or on agent switch.
   // Exception: a changed FIRST entry means load-more prepended an older page —
   // apply it (the list's prepend anchoring compensates scrollTop).
+  const dockPosition = useAgentDockPosition();
+
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const frozenHistoryRef = useRef<{
     items: EnrichedHistoryMessage[];
@@ -1386,8 +1389,11 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       {/* Composer stack: pinned bar + input share one fixed bottom unit on mobile
           so the pin pill never floats over chat messages. */}
       <div className="guake-composer-stack">
-      {/* Pinned-agent quick-select strip, directly above the composer */}
-      <PinnedAgentsBar activeAgentId={agentId} />
+      {/* Agent quick-select strip, directly above the composer. When the activity
+          dock is parked here (Settings → General → Agent activity dock) the
+          working / recently-active agents join this same row instead of stacking
+          a second strip of the same avatars on top of the composer. */}
+      <PinnedAgentsBar activeAgentId={agentId} includeActiveAgents={dockPosition === 'composer'} />
 
       {/* Terminal input */}
       <TerminalInputArea

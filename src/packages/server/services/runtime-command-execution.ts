@@ -18,9 +18,11 @@ export interface CustomAgentConfig {
 
 export interface SendCommandOptions {
   /**
-   * For stdin-closed backends (Grok/Codex/OpenCode): interrupt the in-flight
-   * turn and respawn with this prompt immediately. Default is to queue until
-   * the agent process exits, then deliver via session resume.
+   * Deliver this prompt immediately instead of queueing it behind the
+   * in-flight turn. Stdin-closed backends (Grok / Codex exec / OpenCode run)
+   * are stopped and respawned with the prompt; persistent-stream backends
+   * (Codex app-server / OpenCode serve) get their turn interrupted in place
+   * via runner.interruptTurn, keeping the thread/session alive.
    */
   forceInterrupt?: boolean;
 }
@@ -225,8 +227,9 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
           undefined,
           'system-interrupt-restart'
         );
-        // clearQueue=true: user is replacing pending mid-run work with this command
-        await runner.stop(agentId, true);
+        // clearQueue=false: other queued mid-run messages survive the interrupt
+        // (visible as chips in the queue bar) and drain after the forced turn.
+        await runner.stop(agentId, false);
         agentService.updateAgent(agentId, { taskCount: (agent.taskCount || 0) + 1 });
         await executeCommand(agentId, command, systemPrompt, forceNewSession, customAgent);
         return;
@@ -273,13 +276,84 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
       return;
     }
 
+    // Persistent-stream backends (Codex app-server, OpenCode serve) keep one
+    // daemon alive across turns, so "Send now" cannot stop+respawn like the
+    // stdin-closed CLIs above — runner.stop() would abandon the live thread/
+    // session. Instead interrupt the in-flight turn in place (clearQueue=true:
+    // the user is replacing pending mid-run work) and hand the prompt to the
+    // runner queue; it is delivered the moment the aborted turn finalizes.
+    if (
+      processRunning &&
+      !forceNewSession &&
+      opts?.forceInterrupt &&
+      runner.interruptTurn &&
+      runner.getTurnState?.(agentId) === 'processing'
+    ) {
+      log.log(`[sendCommand] Agent ${agentId} (${agent.provider}): forceInterrupt mid-turn on persistent runner — interrupting turn in place`);
+      emitOutput(
+        agentId,
+        '🛑 [System] Interrupting current work to process new prompt…',
+        false,
+        undefined,
+        'system-interrupt-restart'
+      );
+      // Snapshot other queued messages so the forced prompt can jump the line
+      // without dropping them: clear, send the forced prompt (queue head),
+      // then re-append the siblings behind it.
+      const siblings = runner.getQueuedMessages?.(agentId) ?? [];
+      const interrupted = await runner.interruptTurn(agentId, true);
+      if (interrupted) {
+        const sentNow = runner.sendMessage(agentId, command);
+        for (const sibling of siblings) {
+          if (!runner.sendMessage(agentId, sibling)) {
+            log.warn(`[sendCommand] Agent ${agentId}: could not restore a queued message after interrupt (${sibling.length} chars dropped)`);
+          }
+        }
+        if (sentNow) {
+          notifyCommandStarted(agentId, command);
+          const isSystemMessage = command.startsWith('[System:');
+          const updateData: Record<string, unknown> = {
+            status: 'working' as const,
+            taskCount: (agent.taskCount || 0) + 1,
+          };
+          if (!isSystemMessage) {
+            updateData.lastAssignedTask = command;
+            updateData.lastAssignedTaskTime = Date.now();
+            updateData.taskLabel = undefined; // Clear for agent to regenerate via skill
+          }
+          agentService.updateAgent(agentId, updateData);
+          return;
+        }
+      }
+      log.warn(`[sendCommand] Agent ${agentId}: in-place turn interrupt failed — falling through to default delivery`);
+    }
+
     if (processRunning && !forceNewSession) {
       if (runner.supportsStdin()) {
         const turnState = runner.getTurnState?.(agentId) || 'unknown';
         log.log(`[sendCommand] Agent ${agentId}: Process alive, reusing via stdin (turnState=${turnState}, cmd=${command.substring(0, 60)})`);
+        // Persistent-stream runners (codex app-server, opencode serve) queue
+        // mid-turn messages internally instead of writing them through. Detect
+        // that via the queue length so the client sees the same queued
+        // feedback (⏳ + queued command_started) as the stdin-closed path.
+        const queueLenBefore = runner.getQueuedMessages?.(agentId).length ?? 0;
         const sent = runner.sendMessage(agentId, command);
+        const wasQueued = (runner.getQueuedMessages?.(agentId).length ?? 0) > queueLenBefore;
         if (sent) {
-          notifyCommandStarted(agentId, command);
+          if (wasQueued) {
+            notifyCommandStarted(agentId, command, { queued: true });
+          } else {
+            notifyCommandStarted(agentId, command);
+          }
+          if (wasQueued) {
+            emitOutput(
+              agentId,
+              `⏳ [System] Mid-run message for ${providerDisplayName(agent.provider)} will be sent when the agent is free`,
+              false,
+              undefined,
+              `system-midrun-queued-${Date.now()}`
+            );
+          }
           const isSystemMessage = command.startsWith('[System:');
           const updateData: Record<string, unknown> = {
             status: 'working' as const,

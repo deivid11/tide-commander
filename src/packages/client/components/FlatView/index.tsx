@@ -2266,18 +2266,20 @@ export function FlatView({
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [selectedAgentId, agentIdSet]);
 
-  // ── Collapsed areas state (lifted so empty-chat overview can expand them) ──
-  const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
+  // ── Expanded areas state (lifted so empty-chat overview can expand them) ──
+  // Only areas in this set render expanded, so every page load starts with
+  // all areas collapsed.
+  const [expandedAreas, setExpandedAreas] = useState<Set<string>>(new Set());
   const handleToggleArea = useCallback((areaKey: string) => {
-    setCollapsedAreas(prev => {
+    setExpandedAreas(prev => {
       const next = new Set(prev);
       if (next.has(areaKey)) next.delete(areaKey);
       else next.add(areaKey);
       return next;
     });
   }, []);
-  const handleCollapseAllAreas = useCallback((areaKeys: string[]) => {
-    setCollapsedAreas(new Set(areaKeys));
+  const handleSetExpandedAreas = useCallback((areaKeys: string[]) => {
+    setExpandedAreas(new Set(areaKeys));
   }, []);
 
   // ── Mobile flat-map: areas collapse to readable two-column browse cards;
@@ -2731,10 +2733,8 @@ export function FlatView({
 
   // ── Focus an area in the left-panel AgentOverviewPanel ──
   const handleFocusArea = useCallback((areaKey: string) => {
-    // 1. Collapse every area except the clicked one
-    const allOtherKeys = new Set(emptyChatGroups.groups.map(g => g.area.id));
-    allOtherKeys.delete(areaKey);
-    setCollapsedAreas(allOtherKeys);
+    // 1. Expand only the clicked area (everything else collapses)
+    setExpandedAreas(new Set([areaKey]));
     // 2. After React flushes, scroll the area header into view
     requestAnimationFrame(() => {
       const container = agentListRef.current;
@@ -2746,7 +2746,7 @@ export function FlatView({
       const offset = headerRect.top - containerRect.top + container.scrollTop - 8;
       container.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
     });
-  }, [emptyChatGroups]);
+  }, []);
 
   return (
     <div
@@ -2805,9 +2805,9 @@ export function FlatView({
             activeAgentId={overviewActiveAgentId}
             onClose={noopOverviewClose}
             onSelectAgent={handleOverviewSelectAgent}
-            collapsedAreas={collapsedAreas}
+            expandedAreas={expandedAreas}
             onToggleArea={handleToggleArea}
-            onCollapseAllAreas={handleCollapseAllAreas}
+            onSetExpandedAreas={handleSetExpandedAreas}
             agentListRef={agentListRef}
           />
         </div>

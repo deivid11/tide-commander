@@ -771,10 +771,10 @@
   flex: none;
   align-items: center;
   gap: 8px;
-  // Generous vertical padding gives the chips breathing room between the chat
-  // above and the composer below; the extra top room also keeps the floating ×
-  // badge from being clipped by the horizontal scroll container.
-  padding: 13px 12px 13px;
+  // Tight vertical padding — the top still needs ~7px so the floating × badge
+  // (top: -6px) and unread dot are not clipped by the overflow-y: hidden
+  // scroll container; the bottom has no floating badges and can sit closer.
+  padding: 7px 10px 5px;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
@@ -893,6 +893,41 @@
   }
 }
 
+// Working / recently-active agents you have NOT pinned, appended to the row.
+// Dashed + dimmed: they behave like a pin (click to open, right-click to pin)
+// but are transient — they leave on their own, so they must not read as
+// permanent. No × badge, since there is no pin to remove.
+.pinned-agent--unpinned {
+  border-style: dashed;
+
+  // Anything working stays full strength — the row exists to surface live work.
+  &:not(.working) {
+    opacity: 0.68;
+  }
+
+  &:hover,
+  &.active {
+    opacity: 1;
+  }
+
+  // A plain gap, not a rule: enough to read the two sections apart without
+  // adding another line to a row that is already dense.
+  &.starts-active-group {
+    margin-left: 14px;
+  }
+
+  // Leaving the row entirely — matches DOCK_EXIT_MS in dockRoster.ts.
+  &.exiting {
+    pointer-events: none;
+    animation: pinned-activity-out 260ms ease-in both;
+  }
+}
+
+@keyframes pinned-activity-out {
+  from { opacity: 0.68; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.72); }
+}
+
 .pinned-agent-av {
   position: relative;
   width: 20px;
@@ -962,30 +997,40 @@
   animation: pinned-agent-notif-pulse 1.5s ease-in-out infinite;
 }
 
-// ── grouping toggle + section headers ───────────────────────────────────────
-// Leading pill that cycles the layout (Flat / Status / Area). Styled like a
-// muted chip so it reads as a control, distinct from the agent chips.
-.pinned-group-toggle {
+// ── the row's one control ───────────────────────────────────────────────────
+// A single button cycles the view: All → Status → Area → Active. Deliberately
+// minimal — a tiny text tab tucked into the bottom-left of the row (align-self
+// against the taller chips), not a pill competing with the agent icons. The
+// dashed underline is the only "I'm clickable" hint until hover.
+.pinned-mode-toggle {
   flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
-  border: 1px solid rgba($dracula-comment, 0.45);
-  border-radius: 8px;
-  background: rgba($dracula-current, 0.5);
-  color: $dracula-comment;
+  align-self: flex-end;
+  margin: 0 2px 1px 0;
+  padding: 0 2px 1px;
+  border: none;
+  border-bottom: 1px dashed rgba($dracula-comment, 0.5);
+  background: none;
+  color: rgba($dracula-comment, 0.9);
   font-family: inherit;
-  font-size: 10px;
-  line-height: 1.5;
+  font-size: 8px;
+  line-height: 1.4;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   cursor: pointer;
   white-space: nowrap;
-  transition: border-color $transition-fast, color $transition-fast, background $transition-fast;
+  transition: color $transition-fast, border-color $transition-fast;
 
-  &:hover { border-color: var(--accent-cyan); color: $dracula-fg; }
+  &:hover {
+    color: $dracula-fg;
+    border-bottom-color: var(--accent-cyan);
+  }
 
-  .pgt-icon { font-size: 11px; line-height: 1; }
-  .pgt-label { text-transform: uppercase; letter-spacing: 0.04em; }
+  // The Active mode filters the row, so it lights up — a filtered row that
+  // looked identical to an unfiltered one would read as "my pins vanished".
+  &.on {
+    color: var(--accent-green);
+    border-bottom-color: color-mix(in srgb, var(--accent-green) 65%, transparent);
+  }
 }
 
 // Each grouped section = its header stacked ABOVE the chips that belong to it, so
@@ -1001,11 +1046,16 @@
   flex: none;
   padding-left: 8px;
   border-left: 1px solid rgba($dracula-comment, 0.28);
-
-  &:first-of-type { border-left: none; padding-left: 0; }
 }
 
-// The chips row within a group (was inline beside the label; now under it).
+// No leading rule on the first section (the mode button precedes it, so
+// :first-of-type would never help — anchor on the button instead).
+.pinned-mode-toggle + .pinned-group {
+  border-left: none;
+  padding-left: 0;
+}
+
+// The chips row within a group.
 .pinned-group-chips {
   display: inline-flex;
   align-items: center;
@@ -1052,10 +1102,10 @@
   line-height: 1;
 }
 
-// Miniature mode: past the configurable threshold the bar drops chip names and
-// shows square avatar-only thumbnails so a large pinned set stays glanceable
-// without eating horizontal space. The name stays available via the chip's
-// title/aria-label. Applies to grouped chips too (the whole bar switches at once).
+// Miniature mode: past the configurable threshold (default 0 — i.e. always) the
+// bar drops chip names and shows square avatar-only thumbnails, so the row stays
+// glanceable without eating horizontal space. The name stays available via the
+// chip's title/aria-label.
 .pinned-agents-bar.miniature {
   .pinned-agent {
     max-width: none;
@@ -1125,11 +1175,9 @@
     border-radius: 6px;
     box-shadow: 0 0 0 1.5px #d4af37;
   }
-  // Icon-only grouping toggle on mobile (the ⊞ glyph carries it); group headers
-  // stay (label + count) so the sections remain legible in the tight bar.
-  .pinned-group-toggle { padding: 3px 6px; }
-  .pinned-group-toggle .pgt-label { display: none; }
   .pinned-group { gap: 6px; padding-left: 6px; }
+  // A tighter gap before the unpinned agents — horizontal space is scarcest here.
+  .pinned-agent--unpinned.starts-active-group { margin-left: 8px; }
 
   // Pinned bar is no longer overlapping the chat; clearance is handled by the
   // fixed composer-stack height reservation in _mobile.scss.

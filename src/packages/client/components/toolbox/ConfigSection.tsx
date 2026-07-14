@@ -13,6 +13,7 @@ import { IntegrationStatusPanel } from './IntegrationStatusPanel';
 import { ClaudeCredentialsPanel } from '../ClaudeCredentialsPanel';
 import { ProviderCredentialsPanel } from '../ProviderCredentialsPanel';
 import { SystemPromptModal } from '../SystemPromptModal';
+import { AGENT_DOCK_POSITIONS, AGENT_DOCK_POSITION_LABELS, setAgentDockPosition, useAgentDockPosition } from '../ClaudeOutputPanel/agentDockPosition';
 import { WhatsAppConfigModal } from '../WhatsAppConfigModal';
 import { WhatsAppNotificationsModal } from '../WhatsAppNotificationsModal';
 import { WhatsAppHistoryPanel } from '../WhatsAppHistory/WhatsAppHistoryPanel';
@@ -233,6 +234,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
   const settings = useSettings();
   const customClasses = useCustomAgentClassesArray();
   const [defaultSpawnClass, setDefaultSpawnClassState] = useState(() => getStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS) || 'scout');
+  const agentDockPosition = useAgentDockPosition();
   const [historyLimit, setHistoryLimit] = useState(settings.historyLimit);
   const [backendUrls, setBackendUrlsState] = useState<string[]>(() => getBackendUrls());
   const [backendUrlsDirty, setBackendUrlsDirty] = useState(false);
@@ -460,6 +462,18 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
             checked={settings.streamTextLive !== false}
             onChange={(checked) => store.updateSettings({ streamTextLive: checked })}
           />
+        </div>
+        <div className="config-row">
+          <span className="config-label" title="Where the strip of recently-active and currently-working agent thumbnails sits."><HighlightText text="Agent activity dock" query={searchQuery} /></span>
+          <select
+            className="config-select"
+            value={agentDockPosition}
+            onChange={(e) => setAgentDockPosition(e.target.value as typeof agentDockPosition)}
+          >
+            {AGENT_DOCK_POSITIONS.map((position) => (
+              <option key={position} value={position}>{AGENT_DOCK_POSITION_LABELS[position]}</option>
+            ))}
+          </select>
         </div>
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('config:general.grid')} query={searchQuery} /></span>

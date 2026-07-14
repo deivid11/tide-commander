@@ -895,10 +895,14 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       const execScript = payloadToolInput && typeof payloadToolInput === 'object'
         ? String((payloadToolInput as Record<string, unknown>).input || (payloadToolInput as Record<string, unknown>).code || (payloadToolInput as Record<string, unknown>).script || JSON.stringify(payloadToolInput, null, 2))
         : String(payloadToolInput || '');
+      // Mirror HistoryLine's execLinkedOutput: live tool_result events without a
+      // toolUseId (Codex exec) can't enrich output.toolOutput, but the look-ahead
+      // pairing still captures the sibling "Bash output:" row as _bashOutput.
+      const execLinkedOutput = payloadToolOutput || _bashOutput;
       const execEditPaths = execPresentation.toolName === 'Edit' ? getCodexExecEditPaths(payloadToolInput) : [];
       const opensDiffModal = execEditPaths.length > 0 && !!onFileClick;
       const execFileTarget = (execPresentation.toolName === 'Read' || execPresentation.toolName === 'Grep')
-        ? getCodexExecFileTarget(payloadToolInput, payloadToolOutput)
+        ? getCodexExecFileTarget(payloadToolInput, execLinkedOutput)
         : null;
       const visibleFilePaths = execPresentation.filePaths?.length
         ? execPresentation.filePaths
@@ -917,7 +921,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       const opensCommandModal = !!execCommand && !!onBashClick
         && (execPresentation.toolName === 'Bash' || execPresentation.toolName === 'ExecuteCommand');
       const grepResults = execPresentation.toolName === 'Grep'
-        ? parseCodexGrepResults(payloadToolInput, payloadToolOutput)
+        ? parseCodexGrepResults(payloadToolInput, execLinkedOutput)
         : null;
       const handleExecActivate = () => {
         if (opensImageViewer && execImagePreview) {
@@ -935,7 +939,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         if (opensCommandModal && execCommand) {
           onBashClick(execCommand, _isRunning
             ? t('tools:display.running')
-            : (payloadToolOutput || t('tools:display.noOutputCaptured')));
+            : (execLinkedOutput || t('tools:display.noOutputCaptured')));
           return;
         }
         if (opensFileModal && primaryFileTarget) {
@@ -1022,7 +1026,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             <div className="codex-exec-detail">
               <div className="codex-exec-detail-label">Command details</div>
               <pre>{execScript}</pre>
-              {payloadToolOutput && <><div className="codex-exec-detail-label">Result</div><pre>{payloadToolOutput}</pre></>}
+              {execLinkedOutput && <><div className="codex-exec-detail-label">Result</div><pre>{execLinkedOutput}</pre></>}
             </div>
           )}
           {grepResultsModal && <GrepResultsModal results={grepResultsModal} onClose={() => setGrepResultsModal(null)} onFileClick={onFileClick} />}

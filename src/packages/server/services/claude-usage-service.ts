@@ -455,6 +455,53 @@ function parseRateLimitWindow(value: unknown): ClaudeRateLimitWindow | null {
   };
 }
 
+// One entry of the endpoint's `limits` array, which carries `percent` where the
+// legacy top-level windows carry `utilization`.
+function parseLimitEntry(entry: Record<string, unknown>): ClaudeRateLimitWindow | null {
+  if (typeof entry.percent !== 'number' || !Number.isFinite(entry.percent)) return null;
+  if (typeof entry.resets_at !== 'string' || entry.resets_at === '') return null;
+  return { utilization: entry.percent, resetsAt: entry.resets_at };
+}
+
+// `scope.model.display_name` for a `weekly_scoped` entry ("Fable", "Opus", ...).
+// Its `id` is null, so the display name is the only model discriminator.
+function parseScopedModelName(entry: Record<string, unknown>): string | null {
+  const scope = entry.scope as Record<string, unknown> | null | undefined;
+  const model = scope?.model as Record<string, unknown> | null | undefined;
+  const name = model?.display_name;
+  return typeof name === 'string' && name !== '' ? name.toLowerCase() : null;
+}
+
+/**
+ * Read the gauges out of the endpoint's `limits` array — its current shape, and
+ * the only one that still carries the per-model weekly allowances: the legacy
+ * top-level `seven_day_opus` / `seven_day_sonnet` keys now come back null even
+ * while those gauges are live in the CLI's `/usage` panel.
+ */
+function parseLimitsArray(body: Record<string, unknown>): Partial<ClaudeRateLimits> {
+  const parsed: Partial<ClaudeRateLimits> = {};
+  if (!Array.isArray(body.limits)) return parsed;
+
+  for (const raw of body.limits) {
+    if (!raw || typeof raw !== 'object') continue;
+    const entry = raw as Record<string, unknown>;
+    const window = parseLimitEntry(entry);
+    if (!window) continue;
+
+    if (entry.kind === 'session') {
+      parsed.fiveHour = window;
+    } else if (entry.kind === 'weekly_all') {
+      parsed.sevenDay = window;
+    } else if (entry.kind === 'weekly_scoped') {
+      // Substring match so a renamed "Claude Fable 5" still lands on its gauge.
+      const model = parseScopedModelName(entry);
+      if (model?.includes('fable')) parsed.sevenDayFable = window;
+      else if (model?.includes('opus')) parsed.sevenDayOpus = window;
+    }
+  }
+  return parsed;
+}
+
 export interface RateLimitFetchResult {
   rateLimits: ClaudeRateLimits | null;
   error: string | null;
@@ -499,14 +546,15 @@ export async function fetchClaudeRateLimitsForToken(accessToken: string): Promis
       };
     }
     const body = await response.json() as Record<string, unknown>;
-    // Claude Code 2.1.207 labels this allowance "Fable", although the live
-    // endpoint still exposes it under the legacy seven_day_sonnet key.
-    const sevenDayFable = parseRateLimitWindow(body.seven_day_fable ?? body.seven_day_sonnet);
+    // `limits[]` wins; the top-level windows are the fallback for older payloads.
+    const limits = parseLimitsArray(body);
+    const sevenDayFable = limits.sevenDayFable
+      ?? parseRateLimitWindow(body.seven_day_fable ?? body.seven_day_sonnet);
     return {
       rateLimits: {
-        fiveHour: parseRateLimitWindow(body.five_hour),
-        sevenDay: parseRateLimitWindow(body.seven_day),
-        sevenDayOpus: parseRateLimitWindow(body.seven_day_opus),
+        fiveHour: limits.fiveHour ?? parseRateLimitWindow(body.five_hour),
+        sevenDay: limits.sevenDay ?? parseRateLimitWindow(body.seven_day),
+        sevenDayOpus: limits.sevenDayOpus ?? parseRateLimitWindow(body.seven_day_opus),
         sevenDayFable,
         sevenDaySonnet: sevenDayFable,
       },

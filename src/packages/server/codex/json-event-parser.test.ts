@@ -324,6 +324,8 @@ describe('CodexJsonEventParser', () => {
         command: '/bin/zsh -lc "tail -n 5 README.md"',
         status: 'in_progress',
       },
+      uuid: 'cmd_123',
+      toolUseId: 'cmd_123',
     });
 
     expect(completed).toHaveLength(1);
@@ -331,6 +333,9 @@ describe('CodexJsonEventParser', () => {
       type: 'tool_result',
       toolName: 'Bash',
       toolOutput: 'line1\nline2\n',
+      // Shared id lets the client attach this output to the live tool card.
+      uuid: 'cmd_123',
+      toolUseId: 'cmd_123',
     });
   });
 

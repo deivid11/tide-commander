@@ -1027,6 +1027,43 @@ router.delete('/:id/memory', (req: Request<{ id: string }>, res: Response) => {
   res.json({ ok: true, id: updated.id });
 });
 
+// GET /api/agents/:id/queue - Snapshot of the server-side mid-run message
+// queue (messages awaiting delivery once the agent's current turn ends).
+// Positional: each entry's `index` is only valid against THIS snapshot.
+router.get('/:id/queue', (req: Request<{ id: string }>, res: Response) => {
+  const agent = agentService.getAgent(req.params.id);
+  if (!agent) {
+    res.status(404).json({ error: 'Agent not found' });
+    return;
+  }
+  const messages = runtimeService.getQueuedMessagesForAgent(req.params.id);
+  res.json({ messages: messages.map((text, index) => ({ index, text })) });
+});
+
+// DELETE /api/agents/:id/queue/:index - Remove one queued message. Body:
+// { text } — must match the entry at `index` (guards against a queue that
+// drained/mutated since the caller's snapshot; on mismatch → 409, refetch).
+router.delete('/:id/queue/:index', (req: Request<{ id: string; index: string }>, res: Response) => {
+  const agent = agentService.getAgent(req.params.id);
+  if (!agent) {
+    res.status(404).json({ error: 'Agent not found' });
+    return;
+  }
+  const index = Number.parseInt(req.params.index, 10);
+  const { text } = (req.body ?? {}) as { text?: unknown };
+  if (!Number.isInteger(index) || index < 0 || typeof text !== 'string') {
+    res.status(400).json({ error: 'index must be a non-negative integer and text a string' });
+    return;
+  }
+  const removed = runtimeService.removeQueuedMessageForAgent(req.params.id, index, text);
+  if (!removed) {
+    res.status(409).json({ error: 'Queue changed since snapshot — refetch', removed: false });
+    return;
+  }
+  log.log(`Agent ${agent.name} (${agent.id}): queued message ${index} removed via API`);
+  res.json({ removed: true });
+});
+
 // POST /api/agents/:id/terminal - Start (or reuse) a ttyd attached to the
 // agent's interactive-TUI tmux session (Classic TUI view). Returns the proxy URL.
 router.post('/:id/terminal', async (req: Request<{ id: string }>, res: Response) => {

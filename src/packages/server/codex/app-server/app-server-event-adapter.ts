@@ -124,7 +124,10 @@ export class CodexAppServerEventAdapter {
     switch (item.type) {
       case 'commandExecution': {
         const command = item.command || '';
-        return [{ type: 'tool_start', toolName: 'Bash', toolInput: { command, status: item.status } }];
+        // item.id lets the client attach the eventual tool_result output to
+        // this card live (attachToolResult) instead of waiting for /history.
+        const ids = item.id ? { uuid: item.id, toolUseId: item.id } : {};
+        return [{ type: 'tool_start', toolName: 'Bash', toolInput: { command, status: item.status }, ...ids }];
       }
       case 'webSearch':
         return [{ type: 'tool_start', toolName: 'web_search', toolInput: this.webSearchInput(item) }];
@@ -152,7 +155,10 @@ export class CodexAppServerEventAdapter {
         const output =
           item.aggregatedOutput ??
           (item.exitCode !== undefined ? `[exit ${item.exitCode}]` : item.status ? `Command status: ${item.status}` : '');
-        return [{ type: 'tool_result', toolName: 'Bash', toolOutput: output }];
+        // Same id as the matching tool_start so the client enriches that card
+        // in place (attachToolResult) instead of waiting for a /history reload.
+        const ids = item.id ? { uuid: item.id, toolUseId: item.id } : {};
+        return [{ type: 'tool_result', toolName: 'Bash', toolOutput: output, ...ids }];
       }
       case 'fileChange':
         return this.handleFileChange(item);
