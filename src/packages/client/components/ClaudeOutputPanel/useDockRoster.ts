@@ -65,7 +65,7 @@ export function useWorkRecency(agents: Agent[], scope?: string): ReadonlyMap<str
 }
 
 export interface DockRoster {
-  /** Recent lane first, then the working lane; includes agents still animating out. */
+  /** Working lane first, then the recent lane; includes agents still animating out. */
   entries: DockEntry[];
   /** Agents playing their exit animation — they no longer belong to either lane. */
   exitingIds: Set<string>;

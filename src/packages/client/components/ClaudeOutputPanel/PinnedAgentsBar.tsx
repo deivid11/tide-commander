@@ -75,7 +75,8 @@ interface PinnedAgentsBarProps {
 }
 
 /** One chip in the row. `pinned` drives the × badge, the border and dragging;
- * `lane` (dock entries only) places the divider before the working agents. */
+ * `lane` (dock entries only) places the divider between the working agents
+ * (first) and the recently-active ones. */
 interface RowEntry {
   agent: Agent;
   pinned: boolean;
@@ -406,12 +407,13 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
   }, [activeAgentId, areaColorById, unseenAgents, exitingIds, draggingId, dropTarget, customClasses, registerItem, handleSelect, handleTogglePin, handleDragStart, handleDragOver, handleDrop, handleDragEnd]);
 
   // Interleave lane separators, mirroring the overview dock's divider: one where
-  // the unpinned actives start, one where their working lane starts. A real rule
-  // reads better than the bare gap this row used to rely on.
+  // the unpinned actives start, one where their recent lane starts (working
+  // agents lead). A real rule reads better than the bare gap this row used to
+  // rely on.
   const renderChips = useCallback((entries: RowEntry[]) => entries.map((entry, index) => {
     const previous = index > 0 ? entries[index - 1] : null;
     const dividerBefore = previous !== null && !entry.pinned
-      && (previous.pinned || (previous.lane === 'recent' && entry.lane === 'working'));
+      && (previous.pinned || (previous.lane === 'working' && entry.lane === 'recent'));
     return (
       <React.Fragment key={entry.agent.id}>
         {dividerBefore && <span className="pinned-lane-divider" aria-hidden="true" />}
