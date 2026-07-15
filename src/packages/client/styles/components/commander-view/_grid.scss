@@ -103,7 +103,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-size: 12px;
   font-family: $font-mono;
 }
@@ -112,8 +112,8 @@
 .agent-panel {
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, rgba($dracula-bg, 0.9) 0%, rgba($dracula-bg-darker, 0.95) 100%);
-  border: 1px solid $dracula-current;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 90%, transparent) 0%, color-mix(in srgb, var(--bg-primary) 95%, transparent) 100%);
+  border: 1px solid var(--bg-tertiary);
   border-radius: $radius-lg;
   overflow: hidden;
   transition: all $transition-normal;
@@ -122,47 +122,47 @@
   min-height: 0;
 
   &.working {
-    background: linear-gradient(180deg, rgba($dracula-green, 0.12) 0%, rgba($dracula-green, 0.06) 100%);
-    border-color: rgba($dracula-green, 0.6);
-    box-shadow: 0 0 20px rgba($dracula-green, 0.2);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent-green) 12%, transparent) 0%, color-mix(in srgb, var(--accent-green) 6%, transparent) 100%);
+    border-color: color-mix(in srgb, var(--accent-green) 60%, transparent);
+    box-shadow: 0 0 20px color-mix(in srgb, var(--accent-green) 20%, transparent);
 
     .agent-panel-header {
-      background: rgba(color.mix($dracula-green, $dracula-bg, 12%), 0.95);
-      border-bottom-color: rgba($dracula-green, 0.2);
+      background: color-mix(in srgb, color-mix(in srgb, var(--accent-green) 12%, var(--bg-secondary)) 95%, transparent);
+      border-bottom-color: color-mix(in srgb, var(--accent-green) 20%, transparent);
     }
 
     .agent-panel-content {
-      background: rgba(color.mix($dracula-green, $dracula-bg-darker, 8%), 0.7);
+      background: color-mix(in srgb, color-mix(in srgb, var(--accent-green) 8%, var(--bg-primary)) 70%, transparent);
     }
   }
 
   &.expanded {
-    border-color: $dracula-cyan;
-    box-shadow: 0 0 30px rgba($dracula-cyan, 0.2);
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 30px color-mix(in srgb, var(--accent-cyan) 20%, transparent);
     max-height: none;
 
     .agent-panel-expand {
-      border-color: $dracula-cyan;
-      color: $dracula-cyan;
-      background: rgba($dracula-cyan, 0.1);
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+      background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
     }
   }
 
   &.focused:not(.expanded) {
-    border-color: rgba($dracula-green, 0.5);
-    box-shadow: 0 0 8px rgba($dracula-green, 0.15);
+    border-color: color-mix(in srgb, var(--accent-green) 50%, transparent);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent-green) 15%, transparent);
 
     .agent-panel-input input,
     .agent-panel-input textarea {
-      border-color: rgba($dracula-green, 0.4);
+      border-color: color-mix(in srgb, var(--accent-green) 40%, transparent);
     }
   }
 }
 
 .agent-panel-header {
   padding: 6px 8px;
-  background: rgba($dracula-bg, 0.95);
-  border-bottom: 1px solid $dracula-current;
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  border-bottom: 1px solid var(--bg-tertiary);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -186,8 +186,8 @@
 
 .agent-panel-expand {
   background: transparent;
-  border: 1px solid $dracula-current;
-  color: $dracula-comment;
+  border: 1px solid var(--bg-tertiary);
+  color: var(--text-muted);
   width: 22px;
   height: 22px;
   border-radius: $radius-sm;
@@ -198,8 +198,8 @@
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $dracula-purple;
-    color: $dracula-purple;
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
   }
 }
 
@@ -214,7 +214,7 @@
 .agent-panel-name {
   font-weight: 600;
   font-size: 12px;
-  color: $dracula-fg;
+  color: var(--text-primary);
   font-family: $font-mono;
   white-space: nowrap;
   overflow: hidden;
@@ -236,32 +236,32 @@
   flex-shrink: 0;
 
   &.working {
-    color: $dracula-green;
-    background: rgba($dracula-green, 0.15);
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
   }
 
   &.idle {
-    color: $dracula-comment;
-    background: rgba($dracula-current, 0.4);
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
   }
 
   &.error, &.waiting, &.waiting_permission {
-    color: $dracula-red;
-    background: rgba($dracula-red, 0.15);
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
   }
 
   &.offline, &.orphaned {
-    color: $dracula-comment;
-    background: rgba($dracula-current, 0.3);
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
     opacity: 0.6;
   }
 }
 
 .agent-panel-class {
   font-size: 10px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   text-transform: uppercase;
-  background: rgba($dracula-current, 0.6);
+  background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
   padding: 1px 5px;
   border-radius: 2px;
   font-family: $font-mono;
@@ -278,13 +278,13 @@
   flex-shrink: 0;
 
   &.claude {
-    color: $dracula-orange;
-    background: rgba($dracula-orange, 0.15);
+    color: var(--accent-orange);
+    background: color-mix(in srgb, var(--accent-orange) 15%, transparent);
   }
 
   &.codex {
-    color: $dracula-green;
-    background: rgba($dracula-green, 0.15);
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
   }
 
   &.opencode {
@@ -300,7 +300,7 @@
 
 .agent-panel-id {
   font-size: 10px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-family: $font-mono;
   opacity: 0.6;
   display: none; // Hide to save space
@@ -308,7 +308,7 @@
 
 .agent-panel-task {
   font-size: 10px;
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -330,12 +330,12 @@
   gap: 4px;
   width: 60px;
   height: 10px;
-  background: rgba($dracula-bg-darker, 0.8);
+  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
   border-radius: 3px;
   overflow: hidden;
   position: relative;
   flex-shrink: 0;
-  border: 1px solid rgba($dracula-current, 0.5);
+  border: 1px solid color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
 }
 
 .agent-panel-context-bar {
@@ -351,7 +351,7 @@
   font-size: 8px;
   font-family: $font-mono;
   font-weight: 600;
-  color: $dracula-fg;
+  color: var(--text-primary);
   text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
 }
 
@@ -366,25 +366,25 @@
   font-family: $font-mono;
   font-size: 11px;
   line-height: 1.5;
-  background: rgba($dracula-bg-darker, 0.6);
-  color: $dracula-fg;
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+  color: var(--text-primary);
   min-height: 0; // Allow flex shrinking
 
   a {
-    color: $dracula-cyan;
+    color: var(--accent-cyan);
     text-decoration: underline;
-    text-decoration-color: rgba($dracula-cyan, 0.4);
+    text-decoration-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
     text-underline-offset: 2px;
     transition: all $transition-fast;
 
     &:hover {
-      color: $dracula-pink;
-      text-decoration-color: $dracula-pink;
+      color: var(--accent-pink);
+      text-decoration-color: var(--accent-pink);
     }
 
     &:visited {
-      color: $dracula-purple;
-      text-decoration-color: rgba($dracula-purple, 0.4);
+      color: var(--accent-purple);
+      text-decoration-color: color-mix(in srgb, var(--accent-purple) 40%, transparent);
     }
   }
 
@@ -406,7 +406,7 @@
 
 .agent-panel-loading,
 .agent-panel-empty {
-  color: $dracula-comment;
+  color: var(--text-muted);
   text-align: center;
   padding: 12px;
   font-size: 11px;
@@ -418,18 +418,18 @@
   justify-content: center;
   padding: 6px 8px;
   margin-bottom: 4px;
-  border-bottom: 1px dashed rgba($dracula-comment, 0.3);
+  border-bottom: 1px dashed color-mix(in srgb, var(--text-muted) 30%, transparent);
 
   span {
-    color: $dracula-comment;
+    color: var(--text-muted);
     font-size: 10px;
     font-family: $font-mono;
   }
 
   button {
     background: transparent;
-    border: 1px solid $dracula-current;
-    color: $dracula-cyan;
+    border: 1px solid var(--bg-tertiary);
+    color: var(--accent-cyan);
     padding: 2px 8px;
     border-radius: $radius-sm;
     font-size: 10px;
@@ -438,8 +438,8 @@
     transition: all $transition-fast;
 
     &:hover {
-      background: rgba($dracula-cyan, 0.1);
-      border-color: $dracula-cyan;
+      background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+      border-color: var(--accent-cyan);
     }
   }
 }
@@ -455,19 +455,19 @@
   align-items: stretch;
   gap: 0;
   padding: 6px 8px;
-  background: rgba($dracula-bg, 0.95);
-  border-top: 1px solid $dracula-current;
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  border-top: 1px solid var(--bg-tertiary);
   flex-shrink: 0;
 
   .queue-badge {
-    background: rgba($dracula-orange, 0.2);
-    color: $dracula-orange;
+    background: color-mix(in srgb, var(--accent-orange) 20%, transparent);
+    color: var(--accent-orange);
     padding: 3px 8px;
     border-radius: $radius-sm;
     font-size: 10px;
     font-family: $font-mono;
     font-weight: 600;
-    border: 1px solid rgba($dracula-orange, 0.4);
+    border: 1px solid color-mix(in srgb, var(--accent-orange) 40%, transparent);
     white-space: nowrap;
   }
 }
@@ -477,8 +477,8 @@
   display: flex;
   align-items: stretch;
   flex: 1;
-  background: rgba($dracula-bg-darker, 0.6);
-  border: 1px solid rgba($dracula-comment, 0.25);
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 25%, transparent);
   border-radius: $radius-md;
   transition: all $transition-fast;
   min-height: 32px;
@@ -486,9 +486,9 @@
   user-select: none;
 
   &:focus-within {
-    border-color: rgba($dracula-purple, 0.5);
-    background: rgba($dracula-bg-darker, 0.8);
-    box-shadow: 0 0 0 2px rgba($dracula-purple, 0.12);
+    border-color: color-mix(in srgb, var(--accent-purple) 50%, transparent);
+    background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-purple) 12%, transparent);
   }
 }
 
@@ -498,7 +498,7 @@
   background: transparent;
   border: none;
   padding: 6px 8px;
-  color: $dracula-fg;
+  color: var(--text-primary);
   font-size: 12px;
   font-family: $font-mono;
   line-height: 1.4;
@@ -511,7 +511,7 @@
   }
 
   &::placeholder {
-    color: rgba($dracula-comment, 0.6);
+    color: color-mix(in srgb, var(--text-muted) 60%, transparent);
   }
 }
 
@@ -533,11 +533,11 @@
   }
 
   &::-webkit-scrollbar-thumb {
-    background: rgba($dracula-comment, 0.3);
+    background: color-mix(in srgb, var(--text-muted) 30%, transparent);
     border-radius: 2px;
 
     &:hover {
-      background: rgba($dracula-comment, 0.5);
+      background: color-mix(in srgb, var(--text-muted) 50%, transparent);
     }
   }
 }
@@ -564,7 +564,7 @@
   min-height: 30px;
   background: transparent;
   border: none;
-  color: rgba($dracula-comment, 0.7);
+  color: color-mix(in srgb, var(--text-muted) 70%, transparent);
   font-size: 12px;
   cursor: pointer;
   transition: all $transition-fast;
@@ -572,8 +572,8 @@
   border-radius: $radius-md 0 0 $radius-md;
 
   &:hover {
-    color: $dracula-cyan;
-    background: rgba($dracula-cyan, 0.08);
+    color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
   }
 }
 
@@ -586,7 +586,7 @@
   min-height: 30px;
   background: transparent;
   border: none;
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   font-size: 13px;
   cursor: pointer;
   transition: all $transition-fast;
@@ -595,21 +595,21 @@
   border-radius: 0 $radius-md $radius-md 0;
 
   &:hover:not(:disabled) {
-    color: color.adjust($dracula-cyan, $lightness: 12%);
-    background: rgba($dracula-cyan, 0.08);
+    color: color-mix(in srgb, var(--accent-cyan) 88%, white);
+    background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
   }
 
   &:disabled {
     opacity: 0.25;
     cursor: not-allowed;
-    color: $dracula-comment;
+    color: var(--text-muted);
   }
 }
 
 // Queue display in agent panel
 .agent-panel-queue {
-  background: rgba($dracula-bg-darker, 0.8);
-  border-top: 1px solid $dracula-current;
+  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
+  border-top: 1px solid var(--bg-tertiary);
   padding: 4px 8px;
   max-height: 60px;
   overflow-y: auto;
@@ -619,7 +619,7 @@
 .agent-panel-queue-item {
   font-family: $font-mono;
   font-size: 10px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   padding: 2px 0;
   white-space: nowrap;
   overflow: hidden;
@@ -635,20 +635,20 @@
 }
 
 .msg-user {
-  background: rgba($dracula-cyan, 0.12);
-  border-left: 3px solid $dracula-cyan;
+  background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+  border-left: 3px solid var(--accent-cyan);
 
   .msg-role {
-    color: $dracula-cyan;
+    color: var(--accent-cyan);
   }
 }
 
 .msg-assistant {
-  background: rgba($dracula-green, 0.12);
-  border-left: 3px solid $dracula-green;
+  background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+  border-left: 3px solid var(--accent-green);
 
   .msg-role {
-    color: $dracula-green;
+    color: var(--accent-green);
   }
 }
 
@@ -656,8 +656,8 @@
 .msg-timestamp {
   font-family: $font-mono;
   font-size: 9px;
-  color: $dracula-comment;
-  background: rgba($dracula-bg, 0.7);
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-secondary) 70%, transparent);
   padding: 1px 4px;
   border-radius: 3px;
   margin-right: 6px;
@@ -679,8 +679,8 @@
   flex-direction: column;
   gap: 4px;
   font-size: 11px;
-  background: rgba($dracula-purple, 0.1);
-  border-left: 3px solid $dracula-purple;
+  background: color-mix(in srgb, var(--accent-purple) 10%, transparent);
+  border-left: 3px solid var(--accent-purple);
   padding: 6px 10px;
 }
 
@@ -696,13 +696,13 @@
 }
 
 .msg-tool-name {
-  color: $dracula-pink;
+  color: var(--accent-pink);
   font-weight: 600;
   font-size: 11px;
 }
 
 .msg-tool-streaming {
-  color: $dracula-purple;
+  color: var(--accent-purple);
   animation: pulse-opacity 1s infinite;
 }
 
@@ -714,11 +714,11 @@
 .msg-tool-content {
   margin: 0;
   padding: 6px 8px;
-  background: rgba($dracula-bg, 0.5);
+  background: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
   border-radius: $radius-sm;
   font-size: 10px;
   font-family: $font-mono;
-  color: $dracula-fg;
+  color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 200px;
@@ -731,8 +731,8 @@
   gap: 4px;
   font-size: 10px;
   padding: 6px 10px;
-  border-left: 3px solid $dracula-purple;
-  background: rgba($dracula-purple, 0.08);
+  border-left: 3px solid var(--accent-purple);
+  background: color-mix(in srgb, var(--accent-purple) 8%, transparent);
 }
 
 .msg-result-header {
@@ -742,35 +742,35 @@
 }
 
 .msg-result-label {
-  color: $dracula-purple;
+  color: var(--accent-purple);
   font-weight: 600;
   font-size: 10px;
   text-transform: uppercase;
 }
 
 .msg-result-success {
-  border-left-color: $dracula-green;
-  background: rgba($dracula-green, 0.08);
+  border-left-color: var(--accent-green);
+  background: color-mix(in srgb, var(--accent-green) 8%, transparent);
 
   .msg-result-icon {
-    color: $dracula-green;
+    color: var(--accent-green);
   }
 
   .msg-result-label {
-    color: $dracula-green;
+    color: var(--accent-green);
   }
 }
 
 .msg-result-error {
-  border-left-color: $dracula-red;
-  background: rgba($dracula-red, 0.08);
+  border-left-color: var(--accent-red);
+  background: color-mix(in srgb, var(--accent-red) 8%, transparent);
 
   .msg-result-icon {
-    color: $dracula-red;
+    color: var(--accent-red);
   }
 
   .msg-result-label {
-    color: $dracula-red;
+    color: var(--accent-red);
   }
 }
 
@@ -782,11 +782,11 @@
 .msg-result-content {
   margin: 0;
   padding: 6px 8px;
-  background: rgba($dracula-bg, 0.5);
+  background: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
   border-radius: $radius-sm;
   font-size: 10px;
   font-family: $font-mono;
-  color: $dracula-comment;
+  color: var(--text-muted);
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 200px;
@@ -794,23 +794,23 @@
 }
 
 .msg-output {
-  color: $dracula-fg;
+  color: var(--text-primary);
 
   &.streaming {
-    border-right: 2px solid $dracula-purple;
+    border-right: 2px solid var(--accent-purple);
     animation: cursor-blink 1s infinite;
   }
 }
 
 @keyframes cursor-blink {
-  0%, 50% { border-color: $dracula-purple; }
+  0%, 50% { border-color: var(--accent-purple); }
   51%, 100% { border-color: transparent; }
 }
 
 .msg-prefix {
   opacity: 0.6;
   margin-right: 4px;
-  color: $dracula-comment;
+  color: var(--text-muted);
 }
 
 .msg-truncated {
@@ -832,8 +832,8 @@
   flex-wrap: wrap;
   gap: 4px;
   padding: 4px 8px;
-  background: rgba($dracula-bg, 0.9);
-  border-top: 1px solid $dracula-current;
+  background: color-mix(in srgb, var(--bg-secondary) 90%, transparent);
+  border-top: 1px solid var(--bg-tertiary);
   flex-shrink: 0;
 }
 
@@ -842,18 +842,18 @@
   align-items: center;
   gap: 4px;
   padding: 2px 6px;
-  background: rgba($dracula-cyan, 0.15);
-  border: 1px solid rgba($dracula-cyan, 0.3);
+  background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, transparent);
   border-radius: $radius-sm;
   font-family: $font-mono;
   font-size: 10px;
 
   &.is-image {
-    background: rgba($dracula-pink, 0.15);
-    border-color: rgba($dracula-pink, 0.3);
+    background: color-mix(in srgb, var(--accent-pink) 15%, transparent);
+    border-color: color-mix(in srgb, var(--accent-pink) 30%, transparent);
 
     .agent-panel-attachment-icon {
-      color: $dracula-pink;
+      color: var(--accent-pink);
     }
   }
 }
@@ -863,7 +863,7 @@
 }
 
 .agent-panel-attachment-name {
-  color: $dracula-fg;
+  color: var(--text-primary);
   max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -873,7 +873,7 @@
 .agent-panel-attachment-remove {
   background: transparent;
   border: none;
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-size: 12px;
   line-height: 1;
   padding: 0 2px;
@@ -881,15 +881,15 @@
   transition: color $transition-fast;
 
   &:hover {
-    color: $dracula-red;
+    color: var(--accent-red);
   }
 }
 
 // Simple/Advanced view toggle
 .agent-panel-view-toggle {
   background: transparent;
-  border: 1px solid $dracula-current;
-  color: $dracula-comment;
+  border: 1px solid var(--bg-tertiary);
+  color: var(--text-muted);
   padding: 2px 6px;
   border-radius: $radius-sm;
   font-size: 10px;
@@ -897,14 +897,14 @@
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $dracula-cyan;
-    color: $dracula-cyan;
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
   }
 
   &.active {
-    border-color: $dracula-purple;
-    color: $dracula-purple;
-    background: rgba($dracula-purple, 0.1);
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
+    background: color-mix(in srgb, var(--accent-purple) 10%, transparent);
   }
 }
 
@@ -914,8 +914,8 @@
   flex-wrap: wrap;
   gap: 4px;
   padding: 4px 8px;
-  background: rgba($dracula-bg, 0.9);
-  border-top: 1px solid $dracula-current;
+  background: color-mix(in srgb, var(--bg-secondary) 90%, transparent);
+  border-top: 1px solid var(--bg-tertiary);
   flex-shrink: 0;
 }
 
@@ -924,18 +924,18 @@
   align-items: center;
   gap: 4px;
   padding: 2px 6px;
-  background: rgba($dracula-cyan, 0.15);
-  border: 1px solid rgba($dracula-cyan, 0.3);
+  background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, transparent);
   border-radius: $radius-sm;
   font-family: $font-mono;
   font-size: 10px;
 
   &.is-image {
-    background: rgba($dracula-pink, 0.15);
-    border-color: rgba($dracula-pink, 0.3);
+    background: color-mix(in srgb, var(--accent-pink) 15%, transparent);
+    border-color: color-mix(in srgb, var(--accent-pink) 30%, transparent);
 
     .agent-panel-attachment-icon {
-      color: $dracula-pink;
+      color: var(--accent-pink);
     }
   }
 }
@@ -945,7 +945,7 @@
 }
 
 .agent-panel-attachment-name {
-  color: $dracula-fg;
+  color: var(--text-primary);
   max-width: 80px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -955,7 +955,7 @@
 .agent-panel-attachment-remove {
   background: transparent;
   border: none;
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-size: 12px;
   line-height: 1;
   padding: 0 2px;
@@ -963,14 +963,14 @@
   transition: color $transition-fast;
 
   &:hover {
-    color: $dracula-red;
+    color: var(--accent-red);
   }
 }
 
 .agent-panel-attach-btn {
   background: transparent;
-  border: 1px solid $dracula-current;
-  color: $dracula-comment;
+  border: 1px solid var(--bg-tertiary);
+  color: var(--text-muted);
   padding: 4px 6px;
   border-radius: $radius-sm;
   font-size: 12px;
@@ -979,9 +979,9 @@
   flex-shrink: 0;
 
   &:hover {
-    border-color: $dracula-cyan;
-    color: $dracula-cyan;
-    background: rgba($dracula-cyan, 0.1);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
   }
 }
 
@@ -1092,7 +1092,7 @@
     }
 
     &:active {
-      background: rgba($dracula-purple, 0.12);
+      background: color-mix(in srgb, var(--accent-purple) 12%, transparent);
     }
   }
 

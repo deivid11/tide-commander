@@ -6,8 +6,8 @@
   display: flex;
   gap: 2px;
   padding: 0 12px;
-  background: rgba($dracula-bg-darker, 0.8);
-  border-bottom: 1px solid $dracula-current;
+  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
+  border-bottom: 1px solid var(--bg-tertiary);
   overflow-x: auto;
 
   &::-webkit-scrollbar {
@@ -15,7 +15,7 @@
   }
 
   &::-webkit-scrollbar-thumb {
-    background: $dracula-current;
+    background: var(--bg-tertiary);
     border-radius: 2px;
   }
 }
@@ -28,7 +28,7 @@
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-size: 12px;
   font-family: $font-mono;
   font-weight: 500;
@@ -37,13 +37,13 @@
   white-space: nowrap;
 
   &:hover {
-    color: $dracula-fg;
-    background: rgba($dracula-current, 0.3);
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
   }
 
   &.active {
-    color: $dracula-fg;
-    border-bottom-color: $dracula-purple;
+    color: var(--text-primary);
+    border-bottom-color: var(--accent-purple);
   }
 }
 
@@ -57,9 +57,9 @@
 .commander-tab-count {
   font-size: 10px;
   padding: 2px 6px;
-  background: rgba($dracula-current, 0.5);
+  background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
   border-radius: 10px;
-  color: $dracula-comment;
+  color: var(--text-muted);
 }
 
 .commander-tab-folder {

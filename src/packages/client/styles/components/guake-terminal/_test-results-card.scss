@@ -10,9 +10,9 @@
 .test-results-card {
   font-family: $font-mono;
   font-size: 11.5px;
-  color: var(--tool-use-text, #{$text-primary});
-  background: color-mix(in srgb, var(--tool-use-bg, #{$bg-tertiary}) 85%, var(--bg-primary, #{$bg-primary}) 15%);
-  border: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 60%, transparent);
+  color: var(--tool-use-text, var(--text-primary));
+  background: color-mix(in srgb, var(--tool-use-bg, var(--bg-tertiary)) 85%, var(--bg-primary, var(--bg-primary)) 15%);
+  border: 1px solid color-mix(in srgb, var(--tool-use-border, var(--border-color)) 60%, transparent);
   border-left-width: 3px;
   border-radius: $radius-md;
   width: 100%;
@@ -21,9 +21,9 @@
   flex-direction: column;
   gap: 6px;
 
-  &.status-passed { border-left-color: $accent-green; }
-  &.status-failed { border-left-color: $accent-red; }
-  &.status-error { border-left-color: $accent-orange; }
+  &.status-passed { border-left-color: var(--accent-green); }
+  &.status-failed { border-left-color: var(--accent-red); }
+  &.status-error { border-left-color: var(--accent-orange); }
 
   .trc-header {
     display: flex;
@@ -49,23 +49,23 @@
     font-variant-numeric: tabular-nums;
 
     .trc-count {
-      color: $text-secondary;
-      &.passed { color: $accent-green; }
-      &.failed { color: $accent-red; }
-      &.error { color: $accent-orange; }
-      &.skipped { color: $text-muted; }
-      &.total { color: $text-muted; }
+      color: var(--text-secondary);
+      &.passed { color: var(--accent-green); }
+      &.failed { color: var(--accent-red); }
+      &.error { color: var(--accent-orange); }
+      &.skipped { color: var(--text-muted); }
+      &.total { color: var(--text-muted); }
     }
   }
 
   .trc-time {
     margin-left: auto;
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 11px;
   }
 
   .trc-command {
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 11px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -76,7 +76,7 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    border-top: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 40%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--tool-use-border, var(--border-color)) 40%, transparent);
     padding-top: 6px;
   }
 
@@ -84,11 +84,11 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    color: $accent-red;
+    color: var(--accent-red);
   }
 
   .trc-failing-more {
-    color: $text-muted;
+    color: var(--text-muted);
     padding-left: 17px;
   }
 }
@@ -97,19 +97,19 @@
 .test-run-inline {
   font-family: $font-mono;
   font-size: 11.5px;
-  color: var(--tool-use-text, #{$text-primary});
-  background: color-mix(in srgb, var(--tool-use-bg, #{$bg-tertiary}) 85%, var(--bg-primary, #{$bg-primary}) 15%);
-  border: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 60%, transparent);
+  color: var(--tool-use-text, var(--text-primary));
+  background: color-mix(in srgb, var(--tool-use-bg, var(--bg-tertiary)) 85%, var(--bg-primary, var(--bg-primary)) 15%);
+  border: 1px solid color-mix(in srgb, var(--tool-use-border, var(--border-color)) 60%, transparent);
   border-left-width: 3px;
   border-radius: $radius-md;
   width: 100%;
   overflow: hidden;
   margin-top: 4px;
 
-  &.status-running { border-left-color: $accent-blue; }
-  &.status-passed { border-left-color: $accent-green; }
-  &.status-failed { border-left-color: $accent-red; }
-  &.status-error { border-left-color: $accent-orange; }
+  &.status-running { border-left-color: var(--accent-blue); }
+  &.status-passed { border-left-color: var(--accent-green); }
+  &.status-failed { border-left-color: var(--accent-red); }
+  &.status-error { border-left-color: var(--accent-orange); }
 
   .tri-header {
     display: flex;
@@ -117,7 +117,7 @@
     gap: 8px;
     padding: 6px 10px;
     cursor: pointer;
-    border-bottom: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 40%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--tool-use-border, var(--border-color)) 40%, transparent);
 
     &:hover { background: rgba(255, 255, 255, 0.04); }
   }
@@ -134,22 +134,22 @@
     display: inline-flex;
     gap: 7px;
     font-variant-numeric: tabular-nums;
-    .pass { color: $accent-green; }
-    .fail { color: $accent-red; }
-    .skip { color: $text-muted; }
-    .tot { color: $text-muted; }
+    .pass { color: var(--accent-green); }
+    .fail { color: var(--accent-red); }
+    .skip { color: var(--text-muted); }
+    .tot { color: var(--text-muted); }
   }
 
   .tri-open {
     margin-left: auto;
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 10.5px;
   }
 
   .tri-spin {
     width: 9px;
     height: 9px;
-    border: 2px solid $accent-blue;
+    border: 2px solid var(--accent-blue);
     border-top-color: transparent;
     border-radius: 50%;
     animation: tri-spin 0.7s linear infinite;
@@ -164,7 +164,7 @@
 
   .tri-empty {
     padding: 6px 12px;
-    color: $text-muted;
+    color: var(--text-muted);
   }
 
   .tri-suite-row {
@@ -192,11 +192,11 @@
     align-items: center;
     gap: 6px;
     padding: 1px 10px 1px 34px;
-    color: $accent-red;
+    color: var(--accent-red);
 
     .tri-test-name { flex-shrink: 0; }
     .tri-test-msg {
-      color: $text-muted;
+      color: var(--text-muted);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -210,27 +210,27 @@
     width: 100%;
     background: transparent;
     border: none;
-    border-top: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 40%, transparent);
-    color: $text-secondary;
+    border-top: 1px solid color-mix(in srgb, var(--tool-use-border, var(--border-color)) 40%, transparent);
+    color: var(--text-secondary);
     font: inherit;
     padding: 5px 10px;
     cursor: pointer;
     text-align: left;
 
-    &:hover { color: $text-primary; }
+    &:hover { color: var(--text-primary); }
   }
 
   .tri-console {
     max-height: 200px;
     overflow-y: auto;
     padding: 6px 10px;
-    background: var(--bg-primary, #{$bg-primary});
+    background: var(--bg-primary, var(--bg-primary));
 
     pre {
       margin: 0;
       white-space: pre-wrap;
       word-break: break-word;
-      color: $text-secondary;
+      color: var(--text-secondary);
     }
   }
 

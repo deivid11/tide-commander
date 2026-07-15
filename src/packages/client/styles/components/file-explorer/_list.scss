@@ -24,15 +24,15 @@
 }
 
 .file-explorer-loading {
-  color: $dracula-comment;
+  color: var(--text-muted);
 }
 
 .file-explorer-error {
-  color: $dracula-red;
+  color: var(--accent-red);
 }
 
 .file-explorer-empty {
-  color: $dracula-comment;
+  color: var(--text-muted);
 }
 
 .file-explorer-list {
@@ -48,19 +48,19 @@
   transition: background $transition-fast;
 
   &:hover {
-    background: rgba($accent-blue, 0.15);
+    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
   }
 
   &.directory {
     .file-explorer-item-name {
-      color: $dracula-cyan;
+      color: var(--accent-cyan);
       font-weight: 500;
     }
   }
 
   &.file {
     .file-explorer-item-name {
-      color: $dracula-fg;
+      color: var(--text-primary);
     }
   }
 }
@@ -84,6 +84,6 @@
 .file-explorer-item-size {
   font-family: $font-mono;
   font-size: 10px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   flex-shrink: 0;
 }

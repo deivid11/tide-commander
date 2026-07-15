@@ -7,13 +7,13 @@
   &__field {
     display: flex;
     align-items: stretch;
-    background: $bg-tertiary;
-    border: 1px solid $border-color;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
     border-radius: $radius-sm;
     transition: border-color $transition-fast;
 
     &:focus-within {
-      border-color: $accent-blue;
+      border-color: var(--accent-blue);
     }
   }
 
@@ -22,7 +22,7 @@
     align-items: center;
     justify-content: center;
     padding: 0 6px 0 10px;
-    color: $text-muted;
+    color: var(--text-muted);
   }
 
   &__input {
@@ -31,12 +31,12 @@
     padding: 9px 8px;
     background: transparent;
     border: none;
-    color: $text-primary;
+    color: var(--text-primary);
     font-size: 13px;
     outline: none;
 
     &::placeholder {
-      color: $text-muted;
+      color: var(--text-muted);
     }
   }
 
@@ -47,14 +47,14 @@
     padding: 0 10px;
     background: transparent;
     border: none;
-    border-left: 1px solid $border-color;
-    color: $text-secondary;
+    border-left: 1px solid var(--border-color);
+    color: var(--text-secondary);
     cursor: pointer;
     transition: color $transition-fast, background $transition-fast;
 
     &:hover:not(:disabled) {
-      color: $text-primary;
-      background: rgba($accent-blue, 0.08);
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
     }
 
     &:disabled {
@@ -74,8 +74,8 @@
     left: 0;
     right: 0;
     z-index: 50;
-    background: $bg-secondary;
-    border: 1px solid $border-color;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
     border-radius: $radius-md;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
     overflow: hidden;
@@ -86,19 +86,19 @@
 
   &__status {
     padding: 12px 14px;
-    color: $text-secondary;
+    color: var(--text-secondary);
     font-size: 12px;
 
     code {
-      background: $bg-tertiary;
+      background: var(--bg-tertiary);
       padding: 1px 5px;
       border-radius: $radius-sm;
       font-size: 11px;
-      color: $text-primary;
+      color: var(--text-primary);
     }
 
     &--error {
-      color: $accent-red;
+      color: var(--accent-red);
     }
   }
 
@@ -118,20 +118,20 @@
     border-radius: $radius-sm;
     font-size: 12px;
     cursor: pointer;
-    color: $text-primary;
+    color: var(--text-primary);
     transition: background $transition-fast;
 
     &.is-active {
-      background: rgba($accent-blue, 0.18);
+      background: color-mix(in srgb, var(--accent-blue) 18%, transparent);
     }
 
     &.is-selected {
-      color: $accent-blue;
+      color: var(--accent-blue);
     }
   }
 
   &__provider {
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 11px;
   }
 
@@ -145,7 +145,7 @@
 
   &__check {
     display: inline-flex;
-    color: $accent-blue;
+    color: var(--accent-blue);
   }
 
   &__footer {
@@ -153,8 +153,8 @@
     justify-content: space-between;
     align-items: center;
     padding: 6px 10px;
-    border-top: 1px solid $border-color;
-    color: $text-muted;
+    border-top: 1px solid var(--border-color);
+    color: var(--text-muted);
     font-size: 10px;
   }
 

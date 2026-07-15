@@ -5,9 +5,9 @@
   align-items: center;
   gap: 8px;
   padding: 5px 10px;
-  background: color-mix(in srgb, $accent-blue 8%, transparent);
-  border-top: 1px solid color-mix(in srgb, $accent-blue 25%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, $accent-blue 25%, transparent);
+  background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--accent-blue) 25%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent-blue) 25%, transparent);
   min-height: 30px;
 
   &.is-working {
@@ -29,7 +29,7 @@
   gap: 5px;
   flex-shrink: 0;
   font-size: 10px;
-  color: $accent-blue;
+  color: var(--accent-blue);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.4px;
@@ -39,13 +39,13 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: $accent-blue;
+  background: var(--accent-blue);
   flex-shrink: 0;
 }
 
 .queued-messages-bar__count {
-  background: $accent-blue;
-  color: $bg-primary;
+  background: var(--accent-blue);
+  color: var(--bg-primary);
   border-radius: 10px;
   padding: 0 6px;
   font-size: 10px;
@@ -55,7 +55,7 @@
 }
 
 .queued-messages-bar__hint {
-  color: color-mix(in srgb, $accent-blue 80%, $text-primary);
+  color: color-mix(in srgb, var(--accent-blue) 80%, var(--text-primary));
 }
 
 .queued-messages-bar__pills {
@@ -73,17 +73,17 @@
   align-items: center;
   gap: 6px;
   padding: 3px 6px 3px 8px;
-  background: color-mix(in srgb, $accent-blue 12%, transparent);
-  border: 1px solid color-mix(in srgb, $accent-blue 40%, transparent);
+  background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 40%, transparent);
   border-radius: 12px;
   font-size: 11px;
-  color: $text-primary;
+  color: var(--text-primary);
   white-space: nowrap;
   flex-shrink: 0;
 
   &.has-error {
-    background: color-mix(in srgb, $accent-red 12%, transparent);
-    border-color: color-mix(in srgb, $accent-red 45%, transparent);
+    background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent-red) 45%, transparent);
   }
 }
 
@@ -115,7 +115,7 @@
 .queued-pill__action {
   background: transparent;
   border: none;
-  color: $text-secondary;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 1px 3px;
   border-radius: 3px;
@@ -126,24 +126,24 @@
   justify-content: center;
 
   &:hover {
-    background: rgba($text-primary, 0.08);
-    color: $text-primary;
+    background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    color: var(--text-primary);
   }
 
   &.queued-pill__action--enforce:hover {
-    color: $accent-green;
+    color: var(--accent-green);
   }
 
   &.queued-pill__action--delete:hover {
-    color: $accent-red;
+    color: var(--accent-red);
   }
 }
 
 .queued-message-modal {
   width: min(640px, 92vw);
   max-height: 80vh;
-  background: $bg-primary;
-  border: 1px solid $border-color;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-md;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
   display: flex;
@@ -154,27 +154,27 @@
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    border-bottom: 1px solid $border-color;
-    background: $bg-secondary;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
 
     h2 {
       margin: 0;
       font-size: 14px;
       font-weight: 600;
-      color: $text-primary;
+      color: var(--text-primary);
     }
 
     .modal-close {
       background: transparent;
       border: none;
-      color: $text-muted;
+      color: var(--text-muted);
       cursor: pointer;
       padding: 4px;
       border-radius: $radius-sm;
 
       &:hover {
-        background: rgba($text-primary, 0.08);
-        color: $text-primary;
+        background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+        color: var(--text-primary);
       }
     }
   }
@@ -190,8 +190,8 @@
     justify-content: flex-end;
     gap: 8px;
     padding: 10px 16px;
-    border-top: 1px solid $border-color;
-    background: $bg-secondary;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-secondary);
   }
 }
 
@@ -202,7 +202,7 @@
   font-family: var(--font-mono, monospace);
   font-size: 12px;
   line-height: 1.5;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 @keyframes queued-pulse {

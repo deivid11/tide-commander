@@ -28,6 +28,12 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+// Theme-aware text selection (eye-friendly soft tint per theme)
+::selection {
+  background: var(--selection-bg);
+  color: var(--selection-text);
+}
+
 #app {
   height: 100vh;
 }
@@ -61,8 +67,8 @@ body {
 // Selection box (for RTS selection)
 #selection-box {
   position: fixed;
-  border: 2px solid $accent-green;
-  background: rgba($accent-green, 0.1);
+  border: 2px solid var(--accent-green);
+  background: color-mix(in srgb, var(--accent-green) 10%, transparent);
   pointer-events: none;
   z-index: 100;
   display: none;

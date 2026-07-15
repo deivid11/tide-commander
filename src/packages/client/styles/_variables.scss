@@ -116,4 +116,12 @@ $radius-xl: 12px;
 
   // Task label
   --task-label-color: #{$accent-cyan};
+
+  // Extended UI surfaces (overridden per-theme in applyTheme)
+  --selection-bg: color-mix(in srgb, #{$accent-cyan} 28%, transparent);
+  --selection-text: #{$text-primary};
+  --accent-soft: color-mix(in srgb, #{$accent-blue} 14%, transparent);
+  --thinking-accent: #{$accent-purple};
+  --status-working: #{$accent-cyan};
+  --bg-hover: color-mix(in srgb, #{$accent-cyan} 6%, transparent);
 }

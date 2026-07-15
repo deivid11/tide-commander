@@ -28,12 +28,12 @@
 .area-panel-name {
   font-size: 16px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .area-panel-type {
   font-size: 11px;
-  color: $text-muted;
+  color: var(--text-muted);
   text-transform: capitalize;
 }
 
@@ -51,15 +51,15 @@
 .area-directories-title {
   font-size: 11px;
   font-weight: 600;
-  color: $text-secondary;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .area-add-dir-btn {
   background: transparent;
-  border: 1px dashed $border-color;
-  color: $text-secondary;
+  border: 1px dashed var(--border-color);
+  color: var(--text-secondary);
   padding: 4px 8px;
   border-radius: $radius-sm;
   font-size: 10px;
@@ -67,8 +67,8 @@
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $accent-blue;
-    color: $accent-blue;
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
   }
 }
 
@@ -83,13 +83,13 @@
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
   cursor: pointer;
   transition: background $transition-fast;
 
   &:hover {
-    background: rgba($accent-blue, 0.15);
+    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
 
     .area-directory-remove {
       opacity: 1;
@@ -106,7 +106,7 @@
   flex: 1;
   font-family: $font-mono;
   font-size: 11px;
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -115,7 +115,7 @@
 .area-directory-remove {
   background: transparent;
   border: none;
-  color: $dracula-red;
+  color: var(--accent-red);
   font-size: 14px;
   cursor: pointer;
   opacity: 0;
@@ -130,11 +130,11 @@
 .area-no-directories {
   padding: 16px;
   text-align: center;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 12px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
-  border: 1px dashed $border-color;
+  border: 1px dashed var(--border-color);
 }
 
 .area-actions {
@@ -146,27 +146,27 @@
 .add-directory-input {
   width: 100%;
   padding: 10px 12px;
-  background: $bg-tertiary;
-  border: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-md;
-  color: $text-primary;
+  color: var(--text-primary);
   font-family: $font-mono;
   font-size: 12px;
 
   &:focus {
     outline: none;
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 
   &::placeholder {
-    color: $text-muted;
+    color: var(--text-muted);
   }
 }
 
 // Compact directory list in left panel
 .area-directories-compact {
   padding: 4px 8px 8px;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .area-dir-item {
@@ -180,7 +180,7 @@
   font-size: 11px;
 
   &:hover {
-    background: rgba($accent-blue, 0.15);
+    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
 
     .area-dir-remove {
       opacity: 1;
@@ -196,7 +196,7 @@
 .area-dir-path {
   flex: 1;
   font-family: $font-mono;
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -205,7 +205,7 @@
 .area-dir-remove {
   background: transparent;
   border: none;
-  color: $dracula-red;
+  color: var(--accent-red);
   font-size: 14px;
   cursor: pointer;
   opacity: 0;
@@ -227,25 +227,25 @@
 .area-add-dir-input {
   flex: 1;
   padding: 4px 6px;
-  background: $bg-tertiary;
-  border: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
   font-family: $font-mono;
   font-size: 10px;
 
   &:focus {
     outline: none;
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 
   &::placeholder {
-    color: $text-muted;
+    color: var(--text-muted);
   }
 }
 
 .area-add-dir-confirm {
-  background: $accent-blue;
+  background: var(--accent-blue);
   border: none;
   color: white;
   padding: 4px 8px;
@@ -264,16 +264,16 @@
   padding: 4px 6px;
   margin-top: 4px;
   background: transparent;
-  border: 1px dashed $border-color;
+  border: 1px dashed var(--border-color);
   border-radius: $radius-sm;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 10px;
   cursor: pointer;
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $accent-blue;
-    color: $accent-blue;
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
   }
 }
 

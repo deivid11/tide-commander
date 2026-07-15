@@ -19,8 +19,8 @@
   bottom: 0;
   width: var(--guake-side-panel-width);
   // Opaque — translucent bg let chat text bleed through on mobile overlay mode
-  background: $dracula-bg-darker;
-  border-left: 2px solid $dracula-green;
+  background: var(--bg-primary);
+  border-left: 2px solid var(--accent-green);
   display: flex;
   flex-direction: column;
   z-index: 201;
@@ -43,8 +43,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 10px 16px;
-  background: rgba($dracula-bg, 0.95);
-  border-bottom: 1px solid $dracula-current;
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  border-bottom: 1px solid var(--bg-tertiary);
   flex-shrink: 0;
 }
 
@@ -52,7 +52,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: $dracula-green;
+  color: var(--accent-green);
   font-weight: 600;
   font-size: 13px;
   min-width: 0;
@@ -71,8 +71,8 @@
   height: 18px;
   padding: 0 5px;
   border-radius: 9px;
-  background: rgba($dracula-green, 0.2);
-  color: $dracula-green;
+  background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+  color: var(--accent-green);
   font-size: 11px;
   font-weight: 600;
   flex-shrink: 0;
@@ -88,7 +88,7 @@
 .guake-git-close {
   background: none;
   border: none;
-  color: $dracula-fg;
+  color: var(--text-primary);
   cursor: pointer;
   padding: 4px 6px;
   border-radius: 4px;
@@ -99,7 +99,7 @@
 
   &:hover {
     opacity: 1;
-    background: rgba($dracula-current, 0.5);
+    background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
   }
 
   &:disabled {
@@ -122,7 +122,7 @@
 .guake-git-empty {
   padding: 24px 16px;
   text-align: center;
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -139,18 +139,18 @@
   cursor: pointer;
   user-select: none;
   font-size: 12px;
-  color: $dracula-fg;
-  background: rgba($dracula-bg, 0.4);
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-secondary) 40%, transparent);
   transition: background 0.12s;
 
   &:hover {
-    background: rgba($dracula-current, 0.4);
+    background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
   }
 }
 
 .guake-git-repo-arrow {
   font-size: 9px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   width: 12px;
   text-align: center;
   flex-shrink: 0;
@@ -158,12 +158,12 @@
 
 .guake-git-repo-name {
   font-weight: 600;
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   flex-shrink: 0;
 }
 
 .guake-git-repo-branch {
-  color: $dracula-green;
+  color: var(--accent-green);
   font-size: 11px;
   opacity: 0.8;
   margin-left: 2px;
@@ -172,8 +172,8 @@
 .guake-git-repo-count {
   margin-left: auto;
   font-size: 10px;
-  color: $dracula-comment;
-  background: rgba($dracula-current, 0.4);
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
   padding: 1px 6px;
   border-radius: 8px;
 }
@@ -184,7 +184,7 @@
   flex-shrink: 0;
   background: transparent;
   border: 1px solid transparent;
-  color: $dracula-comment;
+  color: var(--text-muted);
   width: 20px;
   height: 18px;
   border-radius: 3px;
@@ -203,9 +203,9 @@
 
   &:hover {
     opacity: 1 !important;
-    color: $dracula-red;
-    background: rgba($dracula-red, 0.12);
-    border-color: rgba($dracula-red, 0.35);
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent-red) 35%, transparent);
   }
 }
 
@@ -223,52 +223,52 @@
   cursor: pointer;
   font-size: 12px;
   font-family: $font-mono;
-  color: $dracula-fg;
+  color: var(--text-primary);
   transition: background 0.15s, border-color 0.15s;
   min-width: 0;
   border-left: 3px solid transparent;
   margin: 1px 0;
 
   &:hover {
-    background: rgba($dracula-current, 0.35);
+    background: color-mix(in srgb, var(--bg-tertiary) 35%, transparent);
   }
 
   // Status-colored left border + tinted hover per file type
   &[data-status="modified"] {
-    border-left-color: $dracula-orange;
-    .guake-git-file-name { color: $dracula-orange; }
-    &:hover { background: rgba($dracula-orange, 0.08); }
+    border-left-color: var(--accent-orange);
+    .guake-git-file-name { color: var(--accent-orange); }
+    &:hover { background: color-mix(in srgb, var(--accent-orange) 8%, transparent); }
   }
 
   &[data-status="added"] {
-    border-left-color: $dracula-green;
-    .guake-git-file-name { color: $dracula-green; }
-    &:hover { background: rgba($dracula-green, 0.08); }
+    border-left-color: var(--accent-green);
+    .guake-git-file-name { color: var(--accent-green); }
+    &:hover { background: color-mix(in srgb, var(--accent-green) 8%, transparent); }
   }
 
   &[data-status="deleted"] {
-    border-left-color: $dracula-red;
-    .guake-git-file-name { color: $dracula-red; text-decoration: line-through; opacity: 0.7; }
-    &:hover { background: rgba($dracula-red, 0.08); }
+    border-left-color: var(--accent-red);
+    .guake-git-file-name { color: var(--accent-red); text-decoration: line-through; opacity: 0.7; }
+    &:hover { background: color-mix(in srgb, var(--accent-red) 8%, transparent); }
   }
 
   &[data-status="untracked"] {
-    border-left-color: $dracula-cyan;
-    .guake-git-file-name { color: $dracula-cyan; }
-    &:hover { background: rgba($dracula-cyan, 0.08); }
+    border-left-color: var(--accent-cyan);
+    .guake-git-file-name { color: var(--accent-cyan); }
+    &:hover { background: color-mix(in srgb, var(--accent-cyan) 8%, transparent); }
   }
 
   &[data-status="renamed"] {
-    border-left-color: $dracula-purple;
-    .guake-git-file-name { color: $dracula-purple; }
-    &:hover { background: rgba($dracula-purple, 0.08); }
+    border-left-color: var(--accent-purple);
+    .guake-git-file-name { color: var(--accent-purple); }
+    &:hover { background: color-mix(in srgb, var(--accent-purple) 8%, transparent); }
   }
 
   &[data-status="conflict"] {
-    border-left-color: $dracula-red;
-    background: rgba($dracula-red, 0.04);
-    .guake-git-file-name { color: $dracula-pink; }
-    &:hover { background: rgba($dracula-red, 0.1); }
+    border-left-color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 4%, transparent);
+    .guake-git-file-name { color: var(--accent-pink); }
+    &:hover { background: color-mix(in srgb, var(--accent-red) 10%, transparent); }
   }
 }
 
@@ -292,7 +292,7 @@
 }
 
 .guake-git-file-dir {
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-size: 10px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -318,7 +318,7 @@
   flex-shrink: 0;
   background: transparent;
   border: 1px solid transparent;
-  color: $dracula-comment;
+  color: var(--text-muted);
   width: 20px;
   height: 18px;
   border-radius: 3px;
@@ -338,9 +338,9 @@
 
   &:hover {
     opacity: 1 !important;
-    color: $dracula-red;
-    background: rgba($dracula-red, 0.12);
-    border-color: rgba($dracula-red, 0.35);
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent-red) 35%, transparent);
   }
 }
 
@@ -365,8 +365,8 @@
   width: 92vw;
   height: 85vh;
   max-width: 1400px;
-  background: $dracula-bg-darker;
-  border: 1px solid $dracula-current;
+  background: var(--bg-primary);
+  border: 1px solid var(--bg-tertiary);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
@@ -385,8 +385,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px;
-  background: rgba($dracula-bg, 0.95);
-  border-bottom: 1px solid $dracula-current;
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  border-bottom: 1px solid var(--bg-tertiary);
   flex-shrink: 0;
   gap: 12px;
 }
@@ -400,8 +400,8 @@
 
 .guake-git-diff-nav-btn {
   background: transparent;
-  border: 1px solid $dracula-current;
-  color: $dracula-fg;
+  border: 1px solid var(--bg-tertiary);
+  color: var(--text-primary);
   width: 28px;
   height: 28px;
   border-radius: 4px;
@@ -415,8 +415,8 @@
   transition: background 0.1s, border-color 0.1s;
 
   &:hover:not(:disabled) {
-    background: rgba($dracula-purple, 0.2);
-    border-color: $dracula-purple;
+    background: color-mix(in srgb, var(--accent-purple) 20%, transparent);
+    border-color: var(--accent-purple);
   }
 
   &:disabled {
@@ -427,7 +427,7 @@
 
 .guake-git-diff-nav-counter {
   font-size: 11px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-family: $font-mono;
   margin-left: 4px;
   white-space: nowrap;
@@ -435,7 +435,7 @@
 
 .guake-git-diff-filename {
   font-size: 13px;
-  color: $dracula-fg;
+  color: var(--text-primary);
   font-family: $font-mono;
   font-weight: 500;
   overflow: hidden;
@@ -446,8 +446,8 @@
 
 // Delete confirmation dialog
 .guake-git-delete-confirm {
-  background: $dracula-bg-darker;
-  border: 1px solid $dracula-red;
+  background: var(--bg-primary);
+  border: 1px solid var(--accent-red);
   border-radius: 8px;
   padding: 20px 24px;
   max-width: 480px;
@@ -458,17 +458,17 @@
 
   p {
     margin: 0 0 8px;
-    color: $dracula-fg;
+    color: var(--text-primary);
     font-size: 14px;
 
     strong {
-      color: $dracula-red;
+      color: var(--accent-red);
     }
   }
 
   .guake-git-delete-path {
     font-size: 11px;
-    color: $dracula-comment;
+    color: var(--text-muted);
     font-family: $font-mono;
     word-break: break-all;
     margin-bottom: 16px;
@@ -483,22 +483,22 @@
 
 .guake-git-delete-cancel {
   background: transparent;
-  border: 1px solid $dracula-current;
-  color: $dracula-fg;
+  border: 1px solid var(--bg-tertiary);
+  color: var(--text-primary);
   padding: 6px 20px;
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
 
   &:hover {
-    background: rgba($dracula-current, 0.3);
+    background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
   }
 }
 
 .guake-git-delete-btn {
-  background: rgba($dracula-red, 0.2);
-  border: 1px solid $dracula-red;
-  color: $dracula-red;
+  background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+  border: 1px solid var(--accent-red);
+  color: var(--accent-red);
   padding: 6px 20px;
   border-radius: 4px;
   cursor: pointer;
@@ -506,7 +506,7 @@
   font-weight: 500;
 
   &:hover {
-    background: rgba($dracula-red, 0.35);
+    background: color-mix(in srgb, var(--accent-red) 35%, transparent);
   }
 }
 
@@ -527,8 +527,8 @@
   display: inline-block;
   margin-left: 8px;
   font-size: 10px;
-  color: $dracula-green;
-  background: rgba($dracula-green, 0.15);
+  color: var(--accent-green);
+  background: color-mix(in srgb, var(--accent-green) 15%, transparent);
   padding: 1px 6px;
   border-radius: 4px;
   font-weight: 500;
@@ -537,7 +537,7 @@
 .guake-git-content-viewer {
   flex: 1;
   overflow: auto;
-  background: $dracula-bg-darker;
+  background: var(--bg-primary);
 }
 
 .guake-git-content-pre {
@@ -546,7 +546,7 @@
   font-family: $font-mono;
   font-size: 12px;
   line-height: 1.5;
-  color: $dracula-fg;
+  color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;
   tab-size: 2;
@@ -556,7 +556,7 @@
 .guake-git-view-toggle {
   background: none;
   border: none;
-  color: $dracula-comment;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 3px 5px;
   border-radius: 3px;
@@ -565,34 +565,34 @@
   transition: color 0.15s, background 0.15s;
 
   &:hover {
-    color: $dracula-fg;
-    background: rgba($dracula-current, 0.4);
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
   }
 
   &.active {
-    color: $dracula-green;
-    background: rgba($dracula-green, 0.15);
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
   }
 }
 
 // Tree directory row
 .guake-git-tree-dir {
-  border-left-color: rgba($dracula-yellow, 0.45);
-  background: color-mix(in srgb, $dracula-yellow 6%, transparent);
-  color: color.adjust($dracula-yellow, $lightness: 8%);
+  border-left-color: color-mix(in srgb, var(--accent-yellow) 45%, transparent);
+  background: color-mix(in srgb, var(--accent-yellow) 6%, transparent);
+  color: color-mix(in srgb, var(--accent-yellow) 91%, white);
   font-weight: 600;
 
   .guake-git-file-name {
-    color: color.adjust($dracula-yellow, $lightness: 8%);
+    color: color-mix(in srgb, var(--accent-yellow) 91%, white);
   }
 
   .guake-git-repo-count {
-    background: rgba($dracula-yellow, 0.12);
-    color: color.adjust($dracula-yellow, $lightness: 10%);
+    background: color-mix(in srgb, var(--accent-yellow) 12%, transparent);
+    color: color-mix(in srgb, var(--accent-yellow) 88%, white);
   }
 
   &:hover {
-    background: color-mix(in srgb, $dracula-yellow 12%, transparent);
+    background: color-mix(in srgb, var(--accent-yellow) 12%, transparent);
   }
 }
 
@@ -608,7 +608,7 @@
   gap: 4px;
   background: none;
   border: none;
-  color: $dracula-comment;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 4px 10px;
   border-radius: 4px;
@@ -618,13 +618,13 @@
   transition: color 0.15s, background 0.15s;
 
   &:hover {
-    color: $dracula-fg;
-    background: rgba($dracula-current, 0.3);
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
   }
 
   &.active {
-    color: $dracula-green;
-    background: rgba($dracula-green, 0.12);
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 12%, transparent);
   }
 
   .guake-git-badge {
@@ -641,16 +641,16 @@
   flex-wrap: wrap;
   gap: 4px;
   padding: 6px 10px;
-  border-bottom: 1px solid rgba($dracula-current, 0.4);
+  border-bottom: 1px solid color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
 }
 
 .guake-git-folder-btn {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  background: rgba($dracula-bg, 0.4);
+  background: color-mix(in srgb, var(--bg-secondary) 40%, transparent);
   border: 1px solid transparent;
-  color: $dracula-comment;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 3px 8px;
   border-radius: 4px;
@@ -660,14 +660,14 @@
   transition: color 0.15s, background 0.15s, border-color 0.15s;
 
   &:hover {
-    color: $dracula-fg;
-    background: rgba($dracula-current, 0.4);
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
   }
 
   &.active {
-    color: $dracula-cyan;
-    border-color: rgba($dracula-cyan, 0.4);
-    background: rgba($dracula-cyan, 0.08);
+    color: var(--accent-cyan);
+    border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+    background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
   }
 }
 
@@ -685,37 +685,37 @@
       cursor: pointer;
       font-size: 12px;
       font-family: $font-mono;
-      color: $dracula-fg;
+      color: var(--text-primary);
       transition: background 0.12s;
       min-height: 20px;
 
       &:hover {
-        background: rgba($dracula-current, 0.3);
+        background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
       }
 
       &.selected {
-        background: rgba($dracula-purple, 0.15);
-        color: $dracula-purple;
+        background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+        color: var(--accent-purple);
       }
 
       &.directory {
-        color: color.adjust($dracula-yellow, $lightness: 8%);
+        color: color-mix(in srgb, var(--accent-yellow) 91%, white);
 
         .tree-name {
-          color: color.adjust($dracula-yellow, $lightness: 8%);
+          color: color-mix(in srgb, var(--accent-yellow) 91%, white);
           font-weight: 600;
         }
 
         &:hover {
-          background: color-mix(in srgb, $dracula-yellow 10%, transparent);
+          background: color-mix(in srgb, var(--accent-yellow) 10%, transparent);
         }
 
         &.selected {
-          background: color-mix(in srgb, $dracula-yellow 14%, rgba($dracula-purple, 0.12));
-          color: color.adjust($dracula-yellow, $lightness: 10%);
+          background: color-mix(in srgb, var(--accent-yellow) 14%, color-mix(in srgb, var(--accent-purple) 12%, transparent));
+          color: color-mix(in srgb, var(--accent-yellow) 88%, white);
 
           .tree-name {
-            color: color.adjust($dracula-yellow, $lightness: 10%);
+            color: color-mix(in srgb, var(--accent-yellow) 88%, white);
           }
         }
       }
@@ -723,7 +723,7 @@
 
     .tree-arrow {
       font-size: 8px;
-      color: $dracula-comment;
+      color: var(--text-muted);
       width: 12px;
       text-align: center;
       flex-shrink: 0;
@@ -784,14 +784,14 @@
 
 .guake-branch-ahead {
   font-size: 10px;
-  color: $dracula-green;
+  color: var(--accent-green);
   font-weight: 600;
   margin-left: 4px;
 }
 
 .guake-branch-behind {
   font-size: 10px;
-  color: $dracula-orange;
+  color: var(--accent-orange);
   font-weight: 600;
   margin-left: 2px;
 }
@@ -802,17 +802,17 @@
 
 .guake-git-fetch-btn {
   background: transparent;
-  border: 1px solid $dracula-comment;
+  border: 1px solid var(--text-muted);
   border-radius: 4px;
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   font-size: 13px;
   padding: 2px 6px;
   cursor: pointer;
   transition: all 0.15s ease;
 
   &:hover:not(:disabled) {
-    background: rgba($dracula-cyan, 0.15);
-    border-color: $dracula-cyan;
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border-color: var(--accent-cyan);
   }
 
   &:disabled {
@@ -827,7 +827,7 @@
 
 .guake-area-fetch-btn {
   font-size: 11px;
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   margin-left: 4px;
   cursor: pointer;
   opacity: 0.6;
@@ -866,7 +866,7 @@
     width: 100%;
     max-width: 100%;
     border-left: none;
-    border-bottom: 2px solid $dracula-green;
+    border-bottom: 2px solid var(--accent-green);
     z-index: 205;
   }
 

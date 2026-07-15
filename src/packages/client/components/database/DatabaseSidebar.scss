@@ -7,8 +7,8 @@
   width: 280px;
   min-width: 280px;
   flex-shrink: 0;
-  background: $bg-secondary;
-  border-right: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -25,8 +25,8 @@
     padding: 12px;
     font-weight: 600;
     font-size: 0.9em;
-    border-bottom: 1px solid $border-color;
-    color: $text-secondary;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     flex-shrink: 0;
@@ -35,19 +35,19 @@
   &__toggle {
     background: none;
     border: none;
-    color: $text-secondary;
+    color: var(--text-secondary);
     cursor: pointer;
     padding: 4px 8px;
     font-size: 1em;
 
     &:hover {
-      color: $text-primary;
+      color: var(--text-primary);
     }
   }
 
   &__section {
     padding: 12px;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
 
     &--tables {
@@ -62,7 +62,7 @@
   &__section-title {
     font-size: 0.8em;
     font-weight: 600;
-    color: $text-secondary;
+    color: var(--text-secondary);
     margin-bottom: 8px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -72,20 +72,20 @@
   &__select {
     width: 100%;
     padding: 8px 10px;
-    background: $bg-tertiary;
-    border: 1px solid $border-color;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
-    color: $text-primary;
+    color: var(--text-primary);
     font-size: 0.9em;
     cursor: pointer;
 
     &:focus {
       outline: none;
-      border-color: $accent-blue;
+      border-color: var(--accent-blue);
     }
 
     option {
-      background: $bg-tertiary;
+      background: var(--bg-tertiary);
     }
   }
 
@@ -96,21 +96,21 @@
   &__search-input {
     width: 100%;
     padding: 8px 10px;
-    background: $bg-tertiary;
-    border: 1px solid $border-color;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
-    color: $text-primary;
+    color: var(--text-primary);
     font-size: 0.9em;
     box-sizing: border-box;
 
     &::placeholder {
-      color: $text-secondary;
+      color: var(--text-secondary);
       opacity: 0.6;
     }
 
     &:focus {
       outline: none;
-      border-color: $accent-blue;
+      border-color: var(--accent-blue);
     }
   }
 
@@ -120,8 +120,8 @@
     left: 0;
     right: 0;
     margin-top: 2px;
-    background: $bg-tertiary;
-    border: 1px solid $border-color;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
     max-height: 200px;
     overflow-y: auto;
@@ -138,11 +138,11 @@
     text-overflow: ellipsis;
 
     &:hover {
-      background: rgba($accent-blue, 0.15);
+      background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
     }
 
     &--active {
-      color: $accent-blue;
+      color: var(--accent-blue);
       font-weight: 600;
     }
   }
@@ -150,7 +150,7 @@
   &__dropdown-empty {
     padding: 8px 10px;
     font-size: 0.85em;
-    color: $text-secondary;
+    color: var(--text-secondary);
     font-style: italic;
   }
 
@@ -164,13 +164,13 @@
     font-size: 0.8em;
 
     &--connected {
-      background: rgba($accent-green, 0.1);
-      color: $accent-green;
+      background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+      color: var(--accent-green);
     }
 
     &--error {
-      background: rgba($accent-red, 0.1);
-      color: $accent-red;
+      background: color-mix(in srgb, var(--accent-red) 10%, transparent);
+      color: var(--accent-red);
     }
   }
 
@@ -192,21 +192,21 @@
   &__table-filter-input {
     width: 100%;
     padding: 6px 28px 6px 10px;
-    background: $bg-tertiary;
-    border: 1px solid $border-color;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
-    color: $text-primary;
+    color: var(--text-primary);
     font-size: 0.8em;
     box-sizing: border-box;
 
     &::placeholder {
-      color: $text-secondary;
+      color: var(--text-secondary);
       opacity: 0.6;
     }
 
     &:focus {
       outline: none;
-      border-color: $accent-blue;
+      border-color: var(--accent-blue);
     }
   }
 
@@ -217,14 +217,14 @@
     transform: translateY(-50%);
     background: none;
     border: none;
-    color: $text-secondary;
+    color: var(--text-secondary);
     cursor: pointer;
     padding: 2px 6px;
     font-size: 1em;
     line-height: 1;
 
     &:hover {
-      color: $text-primary;
+      color: var(--text-primary);
     }
   }
 
@@ -238,7 +238,7 @@
   &__tables-empty {
     padding: 8px 10px;
     font-size: 0.8em;
-    color: $text-secondary;
+    color: var(--text-secondary);
     font-style: italic;
   }
 
@@ -255,7 +255,7 @@
     line-height: 1.2;
 
     &:hover {
-      background: rgba($text-primary, 0.05);
+      background: color-mix(in srgb, var(--text-primary) 5%, transparent);
     }
   }
 
@@ -265,13 +265,13 @@
     padding: 0;
     margin: 0;
     font-size: 0.6em;
-    color: $text-secondary;
+    color: var(--text-secondary);
     width: 8px;
     flex-shrink: 0;
     cursor: pointer;
 
     &:hover {
-      color: $text-primary;
+      color: var(--text-primary);
     }
   }
 
@@ -290,7 +290,7 @@
     cursor: pointer;
 
     &--selected {
-      color: $accent-blue;
+      color: var(--accent-blue);
       font-weight: 600;
     }
   }
@@ -298,7 +298,7 @@
   &__table-insert {
     background: none;
     border: none;
-    color: $text-secondary;
+    color: var(--text-secondary);
     cursor: pointer;
     padding: 2px 6px;
     font-size: 0.9em;
@@ -306,7 +306,7 @@
     transition: opacity 0.15s;
 
     &:hover {
-      color: $accent-blue;
+      color: var(--accent-blue);
     }
   }
 
@@ -329,7 +329,7 @@
     border-radius: 3px;
 
     &:hover {
-      background: rgba($text-primary, 0.05);
+      background: color-mix(in srgb, var(--text-primary) 5%, transparent);
     }
   }
 
@@ -347,7 +347,7 @@
 
   &__column-type {
     font-size: 0.8em;
-    color: $text-secondary;
+    color: var(--text-secondary);
     font-family: $font-mono;
   }
 }

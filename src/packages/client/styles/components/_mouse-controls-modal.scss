@@ -9,9 +9,9 @@
   width: 36px;
   height: 36px;
   border-radius: $radius-lg;
-  background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
-  border: 1px solid $dracula-comment;
-  color: $dracula-cyan;
+  background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--text-muted);
+  color: var(--accent-cyan);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -21,9 +21,9 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 
   &:hover {
-    border-color: $dracula-cyan;
-    color: $dracula-cyan;
-    background: linear-gradient(180deg, color.adjust($dracula-current, $lightness: 5%) 0%, $dracula-current 100%);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 94%, white) 0%, var(--bg-tertiary) 100%);
   }
 }
 
@@ -49,8 +49,8 @@
   width: 90%;
   max-width: 600px;
   max-height: 85vh;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-lg;
   display: flex;
   flex-direction: column;
@@ -75,7 +75,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .mouse-controls-modal-title {
@@ -84,17 +84,17 @@
   gap: 10px;
   font-size: 16px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
 
   svg {
-    color: $accent-cyan;
+    color: var(--accent-cyan);
   }
 }
 
 .mouse-controls-modal-close {
   background: none;
   border: none;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 24px;
   cursor: pointer;
   padding: 0;
@@ -102,7 +102,7 @@
   transition: color $transition-fast;
 
   &:hover {
-    color: $text-primary;
+    color: var(--text-primary);
   }
 }
 
@@ -111,8 +111,8 @@
   display: flex;
   gap: 4px;
   padding: 8px 20px;
-  border-bottom: 1px solid $border-color;
-  background: $bg-tertiary;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
 }
 
 .mouse-controls-tab {
@@ -120,21 +120,21 @@
   background: transparent;
   border: 1px solid transparent;
   border-radius: $radius-md;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all $transition-fast;
 
   &:hover {
-    background: $bg-primary;
-    color: $text-primary;
+    background: var(--bg-primary);
+    color: var(--text-primary);
   }
 
   &.active {
-    background: rgba($accent-cyan, 0.15);
-    border-color: rgba($accent-cyan, 0.3);
-    color: $accent-cyan;
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border-color: color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+    color: var(--accent-cyan);
   }
 }
 
@@ -159,10 +159,10 @@
 .mouse-controls-group-header {
   font-size: 13px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
   padding-bottom: 10px;
   margin-bottom: 10px;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .mouse-controls-grid {
@@ -177,13 +177,13 @@
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border: 1px solid transparent;
   border-radius: $radius-md;
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $border-color;
+    border-color: var(--border-color);
     background: rgba(255, 255, 255, 0.03);
   }
 
@@ -201,12 +201,12 @@
 .mouse-binding-name {
   font-size: 13px;
   font-weight: 500;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .mouse-binding-description {
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .mouse-binding-controls {
@@ -222,52 +222,52 @@
   justify-content: center;
   min-width: 120px;
   padding: 6px 12px;
-  background: $bg-primary;
-  border: 1px solid $border-color;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-md;
-  color: $text-primary;
+  color: var(--text-primary);
   font-size: 12px;
   font-family: $font-mono;
   cursor: pointer;
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $accent-cyan;
+    border-color: var(--accent-cyan);
   }
 
   &.capturing {
-    border-color: $accent-cyan;
-    background: rgba($accent-cyan, 0.1);
+    border-color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
     animation: mouse-capture-pulse 1s ease-in-out infinite;
   }
 
   &.conflict {
-    border-color: $accent-red;
-    background: rgba($accent-red, 0.1);
+    border-color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 10%, transparent);
   }
 }
 
 @keyframes mouse-capture-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba($accent-cyan, 0.4); }
-  50% { box-shadow: 0 0 0 3px rgba($accent-cyan, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-cyan) 40%, transparent); }
+  50% { box-shadow: 0 0 0 3px transparent; }
 }
 
 .mouse-binding-value {
-  color: $accent-cyan;
+  color: var(--accent-cyan);
 }
 
 .mouse-binding-waiting {
-  color: $text-muted;
+  color: var(--text-muted);
   font-style: italic;
 }
 
 .mouse-binding-pending {
-  color: $dracula-yellow;
+  color: var(--accent-yellow);
 }
 
 .mouse-binding-conflict-warning {
   font-size: 10px;
-  color: $accent-red;
+  color: var(--accent-red);
 }
 
 .mouse-binding-enabled {
@@ -284,7 +284,7 @@
 
 .mouse-binding-enabled-label {
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 // Sensitivity settings
@@ -303,10 +303,10 @@
 .sensitivity-section-title {
   font-size: 13px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
   margin: 0;
   padding-bottom: 8px;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .sensitivity-row {
@@ -317,13 +317,13 @@
   label {
     width: 100px;
     font-size: 12px;
-    color: $text-secondary;
+    color: var(--text-secondary);
   }
 
   input[type="range"] {
     flex: 1;
     height: 4px;
-    background: $bg-primary;
+    background: var(--bg-primary);
     border-radius: 2px;
     appearance: none;
     cursor: pointer;
@@ -332,7 +332,7 @@
       appearance: none;
       width: 14px;
       height: 14px;
-      background: $accent-cyan;
+      background: var(--accent-cyan);
       border-radius: 50%;
       cursor: pointer;
       transition: transform $transition-fast;
@@ -345,7 +345,7 @@
     &::-moz-range-thumb {
       width: 14px;
       height: 14px;
-      background: $accent-cyan;
+      background: var(--accent-cyan);
       border: none;
       border-radius: 50%;
       cursor: pointer;
@@ -357,7 +357,7 @@
   width: 40px;
   font-size: 11px;
   font-family: $font-mono;
-  color: $accent-cyan;
+  color: var(--accent-cyan);
   text-align: right;
 }
 
@@ -372,7 +372,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
   cursor: pointer;
   transition: background $transition-fast;
@@ -383,12 +383,12 @@
 
   input[type="checkbox"] {
     cursor: pointer;
-    accent-color: $accent-cyan;
+    accent-color: var(--accent-cyan);
   }
 
   span {
     font-size: 12px;
-    color: $text-secondary;
+    color: var(--text-secondary);
   }
 }
 
@@ -398,27 +398,27 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  border-top: 1px solid $border-color;
-  background: $bg-tertiary;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
 }
 
 .mouse-controls-reset-btn {
   padding: 6px 12px;
   background: transparent;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   border-radius: $radius-md;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 11px;
   cursor: pointer;
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $accent-red;
-    color: $accent-red;
+    border-color: var(--accent-red);
+    color: var(--accent-red);
   }
 }
 
 .mouse-controls-hint {
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }

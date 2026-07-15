@@ -7,8 +7,8 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: $bg-primary;
-  color: $text-primary;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   overflow: hidden;
 
   &__toolbar {
@@ -16,26 +16,26 @@
     align-items: center;
     gap: 4px;
     padding: 4px 6px;
-    background: $bg-secondary;
-    border-bottom: 1px solid $border-color;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
   }
 
   &__connection-badge {
     font-size: 11px;
-    color: $text-secondary;
+    color: var(--text-secondary);
     padding: 2px 6px;
-    background: $bg-tertiary;
+    background: var(--bg-tertiary);
     border-radius: 3px;
     white-space: nowrap;
     flex-shrink: 0;
   }
 
   &__select {
-    background: $bg-tertiary;
-    border: 1px solid $border-color;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
     border-radius: 3px;
-    color: $text-primary;
+    color: var(--text-primary);
     font-size: 11px;
     padding: 3px 4px;
     min-width: 0;
@@ -44,7 +44,7 @@
 
     &:focus {
       outline: none;
-      border-color: $accent-blue;
+      border-color: var(--accent-blue);
     }
 
     &--tables {
@@ -54,7 +54,7 @@
 
   &__run {
     flex-shrink: 0;
-    background: $accent-blue;
+    background: var(--accent-blue);
     border: none;
     border-radius: 3px;
     color: white;
@@ -75,7 +75,7 @@
 
   &__editor {
     flex-shrink: 0;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-color);
     position: relative;
     min-height: 34px;
     max-height: 80px;
@@ -105,22 +105,22 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: $bg-primary;
-    color: $text-primary;
+    background: var(--bg-primary);
+    color: var(--text-primary);
     pointer-events: none;
     z-index: 0;
 
     // Prism SQL token colors (dracula-like theme)
     .token {
-      &.keyword { color: #ff79c6; font-weight: 500; }
-      &.string { color: #f1fa8c; }
-      &.number { color: #bd93f9; }
-      &.operator { color: #ff79c6; }
-      &.punctuation { color: #6272a4; }
-      &.function { color: #50fa7b; }
-      &.comment { color: #6272a4; font-style: italic; }
-      &.boolean { color: #bd93f9; }
-      &.variable { color: #8be9fd; }
+      &.keyword { color: var(--accent-pink); font-weight: 500; }
+      &.string { color: var(--accent-yellow); }
+      &.number { color: var(--accent-purple); }
+      &.operator { color: var(--accent-pink); }
+      &.punctuation { color: var(--text-muted); }
+      &.function { color: var(--accent-green); }
+      &.comment { color: var(--text-muted); font-style: italic; }
+      &.boolean { color: var(--accent-purple); }
+      &.variable { color: var(--accent-cyan); }
     }
   }
 
@@ -129,12 +129,12 @@
     z-index: 1;
     background: transparent;
     color: transparent;
-    caret-color: $text-primary;
+    caret-color: var(--text-primary);
     resize: none;
     outline: none;
 
     &::placeholder {
-      color: $text-secondary;
+      color: var(--text-secondary);
       opacity: 0.5;
     }
 
@@ -156,7 +156,7 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    color: $text-secondary;
+    color: var(--text-secondary);
     font-size: 12px;
     padding: 8px;
   }

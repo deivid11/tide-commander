@@ -19,7 +19,7 @@
     gap: 8px;
     padding: 14px 20px;
     margin-bottom: 0;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-color);
     font-size: 16px;
 
     .boss-header-icon {
@@ -29,7 +29,7 @@
 
   .modal-footer {
     padding: 12px 20px;
-    border-top: 1px solid $border-color;
+    border-top: 1px solid var(--border-color);
     justify-content: flex-end;
   }
 }
@@ -37,7 +37,7 @@
 // Subordinates section for boss modal
 .spawn-subordinates-section {
   padding-top: 14px;
-  border-top: 1px solid rgba($border-color, 0.5);
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
 }
 
 .subordinates-selector-compact {
@@ -53,16 +53,16 @@
   align-items: center;
   gap: 5px;
   padding: 6px 10px;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 100px;
   font-size: 11px;
   cursor: pointer;
   transition: all $transition-fast;
-  color: $text-secondary;
+  color: var(--text-secondary);
 
   &:hover {
-    border-color: $text-secondary;
+    border-color: var(--text-secondary);
   }
 
   &.selected {
@@ -100,7 +100,7 @@
 .subordinates-empty {
   padding: 12px;
   text-align: center;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 11px;
 }
 
@@ -176,16 +176,16 @@
   text-transform: capitalize;
 
   &.status-idle {
-    color: $accent-green;
+    color: var(--accent-green);
   }
   &.status-working {
-    color: $accent-blue;
+    color: var(--accent-blue);
   }
   &.status-waiting {
-    color: $accent-orange;
+    color: var(--accent-orange);
   }
   &.status-error {
-    color: $accent-red;
+    color: var(--accent-red);
   }
 }
 
@@ -201,7 +201,7 @@
 .subordinates-count {
   margin-top: 6px;
   font-size: 10px;
-  color: $text-muted;
+  color: var(--text-muted);
 }
 
 // ============================================================================
@@ -417,16 +417,16 @@
   white-space: nowrap;
 
   &.status-idle {
-    color: $accent-green;
+    color: var(--accent-green);
   }
   &.status-working {
-    color: $accent-blue;
+    color: var(--accent-blue);
   }
   &.status-waiting {
-    color: $accent-orange;
+    color: var(--accent-orange);
   }
   &.status-error {
-    color: $accent-red;
+    color: var(--accent-red);
   }
 }
 
@@ -444,7 +444,7 @@
 
   &:hover {
     background: rgba(255, 74, 74, 0.2);
-    color: $accent-red;
+    color: var(--accent-red);
   }
 }
 
@@ -628,8 +628,8 @@
 
   &:hover {
     background: rgba(255, 74, 74, 0.2);
-    border-color: $accent-red;
-    color: $accent-red;
+    border-color: var(--accent-red);
+    color: var(--accent-red);
   }
 }
 
@@ -744,7 +744,7 @@
 
 .btn-boss {
   background: linear-gradient(135deg, #c8a85a 0%, #9a8045 100%);
-  color: $bg-primary;
+  color: var(--bg-primary);
   border: none;
   font-weight: 600;
 

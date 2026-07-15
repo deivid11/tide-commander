@@ -416,11 +416,11 @@
     // agents search sitting right beside it.
     .area-search-input {
       &:focus {
-        border-color: var(--accent-purple, #bd93f9);
+        border-color: var(--accent-purple, var(--accent-purple));
       }
 
       &:hover {
-        border-color: color-mix(in srgb, var(--accent-purple, #bd93f9) 40%, transparent);
+        border-color: color-mix(in srgb, var(--accent-purple, var(--accent-purple)) 40%, transparent);
       }
     }
 
@@ -643,7 +643,7 @@
         }
 
         &:focus {
-          border-color: var(--accent-color, #6272a4);
+          border-color: var(--accent-color, var(--text-muted));
         }
       }
     }
@@ -726,8 +726,8 @@
     }
 
     &--working {
-      border-color: color-mix(in srgb, var(--aop-area-color, #6272a4) 70%, var(--accent-green));
-      background: color-mix(in srgb, var(--aop-area-color, #6272a4) 12%, var(--bg-tertiary));
+      border-color: color-mix(in srgb, var(--aop-area-color, var(--text-muted)) 70%, var(--accent-green));
+      background: color-mix(in srgb, var(--aop-area-color, var(--text-muted)) 12%, var(--bg-tertiary));
       animation: aop-area-working-breathe 2.4s ease-in-out infinite;
 
       .aop-area-color {
@@ -929,7 +929,7 @@
     box-shadow: 0 0 0 color-mix(in srgb, var(--accent-green) 0%, transparent);
   }
   50% {
-    box-shadow: 0 0 8px color-mix(in srgb, var(--aop-area-color, #6272a4) 32%, color-mix(in srgb, var(--accent-green) 28%, transparent));
+    box-shadow: 0 0 8px color-mix(in srgb, var(--aop-area-color, var(--text-muted)) 32%, color-mix(in srgb, var(--accent-green) 28%, transparent));
   }
 }
 

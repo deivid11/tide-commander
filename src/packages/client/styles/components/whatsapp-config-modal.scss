@@ -8,15 +8,15 @@
   display: flex;
   flex-direction: column;
   padding: 0;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-xl;
   overflow: hidden;
 
   .modal-header {
     padding: 14px 20px;
     margin-bottom: 0;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-color);
     font-size: 16px;
     font-weight: 600;
     display: flex;
@@ -32,7 +32,7 @@
 
   .modal-footer {
     padding: 12px 20px;
-    border-top: 1px solid $border-color;
+    border-top: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -52,7 +52,7 @@
   .modal-description {
     margin: 0;
     font-size: 12px;
-    color: $text-secondary;
+    color: var(--text-secondary);
     line-height: 1.5;
   }
 
@@ -67,14 +67,14 @@
     .spinner {
       width: 32px;
       height: 32px;
-      border: 3px solid rgba($border-color, 0.5);
-      border-top-color: $accent-blue;
+      border: 3px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+      border-top-color: var(--accent-blue);
       border-radius: 50%;
       animation: wa-spin 0.8s linear infinite;
     }
 
     p {
-      color: $text-secondary;
+      color: var(--text-secondary);
       margin: 0;
       font-size: 13px;
     }
@@ -95,15 +95,15 @@
     }
 
     &.alert-error {
-      background: rgba($accent-red, 0.1);
-      border: 1px solid rgba($accent-red, 0.25);
-      color: $accent-red;
+      background: color-mix(in srgb, var(--accent-red) 10%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent-red) 25%, transparent);
+      color: var(--accent-red);
     }
 
     &.alert-success {
-      background: rgba($dracula-green, 0.1);
-      border: 1px solid rgba($dracula-green, 0.25);
-      color: $dracula-green;
+      background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent-green) 25%, transparent);
+      color: var(--accent-green);
     }
   }
 
@@ -131,16 +131,16 @@
   flex-direction: column;
   gap: 10px;
   padding: 14px 14px 16px;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   border-radius: $radius-lg;
-  background: rgba($bg-tertiary, 0.45);
+  background: color-mix(in srgb, var(--bg-tertiary) 45%, transparent);
 }
 
 .wa-section-title {
   margin: 0 0 4px;
   font-size: 12px;
   font-weight: 600;
-  color: $text-secondary;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -176,24 +176,24 @@
 .wa-label {
   font-size: 11px;
   font-weight: 600;
-  color: $text-secondary;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
 
 .wa-hint {
   font-size: 10px;
-  color: $text-muted;
+  color: var(--text-muted);
   font-style: italic;
 }
 
 .wa-input,
 .wa-textarea {
   padding: 8px 10px;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  background: $bg-tertiary;
-  color: $text-primary;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   font-family: $font-mono;
   font-size: 12px;
   line-height: 1.5;
@@ -203,12 +203,12 @@
   box-sizing: border-box;
 
   &:focus {
-    border-color: $accent-blue;
-    background: rgba($bg-tertiary, 0.8);
+    border-color: var(--accent-blue);
+    background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
   }
 
   &::placeholder {
-    color: $text-muted;
+    color: var(--text-muted);
   }
 }
 
@@ -235,8 +235,8 @@
   .wa-toggle-track {
     width: 32px;
     height: 18px;
-    background: $bg-tertiary;
-    border: 1px solid $border-color;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
     border-radius: 9px;
     transition: background $transition-fast, border-color $transition-fast;
     position: relative;
@@ -249,18 +249,18 @@
     left: 1px;
     width: 14px;
     height: 14px;
-    background: $text-secondary;
+    background: var(--text-secondary);
     border-radius: 50%;
     transition: transform $transition-fast, background $transition-fast;
   }
 
   input:checked + .wa-toggle-track {
-    background: rgba($accent-blue, 0.35);
-    border-color: $accent-blue;
+    background: color-mix(in srgb, var(--accent-blue) 35%, transparent);
+    border-color: var(--accent-blue);
 
     .wa-toggle-thumb {
       transform: translateX(14px);
-      background: $accent-blue;
+      background: var(--accent-blue);
     }
   }
 }
@@ -282,15 +282,15 @@
   font-weight: 500;
 
   &.wa-status-ok {
-    background: rgba($dracula-green, 0.12);
-    color: $dracula-green;
-    border: 1px solid rgba($dracula-green, 0.3);
+    background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+    color: var(--accent-green);
+    border: 1px solid color-mix(in srgb, var(--accent-green) 30%, transparent);
   }
 
   &.wa-status-warn {
-    background: rgba($accent-orange, 0.12);
-    color: $accent-orange;
-    border: 1px solid rgba($accent-orange, 0.3);
+    background: color-mix(in srgb, var(--accent-orange) 12%, transparent);
+    color: var(--accent-orange);
+    border: 1px solid color-mix(in srgb, var(--accent-orange) 30%, transparent);
   }
 }
 
@@ -303,7 +303,7 @@
 
 .wa-empty {
   font-size: 12px;
-  color: $text-muted;
+  color: var(--text-muted);
   font-style: italic;
   padding: 8px 0;
 }
@@ -314,9 +314,9 @@
   justify-content: space-between;
   gap: 12px;
   padding: 8px 10px;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
 }
 
 .wa-session-info {
@@ -330,7 +330,7 @@
 .wa-session-id {
   font-family: $font-mono;
   font-size: 12px;
-  color: $text-primary;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
@@ -338,8 +338,8 @@
   font-size: 11px;
   padding: 2px 6px;
   border-radius: $radius-sm;
-  background: rgba($text-muted, 0.15);
-  color: $text-secondary;
+  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 
@@ -347,37 +347,37 @@
   &.status-paired,
   &.status-open,
   &.status-ready {
-    background: rgba($dracula-green, 0.15);
-    color: $dracula-green;
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+    color: var(--accent-green);
   }
 
   &.status-pairing,
   &.status-connecting,
   &.status-qr {
-    background: rgba($accent-blue, 0.15);
-    color: $accent-blue;
+    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+    color: var(--accent-blue);
   }
 
   &.status-error,
   &.status-disconnected,
   &.status-failed {
-    background: rgba($accent-red, 0.15);
-    color: $accent-red;
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    color: var(--accent-red);
   }
 }
 
 .wa-session-paired {
   font-size: 11px;
-  color: $text-muted;
+  color: var(--text-muted);
 }
 
 // QR pairing panel
 .wa-qr-panel {
   margin-top: 8px;
   padding: 12px;
-  border: 1px dashed $border-color;
+  border: 1px dashed var(--border-color);
   border-radius: $radius-md;
-  background: rgba($bg-primary, 0.5);
+  background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -389,7 +389,7 @@
   justify-content: space-between;
   gap: 8px;
   font-size: 12px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .wa-qr-image {
@@ -416,8 +416,8 @@
   .spinner {
     width: 24px;
     height: 24px;
-    border: 3px solid rgba($border-color, 0.5);
-    border-top-color: $accent-blue;
+    border: 3px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+    border-top-color: var(--accent-blue);
     border-radius: 50%;
     animation: wa-spin 0.8s linear infinite;
   }
@@ -425,28 +425,28 @@
   p {
     margin: 0;
     font-size: 12px;
-    color: $text-secondary;
+    color: var(--text-secondary);
   }
 }
 
 .wa-pairing-message {
   font-size: 12px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-style: italic;
 }
 
 // Buttons (kept consistent with system-prompt-modal scope)
 .btn {
   padding: 8px 14px;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition: all $transition-fast;
   white-space: nowrap;
-  background: $bg-tertiary;
-  color: $text-primary;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -461,8 +461,8 @@
   }
 
   &:hover:not(:disabled) {
-    border-color: $text-secondary;
-    background: rgba($bg-tertiary, 0.8);
+    border-color: var(--text-secondary);
+    background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
   }
 
   &.btn-sm {
@@ -471,35 +471,35 @@
   }
 
   &.btn-primary {
-    background: $accent-blue;
+    background: var(--accent-blue);
     color: #fff;
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
 
     &:hover:not(:disabled) {
-      background: rgba($accent-blue, 0.9);
-      box-shadow: 0 0 0 2px rgba($accent-blue, 0.2);
+      background: color-mix(in srgb, var(--accent-blue) 90%, transparent);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-blue) 20%, transparent);
     }
   }
 
   &.btn-secondary {
-    background: $bg-tertiary;
-    color: $text-primary;
-    border-color: $border-color;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
 
     &:hover:not(:disabled) {
-      border-color: $text-secondary;
-      background: rgba($bg-tertiary, 0.8);
+      border-color: var(--text-secondary);
+      background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
     }
   }
 
   &.btn-danger {
-    background: rgba($accent-red, 0.15);
-    color: $accent-red;
-    border-color: rgba($accent-red, 0.3);
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    color: var(--accent-red);
+    border-color: color-mix(in srgb, var(--accent-red) 30%, transparent);
 
     &:hover:not(:disabled) {
-      background: rgba($accent-red, 0.25);
-      border-color: rgba($accent-red, 0.5);
+      background: color-mix(in srgb, var(--accent-red) 25%, transparent);
+      border-color: color-mix(in srgb, var(--accent-red) 50%, transparent);
     }
   }
 }

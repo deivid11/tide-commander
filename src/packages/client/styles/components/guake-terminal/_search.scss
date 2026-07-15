@@ -24,8 +24,8 @@
   flex-direction: column;
   // Cap on short terminals so the panel never swallows the whole output.
   max-height: min(340px, 42vh);
-  background: rgba($dracula-bg, 0.99);
-  border: 1px solid $dracula-current;
+  background: color-mix(in srgb, var(--bg-secondary) 99%, transparent);
+  border: 1px solid var(--bg-tertiary);
   border-top: none;
   border-bottom-left-radius: $radius-md;
   border-bottom-right-radius: $radius-md;
@@ -38,7 +38,7 @@
   display: flex;
   gap: 2px;
   padding: 6px 8px 0;
-  border-bottom: 1px solid $dracula-current;
+  border-bottom: 1px solid var(--bg-tertiary);
   flex-shrink: 0;
 }
 
@@ -49,7 +49,7 @@
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-family: $font-mono;
   font-size: 11px;
   padding: 6px 10px;
@@ -57,18 +57,18 @@
   transition: color $transition-fast, border-color $transition-fast;
 
   &:hover {
-    color: $dracula-fg;
+    color: var(--text-primary);
   }
 
   &.active {
-    color: var(--accent-cyan, $dracula-cyan);
-    border-bottom-color: var(--accent-cyan, $dracula-cyan);
+    color: var(--accent-cyan, var(--accent-cyan));
+    border-bottom-color: var(--accent-cyan, var(--accent-cyan));
   }
 }
 
 .guake-search-tab-count {
-  background: $dracula-bg-darker;
-  border: 1px solid $dracula-current;
+  background: var(--bg-primary);
+  border: 1px solid var(--bg-tertiary);
   border-radius: 10px;
   padding: 0 6px;
   font-size: 10px;
@@ -83,7 +83,7 @@
 }
 
 .guake-search-empty {
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-family: $font-mono;
   font-size: 11px;
   text-align: center;
@@ -101,15 +101,15 @@
   border-radius: $radius-sm;
   padding: 7px 8px;
   cursor: pointer;
-  color: $dracula-fg;
+  color: var(--text-primary);
   transition: background $transition-fast;
 
   &:hover {
-    background: color-mix(in srgb, var(--accent-cyan, $dracula-cyan) 8%, transparent);
+    background: color-mix(in srgb, var(--accent-cyan, var(--accent-cyan)) 8%, transparent);
   }
 
   &.selected {
-    background: color-mix(in srgb, var(--accent-cyan, $dracula-cyan) 16%, transparent);
+    background: color-mix(in srgb, var(--accent-cyan, var(--accent-cyan)) 16%, transparent);
   }
 }
 
@@ -117,7 +117,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: $dracula-comment;
+  color: var(--text-muted);
   margin-top: 1px;
   flex-shrink: 0;
 }
@@ -136,17 +136,17 @@
   gap: 8px;
   font-family: $font-mono;
   font-size: 10px;
-  color: $dracula-comment;
+  color: var(--text-muted);
 }
 
 .guake-search-result-role {
-  color: var(--accent-cyan, $dracula-cyan);
+  color: var(--accent-cyan, var(--accent-cyan));
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .guake-search-result-count {
-  color: $dracula-yellow;
+  color: var(--accent-yellow);
 }
 
 .guake-search-result-time {
@@ -157,7 +157,7 @@
   font-family: $font-mono;
   font-size: 11px;
   line-height: 1.45;
-  color: $dracula-fg;
+  color: var(--text-primary);
   // Clamp to two lines so long messages stay compact.
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -209,20 +209,20 @@
   background: transparent;
   border: 1px solid transparent;
   border-radius: $radius-sm;
-  color: $dracula-comment;
+  color: var(--text-muted);
   cursor: pointer;
   transition: color $transition-fast, border-color $transition-fast;
 
   &:hover {
-    color: var(--accent-cyan, $dracula-cyan);
-    border-color: color-mix(in srgb, var(--accent-cyan, $dracula-cyan) 40%, transparent);
+    color: var(--accent-cyan, var(--accent-cyan));
+    border-color: color-mix(in srgb, var(--accent-cyan, var(--accent-cyan)) 40%, transparent);
   }
 }
 
 .guake-search-file-name {
   font-family: $font-mono;
   font-size: 12px;
-  color: $dracula-fg;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -231,7 +231,7 @@
 .guake-search-file-dir {
   font-family: $font-mono;
   font-size: 10px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -255,20 +255,20 @@
   border: 1px solid transparent;
 
   &.read {
-    color: $dracula-cyan;
-    border-color: color-mix(in srgb, $dracula-cyan 40%, transparent);
-    background: color-mix(in srgb, $dracula-cyan 12%, transparent);
+    color: var(--accent-cyan);
+    border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+    background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
   }
 
   &.edit {
-    color: $dracula-orange;
-    border-color: color-mix(in srgb, $dracula-orange 40%, transparent);
-    background: color-mix(in srgb, $dracula-orange 12%, transparent);
+    color: var(--accent-orange);
+    border-color: color-mix(in srgb, var(--accent-orange) 40%, transparent);
+    background: color-mix(in srgb, var(--accent-orange) 12%, transparent);
   }
 
   &.write {
-    color: $dracula-green;
-    border-color: color-mix(in srgb, $dracula-green 40%, transparent);
-    background: color-mix(in srgb, $dracula-green 12%, transparent);
+    color: var(--accent-green);
+    border-color: color-mix(in srgb, var(--accent-green) 40%, transparent);
+    background: color-mix(in srgb, var(--accent-green) 12%, transparent);
   }
 }

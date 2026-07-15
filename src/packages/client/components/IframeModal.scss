@@ -7,7 +7,7 @@
   z-index: 10000; // Above everything
   display: flex;
   flex-direction: column;
-  background: #1a1a2e;
+  background: var(--bg-primary);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
   overflow: hidden;
@@ -129,7 +129,7 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: #1a1a2e;
+  background: var(--bg-primary);
   color: rgba(255, 255, 255, 0.7);
   font-size: 13px;
   z-index: 1;

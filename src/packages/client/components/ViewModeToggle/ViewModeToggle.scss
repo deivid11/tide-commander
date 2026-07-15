@@ -10,7 +10,7 @@ $toggle-active-color: #d4a05a;
   background: rgba(0, 0, 0, 0.6);
   border-radius: $radius-md;
   padding: 3px;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
 
   // Sliding indicator behind active button
   &__indicator {
@@ -33,7 +33,7 @@ $toggle-active-color: #d4a05a;
     border: none;
     border-radius: $radius-sm;
     background: transparent;
-    color: $text-secondary;
+    color: var(--text-secondary);
     font-size: 11px;
     font-weight: 600;
     font-family: $font-mono;
@@ -46,7 +46,7 @@ $toggle-active-color: #d4a05a;
 
     &:hover:not(&--active) {
       background: rgba(255, 255, 255, 0.08);
-      color: $text-primary;
+      color: var(--text-primary);
     }
 
     &--active {

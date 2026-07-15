@@ -28,8 +28,8 @@
       content: '';
       position: absolute;
       inset: 0;
-      border: 2px dashed rgba($dracula-cyan, 0.6);
-      background: rgba($dracula-cyan, 0.05);
+      border: 2px dashed color-mix(in srgb, var(--accent-cyan) 60%, transparent);
+      background: color-mix(in srgb, var(--accent-cyan) 5%, transparent);
       border-radius: 4px;
       z-index: 10;
       pointer-events: none;
@@ -44,8 +44,8 @@
   flex-shrink: 0;
   height: 22px;
   padding: 0 6px;
-  background: rgba($dracula-comment, 0.1);
-  border-bottom: 1px solid rgba($dracula-comment, 0.15);
+  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--text-muted) 15%, transparent);
 }
 
 .split-orientation-toggle {
@@ -55,18 +55,18 @@
   width: 22px;
   height: 16px;
   padding: 0;
-  border: 1px solid rgba($dracula-comment, 0.3);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
   border-radius: 3px;
-  background: rgba($dracula-comment, 0.1);
-  color: rgba($dracula-fg, 0.6);
+  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+  color: color-mix(in srgb, var(--text-primary) 60%, transparent);
   font-size: 8px;
   cursor: pointer;
   transition: background 0.1s ease, border-color 0.1s ease;
 
   &:hover {
-    background: rgba($dracula-cyan, 0.15);
-    border-color: rgba($dracula-cyan, 0.4);
-    color: $dracula-cyan;
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+    color: var(--accent-cyan);
   }
 }
 
@@ -122,10 +122,10 @@
   flex-shrink: 0;
   height: 24px;
   padding: 0 8px;
-  background: rgba($dracula-comment, 0.15);
-  border-bottom: 1px solid rgba($dracula-comment, 0.2);
+  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--text-muted) 20%, transparent);
   font-size: 11px;
-  color: rgba($dracula-fg, 0.7);
+  color: color-mix(in srgb, var(--text-primary) 70%, transparent);
   user-select: none;
 }
 
@@ -148,15 +148,15 @@
   border: none;
   border-radius: 3px;
   background: transparent;
-  color: rgba($dracula-fg, 0.5);
+  color: color-mix(in srgb, var(--text-primary) 50%, transparent);
   font-size: 11px;
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.1s ease, color 0.1s ease;
 
   &:hover {
-    background: rgba($dracula-red, 0.2);
-    color: $dracula-red;
+    background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+    color: var(--accent-red);
   }
 }
 

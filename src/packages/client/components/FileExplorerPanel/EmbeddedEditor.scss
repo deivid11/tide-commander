@@ -16,8 +16,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 4px 12px;
-    background: $bg-secondary;
-    border-bottom: 1px solid $border-color;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
     gap: 8px;
     flex-shrink: 0;
     min-height: 28px;
@@ -44,15 +44,15 @@
     letter-spacing: 0.5px;
 
     &--saving {
-      color: $text-secondary;
+      color: var(--text-secondary);
     }
 
     &--saved {
-      color: $accent-green;
+      color: var(--accent-green);
     }
 
     &--error {
-      color: $accent-red;
+      color: var(--accent-red);
       max-width: 250px;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -62,13 +62,13 @@
 
   &__shortcut-hint {
     font-size: 0.7em;
-    color: $text-secondary;
+    color: var(--text-secondary);
     opacity: 0.6;
   }
 
   &__btn {
     padding: 4px 12px;
-    border: 1px solid $border-color;
+    border: 1px solid var(--border-color);
     border-radius: 4px;
     font-size: 0.8em;
     cursor: pointer;
@@ -76,11 +76,11 @@
 
     &--close {
       background: transparent;
-      color: $text-secondary;
+      color: var(--text-secondary);
 
       &:hover {
-        color: $text-primary;
-        border-color: $text-secondary;
+        color: var(--text-primary);
+        border-color: var(--text-secondary);
       }
     }
   }
@@ -95,7 +95,7 @@
       height: 100%;
       font-family: $font-mono;
       font-size: 13px;
-      background-color: #181820;
+      background-color: var(--bg-primary);
 
       &.cm-focused {
         outline: none;
@@ -108,34 +108,34 @@
     }
 
     .cm-gutters {
-      background-color: #181820;
+      background-color: var(--bg-primary);
       border-right: 1px solid rgba(255, 255, 255, 0.06);
     }
 
     .cm-activeLineGutter {
-      background: rgba($accent-blue, 0.08);
+      background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
     }
 
     .cm-activeLine {
-      background: rgba($accent-blue, 0.05);
+      background: color-mix(in srgb, var(--accent-blue) 5%, transparent);
     }
 
     .cm-cursor {
-      border-left-color: $accent-blue;
+      border-left-color: var(--accent-blue);
     }
 
     .cm-selectionBackground {
-      background: rgba($accent-blue, 0.2) !important;
+      background: color-mix(in srgb, var(--accent-blue) 20%, transparent) !important;
     }
 
     .cm-matchingBracket {
-      background: rgba($accent-green, 0.2);
-      outline: 1px solid rgba($accent-green, 0.4);
+      background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+      outline: 1px solid color-mix(in srgb, var(--accent-green) 40%, transparent);
     }
 
     // Search panel styling (top position)
     .cm-panels {
-      background-color: #181820;
+      background-color: var(--bg-primary);
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
 
@@ -150,17 +150,17 @@
       flex-wrap: nowrap;
       align-items: center;
       gap: 5px;
-      background-color: #181820;
+      background-color: var(--bg-primary);
       font-family: $font-mono;
       font-size: 12px;
-      color: $text-muted;
+      color: var(--text-muted);
       white-space: nowrap;
 
       .cm-textfield {
         background: rgba(0, 0, 0, 0.4);
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 4px;
-        color: $text-primary;
+        color: var(--text-primary);
         font-family: $font-mono;
         font-size: 12px;
         padding: 4px 8px;
@@ -168,8 +168,8 @@
         min-width: 200px;
 
         &:focus {
-          border-color: rgba($accent-purple, 0.6);
-          box-shadow: 0 0 0 1px rgba($accent-purple, 0.15);
+          border-color: color-mix(in srgb, var(--accent-purple) 60%, transparent);
+          box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-purple) 15%, transparent);
         }
 
         &::placeholder {
@@ -181,7 +181,7 @@
         background: rgba(255, 255, 255, 0.05);
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 4px;
-        color: $text-muted;
+        color: var(--text-muted);
         font-family: $font-mono;
         font-size: 11px;
         padding: 3px 10px;
@@ -191,7 +191,7 @@
 
         &:hover {
           background: rgba(255, 255, 255, 0.1);
-          color: $text-primary;
+          color: var(--text-primary);
           border-color: rgba(255, 255, 255, 0.2);
         }
 
@@ -212,7 +212,7 @@
         transition: color 0.12s ease;
 
         &:hover {
-          color: $text-secondary;
+          color: var(--text-secondary);
 
           input[type="checkbox"]::before {
             border-color: rgba(255, 255, 255, 0.3);
@@ -245,12 +245,12 @@
           }
 
           &:checked {
-            background: rgba($dracula-green, 0.25);
-            border-color: rgba($dracula-green, 0.5);
+            background: color-mix(in srgb, var(--accent-green) 25%, transparent);
+            border-color: color-mix(in srgb, var(--accent-green) 50%, transparent);
 
             &::before {
               left: 14px;
-              background: $dracula-green;
+              background: var(--accent-green);
             }
           }
         }
@@ -268,7 +268,7 @@
         transition: color 0.12s ease;
 
         &:hover {
-          color: $text-primary;
+          color: var(--text-primary);
         }
       }
 

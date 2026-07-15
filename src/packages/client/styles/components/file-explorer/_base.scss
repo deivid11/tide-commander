@@ -22,8 +22,8 @@
   max-width: 90vw;
   height: 70%;
   max-height: 600px;
-  background: $dracula-bg;
-  border: 1px solid $dracula-current;
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-tertiary);
   border-radius: $radius-xl;
   display: flex;
   flex-direction: column;

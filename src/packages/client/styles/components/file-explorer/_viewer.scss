@@ -12,7 +12,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: $dracula-bg;
+  background: var(--bg-secondary);
   overflow: hidden;
 }
 
@@ -22,11 +22,11 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: $text-muted;
+  color: var(--text-muted);
   gap: 12px;
 
   &.error {
-    color: $dracula-red;
+    color: var(--accent-red);
   }
 }
 
@@ -62,7 +62,7 @@
   .cm-editor {
     height: 100%;
     font-size: 13px;
-    background-color: #181820;
+    background-color: var(--bg-primary);
 
     &.cm-focused {
       outline: none;
@@ -74,13 +74,13 @@
   }
 
   .cm-gutters {
-    background-color: #181820;
+    background-color: var(--bg-primary);
     border-right: 1px solid rgba(255, 255, 255, 0.06);
   }
 
   // Search panel styling
   .cm-panels {
-    background-color: #181820;
+    background-color: var(--bg-primary);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
 
@@ -90,10 +90,10 @@
     flex-wrap: nowrap;
     align-items: center;
     gap: 5px;
-    background-color: #181820;
+    background-color: var(--bg-primary);
     font-family: $font-mono;
     font-size: 12px;
-    color: $text-muted;
+    color: var(--text-muted);
     white-space: nowrap;
 
     // Search text input
@@ -101,7 +101,7 @@
       background: rgba(0, 0, 0, 0.4);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 4px;
-      color: $text-primary;
+      color: var(--text-primary);
       font-family: $font-mono;
       font-size: 12px;
       padding: 4px 8px;
@@ -109,8 +109,8 @@
       min-width: 200px;
 
       &:focus {
-        border-color: rgba($accent-purple, 0.6);
-        box-shadow: 0 0 0 1px rgba($accent-purple, 0.15);
+        border-color: color-mix(in srgb, var(--accent-purple) 60%, transparent);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-purple) 15%, transparent);
       }
 
       &::placeholder {
@@ -123,7 +123,7 @@
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 4px;
-      color: $text-muted;
+      color: var(--text-muted);
       font-family: $font-mono;
       font-size: 11px;
       padding: 3px 10px;
@@ -133,7 +133,7 @@
 
       &:hover {
         background: rgba(255, 255, 255, 0.1);
-        color: $text-primary;
+        color: var(--text-primary);
         border-color: rgba(255, 255, 255, 0.2);
       }
 
@@ -155,7 +155,7 @@
       transition: color 0.12s ease;
 
       &:hover {
-        color: $text-secondary;
+        color: var(--text-secondary);
 
         input[type="checkbox"]::before {
           border-color: rgba(255, 255, 255, 0.3);
@@ -190,12 +190,12 @@
         }
 
         &:checked {
-          background: rgba($dracula-green, 0.25);
-          border-color: rgba($dracula-green, 0.5);
+          background: color-mix(in srgb, var(--accent-green) 25%, transparent);
+          border-color: color-mix(in srgb, var(--accent-green) 50%, transparent);
 
           &::before {
             left: 14px;
-            background: $dracula-green;
+            background: var(--accent-green);
           }
         }
       }
@@ -214,7 +214,7 @@
       transition: color 0.12s ease;
 
       &:hover {
-        color: $text-primary;
+        color: var(--text-primary);
       }
     }
 
@@ -229,8 +229,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 10px 16px;
-  background: $dracula-bg-darker;
-  border-bottom: 1px solid $dracula-current;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--bg-tertiary);
 }
 
 .file-viewer-header-left {
@@ -264,8 +264,8 @@
 // Markdown render toggle button
 .file-viewer-render-toggle {
   background: transparent;
-  border: 1px solid $border-color;
-  color: $text-muted;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
   padding: 5px 10px;
   border-radius: $radius-sm;
   font-family: $font-mono;
@@ -275,23 +275,23 @@
   transition: all $transition-fast;
 
   &:hover {
-    background: rgba($accent-purple, 0.15);
-    border-color: $accent-purple;
-    color: $accent-purple;
+    background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
   }
 
   &.active {
-    background: rgba($accent-purple, 0.1);
-    border-color: rgba($accent-purple, 0.4);
-    color: $accent-purple;
+    background: color-mix(in srgb, var(--accent-purple) 10%, transparent);
+    border-color: color-mix(in srgb, var(--accent-purple) 40%, transparent);
+    color: var(--accent-purple);
   }
 }
 
 // Copy as HTML button
 .file-viewer-copy-html-btn {
   background: transparent;
-  border: 1px solid $border-color;
-  color: $text-secondary;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
   padding: 5px 10px;
   border-radius: $radius-sm;
   font-family: $font-mono;
@@ -301,21 +301,21 @@
   white-space: nowrap;
 
   &:hover {
-    background: rgba($accent-cyan, 0.15);
-    border-color: $accent-cyan;
-    color: $accent-cyan;
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
   }
 
   &.copied {
-    background: rgba($dracula-green, 0.2);
-    border-color: $dracula-green;
-    color: $dracula-green;
+    background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
   }
 
   &.error {
-    background: rgba($dracula-red, 0.2);
-    border-color: $dracula-red;
-    color: $dracula-red;
+    background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+    border-color: var(--accent-red);
+    color: var(--accent-red);
   }
 }
 
@@ -323,19 +323,19 @@
   font-family: $font-mono;
   font-size: 13px;
   font-weight: 600;
-  color: $dracula-fg;
+  color: var(--text-primary);
 }
 
 .file-viewer-meta {
   font-family: $font-mono;
   font-size: 11px;
-  color: $dracula-comment;
+  color: var(--text-muted);
 }
 
 .file-viewer-download-btn {
   background: transparent;
-  border: 1px solid $border-color;
-  color: $text-secondary;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
   padding: 6px 12px;
   border-radius: $radius-sm;
   font-size: 12px;
@@ -347,8 +347,8 @@
   white-space: nowrap;
 
   &:hover {
-    background: $accent-blue;
-    border-color: $accent-blue;
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
     color: white;
   }
 
@@ -361,8 +361,8 @@
 
 .file-viewer-edit-btn {
   background: transparent;
-  border: 1px solid $border-color;
-  color: $text-muted;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
   width: 28px;
   height: 28px;
   border-radius: $radius-sm;
@@ -374,23 +374,23 @@
   margin-right: 4px;
 
   &:hover {
-    background: rgba($dracula-purple, 0.15);
-    border-color: $dracula-purple;
-    color: $dracula-purple;
+    background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
   }
 
   &.active {
-    background: rgba($dracula-purple, 0.2);
-    border-color: $dracula-purple;
-    color: $dracula-purple;
+    background: color-mix(in srgb, var(--accent-purple) 20%, transparent);
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
   }
 }
 
 .file-viewer-open-editor-btn,
 .file-viewer-reveal-explorer-btn {
   background: transparent;
-  border: 1px solid $border-color;
-  color: $text-muted;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
   width: 28px;
   height: 28px;
   border-radius: $radius-sm;
@@ -402,8 +402,8 @@
   margin-right: 4px;
 
   &:hover:not(:disabled) {
-    background: $accent-blue;
-    border-color: $accent-blue;
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
     color: white;
   }
 
@@ -417,15 +417,15 @@
   }
 
   &.success {
-    background: rgba($dracula-green, 0.15);
-    border-color: $dracula-green;
-    color: $dracula-green;
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
   }
 
   &.error {
-    background: rgba($dracula-red, 0.15);
-    border-color: $dracula-red;
-    color: $dracula-red;
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    border-color: var(--accent-red);
+    color: var(--accent-red);
   }
 }
 
@@ -440,8 +440,8 @@
 
 .file-viewer-edit-btn {
   background: transparent;
-  border: 1px solid $border-color;
-  color: $text-muted;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
   width: 28px;
   height: 28px;
   border-radius: $radius-sm;
@@ -453,22 +453,22 @@
   margin-right: 4px;
 
   &:hover {
-    background: rgba($dracula-green, 0.15);
-    border-color: $dracula-green;
-    color: $dracula-green;
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
   }
 
   &.active {
-    background: rgba($dracula-green, 0.2);
-    border-color: $dracula-green;
-    color: $dracula-green;
+    background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
   }
 }
 
 .file-viewer-locate-btn {
   background: transparent;
-  border: 1px solid $border-color;
-  color: $text-muted;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
   width: 28px;
   height: 28px;
   border-radius: $radius-sm;
@@ -481,8 +481,8 @@
   margin-right: 8px;
 
   &:hover {
-    background: $accent-blue;
-    border-color: $accent-blue;
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
     color: white;
   }
 }
@@ -513,7 +513,7 @@
   flex-shrink: 0;
   padding: 16px 0;
   background: inherit;
-  border-right: 1px solid $border-color;
+  border-right: 1px solid var(--border-color);
   user-select: none;
   z-index: 1;
 }
@@ -524,17 +524,17 @@
   font-family: $font-mono;
   font-size: 13px;
   line-height: 1.5;
-  color: rgba($dracula-comment, 0.5);
+  color: color-mix(in srgb, var(--text-muted) 50%, transparent);
   min-width: 40px;
 
   &.highlighted {
-    color: $dracula-yellow;
-    background: rgba($dracula-yellow, 0.1);
+    color: var(--accent-yellow);
+    background: color-mix(in srgb, var(--accent-yellow) 10%, transparent);
   }
 
   &.cursor-line {
-    color: $dracula-fg;
-    background: rgba($dracula-current, 0.8);
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
   }
 }
 
@@ -554,7 +554,7 @@
   position: absolute;
   width: 1ch;
   height: 1.5em; // matches line-height
-  background: rgba($dracula-fg, 0.7);
+  background: color-mix(in srgb, var(--text-primary) 70%, transparent);
   pointer-events: none;
   z-index: 3;
   animation: cursor-blink 1s step-end infinite;
@@ -581,7 +581,7 @@
 .file-viewer-visual-selection {
   position: absolute;
   height: 1.5em;
-  background: rgba($accent-purple, 0.3);
+  background: color-mix(in srgb, var(--accent-purple) 30%, transparent);
   pointer-events: none;
   z-index: 1;
   min-width: 0.5ch;
@@ -666,9 +666,9 @@
 
 .file-viewer-diagram-error {
   width: min(680px, 100%);
-  border: 1px solid rgba($dracula-red, 0.4);
-  background: rgba($dracula-red, 0.12);
-  color: $dracula-red;
+  border: 1px solid color-mix(in srgb, var(--accent-red) 40%, transparent);
+  background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+  color: var(--accent-red);
   border-radius: $radius-md;
   padding: 12px;
   display: flex;
@@ -697,19 +697,19 @@
   font-family: $font-mono;
   font-size: 16px;
   font-weight: 600;
-  color: $dracula-fg;
+  color: var(--text-primary);
   word-break: break-all;
 }
 
 .file-viewer-binary-size {
   font-family: $font-mono;
   font-size: 12px;
-  color: $text-muted;
+  color: var(--text-muted);
 }
 
 .file-viewer-binary-message {
   font-size: 13px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   margin-top: 8px;
 }
 
@@ -718,8 +718,8 @@
   position: absolute;
   top: 8px;
   right: 8px;
-  background: rgba($dracula-bg-darker, 0.95);
-  border: 1px solid rgba($border-color, 0.6);
+  background: color-mix(in srgb, var(--bg-primary) 95%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
   border-radius: $radius-sm;
   padding: 4px 8px;
   font-family: $font-mono;
@@ -736,28 +736,28 @@
 
   &:hover {
     opacity: 1;
-    background: rgba($dracula-bg-darker, 1);
-    border-color: $accent-cyan;
+    background: var(--bg-primary);
+    border-color: var(--accent-cyan);
   }
 
   .indicator-position {
-    color: $accent-cyan;
+    color: var(--accent-cyan);
     font-weight: 600;
   }
 
   .indicator-separator {
-    color: $dracula-comment;
+    color: var(--text-muted);
   }
 
   .indicator-mode {
-    color: $accent-purple;
+    color: var(--accent-purple);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
 
   .indicator-percentage {
-    color: $dracula-yellow;
+    color: var(--accent-yellow);
     font-weight: 500;
   }
 }
@@ -768,8 +768,8 @@
   bottom: 0;
   left: 0;
   right: 0;
-  background: rgba($dracula-bg-darker, 0.98);
-  border-top: 1px solid $border-color;
+  background: color-mix(in srgb, var(--bg-primary) 98%, transparent);
+  border-top: 1px solid var(--border-color);
   padding: 8px 12px;
   display: flex;
   gap: 8px;
@@ -783,21 +783,21 @@
   flex: 1;
   display: flex;
   align-items: center;
-  background: rgba($dracula-bg, 0.8);
-  border: 1px solid rgba($border-color, 0.8);
+  background: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
   border-radius: $radius-sm;
   overflow: hidden;
   transition: all $transition-fast;
 
   &:focus-within {
-    border-color: $accent-cyan;
-    background: $dracula-bg;
-    box-shadow: 0 0 0 2px rgba($accent-cyan, 0.2);
+    border-color: var(--accent-cyan);
+    background: var(--bg-secondary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-cyan) 20%, transparent);
   }
 }
 
 .file-viewer-search-prefix {
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-family: $font-mono;
   font-size: 12px;
   padding: 0 8px;
@@ -808,21 +808,21 @@
   flex: 1;
   background: transparent;
   border: none;
-  color: $dracula-fg;
+  color: var(--text-primary);
   padding: 6px 0 6px 0;
   font-family: $font-mono;
   font-size: 12px;
   outline: none;
 
   &::placeholder {
-    color: rgba($text-muted, 0.6);
+    color: color-mix(in srgb, var(--text-muted) 60%, transparent);
   }
 }
 
 .file-viewer-search-counter {
   font-family: $font-mono;
   font-size: 11px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   padding: 0 6px;
   white-space: nowrap;
 }
@@ -835,8 +835,8 @@
 
 .file-viewer-search-btn {
   background: transparent;
-  border: 1px solid $border-color;
-  color: $text-muted;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
   width: 24px;
   height: 24px;
   border-radius: $radius-sm;
@@ -849,13 +849,13 @@
   padding: 0;
 
   &:hover:not(:disabled) {
-    background: rgba($accent-cyan, 0.15);
-    border-color: $accent-cyan;
-    color: $accent-cyan;
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
   }
 
   &:active:not(:disabled) {
-    background: rgba($accent-cyan, 0.25);
+    background: color-mix(in srgb, var(--accent-cyan) 25%, transparent);
   }
 
   &:disabled {
@@ -866,8 +866,8 @@
 
 .file-viewer-search-close {
   background: transparent;
-  border: 1px solid $border-color;
-  color: $text-muted;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
   width: 24px;
   height: 24px;
   border-radius: $radius-sm;
@@ -880,13 +880,13 @@
   padding: 0;
 
   &:hover {
-    background: rgba($dracula-red, 0.15);
-    border-color: $dracula-red;
-    color: $dracula-red;
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    border-color: var(--accent-red);
+    color: var(--accent-red);
   }
 
   &:active {
-    background: rgba($dracula-red, 0.25);
+    background: color-mix(in srgb, var(--accent-red) 25%, transparent);
   }
 }
 
@@ -896,13 +896,13 @@
   height: 1.5em;
   pointer-events: none;
   z-index: 1;
-  border-bottom: 2px solid rgba($dracula-yellow, 0.6);
-  background: rgba($dracula-yellow, 0.08);
+  border-bottom: 2px solid color-mix(in srgb, var(--accent-yellow) 60%, transparent);
+  background: color-mix(in srgb, var(--accent-yellow) 8%, transparent);
 
   &.current {
-    border-bottom-color: $dracula-orange;
-    background: rgba($dracula-orange, 0.12);
-    outline: 1px solid rgba($dracula-orange, 0.5);
+    border-bottom-color: var(--accent-orange);
+    background: color-mix(in srgb, var(--accent-orange) 12%, transparent);
+    outline: 1px solid color-mix(in srgb, var(--accent-orange) 50%, transparent);
     border-radius: 2px;
   }
 }

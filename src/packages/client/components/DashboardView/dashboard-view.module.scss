@@ -13,8 +13,8 @@ $color-neutral: #8a8a98;      // Gray
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: $bg-primary;
-  color: $text-primary;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
   overflow: hidden;
 
   @media (max-width: 768px) {
@@ -47,7 +47,7 @@ $color-neutral: #8a8a98;      // Gray
   }
 
   &::-webkit-scrollbar-thumb {
-    background-color: $bg-tertiary;
+    background-color: var(--bg-tertiary);
     border-radius: 4px;
 
     &:hover {
@@ -63,8 +63,8 @@ $color-neutral: #8a8a98;      // Gray
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background-color: $bg-secondary;
-  border: 1px solid $bg-tertiary;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--bg-tertiary);
   border-radius: 8px;
   padding: 16px;
 
@@ -86,7 +86,7 @@ $color-neutral: #8a8a98;      // Gray
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .metrics-display__grid {
@@ -109,7 +109,7 @@ $color-neutral: #8a8a98;      // Gray
   flex-direction: column;
   gap: 12px;
   padding-top: 12px;
-  border-top: 1px solid $bg-tertiary;
+  border-top: 1px solid var(--bg-tertiary);
 
   &:first-of-type {
     padding-top: 0;
@@ -123,7 +123,7 @@ $color-neutral: #8a8a98;      // Gray
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .metrics-display__rates {
@@ -148,14 +148,14 @@ $color-neutral: #8a8a98;      // Gray
   align-items: flex-start;
   gap: 12px;
   padding: 12px;
-  background-color: $bg-primary;
-  border: 1px solid $bg-tertiary;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--bg-tertiary);
   border-radius: 6px;
   transition: all 200ms ease;
 
   &:hover {
-    background-color: $bg-tertiary;
-    border-color: $accent-blue;
+    background-color: var(--bg-tertiary);
+    border-color: var(--accent-blue);
   }
 
   &--healthy {
@@ -191,7 +191,7 @@ $color-neutral: #8a8a98;      // Gray
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .metric-card__value-container {
@@ -203,12 +203,12 @@ $color-neutral: #8a8a98;      // Gray
 .metric-card__value {
   font-size: 20px;
   font-weight: 700;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .metric-card__unit {
   font-size: 12px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .metric-card__trend {
@@ -246,21 +246,21 @@ $color-neutral: #8a8a98;      // Gray
 .progress-metric__label {
   font-size: 12px;
   font-weight: 500;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .progress-metric__value {
   font-size: 12px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .progress-metric__bar {
   height: 6px;
-  background-color: $bg-primary;
+  background-color: var(--bg-primary);
   border-radius: 3px;
   overflow: hidden;
-  border: 1px solid $bg-tertiary;
+  border: 1px solid var(--bg-tertiary);
 }
 
 .progress-metric__fill {
@@ -286,7 +286,7 @@ $color-neutral: #8a8a98;      // Gray
  */
 .error-item {
   padding: 8px;
-  background-color: $bg-primary;
+  background-color: var(--bg-primary);
   border-left: 3px solid $color-error;
   border-radius: 4px;
   font-size: 12px;
@@ -302,19 +302,19 @@ $color-neutral: #8a8a98;      // Gray
 
 .error-item__agent {
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
   white-space: nowrap;
 }
 
 .error-item__time {
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
 .error-item__message {
   margin: 0;
-  color: $text-secondary;
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -326,24 +326,24 @@ $color-neutral: #8a8a98;      // Gray
 .dashboard-card {
   display: flex;
   flex-direction: column;
-  background-color: $bg-secondary;
-  border: 1px solid $bg-tertiary;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--bg-tertiary);
   border-radius: 8px;
   padding: 12px;
   transition: all 200ms ease;
   cursor: pointer;
 
   &:hover {
-    background-color: $bg-tertiary;
-    border-color: $accent-blue;
+    background-color: var(--bg-tertiary);
+    border-color: var(--accent-blue);
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }
 
   &--selected {
     background-color: rgba(90, 143, 212, 0.1);
-    border-color: $accent-blue;
-    border-left: 4px solid $accent-blue;
+    border-color: var(--accent-blue);
+    border-left: 4px solid var(--accent-blue);
     padding-left: 10px;
   }
 
@@ -375,7 +375,7 @@ $color-neutral: #8a8a98;      // Gray
   gap: 12px;
   margin-bottom: 12px;
   padding-bottom: 12px;
-  border-bottom: 1px solid $bg-tertiary;
+  border-bottom: 1px solid var(--bg-tertiary);
 }
 
 .dashboard-card__title-section {
@@ -401,7 +401,7 @@ $color-neutral: #8a8a98;      // Gray
   margin: 0 0 4px;
   font-size: 14px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -410,7 +410,7 @@ $color-neutral: #8a8a98;      // Gray
 .dashboard-card__subtitle {
   margin: 0;
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -466,7 +466,7 @@ $color-neutral: #8a8a98;      // Gray
   font-size: 11px;
   font-weight: 600;
   text-transform: capitalize;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .dashboard-card__body {
@@ -494,15 +494,15 @@ $color-neutral: #8a8a98;      // Gray
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .dashboard-card__progress-bar {
   height: 6px;
-  background-color: $bg-primary;
+  background-color: var(--bg-primary);
   border-radius: 3px;
   overflow: hidden;
-  border: 1px solid $bg-tertiary;
+  border: 1px solid var(--bg-tertiary);
 }
 
 .dashboard-card__progress-fill {
@@ -515,13 +515,13 @@ $color-neutral: #8a8a98;      // Gray
 .dashboard-card__progress-text {
   font-size: 11px;
   font-weight: 600;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .dashboard-card__task-description {
   margin: 0;
   font-size: 12px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -544,13 +544,13 @@ $color-neutral: #8a8a98;      // Gray
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .dashboard-card__stat-value {
   font-size: 14px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .dashboard-card__error-message {
@@ -566,16 +566,16 @@ $color-neutral: #8a8a98;      // Gray
   display: flex;
   gap: 8px;
   padding-top: 12px;
-  border-top: 1px solid $bg-tertiary;
+  border-top: 1px solid var(--bg-tertiary);
 }
 
 .dashboard-card__action-btn {
   flex: 1;
   padding: 6px 12px;
-  background-color: $bg-primary;
-  border: 1px solid $bg-tertiary;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--bg-tertiary);
   border-radius: 4px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -584,9 +584,9 @@ $color-neutral: #8a8a98;      // Gray
   transition: all 150ms ease;
 
   &:hover {
-    background-color: $bg-tertiary;
-    color: $text-primary;
-    border-color: $accent-blue;
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-color: var(--accent-blue);
   }
 
   &--danger {
@@ -623,7 +623,7 @@ $color-neutral: #8a8a98;      // Gray
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .agent-status-cards__grid {
@@ -647,7 +647,7 @@ $color-neutral: #8a8a98;      // Gray
 .agent-status-cards__empty {
   padding: 32px 16px;
   text-align: center;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 /**
@@ -675,7 +675,7 @@ $color-neutral: #8a8a98;      // Gray
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .building-status-overview__section {
@@ -690,7 +690,7 @@ $color-neutral: #8a8a98;      // Gray
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -699,10 +699,10 @@ $color-neutral: #8a8a98;      // Gray
 .building-status-overview__count {
   display: inline-block;
   padding: 2px 6px;
-  background-color: $bg-tertiary;
+  background-color: var(--bg-tertiary);
   border-radius: 3px;
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .building-status-overview__grid {
@@ -726,7 +726,7 @@ $color-neutral: #8a8a98;      // Gray
 .building-status-overview__empty {
   padding: 32px 16px;
   text-align: center;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 /**
@@ -736,8 +736,8 @@ $color-neutral: #8a8a98;      // Gray
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background-color: $bg-secondary;
-  border: 1px solid $bg-tertiary;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--bg-tertiary);
   border-radius: 8px;
   padding: 16px;
 
@@ -759,12 +759,12 @@ $color-neutral: #8a8a98;      // Gray
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .events-timeline__count {
   font-size: 12px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .events-timeline__container {
@@ -779,7 +779,7 @@ $color-neutral: #8a8a98;      // Gray
   }
 
   &::-webkit-scrollbar-thumb {
-    background-color: $bg-tertiary;
+    background-color: var(--bg-tertiary);
     border-radius: 3px;
   }
 }
@@ -787,29 +787,29 @@ $color-neutral: #8a8a98;      // Gray
 .events-timeline__empty {
   padding: 32px 16px;
   text-align: center;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .events-timeline__more {
   padding-top: 8px;
-  border-top: 1px solid $bg-tertiary;
+  border-top: 1px solid var(--bg-tertiary);
   text-align: center;
 }
 
 .events-timeline__more-btn {
   padding: 6px 12px;
   background-color: transparent;
-  border: 1px solid $bg-tertiary;
+  border: 1px solid var(--bg-tertiary);
   border-radius: 4px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 11px;
   cursor: pointer;
   transition: all 150ms ease;
 
   &:hover {
-    background-color: $bg-tertiary;
-    border-color: $accent-blue;
-    color: $accent-blue;
+    background-color: var(--bg-tertiary);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
   }
 }
 
@@ -824,7 +824,7 @@ $color-neutral: #8a8a98;      // Gray
 
   &:hover {
     .timeline-event__body {
-      background-color: $bg-primary;
+      background-color: var(--bg-primary);
     }
   }
 
@@ -847,7 +847,7 @@ $color-neutral: #8a8a98;      // Gray
   top: 24px;
   width: 2px;
   height: calc(100% + 12px);
-  background-color: $bg-tertiary;
+  background-color: var(--bg-tertiary);
 }
 
 .timeline-event__content {
@@ -865,7 +865,7 @@ $color-neutral: #8a8a98;      // Gray
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: $bg-secondary;
+  background-color: var(--bg-secondary);
   border: 2px solid var(--event-color, $color-neutral);
   border-radius: 50%;
   flex-shrink: 0;
@@ -879,7 +879,7 @@ $color-neutral: #8a8a98;      // Gray
 .timeline-event__body {
   flex: 1;
   padding: 8px 12px;
-  background-color: $bg-tertiary;
+  background-color: var(--bg-tertiary);
   border-radius: 4px;
   border-left: 3px solid var(--event-color, $color-neutral);
   transition: all 150ms ease;
@@ -896,7 +896,7 @@ $color-neutral: #8a8a98;      // Gray
   margin: 0;
   font-size: 12px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -904,7 +904,7 @@ $color-neutral: #8a8a98;      // Gray
 
 .timeline-event__time {
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -912,13 +912,13 @@ $color-neutral: #8a8a98;      // Gray
 .timeline-event__meta {
   margin: 0;
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 
   strong {
-    color: $text-primary;
+    color: var(--text-primary);
   }
 }
 

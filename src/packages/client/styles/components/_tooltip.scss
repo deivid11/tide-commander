@@ -218,16 +218,16 @@
 // Detached mode tooltip specific styling
 .tide-tooltip--detached {
   .tide-tooltip__content {
-    border-color: rgba($dracula-orange, 0.5);
-    background: color-mix(in srgb, var(--bg-primary) 95%, $dracula-orange 5%);
+    border-color: color-mix(in srgb, var(--accent-orange) 50%, transparent);
+    background: color-mix(in srgb, var(--bg-primary) 95%, var(--accent-orange) 5%);
   }
 
   .tide-tooltip__title {
-    color: $dracula-orange;
+    color: var(--accent-orange);
   }
 
   .tide-tooltip__arrow {
-    border-color: rgba($dracula-orange, 0.5);
-    background: color-mix(in srgb, var(--bg-primary) 95%, $dracula-orange 5%);
+    border-color: color-mix(in srgb, var(--accent-orange) 50%, transparent);
+    background: color-mix(in srgb, var(--bg-primary) 95%, var(--accent-orange) 5%);
   }
 }

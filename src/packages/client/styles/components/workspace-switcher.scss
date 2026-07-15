@@ -19,7 +19,7 @@
   background: rgba(0, 0, 0, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  color: $text-primary;
+  color: var(--text-primary);
   font-family: $font-family;
   font-size: 11px;
   cursor: pointer;
@@ -29,7 +29,7 @@
 
   &:hover {
     background: rgba(0, 0, 0, 0.75);
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 }
 
@@ -46,7 +46,7 @@
 
 .workspace-switcher-arrow {
   font-size: 8px;
-  color: $text-muted;
+  color: var(--text-muted);
   margin-left: 2px;
 }
 
@@ -61,8 +61,8 @@
   min-width: 180px;
   max-height: 320px;
   overflow-y: auto;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
   padding: 4px 0;
@@ -72,7 +72,7 @@
     width: 4px;
   }
   &::-webkit-scrollbar-thumb {
-    background: $border-color;
+    background: var(--border-color);
     border-radius: 2px;
   }
 }
@@ -85,7 +85,7 @@
   padding: 6px 10px;
   background: none;
   border: none;
-  color: $text-primary;
+  color: var(--text-primary);
   font-family: $font-family;
   font-size: 11px;
   cursor: pointer;
@@ -93,32 +93,32 @@
   transition: background 0.1s;
 
   &:hover {
-    background: $bg-tertiary;
+    background: var(--bg-tertiary);
   }
 
   &.active {
-    color: $accent-blue;
+    color: var(--accent-blue);
     font-weight: 600;
   }
 }
 
 .workspace-switcher-option-count {
   font-size: 10px;
-  color: $text-muted;
+  color: var(--text-muted);
   margin-left: 8px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   padding: 1px 5px;
   border-radius: 8px;
 }
 
 .workspace-switcher-manage {
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 10px;
 }
 
 .workspace-switcher-divider {
   height: 1px;
-  background: $border-color;
+  background: var(--border-color);
   margin: 4px 0;
 }
 
@@ -137,23 +137,23 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 10px;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
   font-size: 11px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .workspace-switcher-close {
   background: none;
   border: none;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 16px;
   cursor: pointer;
   padding: 0 4px;
   line-height: 1;
 
   &:hover {
-    color: $text-primary;
+    color: var(--text-primary);
   }
 }
 
@@ -164,7 +164,7 @@
 }
 
 .workspace-switcher-manager-item {
-  border-bottom: 1px solid rgba($border-color, 0.5);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
 
   &:last-child {
     border-bottom: none;
@@ -181,7 +181,7 @@
 
 .workspace-switcher-manager-name {
   flex: 1;
-  color: $text-primary;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -189,7 +189,7 @@
 
 .workspace-switcher-manager-count {
   font-size: 10px;
-  color: $text-muted;
+  color: var(--text-muted);
 }
 
 .workspace-switcher-btn-edit,
@@ -209,7 +209,7 @@
 }
 
 .workspace-switcher-btn-delete:hover {
-  color: $accent-red;
+  color: var(--accent-red);
 }
 
 // ============================================================================
@@ -223,16 +223,16 @@
 .workspace-switcher-input {
   width: 100%;
   padding: 4px 8px;
-  background: $bg-primary;
-  border: 1px solid $border-color;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
-  color: $text-primary;
+  color: var(--text-primary);
   font-family: $font-family;
   font-size: 11px;
   outline: none;
 
   &:focus {
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 }
 
@@ -251,11 +251,11 @@
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   cursor: pointer;
 
   input[type="checkbox"] {
-    accent-color: $accent-blue;
+    accent-color: var(--accent-blue);
     width: 12px;
     height: 12px;
   }
@@ -263,7 +263,7 @@
 
 .workspace-switcher-empty {
   font-size: 10px;
-  color: $text-muted;
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -285,31 +285,31 @@
 }
 
 .workspace-switcher-btn-save {
-  background: $accent-blue;
+  background: var(--accent-blue);
   color: #fff;
 
   &:hover {
-    background: color.adjust($accent-blue, $lightness: 8%);
+    background: color-mix(in srgb, var(--accent-blue) 91%, white);
   }
 }
 
 .workspace-switcher-btn-cancel {
-  background: $bg-tertiary;
-  color: $text-secondary;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 
   &:hover {
-    background: color.adjust($bg-tertiary, $lightness: 5%);
+    background: color-mix(in srgb, var(--bg-tertiary) 94%, white);
   }
 }
 
 .workspace-switcher-add {
-  color: $accent-blue;
+  color: var(--accent-blue);
   font-size: 11px;
   padding: 6px 10px;
 }
 
 .workspace-switcher-create-form {
-  border-top: 1px solid $border-color;
+  border-top: 1px solid var(--border-color);
 }
 
 // ============================================================================
@@ -334,7 +334,7 @@
   width: 28px;
   height: 28px;
   border: 3px solid rgba(255, 255, 255, 0.15);
-  border-top-color: $accent-blue;
+  border-top-color: var(--accent-blue);
   border-radius: 50%;
   animation: ws-spin 0.7s linear infinite;
 }

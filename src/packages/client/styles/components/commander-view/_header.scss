@@ -8,9 +8,9 @@
   width: 36px;
   height: 36px;
   border-radius: $radius-lg;
-  background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
-  border: 1px solid $dracula-comment;
-  color: $dracula-purple;
+  background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--text-muted);
+  color: var(--accent-purple);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -20,9 +20,9 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 
   &:hover {
-    background: $dracula-current;
-    border-color: $dracula-purple;
-    color: $dracula-pink;
+    background: var(--bg-tertiary);
+    border-color: var(--accent-purple);
+    color: var(--accent-pink);
   }
 }
 
@@ -51,14 +51,14 @@
 .commander-view {
   width: 100%;
   height: min(94vh, 1200px);
-  background: linear-gradient(180deg, rgba($dracula-bg, 0.95) 0%, rgba($dracula-bg-darker, 0.98) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 95%, transparent) 0%, color-mix(in srgb, var(--bg-primary) 98%, transparent) 100%);
   border-radius: 0 0 $radius-xl $radius-xl;
-  border: 2px solid $dracula-purple;
+  border: 2px solid var(--accent-purple);
   border-top: none;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba($dracula-purple, 0.15);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px color-mix(in srgb, var(--accent-purple) 15%, transparent);
   transform-origin: top center;
   animation: commander-drop-in 170ms cubic-bezier(0.25, 0.8, 0.25, 1);
 }
@@ -79,8 +79,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 20px;
-  background: rgba($dracula-bg, 0.95);
-  border-bottom: 1px solid $dracula-current;
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  border-bottom: 1px solid var(--bg-tertiary);
 }
 
 .commander-title-section {
@@ -93,13 +93,13 @@
   margin: 0;
   font-size: 15px;
   font-weight: 600;
-  color: $dracula-pink;
+  color: var(--accent-pink);
   font-family: $font-mono;
 }
 
 .commander-shortcuts {
   font-size: 11px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-family: $font-mono;
 }
 
@@ -111,8 +111,8 @@
 
 .commander-view-toggle {
   background: transparent;
-  border: 1px solid $dracula-current;
-  color: $dracula-comment;
+  border: 1px solid var(--bg-tertiary);
+  color: var(--text-muted);
   padding: 6px 12px;
   border-radius: $radius-sm;
   font-size: 11px;
@@ -121,14 +121,14 @@
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $dracula-cyan;
-    color: $dracula-cyan;
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
   }
 
   &.active {
-    border-color: $dracula-purple;
-    color: $dracula-purple;
-    background: rgba($dracula-purple, 0.1);
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
+    background: color-mix(in srgb, var(--accent-purple) 10%, transparent);
   }
 }
 
@@ -138,14 +138,14 @@
   justify-content: center;
   gap: 12px;
   padding: 8px 12px;
-  background: rgba($dracula-bg-darker, 0.6);
-  border-bottom: 1px solid $dracula-current;
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+  border-bottom: 1px solid var(--bg-tertiary);
 }
 
 .commander-page-btn {
   background: transparent;
-  border: 1px solid $dracula-current;
-  color: $dracula-comment;
+  border: 1px solid var(--bg-tertiary);
+  color: var(--text-muted);
   padding: 6px 12px;
   border-radius: $radius-sm;
   cursor: pointer;
@@ -154,8 +154,8 @@
   transition: all $transition-fast;
 
   &:hover:not(:disabled) {
-    border-color: $dracula-purple;
-    color: $dracula-purple;
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
   }
 
   &:disabled {
@@ -165,15 +165,15 @@
 }
 
 .commander-page-info {
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-size: 12px;
   font-family: $font-mono;
 }
 
 .commander-close {
   background: transparent;
-  border: 1px solid $dracula-current;
-  color: $dracula-comment;
+  border: 1px solid var(--bg-tertiary);
+  color: var(--text-muted);
   padding: 6px 14px;
   border-radius: $radius-sm;
   cursor: pointer;
@@ -183,8 +183,8 @@
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $dracula-red;
-    color: $dracula-red;
+    border-color: var(--accent-red);
+    color: var(--accent-red);
   }
 }
 
@@ -194,8 +194,8 @@
   align-items: center;
   gap: 16px;
   padding: 6px 12px;
-  background: rgba($dracula-bg-darker, 0.6);
-  border-bottom: 1px solid $dracula-current;
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+  border-bottom: 1px solid var(--bg-tertiary);
   flex-wrap: wrap;
 }
 
@@ -207,7 +207,7 @@
 
 .commander-filter-label {
   font-size: 10px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-family: $font-mono;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -218,7 +218,7 @@
 .commander-filter-btn {
   background: transparent;
   border: 1px solid transparent;
-  color: $dracula-comment;
+  color: var(--text-muted);
   padding: 3px 8px;
   border-radius: $radius-sm;
   font-size: 11px;
@@ -228,21 +228,21 @@
   white-space: nowrap;
 
   &:hover {
-    color: $dracula-fg;
-    background: rgba($dracula-current, 0.4);
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
   }
 
   &.active {
-    color: $dracula-cyan;
-    background: rgba($dracula-cyan, 0.12);
-    border-color: rgba($dracula-cyan, 0.3);
+    color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent-cyan) 30%, transparent);
   }
 }
 
 .commander-filter-clear {
   background: transparent;
-  border: 1px solid rgba($dracula-red, 0.3);
-  color: $dracula-red;
+  border: 1px solid color-mix(in srgb, var(--accent-red) 30%, transparent);
+  color: var(--accent-red);
   padding: 3px 8px;
   border-radius: $radius-sm;
   font-size: 10px;
@@ -252,8 +252,8 @@
   margin-left: auto;
 
   &:hover {
-    background: rgba($dracula-red, 0.12);
-    border-color: $dracula-red;
+    background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+    border-color: var(--accent-red);
   }
 }
 
@@ -267,7 +267,7 @@
     height: 100dvh;
     border-radius: 0;
     border: none;
-    border-top: 2px solid $dracula-purple;
+    border-top: 2px solid var(--accent-purple);
   }
 
   .commander-header {

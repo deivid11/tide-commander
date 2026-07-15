@@ -8,8 +8,8 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: $bg-primary;
-  color: $text-primary;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   border-radius: 8px;
   overflow: hidden;
 
@@ -18,8 +18,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    background: $bg-secondary;
-    border-bottom: 1px solid $border-color;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
   }
 
   &__title {
@@ -39,10 +39,10 @@
 
   &__connection-info {
     font-size: 0.85em;
-    color: $text-secondary;
+    color: var(--text-secondary);
     margin-left: 8px;
     padding-left: 8px;
-    border-left: 1px solid $border-color;
+    border-left: 1px solid var(--border-color);
   }
 
   &__header-actions {
@@ -54,7 +54,7 @@
   &__close {
     background: none;
     border: none;
-    color: $text-secondary;
+    color: var(--text-secondary);
     font-size: 1.5em;
     cursor: pointer;
     padding: 0 8px;
@@ -63,7 +63,7 @@
     align-items: center;
 
     &:hover {
-      color: $text-primary;
+      color: var(--text-primary);
     }
   }
 
@@ -87,9 +87,9 @@
     align-items: center;
     gap: 4px;
     padding: 8px 16px;
-    background: $bg-secondary;
-    border-top: 1px solid $border-color;
-    border-bottom: 1px solid $border-color;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
   }
 
   &__tab {
@@ -100,21 +100,21 @@
     background: transparent;
     border: none;
     border-radius: 4px;
-    color: $text-secondary;
+    color: var(--text-secondary);
     cursor: pointer;
     font-size: 0.9em;
 
     &:hover {
-      background: rgba($text-primary, 0.05);
-      color: $text-primary;
+      background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+      color: var(--text-primary);
     }
 
     &--active {
-      background: $accent-blue;
+      background: var(--accent-blue);
       color: white;
 
       &:hover {
-        background: color.adjust($accent-blue, $lightness: 5%);
+        background: color-mix(in srgb, var(--accent-blue) 94%, white);
       }
     }
   }
@@ -134,19 +134,19 @@
     gap: 8px;
     margin-left: auto;
     font-size: 0.85em;
-    color: $text-secondary;
+    color: var(--text-secondary);
 
     button {
-      background: $bg-tertiary;
-      border: 1px solid $border-color;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
       border-radius: 4px;
-      color: $text-secondary;
+      color: var(--text-secondary);
       padding: 4px 8px;
       cursor: pointer;
 
       &:hover:not(:disabled) {
-        background: rgba($text-primary, 0.05);
-        color: $text-primary;
+        background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+        color: var(--text-primary);
       }
 
       &:disabled {
@@ -174,7 +174,7 @@
     align-items: center;
     justify-content: center;
     height: 200px;
-    color: $text-secondary;
+    color: var(--text-secondary);
     text-align: center;
 
     p {
@@ -190,7 +190,7 @@
     height: 100%;
     padding: 40px;
     text-align: center;
-    color: $text-secondary;
+    color: var(--text-secondary);
 
     &-icon {
       font-size: 4em;
@@ -200,7 +200,7 @@
 
     h3 {
       font-size: 1.4em;
-      color: $text-primary;
+      color: var(--text-primary);
       margin: 0 0 12px;
     }
 
@@ -220,7 +220,7 @@
         line-height: 1.5;
 
         strong {
-          color: $accent-blue;
+          color: var(--accent-blue);
         }
       }
     }

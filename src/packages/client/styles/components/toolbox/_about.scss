@@ -20,12 +20,12 @@
 .about-logo-text {
   font-size: 14px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .about-description {
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   margin-bottom: 12px;
   line-height: 1.4;
 }
@@ -37,7 +37,7 @@
 .about-principles-title {
   font-size: 10px;
   font-weight: 600;
-  color: $text-secondary;
+  color: var(--text-secondary);
   text-transform: uppercase;
   margin-bottom: 6px;
 }
@@ -46,14 +46,14 @@
   margin: 0;
   padding: 0 0 0 16px;
   font-size: 11px;
-  color: $text-primary;
+  color: var(--text-primary);
   line-height: 1.6;
 
   li {
     margin-bottom: 2px;
 
     &::marker {
-      color: $accent-blue;
+      color: var(--accent-blue);
     }
   }
 }
@@ -70,18 +70,18 @@
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
   text-decoration: none;
   font-size: 11px;
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $accent-blue;
-    color: $accent-blue;
-    background: rgba($accent-blue, 0.05);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    background: color-mix(in srgb, var(--accent-blue) 5%, transparent);
   }
 }
 
@@ -93,13 +93,13 @@
 
 .about-credits {
   padding-top: 10px;
-  border-top: 1px solid rgba($border-color, 0.5);
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
 }
 
 .about-credits-title {
   font-size: 10px;
   font-weight: 600;
-  color: $text-secondary;
+  color: var(--text-secondary);
   text-transform: uppercase;
   margin-bottom: 6px;
 }
@@ -113,21 +113,21 @@
 }
 
 .about-credit-link {
-  color: $accent-blue;
+  color: var(--accent-blue);
   text-decoration: none;
   font-size: 12px;
   font-weight: 500;
   transition: color $transition-fast;
 
   &:hover {
-    color: color.adjust($accent-blue, $lightness: 15%);
+    color: color-mix(in srgb, var(--accent-blue) 82%, white);
     text-decoration: underline;
   }
 }
 
 .about-credit-desc {
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   margin-left: 4px;
 }
 
@@ -137,14 +137,14 @@
   justify-content: space-between;
   align-items: center;
   padding: 6px 10px;
-  background: $bg-secondary;
+  background: var(--bg-secondary);
   border-radius: $radius-sm;
   margin-bottom: 10px;
 }
 
 .about-version-label {
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .about-version-info {
@@ -156,19 +156,19 @@
 .about-version-value {
   font-size: 12px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
   font-family: $font-mono;
 }
 
 .about-version-status {
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-style: italic;
   text-decoration: none;
   transition: color $transition-fast;
 
   &:hover {
-    color: $accent-blue;
+    color: var(--accent-blue);
   }
 }
 
@@ -177,8 +177,8 @@
   font-weight: 600;
   padding: 2px 6px;
   border-radius: 3px;
-  background: $accent-green;
-  color: $bg-primary;
+  background: var(--accent-green);
+  color: var(--bg-primary);
   cursor: pointer;
   transition: all $transition-fast;
   font-family: $font-mono;
@@ -204,9 +204,9 @@
 .about-update {
   margin-bottom: 12px;
   padding: 10px;
-  background: $bg-secondary;
+  background: var(--bg-secondary);
   border-radius: $radius-md;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
 }
 
 .about-update-check {
@@ -218,7 +218,7 @@
 
 .about-update-status {
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .about-update-available {
@@ -239,27 +239,27 @@
   text-transform: uppercase;
   padding: 2px 6px;
   border-radius: 3px;
-  background: $accent-green;
-  color: $bg-primary;
+  background: var(--accent-green);
+  color: var(--bg-primary);
 }
 
 .about-update-version {
   font-size: 13px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
   font-family: $font-mono;
 }
 
 .about-update-size {
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .about-update-error {
   font-size: 11px;
-  color: $accent-red;
+  color: var(--accent-red);
   padding: 6px 8px;
-  background: rgba($accent-red, 0.1);
+  background: color-mix(in srgb, var(--accent-red) 10%, transparent);
   border-radius: $radius-sm;
 }
 
@@ -279,7 +279,7 @@
 
 .about-update-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, $accent-green 0%, color.adjust($accent-green, $lightness: 10%) 100%);
+  background: linear-gradient(90deg, var(--accent-green) 0%, color-mix(in srgb, var(--accent-green) 88%, white) 100%);
   border-radius: 3px;
   transition: width 0.3s ease;
 }
@@ -287,7 +287,7 @@
 .about-update-progress-text {
   font-size: 11px;
   font-weight: 600;
-  color: $accent-green;
+  color: var(--accent-green);
   min-width: 32px;
   text-align: right;
 }
@@ -308,13 +308,13 @@
   transition: all $transition-fast;
 
   &.check {
-    background: $bg-tertiary;
-    color: $text-secondary;
-    border: 1px solid $border-color;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
 
     &:hover:not(:disabled) {
       background: rgba(255, 255, 255, 0.1);
-      color: $text-primary;
+      color: var(--text-primary);
     }
 
     &:disabled {
@@ -325,18 +325,18 @@
 
   &.changelog {
     background: rgba(255, 255, 255, 0.05);
-    color: $text-secondary;
-    border: 1px solid $border-color;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
 
     &:hover {
       background: rgba(255, 255, 255, 0.1);
-      color: $text-primary;
+      color: var(--text-primary);
     }
   }
 
   &.download {
-    background: linear-gradient(135deg, $accent-green 0%, color.adjust($accent-green, $lightness: -15%) 100%);
-    color: $bg-primary;
+    background: linear-gradient(135deg, var(--accent-green) 0%, color-mix(in srgb, var(--accent-green) 82%, black) 100%);
+    color: var(--bg-primary);
     font-weight: 600;
 
     &:hover {
@@ -349,9 +349,9 @@
 .about-autoupdate {
   margin-bottom: 12px;
   padding: 10px;
-  background: $bg-secondary;
+  background: var(--bg-secondary);
   border-radius: $radius-md;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -360,7 +360,7 @@
 .about-autoupdate-title {
   font-size: 10px;
   font-weight: 600;
-  color: $text-secondary;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -381,27 +381,27 @@
 }
 
 .about-autoupdate-current {
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .about-autoupdate-arrow {
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .about-autoupdate-latest {
-  color: $accent-green;
+  color: var(--accent-green);
   font-weight: 600;
 }
 
 .about-autoupdate-devnote {
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   line-height: 1.4;
 }
 
 .about-autoupdate-manualhint {
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .about-autoupdate-manualcmd {
@@ -411,7 +411,7 @@
   border-radius: $radius-sm;
   font-family: $font-mono;
   font-size: 11px;
-  color: $text-primary;
+  color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-all;
 }
@@ -425,12 +425,12 @@
 .about-autoupdate-confirm-title {
   font-size: 12px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .about-autoupdate-confirm-body {
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   line-height: 1.4;
 }
 
@@ -449,7 +449,7 @@
 .about-autoupdate-stream-title {
   font-size: 11px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .about-autoupdate-output {
@@ -459,7 +459,7 @@
   border-radius: $radius-sm;
   font-family: $font-mono;
   font-size: 10px;
-  color: $text-primary;
+  color: var(--text-primary);
   max-height: 200px;
   overflow-y: auto;
   white-space: pre-wrap;
@@ -468,7 +468,7 @@
 
 .about-autoupdate-success-hint {
   font-size: 11px;
-  color: $accent-green;
+  color: var(--accent-green);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -489,13 +489,13 @@
 .about-releases {
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid rgba($border-color, 0.5);
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
 }
 
 .about-releases-title {
   font-size: 10px;
   font-weight: 600;
-  color: $text-secondary;
+  color: var(--text-secondary);
   text-transform: uppercase;
   margin-bottom: 6px;
 }
@@ -521,25 +521,25 @@
   }
 
   &.current {
-    background: rgba($accent-blue, 0.1);
-    border-left: 2px solid $accent-blue;
+    background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+    border-left: 2px solid var(--accent-blue);
   }
 }
 
 .about-release-version {
   font-size: 12px;
   font-weight: 500;
-  color: $text-primary;
+  color: var(--text-primary);
   font-family: $font-mono;
 
   .about-release-item.current & {
-    color: $accent-blue;
+    color: var(--accent-blue);
   }
 }
 
 .about-release-date {
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 // ============================================
@@ -570,12 +570,12 @@
 
   &:hover {
     background: rgba(255, 255, 255, 0.05);
-    border-color: $border-color;
+    border-color: var(--border-color);
   }
 
   &.active {
-    background: rgba($accent-blue, 0.1);
-    border-color: $accent-blue;
+    background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+    border-color: var(--accent-blue);
   }
 }
 
@@ -611,10 +611,10 @@
 .theme-name {
   font-size: 10px;
   font-weight: 500;
-  color: $text-secondary;
+  color: var(--text-secondary);
   text-align: center;
 
   .theme-option.active & {
-    color: $accent-blue;
+    color: var(--accent-blue);
   }
 }

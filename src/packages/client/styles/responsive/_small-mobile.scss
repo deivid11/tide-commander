@@ -221,7 +221,7 @@
 
   .edit-panel {
     border-right: none;
-    border-bottom: 1px solid $dracula-current;
+    border-bottom: 1px solid var(--bg-tertiary);
 
     &:last-child {
       border-bottom: none;

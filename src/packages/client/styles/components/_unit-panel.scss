@@ -47,8 +47,8 @@
   width: 24px;
   height: 24px;
   border-radius: $radius-sm;
-  border: 1px solid $border-color;
-  background: rgba($bg-tertiary, 0.8);
+  border: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -60,8 +60,8 @@
   -webkit-tap-highlight-color: transparent;
 
   &:hover:not(:disabled) {
-    background: rgba($accent-blue, 0.2);
-    border-color: $accent-blue;
+    background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+    border-color: var(--accent-blue);
     transform: scale(1.1);
   }
 
@@ -71,13 +71,13 @@
   }
 
   &.warning:hover:not(:disabled) {
-    background: rgba($accent-orange, 0.2);
-    border-color: $accent-orange;
+    background: color-mix(in srgb, var(--accent-orange) 20%, transparent);
+    border-color: var(--accent-orange);
   }
 
   &.danger:hover:not(:disabled) {
-    background: rgba($accent-red, 0.2);
-    border-color: $accent-red;
+    background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+    border-color: var(--accent-red);
   }
 }
 
@@ -117,31 +117,31 @@
   font-weight: 600;
   font-size: 15px;
   font-family: inherit;
-  background: $bg-tertiary;
-  border: 1px solid $accent-blue;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent-blue);
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
   padding: 2px 4px;
   margin: -2px -4px;
   width: calc(100% + 8px);
   outline: none;
 
   &:focus {
-    border-color: $accent-blue;
-    box-shadow: 0 0 0 2px rgba($accent-blue, 0.2);
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-blue) 20%, transparent);
   }
 }
 
 .unit-status {
   font-size: 12px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .unit-id {
   margin-top: 2px;
   font-size: 10px;
   font-family: $font-mono;
-  color: $dracula-comment;
+  color: var(--text-muted);
   letter-spacing: 0.2px;
   cursor: pointer;
   user-select: all;
@@ -150,7 +150,7 @@
   white-space: nowrap;
 
   &:hover {
-    color: $text-secondary;
+    color: var(--text-secondary);
   }
 }
 
@@ -162,10 +162,10 @@
   margin-top: 4px;
   font-size: 11px;
   font-family: $font-mono;
-  color: $dracula-comment;
-  background: rgba($dracula-comment, 0.15);
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
   border-radius: $radius-sm;
-  border: 1px solid rgba($dracula-comment, 0.2);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 20%, transparent);
 }
 
 .unit-area {
@@ -173,7 +173,7 @@
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-sm;
   margin-bottom: 8px;
   font-size: 11px;
@@ -186,12 +186,12 @@
 }
 
 .unit-area-name {
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .unit-directories {
   padding: 8px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
   margin-bottom: 8px;
 }
@@ -208,23 +208,23 @@
   align-items: center;
   gap: 6px;
   padding: 4px 6px;
-  background: rgba($dracula-current, 0.3);
+  background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
   border-radius: $radius-sm;
   font-size: 11px;
-  color: $text-primary;
+  color: var(--text-primary);
   cursor: default;
   transition: all $transition-fast;
 
   &:hover {
-    background: rgba($dracula-current, 0.5);
+    background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
   }
 
   &.clickable {
     cursor: pointer;
 
     &:hover {
-      background: rgba($dracula-green, 0.2);
-      border-left: 2px solid $dracula-green;
+      background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+      border-left: 2px solid var(--accent-green);
       padding-left: 4px;
     }
   }
@@ -238,7 +238,7 @@
 .unit-directory-path {
   font-family: $font-mono;
   font-size: 11px;
-  color: $dracula-green;
+  color: var(--accent-green);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -246,16 +246,16 @@
 
 .unit-last-prompt {
   padding: 8px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
   margin-bottom: 8px;
-  border-left: 2px solid $dracula-cyan;
+  border-left: 2px solid var(--accent-cyan);
 }
 
 .unit-last-prompt-text {
   font-size: 11px;
   font-family: $font-mono;
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   line-height: 1.4;
   word-break: break-word;
   white-space: pre-wrap;
@@ -272,23 +272,23 @@
   }
 
   &::-webkit-scrollbar-thumb {
-    background: $border-color;
+    background: var(--border-color);
     border-radius: 2px;
   }
 }
 
 .unit-last-message {
   padding: 8px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
   margin-bottom: 8px;
-  border-left: 2px solid $dracula-purple;
+  border-left: 2px solid var(--accent-purple);
 }
 
 .unit-last-message-text {
   font-size: 11px;
   font-family: $font-mono;
-  color: $text-primary;
+  color: var(--text-primary);
   line-height: 1.4;
   word-break: break-word;
   white-space: pre-wrap;
@@ -305,7 +305,7 @@
   }
 
   &::-webkit-scrollbar-thumb {
-    background: $border-color;
+    background: var(--border-color);
     border-radius: 2px;
   }
 }
@@ -318,14 +318,14 @@
 }
 
 .unit-stat {
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   padding: 8px;
   border-radius: $radius-md;
 }
 
 .unit-stat-label {
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   text-transform: uppercase;
   margin-bottom: 2px;
 }
@@ -341,7 +341,7 @@
   gap: 8px;
   margin-bottom: 8px;
   padding: 6px 8px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
 }
 
@@ -368,23 +368,23 @@
 
 .unit-task-label {
   padding: 8px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
   margin-bottom: 8px;
-  border-left: 2px solid $dracula-cyan;
+  border-left: 2px solid var(--accent-cyan);
 }
 
 .unit-task-label-value {
   font-size: 12px;
   font-weight: 600;
   font-style: italic;
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   line-height: 1.4;
 }
 
 .unit-task {
   padding: 8px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
   margin-bottom: 8px;
 }
@@ -393,7 +393,7 @@
   margin-bottom: 8px;
 
   .todo-tool-input {
-    border: 1px solid rgba($border-color, 0.5);
+    border: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
     border-radius: $radius-md;
     overflow: hidden;
   }
@@ -407,21 +407,21 @@
   padding: 6px 8px;
   font-size: 11px;
   font-style: italic;
-  color: $text-muted;
-  background: $bg-tertiary;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
 }
 
 .unit-task-text {
   font-size: 11px;
-  color: $text-primary;
+  color: var(--text-primary);
   line-height: 1.4;
   word-break: break-word;
 }
 
 .unit-cwd {
   padding: 8px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
   margin-bottom: 12px;
 }
@@ -429,7 +429,7 @@
 .unit-cwd-path {
   font-size: 10px;
   font-family: $font-mono;
-  color: $text-secondary;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -437,7 +437,7 @@
 
 .unit-permission-mode {
   padding: 8px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
   margin-bottom: 12px;
 }
@@ -459,13 +459,13 @@
 .unit-permission-mode-label {
   font-size: 11px;
   font-weight: 500;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 // Remembered patterns section
 .unit-remembered-patterns {
   padding: 8px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
   margin-bottom: 12px;
 }
@@ -479,7 +479,7 @@
 
   &:hover {
     .unit-stat-label {
-      color: $text-primary;
+      color: var(--text-primary);
     }
   }
 }
@@ -489,12 +489,12 @@
   align-items: center;
   gap: 4px;
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .unit-remembered-patterns-count {
-  background: $accent-cyan;
-  color: $bg-primary;
+  background: var(--accent-cyan);
+  color: var(--bg-primary);
   font-size: 9px;
   font-weight: 600;
   padding: 1px 5px;
@@ -507,7 +507,7 @@
 
 .unit-remembered-patterns-empty {
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-style: italic;
   padding: 4px 0;
 }
@@ -530,13 +530,13 @@
 .unit-pattern-tool {
   font-family: $font-mono;
   font-weight: 600;
-  color: $accent-cyan;
+  color: var(--accent-cyan);
   flex-shrink: 0;
 }
 
 .unit-pattern-desc {
   flex: 1;
-  color: $text-secondary;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -547,7 +547,7 @@
   height: 16px;
   border: none;
   background: transparent;
-  color: $text-secondary;
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 12px;
   padding: 0;
@@ -559,8 +559,8 @@
   flex-shrink: 0;
 
   &:hover {
-    background: rgba($accent-red, 0.2);
-    color: $accent-red;
+    background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+    color: var(--accent-red);
   }
 }
 
@@ -571,22 +571,22 @@
   font-size: 10px;
   font-family: $font-mono;
   background: transparent;
-  border: 1px solid rgba($accent-red, 0.3);
-  color: $accent-red;
+  border: 1px solid color-mix(in srgb, var(--accent-red) 30%, transparent);
+  color: var(--accent-red);
   border-radius: $radius-sm;
   cursor: pointer;
   transition: all $transition-fast;
 
   &:hover {
-    background: rgba($accent-red, 0.1);
-    border-color: $accent-red;
+    background: color-mix(in srgb, var(--accent-red) 10%, transparent);
+    border-color: var(--accent-red);
   }
 }
 
 // Session History
 .unit-session-history {
   padding: 8px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
   margin-bottom: 12px;
 }
@@ -609,7 +609,7 @@
 
   &:hover {
     .unit-stat-label {
-      color: $text-primary;
+      color: var(--text-primary);
     }
   }
 }
@@ -618,10 +618,10 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  background: rgba($accent-blue, 0.12);
-  border: 1px solid rgba($accent-blue, 0.3);
+  background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 30%, transparent);
   border-radius: $radius-sm;
-  color: $accent-blue;
+  color: var(--accent-blue);
   font-size: 10px;
   padding: 3px 7px;
   cursor: pointer;
@@ -629,8 +629,8 @@
   flex-shrink: 0;
 
   &:hover {
-    background: rgba($accent-blue, 0.22);
-    border-color: $accent-blue;
+    background: color-mix(in srgb, var(--accent-blue) 22%, transparent);
+    border-color: var(--accent-blue);
   }
 }
 
@@ -639,12 +639,12 @@
   align-items: center;
   gap: 4px;
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .unit-session-history-count {
-  background: $accent-cyan;
-  color: $bg-primary;
+  background: var(--accent-cyan);
+  color: var(--bg-primary);
   font-size: 9px;
   font-weight: 600;
   padding: 1px 5px;
@@ -657,7 +657,7 @@
 
 .unit-session-history-empty {
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-style: italic;
   padding: 4px 0;
 }
@@ -686,35 +686,35 @@
 }
 
 .unit-session-history-item-summary {
-  color: $text-primary;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .unit-session-history-item-date {
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 9px;
 }
 
 .unit-session-history-item.active {
-  background: rgba($accent-cyan, 0.08);
-  border: 1px solid rgba($accent-cyan, 0.2);
+  background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 20%, transparent);
 }
 
 .unit-session-history-missing {
   flex-shrink: 0;
   font-size: 11px;
-  color: $accent-yellow;
+  color: var(--accent-yellow);
   line-height: 1;
 }
 
 .unit-session-history-restore-btn {
   width: 22px;
   height: 22px;
-  border: 1px solid rgba($accent-cyan, 0.3);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, transparent);
   background: transparent;
-  color: $accent-cyan;
+  color: var(--accent-cyan);
   cursor: pointer;
   font-size: 12px;
   padding: 0;
@@ -726,8 +726,8 @@
   flex-shrink: 0;
 
   &:hover {
-    background: rgba($accent-cyan, 0.15);
-    border-color: $accent-cyan;
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border-color: var(--accent-cyan);
   }
 
   &:disabled {
@@ -736,7 +736,7 @@
 
     &:hover {
       background: transparent;
-      border-color: rgba($accent-cyan, 0.3);
+      border-color: color-mix(in srgb, var(--accent-cyan) 30%, transparent);
     }
   }
 }
@@ -747,9 +747,9 @@
   overflow-y: auto;
   margin: 2px 0 6px;
   padding: 4px;
-  background: $bg-primary;
+  background: var(--bg-primary);
   border-radius: $radius-sm;
-  border: 1px solid rgba($border-color, 0.5);
+  border: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
 
   // Thin scrollbar
   &::-webkit-scrollbar {
@@ -759,7 +759,7 @@
     background: transparent;
   }
   &::-webkit-scrollbar-thumb {
-    background: rgba($text-secondary, 0.25);
+    background: color-mix(in srgb, var(--text-secondary) 25%, transparent);
     border-radius: 2px;
   }
 }
@@ -767,7 +767,7 @@
 .unit-session-preview-loading,
 .unit-session-preview-empty {
   font-size: 10px;
-  color: $text-muted;
+  color: var(--text-muted);
   font-style: italic;
   padding: 8px 6px;
   text-align: center;
@@ -786,50 +786,50 @@
   // User messages — cyan left accent
   &.user {
     padding: 5px 8px 5px 10px;
-    border-left: 2px solid $accent-cyan;
+    border-left: 2px solid var(--accent-cyan);
     background: linear-gradient(
       135deg,
-      rgba($accent-cyan, 0.06) 0%,
-      rgba($accent-cyan, 0.02) 100%
+      color-mix(in srgb, var(--accent-cyan) 6%, transparent) 0%,
+      color-mix(in srgb, var(--accent-cyan) 2%, transparent) 100%
     );
 
     .unit-session-preview-role-chip {
-      background: rgba($accent-cyan, 0.15);
-      color: $accent-cyan;
-      border: 1px solid rgba($accent-cyan, 0.25);
+      background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+      color: var(--accent-cyan);
+      border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent);
     }
 
     .unit-session-preview-text {
-      color: $text-primary;
+      color: var(--text-primary);
     }
   }
 
   // Assistant messages — green left accent
   &.assistant {
     padding: 5px 8px 5px 10px;
-    border-left: 2px solid $accent-green;
+    border-left: 2px solid var(--accent-green);
     background: linear-gradient(
       135deg,
-      rgba($accent-green, 0.05) 0%,
-      rgba($accent-green, 0.015) 100%
+      color-mix(in srgb, var(--accent-green) 5%, transparent) 0%,
+      color-mix(in srgb, var(--accent-green) 1.5%, transparent) 100%
     );
 
     .unit-session-preview-role-chip {
-      background: rgba($accent-green, 0.15);
-      color: $accent-green;
-      border: 1px solid rgba($accent-green, 0.25);
+      background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+      color: var(--accent-green);
+      border: 1px solid color-mix(in srgb, var(--accent-green) 25%, transparent);
     }
 
     .unit-session-preview-text {
-      color: $text-secondary;
+      color: var(--text-secondary);
     }
   }
 
   // Tool use — inline compact chip
   &.tool {
     padding: 2px 8px 2px 10px;
-    border-left: 2px solid rgba($accent-orange, 0.4);
-    background: rgba($accent-orange, 0.04);
+    border-left: 2px solid color-mix(in srgb, var(--accent-orange) 40%, transparent);
+    background: color-mix(in srgb, var(--accent-orange) 4%, transparent);
   }
 }
 
@@ -850,7 +850,7 @@
   font-family: $font-mono;
   font-size: 9px;
   font-weight: 600;
-  color: $accent-orange;
+  color: var(--accent-orange);
   text-transform: uppercase;
   letter-spacing: 0.3px;
   opacity: 0.8;
@@ -872,7 +872,7 @@
 
 .unit-resume-cmd {
   padding: 8px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
   margin-bottom: 12px;
 }
@@ -880,7 +880,7 @@
 .unit-resume-cmd-text {
   font-size: 10px;
   font-family: $font-mono;
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -891,18 +891,18 @@
   transition: background $transition-fast;
 
   &:hover {
-    background: rgba($accent-blue, 0.2);
+    background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
   }
 
   &:active {
-    background: rgba($accent-blue, 0.3);
+    background: color-mix(in srgb, var(--accent-blue) 30%, transparent);
   }
 }
 
 .unit-new-session-indicator {
   font-size: 10px;
   font-family: $font-mono;
-  color: $dracula-orange;
+  color: var(--accent-orange);
   padding: 4px 6px;
   background: rgba(0, 0, 0, 0.2);
   border-radius: $radius-sm;
@@ -916,21 +916,21 @@
 .unit-action-btn {
   flex: 1;
   padding: 8px;
-  border: 1px solid $border-color;
-  background: $bg-tertiary;
-  color: $text-primary;
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   border-radius: $radius-md;
   cursor: pointer;
   font-size: 13px;
   transition: all $transition-fast;
 
   &:hover {
-    background: $border-color;
+    background: var(--border-color);
   }
 
   &.danger:hover {
-    background: $accent-red;
-    border-color: $accent-red;
+    background: var(--accent-red);
+    border-color: var(--accent-red);
   }
 }
 
@@ -940,15 +940,15 @@
   height: 8px;
   border-radius: 50%;
 
-  &.idle { background: $accent-green; }
-  &.working { background: $accent-blue; }
-  &.waiting { background: $accent-orange; }
+  &.idle { background: var(--accent-green); }
+  &.working { background: var(--accent-blue); }
+  &.waiting { background: var(--accent-orange); }
   &.waiting_permission {
     background: #ffcc00;
     animation: pulse-permission 1.5s ease-in-out infinite;
   }
-  &.error { background: $accent-red; }
-  &.offline { background: $text-secondary; }
+  &.error { background: var(--accent-red); }
+  &.offline { background: var(--text-secondary); }
   &.orphaned {
     background: #ff00ff;
     animation: pulse-orphaned 2s ease-in-out infinite;
@@ -998,7 +998,7 @@
   gap: 2px;
   padding: 4px;
   margin-bottom: 4px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-sm;
 }
 
@@ -1009,12 +1009,12 @@
   padding: 2px 6px;
   border-radius: $radius-sm;
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 
-  &.working .agents-stats-count { color: $accent-blue; }
-  &.idle .agents-stats-count { color: $accent-green; }
-  &.waiting .agents-stats-count { color: $accent-orange; }
-  &.error .agents-stats-count { color: $accent-red; }
+  &.working .agents-stats-count { color: var(--accent-blue); }
+  &.idle .agents-stats-count { color: var(--accent-green); }
+  &.waiting .agents-stats-count { color: var(--accent-orange); }
+  &.error .agents-stats-count { color: var(--accent-red); }
 }
 
 .agents-stats-count {
@@ -1037,13 +1037,13 @@
   gap: 4px;
   padding: 3px 6px;
   margin-bottom: 4px;
-  background: $bg-tertiary;
-  border: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
   transition: border-color $transition-fast;
 
   &:focus-within {
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 }
 
@@ -1058,14 +1058,14 @@
   background: transparent;
   border: none;
   outline: none;
-  color: $text-primary;
+  color: var(--text-primary);
   font-size: 11px;
   font-family: inherit;
   padding: 1px 0;
   min-width: 0;
 
   &::placeholder {
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 10px;
   }
 }
@@ -1073,7 +1073,7 @@
 .agents-search-clear {
   background: none;
   border: none;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 14px;
   cursor: pointer;
   padding: 0 2px;
@@ -1082,7 +1082,7 @@
 
   &:hover {
     opacity: 1;
-    color: $text-primary;
+    color: var(--text-primary);
   }
 }
 
@@ -1107,46 +1107,46 @@
   padding: 2px 6px;
   font-size: 9px;
   font-weight: 600;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
   background: transparent;
-  color: $text-secondary;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all $transition-fast;
   text-transform: uppercase;
   letter-spacing: 0.3px;
 
   &:hover {
-    border-color: $text-secondary;
-    color: $text-primary;
+    border-color: var(--text-secondary);
+    color: var(--text-primary);
   }
 
   &.selected {
-    color: $text-primary;
+    color: var(--text-primary);
 
     &.all {
-      border-color: $text-secondary;
+      border-color: var(--text-secondary);
       background: rgba(255, 255, 255, 0.08);
     }
     &.active {
-      border-color: $accent-blue;
-      background: rgba($accent-blue, 0.12);
-      color: $accent-blue;
+      border-color: var(--accent-blue);
+      background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+      color: var(--accent-blue);
     }
     &.idle {
-      border-color: $accent-green;
-      background: rgba($accent-green, 0.12);
-      color: $accent-green;
+      border-color: var(--accent-green);
+      background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+      color: var(--accent-green);
     }
     &.waiting {
-      border-color: $accent-orange;
-      background: rgba($accent-orange, 0.12);
-      color: $accent-orange;
+      border-color: var(--accent-orange);
+      background: color-mix(in srgb, var(--accent-orange) 12%, transparent);
+      color: var(--accent-orange);
     }
     &.error {
-      border-color: $accent-red;
-      background: rgba($accent-red, 0.12);
-      color: $accent-red;
+      border-color: var(--accent-red);
+      background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+      color: var(--accent-red);
     }
   }
 }
@@ -1165,20 +1165,20 @@
   padding: 2px 6px;
   margin-bottom: 4px;
   font-size: 9px;
-  color: $text-muted;
+  color: var(--text-muted);
 }
 
 .agents-filter-clear {
   background: none;
   border: none;
-  color: $accent-blue;
+  color: var(--accent-blue);
   font-size: 9px;
   cursor: pointer;
   padding: 0;
   text-decoration: underline;
 
   &:hover {
-    color: color.adjust($accent-blue, $lightness: 10%);
+    color: color-mix(in srgb, var(--accent-blue) 88%, white);
   }
 }
 
@@ -1189,7 +1189,7 @@
   align-items: center;
   gap: 4px;
   padding: 16px;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 11px;
 }
 
@@ -1204,7 +1204,7 @@
   align-items: flex-start;
   gap: 6px;
   padding: 5px 6px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-sm;
   margin-bottom: 3px;
   cursor: pointer;
@@ -1212,18 +1212,18 @@
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $border-color;
-    background: color.adjust($bg-tertiary, $lightness: 2%);
+    border-color: var(--border-color);
+    background: color-mix(in srgb, var(--bg-tertiary) 94%, white);
   }
 
   &.selected {
-    border-color: $accent-blue;
-    background: rgba($accent-blue, 0.06);
+    border-color: var(--accent-blue);
+    background: color-mix(in srgb, var(--accent-blue) 6%, transparent);
   }
 
   &.unread {
-    border-color: rgba($accent-blue, 0.4);
-    background: rgba($accent-blue, 0.04);
+    border-color: color-mix(in srgb, var(--accent-blue) 40%, transparent);
+    background: color-mix(in srgb, var(--accent-blue) 4%, transparent);
   }
 
   &:last-child {
@@ -1251,8 +1251,8 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: $accent-blue;
-  border: 1px solid $bg-tertiary;
+  background: var(--accent-blue);
+  border: 1px solid var(--bg-tertiary);
 }
 
 .agent-item-info {
@@ -1309,7 +1309,7 @@
 // ── Task Label ───────────────────────────────────────────────────────────────
 .agent-item-task {
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1323,7 +1323,7 @@
   align-items: center;
   gap: 4px;
   font-size: 9px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -1337,24 +1337,24 @@
   border-radius: 3px;
 
   &.working {
-    color: $accent-blue;
-    background: rgba($accent-blue, 0.1);
+    color: var(--accent-blue);
+    background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
   }
   &.idle {
-    color: $accent-green;
-    background: rgba($accent-green, 0.1);
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 10%, transparent);
   }
   &.waiting, &.waiting_permission {
-    color: $accent-orange;
-    background: rgba($accent-orange, 0.1);
+    color: var(--accent-orange);
+    background: color-mix(in srgb, var(--accent-orange) 10%, transparent);
   }
   &.error {
-    color: $accent-red;
-    background: rgba($accent-red, 0.1);
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 10%, transparent);
   }
   &.offline {
-    color: $text-muted;
-    background: rgba($text-muted, 0.1);
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--text-muted) 10%, transparent);
   }
   &.orphaned {
     color: #ff00ff;
@@ -1365,7 +1365,7 @@
 .agent-item-tool {
   font-family: $font-mono;
   font-size: 8px;
-  color: $text-muted;
+  color: var(--text-muted);
   max-width: 80px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1397,7 +1397,7 @@
 
 .agent-hover-tooltip-divider {
   height: 1px;
-  background: rgba($border-color, 0.6);
+  background: color-mix(in srgb, var(--border-color) 60%, transparent);
   margin: 2px 0;
 }
 
@@ -1420,9 +1420,9 @@
 .task-progress-tooltip-header {
   font-size: 11px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
   padding-bottom: 4px;
-  border-bottom: 1px solid rgba($border-color, 0.5);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
 }
 
 .task-progress-tooltip-list {
@@ -1444,18 +1444,18 @@
   line-height: 1.35;
 
   &.status-completed {
-    .task-progress-tooltip-icon { color: $accent-green; }
-    .task-progress-tooltip-text { color: $text-muted; text-decoration: line-through; }
+    .task-progress-tooltip-icon { color: var(--accent-green); }
+    .task-progress-tooltip-text { color: var(--text-muted); text-decoration: line-through; }
   }
 
   &.status-in_progress {
-    .task-progress-tooltip-icon { color: $accent-blue; }
-    .task-progress-tooltip-text { color: $accent-blue; font-weight: 500; }
+    .task-progress-tooltip-icon { color: var(--accent-blue); }
+    .task-progress-tooltip-text { color: var(--accent-blue); font-weight: 500; }
   }
 
   &.status-pending {
-    .task-progress-tooltip-icon { color: $text-muted; }
-    .task-progress-tooltip-text { color: $text-primary; }
+    .task-progress-tooltip-icon { color: var(--text-muted); }
+    .task-progress-tooltip-text { color: var(--text-primary); }
   }
 }
 
@@ -1476,17 +1476,17 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  border: 1px solid rgba($text-muted, 0.6);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 60%, transparent);
   background: transparent;
 
   &.task-progress-dot-completed {
-    background: $accent-green;
-    border-color: $accent-green;
+    background: var(--accent-green);
+    border-color: var(--accent-green);
   }
 
   &.task-progress-dot-in_progress {
-    background: $accent-blue;
-    border-color: $accent-blue;
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
     animation: task-progress-dot-pulse 1.5s ease-in-out infinite;
   }
 
@@ -1498,7 +1498,7 @@
 .task-progress-overflow {
   font-family: $font-mono;
   font-size: 8px;
-  color: $text-muted;
+  color: var(--text-muted);
   margin-left: 2px;
 }
 
@@ -1525,31 +1525,31 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  border: 1px solid rgba($text-muted, 0.6);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 60%, transparent);
   background: transparent;
 
   &.status-working {
-    background: $accent-blue;
-    border-color: $accent-blue;
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
     animation: task-progress-dot-pulse 1.5s ease-in-out infinite;
   }
   &.status-idle {
-    background: $accent-green;
-    border-color: $accent-green;
+    background: var(--accent-green);
+    border-color: var(--accent-green);
   }
   &.status-waiting,
   &.status-waiting_permission {
-    background: $accent-orange;
-    border-color: $accent-orange;
+    background: var(--accent-orange);
+    border-color: var(--accent-orange);
   }
   &.status-error,
   &.status-orphaned {
-    background: $accent-red;
-    border-color: $accent-red;
+    background: var(--accent-red);
+    border-color: var(--accent-red);
   }
   &.status-offline {
     background: transparent;
-    border-color: rgba($text-muted, 0.5);
+    border-color: color-mix(in srgb, var(--text-muted) 50%, transparent);
     opacity: 0.5;
   }
 }
@@ -1557,7 +1557,7 @@
 .subordinate-progress-overflow {
   font-family: $font-mono;
   font-size: 8px;
-  color: $text-muted;
+  color: var(--text-muted);
   margin-left: 2px;
 }
 
@@ -1571,9 +1571,9 @@
 .subordinate-progress-tooltip-header {
   font-size: 11px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
   padding-bottom: 4px;
-  border-bottom: 1px solid rgba($border-color, 0.5);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
 }
 
 .subordinate-progress-tooltip-list {
@@ -1596,7 +1596,7 @@
   padding: 4px 0;
 
   & + & {
-    border-top: 1px solid rgba($border-color, 0.4);
+    border-top: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
   }
 }
 
@@ -1609,19 +1609,19 @@
 .subordinate-progress-tooltip-preview {
   margin-left: 14px;
   font-size: 10.5px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   word-break: break-word;
   line-height: 1.35;
 
   &.source-detail {
     font-style: italic;
-    color: $text-muted;
+    color: var(--text-muted);
   }
   &.source-task {
-    color: $accent-blue;
+    color: var(--accent-blue);
   }
   &.source-lastAssigned {
-    color: $text-muted;
+    color: var(--text-muted);
   }
 }
 
@@ -1641,12 +1641,12 @@
   padding: 1px 4px;
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.05);
-  color: $text-secondary;
+  color: var(--text-secondary);
   letter-spacing: 0.3px;
   text-transform: uppercase;
 
   &.muted {
-    color: $text-muted;
+    color: var(--text-muted);
   }
 }
 
@@ -1655,25 +1655,25 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  border: 1px solid rgba($text-muted, 0.6);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 60%, transparent);
 
   &.status-working {
-    background: $accent-blue;
-    border-color: $accent-blue;
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
   }
   &.status-idle {
-    background: $accent-green;
-    border-color: $accent-green;
+    background: var(--accent-green);
+    border-color: var(--accent-green);
   }
   &.status-waiting,
   &.status-waiting_permission {
-    background: $accent-orange;
-    border-color: $accent-orange;
+    background: var(--accent-orange);
+    border-color: var(--accent-orange);
   }
   &.status-error,
   &.status-orphaned {
-    background: $accent-red;
-    border-color: $accent-red;
+    background: var(--accent-red);
+    border-color: var(--accent-red);
   }
   &.status-offline {
     background: transparent;
@@ -1683,13 +1683,13 @@
 
 .subordinate-progress-tooltip-name {
   flex: 1;
-  color: $text-primary;
+  color: var(--text-primary);
   word-break: break-word;
 }
 
 .subordinate-progress-tooltip-status {
   font-size: 10px;
-  color: $text-muted;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
@@ -1726,9 +1726,9 @@
   font-size: 9px;
   font-weight: 600;
   text-transform: uppercase;
-  color: $text-secondary;
-  border-left: 2px solid $border-color;
-  background: $bg-tertiary;
+  color: var(--text-secondary);
+  border-left: 2px solid var(--border-color);
+  background: var(--bg-tertiary);
   border-radius: 0 $radius-sm $radius-sm 0;
   margin-bottom: 2px;
 }
@@ -1744,7 +1744,7 @@
   flex: 1;
 
   &.unassigned {
-    color: $text-muted;
+    color: var(--text-muted);
     font-style: italic;
   }
 }
@@ -1754,7 +1754,7 @@
   padding: 1px 4px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: $radius-sm;
-  color: $text-muted;
+  color: var(--text-muted);
 }
 
 .agents-group-items {
@@ -1770,7 +1770,7 @@
   justify-content: center;
   padding: 24px 16px;
   text-align: center;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .empty-state-icon {
@@ -1783,7 +1783,7 @@
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 4px;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .empty-state-desc {
@@ -1793,7 +1793,7 @@
 // Settings section
 .settings-section {
   margin-top: 12px;
-  border-top: 1px solid $border-color;
+  border-top: 1px solid var(--border-color);
   padding-top: 8px;
 }
 
@@ -1807,7 +1807,7 @@
   transition: background $transition-fast;
 
   &:hover {
-    background: $bg-tertiary;
+    background: var(--bg-tertiary);
   }
 }
 
@@ -1818,13 +1818,13 @@
 .settings-title {
   font-size: 11px;
   font-weight: 600;
-  color: $text-secondary;
+  color: var(--text-secondary);
   flex: 1;
 }
 
 .settings-chevron {
   font-size: 8px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   transition: transform $transition-fast;
 
   &.expanded {
@@ -1834,7 +1834,7 @@
 
 .settings-content {
   padding: 8px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-sm;
   margin-top: 4px;
 }
@@ -1851,7 +1851,7 @@
   display: block;
   font-size: 11px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
   margin-bottom: 4px;
 }
 
@@ -1866,25 +1866,25 @@
   padding: 4px 8px;
   font-size: 12px;
   font-family: $font-mono;
-  background: $bg-primary;
-  border: 1px solid $border-color;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
 
   &:focus {
     outline: none;
-    border-color: $dracula-purple;
+    border-color: var(--accent-purple);
   }
 }
 
 .settings-hint {
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .settings-description {
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   margin-top: 4px;
 }
 

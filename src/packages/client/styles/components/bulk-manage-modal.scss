@@ -9,8 +9,8 @@
   display: flex;
   flex-direction: column;
   padding: 0;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-xl;
   overflow: hidden;
   position: relative;
@@ -18,7 +18,7 @@
   .modal-header {
     padding: 14px 20px;
     margin-bottom: 0;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-color);
     font-size: 16px;
     font-weight: 600;
     display: flex;
@@ -34,7 +34,7 @@
 
   .modal-footer {
     padding: 12px 20px;
-    border-top: 1px solid $border-color;
+    border-top: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -45,7 +45,7 @@
 // Filters
 .bulk-filters {
   padding: 12px 20px;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .filter-row {
@@ -57,9 +57,9 @@
 
 .bulk-filter-select {
   padding: 6px 10px;
-  background: $bg-tertiary;
-  color: $text-primary;
-  border: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
   font-size: 12px;
   outline: none;
@@ -67,7 +67,7 @@
   min-width: 100px;
 
   &:focus {
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 
   &:disabled {
@@ -78,9 +78,9 @@
 
 .bulk-filter-search {
   padding: 6px 10px;
-  background: $bg-tertiary;
-  color: $text-primary;
-  border: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
   font-size: 12px;
   outline: none;
@@ -88,11 +88,11 @@
   min-width: 120px;
 
   &:focus {
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 
   &::placeholder {
-    color: $text-muted;
+    color: var(--text-muted);
   }
 }
 
@@ -102,12 +102,12 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
   font-size: 12px;
 }
 
 .bulk-count {
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .bulk-select-controls {
@@ -118,14 +118,14 @@
 .bulk-link-btn {
   background: none;
   border: none;
-  color: $accent-blue;
+  color: var(--accent-blue);
   font-size: 12px;
   cursor: pointer;
   padding: 0;
   text-decoration: underline;
 
   &:hover {
-    color: color.adjust($accent-blue, $lightness: 10%);
+    color: color-mix(in srgb, var(--accent-blue) 88%, white);
   }
 }
 
@@ -145,15 +145,15 @@
   }
 
   &.bulk-alert-error {
-    background: rgba($accent-red, 0.1);
-    border: 1px solid rgba($accent-red, 0.25);
-    color: $accent-red;
+    background: color-mix(in srgb, var(--accent-red) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-red) 25%, transparent);
+    color: var(--accent-red);
   }
 
   &.bulk-alert-success {
-    background: rgba($dracula-green, 0.1);
-    border: 1px solid rgba($dracula-green, 0.25);
-    color: $dracula-green;
+    background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-green) 25%, transparent);
+    color: var(--accent-green);
   }
 }
 
@@ -168,7 +168,7 @@
 .bulk-empty {
   padding: 48px 24px;
   text-align: center;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
@@ -180,15 +180,15 @@
   thead {
     position: sticky;
     top: 0;
-    background: $bg-secondary;
+    background: var(--bg-secondary);
     z-index: 1;
 
     th {
       padding: 8px 12px;
       text-align: left;
       font-weight: 600;
-      color: $text-secondary;
-      border-bottom: 1px solid $border-color;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-color);
       font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 0.3px;
@@ -201,16 +201,16 @@
     transition: background $transition-fast;
 
     &:hover {
-      background: rgba($accent-blue, 0.05);
+      background: color-mix(in srgb, var(--accent-blue) 5%, transparent);
     }
 
     &.selected {
-      background: rgba($accent-blue, 0.1);
+      background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
     }
 
     td {
       padding: 8px 12px;
-      border-bottom: 1px solid rgba($border-color, 0.5);
+      border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -223,19 +223,19 @@
 
     input[type='checkbox'] {
       cursor: pointer;
-      accent-color: $accent-blue;
+      accent-color: var(--accent-blue);
     }
   }
 
   .col-name {
     max-width: 200px;
     font-weight: 500;
-    color: $text-primary;
+    color: var(--text-primary);
   }
 
   .col-class {
     max-width: 120px;
-    color: $text-secondary;
+    color: var(--text-secondary);
   }
 
   .col-status {
@@ -244,7 +244,7 @@
 
   .col-idle {
     width: 60px;
-    color: $text-muted;
+    color: var(--text-muted);
     text-align: right;
   }
 
@@ -272,9 +272,9 @@
   border-radius: 9px;
   font-size: 10.5px;
   line-height: 1.4;
-  background: rgba($accent-blue, 0.12);
-  border: 1px solid rgba($accent-blue, 0.35);
-  color: $text-secondary;
+  background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 35%, transparent);
+  color: var(--text-secondary);
   white-space: nowrap;
   max-width: 160px;
   overflow: hidden;
@@ -286,7 +286,7 @@
 // small trailing asterisk so the user knows the assignment is fixed.
 .bulk-skill-chip-asterisk {
   margin-left: 3px;
-  color: $accent-blue;
+  color: var(--accent-blue);
   font-weight: 700;
 }
 
@@ -299,29 +299,29 @@
   font-weight: 500;
 
   &.bulk-status-working {
-    background: rgba($dracula-green, 0.15);
-    color: $dracula-green;
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+    color: var(--accent-green);
   }
 
   &.bulk-status-idle {
-    background: rgba($text-muted, 0.15);
-    color: $text-secondary;
+    background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+    color: var(--text-secondary);
   }
 
   &.bulk-status-error {
-    background: rgba($accent-red, 0.15);
-    color: $accent-red;
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    color: var(--accent-red);
   }
 
   &.bulk-status-stopped {
-    background: rgba($text-muted, 0.1);
-    color: $text-muted;
+    background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+    color: var(--text-muted);
   }
 
   &.bulk-status-waiting_input,
   &.bulk-status-waiting_permission {
-    background: rgba($dracula-yellow, 0.15);
-    color: $dracula-yellow;
+    background: color-mix(in srgb, var(--accent-yellow) 15%, transparent);
+    color: var(--accent-yellow);
   }
 }
 
@@ -332,11 +332,11 @@
   border-radius: 10px;
   font-size: 11px;
   border: 1px solid;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .bulk-area-none {
-  color: $text-muted;
+  color: var(--text-muted);
 }
 
 // Footer override for bulk modal
@@ -354,19 +354,19 @@
 
 // Change model row
 .bulk-change-model-row {
-  border-top: 1px solid $border-color;
+  border-top: 1px solid var(--border-color);
   padding-top: 10px;
 }
 
 .bulk-change-model-label {
   font-size: 13px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .bulk-change-model-count {
   font-size: 12px;
-  color: $text-muted;
+  color: var(--text-muted);
 }
 
 // Confirmation overlay
@@ -382,8 +382,8 @@
 }
 
 .bulk-confirm-box {
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-lg;
   padding: 24px;
   max-width: 400px;
@@ -391,7 +391,7 @@
 
   p {
     margin: 0 0 16px;
-    color: $text-primary;
+    color: var(--text-primary);
     font-size: 14px;
     line-height: 1.5;
   }

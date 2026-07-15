@@ -8,8 +8,8 @@
 
 .file-tabs-bar {
   flex-shrink: 0;
-  background: $bg-tertiary;
-  border-bottom: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
   overflow-x: auto;
   overflow-y: hidden;
 
@@ -40,8 +40,8 @@
   min-width: 100px;
 
   &:hover {
-    background: rgba($accent-blue, 0.05);
-    color: $text-primary;
+    background: color-mix(in srgb, var(--accent-blue) 5%, transparent);
+    color: var(--text-primary);
 
     .file-tab-close {
       opacity: 1;
@@ -50,11 +50,11 @@
 
   &.active {
     background: transparent;
-    border-bottom-color: $accent-blue;
-    color: $text-primary;
+    border-bottom-color: var(--accent-blue);
+    color: var(--text-primary);
 
     .file-tab-name {
-      color: $text-primary;
+      color: var(--text-primary);
       font-weight: 500;
     }
 
@@ -82,7 +82,7 @@
 .file-tab-name {
   font-family: $font-mono;
   font-size: 12px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -92,7 +92,7 @@
 .file-tab-close {
   background: transparent;
   border: none;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 14px;
   cursor: pointer;
   padding: 0 2px;
@@ -108,8 +108,8 @@
   justify-content: center;
 
   &:hover {
-    background: rgba($dracula-red, 0.3);
-    color: $dracula-red;
+    background: color-mix(in srgb, var(--accent-red) 30%, transparent);
+    color: var(--accent-red);
   }
 }
 
@@ -120,8 +120,8 @@
 }
 
 .tab-badge {
-  background: $dracula-orange;
-  color: $dracula-bg;
+  background: var(--accent-orange);
+  color: var(--bg-secondary);
   font-size: 9px;
   font-weight: 600;
   padding: 2px 6px;

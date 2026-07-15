@@ -15,7 +15,7 @@
 .git-changes-loading {
   padding: 20px;
   text-align: center;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -26,7 +26,7 @@
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
-  color: $text-muted;
+  color: var(--text-muted);
   text-align: center;
 }
 
@@ -38,13 +38,13 @@
 
 .git-empty-text {
   font-size: 14px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .git-empty-branch {
   font-family: $font-mono;
   font-size: 11px;
-  color: $text-muted;
+  color: var(--text-muted);
   margin-top: 8px;
 }
 
@@ -53,8 +53,8 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: $bg-tertiary;
-  border-bottom: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .git-branch {
@@ -63,7 +63,7 @@
   gap: 6px;
   font-family: $font-mono;
   font-size: 12px;
-  color: $dracula-purple;
+  color: var(--accent-purple);
   font-weight: 500;
   flex-shrink: 0;
 }
@@ -92,8 +92,8 @@
 
 .git-view-toggle-btn {
   background: transparent;
-  border: 1px solid $border-color;
-  color: $text-muted;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
   width: 24px;
   height: 24px;
   border-radius: $radius-sm;
@@ -114,21 +114,21 @@
   }
 
   &:hover {
-    color: $text-primary;
-    background: rgba($accent-blue, 0.1);
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
   }
 
   &.active {
-    background: rgba($accent-blue, 0.2);
-    border-color: $accent-blue;
-    color: $accent-blue;
+    background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
   }
 }
 
 .git-refresh-btn {
   background: transparent;
-  border: 1px solid $border-color;
-  color: $text-secondary;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
   width: 24px;
   height: 24px;
   border-radius: $radius-sm;
@@ -141,8 +141,8 @@
   flex-shrink: 0;
 
   &:hover {
-    background: $accent-blue;
-    border-color: $accent-blue;
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
     color: white;
   }
 }
@@ -155,28 +155,28 @@
   background: rgba(255, 255, 255, 0.1);
 
   &.conflict {
-    color: #ff5555;
-    background: rgba(#ff5555, 0.15);
+    color: var(--accent-red);
+    background: rgba(var(--accent-red), 0.15);
   }
 
   &.modified {
-    color: $dracula-orange;
-    background: rgba($dracula-orange, 0.15);
+    color: var(--accent-orange);
+    background: color-mix(in srgb, var(--accent-orange) 15%, transparent);
   }
 
   &.added {
-    color: $dracula-green;
-    background: rgba($dracula-green, 0.15);
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
   }
 
   &.deleted {
-    color: $dracula-red;
-    background: rgba($dracula-red, 0.15);
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
   }
 
   &.untracked {
-    color: $dracula-cyan;
-    background: rgba($dracula-cyan, 0.15);
+    color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
   }
 }
 
@@ -210,7 +210,7 @@
   justify-content: center;
   font-size: 10px;
   font-weight: 700;
-  color: $dracula-bg;
+  color: var(--bg-secondary);
 }
 
 .git-file-item {
@@ -222,11 +222,11 @@
   transition: background $transition-fast;
 
   &:hover {
-    background: rgba($accent-blue, 0.1);
+    background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
   }
 
   &.selected {
-    background: rgba($accent-blue, 0.2);
+    background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
   }
 }
 
@@ -243,7 +243,7 @@
   flex: 1;
   font-family: $font-mono;
   font-size: 12px;
-  color: $dracula-fg;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -254,7 +254,7 @@
 .git-file-dir {
   margin-left: 6px;
   font-size: 10px;
-  color: $text-muted;
+  color: var(--text-muted);
   opacity: 0.7;
 }
 
@@ -267,7 +267,7 @@
 .git-tree-file-count {
   font-family: $font-mono;
   font-size: 9px;
-  color: $text-muted;
+  color: var(--text-muted);
   margin-left: auto;
   padding-right: 4px;
   opacity: 0.7;
@@ -293,15 +293,15 @@
 .git-file-renamed {
   font-family: $font-mono;
   font-size: 10px;
-  color: $text-muted;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 // Stage button on individual untracked files
 .git-stage-btn {
   background: transparent;
-  border: 1px solid rgba($dracula-green, 0.4);
-  color: $dracula-green;
+  border: 1px solid color-mix(in srgb, var(--accent-green) 40%, transparent);
+  color: var(--accent-green);
   width: 20px;
   height: 20px;
   border-radius: $radius-sm;
@@ -321,14 +321,14 @@
   }
 
   &:hover {
-    background: rgba($dracula-green, 0.2);
-    border-color: $dracula-green;
+    background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+    border-color: var(--accent-green);
   }
 
   &.staging {
     opacity: 1;
-    color: $text-muted;
-    border-color: $border-color;
+    color: var(--text-muted);
+    border-color: var(--border-color);
     cursor: wait;
   }
 }
@@ -336,8 +336,8 @@
 // Stage All button in untracked group header
 .git-stage-all-btn {
   background: transparent;
-  border: 1px solid rgba($dracula-green, 0.4);
-  color: $dracula-green;
+  border: 1px solid color-mix(in srgb, var(--accent-green) 40%, transparent);
+  color: var(--accent-green);
   padding: 2px 8px;
   border-radius: $radius-sm;
   font-size: 10px;
@@ -348,13 +348,13 @@
   white-space: nowrap;
 
   &:hover {
-    background: rgba($dracula-green, 0.2);
-    border-color: $dracula-green;
+    background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+    border-color: var(--accent-green);
   }
 
   &.staging {
-    color: $text-muted;
-    border-color: $border-color;
+    color: var(--text-muted);
+    border-color: var(--border-color);
     cursor: wait;
   }
 }
@@ -367,7 +367,7 @@
   appearance: none;
   width: 14px;
   height: 14px;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   border-radius: 2px;
   background: transparent;
   cursor: pointer;
@@ -376,8 +376,8 @@
   transition: all $transition-fast;
 
   &:checked {
-    background: $accent-blue;
-    border-color: $accent-blue;
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
 
     &::after {
       content: '';
@@ -393,7 +393,7 @@
   }
 
   &:hover {
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 }
 
@@ -402,8 +402,8 @@
 // =============================================================================
 
 .git-commit-panel {
-  border-top: 1px solid $border-color;
-  background: $bg-tertiary;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
   padding: 8px;
   display: flex;
   flex-direction: column;
@@ -422,13 +422,13 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   cursor: pointer;
   font-family: $font-mono;
   font-size: 11px;
 
   &:hover {
-    color: $text-primary;
+    color: var(--text-primary);
   }
 }
 
@@ -436,7 +436,7 @@
   appearance: none;
   width: 13px;
   height: 13px;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   border-radius: 2px;
   background: transparent;
   cursor: pointer;
@@ -444,8 +444,8 @@
   transition: all $transition-fast;
 
   &:checked {
-    background: $dracula-purple;
-    border-color: $dracula-purple;
+    background: var(--accent-purple);
+    border-color: var(--accent-purple);
 
     &::after {
       content: '';
@@ -461,21 +461,21 @@
   }
 
   &:hover {
-    border-color: $dracula-purple;
+    border-color: var(--accent-purple);
   }
 }
 
 .git-commit-file-count {
   font-family: $font-mono;
   font-size: 10px;
-  color: $text-muted;
+  color: var(--text-muted);
   margin-left: auto;
 }
 
 .git-commit-select-toggle {
   background: transparent;
   border: none;
-  color: $accent-blue;
+  color: var(--accent-blue);
   font-size: 10px;
   cursor: pointer;
   padding: 0;
@@ -490,10 +490,10 @@
   width: 100%;
   min-height: 54px;
   max-height: 120px;
-  background: $dracula-bg;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  color: $dracula-fg;
+  color: var(--text-primary);
   font-family: $font-mono;
   font-size: 12px;
   padding: 8px;
@@ -503,11 +503,11 @@
   box-sizing: border-box;
 
   &::placeholder {
-    color: $text-muted;
+    color: var(--text-muted);
   }
 
   &:focus {
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 
   &:disabled {
@@ -523,13 +523,13 @@
   border-radius: $radius-sm;
 
   &.success {
-    color: $dracula-green;
-    background: rgba($dracula-green, 0.1);
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 10%, transparent);
   }
 
   &.error {
-    color: $dracula-red;
-    background: rgba($dracula-red, 0.1);
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 10%, transparent);
   }
 }
 
@@ -540,9 +540,9 @@
 
 .git-commit-btn {
   flex: 1;
-  background: $dracula-green;
+  background: var(--accent-green);
   border: none;
-  color: $dracula-bg;
+  color: var(--bg-secondary);
   font-family: $font-mono;
   font-size: 11px;
   font-weight: 600;
@@ -563,7 +563,7 @@
 
 .git-commit-push-btn {
   flex: 1;
-  background: $accent-blue;
+  background: var(--accent-blue);
   border: none;
   color: white;
   font-family: $font-mono;
@@ -593,8 +593,8 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: rgba($dracula-orange, 0.1);
-  border-bottom: 1px solid rgba($dracula-orange, 0.3);
+  background: color-mix(in srgb, var(--accent-orange) 10%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent-orange) 30%, transparent);
   flex-shrink: 0;
 }
 
@@ -607,7 +607,7 @@
   flex: 1;
   font-family: $font-mono;
   font-size: 11px;
-  color: $dracula-orange;
+  color: var(--accent-orange);
   font-weight: 600;
 }
 
@@ -618,9 +618,9 @@
 }
 
 .git-merge-continue-btn {
-  background: $dracula-green;
+  background: var(--accent-green);
   border: none;
-  color: $dracula-bg;
+  color: var(--bg-secondary);
   font-family: $font-mono;
   font-size: 10px;
   font-weight: 600;
@@ -641,8 +641,8 @@
 
 .git-merge-abort-btn {
   background: transparent;
-  border: 1px solid rgba($dracula-red, 0.4);
-  color: $dracula-red;
+  border: 1px solid color-mix(in srgb, var(--accent-red) 40%, transparent);
+  color: var(--accent-red);
   font-family: $font-mono;
   font-size: 10px;
   font-weight: 600;
@@ -652,8 +652,8 @@
   transition: all $transition-fast;
 
   &:hover {
-    background: rgba($dracula-red, 0.15);
-    border-color: $dracula-red;
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    border-color: var(--accent-red);
   }
 }
 
@@ -665,7 +665,7 @@
   flex-shrink: 0;
   background: transparent;
   border: 1px solid transparent;
-  color: $text-muted;
+  color: var(--text-muted);
   width: 20px;
   height: 20px;
   border-radius: $radius-sm;
@@ -686,17 +686,17 @@
 
   &:hover {
     opacity: 1 !important;
-    color: $dracula-red;
-    background: rgba($dracula-red, 0.12);
-    border-color: rgba($dracula-red, 0.35);
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent-red) 35%, transparent);
   }
 }
 
 // Discard All button in group header
 .git-discard-all-btn {
   background: transparent;
-  border: 1px solid rgba($dracula-red, 0.3);
-  color: rgba($dracula-red, 0.7);
+  border: 1px solid color-mix(in srgb, var(--accent-red) 30%, transparent);
+  color: color-mix(in srgb, var(--accent-red) 70%, transparent);
   padding: 2px 8px;
   border-radius: $radius-sm;
   font-size: 10px;
@@ -707,9 +707,9 @@
   white-space: nowrap;
 
   &:hover {
-    background: rgba($dracula-red, 0.15);
-    border-color: $dracula-red;
-    color: $dracula-red;
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    border-color: var(--accent-red);
+    color: var(--accent-red);
   }
 }
 
@@ -731,8 +731,8 @@
 }
 
 .git-discard-confirm {
-  background: $bg-secondary;
-  border: 1px solid $dracula-red;
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent-red);
   border-radius: 8px;
   padding: 20px 24px;
   max-width: 420px;
@@ -742,18 +742,18 @@
 
   p {
     margin: 0 0 6px;
-    color: $text-primary;
+    color: var(--text-primary);
     font-size: 13px;
 
     strong {
-      color: $dracula-red;
+      color: var(--accent-red);
     }
   }
 }
 
 .git-discard-confirm-hint {
   font-size: 11px;
-  color: $text-muted;
+  color: var(--text-muted);
   margin-bottom: 14px;
 }
 
@@ -765,22 +765,22 @@
 
 .git-discard-confirm-cancel {
   background: transparent;
-  border: 1px solid $border-color;
-  color: $text-primary;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
   padding: 5px 18px;
   border-radius: $radius-sm;
   cursor: pointer;
   font-size: 12px;
 
   &:hover {
-    background: rgba($border-color, 0.3);
+    background: color-mix(in srgb, var(--border-color) 30%, transparent);
   }
 }
 
 .git-discard-confirm-btn {
-  background: rgba($dracula-red, 0.2);
-  border: 1px solid $dracula-red;
-  color: $dracula-red;
+  background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+  border: 1px solid var(--accent-red);
+  color: var(--accent-red);
   padding: 5px 18px;
   border-radius: $radius-sm;
   cursor: pointer;
@@ -788,6 +788,6 @@
   font-weight: 500;
 
   &:hover {
-    background: rgba($dracula-red, 0.35);
+    background: color-mix(in srgb, var(--accent-red) 35%, transparent);
   }
 }

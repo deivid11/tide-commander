@@ -20,8 +20,8 @@
   max-height: min(82vh, 760px);
   display: flex;
   flex-direction: column;
-  background: rgba($dracula-bg-darker, 0.98);
-  border: 1px solid rgba($dracula-cyan, 0.35);
+  background: color-mix(in srgb, var(--bg-primary) 98%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent);
   border-radius: $radius-lg;
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
   overflow: hidden;
@@ -33,15 +33,15 @@
   justify-content: space-between;
   gap: 10px;
   padding: 12px 16px;
-  border-bottom: 1px solid rgba($dracula-current, 0.9);
-  background: rgba($dracula-bg, 0.7);
+  border-bottom: 1px solid color-mix(in srgb, var(--bg-tertiary) 90%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 70%, transparent);
 }
 
 .agent-info-modal-title {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   font-family: $font-mono;
   font-weight: 600;
   font-size: 14px;
@@ -51,16 +51,16 @@
   border: 1px solid transparent;
   border-radius: $radius-sm;
   background: transparent;
-  color: $dracula-comment;
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 20px;
   line-height: 1;
   padding: 2px 8px;
 
   &:hover {
-    background: rgba($dracula-red, 0.15);
-    border-color: rgba($dracula-red, 0.35);
-    color: $dracula-red;
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    border-color: color-mix(in srgb, var(--accent-red) 35%, transparent);
+    color: var(--accent-red);
   }
 }
 
@@ -73,14 +73,14 @@
 }
 
 .agent-info-section {
-  border: 1px solid rgba($dracula-current, 0.75);
+  border: 1px solid color-mix(in srgb, var(--bg-tertiary) 75%, transparent);
   border-radius: $radius-md;
-  background: rgba($dracula-bg, 0.45);
+  background: color-mix(in srgb, var(--bg-secondary) 45%, transparent);
   padding: 12px;
 
   h4 {
     margin: 0 0 10px;
-    color: $dracula-purple;
+    color: var(--accent-purple);
     font-family: $font-mono;
     font-size: 12px;
     text-transform: uppercase;
@@ -105,7 +105,7 @@
   min-width: 0;
 
   span {
-    color: $dracula-comment;
+    color: var(--text-muted);
     font-family: $font-mono;
     font-size: 10px;
     text-transform: uppercase;
@@ -113,7 +113,7 @@
   }
 
   strong {
-    color: $dracula-fg;
+    color: var(--text-primary);
     font-size: 12px;
     font-family: $font-mono;
     font-weight: 600;
@@ -123,11 +123,11 @@
     gap: 4px;
 
     &.ok {
-      color: $dracula-green;
+      color: var(--accent-green);
     }
 
     &.warn {
-      color: $dracula-orange;
+      color: var(--accent-orange);
     }
   }
 }
@@ -155,7 +155,7 @@
   min-width: 0;
 
   span {
-    color: $dracula-comment;
+    color: var(--text-muted);
     font-family: $font-mono;
     font-size: 10px;
     text-transform: uppercase;
@@ -163,23 +163,23 @@
   }
 
   strong {
-    color: $dracula-fg;
+    color: var(--text-primary);
     font-size: 12px;
     font-family: $font-mono;
     font-weight: 600;
 
     &.warn {
-      color: $dracula-orange;
+      color: var(--accent-orange);
     }
   }
 
   pre {
     margin: 0;
     padding: 10px;
-    border: 1px solid rgba($dracula-current, 0.75);
+    border: 1px solid color-mix(in srgb, var(--bg-tertiary) 75%, transparent);
     border-radius: $radius-sm;
-    background: rgba($dracula-bg-darker, 0.45);
-    color: $dracula-fg;
+    background: color-mix(in srgb, var(--bg-primary) 45%, transparent);
+    color: var(--text-primary);
     font-family: $font-mono;
     font-size: 12px;
     line-height: 1.4;
@@ -191,7 +191,7 @@
 }
 
 .agent-info-empty {
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-family: $font-mono;
   font-size: 12px;
 }
@@ -203,14 +203,14 @@
 }
 
 .agent-info-skill {
-  border: 1px solid rgba($dracula-current, 0.75);
+  border: 1px solid color-mix(in srgb, var(--bg-tertiary) 75%, transparent);
   border-radius: $radius-sm;
-  background: rgba($dracula-bg-darker, 0.45);
+  background: color-mix(in srgb, var(--bg-primary) 45%, transparent);
   padding: 8px 10px;
 }
 
 .agent-info-skill-name {
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   font-size: 12px;
   font-weight: 600;
   font-family: $font-mono;
@@ -218,7 +218,7 @@
 }
 
 .agent-info-skill-desc {
-  color: $dracula-fg;
+  color: var(--text-primary);
   font-size: 12px;
   line-height: 1.35;
 }
@@ -243,7 +243,7 @@
   }
 
   .agent-info-injected-prompt-length {
-    color: $dracula-comment;
+    color: var(--text-muted);
     font-family: $font-mono;
     font-size: 10px;
     letter-spacing: 0.2px;
@@ -253,10 +253,10 @@
   }
 
   .agent-info-injected-prompt-btn {
-    border: 1px solid rgba($dracula-current, 0.9);
+    border: 1px solid color-mix(in srgb, var(--bg-tertiary) 90%, transparent);
     border-radius: $radius-sm;
-    background: rgba($dracula-bg-darker, 0.7);
-    color: $dracula-fg;
+    background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+    color: var(--text-primary);
     cursor: pointer;
     font-family: $font-mono;
     font-size: 10px;
@@ -267,9 +267,9 @@
     transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
 
     &:hover:not(:disabled) {
-      background: rgba($dracula-cyan, 0.15);
-      border-color: rgba($dracula-cyan, 0.55);
-      color: $dracula-cyan;
+      background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+      border-color: color-mix(in srgb, var(--accent-cyan) 55%, transparent);
+      color: var(--accent-cyan);
     }
 
     &:disabled {
@@ -279,36 +279,36 @@
   }
 
   .agent-info-injected-prompt-toggle {
-    color: $dracula-purple;
-    border-color: rgba($dracula-purple, 0.55);
+    color: var(--accent-purple);
+    border-color: color-mix(in srgb, var(--accent-purple) 55%, transparent);
 
     &:hover:not(:disabled) {
-      background: rgba($dracula-purple, 0.15);
-      color: $dracula-purple;
+      background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+      color: var(--accent-purple);
     }
   }
 
   .agent-info-injected-prompt-body {
-    border: 1px solid rgba($dracula-current, 0.75);
+    border: 1px solid color-mix(in srgb, var(--bg-tertiary) 75%, transparent);
     border-radius: $radius-sm;
-    background: rgba($dracula-bg-darker, 0.45);
+    background: color-mix(in srgb, var(--bg-primary) 45%, transparent);
     padding: 10px 12px;
     max-height: 420px;
     overflow: auto;
   }
 
   .agent-info-injected-prompt-status {
-    color: $dracula-comment;
+    color: var(--text-muted);
     font-family: $font-mono;
     font-size: 12px;
 
     &.error {
-      color: $dracula-red;
+      color: var(--accent-red);
     }
   }
 
   .agent-info-injected-prompt-content {
-    color: $dracula-fg;
+    color: var(--text-primary);
     font-size: 12px;
     line-height: 1.5;
 
@@ -321,20 +321,20 @@
     pre {
       padding: 8px;
       border-radius: $radius-sm;
-      background: rgba($dracula-bg, 0.75);
+      background: color-mix(in srgb, var(--bg-secondary) 75%, transparent);
       overflow-x: auto;
       white-space: pre-wrap;
       word-break: break-word;
     }
 
     code {
-      background: rgba($dracula-bg, 0.65);
+      background: color-mix(in srgb, var(--bg-secondary) 65%, transparent);
       padding: 1px 4px;
       border-radius: 3px;
     }
 
     h1, h2, h3, h4, h5 {
-      color: $dracula-purple;
+      color: var(--accent-purple);
       font-family: $font-mono;
       margin: 12px 0 6px;
     }
@@ -344,7 +344,7 @@
     h3 { font-size: 12px; }
 
     a {
-      color: $dracula-cyan;
+      color: var(--accent-cyan);
     }
 
     ul, ol {

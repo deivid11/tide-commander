@@ -24,7 +24,7 @@
   transition: background $transition-fast;
 
   &:hover {
-    background: rgba($accent-blue, 0.1);
+    background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
   }
 }
 
@@ -33,13 +33,13 @@
   height: 14px;
   opacity: 0.8;
   flex-shrink: 0;
-  color: $dracula-purple;
+  color: var(--accent-purple);
 }
 
 .branch-widget-name {
   font-family: $font-mono;
   font-size: 12px;
-  color: $dracula-purple;
+  color: var(--accent-purple);
   font-weight: 500;
   max-width: 150px;
   overflow: hidden;
@@ -49,7 +49,7 @@
 
 .branch-widget-arrow {
   font-size: 7px;
-  color: $text-muted;
+  color: var(--text-muted);
   margin-left: 2px;
 }
 
@@ -58,8 +58,8 @@
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  background: $bg-tertiary;
-  border: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-md;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   min-width: 300px;
@@ -72,27 +72,27 @@
 // Search
 .branch-widget-search {
   padding: 8px;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .branch-widget-search-input {
   width: 100%;
   padding: 6px 10px;
-  background: $dracula-bg;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
   font-family: $font-mono;
   font-size: 12px;
   outline: none;
   box-sizing: border-box;
 
   &:focus {
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 
   &::placeholder {
-    color: $text-muted;
+    color: var(--text-muted);
   }
 }
 
@@ -101,16 +101,16 @@
   padding: 6px 12px;
   font-size: 11px;
   font-family: $font-mono;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
 
   &.error {
-    color: $dracula-red;
-    background: rgba($dracula-red, 0.1);
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 10%, transparent);
   }
 
   &.success {
-    color: $dracula-green;
-    background: rgba($dracula-green, 0.1);
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 10%, transparent);
   }
 }
 
@@ -120,7 +120,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: $text-muted;
+  color: var(--text-muted);
   padding: 8px 12px 4px;
   display: flex;
   align-items: center;
@@ -131,7 +131,7 @@
     transition: color $transition-fast;
 
     &:hover {
-      color: $text-primary;
+      color: var(--text-primary);
     }
   }
 }
@@ -151,7 +151,7 @@
 // Quick actions
 .branch-widget-actions {
   padding: 4px 0;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .branch-widget-action-item {
@@ -162,10 +162,10 @@
   cursor: pointer;
   transition: background $transition-fast;
   font-size: 13px;
-  color: $text-primary;
+  color: var(--text-primary);
 
   &:hover:not(.disabled) {
-    background: rgba($accent-blue, 0.12);
+    background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
   }
 
   &.disabled {
@@ -180,7 +180,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: $text-secondary;
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 
@@ -193,31 +193,31 @@
   padding: 6px 12px;
   display: flex;
   gap: 4px;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .branch-widget-new-branch-input {
   flex: 1;
   padding: 5px 8px;
-  background: $dracula-bg;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
   font-family: $font-mono;
   font-size: 12px;
   outline: none;
 
   &:focus {
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 
   &::placeholder {
-    color: $text-muted;
+    color: var(--text-muted);
   }
 }
 
 .branch-widget-new-branch-confirm {
-  background: $accent-blue;
+  background: var(--accent-blue);
   border: none;
   color: white;
   padding: 5px 12px;
@@ -246,7 +246,7 @@
 .branch-widget-empty {
   padding: 8px 12px;
   font-size: 11px;
-  color: $text-muted;
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -259,22 +259,22 @@
   transition: background $transition-fast;
 
   &:hover:not(.disabled):not(.current) {
-    background: rgba($accent-blue, 0.1);
+    background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
   }
 
   &.current {
-    background: rgba($accent-blue, 0.15);
+    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
     cursor: default;
 
     .branch-widget-branch-name {
-      color: $dracula-green;
+      color: var(--accent-green);
       font-weight: 600;
     }
   }
 
   &.remote {
     .branch-widget-branch-name {
-      color: $text-secondary;
+      color: var(--text-secondary);
     }
   }
 
@@ -287,7 +287,7 @@
 .branch-widget-branch-name {
   font-family: $font-mono;
   font-size: 12px;
-  color: $text-primary;
+  color: var(--text-primary);
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -296,7 +296,7 @@
 }
 
 .branch-widget-current-marker {
-  color: $dracula-green;
+  color: var(--accent-green);
   margin-right: 4px;
   font-weight: 700;
 }
@@ -304,6 +304,6 @@
 .branch-widget-branch-commit {
   font-family: $font-mono;
   font-size: 10px;
-  color: $text-muted;
+  color: var(--text-muted);
   flex-shrink: 0;
 }

@@ -22,9 +22,9 @@
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  background: linear-gradient(135deg, $bg-tertiary 0%, rgba($bg-secondary, 0.95) 100%);
-  border: 1px solid var(--agent-color, $border-color);
-  border-left: 3px solid var(--agent-color, $accent-cyan);
+  background: linear-gradient(135deg, var(--bg-tertiary) 0%, color-mix(in srgb, var(--bg-secondary) 95%, transparent) 100%);
+  border: 1px solid var(--agent-color, var(--border-color));
+  border-left: 3px solid var(--agent-color, var(--accent-cyan));
   border-radius: $radius-md;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 20px rgba(var(--agent-color-rgb, 74, 224, 255), 0.1);
   pointer-events: auto;
@@ -38,7 +38,7 @@
 
   &:hover {
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6), 0 0 30px rgba(var(--agent-color-rgb, 74, 224, 255), 0.2);
-    border-color: var(--agent-color, $accent-cyan);
+    border-color: var(--agent-color, var(--accent-cyan));
   }
 
   &.is-dismissing {
@@ -81,20 +81,20 @@
 .agent-notification-name {
   font-weight: 600;
   font-size: 12px;
-  color: var(--agent-color, $accent-cyan);
+  color: var(--agent-color, var(--accent-cyan));
   white-space: nowrap;
 }
 
 .agent-notification-separator {
   font-size: 12px;
-  color: $text-muted;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
 .agent-notification-title {
   font-weight: 500;
   font-size: 12px;
-  color: $text-primary;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -102,7 +102,7 @@
 
 .agent-notification-message {
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   line-height: 1.4;
   word-break: break-word;
   display: -webkit-box;
@@ -114,7 +114,7 @@
 .agent-notification-close {
   background: none;
   border: none;
-  color: $text-muted;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 2px;
   font-size: 14px;
@@ -124,7 +124,7 @@
   transition: color $transition-fast, opacity $transition-fast;
 
   &:hover {
-    color: $text-primary;
+    color: var(--text-primary);
     opacity: 1;
   }
 }

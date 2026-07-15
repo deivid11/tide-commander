@@ -12,14 +12,14 @@
   max-width: 1200px;
   flex-shrink: 0;
   border-right: none;
-  background: $dracula-bg-darker;
+  background: var(--bg-primary);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 
   .file-explorer-tabs {
     flex-shrink: 0;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-color);
   }
 
   .file-explorer-search {
@@ -32,13 +32,13 @@
   width: 4px;
   flex-shrink: 0;
   cursor: ew-resize;
-  background: $border-color;
+  background: var(--border-color);
   position: relative;
   transition: background 0.15s ease;
 
   &:hover,
   &.active {
-    background: $accent-blue;
+    background: var(--accent-blue);
   }
 }
 
@@ -73,7 +73,7 @@
 .tree-empty {
   padding: 20px;
   text-align: center;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -103,11 +103,11 @@
   border-left: 2px solid transparent;
 
   &:hover {
-    background: rgba($accent-blue, 0.08);
-    border-left-color: rgba($accent-blue, 0.2);
+    background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
+    border-left-color: color-mix(in srgb, var(--accent-blue) 20%, transparent);
 
     .tree-arrow {
-      color: $text-secondary;
+      color: var(--text-secondary);
     }
 
     .tree-name {
@@ -116,11 +116,11 @@
   }
 
   &.selected {
-    background: rgba($accent-blue, 0.15);
-    border-left-color: $accent-blue;
+    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+    border-left-color: var(--accent-blue);
 
     .tree-name {
-      color: $text-primary;
+      color: var(--text-primary);
       font-weight: 500;
     }
 
@@ -132,7 +132,7 @@
 
   &.directory {
     .tree-name {
-      color: $accent-blue;
+      color: var(--accent-blue);
       font-weight: 400;
     }
 
@@ -152,7 +152,7 @@
 
   &.file {
     .tree-name {
-      color: $text-secondary;
+      color: var(--text-secondary);
     }
 
     .tree-icon {
@@ -168,7 +168,7 @@
 
 .tree-arrow {
   font-size: 10px;
-  color: rgba($text-muted, 0.4);
+  color: color-mix(in srgb, var(--text-muted) 40%, transparent);
   width: 16px;
   text-align: center;
   transition: transform 0.15s ease, color 0.1s;
@@ -179,7 +179,7 @@
 
   &.expanded {
     transform: rotate(90deg);
-    color: $text-secondary;
+    color: var(--text-secondary);
   }
 }
 
@@ -234,7 +234,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  border: 1.5px solid $dracula-bg-darker;
+  border: 1.5px solid var(--bg-primary);
   pointer-events: none;
   z-index: 10;
   box-shadow: 0 0 3px rgba(200, 154, 90, 0.6);

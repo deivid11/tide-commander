@@ -9,9 +9,9 @@
   width: 36px;
   height: 36px;
   border-radius: $radius-lg;
-  background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
-  border: 1px solid $dracula-comment;
-  color: $dracula-yellow;
+  background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--text-muted);
+  color: var(--accent-yellow);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -21,9 +21,9 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 
   &:hover {
-    border-color: $dracula-yellow;
-    color: $dracula-yellow;
-    background: linear-gradient(180deg, color.adjust($dracula-current, $lightness: 5%) 0%, $dracula-current 100%);
+    border-color: var(--accent-yellow);
+    color: var(--accent-yellow);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 94%, white) 0%, var(--bg-tertiary) 100%);
   }
 }
 
@@ -42,8 +42,8 @@
   left: 0;
   width: 400px;
   height: 100vh;
-  background: $bg-secondary;
-  border-right: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   z-index: 350;
@@ -63,7 +63,7 @@
     align-items: center;
     gap: 12px;
     padding: 16px;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-color);
 
     h3 {
       margin: 0;
@@ -78,7 +78,7 @@
     .panel-close {
       background: none;
       border: none;
-      color: $text-secondary;
+      color: var(--text-secondary);
       font-size: 24px;
       cursor: pointer;
       padding: 0;
@@ -87,7 +87,7 @@
       transition: color $transition-fast;
 
       &:hover {
-        color: $text-primary;
+        color: var(--text-primary);
       }
     }
   }
@@ -116,15 +116,15 @@
         width: 32px;
         height: 32px;
         min-width: 32px;
-        background: rgba($dracula-red, 0.15);
-        border: 1px solid rgba($dracula-red, 0.4);
+        background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+        border: 1px solid color-mix(in srgb, var(--accent-red) 40%, transparent);
         border-radius: 50%;
-        color: $dracula-red;
+        color: var(--accent-red);
         font-size: 18px;
         font-weight: 600;
 
         &:active {
-          background: rgba($dracula-red, 0.3);
+          background: color-mix(in srgb, var(--accent-red) 30%, transparent);
           transform: scale(0.9);
         }
       }
@@ -137,7 +137,7 @@
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $accent-blue !important;
+    border-color: var(--accent-blue) !important;
   }
 
   &.disabled {
@@ -172,33 +172,33 @@
     display: block;
     font-size: 12px;
     font-weight: 600;
-    color: $text-secondary;
+    color: var(--text-secondary);
     margin-bottom: 6px;
   }
 
   .form-hint {
     font-size: 11px;
-    color: $text-muted;
+    color: var(--text-muted);
     margin-top: 4px;
   }
 
   .form-input {
     width: 100%;
     padding: 8px 12px;
-    background: $bg-primary;
-    border: 1px solid $border-color;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
     border-radius: $radius-sm;
-    color: $text-primary;
+    color: var(--text-primary);
     font-size: 13px;
     transition: border-color $transition-fast;
 
     &:focus {
       outline: none;
-      border-color: $accent-blue;
+      border-color: var(--accent-blue);
     }
 
     &::placeholder {
-      color: $text-muted;
+      color: var(--text-muted);
     }
   }
 
@@ -216,8 +216,8 @@
   transition: all $transition-fast;
 
   &:hover {
-    background: rgba($accent-red, 0.2) !important;
-    color: $accent-red;
+    background: color-mix(in srgb, var(--accent-red) 20%, transparent) !important;
+    color: var(--accent-red);
   }
 }
 
@@ -244,7 +244,7 @@
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 8px;
   cursor: pointer;
   padding: 4px;
@@ -262,8 +262,8 @@
   left: 0;
   margin-top: 4px;
   width: 280px;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-md;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
   z-index: 1000;
@@ -283,7 +283,7 @@
 
 .emoji-picker-search {
   padding: 8px;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
 
   .form-input {
     font-size: 12px;
@@ -308,7 +308,7 @@
 .emoji-picker-category-label {
   font-size: 10px;
   font-weight: 600;
-  color: $text-muted;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 6px;
@@ -335,20 +335,20 @@
   transition: all $transition-fast;
 
   &:hover {
-    background: rgba($accent-blue, 0.15);
-    border-color: rgba($accent-blue, 0.3);
+    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+    border-color: color-mix(in srgb, var(--accent-blue) 30%, transparent);
   }
 
   &.selected {
-    background: rgba($dracula-green, 0.2);
-    border-color: $dracula-green;
+    background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+    border-color: var(--accent-green);
   }
 }
 
 .emoji-picker-empty {
   padding: 16px;
   text-align: center;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -357,9 +357,9 @@
   width: 36px;
   height: 36px;
   border-radius: $radius-md;
-  border: 1px dashed $dracula-comment;
+  border: 1px dashed var(--text-muted);
   background: transparent;
-  color: $text-muted;
+  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -369,9 +369,9 @@
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $dracula-purple;
-    color: $dracula-purple;
-    background: rgba($dracula-purple, 0.08);
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
+    background: color-mix(in srgb, var(--accent-purple) 8%, transparent);
   }
 }
 
@@ -399,7 +399,7 @@
   height: 36px;
   border-radius: $radius-md;
   object-fit: cover;
-  border: 1px solid $dracula-comment;
+  border: 1px solid var(--text-muted);
 }
 
 .class-icon-preview-remove {
@@ -409,8 +409,8 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: $dracula-red;
-  color: $dracula-fg;
+  background: var(--accent-red);
+  color: var(--text-primary);
   border: none;
   cursor: pointer;
   display: flex;
@@ -422,7 +422,7 @@
   transition: all $transition-fast;
 
   &:hover {
-    background: color.adjust($dracula-red, $lightness: 10%);
+    background: color-mix(in srgb, var(--accent-red) 88%, white);
     transform: scale(1.1);
   }
 }

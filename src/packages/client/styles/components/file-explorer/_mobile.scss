@@ -162,7 +162,7 @@ $breakpoint-small: 480px;
     max-height: var(--fe-mobile-tree-height, 50%);
     min-height: 100px;
     border-right: none;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
     overflow: hidden;
 
@@ -202,7 +202,7 @@ $breakpoint-small: 480px;
       transform: translate(-50%, -50%);
       width: 48px;
       height: 4px;
-      background: rgba($dracula-comment, 0.4);
+      background: color-mix(in srgb, var(--text-muted) 40%, transparent);
       border-radius: 2px;
       transition: all $transition-fast;
     }
@@ -210,11 +210,11 @@ $breakpoint-small: 480px;
     &:hover::after,
     &:active::after {
       width: 64px;
-      background: $accent-blue;
+      background: var(--accent-blue);
     }
 
     &:active {
-      background: rgba($accent-blue, 0.08);
+      background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
     }
   }
 
@@ -227,7 +227,7 @@ $breakpoint-small: 480px;
     height: 24px;
     background: transparent;
     border: none;
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 8px;
     cursor: pointer;
     padding: 0;
@@ -235,7 +235,7 @@ $breakpoint-small: 480px;
     flex-shrink: 0;
 
     &:active {
-      color: $text-primary;
+      color: var(--text-primary);
     }
   }
 
@@ -391,7 +391,7 @@ $breakpoint-small: 480px;
     line-height: 1 !important;
 
     &:active {
-      background: rgba($accent-blue, 0.25);
+      background: color-mix(in srgb, var(--accent-blue) 25%, transparent);
     }
   }
 
@@ -448,7 +448,7 @@ $breakpoint-small: 480px;
     gap: 10px;
 
     &:active {
-      background: rgba($accent-blue, 0.2);
+      background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
     }
   }
 
@@ -487,7 +487,7 @@ $breakpoint-small: 480px;
     min-height: 40px;
 
     &:active {
-      background: rgba($accent-blue, 0.15);
+      background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
     }
   }
 
@@ -504,7 +504,7 @@ $breakpoint-small: 480px;
     min-height: 36px;
 
     &:active {
-      background: rgba($accent-blue, 0.15);
+      background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
     }
   }
 
@@ -538,7 +538,7 @@ $breakpoint-small: 480px;
     gap: 4px;
 
     &:active {
-      background: rgba($accent-blue, 0.2);
+      background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
     }
   }
 
@@ -746,7 +746,7 @@ $breakpoint-small: 480px;
     gap: 4px;
 
     &:active {
-      background: rgba($accent-blue, 0.2);
+      background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
     }
   }
 
@@ -963,7 +963,7 @@ $breakpoint-small: 480px;
   .search-result-item:active,
   .git-file-item:active,
   .file-tab:active {
-    background: rgba($accent-blue, 0.2);
+    background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
   }
 
   // Always show close buttons on touch
@@ -988,7 +988,7 @@ $breakpoint-small: 480px;
     max-width: 300px;
     height: 100%;
     max-height: 100%;
-    border-right: 1px solid $border-color;
+    border-right: 1px solid var(--border-color);
     border-bottom: none;
   }
 

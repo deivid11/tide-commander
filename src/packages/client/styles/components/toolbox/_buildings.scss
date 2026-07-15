@@ -3,7 +3,7 @@
 
 // Buildings section
 .buildings-section {
-  border-top: 1px solid $border-color;
+  border-top: 1px solid var(--border-color);
   padding-top: 8px;
 
   .toolbox-section-header {
@@ -15,8 +15,8 @@
 
 .add-building-btn {
   background: transparent;
-  border: 1px solid $accent-blue;
-  color: $accent-blue;
+  border: 1px solid var(--accent-blue);
+  color: var(--accent-blue);
   width: 22px;
   height: 22px;
   border-radius: $radius-sm;
@@ -26,8 +26,8 @@
   transition: all $transition-fast;
 
   &:hover {
-    background: $accent-blue;
-    color: $bg-primary;
+    background: var(--accent-blue);
+    color: var(--bg-primary);
   }
 }
 
@@ -39,7 +39,7 @@
 
 .buildings-empty {
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   text-align: center;
   padding: 10px;
 }
@@ -54,12 +54,12 @@
   transition: background $transition-fast;
 
   &:hover {
-    background: $bg-tertiary;
+    background: var(--bg-tertiary);
   }
 
   &.selected {
-    background: rgba($accent-blue, 0.15);
-    border-left: 2px solid $accent-blue;
+    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+    border-left: 2px solid var(--accent-blue);
   }
 }
 
@@ -90,7 +90,7 @@
 
 .building-meta {
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   text-transform: capitalize;
   display: flex;
   align-items: center;
@@ -106,16 +106,16 @@
 .building-port-link {
   font-family: $font-mono;
   font-size: 9px;
-  color: $accent-blue;
+  color: var(--accent-blue);
   text-decoration: none;
   padding: 0.05rem 0.2rem;
   border-radius: 2px;
-  background: rgba($accent-blue, 0.1);
+  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
   transition: all 0.15s;
   text-transform: none;
 
   &:hover {
-    background: rgba($accent-blue, 0.25);
+    background: color-mix(in srgb, var(--accent-blue) 25%, transparent);
     text-decoration: underline;
   }
 }
@@ -123,7 +123,7 @@
 .building-edit-btn {
   background: none;
   border: none;
-  color: $text-secondary;
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 14px;
   padding: 4px;
@@ -135,15 +135,15 @@
   }
 
   &:hover {
-    color: $accent-blue;
+    color: var(--accent-blue);
   }
 }
 
 // Building Editor (sidebar panel)
 .building-editor {
   padding: 12px;
-  border-top: 1px solid $border-color;
-  background: $bg-tertiary;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
   animation: slide-up $transition-normal ease-out;
 }
 
@@ -179,7 +179,7 @@
 .building-editor-title {
   font-size: 14px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .building-editor-status {
@@ -188,13 +188,13 @@
   text-transform: uppercase;
   padding: 2px 6px;
   border-radius: 3px;
-  color: $bg-primary;
+  color: var(--bg-primary);
 }
 
 .building-editor-close {
   background: none;
   border: none;
-  color: $text-secondary;
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 18px;
   line-height: 1;
@@ -202,7 +202,7 @@
   transition: color $transition-fast;
 
   &:hover {
-    color: $text-primary;
+    color: var(--text-primary);
   }
 }
 
@@ -217,7 +217,7 @@
 .building-editor-section-title {
   font-size: 10px;
   font-weight: 600;
-  color: $text-secondary;
+  color: var(--text-secondary);
   text-transform: uppercase;
   margin-bottom: 8px;
   display: flex;
@@ -232,7 +232,7 @@
 }
 
 .building-editor-info-item {
-  background: $bg-secondary;
+  background: var(--bg-secondary);
   padding: 6px 8px;
   border-radius: $radius-sm;
 }
@@ -244,14 +244,14 @@
 .building-editor-info-label {
   display: block;
   font-size: 9px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   text-transform: uppercase;
   margin-bottom: 2px;
 }
 
 .building-editor-info-value {
   font-size: 12px;
-  color: $text-primary;
+  color: var(--text-primary);
   text-transform: capitalize;
 }
 
@@ -273,10 +273,10 @@
 
 .building-editor-action-btn {
   padding: 6px 8px;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  background: $bg-secondary;
-  color: $text-primary;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
   font-size: 11px;
   cursor: pointer;
   transition: all $transition-fast;
@@ -286,8 +286,8 @@
   gap: 4px;
 
   &:hover:not(:disabled) {
-    border-color: $text-secondary;
-    background: $bg-tertiary;
+    border-color: var(--text-secondary);
+    background: var(--bg-tertiary);
   }
 
   &:disabled {
@@ -296,23 +296,23 @@
   }
 
   &.start:hover:not(:disabled) {
-    border-color: $accent-green;
-    color: $accent-green;
+    border-color: var(--accent-green);
+    color: var(--accent-green);
   }
 
   &.stop:hover:not(:disabled) {
-    border-color: $accent-red;
-    color: $accent-red;
+    border-color: var(--accent-red);
+    color: var(--accent-red);
   }
 
   &.restart:hover:not(:disabled) {
-    border-color: $accent-orange;
-    color: $accent-orange;
+    border-color: var(--accent-orange);
+    color: var(--accent-orange);
   }
 
   &.health:hover:not(:disabled) {
-    border-color: $dracula-pink;
-    color: $dracula-pink;
+    border-color: var(--accent-pink);
+    color: var(--accent-pink);
   }
 }
 
@@ -324,10 +324,10 @@
 
 .building-editor-link {
   padding: 6px 10px;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  color: $accent-blue;
+  color: var(--accent-blue);
   font-size: 11px;
   cursor: pointer;
   text-align: left;
@@ -337,8 +337,8 @@
   white-space: nowrap;
 
   &:hover {
-    border-color: $accent-blue;
-    background: rgba($accent-blue, 0.1);
+    border-color: var(--accent-blue);
+    background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
   }
 }
 
@@ -346,19 +346,19 @@
   font-size: 10px;
   background: none;
   border: none;
-  color: $text-secondary;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 0;
   transition: color $transition-fast;
 
   &:hover {
-    color: $accent-red;
+    color: var(--accent-red);
   }
 }
 
 .building-editor-logs {
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
   padding: 6px 8px;
   max-height: 100px;
@@ -368,9 +368,9 @@
 }
 
 .building-editor-log-entry {
-  color: $text-secondary;
+  color: var(--text-secondary);
   padding: 2px 0;
-  border-bottom: 1px solid rgba($border-color, 0.5);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
   word-break: break-all;
 
   &:last-child {
@@ -381,23 +381,23 @@
 .building-editor-footer {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid $border-color;
+  border-top: 1px solid var(--border-color);
 }
 
 .building-editor-edit-btn {
   width: 100%;
   padding: 8px;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
   font-size: 12px;
   cursor: pointer;
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $accent-blue;
-    color: $accent-blue;
-    background: rgba($accent-blue, 0.1);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
   }
 }

@@ -18,7 +18,7 @@
     font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
-    color: #000;
+    color: var(--bg-primary);
     font-weight: 600;
     text-transform: uppercase;
   }
@@ -41,7 +41,7 @@
         flex: 1;
         height: 6px;
         -webkit-appearance: none;
-        background: $bg-tertiary;
+        background: var(--bg-tertiary);
         border-radius: 3px;
         outline: none;
 
@@ -49,7 +49,7 @@
           -webkit-appearance: none;
           width: 16px;
           height: 16px;
-          background: $accent-blue;
+          background: var(--accent-blue);
           border-radius: 50%;
           cursor: pointer;
           transition: transform 0.15s;
@@ -62,7 +62,7 @@
         &::-moz-range-thumb {
           width: 16px;
           height: 16px;
-          background: $accent-blue;
+          background: var(--accent-blue);
           border-radius: 50%;
           cursor: pointer;
           border: none;
@@ -72,7 +72,7 @@
       .size-value {
         font-size: 0.85rem;
         font-weight: 600;
-        color: $text-primary;
+        color: var(--text-primary);
         font-family: $font-mono;
         min-width: 50px;
         text-align: right;
@@ -88,23 +88,23 @@
         flex: 1;
         padding: 0.35rem 0.25rem;
         font-size: 0.7rem;
-        background: $bg-tertiary;
-        border: 1px solid $border-color;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
         border-radius: 4px;
-        color: $text-secondary;
+        color: var(--text-secondary);
         cursor: pointer;
         transition: all 0.15s;
         font-family: $font-mono;
 
         &:hover {
-          border-color: $accent-blue;
-          color: $text-primary;
+          border-color: var(--accent-blue);
+          color: var(--text-primary);
         }
 
         &.active {
-          background: rgba($accent-blue, 0.15);
-          border-color: $accent-blue;
-          color: $accent-blue;
+          background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+          border-color: var(--accent-blue);
+          color: var(--accent-blue);
         }
       }
     }
@@ -121,38 +121,38 @@
     justify-content: space-between;
     align-items: center;
     font-size: 0.85rem;
-    color: $text-secondary;
+    color: var(--text-secondary);
     font-weight: 500;
   }
 
   .form-input {
-    background: $bg-primary;
-    border: 1px solid $border-color;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
     padding: 0.5rem 0.75rem;
-    color: $text-primary;
+    color: var(--text-primary);
     font-size: 0.9rem;
     transition: border-color 0.2s;
 
     &:focus {
       outline: none;
-      border-color: $accent-blue;
+      border-color: var(--accent-blue);
     }
 
     &::placeholder {
-      color: $text-muted;
+      color: var(--text-muted);
     }
   }
 
   .form-hint {
     font-size: 0.75rem;
-    color: $text-muted;
+    color: var(--text-muted);
     margin-top: 0.25rem;
   }
 
   .form-hint-inline {
     font-size: 0.75rem;
-    color: $text-muted;
+    color: var(--text-muted);
     margin-left: 0.5rem;
   }
 
@@ -185,22 +185,22 @@
     align-items: center;
     gap: 0.25rem;
     padding: 0.5rem 0.75rem;
-    background: $bg-primary;
-    border: 1px solid $border-color;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s;
     min-width: 70px;
-    color: $text-primary;
+    color: var(--text-primary);
 
     &:hover {
-      border-color: $accent-blue;
-      background: $bg-tertiary;
+      border-color: var(--accent-blue);
+      background: var(--bg-tertiary);
     }
 
     &.active {
-      border-color: $accent-blue;
-      background: rgba($accent-blue, 0.1);
+      border-color: var(--accent-blue);
+      background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
     }
 
     .building-type-icon {
@@ -209,7 +209,7 @@
 
     .building-type-name {
       font-size: 0.7rem;
-      color: $text-secondary;
+      color: var(--text-secondary);
       text-transform: capitalize;
     }
   }
@@ -227,29 +227,29 @@
     align-items: center;
     gap: 0.35rem;
     padding: 0.5rem 0.6rem;
-    background: $bg-primary;
-    border: 1px solid $border-color;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s;
     min-width: 80px;
-    color: $text-primary;
+    color: var(--text-primary);
 
     &:hover {
-      border-color: $accent-blue;
-      background: $bg-tertiary;
+      border-color: var(--accent-blue);
+      background: var(--bg-tertiary);
     }
 
     &.active {
-      border-color: $accent-blue;
-      background: rgba($accent-blue, 0.1);
+      border-color: var(--accent-blue);
+      background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
     }
 
     .building-style-preview {
       width: 36px;
       height: 36px;
       border-radius: 4px;
-      background: $bg-tertiary;
+      background: var(--bg-tertiary);
       position: relative;
       overflow: hidden;
 
@@ -263,14 +263,14 @@
           top: 6px;
           width: 4px;
           height: 4px;
-          background: $accent-green;
+          background: var(--accent-green);
           border-radius: 50%;
           box-shadow:
-            0 8px 0 $accent-green,
-            0 16px 0 $accent-green,
-            6px 0 0 $accent-blue,
-            6px 8px 0 $accent-blue,
-            6px 16px 0 $accent-blue;
+            0 8px 0 var(--accent-green),
+            0 16px 0 var(--accent-green),
+            6px 0 0 var(--accent-blue),
+            6px 8px 0 var(--accent-blue),
+            6px 16px 0 var(--accent-blue);
         }
       }
 
@@ -295,7 +295,7 @@
           top: 4px;
           width: 8px;
           height: 8px;
-          background: $accent-blue;
+          background: var(--accent-blue);
           transform: translateX(-50%);
           border-radius: 50%;
           animation: tower-blink 1.5s infinite;
@@ -325,7 +325,7 @@
           top: 50%;
           width: 20px;
           height: 20px;
-          border: 2px solid $accent-green;
+          border: 2px solid var(--accent-green);
           border-radius: 50%;
           transform: translate(-50%, -50%);
           animation: dome-spin 3s linear infinite;
@@ -610,27 +610,27 @@
     width: 28px;
     height: 28px;
     border-radius: 4px;
-    border: 2px solid $border-color;
+    border: 2px solid var(--border-color);
     cursor: pointer;
     transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: $bg-tertiary;
+    background: var(--bg-tertiary);
 
     &:hover {
-      border-color: $accent-blue;
+      border-color: var(--accent-blue);
       transform: scale(1.1);
     }
 
     &.active {
-      border-color: $accent-blue;
-      box-shadow: 0 0 6px rgba($accent-blue, 0.5);
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 6px color-mix(in srgb, var(--accent-blue) 50%, transparent);
     }
 
     .color-default-icon {
       font-size: 0.8rem;
-      color: $text-muted;
+      color: var(--text-muted);
     }
   }
 
@@ -638,7 +638,7 @@
     width: 28px;
     height: 28px;
     padding: 0;
-    border: 2px solid $border-color;
+    border: 2px solid var(--border-color);
     border-radius: 4px;
     cursor: pointer;
     background: transparent;
@@ -653,7 +653,7 @@
     }
 
     &:hover {
-      border-color: $accent-blue;
+      border-color: var(--accent-blue);
     }
   }
 
@@ -666,8 +666,8 @@
       max-height: 200px;
       overflow-y: auto;
       padding: 0.5rem;
-      background: $bg-primary;
-      border: 1px solid $border-color;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
       border-radius: 4px;
     }
 
@@ -676,19 +676,19 @@
       align-items: center;
       gap: 0.5rem;
       padding: 0.4rem 0.5rem;
-      background: $bg-tertiary;
+      background: var(--bg-tertiary);
       border-radius: 4px;
       cursor: pointer;
       transition: all 0.15s;
 
       &:hover {
-        background: $bg-secondary;
+        background: var(--bg-secondary);
       }
 
       input[type="checkbox"] {
         width: 16px;
         height: 16px;
-        accent-color: $accent-blue;
+        accent-color: var(--accent-blue);
       }
 
       .subordinate-building-icon {
@@ -698,7 +698,7 @@
       .subordinate-building-name {
         flex: 1;
         font-size: 0.85rem;
-        color: $text-primary;
+        color: var(--text-primary);
       }
 
       .subordinate-building-status {
@@ -711,20 +711,20 @@
     .no-buildings-hint {
       text-align: center;
       padding: 1rem;
-      color: $text-muted;
+      color: var(--text-muted);
     }
 
     .boss-building-actions {
       margin-top: 1rem;
       padding: 0.75rem;
-      background: rgba($accent-yellow, 0.05);
-      border: 1px solid rgba($accent-yellow, 0.2);
+      background: color-mix(in srgb, var(--accent-yellow) 5%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent-yellow) 20%, transparent);
       border-radius: 6px;
 
       .boss-actions-header {
         font-size: 0.8rem;
         font-weight: 600;
-        color: $text-secondary;
+        color: var(--text-secondary);
         margin-bottom: 0.5rem;
       }
 
@@ -738,12 +738,12 @@
     .boss-subordinates-status {
       margin-top: 0.75rem;
       padding-top: 0.75rem;
-      border-top: 1px solid rgba($accent-yellow, 0.2);
+      border-top: 1px solid color-mix(in srgb, var(--accent-yellow) 20%, transparent);
 
       .boss-status-header {
         font-size: 0.75rem;
         font-weight: 600;
-        color: $text-muted;
+        color: var(--text-muted);
         margin-bottom: 0.5rem;
         text-transform: uppercase;
         letter-spacing: 0.5px;
@@ -760,7 +760,7 @@
         align-items: center;
         gap: 0.35rem;
         padding: 0.25rem 0.5rem;
-        background: $bg-primary;
+        background: var(--bg-primary);
         border-radius: 4px;
         font-size: 0.75rem;
 
@@ -772,14 +772,14 @@
 
         .boss-status-name {
           flex: 1;
-          color: $text-primary;
+          color: var(--text-primary);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
 
         .boss-status-label {
-          color: $text-muted;
+          color: var(--text-muted);
           text-transform: capitalize;
           font-size: 0.65rem;
         }
@@ -793,7 +793,7 @@
         max-height: 300px;
         overflow-y: auto;
         background: #0d0d0d;
-        border: 1px solid $border-color;
+        border: 1px solid var(--border-color);
         border-radius: 4px;
         font-family: $font-mono;
         font-size: 0.75rem;
@@ -802,21 +802,21 @@
       .boss-log-entry {
         display: flex;
         padding: 0.15rem 0.5rem;
-        border-bottom: 1px solid $border-color;
+        border-bottom: 1px solid var(--border-color);
 
         &:last-child {
           border-bottom: none;
         }
 
         .boss-log-source {
-          color: $accent-blue;
+          color: var(--accent-blue);
           font-weight: 600;
           margin-right: 0.5rem;
           white-space: nowrap;
         }
 
         .boss-log-content {
-          color: $text-secondary;
+          color: var(--text-secondary);
           word-break: break-all;
         }
       }
@@ -824,21 +824,21 @@
       .boss-logs-empty {
         padding: 1rem;
         text-align: center;
-        color: $text-muted;
+        color: var(--text-muted);
       }
     }
   }
 
   // Database Configuration Section
   .database-config-section {
-    background: rgba($accent-orange, 0.05);
-    border: 1px solid rgba($accent-orange, 0.2);
+    background: color-mix(in srgb, var(--accent-orange) 5%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-orange) 20%, transparent);
     border-radius: 6px;
     padding: 0.75rem;
 
     .db-connection-card {
-      background: $bg-primary;
-      border: 1px solid $border-color;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
       border-radius: 6px;
       padding: 0.75rem;
       margin-bottom: 0.75rem;
@@ -854,7 +854,7 @@
       align-items: center;
       margin-bottom: 0.75rem;
       padding-bottom: 0.5rem;
-      border-bottom: 1px solid $border-color;
+      border-bottom: 1px solid var(--border-color);
     }
 
     .db-connection-active {
@@ -862,11 +862,11 @@
       align-items: center;
       gap: 0.5rem;
       font-size: 0.85rem;
-      color: $text-secondary;
+      color: var(--text-secondary);
       cursor: pointer;
 
       input[type="radio"] {
-        accent-color: $accent-orange;
+        accent-color: var(--accent-orange);
       }
     }
 
@@ -886,7 +886,7 @@
       label {
         display: block;
         font-size: 0.75rem;
-        color: $text-muted;
+        color: var(--text-muted);
         margin-bottom: 0.25rem;
         text-transform: uppercase;
         letter-spacing: 0.5px;
@@ -962,8 +962,8 @@
 
   // PM2 Configuration Section
   .pm2-config-section {
-    background: rgba($accent-green, 0.05);
-    border: 1px solid rgba($accent-green, 0.2);
+    background: color-mix(in srgb, var(--accent-green) 5%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-green) 20%, transparent);
     border-radius: 6px;
     padding: 0.75rem;
 
@@ -979,7 +979,7 @@
 
       .command-label {
         font-size: 0.8rem;
-        color: $text-muted;
+        color: var(--text-muted);
         min-width: 80px;
         text-align: right;
       }
@@ -1000,8 +1000,8 @@
   .pm2-status-display {
     margin-top: 0.75rem;
     padding: 0.5rem;
-    background: $bg-primary;
-    border: 1px solid $border-color;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
 
     .pm2-status-row {
@@ -1018,7 +1018,7 @@
 
       .pm2-metric-label {
         font-size: 0.65rem;
-        color: $text-muted;
+        color: var(--text-muted);
         text-transform: uppercase;
         letter-spacing: 0.5px;
       }
@@ -1026,7 +1026,7 @@
       .pm2-metric-value {
         font-size: 0.85rem;
         font-weight: 600;
-        color: $text-primary;
+        color: var(--text-primary);
         font-family: $font-mono;
       }
     }
@@ -1037,37 +1037,37 @@
     margin-top: 0.5rem;
 
     details {
-      background: $bg-primary;
+      background: var(--bg-primary);
       border-radius: 4px;
-      border: 1px solid $border-color;
+      border: 1px solid var(--border-color);
 
       summary {
         padding: 0.5rem 0.75rem;
         cursor: pointer;
         font-size: 0.8rem;
-        color: $text-secondary;
+        color: var(--text-secondary);
 
         &:hover {
-          color: $text-primary;
-          background: $bg-tertiary;
+          color: var(--text-primary);
+          background: var(--bg-tertiary);
         }
 
         &::marker {
-          color: $accent-blue;
+          color: var(--accent-blue);
         }
       }
     }
 
     .pm2-examples-content {
       padding: 0.75rem;
-      border-top: 1px solid $border-color;
+      border-top: 1px solid var(--border-color);
     }
 
     .pm2-example {
       font-size: 0.75rem;
-      color: $text-secondary;
+      color: var(--text-secondary);
       padding: 0.35rem 0;
-      border-bottom: 1px solid $border-color;
+      border-bottom: 1px solid var(--border-color);
 
       &:last-child {
         border-bottom: none;
@@ -1075,18 +1075,18 @@
       }
 
       strong {
-        color: $text-primary;
+        color: var(--text-primary);
         min-width: 70px;
         display: inline-block;
       }
 
       code {
-        background: $bg-tertiary;
+        background: var(--bg-tertiary);
         padding: 0.15rem 0.35rem;
         border-radius: 3px;
         font-family: $font-mono;
         font-size: 0.7rem;
-        color: $accent-blue;
+        color: var(--accent-blue);
       }
     }
   }
@@ -1101,8 +1101,8 @@
 
   // Docker Configuration Section
   .docker-config-section {
-    background: rgba($accent-blue, 0.05);
-    border: 1px solid rgba($accent-blue, 0.2);
+    background: color-mix(in srgb, var(--accent-blue) 5%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-blue) 20%, transparent);
     border-radius: 6px;
     padding: 0.75rem;
 
@@ -1119,8 +1119,8 @@
       align-items: center;
       gap: 0.25rem;
       padding: 0.75rem;
-      background: $bg-primary;
-      border: 2px solid $border-color;
+      background: var(--bg-primary);
+      border: 2px solid var(--border-color);
       border-radius: 8px;
       cursor: pointer;
       transition: all 0.2s;
@@ -1130,12 +1130,12 @@
       }
 
       &:hover {
-        border-color: $accent-blue;
+        border-color: var(--accent-blue);
       }
 
       &.active {
-        border-color: $accent-blue;
-        background: rgba($accent-blue, 0.1);
+        border-color: var(--accent-blue);
+        background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
       }
 
       .docker-mode-icon {
@@ -1145,12 +1145,12 @@
       .docker-mode-label {
         font-size: 0.9rem;
         font-weight: 600;
-        color: $text-primary;
+        color: var(--text-primary);
       }
 
       .docker-mode-desc {
         font-size: 0.7rem;
-        color: $text-muted;
+        color: var(--text-muted);
         text-align: center;
       }
     }
@@ -1167,7 +1167,7 @@
 
       .command-label {
         font-size: 0.8rem;
-        color: $text-muted;
+        color: var(--text-muted);
         min-width: 100px;
         text-align: right;
       }
@@ -1216,8 +1216,8 @@
   .docker-status-display {
     margin-top: 0.75rem;
     padding: 0.5rem;
-    background: $bg-primary;
-    border: 1px solid $border-color;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
 
     .docker-status-row {
@@ -1234,7 +1234,7 @@
 
       .docker-metric-label {
         font-size: 0.65rem;
-        color: $text-muted;
+        color: var(--text-muted);
         text-transform: uppercase;
         letter-spacing: 0.5px;
       }
@@ -1242,7 +1242,7 @@
       .docker-metric-value {
         font-size: 0.85rem;
         font-weight: 600;
-        color: $text-primary;
+        color: var(--text-primary);
         font-family: $font-mono;
       }
     }
@@ -1250,23 +1250,23 @@
     .docker-ports-row {
       margin-top: 0.5rem;
       padding-top: 0.5rem;
-      border-top: 1px solid $border-color;
+      border-top: 1px solid var(--border-color);
       display: flex;
       flex-wrap: wrap;
       gap: 0.5rem;
       align-items: center;
 
       .docker-port-link {
-        color: $accent-blue;
+        color: var(--accent-blue);
         font-family: $font-mono;
         font-size: 0.75rem;
         text-decoration: none;
         padding: 0.15rem 0.35rem;
-        background: rgba($accent-blue, 0.1);
+        background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
         border-radius: 3px;
 
         &:hover {
-          background: rgba($accent-blue, 0.2);
+          background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
         }
       }
     }
@@ -1274,7 +1274,7 @@
     .docker-services-status {
       margin-top: 0.5rem;
       padding-top: 0.5rem;
-      border-top: 1px solid $border-color;
+      border-top: 1px solid var(--border-color);
 
       .docker-services-grid {
         display: flex;
@@ -1288,7 +1288,7 @@
         align-items: center;
         gap: 0.25rem;
         padding: 0.2rem 0.5rem;
-        background: $bg-tertiary;
+        background: var(--bg-tertiary);
         border-radius: 3px;
         font-size: 0.75rem;
 
@@ -1299,11 +1299,11 @@
         }
 
         .docker-service-name {
-          color: $text-primary;
+          color: var(--text-primary);
         }
 
         .docker-service-status {
-          color: $text-muted;
+          color: var(--text-muted);
           font-size: 0.65rem;
         }
       }
@@ -1340,18 +1340,18 @@
     .docker-existing-hint {
       margin-top: 0.5rem;
       padding: 0.5rem;
-      background: rgba($accent-yellow, 0.1);
-      border: 1px solid rgba($accent-yellow, 0.3);
+      background: color-mix(in srgb, var(--accent-yellow) 10%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent-yellow) 30%, transparent);
       border-radius: 4px;
       font-size: 0.75rem;
-      color: $accent-yellow;
+      color: var(--accent-yellow);
     }
 
     .docker-existing-info {
       margin-top: 0.75rem;
       padding: 0.5rem;
-      background: $bg-primary;
-      border: 1px solid $border-color;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
       border-radius: 4px;
 
       .docker-existing-info-row {
@@ -1362,26 +1362,26 @@
 
         .docker-existing-info-label {
           font-size: 0.7rem;
-          color: $text-muted;
+          color: var(--text-muted);
           text-transform: uppercase;
           min-width: 60px;
         }
 
         .docker-existing-info-value {
           font-size: 0.8rem;
-          color: $text-primary;
+          color: var(--text-primary);
           font-family: $font-mono;
 
           &.docker-status-running {
-            color: $accent-green;
+            color: var(--accent-green);
           }
 
           &.docker-status-exited {
-            color: $accent-red;
+            color: var(--accent-red);
           }
 
           &.docker-status-paused {
-            color: $accent-yellow;
+            color: var(--accent-yellow);
           }
         }
       }
@@ -1403,7 +1403,7 @@
 
       .command-label {
         font-size: 0.8rem;
-        color: $text-muted;
+        color: var(--text-muted);
         min-width: 80px;
         text-align: right;
       }
@@ -1445,8 +1445,8 @@
     .logs-container {
       max-height: 200px;
       overflow-y: auto;
-      background: $bg-primary;
-      border: 1px solid $border-color;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
       border-radius: 4px;
       padding: 0.5rem;
       font-family: $font-mono;
@@ -1456,10 +1456,10 @@
     .log-entry {
       margin: 0;
       padding: 0.25rem 0;
-      border-bottom: 1px solid $border-color;
+      border-bottom: 1px solid var(--border-color);
       white-space: pre-wrap;
       word-break: break-all;
-      color: $text-secondary;
+      color: var(--text-secondary);
 
       &:last-child {
         border-bottom: none;
@@ -1472,7 +1472,7 @@
     display: flex;
     gap: 0.5rem;
     padding: 1rem;
-    border-top: 1px solid $border-color;
+    border-top: 1px solid var(--border-color);
 
     .footer-spacer {
       flex: 1;
@@ -1485,14 +1485,14 @@
     border-radius: 4px;
     font-size: 0.9rem;
     cursor: pointer;
-    border: 1px solid $border-color;
+    border: 1px solid var(--border-color);
     transition: all 0.2s;
-    background: $bg-tertiary;
-    color: $text-primary;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
 
     &:hover {
-      background: $bg-secondary;
-      border-color: $accent-blue;
+      background: var(--bg-secondary);
+      border-color: var(--accent-blue);
     }
 
     &.btn-sm {
@@ -1501,67 +1501,67 @@
     }
 
     &.btn-primary {
-      background: $accent-blue;
+      background: var(--accent-blue);
       color: #000;
-      border-color: $accent-blue;
+      border-color: var(--accent-blue);
 
       &:hover {
         filter: brightness(1.1);
-        border-color: $accent-blue;
+        border-color: var(--accent-blue);
       }
     }
 
     &.btn-secondary {
-      background: $bg-tertiary;
-      color: $text-primary;
-      border: 1px solid $border-color;
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
 
       &:hover {
-        background: $bg-secondary;
+        background: var(--bg-secondary);
       }
     }
 
     &.btn-danger {
-      background: $accent-red;
+      background: var(--accent-red);
       color: #fff;
-      border-color: $accent-red;
+      border-color: var(--accent-red);
 
       &:hover {
         filter: brightness(1.1);
-        border-color: $accent-red;
+        border-color: var(--accent-red);
       }
     }
 
     &.btn-success {
-      background: $accent-green;
+      background: var(--accent-green);
       color: #000;
-      border-color: $accent-green;
+      border-color: var(--accent-green);
 
       &:hover {
         filter: brightness(1.1);
-        border-color: $accent-green;
+        border-color: var(--accent-green);
       }
     }
 
     &.btn-warning {
-      background: $accent-orange;
+      background: var(--accent-orange);
       color: #000;
-      border-color: $accent-orange;
+      border-color: var(--accent-orange);
 
       &:hover {
         filter: brightness(1.1);
-        border-color: $accent-orange;
+        border-color: var(--accent-orange);
       }
     }
 
     &.btn-add {
       background: transparent;
-      color: $accent-blue;
-      border: 1px dashed $accent-blue;
+      color: var(--accent-blue);
+      border: 1px dashed var(--accent-blue);
       padding: 0.15rem 0.5rem;
 
       &:hover {
-        background: rgba($accent-blue, 0.1);
+        background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
       }
     }
 

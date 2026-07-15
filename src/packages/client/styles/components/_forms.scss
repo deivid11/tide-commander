@@ -7,33 +7,33 @@
 .form-label {
   display: block;
   font-size: 13px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   margin-bottom: 6px;
 }
 
 .form-input {
   width: 100%;
   padding: 10px 12px;
-  background: $bg-tertiary;
-  border: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-md;
-  color: $text-primary;
+  color: var(--text-primary);
   font-size: 14px;
   outline: none;
 
   &:focus {
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 
   &.error {
-    border-color: $accent-red;
+    border-color: var(--accent-red);
   }
 }
 
 // Command input section
 .command-section {
   padding: 12px;
-  border-top: 1px solid $border-color;
+  border-top: 1px solid var(--border-color);
 }
 
 .command-bar {
@@ -44,20 +44,20 @@
 
 .command-input {
   flex: 1;
-  background: $bg-tertiary;
-  border: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-md;
   padding: 10px 14px;
-  color: $text-primary;
+  color: var(--text-primary);
   font-size: 14px;
   outline: none;
 
   &:focus {
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 
   &::placeholder {
-    color: $text-secondary;
+    color: var(--text-secondary);
   }
 
   &:disabled {
@@ -68,7 +68,7 @@
 
 .command-send {
   padding: 10px 20px;
-  background: $accent-blue;
+  background: var(--accent-blue);
   border: none;
   border-radius: $radius-md;
   color: white;
@@ -94,16 +94,16 @@
 
 .quick-action-btn {
   padding: 6px 12px;
-  background: $bg-tertiary;
-  border: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
   font-size: 12px;
   cursor: pointer;
   transition: all $transition-fast;
 
   &:hover:not(:disabled) {
-    background: $border-color;
+    background: var(--border-color);
   }
 
   &:disabled {
@@ -120,16 +120,16 @@
   cursor: pointer;
   user-select: none;
   padding: 10px 14px;
-  background: $bg-tertiary;
-  border: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-md;
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $text-secondary;
+    border-color: var(--text-secondary);
 
     .toggle-track {
-      border-color: $text-secondary;
+      border-color: var(--text-secondary);
     }
   }
 }
@@ -138,8 +138,8 @@
   position: relative;
   width: 44px;
   height: 24px;
-  background: rgba($bg-primary, 0.5);
-  border: 2px solid $border-color;
+  background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
+  border: 2px solid var(--border-color);
   border-radius: 12px;
   transition: all $transition-fast;
   flex-shrink: 0;
@@ -151,7 +151,7 @@
   left: 2px;
   width: 16px;
   height: 16px;
-  background: $text-secondary;
+  background: var(--text-secondary);
   border-radius: 50%;
   transition: all $transition-fast;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
@@ -161,19 +161,19 @@
   display: none;
 
   &:checked + .toggle-track {
-    background: rgba($dracula-green, 0.2);
-    border-color: $dracula-green;
+    background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+    border-color: var(--accent-green);
 
     .toggle-thumb {
       left: calc(100% - 18px);
-      background: $dracula-green;
+      background: var(--accent-green);
     }
   }
 }
 
 .toggle-label {
   font-size: 13px;
-  color: $text-primary;
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -192,21 +192,21 @@
 .folder-input {
   width: 100%;
   padding: 10px 12px;
-  background: $bg-tertiary;
-  border: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-md;
-  color: $text-primary;
+  color: var(--text-primary);
   font-size: 14px;
   font-family: $font-mono;
   outline: none;
   box-sizing: border-box;
 
   &:focus {
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 
   &.error {
-    border-color: $accent-red;
+    border-color: var(--accent-red);
   }
 
   &:disabled {
@@ -215,7 +215,7 @@
   }
 
   &::placeholder {
-    color: $text-secondary;
+    color: var(--text-secondary);
   }
 }
 
@@ -226,8 +226,8 @@
   right: 0;
   z-index: 1000;
   margin-top: 4px;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-md;
   max-height: 240px;
   overflow-y: auto;
@@ -243,11 +243,11 @@
   }
 
   &::-webkit-scrollbar-thumb {
-    background: $border-color;
+    background: var(--border-color);
     border-radius: 3px;
 
     &:hover {
-      background: $text-muted;
+      background: var(--text-muted);
     }
   }
 }
@@ -262,11 +262,11 @@
 
   &:hover,
   &.selected {
-    background: rgba($accent-blue, 0.15);
+    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
   }
 
   &.selected {
-    background: rgba($accent-blue, 0.25);
+    background: color-mix(in srgb, var(--accent-blue) 25%, transparent);
   }
 }
 
@@ -279,7 +279,7 @@
   flex: 1;
   font-family: $font-mono;
   font-size: 13px;
-  color: $text-primary;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -289,12 +289,12 @@
   flex-shrink: 0;
   font-family: $font-mono;
   font-size: 12px;
-  color: $text-muted;
+  color: var(--text-muted);
 }
 
 .folder-input-loading {
   padding: 12px;
   text-align: center;
   font-size: 12px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }

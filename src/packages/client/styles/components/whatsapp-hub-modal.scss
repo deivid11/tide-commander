@@ -3,8 +3,8 @@
 .whatsapp-hub-modal {
   position: relative;
   width: min(520px, 92vw);
-  background: $bg-primary;
-  border: 1px solid $border-color;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-md;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
   overflow: hidden;
@@ -14,14 +14,14 @@
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    border-bottom: 1px solid $border-color;
-    background: $bg-secondary;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
 
     h2 {
       margin: 0;
       font-size: 14px;
       font-weight: 600;
-      color: $text-primary;
+      color: var(--text-primary);
       display: inline-flex;
       align-items: center;
       gap: 8px;
@@ -30,14 +30,14 @@
     .modal-close {
       background: transparent;
       border: none;
-      color: $text-muted;
+      color: var(--text-muted);
       cursor: pointer;
       padding: 4px;
       border-radius: $radius-sm;
 
       &:hover {
-        background: rgba($text-primary, 0.08);
-        color: $text-primary;
+        background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+        color: var(--text-primary);
       }
     }
   }
@@ -56,7 +56,7 @@
 
   &__intro {
     margin: 0;
-    color: $text-secondary;
+    color: var(--text-secondary);
     font-size: 12px;
     line-height: 1.45;
   }
@@ -72,21 +72,21 @@
     align-items: flex-start;
     gap: 12px;
     padding: 10px 12px;
-    background: $bg-secondary;
-    border: 1px solid $border-color;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
     border-radius: $radius-sm;
-    color: $text-primary;
+    color: var(--text-primary);
     cursor: pointer;
     text-align: left;
     transition: background 120ms ease, border-color 120ms ease;
 
     &:hover {
-      background: rgba($text-primary, 0.05);
-      border-color: $accent-cyan;
+      background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+      border-color: var(--accent-cyan);
     }
 
     &:focus-visible {
-      outline: 1px solid $accent-cyan;
+      outline: 1px solid var(--accent-cyan);
       outline-offset: 2px;
     }
   }
@@ -96,8 +96,8 @@
     width: 28px;
     height: 28px;
     border-radius: 6px;
-    background: rgba($accent-cyan, 0.12);
-    color: $accent-cyan;
+    background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+    color: var(--accent-cyan);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -113,12 +113,12 @@
   &__option-title {
     font-size: 13px;
     font-weight: 600;
-    color: $text-primary;
+    color: var(--text-primary);
   }
 
   &__option-desc {
     font-size: 11px;
-    color: $text-muted;
+    color: var(--text-muted);
     line-height: 1.4;
   }
 }

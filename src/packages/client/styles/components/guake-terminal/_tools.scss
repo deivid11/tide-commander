@@ -57,9 +57,9 @@
   align-items: center;
   gap: 4px;
   padding: 2px 6px;
-  color: var(--accent-cyan, #67d4e8);
-  background: rgba(80, 180, 210, 0.12);
-  border: 1px solid rgba(100, 200, 225, 0.25);
+  color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent);
   border-radius: 999px;
   font-family: $font-mono;
   font-size: 10px;
@@ -77,9 +77,9 @@
 
     &:hover,
     &:focus-visible {
-      color: #b6f4ff;
-      background: rgba(80, 180, 210, 0.24);
-      border-color: rgba(130, 225, 245, 0.55);
+      color: color-mix(in srgb, var(--accent-cyan) 70%, white);
+      background: color-mix(in srgb, var(--accent-cyan) 24%, transparent);
+      border-color: color-mix(in srgb, var(--accent-cyan) 55%, transparent);
       outline: none;
     }
   }
@@ -527,15 +527,15 @@
   }
 
   &.status-working {
-    color: var(--accent-cyan);
-    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
-    border: 1px solid color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+    color: var(--status-working);
+    background: color-mix(in srgb, var(--status-working) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--status-working) 40%, transparent);
   }
 
   &.status-thinking {
-    color: #ff9edb;
-    background: color-mix(in srgb, #ff9edb 15%, transparent);
-    border: 1px solid color-mix(in srgb, #ff9edb 40%, transparent);
+    color: var(--thinking-accent);
+    background: color-mix(in srgb, var(--thinking-accent) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--thinking-accent) 40%, transparent);
   }
 }
 
@@ -665,7 +665,7 @@
 }
 
 .output-tool-loading {
-  color: $text-muted;
+  color: var(--text-muted);
   animation: pulse-dots 1.5s infinite;
 }
 
@@ -675,10 +675,10 @@
   font-size: 10px;
   font-weight: 600;
   color: var(--accent-pink);
-  background: rgba(var(--accent-pink-rgb, 255, 121, 198), 0.12);
+  background: color-mix(in srgb, var(--accent-pink) 12%, transparent);
   padding: 1px 6px;
   border-radius: 3px;
-  border: 1px solid rgba(var(--accent-pink-rgb, 255, 121, 198), 0.25);
+  border: 1px solid color-mix(in srgb, var(--accent-pink) 25%, transparent);
   white-space: nowrap;
   flex-shrink: 0;
   max-width: 100px;
@@ -941,7 +941,7 @@
   gap: 8px;
   padding: 6px 0;
   margin-bottom: 8px;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .edit-tool-file {
@@ -949,10 +949,10 @@
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  background: rgba($accent-blue, 0.1);
-  border: 1px solid rgba($accent-blue, 0.3);
+  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 30%, transparent);
   border-radius: $radius-sm;
-  color: $accent-blue;
+  color: var(--accent-blue);
   font-family: $font-mono;
   font-size: 12px;
   font-weight: 600;
@@ -962,15 +962,15 @@
     transition: all $transition-fast;
 
     &:hover {
-      background: rgba($accent-blue, 0.2);
-      border-color: $accent-blue;
+      background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+      border-color: var(--accent-blue);
       transform: translateY(-1px);
     }
   }
 }
 
 .edit-tool-path {
-  color: $text-muted;
+  color: var(--text-muted);
   font-family: $font-mono;
   font-size: 10px;
   overflow: hidden;
@@ -981,10 +981,10 @@
 
 .edit-tool-badge {
   padding: 2px 8px;
-  background: rgba($text-secondary, 0.2);
-  border: 1px solid rgba($text-secondary, 0.4);
+  background: color-mix(in srgb, var(--text-secondary) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-secondary) 40%, transparent);
   border-radius: $radius-sm;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-family: $font-mono;
   font-size: 10px;
   font-weight: 600;
@@ -1004,30 +1004,30 @@
 }
 
 .edit-tool-old {
-  background: rgba($accent-red, 0.08);
-  border: 1px solid rgba($accent-red, 0.2);
+  background: color-mix(in srgb, var(--accent-red) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-red) 20%, transparent);
 
   .edit-tool-label {
-    background: rgba($accent-red, 0.15);
-    color: $accent-red;
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    color: var(--accent-red);
   }
 
   .edit-tool-code {
-    border-left: 3px solid $accent-red;
+    border-left: 3px solid var(--accent-red);
   }
 }
 
 .edit-tool-new {
-  background: rgba($accent-green, 0.08);
-  border: 1px solid rgba($accent-green, 0.2);
+  background: color-mix(in srgb, var(--accent-green) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-green) 20%, transparent);
 
   .edit-tool-label {
-    background: rgba($accent-green, 0.15);
-    color: $accent-green;
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+    color: var(--accent-green);
   }
 
   .edit-tool-code {
-    border-left: 3px solid $accent-green;
+    border-left: 3px solid var(--accent-green);
   }
 }
 
@@ -1045,7 +1045,7 @@
   padding: 8px 12px;
   font-family: $font-mono;
   font-size: 11px;
-  color: $text-primary;
+  color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 200px;
@@ -1068,20 +1068,20 @@
   border-radius: $radius-sm;
 
   &.added {
-    color: $accent-green;
-    background: rgba($accent-green, 0.15);
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
   }
 
   &.removed {
-    color: $accent-red;
-    background: rgba($accent-red, 0.15);
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
   }
 }
 
 // Edit tool side-by-side diff view (like FileExplorer DiffViewer)
 .edit-tool-panels {
   display: flex;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
   overflow: hidden;
   max-height: 250px;
@@ -1092,7 +1092,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border-right: 1px solid $border-color;
+  border-right: 1px solid var(--border-color);
 
   &:last-child {
     border-right: none;
@@ -1101,23 +1101,23 @@
 
 .edit-panel-header {
   padding: 4px 8px;
-  background: rgba($bg-tertiary, 0.8);
-  border-bottom: 1px solid $border-color;
+  background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .edit-panel-label {
   font-size: 9px;
   font-weight: 600;
   text-transform: uppercase;
-  color: $text-muted;
+  color: var(--text-muted);
   letter-spacing: 0.5px;
 
   .edit-panel-original & {
-    color: $accent-red;
+    color: var(--accent-red);
   }
 
   .edit-panel-modified & {
-    color: $accent-green;
+    color: var(--accent-green);
   }
 }
 
@@ -1125,7 +1125,7 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: auto;
-  background: rgba($bg-primary, 0.8);
+  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
 
   &::-webkit-scrollbar {
     width: 6px;
@@ -1133,15 +1133,15 @@
   }
 
   &::-webkit-scrollbar-track {
-    background: $bg-primary;
+    background: var(--bg-primary);
   }
 
   &::-webkit-scrollbar-thumb {
-    background: $border-color;
+    background: var(--border-color);
     border-radius: 3px;
 
     &:hover {
-      background: $text-muted;
+      background: var(--text-muted);
     }
   }
 }
@@ -1157,40 +1157,40 @@
 
   &.edit-line-unchanged {
     background: transparent;
-    color: $text-primary;
+    color: var(--text-primary);
   }
 
   &.edit-line-added {
-    background: rgba($accent-green, 0.1);
+    background: color-mix(in srgb, var(--accent-green) 10%, transparent);
 
     .edit-line-num {
-      background: rgba($accent-green, 0.15);
-      color: $accent-green;
+      background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+      color: var(--accent-green);
     }
 
     .edit-line-content {
-      color: $text-primary;
+      color: var(--text-primary);
     }
   }
 
   &.edit-line-removed {
-    background: rgba($accent-red, 0.1);
+    background: color-mix(in srgb, var(--accent-red) 10%, transparent);
 
     .edit-line-num {
-      background: rgba($accent-red, 0.15);
-      color: $accent-red;
+      background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+      color: var(--accent-red);
     }
 
     .edit-line-content {
-      color: $text-primary;
+      color: var(--text-primary);
     }
   }
 
   &.edit-line-empty {
-    background: rgba($text-muted, 0.05);
+    background: color-mix(in srgb, var(--text-muted) 5%, transparent);
 
     .edit-empty-text {
-      color: $text-muted;
+      color: var(--text-muted);
       font-style: italic;
     }
   }
@@ -1201,9 +1201,9 @@
   width: 32px;
   padding: 0 6px;
   text-align: right;
-  color: $text-muted;
-  background: rgba($bg-tertiary, 0.5);
-  border-right: 1px solid $border-color;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+  border-right: 1px solid var(--border-color);
   user-select: none;
   font-size: 10px;
 }
@@ -1222,12 +1222,12 @@
 // =============================================================================
 
 .edit-tool-unified {
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
   overflow: hidden;
   max-height: 350px;
   overflow-y: auto;
-  background: rgba($bg-primary, 0.8);
+  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
 
   &::-webkit-scrollbar {
     width: 6px;
@@ -1235,22 +1235,22 @@
   }
 
   &::-webkit-scrollbar-track {
-    background: $bg-primary;
+    background: var(--bg-primary);
   }
 
   &::-webkit-scrollbar-thumb {
-    background: $border-color;
+    background: var(--border-color);
     border-radius: 3px;
 
     &:hover {
-      background: $text-muted;
+      background: var(--text-muted);
     }
   }
 }
 
 .diff-hunk {
   &:not(:first-child) {
-    border-top: 1px solid $border-color;
+    border-top: 1px solid var(--border-color);
   }
 }
 
@@ -1272,7 +1272,7 @@
 }
 
 .diff-hunk-context {
-  color: $text-muted;
+  color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1288,32 +1288,32 @@
 
   &.diff-line-context {
     background: transparent;
-    color: $text-primary;
+    color: var(--text-primary);
   }
 
   &.diff-line-added {
-    background: rgba($accent-green, 0.1);
+    background: color-mix(in srgb, var(--accent-green) 10%, transparent);
 
     .diff-line-num {
-      background: rgba($accent-green, 0.12);
-      color: rgba($accent-green, 0.7);
+      background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+      color: color-mix(in srgb, var(--accent-green) 70%, transparent);
     }
 
     .diff-line-marker {
-      color: $accent-green;
+      color: var(--accent-green);
     }
   }
 
   &.diff-line-removed {
-    background: rgba($accent-red, 0.1);
+    background: color-mix(in srgb, var(--accent-red) 10%, transparent);
 
     .diff-line-num {
-      background: rgba($accent-red, 0.12);
-      color: rgba($accent-red, 0.7);
+      background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+      color: color-mix(in srgb, var(--accent-red) 70%, transparent);
     }
 
     .diff-line-marker {
-      color: $accent-red;
+      color: var(--accent-red);
     }
   }
 }
@@ -1323,9 +1323,9 @@
   width: 36px;
   padding: 0 4px;
   text-align: right;
-  color: $text-muted;
-  background: rgba($bg-tertiary, 0.5);
-  border-right: 1px solid rgba($border-color, 0.5);
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
   user-select: none;
   font-size: 10px;
 
@@ -1339,7 +1339,7 @@
   width: 14px;
   padding: 0 2px;
   text-align: center;
-  color: $text-muted;
+  color: var(--text-muted);
   user-select: none;
   font-weight: 600;
 }
@@ -1355,7 +1355,7 @@
 .diff-empty {
   padding: 12px;
   text-align: center;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 11px;
   font-style: italic;
 }
@@ -1376,10 +1376,10 @@
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  background: rgba($accent-blue, 0.1);
-  border: 1px solid rgba($accent-blue, 0.3);
+  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 30%, transparent);
   border-radius: $radius-sm;
-  color: $accent-blue;
+  color: var(--accent-blue);
   font-family: $font-mono;
   font-size: 12px;
   font-weight: 600;
@@ -1389,15 +1389,15 @@
     transition: all $transition-fast;
 
     &:hover {
-      background: rgba($accent-blue, 0.2);
-      border-color: $accent-blue;
+      background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+      border-color: var(--accent-blue);
       transform: translateY(-1px);
     }
   }
 }
 
 .read-tool-path {
-  color: $text-muted;
+  color: var(--text-muted);
   font-family: $font-mono;
   font-size: 10px;
   overflow: hidden;
@@ -1407,9 +1407,9 @@
 
 .read-tool-range {
   padding: 2px 8px;
-  background: rgba($text-muted, 0.2);
+  background: color-mix(in srgb, var(--text-muted) 20%, transparent);
   border-radius: $radius-sm;
-  color: $text-muted;
+  color: var(--text-muted);
   font-family: $font-mono;
   font-size: 10px;
 }
@@ -1424,7 +1424,7 @@
   .todo-tool-input {
     flex-basis: 100%;
     margin-top: 4px;
-    border: 1px solid rgba($border-color, 0.5);
+    border: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
     border-radius: $radius-sm;
     overflow: hidden;
   }
@@ -1443,8 +1443,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 6px 10px;
-  background: rgba($bg-tertiary, 0.6);
-  border-bottom: 1px solid $border-color;
+  background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+  border-bottom: 1px solid var(--border-color);
   border-radius: $radius-sm $radius-sm 0 0;
 }
 
@@ -1452,7 +1452,7 @@
   font-family: $font-mono;
   font-size: 12px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .todo-tool-stats {
@@ -1466,15 +1466,15 @@
   font-weight: 500;
 
   &.completed {
-    color: $accent-green;
+    color: var(--accent-green);
   }
 
   &.in-progress {
-    color: $accent-blue;
+    color: var(--accent-blue);
   }
 
   &.pending {
-    color: $text-muted;
+    color: var(--text-muted);
   }
 }
 
@@ -1483,7 +1483,7 @@
   flex-direction: column;
   gap: 2px;
   padding: 6px 0;
-  background: rgba($bg-primary, 0.3);
+  background: color-mix(in srgb, var(--bg-primary) 30%, transparent);
   border-radius: 0 0 $radius-sm $radius-sm;
   max-height: 200px;
   overflow-y: auto;
@@ -1499,39 +1499,39 @@
   transition: background $transition-fast;
 
   &:hover {
-    background: rgba($text-primary, 0.03);
+    background: color-mix(in srgb, var(--text-primary) 3%, transparent);
   }
 
   &.todo-completed {
     .todo-status-icon {
-      color: $accent-green;
+      color: var(--accent-green);
     }
     .todo-content {
-      color: $text-muted;
+      color: var(--text-muted);
       text-decoration: line-through;
       opacity: 0.7;
     }
   }
 
   &.todo-in_progress {
-    background: rgba($accent-blue, 0.06);
+    background: color-mix(in srgb, var(--accent-blue) 6%, transparent);
 
     .todo-status-icon {
-      color: $accent-blue;
+      color: var(--accent-blue);
       animation: pulse-icon 1.5s ease-in-out infinite;
     }
     .todo-content {
-      color: $accent-blue;
+      color: var(--accent-blue);
       font-weight: 500;
     }
   }
 
   &.todo-pending {
     .todo-status-icon {
-      color: $text-muted;
+      color: var(--text-muted);
     }
     .todo-content {
-      color: $text-primary;
+      color: var(--text-primary);
     }
   }
 }
@@ -1586,7 +1586,7 @@
   font-size: 11px;
   line-height: 1.4;
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
   min-width: 0;
 
   .task-tool-status-icon {
@@ -1594,12 +1594,12 @@
     width: 14px;
     text-align: center;
     font-size: 12px;
-    color: $text-muted;
+    color: var(--text-muted);
   }
 
   .task-tool-id {
     flex-shrink: 0;
-    color: $text-muted;
+    color: var(--text-muted);
     font-weight: 500;
     opacity: 0.85;
     font-size: 10px;
@@ -1614,7 +1614,7 @@
 
   .task-tool-note {
     flex-shrink: 1;
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 10px;
     opacity: 0.7;
     overflow: hidden;
@@ -1634,46 +1634,46 @@
 
 .task-tool-row-create {
   .task-tool-status-icon {
-    color: $text-muted;
+    color: var(--text-muted);
   }
   .task-tool-content {
-    color: $text-primary;
+    color: var(--text-primary);
   }
 }
 
 .task-tool-row-pending {
-  .task-tool-status-icon { color: $text-muted; }
-  .task-tool-content    { color: $text-primary; }
+  .task-tool-status-icon { color: var(--text-muted); }
+  .task-tool-content    { color: var(--text-primary); }
 }
 
 .task-tool-row-in_progress {
-  background: rgba($accent-blue, 0.06);
+  background: color-mix(in srgb, var(--accent-blue) 6%, transparent);
   .task-tool-status-icon {
-    color: $accent-blue;
+    color: var(--accent-blue);
     animation: pulse-icon 1.5s ease-in-out infinite;
   }
-  .task-tool-content { color: $accent-blue; font-weight: 500; }
+  .task-tool-content { color: var(--accent-blue); font-weight: 500; }
 }
 
 .task-tool-row-completed {
-  .task-tool-status-icon { color: $accent-green; }
-  .task-tool-content     { color: $text-muted; text-decoration: line-through; opacity: 0.8; }
+  .task-tool-status-icon { color: var(--accent-green); }
+  .task-tool-content     { color: var(--text-muted); text-decoration: line-through; opacity: 0.8; }
 }
 
 .task-tool-row-cancelled {
-  .task-tool-status-icon { color: $text-muted; }
-  .task-tool-content     { color: $text-muted; text-decoration: line-through; opacity: 0.7; }
+  .task-tool-status-icon { color: var(--text-muted); }
+  .task-tool-content     { color: var(--text-muted); text-decoration: line-through; opacity: 0.7; }
 }
 
 .task-tool-row-failed {
-  background: rgba($accent-red, 0.07);
-  .task-tool-status-icon { color: $accent-red; }
-  .task-tool-content     { color: $accent-red; font-weight: 500; }
+  background: color-mix(in srgb, var(--accent-red) 7%, transparent);
+  .task-tool-status-icon { color: var(--accent-red); }
+  .task-tool-content     { color: var(--accent-red); font-weight: 500; }
 }
 
 .task-tool-row-unknown {
-  .task-tool-status-icon { color: $text-muted; }
-  .task-tool-content     { color: $text-primary; }
+  .task-tool-status-icon { color: var(--text-muted); }
+  .task-tool-content     { color: var(--text-primary); }
 }
 
 // =============================================================================
@@ -1686,7 +1686,7 @@
   .ask-question-input {
     flex-basis: 100%;
     margin-top: 4px;
-    border: 1px solid rgba($border-color, 0.5);
+    border: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
     border-radius: $radius-sm;
     overflow: hidden;
   }
@@ -1702,7 +1702,7 @@
   .plan-tool-input {
     flex-basis: 100%;
     margin-top: 4px;
-    border: 1px solid rgba($border-color, 0.5);
+    border: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
     border-radius: $radius-sm;
     overflow: hidden;
   }
@@ -1743,20 +1743,20 @@
   font-family: $font-mono;
   font-size: 10px;
   line-height: 16px;
-  color: $text-secondary;
-  border: 1px solid rgba($border-color, 0.55);
+  color: var(--text-secondary);
+  border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
   border-radius: 4px;
   padding: 0 5px;
-  background: rgba($bg-primary, 0.4);
+  background: color-mix(in srgb, var(--bg-primary) 40%, transparent);
 }
 
 .toolsearch-toggle {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  border: 1px solid rgba($accent-yellow, 0.4);
-  background: rgba($accent-yellow, 0.1);
-  color: $accent-yellow;
+  border: 1px solid color-mix(in srgb, var(--accent-yellow) 40%, transparent);
+  background: color-mix(in srgb, var(--accent-yellow) 10%, transparent);
+  color: var(--accent-yellow);
   border-radius: 4px;
   padding: 0 5px;
   font-family: $font-mono;
@@ -1765,7 +1765,7 @@
   cursor: pointer;
 
   &:hover {
-    background: rgba($accent-yellow, 0.2);
+    background: color-mix(in srgb, var(--accent-yellow) 20%, transparent);
   }
 }
 
@@ -1773,16 +1773,16 @@
   font-family: $font-mono;
   font-size: 10px;
   line-height: 16px;
-  color: $accent-cyan;
-  border: 1px solid rgba($accent-cyan, 0.4);
+  color: var(--accent-cyan);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 40%, transparent);
   border-radius: 4px;
   padding: 0 5px;
-  background: rgba($accent-cyan, 0.1);
+  background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
 
   &.toolsearch-tool-chip--more {
-    color: $text-secondary;
-    border-color: rgba($border-color, 0.55);
-    background: rgba($bg-primary, 0.4);
+    color: var(--text-secondary);
+    border-color: color-mix(in srgb, var(--border-color) 55%, transparent);
+    background: color-mix(in srgb, var(--bg-primary) 40%, transparent);
   }
 }
 
@@ -1790,8 +1790,8 @@
   flex-basis: 100%;
   margin-top: 4px;
   padding: 4px 8px;
-  background: rgba($bg-primary, 0.32);
-  border: 1px solid rgba($border-color, 0.4);
+  background: color-mix(in srgb, var(--bg-primary) 32%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
   border-radius: $radius-sm;
 }
 
@@ -1811,12 +1811,12 @@
 }
 
 .toolsearch-query-key {
-  color: $accent-purple;
+  color: var(--accent-purple);
   word-break: break-word;
 }
 
 .toolsearch-query-value {
-  color: $text-secondary;
+  color: var(--text-secondary);
   word-break: break-word;
 }
 
@@ -1835,8 +1835,8 @@
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: rgba($bg-tertiary, 0.6);
-  border-bottom: 1px solid $border-color;
+  background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+  border-bottom: 1px solid var(--border-color);
   border-radius: $radius-sm $radius-sm 0 0;
 
   // Push the toggle/Open buttons to the right; title stays flush-left.
@@ -1854,13 +1854,13 @@
   font-family: $font-mono;
   font-size: 12px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .plan-tool-toggle {
-  border: 1px solid $border-color;
-  background: rgba($bg-primary, 0.7);
-  color: $text-secondary;
+  border: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+  color: var(--text-secondary);
   border-radius: $radius-sm;
   padding: 2px 8px;
   font-family: $font-mono;
@@ -1868,16 +1868,16 @@
   cursor: pointer;
 
   &:hover {
-    color: $text-primary;
-    border-color: rgba($accent-blue, 0.5);
-    background: rgba($accent-blue, 0.12);
+    color: var(--text-primary);
+    border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent);
+    background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
   }
 }
 
 .plan-tool-collapsed-preview {
   padding: 8px 10px;
-  background: rgba($bg-primary, 0.3);
-  color: $text-secondary;
+  background: color-mix(in srgb, var(--bg-primary) 30%, transparent);
+  color: var(--text-secondary);
   font-family: $font-mono;
   font-size: 11px;
   white-space: nowrap;
@@ -1887,7 +1887,7 @@
 
 .plan-tool-markdown {
   padding: 8px 10px;
-  background: rgba($bg-primary, 0.3);
+  background: color-mix(in srgb, var(--bg-primary) 30%, transparent);
   max-height: 320px;
   overflow: auto;
   font-size: 12px;
@@ -1908,7 +1908,7 @@
     margin: 6px 0;
     padding: 6px 8px;
     border-radius: $radius-sm;
-    background: rgba($bg-tertiary, 0.8);
+    background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
     overflow-x: auto;
   }
 
@@ -1924,7 +1924,7 @@
 .ask-question-block {
   & + & {
     margin-top: 6px;
-    border-top: 1px solid $border-color;
+    border-top: 1px solid var(--border-color);
     padding-top: 6px;
   }
 }
@@ -1934,8 +1934,8 @@
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: rgba($bg-tertiary, 0.6);
-  border-bottom: 1px solid $border-color;
+  background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+  border-bottom: 1px solid var(--border-color);
   border-radius: $radius-sm $radius-sm 0 0;
 }
 
@@ -1957,7 +1957,7 @@
   font-family: $font-mono;
   font-size: 12px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
   flex: 1;
 }
 
@@ -1980,7 +1980,7 @@
   flex-direction: column;
   gap: 2px;
   padding: 6px 0;
-  background: rgba($bg-primary, 0.3);
+  background: color-mix(in srgb, var(--bg-primary) 30%, transparent);
   border-radius: 0 0 $radius-sm $radius-sm;
 }
 
@@ -1991,7 +1991,7 @@
   border-left: 2px solid transparent;
 
   &:hover {
-    background: rgba($text-primary, 0.04);
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
   }
 
   &.expanded {
@@ -2258,20 +2258,20 @@
   font-family: $font-mono;
   font-size: 12px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .ask-option-preview-hint {
   margin-left: auto;
   font-size: 10px;
-  color: $text-muted;
+  color: var(--text-muted);
   opacity: 0.6;
 }
 
 .ask-option-desc {
   font-family: $font-mono;
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   padding: 2px 0 0 26px;
   line-height: 1.4;
 }
@@ -2282,9 +2282,9 @@
   font-family: $font-mono;
   font-size: 10px;
   line-height: 1.35;
-  color: $text-secondary;
-  background: rgba($bg-primary, 0.8);
-  border: 1px solid $border-color;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
   white-space: pre;
   overflow-x: auto;
@@ -2299,7 +2299,7 @@
     background: transparent;
   }
   &::-webkit-scrollbar-thumb {
-    background: rgba($text-muted, 0.3);
+    background: color-mix(in srgb, var(--text-muted) 30%, transparent);
     border-radius: 2px;
   }
 }
@@ -2360,13 +2360,13 @@
 
   &.is-error {
     .bash-output-container {
-      border-color: rgba($accent-red, 0.3);
+      border-color: color-mix(in srgb, var(--accent-red) 30%, transparent);
     }
     .bash-output-header {
-      background: rgba($accent-red, 0.1);
+      background: color-mix(in srgb, var(--accent-red) 10%, transparent);
     }
     .bash-output-icon {
-      color: $accent-red;
+      color: var(--accent-red);
     }
   }
 }
@@ -2374,8 +2374,8 @@
 .bash-output-container {
   display: flex;
   flex-direction: column;
-  background: rgba($bg-primary, 0.8);
-  border: 1px solid $border-color;
+  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
   overflow: hidden;
   flex: 1;
@@ -2386,28 +2386,28 @@
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: rgba($bg-tertiary, 0.5);
-  border-bottom: 1px solid $border-color;
+  background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .bash-output-icon {
   font-family: $font-mono;
   font-size: 12px;
   font-weight: 700;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .bash-output-label {
   font-size: 11px;
   font-weight: 500;
-  color: $text-muted;
+  color: var(--text-muted);
 }
 
 .bash-output-truncated {
   margin-left: auto;
   font-size: 10px;
-  color: $accent-orange;
-  background: rgba($accent-orange, 0.1);
+  color: var(--accent-orange);
+  background: color-mix(in srgb, var(--accent-orange) 10%, transparent);
   padding: 2px 6px;
   border-radius: 3px;
 }
@@ -2418,7 +2418,7 @@
   font-family: $font-mono;
   font-size: 11px;
   line-height: 1.5;
-  color: $text-primary;
+  color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 300px;
@@ -2432,10 +2432,10 @@
     background: transparent;
   }
   &::-webkit-scrollbar-thumb {
-    background: rgba($text-muted, 0.3);
+    background: color-mix(in srgb, var(--text-muted) 30%, transparent);
     border-radius: 3px;
     &:hover {
-      background: rgba($text-muted, 0.5);
+      background: color-mix(in srgb, var(--text-muted) 50%, transparent);
     }
   }
 }
@@ -2446,7 +2446,7 @@
   transition: background 0.15s ease;
 
   &:hover {
-    background: rgba($bg-tertiary, 0.8);
+    background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
   }
 }
 
@@ -2469,19 +2469,19 @@
   margin-left: 6px;
   padding: 2px 4px;
   border-radius: $radius-sm;
-  color: $text-muted;
+  color: var(--text-muted);
   cursor: pointer;
   opacity: 0.6;
 
   &:hover {
     opacity: 1;
-    background: rgba($accent-blue, 0.15);
-    color: $accent-blue;
+    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+    color: var(--accent-blue);
   }
 
   &.active {
     opacity: 1;
-    color: $accent-blue;
+    color: var(--accent-blue);
   }
 }
 
@@ -2498,9 +2498,9 @@
     font-family: $font-mono;
     font-size: 11px;
     line-height: 1.45;
-    color: $text-muted;
-    background: rgba($bg-tertiary, 0.6);
-    border-left: 2px solid rgba($accent-blue, 0.4);
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+    border-left: 2px solid color-mix(in srgb, var(--accent-blue) 40%, transparent);
     border-radius: 0 $radius-sm $radius-sm 0;
   }
 }
@@ -2514,8 +2514,8 @@
   display: inline-block;
   width: 11px;
   height: 11px;
-  border: 2px solid rgba($accent-yellow, 0.25);
-  border-top-color: $accent-yellow;
+  border: 2px solid color-mix(in srgb, var(--accent-yellow) 25%, transparent);
+  border-top-color: var(--accent-yellow);
   border-radius: 50%;
   animation: bash-spin 0.7s linear infinite;
   flex-shrink: 0;
@@ -2527,24 +2527,24 @@
 }
 
 .exec-task-inline {
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  background: rgba($bg-tertiary, 0.6);
+  background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
   overflow: hidden;
 
   &.status-running {
     border-color: var(--accent-yellow);
-    background: color-mix(in srgb, var(--accent-yellow) 8%, rgba($bg-tertiary, 0.6));
+    background: color-mix(in srgb, var(--accent-yellow) 8%, color-mix(in srgb, var(--bg-tertiary) 60%, transparent));
   }
 
   &.status-completed {
     border-color: var(--accent-green);
-    background: color-mix(in srgb, var(--accent-green) 8%, rgba($bg-tertiary, 0.6));
+    background: color-mix(in srgb, var(--accent-green) 8%, color-mix(in srgb, var(--bg-tertiary) 60%, transparent));
   }
 
   &.status-failed {
     border-color: var(--accent-red);
-    background: color-mix(in srgb, var(--accent-red) 8%, rgba($bg-tertiary, 0.6));
+    background: color-mix(in srgb, var(--accent-red) 8%, color-mix(in srgb, var(--bg-tertiary) 60%, transparent));
   }
 }
 
@@ -2553,8 +2553,8 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border-bottom: 1px solid $border-color;
-  background: rgba($bg-secondary, 0.6);
+  border-bottom: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-secondary) 60%, transparent);
   font-family: $font-mono;
   font-size: 12px;
   font-weight: 500;
@@ -2610,7 +2610,7 @@
 .exec-task-inline-terminal {
   max-height: 300px;
   overflow-y: auto;
-  background: rgba($bg-primary, 0.8);
+  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
   font-family: $font-mono;
   font-size: 12px;
   line-height: 1.5;
@@ -2909,8 +2909,8 @@
 }
 
 .bash-modal {
-  background: $bg-primary;
-  border: 1px solid $border-color;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-md;
   width: 90%;
   max-width: 800px;
@@ -2926,28 +2926,28 @@
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
-  background: rgba($bg-tertiary, 0.6);
-  border-bottom: 1px solid $border-color;
+  background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .bash-modal-icon {
   font-family: $font-mono;
   font-size: 16px;
   font-weight: 700;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .bash-modal-title {
   font-size: 14px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .bash-modal-close {
   margin-left: auto;
   background: transparent;
   border: none;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 20px;
   cursor: pointer;
   padding: 4px 8px;
@@ -2955,15 +2955,15 @@
   transition: all 0.15s ease;
 
   &:hover {
-    background: rgba($accent-red, 0.15);
-    color: $accent-red;
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    color: var(--accent-red);
   }
 }
 
 .bash-modal-command {
   padding: 10px 16px;
-  background: rgba($bg-tertiary, 0.4);
-  border-bottom: 1px solid $border-color;
+  background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+  border-bottom: 1px solid var(--border-color);
   max-height: 120px;
   overflow-y: auto;
 
@@ -2971,7 +2971,7 @@
     margin: 0;
     font-family: $font-mono;
     font-size: 12px;
-    color: $text-primary;
+    color: var(--text-primary);
     white-space: pre-wrap;
     word-break: break-all;
   }
@@ -2989,14 +2989,14 @@
     font-family: $font-mono;
     font-size: 12px;
     line-height: 1.6;
-    color: $text-primary;
+    color: var(--text-primary);
     white-space: pre-wrap;
     word-break: break-word;
   }
 
   // Loading state styling
   &.is-loading pre {
-    color: $text-muted;
+    color: var(--text-muted);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -3005,8 +3005,8 @@
       content: '';
       width: 12px;
       height: 12px;
-      border: 2px solid $text-muted;
-      border-top-color: $accent-blue;
+      border: 2px solid var(--text-muted);
+      border-top-color: var(--accent-blue);
       border-radius: 50%;
       animation: bash-loading-spin 0.8s linear infinite;
     }
@@ -3020,10 +3020,10 @@
     background: transparent;
   }
   &::-webkit-scrollbar-thumb {
-    background: rgba($text-muted, 0.3);
+    background: color-mix(in srgb, var(--text-muted) 30%, transparent);
     border-radius: 4px;
     &:hover {
-      background: rgba($text-muted, 0.5);
+      background: color-mix(in srgb, var(--text-muted) 50%, transparent);
     }
   }
 }
@@ -3041,7 +3041,7 @@
   font-family: $font-mono;
   font-size: 12px;
   line-height: 1.6;
-  color: $text-primary;
+  color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -3053,9 +3053,9 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: $accent-green;
-  background: rgba($accent-green, 0.15);
-  border: 1px solid rgba($accent-green, 0.4);
+  color: var(--accent-green);
+  background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-green) 40%, transparent);
   border-radius: 4px;
   padding: 1px 7px;
 }
@@ -3069,7 +3069,7 @@
   font-family: $font-mono;
   font-size: 12px;
   line-height: 1.7;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .json-node {
@@ -3093,13 +3093,13 @@
   user-select: none;
 
   &:hover {
-    background: rgba($text-muted, 0.08);
+    background: color-mix(in srgb, var(--text-muted) 8%, transparent);
   }
 }
 
 .json-toggle {
   font-size: 8px;
-  color: $text-muted;
+  color: var(--text-muted);
   margin-right: 5px;
   flex-shrink: 0;
   width: 10px;
@@ -3109,7 +3109,7 @@
 
 .json-collapsed-hint {
   font-size: 10px;
-  color: $text-muted;
+  color: var(--text-muted);
   font-style: italic;
   margin: 0 4px;
 }
@@ -3120,25 +3120,25 @@
 }
 
 .json-string {
-  color: $accent-green;
+  color: var(--accent-green);
 }
 
 .json-number {
-  color: $accent-orange;
+  color: var(--accent-orange);
 }
 
 .json-boolean {
-  color: $accent-purple;
+  color: var(--accent-purple);
   font-weight: 600;
 }
 
 .json-null {
-  color: $text-muted;
+  color: var(--text-muted);
   font-style: italic;
 }
 
 .json-punctuation {
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 // =============================================================================

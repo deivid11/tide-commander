@@ -15,12 +15,12 @@
   min-width: 300px;
   max-width: calc(100vw - 32px);
 
-  background: linear-gradient(135deg, $bg-secondary 0%, $bg-primary 100%);
-  border: 1px solid $accent-cyan;
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+  border: 1px solid var(--accent-cyan);
   border-radius: $radius-xl;
   box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.5),
-    0 0 20px rgba($accent-cyan, 0.2),
+    0 0 20px color-mix(in srgb, var(--accent-cyan) 20%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 
   animation: pwa-slide-up 0.3s ease-out;
@@ -58,12 +58,12 @@
   strong {
     font-size: 15px;
     font-weight: 600;
-    color: $text-primary;
+    color: var(--text-primary);
   }
 
   span {
     font-size: 13px;
-    color: $text-secondary;
+    color: var(--text-secondary);
   }
 }
 
@@ -76,25 +76,25 @@
 .pwa-install-dismiss {
   padding: 8px 16px;
   background: transparent;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   border-radius: $radius-md;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
   transition: all $transition-fast;
 
   &:hover {
     background: rgba(255, 255, 255, 0.05);
-    color: $text-primary;
+    color: var(--text-primary);
   }
 }
 
 .pwa-install-button {
   padding: 8px 20px;
-  background: linear-gradient(135deg, $accent-cyan 0%, color.adjust($accent-cyan, $lightness: -15%) 100%);
+  background: linear-gradient(135deg, var(--accent-cyan) 0%, color-mix(in srgb, var(--accent-cyan) 82%, black) 100%);
   border: none;
   border-radius: $radius-md;
-  color: $bg-primary;
+  color: var(--bg-primary);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
