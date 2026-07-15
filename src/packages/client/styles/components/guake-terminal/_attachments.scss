@@ -10,8 +10,8 @@
   flex-wrap: wrap;
   gap: 6px;
   padding: 6px 14px;
-  background: rgba($dracula-bg-darker, 0.95);
-  border-top: 1px solid rgba($dracula-comment, 0.15);
+  background: color-mix(in srgb, var(--bg-primary) 95%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--text-muted) 15%, transparent);
 }
 
 .guake-attachment {
@@ -19,8 +19,8 @@
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: rgba($dracula-current, 0.4);
-  border: 1px solid rgba($dracula-comment, 0.25);
+  background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 25%, transparent);
   border-radius: $radius-md;
   font-family: $font-mono;
   font-size: 11px;
@@ -28,21 +28,21 @@
   position: relative;
 
   &.is-image {
-    border-color: rgba($dracula-pink, 0.4);
+    border-color: color-mix(in srgb, var(--accent-pink) 40%, transparent);
     padding: 4px;
     gap: 0;
 
     &:hover {
-      border-color: rgba($dracula-pink, 0.8);
-      box-shadow: 0 0 12px rgba($dracula-pink, 0.3);
+      border-color: color-mix(in srgb, var(--accent-pink) 80%, transparent);
+      box-shadow: 0 0 12px color-mix(in srgb, var(--accent-pink) 30%, transparent);
     }
   }
 
   &.is-document {
-    border-color: rgba($dracula-orange, 0.3);
+    border-color: color-mix(in srgb, var(--accent-orange) 30%, transparent);
 
     .guake-attachment-icon {
-      color: $dracula-orange;
+      color: var(--accent-orange);
     }
   }
 
@@ -50,8 +50,8 @@
     cursor: pointer;
 
     &:hover {
-      background: rgba($dracula-pink, 0.15);
-      border-color: rgba($dracula-pink, 0.5);
+      background: color-mix(in srgb, var(--accent-pink) 15%, transparent);
+      border-color: color-mix(in srgb, var(--accent-pink) 50%, transparent);
     }
   }
 }
@@ -61,7 +61,7 @@
   height: 36px;
   object-fit: cover;
   border-radius: $radius-sm;
-  border: 1px solid rgba($dracula-pink, 0.4);
+  border: 1px solid color-mix(in srgb, var(--accent-pink) 40%, transparent);
   flex-shrink: 0;
 }
 
@@ -99,7 +99,7 @@
 }
 
 .guake-attachment-name {
-  color: $dracula-fg;
+  color: var(--text-primary);
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -109,18 +109,18 @@
 }
 
 .guake-attachment-size {
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-size: 9px;
 }
 
 .guake-attachment-uploading {
   opacity: 0.75;
-  border-color: rgba($dracula-purple, 0.4) !important;
-  background: rgba($dracula-purple, 0.12) !important;
+  border-color: color-mix(in srgb, var(--accent-purple) 40%, transparent) !important;
+  background: color-mix(in srgb, var(--accent-purple) 12%, transparent) !important;
   pointer-events: none;
 
   .guake-attachment-size {
-    color: $dracula-purple;
+    color: var(--accent-purple);
   }
 }
 
@@ -128,8 +128,8 @@
   display: inline-block;
   width: 14px;
   height: 14px;
-  border: 2px solid rgba($dracula-purple, 0.3);
-  border-top-color: $dracula-purple;
+  border: 2px solid color-mix(in srgb, var(--accent-purple) 30%, transparent);
+  border-top-color: var(--accent-purple);
   border-radius: 50%;
   flex-shrink: 0;
   animation: mic-spin 0.8s linear infinite;
@@ -141,7 +141,7 @@
   justify-content: center;
   background: transparent;
   border: none;
-  color: rgba($dracula-comment, 0.6);
+  color: color-mix(in srgb, var(--text-muted) 60%, transparent);
   font-size: 12px;
   line-height: 1;
   width: 16px;
@@ -152,8 +152,8 @@
   transition: all $transition-fast;
 
   &:hover {
-    color: $dracula-red;
-    background: rgba($dracula-red, 0.15);
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
   }
 }
 
@@ -166,8 +166,8 @@
   flex-wrap: wrap;
   gap: 6px;
   padding: 6px 14px;
-  background: rgba($dracula-bg-darker, 0.95);
-  border-top: 1px solid rgba($dracula-comment, 0.15);
+  background: color-mix(in srgb, var(--bg-primary) 95%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--text-muted) 15%, transparent);
 }
 
 .pasted-text-chip {
@@ -175,20 +175,20 @@
   align-items: center;
   gap: 5px;
   padding: 3px 8px;
-  background: rgba($dracula-cyan, 0.15);
-  border: 1px solid rgba($dracula-cyan, 0.4);
+  background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 40%, transparent);
   border-radius: $radius-md;
   font-family: $font-mono;
   font-size: 11px;
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   cursor: pointer;
   transition: all $transition-fast;
 
   &:hover {
-    background: rgba($dracula-cyan, 0.25);
-    border-color: $dracula-cyan;
+    background: color-mix(in srgb, var(--accent-cyan) 25%, transparent);
+    border-color: var(--accent-cyan);
     transform: scale(1.02);
-    box-shadow: 0 2px 8px rgba($dracula-cyan, 0.3);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--accent-cyan) 30%, transparent);
   }
 }
 
@@ -202,9 +202,9 @@
 }
 
 .pasted-text-chip-count {
-  color: rgba($dracula-cyan, 0.8);
+  color: color-mix(in srgb, var(--accent-cyan) 80%, transparent);
   font-size: 9px;
-  background: rgba($dracula-cyan, 0.15);
+  background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
   padding: 1px 4px;
   border-radius: 3px;
 }
@@ -215,7 +215,7 @@
   justify-content: center;
   background: transparent;
   border: none;
-  color: rgba($dracula-cyan, 0.6);
+  color: color-mix(in srgb, var(--accent-cyan) 60%, transparent);
   font-size: 12px;
   line-height: 1;
   width: 16px;
@@ -226,8 +226,8 @@
   transition: all $transition-fast;
 
   &:hover {
-    color: $dracula-red;
-    background: rgba($dracula-red, 0.15);
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
   }
 }
 
@@ -237,7 +237,7 @@
   justify-content: center;
   opacity: 0;
   transition: opacity $transition-fast;
-  color: rgba($dracula-cyan, 0.7);
+  color: color-mix(in srgb, var(--accent-cyan) 70%, transparent);
 
   .pasted-text-chip:hover & {
     opacity: 1;
@@ -259,10 +259,10 @@
   display: flex;
   flex-direction: column;
   padding: 0;
-  background: $dracula-bg;
-  border: 2px solid $dracula-cyan;
+  background: var(--bg-secondary);
+  border: 2px solid var(--accent-cyan);
   border-radius: $radius-lg;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba($dracula-cyan, 0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px color-mix(in srgb, var(--accent-cyan) 30%, transparent);
   animation: modal-scale-in 0.2s ease-out;
 }
 
@@ -271,8 +271,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 20px;
-  background: rgba($dracula-current, 0.5);
-  border-bottom: 1px solid $dracula-current;
+  background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+  border-bottom: 1px solid var(--bg-tertiary);
 }
 
 .pasted-text-modal-title {
@@ -281,7 +281,7 @@
   gap: 10px;
   font-size: 15px;
   font-weight: 600;
-  color: $dracula-fg;
+  color: var(--text-primary);
 }
 
 .pasted-text-modal-icon {
@@ -291,8 +291,8 @@
 .pasted-text-modal-count {
   font-size: 11px;
   font-weight: 500;
-  color: $dracula-cyan;
-  background: rgba($dracula-cyan, 0.15);
+  color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
   padding: 2px 8px;
   border-radius: $radius-sm;
 }
@@ -304,9 +304,9 @@
 }
 
 .pasted-text-modal-close {
-  background: rgba($dracula-red, 0.2);
-  border: 1px solid $dracula-red;
-  color: $dracula-red;
+  background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+  border: 1px solid var(--accent-red);
+  color: var(--accent-red);
   width: 28px;
   height: 28px;
   border-radius: $radius-sm;
@@ -319,8 +319,8 @@
   justify-content: center;
 
   &:hover {
-    background: $dracula-red;
-    color: $dracula-bg;
+    background: var(--accent-red);
+    color: var(--bg-secondary);
   }
 }
 
@@ -335,11 +335,11 @@
   font-family: $font-mono;
   font-size: 12px;
   line-height: 1.5;
-  color: $dracula-fg;
-  background: rgba($dracula-current, 0.3);
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
   padding: 12px 16px;
   border-radius: $radius-md;
-  border: 1px solid rgba($dracula-comment, 0.25);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 25%, transparent);
   white-space: pre-wrap;
   word-wrap: break-word;
   margin: 0;
@@ -354,9 +354,9 @@
   font-family: $font-mono;
   font-size: 12px;
   line-height: 1.5;
-  color: $dracula-fg;
-  background: rgba($dracula-current, 0.4);
-  border: 1px solid $dracula-cyan;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+  border: 1px solid var(--accent-cyan);
   border-radius: $radius-md;
   padding: 12px 16px;
   resize: vertical;
@@ -364,8 +364,8 @@
   outline: none;
 
   &:focus {
-    border-color: $dracula-cyan;
-    box-shadow: 0 0 0 2px rgba($dracula-cyan, 0.2);
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-cyan) 20%, transparent);
   }
 }
 
@@ -376,22 +376,22 @@
   gap: 4px;
   padding: 4px 10px;
   margin: 2px 4px;
-  background: rgba($dracula-pink, 0.15);
-  border: 1px solid rgba($dracula-pink, 0.4);
+  background: color-mix(in srgb, var(--accent-pink) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-pink) 40%, transparent);
   border-radius: $radius-sm;
   font-family: $font-mono;
   font-size: 12px;
-  color: $dracula-pink;
+  color: var(--accent-pink);
 
   &.clickable {
     cursor: pointer;
     transition: all $transition-fast;
 
     &:hover {
-      background: rgba($dracula-pink, 0.25);
-      border-color: $dracula-pink;
+      background: color-mix(in srgb, var(--accent-pink) 25%, transparent);
+      border-color: var(--accent-pink);
       transform: scale(1.02);
-      box-shadow: 0 2px 8px rgba($dracula-pink, 0.3);
+      box-shadow: 0 2px 8px color-mix(in srgb, var(--accent-pink) 30%, transparent);
     }
   }
 }
@@ -402,7 +402,7 @@
   object-fit: cover;
   border-radius: 3px;
   flex-shrink: 0;
-  border: 1px solid rgba($dracula-pink, 0.3);
+  border: 1px solid color-mix(in srgb, var(--accent-pink) 30%, transparent);
 }
 
 // Codex image-generation results: a substantial inline preview rather than the
@@ -414,9 +414,9 @@
   max-width: min(420px, calc(100% - 28px));
   margin: 8px 14px 10px 26px;
   padding: 5px;
-  border: 1px solid rgba($dracula-cyan, 0.38);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 38%, transparent);
   border-radius: $radius-md;
-  background: linear-gradient(145deg, rgba($dracula-current, 0.72), rgba(#000, 0.28));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--bg-tertiary) 72%, transparent), rgba(#000, 0.28));
   box-shadow: 0 5px 18px rgba(#000, 0.24);
 
   img {
@@ -446,13 +446,13 @@
   gap: 5px;
   padding: 3px 9px;
   margin: 2px 4px;
-  background: rgba($dracula-cyan, 0.12);
-  border: 1px solid rgba($dracula-cyan, 0.35);
+  background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent);
   border-radius: $radius-sm;
   font-family: $font-mono;
   font-size: 11.5px;
   line-height: 1.4;
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   vertical-align: middle;
 
   .image-annotation-icon {
@@ -473,14 +473,14 @@
     max-height: 220px;
     object-fit: contain;
     border-radius: $radius-sm;
-    border: 1px solid rgba($dracula-purple, 0.4);
+    border: 1px solid color-mix(in srgb, var(--accent-purple) 40%, transparent);
     background: rgba(#000, 0.2);
     cursor: pointer;
     transition: all $transition-fast;
 
     &:hover {
-      border-color: $dracula-purple;
-      box-shadow: 0 2px 10px rgba($dracula-purple, 0.35);
+      border-color: var(--accent-purple);
+      box-shadow: 0 2px 10px color-mix(in srgb, var(--accent-purple) 35%, transparent);
     }
   }
 }
@@ -492,20 +492,20 @@
   gap: 4px;
   padding: 4px 10px;
   margin: 2px 4px;
-  background: rgba($dracula-orange, 0.15);
-  border: 1px solid rgba($dracula-orange, 0.4);
+  background: color-mix(in srgb, var(--accent-orange) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-orange) 40%, transparent);
   border-radius: $radius-sm;
   font-family: $font-mono;
   font-size: 12px;
-  color: $dracula-orange;
+  color: var(--accent-orange);
   cursor: pointer;
   transition: all $transition-fast;
 
   &:hover {
-    background: rgba($dracula-orange, 0.25);
-    border-color: $dracula-orange;
+    background: color-mix(in srgb, var(--accent-orange) 25%, transparent);
+    border-color: var(--accent-orange);
     transform: scale(1.02);
-    box-shadow: 0 2px 8px rgba($dracula-orange, 0.3);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--accent-orange) 30%, transparent);
   }
 }
 
@@ -537,10 +537,10 @@
 }
 
 .image-modal {
-  background: $dracula-bg;
-  border: 2px solid $dracula-purple;
+  background: var(--bg-secondary);
+  border: 2px solid var(--accent-purple);
   border-radius: $radius-lg;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba($dracula-purple, 0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px color-mix(in srgb, var(--accent-purple) 30%, transparent);
   max-width: 90vw;
   max-height: 90vh;
   display: flex;
@@ -565,8 +565,8 @@
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
-  background: rgba($dracula-current, 0.5);
-  border-bottom: 1px solid $dracula-current;
+  background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+  border-bottom: 1px solid var(--bg-tertiary);
 }
 
 .image-modal-heading {
@@ -579,7 +579,7 @@
   font-family: $font-mono;
   font-size: 13px;
   font-weight: 600;
-  color: $dracula-fg;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -589,7 +589,7 @@
   display: block;
   margin-top: 2px;
   font-size: 11px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -602,23 +602,23 @@
   flex-shrink: 0;
   width: 28px;
   height: 28px;
-  border: 1px solid $dracula-current;
+  border: 1px solid var(--bg-tertiary);
   border-radius: $radius-sm;
-  background: rgba($dracula-current, 0.5);
-  color: $dracula-fg;
+  background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+  color: var(--text-primary);
   text-decoration: none;
   transition: all $transition-fast;
 
   &:hover {
-    background: $dracula-current;
-    border-color: $dracula-purple;
+    background: var(--bg-tertiary);
+    border-color: var(--accent-purple);
   }
 }
 
 .image-modal-close {
-  background: rgba($dracula-red, 0.2);
-  border: 1px solid $dracula-red;
-  color: $dracula-red;
+  background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+  border: 1px solid var(--accent-red);
+  color: var(--accent-red);
   flex-shrink: 0;
   width: 28px;
   height: 28px;
@@ -632,8 +632,8 @@
   justify-content: center;
 
   &:hover {
-    background: $dracula-red;
-    color: $dracula-bg;
+    background: var(--accent-red);
+    color: var(--bg-secondary);
   }
 }
 
@@ -673,8 +673,8 @@
   flex-direction: column;
   gap: 6px;
   padding: 6px 14px;
-  background: rgba($dracula-bg-darker, 0.95);
-  border-top: 1px solid rgba($dracula-comment, 0.15);
+  background: color-mix(in srgb, var(--bg-primary) 95%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--text-muted) 15%, transparent);
 }
 
 .guake-pending-messages-header {
@@ -683,7 +683,7 @@
   gap: 6px;
   font-family: $font-mono;
   font-size: 11px;
-  color: $dracula-yellow;
+  color: var(--accent-yellow);
   font-weight: 500;
 
   svg,
@@ -703,18 +703,18 @@
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  background: rgba($dracula-yellow, 0.12);
-  border: 1px solid rgba($dracula-yellow, 0.35);
+  background: color-mix(in srgb, var(--accent-yellow) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-yellow) 35%, transparent);
   border-radius: $radius-md;
   font-family: $font-mono;
   font-size: 11px;
-  color: $dracula-yellow;
+  color: var(--accent-yellow);
   transition: all $transition-fast;
   max-width: 100%;
 
   &:hover {
-    background: rgba($dracula-yellow, 0.2);
-    border-color: rgba($dracula-yellow, 0.6);
+    background: color-mix(in srgb, var(--accent-yellow) 20%, transparent);
+    border-color: color-mix(in srgb, var(--accent-yellow) 60%, transparent);
   }
 }
 
@@ -732,7 +732,7 @@
   justify-content: center;
   background: transparent;
   border: none;
-  color: rgba($dracula-yellow, 0.6);
+  color: color-mix(in srgb, var(--accent-yellow) 60%, transparent);
   font-size: 12px;
   line-height: 1;
   width: 16px;
@@ -744,8 +744,8 @@
   flex-shrink: 0;
 
   &:hover {
-    color: $dracula-red;
-    background: rgba($dracula-red, 0.15);
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
   }
 }
 
@@ -758,8 +758,8 @@
   bottom: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: $dracula-bg-darker;
-  border: 1px solid rgba($dracula-cyan, 0.35);
+  background: var(--bg-primary);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent);
   border-radius: $radius-md;
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
   z-index: 500;
@@ -786,30 +786,30 @@
   cursor: pointer;
   font-family: $font-mono;
   font-size: 12px;
-  color: $dracula-fg;
+  color: var(--text-primary);
   transition: background $transition-fast;
 
   &:hover,
   &.is-selected {
-    background: rgba($dracula-cyan, 0.12);
+    background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
   }
 
   &.is-selected {
     .file-mention-dropdown__name {
-      color: $dracula-cyan;
+      color: var(--accent-cyan);
     }
   }
 
   // Agent mentions: accent the row so tagging an agent reads distinct from a file.
   &.is-agent {
-    box-shadow: inset 2px 0 0 $dracula-purple;
+    box-shadow: inset 2px 0 0 var(--accent-purple);
 
     .file-mention-dropdown__icon {
-      color: $dracula-purple;
+      color: var(--accent-purple);
     }
 
     .file-mention-dropdown__path {
-      color: rgba($dracula-purple, 0.85);
+      color: color-mix(in srgb, var(--accent-purple) 85%, transparent);
     }
   }
 }
@@ -818,7 +818,7 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  color: $dracula-comment;
+  color: var(--text-muted);
   width: 14px;
 }
 
@@ -829,7 +829,7 @@
 }
 
 .file-mention-dropdown__path {
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -842,7 +842,7 @@
   padding: 4px 12px;
   font-family: $font-mono;
   font-size: 10px;
-  color: $dracula-comment;
-  border-top: 1px solid rgba($dracula-comment, 0.15);
-  background: rgba($dracula-bg, 0.5);
+  color: var(--text-muted);
+  border-top: 1px solid color-mix(in srgb, var(--text-muted) 15%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
 }

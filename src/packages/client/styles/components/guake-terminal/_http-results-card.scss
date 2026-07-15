@@ -11,11 +11,11 @@
 .http-results-card {
   font-family: $font-mono;
   font-size: 11.5px;
-  color: var(--tool-use-text, #{$text-primary});
-  background: color-mix(in srgb, var(--tool-use-bg, #{$bg-tertiary}) 85%, var(--bg-primary, #{$bg-primary}) 15%);
-  border: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 60%, transparent);
+  color: var(--tool-use-text, var(--text-primary));
+  background: color-mix(in srgb, var(--tool-use-bg, var(--bg-tertiary)) 85%, var(--bg-primary, var(--bg-primary)) 15%);
+  border: 1px solid color-mix(in srgb, var(--tool-use-border, var(--border-color)) 60%, transparent);
   border-left-width: 3px;
-  border-left-color: $accent-cyan;
+  border-left-color: var(--accent-cyan);
   border-radius: $radius-md;
   width: 100%;
   padding: 8px 12px;
@@ -23,9 +23,9 @@
   flex-direction: column;
   gap: 6px;
 
-  &.status-ok { border-left-color: $accent-green; }
-  &.status-http-error { border-left-color: $accent-orange; }
-  &.status-error { border-left-color: $accent-red; }
+  &.status-ok { border-left-color: var(--accent-green); }
+  &.status-http-error { border-left-color: var(--accent-orange); }
+  &.status-error { border-left-color: var(--accent-red); }
 
   .hrc-header {
     display: flex;
@@ -39,7 +39,7 @@
     align-items: center;
     gap: 6px;
     font-weight: 600;
-    color: $accent-cyan;
+    color: var(--accent-cyan);
   }
 
   .hrc-method {
@@ -56,7 +56,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: var(--tool-use-text, #{$text-primary});
+    color: var(--tool-use-text, var(--text-primary));
   }
 
   .hrc-status {
@@ -70,19 +70,19 @@
   }
 
   .hrc-meta {
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 11px;
     flex-shrink: 0;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 
-    &.type { color: $text-secondary; }
+    &.type { color: var(--text-secondary); }
     &.when { min-width: 56px; text-align: right; }
   }
 
   .hrc-env {
-    color: $accent-purple;
-    border: 1px solid rgba($accent-purple, 0.4);
+    color: var(--accent-purple);
+    border: 1px solid color-mix(in srgb, var(--accent-purple) 40%, transparent);
     border-radius: $radius-sm;
     font-size: 10px;
     padding: 0 5px;
@@ -90,7 +90,7 @@
   }
 
   .hrc-url {
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 11px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -105,15 +105,15 @@
     font-size: 11px;
   }
 
-  .hrc-error { color: $accent-red; }
-  .hrc-warn { color: $accent-orange; }
+  .hrc-error { color: var(--accent-red); }
+  .hrc-warn { color: var(--accent-orange); }
 
   .hrc-body {
     margin: 0;
     padding: 8px 10px;
-    background: var(--bg-primary, #{$bg-primary});
+    background: var(--bg-primary, var(--bg-primary));
     border-radius: $radius-sm;
-    color: $text-secondary;
+    color: var(--text-secondary);
     max-height: 220px;
     overflow-y: auto;
     white-space: pre-wrap;
@@ -124,7 +124,7 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    border-top: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 40%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--tool-use-border, var(--border-color)) 40%, transparent);
     padding-top: 6px;
   }
 
@@ -138,7 +138,7 @@
   }
 
   .hrc-more {
-    color: $text-muted;
+    color: var(--text-muted);
     padding-left: 54px;
   }
 }
@@ -149,9 +149,9 @@
 .http-run-inline {
   font-family: $font-mono;
   font-size: 11.5px;
-  color: var(--tool-use-text, #{$text-primary});
-  background: color-mix(in srgb, var(--tool-use-bg, #{$bg-tertiary}) 85%, var(--bg-primary, #{$bg-primary}) 15%);
-  border: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 60%, transparent);
+  color: var(--tool-use-text, var(--text-primary));
+  background: color-mix(in srgb, var(--tool-use-bg, var(--bg-tertiary)) 85%, var(--bg-primary, var(--bg-primary)) 15%);
+  border: 1px solid color-mix(in srgb, var(--tool-use-border, var(--border-color)) 60%, transparent);
   border-left-width: 3px;
   border-radius: $radius-md;
   width: 100%;
@@ -162,10 +162,10 @@
   flex-direction: column;
   gap: 5px;
 
-  &.status-running { border-left-color: $accent-blue; }
-  &.status-ok { border-left-color: $accent-green; }
-  &.status-http-error { border-left-color: $accent-orange; }
-  &.status-error { border-left-color: $accent-red; }
+  &.status-running { border-left-color: var(--accent-blue); }
+  &.status-ok { border-left-color: var(--accent-green); }
+  &.status-http-error { border-left-color: var(--accent-orange); }
+  &.status-error { border-left-color: var(--accent-red); }
 
   .hri-header {
     display: flex;
@@ -193,14 +193,14 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    color: $accent-blue;
+    color: var(--accent-blue);
     flex-shrink: 0;
   }
 
   .hri-spin {
     width: 9px;
     height: 9px;
-    border: 2px solid $accent-blue;
+    border: 2px solid var(--accent-blue);
     border-top-color: transparent;
     border-radius: 50%;
     animation: hri-spin 0.7s linear infinite;
@@ -218,7 +218,7 @@
   }
 
   .hri-meta {
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 11px;
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
@@ -226,8 +226,8 @@
   }
 
   .hri-env {
-    color: $accent-purple;
-    border: 1px solid rgba($accent-purple, 0.4);
+    color: var(--accent-purple);
+    border: 1px solid color-mix(in srgb, var(--accent-purple) 40%, transparent);
     border-radius: $radius-sm;
     font-size: 10px;
     padding: 0 5px;
@@ -247,43 +247,43 @@
     align-items: center;
     gap: 4px;
     background: transparent;
-    border: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 60%, transparent);
+    border: 1px solid color-mix(in srgb, var(--tool-use-border, var(--border-color)) 60%, transparent);
     border-radius: $radius-sm;
-    color: $text-secondary;
+    color: var(--text-secondary);
     font: inherit;
     font-size: 10.5px;
     padding: 2px 7px;
     cursor: pointer;
 
     &:hover {
-      color: $text-primary;
-      border-color: rgba($accent-blue, 0.6);
+      color: var(--text-primary);
+      border-color: color-mix(in srgb, var(--accent-blue) 60%, transparent);
     }
 
     &.active {
-      color: $accent-blue;
-      border-color: rgba($accent-blue, 0.6);
+      color: var(--accent-blue);
+      border-color: color-mix(in srgb, var(--accent-blue) 60%, transparent);
     }
 
     &.rerun {
-      color: $accent-green;
-      border-color: rgba($accent-green, 0.5);
+      color: var(--accent-green);
+      border-color: color-mix(in srgb, var(--accent-green) 50%, transparent);
 
       &:hover {
-        background: rgba($accent-green, 0.12);
-        color: $accent-green;
+        background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+        color: var(--accent-green);
       }
     }
   }
 
   .hri-url {
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 11px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 
-    .hri-redirect { color: $accent-cyan; }
+    .hri-redirect { color: var(--accent-cyan); }
   }
 
   .hri-error,
@@ -294,15 +294,15 @@
     font-size: 11px;
   }
 
-  .hri-error { color: $accent-red; }
-  .hri-warn { color: $accent-orange; }
+  .hri-error { color: var(--accent-red); }
+  .hri-warn { color: var(--accent-orange); }
 
   .hri-headers {
     max-height: 150px;
     overflow-y: auto;
-    color: $text-secondary;
+    color: var(--text-secondary);
     font-size: 11px;
-    border-top: 1px solid color-mix(in srgb, var(--tool-use-border, #{$border-color}) 40%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--tool-use-border, var(--border-color)) 40%, transparent);
     padding-top: 5px;
 
     .hri-header-line {
@@ -310,7 +310,7 @@
       text-overflow: ellipsis;
       white-space: nowrap;
 
-      .hri-header-name { color: $accent-blue; }
+      .hri-header-name { color: var(--accent-blue); }
     }
   }
 
@@ -320,22 +320,22 @@
     gap: 5px;
     background: transparent;
     border: none;
-    color: $text-secondary;
+    color: var(--text-secondary);
     font: inherit;
     font-size: 10.5px;
     padding: 0;
     cursor: pointer;
     text-align: left;
 
-    &:hover { color: $text-primary; }
+    &:hover { color: var(--text-primary); }
   }
 
   .hri-body {
     margin: 0;
     padding: 8px 10px;
-    background: var(--bg-primary, #{$bg-primary});
+    background: var(--bg-primary, var(--bg-primary));
     border-radius: $radius-sm;
-    color: $text-secondary;
+    color: var(--text-secondary);
     max-height: 260px;
     overflow-y: auto;
     white-space: pre-wrap;
@@ -343,7 +343,7 @@
   }
 
   .hri-truncated {
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 10.5px;
     font-style: italic;
   }

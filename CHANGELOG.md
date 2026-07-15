@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.165.0] - 2026-07-14
+
+### Added
+- **Five new themes** - Abyss Ember (warm coals over the void), Abyss Frost (glacial cyan), Abyss Moss (soft forest charcoal), Abyss Dusk (warm, low-blue-light night reading), and One Dark (IntelliJ-accurate dark chrome, distinct from the editor-only Atom gray).
+- **Eye-comfort theme tokens** - themes can now define their own text-selection, hover, thinking, and working-status colors; older themes get derived fallbacks automatically, so every theme stays coherent.
+
+### Fixed
+- **Themes now apply to the whole app** - selecting a theme previously only repainted the chat/message stream; the rest of the UI was compiled against a fixed palette and silently ignored your choice. Database panels (sidebar, tabs, query editor, results grid, history), the file explorer (tree, tabs, viewer, git/diff/conflict/search/history), all modals (settings, shortcuts, statistics, system prompt, test runner, building config, WhatsApp, session search), the dashboard and flat views, commander grid and header, toolbox, spotlight, agent bar, unit panel, toasts, forms, and mobile layouts now all follow the active theme.
+- **Embedded terminal ignored the theme** - the terminal was hardcoded to Dracula regardless of your selection; it now matches the active theme (background, text, and ANSI colors) and repaints instantly when you switch themes, with no reload.
+- **Text selection was theme-blind** - highlighting text now uses a soft per-theme tint instead of a single fixed color that clashed on warm and light-accent themes.
+
 ## [1.164.1] - 2026-07-14
 
 ### Changed

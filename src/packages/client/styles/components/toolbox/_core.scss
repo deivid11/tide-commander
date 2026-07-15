@@ -8,21 +8,21 @@
   width: 36px;
   height: 36px;
   border-radius: $radius-lg;
-  background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
-  border: 1px solid $dracula-comment;
-  color: $dracula-green;
+  background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--text-muted);
+  color: var(--accent-green);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 150;
   transition: all $transition-fast;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px color-mix(in srgb, #000 30%, transparent);
 
   &:hover {
-    border-color: $dracula-green;
-    color: $dracula-green;
-    background: rgba($dracula-green, 0.1);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 10%, transparent);
   }
 
   &:disabled {
@@ -31,9 +31,9 @@
   }
 
   &.recording {
-    border-color: $dracula-red;
-    color: $dracula-red;
-    background: rgba($dracula-red, 0.15);
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
     animation: voice-pulse 1s ease-in-out infinite;
 
     svg {
@@ -42,29 +42,29 @@
   }
 
   &.processing {
-    border-color: $dracula-yellow;
-    color: $dracula-yellow;
-    background: rgba($dracula-yellow, 0.1);
+    border-color: var(--accent-yellow);
+    color: var(--accent-yellow);
+    background: color-mix(in srgb, var(--accent-yellow) 10%, transparent);
 
     .voice-assistant-indicator {
-      background: $dracula-yellow;
+      background: var(--accent-yellow);
     }
   }
 
   &.speaking {
-    border-color: $dracula-cyan;
-    color: $dracula-cyan;
-    background: rgba($dracula-cyan, 0.1);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
 
     .voice-assistant-indicator {
-      background: $dracula-cyan;
+      background: var(--accent-cyan);
       animation: voice-speaking 0.3s ease-in-out infinite;
     }
   }
 
   &.error {
-    border-color: $dracula-orange;
-    color: $dracula-orange;
+    border-color: var(--accent-orange);
+    color: var(--accent-orange);
   }
 }
 
@@ -74,17 +74,17 @@
   right: -2px;
   width: 8px;
   height: 8px;
-  background: $dracula-red;
+  background: var(--accent-red);
   border-radius: 50%;
   animation: voice-pulse 1s ease-in-out infinite;
 }
 
 @keyframes voice-pulse {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba($dracula-red, 0.4);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-red) 40%, transparent);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba($dracula-red, 0);
+    box-shadow: 0 0 0 8px transparent;
   }
 }
 
@@ -116,21 +116,21 @@
   width: 36px;
   height: 36px;
   border-radius: $radius-lg;
-  background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
-  border: 1px solid $dracula-comment;
-  color: $dracula-cyan;
+  background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--text-muted);
+  color: var(--accent-cyan);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 150;
   transition: all $transition-fast;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px color-mix(in srgb, #000 30%, transparent);
 
   &:hover {
-    border-color: $dracula-cyan;
-    color: $dracula-cyan;
-    background: linear-gradient(180deg, color.adjust($dracula-current, $lightness: 5%) 0%, $dracula-current 100%);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 92%, white) 0%, var(--bg-tertiary) 100%);
   }
 }
 
@@ -142,21 +142,21 @@
   width: 36px;
   height: 36px;
   border-radius: $radius-lg;
-  background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
-  border: 1px solid $dracula-comment;
-  color: $accent-blue;
+  background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--text-muted);
+  color: var(--accent-blue);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 150;
   transition: all $transition-fast;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px color-mix(in srgb, #000 30%, transparent);
 
   &:hover {
-    border-color: $accent-blue;
-    color: $accent-blue;
-    background: linear-gradient(180deg, color.adjust($dracula-current, $lightness: 5%) 0%, $dracula-current 100%);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 92%, white) 0%, var(--bg-tertiary) 100%);
   }
 }
 
@@ -167,21 +167,21 @@
   width: 36px;
   height: 36px;
   border-radius: $radius-lg;
-  background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
-  border: 1px solid $dracula-comment;
-  color: $dracula-fg;
+  background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--text-muted);
+  color: var(--text-primary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 150;
   transition: all $transition-fast;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px color-mix(in srgb, #000 30%, transparent);
 
   &:hover {
-    border-color: $dracula-cyan;
-    color: $dracula-cyan;
-    background: linear-gradient(180deg, color.adjust($dracula-current, $lightness: 5%) 0%, $dracula-current 100%);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 92%, white) 0%, var(--bg-tertiary) 100%);
   }
 }
 
@@ -190,12 +190,12 @@
   line-height: 1;
 }
 
-.fab-spawn-agent-btn    { top: 266px; color: $dracula-green;  }  // 224 + 36 + 6
-.fab-spawn-boss-btn     { top: 308px; color: $dracula-yellow; }  // 266 + 36 + 6
-.fab-spawn-building-btn { top: 350px; color: $dracula-cyan;   }  // 308 + 36 + 6
-.fab-spawn-area-btn     { top: 392px; color: $dracula-purple; }  // 350 + 36 + 6
-.fab-spawn-viewmode-btn { top: 434px; color: $dracula-orange; }  // 392 + 36 + 6
-.fab-spawn-organize-btn { top: 518px; color: $dracula-red;    }  // 476 (workspace FAB) + 36 + 6
+.fab-spawn-agent-btn    { top: 266px; color: var(--accent-green);  }  // 224 + 36 + 6
+.fab-spawn-boss-btn     { top: 308px; color: var(--accent-yellow); }  // 266 + 36 + 6
+.fab-spawn-building-btn { top: 350px; color: var(--accent-cyan);   }  // 308 + 36 + 6
+.fab-spawn-area-btn     { top: 392px; color: var(--accent-purple); }  // 350 + 36 + 6
+.fab-spawn-viewmode-btn { top: 434px; color: var(--accent-orange); }  // 392 + 36 + 6
+.fab-spawn-organize-btn { top: 518px; color: var(--accent-red);    }  // 476 (workspace FAB) + 36 + 6
 
 // ============================================================================
 // FAB rail container — single fixed-positioned flex column that hosts all
@@ -337,12 +337,12 @@
   }
 }
 
-.fab-spawn-agent-btn:hover   { border-color: $dracula-green;  color: $dracula-green;  }
-.fab-spawn-boss-btn:hover    { border-color: $dracula-yellow; color: $dracula-yellow; }
-.fab-spawn-building-btn:hover{ border-color: $dracula-cyan;   color: $dracula-cyan;   }
-.fab-spawn-area-btn:hover    { border-color: $dracula-purple; color: $dracula-purple; }
-.fab-spawn-viewmode-btn:hover{ border-color: $dracula-orange; color: $dracula-orange; }
-.fab-spawn-organize-btn:hover{ border-color: $dracula-red;    color: $dracula-red;    }
+.fab-spawn-agent-btn:hover   { border-color: var(--accent-green);  color: var(--accent-green);  }
+.fab-spawn-boss-btn:hover    { border-color: var(--accent-yellow); color: var(--accent-yellow); }
+.fab-spawn-building-btn:hover{ border-color: var(--accent-cyan);   color: var(--accent-cyan);   }
+.fab-spawn-area-btn:hover    { border-color: var(--accent-purple); color: var(--accent-purple); }
+.fab-spawn-viewmode-btn:hover{ border-color: var(--accent-orange); color: var(--accent-orange); }
+.fab-spawn-organize-btn:hover{ border-color: var(--accent-red);    color: var(--accent-red);    }
 
 .fab-spawn-organize-btn:disabled {
   opacity: 0.5;
@@ -350,9 +350,9 @@
 }
 
 .fab-spawn-viewmode-btn.is-open {
-  border-color: $dracula-orange;
-  color: $dracula-orange;
-  background: rgba($dracula-orange, 0.1);
+  border-color: var(--accent-orange);
+  color: var(--accent-orange);
+  background: color-mix(in srgb, var(--accent-orange) 10%, transparent);
 }
 
 // Group wrapper for the view-mode FAB + popover menu. Both children are
@@ -374,8 +374,8 @@
   min-width: 220px;
   max-height: calc(100dvh - 24px);
   overflow-y: auto;
-  background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
-  border: 1px solid $dracula-comment;
+  background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--text-muted);
   border-radius: $radius-lg;
   padding: 6px;
   display: flex;
@@ -394,20 +394,20 @@
     background: transparent;
     border: 1px solid transparent;
     border-radius: $radius-md;
-    color: $dracula-fg;
+    color: var(--text-primary);
     text-align: left;
     cursor: pointer;
     transition: background $transition-fast, border-color $transition-fast, color $transition-fast;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.05);
-      border-color: $dracula-comment;
+      background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+      border-color: var(--text-muted);
     }
 
     &.is-active {
-      background: rgba($dracula-orange, 0.12);
-      border-color: rgba($dracula-orange, 0.5);
-      color: $dracula-orange;
+      background: color-mix(in srgb, var(--accent-orange) 12%, transparent);
+      border-color: color-mix(in srgb, var(--accent-orange) 50%, transparent);
+      color: var(--accent-orange);
     }
   }
 
@@ -426,7 +426,7 @@
 
   &__desc {
     font-size: 10px;
-    color: $dracula-comment;
+    color: var(--text-muted);
     grid-column: 2;
     grid-row: 2;
     margin-top: -2px;
@@ -462,18 +462,18 @@
     padding: 0;
     gap: 0;
     border-radius: $radius-lg;
-    background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
-    border: 1px solid $dracula-comment;
-    color: $dracula-pink;
+    background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+    border: 1px solid var(--text-muted);
+    color: var(--accent-pink);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 8px color-mix(in srgb, #000 30%, transparent);
 
     &:hover {
-      border-color: $dracula-pink;
-      color: $dracula-pink;
-      background: linear-gradient(180deg, color.adjust($dracula-current, $lightness: 5%) 0%, $dracula-current 100%);
+      border-color: var(--accent-pink);
+      color: var(--accent-pink);
+      background: linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 92%, white) 0%, var(--bg-tertiary) 100%);
     }
   }
 
@@ -498,8 +498,8 @@
     min-width: 220px;
     max-height: calc(100dvh - 24px);
     overflow-y: auto;
-    background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
-    border: 1px solid $dracula-comment;
+    background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+    border: 1px solid var(--text-muted);
     border-radius: $radius-lg;
     padding: 6px;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
@@ -512,12 +512,12 @@
     font-size: 12px;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.05);
+      background: color-mix(in srgb, var(--text-primary) 5%, transparent);
     }
 
     &.active {
-      color: $dracula-pink;
-      background: rgba($dracula-pink, 0.12);
+      color: var(--accent-pink);
+      background: color-mix(in srgb, var(--accent-pink) 12%, transparent);
     }
   }
 
@@ -535,7 +535,7 @@
   // pointer events. Closing is still wired through the X button and Escape key.
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: color-mix(in srgb, #000 30%, transparent);
   pointer-events: none;
   z-index: 200;
   animation: toolbox-backdrop-fade-in $transition-normal ease-out;
@@ -547,7 +547,7 @@
 
 @keyframes toolbox-backdrop-fade-in {
   from { background: rgba(0, 0, 0, 0); }
-  to   { background: rgba(0, 0, 0, 0.3); }
+  to   { background: color-mix(in srgb, #000 30%, transparent); }
 }
 
 .toolbox {
@@ -556,8 +556,8 @@
   left: 0;
   width: 280px;
   height: 100vh;
-  background: $bg-secondary;
-  border-right: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -590,7 +590,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 16px;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
   font-weight: 600;
   font-size: 16px;
 }
@@ -601,39 +601,39 @@
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  background: rgba($bg-tertiary, 0.5);
-  border-bottom: 1px solid $border-color;
+  background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+  border-bottom: 1px solid var(--border-color);
 
   svg {
-    color: $text-muted;
+    color: var(--text-muted);
     flex-shrink: 0;
   }
 }
 
 .toolbox-search-input {
   flex: 1;
-  background: $bg-primary;
-  border: 1px solid $border-color;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
   padding: 6px 10px;
   font-size: 12px;
-  color: $text-primary;
+  color: var(--text-primary);
   outline: none;
   transition: border-color $transition-fast;
 
   &::placeholder {
-    color: $text-muted;
+    color: var(--text-muted);
   }
 
   &:focus {
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 }
 
 .toolbox-search-clear {
   background: none;
   border: none;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 16px;
   cursor: pointer;
   padding: 0 4px;
@@ -641,14 +641,14 @@
   transition: color $transition-fast;
 
   &:hover {
-    color: $text-primary;
+    color: var(--text-primary);
   }
 }
 
 .toolbox-close-btn {
   background: none;
   border: none;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 24px;
   cursor: pointer;
   padding: 0;
@@ -656,7 +656,7 @@
   transition: color $transition-fast;
 
   &:hover {
-    color: $text-primary;
+    color: var(--text-primary);
   }
 }
 
@@ -668,13 +668,13 @@
 .toolbox-section-header {
   font-size: 11px;
   font-weight: 600;
-  color: $text-secondary;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 10px;
   padding: 10px 12px;
-  background: linear-gradient(135deg, rgba($bg-tertiary, 0.8) 0%, rgba($bg-tertiary, 0.4) 100%);
-  border-left: 3px solid $accent-blue;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--bg-tertiary) 80%, transparent) 0%, color-mix(in srgb, var(--bg-tertiary) 40%, transparent) 100%);
+  border-left: 3px solid var(--accent-blue);
 }
 
 .tool-buttons {
@@ -686,10 +686,10 @@
 .tool-btn {
   flex: 1;
   padding: 6px;
-  background: $bg-tertiary;
-  border: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
   cursor: pointer;
   transition: all $transition-fast;
   display: flex;
@@ -697,12 +697,12 @@
   justify-content: center;
 
   &:hover {
-    border-color: $text-secondary;
+    border-color: var(--text-secondary);
   }
 
   &.active {
-    border-color: $accent-blue;
-    background: rgba($accent-blue, 0.1);
+    border-color: var(--accent-blue);
+    background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
   }
 }
 
@@ -713,7 +713,7 @@
 // Config section
 .config-section {
   padding: 0;
-  border-top: 2px solid rgba($accent-blue, 0.2);
+  border-top: 2px solid color-mix(in srgb, var(--accent-blue) 20%, transparent);
   margin-top: 4px;
 
   // Add a subtle gradient separator at the top
@@ -721,7 +721,7 @@
     content: '';
     display: block;
     height: 1px;
-    background: linear-gradient(90deg, transparent 0%, rgba($accent-blue, 0.3) 50%, transparent 100%);
+    background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--accent-blue) 30%, transparent) 50%, transparent 100%);
   }
 }
 
@@ -729,7 +729,7 @@
 .config-no-results {
   padding: 24px 16px;
   text-align: center;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 12px;
   font-style: italic;
 }
@@ -753,7 +753,7 @@
 
 .config-label {
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 
@@ -762,7 +762,7 @@
   max-width: 80px;
   height: 3px;
   -webkit-appearance: none;
-  background: $border-color;
+  background: var(--border-color);
   border-radius: 2px;
   outline: none;
 
@@ -771,7 +771,7 @@
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: $accent-blue;
+    background: var(--accent-blue);
     cursor: pointer;
   }
 }
@@ -781,7 +781,7 @@
   font-weight: 500;
   min-width: 24px;
   text-align: right;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 // Compact toggle switch for config rows
@@ -803,8 +803,8 @@
 .config-toggle-track {
   position: absolute;
   inset: 0;
-  background: rgba($bg-primary, 0.5);
-  border: 1px solid $border-color;
+  background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
+  border: 1px solid var(--border-color);
   border-radius: 9px;
   transition: all $transition-fast;
 }
@@ -815,24 +815,24 @@
   left: 2px;
   width: 12px;
   height: 12px;
-  background: $text-secondary;
+  background: var(--text-secondary);
   border-radius: 50%;
   transition: all $transition-fast;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 2px color-mix(in srgb, #000 30%, transparent);
 }
 
 .config-toggle-input:checked + .config-toggle-track {
-  background: rgba($dracula-green, 0.25);
-  border-color: $dracula-green;
+  background: color-mix(in srgb, var(--accent-green) 25%, transparent);
+  border-color: var(--accent-green);
 
   .config-toggle-thumb {
     left: calc(100% - 14px);
-    background: $dracula-green;
+    background: var(--accent-green);
   }
 }
 
 .config-toggle:hover .config-toggle-track {
-  border-color: $text-secondary;
+  border-color: var(--text-secondary);
 }
 
 .config-input {
@@ -840,14 +840,14 @@
   padding: 3px 6px;
   font-size: 11px;
   font-family: $font-mono;
-  background: $bg-primary;
-  border: 1px solid $border-color;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
 
   &:focus {
     outline: none;
-    border-color: $dracula-purple;
+    border-color: var(--accent-purple);
   }
 
   &.config-input-sm {
@@ -866,15 +866,15 @@
   padding: 3px 6px;
   font-size: 11px;
   font-family: $font-mono;
-  background: $bg-primary;
-  border: 1px solid $border-color;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
   cursor: pointer;
 
   &:focus {
     outline: none;
-    border-color: $dracula-purple;
+    border-color: var(--accent-purple);
   }
 }
 
@@ -911,7 +911,7 @@
   padding: 2px 6px;
   font-size: 10px;
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
   border-radius: $radius-sm;
   text-align: center;
   opacity: 0.75;
@@ -925,7 +925,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   padding: 2px 6px;
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--text-primary) 3%, transparent);
   border-radius: $radius-sm;
   min-width: 0;
 }
@@ -934,16 +934,16 @@
   padding: 4px 8px;
   font-size: 10px;
   font-weight: 500;
-  background: $dracula-purple;
+  background: var(--accent-purple);
   border: none;
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
   cursor: pointer;
   transition: background $transition-fast;
   white-space: nowrap;
 
   &:hover {
-    background: color.adjust($dracula-purple, $lightness: 10%);
+    background: color-mix(in srgb, var(--accent-purple) 88%, white);
   }
 
   &.config-btn-sm {
@@ -953,7 +953,7 @@
 
 .config-hint {
   font-size: 9px;
-  color: $text-muted;
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -972,11 +972,11 @@
   align-items: center;
   width: 100%;
   padding: 10px 12px;
-  background: linear-gradient(135deg, rgba($bg-tertiary, 0.8) 0%, rgba($bg-tertiary, 0.4) 100%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--bg-tertiary) 80%, transparent) 0%, color-mix(in srgb, var(--bg-tertiary) 40%, transparent) 100%);
   border: none;
   border-left: 3px solid transparent;
   border-radius: 0;
-  color: $text-secondary;
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 11px;
   font-weight: 600;
@@ -985,15 +985,15 @@
   transition: all $transition-fast;
 
   &:hover {
-    color: $text-primary;
-    background: linear-gradient(135deg, rgba($bg-tertiary, 1) 0%, rgba($bg-tertiary, 0.6) 100%);
-    border-left-color: rgba($accent-blue, 0.5);
+    color: var(--text-primary);
+    background: linear-gradient(135deg, var(--bg-tertiary) 0%, color-mix(in srgb, var(--bg-tertiary) 60%, transparent) 100%);
+    border-left-color: color-mix(in srgb, var(--accent-blue) 50%, transparent);
   }
 
   .collapsible-section.open & {
-    color: $text-primary;
-    border-left-color: $accent-blue;
-    background: linear-gradient(135deg, rgba($accent-blue, 0.15) 0%, rgba($bg-tertiary, 0.6) 100%);
+    color: var(--text-primary);
+    border-left-color: var(--accent-blue);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent-blue) 15%, transparent) 0%, color-mix(in srgb, var(--bg-tertiary) 60%, transparent) 100%);
   }
 }
 
@@ -1014,7 +1014,7 @@
 
   .collapsible-section.open & {
     &::before {
-      background: $accent-blue;
+      background: var(--accent-blue);
       opacity: 1;
     }
   }
@@ -1047,8 +1047,8 @@
 
   .collapsible-content {
     padding: 8px 12px 12px;
-    background: rgba($bg-primary, 0.3);
-    border-left: 1px solid rgba($border-color, 0.3);
+    background: color-mix(in srgb, var(--bg-primary) 30%, transparent);
+    border-left: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent);
     margin-left: 3px;
   }
 
@@ -1060,15 +1060,15 @@
 
 .collapsible-content {
   padding: 8px 12px 12px;
-  background: rgba($bg-primary, 0.3);
-  border-left: 1px solid rgba($border-color, 0.3);
+  background: color-mix(in srgb, var(--bg-primary) 30%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent);
   margin-left: 3px;
 }
 
 // Search text highlight
 .search-highlight {
-  background: rgba($dracula-yellow, 0.4);
-  color: $text-primary;
+  background: color-mix(in srgb, var(--accent-yellow) 40%, transparent);
+  color: var(--text-primary);
   padding: 0 2px;
   border-radius: 2px;
 }
@@ -1085,7 +1085,7 @@
   align-items: center;
   gap: 3px;
   padding: 3px 6px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border: 1px solid transparent;
   border-radius: $radius-sm;
   cursor: pointer;
@@ -1093,12 +1093,12 @@
   font-size: 11px;
 
   &:hover {
-    border-color: $border-color;
+    border-color: var(--border-color);
   }
 
   &.active {
-    background: rgba($accent-blue, 0.2);
-    border-color: rgba($accent-blue, 0.4);
+    background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+    border-color: color-mix(in srgb, var(--accent-blue) 40%, transparent);
   }
 }
 
@@ -1109,7 +1109,7 @@
 
 .chip-label {
   font-size: 10px;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 // Terrain icon buttons
@@ -1125,7 +1125,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border: 1px solid transparent;
   border-radius: $radius-sm;
   cursor: pointer;
@@ -1135,13 +1135,13 @@
 
   &:hover {
     opacity: 0.7;
-    border-color: $border-color;
+    border-color: var(--border-color);
   }
 
   &.active {
     opacity: 1;
-    background: rgba($accent-blue, 0.15);
-    border-color: rgba($accent-blue, 0.3);
+    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+    border-color: color-mix(in srgb, var(--accent-blue) 30%, transparent);
   }
 }
 
@@ -1162,19 +1162,19 @@
 
   &:hover {
     transform: scale(1.1);
-    border-color: rgba(255, 255, 255, 0.3);
+    border-color: color-mix(in srgb, var(--text-primary) 30%, transparent);
   }
 
   &.active {
-    border-color: $accent-blue;
-    box-shadow: 0 0 6px rgba($accent-blue, 0.5);
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--accent-blue) 50%, transparent);
   }
 }
 
 .areas-empty {
   padding: 20px;
   text-align: center;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -1209,14 +1209,14 @@
   align-items: center;
   gap: 4px;
   padding: 3px 8px;
-  background: $bg-tertiary;
-  border: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 
   &:hover {
-    border-color: $text-secondary;
+    border-color: var(--text-secondary);
 
     .agent-name-remove {
       opacity: 1;
@@ -1240,7 +1240,7 @@
 .agent-name-remove {
   background: none;
   border: none;
-  color: $text-muted;
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 10px;
   padding: 0;
@@ -1249,28 +1249,28 @@
   transition: all $transition-fast;
 
   &:hover {
-    color: $dracula-red;
+    color: var(--accent-red);
   }
 }
 
 .config-btn-link {
   background: none;
   border: none;
-  color: $text-muted;
+  color: var(--text-muted);
   padding: 4px 0;
   font-size: 10px;
   cursor: pointer;
   text-decoration: underline;
 
   &:hover {
-    color: $text-secondary;
+    color: var(--text-secondary);
   }
 }
 
 .config-button {
-  background: rgba($dracula-purple, 0.2);
-  border: 1px solid rgba($dracula-purple, 0.4);
-  color: $dracula-purple;
+  background: color-mix(in srgb, var(--accent-purple) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-purple) 40%, transparent);
+  color: var(--accent-purple);
   padding: 4px 12px;
   font-size: 10px;
   border-radius: 4px;
@@ -1279,8 +1279,8 @@
   flex-shrink: 0;
 
   &:hover {
-    background: rgba($dracula-purple, 0.3);
-    border-color: rgba($dracula-purple, 0.6);
+    background: color-mix(in srgb, var(--accent-purple) 30%, transparent);
+    border-color: color-mix(in srgb, var(--accent-purple) 60%, transparent);
   }
 
   &:active {

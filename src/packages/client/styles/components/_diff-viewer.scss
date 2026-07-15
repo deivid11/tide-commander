@@ -6,7 +6,7 @@
   height: 100%;
   width: 100%;
   overflow: hidden;
-  background: $dracula-bg-darker;
+  background: var(--bg-primary);
   font-family: $font-mono;
 }
 
@@ -15,8 +15,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 10px 16px;
-  background: $dracula-bg;
-  border-bottom: 1px solid $dracula-current;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--bg-tertiary);
   min-width: 0;
   overflow: hidden;
 }
@@ -24,7 +24,7 @@
 .diff-viewer-filename {
   font-size: 13px;
   font-weight: 600;
-  color: $dracula-fg;
+  color: var(--text-primary);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -40,10 +40,10 @@
 .diff-nav-btn {
   width: 24px;
   height: 24px;
-  border: 1px solid $dracula-current;
+  border: 1px solid var(--bg-tertiary);
   border-radius: $radius-sm;
-  background: $dracula-bg-darker;
-  color: $dracula-fg;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   font-size: 12px;
   cursor: pointer;
   display: flex;
@@ -52,9 +52,9 @@
   transition: all $transition-fast;
 
   &:hover:not(:disabled) {
-    background: $dracula-current;
-    border-color: $dracula-purple;
-    color: $dracula-purple;
+    background: var(--bg-tertiary);
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
   }
 
   &:disabled {
@@ -65,7 +65,7 @@
 
 .diff-nav-counter {
   font-size: 11px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   min-width: 50px;
   text-align: center;
 }
@@ -84,8 +84,8 @@
 
 .diff-toggle-btn {
   background: transparent;
-  border: 1px solid $dracula-current;
-  color: $dracula-comment;
+  border: 1px solid var(--bg-tertiary);
+  color: var(--text-muted);
   padding: 5px 10px;
   border-radius: $radius-sm;
   font-family: $font-mono;
@@ -95,22 +95,22 @@
   white-space: nowrap;
 
   &:hover {
-    background: rgba($dracula-purple, 0.15);
-    border-color: $dracula-purple;
-    color: $dracula-purple;
+    background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
   }
 
   &.active {
-    background: rgba($dracula-purple, 0.2);
-    border-color: $dracula-purple;
-    color: $dracula-purple;
+    background: color-mix(in srgb, var(--accent-purple) 20%, transparent);
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
   }
 }
 
 .diff-copy-btn {
   background: transparent;
-  border: 1px solid $dracula-current;
-  color: $dracula-comment;
+  border: 1px solid var(--bg-tertiary);
+  color: var(--text-muted);
   padding: 5px 10px;
   border-radius: $radius-sm;
   font-family: $font-mono;
@@ -120,9 +120,9 @@
   white-space: nowrap;
 
   &:hover:not(:disabled) {
-    background: rgba($dracula-cyan, 0.15);
-    border-color: $dracula-cyan;
-    color: $dracula-cyan;
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
   }
 
   &:disabled {
@@ -131,15 +131,15 @@
   }
 
   &.copied {
-    background: rgba($dracula-green, 0.2);
-    border-color: $dracula-green;
-    color: $dracula-green;
+    background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
   }
 
   &.error {
-    background: rgba($dracula-red, 0.2);
-    border-color: $dracula-red;
-    color: $dracula-red;
+    background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+    border-color: var(--accent-red);
+    color: var(--accent-red);
   }
 }
 
@@ -150,18 +150,18 @@
   border-radius: $radius-sm;
 
   &.added {
-    background: rgba($dracula-green, 0.2);
-    color: $dracula-green;
+    background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+    color: var(--accent-green);
   }
 
   &.removed {
-    background: rgba($dracula-red, 0.2);
-    color: $dracula-red;
+    background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+    color: var(--accent-red);
   }
 
   &.modified {
-    background: rgba($dracula-orange, 0.2);
-    color: $dracula-orange;
+    background: color-mix(in srgb, var(--accent-orange) 20%, transparent);
+    color: var(--accent-orange);
   }
 }
 
@@ -182,8 +182,8 @@
       background: transparent;
 
       .diff-line-num {
-        background: rgba($dracula-bg, 0.5);
-        color: $dracula-comment;
+        background: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
+        color: var(--text-muted);
       }
     }
   }
@@ -194,7 +194,7 @@
   padding: 16px 20px;
 
   .markdown-content {
-    color: $dracula-fg;
+    color: var(--text-primary);
     line-height: 1.6;
   }
 }
@@ -205,9 +205,9 @@
   width: 40px;
   overflow: hidden;
   position: relative;
-  background: $dracula-bg-darker;
-  border-left: 1px solid $dracula-current;
-  border-right: 1px solid $dracula-current;
+  background: var(--bg-primary);
+  border-left: 1px solid var(--bg-tertiary);
+  border-right: 1px solid var(--bg-tertiary);
 
   canvas {
     position: absolute;
@@ -224,7 +224,7 @@
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
-  border-right: 1px solid $dracula-current;
+  border-right: 1px solid var(--bg-tertiary);
 
   &:last-child {
     border-right: none;
@@ -233,23 +233,23 @@
 
 .diff-panel-header {
   padding: 8px 12px;
-  background: rgba($dracula-bg, 0.8);
-  border-bottom: 1px solid $dracula-current;
+  background: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
+  border-bottom: 1px solid var(--bg-tertiary);
 }
 
 .diff-panel-label {
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
-  color: $dracula-comment;
+  color: var(--text-muted);
   letter-spacing: 0.5px;
 
   .diff-panel-original & {
-    color: $dracula-red;
+    color: var(--accent-red);
   }
 
   .diff-panel-modified & {
-    color: $dracula-green;
+    color: var(--accent-green);
   }
 }
 
@@ -258,7 +258,7 @@
   overflow-y: auto;
   overflow-x: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba($dracula-comment, 0.4) transparent;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 40%, transparent) transparent;
 
   &::-webkit-scrollbar {
     width: 4px;
@@ -270,11 +270,11 @@
   }
 
   &::-webkit-scrollbar-thumb {
-    background: rgba($dracula-comment, 0.4);
+    background: color-mix(in srgb, var(--text-muted) 40%, transparent);
     border-radius: 4px;
 
     &:hover {
-      background: $dracula-comment;
+      background: var(--text-muted);
     }
   }
 }
@@ -291,47 +291,47 @@
 
   &.diff-line-unchanged {
     background: transparent;
-    color: $dracula-fg;
+    color: var(--text-primary);
   }
 
   &.diff-line-added {
-    background: rgba($dracula-green, 0.15);
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
 
     .diff-line-num {
-      background: rgba($dracula-green, 0.2);
-      color: $dracula-green;
+      background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+      color: var(--accent-green);
     }
 
     .diff-line-content {
-      color: $dracula-fg;
+      color: var(--text-primary);
     }
   }
 
   &.diff-line-removed {
-    background: rgba($dracula-red, 0.15);
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
 
     .diff-line-num {
-      background: rgba($dracula-red, 0.2);
-      color: $dracula-red;
+      background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+      color: var(--accent-red);
     }
 
     .diff-line-content {
-      color: $dracula-fg;
+      color: var(--text-primary);
     }
   }
 
   // Horizontal hunk boundary lines (IntelliJ-style)
   &.diff-hunk-top {
-    box-shadow: inset 0 1px 0 0 rgba($dracula-comment, 0.5);
+    box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--text-muted) 50%, transparent);
   }
 
   &.diff-hunk-bottom {
-    box-shadow: inset 0 -1px 0 0 rgba($dracula-comment, 0.5);
+    box-shadow: inset 0 -1px 0 0 color-mix(in srgb, var(--text-muted) 50%, transparent);
   }
 
   &.diff-hunk-top.diff-hunk-bottom {
-    box-shadow: inset 0 1px 0 0 rgba($dracula-comment, 0.5),
-                inset 0 -1px 0 0 rgba($dracula-comment, 0.5);
+    box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--text-muted) 50%, transparent),
+                inset 0 -1px 0 0 color-mix(in srgb, var(--text-muted) 50%, transparent);
   }
 }
 
@@ -340,9 +340,9 @@
   width: 50px;
   padding: 0 8px;
   text-align: right;
-  color: $dracula-comment;
-  background: rgba($dracula-bg, 0.5);
-  border-right: 1px solid $dracula-current;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
+  border-right: 1px solid var(--bg-tertiary);
   user-select: none;
   font-size: 11px;
 }
@@ -366,7 +366,7 @@
     flex: none;
     height: 50%;
     border-right: none;
-    border-bottom: 1px solid $dracula-current;
+    border-bottom: 1px solid var(--bg-tertiary);
 
     &:last-child {
       border-bottom: none;
@@ -378,120 +378,120 @@
 .diff-line-content {
   // Keywords (if, else, return, const, let, etc.)
   .token.keyword {
-    color: $dracula-pink;
+    color: var(--accent-pink);
   }
 
   // Strings
   .token.string,
   .token.template-string {
-    color: $dracula-yellow;
+    color: var(--accent-yellow);
   }
 
   // Numbers
   .token.number {
-    color: $dracula-purple;
+    color: var(--accent-purple);
   }
 
   // Comments
   .token.comment {
-    color: $dracula-comment;
+    color: var(--text-muted);
     font-style: italic;
   }
 
   // Functions
   .token.function {
-    color: $dracula-green;
+    color: var(--accent-green);
   }
 
   // Classes and types
   .token.class-name,
   .token.maybe-class-name {
-    color: $dracula-cyan;
+    color: var(--accent-cyan);
   }
 
   // Operators
   .token.operator {
-    color: $dracula-pink;
+    color: var(--accent-pink);
   }
 
   // Punctuation
   .token.punctuation {
-    color: $dracula-fg;
+    color: var(--text-primary);
   }
 
   // Boolean and null
   .token.boolean,
   .token.null,
   .token.undefined {
-    color: $dracula-purple;
+    color: var(--accent-purple);
   }
 
   // Properties
   .token.property {
-    color: $dracula-fg;
+    color: var(--text-primary);
   }
 
   // Constants
   .token.constant {
-    color: $dracula-purple;
+    color: var(--accent-purple);
   }
 
   // Tags (HTML/JSX)
   .token.tag {
-    color: $dracula-pink;
+    color: var(--accent-pink);
   }
 
   // Attributes
   .token.attr-name {
-    color: $dracula-green;
+    color: var(--accent-green);
   }
 
   .token.attr-value {
-    color: $dracula-yellow;
+    color: var(--accent-yellow);
   }
 
   // Regex
   .token.regex {
-    color: $dracula-red;
+    color: var(--accent-red);
   }
 
   // Imports
   .token.imports,
   .token.module {
-    color: $dracula-pink;
+    color: var(--accent-pink);
   }
 
   // Builtin
   .token.builtin {
-    color: $dracula-cyan;
+    color: var(--accent-cyan);
   }
 
   // Variable
   .token.variable {
-    color: $dracula-fg;
+    color: var(--text-primary);
   }
 
   // Parameter
   .token.parameter {
-    color: $dracula-orange;
+    color: var(--accent-orange);
   }
 
   // Spread
   .token.spread {
-    color: $dracula-pink;
+    color: var(--accent-pink);
   }
 
   // Arrow function
   .token.arrow {
-    color: $dracula-pink;
+    color: var(--accent-pink);
   }
 
   // Template literal interpolation
   .token.interpolation {
-    color: $dracula-fg;
+    color: var(--text-primary);
   }
 
   .token.interpolation-punctuation {
-    color: $dracula-pink;
+    color: var(--accent-pink);
   }
 }

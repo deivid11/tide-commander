@@ -6,8 +6,8 @@
   left: 0;
   right: 0;
   height: 130px;
-  background: linear-gradient(180deg, rgba($dracula-bg, 0.97) 0%, rgba($dracula-bg-darker, 0.99) 100%);
-  border-top: 1px solid $dracula-current;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 97%, transparent) 0%, color-mix(in srgb, var(--bg-primary) 99%, transparent) 100%);
+  border-top: 1px solid var(--bg-tertiary);
   display: flex;
   align-items: stretch;
   padding: 12px 20px;
@@ -28,7 +28,7 @@
   background: rgba(0, 0, 0, 0.3);
   border-radius: $radius-lg;
   overflow: hidden;
-  border: 1px solid $dracula-current;
+  border: 1px solid var(--bg-tertiary);
 }
 
 .bt-portrait-info {
@@ -40,13 +40,13 @@
 .bt-agent-name {
   font-size: 18px;
   font-weight: 600;
-  color: $dracula-fg;
+  color: var(--text-primary);
   font-family: $font-mono;
 }
 
 .bt-agent-class {
   font-size: 11px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -67,7 +67,7 @@
 
 .bt-area-name {
   font-size: 12px;
-  color: $dracula-fg;
+  color: var(--text-primary);
   font-family: $font-mono;
 }
 
@@ -94,7 +94,7 @@
 
 .bt-stat-label {
   font-size: 9px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -103,7 +103,7 @@
   font-size: 14px;
   font-weight: 600;
   font-family: $font-mono;
-  color: $dracula-fg;
+  color: var(--text-primary);
 }
 
 .bt-context-bar {
@@ -126,21 +126,21 @@
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: rgba($dracula-bg-darker, 0.6);
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
   border-radius: $radius-sm;
-  border: 1px solid rgba($dracula-current, 0.5);
+  border: 1px solid color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
 }
 
 .bt-cwd-label {
   font-size: 10px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   text-transform: uppercase;
 }
 
 .bt-cwd-path {
   font-size: 12px;
   font-family: $font-mono;
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -163,15 +163,15 @@
 
 .bt-directories-label {
   font-size: 9px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .bt-directories-count {
   font-size: 9px;
-  color: $dracula-purple;
-  background: rgba($dracula-purple, 0.2);
+  color: var(--accent-purple);
+  background: color-mix(in srgb, var(--accent-purple) 20%, transparent);
   padding: 1px 5px;
   border-radius: 8px;
   font-weight: 600;
@@ -194,7 +194,7 @@
   }
 
   &::-webkit-scrollbar-thumb {
-    background: $dracula-current;
+    background: var(--bg-tertiary);
     border-radius: 2px;
   }
 }
@@ -204,19 +204,19 @@
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  background: rgba($dracula-current, 0.3);
+  background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
   border-radius: $radius-sm;
   font-size: 11px;
   font-family: $font-mono;
-  color: $dracula-green;
+  color: var(--accent-green);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   transition: all $transition-fast;
 
   &:hover {
-    background: rgba($dracula-green, 0.15);
-    border-left: 2px solid $dracula-green;
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+    border-left: 2px solid var(--accent-green);
     padding-left: 6px;
   }
 }
@@ -233,7 +233,7 @@
 
 .bt-directories-empty {
   font-size: 10px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-style: italic;
   padding: 8px;
 }
@@ -253,21 +253,21 @@
   gap: 4px;
   width: 60px;
   height: 60px;
-  background: rgba($dracula-current, 0.4);
-  border: 1px solid $dracula-current;
+  background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+  border: 1px solid var(--bg-tertiary);
   border-radius: $radius-lg;
   cursor: pointer;
   transition: all $transition-fast;
 
   &:hover {
-    background: rgba($dracula-purple, 0.2);
-    border-color: $dracula-purple;
+    background: color-mix(in srgb, var(--accent-purple) 20%, transparent);
+    border-color: var(--accent-purple);
     transform: translateY(-2px);
   }
 
   &.bt-action-danger:hover {
-    background: rgba($dracula-red, 0.2);
-    border-color: $dracula-red;
+    background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+    border-color: var(--accent-red);
   }
 }
 
@@ -277,13 +277,13 @@
 
 .bt-action-label {
   font-size: 10px;
-  color: $dracula-fg;
+  color: var(--text-primary);
   font-family: $font-mono;
 }
 
 .bt-action-hotkey {
   font-size: 9px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-family: $font-mono;
   background: rgba(0, 0, 0, 0.3);
   padding: 1px 4px;

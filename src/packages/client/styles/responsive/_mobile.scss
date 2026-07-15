@@ -44,10 +44,10 @@
     z-index: 1000; // Above everything including file explorer (300), modals, etc.
     width: 44px;
     height: 44px;
-    background: rgba($dracula-bg, 0.95);
-    border: 1px solid $dracula-green;
+    background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+    border: 1px solid var(--accent-green);
     border-radius: $radius-lg;
-    color: $dracula-fg;
+    color: var(--text-primary);
     font-size: 18px;
     cursor: pointer;
     backdrop-filter: blur(8px);
@@ -60,13 +60,13 @@
 
     &:hover,
     &:active {
-      background: rgba($dracula-green, 0.3);
-      border-color: $dracula-cyan;
+      background: color-mix(in srgb, var(--accent-green) 30%, transparent);
+      border-color: var(--accent-cyan);
     }
 
     &.open {
-      background: rgba($dracula-purple, 0.3);
-      border-color: $dracula-pink;
+      background: color-mix(in srgb, var(--accent-purple) 30%, transparent);
+      border-color: var(--accent-pink);
     }
   }
 
@@ -100,10 +100,10 @@
     justify-content: center;
     width: 40px;
     height: 40px;
-    background: rgba($dracula-bg, 0.95);
-    border: 1px solid $dracula-comment;
+    background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+    border: 1px solid var(--text-muted);
     border-radius: $radius-md;
-    color: $dracula-fg;
+    color: var(--text-primary);
     font-size: 16px;
     cursor: pointer;
     backdrop-filter: blur(8px);
@@ -124,31 +124,31 @@
 
     &:hover,
     &:active {
-      background: rgba($dracula-cyan, 0.3);
-      border-color: $dracula-cyan;
+      background: color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+      border-color: var(--accent-cyan);
     }
 
     // Highlighted option (e.g., Take Snapshot when available)
     &--highlight {
-      background: rgba($dracula-yellow, 0.2);
-      border-color: $dracula-yellow;
-      color: $dracula-yellow;
+      background: color-mix(in srgb, var(--accent-yellow) 20%, transparent);
+      border-color: var(--accent-yellow);
+      color: var(--accent-yellow);
       animation: mobile-fab-pulse 2s ease-in-out infinite;
 
       &:hover,
       &:active {
-        background: rgba($dracula-yellow, 0.4);
-        border-color: $dracula-yellow;
+        background: color-mix(in srgb, var(--accent-yellow) 40%, transparent);
+        border-color: var(--accent-yellow);
       }
     }
   }
 
-  .mobile-fab-option--spawn-agent { color: $dracula-green; }
-  .mobile-fab-option--spawn-boss { color: $dracula-yellow; }
-  .mobile-fab-option--new-building { color: $dracula-cyan; }
-  .mobile-fab-option--new-area { color: $dracula-purple; }
-  .mobile-fab-option--view-mode { color: $dracula-orange; }
-  .mobile-fab-option--organize { color: $dracula-red; }
+  .mobile-fab-option--spawn-agent { color: var(--accent-green); }
+  .mobile-fab-option--spawn-boss { color: var(--accent-yellow); }
+  .mobile-fab-option--new-building { color: var(--accent-cyan); }
+  .mobile-fab-option--new-area { color: var(--accent-purple); }
+  .mobile-fab-option--view-mode { color: var(--accent-orange); }
+  .mobile-fab-option--organize { color: var(--accent-red); }
 
   .mobile-fab-workspace-option {
     width: 40px;
@@ -179,9 +179,9 @@
       padding: 0;
       gap: 0;
       border-radius: $radius-md;
-      background: rgba($dracula-bg, 0.95);
-      border: 1px solid $dracula-comment;
-      color: $dracula-pink;
+      background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+      border: 1px solid var(--text-muted);
+      color: var(--accent-pink);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -205,8 +205,8 @@
       min-width: 0;
       max-height: calc(100dvh - 70px - var(--mobile-bottom-stack-height, 72px));
       overflow-y: auto;
-      background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
-      border: 1px solid $dracula-comment;
+      background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+      border: 1px solid var(--text-muted);
       border-radius: $radius-lg;
       box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
       z-index: 1000;
@@ -215,10 +215,10 @@
 
   @keyframes mobile-fab-pulse {
     0%, 100% {
-      box-shadow: 0 0 0 0 rgba($dracula-yellow, 0.4);
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-yellow) 40%, transparent);
     }
     50% {
-      box-shadow: 0 0 0 4px rgba($dracula-yellow, 0.2);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-yellow) 20%, transparent);
     }
   }
 
@@ -249,8 +249,8 @@
     width: 44px;
     height: 44px;
     z-index: 1001;
-    background: rgba($dracula-bg, 0.95);
-    border: 1px solid $dracula-green;
+    background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+    border: 1px solid var(--accent-green);
   }
 
   // Mobile view mode: Terminal (default) - hide battlefield, show terminal
@@ -523,7 +523,7 @@
     width: 85%;
     max-width: 320px;
     min-width: auto;
-    border-left: 1px solid $border-color;
+    border-left: 1px solid var(--border-color);
     border-top: none;
     z-index: 200;
     transform: translateX(100%);
@@ -551,12 +551,12 @@
     align-items: center;
     justify-content: flex-end;
     padding: 0 12px;
-    background: rgba($bg-secondary, 0.98);
+    background: color-mix(in srgb, var(--bg-secondary) 98%, transparent);
     backdrop-filter: blur(8px);
     border: none;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-color);
     border-radius: 0;
-    color: $dracula-red;
+    color: var(--accent-red);
     font-size: 16px;
     font-weight: 600;
     cursor: pointer;
@@ -566,7 +566,7 @@
     transition: background $transition-fast;
 
     &:active {
-      background: rgba($dracula-red, 0.15);
+      background: color-mix(in srgb, var(--accent-red) 15%, transparent);
     }
   }
 
@@ -838,12 +838,12 @@
     height: auto;
     min-height: 44px;
     max-height: none;
-    background: rgba($dracula-bg, 0.98);
+    background: color-mix(in srgb, var(--bg-secondary) 98%, transparent);
     position: relative;
     z-index: 10;
     flex-shrink: 0;
     flex-grow: 0;
-    border-bottom: 1px solid rgba($dracula-purple, 0.2);
+    border-bottom: 1px solid color-mix(in srgb, var(--accent-purple) 20%, transparent);
     margin: 0;
   }
 
@@ -911,7 +911,7 @@
     display: block;
     font-size: 9px;
     line-height: 1.2;
-    color: $dracula-comment;
+    color: var(--text-muted);
     margin-top: 0;
     max-width: min(50vw, 200px);
   }
@@ -1028,7 +1028,7 @@
   .guake-working-indicator {
     gap: 3px;
     padding: 2px 6px;
-    background: rgba($dracula-cyan, 0.15);
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
     border-radius: 10px;
   }
 
@@ -1085,13 +1085,13 @@
     cursor: pointer;
     transition: all 0.15s ease;
     box-sizing: border-box !important;
-    background: rgba($dracula-red, 0.15);
-    border-color: rgba($dracula-red, 0.4);
-    color: $dracula-red;
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    border-color: color-mix(in srgb, var(--accent-red) 40%, transparent);
+    color: var(--accent-red);
 
     &:active {
       transform: scale(0.9);
-      background: rgba($dracula-red, 0.3);
+      background: color-mix(in srgb, var(--accent-red) 30%, transparent);
     }
   }
 
@@ -1669,7 +1669,7 @@
     -webkit-tap-highlight-color: transparent;
 
     &:active {
-      background: rgba($accent-blue, 0.08);
+      background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
     }
   }
 
@@ -1989,7 +1989,7 @@
     min-width: 100%;
     max-height: 40vh;
     border-right: none;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-color);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
 
@@ -2014,7 +2014,7 @@
       position: sticky;
       top: 0;
       z-index: 1;
-      background: $bg-secondary;
+      background: var(--bg-secondary);
     }
 
     &__toggle {

@@ -20,8 +20,8 @@
 
 .keybindings-help-content {
   position: relative;
-  background: $dracula-bg;
-  border: 1px solid $dracula-current;
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-tertiary);
   border-radius: $radius-lg;
   padding: 32px;
   max-width: 600px;
@@ -36,8 +36,8 @@
   top: 12px;
   right: 12px;
   background: transparent;
-  border: 1px solid $border-color;
-  color: $text-muted;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
   width: 32px;
   height: 32px;
   border-radius: $radius-sm;
@@ -49,9 +49,9 @@
   font-size: 18px;
 
   &:hover {
-    background: rgba($dracula-red, 0.15);
-    border-color: $dracula-red;
-    color: $dracula-red;
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    border-color: var(--accent-red);
+    color: var(--accent-red);
   }
 }
 
@@ -59,14 +59,14 @@
   margin: 0 0 8px 0;
   font-size: 20px;
   font-weight: 700;
-  color: $dracula-fg;
+  color: var(--text-primary);
   font-family: $font-mono;
 }
 
 .keybindings-help-subtitle {
   margin: 0 0 24px 0;
   font-size: 12px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-family: $font-mono;
 }
 
@@ -88,7 +88,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1px;
-  color: $accent-purple;
+  color: var(--accent-purple);
   font-family: $font-mono;
 }
 
@@ -107,7 +107,7 @@
   transition: background $transition-fast;
 
   &:hover {
-    background: rgba($accent-purple, 0.08);
+    background: color-mix(in srgb, var(--accent-purple) 8%, transparent);
   }
 }
 
@@ -120,9 +120,9 @@
 }
 
 .keybindings-help-key {
-  background: rgba($dracula-current, 0.8);
-  border: 1px solid $dracula-comment;
-  color: $dracula-fg;
+  background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+  border: 1px solid var(--text-muted);
+  color: var(--text-primary);
   font-family: $font-mono;
   font-size: 11px;
   padding: 4px 6px;
@@ -139,16 +139,16 @@
 .keybindings-help-description {
   flex: 1;
   font-size: 12px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   padding-top: 4px;
 }
 
 .keybindings-help-footer {
   margin-top: 24px;
   padding-top: 16px;
-  border-top: 1px solid $dracula-current;
+  border-top: 1px solid var(--bg-tertiary);
   font-size: 11px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   text-align: center;
   margin-bottom: 0;
 }

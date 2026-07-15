@@ -8,15 +8,15 @@
   display: flex;
   flex-direction: column;
   padding: 0;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-xl;
   overflow: hidden;
 
   .modal-header {
     padding: 14px 20px;
     margin-bottom: 0;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-color);
     font-size: 16px;
     font-weight: 600;
     display: flex;
@@ -32,7 +32,7 @@
 
   .modal-footer {
     padding: 12px 20px;
-    border-top: 1px solid $border-color;
+    border-top: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -43,7 +43,7 @@
 .modal-close {
   background: transparent;
   border: none;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 24px;
   line-height: 1;
   cursor: pointer;
@@ -53,8 +53,8 @@
   flex-shrink: 0;
 
   &:hover {
-    background: rgba($accent-red, 0.15);
-    color: $accent-red;
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    color: var(--accent-red);
   }
 }
 
@@ -71,7 +71,7 @@
 .modal-description {
   margin: 0;
   font-size: 12px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   line-height: 1.5;
 }
 
@@ -86,14 +86,14 @@
   .spinner {
     width: 32px;
     height: 32px;
-    border: 3px solid rgba($border-color, 0.5);
-    border-top-color: $accent-blue;
+    border: 3px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+    border-top-color: var(--accent-blue);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
 
   p {
-    color: $text-secondary;
+    color: var(--text-secondary);
     margin: 0;
     font-size: 13px;
   }
@@ -120,15 +120,15 @@
   }
 
   &.alert-error {
-    background: rgba($accent-red, 0.1);
-    border: 1px solid rgba($accent-red, 0.25);
-    color: $accent-red;
+    background: color-mix(in srgb, var(--accent-red) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-red) 25%, transparent);
+    color: var(--accent-red);
   }
 
   &.alert-success {
-    background: rgba($dracula-green, 0.1);
-    border: 1px solid rgba($dracula-green, 0.25);
-    color: $dracula-green;
+    background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-green) 25%, transparent);
+    color: var(--accent-green);
   }
 }
 
@@ -151,10 +151,10 @@
   .agent-picker-select {
     flex: 1;
     padding: 8px 10px;
-    border: 1px solid $border-color;
+    border: 1px solid var(--border-color);
     border-radius: $radius-sm;
-    background: $bg-tertiary;
-    color: $text-primary;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
@@ -162,7 +162,7 @@
     transition: all $transition-fast;
 
     &:focus {
-      border-color: $accent-blue;
+      border-color: var(--accent-blue);
     }
   }
 }
@@ -184,23 +184,23 @@
 .editor-label {
   font-size: 11px;
   font-weight: 600;
-  color: $text-secondary;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
 
 .char-count {
   font-size: 10px;
-  color: $text-muted;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
 .prompt-editor {
   padding: 10px 12px;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  background: $bg-tertiary;
-  color: $text-primary;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   font-family: $font-mono;
   font-size: 12px;
   line-height: 1.6;
@@ -212,19 +212,19 @@
   transition: all $transition-fast;
 
   &:focus {
-    border-color: $accent-blue;
-    background: rgba($bg-tertiary, 0.8);
+    border-color: var(--accent-blue);
+    background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
   }
 
   &::placeholder {
-    color: $text-muted;
+    color: var(--text-muted);
     white-space: pre-line;
   }
 }
 
 .editor-hint {
   font-size: 10px;
-  color: $text-muted;
+  color: var(--text-muted);
   font-style: italic;
   padding: 0 2px;
 }
@@ -242,15 +242,15 @@
 
 .btn {
   padding: 8px 14px;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition: all $transition-fast;
   white-space: nowrap;
-  background: $bg-tertiary;
-  color: $text-primary;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 
   &:disabled {
     opacity: 0.5;
@@ -262,40 +262,40 @@
   }
 
   &:hover:not(:disabled) {
-    border-color: $text-secondary;
-    background: rgba($bg-tertiary, 0.8);
+    border-color: var(--text-secondary);
+    background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
   }
 
   &.btn-primary {
-    background: $accent-blue;
+    background: var(--accent-blue);
     color: #fff;
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
 
     &:hover:not(:disabled) {
-      background: rgba($accent-blue, 0.9);
-      box-shadow: 0 0 0 2px rgba($accent-blue, 0.2);
+      background: color-mix(in srgb, var(--accent-blue) 90%, transparent);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-blue) 20%, transparent);
     }
   }
 
   &.btn-secondary {
-    background: $bg-tertiary;
-    color: $text-primary;
-    border-color: $border-color;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
 
     &:hover:not(:disabled) {
-      border-color: $text-secondary;
-      background: rgba($bg-tertiary, 0.8);
+      border-color: var(--text-secondary);
+      background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
     }
   }
 
   &.btn-danger {
-    background: rgba($accent-red, 0.15);
-    color: $accent-red;
-    border-color: rgba($accent-red, 0.3);
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    color: var(--accent-red);
+    border-color: color-mix(in srgb, var(--accent-red) 30%, transparent);
 
     &:hover:not(:disabled) {
-      background: rgba($accent-red, 0.25);
-      border-color: rgba($accent-red, 0.5);
+      background: color-mix(in srgb, var(--accent-red) 25%, transparent);
+      border-color: color-mix(in srgb, var(--accent-red) 50%, transparent);
     }
   }
 }

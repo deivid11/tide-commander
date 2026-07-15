@@ -9,9 +9,9 @@
   width: 36px;
   height: 36px;
   border-radius: $radius-lg;
-  background: linear-gradient(180deg, $dracula-current 0%, $dracula-bg 100%);
-  border: 1px solid $dracula-comment;
-  color: $dracula-pink;
+  background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--text-muted);
+  color: var(--accent-pink);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -21,9 +21,9 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 
   &:hover {
-    border-color: $dracula-pink;
-    color: $dracula-pink;
-    background: linear-gradient(180deg, color.adjust($dracula-current, $lightness: 5%) 0%, $dracula-current 100%);
+    border-color: var(--accent-pink);
+    color: var(--accent-pink);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 94%, white) 0%, var(--bg-tertiary) 100%);
   }
 }
 
@@ -54,8 +54,8 @@
     max-width: 750px;
   }
   max-height: 85vh;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-lg;
   display: flex;
   flex-direction: column;
@@ -80,7 +80,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .shortcuts-modal-title {
@@ -89,17 +89,17 @@
   gap: 10px;
   font-size: 16px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
 
   svg {
-    color: $accent-purple;
+    color: var(--accent-purple);
   }
 }
 
 .shortcuts-modal-close {
   background: none;
   border: none;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 24px;
   cursor: pointer;
   padding: 0;
@@ -107,7 +107,7 @@
   transition: color $transition-fast;
 
   &:hover {
-    color: $text-primary;
+    color: var(--text-primary);
   }
 }
 
@@ -117,8 +117,8 @@
   align-items: center;
   gap: 12px;
   padding: 12px 20px;
-  border-bottom: 1px solid $border-color;
-  background: $bg-tertiary;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
 }
 
 .shortcuts-search {
@@ -127,17 +127,17 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: $bg-primary;
-  border: 1px solid $border-color;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-md;
   transition: border-color $transition-fast;
 
   &:focus-within {
-    border-color: $accent-purple;
+    border-color: var(--accent-purple);
   }
 
   svg {
-    color: $text-secondary;
+    color: var(--text-secondary);
     flex-shrink: 0;
   }
 
@@ -145,12 +145,12 @@
     flex: 1;
     background: none;
     border: none;
-    color: $text-primary;
+    color: var(--text-primary);
     font-size: 13px;
     outline: none;
 
     &::placeholder {
-      color: $text-muted;
+      color: var(--text-muted);
     }
   }
 }
@@ -158,14 +158,14 @@
 .shortcuts-search-clear {
   background: none;
   border: none;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 16px;
   cursor: pointer;
   padding: 0 4px;
   line-height: 1;
 
   &:hover {
-    color: $text-primary;
+    color: var(--text-primary);
   }
 }
 
@@ -178,37 +178,37 @@
   height: 36px;
   padding: 0;
   background: transparent;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   border-radius: $radius-md;
-  color: $text-secondary;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all $transition-fast;
   flex-shrink: 0;
 
   &:hover {
-    border-color: $accent-cyan;
-    color: $accent-cyan;
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
   }
 
   &.active {
-    background: rgba($accent-cyan, 0.15);
-    border-color: $accent-cyan;
-    color: $accent-cyan;
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
   }
 }
 
 // Find by shortcut active state on search bar
 .shortcuts-search.find-by-shortcut-active {
-  border-color: $accent-cyan;
-  background: rgba($accent-cyan, 0.05);
+  border-color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 5%, transparent);
 
   svg {
-    color: $accent-cyan;
+    color: var(--accent-cyan);
   }
 }
 
 .find-by-shortcut-prompt {
-  color: $text-muted;
+  color: var(--text-muted);
   font-style: italic;
   font-size: 13px;
 }
@@ -217,7 +217,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: $accent-cyan;
+  color: var(--accent-cyan);
   font-size: 13px;
   font-family: $font-mono;
   font-weight: 500;
@@ -226,9 +226,9 @@
 .shortcuts-reset-all-btn {
   padding: 8px 16px;
   background: transparent;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   border-radius: $radius-md;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -236,8 +236,8 @@
   white-space: nowrap;
 
   &:hover {
-    border-color: $accent-red;
-    color: $accent-red;
+    border-color: var(--accent-red);
+    color: var(--accent-red);
   }
 }
 
@@ -246,8 +246,8 @@
   display: flex;
   gap: 4px;
   padding: 12px 20px;
-  border-bottom: 1px solid $border-color;
-  background: $bg-tertiary;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
 }
 
 .controls-main-tab {
@@ -258,7 +258,7 @@
   background: transparent;
   border: 1px solid transparent;
   border-radius: $radius-md;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -269,8 +269,8 @@
   }
 
   &:hover {
-    background: $bg-primary;
-    color: $text-primary;
+    background: var(--bg-primary);
+    color: var(--text-primary);
 
     svg {
       opacity: 1;
@@ -278,9 +278,9 @@
   }
 
   &.active {
-    background: rgba($accent-cyan, 0.15);
-    border-color: rgba($accent-cyan, 0.3);
-    color: $accent-cyan;
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border-color: color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+    color: var(--accent-cyan);
 
     svg {
       opacity: 1;
@@ -293,7 +293,7 @@
   display: flex;
   gap: 4px;
   padding: 8px 20px;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
   overflow-x: auto;
 }
 
@@ -305,34 +305,34 @@
   background: transparent;
   border: 1px solid transparent;
   border-radius: $radius-md;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 12px;
   cursor: pointer;
   transition: all $transition-fast;
   white-space: nowrap;
 
   &:hover {
-    background: $bg-tertiary;
-    color: $text-primary;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
   }
 
   &.active {
-    background: rgba($accent-purple, 0.15);
-    border-color: rgba($accent-purple, 0.3);
-    color: $accent-purple;
+    background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+    border-color: color-mix(in srgb, var(--accent-purple) 30%, transparent);
+    color: var(--accent-purple);
   }
 }
 
 .shortcuts-context-tab-count {
   font-size: 10px;
   padding: 1px 5px;
-  background: $bg-primary;
+  background: var(--bg-primary);
   border-radius: $radius-sm;
-  color: $text-muted;
+  color: var(--text-muted);
 
   .active & {
-    background: rgba($accent-purple, 0.2);
-    color: $accent-purple;
+    background: color-mix(in srgb, var(--accent-purple) 20%, transparent);
+    color: var(--accent-purple);
   }
 }
 
@@ -358,18 +358,18 @@
   gap: 12px;
   margin-bottom: 12px;
   padding-bottom: 8px;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .shortcuts-context-label {
   font-size: 13px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .shortcuts-context-description {
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 // Shortcuts grid
@@ -384,13 +384,13 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border: 1px solid transparent;
   border-radius: $radius-md;
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $border-color;
+    border-color: var(--border-color);
     background: rgba(255, 255, 255, 0.03);
   }
 }
@@ -407,7 +407,7 @@
 .shortcut-item-name {
   font-size: 12px;
   font-weight: 500;
-  color: $text-primary;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -415,7 +415,7 @@
 
 .shortcut-item-description {
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -427,20 +427,20 @@
   align-items: center;
   justify-content: center;
   padding: 40px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
 // Footer
 .shortcuts-modal-footer {
   padding: 12px 20px;
-  border-top: 1px solid $border-color;
-  background: $bg-tertiary;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
 }
 
 .shortcuts-modal-hint {
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 // Key capture styles (keep from toolbox for reuse)
@@ -457,39 +457,39 @@
   justify-content: center;
   min-width: 70px;
   padding: 4px 10px;
-  background: $bg-primary;
-  border: 1px solid $border-color;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
   font-size: 11px;
   font-family: $font-mono;
   cursor: pointer;
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $accent-purple;
+    border-color: var(--accent-purple);
   }
 
   &.capturing {
-    border-color: $accent-purple;
-    background: rgba($accent-purple, 0.1);
+    border-color: var(--accent-purple);
+    background: color-mix(in srgb, var(--accent-purple) 10%, transparent);
     animation: pulse-border 1s ease-in-out infinite;
   }
 
   &.conflict {
-    border-color: $accent-red;
-    background: rgba($accent-red, 0.1);
+    border-color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 10%, transparent);
   }
 
   &.disabled {
     opacity: 0.5;
-    color: $text-secondary;
+    color: var(--text-secondary);
   }
 }
 
 @keyframes pulse-border {
-  0%, 100% { box-shadow: 0 0 0 0 rgba($accent-purple, 0.4); }
-  50% { box-shadow: 0 0 0 3px rgba($accent-purple, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-purple) 40%, transparent); }
+  50% { box-shadow: 0 0 0 3px transparent; }
 }
 
 .key-capture-value {
@@ -499,7 +499,7 @@
 .key-capture-clear {
   background: none;
   border: none;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 14px;
   cursor: pointer;
   padding: 0 2px;
@@ -507,7 +507,7 @@
   transition: color $transition-fast;
 
   &:hover {
-    color: $accent-red;
+    color: var(--accent-red);
   }
 }
 
@@ -517,7 +517,7 @@
   right: 0;
   margin-top: 2px;
   padding: 2px 6px;
-  background: rgba($accent-red, 0.9);
+  background: color-mix(in srgb, var(--accent-red) 90%, transparent);
   color: white;
   font-size: 9px;
   border-radius: $radius-sm;
@@ -531,7 +531,7 @@
 
 .mouse-controls-subtitle {
   font-size: 12px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .mouse-controls-content {
@@ -547,7 +547,7 @@
 // Sensitivity settings (inline version for merged modal)
 .sensitivity-inline-settings {
   padding: 12px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
   display: flex;
   flex-direction: column;
@@ -568,21 +568,21 @@
   label {
     width: 80px;
     font-size: 12px;
-    color: $text-secondary;
+    color: var(--text-secondary);
   }
 
   input[type="range"] {
     flex: 1;
     height: 4px;
     cursor: pointer;
-    accent-color: $accent-cyan;
-    background: $bg-primary;
+    accent-color: var(--accent-cyan);
+    background: var(--bg-primary);
     border-radius: 2px;
 
     &::-webkit-slider-thumb {
       width: 14px;
       height: 14px;
-      background: $accent-cyan;
+      background: var(--accent-cyan);
       border-radius: 50%;
       cursor: pointer;
     }
@@ -590,7 +590,7 @@
     &::-moz-range-thumb {
       width: 14px;
       height: 14px;
-      background: $accent-cyan;
+      background: var(--accent-cyan);
       border-radius: 50%;
       cursor: pointer;
       border: none;
@@ -602,7 +602,7 @@
     text-align: right;
     font-size: 11px;
     font-family: $font-mono;
-    color: $accent-cyan;
+    color: var(--accent-cyan);
   }
 }
 
@@ -620,16 +620,16 @@
 
   input[type="checkbox"] {
     cursor: pointer;
-    accent-color: $accent-cyan;
+    accent-color: var(--accent-cyan);
   }
 
   span {
     font-size: 12px;
-    color: $text-secondary;
+    color: var(--text-secondary);
   }
 
   &:hover span {
-    color: $text-primary;
+    color: var(--text-primary);
   }
 }
 
@@ -645,7 +645,7 @@
 
 .trackpad-toggle-row {
   padding: 12px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
 }
 
@@ -659,13 +659,13 @@
     width: 18px;
     height: 18px;
     cursor: pointer;
-    accent-color: $accent-green;
+    accent-color: var(--accent-green);
   }
 
   .trackpad-toggle-label {
     font-size: 14px;
     font-weight: 500;
-    color: $text-primary;
+    color: var(--text-primary);
   }
 }
 
@@ -680,14 +680,14 @@
   align-items: flex-start;
   gap: 12px;
   padding: 12px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border: 1px solid transparent;
   border-radius: $radius-md;
   cursor: pointer;
   transition: all $transition-fast;
 
   &:hover:not(.disabled) {
-    border-color: $border-color;
+    border-color: var(--border-color);
     background: rgba(255, 255, 255, 0.03);
   }
 
@@ -701,7 +701,7 @@
     width: 16px;
     height: 16px;
     cursor: pointer;
-    accent-color: $accent-cyan;
+    accent-color: var(--accent-cyan);
 
     &:disabled {
       cursor: not-allowed;
@@ -718,19 +718,19 @@
 .trackpad-gesture-name {
   font-size: 12px;
   font-weight: 500;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .trackpad-gesture-desc {
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .trackpad-scroll-action {
   display: flex;
   gap: 16px;
   padding: 12px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
 }
 
@@ -747,7 +747,7 @@
 
   input[type="radio"] {
     cursor: pointer;
-    accent-color: $accent-cyan;
+    accent-color: var(--accent-cyan);
 
     &:disabled {
       cursor: not-allowed;
@@ -756,11 +756,11 @@
 
   span {
     font-size: 12px;
-    color: $text-secondary;
+    color: var(--text-secondary);
   }
 
   &:hover:not(.disabled) span {
-    color: $text-primary;
+    color: var(--text-primary);
   }
 }
 
@@ -769,7 +769,7 @@
   flex-direction: column;
   gap: 12px;
   padding: 12px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border-radius: $radius-md;
 }
 
@@ -789,21 +789,21 @@
   label {
     width: 60px;
     font-size: 12px;
-    color: $text-secondary;
+    color: var(--text-secondary);
   }
 
   input[type="range"] {
     flex: 1;
     height: 4px;
     cursor: pointer;
-    accent-color: $accent-cyan;
-    background: $bg-primary;
+    accent-color: var(--accent-cyan);
+    background: var(--bg-primary);
     border-radius: 2px;
 
     &::-webkit-slider-thumb {
       width: 14px;
       height: 14px;
-      background: $accent-cyan;
+      background: var(--accent-cyan);
       border-radius: 50%;
       cursor: pointer;
     }
@@ -811,7 +811,7 @@
     &::-moz-range-thumb {
       width: 14px;
       height: 14px;
-      background: $accent-cyan;
+      background: var(--accent-cyan);
       border-radius: 50%;
       cursor: pointer;
       border: none;
@@ -823,6 +823,6 @@
     text-align: right;
     font-size: 11px;
     font-family: $font-mono;
-    color: $accent-cyan;
+    color: var(--accent-cyan);
   }
 }

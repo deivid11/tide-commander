@@ -12,8 +12,8 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: linear-gradient(to bottom, $bg-tertiary, rgba(0, 0, 0, 0.1));
-  border-bottom: 1px solid $border-color;
+  background: linear-gradient(to bottom, var(--bg-tertiary), rgba(0, 0, 0, 0.1));
+  border-bottom: 1px solid var(--border-color);
   position: relative;
   flex-shrink: 0;
 }
@@ -22,23 +22,23 @@
   flex: 1;
   padding: 6px 10px;
   padding-right: 28px;
-  background: $dracula-bg;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
-  color: $text-primary;
+  color: var(--text-primary);
   font-family: $font-mono;
   font-size: 12px;
   transition: border-color $transition-fast, box-shadow $transition-fast, background $transition-fast;
 
   &:focus {
     outline: none;
-    border-color: $accent-blue;
-    box-shadow: 0 0 0 2px rgba($accent-blue, 0.2), inset 0 0 0 1px rgba($accent-blue, 0.1);
-    background: rgba($accent-blue, 0.02);
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-blue) 20%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--accent-blue) 10%, transparent);
+    background: color-mix(in srgb, var(--accent-blue) 2%, transparent);
   }
 
   &::placeholder {
-    color: $text-muted;
+    color: var(--text-muted);
     opacity: 0.8;
   }
 }
@@ -48,7 +48,7 @@
   right: 36px;
   background: transparent;
   border: none;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 14px;
   cursor: pointer;
   padding: 2px;
@@ -57,7 +57,7 @@
   justify-content: center;
 
   &:hover {
-    color: $text-primary;
+    color: var(--text-primary);
   }
 }
 
@@ -76,7 +76,7 @@
 .search-no-results {
   padding: 24px 20px;
   text-align: center;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -92,13 +92,13 @@
   border-radius: 2px;
 
   &:hover {
-    background: rgba($accent-blue, 0.1);
-    border-left-color: rgba($accent-blue, 0.3);
+    background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+    border-left-color: color-mix(in srgb, var(--accent-blue) 30%, transparent);
   }
 
   &.selected {
-    background: rgba($accent-blue, 0.2);
-    border-left-color: $accent-blue;
+    background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+    border-left-color: var(--accent-blue);
   }
 }
 
@@ -129,13 +129,13 @@
 .search-result-name {
   font-family: $font-mono;
   font-size: 11px;
-  color: $dracula-fg;
+  color: var(--text-primary);
   font-weight: 500;
   line-height: 1.2;
 
   .search-highlight {
-    background: rgba($accent-blue, 0.3);
-    color: $accent-blue;
+    background: color-mix(in srgb, var(--accent-blue) 30%, transparent);
+    color: var(--accent-blue);
     font-weight: 700;
   }
 }
@@ -143,7 +143,7 @@
 .search-result-path {
   font-family: $font-mono;
   font-size: 9px;
-  color: $text-muted;
+  color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -151,8 +151,8 @@
 }
 
 .search-highlight {
-  background: rgba($dracula-yellow, 0.35);
-  color: $dracula-yellow;
+  background: color-mix(in srgb, var(--accent-yellow) 35%, transparent);
+  color: var(--accent-yellow);
   padding: 0 2px;
   border-radius: 2px;
   font-weight: 600;
@@ -161,8 +161,8 @@
 .search-result-line-badge {
   font-family: $font-mono;
   font-size: 10px;
-  color: $dracula-yellow;
-  background: rgba($dracula-yellow, 0.15);
+  color: var(--accent-yellow);
+  background: color-mix(in srgb, var(--accent-yellow) 15%, transparent);
   padding: 1px 5px;
   border-radius: 3px;
   margin-left: 6px;
@@ -176,7 +176,7 @@
 
 .unified-search-section {
   &:not(:last-child) {
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-color);
   }
 }
 
@@ -187,7 +187,7 @@
   padding: 4px 8px;
   background: rgba(0, 0, 0, 0.15);
   font-size: 10px;
-  color: $text-muted;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-weight: 600;
@@ -210,7 +210,7 @@
   font-weight: 500;
   text-transform: none;
   letter-spacing: normal;
-  color: $accent-blue;
+  color: var(--accent-blue);
 }
 
 .unified-search-section-content {
@@ -225,16 +225,16 @@
 .content-search-summary {
   padding: 10px 12px;
   font-size: 12px;
-  color: $text-muted;
-  border-bottom: 1px solid $border-color;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
   background: rgba(0, 0, 0, 0.1);
 }
 
 .content-search-item {
-  border-bottom: 1px solid rgba($border-color, 0.5);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
 
   &.selected {
-    background: rgba($accent-blue, 0.08);
+    background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
   }
 }
 
@@ -248,13 +248,13 @@
   border-left: 2px solid transparent;
 
   &:hover {
-    background: rgba($accent-blue, 0.1);
-    border-left-color: rgba($accent-blue, 0.2);
+    background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+    border-left-color: color-mix(in srgb, var(--accent-blue) 20%, transparent);
   }
 
   &.selected {
-    background: rgba($accent-blue, 0.15);
-    border-left-color: $accent-blue;
+    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+    border-left-color: var(--accent-blue);
   }
 }
 
@@ -276,7 +276,7 @@
   flex: 1;
   font-family: $font-mono;
   font-size: 11px;
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -285,9 +285,9 @@
 
 .content-search-count {
   font-size: 11px;
-  color: $text-muted;
+  color: var(--text-muted);
   flex-shrink: 0;
-  background: rgba($accent-blue, 0.1);
+  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
   padding: 2px 8px;
   border-radius: 10px;
 }
@@ -295,7 +295,7 @@
 .content-search-matches {
   padding: 0;
   background: transparent;
-  border-left: 1px solid rgba($accent-blue, 0.1);
+  border-left: 1px solid color-mix(in srgb, var(--accent-blue) 10%, transparent);
   margin-left: 16px;
 }
 
@@ -308,14 +308,14 @@
   transition: background $transition-fast;
 
   &:hover {
-    background: rgba($accent-blue, 0.08);
+    background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
   }
 }
 
 .content-search-line-num {
   font-family: $font-mono;
   font-size: 9px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   min-width: 32px;
   text-align: right;
   flex-shrink: 0;
@@ -326,15 +326,15 @@
   flex: 1;
   font-family: $font-mono;
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 1.2;
 
   .search-highlight {
-    background: rgba($dracula-yellow, 0.4);
-    color: $dracula-yellow;
+    background: color-mix(in srgb, var(--accent-yellow) 40%, transparent);
+    color: var(--accent-yellow);
     font-weight: 600;
   }
 }

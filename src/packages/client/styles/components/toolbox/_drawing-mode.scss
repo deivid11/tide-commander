@@ -15,8 +15,8 @@
   align-items: center;
   gap: 12px;
   padding: 10px 16px;
-  background: rgba($bg-secondary, 0.95);
-  border: 1px solid $accent-blue;
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  border: 1px solid var(--accent-blue);
   border-radius: $radius-lg;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   animation: drawing-indicator-in 0.2s ease-out;
@@ -42,13 +42,13 @@
 
 .drawing-mode-icon {
   font-size: 20px;
-  color: $accent-blue;
+  color: var(--accent-blue);
   width: 28px;
   height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba($accent-blue, 0.15);
+  background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
   border-radius: $radius-sm;
 }
 
@@ -61,18 +61,18 @@
 .drawing-mode-title {
   font-size: 13px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .drawing-mode-hint {
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .drawing-mode-exit {
   background: none;
-  border: 1px solid $border-color;
-  color: $text-secondary;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 6px 10px;
   font-size: 12px;
@@ -80,9 +80,9 @@
   transition: all $transition-fast;
 
   &:hover {
-    background: rgba($accent-red, 0.15);
-    border-color: $accent-red;
-    color: $accent-red;
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    border-color: var(--accent-red);
+    color: var(--accent-red);
   }
 }
 

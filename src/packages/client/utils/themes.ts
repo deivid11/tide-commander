@@ -8,7 +8,30 @@
  * saved user preferences continue to resolve.
  */
 
-export type ThemeId = 'dracula' | 'muted' | 'muted-red' | 'nord' | 'solarized-dark' | 'monokai' | 'gruvbox' | 'atom' | 'cyberpunk' | 'synthwave' | 'abyss' | 'obsidian-bloom' | 'catppuccin' | 'github-dark' | 'one-dark' | 'midnight-harbor' | 'ember-noir' | 'classic';
+export type ThemeId =
+  | 'dracula'
+  | 'muted'
+  | 'muted-red'
+  | 'nord'
+  | 'solarized-dark'
+  | 'monokai'
+  | 'gruvbox'
+  | 'atom'
+  | 'cyberpunk'
+  | 'synthwave'
+  | 'abyss'
+  | 'abyss-ember'
+  | 'abyss-frost'
+  | 'abyss-moss'
+  | 'abyss-dusk'
+  | 'obsidian-bloom'
+  | 'catppuccin'
+  | 'github-dark'
+  | 'one-dark'
+  | 'intellij-one-dark'
+  | 'midnight-harbor'
+  | 'ember-noir'
+  | 'classic';
 
 export interface ThemeColors {
   bgPrimary: string;
@@ -52,6 +75,13 @@ export interface ThemeColors {
   contextBarFill: string;     // Context bar fill color (default, overridden by percent color)
   // Task label color (overview panel)
   taskLabelColor: string;     // Color for agent task label text in overview
+  // Extended UI surfaces (optional — applyTheme fills sensible fallbacks)
+  selectionBg?: string;       // ::selection background
+  selectionText?: string;     // ::selection text
+  accentSoft?: string;        // Soft tint for selected rows / chips
+  thinkingAccent?: string;    // Thinking block / status-thinking accent
+  statusWorking?: string;     // Working status chips / badges
+  bgHover?: string;           // Subtle hover surface over primary bg
 }
 
 export interface Theme {
@@ -590,6 +620,214 @@ const abyssTheme: Theme = {
   },
 };
 
+// Abyss Ember - Abyss void base shifted warm: coals, ember orange, deep crimson
+// Signature: same pitch-black void; accents lean fire (orange/red/gold) instead of violet/teal
+const abyssEmberTheme: Theme = {
+  id: 'abyss-ember',
+  name: 'Abyss Ember',
+  description: 'Void base, warm ember accents',
+  colors: {
+    bgPrimary: '#0a0808',              // Near-black with faint coal undertone
+    bgSecondary: '#120e0c',            // Warm shadow
+    bgTertiary: '#1a1410',             // Dark shelf, warm
+    borderColor: '#2c2420',            // Faint warm edges
+    textPrimary: '#b8b0a8',            // Warm light gray
+    textSecondary: '#8a8078',          // Muted warm gray
+    textMuted: '#544c48',              // Deep warm muted
+    accentBlue: '#5a7a98',             // Cool contrast blue (dim)
+    accentGreen: '#6a9860',            // Olive ash green
+    accentOrange: '#d08040',           // Bright ember (signature)
+    accentRed: '#c05040',              // Hot coal red
+    accentPurple: '#986068',           // Smoky mauve
+    accentCyan: '#689888',             // Ash-teal
+    accentClaude: '#d08040',
+    accentClaudeLight: '#e09858',
+    accentPink: '#b86860',             // Burnt rose
+    accentYellow: '#c8a040',           // Molten gold
+    // Messages: ember user highlight, warm coal assistant
+    msgUserBg: '#1c1612',
+    msgUserHighlightBg: 'rgba(208, 128, 64, 0.14)',
+    msgUserBorder: '#a06038',
+    msgUserText: '#d8d0c8',
+    msgAssistantBg: '#161210',
+    msgAssistantBorder: '#3a2820',        // Subtle warm border
+    msgAssistantText: '#b0a8a0',
+    // Tools: warm use, cooler result
+    toolUseBg: '#1a1410',
+    toolUseBorder: '#403028',
+    toolUseText: '#a09890',
+    toolUseName: '#d08040',
+    toolResultBg: '#141210',
+    toolResultBorder: '#302828',
+    toolResultText: '#a09890',
+    // Output line: Deep warm void
+    outputLineBg: '#0c0a08',
+    // Context stats: Ember
+    contextBarBg: 'rgba(208, 128, 64, 0.20)',
+    contextBarFill: '#d08040',
+    taskLabelColor: '#d08040',            // Ember
+  },
+};
+
+// Abyss Frost - Abyss void base shifted cold: ice blue, glacial cyan, pale steel
+// Signature: same pitch-black void; accents lean frost (cyan/blue/ice) instead of violet/ember
+const abyssFrostTheme: Theme = {
+  id: 'abyss-frost',
+  name: 'Abyss Frost',
+  description: 'Void base, cold ice accents',
+  colors: {
+    bgPrimary: '#07090c',              // Near-black with faint ice undertone
+    bgSecondary: '#0c1014',            // Cold shadow
+    bgTertiary: '#141a20',             // Dark shelf, cool
+    borderColor: '#202830',            // Faint cool edges
+    textPrimary: '#a8b4bc',            // Cool light gray
+    textSecondary: '#788690',          // Muted cool gray
+    textMuted: '#485058',              // Deep cool muted
+    accentBlue: '#4a90c0',             // Ice blue (signature)
+    accentGreen: '#48a080',            // Glacial teal-green
+    accentOrange: '#a08060',           // Dimmed frost-warm
+    accentRed: '#a05868',              // Cold muted red
+    accentPurple: '#6070a0',           // Frozen indigo
+    accentCyan: '#40b0c0',             // Glacial cyan
+    accentClaude: '#40b0c0',
+    accentClaudeLight: '#58c0d0',
+    accentPink: '#7888b0',             // Icy lilac
+    accentYellow: '#90a878',           // Pale frost-lime
+    // Messages: ice-cyan user highlight, cool steel assistant
+    msgUserBg: '#121820',
+    msgUserHighlightBg: 'rgba(64, 176, 192, 0.14)',
+    msgUserBorder: '#3a7888',
+    msgUserText: '#c0ccd4',
+    msgAssistantBg: '#10161c',
+    msgAssistantBorder: '#1c3040',        // Subtle cool border
+    msgAssistantText: '#98a8b4',
+    // Tools: cool use, slightly warmer result contrast
+    toolUseBg: '#121820',
+    toolUseBorder: '#203040',
+    toolUseText: '#8898a4',
+    toolUseName: '#40b0c0',
+    toolResultBg: '#10141c',
+    toolResultBorder: '#243038',
+    toolResultText: '#8898a4',
+    // Output line: Deep cold void
+    outputLineBg: '#080a10',
+    // Context stats: Frost cyan
+    contextBarBg: 'rgba(64, 176, 192, 0.20)',
+    contextBarFill: '#40b0c0',
+    taskLabelColor: '#40b0c0',            // Glacial cyan
+  },
+};
+
+// Abyss Moss - soft forest charcoal for long sessions
+// Eye comfort: no pure black, no pure white, desaturated sage (greens rest the eye), low saturation accents
+const abyssMossTheme: Theme = {
+  id: 'abyss-moss',
+  name: 'Abyss Moss',
+  description: 'Soft forest charcoal, easy on eyes',
+  colors: {
+    // Soft charcoal-green void (not pure black — reduces halation)
+    bgPrimary: '#0c0f0c',
+    bgSecondary: '#121612',
+    bgTertiary: '#1a201a',
+    borderColor: '#2a322a',
+    // Soft off-white with green cast (~WCAG AA on bg, not harsh AAA white)
+    textPrimary: '#b4beb4',
+    textSecondary: '#7e8a7e',
+    textMuted: '#525a52',
+    accentBlue: '#6a8a9a',             // Muted slate-blue
+    accentGreen: '#7a9e72',            // Soft lichen (signature)
+    accentOrange: '#a89068',           // Dried leaf
+    accentRed: '#a07068',              // Muted clay rose
+    accentPurple: '#7a8090',           // Dusty slate-violet
+    accentCyan: '#6a9a8a',             // Soft jade
+    accentClaude: '#7a9e72',
+    accentClaudeLight: '#92b68a',
+    accentPink: '#8a8890',             // Stone mauve
+    accentYellow: '#a0a878',           // Pale moss-gold
+    // Messages: quiet green-gray panels, no neon borders
+    msgUserBg: '#161c16',
+    msgUserHighlightBg: 'rgba(122, 158, 114, 0.12)',
+    msgUserBorder: '#4a6a48',
+    msgUserText: '#c4cec4',
+    msgAssistantBg: '#141814',
+    msgAssistantBorder: '#2a3a2c',
+    msgAssistantText: '#a8b4a8',
+    // Tools: soft moss labels, quiet panels
+    toolUseBg: '#161a16',
+    toolUseBorder: '#2e3a28',
+    toolUseText: '#8e9a8e',
+    toolUseName: '#7a9e72',
+    toolResultBg: '#121612',
+    toolResultBorder: '#283228',
+    toolResultText: '#8e9a8e',
+    outputLineBg: '#0e120e',
+    contextBarBg: 'rgba(122, 158, 114, 0.16)',
+    contextBarFill: '#7a9e72',
+    taskLabelColor: '#7a9e72',
+    selectionBg: 'rgba(122, 158, 114, 0.28)',
+    selectionText: '#d0dcd0',
+    accentSoft: 'rgba(122, 158, 114, 0.14)',
+    thinkingAccent: '#7a9e72',
+    statusWorking: '#6a9a8a',
+    bgHover: 'rgba(122, 158, 114, 0.06)',
+  },
+};
+
+// Abyss Dusk - warm low-blue-light night reading
+// Eye comfort: warm charcoal (less blue light), soft parchment text, amber/taupe accents
+const abyssDuskTheme: Theme = {
+  id: 'abyss-dusk',
+  name: 'Abyss Dusk',
+  description: 'Warm night reading, low blue light',
+  colors: {
+    // Warm charcoal (brown-black, not blue-black)
+    bgPrimary: '#100e0c',
+    bgSecondary: '#171410',
+    bgTertiary: '#211c16',
+    borderColor: '#342c24',
+    // Soft parchment — never pure white
+    textPrimary: '#c4b8a8',
+    textSecondary: '#8e8274',
+    textMuted: '#5c5448',
+    accentBlue: '#7a8a9a',             // Desaturated dusk blue
+    accentGreen: '#8a9a78',            // Olive dusk
+    accentOrange: '#c49868',           // Soft amber (signature)
+    accentRed: '#b07868',              // Warm brick
+    accentPurple: '#8a7888',           // Dusty plum
+    accentCyan: '#7a9088',             // Warm mist
+    accentClaude: '#c49868',
+    accentClaudeLight: '#d4ae80',
+    accentPink: '#a88880',             // Soft rose clay
+    accentYellow: '#c0a870',           // Candle gold
+    // Messages: warm paper panels
+    msgUserBg: '#1c1814',
+    msgUserHighlightBg: 'rgba(196, 152, 104, 0.12)',
+    msgUserBorder: '#8a6848',
+    msgUserText: '#d4c8b8',
+    msgAssistantBg: '#181410',
+    msgAssistantBorder: '#3a3024',
+    msgAssistantText: '#b0a494',
+    // Tools: amber name, warm ash panels
+    toolUseBg: '#1a1612',
+    toolUseBorder: '#3a3024',
+    toolUseText: '#9a9084',
+    toolUseName: '#c49868',
+    toolResultBg: '#161210',
+    toolResultBorder: '#322820',
+    toolResultText: '#9a9084',
+    outputLineBg: '#12100c',
+    contextBarBg: 'rgba(196, 152, 104, 0.16)',
+    contextBarFill: '#c49868',
+    taskLabelColor: '#c49868',
+    selectionBg: 'rgba(196, 152, 104, 0.28)',
+    selectionText: '#e0d4c4',
+    accentSoft: 'rgba(196, 152, 104, 0.14)',
+    thinkingAccent: '#a88880',
+    statusWorking: '#c49868',
+    bgHover: 'rgba(196, 152, 104, 0.06)',
+  },
+};
+
 // Noir - a black-and-white film with a single thread of crimson
 // Signature: pure grayscale, high contrast, one blood-red accent cutting through
 const noirTheme: Theme = {
@@ -878,6 +1116,63 @@ const nightshadeTheme: Theme = {
   },
 };
 
+// One Dark — JetBrains IntelliJ One Dark look (chrome darker than Atom editor-only #282c34)
+// In the IDE most of the window is ~#21252b panels; #282c34 is only the editor surface.
+// Using #282c34 as bgPrimary washed out Tide Commander vs IntelliJ — fixed hierarchy below.
+// Signature: deep cool charcoal UI, chalk #abb2bf text, muted One Dark rainbow accents
+const intellijOneDarkTheme: Theme = {
+  id: 'intellij-one-dark',
+  name: 'One Dark',
+  description: 'IntelliJ One Dark (dark chrome)',
+  colors: {
+    // UI hierarchy mirrors JetBrains: dark frame first, editor gray only as elevated surface
+    bgPrimary: '#1e2227',              // App frame (darker than Atom editor gray)
+    bgSecondary: '#181b20',            // Sidebars / tool windows
+    bgTertiary: '#252930',             // Elevated cards (below full editor #282c34)
+    borderColor: '#12141a',            // Near-black separators (less glow)
+    textPrimary: '#abb2bf',            // One Dark foreground
+    textSecondary: '#7f848e',          // Dimmer secondary (was #828997)
+    textMuted: '#5c6370',              // Comments
+    // Syntax rainbow — same hues as One Dark, slightly less “neon” for large UI chrome
+    accentBlue: '#61afef',
+    accentGreen: '#98c379',
+    accentOrange: '#d19a66',
+    accentRed: '#e06c75',
+    accentPurple: '#c678dd',
+    accentCyan: '#56b6c2',
+    accentClaude: '#98c379',
+    accentClaudeLight: '#a8c98a',
+    accentPink: '#be7078',             // Softened pink/red for UI chips
+    accentYellow: '#e5c07b',
+    // Messages: solid dark panels + low-alpha tint (not milky overlays on #282c34)
+    msgUserBg: '#232830',
+    msgUserHighlightBg: 'rgba(97, 175, 239, 0.08)',
+    msgUserBorder: '#3d5a78',          // Dimmed blue border (not full neon #61afef)
+    msgUserText: '#abb2bf',
+    msgAssistantBg: '#202620',
+    msgAssistantBorder: '#4a6340',     // Dimmed green border
+    msgAssistantText: '#a0b888',
+    // Tools: quiet dark chips, orange name only
+    toolUseBg: '#22262c',
+    toolUseBorder: '#5a4a38',
+    toolUseText: '#9aa0aa',
+    toolUseName: '#d19a66',
+    toolResultBg: '#22202a',
+    toolResultBorder: '#5a4568',
+    toolResultText: '#9aa0aa',
+    outputLineBg: '#1a1d22',
+    contextBarBg: 'rgba(97, 175, 239, 0.12)',
+    contextBarFill: '#61afef',
+    taskLabelColor: '#61afef',
+    selectionBg: 'rgba(62, 68, 81, 0.90)', // #3e4451 family
+    selectionText: '#abb2bf',
+    accentSoft: 'rgba(97, 175, 239, 0.10)',
+    thinkingAccent: '#a070c0',         // Softened purple
+    statusWorking: '#61afef',
+    bgHover: 'rgba(97, 175, 239, 0.05)',
+  },
+};
+
 // Classic - the original transparent style before the theme system
 // Signature: Very dark background with transparent colored message blocks
 const classicTheme: Theme = {
@@ -928,24 +1223,29 @@ const classicTheme: Theme = {
 
 // All available themes
 export const themes: Theme[] = [
-  classicTheme,      // Default - original transparent style
-  abyssTheme,        // Ultra dark with vivid accents
-  noirTheme,         // Grayscale film with one crimson thread
-  bloodmoonTheme,    // Gothic crimson and antique gold
-  sumiTheme,         // Ink wash with a vermilion seal
-  verdigrisTheme,    // Oxidized copper and patina
-  glacierTheme,      // Arctic ice under a low sun
-  ukiyoTheme,        // Woodblock wave in prussian blue
-  magmaTheme,        // Lava veins through black basalt
-  terracottaTheme,   // Desert clay and turquoise
-  observatoryTheme,  // Star charts and telescope brass
-  nightMarketTheme,  // Neon signs over rain-slick streets
-  fireflyTheme,      // Amber sparks in a dark forest
-  moonmilkTheme,     // Dreamy pastels in violet dark
-  gunmetalTheme,     // Brushed steel with safety orange
-  moonriseTheme,     // Silver light over slate hills
-  marianaTheme,      // Bioluminescence in the trench
-  nightshadeTheme,   // Belladonna violet with poison green
+  classicTheme,           // Default - original transparent style
+  intellijOneDarkTheme,   // IntelliJ / Atom One Dark replica
+  abyssTheme,             // Ultra dark with vivid accents
+  abyssEmberTheme,        // Abyss void + warm ember accents
+  abyssFrostTheme,        // Abyss void + cold ice accents
+  abyssMossTheme,         // Soft forest charcoal — eye-friendly
+  abyssDuskTheme,         // Warm low-blue-light night reading
+  noirTheme,              // Grayscale film with one crimson thread
+  bloodmoonTheme,         // Gothic crimson and antique gold
+  sumiTheme,              // Ink wash with a vermilion seal
+  verdigrisTheme,         // Oxidized copper and patina
+  glacierTheme,           // Arctic ice under a low sun
+  ukiyoTheme,             // Woodblock wave in prussian blue
+  magmaTheme,             // Lava veins through black basalt
+  terracottaTheme,        // Desert clay and turquoise
+  observatoryTheme,       // Star charts and telescope brass
+  nightMarketTheme,       // Neon signs over rain-slick streets
+  fireflyTheme,           // Amber sparks in a dark forest
+  moonmilkTheme,          // Dreamy pastels in violet dark
+  gunmetalTheme,          // Brushed steel with safety orange
+  moonriseTheme,          // Silver light over slate hills
+  marianaTheme,           // Bioluminescence in the trench
+  nightshadeTheme,        // Belladonna violet with poison green
 ];
 
 // Get theme by ID
@@ -1002,12 +1302,122 @@ export function applyTheme(theme: Theme): void {
   // Task label color
   root.style.setProperty('--task-label-color', colors.taskLabelColor);
 
+  // Extended UI surfaces (fallbacks keep older themes coherent)
+  const selectionBg = colors.selectionBg ?? `color-mix(in srgb, ${colors.accentCyan} 28%, transparent)`;
+  const selectionText = colors.selectionText ?? colors.textPrimary;
+  const accentSoft = colors.accentSoft ?? `color-mix(in srgb, ${colors.accentBlue} 14%, transparent)`;
+  const thinkingAccent = colors.thinkingAccent ?? colors.accentPurple;
+  const statusWorking = colors.statusWorking ?? colors.accentCyan;
+  const bgHover = colors.bgHover ?? `color-mix(in srgb, ${colors.accentCyan} 6%, transparent)`;
+
+  root.style.setProperty('--selection-bg', selectionBg);
+  root.style.setProperty('--selection-text', selectionText);
+  root.style.setProperty('--accent-soft', accentSoft);
+  root.style.setProperty('--thinking-accent', thinkingAccent);
+  root.style.setProperty('--status-working', statusWorking);
+  root.style.setProperty('--bg-hover', bgHover);
+
   // Store in localStorage
   try {
     localStorage.setItem('tide-theme', theme.id);
   } catch {
     // localStorage not available
   }
+
+  // Notify live consumers (xterm embeds, etc.) so they can re-paint without reload
+  try {
+    root.dataset.tideTheme = theme.id;
+    window.dispatchEvent(new CustomEvent('tide-theme-changed', { detail: { themeId: theme.id } }));
+  } catch {
+    // window may be unavailable in non-browser contexts
+  }
+}
+
+/**
+ * Build an xterm.js ITheme from the active Tide theme definition.
+ * Uses concrete hex/rgba strings (not color-mix()) so xterm can parse them.
+ * Used by TerminalEmbed so the real terminal matches the UI theme.
+ */
+export function getXtermTheme(): {
+  background: string;
+  foreground: string;
+  cursor: string;
+  cursorAccent: string;
+  selectionBackground: string;
+  selectionForeground?: string;
+  black: string;
+  red: string;
+  green: string;
+  yellow: string;
+  blue: string;
+  magenta: string;
+  cyan: string;
+  white: string;
+  brightBlack: string;
+  brightRed: string;
+  brightGreen: string;
+  brightYellow: string;
+  brightBlue: string;
+  brightMagenta: string;
+  brightCyan: string;
+  brightWhite: string;
+} {
+  const { colors } = getTheme(getSavedTheme());
+  const bg = colors.bgPrimary;
+  const bg3 = colors.bgTertiary;
+  const fg = colors.textPrimary;
+  const muted = colors.textMuted;
+  const red = colors.accentRed;
+  const green = colors.accentGreen;
+  const yellow = colors.accentYellow === colors.textPrimary
+    ? colors.accentOrange
+    : colors.accentYellow;
+  const blue = colors.accentBlue;
+  const magenta = colors.accentPink || colors.accentPurple;
+  const cyan = colors.accentCyan;
+  // Prefer explicit selectionBg when xterm can parse it (hex/rgba); else soft cyan wash
+  const rawSel = colors.selectionBg;
+  const selection = rawSel && !rawSel.includes('color-mix')
+    ? rawSel
+    : (hexToRgba(cyan, 0.28) ?? cyan);
+  const selectionFg = colors.selectionText ?? fg;
+
+  return {
+    background: bg,
+    foreground: fg,
+    cursor: fg,
+    cursorAccent: bg,
+    selectionBackground: selection,
+    selectionForeground: selectionFg,
+    black: bg3,
+    red,
+    green,
+    yellow,
+    blue,
+    magenta,
+    cyan,
+    white: fg,
+    brightBlack: muted,
+    brightRed: red,
+    brightGreen: green,
+    brightYellow: yellow,
+    brightBlue: blue,
+    brightMagenta: magenta,
+    brightCyan: cyan,
+    brightWhite: fg,
+  };
+}
+
+/** Convert #rgb / #rrggbb (+ optional alpha) to rgba() for xterm selection fills. */
+function hexToRgba(hex: string, alpha: number): string | null {
+  const m = hex.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!m) return null;
+  let h = m[1];
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 // Get saved theme from localStorage

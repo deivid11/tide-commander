@@ -6,8 +6,8 @@
   left: 0;
   right: 0;
   height: 72px;
-  background: linear-gradient(180deg, rgba($dracula-bg, 0.95) 0%, rgba($dracula-bg-darker, 0.98) 100%);
-  border-top: 1px solid $dracula-current;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 95%, transparent) 0%, color-mix(in srgb, var(--bg-primary) 98%, transparent) 100%);
+  border-top: 1px solid var(--bg-tertiary);
   display: flex;
   align-items: center;
   z-index: 100;
@@ -50,12 +50,12 @@
   width: 44px;
   height: 20px;
   padding: 0;
-  background: $dracula-bg-darker;
-  border: 1px solid $dracula-current;
+  background: var(--bg-primary);
+  border: 1px solid var(--bg-tertiary);
   border-bottom: none;
   border-top-left-radius: 6px;
   border-top-right-radius: 6px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-size: 11px;
   line-height: 1;
   display: flex;
@@ -66,12 +66,12 @@
   z-index: 101;
 
   &:hover {
-    color: $dracula-fg;
-    background: $dracula-current;
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
   }
 
   &:focus-visible {
-    outline: 1px solid $dracula-purple;
+    outline: 1px solid var(--accent-purple);
     outline-offset: 1px;
   }
 }
@@ -84,12 +84,12 @@
   width: 44px;
   height: 20px;
   padding: 0;
-  background: linear-gradient(180deg, rgba($dracula-bg, 0.95) 0%, rgba($dracula-bg-darker, 0.98) 100%);
-  border: 1px solid $dracula-current;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 95%, transparent) 0%, color-mix(in srgb, var(--bg-primary) 98%, transparent) 100%);
+  border: 1px solid var(--bg-tertiary);
   border-bottom: none;
   border-top-left-radius: 6px;
   border-top-right-radius: 6px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-size: 12px;
   line-height: 1;
   display: flex;
@@ -100,13 +100,13 @@
   z-index: 100;
 
   &:hover {
-    color: $dracula-fg;
-    background: $dracula-current;
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
     transform: translateY(-1px);
   }
 
   &:focus-visible {
-    outline: 1px solid $dracula-purple;
+    outline: 1px solid var(--accent-purple);
     outline-offset: 1px;
   }
 }
@@ -130,16 +130,16 @@
     background: transparent;
   }
   &::-webkit-scrollbar-thumb {
-    background: rgba($dracula-comment, 0.4);
+    background: color-mix(in srgb, var(--text-muted) 40%, transparent);
     border-radius: 2px;
 
     &:hover {
-      background: rgba($dracula-comment, 0.7);
+      background: color-mix(in srgb, var(--text-muted) 70%, transparent);
     }
   }
   // Firefox
   scrollbar-width: thin;
-  scrollbar-color: rgba($dracula-comment, 0.4) transparent;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 40%, transparent) transparent;
 }
 
 .agent-bar-list {
@@ -173,8 +173,8 @@
   font-weight: 600;
   padding: 1px 5px;
   border-radius: 3px;
-  background: $accent-green;
-  color: $bg-primary;
+  background: var(--accent-green);
+  color: var(--bg-primary);
   cursor: pointer;
   transition: all $transition-fast;
   font-family: $font-mono;
@@ -190,11 +190,11 @@
 }
 
 .agent-bar-version-badge-behind {
-  background: $accent-orange;
+  background: var(--accent-orange);
 }
 
 .agent-bar-version-badge-ahead {
-  background: $accent-blue;
+  background: var(--accent-blue);
   color: #fff;
 }
 
@@ -206,16 +206,16 @@
   transition: color $transition-fast;
 
   &:hover {
-    color: $accent-blue;
+    color: var(--accent-blue);
   }
 }
 
 .agent-bar-version-status-behind {
-  color: $accent-orange;
+  color: var(--accent-orange);
 }
 
 .agent-bar-version-status-ahead {
-  color: $accent-blue;
+  color: var(--accent-blue);
 }
 
 // Fixed bottom-left circle indicator: highly visible "outdated" signal
@@ -240,11 +240,11 @@
     transform: scale(1.35);
     box-shadow:
       0 0 0 2px rgba(0, 0, 0, 0.5),
-      0 0 14px rgba($accent-orange, 0.95);
+      0 0 14px color-mix(in srgb, var(--accent-orange) 95%, transparent);
   }
 
   &:focus-visible {
-    outline: 2px solid $accent-orange;
+    outline: 2px solid var(--accent-orange);
     outline-offset: 3px;
     border-radius: 50%;
   }
@@ -255,10 +255,10 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: $accent-orange;
+  background: var(--accent-orange);
   box-shadow:
     0 0 0 2px rgba(0, 0, 0, 0.45),
-    0 0 8px rgba($accent-orange, 0.75);
+    0 0 8px color-mix(in srgb, var(--accent-orange) 75%, transparent);
   animation: outdated-version-pulse 1.6s ease-in-out infinite;
   transition: transform $transition-fast, box-shadow $transition-fast;
 }
@@ -279,16 +279,16 @@
   font-size: 12px;
   padding: 1px 6px;
   border-radius: 3px;
-  background: rgba($accent-orange, 0.2);
-  border: 1px solid $accent-orange;
-  color: $accent-orange;
+  background: color-mix(in srgb, var(--accent-orange) 20%, transparent);
+  border: 1px solid var(--accent-orange);
+  color: var(--accent-orange);
   cursor: pointer;
   transition: all $transition-fast;
   font-family: $font-mono;
   animation: hmr-pulse 2s ease-in-out infinite;
 
   &:hover {
-    background: rgba($accent-orange, 0.4);
+    background: color-mix(in srgb, var(--accent-orange) 40%, transparent);
     transform: scale(1.1);
   }
 
@@ -299,7 +299,7 @@
 
 @keyframes hmr-pulse {
   0%, 100% { box-shadow: none; }
-  50% { box-shadow: 0 0 8px rgba($accent-orange, 0.6); }
+  50% { box-shadow: 0 0 8px color-mix(in srgb, var(--accent-orange) 60%, transparent); }
 }
 
 // New Agent spawn button
@@ -311,18 +311,18 @@
   width: 40px;
   height: 40px;
   border-radius: $radius-lg;
-  background: rgba($dracula-green, 0.15);
-  border: 2px dashed $dracula-green;
+  background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+  border: 2px dashed var(--accent-green);
   cursor: pointer;
   transition: all $transition-fast;
   padding: 4px;
   margin-right: 4px;
 
   &:hover {
-    background: rgba($dracula-green, 0.3);
+    background: color-mix(in srgb, var(--accent-green) 30%, transparent);
     border-style: solid;
     transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba($dracula-green, 0.3);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--accent-green) 30%, transparent);
   }
 
   &:active {
@@ -333,7 +333,7 @@
 .agent-bar-spawn-icon {
   font-size: 16px;
   font-weight: 600;
-  color: $dracula-green;
+  color: var(--accent-green);
   line-height: 1;
 }
 
@@ -341,7 +341,7 @@
   font-size: 7px;
   font-family: $font-mono;
   font-weight: 600;
-  color: $dracula-green;
+  color: var(--accent-green);
   text-transform: uppercase;
   letter-spacing: 0.3px;
   margin-top: 1px;
@@ -349,33 +349,33 @@
 
 // New Building button variant
 .agent-bar-building-btn {
-  background: rgba($dracula-cyan, 0.15);
-  border-color: $dracula-cyan;
+  background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+  border-color: var(--accent-cyan);
 
   &:hover {
-    background: rgba($dracula-cyan, 0.3);
-    box-shadow: 0 4px 16px rgba($dracula-cyan, 0.3);
+    background: color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--accent-cyan) 30%, transparent);
   }
 
   .agent-bar-spawn-icon,
   .agent-bar-spawn-label {
-    color: $dracula-cyan;
+    color: var(--accent-cyan);
   }
 }
 
 // New Area button variant
 .agent-bar-area-btn {
-  background: rgba($dracula-purple, 0.15);
-  border-color: $dracula-purple;
+  background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+  border-color: var(--accent-purple);
 
   &:hover {
-    background: rgba($dracula-purple, 0.3);
-    box-shadow: 0 4px 16px rgba($dracula-purple, 0.3);
+    background: color-mix(in srgb, var(--accent-purple) 30%, transparent);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--accent-purple) 30%, transparent);
   }
 
   .agent-bar-spawn-icon,
   .agent-bar-spawn-label {
-    color: $dracula-purple;
+    color: var(--accent-purple);
   }
 }
 
@@ -388,7 +388,7 @@
   border-radius: $radius-lg;
   border: 1px solid;
   position: relative;
-  background: rgba($dracula-bg, 0.3);
+  background: color-mix(in srgb, var(--bg-secondary) 30%, transparent);
   transition: all $transition-fast;
   margin-top: 4px;
 
@@ -398,8 +398,8 @@
 
   &.unassigned {
     border-style: dashed;
-    border-color: $dracula-comment;
-    background: rgba($dracula-comment, 0.05);
+    border-color: var(--text-muted);
+    background: color-mix(in srgb, var(--text-muted) 5%, transparent);
   }
 }
 
@@ -409,9 +409,9 @@
   flex-direction: row;
   gap: 2px;
   padding: 2px 4px;
-  background: rgba($dracula-bg-darker, 0.6);
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
   border-radius: $radius-sm;
-  border: 1px solid rgba($dracula-current, 0.4);
+  border: 1px solid color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
 }
 
 .agent-bar-folder-item {
@@ -426,7 +426,7 @@
   cursor: pointer;
 
   &:hover {
-    background: rgba($dracula-green, 0.2);
+    background: color-mix(in srgb, var(--accent-green) 20%, transparent);
     transform: scale(1.1);
 
     .agent-bar-folder-tooltip {
@@ -446,8 +446,8 @@
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%) translateY(4px);
-  background: rgba($dracula-bg, 0.98);
-  border: 1px solid $dracula-green;
+  background: color-mix(in srgb, var(--bg-secondary) 98%, transparent);
+  border: 1px solid var(--accent-green);
   border-radius: $radius-sm;
   padding: 6px 10px;
   font-family: $font-mono;
@@ -469,19 +469,19 @@
     left: 50%;
     transform: translateX(-50%);
     border: 5px solid transparent;
-    border-top-color: $dracula-green;
+    border-top-color: var(--accent-green);
   }
 }
 
 .agent-bar-folder-tooltip-path {
   font-size: 10px;
-  color: $dracula-green;
+  color: var(--accent-green);
   white-space: nowrap;
 }
 
 .agent-bar-folder-tooltip-hint {
   font-size: 8px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   text-align: center;
 }
 
@@ -492,7 +492,7 @@
   left: 8px;
   padding: 1px 6px;
   border-radius: $radius-sm;
-  background: $dracula-bg;
+  background: var(--bg-secondary);
   z-index: 1;
 }
 
@@ -510,7 +510,7 @@
   width: 36px;
   height: 36px;
   border-radius: $radius-lg;
-  background: rgba($dracula-current, 0.5);
+  background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
   border: 2px solid transparent;
   cursor: grab;
   transition: all $transition-fast;
@@ -523,19 +523,19 @@
   }
 
   &:hover {
-    background: rgba($dracula-current, 0.8);
-    border-color: $dracula-comment;
+    background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+    border-color: var(--text-muted);
     transform: translateY(-2px);
   }
 
   &.selected {
-    border-color: $dracula-green;
+    border-color: var(--accent-green);
     border-width: 2px;
-    background: linear-gradient(135deg, rgba($dracula-green, 0.35) 0%, rgba($dracula-green, 0.15) 100%);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent-green) 35%, transparent) 0%, color-mix(in srgb, var(--accent-green) 15%, transparent) 100%);
     box-shadow:
-      0 0 14px rgba($dracula-green, 0.6),
-      0 0 28px rgba($dracula-green, 0.3),
-      inset 0 0 8px rgba($dracula-green, 0.2);
+      0 0 14px color-mix(in srgb, var(--accent-green) 60%, transparent),
+      0 0 28px color-mix(in srgb, var(--accent-green) 30%, transparent),
+      inset 0 0 8px color-mix(in srgb, var(--accent-green) 20%, transparent);
     transform: translateY(-2px) scale(1.05);
     z-index: 10;
 
@@ -545,7 +545,7 @@
       position: absolute;
       inset: -4px;
       border-radius: calc($radius-lg + 3px);
-      border: 1px solid rgba($dracula-green, 0.5);
+      border: 1px solid color-mix(in srgb, var(--accent-green) 50%, transparent);
       animation: selected-ring-pulse 1.5s ease-in-out infinite;
       pointer-events: none;
     }
@@ -560,14 +560,14 @@
 
   // Mobile long-press drag unlock feedback
   &.touch-drag-enabled {
-    border-color: rgba($dracula-purple, 0.85);
-    box-shadow: 0 0 10px rgba($dracula-purple, 0.45);
+    border-color: color-mix(in srgb, var(--accent-purple) 85%, transparent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent-purple) 45%, transparent);
   }
 
   &.drag-over {
     transform: translateY(-4px) scale(1.05);
-    box-shadow: 0 8px 24px rgba($dracula-purple, 0.5);
-    border-color: $dracula-purple;
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--accent-purple) 50%, transparent);
+    border-color: var(--accent-purple);
 
     &::before {
       content: '';
@@ -577,7 +577,7 @@
       transform: translateY(-50%);
       width: 4px;
       height: 80%;
-      background: $dracula-purple;
+      background: var(--accent-purple);
       border-radius: 2px;
       animation: drop-indicator-pulse 0.6s ease-in-out infinite;
     }
@@ -585,9 +585,9 @@
 
   // Status-based border colors and animations
   &.working {
-    border-color: rgba($dracula-cyan, 0.8);
+    border-color: color-mix(in srgb, var(--accent-cyan) 80%, transparent);
     animation: agent-working-pulse 1.5s ease-in-out infinite;
-    box-shadow: 0 0 12px rgba($dracula-cyan, 0.4);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--accent-cyan) 40%, transparent);
 
     .agent-bar-icon {
       animation: agent-icon-bounce 0.6s ease-in-out infinite;
@@ -595,15 +595,15 @@
   }
 
   &.error {
-    border-color: rgba($dracula-red, 0.8);
+    border-color: color-mix(in srgb, var(--accent-red) 80%, transparent);
     animation: agent-error-pulse 0.8s ease-in-out infinite;
-    box-shadow: 0 0 12px rgba($dracula-red, 0.4);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--accent-red) 40%, transparent);
   }
 
   &.waiting {
-    border-color: rgba($dracula-orange, 0.8);
+    border-color: color-mix(in srgb, var(--accent-orange) 80%, transparent);
     animation: agent-waiting-pulse 2s ease-in-out infinite;
-    box-shadow: 0 0 8px rgba($dracula-orange, 0.3);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent-orange) 30%, transparent);
   }
 
   // Boss agent special styling - golden theme
@@ -650,12 +650,12 @@
   0%, 100% {
     opacity: 0.6;
     transform: scale(1);
-    border-color: rgba($dracula-green, 0.5);
+    border-color: color-mix(in srgb, var(--accent-green) 50%, transparent);
   }
   50% {
     opacity: 1;
     transform: scale(1.05);
-    border-color: rgba($dracula-green, 0.8);
+    border-color: color-mix(in srgb, var(--accent-green) 80%, transparent);
   }
 }
 
@@ -674,11 +674,11 @@
 
 @keyframes agent-working-pulse {
   0%, 100% {
-    box-shadow: 0 0 8px rgba($dracula-cyan, 0.4);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent-cyan) 40%, transparent);
     transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 20px rgba($dracula-cyan, 0.7), 0 0 30px rgba($dracula-cyan, 0.3);
+    box-shadow: 0 0 20px color-mix(in srgb, var(--accent-cyan) 70%, transparent), 0 0 30px color-mix(in srgb, var(--accent-cyan) 30%, transparent);
     transform: scale(1.05);
   }
 }
@@ -694,21 +694,21 @@
 
 @keyframes agent-error-pulse {
   0%, 100% {
-    box-shadow: 0 0 8px rgba($dracula-red, 0.4);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent-red) 40%, transparent);
   }
   50% {
-    box-shadow: 0 0 16px rgba($dracula-red, 0.8), 0 0 24px rgba($dracula-red, 0.4);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--accent-red) 80%, transparent), 0 0 24px color-mix(in srgb, var(--accent-red) 40%, transparent);
   }
 }
 
 @keyframes agent-waiting-pulse {
   0%, 100% {
-    box-shadow: 0 0 6px rgba($dracula-orange, 0.3);
-    border-color: rgba($dracula-orange, 0.5);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--accent-orange) 30%, transparent);
+    border-color: color-mix(in srgb, var(--accent-orange) 50%, transparent);
   }
   50% {
-    box-shadow: 0 0 14px rgba($dracula-orange, 0.5);
-    border-color: rgba($dracula-orange, 0.9);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--accent-orange) 50%, transparent);
+    border-color: color-mix(in srgb, var(--accent-orange) 90%, transparent);
   }
 }
 
@@ -742,7 +742,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 2px solid $dracula-bg;
+  border: 2px solid var(--bg-secondary);
   z-index: 2;
   transition: transform $transition-fast;
 
@@ -772,7 +772,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 2px solid $bg-primary;
+  border: 2px solid var(--bg-primary);
 }
 
 .agent-bar-idle-clock {
@@ -828,12 +828,12 @@
   right: -5px;
   width: 14px;
   height: 14px;
-  background: $dracula-comment;
+  background: var(--text-muted);
   border-radius: 50%;
   font-size: 9px;
   font-weight: 600;
   font-family: $font-mono;
-  color: $dracula-bg;
+  color: var(--bg-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -848,8 +848,8 @@
 // Tooltip - positioned via inline style (fixed, above hovered agent)
 .agent-bar-tooltip {
   transform: translateX(-50%);
-  background: rgba($dracula-bg, 0.98);
-  border: 1px solid $dracula-purple;
+  background: color-mix(in srgb, var(--bg-secondary) 98%, transparent);
+  border: 1px solid var(--accent-purple);
   border-radius: $radius-sm;
   padding: 6px 10px;
   min-width: 220px;
@@ -865,7 +865,7 @@
     left: 50%;
     transform: translateX(-50%);
     border: 5px solid transparent;
-    border-top-color: $dracula-purple;
+    border-top-color: var(--accent-purple);
   }
 }
 
@@ -886,7 +886,7 @@
   gap: 4px;
   margin-bottom: 4px;
   padding-bottom: 3px;
-  border-bottom: 1px solid $dracula-current;
+  border-bottom: 1px solid var(--bg-tertiary);
 }
 
 .agent-bar-tooltip-icon {
@@ -896,7 +896,7 @@
 .agent-bar-tooltip-name {
   font-weight: 600;
   font-size: 11px;
-  color: $dracula-fg;
+  color: var(--text-primary);
   font-family: $font-mono;
   flex: 1;
   display: inline-flex;
@@ -934,36 +934,36 @@
 }
 
 .agent-bar-tooltip-label {
-  color: $dracula-comment;
+  color: var(--text-muted);
   min-width: 50px;
   flex-shrink: 0;
 }
 
 .agent-bar-tooltip-value {
-  color: $dracula-fg;
+  color: var(--text-primary);
   flex: 1;
 }
 
 .agent-bar-tooltip-path {
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   word-break: break-all;
   font-size: 9px;
 }
 
 .agent-bar-tooltip-queue {
-  color: $dracula-orange;
+  color: var(--accent-orange);
 }
 
 .agent-bar-tooltip-tool {
-  color: $dracula-pink;
+  color: var(--accent-pink);
 }
 
 // Tool bubble that appears above agent when using a tool
 // Rendered with position:fixed via inline style (outside scroll wrapper)
 .agent-bar-tool-bubble {
   transform: translateX(-50%);
-  background: rgba($dracula-bg, 0.95);
-  border: 1px solid $dracula-pink;
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  border: 1px solid var(--accent-pink);
   border-radius: $radius-md;
   padding: 3px 6px;
   display: flex;
@@ -971,7 +971,7 @@
   gap: 4px;
   white-space: nowrap;
   animation: tool-bubble-appear 0.3s ease-out;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 8px rgba($dracula-pink, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 8px color-mix(in srgb, var(--accent-pink) 30%, transparent);
   z-index: 201;
   pointer-events: none;
 
@@ -982,7 +982,7 @@
     left: 50%;
     transform: translateX(-50%);
     border: 5px solid transparent;
-    border-top-color: $dracula-pink;
+    border-top-color: var(--accent-pink);
   }
 }
 
@@ -1009,7 +1009,7 @@
   font-size: 10px;
   font-family: $font-mono;
   font-weight: 600;
-  color: $dracula-pink;
+  color: var(--accent-pink);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -1020,13 +1020,13 @@
   top: 100%;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba($dracula-bg, 0.95);
-  border: 1px solid $dracula-comment;
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  border: 1px solid var(--text-muted);
   border-radius: $radius-sm;
   padding: 3px 8px;
   font-size: 9px;
   font-family: $font-mono;
-  color: $dracula-comment;
+  color: var(--text-muted);
   white-space: nowrap;
   max-width: 150px;
   overflow: hidden;
@@ -1048,7 +1048,7 @@
 
 // Tooltip query style
 .agent-bar-tooltip-query {
-  color: $dracula-green;
+  color: var(--accent-green);
   font-style: italic;
   font-size: 9px;
   word-break: break-word;
@@ -1059,8 +1059,8 @@
 
 // Agent hover popup (battlefield tooltip)
 .agent-hover-popup {
-  background: rgba($dracula-bg, 0.95);
-  border: 1px solid $dracula-purple;
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  border: 1px solid var(--accent-purple);
   border-radius: $radius-md;
   padding: 12px 14px;
   min-width: 240px;
@@ -1092,9 +1092,9 @@
   width: 17px;
   height: 17px;
   padding: 0;
-  border: 1px solid $dracula-comment;
+  border: 1px solid var(--text-muted);
   border-radius: 50%;
-  background: rgba($dracula-bg, 0.95);
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
   font-size: 9px;
   line-height: 1;
   cursor: pointer;
@@ -1117,7 +1117,7 @@
     opacity: 1;
     filter: none;
     border-color: var(--accent-cyan);
-    background: rgba($dracula-cyan, 0.22);
+    background: color-mix(in srgb, var(--accent-cyan) 22%, transparent);
   }
 }
 

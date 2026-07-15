@@ -290,7 +290,7 @@
   }
 
   &:hover {
-    background: color-mix(in srgb, var(--output-line-bg) 100%, var(--accent-cyan) 5%);
+    background: var(--bg-hover);
   }
 
   // Enter fade for live tool chips / assistant is applied by ToolChipEnter.tsx
@@ -790,10 +790,10 @@
   gap: 4px;
   background: linear-gradient(
     120deg,
-    color-mix(in srgb, var(--accent-purple) 12%, var(--bg-secondary) 88%),
-    color-mix(in srgb, var(--accent-cyan) 8%, var(--bg-tertiary) 92%)
+    color-mix(in srgb, var(--thinking-accent) 12%, var(--bg-secondary) 88%),
+    color-mix(in srgb, var(--status-working) 8%, var(--bg-tertiary) 92%)
   );
-  border-left: 3px solid color-mix(in srgb, var(--accent-purple) 70%, var(--accent-cyan) 30%);
+  border-left: 3px solid color-mix(in srgb, var(--thinking-accent) 70%, var(--status-working) 30%);
   border-radius: $radius-md;
   padding: 6px 10px;
   margin: 4px 0;
@@ -806,8 +806,8 @@
     &:hover {
       background: linear-gradient(
         120deg,
-        color-mix(in srgb, var(--accent-purple) 16%, var(--bg-secondary) 84%),
-        color-mix(in srgb, var(--accent-cyan) 12%, var(--bg-tertiary) 88%)
+        color-mix(in srgb, var(--thinking-accent) 16%, var(--bg-secondary) 84%),
+        color-mix(in srgb, var(--status-working) 12%, var(--bg-tertiary) 88%)
       );
     }
   }
@@ -818,7 +818,7 @@
   }
 
   &.output-streaming {
-    border-left-color: var(--accent-cyan);
+    border-left-color: var(--status-working);
   }
 }
 
@@ -839,8 +839,8 @@
   width: 20px;
   height: 20px;
   border-radius: 5px;
-  color: var(--accent-purple);
-  background: color-mix(in srgb, var(--accent-purple) 18%, transparent);
+  color: var(--thinking-accent);
+  background: color-mix(in srgb, var(--thinking-accent) 18%, transparent);
 }
 
 .output-thinking-agent {
@@ -861,7 +861,7 @@
 }
 
 .output-thinking-label {
-  color: color-mix(in srgb, var(--accent-purple) 55%, white);
+  color: color-mix(in srgb, var(--thinking-accent) 55%, white);
   flex: 0 0 auto;
   font-size: 10px;
   font-weight: 700;
@@ -874,7 +874,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--accent-cyan);
+  background: var(--status-working);
   flex-shrink: 0;
   animation: thinking-pulse 1.2s ease-in-out infinite;
 }
@@ -900,7 +900,7 @@
 }
 
 .output-thinking-content {
-  color: color-mix(in srgb, var(--text-primary) 92%, var(--accent-cyan));
+  color: color-mix(in srgb, var(--text-primary) 92%, var(--thinking-accent));
   opacity: 0.95;
   width: 100%;
   min-width: 0;
@@ -1444,7 +1444,7 @@
     padding: 12px;
     background: linear-gradient(
       to bottom,
-      color-mix(in srgb, var(--bg-secondary, #1e1e2e) 65%, transparent),
+      color-mix(in srgb, var(--bg-secondary, var(--bg-primary)) 65%, transparent),
       color-mix(in srgb, var(--bg-primary) 70%, transparent)
     );
     border-left: 4px solid var(--accent-blue, #60a5fa);

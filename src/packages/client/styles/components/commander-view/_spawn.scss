@@ -3,9 +3,9 @@
 
 // Add agent button
 .commander-add-btn {
-  background: $dracula-green;
+  background: var(--accent-green);
   border: none;
-  color: $dracula-bg;
+  color: var(--bg-secondary);
   padding: 6px 14px;
   border-radius: $radius-sm;
   cursor: pointer;
@@ -15,7 +15,7 @@
   transition: all $transition-fast;
 
   &:hover {
-    background: color.adjust($dracula-green, $lightness: 10%);
+    background: color-mix(in srgb, var(--accent-green) 88%, white);
   }
 }
 
@@ -31,8 +31,8 @@
 }
 
 .commander-spawn-form {
-  background: $dracula-bg;
-  border: 1px solid $dracula-purple;
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent-purple);
   border-radius: $radius-lg;
   width: 400px;
   max-width: 90%;
@@ -44,13 +44,13 @@
   justify-content: space-between;
   align-items: center;
   padding: 14px 18px;
-  border-bottom: 1px solid $dracula-current;
+  border-bottom: 1px solid var(--bg-tertiary);
 
   h3 {
     margin: 0;
     font-size: 14px;
     font-weight: 600;
-    color: $dracula-pink;
+    color: var(--accent-pink);
     font-family: $font-mono;
   }
 }
@@ -60,7 +60,7 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: $dracula-fg;
+  color: var(--text-primary);
   font-family: $font-mono;
 }
 
@@ -85,7 +85,7 @@
     display: block;
     font-size: 11px;
     font-weight: 600;
-    color: $dracula-comment;
+    color: var(--text-muted);
     text-transform: uppercase;
     margin-bottom: 6px;
     font-family: $font-mono;
@@ -93,21 +93,21 @@
 
   input {
     width: 100%;
-    background: $dracula-bg-darker;
-    border: 1px solid $dracula-current;
+    background: var(--bg-primary);
+    border: 1px solid var(--bg-tertiary);
     border-radius: $radius-sm;
     padding: 10px 12px;
-    color: $dracula-fg;
+    color: var(--text-primary);
     font-size: 12px;
     font-family: $font-mono;
 
     &:focus {
       outline: none;
-      border-color: $dracula-purple;
+      border-color: var(--accent-purple);
     }
 
     &::placeholder {
-      color: $dracula-comment;
+      color: var(--text-muted);
     }
   }
 }
@@ -124,24 +124,24 @@
   align-items: center;
   gap: 4px;
   padding: 10px 6px;
-  background: $dracula-bg-darker;
-  border: 1px solid $dracula-current;
+  background: var(--bg-primary);
+  border: 1px solid var(--bg-tertiary);
   border-radius: $radius-sm;
   cursor: pointer;
   font-family: $font-mono;
   font-size: 11px;
-  color: $dracula-comment;
+  color: var(--text-muted);
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $dracula-purple;
-    color: $dracula-fg;
+    border-color: var(--accent-purple);
+    color: var(--text-primary);
   }
 
   &.selected {
-    border-color: $dracula-green;
-    background: rgba($dracula-green, 0.1);
-    color: $dracula-green;
+    border-color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+    color: var(--accent-green);
   }
 }
 
@@ -153,34 +153,34 @@
   display: flex;
   gap: 10px;
   padding: 14px 18px;
-  border-top: 1px solid $dracula-current;
+  border-top: 1px solid var(--bg-tertiary);
 }
 
 .commander-spawn-cancel {
   flex: 1;
   padding: 10px;
   background: transparent;
-  border: 1px solid $dracula-current;
+  border: 1px solid var(--bg-tertiary);
   border-radius: $radius-sm;
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-size: 11px;
   font-family: $font-mono;
   cursor: pointer;
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $dracula-fg;
-    color: $dracula-fg;
+    border-color: var(--text-primary);
+    color: var(--text-primary);
   }
 }
 
 .commander-spawn-submit {
   flex: 1;
   padding: 10px;
-  background: $dracula-green;
+  background: var(--accent-green);
   border: none;
   border-radius: $radius-sm;
-  color: $dracula-bg;
+  color: var(--bg-secondary);
   font-size: 11px;
   font-weight: 600;
   font-family: $font-mono;
@@ -188,7 +188,7 @@
   transition: all $transition-fast;
 
   &:hover:not(:disabled) {
-    background: color.adjust($dracula-green, $lightness: 10%);
+    background: color-mix(in srgb, var(--accent-green) 88%, white);
   }
 
   &:disabled {

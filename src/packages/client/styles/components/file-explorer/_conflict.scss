@@ -8,7 +8,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: $bg-secondary;
+  background: var(--bg-secondary);
 }
 
 .conflict-header {
@@ -16,15 +16,15 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: $bg-tertiary;
-  border-bottom: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .conflict-header-title {
   font-family: $font-mono;
   font-size: 12px;
   font-weight: 600;
-  color: $dracula-orange;
+  color: var(--accent-orange);
 }
 
 .conflict-nav {
@@ -35,8 +35,8 @@
 
 .conflict-nav-btn {
   background: transparent;
-  border: 1px solid rgba($dracula-orange, 0.4);
-  color: $dracula-orange;
+  border: 1px solid color-mix(in srgb, var(--accent-orange) 40%, transparent);
+  color: var(--accent-orange);
   font-size: 10px;
   cursor: pointer;
   padding: 2px 6px;
@@ -45,8 +45,8 @@
   transition: all $transition-fast;
 
   &:hover {
-    background: rgba($dracula-orange, 0.15);
-    border-color: $dracula-orange;
+    background: color-mix(in srgb, var(--accent-orange) 15%, transparent);
+    border-color: var(--accent-orange);
   }
 }
 
@@ -54,7 +54,7 @@
   font-family: $font-mono;
   font-size: 11px;
   font-weight: 600;
-  color: $dracula-orange;
+  color: var(--accent-orange);
   min-width: 40px;
   text-align: center;
 }
@@ -62,7 +62,7 @@
 .conflict-close-btn {
   background: transparent;
   border: none;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 16px;
   cursor: pointer;
   padding: 2px 6px;
@@ -70,8 +70,8 @@
   line-height: 1;
 
   &:hover {
-    background: rgba($accent-red, 0.2);
-    color: $accent-red;
+    background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+    color: var(--accent-red);
   }
 }
 
@@ -80,13 +80,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: $text-muted;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
 .conflict-pane-headers {
   display: flex;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .conflict-pane-header {
@@ -99,14 +99,14 @@
   letter-spacing: 0.5px;
 
   &.current {
-    color: $dracula-cyan;
-    background: rgba($dracula-cyan, 0.05);
-    border-right: 1px solid $border-color;
+    color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 5%, transparent);
+    border-right: 1px solid var(--border-color);
   }
 
   &.incoming {
-    color: $dracula-purple;
-    background: rgba($dracula-purple, 0.05);
+    color: var(--accent-purple);
+    background: color-mix(in srgb, var(--accent-purple) 5%, transparent);
   }
 }
 
@@ -135,22 +135,22 @@
     font-family: $font-mono;
     font-size: 12px;
     line-height: 1.5;
-    color: $text-secondary;
+    color: var(--text-secondary);
     white-space: pre-wrap;
     word-break: break-all;
   }
 }
 
 .conflict-section-conflict {
-  border: 1px solid rgba($dracula-orange, 0.3);
-  border-left: 3px solid $dracula-orange;
+  border: 1px solid color-mix(in srgb, var(--accent-orange) 30%, transparent);
+  border-left: 3px solid var(--accent-orange);
   margin: 4px 0;
-  background: rgba($dracula-orange, 0.03);
+  background: color-mix(in srgb, var(--accent-orange) 3%, transparent);
 
   &.resolved {
-    border-color: rgba($dracula-green, 0.3);
-    border-left-color: $dracula-green;
-    background: rgba($dracula-green, 0.03);
+    border-color: color-mix(in srgb, var(--accent-green) 30%, transparent);
+    border-left-color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 3%, transparent);
   }
 }
 
@@ -164,16 +164,16 @@
   position: relative;
 
   &.ours {
-    border-right: 1px solid $border-color;
-    background: rgba($dracula-cyan, 0.03);
+    border-right: 1px solid var(--border-color);
+    background: color-mix(in srgb, var(--accent-cyan) 3%, transparent);
   }
 
   &.theirs {
-    background: rgba($dracula-purple, 0.03);
+    background: color-mix(in srgb, var(--accent-purple) 3%, transparent);
   }
 
   &.accepted {
-    background: rgba($dracula-green, 0.08);
+    background: color-mix(in srgb, var(--accent-green) 8%, transparent);
   }
 
   pre {
@@ -181,7 +181,7 @@
     font-family: $font-mono;
     font-size: 12px;
     line-height: 1.5;
-    color: $dracula-fg;
+    color: var(--text-primary);
     white-space: pre-wrap;
     word-break: break-all;
     min-height: 20px;
@@ -202,36 +202,36 @@
 
   &.ours {
     background: transparent;
-    border: 1px solid rgba($dracula-cyan, 0.4);
-    color: $dracula-cyan;
+    border: 1px solid color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+    color: var(--accent-cyan);
 
     &:hover:not(:disabled) {
-      background: rgba($dracula-cyan, 0.15);
-      border-color: $dracula-cyan;
+      background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+      border-color: var(--accent-cyan);
     }
 
     &:disabled {
-      background: rgba($dracula-green, 0.15);
-      border-color: $dracula-green;
-      color: $dracula-green;
+      background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+      border-color: var(--accent-green);
+      color: var(--accent-green);
       cursor: default;
     }
   }
 
   &.theirs {
     background: transparent;
-    border: 1px solid rgba($dracula-purple, 0.4);
-    color: $dracula-purple;
+    border: 1px solid color-mix(in srgb, var(--accent-purple) 40%, transparent);
+    color: var(--accent-purple);
 
     &:hover:not(:disabled) {
-      background: rgba($dracula-purple, 0.15);
-      border-color: $dracula-purple;
+      background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+      border-color: var(--accent-purple);
     }
 
     &:disabled {
-      background: rgba($dracula-green, 0.15);
-      border-color: $dracula-green;
-      color: $dracula-green;
+      background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+      border-color: var(--accent-green);
+      color: var(--accent-green);
       cursor: default;
     }
   }
@@ -249,19 +249,19 @@
   cursor: pointer;
   transition: all $transition-fast;
   background: transparent;
-  border: 1px solid rgba($dracula-orange, 0.4);
-  color: $dracula-orange;
+  border: 1px solid color-mix(in srgb, var(--accent-orange) 40%, transparent);
+  color: var(--accent-orange);
 
   &:hover:not(:disabled) {
-    background: rgba($dracula-orange, 0.15);
-    border-color: $dracula-orange;
+    background: color-mix(in srgb, var(--accent-orange) 15%, transparent);
+    border-color: var(--accent-orange);
   }
 
   &.accepted,
   &:disabled {
-    background: rgba($dracula-green, 0.15);
-    border-color: $dracula-green;
-    color: $dracula-green;
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
     cursor: default;
   }
 }
@@ -270,8 +270,8 @@
   display: flex;
   gap: 6px;
   padding: 8px;
-  background: $bg-tertiary;
-  border-top: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--border-color);
 }
 
 .conflict-action-btn {
@@ -286,41 +286,41 @@
 
   &.accept-all-current {
     background: transparent;
-    border: 1px solid rgba($dracula-cyan, 0.4);
-    color: $dracula-cyan;
+    border: 1px solid color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+    color: var(--accent-cyan);
 
     &:hover {
-      background: rgba($dracula-cyan, 0.15);
-      border-color: $dracula-cyan;
+      background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+      border-color: var(--accent-cyan);
     }
   }
 
   &.accept-all-incoming {
     background: transparent;
-    border: 1px solid rgba($dracula-purple, 0.4);
-    color: $dracula-purple;
+    border: 1px solid color-mix(in srgb, var(--accent-purple) 40%, transparent);
+    color: var(--accent-purple);
 
     &:hover {
-      background: rgba($dracula-purple, 0.15);
-      border-color: $dracula-purple;
+      background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+      border-color: var(--accent-purple);
     }
   }
 
   &.accept-all-both {
     background: transparent;
-    border: 1px solid rgba($dracula-orange, 0.4);
-    color: $dracula-orange;
+    border: 1px solid color-mix(in srgb, var(--accent-orange) 40%, transparent);
+    color: var(--accent-orange);
 
     &:hover {
-      background: rgba($dracula-orange, 0.15);
-      border-color: $dracula-orange;
+      background: color-mix(in srgb, var(--accent-orange) 15%, transparent);
+      border-color: var(--accent-orange);
     }
   }
 
   &.save-resolved {
-    background: $dracula-green;
+    background: var(--accent-green);
     border: none;
-    color: $dracula-bg;
+    color: var(--bg-secondary);
 
     &:hover:not(:disabled) {
       filter: brightness(1.15);

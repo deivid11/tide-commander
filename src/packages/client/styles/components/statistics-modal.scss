@@ -14,7 +14,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   font-family: $font-mono;
   font-size: 14px;
   font-weight: 600;
@@ -26,9 +26,9 @@
   justify-content: center;
   width: 22px;
   height: 22px;
-  border: 1px solid rgba($dracula-cyan, 0.35);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent);
   border-radius: $radius-sm;
-  background: rgba($dracula-cyan, 0.1);
+  background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
 }
 
 .statistics-modal__close {
@@ -44,9 +44,9 @@
 }
 
 .statistics-panel {
-  border: 1px solid rgba($dracula-current, 0.75);
+  border: 1px solid color-mix(in srgb, var(--bg-tertiary) 75%, transparent);
   border-radius: $radius-md;
-  background: rgba($dracula-bg, 0.45);
+  background: color-mix(in srgb, var(--bg-secondary) 45%, transparent);
   padding: 14px;
 }
 
@@ -59,7 +59,7 @@
 
   h3 {
     margin: 0 0 5px;
-    color: $dracula-purple;
+    color: var(--accent-purple);
     font-family: $font-mono;
     font-size: 12px;
     text-transform: uppercase;
@@ -69,7 +69,7 @@
 
 .statistics-panel__subtitle,
 .statistics-panel__footnote {
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-family: $font-mono;
   font-size: 10px;
   line-height: 1.35;
@@ -82,16 +82,16 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  border: 1px solid rgba($dracula-current, 0.9);
+  border: 1px solid color-mix(in srgb, var(--bg-tertiary) 90%, transparent);
   border-radius: $radius-sm;
-  background: rgba($dracula-bg-darker, 0.65);
-  color: $dracula-fg;
+  background: color-mix(in srgb, var(--bg-primary) 65%, transparent);
+  color: var(--text-primary);
   cursor: pointer;
 
   &:hover:not(:disabled) {
-    color: $dracula-cyan;
-    border-color: rgba($dracula-cyan, 0.55);
-    background: rgba($dracula-cyan, 0.12);
+    color: var(--accent-cyan);
+    border-color: color-mix(in srgb, var(--accent-cyan) 55%, transparent);
+    background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
   }
 
   &:disabled {
@@ -101,12 +101,12 @@
 }
 
 .statistics-panel__empty {
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-family: $font-mono;
   font-size: 12px;
 
   &--error {
-    color: $dracula-red;
+    color: var(--accent-red);
   }
 }
 
@@ -132,7 +132,7 @@
   border-radius: 50%;
   display: grid;
   place-items: center;
-  border: 1px solid rgba($dracula-current, 0.85);
+  border: 1px solid color-mix(in srgb, var(--bg-tertiary) 85%, transparent);
   box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.35);
 }
 
@@ -145,19 +145,19 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  background: rgba($dracula-bg-darker, 0.96);
-  border: 1px solid rgba($dracula-current, 0.7);
+  background: color-mix(in srgb, var(--bg-primary) 96%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
   text-align: center;
 
   strong {
-    color: $dracula-fg;
+    color: var(--text-primary);
     font-family: $font-mono;
     font-size: 20px;
     line-height: 1;
   }
 
   span {
-    color: $dracula-comment;
+    color: var(--text-muted);
     font-family: $font-mono;
     font-size: 10px;
     text-transform: uppercase;
@@ -181,12 +181,12 @@
   align-items: center;
   gap: 9px;
   padding: 8px 10px;
-  border: 1px solid rgba($dracula-current, 0.7);
+  border: 1px solid color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
   border-radius: $radius-sm;
-  background: rgba($dracula-bg-darker, 0.42);
+  background: color-mix(in srgb, var(--bg-primary) 42%, transparent);
 
   strong {
-    color: $dracula-fg;
+    color: var(--text-primary);
     font-family: $font-mono;
     font-size: 12px;
     white-space: nowrap;
@@ -197,7 +197,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba($dracula-bg-darker, 0.9);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--bg-primary) 90%, transparent);
 }
 
 .statistics-panel__row-main {
@@ -205,7 +205,7 @@
 }
 
 .statistics-panel__row-name {
-  color: $dracula-fg;
+  color: var(--text-primary);
   font-family: $font-mono;
   font-size: 12px;
   font-weight: 600;
@@ -215,7 +215,7 @@
 }
 
 .statistics-panel__row-meta {
-  color: $dracula-comment;
+  color: var(--text-muted);
   font-family: $font-mono;
   font-size: 10px;
   line-height: 1.3;
@@ -239,23 +239,23 @@
 .statistics-line-chart__svg {
   width: 100%;
   min-height: 230px;
-  border: 1px solid rgba($dracula-current, 0.7);
+  border: 1px solid color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
   border-radius: $radius-sm;
-  background: rgba($dracula-bg-darker, 0.35);
+  background: color-mix(in srgb, var(--bg-primary) 35%, transparent);
 }
 
 .statistics-line-chart__grid {
-  stroke: rgba($dracula-current, 0.52);
+  stroke: color-mix(in srgb, var(--bg-tertiary) 52%, transparent);
   stroke-width: 1;
 }
 
 .statistics-line-chart__axis {
-  stroke: rgba($dracula-comment, 0.62);
+  stroke: color-mix(in srgb, var(--text-muted) 62%, transparent);
   stroke-width: 1;
 }
 
 .statistics-line-chart__axis-label {
-  fill: $dracula-comment;
+  fill: var(--text-muted);
   font-family: $font-mono;
   font-size: 10px;
 }
@@ -270,7 +270,7 @@
 }
 
 .statistics-line-chart__point {
-  stroke: rgba($dracula-bg-darker, 0.92);
+  stroke: color-mix(in srgb, var(--bg-primary) 92%, transparent);
   stroke-width: 1.5;
 }
 
@@ -280,7 +280,7 @@
   outline: none;
 
   &:focus {
-    stroke: rgba($dracula-cyan, 0.72);
+    stroke: color-mix(in srgb, var(--accent-cyan) 72%, transparent);
     stroke-width: 1.5;
   }
 }
@@ -290,20 +290,20 @@
 }
 
 .statistics-line-chart__hover-line {
-  stroke: rgba($dracula-cyan, 0.3);
+  stroke: color-mix(in srgb, var(--accent-cyan) 30%, transparent);
   stroke-width: 1;
   stroke-dasharray: 4 4;
 }
 
 .statistics-line-chart__hover-point {
-  stroke: rgba($dracula-bg-darker, 0.95);
+  stroke: color-mix(in srgb, var(--bg-primary) 95%, transparent);
   stroke-width: 2;
-  filter: drop-shadow(0 0 5px rgba($dracula-cyan, 0.35));
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent-cyan) 35%, transparent));
 }
 
 .statistics-line-chart__tooltip-box {
-  fill: rgba($dracula-bg-darker, 0.96);
-  stroke: rgba($dracula-current, 0.9);
+  fill: color-mix(in srgb, var(--bg-primary) 96%, transparent);
+  stroke: color-mix(in srgb, var(--bg-tertiary) 90%, transparent);
   stroke-width: 1;
   filter: drop-shadow(0 5px 12px rgba(0, 0, 0, 0.42));
 }
@@ -316,24 +316,24 @@
 }
 
 .statistics-line-chart__tooltip-title {
-  fill: $dracula-comment;
+  fill: var(--text-muted);
   font-size: 10px;
 }
 
 .statistics-line-chart__tooltip-name {
-  fill: $dracula-fg;
+  fill: var(--text-primary);
   font-size: 11px;
   font-weight: 600;
 }
 
 .statistics-line-chart__tooltip-value {
-  fill: $dracula-cyan;
+  fill: var(--accent-cyan);
   font-size: 12px;
   font-weight: 700;
 }
 
 .statistics-line-chart__tooltip-meta {
-  fill: $dracula-comment;
+  fill: var(--text-muted);
   font-size: 10px;
 }
 
@@ -353,10 +353,10 @@
   align-items: center;
   gap: 8px;
   padding: 7px 9px;
-  border: 1px solid rgba($dracula-current, 0.62);
+  border: 1px solid color-mix(in srgb, var(--bg-tertiary) 62%, transparent);
   border-radius: $radius-sm;
-  background: rgba($dracula-bg-darker, 0.32);
-  color: $dracula-fg;
+  background: color-mix(in srgb, var(--bg-primary) 32%, transparent);
+  color: var(--text-primary);
   font-family: $font-mono;
   font-size: 11px;
 
@@ -368,7 +368,7 @@
   }
 
   strong {
-    color: $dracula-comment;
+    color: var(--text-muted);
     font-size: 10px;
     font-weight: 600;
     white-space: nowrap;
@@ -379,5 +379,5 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba($dracula-bg-darker, 0.9);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--bg-primary) 90%, transparent);
 }

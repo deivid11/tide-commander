@@ -22,8 +22,8 @@
     max-width: 600px;
     width: 100%;
     padding: 16px;
-    background: rgba($accent-red, 0.1);
-    border: 1px solid rgba($accent-red, 0.3);
+    background: color-mix(in srgb, var(--accent-red) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-red) 30%, transparent);
     border-radius: 8px;
     text-align: center;
   }
@@ -35,7 +35,7 @@
     gap: 8px;
     font-size: 1.1em;
     font-weight: 600;
-    color: $accent-red;
+    color: var(--accent-red);
     margin-bottom: 12px;
   }
 
@@ -44,7 +44,7 @@
   }
 
   &__error-message {
-    color: $text-primary;
+    color: var(--text-primary);
     margin-bottom: 12px;
     line-height: 1.5;
     word-break: break-word;
@@ -53,13 +53,13 @@
 
   &__error-code {
     font-size: 0.85em;
-    color: $text-secondary;
+    color: var(--text-secondary);
     margin-bottom: 12px;
   }
 
   &__error-query {
     padding: 12px;
-    background: $bg-tertiary;
+    background: var(--bg-tertiary);
     border-radius: 4px;
     text-align: left;
     max-height: 120px;
@@ -68,7 +68,7 @@
     code {
       font-family: $font-mono;
       font-size: 0.85em;
-      color: $text-secondary;
+      color: var(--text-secondary);
       word-break: break-all;
       white-space: pre-wrap;
     }
@@ -79,10 +79,10 @@
     align-items: center;
     gap: 12px;
     padding: 16px 24px;
-    background: rgba($accent-green, 0.1);
-    border: 1px solid rgba($accent-green, 0.3);
+    background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-green) 30%, transparent);
     border-radius: 8px;
-    color: $accent-green;
+    color: var(--accent-green);
     font-weight: 500;
   }
 
@@ -91,12 +91,12 @@
   }
 
   &__affected {
-    color: $text-primary;
+    color: var(--text-primary);
     font-weight: 400;
   }
 
   &__duration {
-    color: $text-secondary;
+    color: var(--text-secondary);
     font-size: 0.9em;
     font-weight: 400;
   }
@@ -107,8 +107,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 4px 10px;
-    background: $bg-secondary;
-    border-bottom: 1px solid $border-color;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
   }
 
@@ -121,27 +121,27 @@
 
   &__row-count {
     font-weight: 500;
-    color: $text-primary;
+    color: var(--text-primary);
   }
 
   &__edit-status {
     padding: 1px 6px;
-    border: 1px solid $border-color;
+    border: 1px solid var(--border-color);
     border-radius: 999px;
     font-size: 0.72em;
     line-height: 1.4;
     white-space: nowrap;
 
     &--editable {
-      color: $accent-green;
-      background: rgba($accent-green, 0.12);
-      border-color: rgba($accent-green, 0.35);
+      color: var(--accent-green);
+      background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+      border-color: color-mix(in srgb, var(--accent-green) 35%, transparent);
     }
 
     &--readonly {
-      color: $accent-orange;
-      background: rgba($accent-orange, 0.12);
-      border-color: rgba($accent-orange, 0.35);
+      color: var(--accent-orange);
+      background: color-mix(in srgb, var(--accent-orange) 12%, transparent);
+      border-color: color-mix(in srgb, var(--accent-orange) 35%, transparent);
     }
   }
 
@@ -154,32 +154,32 @@
 
   &__page-size {
     padding: 2px 6px;
-    background: $bg-tertiary;
-    border: 1px solid $border-color;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
     border-radius: 3px;
-    color: $text-primary;
+    color: var(--text-primary);
     font-size: 0.75em;
     cursor: pointer;
 
     &:focus {
       outline: none;
-      border-color: $accent-blue;
+      border-color: var(--accent-blue);
     }
   }
 
   &__page-btn {
     padding: 2px 6px;
-    background: $bg-tertiary;
-    border: 1px solid $border-color;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
     border-radius: 3px;
-    color: $text-secondary;
+    color: var(--text-secondary);
     cursor: pointer;
     font-size: 0.8em;
     min-width: 22px;
 
     &:hover:not(:disabled) {
-      background: rgba($text-primary, 0.05);
-      color: $text-primary;
+      background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+      color: var(--text-primary);
     }
 
     &:disabled {
@@ -190,7 +190,7 @@
 
   &__page-info {
     font-size: 0.75em;
-    color: $text-secondary;
+    color: var(--text-secondary);
     padding: 0 4px;
   }
 
@@ -215,34 +215,34 @@
     td {
       padding: 3px 8px;
       text-align: left;
-      border-bottom: 1px solid $border-color;
+      border-bottom: 1px solid var(--border-color);
       white-space: nowrap;
     }
 
     th {
       position: sticky;
       top: 0;
-      background: $bg-secondary;
+      background: var(--bg-secondary);
       font-weight: 600;
-      color: $text-secondary;
+      color: var(--text-secondary);
       user-select: none;
       z-index: 1;
       font-size: 0.9em;
     }
 
     tbody tr:hover {
-      background: rgba($text-primary, 0.03);
+      background: color-mix(in srgb, var(--text-primary) 3%, transparent);
     }
   }
 
   &__row-num {
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 0.8em;
     text-align: right;
     padding-right: 8px;
     width: 40px;
     min-width: 40px;
-    background: rgba($bg-tertiary, 0.3);
+    background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
   }
 
   &__header {
@@ -251,11 +251,11 @@
     transition: background 0.15s;
 
     &:hover {
-      background: rgba($text-primary, 0.05);
+      background: color-mix(in srgb, var(--text-primary) 5%, transparent);
     }
 
     &--sorted {
-      color: $accent-blue;
+      color: var(--accent-blue);
     }
   }
 
@@ -281,7 +281,7 @@
 
     &:hover,
     &:active {
-      background: rgba($accent-blue, 0.5);
+      background: color-mix(in srgb, var(--accent-blue) 50%, transparent);
     }
   }
 
@@ -292,17 +292,17 @@
     cursor: pointer;
 
     &:hover {
-      background: rgba($accent-blue, 0.06);
+      background: color-mix(in srgb, var(--accent-blue) 6%, transparent);
     }
 
     &--editable:hover {
-      background: rgba($accent-blue, 0.12);
+      background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
       cursor: cell;
     }
 
     &--editing {
       padding: 2px;
-      background: rgba($accent-blue, 0.15);
+      background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
       overflow: visible;
     }
   }
@@ -322,18 +322,18 @@
     max-width: none;
     width: 100%;
     padding: 4px 6px;
-    background: $bg-primary;
-    border: 2px solid $accent-blue;
+    background: var(--bg-primary);
+    border: 2px solid var(--accent-blue);
     border-radius: 3px;
-    color: $text-primary;
+    color: var(--text-primary);
     font-family: $font-mono;
     font-size: 0.9em;
     outline: none;
     box-sizing: border-box;
 
     &:focus {
-      border-color: $accent-blue;
-      box-shadow: 0 0 0 3px rgba($accent-blue, 0.2);
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-blue) 20%, transparent);
     }
 
     &:disabled {
@@ -356,11 +356,11 @@
     }
 
     &--error {
-      color: $accent-red;
+      color: var(--accent-red);
     }
 
     &--success {
-      color: $accent-green;
+      color: var(--accent-green);
     }
   }
 
@@ -383,7 +383,7 @@
 
   // Value formatting
   &__null {
-    color: $text-muted;
+    color: var(--text-muted);
     font-style: italic;
     font-size: 0.85em;
   }
@@ -392,27 +392,27 @@
     font-weight: 500;
 
     &--true {
-      color: $accent-green;
+      color: var(--accent-green);
     }
 
     &--false {
-      color: $accent-red;
+      color: var(--accent-red);
     }
   }
 
   &__number {
-    color: $accent-cyan;
+    color: var(--accent-cyan);
     font-family: $font-mono;
   }
 
   &__date {
-    color: $accent-purple;
+    color: var(--accent-purple);
     font-family: $font-mono;
     font-size: 0.9em;
   }
 
   &__json {
-    color: $accent-orange;
+    color: var(--accent-orange);
     font-family: $font-mono;
     font-size: 0.85em;
     cursor: help;
@@ -425,25 +425,25 @@
   // Copy button
   &__copy-btn {
     padding: 2px 8px;
-    background: $bg-tertiary;
-    border: 1px solid $border-color;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
     border-radius: 3px;
-    color: $text-secondary;
+    color: var(--text-secondary);
     font-size: 0.75em;
     cursor: pointer;
     transition: all $transition-fast;
     font-family: $font-mono;
 
     &:hover {
-      background: rgba($accent-blue, 0.15);
-      color: $accent-blue;
-      border-color: rgba($accent-blue, 0.4);
+      background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+      color: var(--accent-blue);
+      border-color: color-mix(in srgb, var(--accent-blue) 40%, transparent);
     }
 
     &--success {
-      color: $accent-green;
-      border-color: rgba($accent-green, 0.4);
-      background: rgba($accent-green, 0.1);
+      color: var(--accent-green);
+      border-color: color-mix(in srgb, var(--accent-green) 40%, transparent);
+      background: color-mix(in srgb, var(--accent-green) 10%, transparent);
     }
   }
 
@@ -459,8 +459,8 @@
   }
 
   &__detail {
-    background: $bg-secondary;
-    border: 1px solid $border-color;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
     border-radius: $radius-lg;
     width: 90%;
     max-width: 600px;
@@ -475,13 +475,13 @@
     align-items: center;
     justify-content: space-between;
     padding: 8px 12px;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
   }
 
   &__detail-column {
     font-weight: 600;
-    color: $accent-blue;
+    color: var(--accent-blue);
     font-size: 0.85em;
     font-family: $font-mono;
   }
@@ -495,7 +495,7 @@
   &__detail-edit-btn {
     background: none;
     border: none;
-    color: $text-secondary;
+    color: var(--text-secondary);
     font-size: 1em;
     cursor: pointer;
     padding: 2px 6px;
@@ -503,8 +503,8 @@
     transition: all $transition-fast;
 
     &:hover {
-      color: $accent-blue;
-      background: rgba($accent-blue, 0.12);
+      color: var(--accent-blue);
+      background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
     }
 
     &:active {
@@ -515,7 +515,7 @@
   &__detail-close {
     background: none;
     border: none;
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 1em;
     cursor: pointer;
     padding: 2px 6px;
@@ -523,8 +523,8 @@
     transition: all $transition-fast;
 
     &:hover {
-      color: $text-primary;
-      background: rgba($text-primary, 0.08);
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
     }
 
     &:active {
@@ -537,8 +537,8 @@
     min-height: 150px;
     max-height: 400px;
     padding: 12px;
-    background: $bg-primary;
-    color: $text-primary;
+    background: var(--bg-primary);
+    color: var(--text-primary);
     font-family: $font-mono;
     font-size: 0.8em;
     line-height: 1.5;
@@ -548,7 +548,7 @@
     outline: none;
 
     &:focus {
-      box-shadow: inset 0 0 0 1px rgba($accent-blue, 0.3);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-blue) 30%, transparent);
     }
   }
 
@@ -566,15 +566,15 @@
     word-break: break-word;
 
     &--success {
-      background: rgba($accent-green, 0.9);
+      background: color-mix(in srgb, var(--accent-green) 90%, transparent);
       color: white;
-      border: 1px solid rgba($accent-green, 1);
+      border: 1px solid var(--accent-green);
     }
 
     &--error {
-      background: rgba($accent-red, 0.9);
+      background: color-mix(in srgb, var(--accent-red) 90%, transparent);
       color: white;
-      border: 1px solid rgba($accent-red, 1);
+      border: 1px solid var(--accent-red);
     }
 
     @keyframes slideIn {
@@ -591,22 +591,22 @@
 
   &__query-log {
     padding: 12px;
-    background: $bg-tertiary;
-    border-top: 1px solid rgba($accent-blue, 0.2);
+    background: var(--bg-tertiary);
+    border-top: 1px solid color-mix(in srgb, var(--accent-blue) 20%, transparent);
     font-size: 0.85em;
     max-height: 120px;
     overflow: auto;
   }
 
   &__query-log-label {
-    color: $text-secondary;
+    color: var(--text-secondary);
     font-weight: 500;
     margin-bottom: 6px;
   }
 
   &__query-log-code {
     display: block;
-    color: $accent-blue;
+    color: var(--accent-blue);
     font-family: $font-mono;
     font-size: 0.8em;
     word-break: break-all;
@@ -615,21 +615,21 @@
   }
 
   &__cell--updated {
-    background: rgba($accent-green, 0.1) !important;
+    background: color-mix(in srgb, var(--accent-green) 10%, transparent) !important;
   }
 }
 
 .results-table .react-datepicker {
-  background: $bg-secondary;
-  border: 1px solid $border-color;
-  color: $text-primary;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
   font-family: $font-mono;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
 }
 
 .results-table .react-datepicker__header {
-  background: $bg-tertiary;
-  border-bottom: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .results-table .react-datepicker__current-month,
@@ -638,32 +638,32 @@
 .results-table .react-datepicker__day-name,
 .results-table .react-datepicker__day,
 .results-table .react-datepicker__time-name {
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .results-table .react-datepicker__day:hover,
 .results-table .react-datepicker__time-list-item:hover {
-  background: rgba($accent-blue, 0.2);
+  background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
 }
 
 .results-table .react-datepicker__day--selected,
 .results-table .react-datepicker__day--keyboard-selected,
 .results-table .react-datepicker__time-list-item--selected {
-  background: rgba($accent-blue, 0.7);
+  background: color-mix(in srgb, var(--accent-blue) 70%, transparent);
   color: #fff;
 }
 
 .results-table .react-datepicker__time-container {
-  border-left: 1px solid $border-color;
+  border-left: 1px solid var(--border-color);
 }
 
 .results-table .react-datepicker__time {
-  background: $bg-secondary;
+  background: var(--bg-secondary);
 }
 
 .results-table .react-datepicker__time-box,
 .results-table .react-datepicker__time-list {
-  background: $bg-secondary;
+  background: var(--bg-secondary);
 }
 
 .results-table .react-datepicker__triangle {

@@ -44,8 +44,8 @@
     height: 44px;
     padding: 0 16px 0 16px;
     gap: 10px;
-    background: linear-gradient(180deg, rgba($dracula-bg, 0.95) 0%, rgba($dracula-bg-darker, 0.95) 100%);
-    border-bottom: 1px solid $dracula-current;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 95%, transparent) 0%, color-mix(in srgb, var(--bg-primary) 95%, transparent) 100%);
+    border-bottom: 1px solid var(--bg-tertiary);
     backdrop-filter: blur(6px);
     justify-content: flex-end;
     z-index: 151;
@@ -71,7 +71,7 @@
   background: rgba(0, 0, 0, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  color: $text-primary;
+  color: var(--text-primary);
   font-family: $font-family;
   font-size: 11px;
   cursor: pointer;
@@ -81,7 +81,7 @@
 
   &:hover:not(:disabled) {
     background: rgba(0, 0, 0, 0.75);
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 
   &:disabled {
@@ -94,7 +94,7 @@
   flex: 1;
   min-width: 0; // Allow shrinking below content size
   position: relative;
-  background: $bg-primary;
+  background: var(--bg-primary);
   overflow: hidden;
 }
 
@@ -114,15 +114,15 @@
   justify-content: center;
   gap: 12px;
   background: radial-gradient(circle at center, rgba(16, 20, 28, 0.72), rgba(10, 12, 18, 0.88));
-  color: $text-primary;
+  color: var(--text-primary);
   pointer-events: none;
 }
 
 .scene-loading-overlay__spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid color-mix(in srgb, #{$text-primary} 20%, transparent);
-  border-top-color: $accent-yellow;
+  border: 3px solid color-mix(in srgb, var(--text-primary) 20%, transparent);
+  border-top-color: var(--accent-yellow);
   border-radius: 50%;
   animation: scene-loading-spin 0.8s linear infinite;
 }
@@ -145,8 +145,8 @@
   right: 0;
   bottom: 0;
   width: $sidebar-width;
-  background: $bg-secondary;
-  border-left: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   overflow-x: visible;
@@ -169,7 +169,7 @@
 }
 
 .sidebar-section {
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-color);
 }
 
 // Sidebar collapse button on left edge of sidebar
@@ -185,10 +185,10 @@
   display: flex !important;
   align-items: center;
   justify-content: center;
-  background: $bg-tertiary;
-  border: 1px solid $border-color !important;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color) !important;
   border-radius: 8px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   cursor: pointer !important;
   padding: 0 !important;
   margin: 0 !important;
@@ -207,9 +207,9 @@
   flex-shrink: 0;
 
   &:hover {
-    background: $bg-secondary;
-    color: $text-primary;
-    border-color: color-mix(in srgb, #{$border-color} 70%, #fff 30%);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: color-mix(in srgb, var(--border-color) 70%, #fff 30%);
   }
 
   &:active {
@@ -227,11 +227,11 @@
 
   // Pin mode - when sidebar is revealed by hover
   &.can-pin {
-    color: $text-primary;
+    color: var(--text-primary);
 
     &:hover {
       color: #fff;
-      border-color: color-mix(in srgb, #{$accent-blue} 40%, #{$border-color} 60%);
+      border-color: color-mix(in srgb, var(--accent-blue) 40%, var(--border-color) 60%);
     }
   }
 }

@@ -10,8 +10,8 @@
   display: flex;
   flex-direction: column;
   padding: 0;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-xl;
   overflow: hidden;
   outline: none;
@@ -19,7 +19,7 @@
   .modal-header {
     padding: 14px 20px;
     margin-bottom: 0;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-color);
     font-size: 16px;
     font-weight: 600;
     display: flex;
@@ -43,7 +43,7 @@
   .git-file-history-filepath {
     font-family: $font-mono;
     font-size: 11px;
-    color: $text-secondary;
+    color: var(--text-secondary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -62,8 +62,8 @@
 .git-file-history-commit-list {
   width: 300px;
   flex-shrink: 0;
-  border-right: 1px solid $border-color;
-  background: $bg-tertiary;
+  border-right: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -79,7 +79,7 @@
 
 .git-file-history-commit {
   padding: 8px 12px;
-  border-bottom: 1px solid rgba($border-color, 0.5);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
   cursor: pointer;
   transition: background $transition-fast, border-color $transition-fast;
   display: flex;
@@ -87,12 +87,12 @@
   gap: 3px;
 
   &:hover {
-    background: rgba($accent-blue, 0.08);
+    background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
   }
 
   &.selected {
-    background: rgba($accent-blue, 0.18);
-    border-left: 3px solid $accent-blue;
+    background: color-mix(in srgb, var(--accent-blue) 18%, transparent);
+    border-left: 3px solid var(--accent-blue);
     padding-left: 9px;
   }
 }
@@ -107,20 +107,20 @@
 .git-file-history-sha {
   font-family: $font-mono;
   font-size: 11px;
-  color: $accent-blue;
+  color: var(--accent-blue);
   font-weight: 600;
   flex-shrink: 0;
 }
 
 .git-file-history-date {
   font-size: 10px;
-  color: $text-muted;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
 .git-file-history-subject {
   font-size: 12px;
-  color: $text-primary;
+  color: var(--text-primary);
   line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -132,7 +132,7 @@
 
 .git-file-history-author {
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -159,7 +159,7 @@
   justify-content: center;
   gap: 10px;
   padding: 32px 20px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   text-align: center;
   flex: 1;
 
@@ -171,8 +171,8 @@
   .spinner {
     width: 28px;
     height: 28px;
-    border: 3px solid rgba($border-color, 0.5);
-    border-top-color: $accent-blue;
+    border: 3px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+    border-top-color: var(--accent-blue);
     border-radius: 50%;
     animation: git-file-history-spin 0.8s linear infinite;
   }
@@ -200,6 +200,6 @@
     width: 100%;
     max-height: 40%;
     border-right: none;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-color);
   }
 }

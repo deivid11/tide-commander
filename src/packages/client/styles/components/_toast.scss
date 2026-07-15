@@ -27,8 +27,8 @@
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  background: $bg-tertiary;
-  border: 1px solid $border-color;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-md;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   pointer-events: auto;
@@ -49,23 +49,23 @@
   }
 
   &.error {
-    border-color: $accent-red;
-    .toast-title { color: $accent-red; }
+    border-color: var(--accent-red);
+    .toast-title { color: var(--accent-red); }
   }
 
   &.success {
-    border-color: $accent-green;
-    .toast-title { color: $accent-green; }
+    border-color: var(--accent-green);
+    .toast-title { color: var(--accent-green); }
   }
 
   &.warning {
-    border-color: $accent-orange;
-    .toast-title { color: $accent-orange; }
+    border-color: var(--accent-orange);
+    .toast-title { color: var(--accent-orange); }
   }
 
   &.info {
-    border-color: $accent-blue;
-    .toast-title { color: $accent-blue; }
+    border-color: var(--accent-blue);
+    .toast-title { color: var(--accent-blue); }
   }
 }
 
@@ -96,14 +96,14 @@
 
 .toast-message {
   font-size: 12px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   word-break: break-word;
 }
 
 .toast-close {
   background: none;
   border: none;
-  color: $text-secondary;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
   font-size: 16px;
@@ -111,6 +111,6 @@
   flex-shrink: 0;
 
   &:hover {
-    color: $text-primary;
+    color: var(--text-primary);
   }
 }

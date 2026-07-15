@@ -8,7 +8,7 @@
 
 code[class*="language-"],
 pre[class*="language-"] {
-  color: $dracula-fg;
+  color: var(--text-primary);
   background: none;
   font-family: $font-mono;
   text-align: left;
@@ -25,11 +25,11 @@ pre[class*="language-"] {
 .token.prolog,
 .token.doctype,
 .token.cdata {
-  color: $dracula-comment;
+  color: var(--text-muted);
 }
 
 .token.punctuation {
-  color: $dracula-fg;
+  color: var(--text-primary);
 }
 
 .token.namespace {
@@ -41,12 +41,12 @@ pre[class*="language-"] {
 .token.constant,
 .token.symbol,
 .token.deleted {
-  color: $dracula-pink;
+  color: var(--accent-pink);
 }
 
 .token.boolean,
 .token.number {
-  color: $dracula-purple;
+  color: var(--accent-purple);
 }
 
 .token.selector,
@@ -55,7 +55,7 @@ pre[class*="language-"] {
 .token.char,
 .token.builtin,
 .token.inserted {
-  color: $dracula-green;
+  color: var(--accent-green);
 }
 
 .token.operator,
@@ -64,23 +64,23 @@ pre[class*="language-"] {
 .language-css .token.string,
 .style .token.string,
 .token.variable {
-  color: $dracula-fg;
+  color: var(--text-primary);
 }
 
 .token.atrule,
 .token.attr-value,
 .token.function,
 .token.class-name {
-  color: $dracula-yellow;
+  color: var(--accent-yellow);
 }
 
 .token.keyword {
-  color: $dracula-pink;
+  color: var(--accent-pink);
 }
 
 .token.regex,
 .token.important {
-  color: $dracula-orange;
+  color: var(--accent-orange);
 }
 
 .token.important,

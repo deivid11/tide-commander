@@ -13,7 +13,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    color: $text-secondary;
+    color: var(--text-secondary);
     text-align: center;
     gap: 4px;
 
@@ -27,26 +27,26 @@
     align-items: center;
     gap: 8px;
     padding-bottom: 8px;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-color);
     margin-bottom: 8px;
   }
 
   &__search {
     flex: 1;
     padding: 5px 10px;
-    background: $bg-tertiary;
-    border: 1px solid $border-color;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
-    color: $text-primary;
+    color: var(--text-primary);
     font-size: 0.8em;
 
     &:focus {
       outline: none;
-      border-color: $accent-blue;
+      border-color: var(--accent-blue);
     }
 
     &::placeholder {
-      color: $text-muted;
+      color: var(--text-muted);
     }
   }
 
@@ -55,7 +55,7 @@
     align-items: center;
     gap: 4px;
     font-size: 0.75em;
-    color: $text-secondary;
+    color: var(--text-secondary);
     cursor: pointer;
     white-space: nowrap;
 
@@ -66,22 +66,22 @@
     }
 
     &:hover {
-      color: $text-primary;
+      color: var(--text-primary);
     }
   }
 
   &__clear {
     padding: 4px 8px;
     background: transparent;
-    border: 1px solid rgba($accent-red, 0.4);
+    border: 1px solid color-mix(in srgb, var(--accent-red) 40%, transparent);
     border-radius: 3px;
-    color: $accent-red;
+    color: var(--accent-red);
     font-size: 0.7em;
     cursor: pointer;
     white-space: nowrap;
 
     &:hover {
-      background: rgba($accent-red, 0.1);
+      background: color-mix(in srgb, var(--accent-red) 10%, transparent);
     }
   }
 
@@ -95,19 +95,19 @@
 
   &__item {
     padding: 8px 10px;
-    background: $bg-secondary;
-    border: 1px solid $border-color;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.15s;
 
     &:hover {
-      border-color: $accent-blue;
-      background: rgba($bg-secondary, 0.8);
+      border-color: var(--accent-blue);
+      background: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
     }
 
     &--error {
-      border-left: 2px solid $accent-red;
+      border-left: 2px solid var(--accent-red);
     }
   }
 
@@ -124,55 +124,55 @@
     font-weight: bold;
 
     &--success {
-      color: $accent-green;
+      color: var(--accent-green);
     }
 
     &--error {
-      color: $accent-red;
+      color: var(--accent-red);
     }
   }
 
   &__database {
-    background: $bg-tertiary;
+    background: var(--bg-tertiary);
     padding: 1px 6px;
     border-radius: 3px;
     font-family: $font-mono;
-    color: $accent-cyan;
+    color: var(--accent-cyan);
   }
 
   &__date {
-    color: $text-muted;
+    color: var(--text-muted);
   }
 
   &__duration {
-    color: $text-secondary;
+    color: var(--text-secondary);
   }
 
   &__row-count {
-    color: $accent-green;
+    color: var(--accent-green);
   }
 
   &__query {
     font-family: $font-mono;
     font-size: 0.75em;
-    color: $text-secondary;
+    color: var(--text-secondary);
     white-space: pre-wrap;
     word-break: break-word;
     max-height: 48px;
     overflow: hidden;
     line-height: 1.3;
     padding: 6px 8px;
-    background: $bg-tertiary;
+    background: var(--bg-tertiary);
     border-radius: 3px;
   }
 
   &__error {
     margin-top: 4px;
     padding: 4px 6px;
-    background: rgba($accent-red, 0.1);
+    background: color-mix(in srgb, var(--accent-red) 10%, transparent);
     border-radius: 3px;
     font-size: 0.7em;
-    color: $accent-red;
+    color: var(--accent-red);
     max-height: 32px;
     overflow: hidden;
   }
@@ -200,7 +200,7 @@
   }
 
   &__favorite {
-    color: $accent-orange;
+    color: var(--accent-orange);
 
     &--active {
       opacity: 1;
@@ -208,7 +208,7 @@
   }
 
   &__delete {
-    color: $accent-red;
+    color: var(--accent-red);
   }
 
   &__no-results {
@@ -217,7 +217,7 @@
     align-items: center;
     justify-content: center;
     height: 100px;
-    color: $text-muted;
+    color: var(--text-muted);
     text-align: center;
     font-size: 0.85em;
   }

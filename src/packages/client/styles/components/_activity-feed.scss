@@ -12,8 +12,8 @@
   padding: 12px;
   font-weight: 600;
   font-size: 13px;
-  color: $text-secondary;
-  border-bottom: 1px solid $border-color;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
 }
 
 #activity-list {
@@ -31,22 +31,22 @@
   cursor: pointer;
 
   &:hover {
-    background: $bg-tertiary;
+    background: var(--bg-tertiary);
   }
 }
 
 .activity-time {
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-family: $font-mono;
 }
 
 .activity-agent {
-  color: $accent-blue;
+  color: var(--accent-blue);
   font-weight: 500;
 }
 
 .activity-message {
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 // Tool activity styles
@@ -67,7 +67,7 @@
 }
 
 .activity-tool-name {
-  color: $dracula-cyan;
+  color: var(--accent-cyan);
   font-weight: 600;
 }
 
@@ -75,7 +75,7 @@
   flex: 1 1 100%;
   margin-left: 0;
   padding-left: 60px; // Align with content
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-family: $font-mono;
   font-size: 11px;
   overflow: hidden;

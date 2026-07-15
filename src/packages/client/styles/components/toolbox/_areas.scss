@@ -13,7 +13,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   border: 2px solid transparent;
   border-radius: $radius-md;
   margin-bottom: 6px;
@@ -21,11 +21,11 @@
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $border-color;
+    border-color: var(--border-color);
   }
 
   &.selected {
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 
   &:hover .area-delete-btn {
@@ -55,13 +55,13 @@
 
 .area-meta {
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .area-delete-btn {
   background: none;
   border: none;
-  color: $text-secondary;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
   font-size: 14px;
@@ -69,15 +69,15 @@
   transition: opacity $transition-fast;
 
   &:hover {
-    color: $accent-red;
+    color: var(--accent-red);
   }
 }
 
 // Area editor
 .area-editor {
   padding: 12px;
-  border-top: 1px solid $border-color;
-  background: $bg-tertiary;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
 }
 
 .area-editor-header {
@@ -95,7 +95,7 @@
 .area-editor-close {
   background: none;
   border: none;
-  color: $text-secondary;
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 16px;
 }
@@ -106,22 +106,22 @@
 
 .area-editor-label {
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   margin-bottom: 4px;
 }
 
 .area-editor-input {
   width: 100%;
   padding: 6px 8px;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
   font-size: 13px;
   outline: none;
 
   &:focus {
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 }
 
@@ -149,7 +149,7 @@
   }
 
   &:focus-visible {
-    outline: 2px solid $accent-blue;
+    outline: 2px solid var(--accent-blue);
     outline-offset: 2px;
   }
 
@@ -167,18 +167,18 @@
 .area-layer-btn {
   flex: 1;
   padding: 6px 10px;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $accent-blue;
-    background: color.adjust($bg-secondary, $lightness: 5%);
+    border-color: var(--accent-blue);
+    background: color-mix(in srgb, var(--bg-secondary) 94%, white);
   }
 
   &:active {
@@ -198,7 +198,7 @@
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
-  background: $bg-secondary;
+  background: var(--bg-secondary);
   border-radius: $radius-sm;
   font-size: 12px;
 
@@ -228,13 +228,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: $text-primary;
+  color: var(--text-primary);
 }
 
 .area-folder-remove {
   background: none;
   border: none;
-  color: $text-secondary;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 2px 4px;
   font-size: 14px;
@@ -243,7 +243,7 @@
   transition: opacity $transition-fast;
 
   &:hover {
-    color: $accent-red;
+    color: var(--accent-red);
   }
 }
 
@@ -260,25 +260,25 @@
 .area-add-folder-input {
   flex: 1;
   padding: 6px 8px;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
   font-size: 12px;
   outline: none;
 
   &:focus {
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 
   &::placeholder {
-    color: $text-muted;
+    color: var(--text-muted);
   }
 }
 
 .area-add-folder-confirm {
   padding: 4px 10px;
-  background: $accent-blue;
+  background: var(--accent-blue);
   border: none;
   border-radius: $radius-sm;
   color: white;
@@ -287,24 +287,24 @@
   transition: background $transition-fast;
 
   &:hover {
-    background: color.adjust($accent-blue, $lightness: 10%);
+    background: color-mix(in srgb, var(--accent-blue) 88%, white);
   }
 }
 
 .area-add-folder-btn {
   padding: 6px 8px;
   background: transparent;
-  border: 1px dashed $border-color;
+  border: 1px dashed var(--border-color);
   border-radius: $radius-sm;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 11px;
   cursor: pointer;
   transition: all $transition-fast;
   text-align: center;
 
   &:hover {
-    border-color: $accent-blue;
-    color: $accent-blue;
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
   }
 }
 
@@ -321,7 +321,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px;
-  background: $bg-secondary;
+  background: var(--bg-secondary);
   border-radius: $radius-sm;
 }
 
@@ -330,14 +330,14 @@
   height: 48px;
   object-fit: contain;
   border-radius: $radius-sm;
-  border: 1px solid $border-color;
+  border: 1px solid var(--border-color);
   background: rgba(0, 0, 0, 0.2);
 }
 
 .area-logo-remove-btn {
   background: none;
-  border: 1px solid $accent-red;
-  color: $accent-red;
+  border: 1px solid var(--accent-red);
+  color: var(--accent-red);
   padding: 4px 8px;
   border-radius: $radius-sm;
   font-size: 11px;
@@ -345,15 +345,15 @@
   transition: all $transition-fast;
 
   &:hover {
-    background: $accent-red;
+    background: var(--accent-red);
     color: white;
   }
 }
 
 .area-logo-replace-btn {
   background: none;
-  border: 1px solid $border-color;
-  color: $text-secondary;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
   padding: 4px 8px;
   border-radius: $radius-sm;
   font-size: 13px;
@@ -362,8 +362,8 @@
   margin-left: auto;
 
   &:hover {
-    border-color: $accent-blue;
-    color: $accent-blue;
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
   }
 
   &:disabled {
@@ -375,17 +375,17 @@
 .area-logo-upload-btn {
   padding: 6px 8px;
   background: transparent;
-  border: 1px dashed $border-color;
+  border: 1px dashed var(--border-color);
   border-radius: $radius-sm;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 11px;
   cursor: pointer;
   text-align: center;
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $accent-blue;
-    color: $accent-blue;
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
   }
 
   &:disabled {
@@ -402,7 +402,7 @@
 
 .area-logo-config-label {
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -417,23 +417,23 @@
   flex: 1;
   min-width: 48px;
   padding: 4px 4px;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
   font-size: 9px;
   cursor: pointer;
   text-align: center;
   transition: all $transition-fast;
 
   &:hover {
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 
   &.active {
-    border-color: $accent-blue;
-    background: rgba($accent-blue, 0.15);
-    color: $accent-blue;
+    border-color: var(--accent-blue);
+    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+    color: var(--accent-blue);
   }
 }
 
@@ -449,21 +449,21 @@
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
 }
 
 .area-logo-size-input {
   width: 56px;
   padding: 4px 6px;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-sm;
-  color: $text-primary;
+  color: var(--text-primary);
   font-size: 12px;
   outline: none;
 
   &:focus {
-    border-color: $accent-blue;
+    border-color: var(--accent-blue);
   }
 }
 
@@ -472,13 +472,13 @@
   align-items: center;
   gap: 4px;
   font-size: 10px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
 
   input[type="checkbox"] {
     margin: 0;
-    accent-color: $accent-blue;
+    accent-color: var(--accent-blue);
   }
 }
 
@@ -491,13 +491,13 @@
 .area-logo-opacity-slider {
   flex: 1;
   height: 4px;
-  accent-color: $accent-blue;
+  accent-color: var(--accent-blue);
   cursor: pointer;
 }
 
 .area-logo-opacity-value {
   font-size: 11px;
-  color: $text-secondary;
+  color: var(--text-secondary);
   min-width: 32px;
   text-align: right;
 }

@@ -20,6 +20,7 @@ import type { FitAddon } from '@xterm/addon-fit';
 import { authUrl } from '../utils/storage';
 import { Icon } from './Icon';
 import nerdSymbolsFontUrl from '../assets/fonts/SymbolsNerdFontMono-Regular.woff2';
+import { getXtermTheme } from '../utils/themes';
 
 /** ttyd binary protocol constants (ASCII char codes) */
 const CMD_OUTPUT = 48;      // '0' - server→client: terminal output
@@ -27,31 +28,6 @@ const CMD_SET_TITLE = 49;   // '1' - server→client: set title
 const CMD_SET_PREFS = 50;   // '2' - server→client: set preferences
 const CMD_INPUT = 48;       // '0' - client→server: terminal input
 const _CMD_RESIZE = 49;     // '1' - client→server: resize
-
-/** Dracula theme matching the ttyd config */
-const DRACULA_THEME = {
-  background: '#1a1a2e',
-  foreground: '#f8f8f2',
-  cursor: '#f8f8f2',
-  cursorAccent: '#1a1a2e',
-  selectionBackground: '#44475a',
-  black: '#21222c',
-  red: '#ff5555',
-  green: '#50fa7b',
-  yellow: '#f1fa8c',
-  blue: '#bd93f9',
-  magenta: '#ff79c6',
-  cyan: '#8be9fd',
-  white: '#f8f8f2',
-  brightBlack: '#6272a4',
-  brightRed: '#ff6e6e',
-  brightGreen: '#69ff94',
-  brightYellow: '#ffffa5',
-  brightBlue: '#d6acff',
-  brightMagenta: '#ff92df',
-  brightCyan: '#a4ffff',
-  brightWhite: '#ffffff',
-};
 
 interface TerminalEmbedProps {
   /** Terminal base URL, e.g. "/api/terminal/{buildingId}/" */
@@ -349,6 +325,7 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
     let debouncedFit: ReturnType<typeof debounce> | null = null;
     let resizeObs: ResizeObserver | null = null;
     let handleContextMenu: ((e: Event) => void) | null = null;
+    let onThemeChanged: (() => void) | null = null;
 
     (async () => {
       log('Lazy-loading xterm.js modules...');
@@ -377,7 +354,8 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
       const WebLinksAddon = webLinksMod.WebLinksAddon;
 
       term = new Terminal({
-        theme: DRACULA_THEME,
+        // Live UI theme (bg/fg/ANSI accents) — refreshed on tide-theme-changed
+        theme: getXtermTheme(),
         fontSize: getStoredFontSize(),
         scrollback: 5000,
         fontFamily: TERMINAL_FONT_FAMILY,
@@ -387,6 +365,17 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
         rightClickSelectsWord: false,
       });
       termRef.current = term;
+
+      // Keep xterm colors in sync when the user switches Tide themes
+      onThemeChanged = () => {
+        if (!term || destroyed) return;
+        try {
+          term.options.theme = getXtermTheme();
+        } catch (err) {
+          log('Failed to apply theme to xterm', err);
+        }
+      };
+      window.addEventListener('tide-theme-changed', onThemeChanged);
 
       fit = new FitAddon();
       fitRef.current = fit;
@@ -614,6 +603,7 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
       initRef.current = false;
       debouncedFit?.cancel();
       resizeObs?.disconnect();
+      if (onThemeChanged) window.removeEventListener('tide-theme-changed', onThemeChanged);
       dropEl.removeEventListener('dragenter', handleDropDragOver, true);
       dropEl.removeEventListener('dragover', handleDropDragOver, true);
       dropEl.removeEventListener('drop', handleFileDrop, true);

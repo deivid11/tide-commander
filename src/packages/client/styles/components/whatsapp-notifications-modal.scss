@@ -7,14 +7,14 @@
   display: flex;
   flex-direction: column;
   padding: 0;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: $radius-xl;
   overflow: hidden;
 
   .modal-header {
     padding: 14px 20px;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-color);
     font-size: 16px;
     font-weight: 600;
     display: flex;
@@ -30,7 +30,7 @@
 
   .modal-footer {
     padding: 12px 20px;
-    border-top: 1px solid $border-color;
+    border-top: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -55,7 +55,7 @@
   .modal-description {
     margin: 0;
     font-size: 12px;
-    color: $text-secondary;
+    color: var(--text-secondary);
     line-height: 1.5;
   }
 
@@ -70,14 +70,14 @@
     .spinner {
       width: 32px;
       height: 32px;
-      border: 3px solid rgba($border-color, 0.5);
-      border-top-color: $accent-blue;
+      border: 3px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+      border-top-color: var(--accent-blue);
       border-radius: 50%;
       animation: wan-spin 0.8s linear infinite;
     }
 
     p {
-      color: $text-secondary;
+      color: var(--text-secondary);
       margin: 0;
       font-size: 13px;
     }
@@ -109,22 +109,22 @@
     flex-direction: column;
     gap: 10px;
     padding: 12px;
-    border: 1px solid $border-color;
+    border: 1px solid var(--border-color);
     border-radius: $radius-lg;
-    background: $bg-primary;
+    background: var(--bg-primary);
   }
 
   .wan-section-title {
     margin: 0;
     font-size: 13px;
     font-weight: 600;
-    color: $text-primary;
+    color: var(--text-primary);
   }
 
   .wan-section-hint {
     margin: 0;
     font-size: 11px;
-    color: $text-secondary;
+    color: var(--text-secondary);
     line-height: 1.4;
   }
 
@@ -137,26 +137,26 @@
   .wan-label {
     font-size: 12px;
     font-weight: 500;
-    color: $text-secondary;
+    color: var(--text-secondary);
   }
 
   .wan-input {
     padding: 8px 10px;
-    background: $bg-secondary;
-    color: $text-primary;
-    border: 1px solid $border-color;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
     border-radius: $radius-md;
     font-size: 13px;
 
     &:focus {
       outline: none;
-      border-color: $accent-blue;
+      border-color: var(--accent-blue);
     }
   }
 
   .wan-hint {
     font-size: 11px;
-    color: $text-secondary;
+    color: var(--text-secondary);
   }
 
   .wan-toggle-row {
@@ -165,7 +165,7 @@
     align-items: center;
     gap: 12px;
     padding: 8px 0;
-    border-bottom: 1px solid rgba($border-color, 0.5);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
 
     &:last-child {
       border-bottom: none;
@@ -182,13 +182,13 @@
 
   .wan-toggle-title {
     font-size: 13px;
-    color: $text-primary;
+    color: var(--text-primary);
     font-weight: 500;
   }
 
   .wan-toggle-help {
     font-size: 11px;
-    color: $text-secondary;
+    color: var(--text-secondary);
     line-height: 1.4;
   }
 
@@ -206,7 +206,7 @@
       height: 0;
 
       &:checked + .wan-toggle-track {
-        background: $accent-blue;
+        background: var(--accent-blue);
 
         .wan-toggle-thumb {
           transform: translateX(16px);
@@ -218,7 +218,7 @@
   .wan-toggle-track {
     position: absolute;
     inset: 0;
-    background: rgba($border-color, 0.6);
+    background: color-mix(in srgb, var(--border-color) 60%, transparent);
     border-radius: 999px;
     transition: background 0.15s ease;
   }

@@ -21,18 +21,18 @@
 }
 
 .btn-secondary {
-  background: $bg-tertiary;
-  border: 1px solid $border-color;
-  color: $text-primary;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
 }
 
 .btn-primary {
-  background: $accent-blue;
+  background: var(--accent-blue);
   color: white;
 }
 
 .btn-danger {
-  background: $accent-red;
+  background: var(--accent-red);
   color: white;
 }
 

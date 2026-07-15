@@ -2,31 +2,8 @@
  * FlatView Styles - 3-Column Layout
  *
  * Layout: Sidebar | Middle (Agents) | Right (Chat)
+ * Colors come from global theme CSS variables (applyTheme).
  */
-
-// Dracula theme colors
-$bg-primary: #282a36;
-$bg-secondary: #1e1f29;
-$bg-tertiary: #21222c;
-$bg-card: #363848;
-$bg-card-hover: #44475a;
-$text-primary: #f8f8f2;
-$text-secondary: #9a9caa;
-$text-muted: #6272a4;
-$accent-cyan: #8be9fd;
-$accent-green: #50fa7b;
-$accent-orange: #ffb86c;
-$accent-purple: #bd93f9;
-$accent-red: #ff5555;
-$accent-yellow: #f1fa8c;
-$accent-gold: #ffd700;
-
-// Status colors
-$status-idle: #4aff9e;
-$status-working: #4a9eff;
-$status-waiting: #ff9e4a;
-$status-error: #ff4a4a;
-$status-offline: #888888;
 
 // Layout dimensions
 $middle-min-width: 280px;
@@ -60,7 +37,7 @@ $middle-min-width: 280px;
   grid-template-columns: var(--flat-middle-width) 3px 1fr;
   height: 100%;
   width: 100%;
-  background: $bg-primary;
+  background: var(--bg-primary);
   overflow: hidden;
   // 64px left gutter keeps the columns from sitting under the global
   // floating FAB stack (settings/spotlight/spawn buttons at left:16,
@@ -87,7 +64,7 @@ $middle-min-width: 280px;
 .flat-splitter {
   position: relative;
   cursor: col-resize;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
   touch-action: none;
   user-select: none;
   transition: background 0.15s ease;
@@ -104,7 +81,7 @@ $middle-min-width: 280px;
   }
 
   &:hover {
-    background: rgba($accent-cyan, 0.45);
+    background: color-mix(in srgb, var(--accent-cyan) 45%, transparent);
   }
 }
 
@@ -116,7 +93,7 @@ body.flat-splitter-dragging {
   user-select: none !important;
 
   .flat-splitter {
-    background: rgba($accent-cyan, 0.6);
+    background: color-mix(in srgb, var(--accent-cyan) 60%, transparent);
   }
 
   .flat-view {
@@ -131,8 +108,8 @@ body.flat-splitter-dragging {
 .flat-middle {
   display: flex;
   flex-direction: column;
-  background: $bg-primary;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-primary);
+  border-right: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
   overflow: hidden;
   min-width: $middle-min-width;
 
@@ -141,7 +118,7 @@ body.flat-splitter-dragging {
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
     flex-shrink: 0;
     gap: 12px;
   }
@@ -149,7 +126,7 @@ body.flat-splitter-dragging {
   &__title {
     font-size: 14px;
     font-weight: 600;
-    color: $text-primary;
+    color: var(--text-primary);
     margin: 0;
   }
 
@@ -176,11 +153,11 @@ body.flat-splitter-dragging {
     }
 
     &::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.1);
+      background: color-mix(in srgb, var(--text-primary) 10%, transparent);
       border-radius: 3px;
 
       &:hover {
-        background: rgba(255, 255, 255, 0.2);
+        background: color-mix(in srgb, var(--text-primary) 20%, transparent);
       }
     }
   }
@@ -201,38 +178,38 @@ body.flat-splitter-dragging {
   white-space: nowrap;
 
   &--agent {
-    background: rgba($accent-green, 0.15);
-    color: $accent-green;
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+    color: var(--accent-green);
 
     &:hover {
-      background: rgba($accent-green, 0.25);
+      background: color-mix(in srgb, var(--accent-green) 25%, transparent);
     }
   }
 
   &--boss {
-    background: rgba($accent-gold, 0.15);
-    color: $accent-gold;
+    background: color-mix(in srgb, var(--accent-yellow) 15%, transparent);
+    color: var(--accent-yellow);
 
     &:hover {
-      background: rgba($accent-gold, 0.25);
+      background: color-mix(in srgb, var(--accent-yellow) 25%, transparent);
     }
   }
 
   &--building {
-    background: rgba($accent-cyan, 0.15);
-    color: $accent-cyan;
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    color: var(--accent-cyan);
 
     &:hover {
-      background: rgba($accent-cyan, 0.25);
+      background: color-mix(in srgb, var(--accent-cyan) 25%, transparent);
     }
   }
 
   &--area {
-    background: rgba($accent-purple, 0.15);
-    color: $accent-purple;
+    background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+    color: var(--accent-purple);
 
     &:hover {
-      background: rgba($accent-purple, 0.25);
+      background: color-mix(in srgb, var(--accent-purple) 25%, transparent);
     }
   }
 }
@@ -280,7 +257,7 @@ body.flat-splitter-dragging {
 .flat-right {
   display: flex;
   flex-direction: column;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   overflow: hidden;
 }
 
@@ -301,7 +278,7 @@ body.flat-splitter-dragging {
     flex-direction: column;
     align-items: center;
     gap: 12px;
-    color: $text-muted;
+    color: var(--text-muted);
   }
 
   &__placeholder-icon {
@@ -339,11 +316,11 @@ body.flat-splitter-dragging {
   }
 
   &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+    background: color-mix(in srgb, var(--text-primary) 10%, transparent);
     border-radius: 3px;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.2);
+      background: color-mix(in srgb, var(--text-primary) 20%, transparent);
     }
   }
 
@@ -359,12 +336,12 @@ body.flat-splitter-dragging {
   &__title {
     font-size: 13px;
     font-weight: 600;
-    color: $text-primary;
+    color: var(--text-primary);
   }
 
   &__hint {
     font-size: 11px;
-    color: $text-muted;
+    color: var(--text-muted);
   }
 
   &__stats {
@@ -376,11 +353,11 @@ body.flat-splitter-dragging {
     top: 10px;
     right: 12px;
     z-index: 5;
-    background: color-mix(in srgb, $bg-secondary 92%, transparent);
+    background: color-mix(in srgb, var(--bg-secondary) 92%, transparent);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     border-radius: 999px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 8px color-mix(in srgb, #000 30%, transparent);
   }
 
   &__grid {
@@ -396,7 +373,7 @@ body.flat-splitter-dragging {
     align-items: center;
     justify-content: center;
     padding: 40px;
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 13px;
   }
 }
@@ -413,21 +390,21 @@ body.flat-splitter-dragging {
   // inline from area.color) is mixed lightly into the card surface so it stays
   // readable in light/dark, with a faint area-color border. color-mix matches
   // the tint approach already used for area chips (e.g. TrackingBoard).
-  background: color-mix(in srgb, var(--area-color, #6272a4) 12%, #{$bg-card});
-  border: 1px solid color-mix(in srgb, var(--area-color, #6272a4) 38%, transparent);
+  background: color-mix(in srgb, var(--area-color, var(--text-muted)) 12%, var(--bg-tertiary));
+  border: 1px solid color-mix(in srgb, var(--area-color, var(--text-muted)) 38%, transparent);
   border-radius: 8px;
   overflow: hidden;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 
   &:hover {
-    border-color: color-mix(in srgb, var(--area-color, #6272a4) 58%, transparent);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    border-color: color-mix(in srgb, var(--area-color, var(--text-muted)) 58%, transparent);
+    box-shadow: 0 2px 8px color-mix(in srgb, #000 25%, transparent);
   }
 
   // Lift working activity to the area level so busy projects are visible even
   // before the user scans their individual agent chips.
   &--working {
-    border-color: color-mix(in srgb, var(--area-color, #6272a4) 72%, #8be9fd);
+    border-color: color-mix(in srgb, var(--area-color, var(--text-muted)) 72%, var(--accent-cyan));
     animation: flat-map-area-working-pulse 2.4s ease-in-out infinite;
 
     .flat-map-area-card__color {
@@ -445,13 +422,13 @@ body.flat-splitter-dragging {
     cursor: pointer;
     width: 100%;
     text-align: left;
-    color: $text-primary;
+    color: var(--text-primary);
     font-size: 12px;
     font-weight: 600;
     transition: background 0.15s ease;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.04);
+      background: color-mix(in srgb, var(--text-primary) 4%, transparent);
     }
   }
 
@@ -495,8 +472,8 @@ body.flat-splitter-dragging {
     gap: 3px;
     font-size: 10px;
     font-weight: 500;
-    color: $text-muted;
-    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--border-color) 55%, transparent);
     padding: 1px 5px;
     border-radius: 8px;
     flex-shrink: 0;
@@ -509,7 +486,7 @@ body.flat-splitter-dragging {
     height: 18px;
     padding: 1px 5px;
     flex-shrink: 0;
-    color: #8be9fd;
+    color: var(--accent-cyan);
     background: rgba(139, 233, 253, 0.12);
     border: 1px solid rgba(139, 233, 253, 0.32);
     border-radius: 8px;
@@ -546,7 +523,7 @@ body.flat-splitter-dragging {
 
   &__caret {
     font-size: 10px;
-    color: $text-muted;
+    color: var(--text-muted);
     flex-shrink: 0;
     width: 12px;
     text-align: center;
@@ -565,7 +542,7 @@ body.flat-splitter-dragging {
     box-shadow: 0 0 0 rgba(139, 233, 253, 0);
   }
   50% {
-    box-shadow: 0 0 14px color-mix(in srgb, var(--area-color, #6272a4) 40%, rgba(139, 233, 253, 0.45));
+    box-shadow: 0 0 14px color-mix(in srgb, var(--area-color, var(--text-muted)) 40%, color-mix(in srgb, var(--accent-cyan) 45%, transparent));
   }
 }
 
@@ -601,11 +578,11 @@ body.flat-splitter-dragging {
   align-items: center;
   gap: 5px;
   padding: 3px 7px 6px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
   border-radius: 10px;
   cursor: pointer;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 11px;
   text-align: left;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
@@ -614,9 +591,9 @@ body.flat-splitter-dragging {
   overflow: hidden;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.12);
-    color: $text-primary;
+    background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    border-color: color-mix(in srgb, var(--text-primary) 10%, transparent);
+    color: var(--text-primary);
   }
 
   // Working agents: high-energy magical animation. Double shimmer band
@@ -646,7 +623,7 @@ body.flat-splitter-dragging {
     background-repeat: no-repeat, no-repeat;
     background-position: 150% 0, 150% 0;
     border-color: rgba(139, 233, 253, 0.7);
-    color: $text-primary;
+    color: var(--text-primary);
     box-shadow:
       0 0 8px rgba(74, 158, 255, 0.35),
       inset 0 0 0 1px rgba(139, 233, 253, 0);
@@ -848,7 +825,7 @@ body.flat-splitter-dragging {
     height: 12px;
     object-fit: contain;
     flex-shrink: 0;
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+    filter: drop-shadow(0 1px 2px color-mix(in srgb, #000 25%, transparent));
   }
 
   &__crown {
@@ -868,7 +845,7 @@ body.flat-splitter-dragging {
     right: 0;
     bottom: 0;
     height: 2px;
-    background: rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--border-color) 55%, transparent);
     pointer-events: none;
   }
 
@@ -884,7 +861,7 @@ body.flat-splitter-dragging {
   flex-wrap: wrap;
   gap: 4px;
   padding: 0 8px 8px;
-  border-top: 1px dashed rgba(255, 255, 255, 0.05);
+  border-top: 1px dashed color-mix(in srgb, var(--text-primary) 5%, transparent);
   margin-top: 2px;
   padding-top: 6px;
 }
@@ -894,7 +871,7 @@ body.flat-splitter-dragging {
   flex-wrap: wrap;
   gap: 4px;
   padding: 6px 8px 8px;
-  border-top: 1px dashed rgba(255, 255, 255, 0.05);
+  border-top: 1px dashed color-mix(in srgb, var(--text-primary) 5%, transparent);
   margin-top: 2px;
 }
 
@@ -904,10 +881,10 @@ body.flat-splitter-dragging {
   gap: 5px;
   padding: 3px 7px;
   background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
   border-radius: 8px;
   cursor: pointer;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 11px;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   text-align: left;
@@ -920,7 +897,7 @@ body.flat-splitter-dragging {
   &:hover {
     background: rgba(255, 255, 255, 0.07);
     border-color: rgba(255, 255, 255, 0.18);
-    color: $text-primary;
+    color: var(--text-primary);
   }
 
   &__name {
@@ -936,11 +913,11 @@ body.flat-splitter-dragging {
   gap: 5px;
   padding: 3px 7px;
   background: rgba(255, 255, 255, 0.025);
-  border: 1px dashed rgba(255, 255, 255, 0.08);
-  border-left: 2px solid var(--building-type-color, rgba(255, 255, 255, 0.08));
+  border: 1px dashed color-mix(in srgb, var(--text-primary) 8%, transparent);
+  border-left: 2px solid var(--building-type-color, color-mix(in srgb, var(--text-primary) 8%, transparent));
   border-radius: 8px;
   cursor: pointer;
-  color: $text-secondary;
+  color: var(--text-secondary);
   font-size: 11px;
   text-align: left;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
@@ -952,7 +929,7 @@ body.flat-splitter-dragging {
     background: rgba(255, 255, 255, 0.07);
     border-color: rgba(255, 255, 255, 0.18);
     border-left-color: var(--building-type-color, rgba(255, 255, 255, 0.18));
-    color: $text-primary;
+    color: var(--text-primary);
   }
 
   &__name {
@@ -992,7 +969,7 @@ body.flat-splitter-dragging {
   height: 100%;
   min-height: 0;
   position: relative;
-  background: $bg-tertiary;
+  background: var(--bg-tertiary);
   overflow: hidden;
   // Side panels (git / buildings / workflow) rely on this CSS var for their
   // width. The Guake wrapper sets the same var; we mirror it here so the
@@ -1014,8 +991,8 @@ body.flat-splitter-dragging {
     gap: 12px;
     // Extra top pad so the working avatar bounce is not clipped by the wrapper
     padding: 10px 12px 6px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    background: $bg-secondary;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    background: var(--bg-secondary);
     flex-shrink: 0;
     min-height: 40px;
     overflow: visible;
@@ -1043,16 +1020,16 @@ body.flat-splitter-dragging {
     transition: background 0.15s ease, border-color 0.15s ease;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.04);
-      border-color: rgba(255, 255, 255, 0.06);
+      background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+      border-color: color-mix(in srgb, var(--border-color) 55%, transparent);
     }
 
     &--active {
-      background: rgba($accent-purple, 0.18);
-      border-color: rgba($accent-purple, 0.45);
+      background: color-mix(in srgb, var(--accent-purple) 18%, transparent);
+      border-color: color-mix(in srgb, var(--accent-purple) 45%, transparent);
 
       &:hover {
-        background: rgba($accent-purple, 0.26);
+        background: color-mix(in srgb, var(--accent-purple) 26%, transparent);
       }
     }
   }
@@ -1116,8 +1093,8 @@ body.flat-splitter-dragging {
     gap: 10px;
     padding: 6px 12px;
     flex-shrink: 0;
-    background: $bg-secondary;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--bg-secondary);
+    border-top: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
     min-height: 32px;
     box-sizing: border-box;
 
@@ -1126,7 +1103,7 @@ body.flat-splitter-dragging {
     .flat-terminal-wrapper__cwd,
     .flat-terminal-wrapper__context {
       background: transparent;
-      border-color: rgba(255, 255, 255, 0.04);
+      border-color: color-mix(in srgb, var(--text-primary) 4%, transparent);
     }
   }
 
@@ -1140,8 +1117,8 @@ body.flat-splitter-dragging {
     align-items: center;
     gap: 4px;
     padding: 2px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
     border-radius: 10px;
   }
 
@@ -1152,7 +1129,7 @@ body.flat-splitter-dragging {
     width: 26px;
     height: 22px;
     padding: 0;
-    color: $text-muted;
+    color: var(--text-muted);
     background: transparent;
     border: none;
     border-radius: 7px;
@@ -1160,34 +1137,34 @@ body.flat-splitter-dragging {
     transition: background 0.15s ease, color 0.15s ease;
 
     &:hover {
-      color: $text-primary;
-      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
     }
 
     &--offline {
-      color: rgba($accent-orange, 0.75);
+      color: color-mix(in srgb, var(--accent-orange) 75%, transparent);
 
       &:hover {
-        color: $accent-orange;
+        color: var(--accent-orange);
       }
     }
 
     &--active {
-      color: $text-primary;
-      background: rgba($accent-purple, 0.28);
-      box-shadow: 0 0 0 1px rgba($accent-purple, 0.45);
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--accent-purple) 28%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-purple) 45%, transparent);
 
       &:hover {
-        background: rgba($accent-purple, 0.36);
+        background: color-mix(in srgb, var(--accent-purple) 36%, transparent);
       }
     }
 
     // Tests building with a run in flight — shaking flask + pulsing glow,
     // mirrors the guake buildings-panel working indicator.
     &--tests-working {
-      color: $accent-cyan;
-      background: rgba($accent-cyan, 0.14);
-      box-shadow: 0 0 0 1px rgba($accent-cyan, 0.4);
+      color: var(--accent-cyan);
+      background: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 40%, transparent);
       animation: flat-tests-glow 1.4s ease-in-out infinite;
 
       svg {
@@ -1195,8 +1172,8 @@ body.flat-splitter-dragging {
       }
 
       &:hover {
-        color: $accent-cyan;
-        background: rgba($accent-cyan, 0.22);
+        color: var(--accent-cyan);
+        background: color-mix(in srgb, var(--accent-cyan) 22%, transparent);
       }
     }
   }
@@ -1209,9 +1186,9 @@ body.flat-splitter-dragging {
     padding: 3px 9px;
     font-size: 11px;
     font-weight: 500;
-    color: $accent-orange;
-    background: rgba($accent-orange, 0.12);
-    border: 1px solid rgba($accent-orange, 0.35);
+    color: var(--accent-orange);
+    background: color-mix(in srgb, var(--accent-orange) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-orange) 35%, transparent);
     border-radius: 10px;
     animation: blink 1.6s ease-in-out infinite;
   }
@@ -1224,9 +1201,9 @@ body.flat-splitter-dragging {
     padding: 3px 8px;
     font-size: 11px;
     font-family: 'SF Mono', Menlo, Consolas, monospace;
-    color: $text-secondary;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--text-primary) 3%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-primary) 5%, transparent);
     border-radius: 10px;
     cursor: pointer;
     max-width: 240px;
@@ -1237,9 +1214,9 @@ body.flat-splitter-dragging {
     transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.08);
-      color: $text-primary;
-      border-color: rgba(255, 255, 255, 0.14);
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+      color: var(--text-primary);
+      border-color: color-mix(in srgb, var(--text-primary) 14%, transparent);
     }
   }
 
@@ -1252,20 +1229,20 @@ body.flat-splitter-dragging {
     display: inline-flex;
     align-items: center;
     gap: 3px;
-    color: $accent-cyan;
+    color: var(--accent-cyan);
     opacity: 0.85;
   }
 
   &__branch-ahead {
     display: inline-flex;
     align-items: center;
-    color: $accent-green;
+    color: var(--accent-green);
   }
 
   &__branch-behind {
     display: inline-flex;
     align-items: center;
-    color: $accent-orange;
+    color: var(--accent-orange);
   }
 
   &__area-fetch {
@@ -1273,13 +1250,13 @@ body.flat-splitter-dragging {
     align-items: center;
     padding: 1px 3px;
     border-radius: 4px;
-    color: $text-muted;
+    color: var(--text-muted);
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.08);
-      color: $text-primary;
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+      color: var(--text-primary);
     }
 
     &--fetching {
@@ -1289,12 +1266,12 @@ body.flat-splitter-dragging {
 
   // ── Context chip extra sub-labels ───────────────────────────────────────
   &__context-label {
-    color: $text-muted;
+    color: var(--text-muted);
     margin-right: 2px;
   }
 
   &__context-free {
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 10px;
   }
 
@@ -1304,8 +1281,8 @@ body.flat-splitter-dragging {
     align-items: center;
     gap: 4px;
     padding: 2px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
     border-radius: 10px;
   }
 
@@ -1318,7 +1295,7 @@ body.flat-splitter-dragging {
     padding: 0;
     font-size: 12px;
     line-height: 1;
-    color: $text-muted;
+    color: var(--text-muted);
     background: transparent;
     border: none;
     border-radius: 7px;
@@ -1326,8 +1303,8 @@ body.flat-splitter-dragging {
     transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 
     &:hover:not(:disabled) {
-      color: $text-primary;
-      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--border-color) 55%, transparent);
     }
 
     &:disabled {
@@ -1336,28 +1313,28 @@ body.flat-splitter-dragging {
     }
 
     &--active {
-      color: $text-primary;
-      background: rgba($accent-purple, 0.28);
-      box-shadow: 0 0 0 1px rgba($accent-purple, 0.45);
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--accent-purple) 28%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-purple) 45%, transparent);
 
       &:hover {
-        background: rgba($accent-purple, 0.36);
+        background: color-mix(in srgb, var(--accent-purple) 36%, transparent);
       }
     }
 
     &--danger {
-      color: rgba($accent-red, 0.85);
+      color: color-mix(in srgb, var(--accent-red) 85%, transparent);
 
       &:hover {
-        color: $accent-red;
-        background: rgba($accent-red, 0.12);
+        color: var(--accent-red);
+        background: color-mix(in srgb, var(--accent-red) 12%, transparent);
       }
     }
 
     &--confirm {
-      color: $accent-red;
-      background: rgba($accent-red, 0.18);
-      box-shadow: 0 0 0 1px rgba($accent-red, 0.5);
+      color: var(--accent-red);
+      background: color-mix(in srgb, var(--accent-red) 18%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-red) 50%, transparent);
       animation: blink 1s ease-in-out infinite;
     }
   }
@@ -1374,10 +1351,10 @@ body.flat-splitter-dragging {
     right: 0;
     min-width: 220px;
     padding: 4px;
-    background: $bg-card;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--bg-tertiary);
+    border: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
     border-radius: 8px;
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 8px 28px color-mix(in srgb, #000 45%, transparent);
     z-index: 100;
   }
 
@@ -1388,7 +1365,7 @@ body.flat-splitter-dragging {
     width: 100%;
     padding: 6px 10px;
     font-size: 12px;
-    color: $text-primary;
+    color: var(--text-primary);
     background: transparent;
     border: none;
     border-radius: 6px;
@@ -1397,7 +1374,7 @@ body.flat-splitter-dragging {
     transition: background 0.15s ease, color 0.15s ease;
 
     &:hover:not(:disabled) {
-      background: rgba(255, 255, 255, 0.06);
+      background: color-mix(in srgb, var(--border-color) 55%, transparent);
     }
 
     &:disabled {
@@ -1406,11 +1383,11 @@ body.flat-splitter-dragging {
     }
 
     &--danger {
-      color: rgba($accent-red, 0.9);
+      color: color-mix(in srgb, var(--accent-red) 90%, transparent);
 
       &:hover:not(:disabled) {
-        color: $accent-red;
-        background: rgba($accent-red, 0.12);
+        color: var(--accent-red);
+        background: color-mix(in srgb, var(--accent-red) 12%, transparent);
       }
     }
   }
@@ -1418,7 +1395,7 @@ body.flat-splitter-dragging {
   &__more-divider {
     height: 1px;
     margin: 4px 2px;
-    background: rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--border-color) 55%, transparent);
   }
 
   &__header-info {
@@ -1434,7 +1411,7 @@ body.flat-splitter-dragging {
   &__header-name {
     font-size: 13px;
     font-weight: 600;
-    color: $text-primary;
+    color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1450,15 +1427,15 @@ body.flat-splitter-dragging {
 
   &__header-task {
     font-size: 11px;
-    color: $text-muted;
+    color: var(--text-muted);
     max-width: 220px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     padding: 2px 8px;
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
     flex-shrink: 1;
   }
 
@@ -1478,7 +1455,7 @@ body.flat-splitter-dragging {
     height: 16px;
     object-fit: contain;
     flex-shrink: 0;
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+    filter: drop-shadow(0 1px 2px color-mix(in srgb, #000 25%, transparent));
   }
 
   &__header-model-chip {
@@ -1489,9 +1466,9 @@ body.flat-splitter-dragging {
     font-size: 10px;
     font-family: 'SF Mono', Menlo, Consolas, monospace;
     font-weight: 600;
-    color: $text-secondary;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
     border-radius: 999px;
     white-space: nowrap;
     max-width: 180px;
@@ -1501,7 +1478,7 @@ body.flat-splitter-dragging {
   }
 
   &__header-model-name {
-    color: $text-primary;
+    color: var(--text-primary);
     text-transform: lowercase;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1512,7 +1489,7 @@ body.flat-splitter-dragging {
   }
 
   &__header-model-effort {
-    color: $accent-purple;
+    color: var(--accent-purple);
     text-transform: lowercase;
   }
 
@@ -1523,18 +1500,18 @@ body.flat-splitter-dragging {
     gap: 6px;
     padding: 4px 9px;
     font-size: 11px;
-    color: $text-secondary;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
     border-radius: 10px;
     cursor: pointer;
     max-width: 240px;
     transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.14);
-      color: $text-primary;
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+      border-color: color-mix(in srgb, var(--text-primary) 14%, transparent);
+      color: var(--text-primary);
     }
 
     &-icon {
@@ -1557,16 +1534,16 @@ body.flat-splitter-dragging {
     gap: 6px;
     padding: 4px 9px;
     font-size: 11px;
-    color: $text-secondary;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
     border-radius: 10px;
     cursor: pointer;
     transition: background 0.15s ease, border-color 0.15s ease;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.14);
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+      border-color: color-mix(in srgb, var(--text-primary) 14%, transparent);
     }
 
     &-icon {
@@ -1579,7 +1556,7 @@ body.flat-splitter-dragging {
       width: 56px;
       height: 5px;
       border-radius: 3px;
-      background: rgba(255, 255, 255, 0.08);
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
       overflow: hidden;
     }
 
@@ -1611,8 +1588,8 @@ body.flat-splitter-dragging {
     align-items: center;
     padding: 2px;
     gap: 2px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
     border-radius: 10px;
   }
 
@@ -1623,7 +1600,7 @@ body.flat-splitter-dragging {
     padding: 4px 9px;
     font-size: 11px;
     font-weight: 500;
-    color: $text-muted;
+    color: var(--text-muted);
     background: transparent;
     border: none;
     border-radius: 8px;
@@ -1631,18 +1608,18 @@ body.flat-splitter-dragging {
     transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 
     &:hover {
-      color: $text-primary;
-      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--text-primary) 4%, transparent);
     }
 
     &--active {
-      color: $text-primary;
-      background: rgba($accent-purple, 0.28);
-      box-shadow: 0 0 0 1px rgba($accent-purple, 0.5),
-        0 1px 3px rgba(0, 0, 0, 0.25);
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--accent-purple) 28%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-purple) 50%, transparent),
+        0 1px 3px color-mix(in srgb, #000 25%, transparent);
 
       &:hover {
-        background: rgba($accent-purple, 0.36);
+        background: color-mix(in srgb, var(--accent-purple) 36%, transparent);
       }
     }
   }
@@ -1666,12 +1643,12 @@ body.flat-splitter-dragging {
       padding: 4px 9px;
       font-size: 11px;
       border-radius: 10px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+      border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
 
       &:hover {
-        background: rgba(255, 255, 255, 0.08);
-        border-color: rgba(255, 255, 255, 0.14);
+        background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+        border-color: color-mix(in srgb, var(--text-primary) 14%, transparent);
       }
     }
   }
@@ -1684,29 +1661,29 @@ body.flat-splitter-dragging {
     padding: 4px 9px;
     font-size: 11px;
     font-weight: 500;
-    color: $text-secondary;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
     border-radius: 10px;
     cursor: pointer;
     transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease,
       box-shadow 0.15s ease;
 
     &:hover {
-      color: $text-primary;
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.14);
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+      border-color: color-mix(in srgb, var(--text-primary) 14%, transparent);
     }
 
     &--active {
-      color: $text-primary;
-      background: rgba($accent-purple, 0.22);
-      border-color: rgba($accent-purple, 0.55);
-      box-shadow: 0 0 0 1px rgba($accent-purple, 0.35),
-        0 1px 3px rgba(0, 0, 0, 0.25);
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--accent-purple) 22%, transparent);
+      border-color: color-mix(in srgb, var(--accent-purple) 55%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-purple) 35%, transparent),
+        0 1px 3px color-mix(in srgb, #000 25%, transparent);
 
       &:hover {
-        background: rgba($accent-purple, 0.32);
+        background: color-mix(in srgb, var(--accent-purple) 32%, transparent);
       }
     }
   }
@@ -1730,17 +1707,17 @@ body.flat-splitter-dragging {
     width: 26px;
     height: 26px;
     padding: 0;
-    color: $text-muted;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
     border-radius: 10px;
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 
     &:hover {
-      color: $accent-red;
-      background: rgba($accent-red, 0.12);
-      border-color: rgba($accent-red, 0.4);
+      color: var(--accent-red);
+      background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+      border-color: color-mix(in srgb, var(--accent-red) 40%, transparent);
     }
   }
 
@@ -1772,7 +1749,7 @@ body.flat-splitter-dragging {
     }
 
     &::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.1);
+      background: color-mix(in srgb, var(--text-primary) 10%, transparent);
       border-radius: 3px;
     }
   }
@@ -1781,8 +1758,8 @@ body.flat-splitter-dragging {
   .guake-input-container {
     position: relative;
     flex-shrink: 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    background: $bg-secondary;
+    border-top: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    background: var(--bg-secondary);
   }
 
   // ── Search bar sticky at top ──
@@ -1791,7 +1768,7 @@ body.flat-splitter-dragging {
     position: sticky;
     top: 0;
     z-index: 10;
-    background: $bg-secondary;
+    background: var(--bg-secondary);
   }
 
   // ── Hide features that don't apply in embedded view ──
@@ -1833,8 +1810,8 @@ body.flat-splitter-dragging {
   min-width: 0;
   min-height: 0;
   height: 100%;
-  background: $bg-secondary;
-  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-secondary);
+  border-left: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
   overflow: hidden;
   animation: flat-inspector-slide-in 0.22s ease;
 
@@ -1843,8 +1820,8 @@ body.flat-splitter-dragging {
     align-items: center;
     justify-content: space-between;
     padding: 10px 14px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    background: $bg-tertiary;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    background: var(--bg-tertiary);
     flex-shrink: 0;
   }
 
@@ -1853,8 +1830,8 @@ body.flat-splitter-dragging {
     align-items: center;
     gap: 4px;
     padding: 2px;
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, #000 25%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
     border-radius: 6px;
   }
 
@@ -1862,7 +1839,7 @@ body.flat-splitter-dragging {
     padding: 4px 10px;
     font-size: 12px;
     font-weight: 500;
-    color: $text-muted;
+    color: var(--text-muted);
     background: transparent;
     border: none;
     border-radius: 4px;
@@ -1870,12 +1847,12 @@ body.flat-splitter-dragging {
     transition: background 0.15s ease, color 0.15s ease;
 
     &:hover {
-      color: $text-primary;
+      color: var(--text-primary);
     }
 
     &--active {
-      color: $text-primary;
-      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
     }
   }
 
@@ -1887,7 +1864,7 @@ body.flat-splitter-dragging {
     height: 24px;
     padding: 0;
     font-size: 13px;
-    color: $text-muted;
+    color: var(--text-muted);
     background: transparent;
     border: 1px solid transparent;
     border-radius: 6px;
@@ -1895,9 +1872,9 @@ body.flat-splitter-dragging {
     transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 
     &:hover {
-      color: $text-primary;
-      background: rgba(255, 255, 255, 0.06);
-      border-color: rgba(255, 255, 255, 0.1);
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--border-color) 55%, transparent);
+      border-color: color-mix(in srgb, var(--text-primary) 10%, transparent);
     }
   }
 
@@ -1925,7 +1902,7 @@ body.flat-splitter-dragging {
     align-items: center;
     justify-content: center;
     flex: 1;
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 13px;
   }
 }
@@ -2008,8 +1985,8 @@ body.flat-splitter-dragging {
     z-index: 185;
     transform: translateX(-110%);
     transition: transform 0.22s ease;
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 6px 0 32px rgba(0, 0, 0, 0.6);
+    border-right: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
+    box-shadow: 6px 0 32px color-mix(in srgb, #000 60%, transparent);
   }
 
   .flat-view--mobile-sidebar-open .flat-middle {
@@ -2028,9 +2005,9 @@ body.flat-splitter-dragging {
     padding: 8px 12px;
     font-size: 12px;
     font-weight: 500;
-    color: $text-primary;
-    background: rgba($bg-card, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--bg-tertiary) 95%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
     border-radius: 10px;
     cursor: pointer;
     min-height: 36px;
@@ -2039,8 +2016,8 @@ body.flat-splitter-dragging {
 
     &:hover,
     &:active {
-      background: rgba($accent-purple, 0.28);
-      border-color: rgba($accent-purple, 0.5);
+      background: color-mix(in srgb, var(--accent-purple) 28%, transparent);
+      border-color: color-mix(in srgb, var(--accent-purple) 50%, transparent);
     }
 
     &__label {
@@ -2055,7 +2032,7 @@ body.flat-splitter-dragging {
     position: fixed;
     inset: 0;
     z-index: 184;
-    background: rgba(0, 0, 0, 0.68);
+    background: color-mix(in srgb, #000 68%, transparent);
     backdrop-filter: blur(2px);
     animation: flat-inspector-fade-in 0.18s ease;
   }
@@ -2114,7 +2091,7 @@ body.flat-splitter-dragging {
 .flat-chat-actions-sheet__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: color-mix(in srgb, #000 45%, transparent);
   animation: flat-sheet-fade 0.15s ease;
 }
 
@@ -2128,12 +2105,12 @@ body.flat-splitter-dragging {
   flex-direction: column;
   gap: 10px;
   padding: 8px 14px calc(14px + env(safe-area-inset-bottom, 0px));
-  background: $bg-card;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-tertiary);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
   border-bottom: none;
   border-top-left-radius: 18px;
   border-top-right-radius: 18px;
-  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 -12px 32px color-mix(in srgb, #000 50%, transparent);
   animation: flat-sheet-slide-up 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -2155,7 +2132,7 @@ body.flat-splitter-dragging {
 .flat-chat-actions-sheet__title {
   font-size: 13px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2165,7 +2142,7 @@ body.flat-splitter-dragging {
   flex-shrink: 0;
   font-size: 13px;
   font-weight: 500;
-  color: $accent-purple;
+  color: var(--accent-purple);
   background: none;
   border: none;
   padding: 6px 4px;
@@ -2187,8 +2164,8 @@ body.flat-splitter-dragging {
   min-height: 64px;
   padding: 8px 4px;
   font-size: 11px;
-  color: $text-primary;
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 12px;
   cursor: pointer;
@@ -2199,8 +2176,8 @@ body.flat-splitter-dragging {
   }
 
   &.is-active {
-    background: rgba($accent-purple, 0.24);
-    border-color: rgba($accent-purple, 0.5);
+    background: color-mix(in srgb, var(--accent-purple) 24%, transparent);
+    border-color: color-mix(in srgb, var(--accent-purple) 50%, transparent);
   }
 }
 
@@ -2218,7 +2195,7 @@ body.flat-splitter-dragging {
   min-height: 48px;
   padding: 10px 12px;
   font-size: 14px;
-  color: $text-primary;
+  color: var(--text-primary);
   background: transparent;
   border: none;
   border-radius: 10px;
@@ -2226,7 +2203,7 @@ body.flat-splitter-dragging {
   text-align: left;
 
   &:active {
-    background: rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--border-color) 55%, transparent);
   }
 
   &:disabled {
@@ -2235,13 +2212,13 @@ body.flat-splitter-dragging {
   }
 
   &--danger {
-    color: rgba($accent-red, 0.9);
+    color: color-mix(in srgb, var(--accent-red) 90%, transparent);
   }
 
   &.is-armed {
-    color: $accent-red;
-    background: rgba($accent-red, 0.16);
-    box-shadow: inset 0 0 0 1px rgba($accent-red, 0.5);
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 16%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-red) 50%, transparent);
   }
 }
 
@@ -2369,8 +2346,8 @@ body.flat-splitter-dragging {
     z-index: 8;
     margin: 0 -10px;
     padding: calc(6px + env(safe-area-inset-top, 0px)) 10px 8px;
-    background: color-mix(in srgb, #{$bg-primary} 94%, transparent);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    background: color-mix(in srgb, var(--bg-primary) 94%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--text-primary) 5%, transparent);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
   }
@@ -2390,7 +2367,7 @@ body.flat-splitter-dragging {
     align-items: center;
     gap: 8px;
     min-width: 0;
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 10px;
     font-family: 'SF Mono', Menlo, Consolas, monospace;
   }
@@ -2399,7 +2376,7 @@ body.flat-splitter-dragging {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    color: color-mix(in srgb, $status-working 78%, $text-secondary);
+    color: color-mix(in srgb, var(--status-working) 78%, var(--text-secondary));
   }
 
   .flat-map__stats-dot {
@@ -2407,8 +2384,8 @@ body.flat-splitter-dragging {
     height: 6px;
     flex-shrink: 0;
     border-radius: 50%;
-    background: $status-working;
-    box-shadow: 0 0 6px rgba($status-working, 0.55);
+    background: var(--status-working);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--status-working) 55%, transparent);
   }
 
   .flat-map__view-mode {
@@ -2485,8 +2462,8 @@ body.flat-splitter-dragging {
 
   .flat-map-area-card--expanded {
     grid-column: 1 / -1 !important;
-    border-color: color-mix(in srgb, var(--area-color, #6272a4) 72%, transparent);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+    border-color: color-mix(in srgb, var(--area-color, var(--text-muted)) 72%, transparent);
+    box-shadow: 0 6px 18px color-mix(in srgb, #000 30%, transparent);
   }
 
   .flat-map-area-card__agents {
@@ -2567,7 +2544,7 @@ body.flat-splitter-dragging {
     font-size: 9px;
     padding: 1px 6px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--border-color) 55%, transparent);
     max-width: 72px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2663,7 +2640,7 @@ body.flat-splitter-dragging {
   // isn't room to push chat content left by 380px.
   .flat-terminal-wrapper {
     --guake-side-panel-width: 100%;
-    // Void instead of the gray $bg-tertiary so the (transparent) pinned-agents
+    // Void instead of the gray var(--bg-tertiary) so the (transparent) pinned-agents
     // bar reads as the chat background, not a gray strip. Header/output/input all
     // paint their own bg, so this only affects the otherwise-bare pinbar row.
     background: var(--bg-primary);
@@ -2803,7 +2780,7 @@ body.flat-splitter-dragging {
   display: flex;
   position: relative;
   overflow: hidden;
-  background: #1a1a2e;
+  background: var(--bg-primary);
 
   .guake-bottom-terminal-embed {
     flex: 1 1 auto;
@@ -2815,7 +2792,7 @@ body.flat-splitter-dragging {
   &--message {
     align-items: center;
     justify-content: center;
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 13px;
   }
 }
@@ -2828,8 +2805,8 @@ body.flat-splitter-dragging {
   // the panel visible even if the style prop is missing for some reason.
   height: 250px;
   min-height: 0;
-  background: $bg-secondary;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-secondary);
+  border-top: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
   overflow: hidden;
 
   &__header {
@@ -2838,8 +2815,8 @@ body.flat-splitter-dragging {
     justify-content: space-between;
     gap: 10px;
     padding: 4px 10px;
-    background: $bg-tertiary;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
     flex-shrink: 0;
     min-height: 28px;
   }
@@ -2850,14 +2827,14 @@ body.flat-splitter-dragging {
     gap: 6px;
     font-size: 11px;
     font-weight: 500;
-    color: $text-primary;
+    color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   &__muted {
-    color: $text-muted;
+    color: var(--text-muted);
     font-weight: 400;
     font-size: 10px;
   }
@@ -2876,7 +2853,7 @@ body.flat-splitter-dragging {
     width: 22px;
     height: 22px;
     padding: 0;
-    color: $text-muted;
+    color: var(--text-muted);
     background: transparent;
     border: none;
     border-radius: 6px;
@@ -2884,8 +2861,8 @@ body.flat-splitter-dragging {
     transition: background 0.15s ease, color 0.15s ease;
 
     &:hover {
-      color: $text-primary;
-      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
     }
   }
 
@@ -2893,7 +2870,7 @@ body.flat-splitter-dragging {
     flex: 1 1 auto;
     min-height: 0;
     display: flex;
-    background: $bg-primary;
+    background: var(--bg-primary);
 
     > * {
       flex: 1 1 auto;
@@ -2906,7 +2883,7 @@ body.flat-splitter-dragging {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: $text-muted;
+    color: var(--text-muted);
     font-size: 12px;
   }
 }
