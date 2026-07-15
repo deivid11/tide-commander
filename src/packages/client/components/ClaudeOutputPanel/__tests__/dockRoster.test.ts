@@ -189,20 +189,20 @@ describe('buildDockRoster', () => {
     const busy = agent('busy', 'working', 100);
 
     const two = buildDockRoster([...idle, busy], new Set(['busy']), EMPTY_DOCK_SLOTS, undefined, 2);
-    expect(two.entries.map((entry) => entry.lane)).toEqual(['recent', 'recent', 'working']);
+    expect(two.entries.map((entry) => entry.lane)).toEqual(['working', 'recent', 'recent']);
 
     const none = buildDockRoster([...idle, busy], new Set(['busy']), EMPTY_DOCK_SLOTS, undefined, 0);
     expect(none.entries.map((entry) => [entry.agent.id, entry.lane])).toEqual([['busy', 'working']]);
   });
 
-  it('renders the recent lane before the working lane and never lists an agent twice', () => {
+  it('renders the working lane before the recent lane and never lists an agent twice', () => {
     const agents = [agent('busy', 'working', 500), agent('done', 'idle', 400)];
 
     const { entries } = buildDockRoster(agents, new Set(['busy']), EMPTY_DOCK_SLOTS);
 
     expect(entries.map((entry) => [entry.agent.id, entry.lane])).toEqual([
-      ['done', 'recent'],
       ['busy', 'working'],
+      ['done', 'recent'],
     ]);
   });
 

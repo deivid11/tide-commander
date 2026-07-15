@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.164.1] - 2026-07-14
+
+### Changed
+- **Working agents lead the dock** - the agent activity dock and the pinned agents row now list the agents working right now first, followed by the recently-active ones (previously recent led). The lane divider moves accordingly in both places, so it still marks the boundary between the two groups.
+
 ## [1.164.0] - 2026-07-14
 
 ### Added

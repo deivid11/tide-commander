@@ -151,7 +151,7 @@ function orderBySlots(
 }
 
 /**
- * Lay out the dock: the recent lane first, then the working lane. Both lanes
+ * Lay out the dock: the working lane first, then the recent lane. Both lanes
  * hold their slots (see orderBySlots); only lane MEMBERSHIP follows recency.
  *
  * `recency` should come from settleWorkRecency. Falling back to `lastActivity`
@@ -182,8 +182,8 @@ export function buildDockRoster(
 
   return {
     entries: [
-      ...recent.map((agent): DockEntry => ({ agent, lane: 'recent' })),
       ...working.map((agent): DockEntry => ({ agent, lane: 'working' })),
+      ...recent.map((agent): DockEntry => ({ agent, lane: 'recent' })),
     ],
     slots: {
       working: working.map((agent) => agent.id),

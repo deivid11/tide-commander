@@ -1,8 +1,9 @@
 /**
  * Agent Activity Dock
  *
- * A strip of thumbnails at the bottom of the agent overview panel: agents that
- * worked recently, then agents working right now. Click one to jump to it.
+ * A strip of thumbnails at the bottom of the agent overview panel: agents
+ * working right now first, then agents that worked recently. Click one to
+ * jump to it.
  *
  * This is the `overview` dock position. The `composer` position is NOT this
  * component — there, the same agents are appended to the pinned-agents row
@@ -99,13 +100,13 @@ export function AgentActivityDock({ activeAgentId, onSelectAgent }: AgentActivit
         const hasUnread = agentsWithUnseenOutput.has(agent.id);
         const area = store.getAreaForAgent(agent.id);
         const areaColor = area?.color;
-        const opensWorkingLane = isWorking && entryIndex > 0 && entries[entryIndex - 1].lane === 'recent';
+        const opensRecentLane = !isWorking && entryIndex > 0 && entries[entryIndex - 1].lane === 'working';
         return (
           // Keyed by agent id alone, across both lanes: an agent that finishes
           // work keeps its DOM node, so it glides across the divider and
           // crossfades its styling instead of popping out and back in.
           <React.Fragment key={agent.id}>
-            {opensWorkingLane && <span className="aop-working-strip-divider" aria-hidden="true" />}
+            {opensRecentLane && <span className="aop-working-strip-divider" aria-hidden="true" />}
             <Tooltip
               position="top"
               delay={120}
