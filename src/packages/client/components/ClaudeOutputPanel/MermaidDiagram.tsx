@@ -89,15 +89,25 @@ export function MermaidDiagram({ code }: { code: string }) {
     return () => clearTimeout(timer);
   }, [code, baseId]);
 
-  // Pending or invalid (e.g. still streaming): show the source so nothing blanks out.
+  // Pending/streaming (or invalid): show a compact, STABLE placeholder instead of
+  // the raw source. Dumping the source made the UI jump — it grew line-by-line as
+  // the diagram streamed in, then swapped to the rendered diagram. A fixed-height
+  // placeholder streams in place, so there's one clean transition to the diagram
+  // (not a flashing, growing wall of code). The source stays available, collapsed.
   if (!svg) {
     return (
-      <pre
-        className="mermaid-diagram mermaid-diagram--source"
-        style={{ ...boxStyle, padding: '12px', overflowX: 'auto', fontSize: '12px', lineHeight: 1.5, color: 'var(--text-primary)' }}
+      <div
+        className="mermaid-diagram mermaid-diagram--pending"
+        style={{ ...boxStyle, padding: '12px', minHeight: 44, display: 'flex', flexDirection: 'column', gap: 8, justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 12 }}
       >
-        {code}
-      </pre>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <span aria-hidden>◈</span> Rendering diagram…
+        </span>
+        <details style={{ fontSize: 11 }}>
+          <summary style={{ cursor: 'pointer', color: 'var(--text-secondary)' }}>Show source</summary>
+          <pre style={{ margin: '6px 0 0', overflowX: 'auto', fontSize: 11, lineHeight: 1.5, color: 'var(--text-primary)' }}>{code}</pre>
+        </details>
+      </div>
     );
   }
 
