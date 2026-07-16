@@ -39,6 +39,10 @@ export function MermaidDiagram({ code }: { code: string }) {
   const baseId = useId().replace(/:/g, '');
   const [svg, setSvg] = useState<string | null>(null);
   const renderSeq = useRef(0);
+  // Scroll/pan viewport: diagrams can be large, so they live in a bounded box the
+  // user can scroll and drag ("grab") to move around within.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef({ active: false, x: 0, y: 0, left: 0, top: 0 });
 
   useEffect(() => {
     const source = code.trim();
@@ -55,7 +59,10 @@ export function MermaidDiagram({ code }: { code: string }) {
         // parse() validates without leaving orphaned error nodes in the DOM.
         await mermaid.parse(source);
         const { svg: out } = await mermaid.render(`mermaid-${baseId}-${seq}`, source);
-        if (seq === renderSeq.current) setSvg(out);
+        // Mermaid injects `max-width:<N>px` on the <svg>, which shrinks big diagrams
+        // to fit the box (killing horizontal scroll). Strip it so the diagram keeps
+        // its natural size and the bounded viewport scrolls/pans in both axes.
+        if (seq === renderSeq.current) setSvg(out.replace(/max-width:\s*[\d.]+px;?/i, ''));
       } catch {
         // Invalid / still-streaming syntax — keep the raw-source fallback.
         if (seq === renderSeq.current) setSvg(null);
@@ -66,21 +73,55 @@ export function MermaidDiagram({ code }: { code: string }) {
   }, [code, baseId]);
 
   if (svg) {
+    // Drag-to-pan: hold and move to scroll a large diagram within its box.
+    const onPanStart = (e: React.MouseEvent) => {
+      const el = scrollRef.current;
+      if (!el) return;
+      dragRef.current = { active: true, x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop };
+      el.style.cursor = 'grabbing';
+    };
+    const onPanMove = (e: React.MouseEvent) => {
+      const el = scrollRef.current;
+      const d = dragRef.current;
+      if (!el || !d.active) return;
+      el.scrollLeft = d.left - (e.clientX - d.x);
+      el.scrollTop = d.top - (e.clientY - d.y);
+    };
+    const onPanEnd = () => {
+      const el = scrollRef.current;
+      dragRef.current.active = false;
+      if (el) el.style.cursor = 'grab';
+    };
+
     return (
       <div
+        ref={scrollRef}
         className="mermaid-diagram"
+        onMouseDown={onPanStart}
+        onMouseMove={onPanMove}
+        onMouseUp={onPanEnd}
+        onMouseLeave={onPanEnd}
         style={{
           margin: '0.6em 0',
           padding: '12px',
           border: '1px solid var(--border-color)',
           borderRadius: '6px',
           background: 'color-mix(in srgb, var(--bg-primary) 90%, transparent)',
-          overflowX: 'auto',
+          // Bounded, scrollable viewport: large diagrams stay contained and the
+          // user scrolls (both axes) or drags to pan instead of the diagram
+          // taking over the whole conversation.
+          maxHeight: '440px',
+          overflow: 'auto',
+          cursor: 'grab',
           textAlign: 'center',
+          userSelect: 'none',
         }}
-        // mermaid-generated SVG, sanitized by mermaid's securityLevel:'strict'
-        dangerouslySetInnerHTML={{ __html: svg }}
-      />
+      >
+        <div
+          // mermaid-generated SVG, sanitized by mermaid's securityLevel:'strict'
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+      </div>
     );
   }
 
