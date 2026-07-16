@@ -33,6 +33,8 @@ function loadMermaid(): Promise<typeof import('mermaid').default> {
 }
 
 const RENDER_DEBOUNCE_MS = 250;
+const MIN_SCALE = 0.25;
+const MAX_SCALE = 4;
 
 export function MermaidDiagram({ code }: { code: string }) {
   // useId() contains ':' which is invalid in a DOM id / mermaid render id.
@@ -40,9 +42,12 @@ export function MermaidDiagram({ code }: { code: string }) {
   const [svg, setSvg] = useState<string | null>(null);
   const renderSeq = useRef(0);
   // Scroll/pan viewport: diagrams can be large, so they live in a bounded box the
-  // user can scroll and drag ("grab") to move around within.
+  // user can scroll and drag ("grab") to move around within, plus zoom in/out.
   const scrollRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef({ active: false, x: 0, y: 0, left: 0, top: 0 });
+  const [scale, setScale] = useState(1);
+  const scaleRef = useRef(1);
+  scaleRef.current = scale;
 
   useEffect(() => {
     const source = code.trim();
@@ -72,6 +77,30 @@ export function MermaidDiagram({ code }: { code: string }) {
     return () => clearTimeout(timer);
   }, [code, baseId]);
 
+  // Ctrl/⌘ + wheel zooms toward the cursor. Uses a NATIVE non-passive listener so
+  // preventDefault() actually fires (React's onWheel is passive → can't stop the
+  // browser's own ctrl+wheel page zoom). A plain wheel is left alone to scroll.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !svg) return;
+    const onWheelNative = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const cur = scaleRef.current;
+      const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, cur * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+      if (next === cur) return;
+      const rect = el.getBoundingClientRect();
+      const px = el.scrollLeft + (e.clientX - rect.left);
+      const py = el.scrollTop + (e.clientY - rect.top);
+      const ratio = next / cur;
+      el.scrollLeft = px * ratio - (e.clientX - rect.left);
+      el.scrollTop = py * ratio - (e.clientY - rect.top);
+      setScale(next);
+    };
+    el.addEventListener('wheel', onWheelNative, { passive: false });
+    return () => el.removeEventListener('wheel', onWheelNative);
+  }, [svg]);
+
   if (svg) {
     // Drag-to-pan: hold and move to scroll a large diagram within its box.
     const onPanStart = (e: React.MouseEvent) => {
@@ -93,34 +122,59 @@ export function MermaidDiagram({ code }: { code: string }) {
       if (el) el.style.cursor = 'grab';
     };
 
+    // Zoom via the +/− buttons (keeps the top-left anchored; clamped to range).
+    const applyZoom = (nextScale: number) => {
+      setScale(Math.min(MAX_SCALE, Math.max(MIN_SCALE, nextScale)));
+    };
+
+    const btnStyle: React.CSSProperties = {
+      width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'color-mix(in srgb, var(--bg-secondary) 90%, transparent)',
+      border: '1px solid var(--border-color)', borderRadius: 4, color: 'var(--text-primary)',
+      cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0, userSelect: 'none',
+    };
+
     return (
       <div
-        ref={scrollRef}
         className="mermaid-diagram"
-        onMouseDown={onPanStart}
-        onMouseMove={onPanMove}
-        onMouseUp={onPanEnd}
-        onMouseLeave={onPanEnd}
         style={{
+          position: 'relative',
           margin: '0.6em 0',
-          padding: '12px',
           border: '1px solid var(--border-color)',
           borderRadius: '6px',
           background: 'color-mix(in srgb, var(--bg-primary) 90%, transparent)',
-          // Bounded, scrollable viewport: large diagrams stay contained and the
-          // user scrolls (both axes) or drags to pan instead of the diagram
-          // taking over the whole conversation.
-          maxHeight: '440px',
-          overflow: 'auto',
-          cursor: 'grab',
-          textAlign: 'center',
-          userSelect: 'none',
         }}
       >
+        {/* Zoom controls — fixed to the box corner, don't scroll with the diagram. */}
+        <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 2, display: 'flex', gap: 4, alignItems: 'center' }}>
+          <button type="button" title="Zoom out" style={btnStyle} onClick={() => applyZoom(scale / 1.2)}>−</button>
+          <button type="button" title="Reset zoom" style={{ ...btnStyle, width: 'auto', padding: '0 6px', fontVariantNumeric: 'tabular-nums' }} onClick={() => { setScale(1); if (scrollRef.current) { scrollRef.current.scrollLeft = 0; scrollRef.current.scrollTop = 0; } }}>{Math.round(scale * 100)}%</button>
+          <button type="button" title="Zoom in" style={btnStyle} onClick={() => applyZoom(scale * 1.2)}>+</button>
+        </div>
         <div
-          // mermaid-generated SVG, sanitized by mermaid's securityLevel:'strict'
-          dangerouslySetInnerHTML={{ __html: svg }}
-        />
+          ref={scrollRef}
+          onMouseDown={onPanStart}
+          onMouseMove={onPanMove}
+          onMouseUp={onPanEnd}
+          onMouseLeave={onPanEnd}
+          style={{
+            // Bounded, scrollable viewport: large diagrams stay contained; the user
+            // scrolls (both axes), drags to pan, or zooms instead of the diagram
+            // taking over the whole conversation.
+            maxHeight: '440px',
+            overflow: 'auto',
+            cursor: 'grab',
+            padding: '12px',
+            textAlign: 'center',
+            userSelect: 'none',
+          }}
+        >
+          <div
+            style={{ transform: `scale(${scale})`, transformOrigin: '0 0', width: 'fit-content' }}
+            // mermaid-generated SVG, sanitized by mermaid's securityLevel:'strict'
+            dangerouslySetInnerHTML={{ __html: svg }}
+          />
+        </div>
       </div>
     );
   }
