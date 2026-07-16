@@ -944,6 +944,14 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // Last observed scrollTop, so we can tell a genuine upward user scroll from
   // the bottom drifting away because new content grew under the viewport.
   const lastScrollTopRef = useRef(0);
+  // Cumulative scrollTop movement applied by virtual-core anchor corrections,
+  // written by VirtualizedOutputList (shared via prop). Corrections shift
+  // scrollTop without user input; both classifiers must subtract them or a
+  // correction coalesced with content growth reads as a user up-scroll and
+  // kills auto-follow right after open. Never reset — this pane's classifier
+  // diffs against its own baseline.
+  const anchorCorrectionsRef = useRef(0);
+  const anchorCorrectionsBaselineRef = useRef(0);
 
   const handleUserScrollUp = useCallback(() => {
     // No grace-window gate here: VirtualizedOutputList only calls this for
@@ -977,6 +985,22 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     setShouldAutoScroll(true);
     setPinToBottom(true);
   }, [agentSelectionSeq, agentId]);
+
+  // Re-pin when the panel reopens on the SAME agent. toggleTerminal /
+  // setTerminalOpen write selectedAgentIds directly — no selection-seq bump,
+  // no agentId change — so neither pin path above fires, and the guake keeps
+  // this pane mounted (held agent) while collapsed. Opening the chat must
+  // always land at the very bottom: arm the pin on the closed→open
+  // transition. Always-open hosts (Flat view) never transition — no-op there.
+  const prevIsOpenRef = useRef(isOpen);
+  useEffect(() => {
+    const wasOpen = prevIsOpenRef.current;
+    prevIsOpenRef.current = isOpen;
+    if (wasOpen || !isOpen) return;
+    isUserScrolledUpRef.current = false;
+    setShouldAutoScroll(true);
+    setPinToBottom(true);
+  }, [isOpen]);
 
   const handleSendCommand = useCallback(() => {
     isUserScrolledUpRef.current = false;
@@ -1014,7 +1038,12 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     // bottom. Content growing under the viewport (a new agent message or
     // reasoning completion) grows distanceFromBottom WITHOUT scrollTop
     // decreasing — that must NOT disable auto-scroll, else the view jumps up.
-    const scrolledUp = scrollTop < prevScrollTop - 1;
+    // Correction-adjusted: anchor corrections also decrease scrollTop without
+    // user input (a row above the viewport re-measuring smaller) — subtract
+    // the movement they applied since the last event before classifying.
+    const correctionDelta = anchorCorrectionsRef.current - anchorCorrectionsBaselineRef.current;
+    anchorCorrectionsBaselineRef.current = anchorCorrectionsRef.current;
+    const scrolledUp = scrollTop - prevScrollTop - correctionDelta < -1;
 
     if (scrolledUp && distanceFromBottom > 4) {
       // ANY genuine upward move disables auto-scroll — even inside the 150px
@@ -1386,6 +1415,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
               pinToBottom={pinToBottom}
               onPinCancel={handlePinCancel}
               isLoadingHistory={waitingForFirstContent}
+              anchorCorrectionsRef={anchorCorrectionsRef}
             />
           )}
           {/* Context compaction indicator */}

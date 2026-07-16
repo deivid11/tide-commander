@@ -614,7 +614,15 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
       if (agent?.forkSourceSessionId) updates.forkSourceSessionId = undefined;
       agentService.updateAgent(agentId, updates);
     } else if (existingSessionId !== sessionId) {
-      log.log(`Session mismatch for ${agentId}: expected ${existingSessionId}, got ${sessionId}`);
+      // Grok session ids are stable across resumes, so a different id from the
+      // runtime means the persisted one is wrong (directory-based discovery
+      // could capture a neighboring agent's session) — follow the CLI.
+      if ((agent?.provider ?? 'claude') === 'grok') {
+        log.log(`Grok session corrected for ${agentId}: ${existingSessionId} → ${sessionId}`);
+        agentService.updateAgent(agentId, { sessionId });
+      } else {
+        log.log(`Session mismatch for ${agentId}: expected ${existingSessionId}, got ${sessionId}`);
+      }
     }
   }
 

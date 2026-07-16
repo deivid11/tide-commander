@@ -83,17 +83,28 @@ export class RunnerProcessLifecycle {
       },
       onSessionId: (sid) => {
         const proc = this.activeProcesses.get(agentId);
-        if (proc && !proc.sessionId) {
+        if (proc && proc.sessionId !== sid) {
           proc.sessionId = sid;
-          if (proc.lastRequest && !proc.lastRequest.sessionId) {
+          if (proc.lastRequest) {
             proc.lastRequest.sessionId = sid;
+            // Once a real id exists the fork already happened — a respawn must
+            // resume the forked session, never re-fork the source.
+            proc.lastRequest.forkSession = false;
           }
         }
         this.bus.emit({ type: 'runner.session_id', agentId, sessionId: sid });
         this.callbacks.onSessionId(agentId, sid);
       },
     });
-    activeProcess.sideChannelStop = () => watcher.stop();
+    // The CLI's own stdout sessionId is ground truth — if directory discovery
+    // attached a neighboring session first, re-pin the watcher to the real one.
+    const offSessionId = this.bus.on('runner.session_id', (ev) => {
+      if (ev.agentId === agentId) watcher.setSessionId(ev.sessionId);
+    });
+    activeProcess.sideChannelStop = () => {
+      offSessionId();
+      watcher.stop();
+    };
   }
 
   async run(request: RunnerRequest): Promise<void> {
@@ -132,6 +143,11 @@ export class RunnerProcessLifecycle {
     const args = this.backend.buildArgs(backendConfig);
     const executable = this.backend.getExecutablePath();
     log.log(`🚀 Spawning: ${executable} ${args.join(' ')}`);
+
+    // Grok side channel: on a fork the CLI writes into a NEW session dir, so
+    // never hand the fork-SOURCE id to the watcher — tailing the source would
+    // mirror another agent's live conversation into this terminal.
+    const grokWatcherSessionId = forceNewSession || forkSession ? undefined : sessionId;
 
     const isWindows = process.platform === 'win32';
     const extraEnv = this.backend.getExtraEnv?.() ?? {};
@@ -182,7 +198,7 @@ export class RunnerProcessLifecycle {
         tmuxExpectedCommand: path.basename(executable),
       };
       this.activeProcesses.set(agentId, activeProcess);
-      this.attachGrokSideChannel(activeProcess, agentId, workingDir, forceNewSession ? undefined : sessionId);
+      this.attachGrokSideChannel(activeProcess, agentId, workingDir, grokWatcherSessionId);
 
       // Use file-tailing stdout pipeline for tmux mode
       const tailer = this.stdoutPipeline.handleTmuxLog(agentId, tmuxResult.logFile);
@@ -236,7 +252,7 @@ export class RunnerProcessLifecycle {
       turnState: 'processing',
     };
     this.activeProcesses.set(agentId, activeProcess);
-    this.attachGrokSideChannel(activeProcess, agentId, workingDir, forceNewSession ? undefined : sessionId);
+    this.attachGrokSideChannel(activeProcess, agentId, workingDir, grokWatcherSessionId);
 
     const stdoutDone = this.stdoutPipeline.handleStdout(agentId, childProcess);
     this.handleStderr(agentId, childProcess);

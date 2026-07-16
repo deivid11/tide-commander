@@ -373,6 +373,115 @@ describe('startGrokSessionWatcher', () => {
     watcher.stop();
   });
 
+  it('discovery never grabs a pre-existing session with a hot mtime (concurrent agent in same cwd)', async () => {
+    // sessionDir was CREATED in beforeEach (birthtime ≈ now). Simulate an
+    // agent launching later while that session is still being written by
+    // another agent: startedAt in the future, mtime bumped into the window.
+    const startedAt = Date.now() + 60_000;
+    fs.utimesSync(sessionDir, new Date(startedAt), new Date(startedAt));
+
+    const sessionIds: string[] = [];
+    const events: StandardEvent[] = [];
+    const watcher = startGrokSessionWatcher({
+      agentId: 'agent-latecomer',
+      workingDir: projectDir,
+      startedAt,
+      onEvent: (e) => events.push(e),
+      onSessionId: (id) => sessionIds.push(id),
+    });
+
+    fs.appendFileSync(
+      path.join(sessionDir, 'events.jsonl'),
+      JSON.stringify({ ts: new Date().toISOString(), type: 'tool_started', tool_name: 'list_dir' }) + '\n',
+      'utf8'
+    );
+    await new Promise((r) => setTimeout(r, 700));
+
+    // Must not attach to the other agent's session nor mirror its tools.
+    expect(sessionIds).toEqual([]);
+    expect(events).toEqual([]);
+
+    watcher.stop();
+  });
+
+  it('discovery skips a session already owned by another agent', async () => {
+    const owner = startGrokSessionWatcher({
+      agentId: 'agent-owner',
+      workingDir: projectDir,
+      sessionId,
+      startedAt: Date.now(),
+      onEvent: () => {},
+    });
+
+    const sessionIds: string[] = [];
+    const thief = startGrokSessionWatcher({
+      agentId: 'agent-second',
+      workingDir: projectDir,
+      startedAt: Date.now(),
+      onEvent: () => {},
+      onSessionId: (id) => sessionIds.push(id),
+    });
+
+    // sessionDir passes the creation-time filter (just created) — only the
+    // ownership claim keeps the second agent off it.
+    await new Promise((r) => setTimeout(r, 400));
+    expect(sessionIds).toEqual([]);
+
+    // Its own fresh session appears → attaches to that one.
+    const ownId = '019f4d49-test-session-000000000002';
+    const ownDir = path.join(os.homedir(), '.grok', 'sessions', encodeGrokProjectKey(projectDir), ownId);
+    fs.mkdirSync(ownDir, { recursive: true });
+    fs.writeFileSync(path.join(ownDir, 'events.jsonl'), '', 'utf8');
+    fs.writeFileSync(path.join(ownDir, 'chat_history.jsonl'), '', 'utf8');
+
+    await new Promise((r) => setTimeout(r, 600));
+    expect(sessionIds).toEqual([ownId]);
+
+    owner.stop();
+    thief.stop();
+  });
+
+  it('setSessionId re-attaches to the CLI-reported session', async () => {
+    const sessionIds: string[] = [];
+    const events: StandardEvent[] = [];
+    const watcher = startGrokSessionWatcher({
+      agentId: 'agent-repin',
+      workingDir: projectDir,
+      sessionId,
+      startedAt: Date.now(),
+      onEvent: (e) => events.push(e),
+      onSessionId: (id) => sessionIds.push(id),
+    });
+
+    const realId = '019f4d49-test-session-000000000003';
+    const realDir = path.join(os.homedir(), '.grok', 'sessions', encodeGrokProjectKey(projectDir), realId);
+    fs.mkdirSync(realDir, { recursive: true });
+    fs.writeFileSync(path.join(realDir, 'events.jsonl'), '', 'utf8');
+    fs.writeFileSync(path.join(realDir, 'chat_history.jsonl'), '', 'utf8');
+
+    watcher.setSessionId(realId);
+    expect(sessionIds).toEqual([sessionId, realId]);
+
+    // New lines in the real session are tailed…
+    fs.appendFileSync(
+      path.join(realDir, 'events.jsonl'),
+      JSON.stringify({ ts: new Date().toISOString(), type: 'tool_started', tool_name: 'list_dir' }) + '\n',
+      'utf8'
+    );
+    // …while the previously attached session is no longer read.
+    fs.appendFileSync(
+      path.join(sessionDir, 'events.jsonl'),
+      JSON.stringify({ ts: new Date().toISOString(), type: 'tool_started', tool_name: 'grep' }) + '\n',
+      'utf8'
+    );
+    await new Promise((r) => setTimeout(r, 500));
+
+    expect(events.some((e) => e.type === 'tool_start' && e.toolName === 'ListFiles')).toBe(true);
+    expect(events.some((e) => e.type === 'tool_start' && e.toolName === 'Grep')).toBe(false);
+
+    watcher.stop();
+  });
+
   it('readGrokSignalsUsage parses signals.json', () => {
     fs.writeFileSync(
       path.join(sessionDir, 'signals.json'),
