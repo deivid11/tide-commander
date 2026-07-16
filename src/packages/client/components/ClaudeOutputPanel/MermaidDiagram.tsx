@@ -36,6 +36,26 @@ const RENDER_DEBOUNCE_MS = 250;
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 4;
 
+/**
+ * Force the rendered <svg> to its NATURAL pixel size (from the viewBox).
+ *
+ * Mermaid's output carries `width="100%"` + `style="max-width:<N>px"`, which shrinks
+ * a diagram to fit its container — so a big diagram renders tiny and even zooming in
+ * barely helps. Stripping those AND pinning width/height to the viewBox makes 100%
+ * mean "actual size", so the bounded viewport genuinely scrolls/pans/zooms.
+ */
+function sizeSvgToNatural(svg: string): string {
+  const vb = svg.match(/viewBox="\s*[-\d.]+\s+[-\d.]+\s+([\d.]+)\s+([\d.]+)"/i);
+  return svg.replace(/<svg\b([^>]*)>/i, (_full, attrs: string) => {
+    let a = String(attrs)
+      .replace(/\swidth="[^"]*"/i, '')
+      .replace(/\sheight="[^"]*"/i, '')
+      .replace(/max-width:\s*[\d.]+px;?/i, '');
+    if (vb) a += ` width="${vb[1]}" height="${vb[2]}"`;
+    return `<svg${a}>`;
+  });
+}
+
 export function MermaidDiagram({ code }: { code: string }) {
   // useId() contains ':' which is invalid in a DOM id / mermaid render id.
   const baseId = useId().replace(/:/g, '');
@@ -64,10 +84,8 @@ export function MermaidDiagram({ code }: { code: string }) {
         // parse() validates without leaving orphaned error nodes in the DOM.
         await mermaid.parse(source);
         const { svg: out } = await mermaid.render(`mermaid-${baseId}-${seq}`, source);
-        // Mermaid injects `max-width:<N>px` on the <svg>, which shrinks big diagrams
-        // to fit the box (killing horizontal scroll). Strip it so the diagram keeps
-        // its natural size and the bounded viewport scrolls/pans in both axes.
-        if (seq === renderSeq.current) setSvg(out.replace(/max-width:\s*[\d.]+px;?/i, ''));
+        // Render at natural size so the diagram doesn't shrink-to-fit (see helper).
+        if (seq === renderSeq.current) setSvg(sizeSvgToNatural(out));
       } catch {
         // Invalid / still-streaming syntax — keep the raw-source fallback.
         if (seq === renderSeq.current) setSvg(null);
