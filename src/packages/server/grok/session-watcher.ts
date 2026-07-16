@@ -21,8 +21,18 @@ const log = createLogger('GrokSessionWatcher');
 const MAX_TOOL_OUTPUT_CHARS = 50_000;
 const DISCOVER_INTERVAL_MS = 250;
 const TAIL_INTERVAL_MS = 200;
-/** Accept sessions modified up to this long before process start (slow disk / clock skew). */
+/** Accept sessions created up to this long before process start (slow disk / clock skew). */
 const DISCOVER_GRACE_MS = 5_000;
+
+/**
+ * Session dir (absolute) → agentId that attached it. Grok keeps every session
+ * for a cwd under ONE shared root, so newest-first discovery could attach
+ * agent A to agent B's session when both run in the same folder — A then
+ * tailed B's tools into its own terminal AND persisted B's session id,
+ * merging both conversations on the next --resume. Claims live for the server
+ * process lifetime so discovery never picks a session another agent owns.
+ */
+const sessionOwners = new Map<string, string>();
 
 /** Grok writes live context fill here (not in streaming-json). */
 export interface GrokSignalsUsage {
@@ -103,6 +113,12 @@ export interface GrokSessionWatcherOptions {
 
 export interface GrokSessionWatcherHandle {
   stop: () => void;
+  /**
+   * Pin the watcher to the session id the CLI itself reported on stdout
+   * (ground truth). Re-attaches the tailers if discovery picked another
+   * session first; no-op when already attached to this id.
+   */
+  setSessionId: (sessionId: string) => void;
 }
 
 interface ChatToolCall {
@@ -469,6 +485,7 @@ export function startGrokSessionWatcher(opts: GrokSessionWatcherOptions): GrokSe
     sessionId = id;
     opts.onSessionId?.(id);
     const sessionDir = getGrokSessionDir(opts.workingDir, id);
+    sessionOwners.set(sessionDir, opts.agentId);
     sessionDirPath = sessionDir;
     const chatPath = path.join(sessionDir, 'chat_history.jsonl');
     const eventsPath = path.join(sessionDir, 'events.jsonl');
@@ -505,16 +522,24 @@ export function startGrokSessionWatcher(opts: GrokSessionWatcherOptions): GrokSe
     const root = getGrokSessionsRoot(opts.workingDir);
     if (!fs.existsSync(root)) return false;
 
-    let newest: { id: string; mtime: number } | null = null;
+    let newest: { id: string; created: number } | null = null;
     try {
       for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
         const dir = path.join(root, entry.name);
+        // Another agent's watcher already owns this session — a concurrent
+        // agent in the same cwd must never steal it.
+        const owner = sessionOwners.get(dir);
+        if (owner && owner !== opts.agentId) continue;
         try {
           const st = fs.statSync(dir);
-          if (st.mtimeMs < startedAt - DISCOVER_GRACE_MS) continue;
-          if (!newest || st.mtimeMs > newest.mtime) {
-            newest = { id: entry.name, mtime: st.mtimeMs };
+          // Discovery only runs for FRESH launches, so the dir must have been
+          // CREATED by this launch. Filtering on mtime grabbed a concurrent
+          // agent's old-but-hot session (mtime updates on every write).
+          const created = st.birthtimeMs > 0 ? st.birthtimeMs : st.mtimeMs;
+          if (created < startedAt - DISCOVER_GRACE_MS) continue;
+          if (!newest || created > newest.created) {
+            newest = { id: entry.name, created };
           }
         } catch {
           // skip
@@ -545,6 +570,18 @@ export function startGrokSessionWatcher(opts: GrokSessionWatcherOptions): GrokSe
   }
 
   return {
+    setSessionId: (id: string) => {
+      if (stopped || !id || id === sessionId) return;
+      log.log(
+        `🔁 Re-attaching Grok watcher for ${opts.agentId.slice(0, 8)}: `
+        + `${sessionId ? sessionId.slice(0, 8) : 'none'} → ${id.slice(0, 8)} (CLI-reported)`
+      );
+      // Early-card linkage belongs to the previous session — a leftover entry
+      // would upgrade a new tool call onto a foreign card.
+      pendingEarlyByName.clear();
+      completedEarlyByName.clear();
+      attachToSession(id);
+    },
     stop: () => {
       if (stopped) return;
       stopped = true;

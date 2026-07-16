@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { buildItemKey, type TaggedItem } from '../virtualizedOutputKey';
+import { buildItemKey, bridgeIdsFor, type TaggedItem } from '../virtualizedOutputKey';
 
 function liveItem(item: any, originalIndex = 0): TaggedItem {
   return { kind: 'live', item, originalIndex };
@@ -184,5 +184,110 @@ describe('VirtualizedOutputList buildItemKey — cross-agent isolation', () => {
       timestamp: '2026-05-07T00:00:00.000Z',
     });
     expect(buildItemKey(noUuid, AGENT_A)).not.toBe(buildItemKey(noUuid, AGENT_B));
+  });
+});
+
+describe('buildItemKey — live ordinal discriminator', () => {
+  it('a live key with an explicit ordinal is independent of originalIndex (history growth must not remount live rows)', () => {
+    // Before a session refresh the live row sits at merged index 50; after
+    // the refresh delivers 3 new history entries it sits at 53. With the
+    // ordinal discriminator the key is identical — the row keeps its DOM.
+    const beforeRefresh = liveItem({ text: 'streaming answer', uuid: 'msg-1', timestamp: 1000 }, 50);
+    const afterRefresh = liveItem({ text: 'streaming answer plus more text', uuid: 'msg-1', timestamp: 1000 }, 53);
+    expect(buildItemKey(beforeRefresh, AGENT_A, 0)).toBe(buildItemKey(afterRefresh, AGENT_A, 0));
+  });
+
+  it('same-uuid same-timestamp live rows stay distinct via ordinals', () => {
+    const a = liveItem({ text: 'Using tool: Bash', uuid: 'toolu_1', timestamp: 1000 }, 0);
+    const b = liveItem({ text: 'Tool input: ls', uuid: 'toolu_1', timestamp: 1000 }, 1);
+    expect(buildItemKey(a, AGENT_A, 0)).not.toBe(buildItemKey(b, AGENT_A, 1));
+  });
+});
+
+describe('bridgeIdsFor — live→history measured-height bridge', () => {
+  it('live assistant text row and its history twin share the entry-uuid bridge id', () => {
+    const live = liveItem({
+      text: 'sure, here is the answer',
+      isStreaming: false,
+      timestamp: 1_000_000_500,
+      uuid: 'msg-uuid-xyz',
+    });
+    const history = historyItem({
+      type: 'assistant',
+      content: 'sure, here is the answer',
+      timestamp: new Date(1_000_000_500).toISOString(),
+      uuid: 'msg-uuid-xyz',
+    });
+
+    const shared = bridgeIdsFor(history).filter((id) => bridgeIdsFor(live).includes(id));
+    expect(shared).toEqual(['u:msg-uuid-xyz']);
+  });
+
+  it('live tool chip (uuid = tool_use_id) bridges to the history tool_use via toolUseId, not entry uuid', () => {
+    const live = liveItem({
+      text: 'Using tool: Bash',
+      timestamp: 1_000_000_500,
+      uuid: 'toolu_01abc',
+    });
+    const history = historyItem({
+      type: 'tool_use',
+      toolName: 'Bash',
+      content: '{"command":"ls"}',
+      timestamp: new Date(1_000_000_500).toISOString(),
+      uuid: 'entry-uuid-123',
+      toolUseId: 'toolu_01abc',
+    });
+
+    const shared = bridgeIdsFor(history).filter((id) => bridgeIdsFor(live).includes(id));
+    expect(shared).toEqual(['t:use:toolu_01abc']);
+  });
+
+  it('tool_use and tool_result sharing a tool_use_id get DISTINCT bridge ids', () => {
+    const use = historyItem({
+      type: 'tool_use',
+      toolName: 'Bash',
+      timestamp: '2026-05-07T00:00:00.000Z',
+      uuid: 'entry-use',
+      toolUseId: 'toolu_01abc',
+    });
+    const result = historyItem({
+      type: 'tool_result',
+      toolName: 'Bash',
+      content: 'output',
+      timestamp: '2026-05-07T00:00:01.000Z',
+      uuid: 'entry-res',
+      toolUseId: 'toolu_01abc',
+    });
+
+    const shared = bridgeIdsFor(use).filter((id) => bridgeIdsFor(result).includes(id));
+    expect(shared).toEqual([]);
+  });
+
+  it('live tool result row bridges to the history tool_result', () => {
+    const live = liveItem({
+      text: 'Tool result: output',
+      timestamp: 1_000_000_500,
+      uuid: 'toolu_01abc',
+    });
+    const history = historyItem({
+      type: 'tool_result',
+      toolName: 'Bash',
+      content: 'output',
+      timestamp: new Date(1_000_000_500).toISOString(),
+      uuid: 'entry-res',
+      toolUseId: 'toolu_01abc',
+    });
+
+    const shared = bridgeIdsFor(history).filter((id) => bridgeIdsFor(live).includes(id));
+    expect(shared).toEqual(['t:res:toolu_01abc']);
+  });
+
+  it('optimistic no-uuid live rows produce no bridge ids', () => {
+    const optimistic = liveItem({
+      text: 'my prompt',
+      isUserPrompt: true,
+      timestamp: 1_000_000_500,
+    });
+    expect(bridgeIdsFor(optimistic)).toEqual([]);
   });
 });

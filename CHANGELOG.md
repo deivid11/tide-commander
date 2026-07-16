@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.165.1] - 2026-07-16
+
+### Fixed
+- **Streaming flicker on mid-turn refresh** - the live output tail no longer remounts (markdown re-parse + fade restart, plus a height reflow) every time a session-history refresh arrives while an agent is streaming. Row keys now use a stable per-(uuid, timestamp) ordinal instead of an index that shifted with history length, and measured row heights bridge the live→history identity swap so the visible tail stays put instead of collapsing to size estimates.
+- **Grok agents in the same folder could cross conversations** - two Grok agents running in the same working directory no longer risk one attaching to the other's session. Session discovery now claims each session per agent and matches on creation time (not modification time, which a concurrent agent's writes kept "hot"), and the watcher re-pins to the session id the CLI itself reports on stdout. This prevents one agent mirroring another's tool output into its terminal and the two sessions merging on the next resume; forked sessions never hand the fork-source id to the watcher.
+
 ## [1.165.0] - 2026-07-14
 
 ### Added

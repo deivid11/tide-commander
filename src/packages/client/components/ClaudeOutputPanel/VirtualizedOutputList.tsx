@@ -14,7 +14,7 @@ import type { EnrichedHistoryMessage, EditData } from './types';
 import type { ClaudeOutput } from '../../store';
 import type { ExecTask, Subagent } from '../../../shared/types';
 import type { TestRunHandle, HttpRunHandle } from '../../store';
-import { buildItemKey } from './virtualizedOutputKey';
+import { buildItemKey, bridgeIdsFor } from './virtualizedOutputKey';
 export { buildItemKey } from './virtualizedOutputKey';
 export type { TaggedItem, TaggedHistoryItem, TaggedLiveItem } from './virtualizedOutputKey';
 
@@ -77,6 +77,14 @@ interface VirtualizedOutputListProps {
 
   // History loading state (used only to avoid pinning while fetch is active)
   isLoadingHistory?: boolean;
+
+  /**
+   * Cumulative scrollTop movement (px) applied by virtual-core anchor
+   * corrections, shared with the parent pane so BOTH scroll classifiers can
+   * subtract it before deciding "the user scrolled up". Never reset — each
+   * listener diffs against its own baseline, so listener order doesn't matter.
+   */
+  anchorCorrectionsRef?: React.MutableRefObject<number>;
 }
 
 // Estimated heights for different message types (used for initial sizing)
@@ -264,6 +272,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   pinToBottom = false,
   onPinCancel,
   isLoadingHistory,
+  anchorCorrectionsRef,
 }: VirtualizedOutputListProps) {
   // Merge history + live into ONE chronologically sorted array. This is the
   // single authoritative ordering for the rendered list — without it, history
@@ -273,7 +282,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   //
   // Stable sort: ascending canonical timestamp, then uuid lex ascending,
   // then original insertion order (history-block first, then live-block).
-  const allItems = useMemo<TaggedItem[]>(() => {
+  const { allItems, allKeys } = useMemo(() => {
     // Decorate: precompute the canonical timestamp (a Date parse for history
     // rows) and uuid ONCE per item — the comparator previously re-derived
     // both per comparison (~2·N·logN Date parses per streamed chunk).
@@ -311,33 +320,81 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     // from the source, optimistic+history coexisting briefly) cause
     // @tanstack/react-virtual to re-emit the same virtual row at multiple
     // indices, which the user sees as stacked bubbles in one position.
+    //
+    // Keys are computed HERE, once, in final sorted order — live uuid-bearing
+    // rows get a per-(uuid,timestamp) ordinal discriminator that stays stable
+    // when the history count changes (see buildItemKey); getItemKey below
+    // just reads the aligned keys array.
     const seen = new Set<string>();
-    const unique: TaggedItem[] = [];
+    const items: TaggedItem[] = [];
+    const keys: string[] = [];
+    const liveOrdinals = new Map<string, number>();
     for (const { tagged } of decorated) {
-      const key = buildItemKey(tagged, agentId);
+      let key: string;
+      if (tagged.kind === 'live' && tagged.item.uuid) {
+        const group = `${tagged.item.uuid}:${tagged.item.timestamp ?? 0}`;
+        const ordinal = liveOrdinals.get(group) ?? 0;
+        liveOrdinals.set(group, ordinal + 1);
+        key = buildItemKey(tagged, agentId, ordinal);
+      } else {
+        key = buildItemKey(tagged, agentId);
+      }
       if (seen.has(key)) continue;
       seen.add(key);
-      unique.push(tagged);
+      items.push(tagged);
+      keys.push(key);
     }
-    return unique;
+    return { allItems: items, allKeys: keys };
   }, [historyMessages, liveOutputs, agentId]);
 
   // Track if we're programmatically scrolling (to avoid triggering onUserScroll)
   const isProgrammaticScrollRef = useRef(false);
 
   // THE auto-scroll contract: follow the stream ONLY while the viewport sits at
-  // the very bottom. Updated synchronously on every scroll event (user or
-  // programmatic — programmatic writes land at the bottom, so they keep it
-  // latched), and checked at WRITE time by the auto-scroll effects below. This
-  // is immune to state-machine races: the moment the user scrolls up even a
-  // few px, the next write is refused no matter what shouldAutoScroll says.
-  // The pin path (agent switch / send / history load) bypasses it on purpose.
+  // the very bottom. Latched synchronously in handleScroll at the very bottom,
+  // unlatched ONLY on a correction-adjusted genuine user up-scroll (any-event
+  // unlatching let a growth/correction collision park the view a few px above
+  // the bottom with every follow write refused). Checked at WRITE time by the
+  // auto-scroll effects below — immune to state-machine races: the moment the
+  // user scrolls up even a few px, the next write is refused no matter what
+  // shouldAutoScroll says. The pin path (agent switch / send / history load)
+  // bypasses it on purpose.
   const stickyBottomRef = useRef(true);
+
+  // ── Anchor-correction accounting ──
+  // virtual-core shifts scrollTop when a row above the viewport re-measures
+  // (the prepend/warm-up anchor). Those shifts are indistinguishable from user
+  // scrolling in raw position reads: a correction coalesced into the same
+  // scroll event as content growth below reads as "moved up while above the
+  // bottom" — the user-scroll signature — which cancelled the open pin and
+  // killed auto-follow. Fold every correction's ACTUAL applied movement into a
+  // cumulative counter so the classifiers can subtract it. Actual movement,
+  // not intended delta: clamped/stale-offset writes apply less than delta, and
+  // over-counting biased the classifiers into swallowing genuine up-scrolls.
+  const localCorrectionsRef = useRef(0);
+  const correctionsRef = anchorCorrectionsRef ?? localCorrectionsRef;
+  // This component remounts per agent (key={agentId}) while the shared counter
+  // lives on — baseline starts at the counter's current value, not 0.
+  const correctionsBaselineRef = useRef(correctionsRef.current);
+  // scrollTop captured at the current task's FIRST correction; a microtask
+  // reads the task's net effect (microtasks run before the browser delivers
+  // the resulting scroll event, so the counter is current when it's needed).
+  const correctionTaskBaseRef = useRef<number | null>(null);
   const prevItemCountRef = useRef(allItems.length);
   const agentSwitchGraceRef = useRef(false);
   // Ref for allItems count so scrollToBottom can read it without being recreated
   const allItemsCountRef = useRef(allItems.length);
   allItemsCountRef.current = allItems.length;
+  // Ref for the items themselves so measureElement (stable option) can map a
+  // measured element back to its item for the height bridge below.
+  const allItemsRef = useRef(allItems);
+  allItemsRef.current = allItems;
+  // Measured-height bridge across the live→history identity swap: bridge id
+  // (see bridgeIdsFor) → last measured px. Written on every row measurement,
+  // consulted by estimateSize for keys the size cache has never seen — so a
+  // history twin replacing an already-measured live row lays out at the right
+  // height instead of collapsing to the type estimate and reflowing.
+  const measuredHeightByIdRef = useRef(new Map<string, number>());
   // Track virtual content height to detect remeasurement changes
   const prevTotalSizeRef = useRef(0);
 
@@ -364,7 +421,15 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   const virtualizer = useVirtualizer({
     count: allItems.length,
     getScrollElement: () => scrollContainerRef.current,
-    estimateSize: (index) => getEstimatedHeight(allItems[index]),
+    estimateSize: (index) => {
+      const tagged = allItems[index];
+      if (!tagged) return ESTIMATED_HEIGHTS.default;
+      for (const id of bridgeIdsFor(tagged)) {
+        const bridged = measuredHeightByIdRef.current.get(id);
+        if (bridged !== undefined) return bridged;
+      }
+      return getEstimatedHeight(tagged);
+    },
     // Two-phase overscan. While pinned (pane mount / agent switch) keep it
     // small — every overscanned row is a markdown-parsed OutputLine/HistoryLine
     // mounted synchronously, and that mount is the main cost of the switch.
@@ -374,33 +439,40 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     overscan: pinToBottom ? 10 : 25,
     rangeExtractor,
     initialRect: { width: 500, height: 800 },
-    // Stable per-item key — see buildItemKey above for the live/history bridge
-    // that prevents virtualizer remount when the optimistic prompt is replaced
-    // by its history version after a session-update fetch. agentId is part of
-    // the key so identical content across agents can never collide.
-    getItemKey: (index) => {
-      const tagged = allItems[index];
-      if (!tagged) return index;
-      return buildItemKey(tagged, agentId);
-    },
+    // Stable per-item key, precomputed (with live ordinals) in the merge memo
+    // above. agentId is part of the key so identical content across agents
+    // can never collide.
+    getItemKey: (index) => allKeys[index] ?? index,
     measureElement: (element) => {
       // Measure actual rendered height for accurate positioning
-      return element.getBoundingClientRect().height;
+      const height = element.getBoundingClientRect().height;
+      // Feed the live→history height bridge (see measuredHeightByIdRef).
+      const idxAttr = element.getAttribute('data-index');
+      if (idxAttr !== null) {
+        const tagged = allItemsRef.current[Number(idxAttr)];
+        if (tagged) {
+          for (const id of bridgeIdsFor(tagged)) {
+            measuredHeightByIdRef.current.set(id, height);
+          }
+        }
+      }
+      return height;
     },
   });
 
   // Anchor corrections: when a row whose start sits above the viewport
   // re-measures, virtual-core shifts scrollTop by the delta so the visible
   // content stays put (required for prepends/warm-up — see
-  // project_virtualized_prepend_anchor). EXCEPT the LAST row while the user
-  // reads scrolled-up: a big streaming response grows at its BOTTOM (below
-  // the reading point) but its start is above the viewport top, so the
-  // default correction dragged the view down on every chunk. Same for
-  // transient shrinks from live-markdown re-parses. Skip it there; when the
-  // user is at the bottom the auto-scroll follow makes it moot anyway.
+  // project_virtualized_prepend_anchor). EXCEPT the LAST row, unconditionally:
+  // reading inside it, a streaming response grows at its BOTTOM (below the
+  // reading point) while its start is above the viewport top, so the default
+  // dragged the view down every chunk; following AT the bottom, the follow
+  // effects own the anchor — and a correction computed from the virtualizer's
+  // stale cached offset landed a transient wrong-position write that the
+  // follow snapped back from, a per-chunk flicker while streaming.
   // (Instance property in this virtual-core version, not a constructor option.)
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => {
-    if (!stickyBottomRef.current && item.index === allItemsCountRef.current - 1) {
+    if (item.index === allItemsCountRef.current - 1) {
       return false;
     }
     // Replicate the library default. getScrollOffset/scrollAdjustments are
@@ -411,7 +483,23 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
       scrollAdjustments?: number;
     };
     const offset = inst.getScrollOffset ? inst.getScrollOffset() : (instance.scrollOffset ?? 0);
-    return item.start < offset + (inst.scrollAdjustments ?? 0);
+    const willAdjust = item.start < offset + (inst.scrollAdjustments ?? 0);
+    if (willAdjust) {
+      // Account the ACTUAL scrollTop movement this task's corrections apply
+      // (virtual-core writes scrollTop synchronously inside resizeItem).
+      const container = scrollContainerRef.current;
+      if (container && correctionTaskBaseRef.current === null) {
+        correctionTaskBaseRef.current = container.scrollTop;
+        queueMicrotask(() => {
+          const base = correctionTaskBaseRef.current;
+          correctionTaskBaseRef.current = null;
+          const el = scrollContainerRef.current;
+          if (base === null || !el) return;
+          correctionsRef.current += el.scrollTop - base;
+        });
+      }
+    }
+    return willAdjust;
   };
 
   // Release all DOM element references held by the virtualizer's internal
@@ -474,7 +562,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // grew (appends keep the first key; same-size refreshes keep the count).
   // Size caches are keyed by item key, so surviving rows stay warm through
   // the index shift.
-  const firstItemKey = allItems.length > 0 ? buildItemKey(allItems[0], agentId) : null;
+  const firstItemKey = allKeys.length > 0 ? allKeys[0] : null;
   const prevFirstKeyRef = useRef<string | null>(null);
   const prevCountForPrependRef = useRef(0);
   useEffect(() => {
@@ -591,10 +679,20 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     lastScrollTopRef.current = scrollTop;
 
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    const scrolledUp = scrollTop < prevScrollTop - 1;
+    // "Position tells the truth" means CORRECTION-ADJUSTED position: subtract
+    // the anchor-correction movement applied since the last event so a
+    // correction coalesced with growth below can't impersonate the user.
+    const correctionDelta = correctionsRef.current - correctionsBaselineRef.current;
+    correctionsBaselineRef.current = correctionsRef.current;
+    const scrolledUp = scrollTop - prevScrollTop - correctionDelta < -1;
 
-    // Latch/unlatch the sticky-bottom write gate from the live position.
-    stickyBottomRef.current = distanceFromBottom <= 8;
+    // Sticky-bottom write gate: latch at the very bottom, unlatch ONLY on a
+    // genuine user up-scroll — see stickyBottomRef.
+    if (distanceFromBottom <= 8) {
+      stickyBottomRef.current = true;
+    } else if (scrolledUp && distanceFromBottom > 4) {
+      stickyBottomRef.current = false;
+    }
 
     // Cancel pin mode on a genuine user scroll so we don't fight their finger.
     // isProgrammaticScrollRef cannot make that call here: the pin enforce loop
@@ -642,12 +740,29 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // reflow (e.g. filter change alters agent count), the browser may clamp scrollTop
   // without firing a scroll event, leaving the virtualizer with a stale offset that
   // produces zero visible items. Dispatching a scroll event forces the re-read.
+  //
+  // Bottom-follow on container shrink: chrome mounting/animating AROUND the
+  // chat right after open (GuakeTaskBanner appearing for a working agent, dock
+  // strip roster changes, the WAAPI-animated bottom-panel shell restoring a
+  // persisted height) SHRINKS the container after the pin settles. A shrink
+  // grows distanceFromBottom with NO content growth, so no follow effect fires
+  // and the chat parks exactly that height above the bottom. While the sticky
+  // gate is latched, re-anchor to the bottom on any container HEIGHT change
+  // (width churn must not add scroll writes); a scrolled-up reader is
+  // untouched. This also re-anchors a display:none→visible chat.
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
+    let lastHeight = container.clientHeight;
     const observer = new ResizeObserver(() => {
+      const height = container.clientHeight;
+      const heightChanged = height !== lastHeight;
+      lastHeight = height;
       isProgrammaticScrollRef.current = true;
+      if (heightChanged && stickyBottomRef.current) {
+        container.scrollTop = container.scrollHeight;
+      }
       container.dispatchEvent(new Event('scroll'));
       requestAnimationFrame(() => {
         isProgrammaticScrollRef.current = false;
