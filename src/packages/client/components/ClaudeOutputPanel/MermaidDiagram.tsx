@@ -1,15 +1,17 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
+import { ModalPortal } from '../shared/ModalPortal';
 
 /**
- * Renders a ```mermaid fenced code block as an actual diagram in the chat.
+ * Renders a ```mermaid fenced code block as a diagram in the chat.
  *
- * Streaming-safe: agent output arrives token-by-token, so the diagram source is
- * incomplete (and thus invalid) for most of its lifetime. We debounce rendering
- * until the source settles, and while it's pending/invalid we fall back to showing
- * the raw source — so a half-streamed or malformed diagram never breaks the UI.
+ * Inline it's a clean, STATIC preview (fits the message width). Clicking it opens a
+ * modal with the interactive viewport — zoom (buttons + ctrl/⌘-wheel) and drag-to-pan
+ * navigation — so the chat stays tidy while big diagrams are still explorable.
  *
- * Mermaid is loaded lazily (dynamic import) so it stays out of the main bundle for
- * the (common) case where a conversation contains no diagrams.
+ * Streaming-safe: agent output arrives token-by-token, so the source is incomplete
+ * (and invalid) for most of its lifetime. Rendering is debounced until it settles and
+ * falls back to the raw source while incomplete/invalid, so it never breaks the view.
+ * Mermaid is loaded lazily (dynamic import) so it stays out of the main bundle.
  */
 
 let mermaidLoader: Promise<typeof import('mermaid').default> | null = null;
@@ -20,7 +22,6 @@ function loadMermaid(): Promise<typeof import('mermaid').default> {
       const mermaid = mod.default;
       mermaid.initialize({
         startOnLoad: false,
-        // Diagrams live inside the dark chat surface; 'dark' keeps them legible.
         theme: 'dark',
         // Agent-generated content — sanitize labels and disable click handlers/scripts.
         securityLevel: 'strict',
@@ -37,12 +38,9 @@ const MIN_SCALE = 0.25;
 const MAX_SCALE = 4;
 
 /**
- * Force the rendered <svg> to its NATURAL pixel size (from the viewBox).
- *
- * Mermaid's output carries `width="100%"` + `style="max-width:<N>px"`, which shrinks
- * a diagram to fit its container — so a big diagram renders tiny and even zooming in
- * barely helps. Stripping those AND pinning width/height to the viewBox makes 100%
- * mean "actual size", so the bounded viewport genuinely scrolls/pans/zooms.
+ * Force the <svg> to its NATURAL pixel size (from the viewBox) for the modal — mermaid
+ * ships width=100% + max-width so a diagram shrinks to fit, which makes zoom/pan
+ * pointless. Pinning width/height to the viewBox makes 100% mean "actual size".
  */
 function sizeSvgToNatural(svg: string): string {
   const vb = svg.match(/viewBox="\s*[-\d.]+\s+[-\d.]+\s+([\d.]+)\s+([\d.]+)"/i);
@@ -56,18 +54,19 @@ function sizeSvgToNatural(svg: string): string {
   });
 }
 
+const boxStyle: React.CSSProperties = {
+  margin: '0.6em 0',
+  border: '1px solid var(--border-color)',
+  borderRadius: '6px',
+  background: 'color-mix(in srgb, var(--bg-primary) 90%, transparent)',
+};
+
 export function MermaidDiagram({ code }: { code: string }) {
   // useId() contains ':' which is invalid in a DOM id / mermaid render id.
   const baseId = useId().replace(/:/g, '');
   const [svg, setSvg] = useState<string | null>(null);
   const renderSeq = useRef(0);
-  // Scroll/pan viewport: diagrams can be large, so they live in a bounded box the
-  // user can scroll and drag ("grab") to move around within, plus zoom in/out.
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef({ active: false, x: 0, y: 0, left: 0, top: 0 });
-  const [scale, setScale] = useState(1);
-  const scaleRef = useRef(1);
-  scaleRef.current = scale;
+  const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
     const source = code.trim();
@@ -75,33 +74,83 @@ export function MermaidDiagram({ code }: { code: string }) {
       setSvg(null);
       return;
     }
-
     const seq = ++renderSeq.current;
     // Debounce: don't try to render (and error on) every partial streamed fragment.
     const timer = setTimeout(async () => {
       try {
         const mermaid = await loadMermaid();
-        // parse() validates without leaving orphaned error nodes in the DOM.
-        await mermaid.parse(source);
+        await mermaid.parse(source); // validates without leaving orphaned error nodes
         const { svg: out } = await mermaid.render(`mermaid-${baseId}-${seq}`, source);
-        // Render at natural size so the diagram doesn't shrink-to-fit (see helper).
-        if (seq === renderSeq.current) setSvg(sizeSvgToNatural(out));
+        if (seq === renderSeq.current) setSvg(out);
       } catch {
-        // Invalid / still-streaming syntax — keep the raw-source fallback.
         if (seq === renderSeq.current) setSvg(null);
       }
     }, RENDER_DEBOUNCE_MS);
-
     return () => clearTimeout(timer);
   }, [code, baseId]);
 
-  // Ctrl/⌘ + wheel zooms toward the cursor. Uses a NATIVE non-passive listener so
-  // preventDefault() actually fires (React's onWheel is passive → can't stop the
-  // browser's own ctrl+wheel page zoom). A plain wheel is left alone to scroll.
+  // Pending or invalid (e.g. still streaming): show the source so nothing blanks out.
+  if (!svg) {
+    return (
+      <pre
+        className="mermaid-diagram mermaid-diagram--source"
+        style={{ ...boxStyle, padding: '12px', overflowX: 'auto', fontSize: '12px', lineHeight: 1.5, color: 'var(--text-primary)' }}
+      >
+        {code}
+      </pre>
+    );
+  }
+
+  return (
+    <>
+      {/* Static inline preview — click to open the interactive modal. */}
+      <div
+        className="mermaid-diagram mermaid-diagram--preview"
+        onClick={() => setModalOpen(true)}
+        title="Click to zoom / pan"
+        style={{ ...boxStyle, position: 'relative', padding: '12px', maxHeight: '340px', overflow: 'hidden', textAlign: 'center', cursor: 'zoom-in' }}
+      >
+        <div dangerouslySetInnerHTML={{ __html: svg }} />
+        <span
+          aria-hidden
+          style={{
+            position: 'absolute', top: 6, right: 6, width: 22, height: 22,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'color-mix(in srgb, var(--bg-secondary) 88%, transparent)',
+            border: '1px solid var(--border-color)', borderRadius: 4,
+            color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1, pointerEvents: 'none',
+          }}
+        >
+          ⤢
+        </span>
+      </div>
+      {modalOpen && <MermaidModal svg={sizeSvgToNatural(svg)} onClose={() => setModalOpen(false)} />}
+    </>
+  );
+}
+
+function MermaidModal({ svg, onClose }: { svg: string; onClose: () => void }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef({ active: false, x: 0, y: 0, left: 0, top: 0 });
+  const [scale, setScale] = useState(1);
+  const scaleRef = useRef(1);
+  scaleRef.current = scale;
+
+  // Escape closes.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  // Ctrl/⌘ + wheel zooms toward the cursor (native non-passive listener so
+  // preventDefault fires and the browser's own ctrl+wheel page-zoom is suppressed).
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el || !svg) return;
-    const onWheelNative = (e: WheelEvent) => {
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
       const cur = scaleRef.current;
@@ -115,105 +164,88 @@ export function MermaidDiagram({ code }: { code: string }) {
       el.scrollTop = py * ratio - (e.clientY - rect.top);
       setScale(next);
     };
-    el.addEventListener('wheel', onWheelNative, { passive: false });
-    return () => el.removeEventListener('wheel', onWheelNative);
-  }, [svg]);
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
 
-  if (svg) {
-    // Drag-to-pan: hold and move to scroll a large diagram within its box.
-    const onPanStart = (e: React.MouseEvent) => {
-      const el = scrollRef.current;
-      if (!el) return;
-      dragRef.current = { active: true, x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop };
-      el.style.cursor = 'grabbing';
-    };
-    const onPanMove = (e: React.MouseEvent) => {
-      const el = scrollRef.current;
-      const d = dragRef.current;
-      if (!el || !d.active) return;
-      el.scrollLeft = d.left - (e.clientX - d.x);
-      el.scrollTop = d.top - (e.clientY - d.y);
-    };
-    const onPanEnd = () => {
-      const el = scrollRef.current;
-      dragRef.current.active = false;
-      if (el) el.style.cursor = 'grab';
-    };
+  const onPanStart = (e: React.MouseEvent) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    dragRef.current = { active: true, x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop };
+    el.style.cursor = 'grabbing';
+  };
+  const onPanMove = (e: React.MouseEvent) => {
+    const el = scrollRef.current;
+    const d = dragRef.current;
+    if (!el || !d.active) return;
+    el.scrollLeft = d.left - (e.clientX - d.x);
+    el.scrollTop = d.top - (e.clientY - d.y);
+  };
+  const onPanEnd = () => {
+    const el = scrollRef.current;
+    dragRef.current.active = false;
+    if (el) el.style.cursor = 'grab';
+  };
+  const zoom = (next: number) => setScale(Math.min(MAX_SCALE, Math.max(MIN_SCALE, next)));
+  const resetView = () => {
+    setScale(1);
+    if (scrollRef.current) {
+      scrollRef.current.scrollLeft = 0;
+      scrollRef.current.scrollTop = 0;
+    }
+  };
 
-    // Zoom via the +/− buttons (keeps the top-left anchored; clamped to range).
-    const applyZoom = (nextScale: number) => {
-      setScale(Math.min(MAX_SCALE, Math.max(MIN_SCALE, nextScale)));
-    };
+  const btnStyle: React.CSSProperties = {
+    minWidth: 26, height: 26, padding: '0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'color-mix(in srgb, var(--bg-secondary) 90%, transparent)',
+    border: '1px solid var(--border-color)', borderRadius: 4, color: 'var(--text-primary)',
+    cursor: 'pointer', fontSize: 14, lineHeight: 1,
+  };
 
-    const btnStyle: React.CSSProperties = {
-      width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'color-mix(in srgb, var(--bg-secondary) 90%, transparent)',
-      border: '1px solid var(--border-color)', borderRadius: 4, color: 'var(--text-primary)',
-      cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0, userSelect: 'none',
-    };
-
-    return (
+  return (
+    <ModalPortal>
       <div
-        className="mermaid-diagram"
+        onClick={onClose}
         style={{
-          position: 'relative',
-          margin: '0.6em 0',
-          border: '1px solid var(--border-color)',
-          borderRadius: '6px',
-          background: 'color-mix(in srgb, var(--bg-primary) 90%, transparent)',
+          position: 'fixed', inset: 0, zIndex: 3000,
+          background: 'rgba(0, 0, 0, 0.6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3vh 3vw',
         }}
       >
-        {/* Zoom controls — fixed to the box corner, don't scroll with the diagram. */}
-        <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 2, display: 'flex', gap: 4, alignItems: 'center' }}>
-          <button type="button" title="Zoom out" style={btnStyle} onClick={() => applyZoom(scale / 1.2)}>−</button>
-          <button type="button" title="Reset zoom" style={{ ...btnStyle, width: 'auto', padding: '0 6px', fontVariantNumeric: 'tabular-nums' }} onClick={() => { setScale(1); if (scrollRef.current) { scrollRef.current.scrollLeft = 0; scrollRef.current.scrollTop = 0; } }}>{Math.round(scale * 100)}%</button>
-          <button type="button" title="Zoom in" style={btnStyle} onClick={() => applyZoom(scale * 1.2)}>+</button>
-        </div>
         <div
-          ref={scrollRef}
-          onMouseDown={onPanStart}
-          onMouseMove={onPanMove}
-          onMouseUp={onPanEnd}
-          onMouseLeave={onPanEnd}
+          onClick={(e) => e.stopPropagation()}
           style={{
-            // Bounded, scrollable viewport: large diagrams stay contained; the user
-            // scrolls (both axes), drags to pan, or zooms instead of the diagram
-            // taking over the whole conversation.
-            maxHeight: '440px',
-            overflow: 'auto',
-            cursor: 'grab',
-            padding: '12px',
-            textAlign: 'center',
-            userSelect: 'none',
+            position: 'relative', width: '94vw', height: '94vh',
+            display: 'flex', flexDirection: 'column',
+            background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 8,
+            boxShadow: '0 12px 48px rgba(0, 0, 0, 0.5)', overflow: 'hidden',
           }}
         >
+          {/* Toolbar: zoom controls + close */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: 8, borderBottom: '1px solid var(--border-color)' }}>
+            <button type="button" title="Zoom out" style={btnStyle} onClick={() => zoom(scale / 1.2)}>−</button>
+            <button type="button" title="Reset zoom" style={{ ...btnStyle, fontVariantNumeric: 'tabular-nums' }} onClick={resetView}>{Math.round(scale * 100)}%</button>
+            <button type="button" title="Zoom in" style={btnStyle} onClick={() => zoom(scale * 1.2)}>+</button>
+            <span style={{ marginLeft: 'auto', color: 'var(--text-secondary)', fontSize: 12 }}>drag to pan · ctrl/⌘+scroll to zoom</span>
+            <button type="button" title="Close (Esc)" style={{ ...btnStyle, marginLeft: 6 }} onClick={onClose}>✕</button>
+          </div>
+          {/* Zoom/pan viewport */}
           <div
-            style={{ transform: `scale(${scale})`, transformOrigin: '0 0', width: 'fit-content' }}
-            // mermaid-generated SVG, sanitized by mermaid's securityLevel:'strict'
-            dangerouslySetInnerHTML={{ __html: svg }}
-          />
+            ref={scrollRef}
+            onMouseDown={onPanStart}
+            onMouseMove={onPanMove}
+            onMouseUp={onPanEnd}
+            onMouseLeave={onPanEnd}
+            style={{ flex: 1, overflow: 'auto', cursor: 'grab', padding: 16, userSelect: 'none' }}
+          >
+            <div
+              style={{ transform: `scale(${scale})`, transformOrigin: '0 0', width: 'fit-content' }}
+              // mermaid-generated SVG, sanitized by mermaid's securityLevel:'strict'
+              dangerouslySetInnerHTML={{ __html: svg }}
+            />
+          </div>
         </div>
       </div>
-    );
-  }
-
-  // Pending or invalid: show the source so nothing ever blanks out.
-  return (
-    <pre
-      className="mermaid-diagram mermaid-diagram--source"
-      style={{
-        margin: '0.6em 0',
-        padding: '12px',
-        border: '1px solid var(--border-color)',
-        borderRadius: '6px',
-        background: 'color-mix(in srgb, var(--bg-primary) 90%, transparent)',
-        overflowX: 'auto',
-        fontSize: '12px',
-        lineHeight: 1.5,
-        color: 'var(--text-primary)',
-      }}
-    >
-      {code}
-    </pre>
+    </ModalPortal>
   );
 }
