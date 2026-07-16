@@ -8,6 +8,7 @@ import { Components } from 'react-markdown';
 import { store } from '../../store';
 import { decodeTideFileHref } from '../../utils/outputRendering';
 import { highlightCode, isLanguageSupported, ensureLanguageLoaded } from '../FileExplorerPanel/syntaxHighlighting';
+import { MermaidDiagram } from './MermaidDiagram';
 
 interface MarkdownComponentOptions {
   onFileClick?: (path: string) => void;
@@ -192,20 +193,32 @@ export const createMarkdownComponents = ({ onFileClick }: MarkdownComponentOptio
       </code>
     );
   },
-  pre: ({ children }) => (
-    <pre
-      style={{
-        background: 'color-mix(in srgb, var(--bg-primary) 90%, transparent)',
-        border: '1px solid var(--border-color)',
-        borderRadius: '6px',
-        padding: '12px',
-        margin: '0.6em 0',
-        overflowX: 'auto',
-      }}
-    >
-      {children}
-    </pre>
-  ),
+  pre: ({ children }) => {
+    // A ```mermaid fenced block reaches here as <pre><code class="language-mermaid">.
+    // Replace the whole <pre> with a rendered diagram (avoids nesting the diagram
+    // inside a <pre> and double-boxing it).
+    const child = Array.isArray(children) ? children[0] : children;
+    if (React.isValidElement(child)) {
+      const childClass = (child.props as { className?: string }).className;
+      if (typeof childClass === 'string' && childClass.includes('language-mermaid')) {
+        return <MermaidDiagram code={getNodeText((child.props as { children?: React.ReactNode }).children)} />;
+      }
+    }
+    return (
+      <pre
+        style={{
+          background: 'color-mix(in srgb, var(--bg-primary) 90%, transparent)',
+          border: '1px solid var(--border-color)',
+          borderRadius: '6px',
+          padding: '12px',
+          margin: '0.6em 0',
+          overflowX: 'auto',
+        }}
+      >
+        {children}
+      </pre>
+    );
+  },
   ul: ({ children }) => <ul style={{ margin: '0.5em 0', paddingLeft: '1.5em', lineHeight: 1.5 }}>{children}</ul>,
   ol: ({ children }) => <ol style={{ margin: '0.5em 0', paddingLeft: '1.5em', lineHeight: 1.5 }}>{children}</ol>,
   li: ({ children }) => <li style={{ margin: '0.2em 0', paddingLeft: '0.3em' }}>{children}</li>,
