@@ -20,6 +20,9 @@ vi.mock('googleapis', () => ({
         setCredentials() {}
         generateAuthUrl() { return 'https://example.test/auth'; }
         async getToken() { return { tokens: {} }; }
+        // The real OAuth2Client exposes request(); calendar-client wraps it to track
+        // shared Google token health, so the mock must provide it too.
+        async request(opts: unknown) { return { data: opts }; }
       },
     },
     calendar: () => mockCalendarApi,

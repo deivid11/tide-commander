@@ -13,6 +13,16 @@ import type {
   EmailThread,
   ApprovalStatus,
 } from './gmail-config.js';
+import {
+  getTokenHealth,
+  needsReauth,
+  notifyTokenRotated,
+  onTokenRotated,
+  probeTokenHealth,
+  reportGoogleApiError,
+  reportGoogleApiSuccess,
+  startTokenHealthMonitor,
+} from '../google-auth/token-health.js';
 
 // Gmail API scopes
 const SCOPES = [
@@ -42,6 +52,48 @@ let lastPollAt: number | undefined;
 let lastError: string | undefined;
 let messageCallbacks: Array<(msg: EmailMessage) => void> = [];
 let lastHistoryId: string | undefined;
+
+// ─── OAuth client ───
+
+/**
+ * True when Gmail authenticates with the shared `GOOGLE_REFRESH_TOKEN` rather than a
+ * service account. Token health is a fact about that refresh token only — in
+ * service-account mode Gmail rides a JWT that a dead refresh token says nothing about,
+ * so every token-health branch below is gated on this.
+ */
+function usingOAuth(): boolean {
+  return (config.authMethod || 'oauth2') !== 'service_account';
+}
+
+/**
+ * Build an OAuth2 client whose every outbound call updates shared token health.
+ *
+ * Every Gmail call made with `auth: oauth2Client` funnels through this one `request()`
+ * method, so wrapping it here means a revoked token is detected the moment polling or
+ * an agent actually touches Gmail — no waiting for the next background probe — without
+ * instrumenting each API call site.
+ */
+function createOAuthClient(
+  clientId: string,
+  clientSecret: string,
+  redirectUri: string,
+): InstanceType<typeof google.auth.OAuth2> {
+  const client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  const originalRequest = client.request.bind(client);
+
+  client.request = (async (opts: Parameters<typeof originalRequest>[0]) => {
+    try {
+      const result = await originalRequest(opts);
+      reportGoogleApiSuccess();
+      return result;
+    } catch (err) {
+      reportGoogleApiError(err);
+      throw err;
+    }
+  }) as typeof client.request;
+
+  return client;
+}
 
 // ─── Lifecycle ───
 
@@ -92,7 +144,7 @@ export async function init(context: IntegrationContext): Promise<void> {
       return;
     }
 
-    oauth2Client = new google.auth.OAuth2(
+    oauth2Client = createOAuthClient(
       config.clientId,
       config.clientSecret,
       getRedirectUri()
@@ -103,6 +155,15 @@ export async function init(context: IntegrationContext): Promise<void> {
     if (refreshToken) {
       oauth2Client.setCredentials({ refresh_token: refreshToken });
       gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+      // Holding the token string proves nothing — it may be revoked. Probe Google (and
+      // keep probing) so an expired token is reflected in getStatus(). The monitor is
+      // shared with Drive/Calendar: one timer, one verdict for the one refresh token.
+      startTokenHealthMonitor(ctx);
+
+      // Re-read the shared refresh token if the user re-consents via Drive or Calendar,
+      // otherwise this client keeps using the token it was seeded with here.
+      onTokenRotated('gmail', () => init(context));
 
       try {
         const profile = await gmail.users.getProfile({ userId: 'me' });
@@ -192,15 +253,36 @@ export function shutdown(): void {
 export function getStatus(): GmailStatus {
   const oauthConfigured = Boolean(config.clientId && config.clientSecret);
   const serviceAccountConfigured = Boolean(config.serviceAccountJson && config.impersonateEmail);
+
+  // Token health only speaks for the OAuth path. Having a live `gmail` handle is
+  // necessary but not sufficient there: a revoked refresh token still builds a handle
+  // just fine. Only trust it when Google's last verdict wasn't a rejection —
+  // 'unreachable' (offline host) is deliberately NOT a rejection, so needsReauth()
+  // leaves us connected rather than pushing a pointless re-consent.
+  const oauthActive = usingOAuth() && oauthConfigured;
+  const health = getTokenHealth();
+  const reauth = oauthActive && needsReauth(health);
+  const live = Boolean(gmail && authenticatedEmail);
+
   return {
     configured: oauthConfigured || serviceAccountConfigured,
-    authenticated: Boolean(gmail && authenticatedEmail),
+    authenticated: live && !reauth,
     emailAddress: authenticatedEmail,
     pollingActive: pollingTimer !== null,
-    connected: Boolean(gmail && authenticatedEmail),
+    connected: live && !reauth,
     lastChecked: lastPollAt || Date.now(),
-    error: lastError,
+    error: (oauthActive ? health.error : undefined) ?? lastError,
+    needsReauth: reauth,
+    tokenState: oauthActive ? health.state : undefined,
   };
+}
+
+/** Force a live refresh_token exchange against Google and return the updated status. */
+export async function probeToken(): Promise<GmailStatus> {
+  // Service-account mode doesn't use GOOGLE_REFRESH_TOKEN — probing would report on a
+  // token Gmail never touches, so skip straight to the (unaffected) status.
+  if (ctx && usingOAuth()) await probeTokenHealth(ctx, { force: true });
+  return getStatus();
 }
 
 export function isConfigured(): boolean {
@@ -216,7 +298,7 @@ export function getAuthUrl(): string {
     if (!config.clientId || !config.clientSecret || !ctx) {
       throw new Error('Gmail OAuth not configured');
     }
-    oauth2Client = new google.auth.OAuth2(
+    oauth2Client = createOAuthClient(
       config.clientId,
       config.clientSecret,
       getRedirectUri()
@@ -235,9 +317,11 @@ export async function handleAuthCallback(code: string): Promise<void> {
   const { tokens } = await oauth2Client.getToken(code);
   oauth2Client.setCredentials(tokens);
 
+  let rotated = false;
   if (tokens.refresh_token) {
     ctx.secrets.set('GOOGLE_REFRESH_TOKEN', tokens.refresh_token);
     config.refreshToken = tokens.refresh_token;
+    rotated = true;
   }
 
   gmail = google.gmail({ version: 'v1', auth: oauth2Client });
@@ -246,6 +330,11 @@ export async function handleAuthCallback(code: string): Promise<void> {
   authenticatedEmail = profile.data.emailAddress ?? undefined;
   lastHistoryId = profile.data.historyId ?? undefined;
   lastError = undefined;
+
+  // Fresh consent just produced this token. Clears the 'expired' verdict AND re-arms
+  // Drive and Calendar, whose clients still hold the old refresh token — all three
+  // share this one secret, so one consent must repair all three.
+  if (rotated) await notifyTokenRotated();
 
   ctx.log.info(`Gmail OAuth complete. Authenticated as ${authenticatedEmail}`);
 }

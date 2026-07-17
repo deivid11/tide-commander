@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.166.0] - 2026-07-17
+
+### Added
+- **Google OAuth token-health monitoring** - Gmail, Calendar, and Drive share a single `GOOGLE_REFRESH_TOKEN`, and their status now reflects a real `refresh_token` → `access_token` exchange against Google instead of merely "three secret strings are present." A revoked or expired refresh token that previously still rendered as "Connected" (even across server restarts) now surfaces as expired. A shared background monitor probes the one token once and reports a single verdict to all three clients, and re-consenting through any one service rotates the token for the others without a restart.
+
+### Fixed
+- **"Google Authorization Expired" re-connect flow** - the integrations panel now distinguishes "credentials were rejected, re-authorize" (`needsReauth`) from "never configured," and shows a dedicated expired banner with a reconnect action instead of a misleading connected state.
+- **Edit Agent → Advanced options collapsed to an unclickable line** - the "Advanced options" drawer (which holds the agent's Custom Instructions / prompt, terminal shortcut, and auto-collapse settings) was being compressed to a ~1px, unclickable sliver whenever the modal overflowed. Its `overflow: hidden` reset the flex item's auto min-height to 0, so the column-flex modal body shrank it instead of scrolling. Pinned `flex-shrink: 0` so it keeps its height and the body scrolls to it.
+
 ## [1.165.1] - 2026-07-16
 
 ### Fixed

@@ -143,10 +143,15 @@ router.post('/check-approvals', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/email/status — Get Gmail status
-router.get('/status', (req: Request, res: Response) => {
-  const status = gmailClient.getStatus();
-  res.json(status);
+// GET /api/email/status — Get Gmail status.
+// `?probe=1` forces a live refresh_token exchange against Google instead of reusing
+// the cached verdict — the settings UI uses it to verify the token on open, so a
+// revoked token can't keep rendering as "Connected". No-op in service-account mode.
+router.get('/status', async (req: Request, res: Response) => {
+  if (req.query.probe === '1' || req.query.probe === 'true') {
+    await gmailClient.probeToken();
+  }
+  res.json(gmailClient.getStatus());
 });
 
 // GET /api/email/auth/url — Get OAuth authorization URL

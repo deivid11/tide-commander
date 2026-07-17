@@ -4,6 +4,7 @@
  */
 
 import type { ConfigField, IntegrationStatus } from '../../../shared/integration-types.js';
+import type { GoogleTokenState } from '../google-auth/token-health.js';
 
 export const gmailConfigSchema: ConfigField[] = [
   {
@@ -99,6 +100,9 @@ export interface GmailStatus extends IntegrationStatus {
   authenticated: boolean;
   emailAddress?: string;
   pollingActive: boolean;
+  /** Result of the last real refresh_token exchange against Google. OAuth path only —
+   *  undefined in service-account mode, which doesn't use GOOGLE_REFRESH_TOKEN. */
+  tokenState?: GoogleTokenState;
 }
 
 export interface EmailAttachment {

@@ -487,7 +487,13 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab }: IntegrationsM
                       <div style={S.integrationName}>
                         {active.name}
                         <span style={S.statusBadge(active.status.connected, !!active.status.error)}>
-                          {active.status.error ? '\u2717 Error' : active.status.connected ? '\u2713 Connected' : '\u26A0 Not Configured'}
+                          {active.status.needsReauth
+                            ? '\u26A0 Token Expired \u2014 Reconnect'
+                            : active.status.error
+                              ? '\u2717 Error'
+                              : active.status.connected
+                                ? '\u2713 Connected'
+                                : '\u26A0 Not Configured'}
                         </span>
                         {active.id === 'slack' && (() => {
                           const mode = (active.values?.currentMode as string | undefined) || 'none';

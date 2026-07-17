@@ -9,6 +9,17 @@ import { google, calendar_v3 } from 'googleapis';
 import type { IntegrationContext } from '../../../shared/integration-types.js';
 import type { CalendarActionEvent } from '../../../shared/event-types.js';
 import { loadConfig, updateConfig } from './calendar-config.js';
+import {
+  getTokenHealth,
+  needsReauth,
+  notifyTokenRotated,
+  onTokenRotated,
+  probeTokenHealth,
+  reportGoogleApiError,
+  reportGoogleApiSuccess,
+  startTokenHealthMonitor,
+  type GoogleTokenState,
+} from '../google-auth/token-health.js';
 
 // ─── Types ───
 
@@ -17,6 +28,10 @@ export interface CalendarStatus {
   connected: boolean;
   lastChecked: number;
   error?: string;
+  /** Credentials are stored but Google rejected them — re-authorization required. */
+  needsReauth?: boolean;
+  /** Result of the last real refresh_token exchange against Google. */
+  tokenState?: GoogleTokenState;
 }
 
 export interface CalendarEventTime {
@@ -113,10 +128,19 @@ export async function init(integrationCtx: IntegrationContext): Promise<void> {
     return;
   }
 
-  oauth2Client = new google.auth.OAuth2(clientId, clientSecret, getRedirectUri());
+  oauth2Client = createOAuthClient(clientId, clientSecret, getRedirectUri());
   oauth2Client.setCredentials({ refresh_token: refreshToken });
 
   calendarApi = google.calendar({ version: 'v3', auth: oauth2Client });
+
+  // Constructing the client above proves nothing — it just wraps the token string.
+  // Probe Google (and keep probing) so an expired token is reflected in getStatus().
+  startTokenHealthMonitor(ctx);
+
+  // Re-read the shared refresh token if the user re-consents via Gmail or Drive,
+  // otherwise this client keeps using the token it was seeded with here.
+  onTokenRotated('google-calendar', () => init(integrationCtx));
+
   ctx.log.info('Google Calendar initialized');
 }
 
@@ -135,16 +159,36 @@ export function getStatus(): CalendarStatus {
     ctx?.secrets.get('GOOGLE_REFRESH_TOKEN')
   );
 
+  const health = getTokenHealth();
+  const reauth = hasCredentials && needsReauth(health);
+  // Having credentials on disk is necessary but not sufficient — a revoked refresh
+  // token is still three non-empty strings. Only report connected when Google's last
+  // verdict wasn't a rejection. An 'unreachable' probe (offline host) is deliberately
+  // NOT treated as a rejection: it would push users into a pointless re-consent flow.
+  const wired = config.enabled && hasCredentials && calendarApi !== null;
+
+  let error: string | undefined;
+  if (!hasCredentials && config.enabled) error = 'Missing OAuth credentials';
+  else if (reauth) error = health.error;
+
   return {
-    authenticated: Boolean(calendarApi && hasCredentials),
-    connected: config.enabled && hasCredentials && calendarApi !== null,
-    lastChecked: Date.now(),
-    error: !hasCredentials && config.enabled ? 'Missing OAuth credentials' : undefined,
+    authenticated: Boolean(calendarApi && hasCredentials) && !reauth,
+    connected: wired && !reauth,
+    lastChecked: health.checkedAt || Date.now(),
+    error,
+    needsReauth: reauth,
+    tokenState: hasCredentials ? health.state : undefined,
   };
 }
 
 export function isConfigured(): boolean {
   return calendarApi !== null;
+}
+
+/** Force a live refresh_token exchange against Google and return the updated status. */
+export async function probeToken(): Promise<CalendarStatus> {
+  if (ctx) await probeTokenHealth(ctx, { force: true });
+  return getStatus();
 }
 
 // ─── Events CRUD ───
@@ -427,6 +471,36 @@ const REDIRECT_PATH = '/api/calendar/auth/callback'; // Calendar's own callback
 
 let oauth2Client: InstanceType<typeof google.auth.OAuth2> | null = null;
 
+/**
+ * Build an OAuth2 client whose every outbound call updates shared token health.
+ *
+ * Every Calendar call made with `auth: oauth2Client` funnels through this one
+ * `request()` method, so wrapping it here means a revoked token is detected the moment
+ * an agent actually touches Calendar — no waiting for the next background probe —
+ * without instrumenting each API call site.
+ */
+function createOAuthClient(
+  clientId: string,
+  clientSecret: string,
+  redirectUri: string,
+): InstanceType<typeof google.auth.OAuth2> {
+  const client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  const originalRequest = client.request.bind(client);
+
+  client.request = (async (opts: Parameters<typeof originalRequest>[0]) => {
+    try {
+      const result = await originalRequest(opts);
+      reportGoogleApiSuccess();
+      return result;
+    } catch (err) {
+      reportGoogleApiError(err);
+      throw err;
+    }
+  }) as typeof client.request;
+
+  return client;
+}
+
 function getRedirectUri(): string {
   if (!ctx) throw new Error('Google Calendar not initialized');
   const override = ctx.secrets.get('GOOGLE_REDIRECT_BASE_URL')?.trim();
@@ -441,11 +515,7 @@ export function getAuthUrl(): string {
     if (!clientId || !clientSecret || !ctx) {
       throw new Error('Google Calendar OAuth not configured');
     }
-    oauth2Client = new google.auth.OAuth2(
-      clientId,
-      clientSecret,
-      getRedirectUri()
-    );
+    oauth2Client = createOAuthClient(clientId, clientSecret, getRedirectUri());
   }
   return oauth2Client.generateAuthUrl({
     access_type: 'offline',
@@ -468,6 +538,11 @@ export async function handleAuthCallback(code: string): Promise<void> {
 
   // Auto-enable the integration after successful OAuth
   updateConfig({ enabled: true });
+
+  // Fresh consent just produced this token. Clears the 'expired' verdict AND re-arms
+  // Gmail and Drive, whose clients still hold the old refresh token — all three share
+  // this one secret, so one consent must repair all three.
+  await notifyTokenRotated();
 
   ctx.log.info(`Google Calendar OAuth complete. Calendar initialized.`);
 }

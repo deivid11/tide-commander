@@ -18,6 +18,11 @@ interface GoogleAuthStatus {
   configured: boolean;
   authenticated: boolean;
   emailAddress?: string;
+  /** Credentials are stored but Google rejected them — re-consent required. */
+  needsReauth?: boolean;
+  /** Verdict of the last real refresh_token exchange against Google. */
+  tokenState?: 'unknown' | 'valid' | 'expired' | 'invalid_client' | 'unreachable';
+  error?: string;
 }
 
 export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthSetupProps) {
@@ -39,14 +44,21 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
     integration.values.GOOGLE_CLIENT_ID === '********' &&
     integration.values.GOOGLE_CLIENT_SECRET === '********';
 
-  const [step, setStep] = useState<'credentials' | 'authorize' | 'connected'>(
-    integration.status.connected ? 'connected' : 'credentials'
+  const [step, setStep] = useState<'credentials' | 'authorize' | 'connected' | 'expired'>(
+    integration.status.needsReauth
+      ? 'expired'
+      : integration.status.connected
+        ? 'connected'
+        : 'credentials'
   );
 
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Fetch current Google auth status
-  const fetchStatus = useCallback(async () => {
+  // Fetch current Google auth status.
+  // `probe` forces the server to exchange the stored refresh token with Google rather
+  // than trusting a cached verdict — used on open so a revoked token is caught here
+  // instead of surfacing later as a failed agent action.
+  const fetchStatus = useCallback(async (probe = false) => {
     try {
       const statusEndpoints: Record<string, string> = {
         'gmail': '/api/email/status',
@@ -54,16 +66,21 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
         'google-drive': '/api/drive/status',
       };
       const endpoint = statusEndpoints[integration.id] || '/api/calendar/status';
-      const resp = await authFetch(apiUrl(endpoint));
+      const resp = await authFetch(apiUrl(probe ? `${endpoint}?probe=1` : endpoint));
       if (resp.ok) {
         const data = (await resp.json()) as GoogleAuthStatus;
         setAuthStatus(data);
-        if (data.authenticated) {
+
+        if (data.needsReauth) {
+          setStep('expired');
+        } else if (data.authenticated) {
           setStep('connected');
-          if (pollTimerRef.current) {
-            clearInterval(pollTimerRef.current);
-            pollTimerRef.current = null;
-          }
+        }
+
+        // Stop the consent poll once Google has given us a definitive verdict.
+        if ((data.authenticated || data.needsReauth) && pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
         }
       }
     } catch (err) {
@@ -72,7 +89,8 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
   }, [integration.id]);
 
   useEffect(() => {
-    fetchStatus();
+    // Validate the stored token against Google on open.
+    fetchStatus(true);
     return () => {
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
@@ -328,6 +346,77 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
               }}
             >
               Back
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 'expired' && (
+        <div className="google-oauth-section">
+          <h4 className="google-oauth-section-title">Google Authorization Expired</h4>
+
+          <div className="google-oauth-expired-banner">
+            <div className="google-oauth-expired-title">
+              <span>{'⚠'}</span>
+              <span>
+                {authStatus?.tokenState === 'invalid_client'
+                  ? 'OAuth credentials rejected'
+                  : 'Token expired — reconnect required'}
+              </span>
+            </div>
+            <div className="google-oauth-expired-body">
+              {authStatus?.tokenState === 'invalid_client' ? (
+                <>
+                  Google rejected the Client ID / Client Secret. Confirm the OAuth client still
+                  exists in the Google Cloud Console, then re-enter the credentials.
+                </>
+              ) : (
+                <>
+                  Google rejected the stored refresh token, so Gmail, Calendar, and Drive can no
+                  longer act on your account — they all share this one token. This normally happens
+                  when access is revoked, the account password changed, or the OAuth consent screen
+                  is still in <strong>Testing</strong> mode (Google expires those refresh tokens
+                  after 7 days — publish the app to stop it recurring).
+                </>
+              )}
+            </div>
+            {authStatus?.error && (
+              <div className="google-oauth-expired-detail">{authStatus.error}</div>
+            )}
+          </div>
+
+          <div className="integration-form-actions">
+            <button type="button" className="integration-btn cancel" onClick={onCancel}>
+              Close
+            </button>
+            <button
+              type="button"
+              className="integration-btn secondary"
+              onClick={() => {
+                setShowManualEdit(true);
+                setStep('credentials');
+              }}
+              disabled={loading}
+            >
+              Edit credentials
+            </button>
+            <button
+              type="button"
+              className="integration-btn save"
+              onClick={async () => {
+                setLoading(true);
+                setError(null);
+                try {
+                  await fetchAuthUrlAndStart();
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Failed to get OAuth URL');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+            >
+              {loading ? 'Loading...' : 'Reconnect Google'}
             </button>
           </div>
         </div>
@@ -598,6 +687,40 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
           font-size: 13px;
           line-height: 1.6;
           font-weight: 400;
+        }
+        .google-oauth-expired-banner {
+          background: linear-gradient(135deg, rgba(243, 139, 168, 0.15) 0%, rgba(243, 139, 168, 0.05) 100%);
+          border: 1px solid rgba(243, 139, 168, 0.3);
+          border-left: 3px solid #f38ba8;
+          border-radius: 10px;
+          padding: 16px 18px;
+          margin-bottom: 8px;
+        }
+        .google-oauth-expired-title {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          color: #f38ba8;
+          font-size: 14px;
+          font-weight: 700;
+          letter-spacing: 0.2px;
+          margin-bottom: 8px;
+        }
+        .google-oauth-expired-body {
+          color: #a6adc8;
+          font-size: 13px;
+          line-height: 1.6;
+          font-weight: 400;
+        }
+        .google-oauth-expired-detail {
+          margin-top: 12px;
+          padding: 8px 12px;
+          background: rgba(30, 30, 46, 0.6);
+          border-radius: 6px;
+          color: #f38ba8;
+          font-size: 12px;
+          font-family: 'Monaco', 'Menlo', monospace;
+          word-break: break-word;
         }
       `}</style>
     </div>

@@ -153,10 +153,15 @@ router.post('/working-days', (req: Request, res: Response) => {
   }
 });
 
-// GET /api/calendar/status — Get Google Calendar auth status
-router.get('/status', (req: Request, res: Response) => {
-  const status = calendarClient.getStatus();
-  res.json(status);
+// GET /api/calendar/status — Get Google Calendar auth status.
+// `?probe=1` forces a live refresh_token exchange against Google instead of reusing
+// the cached verdict — the settings UI uses it to verify the token on open, so a
+// revoked token can't keep rendering as "Connected".
+router.get('/status', async (req: Request, res: Response) => {
+  if (req.query.probe === '1' || req.query.probe === 'true') {
+    await calendarClient.probeToken();
+  }
+  res.json(calendarClient.getStatus());
 });
 
 // GET /api/calendar/auth/url — Get OAuth authorization URL
