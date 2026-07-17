@@ -11,6 +11,9 @@ export interface IntegrationStatus {
   connected: boolean;
   lastChecked: number;
   error?: string;
+  /** Credentials exist but the provider rejected them — the user must re-authorize.
+   *  Distinct from `!connected`, which also covers "never configured". */
+  needsReauth?: boolean;
 }
 
 // ─── External Events ───

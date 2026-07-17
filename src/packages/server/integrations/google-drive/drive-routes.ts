@@ -316,10 +316,15 @@ router.get('/search', async (req: Request, res: Response) => {
 
 // ─── Status & Auth ───
 
-// GET /api/drive/status — Get Google Drive auth status
-router.get('/status', (_req: Request, res: Response) => {
-  const status = driveClient.getStatus();
-  res.json(status);
+// GET /api/drive/status — Get Google Drive auth status.
+// `?probe=1` forces a live refresh_token exchange against Google instead of reusing
+// the cached verdict — the settings UI uses it to verify the token on open, so a
+// revoked token can't keep rendering as "Connected".
+router.get('/status', async (req: Request, res: Response) => {
+  if (req.query.probe === '1' || req.query.probe === 'true') {
+    await driveClient.probeToken();
+  }
+  res.json(driveClient.getStatus());
 });
 
 // GET /api/drive/auth/url — Get OAuth authorization URL

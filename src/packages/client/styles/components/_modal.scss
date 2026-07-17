@@ -617,6 +617,10 @@
   border-radius: $radius-lg;
   background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
   overflow: hidden;
+  // `overflow: hidden` resets this flex item's auto min-height to 0, so in the
+  // column-flex modal body it was being compressed to a ~1px line (and the
+  // summary became unclickable) whenever the modal overflowed. Keep its height.
+  flex-shrink: 0;
 
   > summary {
     list-style: none;
