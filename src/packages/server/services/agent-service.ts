@@ -608,6 +608,14 @@ export function updateAgent(id: string, updates: Partial<Agent>, updateActivity 
     normalizedUpdates.latestTodos = undefined;
   }
 
+  // Drop the stored error message once the agent recovers from error to any
+  // other status (new command → working, recovery init, turn complete → idle),
+  // so the status-badge hover doesn't show a stale error after recovery.
+  const leftErrorState = agent.status === 'error' && nextStatus !== 'error';
+  if (leftErrorState && !('lastError' in normalizedUpdates)) {
+    normalizedUpdates.lastError = undefined;
+  }
+
   // When an agent goes idle (process finished / run complete) clear any *transient*
   // tracking status so the board doesn't show a phantom 'working'/'thinking' agent.
   // Only 'working' (longer-running work) and 'thinking' (start-of-turn) are transient;

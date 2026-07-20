@@ -182,16 +182,35 @@ export class OpencodeServerProcess {
   // ---- HTTP helpers --------------------------------------------------------
 
   private async httpJson(method: string, path: string, body?: unknown): Promise<any> {
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      method,
-      headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+    // Retry ONCE on a transport failure, but ONLY for idempotent GETs. A POST
+    // (send message / create session) must NEVER auto-retry: a transport error
+    // does NOT prove the request was undelivered. Undici surfaces a stale
+    // keep-alive reset AND a `UND_ERR_HEADERS_TIMEOUT` (request delivered, daemon
+    // still working the turn) both as `TypeError: fetch failed` — indistinguishable
+    // here — so resending a POST can double-post the user's prompt (it did:
+    // agents saw the same message twice). GETs carry no such side effect.
+    let res: Response;
+    try {
+      res = await this.doFetch(method, path, body);
+    } catch (err) {
+      if (method !== 'GET' || !isTransportError(err)) throw err;
+      log.warn(`GET ${path} transport error (${describeError(err)}); retrying once on a fresh connection`);
+      await sleep(100);
+      res = await this.doFetch(method, path, body);
+    }
     if (!res.ok) {
       throw new Error(`${method} ${path} → ${res.status} ${res.statusText}`);
     }
     const text = await res.text();
     return text ? JSON.parse(text) : null;
+  }
+
+  private doFetch(method: string, path: string, body?: unknown): Promise<Response> {
+    return fetch(`${this.baseUrl}${path}`, {
+      method,
+      headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
   }
 
   /** Create a session (optionally scoped to a working directory). */
@@ -204,11 +223,66 @@ export class OpencodeServerProcess {
     return id;
   }
 
-  /** Send a prompt to a session. Fire-and-forget: streaming arrives via SSE. */
+  /**
+   * Send a prompt to a session. opencode holds this POST open for the ENTIRE
+   * turn (it doesn't send response headers until the turn finishes) while the
+   * output streams over SSE. undici's 300s default headersTimeout would trip
+   * `UND_ERR_HEADERS_TIMEOUT` on any turn >5min and falsely error the agent —
+   * and that error MUST NOT be retried, because the prompt already landed, so a
+   * resend double-posts the user's message. So this one request uses a dedicated
+   * Node http request with NO timeout and a fresh (non-pooled) socket: it blocks
+   * harmlessly until turn end (SSE drives output + completion), rejects only on a
+   * genuine connection failure (surfaced once, never retried), and can't reuse a
+   * stale keep-alive socket. Everything else stays on the quick fetch path.
+   */
   sendPrompt(sessionId: string, text: string, model?: { providerID: string; modelID: string }): Promise<void> {
     const body: Record<string, unknown> = { parts: [{ type: 'text', text }] };
     if (model) body.model = model;
-    return this.httpJson('POST', `/session/${sessionId}/message`, body).then(() => undefined);
+    return this.postLongLived(`/session/${sessionId}/message`, body).then(() => undefined);
+  }
+
+  /** POST with no read timeout on a fresh socket — for the turn-length message send. */
+  private postLongLived(path: string, body: unknown): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      if (this.port == null) {
+        reject(new Error('opencode server not connected (no port)'));
+        return;
+      }
+      const payload = JSON.stringify(body);
+      const req = http.request(
+        {
+          host: '127.0.0.1',
+          port: this.port,
+          path,
+          method: 'POST',
+          agent: false, // fresh socket every send — no keep-alive pool to go stale
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(payload),
+          },
+        },
+        (res) => {
+          let data = '';
+          res.setEncoding('utf8');
+          res.on('data', (c) => { data += c; });
+          res.on('aborted', () => reject(new Error(`POST ${path} → connection aborted before completion`)));
+          res.on('end', () => {
+            const status = res.statusCode ?? 0;
+            if (status < 200 || status >= 300) {
+              reject(new Error(`POST ${path} → ${status} ${res.statusMessage ?? ''}`.trim()));
+              return;
+            }
+            try {
+              resolve(data ? JSON.parse(data) : null);
+            } catch (err) {
+              reject(err instanceof Error ? err : new Error(String(err)));
+            }
+          });
+        },
+      );
+      req.on('error', reject);
+      req.end(payload);
+    });
   }
 
   async abort(sessionId: string): Promise<void> {
@@ -300,4 +374,28 @@ function findFreePort(): Promise<number> {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * True for a transport/connection failure (no HTTP response was received), as
+ * opposed to a rejected request. `fetch` throws a `TypeError` ("fetch failed")
+ * whose `cause` carries the undici socket error (ECONNRESET / UND_ERR_SOCKET /
+ * ECONNREFUSED) — the dead-keep-alive-socket case we retry.
+ */
+function isTransportError(err: unknown): boolean {
+  if (!(err instanceof TypeError)) return false;
+  const cause = (err as { cause?: unknown }).cause;
+  const code = (cause as { code?: string } | undefined)?.code;
+  if (code && ['ECONNRESET', 'ECONNREFUSED', 'UND_ERR_SOCKET', 'EPIPE', 'ETIMEDOUT'].includes(code)) {
+    return true;
+  }
+  // Fall back to the message: undici surfaces the generic "fetch failed" here.
+  return /fetch failed/i.test(err.message);
+}
+
+function describeError(err: unknown): string {
+  const cause = (err as { cause?: unknown })?.cause;
+  const code = (cause as { code?: string } | undefined)?.code;
+  const msg = err instanceof Error ? err.message : String(err);
+  return code ? `${msg} [${code}]` : msg;
 }

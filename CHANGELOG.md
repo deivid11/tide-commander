@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.167.0] - 2026-07-17
+
+### Added
+- **Mermaid diagrams in chat** - agent responses containing a ` ```mermaid ` fenced block now render as a diagram inline. The chat shows a clean static preview; clicking it opens a modal with an interactive viewport — zoom (buttons or ctrl/⌘-scroll toward the cursor) and drag-to-pan — so large diagrams stay explorable without cluttering the thread. Streaming-safe: shows a stable "Rendering diagram…" placeholder (with collapsible source) until the syntax settles, and falls back to raw source if invalid.
+- **Mermaid skill (default)** - a new built-in "Mermaid Diagrams" skill, enabled for every agent, that teaches agents when and how to emit Mermaid (flowcharts, sequence, ER, state, gantt, class) so they reach for a diagram instead of prose when a visual lands faster.
+- **Error detail on the status badge** - hovering an agent whose status is "error" now shows the underlying runtime error message as a tooltip; it clears automatically once the agent recovers.
+
+### Fixed
+- **Duplicate first message (OpenCode/Codex)** - the opening prompt of a new OpenCode or Codex session is persisted wrapped in the instruction block; the UI unwraps it for display, so it appeared twice (a live row next to its history twin). The live row is now deduplicated against the wrapping twin, while two legitimately-identical sends are preserved.
+- **"Send now" on Codex app-server** - interrupting a Codex app-server turn silently failed (the request was missing the required turn id). The runner now tracks the active turn id, so "Send now"/stop actually interrupts the running turn.
+- **Duplicated prompt on OpenCode** - a transient network hiccup could resend an OpenCode prompt that had already landed, so agents saw the same message twice. POSTs are no longer auto-retried on transport errors (only idempotent GETs retry once).
+- **Long OpenCode turns falsely erroring** - turns running longer than ~5 minutes could trip a request timeout and wrongly flag the agent as errored. The message send now uses a dedicated no-timeout connection that waits harmlessly for turn end.
+- **OpenCode agent going silent after a failed send** - a failed send left the runner stuck "processing" so every later message queued forever and never arrived; the turn state now resets and the queue drains on recovery.
+- **Stuck mid-turn CLI recovery** - a tmux-mode CLI that hangs mid-turn (e.g. Grok deadlocking on resume of a killed session) — alive but emitting nothing and stuck "working" forever — is now detected by the watchdog, killed, and respawned through the capped restart policy so it ends in a clear error instead of hanging indefinitely.
+
 ## [1.166.0] - 2026-07-17
 
 ### Added

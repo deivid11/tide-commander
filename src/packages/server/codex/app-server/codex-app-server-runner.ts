@@ -60,6 +60,11 @@ interface AgentState {
   /** Set while a user-requested interrupt is in flight so the expected abort
    *  fallout (interrupt/abort error events) renders quiet. */
   interruptRequested?: boolean;
+  /** Id of the turn currently being processed. The app-server `turn/interrupt`
+   *  request REQUIRES this (threadId alone → "missing field `turnId`" and the
+   *  interrupt silently fails, so "Send now" never interrupts). Captured from
+   *  streamed turn/item notifications; cleared when the turn completes. */
+  currentTurnId?: string;
 }
 
 export class CodexAppServerRunner implements RuntimeRunner {
@@ -213,6 +218,18 @@ export class CodexAppServerRunner implements RuntimeRunner {
     state.lastActivityTime = Date.now();
     this.fireActivity(agentId);
 
+    // Track the active turn id so turn/interrupt ("Send now") can target it —
+    // the app-server rejects the interrupt with "missing field `turnId`" if it's
+    // absent. item/* and turn/* notifications carry it as params.turnId or
+    // params.turn.id; capture whichever is present.
+    const turnFromParams = typeof params.turnId === 'string' ? params.turnId : undefined;
+    const turnObj = params.turn;
+    const turnFromObj = turnObj && typeof turnObj === 'object' && typeof (turnObj as { id?: unknown }).id === 'string'
+      ? (turnObj as { id: string }).id
+      : undefined;
+    const turnId = turnFromParams ?? turnFromObj;
+    if (turnId) state.currentTurnId = turnId;
+
     for (const event of state.adapter.handle(method, params)) {
       this.applyEvent(agentId, state, event);
     }
@@ -240,6 +257,7 @@ export class CodexAppServerRunner implements RuntimeRunner {
 
     if (event.type === 'step_complete') {
       state.turnState = 'waiting_for_input';
+      state.currentTurnId = undefined; // turn is over — don't target a stale turn id
       this.persistAgents();
       // The daemon stays alive across turns, so there's no process 'close' to
       // flip the agent idle. runtime-events skips the idle transition for codex
@@ -394,10 +412,14 @@ export class CodexAppServerRunner implements RuntimeRunner {
     state.lastActivityTime = Date.now();
 
     try {
-      await proc.request('turn/start', {
+      const res = (await proc.request('turn/start', {
         threadId: state.threadId,
         input: [{ type: 'text', text: promptText }],
-      });
+      })) as { turn?: { id?: unknown } } | undefined;
+      // Capture the turn id up front (also arrives on streamed notifications) so
+      // an immediate "Send now" can interrupt before the first item/* event.
+      const startedTurnId = res?.turn?.id;
+      if (typeof startedTurnId === 'string') state.currentTurnId = startedTurnId;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       log.error(`turn/start failed for ${agentId.slice(0, 8)}: ${msg}`);
@@ -451,6 +473,18 @@ export class CodexAppServerRunner implements RuntimeRunner {
     return true;
   }
 
+  /** Params for a `turn/interrupt` request. The app-server REQUIRES `turnId`
+   *  (threadId alone → "missing field `turnId`", interrupt silently fails). */
+  private interruptParams(agentId: string, state: AgentState): Record<string, unknown> {
+    const params: Record<string, unknown> = { threadId: state.threadId };
+    if (state.currentTurnId) {
+      params.turnId = state.currentTurnId;
+    } else {
+      log.warn(`turn/interrupt for ${agentId.slice(0, 8)}: no active turnId captured — interrupt may be rejected by the app-server`);
+    }
+    return params;
+  }
+
   async interruptTurn(agentId: string, clearQueue: boolean = true): Promise<boolean> {
     return withAgentContext(agentId, async () => {
       const state = this.agents.get(agentId);
@@ -460,7 +494,7 @@ export class CodexAppServerRunner implements RuntimeRunner {
       if (state.turnState === 'processing') {
         state.interruptRequested = true;
         try {
-          await proc.request('turn/interrupt', { threadId: state.threadId });
+          await proc.request('turn/interrupt', this.interruptParams(agentId, state));
         } catch (err) {
           state.interruptRequested = false;
           const msg = err instanceof Error ? err.message : String(err);
@@ -482,7 +516,7 @@ export class CodexAppServerRunner implements RuntimeRunner {
       const proc = this.process;
       if (proc && proc.isAlive() && state.turnState === 'processing') {
         try {
-          await proc.request('turn/interrupt', { threadId: state.threadId });
+          await proc.request('turn/interrupt', this.interruptParams(agentId, state));
         } catch { /* best-effort */ }
       }
       this.threadToAgent.delete(state.threadId);

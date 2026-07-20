@@ -760,6 +760,7 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
       status: 'error',
       currentTask: undefined,
       currentTool: undefined,
+      lastError: error,
     });
     emitError(agentId, error);
   }

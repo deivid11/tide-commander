@@ -317,6 +317,19 @@ export class OpencodeServerRunner implements RuntimeRunner {
       const msg = err instanceof Error ? err.message : String(err);
       log.error(`sendPrompt failed for ${agentId.slice(0, 8)}: ${msg}`);
       this.callbacks.onError(agentId, `OpenCode prompt failed: ${msg}`);
+      // Reset the turn state so a failed send does NOT wedge the runner.
+      // Without this, turnState stays 'processing' forever — only a
+      // `step_complete` SSE event clears it, and that never comes for a turn
+      // that never started — so every later message is queued indefinitely and
+      // "never arrives" (the user-visible symptom). Guard it: only recover when
+      // THIS state is still the agent's current in-flight turn, so we don't
+      // double-drain into a concurrent turn (if a step_complete already advanced
+      // it) or act on a state a stop()/new turn already replaced. drainQueue
+      // re-queues safely when the daemon is unreachable, so this can't spin.
+      if (this.agents.get(agentId) === state && state.turnState === 'processing') {
+        state.turnState = 'waiting_for_input';
+        this.drainQueue(agentId, state);
+      }
     }
   }
 

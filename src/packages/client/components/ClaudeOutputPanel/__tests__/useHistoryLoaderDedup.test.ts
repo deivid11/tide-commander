@@ -248,3 +248,41 @@ describe('shouldKeepOutput — v1 invariant still holds', () => {
     expect(shouldKeepOutput(live, historyUuidSet, latestHistoryTsByKey)).toBe(true);
   });
 });
+
+describe('shouldKeepOutput — wrapped first-turn twin (OpenCode/Codex duplicate)', () => {
+  // The first message of a new OpenCode/Codex session is persisted WRAPPED in
+  // the instruction block; the UI unwraps it for display so it renders
+  // identically to the raw optimistic echo. The exact-key path can't catch it
+  // (its key is the full wrapped text), so a confirmed live row must dedup
+  // against a strictly-larger containing history twin.
+  const WRAPPED =
+    'Follow all instructions below for this task.\n\n## System Context\nblah\n\n## User Request\n\nuse the lab-capture functionallity and debug ahri animiations';
+
+  it('drops a CONFIRMED raw user row when a wrapping history twin exists in-window', () => {
+    const historyUuidSet = new Set<string>(['hist-uuid']);
+    const latestHistoryTsByKey = new Map<string, number>([[`user:${WRAPPED}`, 1_700_000_050]]);
+    const historyUserMessages = [{ content: WRAPPED, ts: 1_700_000_050 }];
+    // Confirmed echo: no pendingEcho flag, raw text, no uuid.
+    const live = makeOptimisticPrompt('use the lab-capture functionallity and debug ahri animiations', 1_700_000_000);
+    expect(shouldKeepOutput(live, historyUuidSet, latestHistoryTsByKey, historyUserMessages)).toBe(false);
+  });
+
+  it('does NOT cancel two legitimately-identical sends (exact-length twin, confirmed row)', () => {
+    // History has an EXACT (unwrapped) twin of a different send. A confirmed row
+    // must not be erased by an equal-length match here — the exact-key path owns
+    // that case; matching it via containment would delete a real second prompt.
+    const historyUuidSet = new Set<string>();
+    const latestHistoryTsByKey = new Map<string, number>(); // no exact-key entry
+    const historyUserMessages = [{ content: 'continue', ts: 1_700_000_050 }];
+    const live = makeOptimisticPrompt('continue', 1_700_000_000);
+    expect(shouldKeepOutput(live, historyUuidSet, latestHistoryTsByKey, historyUserMessages)).toBe(true);
+  });
+
+  it('keeps a raw user row when the only wrapping twin is outside the dedup window', () => {
+    const historyUuidSet = new Set<string>();
+    const latestHistoryTsByKey = new Map<string, number>();
+    const historyUserMessages = [{ content: WRAPPED, ts: 1_600_000_000 }];
+    const live = makeOptimisticPrompt('use the lab-capture functionallity and debug ahri animiations', 1_700_000_000);
+    expect(shouldKeepOutput(live, historyUuidSet, latestHistoryTsByKey, historyUserMessages)).toBe(true);
+  });
+});

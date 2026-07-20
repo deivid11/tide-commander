@@ -98,19 +98,27 @@ export function shouldKeepOutput(
     return false;
   }
 
-  // A pendingEcho prompt whose command_started echo was lost can still be
-  // confirmed by the fetched history: the persisted user message may wrap the
-  // raw prompt this client rendered (expanded [@file:] mentions, boss
-  // context), so the exact-key check above misses it — match by containment
-  // within the same time window so the entry doesn't linger as a dimmed
-  // duplicate next to its history twin.
-  if (output.pendingEcho && historyUserMessages) {
+  // A live user prompt can have a history twin whose persisted text WRAPS the
+  // raw prompt this client rendered — the OpenCode/Codex first-turn instruction
+  // block ("Follow all instructions…## User Request…<raw>"), boss context, or
+  // expanded [@file:] mentions. The UI unwraps that twin for display
+  // (parseInjectedInstructions), so it renders identically to the raw live row
+  // while the exact-key check above (keyed on the full wrapped text) misses it
+  // → two identical rows. Match by containment within the dedup window so the
+  // live row drops out and the canonical history twin takes over.
+  //   - pendingEcho (command_started never arrived): any containing twin
+  //     confirms it, including an exact-length one (a lost plain echo).
+  //   - confirmed (echo already cleared pendingEcho): only a STRICTLY LARGER
+  //     wrapper twin. An exact-length match is a distinct identical send and is
+  //     already handled by the exact-key path above; cancelling it here would
+  //     let two legitimately-identical prompts erase each other.
+  if (output.isUserPrompt && historyUserMessages) {
     const raw = normalizeMessage(output.text);
     if (raw.length > 0) {
       for (const m of historyUserMessages) {
-        if (Math.abs(outputTs - m.ts) <= HISTORY_LIVE_DEDUP_WINDOW_MS && m.content.includes(raw)) {
-          return false;
-        }
+        if (Math.abs(outputTs - m.ts) > HISTORY_LIVE_DEDUP_WINDOW_MS) continue;
+        if (!m.content.includes(raw)) continue;
+        if (output.pendingEcho || m.content.length > raw.length) return false;
       }
     }
   }

@@ -111,6 +111,39 @@ export class RunnerWatchdog {
           continue;
         }
 
+        // Stuck mid-turn: the tmux CLI is still ALIVE (session + binary present)
+        // but has produced NO events for too long. Grok deadlocks resuming a
+        // session that was hard-killed mid-turn (Send now / stop) — it hangs
+        // right after auth with a 0-byte stdout and never recovers, so the agent
+        // shows 'working' forever and the message "never arrives". The pipe-mode
+        // stuck-reconciler below never runs for tmux (we `continue`), and
+        // reconcileStuckWorking only covers turns that already ended
+        // (waiting_for_input), so this is the only place that catches a hung
+        // mid-turn tmux CLI. Kill the session; next tick's session-gone path
+        // records the death and routes respawn through restartPolicy — which is
+        // capped (MAX_RESTART_ATTEMPTS) so a deterministically-hanging resume
+        // ends in a clear error instead of an infinite loop. Uses `?? startTime`
+        // so a fresh spawn that never emitted a single event is still covered
+        // (lastActivityTime is only set once events flow).
+        if (activeProcess.turnState === 'processing') {
+          const silentFor = now - (activeProcess.lastActivityTime ?? activeProcess.startTime);
+          if (silentFor > IDLE_RESPAWN_MS) {
+            const silentSec = Math.round(silentFor / 1000);
+            log.error(
+              `🐕 [WATCHDOG] Agent ${agentId}: tmux CLI '${expected}' alive but stuck mid-turn `
+              + `(no events for ${silentSec}s, threshold=${IDLE_RESPAWN_MS / 1000}s) `
+              + `— killing tmux session ${activeProcess.tmuxSession} to recover`
+            );
+            this.lastStderr.set(
+              agentId,
+              `[idle-watchdog] tmux CLI produced no output for ${silentSec}s while processing — killed to recover`
+            );
+            activeProcess.tmuxTailer?.stop();
+            killTmuxSession(agentId);
+            continue;
+          }
+        }
+
         // Idle-timeout cleanup: if the owning agent is idle (not actively
         // working) and there's been no activity (output, send, spawn) for
         // longer than the configured threshold, kill the tmux session to

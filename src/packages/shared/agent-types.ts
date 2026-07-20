@@ -301,6 +301,11 @@ export interface Agent {
   currentTask?: string;
   currentTool?: string;
 
+  // Last runtime error message (set alongside status='error'; shown on hover
+  // over the status badge). Cleared automatically when the agent recovers to
+  // any non-error status. See runtime-events handleError / agent-service updateAgent.
+  lastError?: string;
+
   // Latest TodoWrite snapshot for this agent (most recent task list)
   latestTodos?: AgentTodoItem[];
 
