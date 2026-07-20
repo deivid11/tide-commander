@@ -765,6 +765,7 @@ const ChatView = React.memo(function ChatView({
             <span
               className="flat-terminal-wrapper__header-status"
               style={{ color: getAgentStatusColor(agent.status) }}
+              title={agent.status === 'error' && agent.lastError ? agent.lastError : undefined}
             >
               {agent.status}
             </span>
