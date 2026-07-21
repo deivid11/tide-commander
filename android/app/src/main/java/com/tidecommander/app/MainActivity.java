@@ -60,18 +60,6 @@ public class MainActivity extends BridgeActivity {
 
         // Start foreground service to keep WebSocket alive in background
         startBackgroundService();
-
-        // Allow showing when locked
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(true);
-            setTurnScreenOn(true);
-        } else {
-            // Deprecated flags for older Android versions (pre-8.1)
-            @SuppressWarnings("deprecation")
-            int lockScreenFlags = WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
-                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON;
-            getWindow().addFlags(lockScreenFlags);
-        }
     }
 
     @Override

@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.167.1] - 2026-07-18
+
+### Changed
+- **App no longer wakes the lock screen** - the Android app no longer forces the screen on or shows over the lock screen, and drops the `USE_FULL_SCREEN_INTENT` permission it needed for that. Notifications still arrive normally.
+
+### Fixed
+- **Download files too large to preview** - a file that exceeds the 1 MB text-preview limit now shows a Download button in the file viewer, so you can still save it through the streaming binary endpoint instead of hitting a dead-end "File too large" message.
+
 ## [1.167.0] - 2026-07-17
 
 ### Added
