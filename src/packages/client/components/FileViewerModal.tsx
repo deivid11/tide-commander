@@ -1080,6 +1080,9 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const binaryPath = fileData?.path || effectivePath;
   const imageUrl = isImage ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}${authToken ? `&token=${encodeURIComponent(authToken)}` : ''}`) : null;
   const pdfUrl = isPdf ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}`) : null;
+  // The text preview endpoint deliberately rejects files over 1 MB, but those
+  // files can still be saved through the streaming binary endpoint.
+  const canDownloadWithoutPreview = !fileData && error?.startsWith('File too large');
   const openInFileExplorerLabel = t('terminal:fileExplorer.openInFileExplorer');
   // Folder name for the header/path when browsing a directory (basename of the
   // current directory path, or '/' at the filesystem root).
@@ -1219,6 +1222,21 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                     : t('common:buttons.download')}
               </button>
             ) : null}
+            {canDownloadWithoutPreview && (
+              <button
+                type="button"
+                className={`file-viewer-copy-html-btn ${downloadStatus}`}
+                onClick={handleDownload}
+                disabled={downloadStatus === 'downloading'}
+                title={downloadError || t('terminal:fileExplorer.downloadFileTitle')}
+              >
+                {downloadStatus === 'downloading'
+                  ? '…'
+                  : downloadStatus === 'error'
+                    ? t('common:status.error')
+                    : t('common:buttons.download')}
+              </button>
+            )}
             <button className="file-viewer-close" onClick={onClose}>×</button>
           </div>
         </div>
