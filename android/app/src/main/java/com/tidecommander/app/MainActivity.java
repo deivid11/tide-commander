@@ -8,8 +8,11 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
+import android.webkit.RenderProcessGoneDetail;
+import android.webkit.WebView;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -18,6 +21,7 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.WebViewListener;
 
 public class MainActivity extends BridgeActivity {
     // Channel ID for high-priority agent notifications (must match Capacitor config)
@@ -46,6 +50,11 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(FileDownloadPlugin.class);
 
         super.onCreate(savedInstanceState);
+
+        // Recover from Android killing the WebView's renderer process while we
+        // were backgrounded (see setupWebViewCrashRecovery). Registered right
+        // after super.onCreate() so the Bridge/WebView already exist.
+        setupWebViewCrashRecovery();
 
         // Create notification channels for agent alerts (high priority)
         createNotificationChannels();
@@ -103,6 +112,46 @@ public class MainActivity extends BridgeActivity {
         if (hasFocus) {
             hideSystemUI();
         }
+    }
+
+    /**
+     * Recover when Android kills the WebView's out-of-process renderer.
+     *
+     * Under memory pressure while the app is backgrounded (common on phones),
+     * Android can kill the WebView renderer process independently of our app
+     * process. On return the WebView is a dead shell showing a BLACK screen,
+     * and — because its JS VM died with the renderer — no JS-side resume/repaint
+     * handler can run. The default WebViewClient behaviour then either crashes
+     * the app or leaves it black until the user force-kills and reopens it
+     * (exactly the reported symptom).
+     *
+     * We register a WebViewListener whose onRenderProcessGone recreates the
+     * Activity — rebuilding a fresh WebView automatically — and returns true so
+     * the app process is NOT killed. Only the system-reclaim case
+     * (!detail.didCrash()) is auto-recreated; a genuine renderer crash is
+     * swallowed (return true) but not looped-on, to avoid a recreate storm.
+     */
+    private void setupWebViewCrashRecovery() {
+        getBridge().addWebViewListener(new WebViewListener() {
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                boolean systemReclaimed = detail != null && !detail.didCrash();
+                Log.w("TideCommander",
+                    "WebView renderer gone (didCrash=" + (detail != null && detail.didCrash())
+                        + ") — " + (systemReclaimed ? "recreating activity to recover" : "swallowing to avoid crash"));
+                if (systemReclaimed) {
+                    runOnUiThread(() -> {
+                        try {
+                            recreate();
+                        } catch (Exception e) {
+                            Log.e("TideCommander", "Activity recreate after renderer-gone failed", e);
+                        }
+                    });
+                }
+                // Return true = handled, so Android does NOT kill our process.
+                return true;
+            }
+        });
     }
 
     /**

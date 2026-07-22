@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.167.2] - 2026-07-18
+
+### Fixed
+- **Black screen after returning from the background (Android)** - resuming the app from the background no longer leaves a black screen. Three recovery paths were added: the native side recreates the activity when Android reclaims the WebView's renderer process while backgrounded (previously a dead black shell); the 3D view force-restores its WebGL context and restarts the render loop when Android drops the context without firing the restore event; and the flat/DOM view nudges the WebView compositor to re-composite a layer that came back black. No wake lock or extra sockets — background battery behavior is unchanged.
+
 ## [1.167.1] - 2026-07-18
 
 ### Changed
