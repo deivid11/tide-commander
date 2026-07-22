@@ -671,6 +671,49 @@ export class SceneManager {
   setPowerSaving(enabled: boolean): void { this.renderLoop.setPowerSaving(enabled); }
   setLowPowerMode(enabled: boolean): void { this.renderLoop.setLowPowerMode(enabled); }
   ensureRenderLoopRunning(): void { this.renderLoop.start(); }
+
+  /**
+   * Recover GPU/render state when the app returns to the foreground (Android
+   * APK). Android's WebView drops the WebGL context while the app is
+   * backgrounded and — unlike desktop Chrome — often does NOT fire
+   * `webglcontextrestored` on return. Our `onContextLost` handler hard-stops the
+   * render loop (`renderLoop.stop()`), so without the restore event the loop
+   * never restarts and the canvas stays BLACK until the app is killed. On resume
+   * we force the restore if the context is still lost and make sure the loop is
+   * running again (idempotent — safe to call on every resume, even when nothing
+   * was lost). No wake lock, no extra sockets — purely GPU-state recovery.
+   */
+  recoverAfterResume(): void {
+    let contextLost = false;
+    try {
+      const gl = this.sceneCore.getRenderer().getContext() as
+        | WebGLRenderingContext
+        | WebGL2RenderingContext
+        | null;
+      contextLost = !!gl && gl.isContextLost();
+    } catch {
+      // renderer/context torn down — restarting the loop below re-inits it.
+    }
+
+    if (contextLost) {
+      console.warn('[SceneManager] WebGL context still lost on resume — forcing restore');
+      try {
+        this.sceneCore.getRenderer().forceContextRestore();
+      } catch (err) {
+        console.error('[SceneManager] forceContextRestore failed:', err);
+      }
+    }
+
+    // onContextLost hard-stops the loop; a missing webglcontextrestored leaves it
+    // stopped. Restart it (no-op if already running) so rendering — and the
+    // repaint that clears the black frame — resumes.
+    if (!this.renderLoop.isRunning()) {
+      this.renderLoop.start();
+    }
+    // Force one immediate frame so the WebView compositor repaints its GPU layer
+    // right away instead of showing a stale/black surface until the next tick.
+    this.renderLoop.markActivity();
+  }
   setGridVisible(visible: boolean): void { this.battlefield.setGridVisible(visible); }
   setDebugTime(hour: number | null): void { this.battlefield.setDebugTime(hour); }
   setTimeMode(mode: string): void { this.battlefield.setTimeMode(mode); }

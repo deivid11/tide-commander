@@ -15,6 +15,7 @@ import { runPostReconnectResync } from '../services/postReconnectResync';
 import {
   getWsConnected,
   setWsConnected,
+  getPersistedScene,
 } from '../app/sceneLifecycle';
 import {
   requestNotificationPermission,
@@ -79,7 +80,10 @@ export function useWebSocketConnection({
     // Handle app resume from background (Android)
     const handleAppResume = () => {
       console.log('[Tide] App resumed from background, reconnecting...');
-      setTimeout(() => resumeFromBackground(), 100);
+      setTimeout(() => {
+        resumeFromBackground();
+        recoverForegroundView();
+      }, 100);
     };
     window.addEventListener('tideAppResume', handleAppResume);
 
@@ -99,6 +103,10 @@ export function useWebSocketConnection({
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         verifyConnection();
+        // Also repaint/recover here: on some Android WebView builds
+        // `visibilitychange` fires on resume but the native `tideAppResume`
+        // event is delayed or missed. Idempotent — double firing is harmless.
+        recoverForegroundView();
       }
     };
     const handleOnline = () => {
@@ -153,6 +161,43 @@ export function useWebSocketConnection({
       if (listener) void listener.remove();
     };
   }, []);
+}
+
+/**
+ * Recover the visible view when the native app returns to the foreground.
+ *
+ * Android's WebView can leave the screen BLACK after a resume in two ways this
+ * addresses:
+ *  1. 3D view — the WebGL context is dropped in the background and
+ *     `webglcontextrestored` often never fires on Android, so onContextLost's
+ *     render-loop stop is permanent → black canvas. `recoverAfterResume()`
+ *     force-restores the context + restarts the loop (no-op with no live scene,
+ *     e.g. in flat view).
+ *  2. Flat / DOM view — the WebView's GPU-composited layer can come back black
+ *     even though the DOM is intact. Toggling `opacity` by an imperceptible
+ *     amount invalidates the compositor layer and forces a re-composite/repaint.
+ *     Opacity (unlike `transform`/`filter`) does NOT establish a containing
+ *     block for `position: fixed` descendants, so this can't shift the layout —
+ *     it's a safe, invisible nudge.
+ *
+ * No wake lock, no extra sockets — respects the background-heat constraints.
+ */
+function recoverForegroundView(): void {
+  try {
+    getPersistedScene()?.recoverAfterResume();
+  } catch {
+    // scene torn down / not present — the compositor nudge below still runs.
+  }
+  // The compositor-black issue is specific to the Android WebView (APK); on
+  // desktop/PWA backgrounding never blacks the layer, so skip the nudge there.
+  if (!isNativeApp()) return;
+  const body = document.body;
+  if (!body) return;
+  const prev = body.style.opacity;
+  body.style.opacity = '0.999999';
+  requestAnimationFrame(() => {
+    body.style.opacity = prev;
+  });
 }
 
 // How long the app must stay backgrounded before the socket is parked.
