@@ -175,6 +175,8 @@ export type ClaudeModel =
   | 'claude-fable-5[1m]'
   | 'claude-sonnet-5'
   | 'claude-sonnet-5[1m]'
+  | 'claude-opus-5'
+  | 'claude-opus-5[1m]'
   | 'claude-opus-4-8'
   | 'claude-opus-4-7'
   | 'claude-opus-4-6'
@@ -185,13 +187,15 @@ export const CLAUDE_MODELS: Record<ClaudeModel, { label: string; description: st
   sonnet: { label: 'Sonnet', description: 'Balanced performance and cost', icon: '⚡', contextWindow: 200000 },
   'claude-sonnet-5[1m]': { label: 'Sonnet 5 [1M]', description: 'Latest Sonnet — most agentic Sonnet, near-Opus intelligence at lower cost, 1M token context window (recommended)', icon: '⚡', contextWindow: 1000000 },
   'claude-fable-5[1m]': { label: 'Fable 5 [1M]', description: 'Most powerful, most intelligent Claude model — new tier above Opus, 1M token context window', icon: '🪄', contextWindow: 1000000 },
-  'claude-opus-4-8[1m]': { label: 'Opus 4.8 [1M]', description: 'Latest Opus with 1M token context window — most capable, best for very long tasks', icon: '🧠', contextWindow: 1000000 },
+  'claude-opus-5[1m]': { label: 'Opus 5 [1M]', description: 'Latest Opus with 1M token context window — for complex agentic coding and enterprise work', icon: '🧠', contextWindow: 1000000 },
+  'claude-opus-4-8[1m]': { label: 'Opus 4.8 [1M]', description: 'Opus 4.8 with 1M token context window (previous Opus generation, still supported)', icon: '🧠', contextWindow: 1000000 },
   'opus[1m]': { label: 'Opus 4.7 [1M]', description: 'Previous Opus generation with 1M token context window', icon: '🧠', contextWindow: 1000000 },
   haiku: { label: 'Haiku', description: 'Fast and economical', icon: '🚀', contextWindow: 200000 },
   // Plain (200K) Opus IDs are kept as valid model values for existing agents
   // and CLI passthrough, but hidden from the "new agent" picker in favor of
   // the 1M variants above.
   'claude-fable-5': { label: 'Fable 5 (200K)', description: 'Fable 5, 200K context window (1M variant preferred)', icon: '🪄', contextWindow: 200000, deprecated: true },
+  'claude-opus-5': { label: 'Opus 5 (200K)', description: 'Latest Opus, 200K context window (1M variant preferred)', icon: '🧠', contextWindow: 200000, deprecated: true },
   'claude-sonnet-5': { label: 'Sonnet 5 (200K)', description: 'Latest Sonnet, 200K context window (1M variant preferred)', icon: '⚡', contextWindow: 200000, deprecated: true },
   'claude-opus-4-8': { label: 'Opus 4.8 (200K)', description: 'Latest Opus, 200K context window (1M variant preferred)', icon: '🧠', contextWindow: 200000, deprecated: true },
   'claude-opus-4-7': { label: 'Opus 4.7 (200K)', description: 'Previous Opus generation, 200K context window (1M variant preferred)', icon: '🧠', contextWindow: 200000, deprecated: true },

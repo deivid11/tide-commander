@@ -288,6 +288,7 @@ export class ClaudeBackend implements CLIBackend {
     if (config.model) {
       let cliModel: string = config.model;
       if (config.model === 'opus[1m]') cliModel = 'claude-opus-4-7';
+      else if (config.model === 'claude-opus-5[1m]') cliModel = 'claude-opus-5';
       else if (config.model === 'claude-opus-4-8[1m]') cliModel = 'claude-opus-4-8';
       else if (config.model === 'claude-fable-5[1m]') cliModel = 'claude-fable-5';
       else if (config.model === 'claude-sonnet-5[1m]') cliModel = 'claude-sonnet-5';
