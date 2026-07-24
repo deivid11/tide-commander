@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.168.0] - 2026-07-22
+
+### Added
+- **Claude Opus 5** - Opus 5 is now a selectable Claude model (Opus 5 \[1M\] and 200K), available in the Spawn dialog, the Bulk Manage model filter, and the boss spawn schema. The `opus` shorthand now resolves to Opus 5; Opus 4.8 remains available as the previous generation.
+- **SVG previews in the file viewer** - `.svg` files now open as zoomable image previews (rendered in the browser's image-document context, not as inline scriptable markup) instead of raw XML.
+
+### Fixed
+- **Image/PDF detection in the file viewer** - images and PDFs are now recognized by the file path suffix as well as the reported extension, so a file whose extension metadata is missing still previews correctly instead of falling back to a text view.
+
 ## [1.167.2] - 2026-07-18
 
 ### Fixed

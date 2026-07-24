@@ -328,6 +328,13 @@ const MARKDOWN_EXTENSIONS = ['.md', '.mdx', '.markdown'];
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico', '.svg'];
 const PDF_EXTENSIONS = ['.pdf'];
 
+function hasFileExtension(extension: string | undefined, path: string, extensions: string[]): boolean {
+  const normalizedExtension = extension?.toLowerCase();
+  if (normalizedExtension && extensions.includes(normalizedExtension)) return true;
+  const normalizedPath = path.toLowerCase().split(/[?#]/, 1)[0];
+  return extensions.some((candidate) => normalizedPath.endsWith(candidate));
+}
+
 /** Flatten react-markdown code children into the raw fenced-block text. */
 function extractCodeText(children: React.ReactNode): string {
   if (typeof children === 'string') return children;
@@ -1070,10 +1077,12 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const displayedPath = fileData?.path || effectivePath;
   const isMarkdown = fileData && MARKDOWN_EXTENSIONS.includes(fileData.extension);
-  const isImage = fileData && IMAGE_EXTENSIONS.includes(fileData.extension);
-  const isPdf = fileData && PDF_EXTENSIONS.includes(fileData.extension);
-  const language = isImage ? 'Image' : isPdf ? 'PDF' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
+  const isSvg = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, ['.svg']));
+  const isImage = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, IMAGE_EXTENSIONS));
+  const isPdf = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, PDF_EXTENSIONS));
+  const language = isSvg ? 'SVG' : isImage ? 'Image' : isPdf ? 'PDF' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
   const authToken = getAuthToken();
   // Use the resolved file path (a clicked directory entry has its own path that
   // differs from the modal's original effectivePath — which may be the folder).
@@ -1362,8 +1371,14 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
           {fileData && !loading && !error && (
             isImage && imageUrl ? (
               // Show image viewer
-              <div className="file-viewer-image-wrapper zoomable">
-                <ZoomableImage src={imageUrl} alt={fileData.filename} />
+              <div className={`file-viewer-image-wrapper zoomable${isSvg ? ' svg-preview' : ''}`}>
+                {/* Keep SVG documents in the browser's image-document context.
+                    Unlike inline SVG, this does not add scriptable markup to our DOM. */}
+                <ZoomableImage
+                  src={imageUrl}
+                  alt={fileData.filename}
+                  className={isSvg ? 'file-viewer-svg' : undefined}
+                />
               </div>
             ) : isPdf && pdfUrl ? (
               <PdfJsViewer url={pdfUrl} authToken={authToken || undefined} />
