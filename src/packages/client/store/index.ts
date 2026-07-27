@@ -10,6 +10,7 @@ import type { ClientMessage, GitWatchedDirStatus } from '../../shared/types';
 import { STORAGE_KEYS, getStorage, setStorage, getStorageString, setStorageString, getStorageBoolean, setStorageBoolean } from '../utils/storage';
 import { closeAllModalsExcept } from '../hooks';
 import { MAX_VIBRATION_INTENSITY } from '../utils/haptics';
+import { MAX_NOTIFICATION_SOUND_VOLUME } from '../utils/notificationSounds';
 
 // Import types
 import type { StoreState, Listener, Settings } from './types';
@@ -336,6 +337,10 @@ class Store
       merged.vibrationIntensity = Number.isFinite(rawIntensity)
         ? Math.max(0, Math.min(MAX_VIBRATION_INTENSITY, Math.round(rawIntensity)))
         : DEFAULT_SETTINGS.vibrationIntensity;
+      const rawVolume = Number(merged.notificationSoundVolume);
+      merged.notificationSoundVolume = Number.isFinite(rawVolume)
+        ? Math.max(0, Math.min(MAX_NOTIFICATION_SOUND_VOLUME, Math.round(rawVolume)))
+        : DEFAULT_SETTINGS.notificationSoundVolume;
       return merged;
     }
     return { ...DEFAULT_SETTINGS };
@@ -1060,6 +1065,12 @@ class Store
       normalizedUpdates.vibrationIntensity = Number.isFinite(rawIntensity)
         ? Math.max(0, Math.min(MAX_VIBRATION_INTENSITY, Math.round(rawIntensity)))
         : this.state.settings.vibrationIntensity;
+    }
+    if (normalizedUpdates.notificationSoundVolume !== undefined) {
+      const rawVolume = Number(normalizedUpdates.notificationSoundVolume);
+      normalizedUpdates.notificationSoundVolume = Number.isFinite(rawVolume)
+        ? Math.max(0, Math.min(MAX_NOTIFICATION_SOUND_VOLUME, Math.round(rawVolume)))
+        : this.state.settings.notificationSoundVolume;
     }
     this.state.settings = { ...this.state.settings, ...normalizedUpdates };
     setStorage(STORAGE_KEYS.SETTINGS, this.state.settings);
