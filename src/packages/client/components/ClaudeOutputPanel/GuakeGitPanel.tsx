@@ -48,7 +48,16 @@ interface RepoStatus {
   dir: string;
   dirName: string;
   gitStatus: GitStatus;
+  /** Real change count — `gitStatus.files` is capped by the server watcher. */
+  totalFiles: number;
+  /** True when `gitStatus.files` holds only the first slice of the changes. */
+  truncated: boolean;
 }
+
+// A repo with this many changes is generated output (build dirs, caches), not
+// work in progress: expanding it renders one row per file and would lock up the
+// browser, so it stays collapsed until the user asks for it.
+const AUTO_EXPAND_MAX_FILES = 500;
 
 interface DiffState {
   filePath: string;
@@ -308,6 +317,8 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
             files: status.files,
             mergeInProgress: status.mergeInProgress,
           },
+          totalFiles: status.totalFiles ?? status.files.length,
+          truncated: status.truncated ?? false,
         });
       }
     }
@@ -388,11 +399,15 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     requestGitRefresh(areaDirs);
   }, [areaDirsKey]);
 
-  // Auto-expand all repos the first time changes appear for this agent.
+  // Auto-expand all repos the first time changes appear for this agent —
+  // except oversized ones (see AUTO_EXPAND_MAX_FILES), which the user opens
+  // deliberately.
   useEffect(() => {
     if (!hasAutoExpanded.current && repos.length > 0) {
       hasAutoExpanded.current = true;
-      setExpandedRepos(new Set(repos.map(r => r.dir)));
+      setExpandedRepos(new Set(
+        repos.filter(r => r.totalFiles <= AUTO_EXPAND_MAX_FILES).map(r => r.dir)
+      ));
     }
   }, [repos]);
 
@@ -537,12 +552,19 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
   const allChangedFiles = useMemo(() => {
     const list: { file: GitFileStatus; repoDir: string }[] = [];
 
-    const collectTreeFiles = (nodes: GitTreeNode[], files: GitFileStatus[], repoDir: string) => {
+    // Path → file map instead of a per-node `files.find`: the linear scan made
+    // this walk O(files²), which is minutes of blocked main thread on a repo
+    // with thousands of changes.
+    const collectTreeFiles = (
+      nodes: GitTreeNode[],
+      byPath: Map<string, GitFileStatus>,
+      repoDir: string
+    ) => {
       for (const node of nodes) {
         if (node.isDirectory) {
-          collectTreeFiles(node.children, files, repoDir);
+          collectTreeFiles(node.children, byPath, repoDir);
         } else {
-          const file = files.find(f => f.path === node.path);
+          const file = byPath.get(node.path);
           if (file) list.push({ file, repoDir });
         }
       }
@@ -552,7 +574,8 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       if (!expandedRepos.has(repo.dir)) continue;
       if (viewMode === 'tree') {
         const tree = buildGitTree(repo.gitStatus.files);
-        collectTreeFiles(tree, repo.gitStatus.files, repo.dir);
+        const byPath = new Map(repo.gitStatus.files.map(f => [f.path, f]));
+        collectTreeFiles(tree, byPath, repo.dir);
       } else {
         for (const file of repo.gitStatus.files) {
           list.push({ file, repoDir: repo.dir });
@@ -649,8 +672,8 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
 
   // Discard ALL uncommitted changes in a single repo (server runs
   // `git reset --hard HEAD` + `git clean -fd`, scoped to that repo).
-  const [pendingDiscardAll, setPendingDiscardAll] = useState<{ repoDir: string; dirName: string; count: number; untracked: number } | null>(null);
-  const executeDiscardAll = useCallback(async (pending: { repoDir: string; dirName: string; count: number; untracked: number }) => {
+  const [pendingDiscardAll, setPendingDiscardAll] = useState<{ repoDir: string; dirName: string; count: number; untracked: number; truncated: boolean } | null>(null);
+  const executeDiscardAll = useCallback(async (pending: { repoDir: string; dirName: string; count: number; untracked: number; truncated: boolean }) => {
     try {
       const res = await authFetch(apiUrl('/api/files/git-discard-all'), {
         method: 'POST',
@@ -950,7 +973,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     setContextMenu({ isOpen: true, position: { x: e.clientX, y: e.clientY }, actions });
   }, [handleExplorerFileSelect, explorerFolder]);
 
-  const totalFiles = repos.reduce((sum, r) => sum + r.gitStatus.files.length, 0);
+  const totalFiles = repos.reduce((sum, r) => sum + r.totalFiles, 0);
 
   // Close modal on Escape — use stopImmediatePropagation so the global
   // useKeyboardShortcuts capture-phase listener (also on document) doesn't
@@ -1050,7 +1073,14 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
             Permanently discard <strong>{pendingDiscardAll.count}</strong> uncommitted change{pendingDiscardAll.count === 1 ? '' : 's'} in <strong>{pendingDiscardAll.dirName}</strong>?
           </p>
           <p className="guake-git-delete-path">
-            Resets all tracked files to HEAD{pendingDiscardAll.untracked > 0 ? ` and deletes ${pendingDiscardAll.untracked} untracked file${pendingDiscardAll.untracked === 1 ? '' : 's'}` : ''}. This cannot be undone.
+            {/* On a truncated repo the untracked tally only covers the capped
+                slice — never quote a number that understates what gets deleted. */}
+            Resets all tracked files to HEAD
+            {pendingDiscardAll.truncated
+              ? ' and deletes every untracked file'
+              : pendingDiscardAll.untracked > 0
+                ? ` and deletes ${pendingDiscardAll.untracked} untracked file${pendingDiscardAll.untracked === 1 ? '' : 's'}`
+                : ''}. This cannot be undone.
           </p>
           <div className="guake-git-delete-actions">
             <button className="guake-git-delete-cancel" onClick={() => setPendingDiscardAll(null)}>Cancel</button>
@@ -1230,7 +1260,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
               <div className="guake-git-empty">No git changes found</div>
             )}
 
-            {repos.map(({ dir, dirName, gitStatus }) => {
+            {repos.map(({ dir, dirName, gitStatus, totalFiles: repoTotalFiles, truncated }) => {
               const bi = branchInfoMap.get(dir);
               return (
               <div key={dir} className="guake-git-repo">
@@ -1245,7 +1275,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                   )}
                   {bi && bi.ahead > 0 && <span className="guake-branch-ahead"><Icon name="arrow-up" size={9} />{bi.ahead}</span>}
                   {bi && bi.behind > 0 && <span className="guake-branch-behind"><Icon name="arrow-down" size={9} />{bi.behind}</span>}
-                  <span className="guake-git-repo-count">{gitStatus.files.length}</span>
+                  <span className="guake-git-repo-count">{repoTotalFiles}</span>
                   <button
                     className="git-discard-all-btn"
                     title="Discard all changes in this repo"
@@ -1254,14 +1284,22 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                       setPendingDiscardAll({
                         repoDir: dir,
                         dirName,
-                        count: gitStatus.files.length,
+                        count: repoTotalFiles,
                         untracked: gitStatus.files.filter((f) => f.status === 'untracked').length,
+                        truncated,
                       });
                     }}
                   >
                     <Icon name="revert" size={12} />
                   </button>
                 </div>
+
+                {expandedRepos.has(dir) && truncated && (
+                  <div className="guake-git-truncated-notice">
+                    Showing {gitStatus.files.length} of {repoTotalFiles} changes. Add the
+                    generated paths to .gitignore to see the rest.
+                  </div>
+                )}
 
                 {expandedRepos.has(dir) && viewMode === 'flat' && (
                   <div className="guake-git-file-list">

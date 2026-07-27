@@ -29,6 +29,13 @@ const POLL_INTERVAL_MS = 10_000;
 const GIT_TIMEOUT_MS = 8_000;
 // Safety cap per socket — far above any real area/building configuration.
 const MAX_WATCHED_PATHS = 200;
+// Cap on file entries per directory in the pushed payload. A working dir with
+// a big untracked tree (generated output, caches) reports tens of thousands of
+// entries — one real repo here yields ~65k, an 8.1 MB `git_status_update`
+// frame. That blocked the event loop on JSON.stringify and froze every client
+// that parsed and rendered it. The count is still reported in full via
+// `totalFiles`; only the per-file list is capped.
+const MAX_STATUS_FILES = 2_000;
 
 interface CacheEntry {
   fingerprint: string;
@@ -54,9 +61,19 @@ function toPosixSeparators(p: string): string {
   return p.split(path.sep).join('/');
 }
 
-/** Parse `git status --porcelain -uall` output into absolute-path file entries. */
-function parsePorcelain(gitRoot: string, output: string): GitWatchedFile[] {
+/**
+ * Parse `git status --porcelain -uall` output into absolute-path file entries.
+ *
+ * Only the first MAX_STATUS_FILES entries are materialized — the rest are
+ * counted and dropped, so a 65k-file working tree costs a line scan instead of
+ * 65k objects that then have to be serialized and shipped to every client.
+ */
+function parsePorcelain(
+  gitRoot: string,
+  output: string
+): { files: GitWatchedFile[]; totalFiles: number } {
   const files: GitWatchedFile[] = [];
+  let totalFiles = 0;
   const lines = output.replace(/\n$/, '').split('\n').filter(Boolean);
 
   for (const line of lines) {
@@ -99,13 +116,49 @@ function parsePorcelain(gitRoot: string, output: string): GitWatchedFile[] {
       status = 'modified';
     }
 
-    files.push({ path: filePath, name: path.basename(filePath), status, oldPath });
+    totalFiles++;
+    if (files.length < MAX_STATUS_FILES) {
+      files.push({ path: filePath, name: path.basename(filePath), status, oldPath });
+    }
   }
 
-  return files;
+  return { files, totalFiles };
 }
 
-async function computeStatus(dirPath: string): Promise<GitWatchedDirStatus> {
+/**
+ * Change fingerprint for a directory. Hashes the raw porcelain output rather
+ * than the payload: the payload's file list is capped, so stringifying it would
+ * miss changes past the cap — and stringifying the UNcapped list is exactly the
+ * multi-MB event-loop stall the cap exists to avoid.
+ */
+function statusFingerprint(parts: {
+  isGitRepo: boolean;
+  branch: string | null;
+  ahead: number;
+  behind: number;
+  mergeInProgress: boolean;
+  totalFiles: number;
+  rawStatus: string;
+}): string {
+  // djb2 over the porcelain text — one linear pass, no allocation.
+  let hash = 5381;
+  for (let i = 0; i < parts.rawStatus.length; i++) {
+    hash = ((hash << 5) + hash + parts.rawStatus.charCodeAt(i)) | 0;
+  }
+  return [
+    parts.isGitRepo ? '1' : '0',
+    parts.branch ?? '',
+    parts.ahead,
+    parts.behind,
+    parts.mergeInProgress ? '1' : '0',
+    parts.totalFiles,
+    (hash >>> 0).toString(36),
+  ].join('|');
+}
+
+async function computeStatus(
+  dirPath: string
+): Promise<{ payload: GitWatchedDirStatus; fingerprint: string }> {
   const empty: GitWatchedDirStatus = {
     path: dirPath,
     isGitRepo: false,
@@ -114,22 +167,34 @@ async function computeStatus(dirPath: string): Promise<GitWatchedDirStatus> {
     behind: 0,
     mergeInProgress: false,
     files: [],
+    totalFiles: 0,
+    truncated: false,
   };
+  const emptyResult = { payload: empty, fingerprint: 'none' };
 
-  if (!path.isAbsolute(dirPath) || !fs.existsSync(dirPath)) return empty;
+  if (!path.isAbsolute(dirPath) || !fs.existsSync(dirPath)) return emptyResult;
 
   let gitRoot: string;
   try {
     gitRoot = (await git(['rev-parse', '--show-toplevel'], dirPath)).trim();
   } catch {
-    return empty;
+    return emptyResult;
   }
 
   let files: GitWatchedFile[] = [];
+  let totalFiles = 0;
+  let rawStatus = '';
   try {
-    files = parsePorcelain(gitRoot, await git(['status', '--porcelain', '-uall'], dirPath));
+    rawStatus = await git(['status', '--porcelain', '-uall'], dirPath);
+    ({ files, totalFiles } = parsePorcelain(gitRoot, rawStatus));
   } catch (err) {
     log.error(`[GitWatch] git status failed for ${dirPath}:`, err);
+  }
+
+  if (totalFiles > MAX_STATUS_FILES) {
+    log.warn(
+      `[GitWatch] ${dirPath} has ${totalFiles} changed files — pushing the first ${MAX_STATUS_FILES}`
+    );
   }
 
   let branch: string | null = null;
@@ -157,14 +222,29 @@ async function computeStatus(dirPath: string): Promise<GitWatchedDirStatus> {
     }
   }
 
+  const mergeInProgress = fs.existsSync(path.join(gitRoot, '.git', 'MERGE_HEAD'));
+
   return {
-    path: dirPath,
-    isGitRepo: true,
-    branch,
-    ahead,
-    behind,
-    mergeInProgress: fs.existsSync(path.join(gitRoot, '.git', 'MERGE_HEAD')),
-    files,
+    payload: {
+      path: dirPath,
+      isGitRepo: true,
+      branch,
+      ahead,
+      behind,
+      mergeInProgress,
+      files,
+      totalFiles,
+      truncated: totalFiles > files.length,
+    },
+    fingerprint: statusFingerprint({
+      isGitRepo: true,
+      branch,
+      ahead,
+      behind,
+      mergeInProgress,
+      totalFiles,
+      rawStatus,
+    }),
   };
 }
 
@@ -193,8 +273,7 @@ function pushToSubscribers(payload: GitWatchedDirStatus): void {
 
 /** Compute a dir, update the cache, and push to subscribers if it changed. */
 async function refreshOne(dirPath: string, forcePushTo?: WebSocket): Promise<void> {
-  const payload = await computeStatus(dirPath);
-  const fingerprint = JSON.stringify(payload);
+  const { payload, fingerprint } = await computeStatus(dirPath);
   const prev = cache.get(dirPath);
   cache.set(dirPath, { fingerprint, payload });
 
