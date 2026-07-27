@@ -178,6 +178,11 @@ export interface Settings {
   externalEditorCommand?: string; // e.g., 'subl', 'code', 'nvim' (empty = system default)
   // Vibration intensity for gestures: 0=off, 1=ultra light, 2=very light, 3=light, 4=medium, 5=heavy
   vibrationIntensity: number;
+  // Play pleasant notification sounds (agent notifications and, above all, when
+  // an agent asks the user a question). Default on.
+  notificationSoundEnabled: boolean;
+  // Notification sound volume: 0=mute, 1..5 quiet→loud. Default 3.
+  notificationSoundVolume: number;
   // Custom browser tab title (empty = default "Tide Commander")
   tabTitle?: string;
   // Show bash command output inline below the command row in the terminal
@@ -215,6 +220,8 @@ export const DEFAULT_SETTINGS: Settings = {
   experimentalEchoPrompt: false,
   externalEditorCommand: '',
   vibrationIntensity: 1,
+  notificationSoundEnabled: true,
+  notificationSoundVolume: 3,
   tabTitle: '',
   inlineBashOutputs: false,
   streamTextLive: true,
