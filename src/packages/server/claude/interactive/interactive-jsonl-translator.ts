@@ -17,6 +17,7 @@
  */
 
 import type { StandardEvent } from '../types.js';
+import { serializeToolResultContent } from '../tool-result-content.js';
 
 interface RawBlock {
   type?: string;
@@ -170,8 +171,7 @@ export class InteractiveJsonlTranslator {
         output = tur.stdout;
         if (tur.stderr) output += (output ? '\n' : '') + '[stderr] ' + tur.stderr;
       } else {
-        output =
-          typeof block.content === 'string' ? block.content : JSON.stringify(block.content);
+        output = serializeToolResultContent(block.content);
       }
       const toolName = this.toolUseIdToName.get(block.tool_use_id) || 'unknown';
       events.push({

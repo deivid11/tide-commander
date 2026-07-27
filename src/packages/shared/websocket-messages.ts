@@ -127,7 +127,17 @@ export interface GitWatchedDirStatus {
   ahead: number;
   behind: number;
   mergeInProgress: boolean;
+  /**
+   * Changed files, capped at MAX_STATUS_FILES (git-watch-service). A repo with
+   * a large untracked tree (build output, caches) can report tens of thousands
+   * of entries — serializing all of them produced multi-MB pushes that stalled
+   * both the server event loop and every client that parsed them.
+   */
   files: GitWatchedFile[];
+  /** Real number of changed files, even when `files` is capped. */
+  totalFiles: number;
+  /** True when `files` holds only the first MAX_STATUS_FILES entries. */
+  truncated: boolean;
 }
 
 /** Client -> Server: replace this socket's full set of watched directories. */

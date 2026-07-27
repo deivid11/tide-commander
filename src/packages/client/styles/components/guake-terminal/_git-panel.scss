@@ -178,6 +178,15 @@
   border-radius: 8px;
 }
 
+// Shown when the server capped a repo's file list (huge untracked tree).
+.guake-git-truncated-notice {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  padding: 4px 10px 6px 22px;
+  font-style: italic;
+}
+
 // "Discard all" button in each repo header — reveals on repo-header hover,
 // turns red on hover to signal the destructive action.
 .git-discard-all-btn {

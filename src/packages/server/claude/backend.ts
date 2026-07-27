@@ -18,6 +18,7 @@ import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
 import { isEchoPromptEnabled, getSystemPrompt } from '../services/system-prompt-service.js';
 import { loadAreas } from '../data/index.js';
 import { getAgent } from '../services/agent-service.js';
+import { serializeToolResultContent } from './tool-result-content.js';
 
 const log = createLogger('Backend');
 
@@ -401,9 +402,7 @@ export class ClaudeBackend implements CLIBackend {
               content += (content ? '\n' : '') + '[stderr] ' + event.tool_use_result.stderr;
             }
           } else {
-            content = typeof block.content === 'string'
-              ? block.content
-              : JSON.stringify(block.content);
+            content = serializeToolResultContent(block.content);
           }
           // Look up the tool name from the tool_use_id mapping
           const toolName = toolUseIdToName.get(block.tool_use_id) || 'unknown';

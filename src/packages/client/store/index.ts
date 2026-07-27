@@ -467,7 +467,9 @@ class Store
     this.state.gitDirStatuses = newStatuses;
     this.notify();
 
-    const count = status.files.length;
+    // `files` is capped by the server for huge working trees; the badge counts
+    // must still show the real number of changes.
+    const count = status.totalFiles ?? status.files.length;
 
     for (const [buildingId, building] of this.state.buildings) {
       const dirPath = building.folderPath || building.cwd;

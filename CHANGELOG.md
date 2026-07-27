@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.169.0] - 2026-07-27
+
+### Added
+- **Notification sounds** - the client now plays gentle synthesized cues (Web Audio, no sound files): a soft two-note chime for agent notifications, a distinctive rising "question" cue when an agent asks you something or requests permission, and a mellow resolving cue when an agent finishes its work. Enabled by default, with a toggle, a 0–5 volume slider, and Question / Notification / Done preview buttons in Settings; turning the toggle off silences everything.
+- **Repeating alert for unanswered agent questions** - when an agent question or permission request arrives, the question cue fires twice up front and then repeats every 10 seconds so you don't miss it after stepping away. It stops the moment the prompt is answered and gives up on its own after 2 minutes, so it can never nag indefinitely.
+
+### Fixed
+- **Huge image tool results flooding the terminal and history** - reading an image file returns an inline base64 block that was being serialized verbatim into the terminal text (one real session carried a 439 KB single message, and its 880-message history weighed 4.5 MB, ~2 MB of it base64) — pushed through the history endpoint, the live WebSocket stream, and finally into a DOM text node nobody can read. Image blocks now collapse to a compact `[Image: image/png, 312 KB]` placeholder in the live stream, in loaded session history, and in interactive TUI mode; all other tool results keep their exact previous output.
+- **Git panel freezing on repos with large untracked trees** - a working directory full of generated/untracked files (one real repo: ~65,000 entries, an 8.1 MB status push) stalled the server event loop while serializing the update and locked up every client that parsed and rendered it. The watcher now sends at most 2,000 file entries per repo while still reporting the true change count, so the per-repo counter and the building/area badges keep showing the real number; the panel adds a "Showing X of Y changes" notice on capped repos, no longer auto-expands a repo with more than 500 changes, and builds its tree view without the quadratic lookup that could block the browser for minutes.
+- **"Discard all" understating what it deletes** - on a repo whose file list was capped, the confirmation dialog counted untracked files only within the visible slice. It now states that it deletes every untracked file rather than quoting a number lower than what will actually be removed.
+
 ## [1.168.0] - 2026-07-22
 
 ### Added

@@ -13,6 +13,7 @@ import * as readline from 'readline';
 import Database from 'better-sqlite3';
 import { createLogger } from '../utils/logger.js';
 import { materializeCodexGeneratedImage } from '../codex/generated-image.js';
+import { serializeToolResultContent } from './tool-result-content.js';
 
 const log = createLogger('Session');
 
@@ -1104,9 +1105,7 @@ function parseClaudeEntryMessages(
               content += (content ? '\n' : '') + `[stderr] ${String(entry.tool_use_result.stderr)}`;
             }
           } else {
-            content = typeof block.content === 'string'
-              ? block.content
-              : JSON.stringify(block.content);
+            content = serializeToolResultContent(block.content);
           }
           const toolName = toolUseIdToName.get(block.tool_use_id) || 'unknown';
           messages.push({
