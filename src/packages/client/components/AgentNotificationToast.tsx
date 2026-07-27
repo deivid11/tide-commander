@@ -5,6 +5,7 @@ import type { AgentNotification, AgentClass } from '../../shared/types';
 import { BUILT_IN_AGENT_CLASSES } from '../../shared/types';
 import { showNotification, openAgentTerminalFromNotification, isNativeApp } from '../utils/notifications';
 import { triggerHaptic } from '../utils/haptics';
+import { playNotificationSound, playQuestionSound } from '../utils/notificationSounds';
 import { AgentIcon, getAgentIconUrl } from './AgentIcon';
 import { useSwipeToDismiss } from '../hooks/useSwipeToDismiss';
 
@@ -133,6 +134,22 @@ export function AgentNotificationProvider({ children }: { children: React.ReactN
   const showAgentNotification = useCallback((notification: AgentNotification) => {
     // Keep track of the latest sender for keyboard jump from Commander (Tab).
     store.setLatestNotificationAgentId(notification.agentId);
+
+    // Play a pleasant cue. Notifications that read like a question / a request for
+    // input get the more attention-grabbing question sound; everything else gets
+    // the soft general chime.
+    const settings = store.getSettings();
+    const soundLevel = settings.notificationSoundEnabled ? settings.notificationSoundVolume : 0;
+    if (soundLevel > 0) {
+      const haystack = `${notification.title} ${notification.message}`;
+      const looksLikeQuestion =
+        /input|question|pregunta|decision|decisi[oó]n|necesita|need|plan\s*(ready|listo)|\?/i.test(haystack);
+      if (looksLikeQuestion) {
+        playQuestionSound(soundLevel);
+      } else {
+        playNotificationSound(soundLevel);
+      }
+    }
 
     // Show in-app toast notification
     setNotifications((prev) => {
