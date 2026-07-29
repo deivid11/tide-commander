@@ -706,46 +706,52 @@
   }
 }
 
-.class-option {
-  padding: 12px 8px;
-  background: var(--bg-tertiary);
-  border: 2px solid var(--border-color);
-  border-radius: $radius-lg;
-  cursor: pointer;
-  text-align: center;
-  transition: all $transition-fast;
+// Scoped to the selector on purpose: Prism tags shell builtins as
+// `<span class="token builtin class-name">`, so a global `.class-name` rule
+// leaked into every highlighted command in the chat and rendered `cd`/`echo`
+// as `Cd`/`Echo`. Same reasoning for its siblings — keep them local.
+.class-selector {
+  .class-option {
+    padding: 12px 8px;
+    background: var(--bg-tertiary);
+    border: 2px solid var(--border-color);
+    border-radius: $radius-lg;
+    cursor: pointer;
+    text-align: center;
+    transition: all $transition-fast;
 
-  &:hover {
-    border-color: var(--text-secondary);
+    &:hover {
+      border-color: var(--text-secondary);
+    }
+
+    &.selected {
+      border-color: var(--accent-blue);
+      background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+    }
   }
 
-  &.selected {
-    border-color: var(--accent-blue);
-    background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  .class-icon {
+    width: 32px;
+    height: 32px;
+    margin: 0 auto 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    border-radius: $radius-md;
   }
-}
 
-.class-icon {
-  width: 32px;
-  height: 32px;
-  margin: 0 auto 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  border-radius: $radius-md;
-}
+  .class-name {
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: capitalize;
+  }
 
-.class-name {
-  font-size: 12px;
-  font-weight: 500;
-  text-transform: capitalize;
-}
-
-.class-gender {
-  font-size: 10px;
-  color: var(--text-secondary);
-  margin-top: 2px;
+  .class-gender {
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
 }
 
 .class-selector-divider {

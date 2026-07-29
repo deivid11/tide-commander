@@ -754,6 +754,25 @@ function extractJavaScriptStringField(script: string, field: string): string | n
   return match?.[2]?.replace(/\\n/g, '\n').replace(/\\(["'\x60\\])/g, '$1') || null;
 }
 
+/**
+ * Steps that only set up or annotate a chain — `cd` into a directory, `echo` a
+ * banner, `export` a var. They never describe what a command is *for*, so they
+ * don't count when deciding whether a chain has a single semantic purpose.
+ */
+const SHELL_SETUP_STEP = /^(?:cd|echo|export|source|\.)\b/;
+
+/**
+ * Split on step separators (not pipes — a pipeline is one step) and drop the
+ * setup-only steps.
+ */
+function substantiveShellSteps(command: string): string[] {
+  return command
+    .split(/\s*(?:&&|\|\||;)\s*/)
+    .map((step) => step.trim())
+    .filter(Boolean)
+    .filter((step) => !SHELL_SETUP_STEP.test(step));
+}
+
 function classifyTerminalCommand(command: string): CodexExecPresentation {
   const clean = normalizeShellWrapper(command);
   // Reads take precedence: a filename/path may itself contain words such as
@@ -775,16 +794,30 @@ function classifyTerminalCommand(command: string): CodexExecPresentation {
       ? { toolName: 'Read', detail: 'viewed', filePaths: [simple[1]] }
       : { toolName: 'Read', detail: clean };
   }
-  if (/\b(?:rg\s+--files|find|ls)(?:\s|$)/.test(clean)) {
+  // The rules below match a keyword anywhere in the string, which is only safe
+  // for a command with one job. A build gate like
+  // `cd x && tsc && eslint && jest | grep -E "^Tests:" && npm run build`
+  // was landing on GREP because of one late pipe stage. Once `cd`/`echo`
+  // scaffolding is stripped, more than one remaining step means it's a script:
+  // fall through to Bash, whose step summary is more informative anyway.
+  const steps = substantiveShellSteps(clean);
+  if (steps.length > 1) {
+    return { toolName: 'Bash', detail: summarizeShellCommand(clean) };
+  }
+  // Match against the substantive step so a path like /home/erick/grep-tools
+  // in a leading `cd` can't decide the label either.
+  const subject = steps.length === 1 ? steps[0] : clean;
+
+  if (/\b(?:rg\s+--files|find|ls)(?:\s|$)/.test(subject)) {
     return { toolName: 'Glob', detail: clean };
   }
-  if (/\b(?:rg|grep)\b/.test(clean)) {
+  if (/\b(?:rg|grep)\b/.test(subject)) {
     return { toolName: 'Grep', detail: clean };
   }
-  if (/\b(?:apply_patch|perl\s+-[pi]|git\s+apply)\b/.test(clean)) {
+  if (/\b(?:apply_patch|perl\s+-[pi]|git\s+apply)\b/.test(subject)) {
     return { toolName: 'Edit', detail: clean };
   }
-  if (/^git\s+(?:diff|show|status)\b/.test(clean)) {
+  if (/^git\s+(?:diff|show|status)\b/.test(subject)) {
     const path = clean.match(/\s--\s+["']?([^"']+)["']?\s*$/)?.[1];
     return { toolName: 'Read', detail: 'Git changes', filePaths: path ? [path.trim()] : undefined };
   }

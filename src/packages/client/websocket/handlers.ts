@@ -42,6 +42,9 @@ function endQuestionAlertIfSettled(): void {
 const reattachInFlight = new Set<string>();
 const REATTACH_RETRY_DELAY_MS = 5000;
 
+/** Agents whose in-flight turn is a /compact — see the agent_updated handler. */
+const pendingCompactRefresh = new Set<string>();
+
 function maybeRequestReattach(agent: Agent): void {
   if (!agent.isDetached || !agent.sessionId) {
     reattachInFlight.delete(agent.id);
@@ -135,6 +138,13 @@ export function handleServerMessage(message: ServerMessage): void {
         store.triggerHistoryRefresh(updatedAgent.id);
         // An agent just finished its work — play the completion cue.
         playCompletionSound(soundLevel());
+        // A /compact turn just ended. The tracked counters still hold the
+        // pre-compaction totals (step_complete deliberately preserves them for
+        // Claude), so ask the server for real stats instead of leaving a stale
+        // number on screen until the next message.
+        if (pendingCompactRefresh.delete(updatedAgent.id)) {
+          store.refreshAgentContext(updatedAgent.id);
+        }
       }
 
       const positionChanged = previousAgent
@@ -403,10 +413,15 @@ export function handleServerMessage(message: ServerMessage): void {
         agentId: string;
         command: string;
       };
-      // Skip adding utility slash commands to output (they're handled specially)
+      // Slash commands used to be dropped here, which made typing /compact or
+      // /context look like nothing happened. They now render as a command chip
+      // (see OutputLine) like any other entry in the conversation.
       const trimmedCommand = command.trim();
-      if (trimmedCommand === '/context' || trimmedCommand === '/cost' || trimmedCommand === '/compact') {
-        break;
+      // /compact rewrites the session behind our back: the tracked token counts
+      // still describe the pre-compaction context and nothing refreshes them
+      // until the next turn. Remember it so we can pull real stats on idle.
+      if (trimmedCommand === '/compact') {
+        pendingCompactRefresh.add(agentId);
       }
       // Confirm this client's optimistic echo (added at send time by
       // store.sendCommand). No pending match means the command came from
