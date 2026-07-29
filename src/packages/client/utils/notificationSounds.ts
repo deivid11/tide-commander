@@ -9,13 +9,82 @@
 //   - playCompletionSound():   a mellow descending arpeggio that resolves to the
 //                              tonic — used when an agent finishes its work.
 //
+// Any cue can be replaced by a user-uploaded file (Settings -> General). When a
+// custom sound is set for an event it is played instead of the synthesized one;
+// removing it falls straight back to the built-in cue.
+//
 // Callers pass a volume LEVEL (0..5). Level 0 is silent, so callers can simply
 // forward `settings.notificationSoundEnabled ? settings.notificationSoundVolume : 0`
 // without branching. This module never imports the store, keeping it dependency-free.
 
 export const MAX_NOTIFICATION_SOUND_VOLUME = 5;
 
-type SoundKind = 'question' | 'notification' | 'completion';
+export type SoundKind = 'question' | 'notification' | 'completion';
+
+export const SOUND_KINDS: SoundKind[] = ['question', 'notification', 'completion'];
+
+/** User-uploaded audio per event, or null to use the built-in synthesized cue. */
+type CustomSoundMap = Partial<Record<SoundKind, string | null>>;
+let customSounds: CustomSoundMap = {};
+
+/**
+ * Point one or more events at user-uploaded audio. Pass null/undefined for an
+ * event to restore its built-in cue. Called after loading or changing settings.
+ */
+export function setCustomSounds(map: CustomSoundMap): void {
+  customSounds = { ...customSounds, ...map };
+}
+
+export function getCustomSounds(): CustomSoundMap {
+  return customSounds;
+}
+
+/**
+ * Pull the uploaded-sound map from the server. Custom sounds live server-side so
+ * they apply on every device that connects to this commander, not just the
+ * browser that uploaded them. Safe to call repeatedly (e.g. after an upload).
+ */
+export async function refreshCustomSounds(): Promise<CustomSoundMap> {
+  try {
+    const { apiUrl, authFetch } = await import('./storage');
+    const res = await authFetch(apiUrl('/api/custom-sounds'));
+    if (!res.ok) return customSounds;
+    const data = (await res.json()) as { sounds?: CustomSoundMap };
+    // Absolute URLs so playback works from any client origin.
+    const resolved: CustomSoundMap = {};
+    for (const kind of SOUND_KINDS) {
+      const value = data.sounds?.[kind];
+      resolved[kind] = value ? apiUrl(value) : null;
+    }
+    customSounds = resolved;
+  } catch {
+    // Server unreachable — keep whatever we already had and use built-ins.
+  }
+  return customSounds;
+}
+
+/**
+ * Play a user-uploaded file. Returns false when there is nothing to play, so the
+ * caller can fall back to the synthesized cue (also covers a broken/missing file).
+ */
+function playCustom(kind: SoundKind, level: number, onFailure: () => void): boolean {
+  const url = customSounds[kind];
+  if (!url || typeof Audio === 'undefined') return false;
+  try {
+    const audio = new Audio(url);
+    // Same 0..5 scale as the synthesized cues, kept below full scale so an
+    // uploaded file can't be jarringly louder than the built-ins.
+    audio.volume = Math.max(0, Math.min(1, (level / MAX_NOTIFICATION_SOUND_VOLUME) * 0.9));
+    void audio.play().catch(() => {
+      // Missing/corrupt file, unsupported codec, autoplay blocked: nothing was
+      // heard, so fall back to the built-in cue rather than going silent.
+      onFailure();
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // Lazily-created shared context. Browsers require a user gesture before audio can
 // start; these cues fire after real interactions, and we resume() defensively.
@@ -58,10 +127,63 @@ interface ToneOptions {
   glideTo?: number;
   /** Level of the octave overtone (0 = pure tone). Lower = mellower. */
   overtone?: number;
+  /** Level of the noise transient (the "mallet"). 0 removes it. */
+  strike?: number;
+  /** Brightness of the lowpass, in Hz. Lower = darker, woodier. */
+  tone?: number;
 }
 
-// One softened note: a tone with a warmer octave overtone, shaped by a short
-// attack and an exponential decay so it reads as a gentle bell, not a beep.
+/**
+ * Partials of a struck bar (marimba/celesta-like), as ratios of the fundamental.
+ *
+ * Real struck instruments are INHARMONIC — their partials are not exact multiples
+ * of the fundamental — and their upper partials die away much faster than the body
+ * of the note. Exact octaves decaying at the same rate is precisely what makes
+ * plain oscillator tones read as "electronic beep". These ratios and per-partial
+ * decays are what give the cues an acoustic, wooden character instead.
+ */
+const STRUCK_PARTIALS: Array<{ ratio: number; gain: number; decay: number }> = [
+  { ratio: 1, gain: 1, decay: 1 },
+  { ratio: 2.005, gain: 0.2, decay: 0.55 }, // detuned octave → gentle shimmer
+  { ratio: 3.01, gain: 0.07, decay: 0.32 },
+  { ratio: 5.43, gain: 0.03, decay: 0.16 }, // inharmonic sparkle, very short
+];
+
+/**
+ * A short burst of decaying noise at onset — the sound of the mallet meeting the
+ * bar. Adding this transient is the single biggest step from "synth beep" to
+ * "something was physically struck".
+ */
+function playStrike(ctx: AudioContext, freq: number, startAt: number, peak: number, amount: number): void {
+  const duration = 0.045;
+  const frames = Math.max(1, Math.ceil(ctx.sampleRate * duration));
+  const buffer = ctx.createBuffer(1, frames, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < frames; i++) {
+    const fade = 1 - i / frames;
+    data[i] = (Math.random() * 2 - 1) * fade * fade * fade; // fast cubic decay
+  }
+
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+
+  // Centre the noise around the note so the click belongs to the pitch.
+  const band = ctx.createBiquadFilter();
+  band.type = 'bandpass';
+  band.frequency.value = Math.min(freq * 2.5, 6000);
+  band.Q.value = 0.7;
+
+  const gain = ctx.createGain();
+  gain.gain.value = peak * amount;
+
+  source.connect(band);
+  band.connect(gain);
+  gain.connect(ctx.destination);
+  source.start(startAt);
+}
+
+// One note of a struck-bar instrument: a mallet transient plus inharmonic
+// partials that each decay at their own rate, rolled off by a gentle lowpass.
 function playTone(
   ctx: AudioContext,
   freq: number,
@@ -70,42 +192,51 @@ function playTone(
   peak: number,
   opts: ToneOptions = {},
 ): void {
-  const { type = 'sine', glideTo, overtone: overtoneLevel = 0.25 } = opts;
+  const { type = 'sine', glideTo, overtone: overtoneLevel = 0.25, strike = 0.5, tone = 3800 } = opts;
 
-  const gain = ctx.createGain();
-  gain.connect(ctx.destination);
-  gain.gain.setValueAtTime(0.0001, startAt);
-  gain.gain.exponentialRampToValueAtTime(peak, startAt + 0.015);
-  gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+  // Shared lowpass keeps the upper partials from ever sounding brittle.
+  const lowpass = ctx.createBiquadFilter();
+  lowpass.type = 'lowpass';
+  lowpass.frequency.value = tone;
+  lowpass.Q.value = 0.4;
+  lowpass.connect(ctx.destination);
 
-  const fundamental = ctx.createOscillator();
-  fundamental.type = type;
-  fundamental.frequency.setValueAtTime(freq, startAt);
-  fundamental.connect(gain);
+  if (strike > 0) playStrike(ctx, freq, startAt, peak, strike);
 
-  const overtone = ctx.createOscillator();
-  overtone.type = 'sine';
-  overtone.frequency.setValueAtTime(freq * 2, startAt);
-  const overtoneGain = ctx.createGain();
-  overtoneGain.gain.value = overtoneLevel;
-  overtone.connect(overtoneGain);
-  overtoneGain.connect(gain);
+  STRUCK_PARTIALS.forEach((partial, index) => {
+    // `overtone` scales everything above the fundamental, so existing callers
+    // keep their "how much overtone" control.
+    const level = index === 0 ? partial.gain : partial.gain * (overtoneLevel / 0.25);
+    if (level <= 0.001) return;
 
-  if (glideTo) {
-    // Bend late in the note so the pitch is established first, then lifts —
-    // that ordering is what makes the ear hear a question rather than a slide.
-    const bendStart = startAt + duration * 0.35;
-    const bendEnd = startAt + duration * 0.85;
-    fundamental.frequency.setValueAtTime(freq, bendStart);
-    fundamental.frequency.exponentialRampToValueAtTime(glideTo, bendEnd);
-    overtone.frequency.setValueAtTime(freq * 2, bendStart);
-    overtone.frequency.exponentialRampToValueAtTime(glideTo * 2, bendEnd);
-  }
+    // Higher partials fade early, exactly as they do on a real bar.
+    const partialDuration = Math.max(0.05, duration * partial.decay);
 
-  fundamental.start(startAt);
-  overtone.start(startAt);
-  fundamental.stop(startAt + duration + 0.05);
-  overtone.stop(startAt + duration + 0.05);
+    const gain = ctx.createGain();
+    gain.connect(lowpass);
+    gain.gain.setValueAtTime(0.0001, startAt);
+    // A hair slower than an instant attack — instantaneous onsets sound clicky
+    // and mechanical; ~10ms reads as a soft mallet.
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak * level), startAt + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + partialDuration);
+
+    const osc = ctx.createOscillator();
+    osc.type = index === 0 ? type : 'sine';
+    osc.frequency.setValueAtTime(freq * partial.ratio, startAt);
+    osc.connect(gain);
+
+    if (glideTo) {
+      // Bend late in the note so the pitch is established first, then lifts —
+      // that ordering is what makes the ear hear a question rather than a slide.
+      const bendStart = startAt + duration * 0.35;
+      const bendEnd = startAt + duration * 0.85;
+      osc.frequency.setValueAtTime(freq * partial.ratio, bendStart);
+      osc.frequency.exponentialRampToValueAtTime(glideTo * partial.ratio, bendEnd);
+    }
+
+    osc.start(startAt);
+    osc.stop(startAt + partialDuration + 0.05);
+  });
 }
 
 function play(kind: SoundKind, level: number): void {
@@ -116,6 +247,15 @@ function play(kind: SoundKind, level: number): void {
   if (now - lastPlayedAt[kind] < DEBOUNCE_MS) return;
   lastPlayedAt[kind] = now;
 
+  // A user-uploaded sound for this event replaces the built-in cue. With nothing
+  // uploaded — the default for every event — the synthesized cue plays as before.
+  if (playCustom(kind, level, () => playSynthesized(kind, peak))) return;
+
+  playSynthesized(kind, peak);
+}
+
+/** The built-in cue for an event. Used unless the user uploaded their own file. */
+function playSynthesized(kind: SoundKind, peak: number): void {
   const ctx = getContext();
   if (!ctx) return;
 
@@ -129,37 +269,40 @@ function play(kind: SoundKind, level: number): void {
     // It reads as "someone is asking you something", not as an alarm: everything
     // stays in tune, the attack is soft, and loudness never exceeds the others.
     const tap = peak * 0.7;
-    playTone(ctx, 587.33, t, 0.11, tap, { type: 'triangle', overtone: 0.18 });        // D5
-    playTone(ctx, 880.0, t + 0.11, 0.11, tap, { type: 'triangle', overtone: 0.18 });  // A5 (leap of a 5th)
+    playTone(ctx, 587.33, t, 0.5, tap, { overtone: 0.2, strike: 0.6, tone: 3200 });        // D5
+    playTone(ctx, 880.0, t + 0.11, 0.5, tap, { overtone: 0.2, strike: 0.6, tone: 3400 });  // A5 (leap of a 5th)
 
-    // Held, bending note — the signature.
+    // Held, bending note — the signature. Rings on well past the taps.
     const holdAt = t + 0.24;
-    playTone(ctx, 880.0, holdAt, 0.56, peak, {
-      type: 'triangle',
-      overtone: 0.2,
+    playTone(ctx, 880.0, holdAt, 1.05, peak, {
+      overtone: 0.22,
+      strike: 0.45,
+      tone: 3600,
       glideTo: 1174.66, // A5 → D6: a full fourth of "lift"
     });
     // Pedal a fifth below gives the hold body so it carries without being louder.
-    playTone(ctx, 587.33, holdAt, 0.5, peak * 0.32, { type: 'sine', overtone: 0.1 });
+    // No strike here — it is the resonance under the note, not a second mallet.
+    playTone(ctx, 587.33, holdAt, 1.1, peak * 0.3, { overtone: 0.1, strike: 0, tone: 2200 });
     // Echo that ASKS AGAIN an octave up — the "…right? …right?" tail. Repeating
     // the bend is what makes the cue carry across a room; it adds brightness and
     // length rather than volume, so it stands out without ever sounding harsh.
-    playTone(ctx, 1174.66, holdAt + 0.44, 0.46, peak * 0.38, {
-      type: 'triangle',
+    playTone(ctx, 1174.66, holdAt + 0.44, 0.9, peak * 0.36, {
       overtone: 0.12,
+      strike: 0.35,
+      tone: 4200,
       glideTo: 1318.51, // D6 → E6
     });
   } else if (kind === 'completion') {
     // Descending arpeggio resolving to the tonic (G5 → E5 → C5) — a calm "done".
     const soft = peak * 0.85;
-    playTone(ctx, 783.99, t, 0.16, soft);
-    playTone(ctx, 659.25, t + 0.12, 0.16, soft);
-    playTone(ctx, 523.25, t + 0.24, 0.46, soft);
+    playTone(ctx, 783.99, t, 0.55, soft, { strike: 0.5, tone: 3000 });
+    playTone(ctx, 659.25, t + 0.12, 0.6, soft, { strike: 0.5, tone: 2900 });
+    playTone(ctx, 523.25, t + 0.24, 1.2, soft, { strike: 0.45, tone: 2600 });
   } else {
     // Soft two-note chime up a fourth (E5 → A5) — gentle "something happened".
     const soft = peak * 0.8;
-    playTone(ctx, 659.25, t, 0.16, soft);
-    playTone(ctx, 880.0, t + 0.11, 0.34, soft);
+    playTone(ctx, 659.25, t, 0.5, soft, { strike: 0.5, tone: 3000 });
+    playTone(ctx, 880.0, t + 0.11, 1.0, soft, { strike: 0.45, tone: 3200 });
   }
 }
 

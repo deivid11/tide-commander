@@ -3,7 +3,41 @@ import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { useSettings, store, useCustomAgentClassesArray } from '../../store';
 import { getBackendUrls, setBackendUrls, subscribeBackendUrlChange, STORAGE_KEYS, setStorageString, getStorageString, getAuthToken } from '../../utils/storage';
-import { playNotificationSound, playQuestionSound, playCompletionSound } from '../../utils/notificationSounds';
+import { playNotificationSound, playQuestionSound, playCompletionSound, refreshCustomSounds, setCustomSounds, getCustomSounds } from '../../utils/notificationSounds';
+import type { SoundKind } from '../../utils/notificationSounds';
+import { apiUrl, authFetch } from '../../utils/storage';
+
+/** The notification events a user can override with their own audio file. */
+const SOUND_EVENT_ROWS: Array<{
+  kind: SoundKind;
+  label: string;
+  /** Exactly when this fires — shown under the name so the UI is self-explanatory. */
+  when: string;
+  sound: string;
+  play: (level: number) => void;
+}> = [
+  {
+    kind: 'question',
+    label: 'Agent asks you something',
+    when: 'A question, a plan to approve, or a permission request. Repeats twice up front, then every 10s until you answer (stops after 2 min).',
+    sound: 'Two taps, then a rising bend',
+    play: playQuestionSound,
+  },
+  {
+    kind: 'notification',
+    label: 'Agent sends a notification',
+    when: 'Any agent notification: task complete, error, or a heads-up.',
+    sound: 'Soft two-note chime',
+    play: playNotificationSound,
+  },
+  {
+    kind: 'completion',
+    label: 'Agent finishes working',
+    when: 'An agent stops working and goes idle.',
+    sound: 'Gentle descending arpeggio',
+    play: playCompletionSound,
+  },
+];
 import { BUILT_IN_AGENT_CLASSES } from '../../../shared/agent-types';
 import { reconnect } from '../../websocket';
 import { CollapsibleSection } from './CollapsibleSection';
@@ -192,7 +226,7 @@ function HighlightText({ text, query }: { text: string; query: string }) {
 
 // Define searchable settings configuration (English keywords for search matching)
 const SETTINGS_SECTIONS = [
-  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'low power', 'battery', 'bajo consumo', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title', 'tmux', 'process persistence', 'interactive', 'tui', 'terminal', 'experimental', 'claude', 'stream', 'streaming', 'word by word', 'live text', 'grok', 'codex', 'app-server', 'app server', 'opencode', 'serve'] },
+  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'low power', 'battery', 'bajo consumo', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title', 'tmux', 'process persistence', 'interactive', 'tui', 'terminal', 'experimental', 'claude', 'stream', 'streaming', 'word by word', 'live text', 'grok', 'codex', 'app-server', 'app server', 'opencode', 'serve', 'sound', 'sounds', 'sonido', 'sonidos', 'audio', 'notification sound', 'volume', 'volumen', 'mute', 'silenciar', 'custom sound', 'upload sound', 'chime', 'alert', 'alerta'] },
   { id: 'agentNames', title: 'Agent Names', keywords: ['agent', 'names', 'custom', 'characters', 'rename'] },
   { id: 'defaultClass', title: 'Default Spawn Class', keywords: ['default', 'class', 'spawn', 'agent', 'scout', 'builder', 'random'] },
   { id: 'appearance', title: 'Appearance', keywords: ['theme', 'appearance', 'color', 'dark', 'light', 'style', 'look'] },
@@ -237,6 +271,51 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
   const [defaultSpawnClass, setDefaultSpawnClassState] = useState(() => getStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS) || 'scout');
   const agentDockPosition = useAgentDockPosition();
   const agentDockRecentSize = useAgentDockRecentSize();
+  const [customSounds, setCustomSoundsState] = useState<Partial<Record<SoundKind, string | null>>>(() => getCustomSounds());
+  const [uploadingSound, setUploadingSound] = useState<SoundKind | null>(null);
+  const [soundUploadError, setSoundUploadError] = useState<string | null>(null);
+
+  // Custom sounds live server-side, so pull the current map when settings open.
+  useEffect(() => {
+    void refreshCustomSounds().then(setCustomSoundsState);
+  }, []);
+
+  const handleSoundUpload = async (kind: SoundKind, file: File) => {
+    setSoundUploadError(null);
+    setUploadingSound(kind);
+    try {
+      const res = await authFetch(apiUrl(`/api/custom-sounds/${kind}`), {
+        method: 'POST',
+        headers: { 'Content-Type': file.type || 'audio/mpeg' },
+        body: file,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: `Upload failed (${res.status})` }));
+        throw new Error(data.error || `Upload failed (${res.status})`);
+      }
+      const map = await refreshCustomSounds();
+      setCustomSoundsState({ ...map });
+      // Play it back straight away so the choice is confirmed by ear.
+      SOUND_EVENT_ROWS.find(r => r.kind === kind)?.play(settings.notificationSoundVolume);
+    } catch (err) {
+      setSoundUploadError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploadingSound(null);
+    }
+  };
+
+  const handleSoundReset = async (kind: SoundKind) => {
+    setSoundUploadError(null);
+    try {
+      await authFetch(apiUrl(`/api/custom-sounds/${kind}`), { method: 'DELETE' });
+      setCustomSounds({ [kind]: null });
+      const map = await refreshCustomSounds();
+      setCustomSoundsState({ ...map });
+    } catch (err) {
+      setSoundUploadError(err instanceof Error ? err.message : 'Failed to reset sound');
+    }
+  };
+
   const [historyLimit, setHistoryLimit] = useState(settings.historyLimit);
   const [backendUrls, setBackendUrlsState] = useState<string[]>(() => getBackendUrls());
   const [backendUrlsDirty, setBackendUrlsDirty] = useState(false);
@@ -592,11 +671,57 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         </div>
         )}
         {settings.notificationSoundEnabled && settings.notificationSoundVolume > 0 && (
-        <div className="config-row">
-          <span className="config-label"><HighlightText text="Preview sounds" query={searchQuery} /></span>
-          <button className="config-btn config-btn-sm" onClick={() => playQuestionSound(settings.notificationSoundVolume)} title="Play the question cue">Question</button>
-          <button className="config-btn config-btn-sm" onClick={() => playNotificationSound(settings.notificationSoundVolume)} title="Play the notification cue">Notification</button>
-          <button className="config-btn config-btn-sm" onClick={() => playCompletionSound(settings.notificationSoundVolume)} title="Play the agent-finished cue">Done</button>
+        <div className="config-group">
+          <span className="config-label"><HighlightText text="Sounds per event" query={searchQuery} /></span>
+          <div className="config-sound-hint">Each event below plays its own sound. Press Play to hear it, or Upload to replace it with your own file (mp3, wav, ogg, m4a — max 5MB).</div>
+          {SOUND_EVENT_ROWS.map(row => (
+            <div className="config-sound-row" key={row.kind}>
+              <div className="config-sound-info">
+                <div className="config-sound-head">
+                  <span className="config-sound-name">{row.label}</span>
+                  <span className={`config-sound-badge${customSounds[row.kind] ? ' custom' : ''}`}>
+                    {customSounds[row.kind] ? 'Your file' : 'Built-in'}
+                  </span>
+                </div>
+                <div className="config-sound-when">{row.when}</div>
+                <div className="config-sound-desc">
+                  Sound: {customSounds[row.kind] ? 'your uploaded file' : row.sound}
+                </div>
+              </div>
+              <div className="config-sound-actions">
+                <button
+                  className="config-btn config-btn-sm"
+                  onClick={() => row.play(settings.notificationSoundVolume)}
+                  title="Hear the sound that plays for this event"
+                >
+                  Play
+                </button>
+                <label className="config-btn config-btn-sm config-sound-upload" title="Replace this sound with your own audio file (mp3, wav, ogg, m4a — max 5MB)">
+                  {uploadingSound === row.kind ? 'Uploading…' : 'Upload'}
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = ''; // allow re-picking the same file
+                      if (file) void handleSoundUpload(row.kind, file);
+                    }}
+                  />
+                </label>
+                {customSounds[row.kind] && (
+                  <button
+                    className="config-btn config-btn-sm"
+                    onClick={() => void handleSoundReset(row.kind)}
+                    title="Delete your file and go back to the built-in sound"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+          {soundUploadError && <div className="config-sound-error">{soundUploadError}</div>}
         </div>
         )}
         <div className="config-row">
