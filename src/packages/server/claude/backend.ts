@@ -16,9 +16,9 @@ import type {
 import { createLogger, sanitizeUnicode } from '../utils/index.js';
 import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
 import { isEchoPromptEnabled, getSystemPrompt } from '../services/system-prompt-service.js';
+import { isBareSlashCommand } from '../services/instruction-refresh.js';
 import { loadAreas } from '../data/index.js';
 import { getAgent } from '../services/agent-service.js';
-import { serializeToolResultContent } from './tool-result-content.js';
 
 const log = createLogger('Backend');
 
@@ -174,6 +174,14 @@ interface ClaudeStreamState {
   streamUuids: Map<string, string>; // key = `${kind}:${index}`
   /** After the full assistant text finalizes, ignore late stream deltas for this turn. */
   suppressTextDeltas: boolean;
+  /**
+   * Model of the last main-loop assistant message (subagent/synthetic excluded).
+   * The `result` event's `modelUsage` is keyed by model name and a single turn
+   * routinely bills several — the conversation model plus short auxiliary calls
+   * (Haiku for web-search summarisation, titles, quota probes). This tells us
+   * which of those entries owns the context window. See selectPrimaryModelUsage.
+   */
+  mainModel: string | null;
 }
 
 function resetClaudeStreamState(state: ClaudeStreamState): void {
@@ -182,6 +190,57 @@ function resetClaudeStreamState(state: ClaudeStreamState): void {
   // suppressTextDeltas is intentionally NOT cleared here — only message_start
   // opens a new turn. That way late content_block_delta lines after the final
   // assistant event cannot open a second bubble with a new stream uuid.
+  // mainModel is likewise kept: parseResultEvent reads it *after* the last
+  // assistant event of the turn has already finalized its text.
+}
+
+type ClaudeModelUsage = NonNullable<ClaudeRawEvent['modelUsage']>;
+type ClaudeModelUsageEntry = ClaudeModelUsage[string];
+
+/**
+ * Pick the entry of `result.modelUsage` that owns the agent's context window.
+ *
+ * `modelUsage` is a per-model breakdown whose key order follows first use in
+ * the turn, so an auxiliary Haiku call (web search, title generation) is very
+ * often first. Taking `Object.keys()[0]` therefore reported Haiku's 200k window
+ * as the agent's contextLimit — which both mis-rendered the meter and made the
+ * next turn's usage_snapshot look "over limit", zeroing the tracked tokens.
+ *
+ * Preference order:
+ *  1. the model the main loop actually streamed (`preferredModel`),
+ *  2. the model with the largest prompt-side footprint — the conversation model
+ *     dominates cache reads by orders of magnitude over any helper call,
+ *  3. first key, as a last resort.
+ */
+function selectPrimaryModelUsage(
+  modelUsage: ClaudeModelUsage,
+  preferredModel?: string | null
+): { name: string; usage: ClaudeModelUsageEntry } | null {
+  const entries = Object.entries(modelUsage).filter(
+    (entry): entry is [string, ClaudeModelUsageEntry] => !!entry[1]
+  );
+  if (entries.length === 0) return null;
+
+  if (preferredModel) {
+    const exact = entries.find(([name]) => name === preferredModel);
+    if (exact) return { name: exact[0], usage: exact[1] };
+  }
+
+  let best: { name: string; usage: ClaudeModelUsageEntry } | null = null;
+  let bestWeight = -1;
+  for (const [name, usage] of entries) {
+    const weight = (usage.inputTokens || 0)
+      + (usage.cacheReadInputTokens || 0)
+      + (usage.cacheCreationInputTokens || 0);
+    // Tie-break on the wider window so a zero-usage entry can't win by accident.
+    const widerOnTie = weight === bestWeight
+      && (usage.contextWindow || 0) > (best?.usage.contextWindow || 0);
+    if (weight > bestWeight || widerOnTie) {
+      bestWeight = weight;
+      best = { name, usage };
+    }
+  }
+  return best ?? { name: entries[0][0], usage: entries[0][1] };
 }
 
 export class ClaudeBackend implements CLIBackend {
@@ -211,6 +270,7 @@ export class ClaudeBackend implements CLIBackend {
         currentStreamMessageId: null,
         streamUuids: new Map(),
         suppressTextDeltas: false,
+        mainModel: null,
       };
       this.streamStates.set(key, state);
     }
@@ -350,7 +410,7 @@ export class ClaudeBackend implements CLIBackend {
         break;
 
       case 'result':
-        result = this.parseResultEvent(event);
+        result = this.parseResultEvent(event, agentId);
         break;
 
       case 'stream_event':
@@ -402,7 +462,9 @@ export class ClaudeBackend implements CLIBackend {
               content += (content ? '\n' : '') + '[stderr] ' + event.tool_use_result.stderr;
             }
           } else {
-            content = serializeToolResultContent(block.content);
+            content = typeof block.content === 'string'
+              ? block.content
+              : JSON.stringify(block.content);
           }
           // Look up the tool name from the tool_use_id mapping
           const toolName = toolUseIdToName.get(block.tool_use_id) || 'unknown';
@@ -559,6 +621,21 @@ export class ClaudeBackend implements CLIBackend {
         state.currentStreamMessageId = messageId;
       }
 
+      // Remember which model is driving the conversation so the turn's
+      // `result.modelUsage` can be attributed correctly. Subagent-bridged
+      // messages carry their own (possibly smaller) model, and `<synthetic>`
+      // is the CLI's placeholder for locally-generated messages — neither
+      // describes the parent agent's context window.
+      const messageModel = (event.message as { model?: unknown })?.model;
+      if (
+        typeof messageModel === 'string'
+        && messageModel
+        && messageModel !== '<synthetic>'
+        && !(event as { parent_tool_use_id?: string }).parent_tool_use_id
+      ) {
+        state.mainModel = messageModel;
+      }
+
       // Extract text blocks - emit as non-streaming final text.
       //
       // IMPORTANT: with --include-partial-messages Claude may emit *multiple*
@@ -688,7 +765,7 @@ export class ClaudeBackend implements CLIBackend {
     return null;
   }
 
-  private parseResultEvent(event: ClaudeRawEvent): StandardEvent {
+  private parseResultEvent(event: ClaudeRawEvent, agentId?: string): StandardEvent {
     log.log(`parseResultEvent: usage=${JSON.stringify(event.usage)}, modelUsage=${JSON.stringify(event.modelUsage)}, cost=${event.total_cost_usd}`);
     // Extract result text if available (used for boss delegation parsing)
     const resultText = typeof event.result === 'string' ? event.result : undefined;
@@ -704,13 +781,15 @@ export class ClaudeBackend implements CLIBackend {
       log.log(`parseResultEvent: ${permissionDenials.length} permission denial(s)`);
     }
 
-    // Extract modelUsage if available (contains contextWindow size)
+    // Extract modelUsage if available (contains contextWindow size).
+    // A turn can bill several models — pick the one that owns the agent's
+    // context window, not whichever happens to be first in key order.
     let modelUsage: StandardEvent['modelUsage'] | undefined;
     if (event.modelUsage) {
-      // Get the first model's usage (there's usually only one)
-      const modelName = Object.keys(event.modelUsage)[0];
-      if (modelName && event.modelUsage[modelName]) {
-        const usage = event.modelUsage[modelName];
+      const mainModel = this.streamState(agentId).mainModel;
+      const primary = selectPrimaryModelUsage(event.modelUsage, mainModel);
+      if (primary) {
+        const { name: modelName, usage } = primary;
         modelUsage = {
           contextWindow: usage.contextWindow,
           maxOutputTokens: usage.maxOutputTokens,
@@ -719,7 +798,8 @@ export class ClaudeBackend implements CLIBackend {
           cacheReadInputTokens: usage.cacheReadInputTokens,
           cacheCreationInputTokens: usage.cacheCreationInputTokens,
         };
-        log.log(`parseResultEvent: modelUsage extracted - contextWindow=${usage.contextWindow}, cacheRead=${usage.cacheReadInputTokens}, cacheCreation=${usage.cacheCreationInputTokens}`);
+        const billed = Object.keys(event.modelUsage);
+        log.log(`parseResultEvent: modelUsage extracted - model=${modelName} (billed: ${billed.join(', ')}; mainModel=${mainModel || 'unknown'}), contextWindow=${usage.contextWindow}, cacheRead=${usage.cacheReadInputTokens}, cacheCreation=${usage.cacheCreationInputTokens}`);
       }
     }
 
@@ -904,7 +984,11 @@ export class ClaudeBackend implements CLIBackend {
 
     // Echo Prompt: duplicate the user message for improved attention coverage.
     // On the second pass every token can attend to every other token.
-    if (isEchoPromptEnabled()) {
+    // Bare slash commands are exempt: doubling `/compact` into
+    // `/compact\n\n---\n\n/compact` stops it being a bare command and the CLI
+    // treats it as plain text. Codex/OpenCode already skip echo for these
+    // (see buildCodexPrompt / buildOpencodePrompt) — Claude must match.
+    if (isEchoPromptEnabled() && !isBareSlashCommand(sanitizedPrompt)) {
       log.log(` Echo prompt enabled - duplicating user message (${sanitizedPrompt.length} chars)`);
       sanitizedPrompt = sanitizedPrompt + '\n\n---\n\n' + sanitizedPrompt;
     }

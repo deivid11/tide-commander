@@ -43,6 +43,27 @@ describe('Codex exec activity summaries', () => {
       .toEqual({ toolName: 'Read', detail: '2 ranges', filePaths: ['src/A.ts', 'src/B.ts'] });
   });
 
+  it('labels a multi-step gate as Bash, not by an incidental grep pipe', () => {
+    const gate = 'cd /repo/back && echo "=== BACK ===" && npx tsc --noEmit -p tsconfig.json '
+      + '&& npx eslint src && npx jest 2>&1 | grep -E "^Tests:" && npm run build';
+    const presentation = getShellCommandPresentation(gate);
+
+    expect(presentation.toolName).toBe('Bash');
+    expect(presentation.detail).toContain('type check');
+  });
+
+  it('still classifies a single search step behind a cd', () => {
+    expect(getShellCommandPresentation('cd /repo && rg -n needle src'))
+      .toEqual({ toolName: 'Grep', detail: 'cd /repo && rg -n needle src' });
+    expect(getShellCommandPresentation('rg -n needle src'))
+      .toEqual({ toolName: 'Grep', detail: 'rg -n needle src' });
+  });
+
+  it('does not let a directory named after a tool decide the label', () => {
+    expect(getShellCommandPresentation('cd /home/erick/grep-tools && npm test').toolName)
+      .toBe('Bash');
+  });
+
   it('extracts touched files from apply_patch calls for the diff modal', () => {
     const script = `const patch = "*** Begin Patch\n*** Update File: src/App.tsx\n@@\n-old\n+new\n*** Add File: src/new.ts\n+value\n*** End Patch";
       await tools.apply_patch(patch);`;

@@ -812,6 +812,27 @@
       color: color-mix(in srgb, var(--accent-purple) 85%, transparent);
     }
   }
+
+  // Slash commands: green edge, so `/` never reads as a file or an agent.
+  &.is-slash {
+    box-shadow: inset 2px 0 0 var(--accent-green, #4ade80);
+
+    .file-mention-dropdown__icon {
+      color: var(--accent-green, #4ade80);
+    }
+
+    .file-mention-dropdown__name {
+      color: var(--accent-green, #4ade80);
+    }
+  }
+}
+
+.slash-command-dropdown {
+  border-color: color-mix(in srgb, var(--accent-green, #4ade80) 35%, transparent);
+
+  .file-mention-dropdown__item.is-selected {
+    background: color-mix(in srgb, var(--accent-green, #4ade80) 14%, transparent);
+  }
 }
 
 .file-mention-dropdown__icon {

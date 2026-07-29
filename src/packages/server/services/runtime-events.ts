@@ -105,6 +105,24 @@ function getDefaultContextWindow(provider: 'claude' | 'codex' | 'opencode' | 'gr
   return DEFAULT_CLAUDE_CONTEXT_WINDOW;
 }
 
+/** Context window tiers Claude models ship with, smallest first. */
+const CLAUDE_CONTEXT_WINDOW_TIERS = [200_000, 1_000_000];
+
+/**
+ * Widen a stale Claude context limit to fit an observed prompt size.
+ *
+ * A Claude usage_snapshot is the token count of a *single* request
+ * (cacheRead + cacheCreation + input of one assistant message), so it can
+ * never be a cumulative session total. If it exceeds the limit we have on
+ * file, the limit is what's wrong — typically because the window was learned
+ * from a turn where an auxiliary model was billed alongside the main one.
+ * Returns null when the value is beyond anything Claude offers, so the caller
+ * can fall back to discarding it.
+ */
+function widenClaudeContextLimit(observedTokens: number): number | null {
+  return CLAUDE_CONTEXT_WINDOW_TIERS.find((tier) => observedTokens <= tier) ?? null;
+}
+
 function updateCodexRollingContextEstimate(agentId: string, turnGrowth: number): number {
   const history = codexContextGrowthHistory.get(agentId) || [];
   history.push(Math.max(0, Math.round(turnGrowth)));
@@ -336,10 +354,23 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
             if (snapshotContextUsed > 0) {
               // Grok signals also carry the authoritative window size.
               const modelWindow = event.modelUsage?.contextWindow;
-              const effectiveLimit = Math.max(
+              let effectiveLimit = Math.max(
                 1,
                 modelWindow || agent.contextLimit || getDefaultContextWindow(agent.provider)
               );
+
+              // Claude snapshots are per-request, never cumulative, so one that
+              // overflows the tracked window means the *window* is stale (it is
+              // only learned at end of turn). Widen it instead of discarding a
+              // good reading — the old behaviour also zeroed contextUsed, which
+              // is what made the meter collapse to 0k mid-conversation.
+              if (isClaudeProvider && snapshotContextUsed > effectiveLimit) {
+                const widened = widenClaudeContextLimit(snapshotContextUsed);
+                if (widened) {
+                  log.log(`[usage_snapshot] ${agentId}: snapshot ${snapshotContextUsed} exceeds tracked limit ${effectiveLimit}; widening to ${widened}`);
+                  effectiveLimit = widened;
+                }
+              }
               // Guard against cumulative session totals: if the sum exceeds the
               // context window, it can't represent per-request context fill.
               // Grok signals can report used slightly over window during compaction —

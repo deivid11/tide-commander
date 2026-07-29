@@ -87,6 +87,52 @@ describe('createRuntimeEventHandlers', () => {
     );
   });
 
+  // A Claude usage_snapshot is one request's prompt size, never a cumulative
+  // session total, so overflowing the tracked window means the window is stale
+  // (it is only learned at end of turn, and a turn that also billed Haiku used
+  // to report Haiku's 200k). Dropping the reading and zeroing contextUsed made
+  // the meter collapse to 0k mid-conversation.
+  it('widens a stale Claude context limit instead of zeroing the tracked tokens', async () => {
+    mockGetAgent.mockReturnValue({
+      id: 'agent-claude',
+      name: 'Claude',
+      provider: 'claude',
+      model: 'claude-opus-5',
+      tokensUsed: 0,
+      contextUsed: 463_500,
+      contextLimit: 200_000, // stale: learned from a turn that also billed Haiku
+    });
+
+    const { createRuntimeEventHandlers } = await import('./runtime-events.js');
+    const handlers = createRuntimeEventHandlers({
+      log: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      emitEvent: vi.fn(),
+      emitOutput: vi.fn(),
+      emitComplete: vi.fn(),
+      emitError: vi.fn(),
+      executeCommand: vi.fn(async () => {}),
+    });
+
+    handlers.handleEvent('agent-claude', {
+      type: 'usage_snapshot',
+      tokens: { input: 2, output: 40, cacheRead: 460_000, cacheCreation: 5_000 },
+    });
+
+    expect(mockUpdateAgent).toHaveBeenCalledWith(
+      'agent-claude',
+      expect.objectContaining({
+        contextUsed: 465_002,
+        contextLimit: 1_000_000,
+      }),
+      false,
+    );
+    expect(mockUpdateAgent).not.toHaveBeenCalledWith(
+      'agent-claude',
+      expect.objectContaining({ contextUsed: 0 }),
+      expect.anything(),
+    );
+  });
+
   it('refreshes Codex context from session snapshot on completion', async () => {
     mockGetAgent.mockReturnValue({
       id: 'agent-codex',
