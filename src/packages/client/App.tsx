@@ -24,6 +24,7 @@ import { AgentNotificationProvider, useAgentNotification } from './components/Ag
 import { WhatsAppMessageProvider, useWhatsAppMessage } from './components/WhatsAppMessageToast';
 import { UnitPanel } from './components/UnitPanel';
 import { TrackingBoard } from './components/ClaudeOutputPanel/TrackingBoard';
+import { refreshCustomSounds } from './utils/notificationSounds';
 import { type SceneConfig } from './components/toolbox';
 import { GuakeOutputPanel } from './components/ClaudeOutputPanel';
 import { FileViewerFromGuake, ContextModalFromGuake } from './components/ClaudeOutputPanel/TerminalModals';
@@ -187,6 +188,12 @@ function AppContent() {
 
   // Bottom stack ref — measured so the terminal input can sit exactly above it
   const bottomStackRef = useRef<HTMLDivElement>(null);
+  // Load user-uploaded notification sounds once at startup so custom cues apply
+  // even if the user never opens the settings panel this session.
+  useEffect(() => {
+    void refreshCustomSounds();
+  }, []);
+
   useEffect(() => {
     const el = bottomStackRef.current;
     if (!el) return;

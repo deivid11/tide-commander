@@ -1,0 +1,102 @@
+@use 'sass:color';
+@use '../variables' as *;
+
+// ─── Custom notification sounds (Settings → General) ─────────────────────────
+// Two-line layout: the name + when it fires on the left, actions on the right,
+// so nothing truncates and the UI explains itself without a tooltip.
+.config-sound-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+
+  & + & {
+    border-top: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+  }
+}
+
+.config-sound-hint {
+  margin: 2px 0 4px;
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 9.5px;
+  line-height: 1.45;
+  opacity: 0.85;
+}
+
+.config-sound-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.config-sound-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.config-sound-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.config-sound-when {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 9.5px;
+  line-height: 1.45;
+  // Wraps instead of truncating — the whole point is that it reads fully.
+  white-space: normal;
+}
+
+.config-sound-desc {
+  margin-top: 1px;
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 9px;
+  opacity: 0.7;
+}
+
+.config-sound-name {
+  color: var(--text-primary);
+  font-family: $font-mono;
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: normal;
+}
+
+.config-sound-badge {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-secondary) 14%, transparent);
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+
+  &.custom {
+    background: color-mix(in srgb, var(--accent-cyan) 18%, transparent);
+    color: var(--accent-cyan);
+  }
+}
+
+// A <label> styled as a button so the hidden file input stays accessible.
+.config-sound-upload {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.config-sound-error {
+  margin-top: 4px;
+  color: var(--accent-red, #f87171);
+  font-family: $font-mono;
+  font-size: 10px;
+}
