@@ -26,6 +26,13 @@ export interface NotificationTone {
 /** Id of the "play nothing" option. */
 export const SILENT_TONE_ID = 'none';
 
+/**
+ * Id meaning "play the file the user uploaded for this event". Not a catalog
+ * entry — the settings UI injects it as an option only for events that actually
+ * have an upload, and the engine resolves it through the custom-sound map.
+ */
+export const CUSTOM_TONE_ID = 'custom';
+
 /** Defaults per cue — the synthesized sounds Tide Commander shipped with. */
 export const DEFAULT_TONES = {
   notification: 'synth-chime',
