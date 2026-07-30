@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.173.0] - 2026-07-30
+
+### Added
+- **"None (silent)" tone per cue** - any one of the three cues can now be switched off on its own while the others keep playing, so you can (for example) keep the question alert and silence the agent-finished sound. Selecting None also disarms the repeating question alert rather than starting a cue that plays nothing, and its preview button greys out.
+
+### Changed
+- **Notification volume range extended to 0–10** - the slider previously topped out at 5, which was too quiet on some laptop speakers. Levels 1–5 keep exactly the loudness they always had, so an existing setting sounds unchanged; 6–10 are new headroom above the old ceiling. Synthesized cues and sampled tones use separate gain curves — a couple of sine oscillators need a much lower peak than a loudness-normalised file — tuned so switching tones doesn't change how loud a notification feels. The value readout now shows the level as `n/10`.
+
 ## [1.172.1] - 2026-07-30
 
 ### Fixed

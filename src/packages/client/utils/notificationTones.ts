@@ -1,7 +1,9 @@
 /**
  * Catalog of selectable notification tones.
  *
- * Two flavours:
+ * Three flavours:
+ *   - `none`     — silence, so a single cue can be switched off while the
+ *                  others keep playing.
  *   - `synth-*`  — the built-in Web Audio cues (no asset, always available).
  *   - sampled    — files under public/assets/notification-sounds (Kenney's
  *                  "Interface Sounds" pack, CC0; see CREDITS.md there).
@@ -13,11 +15,16 @@
 export interface NotificationTone {
   id: string;
   label: string;
-  /** Filename under assets/notification-sounds. Absent = built-in synth cue. */
+  /** Filename under assets/notification-sounds. */
   file?: string;
-  /** Which built-in cue to synthesize (built-ins only). */
+  /** Which built-in cue to synthesize. */
   synth?: 'notification' | 'question' | 'completion';
+  /** Play nothing at all — this cue is switched off. */
+  silent?: boolean;
 }
+
+/** Id of the "play nothing" option. */
+export const SILENT_TONE_ID = 'none';
 
 /** Defaults per cue — the synthesized sounds Tide Commander shipped with. */
 export const DEFAULT_TONES = {
@@ -27,6 +34,8 @@ export const DEFAULT_TONES = {
 } as const;
 
 export const NOTIFICATION_TONES: NotificationTone[] = [
+  { id: SILENT_TONE_ID, label: 'None (silent)', silent: true },
+
   { id: 'synth-chime', label: 'Built-in · Chime', synth: 'notification' },
   { id: 'synth-question', label: 'Built-in · Question', synth: 'question' },
   { id: 'synth-done', label: 'Built-in · Done', synth: 'completion' },
@@ -57,6 +66,11 @@ const BY_ID = new Map(NOTIFICATION_TONES.map((tone) => [tone.id, tone]));
 
 export function getTone(id: string | undefined): NotificationTone | undefined {
   return id ? BY_ID.get(id) : undefined;
+}
+
+/** True when this cue is configured to play nothing. */
+export function isToneSilent(id: string | undefined): boolean {
+  return getTone(id)?.silent === true;
 }
 
 /** Public URL of a sampled tone (respects the app's base path). */
