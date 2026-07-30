@@ -138,16 +138,18 @@ export function AgentNotificationProvider({ children }: { children: React.ReactN
     // Play a pleasant cue. Notifications that read like a question / a request for
     // input get the more attention-grabbing question sound; everything else gets
     // the soft general chime.
+    // A muted agent still shows up on screen — only its audio is silenced.
     const settings = store.getSettings();
-    const soundLevel = settings.notificationSoundEnabled ? settings.notificationSoundVolume : 0;
+    const muted = store.getState().agents.get(notification.agentId)?.soundsMuted === true;
+    const soundLevel = settings.notificationSoundEnabled && !muted ? settings.notificationSoundVolume : 0;
     if (soundLevel > 0) {
       const haystack = `${notification.title} ${notification.message}`;
       const looksLikeQuestion =
         /input|question|pregunta|decision|decisi[oó]n|necesita|need|plan\s*(ready|listo)|\?/i.test(haystack);
       if (looksLikeQuestion) {
-        playQuestionSound(soundLevel);
+        playQuestionSound(soundLevel, settings.toneQuestion);
       } else {
-        playNotificationSound(soundLevel);
+        playNotificationSound(soundLevel, settings.toneNotification);
       }
     }
 

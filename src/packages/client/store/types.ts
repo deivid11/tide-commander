@@ -4,6 +4,7 @@
  * Central location for all store-related types and interfaces.
  */
 
+import { DEFAULT_TONES } from '../utils/notificationTones';
 import type {
   Agent,
   DrawingArea,
@@ -183,6 +184,10 @@ export interface Settings {
   notificationSoundEnabled: boolean;
   // Notification sound volume: 0=mute, 1..5 quiet→loud. Default 3.
   notificationSoundVolume: number;
+  // Tone per cue — ids from utils/notificationTones (built-in synth or sample).
+  toneNotification: string;
+  toneQuestion: string;
+  toneCompletion: string;
   // Custom browser tab title (empty = default "Tide Commander")
   tabTitle?: string;
   // Show bash command output inline below the command row in the terminal
@@ -225,6 +230,9 @@ export const DEFAULT_SETTINGS: Settings = {
   vibrationIntensity: 1,
   notificationSoundEnabled: false,
   notificationSoundVolume: 3,
+  toneNotification: DEFAULT_TONES.notification,
+  toneQuestion: DEFAULT_TONES.question,
+  toneCompletion: DEFAULT_TONES.completion,
   tabTitle: '',
   inlineBashOutputs: false,
   toolHoverPreview: true,

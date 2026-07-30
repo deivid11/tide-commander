@@ -1050,6 +1050,7 @@ export async function handleUpdateAgentProperties(
       skillIds?: string[];
       cwd?: string;
       shortcut?: string;
+      soundsMuted?: boolean;
       customInstructions?: string;
       customPrompt?: string;
       autoCollapse?: boolean;
@@ -1186,6 +1187,10 @@ export async function handleUpdateAgentProperties(
 
   if (updates.shortcut !== undefined) {
     agentUpdates.shortcut = updates.shortcut;
+  }
+
+  if (updates.soundsMuted !== undefined) {
+    agentUpdates.soundsMuted = updates.soundsMuted;
   }
 
   if (updates.customInstructions !== undefined) {

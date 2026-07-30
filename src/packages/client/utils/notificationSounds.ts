@@ -12,6 +12,12 @@
 // Callers pass a volume LEVEL (0..5). Level 0 is silent, so callers can simply
 // forward `settings.notificationSoundEnabled ? settings.notificationSoundVolume : 0`
 // without branching. This module never imports the store, keeping it dependency-free.
+//
+// Each cue can also be swapped for a sampled tone (Settings → Sound Effects):
+// callers pass the configured tone id alongside the level, and an unknown id or
+// a failed download silently falls back to the synthesized cue.
+
+import { getTone, toneAssetUrl } from './notificationTones';
 
 export const MAX_NOTIFICATION_SOUND_VOLUME = 5;
 
@@ -108,7 +114,61 @@ function playTone(
   overtone.stop(startAt + duration + 0.05);
 }
 
-function play(kind: SoundKind, level: number): void {
+// ─── Sampled tones ───────────────────────────────────────────────────────────
+// Decoded once per tone and reused; a fetch/decode failure is remembered as
+// `null` so a missing file degrades to the synth cue instead of retrying on
+// every notification.
+
+const sampleCache = new Map<string, AudioBuffer | null>();
+const samplesLoading = new Set<string>();
+
+function loadSample(ctx: AudioContext, file: string): void {
+  if (sampleCache.has(file) || samplesLoading.has(file)) return;
+  samplesLoading.add(file);
+  void fetch(toneAssetUrl(file))
+    .then((res) => (res.ok ? res.arrayBuffer() : Promise.reject(new Error(String(res.status)))))
+    .then((data) => ctx.decodeAudioData(data))
+    .then((buffer) => { sampleCache.set(file, buffer); })
+    .catch(() => { sampleCache.set(file, null); })
+    .finally(() => { samplesLoading.delete(file); });
+}
+
+/**
+ * Play a decoded sample. Returns false when the buffer isn't ready yet (the
+ * download is kicked off for next time) so the caller can fall back to synth.
+ */
+function playSample(ctx: AudioContext, file: string, peak: number): boolean {
+  const buffer = sampleCache.get(file);
+  if (!buffer) {
+    loadSample(ctx, file);
+    return false;
+  }
+
+  const gain = ctx.createGain();
+  // Samples are loudness-normalised, so the same 0..5 curve as the synth cues
+  // keeps switching tones from changing the perceived volume. The headroom
+  // factor accounts for samples peaking higher than a single sine.
+  gain.gain.value = Math.min(1, peak * 2.6);
+  gain.connect(ctx.destination);
+
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(gain);
+  source.start();
+  return true;
+}
+
+/** Warm the decode cache for the tones the user has configured. */
+export function preloadTones(toneIds: Array<string | undefined>): void {
+  const ctx = getContext();
+  if (!ctx) return;
+  for (const id of toneIds) {
+    const file = getTone(id)?.file;
+    if (file) loadSample(ctx, file);
+  }
+}
+
+function play(kind: SoundKind, level: number, toneId?: string): void {
   const peak = levelToPeak(level);
   if (peak <= 0) return;
 
@@ -118,6 +178,20 @@ function play(kind: SoundKind, level: number): void {
 
   const ctx = getContext();
   if (!ctx) return;
+
+  // A configured tone wins: a sample if it is decoded, otherwise the built-in
+  // cue it maps to (or this cue's own default while the sample downloads).
+  const tone = getTone(toneId);
+  if (tone?.file && playSample(ctx, tone.file, peak)) return;
+  if (tone?.synth && tone.synth !== kind) {
+    playSynth(tone.synth, peak, ctx);
+    return;
+  }
+
+  playSynth(kind, peak, ctx);
+}
+
+function playSynth(kind: SoundKind, peak: number, ctx: AudioContext): void {
 
   const t = ctx.currentTime + 0.01;
   if (kind === 'question') {
@@ -167,18 +241,43 @@ function play(kind: SoundKind, level: number): void {
  * Distinctive "an agent is asking you something" cue: two taps plus an upward
  * pitch bend. Deliberately the only gliding sound in the app.
  */
-export function playQuestionSound(level: number): void {
-  play('question', level);
+export function playQuestionSound(level: number, toneId?: string): void {
+  play('question', level, toneId);
 }
 
 /** Soft chime for general agent notifications. */
-export function playNotificationSound(level: number): void {
-  play('notification', level);
+export function playNotificationSound(level: number, toneId?: string): void {
+  play('notification', level, toneId);
 }
 
 /** Mellow resolving cue for when an agent finishes its work (working → idle). */
-export function playCompletionSound(level: number): void {
-  play('completion', level);
+export function playCompletionSound(level: number, toneId?: string): void {
+  play('completion', level, toneId);
+}
+
+/**
+ * Play a tone on demand for the Settings preview. Bypasses the per-cue debounce
+ * so repeated taps on the same row always sound, and awaits the sample so the
+ * first preview of a tone isn't silent.
+ */
+export async function previewTone(toneId: string, level: number): Promise<void> {
+  const peak = levelToPeak(level);
+  if (peak <= 0) return;
+  const ctx = getContext();
+  if (!ctx) return;
+
+  const tone = getTone(toneId);
+  if (tone?.file) {
+    if (!sampleCache.has(tone.file)) {
+      loadSample(ctx, tone.file);
+      // Give the fetch+decode a moment; the cache entry appears when it settles.
+      for (let i = 0; i < 40 && !sampleCache.has(tone.file); i++) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+    if (playSample(ctx, tone.file, peak)) return;
+  }
+  playSynth(tone?.synth ?? 'notification', peak, ctx);
 }
 
 // ─── Unanswered-question reminder ────────────────────────────────────────────
@@ -194,16 +293,17 @@ const QUESTION_ALERT_PAIR_GAP_MS = 800;
 let alertTimer: number | null = null;
 let alertDeadline = 0;
 let getAlertLevel: (() => number) | null = null;
+let getAlertTone: (() => string | undefined) | null = null;
 let questionsStillPending: (() => boolean) | null = null;
 
 function fireAlert(pair: boolean): void {
   const level = getAlertLevel?.() ?? 0;
   if (level <= 0) return;
-  play('question', level);
+  play('question', level, getAlertTone?.());
   if (pair) {
     window.setTimeout(() => {
       // Skip the second hit if the user answered in the meantime.
-      if (questionsStillPending?.()) play('question', getAlertLevel?.() ?? 0);
+      if (questionsStillPending?.()) play('question', getAlertLevel?.() ?? 0, getAlertTone?.());
     }, QUESTION_ALERT_PAIR_GAP_MS);
   }
 }
@@ -221,9 +321,15 @@ function tickAlert(): void {
  *
  * @param level         reads the current volume level, so a settings change applies mid-alert
  * @param stillPending  checked before every repeat; the alert stops as soon as it returns false
+ * @param tone          reads the configured question tone, so it can be changed mid-alert too
  */
-export function startQuestionAlert(level: () => number, stillPending: () => boolean): void {
+export function startQuestionAlert(
+  level: () => number,
+  stillPending: () => boolean,
+  tone?: () => string | undefined,
+): void {
   getAlertLevel = level;
+  getAlertTone = tone ?? null;
   questionsStillPending = stillPending;
   // A newly arrived question restarts the 2-minute window.
   alertDeadline = Date.now() + QUESTION_ALERT_MAX_MS;
@@ -242,5 +348,6 @@ export function stopQuestionAlert(): void {
     alertTimer = null;
   }
   getAlertLevel = null;
+  getAlertTone = null;
   questionsStillPending = null;
 }

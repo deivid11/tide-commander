@@ -17,21 +17,30 @@ function soundLevel(): number {
   return s.notificationSoundEnabled ? s.notificationSoundVolume : 0;
 }
 
-/** True while any agent question or permission request still awaits the user. */
+/** False for agents the user muted (see Agent.soundsMuted). */
+function agentIsAudible(agentId?: string): boolean {
+  if (!agentId) return true;
+  return !store.getState().agents.get(agentId)?.soundsMuted;
+}
+
+/**
+ * True while any question or permission request from an *unmuted* agent still
+ * awaits the user. Muted agents never start or sustain the repeating cue.
+ */
 function hasPendingQuestions(): boolean {
   const state = store.getState();
   for (const prompt of state.agentPrompts.values()) {
-    if (prompt.status === 'pending') return true;
+    if (prompt.status === 'pending' && agentIsAudible(prompt.agentId)) return true;
   }
   for (const request of state.permissionRequests.values()) {
-    if (request.status === 'pending') return true;
+    if (request.status === 'pending' && agentIsAudible(request.agentId)) return true;
   }
   return false;
 }
 
 /** Begin the repeating "you have an unanswered question" cue. */
 function beginQuestionAlert(): void {
-  startQuestionAlert(soundLevel, hasPendingQuestions);
+  startQuestionAlert(soundLevel, hasPendingQuestions, () => store.getSettings().toneQuestion);
 }
 
 /** Silence the repeating cue once nothing is waiting on the user anymore. */
@@ -133,8 +142,11 @@ export function handleServerMessage(message: ServerMessage): void {
       // to catch up on events missed during backend disconnects
       if (statusChanged && previousAgent?.status === 'working' && updatedAgent.status === 'idle') {
         store.triggerHistoryRefresh(updatedAgent.id);
-        // An agent just finished its work — play the completion cue.
-        playCompletionSound(soundLevel());
+        // An agent just finished its work — play the completion cue (unless
+        // the user muted this agent).
+        if (agentIsAudible(updatedAgent.id)) {
+          playCompletionSound(soundLevel(), store.getSettings().toneCompletion);
+        }
       }
 
       const positionChanged = previousAgent
@@ -565,7 +577,7 @@ export function handleServerMessage(message: ServerMessage): void {
       const request = message.payload as import('../../shared/types').PermissionRequest;
       store.addPermissionRequest(request);
       // An agent is asking for a decision — start the repeating question cue.
-      beginQuestionAlert();
+      if (agentIsAudible(request.agentId)) beginQuestionAlert();
       break;
     }
 
@@ -584,7 +596,7 @@ export function handleServerMessage(message: ServerMessage): void {
       store.addAgentPrompt(prompt);
       // An agent just asked the user a question (AskUserQuestion / ExitPlanMode /
       // permission) — headline case: repeat the cue until it is answered.
-      beginQuestionAlert();
+      if (agentIsAudible(prompt.agentId)) beginQuestionAlert();
       break;
     }
 
