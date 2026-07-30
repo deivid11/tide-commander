@@ -357,6 +357,12 @@ export interface Agent {
   // Global keyboard shortcut to open guake terminal for this agent (e.g. 'ctrl+1', 'alt+a')
   shortcut?: string;
 
+  // Silence this agent's audio only: no notification chime, no completion cue,
+  // and its questions never start the repeating alert. Everything visual stays
+  // exactly as before — toasts, phone notifications and the board are
+  // untouched. Intended for chatty agents you still want to watch.
+  soundsMuted?: boolean;
+
   // Auto-collapse: when enabled, the agent's context is collapsed (/compact runs,
   // waiting for idle if busy) on a recurring cron schedule. Intended for unattended
   // agents (slack channels, log-supervising cronjobs) whose context grows indefinitely.

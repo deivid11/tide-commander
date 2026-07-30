@@ -138,7 +138,10 @@
     "injectedPromptRefresh": "Refresh",
     "injectedPromptLoading": "Loading prompt…",
     "injectedPromptError": "Failed to load prompt: {{error}}",
-    "injectedPromptLength": "{{chars}} chars · ~{{tokens}} tok"
+    "injectedPromptLength": "{{chars}} chars · ~{{tokens}} tok",
+    "sounds": "Sounds",
+    "soundsMuted": "Muted",
+    "soundsActive": "On"
   },
   "empty": {
     "tapAgent": "Tap an agent on the battlefield to view their terminal",

@@ -61,6 +61,7 @@ import { OnboardingModal } from './components/OnboardingModal';
 import { profileRender, useRenderCounter } from './utils/profiling';
 import { dockBuilding } from './utils/buildingViewMode';
 import { getStorageString, STORAGE_KEYS } from './utils/storage';
+import { preloadTones } from './utils/notificationSounds';
 import {
   useModalState,
   useModalStateWithId,
@@ -296,6 +297,19 @@ function AppContent() {
   useAreaHighlight(sceneRef, selectedAreaId);
   usePowerSaving(sceneRef, settings.powerSaving);
   useLowPowerMode(sceneRef, settings.lowPowerMode);
+
+  // Decode the configured notification tones up front so the first cue of the
+  // session plays the chosen sample instead of falling back to the synth while
+  // it downloads. Only when sounds are on — this creates the AudioContext.
+  useEffect(() => {
+    if (!settings.notificationSoundEnabled) return;
+    preloadTones([settings.toneNotification, settings.toneQuestion, settings.toneCompletion]);
+  }, [
+    settings.notificationSoundEnabled,
+    settings.toneNotification,
+    settings.toneQuestion,
+    settings.toneCompletion,
+  ]);
 
   // Low power mode: freeze decorative CSS animations via a global class
   // (see styles/_low-power.scss)

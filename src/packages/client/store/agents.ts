@@ -139,6 +139,7 @@ export interface AgentActions {
       skillIds?: string[];
       cwd?: string;
       shortcut?: string;
+      soundsMuted?: boolean;
       customInstructions?: string;
       customPrompt?: string;
       autoCollapse?: boolean;
@@ -853,6 +854,7 @@ export function createAgentActions(
         skillIds?: string[];
         cwd?: string;
         shortcut?: string;
+        soundsMuted?: boolean;
         customInstructions?: string;
         customPrompt?: string;
         autoCollapse?: boolean;

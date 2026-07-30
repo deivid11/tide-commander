@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.172.0] - 2026-07-29
+
+### Added
+- **Selectable notification tones** - each of the three cues (notification, question, agent finished) can now be set independently in Settings → Sound Effects, choosing from the three built-in synthesized cues plus 20 sampled tones (chime, bell, glass, pluck, drop, blip, switch, alert, pop, tick and soft/bright variants). Picking a tone plays it immediately as its own preview, the configured tones are decoded up front so the first cue of a session isn't the fallback, and an unknown id or a failed download degrades silently to the built-in cue. The samples are a curated subset of Kenney's "Interface Sounds" pack (CC0), converted to mono MP3 and loudness-normalised so switching tones doesn't change the perceived volume.
+- **Per-agent sound mute** - "Mute sounds from this agent" in the agent edit dialog silences one agent's audio only: no notification chime, no completion cue, and its questions never start (or sustain) the repeating alert. Everything visual is untouched — toasts, phone notifications and the board behave exactly as before — so a chatty agent can be silenced without being hidden. The agent info panel shows the current state as Sounds: Muted / On.
+
 ## [1.171.0] - 2026-07-29
 
 ### Added

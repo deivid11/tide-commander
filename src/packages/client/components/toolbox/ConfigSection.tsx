@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { useSettings, store, useCustomAgentClassesArray } from '../../store';
 import { getBackendUrls, setBackendUrls, subscribeBackendUrlChange, STORAGE_KEYS, setStorageString, getStorageString, getAuthToken } from '../../utils/storage';
-import { playNotificationSound, playQuestionSound, playCompletionSound } from '../../utils/notificationSounds';
+import { playNotificationSound, playQuestionSound, previewTone } from '../../utils/notificationSounds';
+import { NOTIFICATION_TONES, getTone } from '../../utils/notificationTones';
 import { BUILT_IN_AGENT_CLASSES } from '../../../shared/agent-types';
 import { reconnect } from '../../websocket';
 import { CollapsibleSection } from './CollapsibleSection';
@@ -589,7 +590,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           <span className="config-label" title="Play pleasant sounds: a chime for agent notifications, a distinctive rising cue when an agent asks you a question (repeats until answered), and a resolving cue when an agent finishes its work."><HighlightText text="Notification sounds" query={searchQuery} /></span>
           <Toggle checked={settings.notificationSoundEnabled} onChange={(checked) => {
             store.updateSettings({ notificationSoundEnabled: checked });
-            if (checked) playNotificationSound(settings.notificationSoundVolume);
+            if (checked) playNotificationSound(settings.notificationSoundVolume, settings.toneNotification);
           }} />
         </div>
         {settings.notificationSoundEnabled && (
@@ -598,19 +599,41 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           <input type="range" className="config-slider" min="0" max="5" step="1" value={settings.notificationSoundVolume} onChange={(e) => {
             const v = parseInt(e.target.value);
             store.updateSettings({ notificationSoundVolume: v });
-            playQuestionSound(v); // preview the headline "question" cue while tuning
+            playQuestionSound(v, settings.toneQuestion); // preview the headline cue while tuning
           }} />
           <span className="config-value">{settings.notificationSoundVolume === 0 ? t('config:vibrationValues.off') : String(settings.notificationSoundVolume)}</span>
         </div>
         )}
-        {settings.notificationSoundEnabled && settings.notificationSoundVolume > 0 && (
-        <div className="config-row">
-          <span className="config-label"><HighlightText text="Preview sounds" query={searchQuery} /></span>
-          <button className="config-btn config-btn-sm" onClick={() => playQuestionSound(settings.notificationSoundVolume)} title="Play the question cue">Question</button>
-          <button className="config-btn config-btn-sm" onClick={() => playNotificationSound(settings.notificationSoundVolume)} title="Play the notification cue">Notification</button>
-          <button className="config-btn config-btn-sm" onClick={() => playCompletionSound(settings.notificationSoundVolume)} title="Play the agent-finished cue">Done</button>
-        </div>
-        )}
+        {settings.notificationSoundEnabled && settings.notificationSoundVolume > 0 && ([
+          { key: 'toneNotification' as const, label: 'Notification tone', hint: 'Played when an agent sends a notification' },
+          { key: 'toneQuestion' as const, label: 'Question tone', hint: 'Played when an agent asks you something (repeats until answered)' },
+          { key: 'toneCompletion' as const, label: 'Agent finished tone', hint: 'Played when an agent goes from working to idle' },
+        ].map(({ key, label, hint }) => (
+          <div className="config-row" key={key}>
+            <span className="config-label" title={hint}><HighlightText text={label} query={searchQuery} /></span>
+            <select
+              className="config-select"
+              value={settings[key]}
+              onChange={(e) => {
+                const toneId = e.target.value;
+                store.updateSettings({ [key]: toneId });
+                // Play it right away — picking a tone is the preview.
+                void previewTone(toneId, settings.notificationSoundVolume);
+              }}
+            >
+              {NOTIFICATION_TONES.map((tone) => (
+                <option key={tone.id} value={tone.id}>{tone.label}</option>
+              ))}
+            </select>
+            <button
+              className="config-btn config-btn-sm"
+              onClick={() => void previewTone(settings[key], settings.notificationSoundVolume)}
+              title={`Preview: ${getTone(settings[key])?.label ?? settings[key]}`}
+            >
+              ▶
+            </button>
+          </div>
+        )))}
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('config:general.externalEditor')} query={searchQuery} /></span>
           <input type="text" className="config-input" placeholder={t('config:general.externalEditorPlaceholder')} value={settings.externalEditorCommand || ''} onChange={(e) => store.updateSettings({ externalEditorCommand: e.target.value })} />

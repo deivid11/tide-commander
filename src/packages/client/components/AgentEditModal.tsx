@@ -68,6 +68,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const browserTz = useMemo(() => {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; }
   }, []);
+  const [soundsMuted, setSoundsMuted] = useState<boolean>(agent.soundsMuted || false);
   const [autoCollapse, setAutoCollapse] = useState<boolean>(agent.autoCollapse || false);
   const [autoCollapseCron, setAutoCollapseCron] = useState<string>(agent.autoCollapseCron || '');
   const [autoCollapseTz, setAutoCollapseTz] = useState<string>(agent.autoCollapseTz || '');
@@ -132,6 +133,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       setShortcut((((agent as AgentWithShortcut).shortcut) || '').trim());
       setClassSearch('');
       setCustomInstructions(agent.customInstructions || '');
+      setSoundsMuted(agent.soundsMuted || false);
       setAutoCollapse(agent.autoCollapse || false);
       setAutoCollapseCron(agent.autoCollapseCron || '');
       setAutoCollapseTz(agent.autoCollapseTz || '');
@@ -245,6 +247,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (workdir !== agent.cwd) return true;
     if (shortcut !== (((agent as AgentWithShortcut).shortcut || '').trim())) return true;
     if (customInstructions !== (agent.customInstructions || '')) return true;
+    if (soundsMuted !== (agent.soundsMuted || false)) return true;
     if (autoCollapse !== (agent.autoCollapse || false)) return true;
     if (autoCollapseCron !== (agent.autoCollapseCron || '')) return true;
     if (autoCollapseTz !== (agent.autoCollapseTz || '')) return true;
@@ -260,7 +263,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (currentDirectSkills !== newSkills) return true;
 
     return false;
-  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedEffort, selectedCodexModel, codexConfig, opencodeModel, grokModel, useChrome, workdir, shortcut, customInstructions, autoCollapse, autoCollapseCron, autoCollapseTz, autoCollapsePrompt, selectedSkillIds, agent, allSkills]);
+  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedEffort, selectedCodexModel, codexConfig, opencodeModel, grokModel, useChrome, workdir, shortcut, customInstructions, soundsMuted, autoCollapse, autoCollapseCron, autoCollapseTz, autoCollapsePrompt, selectedSkillIds, agent, allSkills]);
 
   // Handle save
   const handleSave = () => {
@@ -280,6 +283,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       cwd?: string;
       shortcut?: string;
       customInstructions?: string;
+      soundsMuted?: boolean;
       autoCollapse?: boolean;
       autoCollapseCron?: string;
       autoCollapseTz?: string;
@@ -340,6 +344,10 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
 
     if (customInstructions !== (agent.customInstructions || '')) {
       updates.customInstructions = customInstructions;
+    }
+
+    if (soundsMuted !== (agent.soundsMuted || false)) {
+      updates.soundsMuted = soundsMuted;
     }
 
     if (autoCollapse !== (agent.autoCollapse || false)) {
@@ -859,6 +867,22 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <div className="spawn-form-row spawn-options-row">
+                <label className="spawn-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={soundsMuted}
+                    onChange={(e) => setSoundsMuted(e.target.checked)}
+                  />
+                  <span>Mute sounds from this agent</span>
+                </label>
+              </div>
+              <div className="spawn-inline-hint" style={{ marginTop: -4 }}>
+                {soundsMuted
+                  ? 'Audio only: no chime, completion cue or repeating question alert. Notifications still appear on screen.'
+                  : 'Silence a chatty agent without hiding it — its notifications keep showing, just without sound.'}
               </div>
 
               <div className="spawn-form-row spawn-options-row">
