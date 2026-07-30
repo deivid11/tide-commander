@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.174.0] - 2026-07-30
+
+### Added
+- **Upload your own notification sounds** - each of the three events (agent asks you something / agent sends a notification / agent finishes working) can be overridden with your own audio file from Settings → General → Sounds per event. Uploads are stored server-side (mp3, wav, ogg, m4a, aac or webm, 5 MB cap), so the same sounds apply on every device connected to that commander rather than only the browser that uploaded them. It's per event, not all-or-nothing: anything you don't override keeps its built-in cue, and a file that fails to play (bad codec, missing file, autoplay blocked) falls back to the synthesized cue instead of going silent.
+- **Slash-command autocomplete in chat** - typing `/` now suggests the commands the commander can actually deliver (`/compact`, `/clear`, `/context`, `/cost`), gated per provider. Interactive-only commands like `/model` and `/login` are deliberately absent: agents run headless, where those silently do nothing.
+
+### Changed
+- **Warmer built-in cues** - the synthesized sounds were pure oscillators with exact-octave overtones, which is precisely what reads as "electronic beep". They're now synthesized as struck bars: inharmonic partials (2.005×, 3.01×, 5.43×) like a real marimba, a short filtered-noise mallet transient, per-partial decay so upper partials die away first, a gentle lowpass, and a ~10 ms attack instead of a clicky instantaneous onset. Same melodies and the same questioning pitch-bend, so every cue stays recognizable — only the timbre changed.
+
+### Fixed
+- **Context counter drifting out of sync** - three separate causes. A turn can bill several models (the conversation model plus short auxiliary Haiku calls for web search or titles) and `modelUsage` key order follows first use, so the first key was frequently Haiku and its 200k window got reported as the agent's — replaying 1578 real result events, 290 of 402 multi-model turns were mis-attributed; the meter now picks the model the main loop actually streamed. A prompt size larger than the tracked window used to be discarded, collapsing the meter to `0.0k` mid-conversation, when it actually means the *window* is stale and should be widened. And the terminal footer, mobile bar and flat view each rolled their own precedence between reported and tracked stats, so they could disagree — all three now route through one helper.
+- **`/compact` leaving a stale context number** on screen until the next message; it now refreshes on completion.
+- **Slash commands looking like a no-op** - they were hidden in four places, so running one produced no visible trace. They now render as a chip in both the live and reloaded-history paths, and server-intercepted commands (`/context`, `/cost`, `/clear`) are echoed so they reach the chat at all. Echo Prompt no longer breaks them either: duplicating `/compact` into `/compact\n\n---\n\n/compact` stopped the CLI treating it as a command, so Claude now skips the echo for bare slash commands the way Codex and OpenCode already did.
+- **CSS leaking into highlighted code** - a global `.class-name` rule (dead code from an old class picker) collided with Prism's `builtin class-name` token and capitalized `cd` / `echo` in every command shown in chat, and a global `.tag` rule hit Prism's markup token, giving HTML/JSX blocks `display: inline-flex` and a red hover. Both are now scoped to their owners.
+- **Commands mislabelled as GREP** - the terminal command classifier matched `grep` anywhere in the string, so a multi-step build gate got labelled by one late pipe stage. It now only classifies when a single substantive step remains after stripping `cd` / `echo` scaffolding.
+
 ## [1.173.0] - 2026-07-30
 
 ### Added
