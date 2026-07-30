@@ -9,7 +9,7 @@
 //   - playCompletionSound():   a mellow descending arpeggio that resolves to the
 //                              tonic — used when an agent finishes its work.
 //
-// Callers pass a volume LEVEL (0..5). Level 0 is silent, so callers can simply
+// Callers pass a volume LEVEL (0..10). Level 0 is silent, so callers can simply
 // forward `settings.notificationSoundEnabled ? settings.notificationSoundVolume : 0`
 // without branching. This module never imports the store, keeping it dependency-free.
 //
@@ -17,9 +17,9 @@
 // callers pass the configured tone id alongside the level, and an unknown id or
 // a failed download silently falls back to the synthesized cue.
 
-import { getTone, toneAssetUrl } from './notificationTones';
+import { getTone, isToneSilent, toneAssetUrl } from './notificationTones';
 
-export const MAX_NOTIFICATION_SOUND_VOLUME = 5;
+export const MAX_NOTIFICATION_SOUND_VOLUME = 10;
 
 type SoundKind = 'question' | 'notification' | 'completion';
 
@@ -50,11 +50,31 @@ function getContext(): AudioContext | null {
   }
 }
 
-// Map a 0..5 level to a peak gain. Kept well below 1.0 so cues stay pleasant.
-function levelToPeak(level: number): number {
-  const clamped = Math.max(0, Math.min(MAX_NOTIFICATION_SOUND_VOLUME, Math.round(level)));
-  if (clamped <= 0) return 0;
-  return 0.06 + (clamped / MAX_NOTIFICATION_SOUND_VOLUME) * 0.26; // ~0.11 .. 0.32
+/**
+ * Volume curves, indexed by level (0 = silent, 10 = loudest).
+ *
+ * Levels 1..5 are exactly the old five-step scale, so a stored setting keeps the
+ * loudness it always had; 6..10 are the new headroom above the previous ceiling.
+ * Two curves because the sources differ: the synth cue is a couple of sine
+ * oscillators (needs a low peak to stay clean), while the sampled tones are
+ * loudness-normalised files that are already close to full scale.
+ */
+const SYNTH_PEAKS = [0, 0.112, 0.164, 0.216, 0.268, 0.32, 0.40, 0.48, 0.57, 0.66, 0.78];
+const SAMPLE_GAINS = [0, 0.29, 0.43, 0.56, 0.70, 0.83, 0.88, 0.92, 0.95, 0.98, 1.0];
+
+function clampLevel(level: number): number {
+  if (!Number.isFinite(level)) return 0;
+  return Math.max(0, Math.min(MAX_NOTIFICATION_SOUND_VOLUME, Math.round(level)));
+}
+
+/** Peak gain for the synthesized cues. 0 means silent. */
+export function synthPeakForLevel(level: number): number {
+  return SYNTH_PEAKS[clampLevel(level)];
+}
+
+/** Playback gain for a sampled tone. 0 means silent. */
+export function sampleGainForLevel(level: number): number {
+  return SAMPLE_GAINS[clampLevel(level)];
 }
 
 interface ToneOptions {
@@ -137,7 +157,7 @@ function loadSample(ctx: AudioContext, file: string): void {
  * Play a decoded sample. Returns false when the buffer isn't ready yet (the
  * download is kicked off for next time) so the caller can fall back to synth.
  */
-function playSample(ctx: AudioContext, file: string, peak: number): boolean {
+function playSample(ctx: AudioContext, file: string, gainValue: number): boolean {
   const buffer = sampleCache.get(file);
   if (!buffer) {
     loadSample(ctx, file);
@@ -145,10 +165,10 @@ function playSample(ctx: AudioContext, file: string, peak: number): boolean {
   }
 
   const gain = ctx.createGain();
-  // Samples are loudness-normalised, so the same 0..5 curve as the synth cues
-  // keeps switching tones from changing the perceived volume. The headroom
-  // factor accounts for samples peaking higher than a single sine.
-  gain.gain.value = Math.min(1, peak * 2.6);
+  // Samples are loudness-normalised, so SAMPLE_GAINS is tuned to match the
+  // perceived loudness of the synth cues at the same level — switching tones
+  // shouldn't change how loud a notification feels.
+  gain.gain.value = Math.min(1, gainValue);
   gain.connect(ctx.destination);
 
   const source = ctx.createBufferSource();
@@ -169,7 +189,10 @@ export function preloadTones(toneIds: Array<string | undefined>): void {
 }
 
 function play(kind: SoundKind, level: number, toneId?: string): void {
-  const peak = levelToPeak(level);
+  // This cue is switched off — other cues keep their sound.
+  if (isToneSilent(toneId)) return;
+
+  const peak = synthPeakForLevel(level);
   if (peak <= 0) return;
 
   const now = Date.now();
@@ -182,7 +205,7 @@ function play(kind: SoundKind, level: number, toneId?: string): void {
   // A configured tone wins: a sample if it is decoded, otherwise the built-in
   // cue it maps to (or this cue's own default while the sample downloads).
   const tone = getTone(toneId);
-  if (tone?.file && playSample(ctx, tone.file, peak)) return;
+  if (tone?.file && playSample(ctx, tone.file, sampleGainForLevel(level))) return;
   if (tone?.synth && tone.synth !== kind) {
     playSynth(tone.synth, peak, ctx);
     return;
@@ -261,7 +284,8 @@ export function playCompletionSound(level: number, toneId?: string): void {
  * first preview of a tone isn't silent.
  */
 export async function previewTone(toneId: string, level: number): Promise<void> {
-  const peak = levelToPeak(level);
+  if (isToneSilent(toneId)) return;
+  const peak = synthPeakForLevel(level);
   if (peak <= 0) return;
   const ctx = getContext();
   if (!ctx) return;
@@ -275,7 +299,7 @@ export async function previewTone(toneId: string, level: number): Promise<void> 
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
     }
-    if (playSample(ctx, tone.file, peak)) return;
+    if (playSample(ctx, tone.file, sampleGainForLevel(level))) return;
   }
   playSynth(tone?.synth ?? 'notification', peak, ctx);
 }
@@ -328,6 +352,9 @@ export function startQuestionAlert(
   stillPending: () => boolean,
   tone?: () => string | undefined,
 ): void {
+  // Question cue set to None: no alert to arm, and nothing to stop later.
+  if (isToneSilent(tone?.())) return;
+
   getAlertLevel = level;
   getAlertTone = tone ?? null;
   questionsStillPending = stillPending;

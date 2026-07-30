@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { useSettings, store, useCustomAgentClassesArray } from '../../store';
 import { getBackendUrls, setBackendUrls, subscribeBackendUrlChange, STORAGE_KEYS, setStorageString, getStorageString, getAuthToken } from '../../utils/storage';
-import { playNotificationSound, playQuestionSound, previewTone } from '../../utils/notificationSounds';
-import { NOTIFICATION_TONES, getTone } from '../../utils/notificationTones';
+import { playNotificationSound, playQuestionSound, previewTone, MAX_NOTIFICATION_SOUND_VOLUME } from '../../utils/notificationSounds';
+import { NOTIFICATION_TONES, getTone, isToneSilent } from '../../utils/notificationTones';
 import { BUILT_IN_AGENT_CLASSES } from '../../../shared/agent-types';
 import { reconnect } from '../../websocket';
 import { CollapsibleSection } from './CollapsibleSection';
@@ -596,12 +596,12 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         {settings.notificationSoundEnabled && (
         <div className="config-row">
           <span className="config-label"><HighlightText text="Notification sound volume" query={searchQuery} /></span>
-          <input type="range" className="config-slider" min="0" max="5" step="1" value={settings.notificationSoundVolume} onChange={(e) => {
+          <input type="range" className="config-slider" min="0" max={MAX_NOTIFICATION_SOUND_VOLUME} step="1" value={settings.notificationSoundVolume} onChange={(e) => {
             const v = parseInt(e.target.value);
             store.updateSettings({ notificationSoundVolume: v });
             playQuestionSound(v, settings.toneQuestion); // preview the headline cue while tuning
           }} />
-          <span className="config-value">{settings.notificationSoundVolume === 0 ? t('config:vibrationValues.off') : String(settings.notificationSoundVolume)}</span>
+          <span className="config-value">{settings.notificationSoundVolume === 0 ? t('config:vibrationValues.off') : `${settings.notificationSoundVolume}/${MAX_NOTIFICATION_SOUND_VOLUME}`}</span>
         </div>
         )}
         {settings.notificationSoundEnabled && settings.notificationSoundVolume > 0 && ([
@@ -617,7 +617,8 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
               onChange={(e) => {
                 const toneId = e.target.value;
                 store.updateSettings({ [key]: toneId });
-                // Play it right away — picking a tone is the preview.
+                // Play it right away — picking a tone is the preview. "None"
+                // resolves to silence inside previewTone, so nothing sounds.
                 void previewTone(toneId, settings.notificationSoundVolume);
               }}
             >
@@ -628,7 +629,10 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
             <button
               className="config-btn config-btn-sm"
               onClick={() => void previewTone(settings[key], settings.notificationSoundVolume)}
-              title={`Preview: ${getTone(settings[key])?.label ?? settings[key]}`}
+              disabled={isToneSilent(settings[key])}
+              title={isToneSilent(settings[key])
+                ? 'This cue is off — pick a tone to hear it'
+                : `Preview: ${getTone(settings[key])?.label ?? settings[key]}`}
             >
               ▶
             </button>
