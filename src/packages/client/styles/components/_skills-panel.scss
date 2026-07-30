@@ -208,16 +208,20 @@
   }
 }
 
-// Tag styles for tools/assignments
-.tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transition: all $transition-fast;
+// Tag styles for tools/assignments. Scoped to the editor modal: Prism emits
+// `<span class="token tag">` for markup, so a global `.tag` turned every HTML
+// tag inside a chat code block into an inline-flex chip with a red hover.
+.skill-editor-modal {
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all $transition-fast;
 
-  &:hover {
-    background: color-mix(in srgb, var(--accent-red) 20%, transparent) !important;
-    color: var(--accent-red);
+    &:hover {
+      background: color-mix(in srgb, var(--accent-red) 20%, transparent) !important;
+      color: var(--accent-red);
+    }
   }
 }
 

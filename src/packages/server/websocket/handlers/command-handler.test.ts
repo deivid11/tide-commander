@@ -185,6 +185,35 @@ describe('Command Handler', () => {
       expect(mockCtx.sendActivity).toHaveBeenCalledWith('agent-1', expect.stringContaining('cleared'));
     });
 
+    // Intercepted commands never reach the runner, so without an explicit echo
+    // the user's own command silently vanished from the conversation.
+    it.each(['/clear', '/context', '/cost'])('echoes intercepted %s into the chat', async (cmd) => {
+      mockCtx.broadcast.mockClear();
+      vi.mocked(agentService.getAgent).mockReturnValue({
+        id: 'agent-1', name: 'Agent1', class: 'default', status: 'idle', provider: 'claude',
+      } as any);
+
+      await handleSendCommand(mockCtx, { agentId: 'agent-1', command: cmd }, mockBuildBossMessage);
+
+      expect(mockCtx.broadcast).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'command_started',
+        payload: expect.objectContaining({ agentId: 'agent-1', command: cmd }),
+      }));
+    });
+
+    it('does not double-echo a command that reaches the runner', async () => {
+      mockCtx.broadcast.mockClear();
+      vi.mocked(agentService.getAgent).mockReturnValue({
+        id: 'agent-1', name: 'Agent1', class: 'default', status: 'idle', provider: 'claude',
+      } as any);
+
+      await handleSendCommand(mockCtx, { agentId: 'agent-1', command: '/compact' }, mockBuildBossMessage);
+
+      const echoes = mockCtx.broadcast.mock.calls
+        .filter((c: any[]) => c[0]?.type === 'command_started');
+      expect(echoes).toHaveLength(0);
+    });
+
     it('returns early for unknown agent', async () => {
       vi.mocked(agentService.getAgent).mockReturnValue(undefined as any);
 

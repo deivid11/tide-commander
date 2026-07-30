@@ -703,19 +703,14 @@ const ChatView = React.memo(function ChatView({
     );
   }
 
-  // Context / token usage calculations (mirrors the 3D overlay footer widget)
-  const contextStats = agent.contextStats;
-  const contextHasData = !!contextStats;
-  const contextTotalTokens = contextStats
-    ? contextStats.totalTokens
-    : agent.contextUsed || 0;
-  const contextWindow = contextStats
-    ? contextStats.contextWindow
-    : agent.contextLimit || (agent.provider === 'grok' ? 500000 : 200000);
-  const contextUsedPercentRaw = contextStats
-    ? contextStats.usedPercent
-    : Math.round((contextTotalTokens / contextWindow) * 100);
-  const contextUsedPercent = Math.max(0, Math.min(100, contextUsedPercentRaw));
+  // Context / token usage calculations — shared resolver, same numbers as the
+  // 3D overlay footer widget and the agent panels.
+  const contextHasData = !!agent.contextStats;
+  const {
+    totalTokens: contextTotalTokens,
+    contextWindow,
+    usedPercent: contextUsedPercent,
+  } = getDisplayContextInfo(agent);
   const contextUsedPercentDisplay = Math.round(contextUsedPercent * 10) / 10;
   const contextFreePercentDisplay = Math.round((100 - contextUsedPercent) * 10) / 10;
   const contextColor =

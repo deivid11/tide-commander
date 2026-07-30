@@ -352,6 +352,119 @@ describe('ClaudeBackend', () => {
         });
       });
 
+      // A single turn routinely bills the conversation model plus a short
+      // auxiliary Haiku call (web search, titles). `modelUsage` key order
+      // follows first use, so the helper is frequently first — attributing its
+      // 200k window to the agent collapsed the context meter.
+      it('attributes modelUsage to the model the main loop streamed, not the first key', () => {
+        backend.parseEvent(
+          {
+            type: 'assistant',
+            uuid: 'assistant-1',
+            message: {
+              model: 'claude-opus-5',
+              content: [{ type: 'text', text: 'working' }],
+              usage: { input_tokens: 2, cache_read_input_tokens: 400000 },
+            },
+          },
+          'agent-multi'
+        );
+
+        const result = backend.parseEvent(
+          {
+            type: 'result',
+            total_cost_usd: 0.5,
+            modelUsage: {
+              'claude-haiku-4-5-20251001': {
+                contextWindow: 200000,
+                maxOutputTokens: 32000,
+                inputTokens: 31131,
+                outputTokens: 1545,
+                cacheReadInputTokens: 0,
+                cacheCreationInputTokens: 0,
+              },
+              'claude-opus-5': {
+                contextWindow: 1000000,
+                maxOutputTokens: 64000,
+                inputTokens: 472,
+                outputTokens: 74547,
+                cacheReadInputTokens: 7126923,
+                cacheCreationInputTokens: 132402,
+              },
+            },
+          },
+          'agent-multi'
+        ) as StandardEvent;
+
+        expect(result.modelUsage?.contextWindow).toBe(1000000);
+        expect(result.modelUsage?.cacheReadInputTokens).toBe(7126923);
+      });
+
+      it('falls back to the dominant prompt footprint when the main model is unknown', () => {
+        const result = backend.parseEvent({
+          type: 'result',
+          total_cost_usd: 0.5,
+          modelUsage: {
+            'claude-haiku-4-5-20251001': {
+              contextWindow: 200000,
+              maxOutputTokens: 32000,
+              inputTokens: 31131,
+              outputTokens: 1545,
+            },
+            'claude-opus-5': {
+              contextWindow: 1000000,
+              maxOutputTokens: 64000,
+              inputTokens: 472,
+              outputTokens: 74547,
+              cacheReadInputTokens: 7126923,
+              cacheCreationInputTokens: 132402,
+            },
+          },
+        }) as StandardEvent;
+
+        expect(result.modelUsage?.contextWindow).toBe(1000000);
+      });
+
+      it('ignores subagent model when attributing the parent turn', () => {
+        backend.parseEvent(
+          {
+            type: 'assistant',
+            uuid: 'parent-1',
+            message: {
+              model: 'claude-opus-5',
+              content: [{ type: 'text', text: 'spawning' }],
+            },
+          },
+          'agent-sub'
+        );
+        backend.parseEvent(
+          {
+            type: 'assistant',
+            uuid: 'child-1',
+            parent_tool_use_id: 'toolu_child',
+            message: {
+              model: 'claude-haiku-4-5-20251001',
+              content: [{ type: 'text', text: 'subagent output' }],
+            },
+          },
+          'agent-sub'
+        );
+
+        const result = backend.parseEvent(
+          {
+            type: 'result',
+            total_cost_usd: 0.1,
+            modelUsage: {
+              'claude-haiku-4-5-20251001': { contextWindow: 200000, inputTokens: 9_000_000, outputTokens: 10 },
+              'claude-opus-5': { contextWindow: 1000000, inputTokens: 100, outputTokens: 10 },
+            },
+          },
+          'agent-sub'
+        ) as StandardEvent;
+
+        expect(result.modelUsage?.contextWindow).toBe(1000000);
+      });
+
       it('parses result text for boss delegation', () => {
         const result = backend.parseEvent({
           type: 'result',

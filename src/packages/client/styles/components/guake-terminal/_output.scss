@@ -543,6 +543,49 @@
   opacity: 0.65;
 }
 
+// Slash commands: an action on the session, not a message to the agent, so they
+// read as a slim one-line marker rather than a chat bubble.
+.output-slash-command {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 12px;
+  margin: 3px 0;
+  border-left: 3px solid color-mix(in srgb, var(--accent-green, #4ade80) 70%, transparent);
+  background: color-mix(in srgb, var(--accent-green, #4ade80) 7%, transparent);
+  border-radius: $radius-sm;
+  min-width: 0;
+}
+
+.output-slash-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent-green, #4ade80) 16%, transparent);
+  color: var(--accent-green, #4ade80);
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.output-slash-chip__icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.output-slash-summary {
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 .output-pending-echo {
   display: inline-flex;
   align-items: center;

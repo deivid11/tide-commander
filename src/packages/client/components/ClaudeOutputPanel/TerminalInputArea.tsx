@@ -4,13 +4,15 @@
  * Handles text input, file attachments, paste handling, and send functionality.
  */
 
-import React, { useRef, useEffect, useState, useCallback, memo } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { store, useSettings, useLastPrompt, usePinnedAgentIds } from '../../store';
 import { PermissionRequestInline } from './PermissionRequest';
 import { getImageWebUrl } from './contentRendering';
 import { PastedTextChip } from './PastedTextChip';
 import { FileMentionDropdown, type FileMentionItem } from './FileMentionDropdown';
+import { SlashCommandDropdown } from './SlashCommandDropdown';
+import { matchSlashCommands, type SlashCommand } from '../../utils/slashCommands';
 import { useSTT } from '../../hooks/useSTT';
 import type { Agent, PermissionRequest } from '../../../shared/types';
 import { providerClosesStdinAfterPrompt } from '../../../shared/types';
@@ -20,6 +22,7 @@ import { getPendingMessagesForAgent, removePendingMessageForAgent } from '../../
 import { useServerMessageQueue } from '../../hooks/useServerMessageQueue';
 import { QueuedMessagesBar } from './QueuedMessagesBar';
 import { apiUrl, authFetch } from '../../utils/storage';
+import { getDisplayContextInfo } from '../../utils/context';
 
 /**
  * Isolated elapsed timer component — owns its own 1-second setInterval so the
@@ -264,6 +267,11 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   const [mentionIndex, setMentionIndex] = useState(0);
   const mentionFetchRef = useRef<AbortController | null>(null);
 
+  // `/` slash-command autocomplete. Dismissed for the rest of the current input
+  // once Esc is pressed, so it can't pop back on every keystroke.
+  const [slashIndex, setSlashIndex] = useState(0);
+  const [slashDismissed, setSlashDismissed] = useState(false);
+
   // Poll pending messages so the queue UI stays in sync across tabs / reconnects.
   // getPendingMessagesForAgent always builds a fresh array; keep the previous
   // reference when the contents are unchanged so the poll doesn't re-render
@@ -472,6 +480,10 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     // the user removed the inline reference, so we must not still inject context.
     setFileMentions((prev) => prev.filter((f) => val.includes(`@${f.path}`)));
 
+    // An Esc dismissal only silences the slash dropdown for the command being
+    // typed — clearing the box (or starting an ordinary message) re-arms it.
+    if (!val.startsWith('/')) setSlashDismissed(false);
+
     // Detect @ mention trigger: look for @ followed by non-whitespace up to cursor
     const textBefore = val.slice(0, cursor);
     const atMatch = textBefore.match(/@(\S*)$/);
@@ -623,6 +635,28 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     setMentionResults([]);
   }, []);
 
+  // Slash commands only make sense as the whole message, so match against the
+  // raw input. matchSlashCommands returns null the moment it stops looking like
+  // a command prefix (a pasted path, an added space, a second line…).
+  const slashMatches: SlashCommand[] = useMemo(() => {
+    if (slashDismissed) return [];
+    return matchSlashCommands(command, selectedAgent?.provider) ?? [];
+  }, [command, selectedAgent?.provider, slashDismissed]);
+  const slashActive = slashMatches.length > 0;
+
+  // Keep the highlight in range as the list narrows while typing.
+  useEffect(() => {
+    setSlashIndex((i) => (i < slashMatches.length ? i : 0));
+  }, [slashMatches.length]);
+
+  const applySlashCommand = useCallback((item: SlashCommand) => {
+    setCommand(item.name);
+    setSlashDismissed(true);
+    requestAnimationFrame(() => {
+      (textareaRef.current || inputRef.current)?.focus();
+    });
+  }, [setCommand, textareaRef, inputRef]);
+
   const handleSelectMention = useCallback((item: FileMentionItem) => {
     // Replace @query with the selected item's path, preserving surrounding text
     const before = command.slice(0, mentionQuery.start);
@@ -745,6 +779,41 @@ export const TerminalInputArea = memo(function TerminalInputArea({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const isMobile = window.innerWidth <= 768;
+
+    // Slash-command dropdown keyboard navigation
+    if (slashActive) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSlashIndex((i) => Math.min(i + 1, slashMatches.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSlashIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const item = slashMatches[slashIndex];
+        if (item) applySlashCommand(item);
+        return;
+      }
+      if (e.key === 'Enter') {
+        const item = slashMatches[slashIndex];
+        // Already fully typed → Enter means send, not complete. That way
+        // `/comp` + Enter completes and a second Enter runs it.
+        if (item && item.name !== command.trim()) {
+          e.preventDefault();
+          applySlashCommand(item);
+          return;
+        }
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setSlashDismissed(true);
+        return;
+      }
+    }
 
     // @ mention dropdown keyboard navigation
     if (mentionQuery.active && mentionResults.length > 0) {
@@ -1161,14 +1230,9 @@ export const TerminalInputArea = memo(function TerminalInputArea({
         >
           {/* Mobile context bar - compact context stats above input */}
           {(() => {
-            const stats = selectedAgent.contextStats;
-            const totalTokens = stats ? stats.totalTokens : (selectedAgent.contextUsed || 0);
-            const contextWindow = stats
-              ? stats.contextWindow
-              : (selectedAgent.contextLimit || (selectedAgent.provider === 'grok' ? 500000 : 200000));
-            const rawUsedPercent = stats ? stats.usedPercent : Math.round((totalTokens / contextWindow) * 100);
-            const usedPercent = Math.max(0, Math.min(100, rawUsedPercent));
-            const freePercent = Math.max(0, 100 - usedPercent);
+            // Same resolver as the desktop footer — one source of truth.
+            const { totalTokens, contextWindow, usedPercent } = getDisplayContextInfo(selectedAgent);
+            const freePercent = Math.round((100 - usedPercent) * 10) / 10;
             const percentColor = usedPercent >= 80 ? '#ff4a4a' : usedPercent >= 60 ? '#ff9e4a' : usedPercent >= 40 ? '#ffd700' : '#4aff9e';
             const usedK = (totalTokens / 1000).toFixed(1);
             const limitK = (contextWindow / 1000).toFixed(1);
@@ -1197,6 +1261,14 @@ export const TerminalInputArea = memo(function TerminalInputArea({
           )}
 
           <div className={`guake-input ${useTextarea ? 'guake-input-expanded' : ''}`} style={{ position: 'relative' }}>
+            {/* / slash command dropdown */}
+            {slashActive && (
+              <SlashCommandDropdown
+                items={slashMatches}
+                selectedIndex={slashIndex}
+                onSelect={applySlashCommand}
+              />
+            )}
             {/* @ file mention dropdown */}
             {mentionQuery.active && mentionResults.length > 0 && (
               <FileMentionDropdown

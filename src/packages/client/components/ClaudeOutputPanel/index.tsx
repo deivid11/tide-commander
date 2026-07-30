@@ -38,6 +38,7 @@ import {
   setStorageBoolean,
 } from '../../utils/storage';
 import { resolveAgentFileReference } from '../../utils/filePaths';
+import { getDisplayContextInfo } from '../../utils/context';
 import {
   BOTTOM_PM2_LOG_RETENTION_OPTIONS,
   readBottomPm2LogRetention,
@@ -1650,16 +1651,12 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
             );
           })}
           {activeAgent && (() => {
-            // Use contextStats if available (from /context command), otherwise fallback to basic
-            const stats = activeAgent.contextStats;
-            const hasData = !!stats;
-            const totalTokens = stats ? stats.totalTokens : (activeAgent.contextUsed || 0);
-            const contextWindow = stats
-              ? stats.contextWindow
-              : (activeAgent.contextLimit || (activeAgent.provider === 'grok' ? 500000 : 200000));
-            const rawUsedPercent = stats ? stats.usedPercent : Math.round((totalTokens / contextWindow) * 100);
-            const usedPercent = Math.max(0, Math.min(100, rawUsedPercent));
-            const freePercent = Math.max(0, 100 - usedPercent);
+            // Shared resolver (also used by the 2D scene, unit panel and flat
+            // view) so this footer can never disagree with the rest of the UI
+            // about how many tokens are in the window.
+            const hasData = !!activeAgent.contextStats;
+            const { totalTokens, contextWindow, usedPercent } = getDisplayContextInfo(activeAgent);
+            const freePercent = Math.round((100 - usedPercent) * 10) / 10;
             const percentColor = usedPercent >= 80 ? '#ff4a4a' : usedPercent >= 60 ? '#ff9e4a' : usedPercent >= 40 ? '#ffd700' : '#4aff9e';
             const usedK = (totalTokens / 1000).toFixed(1);
             const limitK = (contextWindow / 1000).toFixed(1);

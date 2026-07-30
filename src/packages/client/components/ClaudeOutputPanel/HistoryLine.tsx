@@ -13,6 +13,7 @@ import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting'
 import { getToolIconName, extractToolKeyParam, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { filePreviewHandlers, toolPreviewHandlers, type ToolPreviewTarget } from './toolPreviewHover';
+import { getSlashCommandInfo } from '../../utils/slashCommands';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { createMarkdownComponents } from './MarkdownComponents';
@@ -324,7 +325,27 @@ export const HistoryLine = memo(function HistoryLine({
     }
   }
 
-  // Hide local-command tags for utility commands in history
+  // A slash command the user ran: render the same chip the live path uses, so a
+  // reloaded conversation still shows what was executed instead of a silent gap.
+  const commandNameMatch = hasBossContext
+    ? null
+    : content.match(/<command-name>(\/[a-zA-Z][\w-]*)<\/command-name>/);
+  const historySlashCommand = commandNameMatch ? getSlashCommandInfo(commandNameMatch[1]) : null;
+  if (historySlashCommand) {
+    return (
+      <div className="output-line output-slash-command">
+        {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
+        <span className="output-slash-chip">
+          <span className="output-slash-chip__icon"><Icon name="terminal" size={12} /></span>
+          <span className="output-slash-chip__name">{historySlashCommand.name}</span>
+        </span>
+        <span className="output-slash-summary">{historySlashCommand.summary}</span>
+      </div>
+    );
+  }
+
+  // Hide the remaining local-command scaffolding (caveat blobs, and the
+  // command wrappers for anything not in the catalog).
   if (
     !hasBossContext &&
     (content.includes('<local-command-caveat>') ||
