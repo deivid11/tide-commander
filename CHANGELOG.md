@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.172.1] - 2026-07-30
+
+### Fixed
+- **Settings search couldn't find the sound options** - the search box filters sections against a hand-written keyword list, and the notification-sound rows (enable, volume, the three tone pickers) were never added to it, so searching "sound", "volume" or "tone" returned nothing. The General section now carries those keywords in English and Spanish, along with the dock/activity rows that had the same gap. A new test reads the rendered labels straight out of the source and fails when a row has no keyword to match on, so the next setting added can't silently become unreachable by search.
+
 ## [1.172.0] - 2026-07-29
 
 ### Added
