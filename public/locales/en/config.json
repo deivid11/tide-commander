@@ -30,6 +30,8 @@
     "hideCosts": "Hide Costs",
     "streamTextLive": "Word-by-word streaming",
     "streamTextLiveTitle": "Show Claude and Grok text/thinking as it streams. Turn off to only show complete replies.",
+    "toolHoverPreview": "Ctrl+hover preview",
+    "toolHoverPreviewTitle": "Hold Ctrl while hovering a tool row or file path in the terminal to preview the file, diff, image or command output. The panel can be scrolled.",
     "grid": "Grid",
     "showFPS": "Show FPS",
     "fpsLimit": "FPS Limit",

@@ -44,7 +44,8 @@
       "attemptCompletion": "AttemptCompletion",
       "listFiles": "ListFiles",
       "searchFiles": "SearchFiles",
-      "executeCommand": "ExecuteCommand"
+      "executeCommand": "ExecuteCommand",
+      "viewImage": "Просмотр изображения"
     },
     "showOutputsInline": "Показывать все выводы bash в строке",
     "hideOutputsInline": "Скрыть встроенные выводы bash"
@@ -273,5 +274,13 @@
   "response": {
     "noContent": "Содержимое ответа недоступно.",
     "rawMarkdown": "Исходный Markdown"
+  },
+  "preview": {
+    "loading": "Загрузка предпросмотра…",
+    "emptyFile": "(пустой файл)",
+    "noDiff": "(нет доступных изменений)",
+    "diffTruncated": "diff усечён…",
+    "moreLines": "+{{count}} строк ещё",
+    "skippedLines": "… пропущено строк: {{count}} …"
   }
 }

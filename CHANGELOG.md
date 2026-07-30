@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.170.0] - 2026-07-29
+
+### Added
+- **Ctrl+hover tool preview** - hold Ctrl (or Cmd) while hovering a Read/Write/Edit/Bash row, or any clickable file path in the terminal, and a small panel shows what it points at without opening the full modal: the file's first lines with syntax highlighting, the edit's diff, the command's captured output, or the image itself. The panel is interactive — the pointer can move onto it and scroll it — and it's gated by a new "Ctrl+hover preview" setting (Config → General, on by default). File reads for the popup now request only the line window they display instead of pulling a whole 1 MB file over the wire on every hover.
+- **Smart filename filter in the git panel** - the Changes and Files tabs gained a filter field with a small query language: fuzzy filename matching, `server/claude` for path matching, `.tsx` / `*.tsx` for extensions, `"use client"` for a literal contiguous substring, `!test` to exclude, and `status:mod` / `!status:u` to keep or drop a git status. Terms combine with AND and match smart-case (lowercase is case-insensitive, any uppercase makes it exact); matched characters are highlighted in the results, which are ranked best-first. Escape clears the field without also closing the terminal.
+- **Image, SVG and PDF previews in the changes viewer** - opening a changed binary image now renders the working-tree image instead of raw bytes as unreadable text, PDFs get an inline pdf.js preview (the same viewer the file modal uses, which works in the Android WebView where an iframe renders nothing), SVGs default to the rendered view with a "Show rendered" toggle back to the meaningful text diff, and other binaries (zip, media, executables) show a placeholder with a download action instead of two empty panes.
+- **`view_image` tool card** - Codex `view_image` calls now render as a proper image row (icon, translated name, the file path as the label) with the image itself available in the hover preview, instead of an unlabelled generic tool row.
+- **Persistent git panel tree expansion** - which folders you had expanded in the Changes tree is remembered per agent across reloads, and repos are no longer auto-expanded when they carry a very large number of changes.
+
+### Changed
+- **One syntax palette everywhere** - the file-explorer editor used CodeMirror's bundled One Dark palette (hardcoded hexes) while markdown source, merge conflicts and commit diffs used two different Prism palettes — the same file could look three ways, and the editor ignored the theme picker entirely. CodeMirror's Lezer tags now map onto the same theme variables the Prism theme uses, so every code surface follows the selected theme.
+- **Mermaid diagrams render compactly inline** - a wide diagram no longer spans the whole conversation; the inline preview scales down to a fixed maximum width (small diagrams stay at their natural size) and is no longer height-cropped, with the full-size zoom/pan modal one click away.
+- **Steadier conversation reveal on a cold agent switch** - switching to an agent whose history wasn't cached waits for more consecutive stable frames before revealing the conversation, so the remaining row measurements no longer visibly push the text around. Warm switches keep the short window and stay snappy.
+
+### Fixed
+- **Opening a large file locking up the tab** - the file viewer and both diff panes emitted one DOM row per line with no windowing, and the diff's naive LCS allocated the full `(m+1) × (n+1)` table. On a real 31,841-line, 1 MB JSON that meant ~183,000 DOM nodes and a 1.01-billion-cell table (~7.6 GB of numbers, 7.7 s just to allocate) — the tab hung. Lines now render through a windowed list, the diff peels the identical prefix/suffix before diffing and refuses to build a table past a bounded size, and syntax highlighting is memoized per visible line so only the rows on screen ever reach Prism.
+- **OpenCode agents wedged in "working" outside the daemon's directory** - the server-mode event stream subscribed to OpenCode's project-scoped `/event` endpoint, which silently drops every event from sessions in any other working directory: those agents received no streamed text and no `session.idle`, so they never finished a turn. It now subscribes to the all-projects `/global/event` stream (unwrapping its envelope, with an automatic fallback to the legacy endpoint on older OpenCode builds), force-finalizes a turn shortly after the prompt request resolves if the idle event never arrives, and reads the session map format that OpenCode 1.18.x returns.
+- **Escape closing the terminal from inside a field that handles it** - inputs that consume Escape themselves (such as the new filter field, which clears on Escape) no longer also close the terminal underneath them.
+
 ## [1.169.0] - 2026-07-27
 
 ### Added

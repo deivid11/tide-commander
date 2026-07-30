@@ -44,7 +44,8 @@
       "attemptCompletion": "AttemptCompletion",
       "listFiles": "ListFiles",
       "searchFiles": "SearchFiles",
-      "executeCommand": "ExecuteCommand"
+      "executeCommand": "ExecuteCommand",
+      "viewImage": "画像を表示"
     },
     "showOutputsInline": "すべてのBash出力をインライン表示",
     "hideOutputsInline": "インラインBash出力を非表示"
@@ -273,5 +274,13 @@
   "response": {
     "noContent": "レスポンス内容がありません。",
     "rawMarkdown": "生Markdown"
+  },
+  "preview": {
+    "loading": "プレビューを読み込み中…",
+    "emptyFile": "(空のファイル)",
+    "noDiff": "(差分なし)",
+    "diffTruncated": "差分を省略…",
+    "moreLines": "他 {{count}} 行",
+    "skippedLines": "… {{count}} 行を省略 …"
   }
 }

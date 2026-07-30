@@ -10,8 +10,9 @@ import { useHideCost, useSettings, useAgentPrompts } from '../../store';
 import { store, type TestRunHandle, type HttpRunHandle } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
+import { filePreviewHandlers, toolPreviewHandlers, type ToolPreviewTarget } from './toolPreviewHover';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { createMarkdownComponents } from './MarkdownComponents';
@@ -31,10 +32,11 @@ import { parseHttpResults } from './httpResultsParser';
 import { HttpResultsCard } from './HttpResultsCard';
 import { HttpRunInline, HttpRunLookup, matchHttpRunHandle } from './HttpRunInline';
 import { TestRunInline } from './TestRunInline';
-import { highlightText, renderContentWithImages, renderUserPromptContent, isThumbnailableImagePath, getLocalFileImageUrl } from './contentRendering';
+import { highlightText, renderContentWithImages, renderUserPromptContent, isThumbnailableImagePath, getLocalFileImageUrl, getImagePreviewUrl } from './contentRendering';
 import { useTTS } from '../../hooks/useTTS';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { Icon } from '../Icon';
+import { FileTypeIcon } from './FileTypeIcon';
 import { AgentIcon } from '../AgentIcon';
 import { BashInlineToggle, BashInlineOutput } from './BashInlineOutput';
 import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
@@ -124,7 +126,13 @@ export const HistoryLine = memo(function HistoryLine({
     : (toolUseId ? pendingAgentPrompts.find((p) => p.id === toolUseId) : undefined);
   const content = filterCostText(rawContent, hideCost);
   const { toggle: toggleTTS, speaking } = useTTS();
-  const markdownComponents = createMarkdownComponents({ onFileClick: onFileClick ? (path) => onFileClick(path) : undefined });
+  // Agent cwd — resolves relative file references for the Ctrl+hover preview,
+  // matching how onFileClick resolves them for the click that opens the modal.
+  const agentCwd = agentId ? store.getState().agents.get(agentId)?.cwd : undefined;
+  const markdownComponents = createMarkdownComponents({
+    onFileClick: onFileClick ? (path) => onFileClick(path) : undefined,
+    baseDir: agentCwd,
+  });
   const markdownContentRef = useRef<HTMLSpanElement>(null);
   const [copyRichStatus, setCopyRichStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const handleCopyRichText = useCallback(async () => {
@@ -529,7 +537,7 @@ export const HistoryLine = memo(function HistoryLine({
                   }
                 }}
               >
-                <Icon name="file-code" size={11} />
+                <FileTypeIcon path={path} size={12} />
                 <span>{path.split('/').pop() || path}</span>
               </span>
             ))}
@@ -564,6 +572,53 @@ export const HistoryLine = memo(function HistoryLine({
           {grepResultsModal && <GrepResultsModal results={grepResultsModal} onClose={() => setGrepResultsModal(null)} onFileClick={onFileClick} />}
         </>
       );
+    }
+
+    // Codex `view_image` called directly (not through the exec wrapper): show the
+    // picture as a thumbnail instead of a path chip, like Read-on-an-image does.
+    if (simpleView && isImageViewTool(toolName || '')) {
+      const imageTarget = getImageViewTarget(message.toolInput || content);
+      const imagePreview = imageTarget && isThumbnailableImagePath(imageTarget.path)
+        ? { url: getImagePreviewUrl(imageTarget.path), name: getBasenameFromPath(imageTarget.path) }
+        : null;
+      if (imageTarget && imagePreview) {
+        const openViewer = onImageClick ? () => onImageClick(imagePreview.url, imagePreview.name) : undefined;
+        return (
+          <>
+            <div
+              className="output-line output-tool-use output-tool-simple output-view-image-inline"
+              onClick={openViewer}
+              role={openViewer ? 'button' : undefined}
+              tabIndex={openViewer ? 0 : undefined}
+              style={openViewer ? { cursor: 'pointer' } : undefined}
+              onKeyDown={(event) => {
+                if (openViewer && (event.key === 'Enter' || event.key === ' ')) {
+                  event.preventDefault();
+                  openViewer();
+                }
+              }}
+            >
+              {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
+              {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+              <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
+              <span className="output-tool-name">{displayToolName}</span>
+              <span className="output-tool-param view-image-path" title={imageTarget.path}>{imagePreview.name}</span>
+              {imageTarget.detail && <span className="view-image-detail">{imageTarget.detail}</span>}
+            </div>
+            <div className="output-read-image-preview output-view-image-preview">
+              <img
+                src={imagePreview.url}
+                alt={imagePreview.name}
+                className="read-image-thumb"
+                loading="lazy"
+                title={t('terminal:content.clickToViewImage')}
+                onClick={(e) => { e.stopPropagation(); onImageClick?.(imagePreview.url, imagePreview.name); }}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+              />
+            </div>
+          </>
+        );
+      }
     }
 
     // Simple view: show icon, tool name, and key parameter
@@ -671,6 +726,55 @@ export const HistoryLine = memo(function HistoryLine({
         && looksLikeCurl(bashCommand)
       ) ? (() => { try { return parseCurlCommand(bashCommand); } catch { return null; } })() : null;
 
+      // Ctrl+hover preview for this row — parity with the live OutputLine row so
+      // a reloaded conversation previews exactly like a streaming one. Built
+      // lazily on hover (JSON.parse of the tool input is not render-path work).
+      const isPreviewable = isBashTool
+        ? !!bashCommand
+        : (!!keyParam && !!isFilePath && ['Read', 'Write', 'Edit', 'NotebookEdit'].includes(toolName || ''));
+
+      const buildPreviewTarget = (): ToolPreviewTarget | null => {
+        const cwd = agentId ? store.getState().agents.get(agentId)?.cwd : undefined;
+        if (isBashTool) {
+          if (bashReadTarget) {
+            return {
+              kind: 'file',
+              path: resolveAgentFileReference(bashReadTarget.path, cwd).path,
+              toolName: 'Read',
+              baseDir: cwd,
+              highlightRange: bashReadTarget.highlightRange,
+            };
+          }
+          if (!bashCommand) return null;
+          return { kind: 'bash', command: bashCommand, output: _bashOutput };
+        }
+        if (!keyParam || !isFilePath) return null;
+        const resolvedPath = resolveAgentFileReference(keyParam, cwd).path;
+        let parsedInput: Record<string, unknown> | null = null;
+        try {
+          parsedInput = toolInputContent ? JSON.parse(toolInputContent) : null;
+        } catch { /* not JSON — no extra detail available */ }
+
+        if (toolName === 'Edit') {
+          if (!parsedInput) return null;
+          const oldString = typeof parsedInput.old_string === 'string' ? parsedInput.old_string : undefined;
+          const newString = typeof parsedInput.new_string === 'string' ? parsedInput.new_string : undefined;
+          const unifiedDiff = typeof parsedInput.unified_diff === 'string' ? parsedInput.unified_diff : undefined;
+          if (oldString === undefined && newString === undefined && !unifiedDiff) return null;
+          return { kind: 'edit', path: resolvedPath, baseDir: cwd, oldString, newString, unifiedDiff };
+        }
+        if (!['Read', 'Write', 'NotebookEdit'].includes(toolName || '')) return null;
+        return {
+          kind: 'file',
+          path: resolvedPath,
+          toolName: toolName || 'Read',
+          baseDir: cwd,
+          highlightRange: parsedInput && typeof parsedInput.offset === 'number' && typeof parsedInput.limit === 'number'
+            ? { offset: parsedInput.offset, limit: parsedInput.limit }
+            : undefined,
+        };
+      };
+
       const handleParamClick = () => {
         if (isFileClickable && keyParam) {
           if (toolName === 'Edit' && toolInputContent) {
@@ -724,7 +828,6 @@ export const HistoryLine = memo(function HistoryLine({
           return <span dangerouslySetInnerHTML={{ __html: highlightCode(cmd, 'bash') }} />;
         }
 
-        const agentCwd = agentId ? store.getState().agents.get(agentId)?.cwd : undefined;
         const segments = splitCommandForFileLinks(cmd);
 
         return segments.map((segment, idx) => {
@@ -742,6 +845,7 @@ export const HistoryLine = memo(function HistoryLine({
               }}
               title={t('tools:display.clickToViewFile')}
               style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
+              {...filePreviewHandlers(segment.fileRef, agentCwd)}
             >
               {segment.text}
             </span>
@@ -956,6 +1060,7 @@ export const HistoryLine = memo(function HistoryLine({
             onClick={isBashClickable ? handleBashClick : undefined}
             style={isBashClickable ? { cursor: 'pointer' } : undefined}
             title={bashReadTarget ? t('tools:display.clickToViewFile') : isBashClickable ? t('tools:display.clickToViewOutput') : undefined}
+            {...toolPreviewHandlers(isPreviewable ? buildPreviewTarget : null)}
           >
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
@@ -1229,7 +1334,7 @@ export const HistoryLine = memo(function HistoryLine({
               const parsed = JSON.parse(toolInputContent);
               onFileClick?.(filePath, { oldString: parsed.old_string || '', newString: parsed.new_string || '', unifiedDiff: parsed.unified_diff });
             } catch { onFileClick?.(filePath); }
-          }}><Icon name="file-code" size={11} /><span>{getBasenameFromPath(filePath)}</span></button>}
+          }}><FileTypeIcon path={filePath} size={12} /><span>{getBasenameFromPath(filePath)}</span></button>}
         </div>
       );
     }
@@ -1247,7 +1352,7 @@ export const HistoryLine = memo(function HistoryLine({
               const parsed = JSON.parse(toolInputContent);
               onFileClick?.(filePath, parsed.offset !== undefined && parsed.limit !== undefined ? { highlightRange: { offset: parsed.offset, limit: parsed.limit } } : undefined);
             } catch { onFileClick?.(filePath); }
-          }}><Icon name="file-code" size={11} /><span>{getBasenameFromPath(filePath)}</span></button>}
+          }}><FileTypeIcon path={filePath} size={12} /><span>{getBasenameFromPath(filePath)}</span></button>}
         </div>
       );
     }
@@ -1816,7 +1921,7 @@ export const HistoryLine = memo(function HistoryLine({
           {highlight ? (
             <div>{highlightText(workPlanParsed.contentWithoutBlock, highlight)}</div>
           ) : (
-            renderContentWithImages(workPlanParsed.contentWithoutBlock, onImageClick, onFileClick)
+            renderContentWithImages(workPlanParsed.contentWithoutBlock, onImageClick, onFileClick, agentCwd)
           )}
           {workPlanParsed.hasWorkPlan && workPlanParsed.workPlan && (
             <WorkPlanBlock workPlan={workPlanParsed.workPlan} />
@@ -1871,7 +1976,7 @@ export const HistoryLine = memo(function HistoryLine({
       </span>
       <span ref={markdownContentRef} className={`history-content ${isUser ? 'user-prompt-text' : 'markdown-content'}`}>
         {highlight ? <div>{highlightText(content, highlight)}</div> : (
-          isUser ? renderUserPromptContent(content, onImageClick, onFileClick) : renderContentWithImages(content, onImageClick, onFileClick)
+          isUser ? renderUserPromptContent(content, onImageClick, onFileClick) : renderContentWithImages(content, onImageClick, onFileClick, agentCwd)
         )}
       </span>
       {!isUser && (

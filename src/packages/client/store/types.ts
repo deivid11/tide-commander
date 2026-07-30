@@ -188,6 +188,9 @@ export interface Settings {
   // Show bash command output inline below the command row in the terminal
   // (global: applies to every bash output, live and history)
   inlineBashOutputs: boolean;
+  // Ctrl+hover mini preview over terminal tool rows and clickable file paths
+  // (file contents, edit diff, command output). Default on.
+  toolHoverPreview: boolean;
   /**
    * Word-by-word / token live streaming for Claude Code and Grok assistant
    * text (and thinking). When false, partial isStreaming chunks are ignored
@@ -224,6 +227,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notificationSoundVolume: 3,
   tabTitle: '',
   inlineBashOutputs: false,
+  toolHoverPreview: true,
   streamTextLive: true,
   tmuxMode: false,
   interactiveMode: false,

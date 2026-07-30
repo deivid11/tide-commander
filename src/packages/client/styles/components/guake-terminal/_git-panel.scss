@@ -112,10 +112,131 @@
   font-size: 18px;
 }
 
+// Filename filter bar (Changes + Files tabs)
+.guake-git-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 45%, transparent);
+}
+
+.guake-git-filter-icon {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.guake-git-filter-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: $font-mono;
+  font-size: 11px;
+  padding: 2px 0;
+
+  &::placeholder {
+    color: var(--text-muted);
+    opacity: 0.7;
+  }
+}
+
+.guake-git-filter-count {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-family: $font-mono;
+  color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.guake-git-filter-clear {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  line-height: 1;
+  transition: color 0.12s, background 0.12s;
+
+  &:hover {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+  }
+}
+
+// Matched characters inside file/folder names
+.guake-git-filter-hit {
+  background: color-mix(in srgb, var(--accent-yellow) 28%, transparent);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+// "Clear filter" action in the no-matches empty state
+.guake-git-filter-reset {
+  display: block;
+  margin: 8px auto 0;
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  transition: color 0.12s, border-color 0.12s;
+
+  &:hover {
+    color: var(--accent-cyan);
+    border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+  }
+}
+
 .guake-git-body {
   flex: 1;
   overflow-y: auto;
   padding: 4px 0;
+}
+
+// Compact Files-tab tree: denser rows than the changes list (no inter-row
+// margins, shorter inline controls — the tallest child sets the row height).
+.guake-git-body.explorer-compact {
+  .guake-git-file {
+    margin: 0;
+    gap: 5px;
+    line-height: 1.15;
+  }
+
+  .guake-git-folder-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .guake-git-repo-count {
+    padding: 0 5px;
+    font-size: 9px;
+  }
+
+  .guake-git-file-status {
+    height: 14px;
+    line-height: 14px;
+  }
+
+  .guake-git-discard-btn {
+    height: 15px;
+  }
 }
 
 .guake-git-loading,
@@ -524,6 +645,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative; // anchors the file-switch loading overlay
 
   .diff-viewer {
     flex: 1;
@@ -684,7 +806,8 @@
 .guake-git-explorer-tree {
   padding: 2px 0;
 
-  // Reuse file-explorer tree styles at a smaller scale
+  // Reuse file-explorer tree styles at a smaller scale (dense: the point of
+  // this panel's tree is seeing as many files as possible at a glance)
   .tree-node-wrapper {
     .tree-node {
       display: flex;
@@ -692,11 +815,12 @@
       gap: 4px;
       padding: 1px 8px;
       cursor: pointer;
-      font-size: 12px;
+      font-size: 11.5px;
+      line-height: 1.2;
       font-family: $font-mono;
       color: var(--text-primary);
       transition: background 0.12s;
-      min-height: 20px;
+      min-height: 18px;
 
       &:hover {
         background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
@@ -750,8 +874,8 @@
 
     .tree-icon,
     .tree-folder-icon {
-      width: 16px;
-      height: 16px;
+      width: 14px;
+      height: 14px;
       flex-shrink: 0;
       background-size: contain;
       background-repeat: no-repeat;
@@ -931,6 +1055,20 @@
     padding: 8px;
   }
 
+  // Roomier filter row + 16px font so iOS doesn't zoom the page on focus
+  .guake-git-filter {
+    padding: 8px 12px;
+  }
+
+  .guake-git-filter-input {
+    font-size: 16px;
+    padding: 4px 0;
+  }
+
+  .guake-git-filter-clear {
+    padding: 6px;
+  }
+
   .guake-git-file {
     margin: 0;
     padding: 0;
@@ -947,4 +1085,42 @@
     height: 90vh;
     border-radius: 0;
   }
+}
+
+// Loading feedback: modal overlay while switching files, and an indeterminate
+// top bar on the panel while the file tree (or a file's content) loads.
+.guake-git-diff-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+}
+
+.guake-git-panel-loadbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 10;
+  overflow: hidden;
+  pointer-events: none;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -40%;
+    width: 40%;
+    background: var(--accent-primary, #4a9eff);
+    animation: guake-git-loadbar-sweep 1s ease-in-out infinite;
+  }
+}
+
+@keyframes guake-git-loadbar-sweep {
+  to { left: 100%; }
 }

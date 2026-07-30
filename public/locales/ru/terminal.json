@@ -901,6 +901,7 @@
     "fileNotFound": "Файл не найден",
     "loading": "Загрузка diff...",
     "showDiff": "Показать Diff",
+    "showRendered": "Показать рендер",
     "modifiedOnly": "Только изменённые",
     "copied": "Скопировано",
     "errorCopy": "Ошибка",

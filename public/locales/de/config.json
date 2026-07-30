@@ -38,7 +38,9 @@
     "notifications": "Benachrichtigungen",
     "soundEffects": "Soundeffekte",
     "streamTextLive": "Wort-für-Wort-Streaming",
-    "streamTextLiveTitle": "Claude- und Grok-Text/Denken während des Streamings anzeigen. Deaktivieren, um nur vollständige Antworten zu sehen."
+    "streamTextLiveTitle": "Claude- und Grok-Text/Denken während des Streamings anzeigen. Deaktivieren, um nur vollständige Antworten zu sehen.",
+    "toolHoverPreview": "Vorschau mit Strg",
+    "toolHoverPreviewTitle": "Strg gedrückt halten und mit der Maus über eine Tool-Zeile oder einen Dateipfad im Terminal fahren, um Datei, Diff, Bild oder Befehlsausgabe anzuzeigen. Das Panel ist scrollbar."
   },
   "agentNames": {
     "customConfigured": "{{count}} benutzerdefinierte Namen konfiguriert",

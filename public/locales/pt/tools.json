@@ -44,7 +44,8 @@
       "attemptCompletion": "AttemptCompletion",
       "listFiles": "ListFiles",
       "searchFiles": "SearchFiles",
-      "executeCommand": "ExecuteCommand"
+      "executeCommand": "ExecuteCommand",
+      "viewImage": "Ver imagem"
     },
     "showOutputsInline": "Mostrar todas as saídas do bash em linha",
     "hideOutputsInline": "Ocultar as saídas do bash em linha"
@@ -273,5 +274,13 @@
   "response": {
     "noContent": "Nenhum conteudo de resposta disponivel.",
     "rawMarkdown": "Markdown Bruto"
+  },
+  "preview": {
+    "loading": "Carregando pré-visualização…",
+    "emptyFile": "(arquivo vazio)",
+    "noDiff": "(nenhum diff disponível)",
+    "diffTruncated": "diff truncado…",
+    "moreLines": "+{{count}} linhas a mais",
+    "skippedLines": "… {{count}} linhas omitidas …"
   }
 }

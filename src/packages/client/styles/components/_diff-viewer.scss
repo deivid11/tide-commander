@@ -374,124 +374,63 @@
   }
 }
 
-// Prism syntax highlighting tokens (Dracula theme)
-.diff-line-content {
-  // Keywords (if, else, return, const, let, etc.)
-  .token.keyword {
-    color: var(--accent-pink);
-  }
+// Binary-image mode: the modal shows the working-tree image itself instead of
+// its raw bytes rendered as a text diff.
+.diff-image-view {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 16px;
+  min-height: 0;
 
-  // Strings
-  .token.string,
-  .token.template-string {
-    color: var(--accent-yellow);
-  }
+  img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 4px;
+    background:
+      repeating-conic-gradient(var(--bg-tertiary) 0% 25%, var(--bg-secondary) 0% 50%)
+      0 0 / 20px 20px;
 
-  // Numbers
-  .token.number {
-    color: var(--accent-purple);
-  }
-
-  // Comments
-  .token.comment {
-    color: var(--text-muted);
-    font-style: italic;
-  }
-
-  // Functions
-  .token.function {
-    color: var(--accent-green);
-  }
-
-  // Classes and types
-  .token.class-name,
-  .token.maybe-class-name {
-    color: var(--accent-cyan);
-  }
-
-  // Operators
-  .token.operator {
-    color: var(--accent-pink);
-  }
-
-  // Punctuation
-  .token.punctuation {
-    color: var(--text-primary);
-  }
-
-  // Boolean and null
-  .token.boolean,
-  .token.null,
-  .token.undefined {
-    color: var(--accent-purple);
-  }
-
-  // Properties
-  .token.property {
-    color: var(--text-primary);
-  }
-
-  // Constants
-  .token.constant {
-    color: var(--accent-purple);
-  }
-
-  // Tags (HTML/JSX)
-  .token.tag {
-    color: var(--accent-pink);
-  }
-
-  // Attributes
-  .token.attr-name {
-    color: var(--accent-green);
-  }
-
-  .token.attr-value {
-    color: var(--accent-yellow);
-  }
-
-  // Regex
-  .token.regex {
-    color: var(--accent-red);
-  }
-
-  // Imports
-  .token.imports,
-  .token.module {
-    color: var(--accent-pink);
-  }
-
-  // Builtin
-  .token.builtin {
-    color: var(--accent-cyan);
-  }
-
-  // Variable
-  .token.variable {
-    color: var(--text-primary);
-  }
-
-  // Parameter
-  .token.parameter {
-    color: var(--accent-orange);
-  }
-
-  // Spread
-  .token.spread {
-    color: var(--accent-pink);
-  }
-
-  // Arrow function
-  .token.arrow {
-    color: var(--accent-pink);
-  }
-
-  // Template literal interpolation
-  .token.interpolation {
-    color: var(--text-primary);
-  }
-
-  .token.interpolation-punctuation {
-    color: var(--accent-pink);
+    // Still loading: keep it out of view so navigation never flashes a stale
+    // frame; the spinner owns the viewport meanwhile.
+    &.diff-image-pending {
+      display: none;
+    }
   }
 }
+
+.diff-image-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--bg-tertiary);
+  border-top-color: var(--text-secondary);
+  border-radius: 50%;
+  animation: diff-image-spin 0.8s linear infinite;
+}
+
+@keyframes diff-image-spin {
+  to { transform: rotate(360deg); }
+}
+
+.diff-image-deleted {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+// PDF preview inside the diff modal — sizes the shared pdf.js viewer
+// (.pdf-js-container is width/height 100%, so it needs a sized flex parent).
+.diff-pdf-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+// Token colours deliberately live in the ONE canonical Prism palette
+// (components/file-explorer/_syntax.scss), not here. This block used to hold a
+// second, competing theme — it disagreed with the global one on 7 of 12
+// everyday tokens (property, string, operator, function, class-name, constant,
+// regex), so the same file looked different in the diff panes than in the file
+// viewer modal. Do not reintroduce per-surface token colours.

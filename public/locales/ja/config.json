@@ -38,7 +38,9 @@
     "notifications": "通知",
     "soundEffects": "効果音",
     "streamTextLive": "単語ごとのストリーミング",
-    "streamTextLiveTitle": "Claude と Grok のテキスト/思考をストリーミング表示します。オフにすると完成した返答のみ表示します。"
+    "streamTextLiveTitle": "Claude と Grok のテキスト/思考をストリーミング表示します。オフにすると完成した返答のみ表示します。",
+    "toolHoverPreview": "Ctrl+ホバーのプレビュー",
+    "toolHoverPreviewTitle": "Ctrl を押しながらターミナルのツール行やファイルパスにカーソルを合わせると、ファイル・差分・画像・コマンド出力をプレビューできます。パネルはスクロールできます。"
   },
   "agentNames": {
     "customConfigured": "{{count}}個のカスタム名が設定済み",

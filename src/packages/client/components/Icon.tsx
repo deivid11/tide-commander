@@ -176,6 +176,7 @@ import {
   ArrowFatLeft,
   ArrowFatRight,
   LineVertical,
+  Image as ImageIcon,
   type Icon as PhosphorIcon,
   type IconWeight,
 } from '@phosphor-icons/react';
@@ -282,6 +283,7 @@ export const ICON_MAP = {
   'file-text': FileText,
   'file-code': FileCode,
   'file-add': FilePlus,
+  'image': ImageIcon,
   'git-branch': GitBranch,
   'git-commit': GitCommit,
   'git-diff': GitCommit,

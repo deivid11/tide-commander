@@ -248,6 +248,10 @@ export interface UseFileTreeReturn {
   tree: TreeNode[];
   loading: boolean;
   expandedPaths: Set<string>;
+  /** Increments each time loadTree completes a full (re)load — a full load
+   *  resets expandedPaths to root-only, so persisted expansion must be
+   *  re-applied exactly once per generation. */
+  loadGeneration: number;
   loadTree: () => Promise<void>;
   reloadDirectory: (dirPath: string) => Promise<void>;
   renamePathInTree: (oldPath: string, newPath: string) => void;

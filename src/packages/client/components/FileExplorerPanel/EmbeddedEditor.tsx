@@ -12,7 +12,11 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { syntaxHighlighting, defaultHighlightStyle, indentOnInput, bracketMatching, foldGutter, foldKeymap } from '@codemirror/language';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { search, searchKeymap, highlightSelectionMatches, openSearchPanel } from '@codemirror/search';
-import { oneDark } from '@codemirror/theme-one-dark';
+// Chrome only (background, gutters, panels). The bundled `oneDark` also ships
+// its own hardcoded token palette, which is what made this editor ignore the
+// theme picker — tideHighlightStyle replaces that half.
+import { oneDarkTheme } from '@codemirror/theme-one-dark';
+import { tideHighlightStyle } from './cm-syntax-theme';
 import type { Extension } from '@codemirror/state';
 import { getLanguageExtension } from './cm-languages';
 import './EmbeddedEditor.scss';
@@ -109,7 +113,8 @@ export const EmbeddedEditor: React.FC<EmbeddedEditorProps> = ({
       highlightSelectionMatches(),
       search({ top: true }),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-      oneDark,
+      oneDarkTheme,
+      syntaxHighlighting(tideHighlightStyle),
       EditorView.lineWrapping,
       keymap.of([
         ...closeBracketsKeymap,

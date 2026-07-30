@@ -11,12 +11,24 @@ import { FILE_ICONS } from './constants';
 // FILE ICON UTILITIES
 // ============================================================================
 
+// Whole-name keys are written in their canonical casing ("Dockerfile",
+// "LICENSE"), but real repos hold `dockerfile` and `license` too — this mirror
+// makes the whole-name lookup case-insensitive without duplicating the map.
+const FILE_ICONS_LOWER: Record<string, string> = Object.fromEntries(
+  Object.entries(FILE_ICONS).map(([key, src]) => [key.toLowerCase(), src])
+);
+
+/** Suffixes that mark a copy/template of another file rather than a type. */
+const VARIANT_SUFFIXES = ['.sample', '.dist', '.example', '.template', '.default', '.in'];
+
 /**
- * Get the icon for a tree node based on its extension
+ * Get the icon for a tree node. Resolves by whole filename first, so
+ * extension-less and dot-only names (Dockerfile, gradlew, .gitignore) get their
+ * real icon instead of the generic fallback.
  */
 export function getFileIcon(node: TreeNode): string {
   if (node.isDirectory) return '';
-  return FILE_ICONS[node.extension] || FILE_ICONS.default;
+  return getIconForFileName(node.name);
 }
 
 /**
@@ -24,6 +36,52 @@ export function getFileIcon(node: TreeNode): string {
  */
 export function getIconForExtension(extension: string): string {
   return FILE_ICONS[extension] || FILE_ICONS.default;
+}
+
+/**
+ * Get the icon for a bare filename. FILE_ICONS is keyed by whole names
+ * ("Dockerfile", "go.mod"), by compound suffixes (".controller.ts",
+ * ".blade.php", ".d.ts") and by plain extensions (".svg"), so a filename is
+ * resolved in that order — longest suffix wins, so "users.controller.ts" gets
+ * the Nest controller icon and "users.ts" still gets the TypeScript one.
+ * Passing a filename straight to getIconForExtension always lands on the
+ * generic fallback instead.
+ */
+export function getIconForFileName(name: string): string {
+  if (FILE_ICONS[name]) return FILE_ICONS[name];
+
+  const lower = name.toLowerCase();
+  if (FILE_ICONS_LOWER[lower]) return FILE_ICONS_LOWER[lower];
+
+  // Walk the dots left to right; the leading dot of a dotfile is skipped
+  // because the whole name was already tried above.
+  let dot = lower.indexOf('.', lower.startsWith('.') ? 1 : 0);
+  const firstDot = dot;
+  while (dot !== -1) {
+    const icon = FILE_ICONS[lower.slice(dot)];
+    if (icon) return icon;
+    dot = lower.indexOf('.', dot + 1);
+  }
+
+  // Template/variant markers carry no type of their own — drop one and resolve
+  // what's underneath ("config.yaml.dist" is a YAML file, "pre-commit.sample"
+  // a shell script). Backup markers (.bak/.orig/.tmp) are deliberately absent:
+  // those have their own icon.
+  for (const marker of VARIANT_SUFFIXES) {
+    if (lower.endsWith(marker) && lower.length > marker.length) {
+      return getIconForFileName(name.slice(0, -marker.length));
+    }
+  }
+
+  // Last resort: the stem before the first dot, so variants of a known
+  // extension-less file ("Dockerfile.dev", "Makefile.local") keep its icon.
+  if (firstDot > 0) {
+    const stem = name.slice(0, firstDot);
+    const byStem = FILE_ICONS[stem] || FILE_ICONS_LOWER[stem.toLowerCase()];
+    if (byStem) return byStem;
+  }
+
+  return FILE_ICONS.default;
 }
 
 // ============================================================================

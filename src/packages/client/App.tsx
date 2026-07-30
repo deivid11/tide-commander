@@ -27,6 +27,7 @@ import { TrackingBoard } from './components/ClaudeOutputPanel/TrackingBoard';
 import { type SceneConfig } from './components/toolbox';
 import { GuakeOutputPanel } from './components/ClaudeOutputPanel';
 import { FileViewerFromGuake, ContextModalFromGuake } from './components/ClaudeOutputPanel/TerminalModals';
+import { ToolHoverPreviewHost } from './components/ClaudeOutputPanel/ToolHoverPreview';
 import { AgentBar } from './components/AgentBar';
 import { DrawingModeIndicator } from './components/DrawingModeIndicator';
 import { AgentHoverPopup } from './components/AgentHoverPopup';
@@ -1288,6 +1289,10 @@ function AppContent() {
             must exist in every view mode. */}
         <FileViewerFromGuake />
         <ContextModalFromGuake />
+
+        {/* Ctrl+hover preview tooltip for terminal tool rows. Single instance,
+            portalled to body — it must outlive whichever view rendered the row. */}
+        <ToolHoverPreviewHost />
       </main>
 
       {/* Drawing Mode Indicator */}

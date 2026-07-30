@@ -1,0 +1,233 @@
+// =============================================================================
+// Guake Terminal - Ctrl+hover tool preview popup
+// =============================================================================
+// Tooltip shown while Ctrl is held over a Read/Write/Edit/Bash tool row or a
+// clickable file path. Portalled to <body>, so it is positioned in the viewport
+// (fixed). It IS interactive: the pointer can move onto it and scroll the body,
+// which is why it keeps pointer events and reports enter/leave back to the
+// hover store (a plain tooltip would evaporate the moment you reached for it).
+// =============================================================================
+
+@use '../../variables' as *;
+
+.tool-hover-preview {
+  position: fixed;
+  z-index: 10050;
+
+  display: flex;
+  flex-direction: column;
+  max-height: 420px;
+  overflow: hidden;
+
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-md;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-primary);
+
+  animation: tool-preview-in 90ms ease-out;
+}
+
+@keyframes tool-preview-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: none; }
+}
+
+.tool-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
+
+  svg { flex: 0 0 auto; color: var(--tool-use-name); }
+}
+
+.tool-preview-file-icon {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+}
+
+.tool-preview-title {
+  flex: 0 0 auto;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+// Directory shown right-aligned and ellipsized from the LEFT, so the deep,
+// distinguishing end of the path survives instead of the useless `/home/...`.
+.tool-preview-dir {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  direction: rtl;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.tool-preview-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  // Keep a wheel that reaches the end of this list from chaining out to the
+  // terminal behind it — that scroll would move the anchored row and the
+  // global dismiss handler would yank the popup away mid-read.
+  overscroll-behavior: contain;
+  padding: 5px 0;
+}
+
+.tool-preview-status {
+  padding: 4px 10px;
+  color: var(--text-secondary);
+  font-style: italic;
+
+  &.is-error { color: var(--accent-red); font-style: normal; }
+}
+
+.tool-preview-code {
+  white-space: pre;
+  tab-size: 2;
+}
+
+// --- File contents -----------------------------------------------------------
+
+.tool-preview-lines {
+  overflow: hidden;
+
+  &.is-output {
+    padding: 0 10px;
+    color: var(--text-secondary);
+  }
+}
+
+.tool-preview-line {
+  display: flex;
+  gap: 8px;
+  overflow: hidden;
+  white-space: pre;
+
+  &.is-highlighted {
+    background: color-mix(in srgb, var(--accent-blue) 16%, transparent);
+  }
+
+  .tool-preview-code {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.tool-preview-lineno {
+  flex: 0 0 auto;
+  min-width: 34px;
+  padding-left: 8px;
+  text-align: right;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.tool-preview-more,
+.tool-preview-skipped {
+  padding: 2px 10px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-style: italic;
+}
+
+.tool-preview-skipped {
+  border-top: 1px dashed var(--border-color);
+  border-bottom: 1px dashed var(--border-color);
+  margin: 2px 0;
+}
+
+// --- Bash command ------------------------------------------------------------
+
+.tool-preview-command {
+  padding: 0 10px 5px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 46px;
+  color: var(--text-primary);
+}
+
+// --- Edit diff ---------------------------------------------------------------
+
+.tool-preview-diff {
+  overflow: hidden;
+}
+
+.tool-preview-diff-row {
+  display: flex;
+  gap: 6px;
+  padding-right: 8px;
+  overflow: hidden;
+  white-space: pre;
+
+  .tool-preview-code {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &.is-add {
+    background: color-mix(in srgb, var(--accent-green) 14%, transparent);
+    .tool-preview-diff-marker { color: var(--accent-green); }
+  }
+
+  &.is-del {
+    background: color-mix(in srgb, var(--accent-red) 14%, transparent);
+    .tool-preview-diff-marker { color: var(--accent-red); }
+  }
+
+  &.is-gap {
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 10px;
+  }
+}
+
+.tool-preview-diff-marker {
+  flex: 0 0 auto;
+  width: 12px;
+  padding-left: 8px;
+  text-align: center;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+// --- Image -------------------------------------------------------------------
+
+.tool-preview-image {
+  display: flex;
+  justify-content: center;
+  padding: 6px;
+
+  img {
+    max-width: 100%;
+    // Taller than the popup on purpose: the body scrolls, so a portrait
+    // screenshot can be panned through instead of being squashed to a stamp.
+    max-height: 520px;
+    object-fit: contain;
+    border-radius: $radius-sm;
+  }
+}
+
+// Touch devices have no hover and no Ctrl key — never let this appear there.
+@media (hover: none) {
+  .tool-hover-preview { display: none; }
+}

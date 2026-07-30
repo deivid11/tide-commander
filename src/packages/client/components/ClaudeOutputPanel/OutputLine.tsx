@@ -6,7 +6,7 @@ import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHideCost, useSettings, ClaudeOutput, store, useAgentPrompts, type TestRunHandle, type HttpRunHandle } from '../../store';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay, parseTaskNotification, TaskNotificationDisplay } from './BossContext';
@@ -27,13 +27,15 @@ import { parseHttpResults } from './httpResultsParser';
 import { HttpResultsCard } from './HttpResultsCard';
 import { TestRunInline } from './TestRunInline';
 import { HttpRunInline, HttpRunLookup, matchHttpRunHandle } from './HttpRunInline';
-import { renderContentWithImages, renderUserPromptContent, highlightText, isThumbnailableImagePath, getLocalFileImageUrl } from './contentRendering';
+import { renderContentWithImages, renderUserPromptContent, highlightText, isThumbnailableImagePath, getLocalFileImageUrl, getImagePreviewUrl } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { useTTS } from '../../hooks/useTTS';
 import { Icon, type IconName } from '../Icon';
+import { FileTypeIcon } from './FileTypeIcon';
 import { BashInlineToggle, BashInlineOutput } from './BashInlineOutput';
+import { filePreviewHandlers, toolPreviewHandlers, type ToolPreviewTarget } from './toolPreviewHover';
 import type { EditData } from './types';
 import type { ExecTask, Subagent } from '../../../shared/types';
 import { SubagentInline } from './SubagentInline';
@@ -234,6 +236,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   const payloadToolInput = output.toolInput;
   const payloadToolOutput = output.toolOutput;
 
+  // Agent cwd — resolves relative file references for the Ctrl+hover preview,
+  // the same way onFileClick resolves them for the click that opens the modal.
+  const agentCwd = agentId ? store.getState().agents.get(agentId)?.cwd : undefined;
+
   // Pending agent-prompts for this agent (AskUserQuestion / ExitPlanMode that
   // need a human response). Matched to this output line via toolUseId (= output.uuid).
   const pendingAgentPrompts = useAgentPrompts(agentId);
@@ -396,7 +402,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         <span className="session-continuation-toggle"><Icon name={sessionExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
         {sessionExpanded && (
           <div className="session-continuation-content">
-            {renderContentWithImages(text, onImageClick, onFileClick)}
+            {renderContentWithImages(text, onImageClick, onFileClick, agentCwd)}
           </div>
         )}
       </div>
@@ -891,6 +897,53 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       );
     }
 
+    // Codex `view_image` called directly (not through the exec wrapper): show the
+    // picture as a thumbnail instead of a path chip, like Read-on-an-image does.
+    if (isImageViewTool(toolName)) {
+      const imageTarget = getImageViewTarget(payloadToolInput) || (_toolKeyParam ? { path: _toolKeyParam } : null);
+      const imagePreview = imageTarget && isThumbnailableImagePath(imageTarget.path)
+        ? { url: getImagePreviewUrl(imageTarget.path), name: getBasenameFromPath(imageTarget.path) }
+        : null;
+      if (imageTarget && imagePreview) {
+        const openViewer = onImageClick ? () => onImageClick(imagePreview.url, imagePreview.name) : undefined;
+        return (
+          <>
+            <div
+              className={`output-line output-tool-use output-tool-simple output-view-image-inline ${isStreaming ? 'output-streaming' : ''}`}
+              onClick={openViewer}
+              role={openViewer ? 'button' : undefined}
+              tabIndex={openViewer ? 0 : undefined}
+              style={openViewer ? { cursor: 'pointer' } : undefined}
+              onKeyDown={(event) => {
+                if (openViewer && (event.key === 'Enter' || event.key === ' ')) {
+                  event.preventDefault();
+                  openViewer();
+                }
+              }}
+            >
+              <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+              {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+              <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
+              <span className="output-tool-name">{displayToolName}</span>
+              <span className="output-tool-param view-image-path" title={imageTarget.path}>{imagePreview.name}</span>
+              {imageTarget.detail && <span className="view-image-detail">{imageTarget.detail}</span>}
+            </div>
+            <div className="output-read-image-preview output-view-image-preview">
+              <img
+                src={imagePreview.url}
+                alt={imagePreview.name}
+                className="read-image-thumb"
+                loading="lazy"
+                title={t('terminal:content.clickToViewImage')}
+                onClick={(e) => { e.stopPropagation(); onImageClick?.(imagePreview.url, imagePreview.name); }}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+              />
+            </div>
+          </>
+        );
+      }
+    }
+
     if (execPresentation) {
       const execScript = payloadToolInput && typeof payloadToolInput === 'object'
         ? String((payloadToolInput as Record<string, unknown>).input || (payloadToolInput as Record<string, unknown>).code || (payloadToolInput as Record<string, unknown>).script || JSON.stringify(payloadToolInput, null, 2))
@@ -997,7 +1050,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                   }
                 }}
               >
-                <Icon name="file-code" size={11} />
+                <FileTypeIcon path={path} size={12} />
                 <span>{path.split('/').pop() || path}</span>
               </span>
             ))}
@@ -1194,6 +1247,58 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       && looksLikeCurl(bashCommand)
     ) ? (() => { try { return parseCurlCommand(bashCommand); } catch { return null; } })() : null;
 
+    // Ctrl+hover preview for this row (file contents / edit diff / command
+    // output). Mirrors what a click would open, so the tooltip never previews
+    // something different from the modal it precedes. Built lazily on hover —
+    // this runs for one row at a time, not for every row on every render.
+    const isPreviewable = isBashTool
+      ? !!bashCommand
+      : (isFilePath && !!resolvedFilePathForClick && ['Read', 'Write', 'Edit', 'NotebookEdit'].includes(toolName));
+
+    const buildPreviewTarget = (): ToolPreviewTarget | null => {
+      const cwd = agentId ? store.getState().agents.get(agentId)?.cwd : undefined;
+      if (isBashTool) {
+        if (bashReadTarget) {
+          return {
+            kind: 'file',
+            path: resolveAgentFileReference(bashReadTarget.path, cwd).path,
+            toolName: 'Read',
+            baseDir: cwd,
+            highlightRange: bashReadTarget.highlightRange,
+          };
+        }
+        if (!bashCommand) return null;
+        return {
+          kind: 'bash',
+          command: displayCommand || bashCommand,
+          output: _bashOutput || (typeof payloadToolOutput === 'string' ? payloadToolOutput : undefined),
+          isRunning: _isRunning,
+        };
+      }
+      if (!isFilePath || !resolvedFilePathForClick) return null;
+      const resolvedPath = resolveAgentFileReference(resolvedFilePathForClick, cwd).path;
+      if (toolName === 'Edit') {
+        const editData = _editData || editDataFallback;
+        if (!editData) return null;
+        return {
+          kind: 'edit',
+          path: resolvedPath,
+          baseDir: cwd,
+          oldString: editData.oldString,
+          newString: editData.newString,
+          unifiedDiff: (editData as EditData).unifiedDiff,
+        };
+      }
+      if (!['Read', 'Write', 'NotebookEdit'].includes(toolName)) return null;
+      return {
+        kind: 'file',
+        path: resolvedPath,
+        toolName,
+        baseDir: cwd,
+        highlightRange: readRangeFallback?.highlightRange,
+      };
+    };
+
     const handleParamClick = (e: React.MouseEvent) => {
       e.stopPropagation();
       if (isFileClickable && resolvedFilePathForClick) {
@@ -1238,7 +1343,6 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         return <span dangerouslySetInnerHTML={{ __html: highlightCode(displayCommand, 'bash') }} />;
       }
 
-      const agentCwd = agentId ? store.getState().agents.get(agentId)?.cwd : undefined;
       const segments = splitCommandForFileLinks(displayCommand);
 
       return segments.map((segment, idx) => {
@@ -1256,6 +1360,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             }}
             title={t('tools:display.clickToViewFile')}
             style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
+            {...filePreviewHandlers(segment.fileRef, agentCwd)}
           >
             {segment.text}
           </span>
@@ -1269,6 +1374,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           className={`output-line output-tool-use ${isStreaming ? 'output-streaming' : ''} ${isBashClickable || isGrepClickable ? 'bash-clickable' : ''} ${bashNotificationCommand ? 'bash-notify-use' : ''} ${bashTrackingStatusCommand ? 'bash-tracking-use' : ''}`}
           onClick={isBashClickable || isGrepClickable ? handleToolClick : undefined}
           title={bashReadTarget ? t('tools:display.clickToViewFile') : isBashClickable || isGrepClickable ? t('tools:display.clickToViewOutput') : undefined}
+          {...toolPreviewHandlers(isPreviewable ? buildPreviewTarget : null)}
         >
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
@@ -1758,7 +1864,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             {assistantRoleLabel}
           </span>
           <div ref={markdownContentRef} className="markdown-content">
-            {renderContentWithImages(workPlanParsed.contentWithoutBlock, onImageClick, onFileClick)}
+            {renderContentWithImages(workPlanParsed.contentWithoutBlock, onImageClick, onFileClick, agentCwd)}
           </div>
           {workPlanParsed.hasWorkPlan && workPlanParsed.workPlan && (
             <WorkPlanBlock workPlan={workPlanParsed.workPlan} />
@@ -1852,13 +1958,13 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             <>
               <Icon name={subagentSuccess ? 'status-success' : 'status-error'} size={14} weight="fill" color={subagentSuccess ? '#4ade80' : '#f87171'} />
               {' '}
-              {highlight ? highlightText(subagentDisplayText, highlight) : renderContentWithImages(subagentDisplayText, onImageClick, onFileClick)}
+              {highlight ? highlightText(subagentDisplayText, highlight) : renderContentWithImages(subagentDisplayText, onImageClick, onFileClick, agentCwd)}
             </>
           ) : isSystemMessage && systemEmoji ? (
             <>
               <Icon name={systemIconName} size={14} />
               {' '}
-              {highlight ? highlightText(`[System]${systemRest}`, highlight) : renderContentWithImages(`[System]${systemRest}`, onImageClick, onFileClick)}
+              {highlight ? highlightText(`[System]${systemRest}`, highlight) : renderContentWithImages(`[System]${systemRest}`, onImageClick, onFileClick, agentCwd)}
             </>
           ) : highlight ? (
             <div>{highlightText(text, highlight)}</div>
@@ -1871,7 +1977,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               text={text}
               isStreaming={!!isStreaming}
               fadeId={output.uuid ? `${agentId ?? ''}:${output.uuid}` : undefined}
-              renderComplete={(t) => renderContentWithImages(t, onImageClick, onFileClick)}
+              renderComplete={(t) => renderContentWithImages(t, onImageClick, onFileClick, agentCwd)}
             />
           )}
         </div>
@@ -1893,7 +1999,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           </button>
           {subagentResultExpanded && (
             <div className="subagent-result-content markdown-content">
-              {renderContentWithImages(payloadToolOutput, onImageClick, onFileClick)}
+              {renderContentWithImages(payloadToolOutput, onImageClick, onFileClick, agentCwd)}
             </div>
           )}
         </div>

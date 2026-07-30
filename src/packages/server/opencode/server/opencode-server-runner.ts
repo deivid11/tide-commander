@@ -40,6 +40,9 @@ import { withAgentContext } from '../../utils/log-context.js';
 const log = createLogger('OpencodeServerRunner');
 
 const RECOVER_DELAY_MS = 1500;
+/** How long after the turn's message POST resolves (= turn ended server-side)
+ *  to wait for the real `session.idle` before force-finalizing the turn. */
+const POST_IDLE_GRACE_MS = 3000;
 
 interface AgentState {
   sessionId: string;
@@ -49,6 +52,9 @@ interface AgentState {
   lastActivityTime: number;
   lastRequest: RunnerRequest;
   queue: string[];
+  /** Monotonic per-agent turn counter so delayed fallbacks never finalize a
+   *  LATER turn than the one they were armed for. */
+  turnSeq: number;
   /** Set while a user-requested interrupt is in flight so the expected abort
    *  fallout (session.error "Aborted", empty-response dump) renders quiet. */
   interruptRequested?: boolean;
@@ -129,6 +135,7 @@ export class OpencodeServerRunner implements RuntimeRunner {
         lastActivityTime: Date.now(),
         lastRequest: p.lastRequest,
         queue: [],
+        turnSeq: 0,
       };
       this.agents.set(p.agentId, state);
       this.sessionToAgent.set(p.sessionId, p.agentId);
@@ -203,6 +210,12 @@ export class OpencodeServerRunner implements RuntimeRunner {
       }
     }
 
+    // A step_complete for a turn that's already finalized (the POST-resolution
+    // fallback raced the real session.idle, or the server double-fired idle)
+    // must be dropped whole — re-emitting would render a spurious
+    // "(Empty response)" row and double-fire onComplete/drainQueue.
+    if (event.type === 'step_complete' && state.turnState !== 'processing') return;
+
     this.pipeline.emitStandardEvent(agentId, event);
 
     if (event.type === 'step_complete') {
@@ -265,6 +278,7 @@ export class OpencodeServerRunner implements RuntimeRunner {
         lastActivityTime: Date.now(),
         lastRequest: request,
         queue: [],
+        turnSeq: 0,
       };
       this.agents.set(agentId, state);
       this.sessionToAgent.set(sessionId, agentId);
@@ -310,9 +324,24 @@ export class OpencodeServerRunner implements RuntimeRunner {
 
     state.turnState = 'processing';
     state.lastActivityTime = Date.now();
+    state.turnSeq += 1;
+    const seq = state.turnSeq;
 
     try {
       await proc.sendPrompt(state.sessionId, promptText, this.modelRef(state.lastRequest.model));
+      // opencode holds the message POST open for the ENTIRE turn, so resolving
+      // means the turn already ended server-side. `session.idle` over SSE is
+      // the normal finalizer — but if it doesn't land shortly after (missed
+      // frame, broken/mis-scoped stream), force-finalize so one lost event can
+      // never wedge the agent in 'working' with its queue backing up forever.
+      setTimeout(() => {
+        if (this.agents.get(agentId) !== state) return;
+        if (state.turnSeq !== seq || state.turnState !== 'processing') return;
+        log.warn(`Turn POST resolved but no session.idle after ${POST_IDLE_GRACE_MS}ms for ${agentId.slice(0, 8)}; force-finalizing turn`);
+        for (const event of state.adapter.forceFinalize()) {
+          this.applyEvent(agentId, state, event);
+        }
+      }, POST_IDLE_GRACE_MS);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       log.error(`sendPrompt failed for ${agentId.slice(0, 8)}: ${msg}`);

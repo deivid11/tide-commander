@@ -44,7 +44,8 @@
       "attemptCompletion": "Abschlussversuch",
       "listFiles": "Dateien auflisten",
       "searchFiles": "Dateien durchsuchen",
-      "executeCommand": "Befehl ausführen"
+      "executeCommand": "Befehl ausführen",
+      "viewImage": "Bild ansehen"
     },
     "showOutputsInline": "Alle Bash-Ausgaben inline anzeigen",
     "hideOutputsInline": "Inline-Bash-Ausgaben ausblenden"
@@ -273,5 +274,13 @@
   "response": {
     "noContent": "Kein Antwortinhalt verfügbar.",
     "rawMarkdown": "Rohes Markdown"
+  },
+  "preview": {
+    "loading": "Vorschau wird geladen…",
+    "emptyFile": "(leere Datei)",
+    "noDiff": "(kein Diff verfügbar)",
+    "diffTruncated": "Diff gekürzt…",
+    "moreLines": "+{{count}} weitere Zeilen",
+    "skippedLines": "… {{count}} Zeilen übersprungen …"
   }
 }

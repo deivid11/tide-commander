@@ -93,6 +93,14 @@ export function getLocalFileImageUrl(filePath: string): string {
 }
 
 /**
+ * Preview URL for an arbitrary image reference an agent handed us: remote and
+ * data/blob URIs render as-is, on-disk paths stream through /api/files/binary.
+ */
+export function getImagePreviewUrl(ref: string): string {
+  return /^(https?:|data:|blob:)/i.test(ref) ? ref : getLocalFileImageUrl(ref);
+}
+
+/**
  * Helper to render content with clickable image references
  */
 /**
@@ -189,11 +197,13 @@ const REMARK_PLUGINS = [remarkGfm];
 const MarkdownBlock = React.memo(function MarkdownBlock({
   text,
   onFileClick,
+  baseDir,
 }: {
   text: string;
   onFileClick?: (path: string) => void;
+  baseDir?: string;
 }) {
-  const components = React.useMemo(() => createMarkdownComponents({ onFileClick }), [onFileClick]);
+  const components = React.useMemo(() => createMarkdownComponents({ onFileClick, baseDir }), [onFileClick, baseDir]);
   const linkified = React.useMemo(() => linkifyFilePathsForMarkdown(text), [text]);
   return (
     <div className="markdown-content">
@@ -207,7 +217,9 @@ const MarkdownBlock = React.memo(function MarkdownBlock({
 export function renderContentWithImages(
   content: string,
   onImageClick?: (url: string, name: string) => void,
-  onFileClick?: (path: string) => void
+  onFileClick?: (path: string) => void,
+  /** Agent cwd — resolves relative file references in the Ctrl+hover preview. */
+  baseDir?: string
 ): React.ReactNode {
   // Generated images are emitted as a standalone image reference. Give them a
   // proper inline preview instead of the compact attachment chip used for
@@ -240,7 +252,7 @@ export function renderContentWithImages(
     // Add text before the match
     if (match.index > lastIndex) {
       parts.push(
-        <MarkdownBlock key={`text-${lastIndex}`} text={content.slice(lastIndex, match.index)} onFileClick={onFileClick} />
+        <MarkdownBlock key={`text-${lastIndex}`} text={content.slice(lastIndex, match.index)} onFileClick={onFileClick} baseDir={baseDir} />
       );
     }
 
@@ -293,13 +305,13 @@ export function renderContentWithImages(
   // Add remaining text after last match
   if (lastIndex < content.length) {
     parts.push(
-      <MarkdownBlock key={`text-${lastIndex}`} text={content.slice(lastIndex)} onFileClick={onFileClick} />
+      <MarkdownBlock key={`text-${lastIndex}`} text={content.slice(lastIndex)} onFileClick={onFileClick} baseDir={baseDir} />
     );
   }
 
   // If no images/files found, just return markdown wrapped in markdown-content
   if (parts.length === 0) {
-    return <MarkdownBlock text={content} onFileClick={onFileClick} />;
+    return <MarkdownBlock text={content} onFileClick={onFileClick} baseDir={baseDir} />;
   }
 
   return <>{parts}</>;

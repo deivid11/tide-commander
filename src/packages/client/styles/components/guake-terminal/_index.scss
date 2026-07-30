@@ -23,6 +23,9 @@
 // Tool display styles (Edit, Read, Bash, Todo, etc.)
 @forward 'tools';
 
+// Ctrl+hover mini preview popup for tool rows
+@forward 'tool-hover-preview';
+
 // Structured card for `curl ...` Bash commands
 @forward 'curl-card';
 
@@ -43,6 +46,9 @@
 
 // File attachments and image modal
 @forward 'attachments';
+
+// Mermaid diagram preview sizing
+@forward 'mermaid';
 
 // Agent debug panel
 @forward 'debug-panel';

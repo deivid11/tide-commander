@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ModalPortal } from '../shared/ModalPortal';
 
 /**
@@ -54,6 +54,23 @@ function sizeSvgToNatural(svg: string): string {
   });
 }
 
+/** Widest the inline preview may render; wider diagrams scale down to it. */
+const PREVIEW_MAX_WIDTH_PX = 720;
+
+/**
+ * Clamp mermaid's inline `max-width: <natural>px` so a wide diagram does not span
+ * the whole conversation. It must be EDITED, not dropped: an outermost <svg> with
+ * no width resolves `width: auto` to 100% of its container, which would upscale a
+ * small diagram to the cap instead of leaving it at its natural size. An inline
+ * style also beats the stylesheet, so this can't be done from _mermaid.scss.
+ */
+function capSvgPreviewWidth(svg: string): string {
+  return svg.replace(/max-width:\s*([\d.]+)px/i, (full, px: string) => {
+    const natural = Number(px);
+    return Number.isFinite(natural) ? `max-width: ${Math.min(natural, PREVIEW_MAX_WIDTH_PX)}px` : full;
+  });
+}
+
 const boxStyle: React.CSSProperties = {
   margin: '0.6em 0',
   border: '1px solid var(--border-color)',
@@ -67,6 +84,7 @@ export function MermaidDiagram({ code }: { code: string }) {
   const [svg, setSvg] = useState<string | null>(null);
   const renderSeq = useRef(0);
   const [modalOpen, setModalOpen] = useState(false);
+  const previewSvg = useMemo(() => capSvgPreviewWidth(svg ?? ''), [svg]);
 
   useEffect(() => {
     const source = code.trim();
@@ -117,10 +135,13 @@ export function MermaidDiagram({ code }: { code: string }) {
       <div
         className="mermaid-diagram mermaid-diagram--preview"
         onClick={() => setModalOpen(true)}
-        title="Click to zoom / pan"
-        style={{ ...boxStyle, position: 'relative', padding: '12px', maxHeight: '340px', overflow: 'hidden', textAlign: 'center', cursor: 'zoom-in' }}
+        title="Click to open full size (zoom / pan)"
+        // The box itself is never height-capped (that would crop). Compactness
+        // comes from scaling the SVG down inside it — see _mermaid.scss.
+        style={{ ...boxStyle, position: 'relative', padding: '12px', overflow: 'auto', textAlign: 'center', cursor: 'zoom-in' }}
       >
-        <div dangerouslySetInnerHTML={{ __html: svg }} />
+        {/* mermaid-generated SVG, sanitized by mermaid's securityLevel:'strict' */}
+        <div dangerouslySetInnerHTML={{ __html: previewSvg }} />
         <span
           aria-hidden
           style={{

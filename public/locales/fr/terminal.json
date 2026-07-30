@@ -901,6 +901,7 @@
     "fileNotFound": "Fichier introuvable",
     "loading": "Chargement du diff...",
     "showDiff": "Afficher le diff",
+    "showRendered": "Afficher le rendu",
     "modifiedOnly": "Modifiés uniquement",
     "copied": "Copié",
     "errorCopy": "Erreur",

@@ -901,6 +901,7 @@
     "fileNotFound": "Datei nicht gefunden",
     "loading": "Diff wird geladen...",
     "showDiff": "Diff anzeigen",
+    "showRendered": "Gerendert anzeigen",
     "modifiedOnly": "Nur geänderte",
     "copied": "Kopiert",
     "errorCopy": "Fehler",

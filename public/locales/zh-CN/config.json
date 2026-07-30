@@ -38,7 +38,9 @@
     "notifications": "通知",
     "soundEffects": "音效",
     "streamTextLive": "逐字流式输出",
-    "streamTextLiveTitle": "实时显示 Claude 和 Grok 的文本/思考。关闭后仅显示完整回复。"
+    "streamTextLiveTitle": "实时显示 Claude 和 Grok 的文本/思考。关闭后仅显示完整回复。",
+    "toolHoverPreview": "Ctrl 悬停预览",
+    "toolHoverPreviewTitle": "在终端中按住 Ctrl 并将鼠标悬停在工具行或文件路径上，即可预览文件、差异、图片或命令输出。面板可滚动。"
   },
   "agentNames": {
     "customConfigured": "已配置 {{count}} 个自定义名称",
