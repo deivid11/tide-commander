@@ -344,6 +344,8 @@
     "agents": "Agents",
     "inspector": "Inspector",
     "close": "Close",
-    "closeAgent": "Close agent"
+    "closeAgent": "Close agent",
+    "lastAgent": "Last agent",
+    "openLastAgentNamed": "Open {{name}}"
   }
 }

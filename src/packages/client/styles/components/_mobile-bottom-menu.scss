@@ -60,6 +60,21 @@
     min-width: 50px;
   }
 
+  // Seven items (the "last agent" shortcut is showing): shave the floor so the
+  // row still fits without horizontal overflow on 320px-wide phones.
+  .mobile-bottom-menu--has-last-agent .mobile-bottom-menu__btn {
+    min-width: 40px;
+  }
+
+  // Resume-chat shortcut: tinted so it reads as "go back in" rather than as
+  // another navigation destination.
+  .mobile-bottom-menu__btn--last-agent {
+    .mobile-bottom-menu__icon,
+    .mobile-bottom-menu__label {
+      color: var(--accent-cyan);
+    }
+  }
+
   .mobile-bottom-menu__btn--primary {
     .mobile-bottom-menu__icon {
       background: var(--accent-purple);

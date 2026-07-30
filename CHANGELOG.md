@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.171.0] - 2026-07-29
+
+### Added
+- **"Last agent" button in the mobile bottom nav** - in flat view with no chat open, the bottom bar now shows a one-tap button back into the agent you were last in, labelled with that agent's name (the mobile equivalent of the Space/Backspace shortcut on desktop). The last-opened agent is persisted, so it survives an app reload, and the button disappears on its own if that agent is deleted.
+
+### Changed
+- **Notification sounds are now opt-in** - they shipped enabled by default in 1.169.0; they now default to off and only play once you turn them on in Settings. A one-shot per-device migration clears the inherited "on" value, so existing installs go quiet without having to find the toggle.
+- **Flat view drops the Spawn button from the mobile bottom nav** - its own middle column already carries the + Agent / + Boss actions, so the nav no longer duplicates them.
+
 ## [1.170.0] - 2026-07-29
 
 ### Added

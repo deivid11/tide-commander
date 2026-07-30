@@ -60,6 +60,7 @@ import { PostUpdateNotice } from './components/PostUpdateNotice';
 import { OnboardingModal } from './components/OnboardingModal';
 import { profileRender, useRenderCounter } from './utils/profiling';
 import { dockBuilding } from './utils/buildingViewMode';
+import { getStorageString, STORAGE_KEYS } from './utils/storage';
 import {
   useModalState,
   useModalStateWithId,
@@ -813,6 +814,27 @@ function AppContent() {
     store.deselectAll();
   }, []);
 
+  // Flat view with no chat open: offer a one-tap way back into the agent the
+  // user was last in (FlatView persists the id; the desktop equivalent is the
+  // Space/Backspace shortcut). Re-resolved whenever the selection or the agent
+  // roster changes so a deleted agent never leaves a dead button behind.
+  const [lastFlatAgent, setLastFlatAgent] = useState<{ id: string; name: string } | null>(null);
+  useEffect(() => {
+    if (viewMode !== 'flat' || selectedAgentIds.size > 0) {
+      setLastFlatAgent(null);
+      return;
+    }
+    const id = getStorageString(STORAGE_KEYS.LAST_OPENED_AGENT, '');
+    const agent = id ? store.getState().agents.get(id) : undefined;
+    setLastFlatAgent(agent ? { id, name: agent.name } : null);
+  }, [viewMode, selectedAgentIds, agentCount]);
+
+  const handleOpenLastFlatAgent = useCallback(() => {
+    if (!lastFlatAgent) return;
+    closeAllMobileBottomNavViews();
+    store.selectAgent(lastFlatAgent.id);
+  }, [lastFlatAgent, closeAllMobileBottomNavViews]);
+
   // Open/focus a building from the Recents overlay — mirrors the building
   // double-click / scene-click routing and records the access for recency.
   const handleOpenRecentBuilding = useCallback((buildingId: string) => {
@@ -1531,6 +1553,9 @@ function AppContent() {
           onToggleAgentsDrawer={viewMode === 'flat' ? handleToggleAgentsDrawer : undefined}
           onToggleInspector={viewMode === 'flat' ? handleToggleInspector : undefined}
           onCloseAgent={viewMode === 'flat' && selectedAgentIds.size > 0 ? handleCloseFlatAgent : undefined}
+          onOpenLastAgent={lastFlatAgent ? handleOpenLastFlatAgent : undefined}
+          lastAgentName={lastFlatAgent?.name}
+          isFlatView={viewMode === 'flat'}
           activeView={
             toolboxModal.isOpen ? 'settings'
               : commanderModal.isOpen ? 'commander'
