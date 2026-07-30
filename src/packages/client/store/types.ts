@@ -179,7 +179,7 @@ export interface Settings {
   // Vibration intensity for gestures: 0=off, 1=ultra light, 2=very light, 3=light, 4=medium, 5=heavy
   vibrationIntensity: number;
   // Play pleasant notification sounds (agent notifications and, above all, when
-  // an agent asks the user a question). Default on.
+  // an agent asks the user a question). Default off — opt in from Settings.
   notificationSoundEnabled: boolean;
   // Notification sound volume: 0=mute, 1..5 quiet→loud. Default 3.
   notificationSoundVolume: number;
@@ -223,7 +223,7 @@ export const DEFAULT_SETTINGS: Settings = {
   experimentalEchoPrompt: false,
   externalEditorCommand: '',
   vibrationIntensity: 1,
-  notificationSoundEnabled: true,
+  notificationSoundEnabled: false,
   notificationSoundVolume: 3,
   tabTitle: '',
   inlineBashOutputs: false,

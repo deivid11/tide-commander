@@ -12,6 +12,11 @@ interface MobileBottomMenuProps {
   onToggleAgentsDrawer?: () => void;
   onToggleInspector?: () => void;
   onCloseAgent?: () => void;
+  /** Flat view with no chat open: reopen the agent the user was last in. */
+  onOpenLastAgent?: () => void;
+  lastAgentName?: string;
+  /** Flat view has its own "+ Agent" CTA, so the nav drops its Spawn button. */
+  isFlatView?: boolean;
   activeView?: 'agents' | 'settings' | 'commander' | 'search' | 'inspector' | null;
 }
 
@@ -24,6 +29,9 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
   onToggleAgentsDrawer,
   onToggleInspector,
   onCloseAgent,
+  onOpenLastAgent,
+  lastAgentName,
+  isFlatView,
   activeView,
 }: MobileBottomMenuProps) {
   const { t } = useTranslation(['common']);
@@ -59,11 +67,14 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
   // (Agents / Settings / Search / Inspector / Close). Spawn and Commander stay
   // available from the empty-state map, FAB, or header — Search must NOT be
   // trimmed: it has no other reachable surface while a chat is open on mobile.
+  // Flat view drops Spawn entirely: its middle column carries + Agent / + Boss.
   const agentChatOpen = !!onCloseAgent;
 
   return (
     <nav
-      className={`mobile-bottom-menu${agentChatOpen ? ' mobile-bottom-menu--chat-open' : ''}`}
+      className={`mobile-bottom-menu${agentChatOpen ? ' mobile-bottom-menu--chat-open' : ''}${
+        onOpenLastAgent && !agentChatOpen ? ' mobile-bottom-menu--has-last-agent' : ''
+      }`}
       aria-label={t('common:mobileBottomMenu.label', { defaultValue: 'Quick actions' })}
     >
       {onToggleAgentsDrawer && (
@@ -77,6 +88,25 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
         >
           <span className="mobile-bottom-menu__icon"><Icon name="list" size={18} /></span>
           <span className="mobile-bottom-menu__label">{t('common:mobileBottomMenu.agents', { defaultValue: 'Agents' })}</span>
+        </button>
+      )}
+
+      {onOpenLastAgent && !agentChatOpen && (
+        <button
+          type="button"
+          className="mobile-bottom-menu__btn mobile-bottom-menu__btn--last-agent"
+          onClick={onOpenLastAgent}
+          title={lastAgentName
+            ? t('common:mobileBottomMenu.openLastAgentNamed', { name: lastAgentName, defaultValue: `Open ${lastAgentName}` })
+            : t('common:mobileBottomMenu.lastAgent', { defaultValue: 'Last agent' })}
+          aria-label={lastAgentName
+            ? t('common:mobileBottomMenu.openLastAgentNamed', { name: lastAgentName, defaultValue: `Open ${lastAgentName}` })
+            : t('common:mobileBottomMenu.lastAgent', { defaultValue: 'Last agent' })}
+        >
+          <span className="mobile-bottom-menu__icon"><Icon name="chat" size={18} /></span>
+          <span className="mobile-bottom-menu__label">
+            {lastAgentName || t('common:mobileBottomMenu.lastAgent', { defaultValue: 'Last agent' })}
+          </span>
         </button>
       )}
 
@@ -106,7 +136,7 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
         </button>
       )}
 
-      {!agentChatOpen && (
+      {!agentChatOpen && !isFlatView && (
         <button
           type="button"
           className="mobile-bottom-menu__btn mobile-bottom-menu__btn--primary"

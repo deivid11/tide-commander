@@ -341,6 +341,13 @@ class Store
       merged.notificationSoundVolume = Number.isFinite(rawVolume)
         ? Math.max(0, Math.min(MAX_NOTIFICATION_SOUND_VOLUME, Math.round(rawVolume)))
         : DEFAULT_SETTINGS.notificationSoundVolume;
+      // Notification sounds shipped enabled-by-default and are now opt-in.
+      // Drop the inherited `true` once — after this, only a deliberate toggle
+      // in Settings turns them back on.
+      if (!getStorageBoolean(STORAGE_KEYS.SOUND_OPT_IN_MIGRATED, false)) {
+        merged.notificationSoundEnabled = DEFAULT_SETTINGS.notificationSoundEnabled;
+        setStorageBoolean(STORAGE_KEYS.SOUND_OPT_IN_MIGRATED, true);
+      }
       return merged;
     }
     return { ...DEFAULT_SETTINGS };

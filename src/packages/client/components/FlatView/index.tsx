@@ -2000,8 +2000,11 @@ export function FlatView({
   const agentNavigationIndexRef = useRef(-1);
   const isHistoryNavigationRef = useRef(false);
   // Tracks the most recently opened agent independently of navigation history
-  // so Space/Backspace can reopen it even after history is cleared.
-  const lastOpenedAgentIdRef = useRef<string | null>(null);
+  // so Space/Backspace (and the mobile bottom-nav button) can reopen it even
+  // after history is cleared. Seeded from storage so it survives a reload.
+  const lastOpenedAgentIdRef = useRef<string | null>(
+    getStorageString(STORAGE_KEYS.LAST_OPENED_AGENT, '') || null
+  );
   const [canNavigateBack, setCanNavigateBack] = useState(false);
   const [canNavigateForward, setCanNavigateForward] = useState(false);
 
@@ -2158,8 +2161,10 @@ export function FlatView({
     }
 
     // Remember this agent as the last explicitly opened one so Space/Backspace
-    // can reopen it later when no agent is selected.
+    // (and the mobile bottom-nav "Last agent" button) can reopen it later when
+    // no agent is selected. Persisted so it also survives an app reload.
     lastOpenedAgentIdRef.current = selectedAgentId;
+    setStorageString(STORAGE_KEYS.LAST_OPENED_AGENT, selectedAgentId);
 
     if (isHistoryNavigationRef.current) {
       isHistoryNavigationRef.current = false;

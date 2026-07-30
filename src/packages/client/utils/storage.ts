@@ -12,6 +12,9 @@ export const STORAGE_KEYS = {
   CONFIG: 'tide-commander-config',
   SHOW_FPS: 'tide-show-fps',
   SETTINGS: 'tide-settings',
+  // One-shot marker: notification sounds became opt-in, so the old
+  // enabled-by-default value is cleared once per device.
+  SOUND_OPT_IN_MIGRATED: 'tide-sound-opt-in-migrated',
   SHORTCUTS: 'tide-shortcuts',
   MOUSE_CONTROLS: 'tide-mouse-controls',
   BACKEND_URL: 'tide-backend-url',
@@ -55,6 +58,9 @@ export const STORAGE_KEYS = {
   // Agent Bar
   AGENT_ORDER: 'tide-agent-order',
   AGENT_BAR_HIDDEN: 'tide-agent-bar-hidden',
+
+  // Flat view
+  LAST_OPENED_AGENT: 'tide-last-opened-agent',
 
   // Flat view inspector panel
   FLAT_INSPECTOR_OPEN: 'tide-flat-inspector-open',
