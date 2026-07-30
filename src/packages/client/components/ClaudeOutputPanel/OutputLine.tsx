@@ -9,6 +9,7 @@ import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting'
 import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
+import { getSlashCommandInfo } from '../../utils/slashCommands';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay, parseTaskNotification, TaskNotificationDisplay } from './BossContext';
 import { parseWhatsAppMessage, WhatsAppMessageBubble } from './WhatsAppMessageBubble';
 import { parseEmailMessage, GmailMessageBubble } from './GmailMessageBubble';
@@ -414,10 +415,22 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
 
   // Handle user prompts separately
   if (isUserPrompt) {
-    // Hide utility slash commands like /context, /cost, /compact
+    // Slash commands render as a compact chip rather than a chat bubble — they
+    // are an action on the session, not something said to the agent. They used
+    // to be hidden entirely, which made running one look like a no-op.
     const trimmedText = text.trim();
-    if (trimmedText === '/context' || trimmedText === '/cost' || trimmedText === '/compact') {
-      return null;
+    const slashCommand = getSlashCommandInfo(trimmedText);
+    if (slashCommand) {
+      return (
+        <div className="output-line output-slash-command">
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          <span className="output-slash-chip">
+            <span className="output-slash-chip__icon"><Icon name="terminal" size={12} /></span>
+            <span className="output-slash-chip__name">{slashCommand.name}</span>
+          </span>
+          <span className="output-slash-summary">{slashCommand.summary}</span>
+        </div>
+      );
     }
 
     const parsed = parseBossContext(text);

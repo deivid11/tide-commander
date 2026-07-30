@@ -10,6 +10,7 @@ import { createLogger, getCommanderBaseUrl } from '../../utils/index.js';
 import { getAuthToken } from '../../auth/index.js';
 import { handleRequestContextStats } from './agent-handler.js';
 import type { HandlerContext } from './types.js';
+import type { ServerMessage } from '../../../shared/types.js';
 
 const log = createLogger('CommandHandler');
 
@@ -321,6 +322,20 @@ export async function handleSendCommand(
   }
 
   const trimmedCmd = command.trim();
+
+  // Commands handled entirely here never reach the runner, so they'd never get
+  // the usual `command_started` broadcast and the user's own command would
+  // vanish from the chat. Echo it first so every slash command the user types
+  // appears in history through the same path as an ordinary message.
+  const isInterceptedCommand = trimmedCmd === '/context'
+    || trimmedCmd === '/cost'
+    || trimmedCmd === '/clear';
+  if (isInterceptedCommand) {
+    ctx.broadcast({
+      type: 'command_started',
+      payload: { agentId, command: trimmedCmd },
+    } as ServerMessage);
+  }
 
   // Intercept /context and /cost for ALL agents (boss or regular) BEFORE routing.
   // The CLI /context slash command does NOT work via stdin in --print mode
