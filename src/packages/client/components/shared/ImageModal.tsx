@@ -26,10 +26,25 @@ export interface ImageModalProps {
   downloadName?: string;
 }
 
+/**
+ * True when the source is an SVG — by filename, by the (URL-encoded) path in an
+ * `/api/files/binary?path=…` query, or by a `data:image/svg+xml` URI.
+ */
+function isSvgSource(url: string, name: string): boolean {
+  if (/^data:image\/svg\+xml/i.test(url)) return true;
+  let decoded = url;
+  try { decoded = decodeURIComponent(url); } catch { /* keep raw */ }
+  return /\.svg(?:[?#&]|$)/i.test(name.trim()) || /\.svg(?:[?#&]|$)/i.test(decoded);
+}
+
 /** Any modal that shows a single image should render this rather than rolling
  *  its own `<img>` chrome. */
 export function ImageModal({ url, name, onClose, subtitle, downloadName }: ImageModalProps) {
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
+  // SVGs that only carry a viewBox have no intrinsic pixel size, so this
+  // modal's shrink-to-fit box has nothing to measure and collapses the image to
+  // 0×0. The class gives those a definite width to scale into.
+  const svgSource = isSvgSource(url, name);
   return (
     <ModalPortal>
       <div className="image-modal-overlay" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
@@ -48,7 +63,7 @@ export function ImageModal({ url, name, onClose, subtitle, downloadName }: Image
               ×
             </button>
           </div>
-          <div className="image-modal-content">
+          <div className={`image-modal-content${svgSource ? ' is-svg' : ''}`}>
             <ZoomableImage src={url} alt={name} />
           </div>
         </div>

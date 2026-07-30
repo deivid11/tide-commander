@@ -192,7 +192,7 @@ function HighlightText({ text, query }: { text: string; query: string }) {
 
 // Define searchable settings configuration (English keywords for search matching)
 const SETTINGS_SECTIONS = [
-  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'low power', 'battery', 'bajo consumo', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title', 'tmux', 'process persistence', 'interactive', 'tui', 'terminal', 'experimental', 'claude', 'stream', 'streaming', 'word by word', 'live text', 'grok', 'codex', 'app-server', 'app server', 'opencode', 'serve'] },
+  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'low power', 'battery', 'bajo consumo', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title', 'tmux', 'process persistence', 'interactive', 'tui', 'terminal', 'experimental', 'claude', 'stream', 'streaming', 'word by word', 'live text', 'grok', 'codex', 'app-server', 'app server', 'opencode', 'serve', 'hover', 'preview', 'tooltip', 'ctrl', 'popup', 'vista previa'] },
   { id: 'agentNames', title: 'Agent Names', keywords: ['agent', 'names', 'custom', 'characters', 'rename'] },
   { id: 'defaultClass', title: 'Default Spawn Class', keywords: ['default', 'class', 'spawn', 'agent', 'scout', 'builder', 'random'] },
   { id: 'appearance', title: 'Appearance', keywords: ['theme', 'appearance', 'color', 'dark', 'light', 'style', 'look'] },
@@ -463,6 +463,18 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           <Toggle
             checked={settings.streamTextLive !== false}
             onChange={(checked) => store.updateSettings({ streamTextLive: checked })}
+          />
+        </div>
+        <div className="config-row">
+          <span
+            className="config-label"
+            title={t('config:general.toolHoverPreviewTitle')}
+          >
+            <HighlightText text={t('config:general.toolHoverPreview')} query={searchQuery} />
+          </span>
+          <Toggle
+            checked={settings.toolHoverPreview !== false}
+            onChange={(checked) => store.updateSettings({ toolHoverPreview: checked })}
           />
         </div>
         <div className="config-row">

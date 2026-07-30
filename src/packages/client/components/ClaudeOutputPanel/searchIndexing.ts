@@ -68,6 +68,15 @@ export interface ContentMatch {
 export interface FuzzyResult {
   matched: boolean;
   score: number;
+  /** Positions of the matched characters in `target` — only when requested. */
+  indices?: number[];
+}
+
+export interface FuzzyOptions {
+  /** Compare with case preserved (smart-case callers). Default: case-insensitive. */
+  caseSensitive?: boolean;
+  /** Collect matched character positions for highlighting (allocates — off by default). */
+  withIndices?: boolean;
 }
 
 // ── Type helpers ────────────────────────────────────────────────────────────
@@ -332,12 +341,13 @@ export function extractFileReferences(items: SearchItem[]): FileRef[] {
  * order. Score rewards contiguous runs and matches at token boundaries
  * (start, `/`, `.`, `_`, `-`), and penalises a late first match.
  */
-export function fuzzyMatch(query: string, target: string): FuzzyResult {
-  if (!query) return { matched: true, score: 0 };
+export function fuzzyMatch(query: string, target: string, opts?: FuzzyOptions): FuzzyResult {
+  const indices: number[] | undefined = opts?.withIndices ? [] : undefined;
+  if (!query) return { matched: true, score: 0, indices };
   if (!target) return { matched: false, score: 0 };
 
-  const q = query.toLowerCase();
-  const t = target.toLowerCase();
+  const q = opts?.caseSensitive ? query : query.toLowerCase();
+  const t = opts?.caseSensitive ? target : target.toLowerCase();
   let qi = 0;
   let ti = 0;
   let score = 0;
@@ -347,6 +357,7 @@ export function fuzzyMatch(query: string, target: string): FuzzyResult {
   while (qi < q.length && ti < t.length) {
     if (q[qi] === t[ti]) {
       if (firstIdx === -1) firstIdx = ti;
+      if (indices) indices.push(ti);
       score += prevMatch === ti - 1 ? 5 : 1; // contiguity bonus
       const prevChar = ti > 0 ? t[ti - 1] : '';
       if (ti === 0 || prevChar === '/' || prevChar === '.' || prevChar === '_' || prevChar === '-') {
@@ -362,7 +373,7 @@ export function fuzzyMatch(query: string, target: string): FuzzyResult {
 
   score -= Math.floor(firstIdx / 4); // prefer earlier first match
   score += Math.max(0, 15 - (t.length - q.length)); // prefer tighter matches
-  return { matched: true, score };
+  return { matched: true, score, indices };
 }
 
 /**

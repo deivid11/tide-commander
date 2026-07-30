@@ -1,0 +1,17 @@
+// =============================================================================
+// Mermaid Diagrams — inline chat preview
+// =============================================================================
+// Mermaid ships its SVG with `width="100%"` plus an inline `max-width`, so a tall
+// flowchart renders at natural size and can take 1000px+ of the conversation.
+// Capping the *container* would crop it, so the cap goes on the SVG itself:
+// letting width/height resolve from the viewBox under a max-height shrinks the
+// vector proportionally — the whole diagram stays visible, just smaller. Clicking
+// the preview opens the modal, which renders it at full size for reading.
+// =============================================================================
+
+.mermaid-diagram--preview svg {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: min(560px, 60vh);
+}

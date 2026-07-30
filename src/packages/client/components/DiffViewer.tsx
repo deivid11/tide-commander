@@ -5,8 +5,13 @@ import remarkGfm from 'remark-gfm';
 import { highlightCode, ensureLanguageLoaded } from './FileExplorerPanel/syntaxHighlighting';
 import { copyRichContentToClipboard, copyTextToClipboard, inlineStylesForRichCopy } from '../utils/clipboard';
 import { revealInFileExplorer } from '../api/files';
+import { apiUrl, getAuthToken } from '../utils/storage';
+import { downloadServerFile } from '../utils/file-download';
+import { PdfJsViewer } from './shared/PdfJsViewer';
 import { Tooltip } from './shared/Tooltip';
 import { Icon } from './Icon';
+import { VirtualLineList } from './shared/VirtualLineList';
+import { computeDiffOps } from './diffLineOps';
 
 interface DiffViewerProps {
   originalContent: string;
@@ -21,7 +26,6 @@ interface DiffViewerProps {
 interface DiffLine {
   num: number;
   text: string;
-  highlighted: string;
   type: 'unchanged' | 'added' | 'removed';
 }
 
@@ -47,7 +51,7 @@ function highlightLine(line: string, language: string): string {
 }
 
 // Compute diff lines and alignment points for intelligent scroll sync
-function computeDiff(original: string, modified: string, language: string): {
+function computeDiff(original: string, modified: string): {
   leftLines: DiffLine[];
   rightLines: DiffLine[];
   alignments: AlignmentPoint[];
@@ -56,43 +60,7 @@ function computeDiff(original: string, modified: string, language: string): {
   const originalLines = original.split('\n');
   const modifiedLines = modified.split('\n');
 
-  const prismLang = language || 'plaintext';
-
-  // Build LCS table
-  const m = originalLines.length;
-  const n = modifiedLines.length;
-  const dp: number[][] = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
-
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (originalLines[i - 1] === modifiedLines[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1] + 1;
-      } else {
-        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
-      }
-    }
-  }
-
-  // Backtrack to find operations
-  type Op = { type: 'equal' | 'delete' | 'insert'; origIdx?: number; modIdx?: number };
-  const ops: Op[] = [];
-  let i = m, j = n;
-
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && originalLines[i - 1] === modifiedLines[j - 1]) {
-      ops.push({ type: 'equal', origIdx: i - 1, modIdx: j - 1 });
-      i--;
-      j--;
-    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-      ops.push({ type: 'insert', modIdx: j - 1 });
-      j--;
-    } else if (i > 0) {
-      ops.push({ type: 'delete', origIdx: i - 1 });
-      i--;
-    }
-  }
-
-  ops.reverse();
+  const ops = computeDiffOps(originalLines, modifiedLines);
 
   // Build lines for each side and track alignment points + change blocks
   const leftLines: DiffLine[] = [];
@@ -134,19 +102,16 @@ function computeDiff(original: string, modified: string, language: string): {
 
       // Add alignment point at each matching line
       const text = originalLines[op.origIdx!];
-      const highlighted = highlightLine(text, prismLang);
 
       leftLines.push({
         num: op.origIdx! + 1,
         text,
-        highlighted,
         type: 'unchanged'
       });
 
       rightLines.push({
         num: op.modIdx! + 1,
         text,
-        highlighted,
         type: 'unchanged'
       });
 
@@ -161,12 +126,9 @@ function computeDiff(original: string, modified: string, language: string): {
       }
       pendingDeleteCount++;
 
-      const text = originalLines[op.origIdx!];
-      const highlighted = highlightLine(text, prismLang);
       leftLines.push({
         num: op.origIdx! + 1,
-        text,
-        highlighted,
+        text: originalLines[op.origIdx!],
         type: 'removed'
       });
     } else {
@@ -175,12 +137,9 @@ function computeDiff(original: string, modified: string, language: string): {
       }
       pendingInsertCount++;
 
-      const text = modifiedLines[op.modIdx!];
-      const highlighted = highlightLine(text, prismLang);
       rightLines.push({
         num: op.modIdx! + 1,
-        text,
-        highlighted,
+        text: modifiedLines[op.modIdx!],
         type: 'added'
       });
     }
@@ -254,6 +213,19 @@ function calculateTargetScroll(
 }
 
 const MARKDOWN_EXTENSIONS = ['.md', '.mdx', '.markdown'];
+// Binary image formats render as an <img> instead of a text diff (raw bytes are
+// unreadable garbage). SVG is deliberately excluded: it's text, so its diff is
+// meaningful.
+const BINARY_IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico'];
+// Other well-known binary formats: no text view makes sense, so the modal shows
+// a "Binary file" placeholder with the download action instead of empty panels.
+const KNOWN_BINARY_EXTENSIONS = [
+  '.zip', '.tar', '.gz', '.tgz', '.bz2', '.xz', '.7z', '.rar',
+  '.exe', '.dll', '.so', '.dylib', '.bin', '.o', '.a', '.class', '.pyc',
+  '.woff', '.woff2', '.ttf', '.otf', '.eot',
+  '.mp3', '.wav', '.ogg', '.flac', '.mp4', '.avi', '.mov', '.webm', '.mkv',
+  '.apk', '.jar', '.db', '.sqlite', '.sqlite3', '.parquet',
+];
 
 export function DiffViewer({ originalContent, modifiedContent, filename, filePath, language, initialModifiedOnly = false }: DiffViewerProps) {
   const { t } = useTranslation(['terminal', 'common']);
@@ -287,6 +259,75 @@ export function DiffViewer({ originalContent, modifiedContent, filename, filePat
     const ext = filename.substring(filename.lastIndexOf('.')).toLowerCase();
     return MARKDOWN_EXTENSIONS.includes(ext);
   }, [filename]);
+
+  const { isBinaryImage, isSvg, isPdf, isKnownBinary } = useMemo(() => {
+    const name = filePath || filename;
+    const ext = name.substring(name.lastIndexOf('.')).toLowerCase();
+    return {
+      isBinaryImage: BINARY_IMAGE_EXTENSIONS.includes(ext),
+      isSvg: ext === '.svg',
+      isPdf: ext === '.pdf',
+      isKnownBinary: KNOWN_BINARY_EXTENSIONS.includes(ext),
+    };
+  }, [filename, filePath]);
+
+  // SVG is both image and text: default to the rendered view, with a toggle to
+  // the source/diff view (binary images have no source view).
+  const [svgShowSource, setSvgShowSource] = useState(false);
+  const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'error'>('idle');
+  // The image failed to load (file deleted from the working tree, or unreadable).
+  const [imageError, setImageError] = useState(false);
+  // False until the current image finishes loading — drives the modal spinner
+  // so navigating files never flashes the PREVIOUS image while the next loads.
+  const [imageLoaded, setImageLoaded] = useState(false);
+
+  // Working-tree image URL; the version stamp keeps one URL per opened file but
+  // still busts the browser cache across openings (in a changes viewer the
+  // image on disk just changed by definition).
+  const imageVersion = useMemo(() => Date.now(), [filePath]);
+  const imageUrl = useMemo(() => {
+    if (!(isBinaryImage || isSvg) || !filePath) return null;
+    const token = getAuthToken();
+    return apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}&v=${imageVersion}${token ? `&token=${encodeURIComponent(token)}` : ''}`);
+  }, [isBinaryImage, isSvg, filePath, imageVersion]);
+
+  // Reset the per-image state whenever another file is shown (the modal
+  // reuses one DiffViewer instance while navigating between files).
+  useEffect(() => {
+    setImageError(false);
+    setImageLoaded(false);
+  }, [imageUrl]);
+
+  const handleDownloadFile = useCallback(async () => {
+    if (!filePath || downloadStatus === 'downloading') return;
+    try {
+      setDownloadStatus('downloading');
+      // downloadServerFile authenticates itself (header / native), so no token param
+      await downloadServerFile(
+        apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}&download=true`),
+        filename || filePath.split('/').pop() || 'download',
+      );
+      setDownloadStatus('idle');
+    } catch (err) {
+      console.error('Download file failed:', err);
+      setDownloadStatus('error');
+      setTimeout(() => setDownloadStatus('idle'), 2000);
+    }
+  }, [filePath, filename, downloadStatus]);
+
+  const downloadButton = filePath ? (
+    <Tooltip content={isBinaryImage ? t('terminal:fileExplorer.downloadImage') : t('terminal:fileExplorer.downloadFileTitle')} position="bottom">
+      <button
+        className={`diff-copy-btn ${downloadStatus === 'error' ? 'error' : ''}`}
+        onClick={handleDownloadFile}
+        disabled={downloadStatus === 'downloading'}
+      >
+        {downloadStatus === 'error'
+          ? <><Icon name="cross" size={12} /> {t('terminal:diffViewer.errorCopy')}</>
+          : <><Icon name="download" size={12} /> {t('common:buttons.download')}</>}
+      </button>
+    </Tooltip>
+  ) : null;
 
   const handleCopyModified = useCallback(async () => {
     try {
@@ -357,9 +398,32 @@ export function DiffViewer({ originalContent, modifiedContent, filename, filePat
   }, [filePath, revealStatus]);
 
   const { leftLines, rightLines, alignments, changeBlocks } = useMemo(
-    () => computeDiff(originalContent, modifiedContent, language),
-    [originalContent, modifiedContent, language, langReady]
+    () => computeDiff(originalContent, modifiedContent),
+    [originalContent, modifiedContent]
   );
+
+  /**
+   * Highlight one line, memoized by its text. Only the ~100 rows the windowed
+   * panes have mounted ever reach Prism, so even a 31,841-line file pays for a
+   * screenful instead of two full passes over the file before first paint.
+   *
+   * The cache is built in a useMemo (not a ref cleared by an effect) so a
+   * lazily-loaded grammar landing via `langReady` invalidates it during the
+   * same render that repaints the rows — an effect would clear it one commit
+   * too late and leave the visible lines unhighlighted.
+   */
+  const getHighlighted = useMemo(() => {
+    const cache = new Map<string, string>();
+    const prismLang = language || 'plaintext';
+    return (text: string): string => {
+      if (!text) return '';
+      const cached = cache.get(text);
+      if (cached !== undefined) return cached;
+      const html = highlightLine(text, prismLang);
+      cache.set(text, html);
+      return html;
+    };
+  }, [language, langReady]);
 
   // Paint connector gutter canvas - called outside React render cycle for performance
   const paintConnector = useCallback(() => {
@@ -663,6 +727,122 @@ export function DiffViewer({ originalContent, modifiedContent, filename, filePat
     }
   }, [diffHunks, goToHunk, paintConnector]);
 
+  // Images: render the working-tree image instead of raw-bytes-as-text. SVG
+  // starts here too (rendered by default) but can toggle to the source view.
+  // (Placed after every hook so the hook order never changes between modes.)
+  if (imageUrl && !(isSvg && svgShowSource)) {
+    return (
+      <div className="diff-viewer">
+        <div className="diff-viewer-header">
+          <div className="diff-viewer-filename">{filename}</div>
+          <div className="diff-viewer-actions">
+            <Tooltip content={openExplorerLabel} position="bottom">
+              <button
+                className={`diff-copy-btn ${revealStatus === 'error' ? 'error' : ''}`}
+                onClick={handleRevealInFileExplorer}
+                disabled={!filePath || revealStatus === 'opening'}
+                title={openExplorerLabel}
+                aria-label={openExplorerLabel}
+              >
+                <Icon name="folder-open" size={12} />
+              </button>
+            </Tooltip>
+            {isSvg && (
+              <Tooltip content={t('terminal:fileExplorer.showSource')} position="bottom">
+                <button className="diff-toggle-btn" onClick={() => setSvgShowSource(true)}>
+                  {t('terminal:fileExplorer.showSource')}
+                </button>
+              </Tooltip>
+            )}
+            {!imageError && downloadButton}
+          </div>
+        </div>
+        <div className="diff-image-view">
+          {imageError ? (
+            // The binary endpoint could not serve it (e.g. file deleted from
+            // the working tree) — nothing to render or download.
+            <span className="diff-image-deleted">{t('terminal:diffViewer.binaryFile')}</span>
+          ) : (
+            <>
+              {!imageLoaded && <div className="diff-image-spinner" aria-label={t('terminal:diffViewer.loading')} />}
+              {/* key remounts the <img> per URL so the browser never shows the
+                  PREVIOUS file's pixels while the next one is still loading */}
+              <img
+                key={imageUrl}
+                src={imageUrl}
+                alt={filename}
+                className={imageLoaded ? undefined : 'diff-image-pending'}
+                onLoad={() => setImageLoaded(true)}
+                onError={() => setImageError(true)}
+              />
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // PDFs: inline preview via the shared pdf.js viewer (same one the file
+  // viewer modal uses — works in the Android WebView, unlike an iframe).
+  if (isPdf && filePath) {
+    return (
+      <div className="diff-viewer">
+        <div className="diff-viewer-header">
+          <div className="diff-viewer-filename">{filename}</div>
+          <div className="diff-viewer-actions">
+            <Tooltip content={openExplorerLabel} position="bottom">
+              <button
+                className={`diff-copy-btn ${revealStatus === 'error' ? 'error' : ''}`}
+                onClick={handleRevealInFileExplorer}
+                disabled={revealStatus === 'opening'}
+                title={openExplorerLabel}
+                aria-label={openExplorerLabel}
+              >
+                <Icon name="folder-open" size={12} />
+              </button>
+            </Tooltip>
+            {downloadButton}
+          </div>
+        </div>
+        <div className="diff-pdf-view">
+          <PdfJsViewer
+            url={apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}&v=${imageVersion}`)}
+            authToken={getAuthToken() || undefined}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Known non-image binaries (zip, media, executables, …): no text view makes
+  // sense, so show a placeholder with the download action instead of empty panels.
+  if (isKnownBinary && filePath) {
+    return (
+      <div className="diff-viewer">
+        <div className="diff-viewer-header">
+          <div className="diff-viewer-filename">{filename}</div>
+          <div className="diff-viewer-actions">
+            <Tooltip content={openExplorerLabel} position="bottom">
+              <button
+                className={`diff-copy-btn ${revealStatus === 'error' ? 'error' : ''}`}
+                onClick={handleRevealInFileExplorer}
+                disabled={revealStatus === 'opening'}
+                title={openExplorerLabel}
+                aria-label={openExplorerLabel}
+              >
+                <Icon name="folder-open" size={12} />
+              </button>
+            </Tooltip>
+            {downloadButton}
+          </div>
+        </div>
+        <div className="diff-image-view">
+          <span className="diff-image-deleted">{t('terminal:diffViewer.binaryFile')}</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="diff-viewer">
       <div className="diff-viewer-header">
@@ -710,6 +890,14 @@ export function DiffViewer({ originalContent, modifiedContent, filename, filePat
               <Icon name="folder-open" size={12} />
             </button>
           </Tooltip>
+          {isSvg && svgShowSource && (
+            <Tooltip content={t('terminal:diffViewer.showRendered')} position="bottom">
+              <button className="diff-toggle-btn" onClick={() => setSvgShowSource(false)}>
+                {t('terminal:diffViewer.showRendered')}
+              </button>
+            </Tooltip>
+          )}
+          {downloadButton}
           {!isNewFile && !isDeletedFile && (
             <Tooltip content={viewOnlyModified ? 'Show diff view' : 'View only modified'} position="bottom">
               <button
@@ -759,21 +947,27 @@ export function DiffViewer({ originalContent, modifiedContent, filename, filePat
               <span className="diff-panel-label">{t('terminal:diffViewer.originalHead')}</span>
             </div>
             <div className="diff-panel-content" ref={leftRef}>
-              {leftLines.map((line, idx) => {
-                const boundary = leftBoundaries.get(idx);
-                const boundaryClass = boundary === 'both' ? 'diff-hunk-top diff-hunk-bottom'
-                  : boundary === 'top' ? 'diff-hunk-top'
-                  : boundary === 'bottom' ? 'diff-hunk-bottom' : '';
-                return (
-                  <div key={idx} className={`diff-line diff-line-${line.type} ${boundaryClass}`}>
-                    <span className="diff-line-num">{line.num}</span>
-                    <span
-                      className="diff-line-content"
-                      dangerouslySetInnerHTML={{ __html: line.highlighted || '&nbsp;' }}
-                    />
-                  </div>
-                );
-              })}
+              <VirtualLineList
+                count={leftLines.length}
+                lineHeight={LINE_HEIGHT}
+                scrollRef={leftRef}
+                renderLine={(idx) => {
+                  const line = leftLines[idx];
+                  const boundary = leftBoundaries.get(idx);
+                  const boundaryClass = boundary === 'both' ? 'diff-hunk-top diff-hunk-bottom'
+                    : boundary === 'top' ? 'diff-hunk-top'
+                    : boundary === 'bottom' ? 'diff-hunk-bottom' : '';
+                  return (
+                    <div className={`diff-line diff-line-${line.type} ${boundaryClass}`}>
+                      <span className="diff-line-num">{line.num}</span>
+                      <span
+                        className="diff-line-content"
+                        dangerouslySetInnerHTML={{ __html: getHighlighted(line.text) || '&nbsp;' }}
+                      />
+                    </div>
+                  );
+                }}
+              />
             </div>
           </div>
         )}
@@ -800,21 +994,27 @@ export function DiffViewer({ originalContent, modifiedContent, filename, filePat
               </div>
             ) : (
               <div className="diff-panel-content" ref={rightRef}>
-                {rightLines.map((line, idx) => {
-                  const boundary = rightBoundaries.get(idx);
-                  const boundaryClass = boundary === 'both' ? 'diff-hunk-top diff-hunk-bottom'
-                    : boundary === 'top' ? 'diff-hunk-top'
-                    : boundary === 'bottom' ? 'diff-hunk-bottom' : '';
-                  return (
-                    <div key={idx} className={`diff-line diff-line-${line.type} ${boundaryClass}`}>
-                      <span className="diff-line-num">{line.num}</span>
-                      <span
-                        className="diff-line-content"
-                        dangerouslySetInnerHTML={{ __html: line.highlighted || '&nbsp;' }}
-                      />
-                    </div>
-                  );
-                })}
+                <VirtualLineList
+                  count={rightLines.length}
+                  lineHeight={LINE_HEIGHT}
+                  scrollRef={rightRef}
+                  renderLine={(idx) => {
+                    const line = rightLines[idx];
+                    const boundary = rightBoundaries.get(idx);
+                    const boundaryClass = boundary === 'both' ? 'diff-hunk-top diff-hunk-bottom'
+                      : boundary === 'top' ? 'diff-hunk-top'
+                      : boundary === 'bottom' ? 'diff-hunk-bottom' : '';
+                    return (
+                      <div className={`diff-line diff-line-${line.type} ${boundaryClass}`}>
+                        <span className="diff-line-num">{line.num}</span>
+                        <span
+                          className="diff-line-content"
+                          dangerouslySetInnerHTML={{ __html: getHighlighted(line.text) || '&nbsp;' }}
+                        />
+                      </div>
+                    );
+                  }}
+                />
               </div>
             )}
           </div>

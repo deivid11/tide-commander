@@ -684,20 +684,16 @@
 
 // File viewer with highlighted lines (Read tool with offset/limit)
 .file-viewer-code-highlighted {
-  padding: 0;
+  // Rows are windowed (VirtualLineList), so each one is an only-child of its
+  // positioning wrapper — :first-child/:last-child padding would land on EVERY
+  // row and break the fixed row height the virtualizer relies on. The edge
+  // spacing lives on the container instead.
+  padding: 8px 0;
 
   .file-line {
     display: flex;
     padding: 0 16px;
     line-height: 1.5;
-
-    &:first-child {
-      padding-top: 8px;
-    }
-
-    &:last-child {
-      padding-bottom: 8px;
-    }
 
     &.file-line-highlighted {
       background: color-mix(in srgb, var(--accent-yellow) 15%, transparent);

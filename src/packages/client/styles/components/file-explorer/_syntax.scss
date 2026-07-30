@@ -1,7 +1,15 @@
 // =============================================================================
-// File Explorer - Syntax Highlighting Styles
+// Syntax Highlighting Styles (Prism.js)
 // =============================================================================
-// Prism.js theme (Dracula-inspired) for code display
+// THE canonical token palette for every Prism-rendered surface: the file
+// viewer modal, markdown/PlantUML source view, the merge-conflict resolver and
+// the side-by-side diff panes. It used to be one of three competing palettes —
+// `.diff-line-content` carried a second Prism theme that disagreed on 7 of 12
+// everyday tokens, and the file explorer's CodeMirror editor shipped One Dark's
+// hardcoded hexes and ignored the theme picker entirely.
+//
+// CodeMirror now mirrors these same roles from
+// components/FileExplorerPanel/cm-syntax-theme.ts — change the two together.
 // =============================================================================
 
 @use '../../variables' as *;
@@ -36,6 +44,7 @@ pre[class*="language-"] {
   opacity: 0.7;
 }
 
+// Object/JSON keys, tags, constants
 .token.property,
 .token.tag,
 .token.constant,
@@ -45,13 +54,16 @@ pre[class*="language-"] {
 }
 
 .token.boolean,
-.token.number {
+.token.number,
+.token.null,
+.token.undefined {
   color: var(--accent-purple);
 }
 
 .token.selector,
 .token.attr-name,
 .token.string,
+.token.template-string,
 .token.char,
 .token.builtin,
 .token.inserted {
@@ -63,19 +75,31 @@ pre[class*="language-"] {
 .token.url,
 .language-css .token.string,
 .style .token.string,
-.token.variable {
+.token.variable,
+.token.interpolation {
   color: var(--text-primary);
 }
 
 .token.atrule,
 .token.attr-value,
 .token.function,
-.token.class-name {
+.token.class-name,
+.token.maybe-class-name {
   color: var(--accent-yellow);
 }
 
-.token.keyword {
+// Keyword-family tokens the JS/TS grammar splits out separately.
+.token.keyword,
+.token.arrow,
+.token.spread,
+.token.module,
+.token.imports,
+.token.interpolation-punctuation {
   color: var(--accent-pink);
+}
+
+.token.parameter {
+  color: var(--accent-orange);
 }
 
 .token.regex,

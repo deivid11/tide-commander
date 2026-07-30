@@ -44,7 +44,8 @@
       "attemptCompletion": "AttemptCompletion",
       "listFiles": "ListFiles",
       "searchFiles": "SearchFiles",
-      "executeCommand": "ExecuteCommand"
+      "executeCommand": "ExecuteCommand",
+      "viewImage": "छवि देखें"
     },
     "showOutputsInline": "सभी bash आउटपुट इनलाइन दिखाएँ",
     "hideOutputsInline": "इनलाइन bash आउटपुट छिपाएँ"
@@ -273,5 +274,13 @@
   "response": {
     "noContent": "कोई प्रतिक्रिया सामग्री उपलब्ध नहीं।",
     "rawMarkdown": "रॉ Markdown"
+  },
+  "preview": {
+    "loading": "पूर्वावलोकन लोड हो रहा है…",
+    "emptyFile": "(खाली फ़ाइल)",
+    "noDiff": "(कोई डिफ़ उपलब्ध नहीं)",
+    "diffTruncated": "डिफ़ छोटा किया गया…",
+    "moreLines": "+{{count}} और पंक्तियाँ",
+    "skippedLines": "… {{count}} पंक्तियाँ छोड़ी गईं …"
   }
 }

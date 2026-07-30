@@ -58,7 +58,8 @@
   gap: 4px;
   padding: 2px 6px;
   color: var(--accent-cyan);
-  background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+  // Outline only — no fill, so the chips stay quiet next to the tool row text.
+  background: transparent;
   border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent);
   border-radius: 999px;
   font-family: $font-mono;
@@ -78,7 +79,6 @@
     &:hover,
     &:focus-visible {
       color: color-mix(in srgb, var(--accent-cyan) 70%, white);
-      background: color-mix(in srgb, var(--accent-cyan) 24%, transparent);
       border-color: color-mix(in srgb, var(--accent-cyan) 55%, transparent);
       outline: none;
     }
@@ -88,6 +88,14 @@
 .codex-file-chip-more {
   flex-shrink: 0;
   color: var(--text-muted);
+}
+
+// vscode-icons glyph inside file chips (and any other inline file reference).
+// Never shrinks — the filename label is what gets ellipsized instead.
+.file-type-icon {
+  flex-shrink: 0;
+  object-fit: contain;
+  vertical-align: middle;
 }
 
 .output-wait-compact {

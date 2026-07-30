@@ -9,9 +9,16 @@ import { store } from '../../store';
 import { decodeTideFileHref } from '../../utils/outputRendering';
 import { highlightCode, isLanguageSupported, ensureLanguageLoaded } from '../FileExplorerPanel/syntaxHighlighting';
 import { MermaidDiagram } from './MermaidDiagram';
+import { filePreviewHandlers } from './toolPreviewHover';
 
 interface MarkdownComponentOptions {
   onFileClick?: (path: string) => void;
+  /**
+   * Agent cwd, used to resolve relative file references in the Ctrl+hover
+   * preview. Optional — without it the server still resolves relative paths via
+   * its own fallback search, just with less to go on.
+   */
+  baseDir?: string;
 }
 
 /**
@@ -108,7 +115,7 @@ function CodeBlock({ language, codeText, className }: { language: string; codeTe
 
 // Create markdown components that use CSS variables directly
 // This allows themes to change without recreating components
-export const createMarkdownComponents = ({ onFileClick }: MarkdownComponentOptions = {}): Components => ({
+export const createMarkdownComponents = ({ onFileClick, baseDir }: MarkdownComponentOptions = {}): Components => ({
   h1: ({ children }) => (
     <h1 style={{ fontSize: '1.4em', color: 'var(--accent-pink)', fontWeight: 600, margin: '0.6em 0 0.3em' }}>
       {children}
@@ -253,6 +260,7 @@ export const createMarkdownComponents = ({ onFileClick }: MarkdownComponentOptio
           }}
           className="clickable-path"
           title={`Open ${fileRef}`}
+          {...filePreviewHandlers(fileRef, baseDir)}
         >
           {children}
         </a>

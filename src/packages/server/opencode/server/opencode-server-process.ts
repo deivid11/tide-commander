@@ -2,11 +2,17 @@
  * OpencodeServerProcess
  *
  * Manages a DETACHED, restart-surviving `opencode serve` HTTP server and speaks
- * its API: one SSE stream (`GET /event`) carries every session's events
+ * its API: one SSE stream (`GET /global/event`) carries every session's events
  * (word-by-word `message.part.delta`), and prompts/sessions/aborts go over plain
  * HTTP. One server multiplexes every OpenCode agent — each agent owns a
  * `sessionID`, and every event carries `properties.sessionID` so the runner can
  * fan them back out.
+ *
+ * The stream MUST be `/global/event`: the plain `/event` endpoint is
+ * PROJECT-SCOPED (resolved from the request's directory, defaulting to the
+ * daemon's cwd), so a subscription there silently drops every event from
+ * sessions living in any other working directory — those agents then get no
+ * deltas and no `session.idle`, wedging them in 'working' forever.
  *
  * Why detached + HTTP/SSE (vs `opencode run` per turn): `opencode run --format
  * json` emits one full assistant message (no token deltas), and a child process
@@ -49,6 +55,9 @@ export class OpencodeServerProcess {
   private stopped = false;
   private connected = false;
   private reconnectedToExisting = false;
+  /** Set once `/global/event` came back non-200 (older opencode) — stick to the
+   *  legacy project-scoped `/event` stream from then on. */
+  private legacyEventStream = false;
 
   constructor(private readonly opts: OpencodeServerOptions) {}
 
@@ -120,10 +129,21 @@ export class OpencodeServerProcess {
     throw new Error('opencode server /api/health never became healthy');
   }
 
-  /** Open the single global SSE stream and parse `data:` frames. */
+  /** Open the single all-projects SSE stream (`/global/event`) and parse
+   *  `data:` frames. Falls back to the legacy project-scoped `/event` on
+   *  daemons too old to serve the global stream. */
   private openSse(): void {
     if (this.stopped) return;
-    const req = http.get(`${this.baseUrl}/event`, { headers: { Accept: 'text/event-stream' } }, (res) => {
+    const path = this.legacyEventStream ? '/event' : '/global/event';
+    const req = http.get(`${this.baseUrl}${path}`, { headers: { Accept: 'text/event-stream' } }, (res) => {
+      if (res.statusCode !== 200 && !this.legacyEventStream) {
+        log.warn(`GET /global/event → HTTP ${res.statusCode}; falling back to legacy project-scoped /event`);
+        this.legacyEventStream = true;
+        this.sseReq = null; // guard: the destroyed request's error/end must not trigger a reconnect
+        req.destroy();
+        this.openSse();
+        return;
+      }
       res.setEncoding('utf8');
       let buffer = '';
       res.on('data', (chunk: string) => {
@@ -136,10 +156,13 @@ export class OpencodeServerProcess {
           this.handleFrame(frame);
         }
       });
-      res.on('end', () => this.handleSseClosed());
+      res.on('end', () => {
+        if (this.sseReq === req) this.handleSseClosed();
+      });
     });
     this.sseReq = req;
     req.on('error', (err) => {
+      if (this.sseReq !== req) return;
       log.warn(`SSE connection error: ${err.message}`);
       this.handleSseClosed();
     });
@@ -160,7 +183,7 @@ export class OpencodeServerProcess {
     } catch {
       return;
     }
-    this.opts.onEvent(evt);
+    this.opts.onEvent(unwrapGlobalSseEvent(evt));
   }
 
   private handleSseClosed(): void {
@@ -295,13 +318,18 @@ export class OpencodeServerProcess {
   async activeSessionIds(): Promise<Set<string>> {
     try {
       const resp = await this.httpJson('GET', '/api/session/active');
-      const list = (resp?.data ?? resp) as Array<{ id?: string; sessionID?: string } | string> | undefined;
+      const raw = resp?.data ?? resp;
       const ids = new Set<string>();
-      if (Array.isArray(list)) {
-        for (const item of list) {
+      if (Array.isArray(raw)) {
+        for (const item of raw as Array<{ id?: string; sessionID?: string } | string>) {
           if (typeof item === 'string') ids.add(item);
           else if (item?.id) ids.add(item.id);
           else if (item?.sessionID) ids.add(item.sessionID);
+        }
+      } else if (raw && typeof raw === 'object') {
+        // 1.18.x returns a map keyed by sessionID: {"ses_…": {…}}
+        for (const key of Object.keys(raw)) {
+          if (key.startsWith('ses')) ids.add(key);
         }
       }
       return ids;
@@ -333,6 +361,19 @@ export class OpencodeServerProcess {
     }
     clearDaemonInfo();
   }
+}
+
+/**
+ * `/global/event` wraps every bus event as `{directory, project, payload: {id,
+ * type, properties}}`, while the legacy `/event` stream delivers the inner
+ * shape directly. Unwrap the envelope so downstream routing sees ONE shape.
+ */
+export function unwrapGlobalSseEvent(evt: Record<string, unknown>): Record<string, unknown> {
+  const payload = evt.payload;
+  if (payload && typeof payload === 'object' && typeof (payload as Record<string, unknown>).type === 'string') {
+    return payload as Record<string, unknown>;
+  }
+  return evt;
 }
 
 function isPidAlive(pid: number): boolean {

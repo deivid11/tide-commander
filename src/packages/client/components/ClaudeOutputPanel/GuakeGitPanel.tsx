@@ -7,20 +7,22 @@
  * Supports flat and tree view modes.
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiUrl, authFetch, STORAGE_KEYS, getStorageString, setStorageString, getStorage, setStorage } from '../../utils/storage';
 import { useAreas, useGitDirStatuses } from '../../store';
 import { acquireGitWatch, requestGitRefresh } from '../../services/gitWatch';
 import { DiffViewer } from '../DiffViewer';
 import { GIT_STATUS_CONFIG } from '../FileExplorerPanel/constants';
-import { getIconForExtension, buildGitTree } from '../FileExplorerPanel/fileUtils';
+import { getIconForFileName, buildGitTree } from '../FileExplorerPanel/fileUtils';
 import { getLanguageForExtension } from '../FileExplorerPanel/syntaxHighlighting';
 import type { GitTreeNode } from '../FileExplorerPanel/fileUtils';
 import type { GitStatus, GitFileStatus, GitFileStatusType, TreeNode } from '../FileExplorerPanel/types';
 import type { Agent } from '../../../shared/types';
 import { useFileTree } from '../FileExplorerPanel/useFileTree';
 import { TreeNodeItem } from '../FileExplorerPanel/TreeNodeItem';
+import { parseFileFilter, filterFiles, scoreFile, highlightRanges } from './gitFileFilter';
+import type { ParsedFileFilter } from './gitFileFilter';
 import type { BranchInfo } from './useGitBranch';
 import { ContextMenu, type ContextMenuAction } from '../ContextMenu';
 import { Icon } from '../Icon';
@@ -54,10 +56,49 @@ interface RepoStatus {
   truncated: boolean;
 }
 
+/** A repo with the filter applied: `files` is the ranked, capped match list. */
+interface DisplayRepo extends RepoStatus {
+  /** Files to render — filter matches, ranked best-first and capped. */
+  files: GitFileStatus[];
+  /** How many files matched before the render cap was applied. */
+  matchCount: number;
+  /** Matches dropped by the render cap (0 when everything is shown). */
+  hiddenMatches: number;
+}
+
 // A repo with this many changes is generated output (build dirs, caches), not
 // work in progress: expanding it renders one row per file and would lock up the
 // browser, so it stays collapsed until the user asks for it.
 const AUTO_EXPAND_MAX_FILES = 500;
+
+// Filter results auto-expand, so a loose query ("s") on a huge repo would
+// otherwise paint every change at once. Beyond this the user refines instead.
+const FILTER_RENDER_CAP = 300;
+
+// The Files tab tree is lazy-loaded (3 levels), so a filter there also asks the
+// server to walk the folder — debounced, and only once the seed term is usable.
+const EXPLORER_SEARCH_LIMIT = 200;
+const EXPLORER_SEARCH_DEBOUNCE_MS = 220;
+
+const FILTER_HELP = [
+  'Filter files:',
+  '  runner          fuzzy match on the filename, then the path',
+  '  server/claude   a term with "/" matches the full path',
+  '  .tsx  *.tsx     extension',
+  '  "exact text"    contiguous match, no fuzzy scatter',
+  '  !test           exclude matches',
+  '  status:mod      only that status (m/a/d/u/r/c)',
+  'Terms combine with AND. Uppercase makes a term case-sensitive.',
+].join('\n');
+
+/** One filter hit in the Files tab — from the loaded tree or the server walk. */
+interface ExplorerMatch {
+  /** Node to open on click; absolute path, git status attached when known. */
+  node: TreeNode;
+  /** Path relative to the explorer folder — what gets matched and displayed. */
+  relPath: string;
+  status?: GitFileStatusType;
+}
 
 interface DiffState {
   filePath: string;
@@ -124,6 +165,28 @@ function collectGitFilesFromExplorerNode(node: TreeNode): Array<{ path: string; 
 }
 
 // ==========================================================================
+// FILTER MATCH HIGHLIGHT
+// ==========================================================================
+
+/** Renders `text` with the filter's matched characters wrapped in <mark>. */
+function HighlightedText({ text, filter }: { text: string; filter: ParsedFileFilter }) {
+  const ranges = useMemo(() => highlightRanges(filter, text), [filter, text]);
+  if (ranges.length === 0) return <>{text}</>;
+
+  const parts: React.ReactNode[] = [];
+  let cursor = 0;
+  for (const [start, end] of ranges) {
+    if (start > cursor) parts.push(text.slice(cursor, start));
+    parts.push(
+      <mark key={start} className="guake-git-filter-hit">{text.slice(start, end)}</mark>
+    );
+    cursor = end;
+  }
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return <>{parts}</>;
+}
+
+// ==========================================================================
 // TREE NODE RENDERER
 // ==========================================================================
 
@@ -137,9 +200,10 @@ interface TreeNodeProps {
   onFolderContextMenu?: (e: React.MouseEvent, node: GitTreeNode, repoDir: string) => void;
   onDiscard?: (e: React.MouseEvent, file: GitFileStatus, repoDir: string) => void;
   repoDir: string;
+  filter: ParsedFileFilter;
 }
 
-function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onContextMenu, onFolderContextMenu, onDiscard, repoDir }: TreeNodeProps) {
+function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onContextMenu, onFolderContextMenu, onDiscard, repoDir, filter }: TreeNodeProps) {
   if (node.isDirectory) {
     const isExpanded = expandedDirs.has(node.path);
     const folderIconSrc = isExpanded
@@ -157,7 +221,7 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onC
             <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={12} />
           </span>
           <img src={folderIconSrc} alt="" className="guake-git-file-icon guake-git-folder-icon" />
-          <span className="guake-git-file-name">{node.name}</span>
+          <span className="guake-git-file-name"><HighlightedText text={node.name} filter={filter} /></span>
           <span className="guake-git-repo-count" style={{ marginLeft: 'auto' }}>{node.fileCount}</span>
         </div>
         {isExpanded && node.children.map((child) => (
@@ -172,6 +236,7 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onC
             onFolderContextMenu={onFolderContextMenu}
             onDiscard={onDiscard}
             repoDir={repoDir}
+            filter={filter}
           />
         ))}
       </>
@@ -181,7 +246,7 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onC
   // File node
   const file = node.file!;
   const cfg = GIT_STATUS_CONFIG[file.status];
-  const iconSrc = getIconForExtension(file.name);
+  const iconSrc = getIconForFileName(file.name);
   return (
     <div
       className="guake-git-file"
@@ -192,7 +257,7 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onC
       title={file.path}
     >
       {iconSrc && <img src={iconSrc} alt="" className="guake-git-file-icon" />}
-      <span className="guake-git-file-name">{file.name}</span>
+      <span className="guake-git-file-name"><HighlightedText text={file.name} filter={filter} /></span>
       <span className="guake-git-file-status" style={{ color: cfg.color, marginLeft: 'auto' }} title={cfg.label}>
         {cfg.icon}
       </span>
@@ -221,7 +286,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
   const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set());
   const [expandedTreeDirs, setExpandedTreeDirs] = useState<Set<string>>(new Set());
   const [modalState, setModalState] = useState<ModalState>(null);
-  const [_diffLoading, setDiffLoading] = useState(false);
+  const [diffLoading, setDiffLoading] = useState(false);
   const [viewMode, setViewModeRaw] = useState<ViewMode>(() => {
     const stored = getStorageString(STORAGE_KEYS.GIT_PANEL_VIEW_MODE, 'flat');
     return stored === 'tree' ? 'tree' : 'flat';
@@ -247,6 +312,11 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     setStorage(STORAGE_KEYS.GIT_PANEL_FOLDER_IDX, idx);
   }, []);
   const [explorerSelectedPath, setExplorerSelectedPath] = useState<string | null>(null);
+  const [filterQuery, setFilterQuery] = useState('');
+  // Paths (repo dirs, tree dirs) the user collapsed while a filter is active.
+  // Matches auto-expand, so an explicit collapse needs its own bucket that
+  // resets with the query instead of fighting the persistent expansion sets.
+  const [filterCollapsed, setFilterCollapsed] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<{
     isOpen: boolean;
     position: { x: number; y: number };
@@ -254,6 +324,8 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
   } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ path: string; name: string; status: GitFileStatusType; repoDir: string } | null>(null);
   const hasAutoExpanded = React.useRef(false);
+  /** Once-per-agent guard for the changes-tree auto-expand-all. */
+  const treeDirsAutoExpandedRef = React.useRef(false);
   const prevAgentIdRef = React.useRef(agentId);
 
   // Compute area directories for this agent
@@ -329,9 +401,81 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
   // Still waiting for the first push for every watched directory.
   const loading = areaDirs.length > 0 && areaDirs.every((dir) => !gitStatuses.has(dir));
 
+  const fileFilter = useMemo(() => parseFileFilter(filterQuery), [filterQuery]);
+  const filterActive = !fileFilter.isEmpty;
+
+  // Drop the per-filter collapse overrides whenever the query changes — the new
+  // result set has nothing to do with what was collapsed for the old one.
+  useEffect(() => {
+    setFilterCollapsed((prev) => (prev.size === 0 ? prev : new Set()));
+  }, [filterQuery]);
+
+  // Repos with the filename filter applied: matches ranked best-first, repos
+  // with no match dropped, and the rendered slice capped so a loose query on a
+  // huge repo can't paint tens of thousands of rows.
+  const displayRepos = useMemo<DisplayRepo[]>(() => {
+    if (!filterActive) {
+      return repos.map((repo) => ({
+        ...repo,
+        files: repo.gitStatus.files,
+        matchCount: repo.gitStatus.files.length,
+        hiddenMatches: 0,
+      }));
+    }
+
+    const out: DisplayRepo[] = [];
+    for (const repo of repos) {
+      const matches = filterFiles(fileFilter, repo.gitStatus.files);
+      if (matches.length === 0) continue;
+      out.push({
+        ...repo,
+        files: matches.length > FILTER_RENDER_CAP ? matches.slice(0, FILTER_RENDER_CAP) : matches,
+        matchCount: matches.length,
+        hiddenMatches: Math.max(0, matches.length - FILTER_RENDER_CAP),
+      });
+    }
+    return out;
+  }, [repos, fileFilter, filterActive]);
+
+  const totalMatches = useMemo(
+    () => displayRepos.reduce((sum, repo) => sum + repo.matchCount, 0),
+    [displayRepos]
+  );
+
+  // While filtering, every matching repo starts expanded so hits are visible
+  // without a click; explicit collapses live in filterCollapsed.
+  const isRepoExpanded = useCallback(
+    (dir: string) => (filterActive ? !filterCollapsed.has(dir) : expandedRepos.has(dir)),
+    [filterActive, filterCollapsed, expandedRepos]
+  );
+
+  const toggleFilterCollapsed = useCallback((path: string) => {
+    setFilterCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path); else next.add(path);
+      return next;
+    });
+  }, []);
+
   // Current explorer folder
   const explorerFolder = areaDirs.length > 0 ? (areaDirs[explorerFolderIdx] || areaDirs[0]) : null;
   const fileTree = useFileTree(panelMode === 'explorer' ? explorerFolder : null);
+
+  // Persist the Files-tab expanded folders per folder (localStorage), so
+  // switching to another agent/area and back restores the tree as it was.
+  //
+  // Everything keys off fileTree.loadGeneration (bumped when a FULL loadTree
+  // lands, which also resets expandedPaths to root-only). Gating on folder
+  // alone raced the area switch: the restore effect fired against the PREVIOUS
+  // area's still-mounted tree, marked the new folder restored, and the save
+  // effect then overwrote its stored expansion with the fresh root-only set —
+  // the "never remembers across areas" bug.
+  const treeStorageKey = explorerFolder ? `tc-git-tree-expanded:${explorerFolder}` : null;
+  /** Last loadGeneration whose stored expansion has been applied. */
+  const treeRestoredGenRef = useRef(0);
+  /** True while restoreExpandedPaths is applying — blocks saves of the
+   *  transient root-only / partially-expanded states it passes through. */
+  const treeRestoreInFlightRef = useRef(false);
 
   // Load tree when explorer mode is activated or folder changes
   useEffect(() => {
@@ -340,11 +484,54 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     }
   }, [panelMode, explorerFolder]);
 
-  // Overlay git status onto the explorer tree
-  const explorerTreeWithGit = useMemo(() => {
-    if (fileTree.tree.length === 0 || repos.length === 0 || !explorerFolder) return fileTree.tree;
+  // "Collapse all" — reset the active tab's tree to its most compact state.
+  const collapseAllTree = useCallback(() => {
+    if (panelMode === 'explorer') {
+      if (explorerFolder) fileTree.setExpandedPaths(new Set([explorerFolder]));
+    } else {
+      treeDirsAutoExpandedRef.current = true; // keep the auto-expander from undoing it
+      setExpandedTreeDirs(new Set());
+    }
+  }, [panelMode, explorerFolder, fileTree.setExpandedPaths]);
 
-    // Build a map of file paths → git status for the current explorer folder
+  // The freshly-loaded tree belongs to the current folder only once its
+  // single wrapper root carries exactly that path (loadTree wraps in one root).
+  const treeMatchesFolder =
+    !!explorerFolder && fileTree.tree.length === 1 && fileTree.tree[0].path === explorerFolder;
+
+  // Re-apply the stored expansion exactly once per completed load.
+  // restoreExpandedPaths (not a raw set) lazy-loads folders deeper than the
+  // initial tree depth so nested stored dirs actually render.
+  useEffect(() => {
+    if (panelMode !== 'explorer' || !treeStorageKey || !treeMatchesFolder) return;
+    if (fileTree.loading || fileTree.loadGeneration === 0) return;
+    if (treeRestoredGenRef.current === fileTree.loadGeneration) return;
+    treeRestoredGenRef.current = fileTree.loadGeneration;
+    try {
+      const stored: unknown = JSON.parse(localStorage.getItem(treeStorageKey) || '[]');
+      if (Array.isArray(stored) && stored.length > 0) {
+        treeRestoreInFlightRef.current = true;
+        void fileTree
+          .restoreExpandedPaths(new Set(stored.filter((p): p is string => typeof p === 'string')))
+          .finally(() => { treeRestoreInFlightRef.current = false; });
+      }
+    } catch { /* corrupt entry — start collapsed */ }
+  }, [panelMode, treeStorageKey, treeMatchesFolder, fileTree.loading, fileTree.loadGeneration, fileTree.restoreExpandedPaths]);
+
+  // Save on expansion changes, but only after this load's restore has run and
+  // only while the mounted tree really is this folder's (never mid-switch).
+  useEffect(() => {
+    if (!treeStorageKey || !treeMatchesFolder) return;
+    if (fileTree.loadGeneration === 0 || treeRestoredGenRef.current !== fileTree.loadGeneration) return;
+    if (treeRestoreInFlightRef.current) return;
+    try {
+      localStorage.setItem(treeStorageKey, JSON.stringify(Array.from(fileTree.expandedPaths)));
+    } catch { /* storage full — non-fatal */ }
+  }, [treeStorageKey, treeMatchesFolder, fileTree.loadGeneration, fileTree.expandedPaths]);
+
+  // Absolute file path → git status, for both the explorer tree overlay and
+  // the explorer filter results.
+  const explorerGitStatusMap = useMemo(() => {
     const statusMap = new Map<string, GitFileStatusType>();
     for (const repo of repos) {
       // Match repos that share the same git root as the explorer folder
@@ -353,7 +540,14 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         statusMap.set(fullPath, file.status);
       }
     }
+    return statusMap;
+  }, [repos]);
 
+  // Overlay git status onto the explorer tree
+  const explorerTreeWithGit = useMemo(() => {
+    if (fileTree.tree.length === 0 || repos.length === 0 || !explorerFolder) return fileTree.tree;
+
+    const statusMap = explorerGitStatusMap;
     if (statusMap.size === 0) return fileTree.tree;
 
     // Recursively annotate tree nodes with git status
@@ -376,18 +570,107 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     };
 
     return annotate(fileTree.tree);
-  }, [fileTree.tree, repos, explorerFolder]);
+  }, [fileTree.tree, repos, explorerFolder, explorerGitStatusMap]);
+
+  // ---- Files tab filter -------------------------------------------------
+  // The loaded tree only reaches 3 levels deep, so the filter is fed by two
+  // sources: the nodes already in memory (instant, fuzzy) and a server-side
+  // name walk of the whole folder (deep, substring). Both get ranked together.
+  const [explorerHits, setExplorerHits] = useState<TreeNode[]>([]);
+  const [explorerSearching, setExplorerSearching] = useState(false);
+
+  // Longest usable term drives the server query — it does plain substring
+  // matching, so a scattered fuzzy term would just come back empty.
+  const explorerSearchSeed = useMemo(() => {
+    if (!filterActive) return '';
+    let seed = '';
+    for (const term of fileFilter.include) {
+      const text = term.kind === 'path' ? (term.text.split('/').filter(Boolean).pop() ?? '') : term.text;
+      if (text.length > seed.length) seed = text;
+    }
+    return seed.length >= 2 ? seed : '';
+  }, [fileFilter, filterActive]);
+
+  useEffect(() => {
+    if (panelMode !== 'explorer' || !explorerFolder || !explorerSearchSeed) {
+      setExplorerHits((prev) => (prev.length === 0 ? prev : []));
+      setExplorerSearching(false);
+      return;
+    }
+
+    let cancelled = false;
+    setExplorerSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await authFetch(apiUrl(
+          `/api/files/search?path=${encodeURIComponent(explorerFolder)}`
+          + `&q=${encodeURIComponent(explorerSearchSeed)}&limit=${EXPLORER_SEARCH_LIMIT}`
+        ));
+        const data = res.ok ? await res.json() : null;
+        if (!cancelled) setExplorerHits(Array.isArray(data?.results) ? data.results : []);
+      } catch {
+        if (!cancelled) setExplorerHits([]);
+      } finally {
+        if (!cancelled) setExplorerSearching(false);
+      }
+    }, EXPLORER_SEARCH_DEBOUNCE_MS);
+
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [panelMode, explorerFolder, explorerSearchSeed]);
+
+  const explorerMatches = useMemo<ExplorerMatch[]>(() => {
+    if (panelMode !== 'explorer' || !filterActive || !explorerFolder) return [];
+
+    const root = explorerFolder.replace(/\/$/, '');
+    const seen = new Set<string>();
+    const candidates: ExplorerMatch[] = [];
+
+    const push = (node: TreeNode) => {
+      if (node.isDirectory || seen.has(node.path)) return;
+      seen.add(node.path);
+      const status = (node.gitStatus as GitFileStatusType | undefined)
+        ?? explorerGitStatusMap.get(node.path);
+      candidates.push({
+        node: status && !node.gitStatus ? { ...node, gitStatus: status } : node,
+        relPath: node.path.startsWith(`${root}/`) ? node.path.slice(root.length + 1) : node.path,
+        status,
+      });
+    };
+
+    const walk = (nodes: TreeNode[]) => {
+      for (const node of nodes) {
+        if (node.isDirectory) { if (node.children) walk(node.children); }
+        else push(node);
+      }
+    };
+    walk(fileTree.tree);
+    for (const hit of explorerHits) push(hit);
+
+    const scored: Array<{ match: ExplorerMatch; score: number }> = [];
+    for (const candidate of candidates) {
+      const score = scoreFile(fileFilter, {
+        name: candidate.node.name,
+        path: candidate.relPath,
+        status: candidate.status,
+      });
+      if (score !== null) scored.push({ match: candidate, score });
+    }
+    scored.sort((a, b) => b.score - a.score || a.match.relPath.localeCompare(b.match.relPath));
+    return scored.map((s) => s.match);
+  }, [panelMode, filterActive, explorerFolder, fileTree.tree, explorerHits, fileFilter, explorerGitStatusMap]);
 
   // Reset state when agent changes (component stays mounted across agent switches)
   useEffect(() => {
     if (prevAgentIdRef.current !== agentId) {
       prevAgentIdRef.current = agentId;
       hasAutoExpanded.current = false;
+      treeDirsAutoExpandedRef.current = false;
       setExpandedRepos(new Set());
       setExpandedTreeDirs(new Set());
       setModalState(null);
       setExplorerFolderIdx(0);
       setExplorerSelectedPath(null);
+      setFilterQuery('');
     }
   }, [agentId]);
 
@@ -546,8 +829,36 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     }
   }, []);
 
+  // Git trees for the expanded repos. Built once per (repo files × expansion)
+  // change and shared by the rendering and the modal's prev/next ordering.
+  const displayTrees = useMemo(() => {
+    const map = new Map<string, GitTreeNode[]>();
+    if (viewMode !== 'tree') return map;
+    for (const repo of displayRepos) {
+      if (!isRepoExpanded(repo.dir)) continue;
+      map.set(repo.dir, buildGitTree(repo.files));
+    }
+    return map;
+  }, [viewMode, displayRepos, isRepoExpanded]);
+
+  // While filtering in tree view, every directory holding a match is expanded
+  // so results aren't buried behind collapsed folders.
+  const filterExpandedTreeDirs = useMemo(() => {
+    if (!filterActive || viewMode !== 'tree') return null;
+    const dirs = new Set<string>();
+    const walk = (nodes: GitTreeNode[]) => {
+      for (const node of nodes) {
+        if (!node.isDirectory || filterCollapsed.has(node.path)) continue;
+        dirs.add(node.path);
+        walk(node.children);
+      }
+    };
+    for (const tree of displayTrees.values()) walk(tree);
+    return dirs;
+  }, [filterActive, viewMode, displayTrees, filterCollapsed]);
+
   // Build a flat ordered list of all changed files across repos (for modal navigation).
-  // Order matches the visual rendering: flat view uses natural file order,
+  // Order matches the visual rendering: flat view uses the filter's ranking,
   // tree view uses the sorted tree structure (dirs first, alphabetical).
   const allChangedFiles = useMemo(() => {
     const list: { file: GitFileStatus; repoDir: string }[] = [];
@@ -570,20 +881,21 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       }
     };
 
-    for (const repo of repos) {
-      if (!expandedRepos.has(repo.dir)) continue;
+    for (const repo of displayRepos) {
+      if (!isRepoExpanded(repo.dir)) continue;
       if (viewMode === 'tree') {
-        const tree = buildGitTree(repo.gitStatus.files);
-        const byPath = new Map(repo.gitStatus.files.map(f => [f.path, f]));
+        const tree = displayTrees.get(repo.dir);
+        if (!tree) continue;
+        const byPath = new Map(repo.files.map(f => [f.path, f]));
         collectTreeFiles(tree, byPath, repo.dir);
       } else {
-        for (const file of repo.gitStatus.files) {
+        for (const file of repo.files) {
           list.push({ file, repoDir: repo.dir });
         }
       }
     }
     return list;
-  }, [repos, viewMode, expandedRepos]);
+  }, [displayRepos, viewMode, isRepoExpanded, displayTrees]);
 
   // Navigate to previous/next file in the modal
   const navigateModal = useCallback(async (direction: -1 | 1) => {
@@ -975,6 +1287,16 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
 
   const totalFiles = repos.reduce((sum, r) => sum + r.totalFiles, 0);
 
+  // Escape inside the filter clears it (and only then hands Escape back to the
+  // global shortcut, which would otherwise close the whole terminal — see the
+  // data-escape-local opt-out in useKeyboardShortcuts).
+  const handleFilterKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Escape') return;
+    e.stopPropagation();
+    if (e.currentTarget.value) setFilterQuery('');
+    else e.currentTarget.blur();
+  }, []);
+
   // Close modal on Escape — use stopImmediatePropagation so the global
   // useKeyboardShortcuts capture-phase listener (also on document) doesn't
   // also fire and close the guake terminal itself.
@@ -1012,9 +1334,13 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
   useModalStackRegistration('guake-git-discard-folder-confirm', pendingDiscardFolder !== null, () => setPendingDiscardFolder(null));
   useModalStackRegistration('guake-git-delete-folder-confirm', pendingDeleteFolder !== null, () => setPendingDeleteFolder(null));
 
-  // Auto-expand tree dirs on first tree view
+  // Auto-expand tree dirs on first tree view. The ref makes it once-per-agent:
+  // keying on size===0 alone would re-expand everything right after the
+  // user's explicit "Collapse all".
   useEffect(() => {
+    if (treeDirsAutoExpandedRef.current) return;
     if (viewMode === 'tree' && expandedTreeDirs.size === 0 && repos.length > 0) {
+      treeDirsAutoExpandedRef.current = true;
       const allDirs = new Set<string>();
       for (const repo of repos) {
         const tree = buildGitTree(repo.gitStatus.files);
@@ -1164,6 +1490,11 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
             <button className="guake-git-close" onClick={closeModal} title="Close (Esc)"><Icon name="close" size={14} /></button>
           </div>
           <div className="guake-git-diff-content">
+            {diffLoading && (
+              <div className="guake-git-diff-loading-overlay">
+                <div className="diff-image-spinner" />
+              </div>
+            )}
             {modalState.type === 'diff' ? (
               <DiffViewer
                 originalContent={modalState.data.originalContent}
@@ -1188,6 +1519,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     )}
 
     <div className="guake-git-panel">
+      {(fileTree.loading || diffLoading) && <div className="guake-git-panel-loadbar" />}
       {onResizeStart && (
         <div
           className="guake-side-panel-resize right guake-git-panel__resize"
@@ -1234,21 +1566,64 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                 onClick={() => setViewMode('tree')}
                 title="Tree view"
               ><Icon name="tree" size={14} /></button>
+              {viewMode === 'tree' && (
+                <button className="guake-git-refresh" onClick={collapseAllTree} title="Collapse all">
+                  <Icon name="caret-double-up" size={14} />
+                </button>
+              )}
               <button className="guake-git-refresh" onClick={refresh} title="Refresh" disabled={loading}>
                 {loading ? <Icon name="status-starting" size={14} /> : <Icon name="refresh" size={14} />}
               </button>
             </>
           )}
           {panelMode === 'explorer' && (
-            <button className="guake-git-refresh" onClick={() => fileTree.loadTree()} title="Refresh" disabled={fileTree.loading}>
-              {fileTree.loading ? <Icon name="status-starting" size={14} /> : <Icon name="refresh" size={14} />}
-            </button>
+            <>
+              <button className="guake-git-refresh" onClick={collapseAllTree} title="Collapse all">
+                <Icon name="caret-double-up" size={14} />
+              </button>
+              <button className="guake-git-refresh" onClick={() => fileTree.loadTree()} title="Refresh" disabled={fileTree.loading}>
+                {fileTree.loading ? <Icon name="status-starting" size={14} /> : <Icon name="refresh" size={14} />}
+              </button>
+            </>
           )}
           <button className="guake-git-close" onClick={onClose} title="Close"><Icon name="close" size={14} /></button>
         </div>
       </div>
 
-      <div className="guake-git-body">
+      {((panelMode === 'changes' && repos.length > 0) || (panelMode === 'explorer' && !!explorerFolder)) && (
+        <div className="guake-git-filter" title={FILTER_HELP}>
+          <span className="guake-git-filter-icon"><Icon name="search" size={12} /></span>
+          <input
+            className="guake-git-filter-input"
+            type="text"
+            value={filterQuery}
+            onChange={(e) => setFilterQuery(e.target.value)}
+            onKeyDown={handleFilterKeyDown}
+            placeholder="Filter files —  src/  .tsx  !test  status:mod"
+            spellCheck={false}
+            autoComplete="off"
+            data-escape-local="true"
+          />
+          {filterActive && (
+            <span className="guake-git-filter-count">
+              {panelMode === 'changes'
+                ? `${totalMatches}/${totalFiles}`
+                : explorerSearching ? '…' : explorerMatches.length}
+            </span>
+          )}
+          {filterQuery && (
+            <button
+              className="guake-git-filter-clear"
+              onClick={() => setFilterQuery('')}
+              title="Clear filter (Esc)"
+            >
+              <Icon name="close" size={12} />
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className={`guake-git-body${panelMode === 'explorer' ? ' explorer-compact' : ''}`}>
         {/* ===== CHANGES TAB ===== */}
         {panelMode === 'changes' && (
           <>
@@ -1260,22 +1635,34 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
               <div className="guake-git-empty">No git changes found</div>
             )}
 
-            {repos.map(({ dir, dirName, gitStatus, totalFiles: repoTotalFiles, truncated }) => {
+            {repos.length > 0 && displayRepos.length === 0 && (
+              <div className="guake-git-empty">
+                No changed file matches <code>{filterQuery.trim()}</code>
+                <button className="guake-git-filter-reset" onClick={() => setFilterQuery('')}>
+                  Clear filter
+                </button>
+              </div>
+            )}
+
+            {displayRepos.map(({ dir, dirName, gitStatus, files, matchCount, hiddenMatches, totalFiles: repoTotalFiles, truncated }) => {
               const bi = branchInfoMap.get(dir);
+              const expanded = isRepoExpanded(dir);
               return (
               <div key={dir} className="guake-git-repo">
                 <div
-                  className={`guake-git-repo-header ${expandedRepos.has(dir) ? 'expanded' : ''}`}
-                  onClick={() => toggleRepo(dir)}
+                  className={`guake-git-repo-header ${expanded ? 'expanded' : ''}`}
+                  onClick={() => (filterActive ? toggleFilterCollapsed(dir) : toggleRepo(dir))}
                 >
-                  <span className="guake-git-repo-arrow"><Icon name={expandedRepos.has(dir) ? 'caret-down' : 'caret-right'} size={12} /></span>
+                  <span className="guake-git-repo-arrow"><Icon name={expanded ? 'caret-down' : 'caret-right'} size={12} /></span>
                   <span className="guake-git-repo-name">{dirName}</span>
                   {gitStatus.branch && (
                     <span className="guake-git-repo-branch"><Icon name="git-branch" size={10} /> {gitStatus.branch}</span>
                   )}
                   {bi && bi.ahead > 0 && <span className="guake-branch-ahead"><Icon name="arrow-up" size={9} />{bi.ahead}</span>}
                   {bi && bi.behind > 0 && <span className="guake-branch-behind"><Icon name="arrow-down" size={9} />{bi.behind}</span>}
-                  <span className="guake-git-repo-count">{repoTotalFiles}</span>
+                  <span className="guake-git-repo-count">
+                    {filterActive ? `${matchCount}/${repoTotalFiles}` : repoTotalFiles}
+                  </span>
                   <button
                     className="git-discard-all-btn"
                     title="Discard all changes in this repo"
@@ -1294,18 +1681,25 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                   </button>
                 </div>
 
-                {expandedRepos.has(dir) && truncated && (
+                {expanded && truncated && (
                   <div className="guake-git-truncated-notice">
                     Showing {gitStatus.files.length} of {repoTotalFiles} changes. Add the
                     generated paths to .gitignore to see the rest.
                   </div>
                 )}
 
-                {expandedRepos.has(dir) && viewMode === 'flat' && (
+                {expanded && hiddenMatches > 0 && (
+                  <div className="guake-git-truncated-notice">
+                    Showing the top {FILTER_RENDER_CAP} of {matchCount} matches — refine the filter
+                    to narrow it down.
+                  </div>
+                )}
+
+                {expanded && viewMode === 'flat' && (
                   <div className="guake-git-file-list">
-                    {gitStatus.files.map((file) => {
+                    {files.map((file) => {
                       const cfg = GIT_STATUS_CONFIG[file.status];
-                      const iconSrc = getIconForExtension(file.name);
+                      const iconSrc = getIconForFileName(file.name);
                       return (
                         <div
                           key={file.path}
@@ -1316,9 +1710,14 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                           title={file.path}
                         >
                           {iconSrc && <img src={iconSrc} alt="" className="guake-git-file-icon" />}
-                          <span className="guake-git-file-name">{file.name}</span>
+                          <span className="guake-git-file-name">
+                            <HighlightedText text={file.name} filter={fileFilter} />
+                          </span>
                           <span className="guake-git-file-dir">
-                            {file.path.includes('/') ? file.path.substring(0, file.path.lastIndexOf('/')) : ''}
+                            <HighlightedText
+                              text={file.path.includes('/') ? file.path.substring(0, file.path.lastIndexOf('/')) : ''}
+                              filter={fileFilter}
+                            />
                           </span>
                           <span className="guake-git-file-status" style={{ color: cfg.color }} title={cfg.label}>
                             {cfg.icon}
@@ -1336,20 +1735,21 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                   </div>
                 )}
 
-                {expandedRepos.has(dir) && viewMode === 'tree' && (
+                {expanded && viewMode === 'tree' && (
                   <div className="guake-git-file-list">
-                    {buildGitTree(gitStatus.files).map((node) => (
+                    {(displayTrees.get(dir) ?? []).map((node) => (
                       <TreeNodeView
                         key={node.path}
                         node={node}
                         depth={0}
-                        expandedDirs={expandedTreeDirs}
-                        onToggleDir={toggleTreeDir}
+                        expandedDirs={filterExpandedTreeDirs ?? expandedTreeDirs}
+                        onToggleDir={filterActive ? toggleFilterCollapsed : toggleTreeDir}
                         onFileClick={handleFileClick}
                         onContextMenu={handleGitFileContextMenu}
                         onFolderContextMenu={handleGitFolderContextMenu}
                         onDiscard={handleInlineDiscard}
                         repoDir={dir}
+                        filter={fileFilter}
                       />
                     ))}
                   </div>
@@ -1390,25 +1790,82 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
               <div className="guake-git-loading">Loading files...</div>
             )}
 
-            {!fileTree.loading && fileTree.tree.length === 0 && (
+            {!fileTree.loading && fileTree.tree.length === 0 && !filterActive && (
               <div className="guake-git-empty">No files found</div>
             )}
 
-            <div className="guake-git-explorer-tree">
-              {explorerTreeWithGit.map((node) => (
-                <TreeNodeItem
-                  key={node.path}
-                  node={node}
-                  depth={0}
-                  selectedPath={explorerSelectedPath}
-                  expandedPaths={fileTree.expandedPaths}
-                  onSelect={handleExplorerFileSelect}
-                  onToggle={fileTree.togglePath}
-                  onContextMenu={handleExplorerContextMenu}
-                  searchQuery=""
-                />
-              ))}
-            </div>
+            {/* Filtering flattens the tree into ranked results: the folder is
+                lazy-loaded, so matches deeper than the loaded levels only exist
+                as server hits and have no branch to hang off. */}
+            {filterActive ? (
+              <div className="guake-git-file-list">
+                {explorerMatches.length === 0 ? (
+                  <div className="guake-git-empty">
+                    {explorerSearching ? 'Searching…' : (
+                      <>
+                        No file matches <code>{filterQuery.trim()}</code>
+                        <button className="guake-git-filter-reset" onClick={() => setFilterQuery('')}>
+                          Clear filter
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {explorerMatches.slice(0, FILTER_RENDER_CAP).map(({ node, relPath, status }) => {
+                      const cfg = status ? GIT_STATUS_CONFIG[status] : null;
+                      const iconSrc = getIconForFileName(node.name);
+                      const dirPart = relPath.includes('/') ? relPath.substring(0, relPath.lastIndexOf('/')) : '';
+                      return (
+                        <div
+                          key={node.path}
+                          className="guake-git-file"
+                          data-status={status}
+                          onClick={() => handleExplorerFileSelect(node)}
+                          onContextMenu={(e) => handleExplorerContextMenu(e, node)}
+                          title={node.path}
+                        >
+                          {iconSrc && <img src={iconSrc} alt="" className="guake-git-file-icon" />}
+                          <span className="guake-git-file-name">
+                            <HighlightedText text={node.name} filter={fileFilter} />
+                          </span>
+                          <span className="guake-git-file-dir">
+                            <HighlightedText text={dirPart} filter={fileFilter} />
+                          </span>
+                          {cfg && (
+                            <span className="guake-git-file-status" style={{ color: cfg.color }} title={cfg.label}>
+                              {cfg.icon}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {explorerMatches.length > FILTER_RENDER_CAP && (
+                      <div className="guake-git-truncated-notice">
+                        Showing the top {FILTER_RENDER_CAP} of {explorerMatches.length} matches —
+                        refine the filter to narrow it down.
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="guake-git-explorer-tree">
+                {explorerTreeWithGit.map((node) => (
+                  <TreeNodeItem
+                    key={node.path}
+                    node={node}
+                    depth={0}
+                    selectedPath={explorerSelectedPath}
+                    expandedPaths={fileTree.expandedPaths}
+                    onSelect={handleExplorerFileSelect}
+                    onToggle={fileTree.togglePath}
+                    onContextMenu={handleExplorerContextMenu}
+                    searchQuery=""
+                  />
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>

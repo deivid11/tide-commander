@@ -58,11 +58,22 @@ export class OpencodeServerEventAdapter {
   private readonly partType = new Map<string, string>();
   private lastTokens: CapturedTokens | undefined;
   private lastCost: number | undefined;
+  /** True once actual CONTENT flowed (message.part.* events) since the last
+   *  finalized turn. A `session.idle` with no content behind it is a stale
+   *  duplicate: aborting a turn double-fires idle, and the second one lands
+   *  AFTER the next turn already started, which used to finalize that new turn
+   *  prematurely (agent flipped idle while the model was still generating).
+   *  Only part events arm this — the abort fallout replays a `message.updated`
+   *  (metadata of the aborted message) BETWEEN the two idles, so metadata must
+   *  not count as activity (captured live: error → idle#1 → message.updated →
+   *  idle#2). */
+  private sawActivity = false;
 
   handle(event: Record<string, unknown>): StandardEvent[] {
     const type = event.type as string | undefined;
     if (!type) return [];
     const props = (event.properties as Record<string, unknown> | undefined) || {};
+    if (type === 'message.part.delta' || type === 'message.part.updated') this.sawActivity = true;
 
     switch (type) {
       case 'message.part.delta': {
@@ -109,6 +120,7 @@ export class OpencodeServerEventAdapter {
       }
 
       case 'session.idle':
+        if (!this.sawActivity) return [];
         return this.finalizeTurn();
 
       case 'session.error': {
@@ -148,6 +160,13 @@ export class OpencodeServerEventAdapter {
     return events;
   }
 
+  /** Finalize unconditionally — for the runner's POST-resolution fallback,
+   *  which fires when a turn ended server-side but its session.idle never
+   *  arrived (so the activity gate must not apply). */
+  forceFinalize(): StandardEvent[] {
+    return this.finalizeTurn();
+  }
+
   private finalizeTurn(): StandardEvent[] {
     // Feed a synthetic step_finish so the parser finalizes any open streaming
     // rows and emits usage_snapshot + step_complete (with resultText from the
@@ -173,6 +192,7 @@ export class OpencodeServerEventAdapter {
     this.toolDone.clear();
     this.lastTokens = undefined;
     this.lastCost = undefined;
+    this.sawActivity = false;
     return events;
   }
 }

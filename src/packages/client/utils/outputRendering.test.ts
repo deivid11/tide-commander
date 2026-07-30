@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeTideFileHref, extractExecWrappedCommand, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, summarizeCodexExecScript, extractToolKeyParam, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, prettifyToolName } from './outputRendering';
+import { decodeTideFileHref, isImageViewTool, getImageViewTarget, extractExecWrappedCommand, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, summarizeCodexExecScript, extractToolKeyParam, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, prettifyToolName } from './outputRendering';
 
 describe('Codex exec activity summaries', () => {
   it('describes parallel terminal commands without exposing orchestration code', () => {
@@ -408,5 +408,29 @@ describe('extractExecWrappedCommand', () => {
   it('returns original command when not wrapped', () => {
     const cmd = '/usr/bin/zsh -lc "npm run build"';
     expect(extractExecWrappedCommand(cmd)).toBe(cmd);
+  });
+});
+
+describe('view_image tool target', () => {
+  it('recognizes the direct image tool regardless of spelling', () => {
+    expect(isImageViewTool('view_image')).toBe(true);
+    expect(isImageViewTool('ViewImage')).toBe(true);
+    expect(isImageViewTool('Read')).toBe(false);
+    expect(isImageViewTool('')).toBe(false);
+  });
+
+  it('reads path and detail from the tool input', () => {
+    expect(getImageViewTarget({ path: '/tmp/onshape-inspect-base.png', detail: 'original' }))
+      .toEqual({ path: '/tmp/onshape-inspect-base.png', detail: 'original' });
+    expect(getImageViewTarget('{"image_path":"/tmp/shot.png"}'))
+      .toEqual({ path: '/tmp/shot.png', detail: undefined });
+    expect(getImageViewTarget('/tmp/bare-path.png')).toEqual({ path: '/tmp/bare-path.png' });
+  });
+
+  it('returns null when no image path is present', () => {
+    expect(getImageViewTarget({ detail: 'original' })).toBeNull();
+    expect(getImageViewTarget({})).toBeNull();
+    expect(getImageViewTarget('')).toBeNull();
+    expect(getImageViewTarget(undefined)).toBeNull();
   });
 });

@@ -901,6 +901,7 @@
     "fileNotFound": "文件未找到",
     "loading": "加载差异中...",
     "showDiff": "显示差异",
+    "showRendered": "显示渲染",
     "modifiedOnly": "仅修改内容",
     "copied": "已复制",
     "errorCopy": "错误",

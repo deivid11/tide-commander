@@ -53,6 +53,11 @@ export function useKeyboardShortcuts({
         // consume it (e.g. vim, tmux copy-mode) — don't close the panel.
         if (target.closest('.guake-bottom-terminal-embed')) return;
 
+        // Inputs that handle Escape themselves (e.g. a filter field that clears
+        // on Esc) opt out via data-escape-local so one Escape doesn't also close
+        // the terminal underneath them.
+        if (target.closest('[data-escape-local="true"]')) return;
+
         // Always close the top-most modal first (including image modal inside terminal).
         if (closeTopModal()) {
           e.preventDefault();

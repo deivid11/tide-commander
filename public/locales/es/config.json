@@ -25,6 +25,8 @@
     "hideCosts": "Ocultar costos",
     "streamTextLive": "Streaming palabra por palabra",
     "streamTextLiveTitle": "Mostrar el texto/pensamiento de Claude y Grok mientras se genera. Desactívalo para ver solo respuestas completas.",
+    "toolHoverPreview": "Vista previa con Ctrl",
+    "toolHoverPreviewTitle": "Mantén Ctrl al pasar el cursor sobre una fila de herramienta o una ruta de archivo en la terminal para ver el archivo, el diff, la imagen o la salida del comando. El panel se puede desplazar.",
     "grid": "Cuadricula",
     "showFPS": "Mostrar FPS",
     "fpsLimit": "Limite de FPS",

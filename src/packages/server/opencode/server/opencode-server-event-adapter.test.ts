@@ -71,6 +71,39 @@ describe('OpencodeServerEventAdapter', () => {
     expect(again.some((e) => e.type === 'tool_start')).toBe(true);
   });
 
+  it('drops a stale session.idle with no activity behind it (abort double-idle)', () => {
+    const a = new OpencodeServerEventAdapter();
+    a.handle(delta('prt_1', 'partial'));
+    const first = a.handle(idle());
+    expect(first.some((e) => e.type === 'step_complete')).toBe(true);
+    // The abort's second idle lands after the next turn already started —
+    // finalizing here would flip the agent idle while the model is generating.
+    const stale = a.handle(idle());
+    expect(stale).toEqual([]);
+    // Activity from the new turn re-arms finalization.
+    a.handle(delta('prt_2', 'new turn'));
+    const real = a.handle(idle());
+    expect(real.some((e) => e.type === 'step_complete')).toBe(true);
+  });
+
+  it('does not re-arm finalization on the abort-fallout message.updated between idles', () => {
+    const a = new OpencodeServerEventAdapter();
+    a.handle(delta('prt_1', 'partial'));
+    a.handle({ type: 'session.error', properties: { sessionID: SID, error: { message: 'Aborted' } } });
+    a.handle(idle()); // idle #1 finalizes the aborted turn
+    // Captured live abort fallout: the aborted assistant message's METADATA
+    // replays between the two idles — it must not count as content.
+    a.handle({ type: 'message.updated', properties: { sessionID: SID, info: { id: 'msg_aborted', role: 'assistant', time: { created: 1, completed: 2 } } } });
+    expect(a.handle(idle())).toEqual([]); // idle #2 dropped
+  });
+
+  it('drops session.idle on a turn with zero activity, but forceFinalize still finalizes', () => {
+    const a = new OpencodeServerEventAdapter();
+    expect(a.handle(idle())).toEqual([]);
+    const forced = a.forceFinalize();
+    expect(forced.some((e) => e.type === 'step_complete')).toBe(true);
+  });
+
   it('stays silent on unrelated events', () => {
     const a = new OpencodeServerEventAdapter();
     expect(a.handle({ type: 'server.connected', properties: {} })).toEqual([]);

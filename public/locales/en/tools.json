@@ -50,7 +50,8 @@
       "sendInput": "Send Input",
       "sendMessage": "Message Agent",
       "taskOutput": "Task Output",
-      "wait": "Wait"
+      "wait": "Wait",
+      "viewImage": "View Image"
     },
     "showOutputsInline": "Show all bash outputs inline",
     "hideOutputsInline": "Hide inline bash outputs"
@@ -279,5 +280,13 @@
   "response": {
     "noContent": "No response content available.",
     "rawMarkdown": "Raw Markdown"
+  },
+  "preview": {
+    "loading": "Loading preview…",
+    "emptyFile": "(empty file)",
+    "noDiff": "(no diff available)",
+    "diffTruncated": "diff truncated…",
+    "moreLines": "+{{count}} more lines",
+    "skippedLines": "… {{count}} lines skipped …"
   }
 }

@@ -33,6 +33,7 @@ export const TOOL_ICONS: Record<string, string> = {
   spawn_agent: '🧬',
   send_input: '📨',
   wait: '⏳',
+  view_image: '🖼️',
   default: '⚡',
 };
 
@@ -72,6 +73,7 @@ export const TOOL_ICON_NAMES: Record<string, IconName> = {
   web_search: 'globe-hemisphere',
   open_page: 'globe',
   open_page_with_find: 'globe',
+  view_image: 'image',
   default: 'bolt',
 };
 
@@ -121,6 +123,7 @@ const TOOL_NAME_TRANSLATION_KEYS: Record<string, string> = {
   web_search: 'tools:display.toolNames.webSearch',
   open_page: 'tools:display.toolNames.webFetch',
   open_page_with_find: 'tools:display.toolNames.webFetch',
+  view_image: 'tools:display.toolNames.viewImage',
 };
 
 /** Prettify snake_case / camelCase tool ids when no i18n key exists. */
@@ -231,7 +234,9 @@ export function extractToolKeyParam(toolName: string, inputJson: string): string
       case 'Read':
       case 'Write':
       case 'Edit':
-      case 'NotebookEdit': {
+      case 'NotebookEdit':
+      // Codex `view_image` — the path is the label, never the `detail` hint.
+      case 'view_image': {
         // Claude uses file_path; Grok/OpenCode-style tools use target_file / path.
         const filePath =
           input.file_path
@@ -679,6 +684,43 @@ export function getShellReadTargets(rawCommand: string): CodexExecFileTarget[] {
   const simpleRead = command.match(/^\s*(?:cat|head|tail)\b[^;&|]*?\s+(?:--\s+)?["']?([^"'\s;&|]+)["']?\s*$/);
   if (simpleRead) return [{ path: simpleRead[1] }];
   return [];
+}
+
+/** The image a direct `view_image` tool call renders. */
+export interface ImageViewTarget {
+  path: string;
+  /** Rendering hint the agent passed along (`original`, `low`, …). */
+  detail?: string;
+}
+
+/** True for tool ids that display a single image file (Codex `view_image`). */
+export function isImageViewTool(toolName: string): boolean {
+  const lower = (toolName || '').toLowerCase();
+  return lower === 'view_image' || lower === 'viewimage';
+}
+
+/**
+ * Resolve the image a `view_image` call targets. Codex sends `{path, detail}`;
+ * the path aliases keep other runtimes' spellings working. Unlike the exec
+ * wrapper (getCodexExecPresentation), these calls arrive as a plain tool input.
+ */
+export function getImageViewTarget(input: unknown): ImageViewTarget | null {
+  let record: Record<string, unknown> | null = null;
+  if (typeof input === 'string') {
+    try {
+      const parsed = JSON.parse(input);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) record = parsed as Record<string, unknown>;
+    } catch { /* not JSON */ }
+    // A bare, non-JSON string is the path itself.
+    if (!record) return input.trim() ? { path: input.trim() } : null;
+  } else if (input && typeof input === 'object' && !Array.isArray(input)) {
+    record = input as Record<string, unknown>;
+  }
+  if (!record) return null;
+  const raw = record.path ?? record.image_path ?? record.imagePath ?? record.file_path ?? record.filePath ?? record.url;
+  if (typeof raw !== 'string' || !raw.trim()) return null;
+  const detail = typeof record.detail === 'string' && record.detail.trim() ? record.detail.trim() : undefined;
+  return { path: raw.trim(), detail };
 }
 
 /** Resolve an opaque Codex `exec` wrapper to the activity it represents. */

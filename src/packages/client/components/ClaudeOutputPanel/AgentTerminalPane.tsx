@@ -1078,6 +1078,12 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // ── History fade-in & agent switching ──
   const [historyFadeIn, setHistoryFadeIn] = useState(false);
   const [isAgentSwitching, setIsAgentSwitching] = useState(false);
+  // True while showing an agent whose history was NOT cached at switch time.
+  // That path unmounts the output list and remounts it once the fetch lands, so
+  // every row measures from scratch and the content keeps growing for far
+  // longer than on a warm switch. Starts true: the very first agent shown after
+  // a page load is cold by definition.
+  const coldOpenRef = useRef(true);
 
   // Hide content immediately on agent change, then fade in after scroll settles
   const prevSelectedAgentIdRef = useRef<string | null>(null);
@@ -1088,6 +1094,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     if (changed) {
       setHistoryFadeIn(false);
       const hasCached = historyLoader.hasCachedHistory(agentId);
+      coldOpenRef.current = !hasCached;
       if (!hasCached) {
         setIsAgentSwitching(true);
       }
@@ -1182,7 +1189,13 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     // before releasing the pin. The virtualizer measures real row heights across
     // many frames after an agent switch; ending on the FIRST coincidentally
     // stable frame let late growth land the view a few lines short of the bottom.
-    const REQUIRED_STABLE_FRAMES = 4;
+    // A cold open measures all its rows for the first time, in bursts with
+    // idle gaps between them — 4 quiet frames is easily satisfied *between*
+    // bursts, which revealed the conversation mid-settle and let the remaining
+    // growth visibly push the text around. Warm switches genuinely settle in a
+    // few frames, so they keep the short window and stay snappy. The 3s cap
+    // below still bounds both.
+    const REQUIRED_STABLE_FRAMES = coldOpenRef.current ? 12 : 4;
 
     const isAtBottom = () => {
       const { scrollTop, scrollHeight, clientHeight } = container;
@@ -1194,6 +1207,9 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       // case a last measurement frame grew the content past where the per-frame
       // enforce loop left it.
       container.scrollTop = container.scrollHeight;
+      // The rows are measured now, so later re-pins for this same agent (a
+      // history refresh while it streams) settle fast and take the short window.
+      coldOpenRef.current = false;
       setPinToBottom(false);
       rafId = null;
     };

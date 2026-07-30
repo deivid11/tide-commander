@@ -901,6 +901,7 @@
     "fileNotFound": "ファイルが見つかりません",
     "loading": "差分を読み込み中...",
     "showDiff": "差分を表示",
+    "showRendered": "レンダリング表示",
     "modifiedOnly": "変更のみ",
     "copied": "コピー済み",
     "errorCopy": "エラー",

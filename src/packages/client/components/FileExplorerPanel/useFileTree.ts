@@ -22,6 +22,7 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
   const [loading, setLoading] = useState(false);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [loadedPaths, setLoadedPaths] = useState<Set<string>>(new Set());
+  const [loadGeneration, setLoadGeneration] = useState(0);
 
   // Use refs to access current state in callbacks without stale closures
   const treeRef = useRef(tree);
@@ -76,6 +77,7 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
 
         // Auto-expand only the root folder by default (single nesting level visible)
         setExpandedPaths(new Set<string>([currentFolder]));
+        setLoadGeneration((g) => g + 1);
       }
     } catch (err) {
       console.error('[FileExplorer] Failed to load tree:', err);
@@ -435,6 +437,7 @@ export function useFileTree(currentFolder: string | null): UseFileTreeReturn {
     tree,
     loading,
     expandedPaths,
+    loadGeneration,
     loadTree,
     reloadDirectory,
     renamePathInTree,

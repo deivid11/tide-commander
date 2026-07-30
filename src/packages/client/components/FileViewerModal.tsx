@@ -4,8 +4,8 @@ import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { PlantUmlDiagram } from './PlantUmlDiagram';
-import * as pdfjsLib from 'pdfjs-dist';
 import { DiffViewer } from './DiffViewer';
+import { PdfJsViewer } from './shared/PdfJsViewer';
 import { apiUrl, authFetch, getAuthToken } from '../utils/storage';
 import { copyRichContentToClipboard, copyTextToClipboard, inlineStylesForRichCopy } from '../utils/clipboard';
 import { downloadServerFile } from '../utils/file-download';
@@ -17,163 +17,13 @@ import { ModalPortal } from './shared/ModalPortal';
 import { getLanguageForExtension, ensureLanguageLoaded, Prism } from './FileExplorerPanel/syntaxHighlighting';
 import { Icon } from './Icon';
 import { ZoomableImage } from './shared/ZoomableImage';
+import { VirtualLineList, scrollLineIntoView } from './shared/VirtualLineList';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
-
-function PdfJsViewer({ url, authToken }: { url: string; authToken?: string }) {
-  const [numPages, setNumPages] = useState<number>(0);
-  const [renderedPages, setRenderedPages] = useState<number>(0);
-  const [error, setError] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  // Bumped (debounced) when the container width or devicePixelRatio changes:
-  // pages are rasterized bitmaps, so a size change needs a re-render — CSS
-  // rescaling a stale bitmap is exactly what made the viewer blurry.
-  const [renderTick, setRenderTick] = useState(0);
-  const lastLayoutRef = useRef<{ width: number; dpr: number } | null>(null);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const maybeRerender = () => {
-      const width = el.clientWidth;
-      const dpr = window.devicePixelRatio || 1;
-      const last = lastLayoutRef.current;
-      // First observation (and anything the render loop already accounted
-      // for) just records the layout; only real changes schedule a re-render.
-      if (!last) {
-        lastLayoutRef.current = { width, dpr };
-        return;
-      }
-      if (Math.abs(last.width - width) < 2 && last.dpr === dpr) return;
-      lastLayoutRef.current = { width, dpr };
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => setRenderTick((t) => t + 1), 250);
-    };
-    const observer = new ResizeObserver(maybeRerender);
-    observer.observe(el);
-    // ResizeObserver misses pure browser-zoom changes when the CSS size stays
-    // equal; the window resize event catches those (DPR changes with zoom).
-    window.addEventListener('resize', maybeRerender);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', maybeRerender);
-      if (timer) clearTimeout(timer);
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadParams: Parameters<typeof pdfjsLib.getDocument>[0] = { url };
-    if (authToken) {
-      loadParams.httpHeaders = { 'X-Auth-Token': authToken };
-    }
-    const loadingTask = pdfjsLib.getDocument(loadParams);
-
-    const render = async () => {
-      try {
-        const pdf = await loadingTask.promise;
-        if (cancelled) return;
-
-        setError(null);
-        setRenderedPages(0);
-        setNumPages(pdf.numPages);
-
-        const pagesEl = containerRef.current;
-        if (!pagesEl) return;
-        pagesEl.innerHTML = '';
-
-        // Fit pages to the container width (minus its 16px side paddings) and
-        // rasterize at devicePixelRatio so the bitmap is sharp on HiDPI
-        // screens and under browser zoom (capped to keep huge PDFs cheap).
-        const availableWidth = Math.max(240, pagesEl.clientWidth - 32);
-        const outputScale = Math.min(window.devicePixelRatio || 1, 3);
-        lastLayoutRef.current = { width: pagesEl.clientWidth, dpr: window.devicePixelRatio || 1 };
-
-        for (let i = 1; i <= pdf.numPages; i++) {
-          if (cancelled) break;
-          const page = await pdf.getPage(i);
-          const baseViewport = page.getViewport({ scale: 1 });
-          const displayScale = Math.min(availableWidth / baseViewport.width, 2.5);
-          const viewport = page.getViewport({ scale: displayScale });
-          const cssWidth = Math.floor(viewport.width);
-          const cssHeight = Math.floor(viewport.height);
-
-          const wrapper = document.createElement('div');
-          wrapper.className = 'pdf-js-page-wrapper';
-          wrapper.style.width = `${cssWidth}px`;
-          wrapper.style.height = `${cssHeight}px`;
-          // pdf.js TextLayer sizes itself and its glyphs through these vars.
-          wrapper.style.setProperty('--scale-factor', String(viewport.scale));
-          wrapper.style.setProperty('--total-scale-factor', String(viewport.scale));
-
-          const canvas = document.createElement('canvas');
-          canvas.className = 'pdf-js-page-canvas';
-          canvas.width = Math.floor(viewport.width * outputScale);
-          canvas.height = Math.floor(viewport.height * outputScale);
-          canvas.style.width = `${cssWidth}px`;
-          canvas.style.height = `${cssHeight}px`;
-          wrapper.appendChild(canvas);
-
-          // Selectable/copyable text lives in a transparent layer above the
-          // rasterized canvas, aligned by sharing the same viewport.
-          const textLayerDiv = document.createElement('div');
-          textLayerDiv.className = 'textLayer';
-          wrapper.appendChild(textLayerDiv);
-
-          pagesEl.appendChild(wrapper);
-
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            await page.render({
-              canvas,
-              canvasContext: ctx,
-              viewport,
-              transform: outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined,
-            }).promise;
-          }
-          if (cancelled) break;
-
-          await new pdfjsLib.TextLayer({
-            textContentSource: page.streamTextContent(),
-            container: textLayerDiv,
-            viewport,
-          }).render();
-
-          if (!cancelled) setRenderedPages(i);
-        }
-      } catch (err: unknown) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load PDF');
-        }
-      }
-    };
-
-    render();
-    return () => {
-      cancelled = true;
-      // Aborts the fetch/parse and any in-flight page render.
-      loadingTask.destroy().catch(() => { /* already destroyed */ });
-    };
-  }, [url, authToken, renderTick]);
-
-  const loading = renderedPages === 0 && !error;
-
-  return (
-    <div className="pdf-js-container">
-      {loading && <div className="pdf-js-loading">Loading PDF…</div>}
-      {error && <div className="pdf-js-error">{error}</div>}
-      {numPages > 0 && (
-        <div className="pdf-js-info">
-          {renderedPages < numPages
-            ? `Rendering page ${renderedPages + 1} of ${numPages}…`
-            : `${numPages} page${numPages !== 1 ? 's' : ''}`}
-        </div>
-      )}
-      <div ref={containerRef} className="pdf-js-pages" />
-    </div>
-  );
-}
+// Row heights from _file-viewer.scss: 12px font at line-height 1.6 (normal
+// view) and 1.5 (read-highlight view). Rows never wrap (`white-space: pre`),
+// so these are exact and the windowed list keeps the real scroll height.
+const CODE_LINE_HEIGHT = 19.2;
+const HIGHLIGHT_LINE_HEIGHT = 18;
 
 interface FileViewerModalProps {
   isOpen: boolean;
@@ -609,39 +459,60 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     ensureLanguageLoaded(lang).then(() => setLanguageReady(true));
   }, [fileData]);
 
-  const highlightedLines = useMemo(() => {
-    if (!fileData || showDiffView || showUnifiedDiffView || MARKDOWN_EXTENSIONS.includes(fileData.extension)) return [];
-    const codeLanguage = getLanguageForExtension(fileData.extension);
-    const grammar = Prism.languages[codeLanguage];
-    const escapeHtml = (value: string) => value
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-    return fileData.content.split('\n').map((line) => {
-      if (!grammar) return escapeHtml(line || ' ');
-      return Prism.highlight(line || ' ', grammar, codeLanguage);
-    });
-  }, [fileData, showDiffView, showUnifiedDiffView, languageReady]);
+  // Markdown is NOT excluded here: the read-highlight view (Read with
+  // offset/limit) renders .md as plain lines too, and takes priority over the
+  // rendered-markdown branch below.
+  const codeLines = useMemo(() => {
+    if (!fileData || showDiffView || showUnifiedDiffView) return [];
+    return fileData.content.split('\n');
+  }, [fileData, showDiffView, showUnifiedDiffView]);
 
-  // When a specific line is requested, center it in view.
+  /**
+   * Highlight a single line, memoized per line index — the windowed list only
+   * ever asks for the ~50 rows on screen. Highlighting the whole file up front
+   * cost 31,842 Prism passes on a 1 MB JSON before anything painted.
+   *
+   * The cache lives in the useMemo (not a ref cleared by an effect) so a
+   * lazily-loaded grammar landing via `languageReady` invalidates it during the
+   * same render that repaints the rows; an effect would clear it one commit too
+   * late and leave the visible lines unhighlighted.
+   */
+  const getHighlightedLine = useMemo(() => {
+    const cache = new Map<number, string>();
+    const codeLanguage = fileData ? getLanguageForExtension(fileData.extension) : 'plaintext';
+    const grammar = Prism.languages[codeLanguage];
+    return (index: number): string => {
+      const cached = cache.get(index);
+      if (cached !== undefined) return cached;
+      const line = codeLines[index] ?? '';
+      const html = grammar
+        ? Prism.highlight(line || ' ', grammar, codeLanguage)
+        : (line || ' ')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+      cache.set(index, html);
+      return html;
+    };
+  }, [codeLines, fileData, languageReady]);
+
+  // When a specific line is requested, center it in view. The line lists are
+  // windowed, so the target row usually isn't mounted yet — seek by arithmetic
+  // (rows are fixed-height) instead of querySelector + scrollIntoView.
   useEffect(() => {
     if (!isOpen || !fileData || !contentRef.current) return;
+    const lineIndex = showHighlightView
+      ? (effectiveHighlightRange ? effectiveHighlightRange.offset - 1 : null)
+      : (targetLine ? targetLine - 1 : null);
+    if (lineIndex === null || lineIndex < 0) return;
+
     const id = window.setTimeout(() => {
-      const scrollToTarget = () => {
-        if (!contentRef.current) return;
-        // Prefer row highlight in both regular and read-highlight views.
-        const targetRow = contentRef.current.querySelector('.file-line-highlighted') as HTMLElement | null;
-        if (targetRow) {
-          targetRow.scrollIntoView({ block: 'center', behavior: 'auto' });
-          return;
-        }
-        if (targetLine) {
-          const targetGutterLine = contentRef.current.querySelector(`.file-viewer-line-num[data-line="${targetLine}"]`) as HTMLElement | null;
-          targetGutterLine?.scrollIntoView({ block: 'center', behavior: 'auto' });
-        }
-      };
-      // Ensure DOM + layout are settled after Prism HTML render.
-      window.requestAnimationFrame(() => window.requestAnimationFrame(scrollToTarget));
+      window.requestAnimationFrame(() => {
+        const scroller = contentRef.current;
+        if (!scroller) return;
+        const lineHeight = showHighlightView ? HIGHLIGHT_LINE_HEIGHT : CODE_LINE_HEIGHT;
+        scrollLineIntoView(scroller, lineIndex, lineHeight);
+      });
     }, 0);
     return () => window.clearTimeout(id);
   }, [isOpen, fileData, showHighlightView, effectiveHighlightRange?.offset, targetLine]);
@@ -1411,20 +1282,25 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
             ) : showHighlightView ? (
               // Show file with highlighted lines (for Read tool with offset/limit)
               <pre className="file-viewer-code file-viewer-code-highlighted">
-                {fileData.content.split('\n').map((line, idx) => {
-                  const lineNum = idx + 1;
-                  const range = effectiveHighlightRange;
-                  const isHighlighted = range && lineNum >= range.offset && lineNum < range.offset + range.limit;
-                  return (
-                    <div key={idx} className={`file-line ${isHighlighted ? 'file-line-highlighted' : ''}`}>
-                      <span className="file-line-num">{lineNum}</span>
-                      <code
-                        className={`language-${language}`}
-                        dangerouslySetInnerHTML={{ __html: highlightedLines[idx] || (line || ' ') }}
-                      />
-                    </div>
-                  );
-                })}
+                <VirtualLineList
+                  count={codeLines.length}
+                  lineHeight={HIGHLIGHT_LINE_HEIGHT}
+                  scrollRef={contentRef}
+                  renderLine={(idx) => {
+                    const lineNum = idx + 1;
+                    const range = effectiveHighlightRange;
+                    const isHighlighted = range && lineNum >= range.offset && lineNum < range.offset + range.limit;
+                    return (
+                      <div className={`file-line ${isHighlighted ? 'file-line-highlighted' : ''}`}>
+                        <span className="file-line-num">{lineNum}</span>
+                        <code
+                          className={`language-${language}`}
+                          dangerouslySetInnerHTML={{ __html: getHighlightedLine(idx) }}
+                        />
+                      </div>
+                    );
+                  }}
+                />
               </pre>
             ) : isMarkdown ? (
               <div className="file-viewer-markdown markdown-content" ref={markdownContentRef}>
@@ -1432,23 +1308,25 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
               </div>
             ) : (
               <pre className={`file-viewer-code file-viewer-code-lines language-${language}`}>
-                {highlightedLines.map((lineHtml, idx) => (
-                  <div
-                    key={idx + 1}
-                    className={`file-line ${targetLine === idx + 1 ? 'file-line-highlighted' : ''}`}
-                  >
-                    <span
-                      className={`file-line-num ${targetLine === idx + 1 ? 'file-viewer-line-num-target' : ''}`}
-                      data-line={idx + 1}
-                    >
-                      {idx + 1}
-                    </span>
-                    <code
-                      className={`language-${language}`}
-                      dangerouslySetInnerHTML={{ __html: lineHtml }}
-                    />
-                  </div>
-                ))}
+                <VirtualLineList
+                  count={codeLines.length}
+                  lineHeight={CODE_LINE_HEIGHT}
+                  scrollRef={contentRef}
+                  renderLine={(idx) => (
+                    <div className={`file-line ${targetLine === idx + 1 ? 'file-line-highlighted' : ''}`}>
+                      <span
+                        className={`file-line-num ${targetLine === idx + 1 ? 'file-viewer-line-num-target' : ''}`}
+                        data-line={idx + 1}
+                      >
+                        {idx + 1}
+                      </span>
+                      <code
+                        className={`language-${language}`}
+                        dangerouslySetInnerHTML={{ __html: getHighlightedLine(idx) }}
+                      />
+                    </div>
+                  )}
+                />
               </pre>
             )
           )}

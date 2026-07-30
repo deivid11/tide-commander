@@ -621,8 +621,12 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     return () => cancelAnimationFrame(rafId);
   }, [pinToBottom, isLoadingHistory, allItems.length, scrollToBottom]);
 
-  // Auto-scroll to bottom when new items arrive
-  useEffect(() => {
+  // Auto-scroll to bottom when new items arrive.
+  // useLayoutEffect, not useEffect: a scroll correction applied AFTER the
+  // browser paints means the frame with the uncorrected offset is shown first,
+  // and the eye reads that one-frame offset as the content jumping. Running
+  // pre-paint lands the DOM change and its compensation in the same frame.
+  useLayoutEffect(() => {
     if (!shouldAutoScroll) return;
     if (allItems.length === 0) return;
     if (allItems.length <= prevItemCountRef.current) {
@@ -650,8 +654,12 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // exceed the estimates (e.g. during streaming or after initial render).
   // Without this, the scroll "jumps up" because the content grows under the viewport
   // but nothing pushes scrollTop to follow.
+  // Pre-paint for the same reason as the item-count effect above — and it
+  // matters most here: on a cold open every row measures for the first time, so
+  // this fires dozens of times in the first second and each post-paint
+  // correction was one visible jump of the conversation.
   const totalSize = virtualizer.getTotalSize();
-  useEffect(() => {
+  useLayoutEffect(() => {
     const prev = prevTotalSizeRef.current;
     prevTotalSizeRef.current = totalSize;
 

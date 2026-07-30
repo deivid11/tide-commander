@@ -38,7 +38,9 @@
     "notifications": "Notifications",
     "soundEffects": "Effets sonores",
     "streamTextLive": "Streaming mot à mot",
-    "streamTextLiveTitle": "Afficher le texte/la réflexion de Claude et Grok au fur et à mesure. Désactivez pour n'afficher que les réponses complètes."
+    "streamTextLiveTitle": "Afficher le texte/la réflexion de Claude et Grok au fur et à mesure. Désactivez pour n'afficher que les réponses complètes.",
+    "toolHoverPreview": "Aperçu avec Ctrl",
+    "toolHoverPreviewTitle": "Maintenez Ctrl en survolant une ligne d'outil ou un chemin de fichier dans le terminal pour prévisualiser le fichier, le diff, l'image ou la sortie de la commande. Le panneau est défilable."
   },
   "agentNames": {
     "customConfigured": "{{count}} noms personnalisés configurés",

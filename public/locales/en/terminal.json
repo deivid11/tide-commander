@@ -1035,6 +1035,7 @@
     "fileNotFound": "File not found",
     "loading": "Loading diff...",
     "showDiff": "Show Diff",
+    "showRendered": "Show rendered",
     "modifiedOnly": "Modified Only",
     "copied": "Copied",
     "errorCopy": "Error",

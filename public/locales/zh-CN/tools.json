@@ -44,7 +44,8 @@
       "attemptCompletion": "尝试完成",
       "listFiles": "列出文件",
       "searchFiles": "搜索文件",
-      "executeCommand": "执行命令"
+      "executeCommand": "执行命令",
+      "viewImage": "查看图片"
     },
     "showOutputsInline": "内联显示所有 Bash 输出",
     "hideOutputsInline": "隐藏内联 Bash 输出"
@@ -273,5 +274,13 @@
   "response": {
     "noContent": "没有可用的响应内容。",
     "rawMarkdown": "原始 Markdown"
+  },
+  "preview": {
+    "loading": "正在加载预览…",
+    "emptyFile": "(空文件)",
+    "noDiff": "(无可用差异)",
+    "diffTruncated": "差异已截断…",
+    "moreLines": "还有 {{count}} 行",
+    "skippedLines": "… 已跳过 {{count}} 行 …"
   }
 }

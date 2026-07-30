@@ -485,6 +485,26 @@
   }
 }
 
+// `view_image` tool row — the path chip and the agent's rendering hint sit next
+// to the tool name, with the thumbnail (.output-read-image-preview) below it.
+.output-view-image-inline {
+  .view-image-path {
+    color: var(--accent-purple);
+  }
+
+  .view-image-detail {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: $radius-sm;
+    border: 1px solid color-mix(in srgb, var(--accent-purple) 35%, transparent);
+    background: color-mix(in srgb, var(--accent-purple) 12%, transparent);
+    font-family: $font-mono;
+    font-size: 10px;
+    color: var(--accent-purple);
+    opacity: 0.85;
+  }
+}
+
 // Clickable file reference in history/output
 .file-reference {
   display: inline-flex;
@@ -661,6 +681,18 @@
     max-height: calc(90vh - 80px);
     object-fit: contain;
     border-radius: $radius-sm;
+  }
+
+  // An SVG whose root carries only a `viewBox` (no width/height) has an aspect
+  // ratio but NO intrinsic pixel size. Every box above is shrink-to-fit here, so
+  // the `max-width: 100%` above resolves against a width that depends on the
+  // image itself — the cycle collapses the <img> to 0×0 and the modal renders
+  // empty. A definite width breaks the cycle; `height: auto` keeps the ratio.
+  &.is-svg .file-viewer-image {
+    width: min(1000px, 84vw);
+    height: auto;
+    max-width: none;
+    max-height: calc(90vh - 80px);
   }
 }
 

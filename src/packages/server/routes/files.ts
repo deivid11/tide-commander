@@ -603,17 +603,41 @@ router.get('/read', async (req: Request, res: Response) => {
     const extension = path.extname(filePath).toLowerCase();
     const filename = path.basename(filePath);
 
-    res.json({
+    const base = {
       path: filePath,
       filename,
       extension,
-      content,
       size: stats.size,
       modified: stats.mtime,
       strategy: resolution.strategy,
       areaId: resolution.areaId,
       areaName: resolution.areaName,
-    });
+    };
+
+    // Preview mode (Ctrl+hover tooltip in the terminal): return only the
+    // requested line window. Reading the file is cheap; shipping a 1MB body
+    // over the wire on every hover is not.
+    const previewLines = Number(req.query.previewLines);
+    if (Number.isFinite(previewLines) && previewLines > 0) {
+      const allLines = content.split('\n');
+      const rawOffset = Number(req.query.previewOffset);
+      const startLine = Number.isFinite(rawOffset) && rawOffset >= 1
+        ? Math.min(Math.floor(rawOffset), Math.max(allLines.length, 1))
+        : 1;
+      const slice = allLines.slice(startLine - 1, startLine - 1 + Math.floor(previewLines));
+      res.json({
+        ...base,
+        content: slice.join('\n'),
+        preview: {
+          startLine,
+          totalLines: allLines.length,
+          truncated: startLine - 1 + slice.length < allLines.length,
+        },
+      });
+      return;
+    }
+
+    res.json({ ...base, content });
   } catch (err: any) {
     log.error(' Failed to read file:', err);
     res.status(500).json({ error: err.message });

@@ -901,6 +901,7 @@
     "fileNotFound": "फ़ाइल नहीं मिली",
     "loading": "Diff लोड हो रहा है...",
     "showDiff": "Diff दिखाएं",
+    "showRendered": "रेंडर देखें",
     "modifiedOnly": "केवल संशोधित",
     "copied": "कॉपी हो गया",
     "errorCopy": "त्रुटि",
