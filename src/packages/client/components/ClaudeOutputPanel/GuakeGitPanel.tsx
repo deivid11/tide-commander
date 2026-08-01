@@ -28,6 +28,9 @@ import { ContextMenu, type ContextMenuAction } from '../ContextMenu';
 import { Icon } from '../Icon';
 import { useToast } from '../Toast';
 import { useModalStackRegistration } from '../../hooks/useModalStack';
+import { GitGraphModal } from './GitGraphModal';
+import { prefetchGraph, buildGraphParams } from './gitGraphData';
+import { loadGitGraphFilters } from '../../utils/gitGraphFilters';
 
 // ==========================================================================
 // TYPES
@@ -456,6 +459,14 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       return next;
     });
   }, []);
+  // Every watched git repo, not just the ones with pending changes — the branch
+  // graph is just as useful (arguably more) on a clean tree.
+  const graphRepos = useMemo(() => {
+    return areaDirs
+      .filter((dir) => gitStatuses.get(dir)?.isGitRepo)
+      .map((dir) => ({ dir, dirName: dir.split('/').filter(Boolean).pop() || dir }));
+  }, [gitStatuses, areaDirsKey]);
+  const [graphRepo, setGraphRepo] = useState<{ dir: string; dirName: string } | null>(null);
 
   // Current explorer folder
   const explorerFolder = areaDirs.length > 0 ? (areaDirs[explorerFolderIdx] || areaDirs[0]) : null;
@@ -1554,6 +1565,20 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
           >
             {fetchingDirs.size > 0 ? <Icon name="status-starting" size={14} /> : <Icon name="arrow-down" size={14} />}
           </button>
+          {graphRepos.length > 0 && (
+            <button
+              className="guake-git-graph-btn"
+              onClick={() => setGraphRepo(graphRepos[0])}
+              // Warm the first page while the pointer travels to the button, so
+              // the modal opens from cache instead of a cold round trip.
+              onMouseEnter={() => {
+                const target = graphRepos[0];
+                if (!target) return;
+                prefetchGraph(target.dir, buildGraphParams(target.dir, loadGitGraphFilters(target.dir), 0));
+              }}
+              title="Branch graph"
+            ><Icon name="git-branch" size={14} /></button>
+          )}
           {panelMode === 'changes' && (
             <>
               <button
@@ -1879,6 +1904,14 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         worldPosition={{ x: 0, z: 0 }}
         actions={contextMenu.actions}
         onClose={closeContextMenu}
+      />
+    )}
+
+    {graphRepo && (
+      <GitGraphModal
+        repos={graphRepos}
+        initialDir={graphRepo.dir}
+        onClose={() => setGraphRepo(null)}
       />
     )}
     </>

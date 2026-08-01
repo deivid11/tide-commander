@@ -3581,14 +3581,27 @@ function parseGitRefs(refsValue: string): { branches: string[]; tags: string[]; 
 
 function buildGitLogFilterArgs(params: {
   branch?: string;
+  /** Several revisions at once — `git log a b c` walks the union of them. */
+  branches?: string[];
   author?: string;
   since?: string;
   until?: string;
   search?: string;
   searchPath?: string;
+  /** Walk every ref instead of just one revision — the graph view needs all branches. */
+  allRefs?: boolean;
 }) {
-  const revision = params.branch?.trim() || 'HEAD';
-  const args = [shellEscape(revision)];
+  // Explicit revisions and `--all` are mutually exclusive in intent: naming
+  // branches means the user narrowed the view, so the explicit choice wins.
+  const picked = (params.branches ?? [])
+    .map((b) => b.trim())
+    .filter(Boolean);
+  const single = params.branch?.trim();
+  if (single && !picked.includes(single)) picked.push(single);
+
+  const args = picked.length > 0
+    ? picked.map(shellEscape)
+    : [params.allRefs ? '--all' : 'HEAD'];
 
   if (params.author?.trim()) {
     args.push(`--author=${shellEscape(params.author.trim())}`);
@@ -3647,13 +3660,26 @@ router.get('/git-log', async (req: Request, res: Response) => {
       searchPath = resolvedSearchPath;
     }
 
-    const filterArgs = buildGitLogFilterArgs({ branch, author, since, until, search, searchPath });
-    const logFormat = '%H%x00%h%x00%an%x00%ae%x00%aI%x00%s%x00%D';
+    const allRefs = req.query.all === '1' || req.query.all === 'true';
+    const branches = typeof req.query.branches === 'string'
+      ? req.query.branches.split(',').map((b) => b.trim()).filter(Boolean)
+      : undefined;
+    // `git rev-list --count` is a full history walk — on a 6k-commit repo it
+    // costs ~5x the page fetch itself, purely to render a total. Callers that
+    // only need "is there more?" pass count=0 and we infer it by asking for one
+    // extra commit instead.
+    const wantsTotal = req.query.count !== '0' && req.query.count !== 'false';
+    const filterArgs = buildGitLogFilterArgs({ branch, branches, author, since, until, search, searchPath, allRefs });
+    // %P (parent hashes) is what turns a flat list into a graph — without it the
+    // edges between commits are unknowable. Appended last so older clients that
+    // index fields positionally keep working.
+    const logFormat = '%H%x00%h%x00%an%x00%ae%x00%aI%x00%s%x00%D%x00%P';
     const logCommand = [
       'git log',
       `--format=${shellEscape(logFormat)}`,
       `--skip=${offset}`,
-      `--max-count=${limit}`,
+      // One extra row is the cheap way to know whether another page exists.
+      `--max-count=${wantsTotal ? limit : limit + 1}`,
       ...filterArgs,
     ].join(' ');
 
@@ -3687,6 +3713,7 @@ router.get('/git-log', async (req: Request, res: Response) => {
       date: string;
       subject: string;
       refs: { branches: string[]; tags: string[]; isHead: boolean };
+      parents: string[];
     }> = [];
 
     for (const line of lines) {
@@ -3700,7 +3727,19 @@ router.get('/git-log', async (req: Request, res: Response) => {
         date: fields[4] || '',
         subject: fields[5] || '',
         refs: parseGitRefs(fields[6] || ''),
+        // Root commits have none; merges have two or more.
+        parents: (fields[7] || '').trim().split(/\s+/).filter(Boolean),
       });
+    }
+
+    if (!wantsTotal) {
+      // The extra row was only a probe — don't hand it to the caller.
+      const hasMore = commits.length > limit;
+      if (hasMore) commits.length = limit;
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.json({ commits, total: null, hasMore });
+      return;
     }
 
     let total = 0;
