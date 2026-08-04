@@ -43,6 +43,7 @@ function getAgentModelLabel(agent: Agent): { model: string; effort?: string } {
     : undefined;
   return { model: meta?.label || id, effort: effortMeta?.label };
 }
+
 import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
 import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
@@ -52,6 +53,50 @@ import { ContextMenu } from '../ContextMenu';
 import { ModalPortal } from '../shared/ModalPortal';
 import { buildAgentContextMenuActions } from './agentContextMenuActions';
 import { providerAssetUrl, providerAgentTitle } from '../../utils/providerDisplay';
+
+/**
+ * Model chip in the terminal header. Turns into a warning that names the swap
+ * whenever the API is answering with a model other than the configured one —
+ * see shared/model-fallback.ts for why that can happen without any notice.
+ */
+const ModelChip = memo(function ModelChip({ agent }: { agent: Agent }) {
+  const { model, effort } = getAgentModelLabel(agent);
+  const fallback = agent.modelFallback;
+
+  if (fallback) {
+    return (
+      <span
+        className="guake-model-chip guake-model-chip--fallback"
+        title={
+          `Model fallback: this agent is configured for ${fallback.requestedLabel}, `
+          + `but the API answered with ${fallback.servedLabel}. `
+          + 'Anthropic can substitute models server-side without a prompt, and the local '
+          + 'no-fallback settings do not cover that path.'
+        }
+      >
+        <Icon name="warn" size={11} />
+        <span className="guake-model-chip-name">{fallback.requestedLabel}</span>
+        <span className="guake-model-chip-sep" aria-hidden="true">→</span>
+        <span className="guake-model-chip-served">{fallback.servedLabel}</span>
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="guake-model-chip"
+      title={effort ? `Model: ${model} · Effort: ${effort}` : `Model: ${model}`}
+    >
+      <span className="guake-model-chip-name">{model}</span>
+      {effort && (
+        <>
+          <span className="guake-model-chip-sep" aria-hidden="true">·</span>
+          <span className="guake-model-chip-effort">{effort}</span>
+        </>
+      )}
+    </span>
+  );
+});
 
 export interface TerminalHeaderProps {
   selectedAgent: Agent;
@@ -346,23 +391,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                   className="guake-provider-icon"
                   title={providerAgentTitle(selectedAgent.provider)}
                 />
-                {(() => {
-                  const { model, effort } = getAgentModelLabel(selectedAgent);
-                  return (
-                    <span
-                      className="guake-model-chip"
-                      title={effort ? `Model: ${model} · Effort: ${effort}` : `Model: ${model}`}
-                    >
-                      <span className="guake-model-chip-name">{model}</span>
-                      {effort && (
-                        <>
-                          <span className="guake-model-chip-sep" aria-hidden="true">·</span>
-                          <span className="guake-model-chip-effort">{effort}</span>
-                        </>
-                      )}
-                    </span>
-                  );
-                })()}
+                <ModelChip agent={selectedAgent} />
               </span>
             </button>
           ) : (
@@ -388,23 +417,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                   className="guake-provider-icon"
                   title={providerAgentTitle(selectedAgent.provider)}
                 />
-                {(() => {
-                  const { model, effort } = getAgentModelLabel(selectedAgent);
-                  return (
-                    <span
-                      className="guake-model-chip"
-                      title={effort ? `Model: ${model} · Effort: ${effort}` : `Model: ${model}`}
-                    >
-                      <span className="guake-model-chip-name">{model}</span>
-                      {effort && (
-                        <>
-                          <span className="guake-model-chip-sep" aria-hidden="true">·</span>
-                          <span className="guake-model-chip-effort">{effort}</span>
-                        </>
-                      )}
-                    </span>
-                  );
-                })()}
+                <ModelChip agent={selectedAgent} />
               </span>
             </div>
           )}

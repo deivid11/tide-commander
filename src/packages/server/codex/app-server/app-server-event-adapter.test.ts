@@ -28,6 +28,41 @@ describe('CodexAppServerEventAdapter', () => {
       .toEqual([{ type: 'thinking', text: 'Think…', isStreaming: true, uuid: 'codex-thinking-r1' }]);
   });
 
+  it('pairs a web search start and result by item id, dropping empty fields', () => {
+    const a = new CodexAppServerEventAdapter();
+    // itemStarted fires BEFORE the query/action exist — nothing useful yet, so
+    // the input must be empty rather than a row of nulls.
+    const start = a.handle('item/started', {
+      threadId: 't',
+      item: { id: 'w1', type: 'webSearch' },
+    });
+    const done = a.handle('item/completed', {
+      threadId: 't',
+      item: {
+        id: 'w1',
+        type: 'webSearch',
+        query: 'https://community.daisy.audio/t/out-of-flash-memory/4370/11',
+        action: { type: 'openPage', url: 'https://community.daisy.audio/t/out-of-flash-memory/4370/11' },
+      },
+    });
+
+    expect(start).toEqual([
+      { type: 'tool_start', toolName: 'web_search', toolInput: {}, uuid: 'w1', toolUseId: 'w1' },
+    ]);
+    // Same id → the client attaches this onto the started card.
+    expect(done).toEqual([{
+      type: 'tool_result',
+      toolName: 'web_search',
+      toolOutput: JSON.stringify({
+        query: 'https://community.daisy.audio/t/out-of-flash-memory/4370/11',
+        actionType: 'openPage',
+        actionUrl: 'https://community.daisy.audio/t/out-of-flash-memory/4370/11',
+      }),
+      uuid: 'w1',
+      toolUseId: 'w1',
+    }]);
+  });
+
   it('emits a command execution as a Bash tool result on completion', () => {
     const a = new CodexAppServerEventAdapter();
     const start = a.handle('item/started', {

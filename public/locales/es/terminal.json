@@ -1136,6 +1136,7 @@
   },
   "credentials": {
     "gaugeSession": "Sesión",
+    "gaugeDaily": "Día",
     "gaugeWeek": "Semana",
     "gaugeWeekOpus": "Opus sem",
     "gaugeWeekFable": "Fable sem",

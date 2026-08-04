@@ -267,6 +267,23 @@ export interface AgentTodoItem {
 // Agent State
 // ============================================================================
 
+/**
+ * A live model swap the API performed without asking: `requestedModel` is what
+ * the session was started with, `servedModel` is what actually answered.
+ * Labels are precomputed so every surface (terminal chip, agent card, mobile)
+ * renders the same wording.
+ */
+export interface ModelFallbackInfo {
+  requestedModel: string;
+  servedModel: string;
+  requestedLabel: string;
+  servedLabel: string;
+  /** True when the swap crossed model families (e.g. Fable → Opus). */
+  tierChanged: boolean;
+  /** When the swap was first observed. */
+  detectedAt: number;
+}
+
 export interface Agent {
   id: string;
   name: string;
@@ -309,6 +326,11 @@ export interface Agent {
   // over the status badge). Cleared automatically when the agent recovers to
   // any non-error status. See runtime-events handleError / agent-service updateAgent.
   lastError?: string;
+
+  // Set while the API is serving this agent a DIFFERENT model than the one it
+  // was configured with (silent Anthropic fallback — see shared/model-fallback.ts).
+  // Cleared as soon as a turn comes back on the requested model again.
+  modelFallback?: ModelFallbackInfo;
 
   // Latest TodoWrite snapshot for this agent (most recent task list)
   latestTodos?: AgentTodoItem[];

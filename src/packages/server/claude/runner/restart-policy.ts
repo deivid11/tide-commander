@@ -1,11 +1,40 @@
+import * as fs from 'fs';
 import type { ActiveProcess, RunnerCallbacks, RunnerRequest } from '../types.js';
 import { createLogger } from '../../utils/logger.js';
+import * as agentService from '../../services/agent-service.js';
 
 const log = createLogger('Runner');
 
 const MAX_RESTART_ATTEMPTS = 3;
 const RESTART_COOLDOWN_MS = 60000;
 const MIN_RUNTIME_FOR_RESTART_MS = 5000;
+
+/**
+ * Did the CLI itself actually write anything to stdout during this spawn?
+ *
+ * `lastActivityTime` is NOT usable for this. Side channels update it without
+ * the CLI producing a byte — the grok session watcher emits a usage_snapshot
+ * the moment it attaches, reading signals.json left over from the PREVIOUS
+ * turn. That happens ~300ms after spawn, so a stone-dead hung resume looked
+ * "active", the restart counter reset to zero every cycle, and the capped
+ * restart loop ran forever.
+ *
+ * The stdout log is truncated on every spawn (tmux-helper writes '' before
+ * launching), so a non-empty file means THIS process emitted something.
+ */
+function producedStdout(activeProcess: ActiveProcess): boolean {
+  const file = activeProcess.tmuxLogFile ?? activeProcess.outputFile;
+  if (!file) {
+    // Pipe mode without a log file: fall back to activity time.
+    return activeProcess.lastActivityTime != null
+      && activeProcess.lastActivityTime > activeProcess.startTime;
+  }
+  try {
+    return fs.statSync(file).size > 0;
+  } catch {
+    return false;
+  }
+}
 
 interface RestartPolicyDeps {
   callbacks: RunnerCallbacks;
@@ -73,11 +102,48 @@ export class RunnerRestartPolicy {
     const restartCount = activeProcess.restartCount || 0;
     const lastRestartTime = activeProcess.lastRestartTime || 0;
     const timeSinceLastRestart = Date.now() - lastRestartTime;
-    const effectiveRestartCount = timeSinceLastRestart > RESTART_COOLDOWN_MS ? 0 : restartCount;
+    // Elapsed time alone is NOT proof that a restart was healthy — the CLI must
+    // actually have written to stdout. The idle watchdog only kills a wedged CLI
+    // after IDLE_RESPAWN_MS (180s), which always exceeds RESTART_COOLDOWN_MS
+    // (60s), so a purely time-based reset put every hang→kill→restart cycle back
+    // at "attempt 1/3" and the supposedly capped loop ran forever. That is
+    // exactly the case the cap exists to stop: grok deadlocks replaying a
+    // session that was killed mid-turn, hanging before it opens a single socket
+    // and emitting zero bytes, forever.
+    const producedOutput = producedStdout(activeProcess);
+    const effectiveRestartCount = producedOutput && timeSinceLastRestart > RESTART_COOLDOWN_MS
+      ? 0
+      : restartCount;
 
     if (effectiveRestartCount >= MAX_RESTART_ATTEMPTS) {
       log.error(`🔄 [AUTO-RESTART] Max restart attempts (${MAX_RESTART_ATTEMPTS}) reached for ${agentId}`);
-      this.callbacks.onError(agentId, `Process keeps crashing - auto-restart disabled after ${MAX_RESTART_ATTEMPTS} attempts. Manual intervention required.`);
+
+      if (!producedOutput && activeProcess.sessionId) {
+        // Every attempt replayed the same session and the CLI never wrote a
+        // byte — the session itself is unresumable (grok deadlocks loading a
+        // session that was killed mid-turn, before it even opens a socket).
+        // Retrying it again can only fail the same way, and leaving the id in
+        // place strands the agent: every later message resumes the same corpse,
+        // so the user "can't send messages" until someone manually clears the
+        // context. Drop the id here so the next message starts a fresh session.
+        // Deliberately narrow: only when stdout was completely empty.
+        log.error(`🔄 [AUTO-RESTART] Session ${activeProcess.sessionId} is unresumable for ${agentId} — clearing it so the next message starts fresh`);
+        if (activeProcess.lastRequest) activeProcess.lastRequest.sessionId = undefined;
+        activeProcess.sessionId = undefined;
+        try {
+          agentService.updateAgent(agentId, { sessionId: undefined });
+        } catch (err) {
+          log.error(`🔄 [AUTO-RESTART] Failed to clear session for ${agentId}:`, err);
+        }
+      }
+
+      this.callbacks.onError(
+        agentId,
+        producedOutput
+          ? `Process keeps crashing - auto-restart disabled after ${MAX_RESTART_ATTEMPTS} attempts. Manual intervention required.`
+          : `Session was unresumable - ${MAX_RESTART_ATTEMPTS} restarts produced no output at all. `
+            + `It has been cleared; your next message will start a fresh session (previous conversation is not recoverable).`
+      );
       return;
     }
 

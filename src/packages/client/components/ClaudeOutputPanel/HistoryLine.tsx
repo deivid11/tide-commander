@@ -10,7 +10,7 @@ import { useHideCost, useSettings, useAgentPrompts } from '../../store';
 import { store, type TestRunHandle, type HttpRunHandle } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget, summarizeWebSearch } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { filePreviewHandlers, toolPreviewHandlers, type ToolPreviewTarget } from './toolPreviewHover';
 import { getSlashCommandInfo } from '../../utils/slashCommands';
@@ -647,6 +647,13 @@ export const HistoryLine = memo(function HistoryLine({
       let keyParam = toolName && toolInputContent ? extractToolKeyParam(toolName, toolInputContent) : null;
       if (toolName === 'Bash' && keyParam && keyParam.length > 300) {
         keyParam = keyParam.substring(0, 297) + '...';
+      }
+      // web_search: Codex's tool_start has no query/action yet — the paired
+      // result carries them, so prefer it (mirrors OutputLine).
+      if ((toolName === 'web_search' || toolName === 'WebSearch') && _toolOutput) {
+        try {
+          keyParam = summarizeWebSearch(JSON.parse(_toolOutput)) || keyParam;
+        } catch { /* non-JSON result — keep the input-derived label */ }
       }
 
       const fileTools = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'NotebookEdit'];

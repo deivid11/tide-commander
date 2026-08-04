@@ -38,6 +38,7 @@ import {
   switchProviderCredentialProfile,
   type CredentialProviderId,
 } from '../services/provider-credentials-service.js';
+import { getCodexCredentialProfilesUsage } from '../services/codex-usage-service.js';
 
 const log = createLogger('SystemRoutes');
 const router = Router();
@@ -775,5 +776,20 @@ function mountProviderCredentialRoutes(provider: CredentialProviderId, basePath:
 
 mountProviderCredentialRoutes('grok', '/grok-credentials');
 mountProviderCredentialRoutes('codex', '/codex-credentials');
+
+/**
+ * Daily + weekly rate-limit gauges per stored Codex credential profile — same
+ * admin model as /claude-credentials/usage. Dormant profiles are read through
+ * a temporary CODEX_HOME so the live ~/.codex/auth.json is never touched.
+ */
+router.get('/codex-credentials/usage', async (_req: Request, res: Response) => {
+  try {
+    res.json(await getCodexCredentialProfilesUsage());
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`Failed to fetch Codex credentials usage: ${message}`);
+    res.status(500).json({ error: message });
+  }
+});
 
 export default router;

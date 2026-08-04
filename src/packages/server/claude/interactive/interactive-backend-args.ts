@@ -23,7 +23,7 @@ export interface InteractiveArgsOptions {
  * Translate Tide Commander's '[1m]'-suffixed model labels to the bare model id
  * the CLI accepts (mirrors the mapping in ClaudeBackend.buildArgs).
  */
-function translateCliModel(model: string): string {
+export function translateCliModel(model: string): string {
   if (model === 'opus[1m]') return 'claude-opus-4-7';
   if (model === 'claude-opus-5[1m]') return 'claude-opus-5';
   if (model === 'claude-opus-4-8[1m]') return 'claude-opus-4-8';

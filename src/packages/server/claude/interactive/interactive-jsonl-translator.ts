@@ -17,6 +17,8 @@
  */
 
 import type { StandardEvent } from '../types.js';
+import { toModelFallbackEvent } from '../types.js';
+import { ModelFallbackTracker } from '../../../shared/model-fallback.js';
 import { serializeToolResultContent } from '../tool-result-content.js';
 
 interface RawBlock {
@@ -44,6 +46,8 @@ interface RawRecord {
   uuid?: string;
   sessionId?: string;
   error?: unknown;
+  /** Task-subagent record — runs its own model, not the session's. */
+  isSidechain?: boolean;
   message?: {
     model?: string;
     content?: string | RawBlock[];
@@ -66,6 +70,18 @@ function toTokens(usage?: RawUsage): StandardEvent['tokens'] | undefined {
 export class InteractiveJsonlTranslator {
   private sawInit = false;
   private readonly toolUseIdToName = new Map<string, string>();
+  private readonly fallback: ModelFallbackTracker;
+
+  /**
+   * @param requestedModel model the agent is configured with. Interactive
+   *   transcripts carry no `system/init`, so unlike the stdout pipeline there
+   *   is no session-reported baseline to fall back on — without this, a session
+   *   served by a substituted model from its very first record would look
+   *   perfectly normal.
+   */
+  constructor(requestedModel?: string | null, servedModel?: string | null) {
+    this.fallback = new ModelFallbackTracker(requestedModel, servedModel);
+  }
 
   /** Translate one parsed JSONL record into zero or more StandardEvents. */
   translate(record: unknown): StandardEvent[] {
@@ -97,6 +113,13 @@ export class InteractiveJsonlTranslator {
     if (!this.sawInit) {
       this.sawInit = true;
       events.push({ type: 'init', sessionId: r.sessionId, model: msg.model });
+    }
+
+    // Did the API answer with the model this agent is configured for? Sidechain
+    // records are Task subagents, which run their own model by design.
+    if (msg.model && msg.model !== '<synthetic>' && !r.isSidechain) {
+      const transition = this.fallback.observe(msg.model);
+      if (transition) events.push(toModelFallbackEvent(transition));
     }
 
     for (const block of blocks) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeTideFileHref, isImageViewTool, getImageViewTarget, extractExecWrappedCommand, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, summarizeCodexExecScript, extractToolKeyParam, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, prettifyToolName } from './outputRendering';
+import { decodeTideFileHref, isImageViewTool, getImageViewTarget, extractExecWrappedCommand, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, summarizeCodexExecScript, extractToolKeyParam, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, prettifyToolName, summarizeWebSearch } from './outputRendering';
 
 describe('Codex exec activity summaries', () => {
   it('describes parallel terminal commands without exposing orchestration code', () => {
@@ -453,5 +453,38 @@ describe('view_image tool target', () => {
     expect(getImageViewTarget({})).toBeNull();
     expect(getImageViewTarget('')).toBeNull();
     expect(getImageViewTarget(undefined)).toBeNull();
+  });
+});
+
+describe('summarizeWebSearch', () => {
+  it('prefers the opened URL for an openPage action', () => {
+    // Real Codex app-server result: the URL lands in `query`, action carries the type.
+    expect(summarizeWebSearch({
+      query: 'https://community.daisy.audio/t/out-of-flash-memory/4370/11',
+      actionType: 'openPage',
+      actionUrl: 'https://community.daisy.audio/t/out-of-flash-memory/4370/11',
+    })).toBe('https://community.daisy.audio/t/out-of-flash-memory/4370/11');
+  });
+
+  it('does not quote a bare URL that arrived only in query', () => {
+    expect(summarizeWebSearch({ query: 'https://example.com/page' })).toBe('https://example.com/page');
+  });
+
+  it('quotes plain search queries and joins multiple ones', () => {
+    expect(summarizeWebSearch({ query: 'daisy seed flash' })).toBe('"daisy seed flash"');
+    expect(summarizeWebSearch({ actionQueries: ['one', 'two'] })).toBe('"one", "two"');
+  });
+
+  it('returns null for the empty tool_start payload so the row stays hidden', () => {
+    expect(summarizeWebSearch({})).toBeNull();
+    expect(summarizeWebSearch({ query: '', actionType: null, actionUrl: null })).toBeNull();
+    expect(summarizeWebSearch(undefined)).toBeNull();
+    expect(summarizeWebSearch('not an object')).toBeNull();
+  });
+
+  it('is reachable through extractToolKeyParam for both tool spellings', () => {
+    const json = JSON.stringify({ query: 'kimi k3 context' });
+    expect(extractToolKeyParam('web_search', json)).toBe('"kimi k3 context"');
+    expect(extractToolKeyParam('WebSearch', json)).toBe('"kimi k3 context"');
   });
 });

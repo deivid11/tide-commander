@@ -13,6 +13,8 @@ import type {
   StandardEvent,
   ClaudeRawEvent,
 } from './types.js';
+import { toModelFallbackEvent } from './types.js';
+import { ModelFallbackTracker } from '../../shared/model-fallback.js';
 import { createLogger, sanitizeUnicode } from '../utils/index.js';
 import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
 import { isEchoPromptEnabled, getSystemPrompt } from '../services/system-prompt-service.js';
@@ -182,6 +184,12 @@ interface ClaudeStreamState {
    * which of those entries owns the context window. See selectPrimaryModelUsage.
    */
   mainModel: string | null;
+  /**
+   * Watches the requested model (from the CLI args, then from `system/init`)
+   * against the model each main-loop message was actually served by, and
+   * reports the edges. See shared/model-fallback.ts.
+   */
+  fallback: ModelFallbackTracker;
 }
 
 function resetClaudeStreamState(state: ClaudeStreamState): void {
@@ -271,6 +279,14 @@ export class ClaudeBackend implements CLIBackend {
         streamUuids: new Map(),
         suppressTextDeltas: false,
         mainModel: null,
+        // Seeded from the persisted agent record so a server restart mid-fallback
+        // doesn't lose the "we are being downgraded" flag — otherwise the first
+        // turn back on the right model has nothing to restore from and the
+        // agent's fallback badge would stick forever.
+        fallback: new ModelFallbackTracker(
+          null,
+          (agentId && getAgent(agentId)?.modelFallback?.servedModel) || null
+        ),
       };
       this.streamStates.set(key, state);
     }
@@ -354,6 +370,10 @@ export class ClaudeBackend implements CLIBackend {
       else if (config.model === 'claude-fable-5[1m]') cliModel = 'claude-fable-5';
       else if (config.model === 'claude-sonnet-5[1m]') cliModel = 'claude-sonnet-5';
       args.push('--model', cliModel);
+      // Baseline for silent-fallback detection, in case this run never emits a
+      // `system/init` (resume/tmux reattach paths). `init` overwrites it when
+      // it does arrive, since the CLI resolves aliases there.
+      this.streamState(config.agentId).fallback.setRequested(cliModel);
     }
 
     // Reasoning effort level
@@ -398,7 +418,7 @@ export class ClaudeBackend implements CLIBackend {
 
     switch (event.type) {
       case 'system':
-        result = this.parseSystemEvent(event);
+        result = this.parseSystemEvent(event, agentId);
         break;
 
       case 'assistant':
@@ -550,9 +570,14 @@ export class ClaudeBackend implements CLIBackend {
     return null;
   }
 
-  private parseSystemEvent(event: ClaudeRawEvent): StandardEvent | null {
+  private parseSystemEvent(event: ClaudeRawEvent, agentId?: string): StandardEvent | null {
     if (event.subtype === 'init') {
       console.log(`[Backend] parseSystemEvent init: tools=${JSON.stringify(event.tools)}, agents=${JSON.stringify((event as any).agents)}`);
+      // The session's own answer to "which model am I running?" — the baseline
+      // every later assistant message is compared against.
+      if (event.model) {
+        this.streamState(agentId).fallback.setRequested(event.model);
+      }
       return {
         type: 'init',
         sessionId: event.session_id,
@@ -634,6 +659,14 @@ export class ClaudeBackend implements CLIBackend {
         && !(event as { parent_tool_use_id?: string }).parent_tool_use_id
       ) {
         state.mainModel = messageModel;
+        // Subagents legitimately run their own model and `<synthetic>` is the
+        // CLI's own placeholder — both are excluded above, so anything that
+        // reaches here and disagrees with the session's model is a real swap.
+        const transition = state.fallback.observe(messageModel);
+        if (transition) {
+          log.log(`model fallback: ${transition.restored ? 'restored' : 'active'} — ${transition.label}`);
+          events.push(toModelFallbackEvent(transition));
+        }
       }
 
       // Extract text blocks - emit as non-streaming final text.

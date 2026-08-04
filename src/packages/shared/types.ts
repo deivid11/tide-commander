@@ -7,6 +7,7 @@
 //   - websocket-messages.ts: All WebSocket message interfaces and union types
 
 export * from './agent-types.js';
+export * from './model-fallback.js';
 export * from './building-types.js';
 export * from './database-types.js';
 export * from './common-types.js';

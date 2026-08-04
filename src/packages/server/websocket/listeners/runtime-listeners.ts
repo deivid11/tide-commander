@@ -2,6 +2,7 @@ import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { AgentTodoItem, AgentTodoStatus, ContextStats, ServerMessage, Subagent } from '../../../shared/types.js';
+import { detectModelFallback, formatModelName } from '../../../shared/model-fallback.js';
 import { parseContextOutput } from '../../claude/backend.js';
 import { parseAllFormats } from '../handlers/agent-handler.js';
 import { agentService, runtimeService } from '../../services/index.js';
@@ -149,6 +150,32 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
       if (agent?.isBoss || agent?.class === 'boss') {
         const prev = bossAccumulatedText.get(agentId) || '';
         bossAccumulatedText.set(agentId, prev + event.text);
+      }
+    }
+
+    // The API served a different model than the agent is configured with (or
+    // stopped doing so). Park it on the agent record: the terminal already got
+    // a chat row from the runner, this is what keeps the header chip honest
+    // after a page reload.
+    if (event.type === 'model_fallback') {
+      if (event.fallbackRestored) {
+        agentService.updateAgent(agentId, { modelFallback: undefined }, false);
+        ctx.sendActivity(agentId, `Back on ${formatModelName(event.requestedModel)}`);
+      } else if (event.requestedModel && event.servedModel) {
+        const detection = detectModelFallback(event.requestedModel, event.servedModel);
+        if (detection) {
+          agentService.updateAgent(agentId, {
+            modelFallback: {
+              requestedModel: detection.from,
+              servedModel: detection.to,
+              requestedLabel: detection.fromLabel,
+              servedLabel: detection.toLabel,
+              tierChanged: detection.tierChanged,
+              detectedAt: Date.now(),
+            },
+          }, false);
+          ctx.sendActivity(agentId, `Served by ${detection.toLabel} (asked for ${detection.fromLabel})`);
+        }
       }
     }
 

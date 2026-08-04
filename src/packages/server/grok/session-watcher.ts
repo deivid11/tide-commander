@@ -23,6 +23,14 @@ const DISCOVER_INTERVAL_MS = 250;
 const TAIL_INTERVAL_MS = 200;
 /** Accept sessions created up to this long before process start (slow disk / clock skew). */
 const DISCOVER_GRACE_MS = 5_000;
+/**
+ * How long after `turn_ended` to wait for the CLI's own stdout terminator before
+ * synthesizing step_complete. Long enough that the normal exit path always wins,
+ * far below the idle watchdog's 180s "stuck mid-turn" kill. Read per use so the
+ * env override applies without depending on module-load order.
+ */
+const forceFinalizeGraceMs = (): number =>
+  Number.parseInt(process.env.TIDE_GROK_FORCE_FINALIZE_MS ?? '', 10) || 15_000;
 
 /**
  * Session dir (absolute) → agentId that attached it. Grok keeps every session
@@ -246,6 +254,10 @@ export function startGrokSessionWatcher(opts: GrokSessionWatcherOptions): GrokSe
   let lastSignalsUsageKey = '';
   /** mtime+size of signals.json at last read — skip the 200ms-tick read+parse when unchanged. */
   let lastSignalsStatKey = '';
+  /** Pending synthetic step_complete for a turn whose CLI outlived its own turn_ended. */
+  let forceFinalizeTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Guard so at most one synthetic step_complete is emitted per turn. */
+  let forcedFinalizeThisTurn = false;
 
   const emittedToolStarts = new Set<string>();
   const emittedToolResults = new Set<string>();
@@ -287,6 +299,48 @@ export function startGrokSessionWatcher(opts: GrokSessionWatcherOptions): GrokSe
   const emit = (event: StandardEvent) => {
     if (stopped) return;
     opts.onEvent(event);
+  };
+
+  /**
+   * Force-finalize fallback for a turn that ended without the CLI exiting.
+   *
+   * Grok signals the end of a turn twice: `end` on stdout (which the parser
+   * turns into step_complete) and `turn_ended` in the session's events.jsonl.
+   * Normally the process exits right after, so the stdout path wins and this
+   * timer is torn down before it fires. But grok sometimes finishes the turn
+   * and then lingers forever — a background task it spawned is still alive, or
+   * it simply never exits. Then stdout never carries the terminator, turnState
+   * stays 'processing' for good, and the agent shows "working" with its answer
+   * already written: new messages queue behind a turn that will never end, the
+   * idle watchdog eventually kills the CLI as if it had wedged mid-turn, and
+   * the resulting resume of a session killed mid-turn deadlocks permanently.
+   *
+   * `turn_started`/`turn_ended` are paired 1:1 per turn, so arming on
+   * turn_ended and disarming on turn_started emits at most one synthetic
+   * step_complete per turn, and only when the CLI outlived its own turn.
+   */
+  const disarmForceFinalize = () => {
+    if (forceFinalizeTimer) {
+      clearTimeout(forceFinalizeTimer);
+      forceFinalizeTimer = null;
+    }
+  };
+
+  const armForceFinalize = () => {
+    if (stopped || forcedFinalizeThisTurn) return;
+    disarmForceFinalize();
+    const graceMs = forceFinalizeGraceMs();
+    forceFinalizeTimer = setTimeout(() => {
+      forceFinalizeTimer = null;
+      if (stopped || forcedFinalizeThisTurn) return;
+      forcedFinalizeThisTurn = true;
+      log.warn(
+        `[agentId=${opts.agentId}] turn_ended seen but the CLI never emitted stdout 'end' `
+        + `within ${graceMs / 1000}s — synthesizing step_complete so the turn closes`
+      );
+      emit({ type: 'step_complete', sessionId });
+    }, graceMs);
+    forceFinalizeTimer.unref?.();
   };
 
   const pollSignalsUsage = () => {
@@ -390,9 +444,18 @@ export function startGrokSessionWatcher(opts: GrokSessionWatcherOptions): GrokSe
       return;
     }
 
+    // A new turn began — any pending force-finalize belongs to the previous
+    // turn and is void, and the next turn_ended gets a fresh single shot.
+    if (line.type === 'turn_started') {
+      disarmForceFinalize();
+      forcedFinalizeThisTurn = false;
+      return;
+    }
+
     // End of model turn is a good moment to refresh context stats.
     if (line.type === 'turn_ended') {
       pollSignalsUsage();
+      armForceFinalize();
     }
   };
 
@@ -585,6 +648,7 @@ export function startGrokSessionWatcher(opts: GrokSessionWatcherOptions): GrokSe
     stop: () => {
       if (stopped) return;
       stopped = true;
+      disarmForceFinalize();
       if (discoverTimer) clearInterval(discoverTimer);
       if (tailTimer) clearInterval(tailTimer);
       discoverTimer = null;

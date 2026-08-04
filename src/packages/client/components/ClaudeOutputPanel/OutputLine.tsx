@@ -6,7 +6,7 @@ import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHideCost, useSettings, ClaudeOutput, store, useAgentPrompts, type TestRunHandle, type HttpRunHandle } from '../../store';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget, summarizeWebSearch } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { getSlashCommandInfo } from '../../utils/slashCommands';
@@ -250,6 +250,18 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
 
   // Fallback to extracted key param if available, otherwise try to extract from payload
   let toolKeyParamOrFallback = _toolKeyParam;
+  // web_search: Codex announces the search before the query/action exist, so
+  // the label lives in the RESULT (attached later by the same toolUseId).
+  // Prefer it — the input alone renders as an empty/None row.
+  if (payloadToolName === 'web_search' || payloadToolName === 'WebSearch') {
+    let fromResult: string | null = null;
+    if (payloadToolOutput) {
+      try {
+        fromResult = summarizeWebSearch(JSON.parse(payloadToolOutput));
+      } catch { /* non-JSON result — fall back to the input */ }
+    }
+    toolKeyParamOrFallback = fromResult || summarizeWebSearch(payloadToolInput) || undefined;
+  }
   if (!toolKeyParamOrFallback && payloadToolInput && typeof payloadToolInput === 'object') {
     const input = payloadToolInput as Record<string, unknown>;
     // For search tools, combine pattern + path for better context
