@@ -18,6 +18,8 @@ import {
   findGrokProcessPidInCwd,
 } from '../claude/session-loader.js';
 import * as agentService from './agent-service.js';
+import { ModelFallbackTracker } from '../../shared/model-fallback.js';
+import { toModelFallbackEvent } from '../claude/types.js';
 import { loadRunningProcesses, isProcessRunning } from '../data/index.js';
 import { logger } from '../utils/logger.js';
 import {
@@ -213,6 +215,33 @@ const statusSync = createRuntimeStatusSync({
 // Combined interval for status sync + orphan polling (20 seconds)
 const STATUS_POLL_INTERVAL = 20000;
 let statusPollTimer: NodeJS.Timeout | null = null;
+
+/**
+ * Push a synthetic model-fallback through the exact path a real one takes
+ * (terminal row + agent badge + activity line), for verifying the UI.
+ *
+ * There is no prompt that can trigger a real fallback on demand — the API
+ * decides server-side — so this is the only way to see the rendering without
+ * waiting for one to happen. Simulation only: it changes nothing about which
+ * model actually answers.
+ */
+export function simulateModelFallback(
+  agentId: string,
+  requestedModel: string,
+  servedModel: string
+): boolean {
+  // Seeded from the agent record exactly like the real backend, so passing the
+  // requested model back as the served one produces the "restored" edge and
+  // clears the badge — the same call clears what it set.
+  const tracker = new ModelFallbackTracker(
+    requestedModel,
+    agentService.getAgent(agentId)?.modelFallback?.servedModel ?? null
+  );
+  const transition = tracker.observe(servedModel);
+  if (!transition) return false;
+  runtimeEvents.handleEvent(agentId, toModelFallbackEvent(transition));
+  return true;
+}
 
 export function init(): void {
   const claudeCallbacks = {

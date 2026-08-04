@@ -4,22 +4,27 @@
  * Same account-switcher UX as ClaudeCredentialsPanel, generalized: lists the
  * active ~/.<provider>/auth.json and named copies (auth.david.json, etc.) so
  * operators can switch the live account when rate-limited, without renaming
- * files on disk. Shows email · plan · token expiry per profile (these
- * providers expose no per-account rate-limit gauges the way Claude does).
+ * files on disk. Shows email · plan · token expiry per profile; Codex also
+ * gets per-account daily + weekly rate-limit gauges (same admin model as the
+ * Claude panel). Grok exposes no per-account gauges.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   deleteProviderCredentials,
+  fetchCodexCredentialsUsage,
   fetchProviderCredentials,
   renameProviderCredentials,
   saveProviderCredentials,
   switchProviderCredentials,
+  type CodexProfileRateLimitWindow,
+  type CodexProfileUsage,
   type CredentialProviderId,
   type ProviderCredentialProfileMeta,
   type ProviderCredentialsList,
 } from '../api/provider-credentials';
+import { getUsedPercentColor } from '../utils/claude-usage-format';
 import { Icon } from './Icon';
 
 export interface ProviderCredentialsPanelProps {
@@ -40,14 +45,76 @@ function formatExpiry(ms: number | null): string {
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+// Reset time, compact: same-day → "3:00 PM"; otherwise "Wed 3:00 PM".
+function formatResetShort(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === new Date().toDateString()) return time;
+  return `${d.toLocaleDateString(undefined, { weekday: 'short' })} ${time}`;
+}
+
+/** One compact gauge row: label · bar · % · reset time (Codex profiles). */
+function LimitGauge({ label, window }: { label: string; window: CodexProfileRateLimitWindow | null }) {
+  const { t } = useTranslation(['terminal']);
+  const percent = window ? Math.max(0, Math.min(100, window.utilization)) : 0;
+  const color = window ? getUsedPercentColor(percent) : 'var(--text-muted)';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', marginTop: '3px' }}>
+      <span style={{ width: '52px', flexShrink: 0, color: 'var(--text-secondary)' }}>{label}</span>
+      <div
+        style={{
+          flex: 1,
+          minWidth: '36px',
+          height: '5px',
+          background: 'var(--bg-primary)',
+          borderRadius: '3px',
+          overflow: 'hidden',
+        }}
+      >
+        {window && <div style={{ width: `${percent}%`, height: '100%', background: color }} />}
+      </div>
+      <span style={{ color, fontVariantNumeric: 'tabular-nums', width: '34px', textAlign: 'right', flexShrink: 0 }}>
+        {window ? `${Math.round(percent)}%` : '0%'}
+      </span>
+      <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
+        {window?.resetsAt ? t('terminal:usage.resets', { time: formatResetShort(window.resetsAt) }) : ''}
+      </span>
+    </div>
+  );
+}
+
+/** Daily + weekly gauges for one Codex profile (or its error state). */
+function ProfileLimits({ usage }: { usage: CodexProfileUsage | undefined }) {
+  const { t } = useTranslation(['terminal']);
+  if (!usage) return null;
+
+  const limits = usage.rateLimits;
+  return (
+    <div style={{ marginTop: '4px' }}>
+      {limits && (
+        <>
+          <LimitGauge label={t('terminal:credentials.gaugeDaily', { defaultValue: 'Daily' })} window={limits.daily} />
+          <LimitGauge label={t('terminal:credentials.gaugeWeek', { defaultValue: 'Week' })} window={limits.weekly} />
+        </>
+      )}
+      {usage.error && (
+        <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>{usage.error}</div>
+      )}
+    </div>
+  );
+}
+
 function ProfileRow({
   profile,
+  usage,
   busy,
   onUse,
   onRename,
   onDelete,
 }: {
   profile: ProviderCredentialProfileMeta;
+  usage: CodexProfileUsage | undefined;
   busy: boolean;
   onUse: (name: string) => void;
   onRename: (name: string) => void;
@@ -99,6 +166,7 @@ function ProfileRow({
             </span>
           )}
         </div>
+        <ProfileLimits usage={usage} />
       </div>
       <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
         {!profile.isActive && (
@@ -148,18 +216,33 @@ export function ProviderCredentialsPanel({ provider, onSwitched, compact }: Prov
   const [stashName, setStashName] = useState('');
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  // Daily/weekly gauges per profile id ("active" or name), Codex only, server-cached
+  const [usageById, setUsageById] = useState<Record<string, CodexProfileUsage>>({});
+
+  const loadUsage = useCallback(async () => {
+    if (provider !== 'codex') return;
+    try {
+      const result = await fetchCodexCredentialsUsage();
+      const byId: Record<string, CodexProfileUsage> = {};
+      for (const entry of result.usage) byId[entry.id] = entry;
+      setUsageById(byId);
+    } catch {
+      // Gauges are best-effort decoration; the profile list stays usable.
+    }
+  }, [provider]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       setData(await fetchProviderCredentials(provider));
+      void loadUsage();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  }, [provider]);
+  }, [provider, loadUsage]);
 
   useEffect(() => {
     void load();
@@ -181,6 +264,7 @@ export function ProviderCredentialsPanel({ provider, onSwitched, compact }: Prov
       setData({ provider, dir: data?.dir ?? '', active: result.active, profiles: result.profiles });
       setMessage(t('terminal:credentials.switched', { name }));
       setPendingSwitch(null);
+      void loadUsage();
       onSwitched?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -208,6 +292,7 @@ export function ProviderCredentialsPanel({ provider, onSwitched, compact }: Prov
       );
       setPendingSwitch(null);
       setStashName('');
+      void loadUsage();
       onSwitched?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -307,6 +392,10 @@ export function ProviderCredentialsPanel({ provider, onSwitched, compact }: Prov
             {data?.active?.email && <span style={{ color: 'var(--text-secondary)' }}> · {data.active.email}</span>}
             {data?.active?.label && <span style={{ color: 'var(--text-secondary)' }}> ({data.active.label})</span>}
           </div>
+          {/* Unsaved active account has no profile row below — show its gauges here */}
+          {data?.active && !data.active.matchesNamed && (
+            <ProfileLimits usage={usageById['active']} />
+          )}
         </div>
         <button
           type="button"
@@ -415,6 +504,7 @@ export function ProviderCredentialsPanel({ provider, onSwitched, compact }: Prov
         <ProfileRow
           key={profile.name}
           profile={profile}
+          usage={usageById[profile.id]}
           busy={busy}
           onUse={(n) => void handleUse(n)}
           onRename={(n) => void handleRename(n)}

@@ -176,6 +176,36 @@ describe('RunnerStdoutPipeline', () => {
     expect(callbacks.onOutput).toHaveBeenCalledWith('agent-4', 'emitted after reset', undefined, undefined, undefined);
   });
 
+  it('turns a model_fallback event into a visible warning row', () => {
+    const { callbacks, pipeline } = createPipeline();
+
+    (pipeline as any).handleEvent('agent-mf', {
+      type: 'model_fallback',
+      requestedModel: 'claude-fable-5',
+      servedModel: 'claude-opus-4-8',
+      text: 'Fable 5 → Opus 4.8',
+    } satisfies StandardEvent);
+
+    const [, line] = vi.mocked(callbacks.onOutput).mock.calls[0];
+    expect(line).toContain('⚠ [System] Model fallback:');
+    expect(line).toContain('Fable 5 → Opus 4.8');
+  });
+
+  it('turns a restored model_fallback into a success row', () => {
+    const { callbacks, pipeline } = createPipeline();
+
+    (pipeline as any).handleEvent('agent-mf2', {
+      type: 'model_fallback',
+      fallbackRestored: true,
+      requestedModel: 'claude-fable-5',
+      servedModel: 'claude-fable-5',
+      text: 'Fable 5',
+    } satisfies StandardEvent);
+
+    const [, line] = vi.mocked(callbacks.onOutput).mock.calls[0];
+    expect(line).toBe('✅ [System] Model restored: back on Fable 5');
+  });
+
   it('does not apply notification suppression to codex backends', () => {
     const { callbacks, pipeline } = createPipeline('codex');
 

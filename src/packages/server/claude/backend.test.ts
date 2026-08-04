@@ -919,6 +919,100 @@ describe('ClaudeBackend', () => {
         expect(result.toolUseId).toBe('tu-bg-3');
       });
 
+      describe('silent model fallback', () => {
+        // Each case gets its own backend + agentId so the per-agent baseline
+        // from one test cannot leak into the next.
+        const startSession = (agentId: string, model: string) => {
+          const backend = new ClaudeBackend();
+          backend.parseEvent(
+            { type: 'system', subtype: 'init', session_id: 's1', model },
+            agentId
+          );
+          return backend;
+        };
+
+        // parseEvent collapses a single-event result to the event itself.
+        const assistantOn = (backend: ClaudeBackend, agentId: string, model: string, extra = {}) => {
+          const result = backend.parseEvent(
+            {
+              type: 'assistant',
+              uuid: 'u1',
+              message: { model, content: [{ type: 'text', text: 'hello' }] },
+              ...extra,
+            },
+            agentId
+          );
+          return (Array.isArray(result) ? result : result ? [result] : []) as StandardEvent[];
+        };
+
+        it('flags a message served by a different model than the session asked for', () => {
+          const backend = startSession('a1', 'claude-fable-5');
+          const events = assistantOn(backend, 'a1', 'claude-opus-4-8');
+
+          const fallback = events.find((e) => e.type === 'model_fallback');
+          expect(fallback).toMatchObject({
+            requestedModel: 'claude-fable-5',
+            servedModel: 'claude-opus-4-8',
+            text: 'Fable 5 → Opus 4.8',
+          });
+        });
+
+        it('stays silent while the requested model is answering', () => {
+          const backend = startSession('a2', 'claude-fable-5');
+          const events = assistantOn(backend, 'a2', 'claude-fable-5');
+          expect(events.some((e) => e.type === 'model_fallback')).toBe(false);
+        });
+
+        it('announces a sustained fallback once, not once per message', () => {
+          const backend = startSession('a3', 'claude-opus-5');
+          const first = assistantOn(backend, 'a3', 'claude-opus-4-8');
+          const second = assistantOn(backend, 'a3', 'claude-opus-4-8');
+
+          expect(first.filter((e) => e.type === 'model_fallback')).toHaveLength(1);
+          expect(second.some((e) => e.type === 'model_fallback')).toBe(false);
+        });
+
+        it('reports the requested model coming back', () => {
+          const backend = startSession('a4', 'claude-fable-5');
+          assistantOn(backend, 'a4', 'claude-opus-4-8');
+          const restored = assistantOn(backend, 'a4', 'claude-fable-5')
+            .find((e) => e.type === 'model_fallback');
+
+          expect(restored).toMatchObject({
+            fallbackRestored: true,
+            requestedModel: 'claude-fable-5',
+            text: 'Fable 5',
+          });
+        });
+
+        it('ignores subagents, which legitimately run their own model', () => {
+          const backend = startSession('a5', 'claude-fable-5');
+          const events = assistantOn(backend, 'a5', 'claude-haiku-4-5', {
+            parent_tool_use_id: 'tu-task-1',
+          });
+          expect(events.some((e) => e.type === 'model_fallback')).toBe(false);
+        });
+
+        it('ignores <synthetic> CLI-generated messages (rate-limit notices)', () => {
+          const backend = startSession('a6', 'claude-fable-5');
+          const events = assistantOn(backend, 'a6', '<synthetic>');
+          expect(events.some((e) => e.type === 'model_fallback')).toBe(false);
+        });
+
+        it('keeps two concurrent agents from cross-triggering each other', () => {
+          const backend = startSession('a7', 'claude-fable-5');
+          backend.parseEvent(
+            { type: 'system', subtype: 'init', session_id: 's2', model: 'claude-opus-4-8' },
+            'a8'
+          );
+
+          // a8 asked for Opus 4.8 and got it — no report on its own stream…
+          expect(assistantOn(backend, 'a8', 'claude-opus-4-8').some((e) => e.type === 'model_fallback')).toBe(false);
+          // …while a7 asked for Fable and is being downgraded to the same model.
+          expect(assistantOn(backend, 'a7', 'claude-opus-4-8').some((e) => e.type === 'model_fallback')).toBe(true);
+        });
+      });
+
       it('parses /context output from local-command-stdout', () => {
         const contextOutput = `<local-command-stdout>## Context Usage
 **Model:** claude-opus-4-6

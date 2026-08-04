@@ -1332,6 +1332,7 @@
     "noProfiles": "No named profiles yet. Save the active account with a name (e.g. david, jc) to create one.",
     "tokenExpires": "token expires {{time}}",
     "gaugeSession": "Session",
+    "gaugeDaily": "Daily",
     "gaugeWeek": "Week",
     "gaugeWeekOpus": "Opus wk",
     "gaugeWeekFable": "Fable wk",

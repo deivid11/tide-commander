@@ -22,6 +22,11 @@ const IDLE_RESPAWN_MS = Number.parseInt(process.env.TIDE_IDLE_RESPAWN_MS ?? '', 
 // count as activity, and message sends flip turnState to 'processing', so neither
 // can trip this.
 const STUCK_WORKING_RECONCILE_MS = Number.parseInt(process.env.TIDE_STUCK_WORKING_RECONCILE_MS ?? '', 10) || 180_000;
+// A one-prompt-per-process CLI (grok/codex/opencode) whose turn already ended
+// should exit on its own within moments. Anything still alive this long after
+// its turn is a corpse squatting on the tmux session — reap it so the next
+// message can spawn and the queue drains.
+const LINGER_AFTER_TURN_MS = Number.parseInt(process.env.TIDE_LINGER_AFTER_TURN_MS ?? '', 10) || 30_000;
 
 interface WatchdogDeps {
   activeProcesses: Map<string, ActiveProcess>;
@@ -138,6 +143,35 @@ export class RunnerWatchdog {
               agentId,
               `[idle-watchdog] tmux CLI produced no output for ${silentSec}s while processing — killed to recover`
             );
+            activeProcess.tmuxTailer?.stop();
+            killTmuxSession(agentId);
+            continue;
+          }
+        }
+
+        // Lingering-after-turn reap: the turn is over (waiting_for_input) but a
+        // one-prompt-per-process CLI never exited. Grok does this when the turn
+        // spawned a background process (a dev server) that outlives it, or for
+        // no visible reason at all. It matters because sendCommand ALWAYS queues
+        // for stdin-closed tmux backends and relies on the respawn path to
+        // deliver — so while the corpse holds the session, every new message
+        // sits in the queue undelivered and the user sees "working" forever.
+        // Killing the session routes through watchdog_missing_process →
+        // restartPolicy, which skips restart on waiting_for_input and lets the
+        // next message spawn cleanly. Only for closesStdinAfterPrompt backends:
+        // claude deliberately stays alive between turns to reuse stdin.
+        if (
+          activeProcess.closesStdinAfterPrompt
+          && activeProcess.turnState === 'waiting_for_input'
+        ) {
+          const lingeredFor = now - (activeProcess.lastActivityTime ?? activeProcess.startTime);
+          if (lingeredFor > LINGER_AFTER_TURN_MS) {
+            log.log(
+              `🐕 [WATCHDOG] Agent ${agentId}: turn ended but CLI '${expected}' still alive `
+              + `${Math.round(lingeredFor / 1000)}s later (threshold=${LINGER_AFTER_TURN_MS / 1000}s) `
+              + `— killing tmux session ${activeProcess.tmuxSession} so queued messages can be delivered`
+            );
+            activeProcess.tmuxTailer?.drain();
             activeProcess.tmuxTailer?.stop();
             killTmuxSession(agentId);
             continue;

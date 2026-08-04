@@ -37,6 +37,24 @@ export interface ProviderCredentialsSwitchResult {
   previousMatchesNamed: string | null;
 }
 
+export interface CodexProfileRateLimitWindow {
+  utilization: number;
+  resetsAt: string;
+  windowDurationMins: number | null;
+}
+
+export interface CodexProfileUsage {
+  /** "active" for the live auth file, else the named profile slug. */
+  id: string;
+  rateLimits: { daily: CodexProfileRateLimitWindow | null; weekly: CodexProfileRateLimitWindow | null } | null;
+  error: string | null;
+  fetchedAt: number;
+}
+
+export interface CodexProfilesUsageResult {
+  usage: CodexProfileUsage[];
+}
+
 function basePath(provider: CredentialProviderId): string {
   return `/api/system/${provider}-credentials`;
 }
@@ -57,6 +75,15 @@ export async function fetchProviderCredentials(provider: CredentialProviderId): 
     throw new Error(await readError(response, `Failed to list ${provider} credentials: ${response.status}`));
   }
   return (await response.json()) as ProviderCredentialsList;
+}
+
+/** Daily + weekly rate-limit gauges per stored Codex profile, server-cached. */
+export async function fetchCodexCredentialsUsage(): Promise<CodexProfilesUsageResult> {
+  const response = await authFetch(apiUrl(`${basePath('codex')}/usage`));
+  if (!response.ok) {
+    throw new Error(await readError(response, `Failed to fetch codex credentials usage: ${response.status}`));
+  }
+  return (await response.json()) as CodexProfilesUsageResult;
 }
 
 export async function switchProviderCredentials(

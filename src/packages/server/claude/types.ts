@@ -4,6 +4,7 @@
  */
 
 import type { CodexConfig } from '../../shared/types.js';
+import type { ModelFallbackTransition } from '../../shared/model-fallback.js';
 
 // Standard normalized event format (backend-agnostic)
 export interface StandardEvent {
@@ -20,6 +21,7 @@ export interface StandardEvent {
     | 'block_end'
     | 'context_stats'   // Response from /context command
     | 'compacting'      // Context compaction in progress
+    | 'model_fallback'  // API served the turn with a different model than requested
     | 'task_started'    // Task/Agent tool launched in background — still running after its stub tool_result
     | 'task_notification'; // Background task finished; the CLI is waking the model with its result
   blockType?: 'text' | 'thinking';
@@ -47,6 +49,11 @@ export interface StandardEvent {
   durationMs?: number;
   isStreaming?: boolean;
   model?: string;
+  // model_fallback: the model the session asked for vs the one that answered.
+  // `fallbackRestored` marks the turn where the requested model came back.
+  requestedModel?: string;
+  servedModel?: string;
+  fallbackRestored?: boolean;
   tools?: string[];
   errorMessage?: string;
   resultText?: string;  // Full result text from result event (for boss delegation parsing)
@@ -71,6 +78,17 @@ export interface StandardEvent {
     toolUseCount: number;
   };
   taskId?: string;              // Short task ID from task_started system event
+}
+
+/** Shape a tracker transition as the event the runner pipeline renders. */
+export function toModelFallbackEvent(transition: ModelFallbackTransition): StandardEvent {
+  return {
+    type: 'model_fallback',
+    requestedModel: transition.requestedModel,
+    servedModel: transition.servedModel,
+    text: transition.label,
+    ...(transition.restored ? { fallbackRestored: true } : {}),
+  };
 }
 
 // Custom agent definition for --agents flag
@@ -300,6 +318,13 @@ export interface ActiveProcess {
   // watchdog can tell when the inner CLI died but the wrapping shell pipeline
   // kept the tmux session alive (zombie session).
   tmuxExpectedCommand?: string;
+  /**
+   * True for backends whose CLI consumes one prompt and is expected to exit
+   * (grok, codex, opencode). These have no reusable stdin, so a process still
+   * alive after its turn ended is a leak the watchdog must reap — unlike
+   * stdin-open backends (claude), which deliberately stay alive between turns.
+   */
+  closesStdinAfterPrompt?: boolean;
   /** Optional side-channel cleanup (e.g. Grok session file watcher). */
   sideChannelStop?: () => void;
 }

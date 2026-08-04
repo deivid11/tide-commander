@@ -19,6 +19,7 @@ import {
 } from '../api/claude-usage';
 import { getUsedPercentColor, formatResetTime } from '../utils/claude-usage-format';
 import { ClaudeCredentialsPanel } from './ClaudeCredentialsPanel';
+import { ProviderCredentialsPanel } from './ProviderCredentialsPanel';
 
 interface ContextViewModalProps {
   agent: Agent;
@@ -377,6 +378,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
               error={usageError}
               onRefresh={loadUsage}
               showClaudeAccounts={agent.provider === 'claude'}
+              showCodexAccounts={agent.provider === 'codex'}
             />
           )}
         </div>
@@ -408,6 +410,8 @@ interface ProviderUsageSectionProps {
   onRefresh: () => void;
   /** When true, render the Claude OAuth account switcher under the gauges. */
   showClaudeAccounts?: boolean;
+  /** When true, render the Codex account switcher (with gauges) under the gauges. */
+  showCodexAccounts?: boolean;
 }
 
 function formatActivityDate(isoDate: string): string {
@@ -480,7 +484,7 @@ function buildRateLimitWindows(
   return windows;
 }
 
-function ProviderUsageSection({ snapshot, loading, error, onRefresh, showClaudeAccounts = false }: ProviderUsageSectionProps) {
+function ProviderUsageSection({ snapshot, loading, error, onRefresh, showClaudeAccounts = false, showCodexAccounts = false }: ProviderUsageSectionProps) {
   const { t } = useTranslation(['terminal', 'common']);
 
   const claudeSnapshot = snapshot?.provider === 'claude' ? (snapshot as ClaudeUsageSnapshot) : null;
@@ -750,6 +754,11 @@ function ProviderUsageSection({ snapshot, loading, error, onRefresh, showClaudeA
       {/* Switch Claude OAuth accounts when rate-limited (always for Claude). */}
       {showClaudeAccounts && (
         <ClaudeCredentialsPanel compact onSwitched={onRefresh} />
+      )}
+
+      {/* Switch Codex accounts when rate-limited (always for Codex). */}
+      {showCodexAccounts && (
+        <ProviderCredentialsPanel provider="codex" compact onSwitched={onRefresh} />
       )}
     </div>
   );

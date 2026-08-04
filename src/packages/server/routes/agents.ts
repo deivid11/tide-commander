@@ -1417,6 +1417,34 @@ router.post('/:id/collapse-context', async (req: Request<{ id: string }>, res: R
   }
 });
 
+// POST /api/agents/:id/simulate-model-fallback - Render a model swap without waiting for one.
+//
+// The API decides server-side whether to substitute a model, so no prompt can
+// force a real fallback on demand. This drives the same code path a real one
+// takes (terminal row + header chip + activity) so the UI can be verified.
+// Simulation only — the agent keeps running on whatever model it always was.
+router.post('/:id/simulate-model-fallback', (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const agentId = req.params.id;
+    const agent = agentService.getAgent(agentId);
+    if (!agent) {
+      res.status(404).json({ error: `Agent not found: ${agentId}` });
+      return;
+    }
+
+    const body = (req.body ?? {}) as { requestedModel?: string; servedModel?: string };
+    const requestedModel = body.requestedModel || agent.model || 'claude-fable-5';
+    const servedModel = body.servedModel || 'claude-opus-4-8';
+
+    const emitted = runtimeService.simulateModelFallback(agentId, requestedModel, servedModel);
+    log.log(`API simulate-model-fallback for ${agentId}: ${requestedModel} -> ${servedModel} (emitted=${emitted})`);
+    res.json({ success: true, agentId, requestedModel, servedModel, emitted, simulated: true });
+  } catch (err: any) {
+    log.error(' Failed to simulate model fallback:', err);
+    res.status(500).json({ error: err?.message || 'Failed to simulate model fallback' });
+  }
+});
+
 // POST /api/agents/:id/report-task - Subordinate reports task completion to its boss
 router.post('/:id/report-task', async (req: Request<{ id: string }>, res: Response) => {
   try {

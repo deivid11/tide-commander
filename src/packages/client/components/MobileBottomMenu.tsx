@@ -91,25 +91,6 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
         </button>
       )}
 
-      {onOpenLastAgent && !agentChatOpen && (
-        <button
-          type="button"
-          className="mobile-bottom-menu__btn mobile-bottom-menu__btn--last-agent"
-          onClick={onOpenLastAgent}
-          title={lastAgentName
-            ? t('common:mobileBottomMenu.openLastAgentNamed', { name: lastAgentName, defaultValue: `Open ${lastAgentName}` })
-            : t('common:mobileBottomMenu.lastAgent', { defaultValue: 'Last agent' })}
-          aria-label={lastAgentName
-            ? t('common:mobileBottomMenu.openLastAgentNamed', { name: lastAgentName, defaultValue: `Open ${lastAgentName}` })
-            : t('common:mobileBottomMenu.lastAgent', { defaultValue: 'Last agent' })}
-        >
-          <span className="mobile-bottom-menu__icon"><Icon name="chat" size={18} /></span>
-          <span className="mobile-bottom-menu__label">
-            {lastAgentName || t('common:mobileBottomMenu.lastAgent', { defaultValue: 'Last agent' })}
-          </span>
-        </button>
-      )}
-
       <button
         type="button"
         className={`mobile-bottom-menu__btn ${activeView === 'settings' ? 'mobile-bottom-menu__btn--active' : ''}`}
@@ -186,6 +167,25 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
         >
           <span className="mobile-bottom-menu__icon"><Icon name="more" size={18} /></span>
           <span className="mobile-bottom-menu__label">{t('common:mobileBottomMenu.actions', { defaultValue: 'Actions' })}</span>
+        </button>
+      )}
+
+      {onOpenLastAgent && !agentChatOpen && (
+        <button
+          type="button"
+          className="mobile-bottom-menu__btn mobile-bottom-menu__btn--last-agent"
+          onClick={onOpenLastAgent}
+          title={lastAgentName
+            ? t('common:mobileBottomMenu.openLastAgentNamed', { name: lastAgentName, defaultValue: `Open ${lastAgentName}` })
+            : t('common:mobileBottomMenu.lastAgent', { defaultValue: 'Last agent' })}
+          aria-label={lastAgentName
+            ? t('common:mobileBottomMenu.openLastAgentNamed', { name: lastAgentName, defaultValue: `Open ${lastAgentName}` })
+            : t('common:mobileBottomMenu.lastAgent', { defaultValue: 'Last agent' })}
+        >
+          <span className="mobile-bottom-menu__icon"><Icon name="chat" size={18} /></span>
+          <span className="mobile-bottom-menu__label">
+            {lastAgentName || t('common:mobileBottomMenu.lastAgent', { defaultValue: 'Last agent' })}
+          </span>
         </button>
       )}
 

@@ -101,6 +101,77 @@ describe('startGrokSessionWatcher', () => {
     }
   });
 
+  it('synthesizes step_complete when the CLI outlives its own turn_ended', async () => {
+    const prev = process.env.TIDE_GROK_FORCE_FINALIZE_MS;
+    process.env.TIDE_GROK_FORCE_FINALIZE_MS = '150';
+    try {
+      const events: StandardEvent[] = [];
+      const watcher = startGrokSessionWatcher({
+        agentId: 'agent-test',
+        workingDir: projectDir,
+        sessionId,
+        startedAt: Date.now(),
+        onEvent: (e) => events.push(e),
+      });
+
+      fs.appendFileSync(
+        path.join(sessionDir, 'events.jsonl'),
+        JSON.stringify({ ts: new Date().toISOString(), type: 'turn_started' }) + '\n'
+        + JSON.stringify({ ts: new Date().toISOString(), type: 'turn_ended' }) + '\n',
+        'utf8'
+      );
+
+      // Before the grace elapses the turn must stay open — otherwise a healthy
+      // turn whose process is about to exit would be double-terminated.
+      await new Promise((r) => setTimeout(r, 250));
+      expect(events.filter((e) => e.type === 'step_complete')).toHaveLength(0);
+
+      await new Promise((r) => setTimeout(r, 400));
+      expect(events.filter((e) => e.type === 'step_complete')).toHaveLength(1);
+
+      watcher.stop();
+    } finally {
+      if (prev === undefined) delete process.env.TIDE_GROK_FORCE_FINALIZE_MS;
+      else process.env.TIDE_GROK_FORCE_FINALIZE_MS = prev;
+    }
+  });
+
+  it('does not synthesize step_complete when a new turn starts within the grace window', async () => {
+    const prev = process.env.TIDE_GROK_FORCE_FINALIZE_MS;
+    process.env.TIDE_GROK_FORCE_FINALIZE_MS = '400';
+    try {
+      const events: StandardEvent[] = [];
+      const watcher = startGrokSessionWatcher({
+        agentId: 'agent-test',
+        workingDir: projectDir,
+        sessionId,
+        startedAt: Date.now(),
+        onEvent: (e) => events.push(e),
+      });
+
+      const eventsPath = path.join(sessionDir, 'events.jsonl');
+      fs.appendFileSync(
+        eventsPath,
+        JSON.stringify({ ts: new Date().toISOString(), type: 'turn_ended' }) + '\n',
+        'utf8'
+      );
+      await new Promise((r) => setTimeout(r, 250));
+      fs.appendFileSync(
+        eventsPath,
+        JSON.stringify({ ts: new Date().toISOString(), type: 'turn_started' }) + '\n',
+        'utf8'
+      );
+
+      await new Promise((r) => setTimeout(r, 600));
+      expect(events.filter((e) => e.type === 'step_complete')).toHaveLength(0);
+
+      watcher.stop();
+    } finally {
+      if (prev === undefined) delete process.env.TIDE_GROK_FORCE_FINALIZE_MS;
+      else process.env.TIDE_GROK_FORCE_FINALIZE_MS = prev;
+    }
+  });
+
   it('emits tool_start/tool_result from chat_history and early starts from events', async () => {
     const events: StandardEvent[] = [];
     const watcher = startGrokSessionWatcher({

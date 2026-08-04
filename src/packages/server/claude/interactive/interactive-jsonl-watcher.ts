@@ -10,7 +10,9 @@
 import * as fs from 'fs';
 import { createFileTailer, type TmuxFileTailer } from '../runner/tmux-helper.js';
 import { InteractiveJsonlTranslator } from './interactive-jsonl-translator.js';
+import { translateCliModel } from './interactive-backend-args.js';
 import type { StandardEvent } from '../types.js';
+import { getAgent } from '../../services/agent-service.js';
 import { createLogger } from '../../utils/logger.js';
 
 const log = createLogger('Interactive');
@@ -34,9 +36,19 @@ export interface InteractiveWatcherOptions {
 
 export class InteractiveJsonlWatcher {
   private tailer: TmuxFileTailer | null = null;
-  private readonly translator = new InteractiveJsonlTranslator();
+  private readonly translator: InteractiveJsonlTranslator;
 
-  constructor(private readonly opts: InteractiveWatcherOptions) {}
+  constructor(private readonly opts: InteractiveWatcherOptions) {
+    // Baseline + last-known state for silent-fallback detection. The transcript
+    // has no `system/init` to read the session model from, so it comes from the
+    // agent record — which also carries any fallback still in effect from before
+    // a commander restart.
+    const agent = getAgent(opts.agentId);
+    this.translator = new InteractiveJsonlTranslator(
+      agent?.model ? translateCliModel(agent.model) : null,
+      agent?.modelFallback?.servedModel ?? null
+    );
+  }
 
   start(): void {
     if (this.tailer) return;

@@ -177,12 +177,13 @@ export class RunnerProcessLifecycle {
         log.log(`📤 [TMUX-STDIN] Passing initial prompt (${initialStdin.length} chars) via shell pipe for agent ${agentId}`);
       }
 
+      const closesStdinAfterPrompt = this.backend.shouldCloseStdinAfterPrompt?.() ?? false;
       const tmuxResult = spawnInTmux(executable, args, {
         agentId,
         cwd: workingDir,
         env,
         initialStdin,
-        closeStdinAfterPrompt: this.backend.shouldCloseStdinAfterPrompt?.() ?? false,
+        closeStdinAfterPrompt: closesStdinAfterPrompt,
       });
 
       const activeProcess: ActiveProcess = {
@@ -196,6 +197,7 @@ export class RunnerProcessLifecycle {
         tmuxSession: tmuxResult.sessionName,
         tmuxLogFile: tmuxResult.logFile,
         tmuxExpectedCommand: path.basename(executable),
+        closesStdinAfterPrompt,
       };
       this.activeProcesses.set(agentId, activeProcess);
       this.attachGrokSideChannel(activeProcess, agentId, workingDir, grokWatcherSessionId);

@@ -712,6 +712,33 @@
   text-transform: lowercase;
 }
 
+// The API is answering with a model other than the configured one. Widened
+// because it carries two model names, and tinted so it reads as a warning
+// rather than as a normal "here is your model" chip.
+.guake-model-chip--fallback {
+  max-width: 260px;
+  color: var(--accent-yellow);
+  background: color-mix(in srgb, var(--accent-yellow) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent-yellow) 45%, transparent);
+
+  .guake-model-chip-name {
+    color: inherit;
+    opacity: 0.75;
+    text-decoration: line-through;
+  }
+
+  .guake-model-chip-sep {
+    opacity: 0.85;
+  }
+}
+
+.guake-model-chip-served {
+  color: var(--accent-yellow);
+  text-transform: lowercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 // Container for title + provider icon
 .guake-title-with-provider {
   display: flex;

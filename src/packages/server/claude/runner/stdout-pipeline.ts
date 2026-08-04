@@ -171,7 +171,8 @@ export class RunnerStdoutPipeline {
     // usage_snapshot (context tracking), error (always important).
     if (this.notificationSent.has(agentId)) {
       const passthrough = event.type === 'init' || event.type === 'step_complete'
-        || event.type === 'usage_snapshot' || event.type === 'error' || event.type === 'compacting';
+        || event.type === 'usage_snapshot' || event.type === 'error' || event.type === 'compacting'
+        || event.type === 'model_fallback';
       if (!passthrough) {
         return;
       }
@@ -367,6 +368,21 @@ export class RunnerStdoutPipeline {
       case 'compacting':
         // Emit as output so runtime-listeners can broadcast it to clients
         this.callbacks.onOutput(agentId, '[System] Compacting context...', false, undefined, event.uuid);
+        break;
+
+      case 'model_fallback':
+        // The API swapped models on us without asking. Make it a visible row in
+        // the terminal — two of the three fallback lanes are silent by design,
+        // so this line is the only place the user ever learns about it.
+        this.callbacks.onOutput(
+          agentId,
+          event.fallbackRestored
+            ? `✅ [System] Model restored: back on ${event.text}`
+            : `⚠ [System] Model fallback: the API answered with ${event.text} — not the model this agent is configured to run`,
+          false,
+          undefined,
+          event.uuid
+        );
         break;
 
       default:

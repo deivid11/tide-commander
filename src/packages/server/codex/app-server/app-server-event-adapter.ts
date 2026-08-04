@@ -129,8 +129,15 @@ export class CodexAppServerEventAdapter {
         const ids = item.id ? { uuid: item.id, toolUseId: item.id } : {};
         return [{ type: 'tool_start', toolName: 'Bash', toolInput: { command, status: item.status }, ...ids }];
       }
-      case 'webSearch':
-        return [{ type: 'tool_start', toolName: 'web_search', toolInput: this.webSearchInput(item) }];
+      case 'webSearch': {
+        // Same id on start + result (like commandExecution) so the client
+        // attaches the completed search onto this card. Without it the result
+        // — which carries the ONLY useful data, since itemStarted fires before
+        // the query/action are known — had nowhere to land and the row was
+        // stuck showing an all-empty input.
+        const ids = item.id ? { uuid: item.id, toolUseId: item.id } : {};
+        return [{ type: 'tool_start', toolName: 'web_search', toolInput: this.webSearchInput(item), ...ids }];
+      }
       // agentMessage / reasoning: deltas carry the content; fileChange diff lands
       // on completion. Everything else stays silent on start.
       default:
@@ -162,8 +169,10 @@ export class CodexAppServerEventAdapter {
       }
       case 'fileChange':
         return this.handleFileChange(item);
-      case 'webSearch':
-        return [{ type: 'tool_result', toolName: 'web_search', toolOutput: JSON.stringify(this.webSearchInput(item)) }];
+      case 'webSearch': {
+        const ids = item.id ? { uuid: item.id, toolUseId: item.id } : {};
+        return [{ type: 'tool_result', toolName: 'web_search', toolOutput: JSON.stringify(this.webSearchInput(item)), ...ids }];
+      }
       case 'collabAgentToolCall': {
         const toolName = item.tool || 'collab_tool';
         const toolInput: Record<string, unknown> = { tool: item.tool, status: item.status };
@@ -203,14 +212,16 @@ export class CodexAppServerEventAdapter {
     return events;
   }
 
+  /** Only the fields Codex actually populated — an all-null payload renders as
+   *  a row of noise ({"query":"","actionType":null,…}) instead of nothing. */
   private webSearchInput(item: AppServerItem): Record<string, unknown> {
-    return {
-      query: item.query,
-      actionType: item.action?.type,
-      actionQuery: item.action?.query,
-      actionQueries: item.action?.queries,
-      actionUrl: item.action?.url,
-    };
+    const out: Record<string, unknown> = {};
+    if (item.query) out.query = item.query;
+    if (item.action?.type) out.actionType = item.action.type;
+    if (item.action?.query) out.actionQuery = item.action.query;
+    if (item.action?.queries?.length) out.actionQueries = item.action.queries;
+    if (item.action?.url) out.actionUrl = item.action.url;
+    return out;
   }
 
   private captureTokenUsage(tokenUsage: unknown): void {

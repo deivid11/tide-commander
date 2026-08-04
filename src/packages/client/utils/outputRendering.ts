@@ -203,6 +203,37 @@ export function truncateFilePath(filePath: string, maxLength: number = 50): stri
 }
 
 /**
+ * Human label for a web-search payload, from either the tool input or the
+ * tool RESULT (they share a shape).
+ *
+ * Codex's app-server emits `itemStarted` for a webSearch BEFORE the query or
+ * action is known, so the input is empty and only the result carries data:
+ * `{query, actionType, actionQuery, actionQueries, actionUrl}` — where for an
+ * `openPage` action `query` holds the opened URL. Returns null when nothing
+ * useful is present, so callers can keep hiding the bare row.
+ */
+export function summarizeWebSearch(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+  const p = payload as Record<string, unknown>;
+  const str = (v: unknown): string | undefined =>
+    typeof v === 'string' && v.trim() ? v.trim() : undefined;
+
+  const url = str(p.actionUrl) || str(p.url);
+  if (url) return url;
+
+  const queries = Array.isArray(p.actionQueries)
+    ? (p.actionQueries as unknown[]).map(str).filter((q): q is string => !!q)
+    : [];
+  if (queries.length) return queries.map((q) => `"${q}"`).join(', ');
+
+  const query = str(p.query) || str(p.actionQuery) || str(p.q) || str(p.search);
+  // An openPage action puts the URL in `query`; don't wrap that in quotes.
+  if (query) return /^https?:\/\//i.test(query) ? query : `"${query}"`;
+
+  return null;
+}
+
+/**
  * Extract key parameter from tool input JSON for display
  * Returns a human-readable summary of what the tool is operating on
  * NO TRUNCATION - shows full content for readability
@@ -345,11 +376,10 @@ export function extractToolKeyParam(toolName: string, inputJson: string): string
         }
         break;
       }
-      case 'WebSearch': {
-        const query = input.query || input.q || input.search;
-        if (typeof query === 'string' && query) {
-          return `"${query}"`; // Full query
-        }
+      case 'WebSearch':
+      case 'web_search': {
+        const label = summarizeWebSearch(input);
+        if (label) return label;
         break;
       }
       case 'Task':

@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.175.0] - 2026-08-04
+
+### Added
+- **Silent model-fallback detection** - the API can serve a turn with a different model than the one a session was started with: a refusal fallback, a capacity/quota fallback, or a server-side mid-stream swap. Only the first shows a dialog in the CLI; the other two are completely silent and ignore the local opt-outs. Tide Commander now compares the model the session reported at startup against the model that actually answered each main-loop message, and surfaces the mismatch as a row in the terminal and as a warning chip in the header reading `Opus 5 → Sonnet 5`. The flag clears as soon as a turn comes back on the configured model, survives a commander restart mid-fallback, and works in interactive TUI mode too (where the transcript has no startup record to compare against, so the agent's configured model is used as the baseline). Task subagents, which legitimately run their own model, are excluded.
+- **Codex per-account usage gauges and account switcher** - Codex agents now get the same daily + weekly rate-limit gauges per stored credential profile that Claude accounts have, plus an inline account switcher in the context view for switching when one account is rate-limited. Dormant profiles are read through a throwaway `CODEX_HOME` so the live `~/.codex/auth.json` is never touched, and if the read rotates a profile's tokens the new credentials are written back to every copy of that profile (skipping any copy that changed while the read was in flight, so a newer grant is never clobbered).
+- **Web-search details for Codex** - Codex's app-server announces a web search before the query is known, so the row rendered bare. Searches now show the query (or the opened URL) by reading the result payload when the input is still empty.
+
+### Fixed
+- **Endless restart loop on a wedged CLI** - the restart cap reset itself on elapsed time alone, and the idle watchdog only kills a hung CLI after 180 s, which always exceeds the 60 s cooldown — so every hang → kill → restart cycle went back to "attempt 1 of 3" and the supposedly capped loop ran forever. A restart now only counts as healthy if the CLI actually wrote to stdout; side-channel activity (a session watcher replaying the previous turn's usage file ~300 ms after spawn) no longer passes for a live process.
+- **Agents stuck "working" with the answer already on screen** - a one-prompt-per-process CLI (grok in particular) sometimes finishes its turn and then never exits, usually because the turn spawned a background process that outlives it. The stdout terminator never arrives, the turn stays open forever, and because messages always queue for these backends, everything sent afterwards waited behind a turn that would never end — until the watchdog killed it as if it had wedged mid-turn, whose resume then deadlocked permanently. Two guards close this: a synthetic turn-completion after a short grace period when the session's own event log reports the turn ended, and a watchdog reap of a process still alive 30 s after its turn finished.
+
 ## [1.174.0] - 2026-07-30
 
 ### Added
