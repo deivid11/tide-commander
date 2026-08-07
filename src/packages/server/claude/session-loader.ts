@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as readline from 'readline';
+import { spawn, spawnSync } from 'child_process';
 import Database from 'better-sqlite3';
 import { createLogger } from '../utils/logger.js';
 import { materializeCodexGeneratedImage } from '../codex/generated-image.js';
@@ -835,6 +836,33 @@ function extractClaudeMessageText(message: unknown): string {
 }
 
 /**
+ * Header cache for listAllSessions/searchAllSessions. A COMPLETE header
+ * (cwd + first prompt) lives in the first lines of the session file, which
+ * never change once written — reuse it forever. Incomplete headers (fresh
+ * session whose prompt hasn't flushed yet) are re-read only when the file has
+ * grown since the last look. Without this, every Session Finder search
+ * re-opened ~1000 files just to recover data that was identical every time.
+ */
+interface SessionHeaderCacheEntry {
+  cwd: string;
+  firstPrompt: string;
+  sizeAtRead: number;
+}
+const sessionHeaderCache = new Map<string, SessionHeaderCacheEntry>();
+const SESSION_HEADER_CACHE_MAX = 8000;
+
+async function readSessionHeaderCached(filePath: string, sizeBytes: number): Promise<{ cwd: string; firstPrompt: string }> {
+  const cached = sessionHeaderCache.get(filePath);
+  if (cached && ((cached.cwd && cached.firstPrompt) || cached.sizeAtRead === sizeBytes)) {
+    return cached;
+  }
+  const header = await readSessionHeader(filePath);
+  if (sessionHeaderCache.size >= SESSION_HEADER_CACHE_MAX) sessionHeaderCache.clear();
+  sessionHeaderCache.set(filePath, { ...header, sizeAtRead: sizeBytes });
+  return header;
+}
+
+/**
  * Read the first up-to-`maxLines` JSONL records of a session file. Used to
  * cheaply recover `cwd` and the first user prompt without parsing the whole
  * conversation. Falls back to a single readFileSync slice for very small files.
@@ -936,7 +964,7 @@ export async function listAllSessions(options?: {
         const idx = cursor++;
         const item = limited[idx];
         const filePath = path.join(PROJECTS_DIR, item.projectDir, `${item.sessionId}.jsonl`);
-        const header = await readSessionHeader(filePath);
+        const header = await readSessionHeaderCached(filePath, item.sizeBytes);
         item.projectPath = header.cwd;
         item.firstPrompt = header.firstPrompt;
         if (options?.includeMessageCount) {
@@ -962,9 +990,519 @@ export async function listAllSessions(options?: {
   return limited;
 }
 
+// ── Global search fast path ──────────────────────────────────────────────────
+
+/** Per-file scan stops counting past this — enough signal for display/ranking,
+ * and it stops burning IO on a hot file with thousands of hits. */
+const SEARCH_MATCHES_PER_FILE_CAP = 500;
+const SEARCH_FILE_CACHE_MAX = 6000;
+
+/** Refinement-answer bounds: matching lines are only retained when there are
+ * few and they're short — enough to answer every follow-up keystroke from
+ * memory for the typical file, without letting the cache balloon. */
+const SEARCH_CACHE_LINES_MAX = 60;
+const SEARCH_CACHE_LINE_LEN_MAX = 4096;
+
+export interface SearchFileCacheEntry {
+  mtimeMs: number;
+  sizeBytes: number;
+  /** Lowercased query this result was computed for. */
+  query: string;
+  totalMatches: number;
+  snippet: string;
+  /** The COMPLETE set of matching lines, present only when the scan saw all of
+   * them within the retention bounds. A refined query (one containing `query`)
+   * can then be answered by re-testing just these lines — no file read. */
+  matchingLines?: string[];
+  /** File size at the moment the scan reached EOF. Session JSONL files are
+   * append-only, so a later, larger file can be answered by scanning ONLY
+   * [scannedBytes, EOF) and adding the head answer from this entry — that is
+   * what keeps actively-streaming sessions (always the newest, always scanned
+   * first) from being re-read whole on every keystroke. Absent when the scan
+   * stopped early at the per-file match cap. */
+  scannedBytes?: number;
+}
+
+/** filePath → recent computed outcomes for that file (newest first, small cap).
+ * Multiple entries matter for real typing: "vir"→"virtu"→"virtual" then a
+ * backspace must hit the still-valid "virtu" entry instead of rescanning. */
+const searchFileCache = new Map<string, SearchFileCacheEntry[]>();
+const SEARCH_CACHE_ENTRIES_PER_FILE = 3;
+
+/** Bumped by every searchAllSessions call; in-flight workers of an older
+ * generation stop scheduling new files (their partial response is discarded by
+ * the client's seq guard anyway). */
+let searchAllSessionsGeneration = 0;
+
 /**
- * Full-text search every Claude session for `query`. Streams files line-by-line
- * so memory usage stays bounded even with many large sessions.
+ * Decide whether a cached per-file result answers `queryLower` without
+ * re-reading the file. Exact same query on an unchanged file → reuse. A
+ * ZERO-match entry also answers any longer query that CONTAINS the cached one
+ * (if "scro" appears nowhere in the file, "scroll" cannot either) — which is
+ * exactly what happens on every keystroke while the user types, so refining a
+ * query only re-reads the files that were still matching.
+ */
+/** Head answer (count/snippet/lines) derivable from a cache entry for
+ * `queryLower` WITHOUT reading the bytes the entry covers. */
+function headAnswerFrom(
+  entry: SearchFileCacheEntry,
+  queryLower: string,
+): { totalMatches: number; snippet: string; matchingLines?: string[] } | null {
+  if (entry.query === queryLower) {
+    return { totalMatches: entry.totalMatches, snippet: entry.snippet, matchingLines: entry.matchingLines };
+  }
+  if (!queryLower.includes(entry.query)) return null;
+  if (entry.totalMatches === 0) return { totalMatches: 0, snippet: '', matchingLines: [] };
+  // Refined query: its matches are a subset of the cached query's matching
+  // lines — when we have ALL of them, answer by re-testing just those lines.
+  if (entry.matchingLines) {
+    const matcher = new RegExp(escapeRegExp(queryLower), 'i');
+    const matchingLines: string[] = [];
+    let snippet = '';
+    for (const line of entry.matchingLines) {
+      if (!matcher.test(line)) continue;
+      matchingLines.push(line);
+      if (!snippet) snippet = deriveSearchSnippet(line, queryLower);
+    }
+    return { totalMatches: matchingLines.length, snippet, matchingLines };
+  }
+  return null;
+}
+
+export type FileSearchPlan =
+  | { kind: 'reuse'; totalMatches: number; snippet: string }
+  | { kind: 'tail'; startByte: number; head: { totalMatches: number; snippet: string; matchingLines?: string[] } }
+  | { kind: 'full' };
+
+/**
+ * Decide how to answer `queryLower` for one file given its cached outcomes:
+ * - unchanged file + answerable from an entry → 'reuse' (no IO at all);
+ * - grown file (sessions are append-only) + answerable head → 'tail', scan
+ *   only the appended bytes — the actively-streaming sessions are the newest
+ *   files, scanned first on every keystroke, and this is what keeps them from
+ *   being re-read whole each time;
+ * - anything else (shrunk/rewritten file, underivable head) → 'full'.
+ * Entries are tried newest-first; the freshest answerable one wins.
+ */
+export function planFileSearch(
+  entries: readonly SearchFileCacheEntry[] | undefined,
+  queryLower: string,
+  mtimeMs: number,
+  sizeBytes: number,
+): FileSearchPlan {
+  if (!entries || entries.length === 0) return { kind: 'full' };
+  let tailPlan: FileSearchPlan | null = null;
+  for (const entry of entries) {
+    const head = headAnswerFrom(entry, queryLower);
+    if (!head) continue;
+    if (entry.mtimeMs === mtimeMs && entry.sizeBytes === sizeBytes) {
+      return { kind: 'reuse', totalMatches: head.totalMatches, snippet: head.snippet };
+    }
+    if (entry.scannedBytes !== undefined && sizeBytes >= entry.scannedBytes) {
+      // Prefer the entry that leaves the smallest tail to scan.
+      if (tailPlan === null || (tailPlan.kind === 'tail' && entry.scannedBytes > tailPlan.startByte)) {
+        tailPlan = { kind: 'tail', startByte: entry.scannedBytes, head };
+      }
+    }
+  }
+  return tailPlan ?? { kind: 'full' };
+}
+
+/** Insert/replace an outcome in a file's entry list (newest first, capped). */
+function storeSearchEntry(filePath: string, entry: SearchFileCacheEntry): void {
+  if (searchFileCache.size >= SEARCH_FILE_CACHE_MAX) searchFileCache.clear();
+  const existing = searchFileCache.get(filePath) ?? [];
+  const kept = existing.filter((e) => e.query !== entry.query);
+  kept.unshift(entry);
+  searchFileCache.set(filePath, kept.slice(0, SEARCH_CACHE_ENTRIES_PER_FILE));
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Snippet quality ranks — higher wins. The Session Finder shows the snippet
+ * to a human: real conversation text beats tool chatter beats raw JSON. */
+const SNIPPET_RANK_RAW = 1;
+const SNIPPET_RANK_TOOL = 2;
+const SNIPPET_RANK_MESSAGE = 3;
+
+/** Readable one-liner for a tool_use / tool_result content block, if any. */
+function firstToolText(content: unknown): string {
+  if (!Array.isArray(content)) return '';
+  for (const block of content) {
+    if (!block || typeof block !== 'object') continue;
+    const b = block as { type?: string; name?: string; input?: unknown; content?: unknown };
+    if (b.type === 'tool_use') {
+      const input = b.input as Record<string, unknown> | undefined;
+      const arg = input && (input.command ?? input.file_path ?? input.path ?? input.pattern ?? input.query ?? input.url ?? input.description);
+      const argText = typeof arg === 'string' ? arg : input ? JSON.stringify(input) : '';
+      return `${b.name ?? 'tool'}: ${argText}`;
+    }
+    if (b.type === 'tool_result') {
+      const inner = b.content;
+      if (typeof inner === 'string' && inner.trim()) return inner;
+      if (Array.isArray(inner)) {
+        for (const part of inner) {
+          const text = (part as { text?: unknown } | null)?.text;
+          if (typeof text === 'string' && text.trim()) return text;
+        }
+      }
+    }
+  }
+  return '';
+}
+
+/** Best human-readable text for a matched JSONL line, with its quality rank. */
+function extractReadableLineText(line: string): { text: string; rank: number } {
+  try {
+    const obj = JSON.parse(line) as { type?: string; message?: unknown; content?: unknown; summary?: unknown };
+    if (obj.type === 'user' || obj.type === 'assistant') {
+      const text = extractClaudeMessageText(obj.message);
+      if (text.trim()) return { text, rank: SNIPPET_RANK_MESSAGE };
+      const toolText = firstToolText((obj.message as { content?: unknown } | undefined)?.content);
+      if (toolText) return { text: toolText, rank: SNIPPET_RANK_TOOL };
+    }
+    if (obj.type === 'queue-operation' && typeof obj.content === 'string' && obj.content.trim()) {
+      return { text: obj.content, rank: SNIPPET_RANK_MESSAGE };
+    }
+    if (typeof obj.summary === 'string' && obj.summary.trim()) {
+      return { text: obj.summary, rank: SNIPPET_RANK_TOOL };
+    }
+  } catch { /* not JSON — treat as raw */ }
+  return { text: line, rank: SNIPPET_RANK_RAW };
+}
+
+/** Collapse to one line and window around the first query occurrence, so the
+ * user sees the matched context instead of the start of a long message. */
+function windowSnippet(text: string, queryLower: string): string {
+  const collapsed = text.replace(/\s+/g, ' ').trim();
+  if (collapsed.length <= SEARCH_SNIPPET_MAX_LEN) return collapsed;
+  const at = queryLower ? collapsed.toLowerCase().indexOf(queryLower) : -1;
+  if (at <= 80) return truncate(collapsed, SEARCH_SNIPPET_MAX_LEN);
+  const start = at - 80;
+  const end = Math.min(collapsed.length, start + SEARCH_SNIPPET_MAX_LEN - 2);
+  return `…${collapsed.slice(start, end)}${end < collapsed.length ? '…' : ''}`;
+}
+
+/** Clean display snippet from a matching JSONL line (message text preferred). */
+function deriveSearchSnippet(line: string, queryLower: string): string {
+  return windowSnippet(extractReadableLineText(line).text, queryLower);
+}
+
+/**
+ * Scan one session file for a case-insensitive substring match.
+ *
+ * Reads 1 MB chunks and runs ONE compiled case-insensitive regex over each
+ * chunk; a chunk is split into lines only when it matched. The previous
+ * readline implementation allocated a string per line PLUS a lowercased copy
+ * of every line — ~2× the corpus in throwaway allocations per search (the
+ * session corpus here is measured in GBs, and single lines carrying base64
+ * attachments run to hundreds of KB).
+ */
+export async function scanSessionFileForQuery(
+  filePath: string,
+  query: string,
+  startByte?: number,
+  /** Also collect the first N matching lines (windowed around the match when
+   * huge) regardless of the refinement-cache retention rules — used by the
+   * preview's raw-match fallback, which must SHOW hits that live outside the
+   * parsed conversation. */
+  keepFirst?: number,
+): Promise<{ totalMatches: number; snippet: string; matchingLines?: string[]; firstLines?: string[]; reachedEof: boolean }> {
+  const matcher = new RegExp(escapeRegExp(query), 'i');
+  const queryLower = query.toLowerCase();
+  let totalMatches = 0;
+  let snippet = '';
+  let snippetRank = 0;
+  let snippetAttempts = 0;
+  let reachedEof = true;
+  const firstLines: string[] | undefined = keepFirst ? [] : undefined;
+  const FIRST_LINE_WINDOW = 2400;
+  // Matching lines retained for refinement answers (see SearchFileCacheEntry);
+  // null once the file exceeds the retention bounds.
+  let matchingLines: string[] | null = [];
+  // Cap how much un-newlined text accumulates (giant single lines): scan and
+  // drop, keeping a query-sized overlap so a match can't fall through the cut.
+  // Counts may be ±1 on such lines — irrelevant for display.
+  const MAX_CARRY = 4 * 1024 * 1024;
+  let carry = '';
+
+  const countMatchingLines = (text: string) => {
+    if (!matcher.test(text)) return;
+    for (const line of text.split('\n')) {
+      if (!line || !matcher.test(line)) continue;
+      totalMatches++;
+      if (firstLines && keepFirst && firstLines.length < keepFirst) {
+        if (line.length <= FIRST_LINE_WINDOW) {
+          firstLines.push(line);
+        } else {
+          const at = line.toLowerCase().indexOf(queryLower);
+          const start = Math.max(0, at - 400);
+          const end = Math.min(line.length, start + FIRST_LINE_WINDOW);
+          firstLines.push(`${start > 0 ? '…' : ''}${line.slice(start, end)}${end < line.length ? '…' : ''}`);
+        }
+      }
+      // Upgrade the snippet until real conversation text is found (bounded:
+      // each attempt JSON-parses one matched line).
+      if (snippetRank < SNIPPET_RANK_MESSAGE && snippetAttempts < 30) {
+        snippetAttempts++;
+        const readable = extractReadableLineText(line);
+        if (readable.rank > snippetRank) {
+          snippetRank = readable.rank;
+          snippet = windowSnippet(readable.text, queryLower);
+        }
+      }
+      if (matchingLines) {
+        // Partial giant-line slices are also unsafe to retain, but they always
+        // exceed the length bound anyway.
+        if (line.length > SEARCH_CACHE_LINE_LEN_MAX || matchingLines.length >= SEARCH_CACHE_LINES_MAX) {
+          matchingLines = null;
+        } else {
+          matchingLines.push(line);
+        }
+      }
+    }
+  };
+
+  const stream = fs.createReadStream(filePath, {
+    encoding: 'utf-8',
+    highWaterMark: 1 << 20,
+    start: startByte,
+  });
+  try {
+    for await (const chunk of stream) {
+      const text = carry + (chunk as string);
+      const lastNewline = text.lastIndexOf('\n');
+      if (lastNewline === -1) {
+        if (text.length > MAX_CARRY) {
+          countMatchingLines(text);
+          const overlap = Math.max(query.length - 1, 0);
+          carry = overlap > 0 ? text.slice(-overlap) : '';
+        } else {
+          carry = text;
+        }
+        continue;
+      }
+      countMatchingLines(text.slice(0, lastNewline));
+      carry = text.slice(lastNewline + 1);
+      if (totalMatches >= SEARCH_MATCHES_PER_FILE_CAP) {
+        reachedEof = false;
+        break;
+      }
+    }
+  } finally {
+    stream.destroy();
+  }
+  if (reachedEof && carry) countMatchingLines(carry);
+  return {
+    totalMatches,
+    snippet,
+    // Only a COMPLETE set answers refinements (a capped scan saw a subset).
+    matchingLines: matchingLines !== null && reachedEof ? matchingLines : undefined,
+    firstLines,
+    reachedEof,
+  };
+}
+
+// ── ripgrep engine ───────────────────────────────────────────────────────────
+// When rg is on PATH it does the cold scanning: SIMD + all cores make it
+// ~10-40× the JS chunk scanner on this corpus (measured 0.1-0.5s vs 2-4.5s).
+// The JS scanner remains the fallback engine and the tail-resume path.
+
+let rgAvailableCache: boolean | null = null;
+function isRgAvailable(): boolean {
+  if (rgAvailableCache === null) {
+    try {
+      rgAvailableCache = spawnSync('rg', ['--version'], { timeout: 3000 }).status === 0;
+    } catch {
+      rgAvailableCache = false;
+    }
+  }
+  return rgAvailableCache;
+}
+
+/** Run rg and return stdout ('' on no matches). Null = rg failed to run. */
+function runRg(args: string[], timeoutMs = 20_000): Promise<string | null> {
+  return new Promise((resolve) => {
+    const child = spawn('rg', args, { stdio: ['ignore', 'pipe', 'ignore'] });
+    const chunks: Buffer[] = [];
+    const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
+    child.stdout.on('data', (c: Buffer) => chunks.push(c));
+    child.on('error', () => {
+      clearTimeout(timer);
+      resolve(null);
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      // rg exits 0 with matches, 1 with none — both are success here.
+      if (code === 0 || code === 1) resolve(Buffer.concat(chunks).toString('utf-8'));
+      else resolve(null);
+    });
+  });
+}
+
+/** Parse `rg -c` output (`path:count` per line) into a path → count map. */
+export function parseRgCounts(output: string): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const line of output.split('\n')) {
+    if (!line) continue;
+    const sep = line.lastIndexOf(':');
+    if (sep <= 0) continue;
+    const count = Number(line.slice(sep + 1));
+    if (Number.isFinite(count) && count > 0) counts.set(line.slice(0, sep), count);
+  }
+  return counts;
+}
+
+/** Parse plain rg output (`path:matched line text`) into path → sample lines.
+ * Our absolute session paths contain no ':', so the first colon splits.
+ * Lines rg replaced under --max-columns ("[Omitted long matching line]") are
+ * dropped — they'd otherwise leak into snippets as literal marker text. */
+export function parseRgSampleLines(output: string): Map<string, string[]> {
+  const byPath = new Map<string, string[]>();
+  for (const line of output.split('\n')) {
+    if (!line.startsWith('/')) continue;
+    const sep = line.indexOf(':');
+    if (sep <= 0) continue;
+    const filePath = line.slice(0, sep);
+    const text = line.slice(sep + 1);
+    if (text.startsWith('[Omitted long')) continue;
+    const lines = byPath.get(filePath) ?? [];
+    if (lines.length < 8) lines.push(text);
+    byPath.set(filePath, lines);
+  }
+  return byPath;
+}
+
+/** How many sample lines pass B asks rg for, per file. A cache entry whose
+ * totalMatches is within this bound therefore retains its COMPLETE match set
+ * and can answer refined queries from memory. */
+const RG_SAMPLE_LINES_PER_FILE = 5;
+
+/**
+ * ripgrep-engined search over the candidate sessions. Two passes:
+ *   A) one `rg -c` over every file the cache can't answer → per-file counts
+ *      (also learns which files have ZERO matches — that knowledge prunes
+ *      every refined query later);
+ *   B) one `rg -m N` over just the displayed top files → sample lines for
+ *      readable snippets and (small files) the refinement cache.
+ * Returns null when rg misbehaves so the caller can use the JS engine.
+ */
+async function searchViaRipgrep(
+  candidates: GlobalSessionInfo[],
+  query: string,
+  queryLower: string,
+  limit: number,
+  generation: number,
+): Promise<GlobalSessionSearchMatch[] | null> {
+  interface Hit { session: GlobalSessionInfo; filePath: string; totalMatches: number; snippet: string }
+  const reused: Hit[] = [];
+  const toScan: Array<{ session: GlobalSessionInfo; filePath: string; mtimeMs: number }> = [];
+
+  for (const session of candidates) {
+    const filePath = path.join(PROJECTS_DIR, session.projectDir, `${session.sessionId}.jsonl`);
+    const mtimeMs = session.lastModified.getTime();
+    const plan = planFileSearch(searchFileCache.get(filePath), queryLower, mtimeMs, session.sizeBytes);
+    if (plan.kind === 'reuse') {
+      if (plan.totalMatches > 0) reused.push({ session, filePath, totalMatches: plan.totalMatches, snippet: plan.snippet });
+    } else {
+      toScan.push({ session, filePath, mtimeMs });
+    }
+  }
+
+  let counts = new Map<string, number>();
+  if (toScan.length > 0) {
+    const output = await runRg([
+      '-i', '--fixed-strings', '-a', '--no-config', '--no-messages', '-c', '--',
+      query, ...toScan.map((f) => f.filePath),
+    ]);
+    if (output === null) return null;
+    if (generation !== searchAllSessionsGeneration) return []; // superseded — client discards
+    counts = parseRgCounts(output);
+  }
+
+  const all: Hit[] = [
+    ...reused,
+    ...toScan
+      .filter((f) => (counts.get(f.filePath) ?? 0) > 0)
+      .map((f) => ({ session: f.session, filePath: f.filePath, totalMatches: counts.get(f.filePath) as number, snippet: '' })),
+  ];
+  all.sort((a, b) => b.session.lastModified.getTime() - a.session.lastModified.getTime());
+  const top = all.slice(0, limit);
+
+  const needLines = top.filter((h) => !h.snippet).map((h) => h.filePath);
+  let samples = new Map<string, string[]>();
+  if (needLines.length > 0) {
+    const output = await runRg([
+      '-i', '--fixed-strings', '-a', '--no-config', '--no-messages', '--with-filename',
+      '--max-columns', '4096', '-m', String(RG_SAMPLE_LINES_PER_FILE), '--',
+      query, ...needLines,
+    ]);
+    if (output !== null) samples = parseRgSampleLines(output);
+  }
+
+  for (const hit of top) {
+    if (hit.snippet) continue;
+    let bestRank = 0;
+    for (const line of samples.get(hit.filePath) ?? []) {
+      const readable = extractReadableLineText(line);
+      if (readable.rank > bestRank) {
+        bestRank = readable.rank;
+        hit.snippet = windowSnippet(readable.text, queryLower);
+      }
+      if (bestRank >= SNIPPET_RANK_MESSAGE) break;
+    }
+  }
+
+  // Refresh the cache with everything this run learned — zero-match files
+  // included (that's the refinement pruning for the next keystrokes).
+  const topByPath = new Map(top.map((h) => [h.filePath, h]));
+  for (const f of toScan) {
+    const totalMatches = counts.get(f.filePath) ?? 0;
+    const lines = samples.get(f.filePath);
+    // Retained lines must be the COMPLETE, untruncated match set: rg's
+    // --max-columns replaces over-long lines with an omission marker, so
+    // "every line still contains the query" is the integrity check.
+    const matchingLines = totalMatches === 0
+      ? []
+      : lines !== undefined
+          && totalMatches <= RG_SAMPLE_LINES_PER_FILE
+          && lines.length >= totalMatches
+          && lines.every((l) => l.length <= SEARCH_CACHE_LINE_LEN_MAX && l.toLowerCase().includes(queryLower))
+        ? lines.slice(0, totalMatches)
+        : undefined;
+    storeSearchEntry(f.filePath, {
+      mtimeMs: f.mtimeMs,
+      sizeBytes: f.session.sizeBytes,
+      query: queryLower,
+      totalMatches,
+      snippet: topByPath.get(f.filePath)?.snippet ?? '',
+      matchingLines,
+    });
+  }
+
+  return top.map((h) => ({
+    sessionId: h.session.sessionId,
+    projectPath: h.session.projectPath,
+    projectDir: h.session.projectDir,
+    lastModified: h.session.lastModified,
+    totalMatches: h.totalMatches,
+    snippet: h.snippet,
+    firstPrompt: h.session.firstPrompt,
+  }));
+}
+
+/**
+ * Full-text search every Claude session for `query`.
+ *
+ * Fast paths layered on top of the raw scan (which is O(corpus) and the corpus
+ * grows forever): cached headers (listAllSessions), per-file result cache with
+ * query-refinement pruning (planFileSearch), a ripgrep cold-scan engine when
+ * available (single process, all cores), chunked JS scanning as the fallback,
+ * and early termination — sessions are scheduled newest-first, so once `limit`
+ * sessions have matched, every unscheduled session is older than every
+ * collected match and cannot make the cut.
  */
 export async function searchAllSessions(
   query: string,
@@ -979,58 +1517,91 @@ export async function searchAllSessions(
   const limit = options?.limit ?? 100;
   const cwdFilter = options?.cwdFilter?.toLowerCase();
 
+  // Stale-search cancelation: while the user types, each keystroke supersedes
+  // the in-flight scan; without this, overlapping searches keep burning IO on
+  // results the client will discard (it seq-guards responses).
+  const generation = ++searchAllSessionsGeneration;
+
   const sessions = await listAllSessions({ limit: 1000 });
+  const candidates = cwdFilter
+    ? sessions.filter((s) => s.projectPath.toLowerCase().includes(cwdFilter))
+    : sessions;
+
+  if (isRgAvailable()) {
+    const viaRg = await searchViaRipgrep(candidates, trimmed, queryLower, limit, generation);
+    if (viaRg !== null) return viaRg;
+    // rg hiccup — fall through to the JS engine.
+  }
 
   const out: GlobalSessionSearchMatch[] = [];
-  const concurrency = 6;
+  const concurrency = 10;
   let cursor = 0;
   const workers: Promise<void>[] = [];
   for (let i = 0; i < concurrency; i++) {
     workers.push((async () => {
-      while (cursor < sessions.length) {
+      while (true) {
+        if (generation !== searchAllSessionsGeneration) break; // superseded
+        if (out.length >= limit) break; // see early-termination note above
         const idx = cursor++;
-        const session = sessions[idx];
-        if (cwdFilter && !session.projectPath.toLowerCase().includes(cwdFilter)) continue;
+        if (idx >= candidates.length) break;
+        const session = candidates[idx];
         const filePath = path.join(PROJECTS_DIR, session.projectDir, `${session.sessionId}.jsonl`);
-        let totalMatches = 0;
-        let snippet = '';
-        try {
-          const stream = fs.createReadStream(filePath, { encoding: 'utf-8' });
-          const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-          for await (const line of rl) {
-            if (!line) continue;
-            // Skip the cheap path: just lowercase the raw line and substring search.
-            // This avoids parsing every JSON record but matches inside any field
-            // (message text, tool args, etc.) — fine for a UX search.
-            if (!line.toLowerCase().includes(queryLower)) continue;
-            totalMatches++;
-            if (!snippet) {
-              // try to extract a clean text snippet from message content
-              try {
-                const obj = JSON.parse(line) as { type?: string; message?: unknown; content?: unknown };
-                if (obj.type === 'user' || obj.type === 'assistant') {
-                  const text = extractClaudeMessageText(obj.message);
-                  if (text) snippet = text;
-                } else if (obj.type === 'queue-operation' && typeof obj.content === 'string') {
-                  snippet = obj.content;
-                }
-              } catch { /* fall through to raw-line snippet */ }
-              if (!snippet) snippet = line;
-              snippet = truncate(snippet.replace(/\s+/g, ' ').trim(), SEARCH_SNIPPET_MAX_LEN);
-            }
-          }
-          rl.close();
-          stream.destroy();
-        } catch { /* unreadable — skip */ }
+        const mtimeMs = session.lastModified.getTime();
 
-        if (totalMatches > 0) {
+        const plan = planFileSearch(searchFileCache.get(filePath), queryLower, mtimeMs, session.sizeBytes);
+        let result: { totalMatches: number; snippet: string };
+        if (plan.kind === 'reuse') {
+          result = plan;
+        } else {
+          let scan: Awaited<ReturnType<typeof scanSessionFileForQuery>>;
+          try {
+            scan = await scanSessionFileForQuery(
+              filePath,
+              trimmed,
+              plan.kind === 'tail' ? plan.startByte : undefined,
+            );
+          } catch {
+            continue; // unreadable — skip
+          }
+          const head = plan.kind === 'tail'
+            ? plan.head
+            : { totalMatches: 0, snippet: '', matchingLines: [] as string[] | undefined };
+          const merged = {
+            totalMatches: head.totalMatches + scan.totalMatches,
+            snippet: head.snippet || scan.snippet,
+            matchingLines:
+              head.matchingLines && scan.matchingLines
+                && head.matchingLines.length + scan.matchingLines.length <= SEARCH_CACHE_LINES_MAX
+                ? [...head.matchingLines, ...scan.matchingLines]
+                : undefined,
+          };
+          // Resume bookkeeping: where EOF sat when this scan finished. Stat
+          // AFTER the read so an append landing mid-scan re-tails next time
+          // instead of being skipped forever.
+          let scannedBytes: number | undefined;
+          if (scan.reachedEof) {
+            try { scannedBytes = fs.statSync(filePath).size; } catch { /* keep undefined */ }
+          }
+          storeSearchEntry(filePath, {
+            mtimeMs,
+            sizeBytes: session.sizeBytes,
+            query: queryLower,
+            totalMatches: merged.totalMatches,
+            snippet: merged.snippet,
+            matchingLines: merged.matchingLines,
+            scannedBytes,
+          });
+          result = merged;
+        }
+
+        if (result.totalMatches > 0) {
           out.push({
             sessionId: session.sessionId,
             projectPath: session.projectPath,
             projectDir: session.projectDir,
             lastModified: session.lastModified,
-            totalMatches,
-            snippet,
+            totalMatches: result.totalMatches,
+            snippet: result.snippet,
             firstPrompt: session.firstPrompt,
           });
         }
@@ -2179,6 +2750,90 @@ export async function loadSession(
     totalCount,
     hasMore: startIndex > 0,
   };
+}
+
+/**
+ * Preview window anchored on the most recent message matching `query`.
+ * The Session Finder preview must SHOW the match: the plain tail window made
+ * the match navigator report "0/0" whenever the hit sat deeper in the session
+ * than the last `limit` messages.
+ */
+export async function loadSessionAroundMatch(
+  cwd: string,
+  sessionId: string,
+  limit: number,
+  query: string,
+): Promise<ConversationHistory | null> {
+  const resolved = resolveSessionFile(cwd, sessionId);
+  if (!resolved) {
+    log.log(` Session file not found for session ${sessionId}`);
+    return null;
+  }
+  const { messages } = await parseSessionMessagesCached(resolved);
+  const totalCount = messages.length;
+  const q = query.trim().toLowerCase();
+
+  let anchor = -1;
+  if (q) {
+    for (let i = totalCount - 1; i >= 0; i--) {
+      const m = messages[i];
+      // Mirror what the preview renders (and what its match counter scans):
+      // message content, plus the pretty-printed tool input of tool_use rows.
+      let text = m.content || '';
+      if (m.toolInput !== undefined) {
+        try { text += ' ' + JSON.stringify(m.toolInput, null, 2); } catch { /* unstringifiable input */ }
+      }
+      if (text.toLowerCase().includes(q)) {
+        anchor = i;
+        break;
+      }
+    }
+  }
+
+  if (anchor === -1) {
+    // The hit lives in raw JSONL the preview doesn't render (subagent
+    // sidechains, file snapshots, wire metadata). Surface the matching raw
+    // lines as synthetic rows so the user still SEES — and can navigate —
+    // what actually matched, instead of a lying empty "0/0" preview.
+    if (resolved.filePath.endsWith('.jsonl')) {
+      try {
+        const rawScan = await scanSessionFileForQuery(resolved.filePath, q, undefined, 20);
+        const rawLines = rawScan.firstLines ?? [];
+        if (rawLines.length > 0) {
+          const rows: SessionMessage[] = rawLines.map((line, i) => {
+            // Prefer the readable text when it actually contains the hit;
+            // otherwise show the (windowed) raw line — that's where it lives.
+            const readable = extractReadableLineText(line);
+            const content = readable.rank > SNIPPET_RANK_RAW && readable.text.toLowerCase().includes(q)
+              ? readable.text
+              : line;
+            let timestamp = '';
+            try {
+              const obj = JSON.parse(line) as { timestamp?: unknown };
+              if (typeof obj.timestamp === 'string') timestamp = obj.timestamp;
+            } catch { /* windowed/non-JSON line */ }
+            return {
+              type: 'tool_result',
+              content,
+              timestamp,
+              uuid: `raw-match-${i}`,
+              toolName: 'Session data',
+            };
+          });
+          return { sessionId, messages: rows, cwd, totalCount, hasMore: false };
+        }
+      } catch { /* raw scan failed — fall through to the tail window */ }
+    }
+    const startIndex = Math.max(0, totalCount - limit);
+    return { sessionId, messages: messages.slice(startIndex), cwd, totalCount, hasMore: startIndex > 0 };
+  }
+
+  // Put the anchor near the window's end with some trailing context, so the
+  // window also covers as many EARLIER matches as possible.
+  const contextAfter = Math.min(50, Math.floor(limit / 4));
+  const endIndex = Math.min(totalCount, anchor + 1 + contextAfter);
+  const startIndex = Math.max(0, endIndex - limit);
+  return { sessionId, messages: messages.slice(startIndex, endIndex), cwd, totalCount, hasMore: startIndex > 0 };
 }
 
 /**

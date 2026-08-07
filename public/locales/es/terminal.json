@@ -891,7 +891,8 @@
       "areas": "Areas",
       "folders": "Carpetas y Repos",
       "modifiedFiles": "Archivos modificados",
-      "recentActivity": "Actividad reciente"
+      "recentActivity": "Actividad reciente",
+      "sessions": "Conversaciones pasadas"
     }
   },
   "diffViewer": {

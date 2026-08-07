@@ -14,7 +14,9 @@ interface UseKeyboardShortcutsOptions {
   explorerModal: UseModalStateWithId;
   spotlightModal: UseModalState;
   recentsModal: UseModalState;
-  sessionFinderModal: UseModalState;
+  // Only isOpen/toggle/close are used here — accept any data payload so the
+  // App can type the modal with its Session Finder prefill.
+  sessionFinderModal: Pick<UseModalState<unknown>, 'isOpen' | 'toggle' | 'close'>;
   deleteConfirmModal: UseModalState;
   onRequestBuildingDelete: () => void;
   onOpenDatabasePanel: (buildingId: string) => void;

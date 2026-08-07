@@ -9,8 +9,8 @@ import {
 } from '../dockRoster';
 import type { Agent } from '../../../../shared/types';
 
-function agent(id: string, status: Agent['status'], lastActivity: number): Agent {
-  return { id, status, lastActivity } as Agent;
+function agent(id: string, status: Agent['status'], lastActivity: number, lastWorkedAt?: number): Agent {
+  return { id, status, lastActivity, lastWorkedAt } as Agent;
 }
 
 describe('settleWorkingHolds', () => {
@@ -93,6 +93,39 @@ describe('settleWorkRecency', () => {
     settleWorkRecency([], state, 2_000);
 
     expect(state.size).toBe(0);
+  });
+
+  it('prefers the server lastWorkedAt over click-tainted lastActivity when seeding', () => {
+    const state = new Map<string, number>();
+
+    // lastActivity was restamped by a click on another device; lastWorkedAt
+    // holds the real last work. Every device seeding from it agrees.
+    settleWorkRecency([agent('a', 'idle', 5_000, 700)], state, 6_000);
+
+    expect(state.get('a')).toBe(700);
+  });
+
+  it('advances recency from server-observed work this client never saw live', () => {
+    const state = new Map<string, number>();
+    settleWorkRecency([agent('a', 'idle', 500, 500)], state, 1_000);
+
+    // Another browser/APK drove the agent; this client only receives the
+    // refreshed lastWorkedAt on sync — status here never showed 'working'.
+    settleWorkRecency([agent('a', 'idle', 500, 4_000)], state, 5_000);
+
+    expect(state.get('a')).toBe(4_000);
+  });
+
+  it('clamps a skewed future lastWorkedAt to now and never regresses recency', () => {
+    const state = new Map<string, number>();
+    settleWorkRecency([agent('a', 'idle', 500, 99_999)], state, 1_000);
+    expect(state.get('a')).toBe(1_000);
+
+    // A stale lastWorkedAt older than what this client already observed
+    // must not pull recency backwards.
+    settleWorkRecency([agent('a', 'working', 500, 700)], state, 2_000);
+    settleWorkRecency([agent('a', 'idle', 500, 700)], state, 3_000);
+    expect(state.get('a')).toBe(2_000);
   });
 });
 

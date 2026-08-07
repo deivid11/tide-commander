@@ -21,6 +21,7 @@ import {
   Spinner,
   Circle,
   Clock,
+  ClockCounterClockwise,
   Hourglass,
   // Actions
   Trash,
@@ -223,6 +224,7 @@ export const ICON_MAP = {
   'clipboard': ClipboardText,
   'save': FloppyDisk,
   'refresh': ArrowsClockwise,
+  'history': ClockCounterClockwise,
   'play': Play,
   'stop': Stop,
   'pause': Pause,

@@ -96,10 +96,22 @@ export function settleWorkRecency(
   const present = new Set<string>();
   for (const agent of agents) {
     present.add(agent.id);
+    // Server-observed work: lastWorkedAt is stamped only on status transitions
+    // into/out of active work (agent-service), never by clicks or metric
+    // ticks — so trusting it stays click-immune AND keeps this client's
+    // recency in sync with work it never saw live (other browser drove the
+    // agent, APK socket was parked in the background). Clamped like the seed:
+    // clock skew must not mint future recency.
+    const serverWorkedAt = Math.min(agent.lastWorkedAt ?? 0, now);
     if (!state.has(agent.id)) {
-      // Clamp the seed — client/server clock skew must not mint recency from
-      // the future and permanently outrank genuinely working agents.
-      state.set(agent.id, Math.min(agent.lastActivity || 0, now));
+      // Seed from lastWorkedAt when the server has one (identical on every
+      // device → identical ordering); lastActivity only covers agents that
+      // predate the field. Clamp the seed — client/server clock skew must not
+      // mint recency from the future and permanently outrank genuinely
+      // working agents.
+      state.set(agent.id, Math.min(agent.lastWorkedAt ?? agent.lastActivity ?? 0, now));
+    } else if (serverWorkedAt > (state.get(agent.id) ?? 0)) {
+      state.set(agent.id, serverWorkedAt);
     }
     if (isWorkingStatus(agent.status)) state.set(agent.id, now);
   }

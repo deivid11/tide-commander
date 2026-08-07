@@ -30,6 +30,7 @@ export function Spotlight({
   onOpenBossLogsModal,
   onOpenDatabasePanel,
   onOpenMonitoringModal,
+  onOpenSessionFinder,
 }: SpotlightProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -59,6 +60,7 @@ export function Spotlight({
     onOpenBossLogsModal,
     onOpenDatabasePanel,
     onOpenMonitoringModal,
+    onOpenSessionFinder,
   });
 
   resultsLengthRef.current = results.length;

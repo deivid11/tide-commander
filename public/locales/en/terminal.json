@@ -1027,7 +1027,8 @@
       "areas": "Areas",
       "folders": "Folders & Repos",
       "modifiedFiles": "Modified Files",
-      "recentActivity": "Recent Activity"
+      "recentActivity": "Recent Activity",
+      "sessions": "Past Conversations"
     }
   },
   "diffViewer": {

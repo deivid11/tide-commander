@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.176.0] - 2026-08-07
+
+### Added
+- **Prompt overview rail** - a slim rail down the side of the conversation puts one dot per user prompt (the 15 most recent), with the prompt text on hover and a click to jump straight to it. The dot for the prompt you're currently reading stays lit as you scroll: selection follows a reading line that sweeps the viewport with scroll progress rather than a fixed midline, so prompts packed into the first or last half-screen still get their turn instead of never lighting up.
+- **Past conversations in Spotlight** - Spotlight now searches the full text of past sessions alongside the live agents, split into "Recent Activity" and "Past Conversations". Opening a session hit hands the query over to the terminal search so the match is highlighted where you land, and the preview window is anchored on the hit instead of the tail — previously the preview could miss the match entirely while the counter still claimed to have found it.
+
+### Changed
+- **Session Finder search is dramatically faster** - searching used to re-open every session file on every keystroke. Now a header cache reuses the parts of a session file that can never change, a per-file result cache (3 entries deep) answers refinements without touching disk — if "scro" appears nowhere in a file, "scroll" can't either, and typing forwards then backspacing hits the still-valid entry — sessions being written to are resumed from where the last scan stopped rather than re-read whole, superseded scans are cancelled mid-flight, and when ripgrep is on PATH it does the cold scanning in two passes (counts for every candidate, then sample lines for just the files actually shown). The previous JS scanner remains as the fallback when ripgrep is unavailable or misbehaves. Queries shorter than 2 characters now narrow the recency list locally instead of triggering a full-corpus scan for no signal.
+- **Recent-agents dock ordering is consistent across devices** - the dock's recency now comes from a server-side stamp that moves only when an agent actually transitions into or out of work, never on clicks or metric ticks. Every browser and the phone therefore agree on the order, including work that a given client never saw live because it was closed or backgrounded, and clock skew between client and server can no longer mint future recency that outranks genuinely working agents.
+
+### Fixed
+- **Search preview showing a match count with no visible highlight** - the counter tallied hits over the full message while the preview rendered a clipped version, so "3 of 7" could sit above text containing none of them. Counting now runs over exactly the text that gets rendered, and a long message's clip window shifts to cover the first hit rather than always cutting from the start.
+
 ## [1.175.0] - 2026-08-04
 
 ### Added

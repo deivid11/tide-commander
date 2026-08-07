@@ -289,6 +289,10 @@ export interface StoreState {
   terminalResizing: boolean;
   // Counter incremented each time the terminal should expand to max height
   terminalExpandRequest: number;
+  // Pending "open the terminal search prefilled" handoff (Spotlight session
+  // hit → guake in-conversation search). Consumed (cleared) by useSearchHistory
+  // when the target agent's pane sees it; seq disambiguates repeat requests.
+  pendingTerminalSearch: { agentId: string; query: string; seq: number } | null;
   // Mobile view mode
   mobileView: 'terminal' | '3d';
   // Settings

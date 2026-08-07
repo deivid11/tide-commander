@@ -890,7 +890,8 @@
       "infrastructure": "インフラ",
       "areas": "エリア",
       "modifiedFiles": "変更ファイル",
-      "recentActivity": "最近のアクティビティ"
+      "recentActivity": "最近のアクティビティ",
+      "sessions": "過去の会話"
     }
   },
   "diffViewer": {

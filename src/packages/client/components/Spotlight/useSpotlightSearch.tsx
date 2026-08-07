@@ -19,13 +19,19 @@ import { getFileIconFromPath, getRecentAgentTimes, recordRecentAgent, agentRecen
 import { Icon, type IconName } from '../Icon';
 import { AgentIcon } from '../AgentIcon';
 import { searchFolders, type FolderSearchResult } from '../../api/folders';
+import { searchGlobalSessions, type GlobalSessionMatch } from '../../api/sessions';
 
 // Category display order - must match SpotlightResults rendering
-const categoryOrder = ['command', 'agent', 'building', 'area', 'folder', 'modified-file'];
+const categoryOrder = ['command', 'agent', 'building', 'area', 'folder', 'modified-file', 'session'];
 
 // Minimum query length before hitting the folder-search endpoint (matches the
 // server's MIN_QUERY — folders are never shown for the empty/recent view).
 const FOLDER_MIN_QUERY = 2;
+
+// Minimum query length before full-text searching every session's JSONL. At 2
+// chars nearly every conversation matches — pure noise below the fold.
+const SESSION_MIN_QUERY = 3;
+const SESSION_RESULT_LIMIT = 6;
 
 // Load the persisted tab, falling back to 'all' for unknown/legacy values.
 function loadPersistedTab(): SpotlightTab {
@@ -59,6 +65,7 @@ export function useSpotlightSearch({
   onOpenBossLogsModal,
   onOpenDatabasePanel,
   onOpenMonitoringModal,
+  onOpenSessionFinder,
 }: UseSpotlightSearchOptions): SpotlightSearchState {
   // Granular selectors — only re-render when the specific slice changes
   const agents = useAgents();
@@ -90,6 +97,8 @@ export function useSpotlightSearch({
   onOpenDatabasePanelRef.current = onOpenDatabasePanel;
   const onOpenMonitoringModalRef = useRef(onOpenMonitoringModal);
   onOpenMonitoringModalRef.current = onOpenMonitoringModal;
+  const onOpenSessionFinderRef = useRef(onOpenSessionFinder);
+  onOpenSessionFinderRef.current = onOpenSessionFinder;
 
   const [query, setQueryState] = useState<string>(loadPersistedQuery);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -97,6 +106,10 @@ export function useSpotlightSearch({
   const [activeTab, setActiveTabState] = useState<SpotlightTab>(loadPersistedTab);
   // Folder/git-repo results fetched from the server (debounced, query-gated).
   const [folderData, setFolderData] = useState<FolderSearchResult[]>([]);
+  // Session full-text hits (debounced, query-gated). The query they were
+  // fetched FOR rides along so click actions can prefill the Session Finder
+  // with exactly what produced the hit.
+  const [sessionData, setSessionData] = useState<{ query: string; rows: GlobalSessionMatch[] }>({ query: '', rows: [] });
 
   // Persisting query setter so the last search is remembered across opens.
   const setQuery = useCallback((value: string) => {
@@ -134,6 +147,34 @@ export function useSpotlightSearch({
         })
         .catch(() => {
           if (!cancelled) setFolderData([]);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [isOpen, query]);
+
+  // Debounced full-text session search (the rg-engined /api/sessions/search —
+  // fast enough for per-keystroke use; the server cancels superseded scans).
+  useEffect(() => {
+    if (!isOpen) {
+      setSessionData({ query: '', rows: [] });
+      return;
+    }
+    const q = query.trim();
+    if (q.length < SESSION_MIN_QUERY) {
+      setSessionData({ query: '', rows: [] });
+      return;
+    }
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      searchGlobalSessions(q, { limit: SESSION_RESULT_LIMIT })
+        .then((rows) => {
+          if (!cancelled) setSessionData({ query: q, rows });
+        })
+        .catch(() => {
+          if (!cancelled) setSessionData({ query: '', rows: [] });
         });
     }, 250);
     return () => {
@@ -543,6 +584,62 @@ export function useSpotlightSearch({
     });
   }, [isOpen, folderData]);
 
+  // Build session results from the debounced full-text search (rg-engined
+  // server side, already ranked newest-first). Clicking jumps straight to the
+  // agent that currently HOLDS the conversation, or opens the Session Finder
+  // prefilled to restore it. The agent is resolved again at CLICK time —
+  // sessions can attach/detach while the palette is open.
+  const sessionResults: SearchResult[] = useMemo(() => {
+    if (!isOpen) return [];
+
+    const timeAgo = (iso: string): string => {
+      const diff = Date.now() - new Date(iso).getTime();
+      if (!Number.isFinite(diff) || diff < 0) return '';
+      if (diff < 3600_000) return `${Math.max(1, Math.floor(diff / 60_000))}m`;
+      if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h`;
+      return `${Math.floor(diff / 86400_000)}d`;
+    };
+
+    return sessionData.rows.map((row) => {
+      const attachedNow = Array.from(agents.values()).find((a) => a.sessionId === row.sessionId);
+      const title = (row.firstPrompt || row.snippet || row.sessionId).slice(0, 90);
+      const parts = [row.projectPath || row.projectDir];
+      if (attachedNow) parts.push(`→ ${attachedNow.name}`);
+      const when = timeAgo(row.lastModified);
+      if (when) parts.push(when);
+      parts.push(`${row.totalMatches}×`);
+      return {
+        id: `session-${row.sessionId}`,
+        type: 'session' as const,
+        title,
+        subtitle: parts.join(' • '),
+        matchedQuery: row.snippet || undefined,
+        icon: attachedNow
+          ? <AgentIcon agent={attachedNow} size={20} />
+          : <Icon name="history" size={16} />,
+        action: () => {
+          onCloseRef.current();
+          const attached = Array.from(store.getState().agents.values()).find((a) => a.sessionId === row.sessionId);
+          if (attached) {
+            recordRecentAgent(attached.id);
+            store.selectAgent(attached.id);
+            if (store.getState().viewMode !== 'flat') {
+              store.requestTerminalExpand();
+            }
+            // Land INSIDE the conversation: the pane consumes this and opens
+            // its in-thread search prefilled — highlights + jump to the match.
+            store.requestTerminalSearch(attached.id, sessionData.query);
+          } else {
+            onOpenSessionFinderRef.current?.({
+              initialQuery: sessionData.query,
+              initialSessionKey: `${row.projectPath}::${row.sessionId}`,
+            });
+          }
+        },
+      };
+    });
+  }, [isOpen, sessionData, agents]);
+
   // Create Fuse instances for fuzzy search
   const agentFuse = useMemo(
     () =>
@@ -671,6 +768,9 @@ export function useSpotlightSearch({
       command: 3,
       area: 2,
       'modified-file': 1,
+      // Sessions never enter the scored blocks (appended as a trailing block
+      // below) — the weight only exists to satisfy the exhaustive record.
+      session: 0,
     };
 
     // Tiered match quality (higher = better):
@@ -783,8 +883,12 @@ export function useSpotlightSearch({
         for (const s of arr) finalResults.push(s.item);
       });
 
+    // Session hits trail the list as their own contiguous block: an archive
+    // lookup is useful but never more urgent than a live agent/building match.
+    for (const item of sessionResults) finalResults.push(item);
+
     return finalResults;
-  }, [query, agentFuse, commandFuse, areaFuse, modifiedFileFuse, buildingFuse, commands, agentResults, areaResults, buildingResults, folderResults, recentAgentTimes]);
+  }, [query, agentFuse, commandFuse, areaFuse, modifiedFileFuse, buildingFuse, commands, agentResults, areaResults, buildingResults, folderResults, sessionResults, recentAgentTimes]);
 
   // Filter the flat result list to the active tab. 'all' shows everything;
   // 'buildings'/'commands' filter by type; 'areas' is the flattened agent list

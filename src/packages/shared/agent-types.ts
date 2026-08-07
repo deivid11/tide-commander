@@ -355,6 +355,12 @@ export interface Agent {
   // Timestamps
   createdAt: number;
   lastActivity: number;
+  // Last time the agent actually transitioned into/out of active work
+  // (working/waiting/waiting_permission). Unlike lastActivity — which every
+  // updateAgent restamps, clicks included — this only moves with real work,
+  // so clients can trust it for "recently active" ordering and stay in sync
+  // across browsers/APK that never observed the work live.
+  lastWorkedAt?: number;
 
   // Boss-specific fields
   isBoss?: boolean;                    // True if this agent can manage subordinates

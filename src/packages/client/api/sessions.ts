@@ -66,9 +66,11 @@ export async function searchGlobalSessions(
 export async function previewGlobalSession(
   cwd: string,
   sessionId: string,
-  limit = 30
+  limit = 30,
+  q?: string
 ): Promise<{ messages: SessionPreviewMessage[]; totalCount: number }> {
   const params = new URLSearchParams({ cwd, sessionId, limit: String(limit) });
+  if (q) params.set('q', q);
   const res = await authFetch(apiUrl(`/api/sessions/preview?${params.toString()}`));
   if (!res.ok) throw new Error(`Preview failed: ${res.status}`);
   const data = await res.json();

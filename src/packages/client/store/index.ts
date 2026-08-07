@@ -252,6 +252,7 @@ class Store
       terminalOpen: false,
       terminalResizing: false,
       terminalExpandRequest: 0,
+      pendingTerminalSearch: null,
       mobileView: this.loadMobileView(),
       settings: this.loadSettings(),
       shortcuts: this.loadShortcuts(),
@@ -581,6 +582,23 @@ class Store
     this.state.terminalOpen = true;
     this.state.mobileView = 'terminal';
     this.state.terminalExpandRequest += 1;
+    this.notify();
+  }
+
+  /** Ask the (possibly not-yet-mounted) terminal pane of `agentId` to open its
+   * in-conversation search prefilled with `query` and jump to the matches. */
+  requestTerminalSearch(agentId: string, query: string): void {
+    this.state.pendingTerminalSearch = {
+      agentId,
+      query,
+      seq: (this.state.pendingTerminalSearch?.seq ?? 0) + 1,
+    };
+    this.notify();
+  }
+
+  clearPendingTerminalSearch(): void {
+    if (!this.state.pendingTerminalSearch) return;
+    this.state.pendingTerminalSearch = null;
     this.notify();
   }
 
@@ -1586,7 +1604,7 @@ declare global {
 // Increment this when Store class has breaking changes that require fresh instance
 // (e.g. new methods) — otherwise HMR keeps the old singleton, which lacks them.
 // v4: added loadTestRunFromHistory (tests-building "Previous runs" list).
-const STORE_VERSION = 6;
+const STORE_VERSION = 7;
 
 // Singleton store instance - persisted on window for HMR
 function getOrCreateStore(): Store {

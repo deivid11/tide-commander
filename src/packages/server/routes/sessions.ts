@@ -8,7 +8,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { listAllSessions, searchAllSessions, loadSession } from '../claude/session-loader.js';
+import { listAllSessions, searchAllSessions, loadSession, loadSessionAroundMatch } from '../claude/session-loader.js';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('Routes');
@@ -67,7 +67,9 @@ router.get('/search', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/sessions/preview?cwd=...&sessionId=...&limit=30
+// GET /api/sessions/preview?cwd=...&sessionId=...&limit=30&q=...
+// With `q`, the returned window is anchored on the most recent matching
+// message instead of the tail, so the preview actually shows the hit.
 router.get('/preview', async (req: Request, res: Response) => {
   try {
     const cwd = (req.query.cwd as string) || '';
@@ -76,8 +78,11 @@ router.get('/preview', async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Both "cwd" and "sessionId" query parameters are required' });
       return;
     }
-    const limit = Math.max(1, Math.min(parseInt(req.query.limit as string) || 30, 200));
-    const history = await loadSession(cwd, sessionId, limit, 0);
+    const limit = Math.max(1, Math.min(parseInt(req.query.limit as string) || 30, 500));
+    const q = ((req.query.q as string) || '').trim();
+    const history = q
+      ? await loadSessionAroundMatch(cwd, sessionId, limit, q)
+      : await loadSession(cwd, sessionId, limit, 0);
     if (!history) {
       res.status(404).json({ error: 'Session not found' });
       return;

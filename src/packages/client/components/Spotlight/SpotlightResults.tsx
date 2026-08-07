@@ -56,6 +56,7 @@ export const SpotlightResults = forwardRef<HTMLDivElement, SpotlightResultsProps
     area: t('terminal:spotlight.categories.areas'),
     folder: t('terminal:spotlight.categories.folders'),
     'modified-file': t('terminal:spotlight.categories.modifiedFiles'),
+    session: t('terminal:spotlight.categories.sessions'),
   };
 
   // Group results by category, preserving the order from the results array.
