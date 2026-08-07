@@ -8,6 +8,7 @@ import { GlobalTestsBuildingModal } from './TestsBuildingModal';
 import { GlobalHttpRequestsBuildingModal } from './HttpRequestsBuildingModal';
 import { profileRender } from '../utils/profiling';
 import type { UseModalState, UseModalStateWithId, UseContextMenu } from '../hooks';
+import type { SessionFinderOpenData } from './SessionSearchModal';
 
 // Lazy-load heavy modal components (only loaded when first opened)
 const SpawnModal = React.lazy(() => import('./SpawnModal').then(m => ({ default: m.SpawnModal })));
@@ -38,7 +39,7 @@ interface AppModalsProps {
   commanderModal: UseModalState;
   deleteConfirmModal: UseModalState;
   spotlightModal: UseModalState;
-  sessionFinderModal: UseModalState;
+  sessionFinderModal: UseModalState<SessionFinderOpenData>;
   controlsModal: UseModalState;
   skillsModal: UseModalState;
   integrationsModal: UseModalState<string | undefined>;
@@ -131,6 +132,15 @@ export function AppModals({
 }: AppModalsProps) {
   const agents = useAgents();
   const buildings = useBuildings();
+
+  // Clear the Session Finder prefill whenever it closes — by ANY path
+  // (Escape, hotkey toggle, backdrop) — so a plain Ctrl+Shift+F reopen
+  // doesn't resurrect a stale Spotlight hit.
+  const sessionFinderOpen = sessionFinderModal.isOpen;
+  const setSessionFinderData = sessionFinderModal.setData;
+  React.useEffect(() => {
+    if (!sessionFinderOpen) setSessionFinderData(undefined);
+  }, [sessionFinderOpen, setSessionFinderData]);
   const selectedAgentIds = useSelectedAgentIds();
   const selectedBuildingIds = useSelectedBuildingIds();
   const explorerAreaId = useExplorerAreaId();
@@ -342,12 +352,15 @@ export function AppModals({
         onOpenBossLogsModal={onOpenBossLogsModal}
         onOpenDatabasePanel={onOpenDatabasePanel}
         onOpenMonitoringModal={() => monitoringModal.open()}
+        onOpenSessionFinder={(data) => sessionFinderModal.open(data)}
       />
 
-      {/* Session Finder (Ctrl+Shift+F) */}
+      {/* Session Finder (Ctrl+Shift+F, or a Spotlight session hit to restore) */}
       {sessionFinderModal.isOpen && (
         <SessionSearchModal
           isOpen={sessionFinderModal.isOpen}
+          initialQuery={sessionFinderModal.data?.initialQuery}
+          initialSessionKey={sessionFinderModal.data?.initialSessionKey}
           onClose={sessionFinderModal.close}
         />
       )}

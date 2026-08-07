@@ -15,6 +15,8 @@ import type { ClaudeOutput } from '../../store';
 import type { ExecTask, Subagent } from '../../../shared/types';
 import type { TestRunHandle, HttpRunHandle } from '../../store';
 import { buildItemKey, bridgeIdsFor } from './virtualizedOutputKey';
+import { buildPromptMarkers, type PromptMarker } from './promptMarkers';
+import { PromptMarkersRail } from './PromptMarkersRail';
 export { buildItemKey } from './virtualizedOutputKey';
 export type { TaggedItem, TaggedHistoryItem, TaggedLiveItem } from './virtualizedOutputKey';
 
@@ -50,6 +52,13 @@ interface VirtualizedOutputListProps {
   // Message navigation
   selectedMessageIndex: number | null;
   isMessageSelected: (index: number) => boolean;
+
+  /**
+   * Notifies the parent that a prompt-rail marker was clicked (so it can mark
+   * the row as the nav selection / highlight it). The scroll itself is
+   * performed here — this component is the single scroll writer.
+   */
+  onPromptMarkerJump?: (index: number) => void;
 
   // Callbacks
   onImageClick?: (url: string, name: string) => void;
@@ -259,6 +268,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   searchPanelHeight = 0,
   selectedMessageIndex,
   isMessageSelected,
+  onPromptMarkerJump,
   onImageClick,
   onFileClick,
   onBashClick,
@@ -346,6 +356,9 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     }
     return { allItems: items, allKeys: keys };
   }, [historyMessages, liveOutputs, agentId]);
+
+  // One marker per user prompt, in merged order — feeds the overview rail.
+  const promptMarkers = useMemo(() => buildPromptMarkers(allItems, allKeys), [allItems, allKeys]);
 
   // Track if we're programmatically scrolling (to avoid triggering onUserScroll)
   const isProgrammaticScrollRef = useRef(false);
@@ -587,6 +600,63 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     container.scrollTop = container.scrollHeight;
   }, [scrollContainerRef, virtualizer]);
 
+  // Jump to a user prompt from the overview rail. Scrolling lives HERE (this
+  // component is the single scroll writer); the parent only receives the index
+  // to sync the message-nav selection/highlight. A second pass one frame later
+  // re-targets after never-measured rows above settle from estimates to real
+  // heights — without it a long jump can land a few rows off.
+  const handlePromptMarkerJump = useCallback((marker: PromptMarker) => {
+    isProgrammaticScrollRef.current = true;
+    virtualizer.scrollToIndex(marker.index, { align: 'center' });
+    requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(marker.index, { align: 'center' });
+      requestAnimationFrame(() => {
+        isProgrammaticScrollRef.current = false;
+      });
+    });
+    onPromptMarkerJump?.(marker.index);
+  }, [virtualizer, onPromptMarkerJump]);
+
+  // Which marker (position in promptMarkers) is "current" — drives the rail's
+  // blue dot. Held in STATE and refreshed from scroll events (plus content
+  // growth below): a render-time read went stale at the bottom, because scroll
+  // events that don't change the virtual range don't re-render this component.
+  //
+  // Selection uses a READING LINE that sweeps the viewport with scroll
+  // progress: at the top of the conversation it sits at the viewport's top
+  // edge, at the bottom at its bottom edge. A fixed midline could never reach
+  // prompts packed inside the first/last half-viewport (their dots never lit),
+  // and clustered prompts got skipped. The sweep crosses every row start
+  // exactly once across the full scroll range, so every dot gets its band.
+  const [activeMarkerPos, setActiveMarkerPos] = useState(-1);
+  const promptMarkersRef = useRef(promptMarkers);
+  promptMarkersRef.current = promptMarkers;
+  const updateActiveMarker = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const markers = promptMarkersRef.current;
+    if (markers.length === 0) return;
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const maxScroll = Math.max(0, scrollHeight - clientHeight);
+    let pos = -1;
+    if (maxScroll - scrollTop <= 8) {
+      // At the very bottom the newest prompt is current, no matter what.
+      pos = markers.length - 1;
+    } else {
+      const progress = maxScroll > 0 ? Math.min(1, Math.max(0, scrollTop / maxScroll)) : 1;
+      const readingLine = scrollTop + progress * clientHeight;
+      // Raw measured starts (NOT getOffsetForIndex, which clamps to the max
+      // scroll offset and would collapse every prompt inside the last
+      // viewport-height of content onto one value, re-introducing the skip).
+      for (let i = 0; i < markers.length; i++) {
+        const start = virtualizer.measurementsCache[markers[i].index]?.start ?? Number.POSITIVE_INFINITY;
+        if (start <= readingLine) pos = i;
+        else break;
+      }
+    }
+    setActiveMarkerPos((prev) => (prev === pos ? prev : pos));
+  }, [scrollContainerRef, virtualizer]);
+
   // Pin-to-bottom mode (used for agent switching / initial load).
   // Immediate synchronous scroll before first paint.
   useLayoutEffect(() => {
@@ -732,7 +802,10 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     if (scrollTop < 200 && hasMore && !isLoadingMore && onScrollTopReached) {
       onScrollTopReached();
     }
-  }, [hasMore, isLoadingMore, onScrollTopReached, onUserScroll, scrollContainerRef, pinToBottom, onPinCancel]);
+
+    // Keep the prompt rail's "current prompt" dot in sync with the viewport.
+    updateActiveMarker();
+  }, [hasMore, isLoadingMore, onScrollTopReached, onUserScroll, scrollContainerRef, pinToBottom, onPinCancel, updateActiveMarker]);
 
   // Attach scroll listener
   useEffect(() => {
@@ -828,6 +901,13 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     }
   }, [searchActiveIndex, virtualizer, allItems.length, searchPanelHeight, scrollContainerRef]);
 
+  // Cover the paths that never fire a scroll event: initial mount of a
+  // conversation shorter than the viewport, and content growing/measuring
+  // at the bottom while the view is pinned there.
+  useEffect(() => {
+    updateActiveMarker();
+  }, [updateActiveMarker, totalSize, allItems.length]);
+
   const virtualItems = virtualizer.getVirtualItems();
   const simpleView = viewMode !== 'advanced';
 
@@ -839,6 +919,16 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
         position: 'relative',
       }}
     >
+      {promptMarkers.length >= 2 && (
+        <div className="prompt-markers-anchor">
+          <PromptMarkersRail
+            markers={promptMarkers}
+            activePos={activeMarkerPos}
+            scrollContainerRef={scrollContainerRef}
+            onJump={handlePromptMarkerJump}
+          />
+        </div>
+      )}
       {virtualItems.map((virtualRow) => {
         const tagged = allItems[virtualRow.index];
         if (!tagged) return null;

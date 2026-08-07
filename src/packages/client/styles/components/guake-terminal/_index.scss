@@ -20,6 +20,9 @@
 // Output area and message display
 @forward 'output';
 
+// User-prompt overview rail (tick per prompt, hover preview, click to jump)
+@forward 'prompt-markers';
+
 // Tool display styles (Edit, Read, Bash, Todo, etc.)
 @forward 'tools';
 

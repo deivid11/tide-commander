@@ -63,6 +63,7 @@ import { profileRender, useRenderCounter } from './utils/profiling';
 import { dockBuilding } from './utils/buildingViewMode';
 import { getStorageString, STORAGE_KEYS } from './utils/storage';
 import { preloadTones } from './utils/notificationSounds';
+import type { SessionFinderOpenData } from './components/SessionSearchModal';
 import {
   useModalState,
   useModalStateWithId,
@@ -106,7 +107,7 @@ function AppContent() {
   const deleteConfirmModal = useModalState();
   const spotlightModal = useModalState();
   const recentsModal = useModalState();
-  const sessionFinderModal = useModalState();
+  const sessionFinderModal = useModalState<SessionFinderOpenData>();
   const controlsModal = useModalState();
   const skillsModal = useModalState();
   const integrationsModal = useModalState<string | undefined>();

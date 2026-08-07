@@ -890,7 +890,8 @@
       "infrastructure": "基础设施",
       "areas": "区域",
       "modifiedFiles": "已修改的文件",
-      "recentActivity": "最近活动"
+      "recentActivity": "最近活动",
+      "sessions": "历史会话"
     }
   },
   "diffViewer": {

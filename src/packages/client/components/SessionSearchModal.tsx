@@ -24,11 +24,24 @@ import {
 } from '../api/sessions';
 import '../styles/components/session-search-modal.scss';
 
+/** Prefill payload for opening the finder on a specific hit (e.g. from a
+ * Spotlight session result whose conversation no agent currently holds). */
+export interface SessionFinderOpenData {
+  initialQuery?: string;
+  /** `${projectPath}::${sessionId}` — preselects that result row. */
+  initialSessionKey?: string;
+}
+
 export interface SessionSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
   /** Pre-selected target agent. Defaults to the user's currently selected agent. */
   initialAgentId?: string;
+  /** Search query to open with (the component remounts per open, so state
+   * initializers are enough to apply these). */
+  initialQuery?: string;
+  /** Result row to preselect once results load. */
+  initialSessionKey?: string;
 }
 
 interface ResultRow {
@@ -75,6 +88,41 @@ function clip(text: string, max: number): string {
   return text.slice(0, max) + `\n… (${text.length - max} more chars)`;
 }
 
+/**
+ * Clip a long message for display WITHOUT losing the search hit: when the
+ * first query occurrence would fall beyond the plain head clip, the window
+ * shifts to cover it (with leading context). A plain head clip hid the match
+ * — the navigator counted it, but no highlight was visible in the preview.
+ */
+function clipAroundMatch(text: string, max: number, query: string): string {
+  if (text.length <= max) return text;
+  const q = query.trim().toLowerCase();
+  const at = q ? text.toLowerCase().indexOf(q) : -1;
+  if (at === -1 || at + q.length <= max) return clip(text, max);
+  const start = Math.max(0, at - Math.floor(max / 3));
+  const end = Math.min(text.length, start + max);
+  const head = start > 0 ? `… (${start} chars)\n` : '';
+  const tail = end < text.length ? `\n… (${text.length - end} more chars)` : '';
+  return head + text.slice(start, end) + tail;
+}
+
+/**
+ * The EXACT text a preview message renders (type-specific source + clipping).
+ * The match counter must count over this same text — counting the full
+ * message while rendering a clipped one made "n/m" disagree with the marks
+ * actually on screen.
+ */
+function getDisplayText(m: SessionPreviewMessage, query: string): string {
+  if (m.type === 'tool_use') {
+    const args = formatToolInput(m.toolInput) || m.content;
+    return args ? clipAroundMatch(args, TOOL_INPUT_MAX_CHARS, query) : '';
+  }
+  if (m.type === 'tool_result') {
+    return clipAroundMatch(m.content || '(no output)', TOOL_RESULT_MAX_CHARS, query);
+  }
+  return clipAroundMatch(m.content || '', MESSAGE_MAX_CHARS, query);
+}
+
 interface HighlightSegment {
   type: 'text' | 'match';
   text: string;
@@ -108,10 +156,28 @@ function splitForHighlight(text: string, query: string, getNextIdx: () => number
   return out;
 }
 
+/** Visual-only query highlight for result-row snippets (no navigator refs). */
+function highlightSnippet(text: string, query: string): React.ReactNode {
+  const q = query.trim();
+  if (!q || q.length < 2) return text;
+  let idx = 0;
+  const segments = splitForHighlight(text, q, () => idx++);
+  if (segments.length === 1) return text;
+  return segments.map((seg, i) =>
+    seg.type === 'match' ? (
+      <mark key={i} className="session-finder-mark">{seg.text}</mark>
+    ) : (
+      <Fragment key={i}>{seg.text}</Fragment>
+    )
+  );
+}
+
 export const SessionSearchModal = memo(function SessionSearchModal({
   isOpen,
   onClose,
   initialAgentId,
+  initialQuery,
+  initialSessionKey,
 }: SessionSearchModalProps) {
   const agentsMap = useAgents();
   const selectedAgentIds = useSelectedAgentIds();
@@ -127,17 +193,18 @@ export const SessionSearchModal = memo(function SessionSearchModal({
   }, [initialAgentId, agentsMap, selectedAgentIds, agents]);
 
   const [targetAgentId, setTargetAgentId] = useState(defaultSelectedAgentId);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery ?? '');
   const [cwdFilter, setCwdFilter] = useState('');
   const [results, setResults] = useState<ResultRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedKey, setSelectedKey] = useState<string | null>(null); // `${cwd}::${sessionId}`
+  const [selectedKey, setSelectedKey] = useState<string | null>(initialSessionKey ?? null); // `${cwd}::${sessionId}`
   const [previewMessages, setPreviewMessages] = useState<SessionPreviewMessage[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [restoreSuccess, setRestoreSuccess] = useState<string | null>(null);
   const [currentMatchIdx, setCurrentMatchIdx] = useState(0);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchSeqRef = useRef(0);
   const matchRefs = useRef<HTMLElement[]>([]);
   const previewMessagesRef = useRef<HTMLDivElement | null>(null);
 
@@ -167,15 +234,23 @@ export const SessionSearchModal = memo(function SessionSearchModal({
   }, [isOpen, defaultSelectedAgentId]);
 
   const runFetch = useCallback(async () => {
+    // Guard against out-of-order responses: a slow older search must not
+    // overwrite the results of a newer one (the server also cancels
+    // superseded scans, which makes stale responses MORE likely to be short).
+    const seq = ++fetchSeqRef.current;
     setError(null);
     setLoading(true);
     setRestoreSuccess(null);
     try {
-      if (query.trim()) {
+      // A 1-char query matches virtually every line of every session file —
+      // a full-corpus scan for zero signal. Below 2 chars, show the plain
+      // recency list instead (the cwd filter still applies to it).
+      if (query.trim().length >= 2) {
         const matches = await searchGlobalSessions(query, {
-          limit: 200,
+          limit: 80,
           cwdFilter: cwdFilter.trim() || undefined,
         });
+        if (seq !== fetchSeqRef.current) return;
         setResults(
           matches.map((m: GlobalSessionMatch) => ({
             sessionId: m.sessionId,
@@ -189,9 +264,18 @@ export const SessionSearchModal = memo(function SessionSearchModal({
         );
       } else {
         const rows = await fetchGlobalSessions({ limit: 300 });
-        const filtered = cwdFilter.trim()
+        if (seq !== fetchSeqRef.current) return;
+        let filtered = cwdFilter.trim()
           ? rows.filter((r) => r.projectPath.toLowerCase().includes(cwdFilter.trim().toLowerCase()))
           : rows;
+        // Sub-2-char query: narrow the recency list locally (first prompt /
+        // project path) so typing still feels responsive.
+        const shortQuery = query.trim().toLowerCase();
+        if (shortQuery) {
+          filtered = filtered.filter((r) =>
+            r.firstPrompt.toLowerCase().includes(shortQuery)
+            || r.projectPath.toLowerCase().includes(shortQuery));
+        }
         setResults(
           filtered.map((r: GlobalSessionRow) => ({
             sessionId: r.sessionId,
@@ -203,10 +287,11 @@ export const SessionSearchModal = memo(function SessionSearchModal({
         );
       }
     } catch (err) {
+      if (seq !== fetchSeqRef.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load sessions');
       setResults([]);
     } finally {
-      setLoading(false);
+      if (seq === fetchSeqRef.current) setLoading(false);
     }
   }, [query, cwdFilter]);
 
@@ -228,7 +313,10 @@ export const SessionSearchModal = memo(function SessionSearchModal({
     setPreviewLoading(true);
     setPreviewMessages([]);
     setCurrentMatchIdx(0);
-    previewGlobalSession(selectedRow.projectPath, selectedRow.sessionId, MAX_PREVIEW_MESSAGES)
+    // Anchor the preview window on the search hit — otherwise the tail window
+    // can miss it entirely and the match navigator reads a lying "0/0".
+    const previewQuery = query.trim().length >= 2 ? query.trim() : undefined;
+    previewGlobalSession(selectedRow.projectPath, selectedRow.sessionId, MAX_PREVIEW_MESSAGES, previewQuery)
       .then((data) => {
         if (cancelled) return;
         setPreviewMessages(data.messages);
@@ -236,7 +324,7 @@ export const SessionSearchModal = memo(function SessionSearchModal({
       .catch(() => { if (!cancelled) setPreviewMessages([]); })
       .finally(() => { if (!cancelled) setPreviewLoading(false); });
     return () => { cancelled = true; };
-  }, [selectedRow]);
+  }, [selectedRow, query]);
 
   // Reset match cursor when query changes
   useEffect(() => {
@@ -258,17 +346,14 @@ export const SessionSearchModal = memo(function SessionSearchModal({
 
   // Count matches synchronously so the navigator can show "n/m" as soon as the
   // user types — without waiting for the child's ref array to populate.
+  // Counted over the SAME clipped display text the preview renders, so the
+  // count always equals the number of visible highlight marks.
   const totalMatches = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return 0;
     let count = 0;
     for (const m of previewMessages) {
-      let text = m.content || '';
-      if (m.type === 'tool_use') {
-        const args = formatToolInput(m.toolInput);
-        if (args) text = args;
-      }
-      const lower = text.toLowerCase();
+      const lower = getDisplayText(m, query).toLowerCase();
       let idx = 0;
       while ((idx = lower.indexOf(q, idx)) !== -1) {
         count++;
@@ -425,9 +510,9 @@ export const SessionSearchModal = memo(function SessionSearchModal({
                       )}
                     </div>
                     {row.snippet ? (
-                      <div className="session-finder-result-snippet">{row.snippet}</div>
+                      <div className="session-finder-result-snippet">{highlightSnippet(row.snippet, query)}</div>
                     ) : (
-                      row.firstPrompt && <div className="session-finder-result-snippet muted">{row.firstPrompt}</div>
+                      row.firstPrompt && <div className="session-finder-result-snippet muted">{highlightSnippet(row.firstPrompt, query)}</div>
                     )}
                   </button>
                 );
@@ -734,8 +819,7 @@ const PreviewMessages = memo(function PreviewMessages({
     <div className="session-finder-preview-messages" ref={messagesContainerRef}>
       {messages.map((m, i) => {
         if (m.type === 'tool_use') {
-          const args = formatToolInput(m.toolInput) || m.content;
-          const clipped = clip(args, TOOL_INPUT_MAX_CHARS);
+          const clipped = getDisplayText(m, trimmedQuery);
           return (
             <div key={i} className="session-finder-msg tool-use">
               <div className="session-finder-msg-role">
@@ -747,7 +831,7 @@ const PreviewMessages = memo(function PreviewMessages({
           );
         }
         if (m.type === 'tool_result') {
-          const clipped = clip(m.content || '(no output)', TOOL_RESULT_MAX_CHARS);
+          const clipped = getDisplayText(m, trimmedQuery);
           return (
             <div key={i} className="session-finder-msg tool-result">
               <div className="session-finder-msg-role">
@@ -758,7 +842,7 @@ const PreviewMessages = memo(function PreviewMessages({
             </div>
           );
         }
-        const clipped = clip(m.content || '', MESSAGE_MAX_CHARS);
+        const clipped = getDisplayText(m, trimmedQuery);
         return (
           <div key={i} className={`session-finder-msg ${m.type}`}>
             <div className="session-finder-msg-role">

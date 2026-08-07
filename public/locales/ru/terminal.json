@@ -890,7 +890,8 @@
       "infrastructure": "Инфраструктура",
       "areas": "Зоны",
       "modifiedFiles": "Изменённые файлы",
-      "recentActivity": "Последняя активность"
+      "recentActivity": "Последняя активность",
+      "sessions": "Прошлые беседы"
     }
   },
   "diffViewer": {

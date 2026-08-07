@@ -587,6 +587,19 @@ export function updateAgent(id: string, updates: Partial<Agent>, updateActivity 
   }
 
   const nextStatus = normalizedUpdates.status ?? agent.status;
+
+  // Server-observed work stamp: moves ONLY on status transitions into/out of
+  // an active state — never on selection/metric updates (status unchanged), so
+  // it neither breaks the quiet-broadcast filter nor reintroduces the
+  // every-click-reshuffles bug. The client dock (dockRoster.settleWorkRecency)
+  // trusts it to keep the recent-agents bar in sync across browsers/APK that
+  // never observed the work live.
+  const isActiveWorkStatus = (status: Agent['status'] | undefined) =>
+    status === 'working' || status === 'waiting' || status === 'waiting_permission';
+  if (agent.status !== nextStatus && (isActiveWorkStatus(agent.status) || isActiveWorkStatus(nextStatus))) {
+    normalizedUpdates.lastWorkedAt = Date.now();
+  }
+
   const hasExplicitTrackingStatus = Object.prototype.hasOwnProperty.call(normalizedUpdates, 'trackingStatus');
   const explicitTrackingStatus = normalizedUpdates.trackingStatus;
   const shouldPreserveExplicitTrackingStatus = explicitTrackingStatus !== undefined

@@ -8,7 +8,9 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import type { EnrichedHistoryMessage } from './types';
+import { store } from '../../store';
 import type { ClaudeOutput } from '../../store';
+import { usePendingTerminalSearch } from '../../store/selectors';
 import {
   tokenize,
   matchContent,
@@ -301,6 +303,20 @@ export function useSearchHistory({
       setScrollToIndex(null);
     }
   }, [selectedAgentId]);
+
+  // External search handoff (Spotlight session hit → this conversation):
+  // when a pending request targets THIS agent's open pane, enter search mode
+  // with the requested query and consume the request. Everything else — full
+  // history load, match highlighting, the jump to the most recent match —
+  // follows from the normal searchMode/searchQuery machinery above.
+  const pendingSearch = usePendingTerminalSearch();
+  useEffect(() => {
+    if (!pendingSearch || !isOpen) return;
+    if (pendingSearch.agentId !== selectedAgentId) return;
+    setSearchMode(true);
+    setSearchQuery(pendingSearch.query);
+    store.clearPendingTerminalSearch();
+  }, [pendingSearch, isOpen, selectedAgentId]);
 
   // Ctrl+F shortcut
   useEffect(() => {

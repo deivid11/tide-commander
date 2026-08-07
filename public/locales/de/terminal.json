@@ -890,7 +890,8 @@
       "infrastructure": "Infrastruktur",
       "areas": "Bereiche",
       "modifiedFiles": "Geänderte Dateien",
-      "recentActivity": "Letzte Aktivität"
+      "recentActivity": "Letzte Aktivität",
+      "sessions": "Frühere Unterhaltungen"
     }
   },
   "diffViewer": {

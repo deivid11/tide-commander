@@ -663,6 +663,14 @@ export function useTerminalExpandRequest(): number {
 }
 
 /**
+ * Pending terminal-search handoff (Spotlight session hit → guake search).
+ * Null when nothing is pending; consumed by useSearchHistory.
+ */
+export function usePendingTerminalSearch(): StoreState['pendingTerminalSearch'] {
+  return useSelector(useCallback((state: StoreState) => state.pendingTerminalSearch, []));
+}
+
+/**
  * Get mobile view mode. Only re-renders when mobile view changes.
  */
 export function useMobileView(): 'terminal' | '3d' {

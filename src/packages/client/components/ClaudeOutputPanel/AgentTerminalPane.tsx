@@ -1428,6 +1428,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
               searchPanelHeight={search.searchMode ? searchPanelHeight : 0}
               selectedMessageIndex={messageNav.selectedIndex}
               isMessageSelected={messageNav.isSelected}
+              onPromptMarkerJump={messageNav.setSelectedIndex}
               onImageClick={onImageClick}
               onFileClick={onFileClick}
               onBashClick={onBashClick}

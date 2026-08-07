@@ -1,0 +1,133 @@
+// =============================================================================
+// Guake Terminal - User-prompt overview rail
+// =============================================================================
+// Claude.ai-style rail on the right edge of the conversation: one dot per
+// user prompt. Hovering the rail expands a panel listing ALL prompts
+// truncated at once; clicking a row (or a dot) jumps to that message.
+// Mounted inside the virtualized list via a sticky zero-height anchor so it
+// overlays the viewport without affecting scroll layout.
+// =============================================================================
+
+@use '../../variables' as *;
+
+.prompt-markers-anchor {
+  position: sticky;
+  top: 0;
+  height: 0;
+  z-index: 6;
+}
+
+.prompt-markers-rail {
+  position: absolute;
+  top: 0;
+  // The content box ends 18px inside .guake-output (its horizontal padding);
+  // pull the rail deep into that gutter so the dots hug the scrollbar edge.
+  right: -14px;
+  width: 20px;
+  pointer-events: none;
+}
+
+// Strip that owns the hover: sized/positioned inline to hug the dot stack
+// (plus a small margin) — entering it expands the prompt list. The rest of
+// the pane's right edge stays inert.
+.prompt-markers-hover-zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: auto;
+}
+
+.prompt-marker {
+  position: absolute;
+  right: 0;
+  width: 20px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+
+  .prompt-marker-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--text-secondary) 45%, transparent);
+    transition: transform 0.12s ease, background 0.12s ease;
+  }
+
+  &:hover .prompt-marker-dot {
+    transform: scale(1.5);
+    background: var(--text-primary);
+  }
+
+  &.active .prompt-marker-dot {
+    transform: scale(1.35);
+    background: var(--accent-blue);
+  }
+}
+
+// Expanded panel: every prompt as a one-line truncated, clickable row.
+// Vertically centered so it opens right beside the (centered) dot stack.
+.prompt-markers-panel {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  right: 24px;
+  width: max-content;
+  max-width: min(380px, 65vw);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-md;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+}
+
+.prompt-markers-panel-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+    color: var(--text-primary);
+  }
+
+  // Current prompt: distinguished by text color alone.
+  &.active {
+    color: var(--accent-blue);
+  }
+
+  .prompt-markers-panel-time {
+    flex-shrink: 0;
+    font-size: 10px;
+    color: color-mix(in srgb, var(--text-secondary) 70%, transparent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .prompt-markers-panel-text {
+    min-width: 0;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

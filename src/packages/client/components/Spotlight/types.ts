@@ -8,7 +8,13 @@ import type React from 'react';
 import type { IconName } from '../Icon';
 
 // Search result types
-export type SearchResultType = 'agent' | 'command' | 'area' | 'modified-file' | 'building' | 'folder';
+export type SearchResultType = 'agent' | 'command' | 'area' | 'modified-file' | 'building' | 'folder' | 'session';
+
+/** Prefill for the Session Finder when a session hit has no live agent. */
+export interface SessionFinderPrefill {
+  initialQuery?: string;
+  initialSessionKey?: string;
+}
 
 // Result-grouping tabs shown at the top of the palette. Order defines the
 // forward Tab-cycle order (All -> Agents -> Buildings -> Areas -> Folders -> Commands -> All).
@@ -63,6 +69,8 @@ export interface SpotlightProps {
   onOpenBossLogsModal: (buildingId: string) => void;
   onOpenDatabasePanel: (buildingId: string) => void;
   onOpenMonitoringModal?: () => void;
+  /** Open the Session Finder prefilled on a specific hit (session results). */
+  onOpenSessionFinder?: (data: SessionFinderPrefill) => void;
 }
 
 // Options for the useSpotlightSearch hook
@@ -77,6 +85,7 @@ export interface UseSpotlightSearchOptions {
   onOpenBossLogsModal: (buildingId: string) => void;
   onOpenDatabasePanel: (buildingId: string) => void;
   onOpenMonitoringModal?: () => void;
+  onOpenSessionFinder?: (data: SessionFinderPrefill) => void;
 }
 
 // Return type for useSpotlightSearch hook
