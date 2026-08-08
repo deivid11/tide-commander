@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.177.0] - 2026-08-08
+
+### Added
+- **"Restore to new agent" in the Session Finder** - a found conversation can now be restored onto a brand-new agent instead of having to overwrite an existing one. The new agent copies the configuration and skills of the closest match in that project — the most recently worked agent whose directory is the session's project, preferring a Claude agent since the finder only surfaces Claude conversations — and falls back to a default builder in that directory when the project has no agents left. This is the way back into an orphaned session whose original agent is gone. The finder jumps to the new agent and opens its terminal as soon as the server reports it, so the restored conversation is on screen without hunting for it.
+
 ## [1.176.0] - 2026-08-07
 
 ### Added

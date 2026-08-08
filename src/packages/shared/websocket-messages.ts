@@ -377,6 +377,19 @@ export interface RestoreSessionMessage extends WSMessage {
   };
 }
 
+// Restore a session onto a BRAND-NEW agent (Session Finder "Restore to new
+// agent"). The server copies the config+skills of the most similar existing
+// agent (most recently worked, same cwd as the session) or spawns defaults.
+export interface RestoreSessionNewAgentMessage extends WSMessage {
+  type: 'restore_session_new_agent';
+  payload: {
+    sessionId: string;
+    /** The session's project path — becomes the new agent's cwd. */
+    cwd: string;
+    name?: string;
+  };
+}
+
 // Request session history for an agent
 export interface RequestSessionHistoryMessage extends WSMessage {
   type: 'request_session_history';
@@ -1842,6 +1855,7 @@ export type ClientMessage =
   | SpawnAgentMessage
   | CloneAgentMessage
   | ForkAgentMessage
+  | RestoreSessionNewAgentMessage
   | SendCommandMessage
   | ReattachAgentMessage
   | MoveAgentMessage

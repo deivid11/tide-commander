@@ -372,6 +372,45 @@ export const SessionSearchModal = memo(function SessionSearchModal({
     setCurrentMatchIdx((i) => (i + 1) % totalMatches);
   }, [totalMatches]);
 
+  // "Restore to new agent": the server spawns a fresh agent (config+skills
+  // copied from the most similar agent in that project) already holding this
+  // session. We then watch agentsMap for the newcomer — an agent holding the
+  // session that did NOT hold it when we clicked — to jump to it and close.
+  const [pendingNewAgent, setPendingNewAgent] = useState<{ sessionId: string; priorIds: Set<string> } | null>(null);
+
+  const handleRestoreToNewAgent = useCallback(() => {
+    if (!selectedRow || !selectedRow.projectPath) return;
+    const priorIds = new Set<string>();
+    for (const a of agentsMap.values()) {
+      if (a.sessionId === selectedRow.sessionId) priorIds.add(a.id);
+    }
+    setRestoreSuccess(null);
+    setError(null);
+    setPendingNewAgent({ sessionId: selectedRow.sessionId, priorIds });
+    store.restoreSessionToNewAgent(selectedRow.sessionId, selectedRow.projectPath);
+  }, [selectedRow, agentsMap]);
+
+  useEffect(() => {
+    if (!pendingNewAgent) return;
+    const created = Array.from(agentsMap.values()).find(
+      (a) => a.sessionId === pendingNewAgent.sessionId && !pendingNewAgent.priorIds.has(a.id)
+    );
+    if (created) {
+      setPendingNewAgent(null);
+      store.selectAgent(created.id);
+      if (store.getState().viewMode !== 'flat') {
+        store.requestTerminalExpand();
+      }
+      onClose();
+      return;
+    }
+    const timer = setTimeout(() => {
+      setPendingNewAgent(null);
+      setError('Agent creation timed out — check the server logs');
+    }, 12_000);
+    return () => clearTimeout(timer);
+  }, [pendingNewAgent, agentsMap, onClose]);
+
   const handleRestore = useCallback(() => {
     if (!selectedRow || !targetAgent) return;
     const needsCwdSwap = selectedRow.projectPath && selectedRow.projectPath !== targetAgent.cwd;
@@ -603,6 +642,14 @@ export const SessionSearchModal = memo(function SessionSearchModal({
             </div>
             <div className="session-finder-footer-actions">
               <button className="btn btn-secondary" onClick={onClose}>Close</button>
+              <button
+                className="btn btn-secondary"
+                onClick={handleRestoreToNewAgent}
+                disabled={!selectedRow || !selectedRow.projectPath || pendingNewAgent !== null}
+                title="Create a new agent (same class, skills and settings as the closest agent in that project) and restore this conversation onto it"
+              >
+                {pendingNewAgent ? 'Creating agent…' : 'Restore to new agent'}
+              </button>
               <button
                 className="btn btn-primary"
                 onClick={handleRestore}
