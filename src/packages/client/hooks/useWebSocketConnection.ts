@@ -120,6 +120,17 @@ export function useWebSocketConnection({
     };
   }, []);
 
+  // Post-boot paint recovery (native only). An OTA bundle swap reloads the
+  // WebView — often moments after a resume — and the freshly booted context
+  // receives NO tideAppResume/visibilitychange, so a compositor that came back
+  // black after that reload had nothing to kick it. One idempotent nudge after
+  // first paint covers it (no-op when everything painted fine).
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    const timer = setTimeout(() => recoverForegroundView(), 600);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Native app only: park the WebSocket while backgrounded. The Android
   // foreground service delivers notifications through its own native socket,
   // so keeping the JS socket open in the background just burns CPU/battery

@@ -35,6 +35,12 @@ const INITIAL_RETRY_MAX_DELAY = 5 * 60 * 1000;
 // Throttle foreground-triggered re-checks so rapid app switches don't hammer
 // the endpoint; still far tighter than the hourly poll.
 const MIN_RECHECK_MS = 2 * 60 * 1000;
+// Let a resume SETTLE before auto-syncing: applying a bundle reloads the
+// WebView, and a reload fired seconds after foregrounding races Android's own
+// GPU/compositor restore — that race left the app BLACK on return (the same
+// symptom as the July black-screen bug, new cause). With dev servers pushing
+// same-version rebuilds, that swap was firing on nearly every app switch.
+const FOREGROUND_SYNC_SETTLE_MS = 5000;
 
 const CURRENT_VERSION = __APP_VERSION__;
 
@@ -213,10 +219,23 @@ export function useWebBundle({ manageLifecycle = false }: { manageLifecycle?: bo
     // spends most of its life backgrounded — and the JS socket is parked while
     // it is — so without this a release can sit unseen until the hourly tick
     // even though the user just reopened the app expecting the latest UI.
+    // The check waits FOREGROUND_SYNC_SETTLE_MS after the resume (cancelled if
+    // the app backgrounds again) so the swap's WebView reload never lands
+    // inside the resume's GPU-restore window.
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
     void App.addListener('appStateChange', ({ isActive }) => {
+      if (settleTimer) {
+        clearTimeout(settleTimer);
+        settleTimer = null;
+      }
       if (!isActive || cancelled || syncingRef.current) return;
       if (Date.now() - lastCheckAtRef.current < MIN_RECHECK_MS) return;
-      void checkNow(true);
+      settleTimer = setTimeout(() => {
+        settleTimer = null;
+        if (cancelled || syncingRef.current) return;
+        if (document.visibilityState !== 'visible') return;
+        void checkNow(true);
+      }, FOREGROUND_SYNC_SETTLE_MS);
     }).then((h) => {
       if (cancelled) void h.remove();
       else appListener = h;
@@ -224,6 +243,7 @@ export function useWebBundle({ manageLifecycle = false }: { manageLifecycle?: bo
 
     return () => {
       cancelled = true;
+      if (settleTimer) clearTimeout(settleTimer);
       for (const timer of timers) clearTimeout(timer);
       clearInterval(interval);
       if (appListener) void appListener.remove();
