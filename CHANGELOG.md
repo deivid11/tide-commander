@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.177.1] - 2026-08-08
+
+### Fixed
+- **Black screen when returning to the Android app** - a new cause of the resume black screen. Applying an over-the-air UI bundle reloads the WebView, and the auto-sync check fired the instant the app came to the foreground, so that reload landed inside Android's own GPU/compositor restore and the two raced — leaving the app black on return. Against a dev server, which pushes same-version rebuilds, the swap was firing on nearly every app switch, making it frequent. The foreground check now waits five seconds for the resume to settle (and is cancelled if the app is backgrounded again in the meantime).
+- **Black screen after an over-the-air bundle swap** - the freshly reloaded WebView starts a brand-new page context, which never receives the resume or visibility events the existing recovery hooks listen for, so a compositor that came back black after the swap had nothing to kick it. A single idempotent recovery nudge now runs shortly after first paint on native builds; it does nothing when the view painted normally.
+
 ## [1.177.0] - 2026-08-08
 
 ### Added
