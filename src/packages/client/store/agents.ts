@@ -117,6 +117,9 @@ export interface AgentActions {
   stopAgent(agentId: string): void;
   clearContext(agentId: string): void;
   restoreSession(agentId: string, sessionId: string, cwd?: string): void;
+  /** Restore a session onto a brand-new agent (server copies the config and
+   * skills of the most similar existing agent in that project). */
+  restoreSessionToNewAgent(sessionId: string, cwd: string, name?: string): void;
   requestSessionHistory(agentId: string): void;
   setSessionHistory(agentId: string, entries: import('../../shared/types').SessionHistoryEntry[]): void;
   getSessionHistory(agentId: string): import('../../shared/types').SessionHistoryEntry[];
@@ -746,6 +749,13 @@ export function createAgentActions(
         }
       });
       notify();
+    },
+
+    restoreSessionToNewAgent(sessionId: string, cwd: string, name?: string): void {
+      getSendMessage()?.({
+        type: 'restore_session_new_agent',
+        payload: name ? { sessionId, cwd, name } : { sessionId, cwd },
+      });
     },
 
     restoreSession(agentId: string, sessionId: string, cwd?: string): void {

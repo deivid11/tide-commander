@@ -165,7 +165,17 @@ export async function handleSpawnAgent(
 async function duplicateAgentConfig(
   source: Agent,
   name: string,
-  position: { x: number; y: number; z: number }
+  position: { x: number; y: number; z: number },
+  overrides?: {
+    /** Attach the new agent to a different project (session restore). */
+    cwd?: string;
+    /** Session for the new agent. Clone/fork never pass one (clone=fresh,
+     * fork sets forkSourceSessionId afterwards); restore-to-new-agent does. */
+    sessionId?: string;
+    /** Force the provider (a restored Claude session needs a Claude agent
+     * even when the config source runs Codex/OpenCode). */
+    provider?: AgentProvider;
+  }
 ): Promise<Agent> {
   // Copy only directly-assigned skills; class-default skills are re-applied
   // automatically below based on the new agent's class.
@@ -177,9 +187,9 @@ async function duplicateAgentConfig(
   const agent = await agentService.createAgent(
     name,
     source.class,
-    source.cwd,
+    overrides?.cwd ?? source.cwd,
     position,
-    undefined, // sessionId - never share the source's; clone=fresh, fork=set below
+    overrides?.sessionId,
     source.useChrome,
     source.permissionMode,
     undefined, // initialSkillIds handled separately below
@@ -187,7 +197,7 @@ async function duplicateAgentConfig(
     source.model,
     source.codexModel,
     source.customInstructions,
-    source.provider,
+    overrides?.provider ?? source.provider,
     source.codexConfig,
     source.effort,
     source.opencodeModel,
@@ -212,6 +222,65 @@ function duplicateOffset(source: Agent): { x: number; y: number; z: number } {
 // Providers whose conversation history can be forked. Codex forks through the
 // app-server `thread/fork` method even when regular turns use `codex exec`.
 const FORKABLE_PROVIDERS: ReadonlySet<AgentProvider> = new Set(['claude', 'codex', 'opencode', 'grok']);
+
+/**
+ * Handle restore_session_new_agent — restore a (possibly orphaned) session
+ * onto a BRAND-NEW agent. The new agent copies the configuration and skills
+ * of the most similar existing agent: the most recently worked one whose cwd
+ * matches the session's project (Claude-provider preferred — the Session
+ * Finder only surfaces Claude JSONL sessions). Without a similar agent it
+ * spawns a default builder in the session's cwd.
+ */
+export async function handleRestoreSessionNewAgent(
+  ctx: HandlerContext,
+  payload: { sessionId: string; cwd: string; name?: string }
+): Promise<void> {
+  if (!payload?.sessionId || !payload?.cwd) {
+    ctx.sendError('restore_session_new_agent requires sessionId and cwd');
+    return;
+  }
+
+  const candidates = agentService
+    .getAllAgents()
+    .filter((a) => a.cwd === payload.cwd)
+    .sort((a, b) => (b.lastWorkedAt ?? b.lastActivity ?? 0) - (a.lastWorkedAt ?? a.lastActivity ?? 0));
+  const source = candidates.find((a) => (a.provider ?? 'claude') === 'claude') ?? candidates[0];
+
+  log.log(
+    `Restoring session ${payload.sessionId} onto a new agent in ${payload.cwd}` +
+      (source ? ` (config from ${source.name})` : ' (no similar agent — defaults)')
+  );
+
+  try {
+    let agent: Agent;
+    if (source) {
+      const name = payload.name?.trim() || `${source.name} (Restored)`;
+      agent = await duplicateAgentConfig(source, name, duplicateOffset(source), {
+        cwd: payload.cwd,
+        sessionId: payload.sessionId,
+        provider: 'claude',
+      });
+    } else {
+      agent = await agentService.createAgent(
+        payload.name?.trim() || 'Restored Session',
+        'builder',
+        payload.cwd,
+        undefined,
+        payload.sessionId
+      );
+      for (const skillId of customClassService.getClassDefaultSkillIds(agent.class)) {
+        skillService.assignSkillToAgent(skillId, agent.id);
+      }
+    }
+
+    ctx.broadcast({ type: 'agent_created', payload: agent });
+    ctx.sendActivity(agent.id, `${agent.name} created to restore session ${payload.sessionId.slice(0, 8)}…`);
+    log.log(`Session ${payload.sessionId} restored onto new agent ${agent.name} (${agent.id})`);
+  } catch (err: any) {
+    log.error('Failed to restore session onto a new agent:', err);
+    ctx.sendError(err.message);
+  }
+}
 
 /**
  * Handle clone_agent message - duplicates an existing agent's configuration

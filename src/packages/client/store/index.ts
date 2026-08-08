@@ -1292,6 +1292,7 @@ class Store
   stopAgent(...args: Parameters<AgentActions['stopAgent']>) { return this.agentActions.stopAgent(...args); }
   clearContext(...args: Parameters<AgentActions['clearContext']>) { return this.agentActions.clearContext(...args); }
   restoreSession(...args: Parameters<AgentActions['restoreSession']>) { return this.agentActions.restoreSession(...args); }
+  restoreSessionToNewAgent(...args: Parameters<AgentActions['restoreSessionToNewAgent']>) { return this.agentActions.restoreSessionToNewAgent(...args); }
   requestSessionHistory(...args: Parameters<AgentActions['requestSessionHistory']>) { return this.agentActions.requestSessionHistory(...args); }
   setSessionHistory(...args: Parameters<AgentActions['setSessionHistory']>) { return this.agentActions.setSessionHistory(...args); }
   getSessionHistory(...args: Parameters<AgentActions['getSessionHistory']>) { return this.agentActions.getSessionHistory(...args); }
@@ -1604,7 +1605,7 @@ declare global {
 // Increment this when Store class has breaking changes that require fresh instance
 // (e.g. new methods) — otherwise HMR keeps the old singleton, which lacks them.
 // v4: added loadTestRunFromHistory (tests-building "Previous runs" list).
-const STORE_VERSION = 7;
+const STORE_VERSION = 8;
 
 // Singleton store instance - persisted on window for HMR
 function getOrCreateStore(): Store {
