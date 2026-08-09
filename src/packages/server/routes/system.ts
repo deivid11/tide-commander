@@ -792,4 +792,47 @@ router.get('/codex-credentials/usage', async (_req: Request, res: Response) => {
   }
 });
 
+/**
+ * Client lifecycle beacons — diagnostics for the Android black-screen-on-resume
+ * bug. The phone posts a beacon on native boot / resume / visibility events;
+ * correlating "David saw black at HH:MM" with this buffer answers the key
+ * question remotely: were resume beacons arriving (JS alive → compositor
+ * problem) or absent (renderer/JS dead → native-side problem)?
+ */
+interface ClientBeacon {
+  ts: string;
+  event: string;
+  detail?: Record<string, unknown>;
+  ip?: string;
+  userAgent?: string;
+}
+const clientBeacons: ClientBeacon[] = [];
+const CLIENT_BEACONS_MAX = 300;
+
+// POST /api/system/client-beacon  { event, detail? }
+router.post('/client-beacon', (req: Request, res: Response) => {
+  const event = typeof req.body?.event === 'string' ? req.body.event.slice(0, 64) : '';
+  if (!event) {
+    res.status(400).json({ error: 'event is required' });
+    return;
+  }
+  const beacon: ClientBeacon = {
+    ts: new Date().toISOString(),
+    event,
+    detail: typeof req.body?.detail === 'object' && req.body.detail !== null ? req.body.detail : undefined,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+  };
+  clientBeacons.push(beacon);
+  if (clientBeacons.length > CLIENT_BEACONS_MAX) clientBeacons.splice(0, clientBeacons.length - CLIENT_BEACONS_MAX);
+  log.log(`[beacon] ${event}${beacon.detail ? ' ' + JSON.stringify(beacon.detail) : ''} (${beacon.userAgent?.slice(0, 40) ?? '?'})`);
+  res.json({ ok: true });
+});
+
+// GET /api/system/client-beacons?limit=100 — newest last
+router.get('/client-beacons', (req: Request, res: Response) => {
+  const limit = Math.max(1, Math.min(parseInt(req.query.limit as string) || 100, CLIENT_BEACONS_MAX));
+  res.json({ beacons: clientBeacons.slice(-limit) });
+});
+
 export default router;

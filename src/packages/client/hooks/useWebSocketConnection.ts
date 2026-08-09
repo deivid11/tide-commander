@@ -23,6 +23,7 @@ import {
   openAgentTerminalFromNotification,
   isNativeApp,
 } from '../utils/notifications';
+import { apiUrl, authFetch } from '../utils/storage';
 import type { ToastType } from '../components/Toast';
 import type { WhatsAppMessagePayload } from '../websocket/callbacks';
 
@@ -80,10 +81,14 @@ export function useWebSocketConnection({
     // Handle app resume from background (Android)
     const handleAppResume = () => {
       console.log('[Tide] App resumed from background, reconnecting...');
+      sendLifecycleBeacon('resume');
       setTimeout(() => {
         resumeFromBackground();
         recoverForegroundView();
       }, 100);
+      // Second recovery pass: some devices restore the compositor/GL context
+      // late — a nudge fired only in the first 100ms can land too early.
+      setTimeout(() => recoverForegroundView(), 900);
     };
     window.addEventListener('tideAppResume', handleAppResume);
 
@@ -102,6 +107,7 @@ export function useWebSocketConnection({
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
+        sendLifecycleBeacon('visible');
         verifyConnection();
         // Also repaint/recover here: on some Android WebView builds
         // `visibilitychange` fires on resume but the native `tideAppResume`
@@ -127,8 +133,13 @@ export function useWebSocketConnection({
   // first paint covers it (no-op when everything painted fine).
   useEffect(() => {
     if (!isNativeApp()) return;
+    sendLifecycleBeacon('boot');
     const timer = setTimeout(() => recoverForegroundView(), 600);
-    return () => clearTimeout(timer);
+    const lateTimer = setTimeout(() => recoverForegroundView(), 2500);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(lateTimer);
+    };
   }, []);
 
   // Native app only: park the WebSocket while backgrounded. The Android
@@ -206,12 +217,45 @@ function recoverForegroundView(): void {
   if (!body) return;
   const prev = body.style.opacity;
   body.style.opacity = '0.999999';
-  requestAnimationFrame(() => {
+  // Revert on the next frame — with a timer fallback: right after a resume
+  // the WebView's rAF can stall for a while, and a nudge that never reverts
+  // is a nudge that never re-composites.
+  let reverted = false;
+  const revert = () => {
+    if (reverted) return;
+    reverted = true;
     body.style.opacity = prev;
-  });
+  };
+  requestAnimationFrame(revert);
+  setTimeout(revert, 80);
+}
+
+/** Beacon for remote black-screen diagnosis: tells the server this JS context
+ * is alive at boot/resume. Absence of beacons around a black screen means the
+ * renderer/JS died (native-side problem); presence means a compositor/paint
+ * problem. Fire-and-forget — never let diagnostics break the app. */
+function sendLifecycleBeacon(event: string): void {
+  if (!isNativeApp()) return;
+  try {
+    void authFetch(apiUrl('/api/system/client-beacon'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event,
+        detail: {
+          version: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : undefined,
+          visibility: document.visibilityState,
+          hasScene: Boolean(getPersistedScene()),
+        },
+      }),
+    }).catch(() => { /* offline/unreachable — irrelevant for diagnostics */ });
+  } catch { /* never break the app for a beacon */ }
 }
 
 // How long the app must stay backgrounded before the socket is parked.
 // Long enough to survive quick app switches, short enough that a phone left
 // in a pocket stops processing the firehose within half a minute.
 const BACKGROUND_SUSPEND_GRACE_MS = 20_000;
+
+// Vite compile-time constant (baked by the build).
+declare const __APP_VERSION__: string;

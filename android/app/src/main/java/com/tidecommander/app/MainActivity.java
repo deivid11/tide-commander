@@ -76,6 +76,23 @@ public class MainActivity extends BridgeActivity {
         super.onResume();
         WebSocketForegroundService.isAppInForeground = true;
 
+        // Black-screen-on-resume, surface-level cause: Android can bring the
+        // Activity back with a stale (black) WebView surface even though the
+        // renderer process and JS are alive — no JS-side nudge can fix that
+        // layer. A two-frame visibility bounce forces SurfaceFlinger to drop
+        // and re-attach the surface, and invalidate() repaints. In the healthy
+        // case this lands inside the app-switch transition and is invisible.
+        final WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+        if (webView != null) {
+            webView.post(() -> {
+                webView.setVisibility(View.INVISIBLE);
+                webView.post(() -> {
+                    webView.setVisibility(View.VISIBLE);
+                    webView.invalidate();
+                });
+            });
+        }
+
         // Trigger reconnect when app comes back to foreground
         // The WebView will receive this and reconnect the WebSocket
         getBridge().eval("window.dispatchEvent(new Event('tideAppResume'));", null);
