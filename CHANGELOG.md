@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.177.2] - 2026-08-08
+
+### Fixed
+- **Black screen on resume, surface-level cause** - Android can bring the app back with a stale (black) WebView surface even though the renderer and JavaScript are perfectly alive, which is a layer no JavaScript-side repaint can reach. On resume the native side now bounces the WebView's visibility across two frames, forcing the system to drop and re-attach the surface, then repaints. In the healthy case this happens inside the app-switch transition and is invisible. **This part ships only in the APK** — an over-the-air UI update cannot carry a native change.
+- **Recovery nudges landing too early** - some devices restore the compositor or GL context late, so a single repaint fired in the first moments of a resume could run before there was anything to fix. Resume and boot now each get a second, later pass, and the repaint itself no longer depends solely on an animation frame — right after a resume the WebView's frame callbacks can stall, and a nudge that never reverts is a nudge that never re-composites, so a short timer now backs it up.
+
+### Added
+- **Client lifecycle beacons** - the phone posts a small beacon to the commander on native boot, resume and visibility events, and the server keeps the last 300 in memory (`GET /api/system/client-beacons`). This answers the question that was previously unanswerable from a phone across the room: if beacons arrive around a black screen the JavaScript context is alive and it's a compositor/paint problem, and if they stop the renderer itself died. Fire-and-forget — a failed beacon can never affect the app.
+
 ## [1.177.1] - 2026-08-08
 
 ### Fixed
