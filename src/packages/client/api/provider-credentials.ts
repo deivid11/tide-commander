@@ -35,6 +35,12 @@ export interface ProviderCredentialsSwitchResult {
   profiles: ProviderCredentialProfileMeta[];
   stashedAs: string | null;
   previousMatchesNamed: string | null;
+  /**
+   * Codex only: a running `codex app-server` daemon was killed because it had
+   * the previous account cached in memory. Its in-flight turns are gone — the
+   * next message spawns a fresh daemon on the new account and resumes.
+   */
+  codexAppServerStopped?: boolean;
 }
 
 export interface CodexProfileRateLimitWindow {

@@ -39,6 +39,7 @@ import {
   type CredentialProviderId,
 } from '../services/provider-credentials-service.js';
 import { getCodexCredentialProfilesUsage } from '../services/codex-usage-service.js';
+import { killDetachedAppServerDaemon } from '../codex/app-server/app-server-process.js';
 
 const log = createLogger('SystemRoutes');
 const router = Router();
@@ -710,11 +711,15 @@ function mountProviderCredentialRoutes(provider: CredentialProviderId, basePath:
         res.status(400).json({ error: 'stashActiveAs must be a string when provided' });
         return;
       }
-      res.json(
-        switchProviderCredentialProfile(provider, name.trim(), {
-          stashActiveAs: typeof stashActiveAs === 'string' ? stashActiveAs.trim() : undefined,
-        }),
-      );
+      const result = switchProviderCredentialProfile(provider, name.trim(), {
+        stashActiveAs: typeof stashActiveAs === 'string' ? stashActiveAs.trim() : undefined,
+      });
+      // The detached `codex app-server` daemon caches ~/.codex/auth.json in
+      // memory at startup, so without this every Codex agent would keep running
+      // on the account the user just switched away from. Killing it makes the
+      // next launch spawn a fresh daemon with the new credentials.
+      const appServerStopped = provider === 'codex' ? killDetachedAppServerDaemon().stopped : false;
+      res.json({ ...result, codexAppServerStopped: appServerStopped });
     } catch (err) {
       const message = (err as Error).message;
       log.error(`Failed to switch ${provider} credentials: ${message}`);

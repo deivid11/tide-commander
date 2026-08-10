@@ -19,6 +19,19 @@ import { Icon } from './Icon';
 import { ZoomableImage } from './shared/ZoomableImage';
 import { VirtualLineList, scrollLineIntoView } from './shared/VirtualLineList';
 
+const StlViewer = React.lazy(async () => {
+  const module = await import('./shared/StlViewer');
+  return { default: module.StlViewer };
+});
+const FcStdViewer = React.lazy(async () => {
+  const module = await import('./shared/FcStdViewer');
+  return { default: module.FcStdViewer };
+});
+const GcodeViewer = React.lazy(async () => {
+  const module = await import('./shared/GcodeViewer');
+  return { default: module.GcodeViewer };
+});
+
 // Row heights from _file-viewer.scss: 12px font at line-height 1.6 (normal
 // view) and 1.5 (read-highlight view). Rows never wrap (`white-space: pre`),
 // so these are exact and the windowed list keeps the real scroll height.
@@ -177,6 +190,9 @@ function reconstructOriginalFromUnifiedDiff(currentContent: string, diffText: st
 const MARKDOWN_EXTENSIONS = ['.md', '.mdx', '.markdown'];
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico', '.svg'];
 const PDF_EXTENSIONS = ['.pdf'];
+const STL_EXTENSIONS = ['.stl'];
+const FCSTD_EXTENSIONS = ['.fcstd'];
+const GCODE_EXTENSIONS = ['.gcode', '.gco'];
 
 function hasFileExtension(extension: string | undefined, path: string, extensions: string[]): boolean {
   const normalizedExtension = extension?.toLowerCase();
@@ -523,8 +539,11 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
     const isPdfFile = PDF_EXTENSIONS.includes(ext);
     const isImageFile = IMAGE_EXTENSIONS.includes(ext);
+    const isStlFile = STL_EXTENSIONS.includes(ext);
+    const isFcStdFile = FCSTD_EXTENSIONS.includes(ext);
+    const isGcodeFile = GCODE_EXTENSIONS.includes(ext);
 
-    const endpoint = (isPdfFile || isImageFile)
+    const endpoint = (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGcodeFile)
       ? `/api/files/info?path=${encodeURIComponent(filePath)}${baseDirParam}`
       : `/api/files/read?path=${encodeURIComponent(filePath)}${baseDirParam}`;
 
@@ -542,7 +561,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       };
     }
 
-    if (isPdfFile || isImageFile) {
+    if (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGcodeFile) {
       data.content = '';
     }
 
@@ -953,13 +972,19 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const isSvg = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, ['.svg']));
   const isImage = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, IMAGE_EXTENSIONS));
   const isPdf = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, PDF_EXTENSIONS));
-  const language = isSvg ? 'SVG' : isImage ? 'Image' : isPdf ? 'PDF' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
+  const isStl = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, STL_EXTENSIONS));
+  const isFcStd = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, FCSTD_EXTENSIONS));
+  const isGcode = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, GCODE_EXTENSIONS));
+  const language = isSvg ? 'SVG' : isImage ? 'Image' : isPdf ? 'PDF' : isStl ? 'STL · 3D' : isFcStd ? 'FreeCAD · 3D' : isGcode ? 'G-code · Print' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
   const authToken = getAuthToken();
   // Use the resolved file path (a clicked directory entry has its own path that
   // differs from the modal's original effectivePath — which may be the folder).
   const binaryPath = fileData?.path || effectivePath;
   const imageUrl = isImage ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}${authToken ? `&token=${encodeURIComponent(authToken)}` : ''}`) : null;
   const pdfUrl = isPdf ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}`) : null;
+  const stlUrl = isStl ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}`) : null;
+  const fcstdUrl = isFcStd ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}`) : null;
+  const gcodeUrl = isGcode ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}`) : null;
   // The text preview endpoint deliberately rejects files over 1 MB, but those
   // files can still be saved through the streaming binary endpoint.
   const canDownloadWithoutPreview = !fileData && error?.startsWith('File too large');
@@ -1066,7 +1091,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                 </button>
               </>
             )}
-            {fileData && !isImage && !isPdf && !isMarkdown && (
+            {fileData && !isImage && !isPdf && !isStl && !isFcStd && !isGcode && !isMarkdown && (
               <button
                 type="button"
                 className={`file-viewer-copy-html-btn ${copyAllStatus}`}
@@ -1076,7 +1101,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                 {copyAllStatus === 'copied' ? t('common:status.copied') : copyAllStatus === 'error' ? t('common:status.error') : t('terminal:fileExplorer.copyAll')}
               </button>
             )}
-            {fileData && !isImage && !isPdf && (
+            {fileData && !isImage && !isPdf && !isStl && !isFcStd && !isGcode && (
               <button
                 type="button"
                 className="file-viewer-copy-html-btn"
@@ -1086,14 +1111,18 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                 {t('common:buttons.download')}
               </button>
             )}
-            {(isImage || isPdf) && fileData ? (
+            {(isImage || isPdf || isStl || isFcStd || isGcode) && fileData ? (
               <button
                 type="button"
                 className={`file-viewer-copy-html-btn ${downloadStatus}`}
                 onClick={handleDownload}
                 disabled={downloadStatus === 'downloading'}
                 title={downloadError
-                  || (isImage ? t('terminal:fileExplorer.downloadImage') : t('terminal:fileExplorer.downloadPdf'))}
+                  || (isImage
+                    ? t('terminal:fileExplorer.downloadImage')
+                    : isPdf
+                      ? t('terminal:fileExplorer.downloadPdf')
+                      : t('terminal:fileExplorer.downloadFileTitle'))}
               >
                 {downloadStatus === 'downloading'
                   ? '…'
@@ -1130,7 +1159,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
             <span>{formatFileSize(fileData.size)}</span>
             <span>•</span>
             <span>{language}</span>
-            {fileData.content && !isImage && !isPdf && (
+            {fileData.content && !isImage && !isPdf && !isStl && !isFcStd && !isGcode && (
               <>
                 <span>•</span>
                 <span>{t('terminal:fileViewer.lineCount', { count: fileData.content.split('\n').length })}</span>
@@ -1253,6 +1282,28 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
               </div>
             ) : isPdf && pdfUrl ? (
               <PdfJsViewer url={pdfUrl} authToken={authToken || undefined} />
+            ) : isStl && stlUrl ? (
+              <React.Suspense fallback={<div className="file-viewer-loading">{t('terminal:fileViewerModal.loading3d')}</div>}>
+                <StlViewer
+                  url={stlUrl}
+                  filename={fileData.filename}
+                  filePath={binaryPath}
+                  onFileSelect={(path) => store.setFileViewerPath(path, undefined, searchRoot)}
+                />
+              </React.Suspense>
+            ) : isFcStd && fcstdUrl ? (
+              <React.Suspense fallback={<div className="file-viewer-loading">{t('terminal:fileViewerModal.loadingFcstd')}</div>}>
+                <FcStdViewer
+                  url={fcstdUrl}
+                  filename={fileData.filename}
+                  filePath={binaryPath}
+                  onFileSelect={(path) => store.setFileViewerPath(path, undefined, searchRoot)}
+                />
+              </React.Suspense>
+            ) : isGcode && gcodeUrl ? (
+              <React.Suspense fallback={<div className="file-viewer-loading">{t('terminal:fileViewerModal.loadingGcode')}</div>}>
+                <GcodeViewer url={gcodeUrl} filename={fileData.filename} />
+              </React.Suspense>
             ) : showDiffView ? (
               // Show side-by-side diff view for Edit tool
               <DiffViewer

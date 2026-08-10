@@ -6,7 +6,7 @@
 import { Router, Request, Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
-import { execFile, execSync, spawn } from 'child_process';
+import { execFile, execFileSync, execSync, spawn } from 'child_process';
 import * as os from 'os';
 import { pathToFileURL } from 'url';
 import { logger } from '../utils/logger.js';
@@ -49,6 +49,24 @@ interface TreeNode {
 }
 
 const router = Router();
+
+function looksLikeBinaryBuffer(buffer: Buffer): boolean {
+  if (buffer.length === 0) return false;
+  const sample = buffer.subarray(0, Math.min(buffer.length, 8192));
+  // NUL catches the common case; replacement characters catch compressed or
+  // media formats that contain no NUL in their first block but are not UTF-8.
+  return sample.includes(0) || buffer.toString('utf-8').includes('\uFFFD');
+}
+
+function binaryContentTypeForExtension(extension: string): string {
+  const mimeTypes: Record<string, string> = {
+    '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
+    '.ico': 'image/x-icon', '.pdf': 'application/pdf', '.stl': 'model/stl',
+    '.fcstd': 'application/vnd.freecad', '.gcode': 'text/x-gcode', '.gco': 'text/x-gcode',
+  };
+  return mimeTypes[extension] || 'application/octet-stream';
+}
 
 // Windows absolute paths — drive-letter (`C:\…` or `C:/…`) and UNC (`\\server\share`)
 // — are NOT recognized by path.isAbsolute() when the server runs on POSIX. Without
@@ -599,7 +617,7 @@ router.get('/read', async (req: Request, res: Response) => {
       return;
     }
 
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const fileBuffer = fs.readFileSync(filePath);
     const extension = path.extname(filePath).toLowerCase();
     const filename = path.basename(filePath);
 
@@ -613,6 +631,13 @@ router.get('/read', async (req: Request, res: Response) => {
       areaId: resolution.areaId,
       areaName: resolution.areaName,
     };
+
+    if (looksLikeBinaryBuffer(fileBuffer)) {
+      res.status(415).json({ ...base, binary: true, error: 'Binary file cannot be read as text' });
+      return;
+    }
+
+    const content = fileBuffer.toString('utf-8');
 
     // Preview mode (Ctrl+hover tooltip in the terminal): return only the
     // requested line window. Reading the file is cheap; shipping a 1MB body
@@ -834,6 +859,10 @@ router.get('/binary', async (req: Request, res: Response) => {
       '.ico': 'image/x-icon',
       '.svg': 'image/svg+xml',
       '.pdf': 'application/pdf',
+      '.stl': 'model/stl',
+      '.fcstd': 'application/vnd.freecad',
+      '.gcode': 'text/x-gcode',
+      '.gco': 'text/x-gcode',
       '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       '.xls': 'application/vnd.ms-excel',
       '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -2021,11 +2050,10 @@ router.get('/git-original', async (req: Request, res: Response) => {
     const relativePath = path.relative(gitRoot, filePath);
 
     // Get original content from HEAD
-    let originalContent: string;
+    let originalBuffer: Buffer;
     try {
-      originalContent = execSync(`git show HEAD:"${relativePath}"`, {
+      originalBuffer = execFileSync('git', ['show', `HEAD:${relativePath}`], {
         cwd: gitRoot,
-        encoding: 'utf-8',
         maxBuffer: 10 * 1024 * 1024, // 10MB
       });
     } catch (err: any) {
@@ -2043,16 +2071,65 @@ router.get('/git-original', async (req: Request, res: Response) => {
       throw err;
     }
 
+    if (looksLikeBinaryBuffer(originalBuffer)) {
+      res.status(415).json({
+        path: filePath,
+        filename: path.basename(filePath),
+        extension: path.extname(filePath).toLowerCase(),
+        binary: true,
+        isNew: false,
+        error: 'Binary file cannot be read as text',
+      });
+      return;
+    }
+
     res.json({
       path: filePath,
       filename: path.basename(filePath),
       extension: path.extname(filePath).toLowerCase(),
-      content: originalContent,
+      content: originalBuffer.toString('utf-8'),
       isNew: false,
     });
   } catch (err: any) {
     log.error(' Failed to get git original:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/files/git-original-binary - Stream the HEAD version of a binary
+// file. This keeps deleted image/PDF/STL/FCStd previews useful in the Git modal.
+router.get('/git-original-binary', async (req: Request, res: Response) => {
+  try {
+    const resolution = resolveAndValidateFilePath(
+      req.query.path as string | undefined,
+      req.query.baseDir as string | undefined,
+    );
+    if (!resolution.ok) {
+      res.status(resolution.status).json({ error: resolution.error });
+      return;
+    }
+    const filePath = resolution.path;
+    const gitRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+      cwd: path.dirname(filePath),
+      encoding: 'utf-8',
+    }).trim();
+    const relativePath = path.relative(gitRoot, filePath);
+    if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      res.status(400).json({ error: 'Path is outside the git repository' });
+      return;
+    }
+    const buffer = execFileSync('git', ['show', `HEAD:${relativePath}`], {
+      cwd: gitRoot,
+      maxBuffer: 50 * 1024 * 1024,
+    });
+    const extension = path.extname(filePath).toLowerCase();
+    res.setHeader('Content-Type', binaryContentTypeForExtension(extension));
+    res.setHeader('Content-Length', buffer.length);
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.send(buffer);
+  } catch (err: any) {
+    log.error(' Failed to get original binary from git:', err);
+    res.status(404).json({ error: 'Original binary file not found' });
   }
 });
 
@@ -3217,6 +3294,10 @@ router.post('/by-path', async (req: Request, res: Response) => {
       '.mp3': 'audio/mpeg',
       '.mp4': 'video/mp4',
       '.wav': 'audio/wav',
+      '.stl': 'model/stl',
+      '.fcstd': 'application/vnd.freecad',
+      '.gcode': 'text/x-gcode',
+      '.gco': 'text/x-gcode',
     };
 
     const contentType = mimeTypes[extension] || 'application/octet-stream';

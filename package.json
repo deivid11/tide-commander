@@ -1,6 +1,6 @@
 {
   "name": "tide-commander",
-  "version": "1.177.2",
+  "version": "1.178.0",
   "description": "Visual multi-agent orchestrator and manager for Claude Code with 3D/2D interface",
   "repository": {
     "type": "git",
@@ -91,6 +91,7 @@
     "mssql": "^12.4.0",
     "multer": "^2.1.1",
     "mysql2": "^3.16.2",
+    "occt-import-js": "^0.0.23",
     "oracledb": "^6.10.0",
     "pdfjs-dist": "^5.6.205",
     "pg": "^8.17.2",

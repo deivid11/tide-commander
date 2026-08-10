@@ -9,7 +9,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { apiUrl, authFetch, STORAGE_KEYS, getStorageString, setStorageString, getStorage, setStorage } from '../../utils/storage';
+import { apiUrl, authFetch, STORAGE_KEYS, getStorageString, setStorageString, getStorage, setStorage, getAuthToken } from '../../utils/storage';
 import { useAreas, useGitDirStatuses } from '../../store';
 import { acquireGitWatch, requestGitRefresh } from '../../services/gitWatch';
 import { DiffViewer } from '../DiffViewer';
@@ -28,6 +28,23 @@ import { ContextMenu, type ContextMenuAction } from '../ContextMenu';
 import { Icon } from '../Icon';
 import { useToast } from '../Toast';
 import { useModalStackRegistration } from '../../hooks/useModalStack';
+import { PdfJsViewer } from '../shared/PdfJsViewer';
+import { ZoomableImage } from '../shared/ZoomableImage';
+
+const StlViewer = React.lazy(async () => {
+  const module = await import('../shared/StlViewer');
+  return { default: module.StlViewer };
+});
+
+const FcStdViewer = React.lazy(async () => {
+  const module = await import('../shared/FcStdViewer');
+  return { default: module.FcStdViewer };
+});
+
+const GcodeViewer = React.lazy(async () => {
+  const module = await import('../shared/GcodeViewer');
+  return { default: module.GcodeViewer };
+});
 
 // ==========================================================================
 // TYPES
@@ -115,7 +132,20 @@ interface ContentState {
   language: string;
 }
 
-type ModalState = { type: 'diff'; data: DiffState } | { type: 'content'; data: ContentState; isNewFile?: boolean } | null;
+type BinaryPreviewKind = 'image' | 'pdf' | 'stl' | 'fcstd' | 'gcode' | 'binary';
+
+interface BinaryState {
+  filePath: string;
+  fileName: string;
+  previewKind: BinaryPreviewKind;
+  isDeleted: boolean;
+}
+
+type ModalState =
+  | { type: 'diff'; data: DiffState }
+  | { type: 'content'; data: ContentState; isNewFile?: boolean }
+  | { type: 'binary'; data: BinaryState }
+  | null;
 type ViewMode = 'flat' | 'tree';
 type PanelMode = 'changes' | 'explorer';
 
@@ -126,6 +156,27 @@ type PanelMode = 'changes' | 'explorer';
 function getLanguageForFile(filename: string): string {
   const ext = filename.lastIndexOf('.') >= 0 ? filename.substring(filename.lastIndexOf('.')) : '';
   return getLanguageForExtension(ext);
+}
+
+const GIT_BINARY_EXTENSIONS = new Set([
+  '.xlsx', '.xls', '.docx', '.doc', '.pptx', '.ppt',
+  '.zip', '.tar', '.gz', '.rar', '.7z',
+  '.exe', '.dmg', '.app', '.deb', '.rpm', '.apk', '.aab', '.ipa', '.msi',
+  '.mp3', '.mp4', '.wav', '.avi', '.mov', '.mkv', '.flac', '.ogg', '.webm',
+  '.ttf', '.otf', '.woff', '.woff2', '.eot', '.sqlite', '.db',
+  '.so', '.dll', '.dylib', '.a', '.o', '.obj', '.bin', '.dat', '.iso', '.img',
+  '.jar', '.war', '.ear', '.class',
+]);
+
+function getBinaryPreviewKind(filename: string): BinaryPreviewKind | null {
+  const dot = filename.lastIndexOf('.');
+  const extension = dot >= 0 ? filename.slice(dot).toLowerCase() : '';
+  if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico'].includes(extension)) return 'image';
+  if (extension === '.pdf') return 'pdf';
+  if (extension === '.stl') return 'stl';
+  if (extension === '.fcstd') return 'fcstd';
+  if (extension === '.gcode' || extension === '.gco') return 'gcode';
+  return GIT_BINARY_EXTENSIONS.has(extension) ? 'binary' : null;
 }
 
 function isPositionInArea(pos: { x: number; z: number }, area: { center: { x: number; z: number }; width: number; height: number; type: string }): boolean {
@@ -184,6 +235,52 @@ function HighlightedText({ text, filter }: { text: string; filter: ParsedFileFil
   }
   if (cursor < text.length) parts.push(text.slice(cursor));
   return <>{parts}</>;
+}
+
+function GitBinaryPreview({ data, onFileSelect }: { data: BinaryState; onFileSelect: (path: string) => void }) {
+  const { t } = useTranslation('terminal');
+  const endpoint = data.isDeleted ? '/api/files/git-original-binary' : '/api/files/binary';
+  const rawUrl = apiUrl(`${endpoint}?path=${encodeURIComponent(data.filePath)}`);
+  const authToken = getAuthToken();
+  const mediaUrl = authToken ? `${rawUrl}&token=${encodeURIComponent(authToken)}` : rawUrl;
+
+  if (data.previewKind === 'image') {
+    return (
+      <div className="guake-git-binary-preview guake-git-image-preview">
+        <ZoomableImage src={mediaUrl} alt={data.fileName} />
+      </div>
+    );
+  }
+  if (data.previewKind === 'pdf') {
+    return (
+      <div className="guake-git-binary-preview">
+        <PdfJsViewer url={rawUrl} authToken={authToken || undefined} />
+      </div>
+    );
+  }
+  if (data.previewKind === 'stl' || data.previewKind === 'fcstd' || data.previewKind === 'gcode') {
+    return (
+      <div className="guake-git-binary-preview">
+        <React.Suspense fallback={<div className="file-viewer-loading">{t('fileViewerModal.loading3d')}</div>}>
+          {data.previewKind === 'stl'
+            ? <StlViewer url={rawUrl} filename={data.fileName} filePath={data.filePath} onFileSelect={onFileSelect} />
+            : data.previewKind === 'fcstd'
+              ? <FcStdViewer url={rawUrl} filename={data.fileName} filePath={data.filePath} onFileSelect={onFileSelect} />
+              : <GcodeViewer url={rawUrl} filename={data.fileName} />}
+        </React.Suspense>
+      </div>
+    );
+  }
+
+  return (
+    <div className="guake-git-binary-preview file-viewer-binary">
+      <span className="file-viewer-binary-icon" aria-hidden="true">📦</span>
+      <span className="file-viewer-binary-name">{data.fileName}</span>
+      <span className="file-viewer-binary-message">
+        {data.isDeleted ? t('fileViewerModal.deletedBinary') : t('fileViewerModal.binaryNoDiff')}
+      </span>
+    </div>
+  );
 }
 
 // ==========================================================================
@@ -722,6 +819,14 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     const fullPath = file.path.startsWith('/') ? file.path : `${repoDir.replace(/\/$/, '')}/${file.path}`;
     setDiffLoading(true);
     try {
+      const knownBinaryKind = getBinaryPreviewKind(file.name);
+      if (knownBinaryKind) {
+        setModalState({
+          type: 'binary',
+          data: { filePath: fullPath, fileName: file.name, previewKind: knownBinaryKind, isDeleted: file.status === 'deleted' },
+        });
+        return;
+      }
       if (hasDiff(file.status)) {
         // Show diff modal for modified/renamed/deleted/conflict
         let originalContent = '';
@@ -730,19 +835,26 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         if (file.status !== 'deleted') {
           try {
             const curRes = await authFetch(apiUrl(`/api/files/read?path=${encodeURIComponent(fullPath)}`));
-            if (curRes.ok) {
-              const curData = await curRes.json();
-              if (curData.content != null) modifiedContent = curData.content;
+            const curData = await curRes.json();
+            if (curData.binary) {
+              setModalState({ type: 'binary', data: { filePath: fullPath, fileName: file.name, previewKind: 'binary', isDeleted: false } });
+              return;
             }
+            if (curRes.ok && curData.content != null) modifiedContent = curData.content;
           } catch { /* skip */ }
         }
 
         try {
           const origRes = await authFetch(apiUrl(`/api/files/git-original?path=${encodeURIComponent(fullPath)}`));
-          if (origRes.ok) {
-            const origData = await origRes.json();
-            if (origData.content != null) originalContent = origData.content;
+          const origData = await origRes.json();
+          if (origData.binary) {
+            setModalState({
+              type: 'binary',
+              data: { filePath: fullPath, fileName: file.name, previewKind: 'binary', isDeleted: file.status === 'deleted' },
+            });
+            return;
           }
+          if (origRes.ok && origData.content != null) originalContent = origData.content;
         } catch { /* skip */ }
 
         setModalState({
@@ -754,10 +866,12 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         let content = '';
         try {
           const curRes = await authFetch(apiUrl(`/api/files/read?path=${encodeURIComponent(fullPath)}`));
-          if (curRes.ok) {
-            const curData = await curRes.json();
-            if (curData.content != null) content = curData.content;
+          const curData = await curRes.json();
+          if (curData.binary) {
+            setModalState({ type: 'binary', data: { filePath: fullPath, fileName: file.name, previewKind: 'binary', isDeleted: false } });
+            return;
           }
+          if (curRes.ok && curData.content != null) content = curData.content;
         } catch { /* skip */ }
 
         setModalState({
@@ -779,6 +893,14 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     try {
       const fileName = node.name;
       const language = getLanguageForFile(fileName);
+      const knownBinaryKind = getBinaryPreviewKind(fileName);
+      if (knownBinaryKind) {
+        setModalState({
+          type: 'binary',
+          data: { filePath: node.path, fileName, previewKind: knownBinaryKind, isDeleted: node.gitStatus === 'deleted' },
+        });
+        return;
+      }
 
       // If the file has a diffable git status, show original vs modified
       if (node.gitStatus && hasDiff(node.gitStatus)) {
@@ -788,19 +910,26 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         if (node.gitStatus !== 'deleted') {
           try {
             const curRes = await authFetch(apiUrl(`/api/files/read?path=${encodeURIComponent(node.path)}`));
-            if (curRes.ok) {
-              const curData = await curRes.json();
-              if (curData.content != null) modifiedContent = curData.content;
+            const curData = await curRes.json();
+            if (curData.binary) {
+              setModalState({ type: 'binary', data: { filePath: node.path, fileName, previewKind: 'binary', isDeleted: false } });
+              return;
             }
+            if (curRes.ok && curData.content != null) modifiedContent = curData.content;
           } catch { /* skip */ }
         }
 
         try {
           const origRes = await authFetch(apiUrl(`/api/files/git-original?path=${encodeURIComponent(node.path)}`));
-          if (origRes.ok) {
-            const origData = await origRes.json();
-            if (origData.content != null) originalContent = origData.content;
+          const origData = await origRes.json();
+          if (origData.binary) {
+            setModalState({
+              type: 'binary',
+              data: { filePath: node.path, fileName, previewKind: 'binary', isDeleted: node.gitStatus === 'deleted' },
+            });
+            return;
           }
+          if (origRes.ok && origData.content != null) originalContent = origData.content;
         } catch { /* skip */ }
 
         setModalState({
@@ -812,10 +941,12 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         let content = '';
         try {
           const res = await authFetch(apiUrl(`/api/files/read?path=${encodeURIComponent(node.path)}`));
-          if (res.ok) {
-            const data = await res.json();
-            if (data.content != null) content = data.content;
+          const data = await res.json();
+          if (data.binary) {
+            setModalState({ type: 'binary', data: { filePath: node.path, fileName, previewKind: 'binary', isDeleted: false } });
+            return;
           }
+          if (res.ok && data.content != null) content = data.content;
         } catch { /* skip */ }
 
         setModalState({
@@ -1495,7 +1626,23 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                 <div className="diff-image-spinner" />
               </div>
             )}
-            {modalState.type === 'diff' ? (
+            {modalState.type === 'binary' ? (
+              <GitBinaryPreview
+                data={modalState.data}
+                onFileSelect={(path) => {
+                  const fileName = path.split('/').filter(Boolean).pop() || path;
+                  setModalState({
+                    type: 'binary',
+                    data: {
+                      filePath: path,
+                      fileName,
+                      previewKind: getBinaryPreviewKind(fileName) || 'binary',
+                      isDeleted: false,
+                    },
+                  });
+                }}
+              />
+            ) : modalState.type === 'diff' ? (
               <DiffViewer
                 originalContent={modalState.data.originalContent}
                 modifiedContent={modalState.data.modifiedContent}
