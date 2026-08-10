@@ -1,5 +1,5 @@
 // Service Worker for Tide Commander PWA
-const CACHE_NAME = 'tide-commander-v1';
+const CACHE_NAME = 'tide-commander-v2';
 
 // Install event - cache essential files
 self.addEventListener('install', (event) => {
@@ -27,6 +27,11 @@ self.addEventListener('fetch', (event) => {
 
   // Skip WebSocket connections
   if (event.request.url.includes('/ws')) return;
+
+  // Local file previews must always come from disk. Never use Cache Storage
+  // as an offline fallback for models, toolpaths, images, PDFs, or metadata.
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.pathname.startsWith('/api/files/')) return;
 
   // Network first for everything else
   event.respondWith(

@@ -52,3 +52,7 @@ release/
 
 # TLS certificates
 *.pem
+
+# Python bytecode (freecad-runner.py is executed by FreeCADCmd)
+__pycache__/
+*.pyc

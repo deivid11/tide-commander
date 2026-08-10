@@ -63,7 +63,8 @@ function binaryContentTypeForExtension(extension: string): string {
     '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
     '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
     '.ico': 'image/x-icon', '.pdf': 'application/pdf', '.stl': 'model/stl',
-    '.fcstd': 'application/vnd.freecad', '.gcode': 'text/x-gcode', '.gco': 'text/x-gcode',
+    '.fcstd': 'application/vnd.freecad', '.glb': 'model/gltf-binary', '.gbl': 'model/gltf-binary',
+    '.gcode': 'text/x-gcode', '.gco': 'text/x-gcode',
   };
   return mimeTypes[extension] || 'application/octet-stream';
 }
@@ -773,6 +774,16 @@ router.get('/exists', async (req: Request, res: Response) => {
   }
 });
 
+// Viewer metadata and model bytes must always reflect the file currently on
+// disk. authFetch also requests `no-store`, but these response headers cover
+// direct URLs, embedded previews, proxies, and browser revalidation.
+router.use(['/info', '/binary'], (_req: Request, res: Response, next: import('express').NextFunction) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
 // GET /api/files/info - Get file info without content
 router.get('/info', async (req: Request, res: Response) => {
   try {
@@ -861,6 +872,8 @@ router.get('/binary', async (req: Request, res: Response) => {
       '.pdf': 'application/pdf',
       '.stl': 'model/stl',
       '.fcstd': 'application/vnd.freecad',
+      '.glb': 'model/gltf-binary',
+      '.gbl': 'model/gltf-binary',
       '.gcode': 'text/x-gcode',
       '.gco': 'text/x-gcode',
       '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -3296,6 +3309,8 @@ router.post('/by-path', async (req: Request, res: Response) => {
       '.wav': 'audio/wav',
       '.stl': 'model/stl',
       '.fcstd': 'application/vnd.freecad',
+      '.glb': 'model/gltf-binary',
+      '.gbl': 'model/gltf-binary',
       '.gcode': 'text/x-gcode',
       '.gco': 'text/x-gcode',
     };

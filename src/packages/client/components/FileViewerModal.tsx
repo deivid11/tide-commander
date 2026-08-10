@@ -27,6 +27,10 @@ const FcStdViewer = React.lazy(async () => {
   const module = await import('./shared/FcStdViewer');
   return { default: module.FcStdViewer };
 });
+const GlbViewer = React.lazy(async () => {
+  const module = await import('./shared/GlbViewer');
+  return { default: module.GlbViewer };
+});
 const GcodeViewer = React.lazy(async () => {
   const module = await import('./shared/GcodeViewer');
   return { default: module.GcodeViewer };
@@ -192,6 +196,7 @@ const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ic
 const PDF_EXTENSIONS = ['.pdf'];
 const STL_EXTENSIONS = ['.stl'];
 const FCSTD_EXTENSIONS = ['.fcstd'];
+const GLB_EXTENSIONS = ['.glb', '.gbl'];
 const GCODE_EXTENSIONS = ['.gcode', '.gco'];
 
 function hasFileExtension(extension: string | undefined, path: string, extensions: string[]): boolean {
@@ -541,9 +546,10 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     const isImageFile = IMAGE_EXTENSIONS.includes(ext);
     const isStlFile = STL_EXTENSIONS.includes(ext);
     const isFcStdFile = FCSTD_EXTENSIONS.includes(ext);
+    const isGlbFile = GLB_EXTENSIONS.includes(ext);
     const isGcodeFile = GCODE_EXTENSIONS.includes(ext);
 
-    const endpoint = (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGcodeFile)
+    const endpoint = (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGlbFile || isGcodeFile)
       ? `/api/files/info?path=${encodeURIComponent(filePath)}${baseDirParam}`
       : `/api/files/read?path=${encodeURIComponent(filePath)}${baseDirParam}`;
 
@@ -561,7 +567,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       };
     }
 
-    if (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGcodeFile) {
+    if (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGlbFile || isGcodeFile) {
       data.content = '';
     }
 
@@ -974,8 +980,9 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const isPdf = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, PDF_EXTENSIONS));
   const isStl = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, STL_EXTENSIONS));
   const isFcStd = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, FCSTD_EXTENSIONS));
+  const isGlb = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, GLB_EXTENSIONS));
   const isGcode = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, GCODE_EXTENSIONS));
-  const language = isSvg ? 'SVG' : isImage ? 'Image' : isPdf ? 'PDF' : isStl ? 'STL · 3D' : isFcStd ? 'FreeCAD · 3D' : isGcode ? 'G-code · Print' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
+  const language = isSvg ? 'SVG' : isImage ? 'Image' : isPdf ? 'PDF' : isStl ? 'STL · 3D' : isFcStd ? 'FreeCAD · 3D' : isGlb ? 'GLB · 3D' : isGcode ? 'G-code · Print' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
   const authToken = getAuthToken();
   // Use the resolved file path (a clicked directory entry has its own path that
   // differs from the modal's original effectivePath — which may be the folder).
@@ -984,6 +991,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const pdfUrl = isPdf ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}`) : null;
   const stlUrl = isStl ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}`) : null;
   const fcstdUrl = isFcStd ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}`) : null;
+  const glbUrl = isGlb ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}`) : null;
   const gcodeUrl = isGcode ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}`) : null;
   // The text preview endpoint deliberately rejects files over 1 MB, but those
   // files can still be saved through the streaming binary endpoint.
@@ -1091,7 +1099,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                 </button>
               </>
             )}
-            {fileData && !isImage && !isPdf && !isStl && !isFcStd && !isGcode && !isMarkdown && (
+            {fileData && !isImage && !isPdf && !isStl && !isFcStd && !isGlb && !isGcode && !isMarkdown && (
               <button
                 type="button"
                 className={`file-viewer-copy-html-btn ${copyAllStatus}`}
@@ -1101,7 +1109,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                 {copyAllStatus === 'copied' ? t('common:status.copied') : copyAllStatus === 'error' ? t('common:status.error') : t('terminal:fileExplorer.copyAll')}
               </button>
             )}
-            {fileData && !isImage && !isPdf && !isStl && !isFcStd && !isGcode && (
+            {fileData && !isImage && !isPdf && !isStl && !isFcStd && !isGlb && !isGcode && (
               <button
                 type="button"
                 className="file-viewer-copy-html-btn"
@@ -1111,7 +1119,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                 {t('common:buttons.download')}
               </button>
             )}
-            {(isImage || isPdf || isStl || isFcStd || isGcode) && fileData ? (
+            {(isImage || isPdf || isStl || isFcStd || isGlb || isGcode) && fileData ? (
               <button
                 type="button"
                 className={`file-viewer-copy-html-btn ${downloadStatus}`}
@@ -1159,7 +1167,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
             <span>{formatFileSize(fileData.size)}</span>
             <span>•</span>
             <span>{language}</span>
-            {fileData.content && !isImage && !isPdf && !isStl && !isFcStd && !isGcode && (
+            {fileData.content && !isImage && !isPdf && !isStl && !isFcStd && !isGlb && !isGcode && (
               <>
                 <span>•</span>
                 <span>{t('terminal:fileViewer.lineCount', { count: fileData.content.split('\n').length })}</span>
@@ -1295,6 +1303,15 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
               <React.Suspense fallback={<div className="file-viewer-loading">{t('terminal:fileViewerModal.loadingFcstd')}</div>}>
                 <FcStdViewer
                   url={fcstdUrl}
+                  filename={fileData.filename}
+                  filePath={binaryPath}
+                  onFileSelect={(path) => store.setFileViewerPath(path, undefined, searchRoot)}
+                />
+              </React.Suspense>
+            ) : isGlb && glbUrl ? (
+              <React.Suspense fallback={<div className="file-viewer-loading">{t('terminal:fileViewerModal.loadingGlb')}</div>}>
+                <GlbViewer
+                  url={glbUrl}
                   filename={fileData.filename}
                   filePath={binaryPath}
                   onFileSelect={(path) => store.setFileViewerPath(path, undefined, searchRoot)}

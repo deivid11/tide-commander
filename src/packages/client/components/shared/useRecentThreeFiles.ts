@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getStorage, setStorage, STORAGE_KEYS } from '../../utils/storage';
 
-export type ThreeFileKind = 'stl' | 'fcstd';
+export type ThreeFileKind = 'stl' | 'fcstd' | 'glb';
 
 export interface RecentThreeFile {
   path: string;
@@ -15,7 +15,7 @@ const MAX_RECENT_THREE_FILES = 8;
 
 function readRecentFiles(): RecentThreeFile[] {
   return getStorage<RecentThreeFile[]>(STORAGE_KEYS.THREE_VIEWER_RECENT_FILES, [])
-    .filter((entry) => entry && typeof entry.path === 'string' && (entry.kind === 'stl' || entry.kind === 'fcstd'))
+    .filter((entry) => entry && typeof entry.path === 'string' && (entry.kind === 'stl' || entry.kind === 'fcstd' || entry.kind === 'glb'))
     .slice(0, MAX_RECENT_THREE_FILES);
 }
 

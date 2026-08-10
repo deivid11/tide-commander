@@ -27,3 +27,4 @@ export * as workflowChatService from './workflow-chat-service.js';
 export * as whatsappNotificationConfigService from './whatsapp-notification-config-service.js';
 export * as testRunnerService from './test-runner-service.js';
 export * as httpRequestsService from './http-requests-service.js';
+export { cadService } from './cad-service.js';
