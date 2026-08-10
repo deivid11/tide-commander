@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.178.0] - 2026-08-10
+
+### Added
+- **Interactive STL previews in the file viewer** - `.stl` files now open as authenticated, zoomable 3D previews with orbit/pan controls, automatic camera framing, model dimensions and triangle counts, for both binary and ASCII STL data. A dual-handle vertical control clips layers upward from the build plate and downward from the top, so the whole print progression or any intermediate band can be inspected. Model and background colours, opacity, light intensity and edge outlines are adjustable and persist between sessions.
+- **FreeCAD document previews** - `.FCStd` archives render their visible BREP objects as interactive 3D models in the browser. The OpenCascade triangulation runs in a Web Worker, so opening a CAD file never freezes the interface; object colours (from both `ShapeColor` and binary `ShapeAppearance` material lists), transparency, Z-up orientation, dimensions and model statistics are preserved where the document provides them, and the viewer can switch between the document's saved colours and its own.
+- **G-code toolpath previews** - `.gcode` and `.gco` files render as colour-coded 3D toolpaths with a dual-handle layer range, a travel-move toggle, the standard axis views, and the print time, filament usage, material, printer and geometry statistics the slicer recorded. Parsing runs off the UI thread, so a large file doesn't lock the interface.
+- **Mark regions for an agent** - translucent sphere or box volumes can be placed on an STL or FreeCAD preview to mark an exact region, resized with shape-appropriate sliders, dragged across the model surface, and fine-tuned by editing their coordinates in the model's own space. The selection copies to the clipboard as an agent-ready Markdown/JSON description, so "this boss here" becomes something an agent can act on.
+- **Inline 3D previews in chat** - a standalone STL or FCStd file reference in an agent's message renders as an interactive preview in the terminal rather than a plain link.
+- **Axis views and recent models** - the STL and FreeCAD viewers gained visible XYZ axes plus X / Y / Z / isometric buttons and keyboard shortcuts, and each keeps a local list of the eight most recently viewed models so you can switch straight to another one from the viewer's settings.
+
+### Changed
+- **Binary files in the Git changes viewer show a preview** - a changed image, PDF, STL, FCStd or other binary used to render as a byte-like text diff. Each now opens in its own preview instead, and a deleted file is previewed from `HEAD`, so it stays inspectable after removal.
+
+### Fixed
+- **Codex agents kept running on the old account after a switch** - the `codex app-server` daemon reads `~/.codex/auth.json` once at startup and never re-reads it, so a daemon that outlived an account switch silently kept every Codex agent on the previous — usually rate-limited — account. Switching accounts now kills that daemon (signalling the whole process group, since the recorded process is a wrapper whose real binary would otherwise outlive it), and a daemon whose account no longer matches the auth file is never rejoined on boot, including after a plain `codex login` outside Tide Commander. Any Codex agent that was mid-turn is cut off by the switch and has to be re-sent — the switch dialog now says so, and those agents are finalized rather than left stuck "working".
+- **File links in agent messages losing their label** - the Markdown renderer strips unknown URL schemes, which blanked the label of bare file paths. The path is now recovered from the link text when that happens.
+
 ## [1.177.2] - 2026-08-08
 
 ### Fixed

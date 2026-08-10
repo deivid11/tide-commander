@@ -10,6 +10,7 @@ import { decodeTideFileHref } from '../../utils/outputRendering';
 import { highlightCode, isLanguageSupported, ensureLanguageLoaded } from '../FileExplorerPanel/syntaxHighlighting';
 import { MermaidDiagram } from './MermaidDiagram';
 import { filePreviewHandlers } from './toolPreviewHover';
+import { InlineModelPreview } from './InlineModelPreview';
 
 interface MarkdownComponentOptions {
   onFileClick?: (path: string) => void;
@@ -43,6 +44,46 @@ function getNodeText(node: React.ReactNode): string {
     return getNodeText(node.props.children);
   }
   return '';
+}
+
+type MarkdownAstNode = {
+  type?: string;
+  tagName?: string;
+  value?: string;
+  properties?: Record<string, unknown>;
+  children?: MarkdownAstNode[];
+};
+
+function getModelFileRef(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  const decodedTideRef = decodeTideFileHref(trimmed);
+  const candidate = decodedTideRef || trimmed;
+  if (!candidate || /^[a-z][a-z\d+.-]*:/i.test(candidate)) return null;
+  try {
+    const decoded = decodeURIComponent(candidate);
+    return /\.(?:stl|fcstd)$/i.test(decoded) ? decoded : null;
+  } catch {
+    return /\.(?:stl|fcstd)$/i.test(candidate) ? candidate : null;
+  }
+}
+
+function getStandaloneModelNode(node?: MarkdownAstNode): { fileRef: string; label?: string } | null {
+  const meaningfulChildren = node?.children?.filter((child) => child.type !== 'text' || child.value?.trim()) || [];
+  if (meaningfulChildren.length !== 1) return null;
+  const child = meaningfulChildren[0];
+  if (child.tagName !== 'a' && child.tagName !== 'img') return null;
+  const rawRef = child.tagName === 'a' ? child.properties?.href : child.properties?.src;
+  // react-markdown intentionally clears unknown protocols, including our
+  // tide-file:// scheme. Bare paths use the path itself as their label, so
+  // recover it from the anchor text when that sanitization has happened.
+  const anchorText = child.children?.map((part) => part.value || '').join('').trim();
+  const fileRef = getModelFileRef(rawRef) || (child.tagName === 'a' ? getModelFileRef(anchorText) : null);
+  if (!fileRef) return null;
+  const label = child.tagName === 'img'
+    ? (typeof child.properties?.alt === 'string' ? child.properties.alt : undefined)
+    : anchorText;
+  return { fileRef, label: label || undefined };
 }
 
 // Common TLDs to distinguish URLs from file paths
@@ -146,7 +187,13 @@ export const createMarkdownComponents = ({ onFileClick, baseDir }: MarkdownCompo
       {children}
     </h6>
   ),
-  p: ({ children }) => <p style={{ margin: '0.4em 0' }}>{children}</p>,
+  p: ({ children, node }) => {
+    const model = getStandaloneModelNode(node as MarkdownAstNode | undefined);
+    if (model) {
+      return <InlineModelPreview {...model} baseDir={baseDir} onFileClick={onFileClick} />;
+    }
+    return <p style={{ margin: '0.4em 0' }}>{children}</p>;
+  },
   strong: ({ children }) => {
     const text = getNodeText(children);
     const agentId = findAgentIdByBoldText(text);
@@ -278,6 +325,14 @@ export const createMarkdownComponents = ({ onFileClick, baseDir }: MarkdownCompo
         {children}
       </a>
     );
+  },
+  img: ({ src, alt, node }) => {
+    const originalSrc = (node as MarkdownAstNode | undefined)?.properties?.src;
+    const modelRef = getModelFileRef(originalSrc) || getModelFileRef(src);
+    if (modelRef) {
+      return <InlineModelPreview fileRef={modelRef} label={alt || undefined} baseDir={baseDir} onFileClick={onFileClick} />;
+    }
+    return <img src={src} alt={alt || ''} loading="lazy" />;
   },
   hr: () => <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '1em 0' }} />,
   table: ({ children }) => (

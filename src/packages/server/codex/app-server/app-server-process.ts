@@ -20,6 +20,12 @@
  *
  * One process multiplexes every Codex agent: each agent owns a `threadId`, and
  * notifications carry that id so the runner can fan them back out.
+ *
+ * The daemon reads ~/.codex/auth.json ONCE at startup and never re-reads it, so
+ * a daemon that outlives an account switch keeps running every agent on the
+ * PREVIOUS account. Both entry points guard against that: boot() refuses to
+ * rejoin a daemon whose account no longer matches the auth file, and
+ * `killDetachedAppServerDaemon()` is called by the account switcher.
  */
 
 import { spawn } from 'child_process';
@@ -28,6 +34,7 @@ import * as net from 'net';
 import * as fs from 'fs';
 import { WebSocket } from 'ws';
 import { createLogger } from '../../utils/logger.js';
+import { listProviderCredentialProfiles } from '../../services/provider-credentials-service.js';
 import {
   loadDaemonInfo,
   saveDaemonInfo,
@@ -41,6 +48,8 @@ const log = createLogger('CodexAppServer');
 const INITIALIZE_TIMEOUT_MS = 15000;
 const READYZ_TIMEOUT_MS = 20000;
 const READYZ_POLL_MS = 250;
+const ACCOUNT_PROBE_TIMEOUT_MS = 5000;
+const DAEMON_KILL_GRACE_MS = 2000;
 
 interface AppServerProcessOptions {
   executablePath: string;
@@ -95,14 +104,23 @@ export class CodexAppServerProcess {
   private async boot(): Promise<void> {
     this.stopped = false;
 
-    // 1. Rejoin an already-running daemon if one is healthy.
+    // 1. Rejoin an already-running daemon if one is healthy AND still logged in
+    //    as the account ~/.codex/auth.json currently holds. A daemon that
+    //    survived an account switch (ours or a plain `codex login`) would keep
+    //    every agent on the old, usually rate-limited, account.
     const existing = loadDaemonInfo();
     if (existing && (await this.isDaemonHealthy(existing))) {
-      log.log(`🔗 Rejoining existing app-server daemon pid=${existing.pid} port=${existing.port}`);
-      this.port = existing.port;
-      this.reconnectedToExisting = true;
-      await this.connectAndInitialize(existing.port);
-      return;
+      if (await daemonAccountIsCurrent(existing.port)) {
+        log.log(`🔗 Rejoining existing app-server daemon pid=${existing.pid} port=${existing.port}`);
+        this.port = existing.port;
+        this.reconnectedToExisting = true;
+        await this.connectAndInitialize(existing.port);
+        return;
+      }
+      log.warn(
+        `Existing app-server daemon pid=${existing.pid} is signed in as a different Codex account than ~/.codex/auth.json — killing it so the active account takes effect`,
+      );
+      killDetachedAppServerDaemon();
     }
 
     // 2. Spawn a fresh detached daemon.
@@ -299,14 +317,134 @@ export class CodexAppServerProcess {
   /** Disconnect AND kill the daemon (used on explicit full shutdown). */
   killDaemon(): void {
     this.disconnect();
-    const info = loadDaemonInfo();
-    if (info && isPidAlive(info.pid)) {
-      try {
-        process.kill(info.pid, 'SIGTERM');
-      } catch { /* ignore */ }
-    }
-    clearDaemonInfo();
+    killDetachedAppServerDaemon();
   }
+}
+
+/**
+ * Kill the detached daemon recorded on disk, if any, and forget it.
+ *
+ * Called when the live Codex account changes: the daemon caches
+ * ~/.codex/auth.json in memory at startup, so switching accounts is a silent
+ * no-op for every agent until the daemon is replaced. The next launch spawns a
+ * fresh one with the new credentials; in-flight turns die with the old daemon
+ * (they were running on the account the user just abandoned), and the runner's
+ * socket-close handler finalizes those agents so none stays stuck 'working'.
+ */
+export function killDetachedAppServerDaemon(): { stopped: boolean; pid: number | null } {
+  const info = loadDaemonInfo();
+  if (!info) return { stopped: false, pid: null };
+  const alive = isPidAlive(info.pid);
+  if (alive) {
+    // The recorded pid is the `codex` node wrapper, which spawns the real Rust
+    // binary as a child — signal the whole process GROUP (spawn used
+    // detached:true, so the wrapper leads one) or the binary outlives the
+    // wrapper and keeps holding the old account. SIGKILL the stragglers after a
+    // grace period; the timer is unref'd so it can't hold the process open.
+    signalDaemon(info.pid, 'SIGTERM');
+    log.log(`🔪 Killed app-server daemon pid=${info.pid} (Codex credentials changed)`);
+    setTimeout(() => {
+      if (isPidAlive(info.pid)) signalDaemon(info.pid, 'SIGKILL');
+    }, DAEMON_KILL_GRACE_MS).unref();
+  }
+  clearDaemonInfo();
+  return { stopped: alive, pid: alive ? info.pid : null };
+}
+
+function signalDaemon(pid: number, signal: 'SIGTERM' | 'SIGKILL'): void {
+  try {
+    process.kill(-pid, signal);
+    return;
+  } catch { /* not a group leader — fall back to the pid itself */ }
+  try {
+    process.kill(pid, signal);
+  } catch (err) {
+    log.warn(`Failed to ${signal} app-server daemon pid=${pid}: ${(err as Error).message}`);
+  }
+}
+
+/**
+ * Compare the account a daemon is signed in as against the one in the auth
+ * file. Anything unknown (API-key auth, unreachable daemon, probe error) counts
+ * as current — a probe glitch must never cost the user a running daemon.
+ */
+export function isDaemonAccountCurrent(daemonEmail: string | null, activeEmail: string | null): boolean {
+  if (!daemonEmail || !activeEmail) return true;
+  return daemonEmail.trim().toLowerCase() === activeEmail.trim().toLowerCase();
+}
+
+async function daemonAccountIsCurrent(port: number): Promise<boolean> {
+  let activeEmail: string | null = null;
+  try {
+    activeEmail = listProviderCredentialProfiles('codex').active?.email ?? null;
+  } catch {
+    return true;
+  }
+  if (!activeEmail) return true;
+  return isDaemonAccountCurrent(await probeDaemonAccountEmail(port), activeEmail);
+}
+
+/**
+ * Ask a running daemon which ChatGPT account it holds, over a throwaway
+ * WebSocket so the runner's own connection/lifecycle is untouched. Returns null
+ * when the answer isn't a ChatGPT login (API key) or the probe fails.
+ */
+function probeDaemonAccountEmail(port: number): Promise<string | null> {
+  return new Promise((resolve) => {
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(`ws://127.0.0.1:${port}`);
+    } catch {
+      resolve(null);
+      return;
+    }
+    let settled = false;
+    const finish = (email: string | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        ws.close();
+      } catch { /* ignore */ }
+      resolve(email);
+    };
+    const timer = setTimeout(() => finish(null), ACCOUNT_PROBE_TIMEOUT_MS);
+
+    ws.on('open', () => {
+      ws.send(JSON.stringify({
+        id: 1,
+        method: 'initialize',
+        params: {
+          clientInfo: { name: 'tide-commander', title: 'Tide Commander', version: '1.0.0' },
+          capabilities: { experimentalApi: true },
+        },
+      }));
+    });
+    ws.on('message', (data) => {
+      let msg: InboundMessage;
+      try {
+        msg = JSON.parse(data.toString());
+      } catch {
+        return;
+      }
+      if (msg.id === undefined || msg.method !== undefined) return;
+      if (Number(msg.id) === 1) {
+        if (msg.error) {
+          finish(null);
+          return;
+        }
+        ws.send(JSON.stringify({ method: 'initialized', params: {} }));
+        ws.send(JSON.stringify({ id: 2, method: 'account/read', params: {} }));
+        return;
+      }
+      if (Number(msg.id) === 2) {
+        const account = (msg.result as { account?: { email?: unknown } } | undefined)?.account;
+        finish(typeof account?.email === 'string' ? account.email : null);
+      }
+    });
+    ws.on('error', () => finish(null));
+    ws.on('close', () => finish(null));
+  });
 }
 
 function isPidAlive(pid: number): boolean {

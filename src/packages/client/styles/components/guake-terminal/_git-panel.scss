@@ -653,6 +653,27 @@
   }
 }
 
+.guake-git-binary-preview {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+
+  > .stl-viewer {
+    min-height: 0;
+  }
+
+  > .pdf-js-container,
+  > .zoomable-image-viewport {
+    height: 100%;
+  }
+}
+
+.guake-git-image-preview {
+  display: flex;
+  align-items: stretch;
+}
+
 // Content viewer (for new/untracked files)
 .guake-git-content-badge {
   display: inline-block;

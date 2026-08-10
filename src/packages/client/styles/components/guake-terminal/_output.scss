@@ -239,6 +239,95 @@
   }
 }
 
+.markdown-model-preview {
+  width: min(100%, 760px);
+  margin: 10px 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, var(--border-color));
+  border-radius: $radius-md;
+  background: #11141a;
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.2);
+}
+
+.markdown-model-preview-header {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 8px 0 11px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(10, 12, 17, 0.96);
+
+  button {
+    flex: 0 0 auto;
+    padding: 4px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: $radius-sm;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.78);
+    font: inherit;
+    font-size: 10px;
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+      background: rgba(255, 255, 255, 0.1);
+    }
+  }
+}
+
+.markdown-model-preview-kind {
+  flex: 0 0 auto;
+  color: var(--accent-cyan);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.markdown-model-preview-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.markdown-model-preview-stage {
+  height: clamp(280px, 42vh, 440px);
+
+  > .stl-viewer {
+    min-height: 0;
+  }
+}
+
+.markdown-model-preview-placeholder {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: rgba(255, 255, 255, 0.55);
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .markdown-model-preview-stage {
+    height: 300px;
+  }
+
+  .markdown-model-preview-header button {
+    font-size: 0;
+
+    &::after {
+      content: '\2197';
+      font-size: 13px;
+    }
+  }
+}
+
 // Loading indicator overlay — first child of the scroll container. Sticky
 // (not absolute) so it stays in view while the pin loop holds the scroll at
 // the bottom; zero flow height so it never shifts the content below it.

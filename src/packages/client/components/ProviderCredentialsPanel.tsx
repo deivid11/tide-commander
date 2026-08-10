@@ -251,6 +251,19 @@ export function ProviderCredentialsPanel({ provider, onSwitched, compact }: Prov
   const applyList = (list: ProviderCredentialsList) => setData(list);
   const needsStash = Boolean(data?.active?.valid && !data.active.matchesNamed);
 
+  /**
+   * Codex agents run through a persistent `codex app-server` daemon that cached
+   * the OLD account, so the switch also kills it. Say so: any Codex agent that
+   * was mid-turn was cut off and has to be re-sent.
+   */
+  const switchedMessage = (name: string, appServerStopped?: boolean): string => {
+    const base = t('terminal:credentials.switched', { name });
+    if (!appServerStopped) return base;
+    return `${base} ${t('terminal:credentials.appServerRestarted', {
+      defaultValue: 'The Codex app-server was restarted to pick up the new account — resend any message that was in flight.',
+    })}`;
+  };
+
   const handleUse = async (name: string) => {
     setError(null);
     setMessage(null);
@@ -262,7 +275,7 @@ export function ProviderCredentialsPanel({ provider, onSwitched, compact }: Prov
     try {
       const result = await switchProviderCredentials(provider, name);
       setData({ provider, dir: data?.dir ?? '', active: result.active, profiles: result.profiles });
-      setMessage(t('terminal:credentials.switched', { name }));
+      setMessage(switchedMessage(name, result.codexAppServerStopped));
       setPendingSwitch(null);
       void loadUsage();
       onSwitched?.();
@@ -288,7 +301,7 @@ export function ProviderCredentialsPanel({ provider, onSwitched, compact }: Prov
       setMessage(
         result.stashedAs
           ? t('terminal:credentials.switchedWithStash', { name: pendingSwitch, stash: result.stashedAs })
-          : t('terminal:credentials.switched', { name: pendingSwitch }),
+          : switchedMessage(pendingSwitch, result.codexAppServerStopped),
       );
       setPendingSwitch(null);
       setStashName('');
