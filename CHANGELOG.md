@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.179.0] - 2026-08-10
+
+### Added
+- **Headless FreeCAD jobs** - agents can now build CAD models without a GUI ever opening. `POST /api/cad` runs an isolated `FreeCADCmd` job that exports FCStd, STL and STEP atomically, validates that the result is a real solid, checks clearances and intersections between part pairs, and renders deterministic orthographic PNG previews so the outcome can be seen rather than assumed. It finds FreeCAD whether installed natively or as the Fedora Flatpak, keeps every artifact inside the job's workspace, and supports cancellation and timeouts. A worked example and a headless-first agent workflow ship with it.
+- **GLB model previews** - self-contained binary glTF models open with their original hierarchy, PBR materials and embedded textures, plus the standard axis views, lighting/opacity/edge settings, recent-files list and the same draggable sphere/box area annotations the STL and FreeCAD viewers have. GLB references also render inline in terminal Markdown and in binary Git changes.
+
+### Changed
+- **File previews never use stale model bytes** - file-viewer metadata and binary responses now explicitly disable browser and proxy caching, and `/api/files/*` is excluded from the service worker's offline fallback. Reopening an STL, FCStd, GLB or G-code file therefore always reads its current contents from disk — which matters when an agent has just rebuilt the model you are looking at. The recent-files list stores paths only, never bytes.
+
 ## [1.178.0] - 2026-08-10
 
 ### Added

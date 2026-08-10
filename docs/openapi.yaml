@@ -19,6 +19,7 @@ tags:
   - name: Permissions
   - name: Notifications
   - name: Exec
+  - name: CAD
   - name: Focus
   - name: Custom Models
   - name: Config
@@ -314,6 +315,79 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/JsonSuccess'
+
+  /cad/capabilities:
+    get:
+      tags: [CAD]
+      summary: Detect the headless FreeCAD engine and supported artifacts
+      parameters:
+        - in: query
+          name: refresh
+          schema:
+            type: boolean
+          description: Re-run command detection instead of using the cached result
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+        '503':
+          $ref: '#/components/responses/JsonSuccess'
+
+  /cad/jobs:
+    get:
+      tags: [CAD]
+      summary: List recent headless CAD jobs
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+    post:
+      tags: [CAD]
+      summary: Queue a FreeCADCmd build, export, validation, and render job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CadJobRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/JsonSuccess'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /cad/jobs/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [CAD]
+      summary: Read one CAD job, its logs, validation, checks, and artifacts
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags: [CAD]
+      summary: Cancel a queued or running CAD job
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
 
   /focus-agent:
     post:
@@ -844,6 +918,64 @@ components:
           type: string
         cwd:
           type: string
+    CadJobRequest:
+      type: object
+      required: [workspace, script]
+      properties:
+        workspace:
+          type: string
+          description: Absolute model workspace; every other path is confined to it
+        script:
+          type: string
+          description: Python model script relative to workspace
+        entrypoint:
+          type: [string, 'null']
+          default: build
+        parameters:
+          type: object
+          additionalProperties: true
+        outputs:
+          type: array
+          items:
+            type: object
+            required: [format, path]
+            properties:
+              format:
+                type: string
+                enum: [fcstd, stl, step]
+              path: { type: string }
+              document: { type: string }
+              objects:
+                type: array
+                items: { type: string }
+              linearDeflection: { type: number }
+              angularDeflection: { type: number }
+        renders:
+          type: array
+          items:
+            type: object
+            required: [path]
+            properties:
+              path: { type: string }
+              document: { type: string }
+              objects:
+                type: array
+                items: { type: string }
+              view:
+                type: string
+                enum: [isometric, front, back, left, right, top, bottom]
+              width: { type: integer, minimum: 128, maximum: 4096 }
+              height: { type: integer, minimum: 128, maximum: 4096 }
+              edges: { type: boolean }
+        checks:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        timeoutMs:
+          type: integer
+          minimum: 1000
+          maximum: 1800000
     CreateSnapshotRequest:
       type: object
       required: [agentId, title]

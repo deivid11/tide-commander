@@ -6,11 +6,17 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import type { AgentClass, AgentStatus } from '../../shared/types';
 import { AGENT_CLASS_MODELS } from '../scene/config';
 import { authUrl } from '../utils/storage';
+import { pickWorkingAnimationName } from './shared/workingAnimation';
+
+// How long one random working animation is held before shuffling to the next.
+const WORKING_SHUFFLE_MIN_MS = 5000;
+const WORKING_SHUFFLE_JITTER_MS = 4000;
 
 // Animation mapping for each status
 const STATUS_ANIMATIONS: Record<AgentStatus, string> = {
   idle: 'idle',
-  working: 'walk',      // Active, doing work
+  working: 'walk',      // Fallback only — working shuffles through the model's clips
+
   waiting: 'sit',       // Waiting for input/response
   waiting_permission: 'idle', // Waiting for permission approval
   error: 'emote-no',    // Something went wrong
@@ -59,6 +65,14 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
   const hasAnimationsRef = useRef(false);
   const proceduralTimeRef = useRef(0);
   const basePositionRef = useRef(new THREE.Vector3());
+  // Which clip is on screen + the shuffle timer, so "working" can rotate through
+  // the model's animations without repeating itself.
+  const currentClipNameRef = useRef<string | null>(null);
+  const workingShuffleTimerRef = useRef<number | null>(null);
+  // Latest status, readable from the async model loader (which finishes after
+  // the status effect has already run) and from the shuffle timer.
+  const statusRef = useRef<AgentStatus>(status);
+  statusRef.current = status;
 
   // Drag-to-rotate state
   const isDraggingRef = useRef(false);
@@ -220,6 +234,10 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
     // Cleanup
     return () => {
       cancelAnimationFrame(animationIdRef.current);
+      if (workingShuffleTimerRef.current !== null) {
+        window.clearTimeout(workingShuffleTimerRef.current);
+        workingShuffleTimerRef.current = null;
+      }
       container.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
@@ -297,6 +315,96 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
     };
   }, [width, height]);
 
+  // --- Animation control -----------------------------------------------------
+
+  const stopWorkingShuffle = () => {
+    if (workingShuffleTimerRef.current !== null) {
+      window.clearTimeout(workingShuffleTimerRef.current);
+      workingShuffleTimerRef.current = null;
+    }
+  };
+
+  /** Crossfade to a clip, resetting the loop/speed left behind by a previous status. */
+  const crossfadeTo = (name: string, clip: THREE.AnimationClip, timeScale = 1) => {
+    if (!mixerRef.current) return;
+    const newAction = mixerRef.current.clipAction(clip);
+    newAction.setLoop(THREE.LoopRepeat, Infinity);
+    newAction.clampWhenFinished = false;
+    newAction.timeScale = timeScale;
+
+    if (currentActionRef.current && currentActionRef.current !== newAction) {
+      currentActionRef.current.fadeOut(0.3);
+      newAction.reset().fadeIn(0.3).play();
+    } else {
+      newAction.reset().play();
+    }
+    currentActionRef.current = newAction;
+    currentClipNameRef.current = name;
+  };
+
+  /**
+   * Working agents shuffle through whatever the loaded GLB actually ships,
+   * rather than being stuck on `walk` — so an agent mid-turn looks busy and two
+   * agents side by side don't move in lockstep. Returns false when the model has
+   * no animations at all (the caller falls back to the status mapping).
+   */
+  const playRandomWorkingAnimation = (): boolean => {
+    if (!mixerRef.current) return false;
+    const name = pickWorkingAnimationName([...animationsRef.current.keys()], currentClipNameRef.current);
+    const clip = name ? animationsRef.current.get(name) : undefined;
+    if (!name || !clip) return false;
+    crossfadeTo(name, clip);
+    return true;
+  };
+
+  const scheduleWorkingShuffle = () => {
+    stopWorkingShuffle();
+    const delay = WORKING_SHUFFLE_MIN_MS + Math.random() * WORKING_SHUFFLE_JITTER_MS;
+    workingShuffleTimerRef.current = window.setTimeout(() => {
+      workingShuffleTimerRef.current = null;
+      if (statusRef.current !== 'working') return;
+      // Stop re-arming if the model lost its clips (swapped mid-turn)
+      if (playRandomWorkingAnimation()) scheduleWorkingShuffle();
+    }, delay);
+  };
+
+  /** Play the animation a status calls for. Working = random clip + shuffle. */
+  const playStatusAnimation = (currentStatus: AgentStatus) => {
+    if (!mixerRef.current) return;
+    stopWorkingShuffle();
+
+    if (currentStatus === 'working' && playRandomWorkingAnimation()) {
+      scheduleWorkingShuffle();
+      return;
+    }
+
+    const animName = STATUS_ANIMATIONS[currentStatus];
+    const clip = animationsRef.current.get(animName);
+
+    if (!clip) {
+      // Fallback to idle if animation not found
+      const idleClip = animationsRef.current.get('idle');
+      if (idleClip) crossfadeTo('idle', idleClip);
+      return;
+    }
+
+    if (currentStatus === 'error') {
+      const errorAction = mixerRef.current.clipAction(clip);
+      if (currentActionRef.current && currentActionRef.current !== errorAction) {
+        currentActionRef.current.fadeOut(0.3);
+      }
+      errorAction.setLoop(THREE.LoopOnce, 1);
+      errorAction.clampWhenFinished = true;
+      errorAction.timeScale = 1;
+      errorAction.reset().fadeIn(0.3).play();
+      currentActionRef.current = errorAction;
+      currentClipNameRef.current = animName;
+      return;
+    }
+
+    crossfadeTo(animName, clip, currentStatus === 'working' ? 1.5 : 1);
+  };
+
   // Load model when agentClass/modelFile/customModel changes or when ready
   useEffect(() => {
     if (!isReady || !sceneRef.current) return;
@@ -312,10 +420,12 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
     const processModel = (gltf: { scene: THREE.Group; animations: THREE.AnimationClip[] }) => {
       // Remove previous model
       if (modelRef.current && sceneRef.current) {
+        stopWorkingShuffle();
         sceneRef.current.remove(modelRef.current);
         modelRef.current = null;
         mixerRef.current = null;
         currentActionRef.current = null;
+        currentClipNameRef.current = null;
       }
 
       const model = gltf.scene;
@@ -363,24 +473,27 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
           for (const clip of gltf.animations) {
             animationsRef.current.set(clip.name.toLowerCase(), clip);
           }
+          currentClipNameRef.current = null;
 
-          // Play idle animation based on idleAnimation prop
-          // If idleAnimation is '' (none/empty), don't play any animation (static)
-          if (idleAnimation !== '') {
-            const targetClip = idleAnimation
-              ? (animationsRef.current.get(idleAnimation.toLowerCase()) || gltf.animations[0])
-              : (animationsRef.current.get('idle') || gltf.animations[0]);
-            if (targetClip) {
-              const action = mixer.clipAction(targetClip);
-              action.reset().play();
-              currentActionRef.current = action;
-            }
+          // The model finishes loading AFTER the status effect ran, so a busy
+          // agent has to be picked up here or its preview would sit on idle
+          // until the next status change.
+          if (statusRef.current !== 'idle') {
+            playStatusAnimation(statusRef.current);
+          } else if (idleAnimation !== '') {
+            // Play idle animation based on idleAnimation prop
+            // If idleAnimation is '' (none/empty), don't play any animation (static)
+            const targetName = idleAnimation ? idleAnimation.toLowerCase() : 'idle';
+            const targetClip = animationsRef.current.get(targetName) || gltf.animations[0];
+            if (targetClip) crossfadeTo(targetClip.name.toLowerCase(), targetClip);
           }
         } else {
           // No animations - will use procedural animation
           hasAnimationsRef.current = false;
           mixerRef.current = null;
           animationsRef.current.clear();
+          currentClipNameRef.current = null;
+          stopWorkingShuffle();
         }
       }
     };
@@ -440,45 +553,6 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
     };
   }, [agentClass, modelFile, customModelFile, customModelUrl, modelScale, modelOffset, isReady]);
 
-  // Helper function to play animation for a status
-  const playStatusAnimation = (currentStatus: AgentStatus) => {
-    if (!mixerRef.current) return;
-
-    const animName = STATUS_ANIMATIONS[currentStatus];
-    const clip = animationsRef.current.get(animName);
-
-    if (!clip) {
-      // Fallback to idle if animation not found
-      const idleClip = animationsRef.current.get('idle');
-      if (idleClip) {
-        const action = mixerRef.current.clipAction(idleClip);
-        action.reset().play();
-        currentActionRef.current = action;
-      }
-      return;
-    }
-
-    const newAction = mixerRef.current.clipAction(clip);
-
-    // Configure animation based on status
-    if (currentStatus === 'working') {
-      newAction.timeScale = 1.5; // Faster for working
-    } else if (currentStatus === 'error') {
-      newAction.setLoop(THREE.LoopOnce, 1);
-      newAction.clampWhenFinished = true;
-    }
-
-    // Crossfade from current action
-    if (currentActionRef.current && currentActionRef.current !== newAction) {
-      currentActionRef.current.fadeOut(0.3);
-      newAction.reset().fadeIn(0.3).play();
-    } else {
-      newAction.reset().play();
-    }
-
-    currentActionRef.current = newAction;
-  };
-
   // Update animation and ring color when status changes
   useEffect(() => {
     if (!isReady) return;
@@ -496,8 +570,9 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
       }
     }
 
-    // Update animation
+    // Update animation (working keeps shuffling until the status changes)
     playStatusAnimation(status);
+    return stopWorkingShuffle;
   }, [status, isReady]);
 
   // Update animation when idleAnimation prop changes
@@ -511,6 +586,7 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
         currentActionRef.current.stop();
         currentActionRef.current = null;
       }
+      currentClipNameRef.current = null;
       return;
     }
 
@@ -520,20 +596,14 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
       : 'idle';
     const clip = animationsRef.current.get(targetName);
     if (clip) {
-      const newAction = mixerRef.current.clipAction(clip);
-      if (currentActionRef.current && currentActionRef.current !== newAction) {
-        currentActionRef.current.fadeOut(0.3);
-        newAction.reset().fadeIn(0.3).play();
-      } else {
-        newAction.reset().play();
-      }
-      currentActionRef.current = newAction;
+      crossfadeTo(targetName, clip);
     } else {
       // Animation not found — stop
       if (currentActionRef.current) {
         currentActionRef.current.stop();
         currentActionRef.current = null;
       }
+      currentClipNameRef.current = null;
     }
   }, [idleAnimation, isReady, status]);
 

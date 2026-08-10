@@ -12,6 +12,10 @@ const FcStdViewer = React.lazy(async () => {
   const module = await import('../shared/FcStdViewer');
   return { default: module.FcStdViewer };
 });
+const GlbViewer = React.lazy(async () => {
+  const module = await import('../shared/GlbViewer');
+  return { default: module.GlbViewer };
+});
 
 interface InlineModelPreviewProps {
   fileRef: string;
@@ -33,6 +37,7 @@ export function InlineModelPreview({ fileRef, label, baseDir, onFileClick }: Inl
   const [selectedPath, setSelectedPath] = useState(resolvedPath);
   const filename = selectedPath.split('/').filter(Boolean).pop() || label || fileRef;
   const isFcStd = /\.fcstd$/i.test(selectedPath);
+  const isGlb = /\.(?:glb|gbl)$/i.test(selectedPath);
   const baseDirParam = baseDir ? `&baseDir=${encodeURIComponent(baseDir)}` : '';
   const viewerUrl = apiUrl(`/api/files/binary?path=${encodeURIComponent(selectedPath)}${baseDirParam}`);
 
@@ -61,7 +66,7 @@ export function InlineModelPreview({ fileRef, label, baseDir, onFileClick }: Inl
       onPointerDown={(event) => event.stopPropagation()}
     >
       <div className="markdown-model-preview-header">
-        <span className="markdown-model-preview-kind">{isFcStd ? 'FreeCAD · 3D' : 'STL · 3D'}</span>
+        <span className="markdown-model-preview-kind">{isFcStd ? 'FreeCAD · 3D' : isGlb ? 'GLB · 3D' : 'STL · 3D'}</span>
         <span className="markdown-model-preview-name" title={selectedPath}>{selectedPath === resolvedPath ? (label || filename) : filename}</span>
         {onFileClick && (
           <button type="button" onClick={() => onFileClick(selectedPath)} title={t('content.open3dInViewer')}>
@@ -74,7 +79,9 @@ export function InlineModelPreview({ fileRef, label, baseDir, onFileClick }: Inl
           <Suspense fallback={<div className="markdown-model-preview-placeholder">{t('fileViewerModal.loading3d')}</div>}>
             {isFcStd
               ? <FcStdViewer key={selectedPath} url={viewerUrl} filename={filename} filePath={selectedPath} onFileSelect={setSelectedPath} />
-              : <StlViewer key={selectedPath} url={viewerUrl} filename={filename} filePath={selectedPath} onFileSelect={setSelectedPath} />}
+              : isGlb
+                ? <GlbViewer key={selectedPath} url={viewerUrl} filename={filename} filePath={selectedPath} onFileSelect={setSelectedPath} />
+                : <StlViewer key={selectedPath} url={viewerUrl} filename={filename} filePath={selectedPath} onFileSelect={setSelectedPath} />}
           </Suspense>
         ) : (
           <div className="markdown-model-preview-placeholder">{t('content.scrollToLoad3d')}</div>

@@ -40,6 +40,10 @@ const FcStdViewer = React.lazy(async () => {
   const module = await import('../shared/FcStdViewer');
   return { default: module.FcStdViewer };
 });
+const GlbViewer = React.lazy(async () => {
+  const module = await import('../shared/GlbViewer');
+  return { default: module.GlbViewer };
+});
 
 const GcodeViewer = React.lazy(async () => {
   const module = await import('../shared/GcodeViewer');
@@ -132,7 +136,7 @@ interface ContentState {
   language: string;
 }
 
-type BinaryPreviewKind = 'image' | 'pdf' | 'stl' | 'fcstd' | 'gcode' | 'binary';
+type BinaryPreviewKind = 'image' | 'pdf' | 'stl' | 'fcstd' | 'glb' | 'gcode' | 'binary';
 
 interface BinaryState {
   filePath: string;
@@ -175,6 +179,7 @@ function getBinaryPreviewKind(filename: string): BinaryPreviewKind | null {
   if (extension === '.pdf') return 'pdf';
   if (extension === '.stl') return 'stl';
   if (extension === '.fcstd') return 'fcstd';
+  if (extension === '.glb' || extension === '.gbl') return 'glb';
   if (extension === '.gcode' || extension === '.gco') return 'gcode';
   return GIT_BINARY_EXTENSIONS.has(extension) ? 'binary' : null;
 }
@@ -258,7 +263,7 @@ function GitBinaryPreview({ data, onFileSelect }: { data: BinaryState; onFileSel
       </div>
     );
   }
-  if (data.previewKind === 'stl' || data.previewKind === 'fcstd' || data.previewKind === 'gcode') {
+  if (data.previewKind === 'stl' || data.previewKind === 'fcstd' || data.previewKind === 'glb' || data.previewKind === 'gcode') {
     return (
       <div className="guake-git-binary-preview">
         <React.Suspense fallback={<div className="file-viewer-loading">{t('fileViewerModal.loading3d')}</div>}>
@@ -266,7 +271,9 @@ function GitBinaryPreview({ data, onFileSelect }: { data: BinaryState; onFileSel
             ? <StlViewer url={rawUrl} filename={data.fileName} filePath={data.filePath} onFileSelect={onFileSelect} />
             : data.previewKind === 'fcstd'
               ? <FcStdViewer url={rawUrl} filename={data.fileName} filePath={data.filePath} onFileSelect={onFileSelect} />
-              : <GcodeViewer url={rawUrl} filename={data.fileName} />}
+              : data.previewKind === 'glb'
+                ? <GlbViewer url={rawUrl} filename={data.fileName} filePath={data.filePath} onFileSelect={onFileSelect} />
+                : <GcodeViewer url={rawUrl} filename={data.fileName} />}
         </React.Suspense>
       </div>
     );

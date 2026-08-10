@@ -62,9 +62,9 @@ function getModelFileRef(value: unknown): string | null {
   if (!candidate || /^[a-z][a-z\d+.-]*:/i.test(candidate)) return null;
   try {
     const decoded = decodeURIComponent(candidate);
-    return /\.(?:stl|fcstd)$/i.test(decoded) ? decoded : null;
+    return /\.(?:stl|fcstd|glb|gbl)$/i.test(decoded) ? decoded : null;
   } catch {
-    return /\.(?:stl|fcstd)$/i.test(candidate) ? candidate : null;
+    return /\.(?:stl|fcstd|glb|gbl)$/i.test(candidate) ? candidate : null;
   }
 }
 
