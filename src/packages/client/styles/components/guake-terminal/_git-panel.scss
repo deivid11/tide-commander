@@ -1124,3 +1124,542 @@
 @keyframes guake-git-loadbar-sweep {
   to { left: 100%; }
 }
+
+// =============================================================================
+// Branch graph (GitKraken-style commit graph)
+// =============================================================================
+
+// Matches .guake-git-fetch-btn so the header reads as one row of actions.
+.guake-git-graph-btn {
+  background: transparent;
+  border: 1px solid var(--text-muted);
+  border-radius: 4px;
+  color: var(--accent-purple, #c084fc);
+  font-size: 13px;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-purple, #c084fc) 15%, transparent);
+    border-color: var(--accent-purple, #c084fc);
+  }
+}
+
+.git-graph-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.66);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+}
+
+.git-graph-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(1240px, 94vw);
+  height: min(820px, 90vh);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+// ─── Header ──────────────────────────────────────────────────────────────────
+
+.git-graph-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--bg-secondary) 92%, white),
+    var(--bg-secondary)
+  );
+  flex-shrink: 0;
+}
+
+.git-graph-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent-purple, #c084fc);
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.git-graph-repo-name,
+.git-graph-repo-select {
+  font-family: $font-mono;
+  font-size: 11.5px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.git-graph-repo-select {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+
+  &:hover { border-color: var(--accent-cyan); }
+}
+
+.git-graph-stats {
+  font-family: $font-mono;
+  font-size: 10.5px;
+  color: var(--text-secondary);
+
+  strong { color: var(--text-primary); font-weight: 600; }
+}
+
+.git-graph-dim { color: var(--text-muted); opacity: 0.8; }
+
+.git-graph-header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.git-graph-icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  padding: 3px 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover { color: var(--text-primary); background: color-mix(in srgb, var(--text-muted) 18%, transparent); }
+  &.is-active { color: var(--accent-cyan); border-color: color-mix(in srgb, var(--accent-cyan) 45%, transparent); }
+  &.git-graph-close:hover { color: var(--accent-red, #f87171); }
+}
+
+.git-graph-filter-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 13px;
+  height: 13px;
+  border-radius: 7px;
+  background: var(--accent-cyan);
+  color: var(--bg-primary);
+  font-family: $font-mono;
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 13px;
+  text-align: center;
+}
+
+// ─── Filters ─────────────────────────────────────────────────────────────────
+
+.git-graph-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-secondary) 55%, transparent);
+  flex-shrink: 0;
+}
+
+.git-graph-filter {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: $font-mono;
+  font-size: 11px;
+  padding: 3px 7px;
+  max-width: 200px;
+
+  &:focus { outline: none; border-color: var(--accent-cyan); }
+  &::placeholder { color: var(--text-muted); }
+}
+
+.git-graph-filter--search { flex: 1; min-width: 180px; max-width: none; }
+
+// Custom range: on its own line so the preset row never wraps awkwardly.
+.git-graph-daterange {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-basis: 100%;
+  padding-top: 6px;
+  margin-top: 2px;
+  border-top: 1px dashed color-mix(in srgb, var(--text-muted) 25%, transparent);
+}
+
+.git-graph-daterange-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 10.5px;
+
+  span { flex-shrink: 0; }
+}
+
+// color-scheme keeps Chrome's own calendar popup dark instead of a white sheet.
+.git-graph-filter--date {
+  max-width: 140px;
+  color-scheme: dark;
+}
+
+.git-graph-filter-clear {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--accent-red, #f87171) 45%, transparent);
+  border-radius: 4px;
+  color: var(--accent-red, #f87171);
+  font-family: $font-mono;
+  font-size: 10.5px;
+  padding: 3px 8px;
+  cursor: pointer;
+
+  &:hover { background: color-mix(in srgb, var(--accent-red, #f87171) 14%, transparent); }
+}
+
+// ─── Graph body ──────────────────────────────────────────────────────────────
+
+.git-graph-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+// The SVG gutter and the rows scroll together as one surface, which is what
+// keeps a commit dot aligned with its subject line.
+.git-graph-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+}
+
+.git-graph-svg {
+  flex-shrink: 0;
+  display: block;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  // Tints the lane gutter so it reads as its own column rather than dead space.
+  background: color-mix(in srgb, var(--bg-secondary) 42%, transparent);
+}
+
+.git-graph-rows {
+  flex: 1;
+  min-width: 0;
+}
+
+.git-graph-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;               // must match ROW_HEIGHT in GitGraphModal
+  padding: 0 12px 0 8px;
+  font-family: $font-mono;
+  font-size: 11.5px;
+  color: var(--text-primary);
+  cursor: pointer;
+  box-sizing: border-box;
+  border-left: 2px solid transparent;
+
+  &:nth-child(even) { background: color-mix(in srgb, var(--text-muted) 5%, transparent); }
+  &:hover { background: color-mix(in srgb, var(--text-muted) 14%, transparent); }
+
+  &.is-selected {
+    background: color-mix(in srgb, var(--accent-cyan) 16%, transparent);
+    border-left-color: var(--accent-cyan);
+  }
+}
+
+.git-graph-refs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  max-width: 340px;
+  overflow: hidden;
+}
+
+.git-graph-subject {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-graph-avatar {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: #0b0b0f;
+  font-family: $font-mono;
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  letter-spacing: -0.02em;
+}
+
+.git-graph-hash,
+.git-graph-date {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  opacity: 0.8;
+}
+
+.git-graph-hash { min-width: 62px; }
+.git-graph-date { min-width: 38px; text-align: right; }
+
+.git-graph-ref {
+  flex-shrink: 0;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 5px;
+  border-radius: 3px;
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 15px;
+
+  &.is-head   { background: color-mix(in srgb, var(--accent-green, #4ade80) 24%, transparent); color: var(--accent-green, #4ade80); }
+  &.is-branch { background: color-mix(in srgb, var(--accent-cyan) 20%, transparent); color: var(--accent-cyan); }
+  // Remote refs sit quieter than local ones — there are far more of them.
+  &.is-remote { background: color-mix(in srgb, var(--text-muted) 20%, transparent); color: var(--text-secondary); }
+  &.is-tag    { background: color-mix(in srgb, var(--accent-orange, #fbbf24) 20%, transparent); color: var(--accent-orange, #fbbf24); }
+}
+
+.git-graph-more {
+  flex-shrink: 0;
+  padding: 7px;
+  background: var(--bg-secondary);
+  border: none;
+  border-top: 1px solid var(--border-color);
+  color: var(--accent-cyan);
+  font-family: $font-mono;
+  font-size: 11px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) { background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); }
+  &:disabled { color: var(--text-muted); cursor: default; }
+}
+
+// ─── Selected commit detail ──────────────────────────────────────────────────
+
+.git-graph-detail {
+  flex-shrink: 0;
+  padding: 9px 12px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  font-family: $font-mono;
+}
+
+.git-graph-detail-subject {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 5px;
+  word-break: break-word;
+}
+
+.git-graph-detail-meta,
+.git-graph-detail-hashes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--text-secondary);
+  font-size: 10.5px;
+}
+
+.git-graph-detail-hashes {
+  margin-top: 4px;
+
+  code {
+    background: var(--bg-tertiary);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: var(--accent-cyan);
+  }
+}
+
+.git-graph-error,
+.git-graph-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 28px 12px;
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 11.5px;
+}
+
+.git-graph-error { color: var(--accent-red, #f87171); }
+
+// ─── Branch multi-select ─────────────────────────────────────────────────────
+
+.branch-select { position: relative; flex-shrink: 0; }
+
+.branch-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 220px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: $font-mono;
+  font-size: 11px;
+  padding: 3px 7px;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+
+  &:hover { border-color: var(--accent-cyan); }
+
+  &.has-selection {
+    border-color: color-mix(in srgb, var(--accent-cyan) 60%, transparent);
+    color: var(--accent-cyan);
+  }
+}
+
+.branch-select-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branch-select-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  width: 300px;
+  max-height: 340px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent);
+  border-radius: 6px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.branch-select-search {
+  flex-shrink: 0;
+  margin: 6px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: $font-mono;
+  font-size: 11px;
+  padding: 4px 7px;
+
+  &:focus { outline: none; border-color: var(--accent-cyan); }
+  &::placeholder { color: var(--text-muted); }
+}
+
+.branch-select-clear {
+  flex-shrink: 0;
+  margin: 0 6px 6px;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--accent-red, #f87171) 40%, transparent);
+  border-radius: 4px;
+  color: var(--accent-red, #f87171);
+  font-family: $font-mono;
+  font-size: 10px;
+  padding: 3px;
+  cursor: pointer;
+
+  &:hover { background: color-mix(in srgb, var(--accent-red, #f87171) 14%, transparent); }
+}
+
+.branch-select-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 4px;
+}
+
+.branch-select-group {
+  padding: 4px 10px 2px;
+  color: var(--text-muted);
+  font-family: $font-mono;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  position: sticky;
+  top: 0;
+  background: var(--bg-primary);
+}
+
+.branch-select-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-primary);
+
+  &:hover { background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); }
+
+  input { accent-color: var(--accent-cyan); cursor: pointer; margin: 0; }
+}
+
+.branch-select-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branch-select-current {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent-green, #4ade80) 20%, transparent);
+  color: var(--accent-green, #4ade80);
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 14px;
+}
+
+.branch-select-empty {
+  padding: 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-family: $font-mono;
+  font-size: 10.5px;
+}
