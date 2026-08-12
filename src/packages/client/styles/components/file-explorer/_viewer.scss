@@ -645,6 +645,20 @@
   background: white;
 }
 
+// Audio preview (waveform player lives in components/_file-viewer.scss)
+.file-viewer-audio-wrapper {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+// Video preview (player lives in components/_file-viewer.scss)
+.file-viewer-video-wrapper {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
 // PlantUML diagram viewer
 .file-viewer-diagram-wrapper {
   flex: 1;

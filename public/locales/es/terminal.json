@@ -1040,6 +1040,21 @@
     "copyAreas": "Copiar para agente",
     "areasCopied": "Copiado"
   },
+  "audioPlayer": {
+    "decoding": "Leyendo forma de onda…",
+    "noWaveform": "Forma de onda no disponible para este formato",
+    "loadError": "No se pudo cargar el audio",
+    "seek": "Buscar",
+    "volume": "Volumen",
+    "speed": "Velocidad de reproducción",
+    "loop": "Repetir",
+    "mono": "mono",
+    "stereo": "estéreo"
+  },
+  "videoPlayer": {
+    "unsupported": "Este navegador no puede reproducir este formato de video.",
+    "loadError": "No se pudo cargar el video"
+  },
   "drawingMode": {
     "drawingArea": "Dibujando area",
     "clickAndDrag": "Haga clic y arrastre para dibujar",

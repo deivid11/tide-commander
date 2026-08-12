@@ -26,6 +26,8 @@ import { downloadServerFile } from '../../utils/file-download';
 import { ZoomableImage } from '../shared/ZoomableImage';
 
 const LazyEmbeddedEditor = lazy(() => import('./EmbeddedEditor').then(m => ({ default: m.EmbeddedEditor })));
+const LazyAudioPlayer = lazy(() => import('../shared/AudioPlayer').then(m => ({ default: m.AudioPlayer })));
+const LazyVideoPlayer = lazy(() => import('../shared/VideoPlayer').then(m => ({ default: m.VideoPlayer })));
 
 const MARKDOWN_EXTENSIONS = ['.md', '.mdx', '.markdown'];
 const MARKDOWN_RENDER_STORAGE_KEY = 'file-viewer-markdown-render';
@@ -679,6 +681,68 @@ function PdfFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTre
   );
 }
 
+function AudioFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTree?: (path: string) => void }) {
+  const { t } = useTranslation(['common', 'terminal']);
+  const handleDownload = async () => {
+    const url = apiUrl(`/api/files/binary?path=${encodeURIComponent(file.path)}&download=true`);
+    await downloadServerFile(url, file.filename);
+  };
+
+  return (
+    <>
+      <FileViewerHeader
+        file={file}
+        onRevealInTree={onRevealInTree}
+        rightContent={
+          <button className="file-viewer-download-btn" onClick={handleDownload} title={t('common:buttons.download')}>
+            {t('common:buttons.download')}
+          </button>
+        }
+      />
+      <div className="file-viewer-audio-wrapper">
+        {file.dataUrl ? (
+          <Suspense fallback={<div className="file-viewer-placeholder">{t('common:status.loading')}</div>}>
+            <LazyAudioPlayer url={file.dataUrl} filename={file.filename} />
+          </Suspense>
+        ) : (
+          <div className="file-viewer-placeholder">{t('terminal:audioPlayer.loadError', { defaultValue: 'Could not load audio' })}</div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function VideoFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTree?: (path: string) => void }) {
+  const { t } = useTranslation(['common', 'terminal']);
+  const downloadUrl = apiUrl(`/api/files/binary?path=${encodeURIComponent(file.path)}&download=true`);
+  const handleDownload = async () => {
+    await downloadServerFile(downloadUrl, file.filename);
+  };
+
+  return (
+    <>
+      <FileViewerHeader
+        file={file}
+        onRevealInTree={onRevealInTree}
+        rightContent={
+          <button className="file-viewer-download-btn" onClick={handleDownload} title={t('common:buttons.download')}>
+            {t('common:buttons.download')}
+          </button>
+        }
+      />
+      <div className="file-viewer-video-wrapper">
+        {file.dataUrl ? (
+          <Suspense fallback={<div className="file-viewer-placeholder">{t('common:status.loading')}</div>}>
+            <LazyVideoPlayer url={file.dataUrl} downloadUrl={downloadUrl} filename={file.filename} />
+          </Suspense>
+        ) : (
+          <div className="file-viewer-placeholder">{t('terminal:videoPlayer.loadError', { defaultValue: 'Could not load video' })}</div>
+        )}
+      </div>
+    </>
+  );
+}
+
 function BinaryFileViewer({ file, onRevealInTree }: { file: FileData; onRevealInTree?: (path: string) => void }) {
   const { t } = useTranslation(['terminal', 'common']);
   const handleDownload = async () => {
@@ -834,6 +898,8 @@ function FileViewerComponent({ file, loading, error, onRevealInTree, onFileEdite
       )}
       {fileType === 'image' && <ImageFileViewer file={file} onRevealInTree={onRevealInTree} />}
       {fileType === 'pdf' && <PdfFileViewer file={file} onRevealInTree={onRevealInTree} />}
+      {fileType === 'audio' && <AudioFileViewer file={file} onRevealInTree={onRevealInTree} />}
+      {fileType === 'video' && <VideoFileViewer file={file} onRevealInTree={onRevealInTree} />}
       {fileType === 'binary' && <BinaryFileViewer file={file} onRevealInTree={onRevealInTree} />}
     </div>
   );

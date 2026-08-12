@@ -18,6 +18,7 @@ import { getLanguageForExtension, ensureLanguageLoaded, Prism } from './FileExpl
 import { Icon } from './Icon';
 import { ZoomableImage } from './shared/ZoomableImage';
 import { VirtualLineList, scrollLineIntoView } from './shared/VirtualLineList';
+import { AUDIO_EXTENSIONS, VIDEO_EXTENSIONS } from './shared/mediaTypes';
 
 const StlViewer = React.lazy(async () => {
   const module = await import('./shared/StlViewer');
@@ -34,6 +35,14 @@ const GlbViewer = React.lazy(async () => {
 const GcodeViewer = React.lazy(async () => {
   const module = await import('./shared/GcodeViewer');
   return { default: module.GcodeViewer };
+});
+const AudioPlayer = React.lazy(async () => {
+  const module = await import('./shared/AudioPlayer');
+  return { default: module.AudioPlayer };
+});
+const VideoPlayer = React.lazy(async () => {
+  const module = await import('./shared/VideoPlayer');
+  return { default: module.VideoPlayer };
 });
 
 // Row heights from _file-viewer.scss: 12px font at line-height 1.6 (normal
@@ -548,8 +557,10 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     const isFcStdFile = FCSTD_EXTENSIONS.includes(ext);
     const isGlbFile = GLB_EXTENSIONS.includes(ext);
     const isGcodeFile = GCODE_EXTENSIONS.includes(ext);
+    const isAudioFile = (AUDIO_EXTENSIONS as readonly string[]).includes(ext);
+    const isVideoFile = (VIDEO_EXTENSIONS as readonly string[]).includes(ext);
 
-    const endpoint = (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGlbFile || isGcodeFile)
+    const endpoint = (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGlbFile || isGcodeFile || isAudioFile || isVideoFile)
       ? `/api/files/info?path=${encodeURIComponent(filePath)}${baseDirParam}`
       : `/api/files/read?path=${encodeURIComponent(filePath)}${baseDirParam}`;
 
@@ -567,7 +578,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       };
     }
 
-    if (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGlbFile || isGcodeFile) {
+    if (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGlbFile || isGcodeFile || isAudioFile || isVideoFile) {
       data.content = '';
     }
 
@@ -982,7 +993,9 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const isFcStd = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, FCSTD_EXTENSIONS));
   const isGlb = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, GLB_EXTENSIONS));
   const isGcode = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, GCODE_EXTENSIONS));
-  const language = isSvg ? 'SVG' : isImage ? 'Image' : isPdf ? 'PDF' : isStl ? 'STL · 3D' : isFcStd ? 'FreeCAD · 3D' : isGlb ? 'GLB · 3D' : isGcode ? 'G-code · Print' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
+  const isAudio = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, AUDIO_EXTENSIONS as readonly string[] as string[]));
+  const isVideo = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, VIDEO_EXTENSIONS as readonly string[] as string[]));
+  const language = isSvg ? 'SVG' : isImage ? 'Image' : isPdf ? 'PDF' : isStl ? 'STL · 3D' : isFcStd ? 'FreeCAD · 3D' : isGlb ? 'GLB · 3D' : isGcode ? 'G-code · Print' : isAudio ? 'Audio' : isVideo ? 'Video' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
   const authToken = getAuthToken();
   // Use the resolved file path (a clicked directory entry has its own path that
   // differs from the modal's original effectivePath — which may be the folder).
@@ -993,6 +1006,19 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const fcstdUrl = isFcStd ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}`) : null;
   const glbUrl = isGlb ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}`) : null;
   const gcodeUrl = isGcode ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}`) : null;
+  const audioUrl = isAudio ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}`) : null;
+  // Video streams straight into the element (no Blob — a recording can be
+  // hundreds of MB), so the token has to ride in the URL: a <video> tag cannot
+  // send an Authorization header.
+  const videoUrl = isVideo
+    ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}${authToken ? `&token=${encodeURIComponent(authToken)}` : ''}`)
+    : null;
+  const videoDownloadUrl = isVideo
+    ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}&download=true`)
+    : null;
+  // Every format rendered by a dedicated viewer instead of the text/code panes:
+  // they have no line count, nothing to copy as text and their own download path.
+  const hasBinaryPreview = isImage || isPdf || isStl || isFcStd || isGlb || isGcode || isAudio || isVideo;
   // The text preview endpoint deliberately rejects files over 1 MB, but those
   // files can still be saved through the streaming binary endpoint.
   const canDownloadWithoutPreview = !fileData && error?.startsWith('File too large');
@@ -1099,7 +1125,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                 </button>
               </>
             )}
-            {fileData && !isImage && !isPdf && !isStl && !isFcStd && !isGlb && !isGcode && !isMarkdown && (
+            {fileData && !hasBinaryPreview && !isMarkdown && (
               <button
                 type="button"
                 className={`file-viewer-copy-html-btn ${copyAllStatus}`}
@@ -1109,7 +1135,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                 {copyAllStatus === 'copied' ? t('common:status.copied') : copyAllStatus === 'error' ? t('common:status.error') : t('terminal:fileExplorer.copyAll')}
               </button>
             )}
-            {fileData && !isImage && !isPdf && !isStl && !isFcStd && !isGlb && !isGcode && (
+            {fileData && !hasBinaryPreview && (
               <button
                 type="button"
                 className="file-viewer-copy-html-btn"
@@ -1119,7 +1145,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                 {t('common:buttons.download')}
               </button>
             )}
-            {(isImage || isPdf || isStl || isFcStd || isGlb || isGcode) && fileData ? (
+            {hasBinaryPreview && fileData ? (
               <button
                 type="button"
                 className={`file-viewer-copy-html-btn ${downloadStatus}`}
@@ -1167,7 +1193,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
             <span>{formatFileSize(fileData.size)}</span>
             <span>•</span>
             <span>{language}</span>
-            {fileData.content && !isImage && !isPdf && !isStl && !isFcStd && !isGlb && !isGcode && (
+            {fileData.content && !hasBinaryPreview && (
               <>
                 <span>•</span>
                 <span>{t('terminal:fileViewer.lineCount', { count: fileData.content.split('\n').length })}</span>
@@ -1320,6 +1346,14 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
             ) : isGcode && gcodeUrl ? (
               <React.Suspense fallback={<div className="file-viewer-loading">{t('terminal:fileViewerModal.loadingGcode')}</div>}>
                 <GcodeViewer url={gcodeUrl} filename={fileData.filename} />
+              </React.Suspense>
+            ) : isAudio && audioUrl ? (
+              <React.Suspense fallback={<div className="file-viewer-loading">{t('common:status.loading')}</div>}>
+                <AudioPlayer url={audioUrl} filename={fileData.filename} />
+              </React.Suspense>
+            ) : isVideo && videoUrl && videoDownloadUrl ? (
+              <React.Suspense fallback={<div className="file-viewer-loading">{t('common:status.loading')}</div>}>
+                <VideoPlayer url={videoUrl} downloadUrl={videoDownloadUrl} filename={fileData.filename} />
               </React.Suspense>
             ) : showDiffView ? (
               // Show side-by-side diff view for Edit tool
