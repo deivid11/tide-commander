@@ -8,6 +8,7 @@
 import { useState, useCallback } from 'react';
 import type { FileData, FileType, UseFileContentReturn } from './types';
 import { apiUrl, authFetch, getAuthToken } from '../../utils/storage';
+import { isAudioFile, isVideoFile } from '../shared/mediaTypes';
 
 // File extensions that can be displayed as text
 const TEXT_EXTENSIONS = new Set([
@@ -31,12 +32,12 @@ const IMAGE_EXTENSIONS = new Set([
 // PDF extension
 const PDF_EXTENSIONS = new Set(['.pdf']);
 
-// Binary/downloadable extensions (can't be viewed)
+// Binary/downloadable extensions (can't be viewed). Audio/video live in
+// ../shared/mediaTypes so this panel and the modal always agree on what plays.
 const BINARY_EXTENSIONS = new Set([
   '.xlsx', '.xls', '.docx', '.doc', '.pptx', '.ppt',
   '.zip', '.tar', '.gz', '.rar', '.7z',
   '.exe', '.dmg', '.app', '.deb', '.rpm', '.apk', '.aab', '.ipa', '.msi',
-  '.mp3', '.mp4', '.wav', '.avi', '.mov', '.mkv', '.flac', '.ogg', '.webm',
   '.ttf', '.otf', '.woff', '.woff2', '.eot',
   '.sqlite', '.db',
   '.so', '.dll', '.dylib', '.a', '.o', '.obj',
@@ -52,6 +53,8 @@ function getFileType(extension: string): FileType {
 
   if (IMAGE_EXTENSIONS.has(ext)) return 'image';
   if (PDF_EXTENSIONS.has(ext)) return 'pdf';
+  if (isAudioFile(ext)) return 'audio';
+  if (isVideoFile(ext)) return 'video';
   if (BINARY_EXTENSIONS.has(ext)) return 'binary';
   if (TEXT_EXTENSIONS.has(ext)) return 'text';
 
@@ -127,6 +130,33 @@ export function useFileContent(): UseFileContentReturn {
           modified: info.modified,
           fileType: 'pdf',
           dataUrl: apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(getAuthToken())}`)
+        });
+        return;
+      }
+
+      // Media: metadata only, no body fetched here. AudioPlayer pulls the bytes
+      // itself over authFetch (no token in the URL); VideoPlayer streams from
+      // the element, which cannot send headers — hence the token for video.
+      if (fileType === 'audio' || fileType === 'video') {
+        const infoRes = await authFetch(apiUrl(`/api/files/info?path=${encodeURIComponent(filePath)}`));
+        const info = await infoRes.json();
+
+        if (!infoRes.ok) {
+          setError(info.error || 'Failed to load media info');
+          setFile(null);
+          return;
+        }
+
+        const tokenParam = fileType === 'video' ? `&token=${encodeURIComponent(getAuthToken())}` : '';
+        setFile({
+          path: filePath,
+          filename,
+          extension,
+          content: '',
+          size: info.size,
+          modified: info.modified,
+          fileType,
+          dataUrl: apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}${tokenParam}`)
         });
         return;
       }

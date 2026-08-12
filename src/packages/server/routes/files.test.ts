@@ -6,11 +6,55 @@ import {
   findFileWithFallbacks,
   resolveAndValidateFilePath,
   isAbsolutePathCrossPlatform,
+  parseByteRange,
   toPosixSeparators,
   _resetSuffixWalkCacheForTests,
   _resetAreaDirCacheForTests,
   _setAreaLoaderForTests,
 } from './files';
+
+describe('parseByteRange', () => {
+  const SIZE = 1000;
+
+  it('ignores a missing or unparseable header so the caller streams everything', () => {
+    expect(parseByteRange(undefined, SIZE)).toBeNull();
+    expect(parseByteRange('items=0-10', SIZE)).toBeNull();
+    expect(parseByteRange('bytes=-', SIZE)).toBeNull();
+    // Multi-range is valid HTTP but needs multipart; fall back to the full body.
+    expect(parseByteRange('bytes=0-10,20-30', SIZE)).toBeNull();
+  });
+
+  it('parses an explicit window', () => {
+    expect(parseByteRange('bytes=0-99', SIZE)).toEqual({ start: 0, end: 99 });
+    expect(parseByteRange('bytes=500-501', SIZE)).toEqual({ start: 500, end: 501 });
+  });
+
+  it('treats an open end as "to the last byte"', () => {
+    // What a media element sends to start playback.
+    expect(parseByteRange('bytes=0-', SIZE)).toEqual({ start: 0, end: 999 });
+    expect(parseByteRange('bytes=900-', SIZE)).toEqual({ start: 900, end: 999 });
+  });
+
+  it('reads the suffix form as the last N bytes', () => {
+    expect(parseByteRange('bytes=-200', SIZE)).toEqual({ start: 800, end: 999 });
+    // A suffix longer than the file clamps to the whole file rather than a negative start.
+    expect(parseByteRange('bytes=-5000', SIZE)).toEqual({ start: 0, end: 999 });
+  });
+
+  it('clamps an end past EOF', () => {
+    expect(parseByteRange('bytes=990-99999', SIZE)).toEqual({ start: 990, end: 999 });
+  });
+
+  it('rejects ranges that cannot be satisfied', () => {
+    expect(parseByteRange('bytes=1000-1200', SIZE)).toBe('unsatisfiable');
+    expect(parseByteRange('bytes=500-400', SIZE)).toBe('unsatisfiable');
+    expect(parseByteRange('bytes=-0', SIZE)).toBe('unsatisfiable');
+  });
+
+  it('ignores ranges against an empty file', () => {
+    expect(parseByteRange('bytes=0-', 0)).toBeNull();
+  });
+});
 
 describe('resolveAndValidateFilePath', () => {
   const FALLBACK = '/srv/tide-commander';

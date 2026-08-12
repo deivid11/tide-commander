@@ -1177,6 +1177,21 @@
     "copyAreas": "Copy for agent",
     "areasCopied": "Copied"
   },
+  "audioPlayer": {
+    "decoding": "Reading waveform…",
+    "noWaveform": "Waveform unavailable for this format",
+    "loadError": "Could not load audio",
+    "seek": "Seek",
+    "volume": "Volume",
+    "speed": "Playback speed",
+    "loop": "Loop",
+    "mono": "mono",
+    "stereo": "stereo"
+  },
+  "videoPlayer": {
+    "unsupported": "This browser cannot play this video format.",
+    "loadError": "Could not load video"
+  },
   "drawingMode": {
     "drawingArea": "Drawing Area",
     "clickAndDrag": "Click and drag to draw",

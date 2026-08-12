@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.180.0] - 2026-08-11
+
+### Added
+- **Audio files play in the viewer** - `.wav`, `.mp3`, `.ogg`, `.opus`, `.flac`, `.m4a`, `.aac` and friends now open in a real player instead of a "binary file" placeholder, with a drawn waveform you can click to seek, plus volume, playback speed and loop controls and the clip's duration, channel count and sample rate. The waveform is reduced to peak pairs once and the canvas scales that summary, so a long recording draws instantly; peaks are min/max per bucket rather than averages, because averaging flattens exactly the transients that make a recording recognizable. A format the browser can't decode falls back to a clear message and a download button rather than a broken player.
+- **Video files play in the viewer** - `.mp4`, `.webm`, `.mov`, `.mkv` and similar play inline with the browser's own controls, in both the file modal and the File Explorer's tabs. Both viewers share one list of playable formats, so nothing can be playable in one place and a binary blob in the other.
+
+### Changed
+- **Media streams instead of downloading whole** - the file routes now honour `Range` requests, so a player scrubs by fetching the byte window it needs rather than re-downloading the file. The 50 MB response cap still protects the viewers that read a whole response into memory (images, PDFs, 3D models) but no longer applies to audio and video, where a 300 MB screen capture is an ordinary file to play. Binary responses also declare a proper content type per format — a media element rejects an `application/octet-stream` blob outright, which showed up as "this audio won't play".
+
 ## [1.179.0] - 2026-08-10
 
 ### Added

@@ -26,7 +26,7 @@ export interface TreeNode {
 // FILE TYPES
 // ============================================================================
 
-export type FileType = 'text' | 'image' | 'pdf' | 'binary';
+export type FileType = 'text' | 'image' | 'pdf' | 'audio' | 'video' | 'binary';
 
 export interface FileData {
   path: string;
