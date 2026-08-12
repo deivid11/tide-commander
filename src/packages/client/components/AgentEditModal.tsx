@@ -10,6 +10,7 @@ import { KeyCaptureInput } from './KeyCaptureInput';
 import { ModelPreview } from './ModelPreview';
 import { FolderInput } from './shared/FolderInput';
 import { OpencodeModelSelect } from './OpencodeModelSelect';
+import { PiModelSelect } from './PiModelSelect';
 import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
 import { CODEX_REASONING_EFFORTS } from '../../shared/types';
 import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, GROK_MODELS, DEFAULT_GROK_MODEL } from '../../shared/types';
@@ -56,6 +57,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>(getSelectableCodexModel(agent.codexModel));
   const [opencodeModel, setOpencodeModel] = useState<string>((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k');
   const [grokModel, setGrokModel] = useState<string>((agent as any).grokModel || DEFAULT_GROK_MODEL);
+  const [piModel, setPiModel] = useState<string>((agent as any).piModel || '');
   const [useChrome, setUseChrome] = useState<boolean>(agent.useChrome || false);
   const [workdir, setWorkdir] = useState<string>(agent.cwd);
   const [shortcut, setShortcut] = useState<string>(((agent as AgentWithShortcut).shortcut || '').trim());
@@ -128,6 +130,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       setSelectedCodexModel(getSelectableCodexModel(agent.codexModel));
       setOpencodeModel((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k');
       setGrokModel((agent as any).grokModel || DEFAULT_GROK_MODEL);
+      setPiModel((agent as any).piModel || '');
       setUseChrome(agent.useChrome || false);
       setWorkdir(agent.cwd);
       setShortcut((((agent as AgentWithShortcut).shortcut) || '').trim());
@@ -243,6 +246,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (selectedProvider === 'codex' && JSON.stringify(codexConfig || {}) !== JSON.stringify(agent.codexConfig || {})) return true;
     if (selectedProvider === 'opencode' && opencodeModel !== ((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k')) return true;
     if (selectedProvider === 'grok' && grokModel !== ((agent as any).grokModel || DEFAULT_GROK_MODEL)) return true;
+    if (selectedProvider === 'pi' && piModel !== ((agent as any).piModel || '')) return true;
     if (useChrome !== (agent.useChrome || false)) return true;
     if (workdir !== agent.cwd) return true;
     if (shortcut !== (((agent as AgentWithShortcut).shortcut || '').trim())) return true;
@@ -263,7 +267,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (currentDirectSkills !== newSkills) return true;
 
     return false;
-  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedEffort, selectedCodexModel, codexConfig, opencodeModel, grokModel, useChrome, workdir, shortcut, customInstructions, soundsMuted, autoCollapse, autoCollapseCron, autoCollapseTz, autoCollapsePrompt, selectedSkillIds, agent, allSkills]);
+  }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedEffort, selectedCodexModel, codexConfig, opencodeModel, grokModel, piModel, useChrome, workdir, shortcut, customInstructions, soundsMuted, autoCollapse, autoCollapseCron, autoCollapseTz, autoCollapsePrompt, selectedSkillIds, agent, allSkills]);
 
   // Handle save
   const handleSave = () => {
@@ -276,6 +280,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       codexModel?: CodexModel;
       opencodeModel?: string;
       grokModel?: string;
+      piModel?: string;
       model?: ClaudeModel;
       effort?: ClaudeEffort;
       useChrome?: boolean;
@@ -320,6 +325,9 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
 
     if (selectedProvider === 'grok' && grokModel !== ((agent as any).grokModel || DEFAULT_GROK_MODEL)) {
       updates.grokModel = grokModel;
+    }
+    if (selectedProvider === 'pi' && piModel !== ((agent as any).piModel || '')) {
+      updates.piModel = piModel;
     }
 
     if (selectedProvider === 'claude' && selectedModel !== (agent.model || 'sonnet')) {
@@ -587,6 +595,13 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     <img src={`${import.meta.env.BASE_URL}assets/grok.png`} alt="Grok" className="spawn-provider-icon" />
                     <span>Grok</span>
                   </button>
+                  <button
+                    className={`spawn-select-btn spawn-select-btn--pi ${selectedProvider === 'pi' ? 'selected' : ''}`}
+                    onClick={() => setSelectedProvider('pi')}
+                  >
+                    <img src={`${import.meta.env.BASE_URL}assets/pi.svg`} alt="Pi" className="spawn-provider-icon" />
+                    <span>Pi</span>
+                  </button>
                 </div>
               </div>
               <div className="spawn-field">
@@ -660,6 +675,12 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                       </button>
                     ))}
                   </div>
+                ) : selectedProvider === 'pi' ? (
+                  <PiModelSelect
+                    value={piModel}
+                    onChange={setPiModel}
+                    inputId="edit-pi-model"
+                  />
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.codex.configuration')}</div>
                 )}
@@ -667,7 +688,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
             </div>
 
             <div className="spawn-form-row">
-              {(selectedProvider === 'claude' || selectedProvider === 'grok') && (
+              {(selectedProvider === 'claude' || selectedProvider === 'grok' || selectedProvider === 'pi') && (
                 <div className="spawn-field">
                   <label className="spawn-label">Effort</label>
                   <div className="spawn-select-row spawn-select-row--effort">

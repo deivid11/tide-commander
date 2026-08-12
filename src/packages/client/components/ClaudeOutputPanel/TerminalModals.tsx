@@ -635,6 +635,8 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
     ? ((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k')
     : agent.provider === 'grok'
     ? ((agent as any).grokModel || 'grok-4.5')
+    : agent.provider === 'pi'
+    ? ((agent as any).piModel || 'pi default')
     : (agent.model || 'sonnet');
 
   const classInstructions = customClass?.instructions?.trim() || '';

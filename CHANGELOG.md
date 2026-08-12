@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.181.0] - 2026-08-12
+
+### Added
+- **Pi is a fifth agent provider** - agents can now run on the [pi coding agent](https://github.com/earendil-works/pi-mono) alongside Claude, Codex, OpenCode and Grok. Pi appears in the spawn dialog, agent editor, boss spawn schema, bulk manage, commander and dashboard views, with its own model picker (`provider/model` patterns such as `anthropic/claude-sonnet-4-5`; leaving it empty defers to pi's own configured default) and its own icon on the battlefield. Sessions resume across turns, and slash commands are gated for it like every other provider. Installation detection validates that the resolved `pi` really is the coding agent — Anaconda ships an unrelated Python tool with the same name, which would otherwise look like a working install.
+- **Mid-turn steering for Pi** - an optional RPC mode (Config → Experimental) keeps one persistent `pi` process per agent with an open command channel, so a message sent while the agent is working is delivered *inside* the current run — after the tool round in flight, before the next model call — instead of queueing until the turn ends. The mode is chosen per launch from the live setting, so switching it needs no restart, and turns can be interrupted outright. The default single-shot runner is unchanged.
+
 ## [1.180.0] - 2026-08-11
 
 ### Added

@@ -96,7 +96,8 @@ export interface AgentActions {
     customInstructions?: string,
     effort?: ClaudeEffort,
     opencodeModel?: string,
-    grokModel?: string
+    grokModel?: string,
+    piModel?: string
   ): void;
   cloneAgent(
     sourceAgentId: string,
@@ -136,6 +137,7 @@ export interface AgentActions {
       codexModel?: CodexModel;
       opencodeModel?: string;
       grokModel?: string;
+      piModel?: string;
       model?: ClaudeModel;
       effort?: ClaudeEffort;
       useChrome?: boolean;
@@ -500,7 +502,8 @@ export function createAgentActions(
       customInstructions?: string,
       effort?: ClaudeEffort,
       opencodeModel?: string,
-      grokModel?: string
+      grokModel?: string,
+      piModel?: string
     ): void {
       logAgentStore('[Store] spawnAgent called with:', {
         name,
@@ -518,6 +521,7 @@ export function createAgentActions(
         effort,
         opencodeModel,
         grokModel,
+        piModel,
         customInstructions: customInstructions ? `${customInstructions.length} chars` : undefined,
       });
 
@@ -538,6 +542,7 @@ export function createAgentActions(
           codexModel,
           opencodeModel,
           grokModel,
+          piModel,
           model,
           effort,
           customInstructions,

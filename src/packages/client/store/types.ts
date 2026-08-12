@@ -213,6 +213,9 @@ export interface Settings {
   // Experimental: run OpenCode agents through a persistent `opencode serve`
   // process so replies stream word-by-word (server-synced)
   opencodeServerMode: boolean;
+  // Run Pi agents through a persistent `pi --mode rpc` process so mid-turn
+  // messages STEER the live run instead of queueing (server-synced)
+  piRpcMode: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -242,6 +245,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // Opt-in (experimental): streaming server modes default OFF until hardened.
   codexAppServerMode: false,
   opencodeServerMode: false,
+  piRpcMode: false,
 };
 
 // Store state

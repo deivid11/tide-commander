@@ -19,7 +19,8 @@ import { truncateOrEmpty } from '../utils/string.js';
 import { buildCustomAgentConfig, expandFileMentions } from '../websocket/handlers/command-handler.js';
 import { clearDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
 import { OpencodeBackend } from '../opencode/backend.js';
-import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled, isInteractiveModeEnabled, setInteractiveModeEnabled, isCodexAppServerModeEnabled, setCodexAppServerModeEnabled, isOpencodeServerModeEnabled, setOpencodeServerModeEnabled } from '../services/system-prompt-service.js';
+import { PiBackend } from '../pi/backend.js';
+import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled, isInteractiveModeEnabled, setInteractiveModeEnabled, isCodexAppServerModeEnabled, setCodexAppServerModeEnabled, isOpencodeServerModeEnabled, setOpencodeServerModeEnabled, isPiRpcModeEnabled, setPiRpcModeEnabled } from '../services/system-prompt-service.js';
 import { markInstructionsDirtyForAll } from '../services/instruction-refresh.js';
 import { startAgentTerminal, stopAgentTerminal } from '../services/agent-terminal-service.js';
 import { buildClaudeUsageByAgentSummary, buildClaudeUsageByDaySummary, buildClaudeUsageSnapshot } from '../services/claude-usage-service.js';
@@ -154,6 +155,61 @@ router.get('/opencode/models', async (req: Request, res: Response) => {
   } catch (err: any) {
     log.error(' opencode models fetch failed:', err);
     res.status(500).json({ error: err?.message || 'Failed to run opencode CLI' });
+  }
+});
+
+// GET /api/agents/pi/models - List pi CLI models (providers with credentials only)
+// NOTE: Defined BEFORE /:id routes so "pi" is not parsed as an agent id.
+interface PiModelsCache {
+  models: string[];
+  fetchedAt: number;
+}
+let piModelsCache: PiModelsCache | null = null;
+const PI_MODELS_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+router.get('/pi/models', async (req: Request, res: Response) => {
+  const refresh = req.query.refresh === 'true' || req.query.refresh === '1';
+  const now = Date.now();
+
+  if (!refresh && piModelsCache && now - piModelsCache.fetchedAt < PI_MODELS_TTL_MS) {
+    res.json({
+      models: piModelsCache.models,
+      source: 'cli',
+      cached: true,
+      fetchedAt: piModelsCache.fetchedAt,
+    });
+    return;
+  }
+
+  try {
+    const piExe = new PiBackend().getExecutablePath();
+    const result = await runCommandWithTimeout(piExe, ['--list-models'], 15000);
+
+    // Output is a whitespace table: provider  model  context  max-out  thinking  images
+    const models = result.output
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith('provider '))
+      .map((line) => {
+        const cols = line.split(/\s+/);
+        return cols.length >= 2 ? `${cols[0]}/${cols[1]}` : '';
+      })
+      .filter(Boolean);
+
+    if (models.length === 0) {
+      res.status(502).json({
+        error: 'pi CLI returned no models (are provider credentials configured?)',
+        stderr: result.errorOutput || undefined,
+        exitCode: result.exitCode,
+      });
+      return;
+    }
+
+    piModelsCache = { models, fetchedAt: now };
+    res.json({ models, source: 'cli', cached: false, fetchedAt: now });
+  } catch (err: any) {
+    log.error(' pi models fetch failed:', err);
+    res.status(500).json({ error: err?.message || 'Failed to run pi CLI' });
   }
 });
 
@@ -569,7 +625,7 @@ router.post('/bulk/change-model', async (req: Request, res: Response) => {
   try {
     const { agentIds, provider, model, effort } = req.body as {
       agentIds?: string[];
-      provider?: 'claude' | 'codex' | 'opencode' | 'grok';
+      provider?: 'claude' | 'codex' | 'opencode' | 'grok' | 'pi';
       model?: string;
       effort?: string | null;
     };
@@ -592,6 +648,8 @@ router.post('/bulk/change-model', async (req: Request, res: Response) => {
       sanitized = agentService.sanitizeOpencodeModel(model);
     } else if (provider === 'grok') {
       sanitized = agentService.sanitizeGrokModel(model);
+    } else if (provider === 'pi') {
+      sanitized = agentService.sanitizePiModel(model);
     }
 
     if (!sanitized) {
@@ -602,7 +660,7 @@ router.post('/bulk/change-model', async (req: Request, res: Response) => {
     // Effort is Claude/Grok. `null` means "clear back to default"; undefined means "leave unchanged".
     const VALID_EFFORTS = new Set(['low', 'medium', 'high', 'xHigh', 'max']);
     let effortUpdate: { set: true; value: string | undefined } | { set: false } = { set: false };
-    if (effort !== undefined && (provider === 'claude' || provider === 'grok')) {
+    if (effort !== undefined && (provider === 'claude' || provider === 'grok' || provider === 'pi')) {
       if (effort === null) {
         effortUpdate = { set: true, value: undefined };
       } else if (typeof effort === 'string' && VALID_EFFORTS.has(effort)) {
@@ -639,6 +697,7 @@ router.post('/bulk/change-model', async (req: Request, res: Response) => {
         else if (provider === 'codex') modelUpdates.codexModel = sanitized;
         else if (provider === 'opencode') modelUpdates.opencodeModel = sanitized;
         else if (provider === 'grok') modelUpdates.grokModel = sanitized;
+        else if (provider === 'pi') modelUpdates.piModel = sanitized;
 
         if (effortUpdate.set) modelUpdates.effort = effortUpdate.value;
 
@@ -1773,6 +1832,34 @@ router.post('/system-settings/opencode-server-mode', (req: Request, res: Respons
     res.json({ success: true, enabled });
   } catch (err: any) {
     log.error(' Failed to set opencode server mode setting:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/system-settings/pi-rpc-mode - Get Pi RPC (mid-turn steering) mode setting
+router.get('/system-settings/pi-rpc-mode', (_req: Request, res: Response) => {
+  try {
+    const enabled = isPiRpcModeEnabled();
+    res.json({ enabled });
+  } catch (err: any) {
+    log.error(' Failed to get pi RPC mode setting:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/system-settings/pi-rpc-mode - Update Pi RPC (mid-turn steering) mode setting
+router.post('/system-settings/pi-rpc-mode', (req: Request, res: Response) => {
+  try {
+    const { enabled } = req.body;
+    if (typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'enabled must be a boolean' });
+      return;
+    }
+    setPiRpcModeEnabled(enabled);
+    log.log(` Pi RPC mode setting updated: enabled=${enabled}`);
+    res.json({ success: true, enabled });
+  } catch (err: any) {
+    log.error(' Failed to set pi RPC mode setting:', err);
     res.status(500).json({ error: err.message });
   }
 });

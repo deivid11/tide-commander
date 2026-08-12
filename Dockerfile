@@ -29,6 +29,9 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 # Install opencode into /home/commander/.opencode
 RUN curl -fsSL https://opencode.ai/install | bash
 
+# Install pi coding agent into /home/commander/.bun/bin
+RUN /home/commander/.bun/bin/bun install -g @earendil-works/pi-coding-agent
+
 ENV PATH="/home/commander/.bun/bin:/home/commander/.local/bin:/home/commander/.opencode/bin:${PATH}"
 
 VOLUME ["/home/commander/.local/share/tide-commander"]

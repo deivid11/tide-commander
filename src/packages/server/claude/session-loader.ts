@@ -85,7 +85,36 @@ function normalizeGrokToolName(raw: string): string {
 const GROK_DIR = path.join(os.homedir(), '.grok');
 const GROK_SESSIONS_DIR = path.join(GROK_DIR, 'sessions');
 
-type SessionProvider = 'claude' | 'codex' | 'opencode' | 'grok';
+// Pi coding agent session storage: ~/.pi/agent/sessions/--<cwd with / → ->--/<timestamp>_<uuid>.jsonl
+const PI_DIR = path.join(os.homedir(), '.pi');
+const PI_SESSIONS_DIR = path.join(PI_DIR, 'agent', 'sessions');
+
+// Pi uses lowercase tool names on disk; normalize to the capitalized variants
+// the frontend expects. Kept in sync with pi/json-event-parser.ts.
+const PI_TOOL_NAME_MAP: Record<string, string> = {
+  bash: 'Bash',
+  read: 'Read',
+  write: 'Write',
+  edit: 'Edit',
+  multiedit: 'MultiEdit',
+  glob: 'Glob',
+  grep: 'Grep',
+  ls: 'LS',
+  find: 'Find',
+  todowrite: 'TodoWrite',
+  webfetch: 'WebFetch',
+  websearch: 'WebSearch',
+  // pi-web-access extension tools
+  web_search: 'WebSearch',
+  fetch_content: 'WebFetch',
+  get_search_content: 'WebFetch',
+};
+
+function normalizePiToolName(raw: string): string {
+  return PI_TOOL_NAME_MAP[raw.toLowerCase()] || raw;
+}
+
+type SessionProvider = 'claude' | 'codex' | 'opencode' | 'grok' | 'pi';
 
 interface ResolvedSessionFile {
   provider: SessionProvider;
@@ -99,6 +128,7 @@ interface ResolvedSessionFile {
 
 const codexSessionFileById = new Map<string, string>();
 const opencodeSessionFileById = new Map<string, string>();
+const piSessionFileById = new Map<string, string>();
 
 let cachedOpencodeDb: Database.Database | null = null;
 let opencodeDbOpenFailed = false;
@@ -670,6 +700,61 @@ function findGrokSessionDir(cwd: string, sessionId: string): string | null {
   return null;
 }
 
+/**
+ * Encode a cwd to pi's project directory name:
+ * /home/user/project → --home-user-project-- (slashes become dashes, wrapped in --).
+ */
+function encodePiProjectDir(cwd: string): string {
+  const normalized = cwd.replace(/\/+$/, '');
+  return `-${normalized.replace(/\//g, '-')}--`;
+}
+
+/**
+ * Locate a pi session file for (cwd, sessionId).
+ * Files are named <timestamp>_<sessionId>.jsonl inside the project dir.
+ */
+function findPiSessionFile(cwd: string, sessionId: string): string | null {
+  if (!sessionId) return null;
+
+  const cached = piSessionFileById.get(sessionId);
+  if (cached && fs.existsSync(cached)) {
+    return cached;
+  }
+
+  const suffix = `_${sessionId}.jsonl`;
+  const scanDir = (dir: string): string | null => {
+    try {
+      for (const file of fs.readdirSync(dir)) {
+        if (file.endsWith(suffix)) {
+          const full = path.join(dir, file);
+          piSessionFileById.set(sessionId, full);
+          return full;
+        }
+      }
+    } catch {
+      // ignore unreadable dirs
+    }
+    return null;
+  };
+
+  const projectDir = path.join(PI_SESSIONS_DIR, encodePiProjectDir(cwd));
+  const direct = scanDir(projectDir);
+  if (direct) return direct;
+
+  // Fallback: scan all project dirs for this session id (slower, rare)
+  if (!fs.existsSync(PI_SESSIONS_DIR)) return null;
+  try {
+    for (const entry of fs.readdirSync(PI_SESSIONS_DIR, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const found = scanDir(path.join(PI_SESSIONS_DIR, entry.name));
+      if (found) return found;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 function resolveSessionFile(cwd: string, sessionId: string): ResolvedSessionFile | null {
   const claudeFile = path.join(getProjectDir(cwd), `${sessionId}.jsonl`);
   if (fs.existsSync(claudeFile)) {
@@ -702,6 +787,11 @@ function resolveSessionFile(cwd: string, sessionId: string): ResolvedSessionFile
       filePath: path.join(grokDir, 'chat_history.jsonl'),
       grokSessionDir: grokDir,
     };
+  }
+
+  const piFile = findPiSessionFile(cwd, sessionId);
+  if (piFile) {
+    return { provider: 'pi', filePath: piFile };
   }
 
   return null;
@@ -2596,6 +2686,183 @@ function parseGrokSessionMessages(
   };
 }
 
+/** Extract plain text from a pi content value (string or content-block array). */
+function extractPiContentText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content
+    .map((block) => {
+      if (block && typeof block === 'object' && (block as { type?: string }).type === 'text') {
+        const text = (block as { text?: string }).text;
+        return typeof text === 'string' ? text : '';
+      }
+      return '';
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
+/**
+ * Parse a pi session JSONL file (~/.pi/agent/sessions/…) into SessionMessages.
+ * Entries have type 'message' with an AgentMessage payload; other entry types
+ * (model_change, compaction, labels, …) are metadata. Entries form a tree via
+ * id/parentId but TC-driven sessions are linear appends, so file order is used.
+ */
+function parsePiSessionMessages(
+  sessionFilePath: string
+): { messages: SessionMessage[]; lastMessageType: SessionActivityMessageType; lastMessageTimestamp: Date | null } {
+  const messages: SessionMessage[] = [];
+  const toolUseIdToName = new Map<string, string>();
+
+  let content = '';
+  try {
+    content = fs.readFileSync(sessionFilePath, 'utf-8');
+  } catch {
+    return { messages, lastMessageType: null, lastMessageTimestamp: null };
+  }
+
+  let lineIndex = 0;
+  for (const line of content.split('\n')) {
+    if (!line.trim()) continue;
+    lineIndex += 1;
+    let entry: Record<string, unknown>;
+    try {
+      entry = JSON.parse(line) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+
+    const entryType = typeof entry.type === 'string' ? entry.type : '';
+    const entryId = typeof entry.id === 'string' ? entry.id : `pi-line-${lineIndex}`;
+    const baseTsMs = typeof entry.timestamp === 'string' && Number.isFinite(Date.parse(entry.timestamp))
+      ? Date.parse(entry.timestamp)
+      : Date.now();
+    // Rows derived from ONE entry (thinking + text + toolCalls) must carry
+    // strictly increasing timestamps: the client's merged history+live sort
+    // tie-breaks equal timestamps by uuid lex order, which would put the
+    // `pi-assistant-…` text row BEFORE its `pi-thinking-…` block.
+    let rowOffset = 0;
+    const stamp = () => new Date(baseTsMs + rowOffset++).toISOString();
+
+    if (entryType !== 'message') continue;
+    const message = entry.message as Record<string, unknown> | undefined;
+    if (!message || typeof message !== 'object') continue;
+
+    const role = typeof message.role === 'string' ? message.role : '';
+
+    if (role === 'user') {
+      const text = extractPiContentText(message.content);
+      if (!text.trim()) continue;
+      messages.push({
+        type: 'user',
+        content: text,
+        timestamp: stamp(),
+        uuid: `pi-user-${entryId}`,
+      });
+      continue;
+    }
+
+    if (role === 'assistant') {
+      const blocks = Array.isArray(message.content) ? message.content : [];
+      for (let bi = 0; bi < blocks.length; bi++) {
+        const block = blocks[bi] as { type?: string; text?: string; thinking?: string; id?: string; name?: string; arguments?: Record<string, unknown> };
+        if (block?.type === 'thinking' && block.thinking?.trim()) {
+          messages.push({
+            type: 'assistant',
+            content: `[thinking] ${block.thinking}`,
+            timestamp: stamp(),
+            uuid: `pi-thinking-${entryId}-${bi}`,
+          });
+        } else if (block?.type === 'text' && block.text?.trim()) {
+          messages.push({
+            type: 'assistant',
+            content: block.text,
+            timestamp: stamp(),
+            uuid: `pi-assistant-${entryId}-${bi}`,
+          });
+        } else if (block?.type === 'toolCall') {
+          const callId = block.id || `pi-call-${entryId}-${bi}`;
+          const toolName = normalizePiToolName(block.name || 'unknown');
+          toolUseIdToName.set(callId, toolName);
+          messages.push({
+            type: 'tool_use',
+            content: '',
+            timestamp: stamp(),
+            uuid: callId,
+            toolName,
+            toolInput: block.arguments || {},
+            toolUseId: callId,
+          });
+        }
+      }
+      continue;
+    }
+
+    if (role === 'toolResult') {
+      const callId = typeof message.toolCallId === 'string' ? message.toolCallId : `pi-result-${entryId}`;
+      const toolName = typeof message.toolName === 'string'
+        ? normalizePiToolName(message.toolName)
+        : toolUseIdToName.get(callId) || 'unknown';
+      let output = extractPiContentText(message.content);
+      if (message.isError && output) {
+        output = `Error: ${output}`;
+      }
+      messages.push({
+        type: 'tool_result',
+        content: output,
+        timestamp: stamp(),
+        uuid: `${callId}-result`,
+        toolUseId: callId,
+        toolName,
+      });
+      continue;
+    }
+
+    if (role === 'bashExecution') {
+      // User-invoked `!command` — render as a Bash tool round.
+      const callId = `pi-bash-${entryId}`;
+      messages.push({
+        type: 'tool_use',
+        content: '',
+        timestamp: stamp(),
+        uuid: callId,
+        toolName: 'Bash',
+        toolInput: { command: typeof message.command === 'string' ? message.command : '' },
+        toolUseId: callId,
+      });
+      messages.push({
+        type: 'tool_result',
+        content: typeof message.output === 'string' ? message.output : '',
+        timestamp: stamp(),
+        uuid: `${callId}-result`,
+        toolUseId: callId,
+        toolName: 'Bash',
+      });
+      continue;
+    }
+
+    if (role === 'compactionSummary' && typeof message.summary === 'string' && message.summary.trim()) {
+      messages.push({
+        type: 'assistant',
+        content: `[compaction] ${message.summary}`,
+        timestamp: stamp(),
+        uuid: `pi-compaction-${entryId}`,
+      });
+      continue;
+    }
+
+    // custom / branchSummary / other extension roles — not part of the chat view
+  }
+
+  const dedupedMessages = deduplicateSessionMessages(messages);
+  const last = dedupedMessages.length > 0 ? dedupedMessages[dedupedMessages.length - 1] : null;
+  return {
+    messages: dedupedMessages,
+    lastMessageType: last?.type ?? null,
+    lastMessageTimestamp: last?.timestamp ? new Date(last.timestamp) : null,
+  };
+}
+
 async function parseSessionMessages(
   resolved: ResolvedSessionFile
 ): Promise<{ messages: SessionMessage[]; lastMessageType: SessionActivityMessageType; lastMessageTimestamp: Date | null }> {
@@ -2608,6 +2875,10 @@ async function parseSessionMessages(
 
   if (resolved.provider === 'grok') {
     return parseGrokSessionMessages(resolved.filePath);
+  }
+
+  if (resolved.provider === 'pi') {
+    return parsePiSessionMessages(resolved.filePath);
   }
 
   const messages: SessionMessage[] = [];
@@ -3074,6 +3345,11 @@ const PROVIDER_PROCESS_PATTERNS: Record<SessionProvider, string> = {
   opencode: '(opencode($| )|/opencode( |$)|opencode\\.cmd|opencode\\.exe)',
   // Match `grok` CLI but not unrelated tools with "grok" in the path/name as a substring of a longer token.
   grok: '(^|/)grok($| )|grok\\.cmd|grok\\.exe',
+  // pi sets process.title='pi' (cli.js), so ps shows a bare `pi` command with
+  // NO argv — match a line ENDING in `pi` (padded argv leaves trailing spaces).
+  // Bare-name matches can collide with unrelated `pi` binaries (anaconda ships
+  // a python packaging tool named pi); the cwd filter downstream disambiguates.
+  pi: '( |/)pi *$|pi-coding-agent|(^|/)pi (.* )?--mode (json|rpc)',
 };
 
 type ExecSyncFn = typeof import('child_process').execSync;
@@ -3082,6 +3358,7 @@ function providerDisplayName(provider: SessionProvider): string {
   if (provider === 'codex') return 'Codex';
   if (provider === 'opencode') return 'OpenCode';
   if (provider === 'grok') return 'Grok';
+  if (provider === 'pi') return 'Pi';
   return 'Claude';
 }
 
@@ -3323,6 +3600,25 @@ export async function findGrokProcessPidInCwd(cwd: string): Promise<number | und
  */
 export async function killGrokProcessInCwd(cwd: string): Promise<boolean> {
   return killProviderProcessInCwd(cwd, 'grok');
+}
+
+/**
+ * Check if there's a Pi process running in a specific directory.
+ */
+export async function isPiProcessRunningInCwd(cwd: string): Promise<boolean> {
+  return isProviderProcessRunningInCwd(cwd, 'pi');
+}
+
+export async function findPiProcessPidInCwd(cwd: string): Promise<number | undefined> {
+  return findProviderProcessPidInCwd(cwd, 'pi');
+}
+
+/**
+ * Kill any Pi process running in the specified directory.
+ * Returns true if a process was found and killed.
+ */
+export async function killPiProcessInCwd(cwd: string): Promise<boolean> {
+  return killProviderProcessInCwd(cwd, 'pi');
 }
 
 export async function loadToolHistory(

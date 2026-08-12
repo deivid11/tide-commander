@@ -10,6 +10,7 @@ import { ModelPreview } from './ModelPreview';
 import { HelpTooltip } from './shared/Tooltip';
 import { FolderInput } from './shared/FolderInput';
 import { OpencodeModelSelect } from './OpencodeModelSelect';
+import { PiModelSelect } from './PiModelSelect';
 import { useModalClose } from '../hooks';
 import { AgentIcon } from './AgentIcon';
 import { Icon } from './Icon';
@@ -87,6 +88,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>('gpt-5.6-luna');
   const [opencodeModel, setOpencodeModel] = useState<string>('minimax/MiniMax-M1-80k');
   const [grokModel, setGrokModel] = useState<string>(DEFAULT_GROK_MODEL);
+  const [piModel, setPiModel] = useState<string>(''); // Empty = pi's own configured default
   const [customInstructions, setCustomInstructions] = useState('');
   const [skillSearch, setSkillSearch] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -419,6 +421,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
       codexModel: selectedProvider === 'codex' ? selectedCodexModel : undefined,
       opencodeModel: selectedProvider === 'opencode' ? opencodeModel : undefined,
       grokModel: selectedProvider === 'grok' ? grokModel : undefined,
+      piModel: selectedProvider === 'pi' ? (piModel || undefined) : undefined,
       initialSkillIds,
       model: selectedProvider === 'claude' ? selectedModel : undefined,
       customInstructions: trimmedInstructions ? `${trimmedInstructions.length} chars` : undefined,
@@ -441,9 +444,10 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
       selectedProvider === 'codex' ? selectedCodexModel : undefined,
       selectedProvider === 'claude' ? selectedModel : undefined,
       trimmedInstructions,
-      selectedProvider === 'claude' || selectedProvider === 'grok' ? selectedEffort : undefined,
+      selectedProvider === 'claude' || selectedProvider === 'grok' || selectedProvider === 'pi' ? selectedEffort : undefined,
       selectedProvider === 'opencode' ? opencodeModel : undefined,
-      selectedProvider === 'grok' ? grokModel : undefined
+      selectedProvider === 'grok' ? grokModel : undefined,
+      selectedProvider === 'pi' ? (piModel || undefined) : undefined
     );
   };
 
@@ -698,6 +702,14 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     <img src={`${import.meta.env.BASE_URL}assets/grok.png`} alt="Grok" className="spawn-provider-icon" />
                     <span>Grok</span>
                   </button>
+                  <button
+                    className={`spawn-select-btn spawn-select-btn--pi ${selectedProvider === 'pi' ? 'selected' : ''}`}
+                    onClick={() => setSelectedProvider('pi')}
+                    title="Use Pi coding agent CLI (multi-provider)"
+                  >
+                    <img src={`${import.meta.env.BASE_URL}assets/pi.svg`} alt="Pi" className="spawn-provider-icon" />
+                    <span>Pi</span>
+                  </button>
                 </div>
               </div>
               <div className="spawn-field">
@@ -787,6 +799,12 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                       </button>
                     ))}
                   </div>
+                ) : selectedProvider === 'pi' ? (
+                  <PiModelSelect
+                    value={piModel}
+                    onChange={setPiModel}
+                    inputId="spawn-pi-model"
+                  />
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.chooseCodexModel')}</div>
                 )}
@@ -794,7 +812,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
             </div>
 
             <div className="spawn-form-row">
-              {(selectedProvider === 'claude' || selectedProvider === 'grok') && (
+              {(selectedProvider === 'claude' || selectedProvider === 'grok' || selectedProvider === 'pi') && (
                 <div className="spawn-field">
                   <label className="spawn-label">Effort</label>
                   <div className="spawn-select-row spawn-select-row--effort">

@@ -345,7 +345,7 @@ export function handleServerMessage(message: ServerMessage): void {
         if (!streamLive) {
           const agent = store.getState().agents.get(output.agentId);
           const provider = agent?.provider || 'claude';
-          if (provider === 'claude' || provider === 'grok') {
+          if (provider === 'claude' || provider === 'grok' || provider === 'pi') {
             break;
           }
         }
@@ -728,7 +728,7 @@ export function handleServerMessage(message: ServerMessage): void {
         if (!streamLive) {
           const agent = store.getState().agents.get(subordinateId);
           const provider = agent?.provider || 'claude';
-          if (provider === 'claude' || provider === 'grok') {
+          if (provider === 'claude' || provider === 'grok' || provider === 'pi') {
             break;
           }
         }

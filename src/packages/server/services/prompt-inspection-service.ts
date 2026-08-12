@@ -15,6 +15,7 @@ import { buildCustomAgentConfig } from '../websocket/handlers/command-handler.js
 import { buildAppendedProjectInstructions } from '../claude/backend.js';
 import { buildCodexPrompt } from '../codex/backend.js';
 import { buildOpencodePrompt } from '../opencode/backend.js';
+import { buildPiPrompt } from '../pi/backend.js';
 import {
   buildBossSystemPrompt,
   buildBossInstructionsForMessage,
@@ -103,6 +104,22 @@ export async function buildInjectedPromptForAgent(agentId: string): Promise<stri
     const header =
       '# Injected Prompt (OpenCode)\n\n' +
       '_OpenCode embeds all injected instructions inside the user message via stdin. ' +
+      'The `## User Request` section below is where each new user message is inserted per turn._\n';
+    return `${header}\n\n${composed}`;
+  }
+
+  if (provider === 'pi') {
+    const config: BackendConfig = {
+      agentId,
+      workingDir: agent.cwd,
+      customAgent: customAgentConfig,
+      systemPrompt: runtimeSystemPrompt,
+      prompt: DYNAMIC_USER_REQUEST_PLACEHOLDER,
+    };
+    const composed = buildPiPrompt(config);
+    const header =
+      '# Injected Prompt (Pi)\n\n' +
+      '_Pi embeds all injected instructions inside the user message (argv/@file). ' +
       'The `## User Request` section below is where each new user message is inserted per turn._\n';
     return `${header}\n\n${composed}`;
   }

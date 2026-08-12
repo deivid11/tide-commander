@@ -25,10 +25,11 @@ describe('CLAUDE_MODELS — Sonnet 5', () => {
 });
 
 describe('providerClosesStdinAfterPrompt', () => {
-  it('is true for Grok, Codex, and OpenCode', () => {
+  it('is true for Grok, Codex, OpenCode, and Pi', () => {
     expect(providerClosesStdinAfterPrompt('grok')).toBe(true);
     expect(providerClosesStdinAfterPrompt('codex')).toBe(true);
     expect(providerClosesStdinAfterPrompt('opencode')).toBe(true);
+    expect(providerClosesStdinAfterPrompt('pi')).toBe(true);
   });
 
   it('is false for Claude and unknown providers', () => {
@@ -43,6 +44,7 @@ describe('providerDisplayName', () => {
     expect(providerDisplayName('grok')).toBe('Grok');
     expect(providerDisplayName('codex')).toBe('Codex');
     expect(providerDisplayName('opencode')).toBe('OpenCode');
+    expect(providerDisplayName('pi')).toBe('Pi');
     expect(providerDisplayName('claude')).toBe('Claude');
   });
 });

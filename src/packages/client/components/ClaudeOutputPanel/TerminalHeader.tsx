@@ -35,6 +35,14 @@ function getAgentModelLabel(agent: Agent): { model: string; effort?: string } {
       : undefined;
     return { model: id, effort: effortMeta?.label };
   }
+  if (agent.provider === 'pi') {
+    const id = (agent as unknown as { piModel?: string }).piModel || 'pi default';
+    const effortId = agent.effort;
+    const effortMeta = effortId
+      ? (CLAUDE_EFFORTS as Record<string, { label: string }>)[effortId]
+      : undefined;
+    return { model: id, effort: effortMeta?.label };
+  }
   const id = agent.model || 'sonnet';
   const meta = (CLAUDE_MODELS as Record<string, { label: string }>)[id];
   const effortId = agent.effort;

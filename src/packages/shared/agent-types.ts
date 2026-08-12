@@ -65,7 +65,7 @@ export const PERMISSION_MODES: Record<PermissionMode, { label: string; descripti
 };
 
 // Agent runtime provider
-export type AgentProvider = 'claude' | 'codex' | 'opencode' | 'grok';
+export type AgentProvider = 'claude' | 'codex' | 'opencode' | 'grok' | 'pi';
 
 /**
  * Providers whose CLI takes the prompt via argv/file and closes stdin after
@@ -75,7 +75,7 @@ export type AgentProvider = 'claude' | 'codex' | 'opencode' | 'grok';
 export function providerClosesStdinAfterPrompt(
   provider?: AgentProvider | string | null,
 ): boolean {
-  return provider === 'codex' || provider === 'opencode' || provider === 'grok';
+  return provider === 'codex' || provider === 'opencode' || provider === 'grok' || provider === 'pi';
 }
 
 export function providerDisplayName(
@@ -88,6 +88,8 @@ export function providerDisplayName(
       return 'OpenCode';
     case 'grok':
       return 'Grok';
+    case 'pi':
+      return 'Pi';
     case 'claude':
       return 'Claude';
     default:
@@ -112,6 +114,12 @@ export const GROK_MODELS: Record<string, { label: string; description: string; i
 };
 
 export const DEFAULT_GROK_MODEL = 'grok-4.5';
+
+// Pi coding agent model - uses provider/model format (e.g. 'anthropic/claude-sonnet-4-5').
+// Empty string means "use pi's own configured default" (~/.pi/agent/settings.json).
+export type PiModel = string;
+
+export const DEFAULT_PI_MODEL = '';
 
 // Codex CLI execution controls
 export type CodexApprovalMode = 'untrusted' | 'on-failure' | 'on-request' | 'never';
@@ -309,6 +317,7 @@ export interface Agent {
   codexConfig?: CodexConfig; // Codex CLI config (only for provider='codex')
   opencodeModel?: OpencodeModel; // OpenCode model to use (for provider='opencode')
   grokModel?: GrokModel; // Grok model to use (for provider='grok')
+  piModel?: PiModel; // Pi model to use (for provider='pi', 'provider/model' pattern)
 
   // Resources
   tokensUsed: number;

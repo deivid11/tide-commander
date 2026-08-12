@@ -157,6 +157,13 @@ export function SpawnForm({ currentArea, onClose }: SpawnFormProps) {
                 <span className="commander-spawn-class-icon"><Icon name="status-pending" size={12} weight="fill" color="#6366f1" /></span>
                 <span>Grok</span>
               </button>
+              <button
+                className={`commander-spawn-class ${selectedProvider === 'pi' ? 'selected' : ''}`}
+                onClick={() => setSelectedProvider('pi')}
+              >
+                <span className="commander-spawn-class-icon"><Icon name="status-pending" size={12} weight="fill" color="#a855f7" /></span>
+                <span>Pi</span>
+              </button>
             </div>
           </div>
         </div>

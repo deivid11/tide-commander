@@ -38,6 +38,7 @@ vi.mock('../runtime/index.js', () => ({
   createCodexRuntimeProvider: vi.fn(() => ({ createRunner: mockCreateRunner })),
   createOpencodeRuntimeProvider: vi.fn(() => ({ createRunner: mockCreateRunner })),
   createGrokRuntimeProvider: vi.fn(() => ({ createRunner: mockCreateRunner })),
+  createPiRuntimeProvider: vi.fn(() => ({ createRunner: mockCreateRunner })),
 }));
 
 describe('runtime-service codex detached behavior', () => {

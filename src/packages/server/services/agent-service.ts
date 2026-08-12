@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type { Agent, AgentClass, PermissionMode, ClaudeModel, ClaudeEffort, AgentProvider, CodexConfig, CodexModel, OpencodeModel, GrokModel, DrawingArea, SessionHistoryEntry } from '../../shared/types.js';
+import type { Agent, AgentClass, PermissionMode, ClaudeModel, ClaudeEffort, AgentProvider, CodexConfig, CodexModel, OpencodeModel, GrokModel, PiModel, DrawingArea, SessionHistoryEntry } from '../../shared/types.js';
 import { CLAUDE_MODELS as CLAUDE_MODEL_METADATA, GROK_MODELS, DEFAULT_GROK_MODEL } from '../../shared/agent-types.js';
 import { loadAgents, saveAgents, saveAgentsAsync, getDataDir, loadAreas, saveAreas, loadSessionHistory, saveSessionHistory, addSessionHistoryEntry, getSessionHistoryForAgent } from '../data/index.js';
 import {
@@ -30,6 +30,7 @@ const DEFAULT_CODEX_CONTEXT_LIMIT = 258400;
 const DEFAULT_OPENCODE_CONTEXT_LIMIT = 200000;
 /** Matches live Grok Build signals.json contextWindowTokens (catalog may list 2M). */
 const DEFAULT_GROK_CONTEXT_LIMIT = 500000;
+const DEFAULT_PI_CONTEXT_LIMIT = 200000;
 
 interface CodexContextSnapshot {
   contextUsed: number;
@@ -43,6 +44,7 @@ function getDefaultContextLimit(
 ): number {
   if (provider === 'codex') return DEFAULT_CODEX_CONTEXT_LIMIT;
   if (provider === 'opencode') return DEFAULT_OPENCODE_CONTEXT_LIMIT;
+  if (provider === 'pi') return DEFAULT_PI_CONTEXT_LIMIT;
   if (provider === 'grok') {
     if (grokModel && GROK_MODELS[grokModel]?.contextWindow) {
       return GROK_MODELS[grokModel].contextWindow;
@@ -122,6 +124,12 @@ export function sanitizeGrokModel(model: unknown): GrokModel | undefined {
   if (typeof model !== 'string') return undefined;
   const trimmed = model.trim();
   return trimmed.length > 0 ? (trimmed as GrokModel) : undefined;
+}
+
+export function sanitizePiModel(model: unknown): PiModel | undefined {
+  if (typeof model !== 'string') return undefined;
+  const trimmed = model.trim();
+  return trimmed.length > 0 ? (trimmed as PiModel) : undefined;
 }
 
 function findFileRecursively(rootDir: string, pattern: string): string | null {
@@ -291,6 +299,7 @@ export function initAgents(): void {
         codexConfig: stored.codexConfig,
         opencodeModel: sanitizeOpencodeModel(stored.opencodeModel),
         grokModel: sanitizeGrokModel(stored.grokModel),
+        piModel: sanitizePiModel(stored.piModel),
         // Boss field - fallback to checking class for backward compatibility
         isBoss: stored.isBoss ?? stored.class === 'boss',
       };
@@ -380,7 +389,8 @@ export async function createAgent(
   codexConfig?: CodexConfig,
   effort?: ClaudeEffort,
   opencodeModel?: OpencodeModel,
-  grokModel?: GrokModel
+  grokModel?: GrokModel,
+  piModel?: PiModel
 ): Promise<Agent> {
   log.log('🎆 [CREATE_AGENT] Starting agent creation:', {
     name,
@@ -395,6 +405,7 @@ export async function createAgent(
     codexConfig,
     opencodeModel,
     grokModel,
+    piModel,
     customInstructions: customInstructions ? `${customInstructions.length} chars` : undefined,
   });
 
@@ -430,11 +441,12 @@ export async function createAgent(
     useChrome,
     permissionMode,
     model: sanitizeModelForProvider(provider, model),
-    effort: provider === 'claude' || provider === 'grok' ? effort : undefined,
+    effort: provider === 'claude' || provider === 'grok' || provider === 'pi' ? effort : undefined,
     codexModel: provider === 'codex' ? sanitizeCodexModel(codexModel) : undefined,
     codexConfig,
     opencodeModel: provider === 'opencode' ? sanitizeOpencodeModel(opencodeModel) : undefined,
     grokModel: sanitizedGrokModel,
+    piModel: provider === 'pi' ? sanitizePiModel(piModel) : undefined,
     tokensUsed: 0,
     contextUsed: 0,
     contextLimit: getDefaultContextLimit(provider, sanitizeModelForProvider(provider, model), sanitizedGrokModel),

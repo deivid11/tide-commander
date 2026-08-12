@@ -38,7 +38,7 @@ export interface BulkManageModalProps {
 
 type StatusFilter = 'all' | 'idle' | 'working' | 'error' | 'stopped';
 type IdleTimeFilter = 'any' | '>1h' | '>6h' | '>1d' | '>3d' | '>7d' | '>30d';
-type ProviderFilter = 'all' | 'claude' | 'codex' | 'opencode' | 'grok';
+type ProviderFilter = 'all' | 'claude' | 'codex' | 'opencode' | 'grok' | 'pi';
 type ModelFilter = 'all' | 'fable-5-1m' | 'fable-5' | 'opus' | 'opus-5-1m' | 'opus-5' | 'opus-4-8-1m' | 'opus-4-8' | 'opus-4-7-1m' | 'opus-4-7' | 'opus-4-6' | 'sonnet' | 'haiku';
 
 type ConfirmAction = 'delete' | 'clear-context' | 'change-model' | 'add-skill' | 'remove-skill' | null;
@@ -495,6 +495,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 <option value="codex">Codex</option>
                 <option value="opencode">OpenCode</option>
                 <option value="grok">Grok</option>
+                <option value="pi">Pi</option>
               </select>
 
               <select
