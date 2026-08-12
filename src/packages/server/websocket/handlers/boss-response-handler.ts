@@ -3,7 +3,7 @@
  * Parses delegation, spawn, work-plan, and analysis-request blocks from boss agent responses
  */
 
-import type { AgentClass, AgentProvider, ClaudeEffort, ClaudeModel, CodexConfig, CodexModel, DelegationDecision, OpencodeModel, PermissionMode, ServerMessage } from '../../../shared/types.js';
+import type { AgentClass, AgentProvider, ClaudeEffort, ClaudeModel, CodexConfig, CodexModel, DelegationDecision, GrokModel, OpencodeModel, PermissionMode, PiModel, ServerMessage } from '../../../shared/types.js';
 import { BUILT_IN_AGENT_CLASSES } from '../../../shared/agent-types.js';
 import { agentService, runtimeService, bossService, workPlanService, skillService } from '../../services/index.js';
 import { getAllCustomClasses, getClassDefaultSkillIds } from '../../services/custom-class-service.js';
@@ -433,6 +433,8 @@ export async function parseBossSpawn(
         model,
         codexModel,
         opencodeModel,
+        grokModel,
+        piModel,
         effort,
         initialSkillIds,
         provider,
@@ -453,10 +455,10 @@ export async function parseBossSpawn(
 
       let safeProvider: AgentProvider | undefined;
       if (provider !== undefined) {
-        if (provider === 'claude' || provider === 'codex' || provider === 'opencode') {
+        if (provider === 'claude' || provider === 'codex' || provider === 'opencode' || provider === 'grok' || provider === 'pi') {
           safeProvider = provider;
         } else {
-          log.warn(` Spawn: invalid provider "${provider}" — falling back to default. Allowed: claude, codex, opencode.`);
+          log.warn(` Spawn: invalid provider "${provider}" — falling back to default. Allowed: claude, codex, opencode, grok, pi.`);
         }
       }
 
@@ -498,7 +500,9 @@ export async function parseBossSpawn(
           safeProvider,
           codexConfig as CodexConfig | undefined,
           safeEffort,
-          opencodeModel as OpencodeModel | undefined
+          opencodeModel as OpencodeModel | undefined,
+          grokModel as GrokModel | undefined,
+          piModel as PiModel | undefined
         );
 
         // Assign initial skills (mirrors agent-handler behavior). Combine

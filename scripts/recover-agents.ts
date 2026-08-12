@@ -43,7 +43,7 @@ interface StoredAgent {
   id: string;
   name: string;
   class: string;
-  provider?: 'claude' | 'codex' | 'opencode';
+  provider?: 'claude' | 'codex' | 'opencode' | 'grok' | 'pi';
   position: { x: number; y: number; z: number };
   cwd: string;
   tokensUsed: number;

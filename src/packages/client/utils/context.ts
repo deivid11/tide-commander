@@ -28,7 +28,7 @@ export function getDisplayContextInfo(agent: DisplayContextAgent): DisplayContex
     ? DEFAULT_CODEX_CONTEXT_LIMIT
     : agent.provider === 'grok'
       ? DEFAULT_GROK_CONTEXT_LIMIT
-      : agent.provider === 'opencode'
+      : agent.provider === 'opencode' || agent.provider === 'pi'
         ? DEFAULT_CLAUDE_CONTEXT_LIMIT
         : DEFAULT_CLAUDE_CONTEXT_LIMIT;
   const trackedWindow = Math.max(1, Math.round(agent.contextLimit || defaultContextLimit));

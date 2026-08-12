@@ -354,8 +354,8 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQu
   const contextBarColor = getContextBarColor(contextInfo.remainingPercent);
 
   // Provider info
-  const providerLabel = agent.provider === 'codex' ? 'CX' : agent.provider === 'opencode' ? 'OC' : agent.provider === 'grok' ? 'GK' : 'CL';
-  const providerTitle = agent.provider === 'codex' ? 'OpenAI Codex' : agent.provider === 'opencode' ? 'OpenCode' : agent.provider === 'grok' ? 'Grok' : 'Claude';
+  const providerLabel = agent.provider === 'codex' ? 'CX' : agent.provider === 'opencode' ? 'OC' : agent.provider === 'grok' ? 'GK' : agent.provider === 'pi' ? 'PI' : 'CL';
+  const providerTitle = agent.provider === 'codex' ? 'OpenAI Codex' : agent.provider === 'opencode' ? 'OpenCode' : agent.provider === 'grok' ? 'Grok' : agent.provider === 'pi' ? 'Pi' : 'Claude';
 
   // Highlight matching text
   const highlightText = (text: string) => {

@@ -41,6 +41,7 @@
     "interactiveMode": "Interactive TUI Mode (Experimental)",
     "codexAppServerMode": "Codex Streaming / app-server (Experimental)",
     "opencodeServerMode": "OpenCode Streaming / serve (Experimental)",
+    "piRpcMode": "Pi Mid-turn Steering / rpc",
     "tts": "Text-to-Speech",
     "stt": "Speech-to-Text",
     "externalEditor": "External Editor",

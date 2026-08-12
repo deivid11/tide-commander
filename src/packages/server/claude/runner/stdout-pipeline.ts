@@ -54,11 +54,13 @@ export class RunnerStdoutPipeline {
     // Grok always streams token-sized NDJSON; Claude does with
     // --include-partial-messages. Codex/OpenCode stream when their CLI
     // surfaces item.updated / message.part.delta (stable-uuid parsers ready).
+    // Pi streams text_delta/thinking_delta message_update events.
     return (
       this.backend.name === 'grok' ||
       this.backend.name === 'claude' ||
       this.backend.name === 'codex' ||
-      this.backend.name === 'opencode'
+      this.backend.name === 'opencode' ||
+      this.backend.name === 'pi'
     );
   }
 

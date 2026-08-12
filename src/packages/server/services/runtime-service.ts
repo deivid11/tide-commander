@@ -8,14 +8,17 @@ import {
   isCodexProcessRunningInCwd,
   isOpencodeProcessRunningInCwd,
   isGrokProcessRunningInCwd,
+  isPiProcessRunningInCwd,
   killClaudeProcessInCwd,
   killCodexProcessInCwd,
   killOpencodeProcessInCwd,
   killGrokProcessInCwd,
+  killPiProcessInCwd,
   findClaudeProcessPidInCwd,
   findCodexProcessPidInCwd,
   findOpencodeProcessPidInCwd,
   findGrokProcessPidInCwd,
+  findPiProcessPidInCwd,
 } from '../claude/session-loader.js';
 import * as agentService from './agent-service.js';
 import { ModelFallbackTracker } from '../../shared/model-fallback.js';
@@ -27,6 +30,7 @@ import {
   createCodexRuntimeProvider,
   createOpencodeRuntimeProvider,
   createGrokRuntimeProvider,
+  createPiRuntimeProvider,
   type RuntimeProvider,
   type RuntimeRunner,
   type RuntimeEvent,
@@ -66,6 +70,7 @@ const runtimeProviders: Record<AgentProvider, RuntimeProvider> = {
   codex: createCodexRuntimeProvider(),
   opencode: createOpencodeRuntimeProvider(),
   grok: createGrokRuntimeProvider(),
+  pi: createPiRuntimeProvider(),
 };
 const runners = new Map<AgentProvider, RuntimeRunner>();
 
@@ -127,6 +132,9 @@ async function isProviderProcessRunningInCwd(provider: AgentProvider, cwd: strin
   if (provider === 'grok') {
     return isGrokProcessRunningInCwd(cwd);
   }
+  if (provider === 'pi') {
+    return isPiProcessRunningInCwd(cwd);
+  }
   return isClaudeProcessRunningInCwd(cwd);
 }
 
@@ -139,6 +147,9 @@ async function killDetachedProviderProcessInCwd(provider: AgentProvider, cwd: st
   }
   if (provider === 'grok') {
     return killGrokProcessInCwd(cwd);
+  }
+  if (provider === 'pi') {
+    return killPiProcessInCwd(cwd);
   }
   return killClaudeProcessInCwd(cwd);
 }
@@ -271,6 +282,13 @@ export function init(): void {
     onError: runtimeEvents.handleError,
   }));
   runners.set('grok', runtimeProviders.grok.createRunner({
+    onEvent: runtimeEvents.handleEvent,
+    onOutput: runtimeEvents.handleOutput,
+    onSessionId: runtimeEvents.handleSessionId,
+    onComplete: runtimeEvents.handleComplete,
+    onError: runtimeEvents.handleError,
+  }));
+  runners.set('pi', runtimeProviders.pi.createRunner({
     onEvent: runtimeEvents.handleEvent,
     onOutput: runtimeEvents.handleOutput,
     onSessionId: runtimeEvents.handleSessionId,
@@ -458,7 +476,9 @@ export async function getAgentRuntimeProcessInfo(agentId: string): Promise<Agent
           ? await findOpencodeProcessPidInCwd(agent.cwd)
           : provider === 'grok'
             ? await findGrokProcessPidInCwd(agent.cwd)
-            : await findClaudeProcessPidInCwd(agent.cwd);
+            : provider === 'pi'
+              ? await findPiProcessPidInCwd(agent.cwd)
+              : await findClaudeProcessPidInCwd(agent.cwd);
 
     if (discoveredPid && isProcessRunning(discoveredPid)) {
       return {

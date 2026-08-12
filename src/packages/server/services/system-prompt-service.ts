@@ -456,3 +456,56 @@ export function setOpencodeServerModeEnabled(enabled: boolean): void {
     throw error;
   }
 }
+
+// ============================================================================
+// Pi RPC Mode Setting
+// ============================================================================
+//
+// When enabled, Pi agents run through a persistent `pi --mode rpc` process
+// per agent instead of one `pi --mode json -p` process per turn. RPC mode
+// delivers mid-turn messages as STEERING (injected after the current tool
+// round, before the next LLM call) instead of queueing until the turn ends.
+// Read live at each launch — no server restart needed to switch.
+
+const PI_RPC_MODE_FILE = path.join(DATA_DIR, 'pi-rpc-mode.json');
+
+interface PiRpcModeSetting {
+  enabled: boolean;
+  updatedAt: number;
+}
+
+/**
+ * Check if Pi RPC (mid-turn steering) mode is enabled.
+ */
+export function isPiRpcModeEnabled(): boolean {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(PI_RPC_MODE_FILE)) {
+      const data: PiRpcModeSetting = JSON.parse(fs.readFileSync(PI_RPC_MODE_FILE, 'utf-8'));
+      return data.enabled;
+    }
+  } catch (error: any) {
+    log.error(` Failed to load pi RPC mode setting: ${error.message}`);
+  }
+  // Opt-in: default OFF so fresh installs start on the battle-tested
+  // single-shot runner; flip in Config → General to get mid-turn steering.
+  return false;
+}
+
+/**
+ * Enable/disable Pi RPC (mid-turn steering) mode.
+ */
+export function setPiRpcModeEnabled(enabled: boolean): void {
+  ensureDataDir();
+  const data: PiRpcModeSetting = {
+    enabled,
+    updatedAt: Date.now(),
+  };
+  try {
+    fs.writeFileSync(PI_RPC_MODE_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    log.log(` Pi RPC mode setting updated: enabled=${enabled}`);
+  } catch (error: any) {
+    log.error(` Failed to save pi RPC mode setting: ${error.message}`);
+    throw error;
+  }
+}

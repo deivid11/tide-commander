@@ -551,6 +551,14 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                     <img src={`${import.meta.env.BASE_URL}assets/grok.png`} alt="Grok" className="spawn-provider-icon" />
                     <span>Grok</span>
                   </button>
+                  <button
+                    className={`spawn-select-btn spawn-select-btn--pi ${selectedProvider === 'pi' ? 'selected' : ''}`}
+                    onClick={() => setSelectedProvider('pi')}
+                    title="Use Pi coding agent CLI (multi-provider)"
+                  >
+                    <img src={`${import.meta.env.BASE_URL}assets/pi.svg`} alt="Pi" className="spawn-provider-icon" />
+                    <span>Pi</span>
+                  </button>
                 </div>
               </div>
               <div className="spawn-field">
@@ -614,6 +622,8 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                   />
                 ) : selectedProvider === 'grok' ? (
                   <div className="spawn-inline-hint">grok-4.5</div>
+                ) : selectedProvider === 'pi' ? (
+                  <div className="spawn-inline-hint">pi default (configure via agent edit)</div>
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.codex.configuration')}</div>
                 )}

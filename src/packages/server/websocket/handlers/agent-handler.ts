@@ -68,6 +68,7 @@ export async function handleSpawnAgent(
     codexModel?: string;
     opencodeModel?: string;
     grokModel?: string;
+    piModel?: string;
     position?: { x: number; y: number; z: number };
     initialSkillIds?: string[];
     model?: string;
@@ -87,6 +88,7 @@ export async function handleSpawnAgent(
     model: payload.model,
     opencodeModel: payload.opencodeModel,
     grokModel: payload.grokModel,
+    piModel: payload.piModel,
     customInstructions: payload.customInstructions ? `${payload.customInstructions.length} chars` : undefined,
   });
 
@@ -108,7 +110,8 @@ export async function handleSpawnAgent(
       payload.codexConfig,
       payload.effort as any,
       payload.opencodeModel as any,
-      payload.grokModel as any
+      payload.grokModel as any,
+      payload.piModel as any
     );
 
     log.log('Agent created successfully:', {
@@ -201,7 +204,8 @@ async function duplicateAgentConfig(
     source.codexConfig,
     source.effort,
     source.opencodeModel,
-    source.grokModel
+    source.grokModel,
+    source.piModel
   );
 
   // Re-apply skills: copied direct assignments + class defaults.
@@ -221,7 +225,7 @@ function duplicateOffset(source: Agent): { x: number; y: number; z: number } {
 
 // Providers whose conversation history can be forked. Codex forks through the
 // app-server `thread/fork` method even when regular turns use `codex exec`.
-const FORKABLE_PROVIDERS: ReadonlySet<AgentProvider> = new Set(['claude', 'codex', 'opencode', 'grok']);
+const FORKABLE_PROVIDERS: ReadonlySet<AgentProvider> = new Set(['claude', 'codex', 'opencode', 'grok', 'pi']);
 
 /**
  * Handle restore_session_new_agent — restore a (possibly orphaned) session
@@ -869,7 +873,7 @@ function buildStatsFromTrackedData(agent: Agent): ContextStats {
 
   const usedPercent = Math.min(100, Math.round((contextUsed / contextLimit) * 100));
   const freeTokens = Math.max(0, contextLimit - contextUsed);
-  const model = agent.model || agent.codexModel || agent.opencodeModel || agent.grokModel || 'unknown';
+  const model = agent.model || agent.codexModel || agent.opencodeModel || agent.grokModel || agent.piModel || 'unknown';
 
   return {
     model,
@@ -1115,6 +1119,7 @@ export async function handleUpdateAgentProperties(
       codexModel?: string;
       opencodeModel?: string;
       grokModel?: string;
+      piModel?: string;
       useChrome?: boolean;
       skillIds?: string[];
       cwd?: string;
@@ -1154,12 +1159,17 @@ export async function handleUpdateAgentProperties(
     updates.grokModel !== undefined
       ? agentService.sanitizeGrokModel(updates.grokModel)
       : undefined;
+  const normalizedUpdatedPiModel =
+    updates.piModel !== undefined
+      ? agentService.sanitizePiModel(updates.piModel)
+      : undefined;
 
   // Track if model changed (requires hot restart to apply new model while preserving context)
   const modelChanged = updates.model !== undefined && normalizedUpdatedModel !== agent.model;
   const codexModelChanged = updates.codexModel !== undefined && normalizedUpdatedCodexModel !== agent.codexModel;
   const opencodeModelChanged = updates.opencodeModel !== undefined && normalizedUpdatedOpencodeModel !== agent.opencodeModel;
   const grokModelChanged = updates.grokModel !== undefined && normalizedUpdatedGrokModel !== agent.grokModel;
+  const piModelChanged = updates.piModel !== undefined && normalizedUpdatedPiModel !== agent.piModel;
   const providerChanged = updates.provider !== undefined && updates.provider !== agent.provider;
   const classChanged = updates.class !== undefined && updates.class !== agent.class;
   const codexConfigChanged = updates.codexConfig !== undefined
@@ -1237,6 +1247,10 @@ export async function handleUpdateAgentProperties(
     agentUpdates.grokModel = normalizedUpdatedGrokModel as any;
   }
 
+  if (updates.piModel !== undefined) {
+    agentUpdates.piModel = normalizedUpdatedPiModel as any;
+  }
+
   if (updates.effort !== undefined) {
     agentUpdates.effort = updates.effort as any;
   }
@@ -1294,7 +1308,7 @@ export async function handleUpdateAgentProperties(
 
   // If model changed, do a hot restart: stop process, resume with new model
   // This preserves context by using --resume with the existing sessionId
-  const modelLikeChanged = modelChanged || codexModelChanged || opencodeModelChanged || grokModelChanged || providerChanged || codexConfigChanged || classChanged;
+  const modelLikeChanged = modelChanged || codexModelChanged || opencodeModelChanged || grokModelChanged || piModelChanged || providerChanged || codexConfigChanged || classChanged;
   if (modelLikeChanged && sessionId) {
     const reason = providerChanged
       ? `runtime changed to ${updates.provider}`
@@ -1308,6 +1322,8 @@ export async function handleUpdateAgentProperties(
           ? `OpenCode model changed to ${updates.opencodeModel}`
         : grokModelChanged
           ? `Grok model changed to ${updates.grokModel}`
+        : piModelChanged
+          ? `Pi model changed to ${updates.piModel}`
         : `model changed to ${updates.model}`;
     log.log(`Agent ${agent.name}: ${reason}, hot restarting with --resume to preserve context`);
     try {
@@ -1334,13 +1350,15 @@ export async function handleUpdateAgentProperties(
           ? `OpenCode model changed to ${updates.opencodeModel}`
         : grokModelChanged
           ? `Grok model changed to ${updates.grokModel}`
+        : piModelChanged
+          ? `Pi model changed to ${updates.piModel}`
         : `model changed to ${updates.model}`;
     log.log(`Agent ${agent.name}: ${reason}, will apply on next session start`);
   }
 
   // If Chrome flag changed, do a hot restart to add/remove --chrome flag
   // Only restart if model didn't already trigger a restart
-  if (useChromeChanged && !modelChanged && !codexModelChanged && !opencodeModelChanged && !grokModelChanged && !providerChanged && !codexConfigChanged && sessionId) {
+  if (useChromeChanged && !modelChanged && !codexModelChanged && !opencodeModelChanged && !grokModelChanged && !piModelChanged && !providerChanged && !codexConfigChanged && sessionId) {
     const chromeStatus = updates.useChrome ? 'enabled' : 'disabled';
     log.log(`Agent ${agent.name}: Chrome ${chromeStatus}, hot restarting with --resume to apply change`);
     try {
@@ -1360,14 +1378,14 @@ export async function handleUpdateAgentProperties(
     } catch (err) {
       log.error(`Failed to hot restart agent ${agent.name} after Chrome change:`, err);
     }
-  } else if (useChromeChanged && !providerChanged && !codexConfigChanged && !codexModelChanged && !opencodeModelChanged && !grokModelChanged && !sessionId) {
+  } else if (useChromeChanged && !providerChanged && !codexConfigChanged && !codexModelChanged && !opencodeModelChanged && !grokModelChanged && !piModelChanged && !sessionId) {
     // No existing session, chrome flag will apply on next start
     const chromeStatus = updates.useChrome ? 'enabled' : 'disabled';
     log.log(`Agent ${agent.name}: Chrome ${chromeStatus}, will apply on next session start`);
   }
 
   // If effort changed, hot restart to apply new --effort flag
-  if (effortChanged && !modelChanged && !codexModelChanged && !opencodeModelChanged && !grokModelChanged && !providerChanged && !codexConfigChanged && !classChanged && !useChromeChanged && sessionId) {
+  if (effortChanged && !modelChanged && !codexModelChanged && !opencodeModelChanged && !grokModelChanged && !piModelChanged && !providerChanged && !codexConfigChanged && !classChanged && !useChromeChanged && sessionId) {
     const effortLabel = updates.effort || 'default';
     log.log(`Agent ${agent.name}: effort changed to ${effortLabel}, hot restarting with --resume to apply change`);
     try {
@@ -1433,7 +1451,7 @@ export async function handleUpdateAgentProperties(
 
     // If skills changed and we didn't already hot restart for model/chrome/cwd change, do it now
     // Skills are injected into the system prompt, so we need to restart to apply them
-    if (skillsChanged && !modelChanged && !codexModelChanged && !opencodeModelChanged && !grokModelChanged && !providerChanged && !codexConfigChanged && !classChanged && !useChromeChanged && !cwdChanged && sessionId) {
+    if (skillsChanged && !modelChanged && !codexModelChanged && !opencodeModelChanged && !grokModelChanged && !piModelChanged && !providerChanged && !codexConfigChanged && !classChanged && !useChromeChanged && !cwdChanged && sessionId) {
       log.log(`Agent ${agent.name}: Skills changed, hot restarting with --resume to apply new system prompt`);
       try {
         // Stop the current Claude process

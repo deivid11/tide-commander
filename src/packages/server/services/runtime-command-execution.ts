@@ -151,8 +151,10 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
           ? agentService.sanitizeOpencodeModel(agent.opencodeModel)
           : agent.provider === 'grok'
             ? agentService.sanitizeGrokModel(agent.grokModel)
-            : agentService.sanitizeCodexModel(agent.codexModel),
-      effort: agent.provider === 'claude' || agent.provider === 'grok' ? agent.effort : undefined,
+            : agent.provider === 'pi'
+              ? agentService.sanitizePiModel(agent.piModel)
+              : agentService.sanitizeCodexModel(agent.codexModel),
+      effort: agent.provider === 'claude' || agent.provider === 'grok' || agent.provider === 'pi' ? agent.effort : undefined,
       useChrome: agent.useChrome,
       permissionMode: agent.permissionMode,
       codexConfig: agent.codexConfig,

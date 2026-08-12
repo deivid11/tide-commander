@@ -16,6 +16,10 @@ interface OpencodeModelSelectProps {
   placeholder?: string;
   /** Distinct id helps when multiple selects render on the same page. */
   inputId?: string;
+  /** Override the model source (defaults to the opencode CLI). */
+  fetchModels?: (refresh: boolean) => Promise<{ models: string[] }>;
+  /** CLI name shown in status/tooltip copy (defaults to "opencode"). */
+  cliLabel?: string;
 }
 
 export function OpencodeModelSelect({
@@ -23,6 +27,8 @@ export function OpencodeModelSelect({
   onChange,
   placeholder = 'provider/model (e.g., opencode/gpt-5-nano)',
   inputId,
+  fetchModels,
+  cliLabel = 'opencode',
 }: OpencodeModelSelectProps) {
   const [models, setModels] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -41,7 +47,7 @@ export function OpencodeModelSelect({
     else setLoading(true);
     setError(null);
     try {
-      const res = await fetchOpencodeModels(refresh);
+      const res = await (fetchModels ?? fetchOpencodeModels)(refresh);
       setModels(res.models);
     } catch (err: any) {
       setError(err?.message || 'Failed to load models');
@@ -49,7 +55,7 @@ export function OpencodeModelSelect({
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [fetchModels]);
 
   useEffect(() => {
     loadModels(false);
@@ -152,7 +158,7 @@ export function OpencodeModelSelect({
             e.preventDefault();
             loadModels(true);
           }}
-          title="Refresh models from opencode CLI"
+          title={`Refresh models from ${cliLabel} CLI`}
           disabled={refreshing}
         >
           <span className={refreshing ? 'spin' : ''}>
@@ -175,7 +181,7 @@ export function OpencodeModelSelect({
             <div className="opencode-model-select__status">
               {query.trim()
                 ? <>No matches. Press Enter to use <code>{query.trim()}</code></>
-                : 'No models returned by opencode CLI'}
+                : `No models returned by ${cliLabel} CLI`}
             </div>
           )}
           {!loading && filtered.length > 0 && (

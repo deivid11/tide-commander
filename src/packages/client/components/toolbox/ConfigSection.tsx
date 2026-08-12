@@ -68,7 +68,7 @@ import { WhatsAppConfigModal } from '../WhatsAppConfigModal';
 import { WhatsAppNotificationsModal } from '../WhatsAppNotificationsModal';
 import { WhatsAppHistoryPanel } from '../WhatsAppHistory/WhatsAppHistoryPanel';
 import { WhatsAppHubModal } from '../WhatsAppHub/WhatsAppHubModal';
-import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath, fetchTmuxModeSetting, updateTmuxModeSetting, fetchInteractiveModeSetting, updateInteractiveModeSetting, fetchCodexAppServerModeSetting, updateCodexAppServerModeSetting, fetchOpencodeServerModeSetting, updateOpencodeServerModeSetting } from '../../api/system-settings';
+import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath, fetchTmuxModeSetting, updateTmuxModeSetting, fetchInteractiveModeSetting, updateInteractiveModeSetting, fetchCodexAppServerModeSetting, updateCodexAppServerModeSetting, fetchOpencodeServerModeSetting, updateOpencodeServerModeSetting, fetchPiRpcModeSetting, updatePiRpcModeSetting } from '../../api/system-settings';
 import { BUILTIN_AGENT_NAMES } from '../../scene/config';
 import { Icon } from '../Icon';
 import type {
@@ -241,7 +241,7 @@ function HighlightText({ text, query }: { text: string; query: string }) {
 
 // Define searchable settings configuration (English keywords for search matching)
 const SETTINGS_SECTIONS = [
-  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'low power', 'battery', 'bajo consumo', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title', 'tmux', 'process persistence', 'interactive', 'tui', 'terminal', 'experimental', 'claude', 'stream', 'streaming', 'word by word', 'live text', 'grok', 'codex', 'app-server', 'app server', 'opencode', 'serve', 'hover', 'preview', 'tooltip', 'ctrl', 'popup', 'vista previa', 'sound', 'sounds', 'sonido', 'sonidos', 'notification', 'notifications', 'notificacion', 'notificaciones', 'volume', 'volumen', 'tone', 'tones', 'tono', 'chime', 'alert', 'cue', 'audio', 'mute', 'silence', 'dock', 'activity', 'recent', 'notification sound', 'silenciar', 'custom sound', 'upload sound', 'alerta'] },
+  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'low power', 'battery', 'bajo consumo', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title', 'tmux', 'process persistence', 'interactive', 'tui', 'terminal', 'experimental', 'claude', 'stream', 'streaming', 'word by word', 'live text', 'grok', 'codex', 'app-server', 'app server', 'opencode', 'serve', 'pi', 'rpc', 'steer', 'steering', 'mid-turn', 'mid turn', 'hover', 'preview', 'tooltip', 'ctrl', 'popup', 'vista previa', 'sound', 'sounds', 'sonido', 'sonidos', 'notification', 'notifications', 'notificacion', 'notificaciones', 'volume', 'volumen', 'tone', 'tones', 'tono', 'chime', 'alert', 'cue', 'audio', 'mute', 'silence', 'dock', 'activity', 'recent', 'notification sound', 'silenciar', 'custom sound', 'upload sound', 'alerta'] },
   { id: 'agentNames', title: 'Agent Names', keywords: ['agent', 'names', 'custom', 'characters', 'rename'] },
   { id: 'defaultClass', title: 'Default Spawn Class', keywords: ['default', 'class', 'spawn', 'agent', 'scout', 'builder', 'random'] },
   { id: 'appearance', title: 'Appearance', keywords: ['theme', 'appearance', 'color', 'dark', 'light', 'style', 'look'] },
@@ -403,6 +403,15 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
     fetchOpencodeServerModeSetting().then((enabled) => {
       if (enabled !== settings.opencodeServerMode) {
         store.updateSettings({ opencodeServerMode: enabled });
+      }
+    }).catch(() => { /* ignore fetch errors on mount */ });
+  }, []);
+
+  // Sync Pi RPC (mid-turn steering) mode setting from server on mount
+  useEffect(() => {
+    fetchPiRpcModeSetting().then((enabled) => {
+      if (enabled !== settings.piRpcMode) {
+        store.updateSettings({ piRpcMode: enabled });
       }
     }).catch(() => { /* ignore fetch errors on mount */ });
   }, []);
@@ -669,6 +678,17 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
               await updateOpencodeServerModeSetting(checked);
             } catch (err) {
               console.error('Failed to sync opencode server mode setting to server:', err);
+            }
+          }} />
+        </div>
+        <div className="config-row">
+          <span className="config-label" title="Run Pi agents through a persistent `pi --mode rpc` process per agent. Messages sent mid-turn STEER the live run (delivered after the current tool round, before the next model call) instead of queueing until the turn ends. RPC processes end with the commander; sessions resume on the next message. Applies to new Pi turns; no server restart needed to toggle."><HighlightText text={t('config:general.piRpcMode')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
+          <Toggle checked={settings.piRpcMode} onChange={async (checked) => {
+            store.updateSettings({ piRpcMode: checked });
+            try {
+              await updatePiRpcModeSetting(checked);
+            } catch (err) {
+              console.error('Failed to sync pi RPC mode setting to server:', err);
             }
           }} />
         </div>

@@ -404,6 +404,8 @@ export function SingleAgentPanel({
                 ? `opencode resume ${agent.sessionId}`
                 : agent.provider === 'grok'
                 ? `grok --resume ${agent.sessionId}`
+                : agent.provider === 'pi'
+                ? `pi --session ${agent.sessionId}`
                 : `claude --resume ${agent.sessionId}`;
               try {
                 await navigator.clipboard.writeText(resumeCmd);
@@ -413,7 +415,7 @@ export function SingleAgentPanel({
               }
             }}
           >
-            {agent.provider === 'codex' ? 'codex resume' : agent.provider === 'opencode' ? 'opencode resume' : agent.provider === 'grok' ? 'grok --resume' : 'claude --resume'} {agent.sessionId}
+            {agent.provider === 'codex' ? 'codex resume' : agent.provider === 'opencode' ? 'opencode resume' : agent.provider === 'grok' ? 'grok --resume' : agent.provider === 'pi' ? 'pi --session' : 'claude --resume'} {agent.sessionId}
           </div>
         </div>
       ) : (

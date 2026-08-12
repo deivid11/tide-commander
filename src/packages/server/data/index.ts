@@ -64,6 +64,7 @@ export interface StoredAgent {
   codexConfig?: Agent['codexConfig']; // May be missing in older data
   opencodeModel?: Agent['opencodeModel']; // May be missing in older data
   grokModel?: Agent['grokModel']; // May be missing in older data
+  piModel?: Agent['piModel']; // May be missing in older data
   createdAt: number;
   lastActivity: number;
   sessionId?: string;
@@ -207,6 +208,7 @@ function toStoredAgents(agents: Agent[]): StoredAgent[] {
     codexConfig: agent.codexConfig,
     opencodeModel: agent.opencodeModel,
     grokModel: agent.grokModel,
+    piModel: agent.piModel,
     createdAt: agent.createdAt,
     lastActivity: agent.lastActivity,
     sessionId: agent.sessionId,

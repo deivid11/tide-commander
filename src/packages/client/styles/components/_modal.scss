@@ -463,6 +463,15 @@
   }
 }
 
+// Pi provider button styling
+.spawn-select-btn--pi {
+  &.selected {
+    border-color: #a855f7 !important;
+    background: rgba(168, 85, 247, 0.15) !important;
+    color: var(--text-primary) !important;
+  }
+}
+
 .spawn-select-row--codex-models {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

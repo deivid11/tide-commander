@@ -98,10 +98,11 @@ function estimateTokensFromText(text: string | undefined): number {
   return Math.max(1, Math.ceil(normalized.length / 4));
 }
 
-function getDefaultContextWindow(provider: 'claude' | 'codex' | 'opencode' | 'grok' | undefined): number {
+function getDefaultContextWindow(provider: 'claude' | 'codex' | 'opencode' | 'grok' | 'pi' | undefined): number {
   if (provider === 'codex') return DEFAULT_CODEX_CONTEXT_WINDOW;
   if (provider === 'opencode') return DEFAULT_CLAUDE_CONTEXT_WINDOW;
   if (provider === 'grok') return DEFAULT_GROK_CONTEXT_WINDOW;
+  if (provider === 'pi') return DEFAULT_CLAUDE_CONTEXT_WINDOW;
   return DEFAULT_CLAUDE_CONTEXT_WINDOW;
 }
 
@@ -342,7 +343,8 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
           const isClaudeProvider = (agent.provider ?? 'claude') === 'claude';
           const isOpencodeProvider = (agent.provider ?? 'claude') === 'opencode';
           const isGrokProvider = (agent.provider ?? 'claude') === 'grok';
-          if (isClaudeProvider || isOpencodeProvider || isGrokProvider) {
+          const isPiProvider = (agent.provider ?? 'claude') === 'pi';
+          if (isClaudeProvider || isOpencodeProvider || isGrokProvider || isPiProvider) {
             const cacheRead = event.tokens.cacheRead || 0;
             const cacheCreation = event.tokens.cacheCreation || 0;
             const inputTokens = event.tokens.input || 0;
@@ -403,7 +405,9 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
                     ? (agent.model || 'claude')
                     : isOpencodeProvider
                       ? (agent.opencodeModel || 'opencode')
-                      : (agent.grokModel || 'grok');
+                      : isPiProvider
+                        ? (agent.piModel || 'pi')
+                        : (agent.grokModel || 'grok');
                   updates.contextStats = buildEstimatedContextStats(
                     safeContextUsed,
                     effectiveLimit,
@@ -448,6 +452,7 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         const isCodexProvider = (agent.provider ?? 'claude') === 'codex';
         const isOpencodeProvider = (agent.provider ?? 'claude') === 'opencode';
         const isGrokProviderStep = (agent.provider ?? 'claude') === 'grok';
+        const isPiProviderStep = (agent.provider ?? 'claude') === 'pi';
         const lastTask = agent.lastAssignedTask?.trim() || '';
         const isContextCommand = lastTask === '/context' || lastTask === '/cost' || lastTask === '/compact';
 
@@ -480,6 +485,12 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
           contextUsed = agent.contextUsed || 0;
           contextLimit = agent.contextLimit || getDefaultContextWindow('opencode');
           log.log(`[step_complete] OpenCode agent ${agentId}: preserving usage_snapshot contextUsed=${contextUsed}, contextLimit=${contextLimit}`);
+        } else if (isPiProviderStep) {
+          // Pi: usage_snapshot (from assistant message_end usage) already set the
+          // per-request context fill; preserve it here.
+          contextUsed = agent.contextUsed || 0;
+          contextLimit = agent.contextLimit || getDefaultContextWindow('pi');
+          log.log(`[step_complete] Pi agent ${agentId}: preserving usage_snapshot contextUsed=${contextUsed}, contextLimit=${contextLimit}`);
         } else if (isGrokProviderStep) {
           // Grok: streaming-json has no usage; session-watcher feeds usage_snapshot
           // from signals.json. Preserve those values on step_complete.
@@ -562,7 +573,9 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
               ? (agent.opencodeModel || 'opencode')
               : isGrokProvider
                 ? (agent.grokModel || 'grok')
-                : (agent.model || 'unknown');
+                : isPiProviderStep
+                  ? (agent.piModel || 'pi')
+                  : (agent.model || 'unknown');
         if (agent.contextStats && agent.contextStats.lastUpdated) {
           updates.contextStats = updateContextStatsTokens(
             agent.contextStats,

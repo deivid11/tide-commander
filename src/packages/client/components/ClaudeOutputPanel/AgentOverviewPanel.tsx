@@ -434,7 +434,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   const availableProviders = useMemo(() => {
     const present = new Set<string>();
     for (const agent of agents) present.add(agent.provider || 'claude');
-    const order = ['claude', 'codex', 'opencode', 'grok'];
+    const order = ['claude', 'codex', 'opencode', 'grok', 'pi'];
     const known = order.filter(p => present.has(p));
     const extras = Array.from(present).filter(p => !order.includes(p)).sort();
     return [...known, ...extras];

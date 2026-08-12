@@ -12,7 +12,7 @@
  * worse than suggesting nothing.
  */
 
-export type SlashCommandProvider = 'claude' | 'codex' | 'opencode' | 'grok';
+export type SlashCommandProvider = 'claude' | 'codex' | 'opencode' | 'grok' | 'pi';
 
 export interface SlashCommand {
   /** Including the leading slash, exactly as it must be sent. */
