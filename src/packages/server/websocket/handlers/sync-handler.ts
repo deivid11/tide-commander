@@ -1,6 +1,7 @@
 import type { ClientMessage, ServerMessage } from '../../../shared/types.js';
 import { saveAreas, saveBuildings, loadAreas, deleteAreaLogo } from '../../data/index.js';
 import { buildingService } from '../../services/index.js';
+import { markInstructionsDirtyForAreaChanges } from '../../services/instruction-refresh.js';
 import { logger } from '../../utils/index.js';
 import type { HandlerContext } from './types.js';
 
@@ -29,9 +30,28 @@ export function handleSyncAreas(
   ctx: HandlerContext,
   payload: SyncAreasPayload
 ): void {
+  let previousAreas: SyncAreasPayload = [];
+  try {
+    previousAreas = loadAreas();
+  } catch (err) {
+    log.error(' Failed to load previous areas:', err);
+  }
+
+  // An area prompt is baked into the instruction block when a session starts, so
+  // a running agent on a stdin backend would keep the old text until it restarts —
+  // editing an area prompt would look like it did nothing. Flag the agents whose
+  // resolved area prompt actually changed so their next turn re-injects it.
+  try {
+    const affected = markInstructionsDirtyForAreaChanges(previousAreas, payload);
+    if (affected.length > 0) {
+      log.log(` Area prompt changed for ${affected.length} agent(s) — instructions will refresh`);
+    }
+  } catch (err) {
+    log.error(' Failed to flag area prompt changes:', err);
+  }
+
   // Clean up orphaned logo files before saving
   try {
-    const previousAreas = loadAreas();
     const newAreaIds = new Set(payload.map(a => a.id));
 
     for (const prev of previousAreas) {

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.182.1] - 2026-08-12
+
+### Fixed
+- **Editing an area's prompt appeared to do nothing** - an area prompt is baked into the instruction block when a session starts, so a running agent on a stdin-driven backend (Codex, OpenCode, Grok, Pi) kept the old text until it was restarted. Agents whose effective area prompt actually changed are now flagged to re-inject it on their next turn. This covers every way that text can change — the prompt was edited, the area was renamed or deleted, or the agent was dragged into or out of an area — and deliberately does nothing when the resolved text is identical, so moving an agent between two prompt-less areas doesn't re-inject the block for nothing.
+- **Uploading a `.json` file hung until the browser gave up** - the file upload route streams the raw request body itself, but the global JSON body parser consumed the stream first whenever an upload happened to be JSON. The route's listeners then never fired, no response was ever sent, and the upload failed with "Failed to fetch". The upload route is now exempt from that parser.
+
 ## [1.182.0] - 2026-08-12
 
 ### Added

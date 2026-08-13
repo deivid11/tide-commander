@@ -20,6 +20,7 @@ import {
 import { loadSubagentHistory, type SubagentHistoryEntry } from '../claude/subagent-history-loader.js';
 import { logger, generateId } from '../utils/index.js';
 import { publishNotification } from '../integrations/whatsapp/whatsapp-notification-publisher.js';
+import { markInstructionsDirty, resolveAreaPromptForAgent } from './instruction-refresh.js';
 
 const log = logger.agent;
 const VALID_CLAUDE_MODELS = new Set<ClaudeModel>(
@@ -523,6 +524,7 @@ function reconcileAgentAreaAssignment(agentId: string, position: { x: number; z:
   try {
     const areas = loadAreas();
     let changed = false;
+    const previousAreaPrompt = resolveAreaPromptForAgent(areas, agentId);
 
     // Find which area the agent is inside (by position)
     let containingAreaId: string | null = null;
@@ -552,6 +554,13 @@ function reconcileAgentAreaAssignment(agentId: string, position: { x: number; z:
 
     if (changed) {
       saveAreas(areas);
+      // Dragging an agent into (or out of) an area changes which area prompt it
+      // should get. Only flag a refresh when the resolved text actually differs,
+      // so moving between two prompt-less areas doesn't re-inject the block for
+      // nothing.
+      if (resolveAreaPromptForAgent(areas, agentId) !== previousAreaPrompt) {
+        markInstructionsDirty(agentId);
+      }
     }
   } catch (err) {
     // Non-critical — don't let area reconciliation break agent updates
