@@ -24,6 +24,7 @@ import { AgentResponseModal } from './AgentResponseModal';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import type { Agent } from '../../../shared/types';
+import { DEFAULT_GROK_MODEL } from '../../../shared/types';
 import { useModalClose } from '../../hooks';
 import { ModalPortal } from '../shared/ModalPortal';
 import { fetchAgentInjectedPrompt } from '../../api/agent-prompt';
@@ -634,10 +635,10 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
     : agent.provider === 'opencode'
     ? ((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k')
     : agent.provider === 'grok'
-    ? ((agent as any).grokModel || 'grok-4.5')
+    ? ((agent as any).grokModel || DEFAULT_GROK_MODEL)
     : agent.provider === 'pi'
     ? ((agent as any).piModel || 'pi default')
-    : (agent.model || 'sonnet');
+    : (agent.model || (agent.detectedModel ? `${agent.detectedModel} (default)` : 'default'));
 
   const classInstructions = customClass?.instructions?.trim() || '';
   const agentInstructions = agent.customInstructions?.trim() || '';

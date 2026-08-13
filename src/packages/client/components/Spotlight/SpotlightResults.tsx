@@ -55,6 +55,7 @@ export const SpotlightResults = forwardRef<HTMLDivElement, SpotlightResultsProps
     building: t('terminal:spotlight.categories.infrastructure'),
     area: t('terminal:spotlight.categories.areas'),
     folder: t('terminal:spotlight.categories.folders'),
+    file: t('terminal:spotlight.categories.files'),
     'modified-file': t('terminal:spotlight.categories.modifiedFiles'),
     session: t('terminal:spotlight.categories.sessions'),
   };

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { store, useSkillsArray, useCustomAgentClassesArray, useCustomAgentNames } from '../store';
 import { AGENT_CLASS_CONFIG, BUILTIN_AGENT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
-import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, CODEX_REASONING_EFFORTS, GROK_MODELS, DEFAULT_GROK_MODEL } from '../../shared/types';
+import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, CODEX_REASONING_EFFORTS, GROK_MODELS, DEFAULT_GROK_MODEL, grokSupportsEffort } from '../../shared/types';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl, authFetch } from '../utils/storage';
 import { BUILT_IN_AGENT_CLASSES } from '../../shared/agent-types';
 import { ModelPreview } from './ModelPreview';
@@ -823,7 +823,13 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     >
                       <span>Default</span>
                     </button>
-                    {(Object.keys(CLAUDE_EFFORTS) as ClaudeEffort[]).map((level) => (
+                    {(Object.keys(CLAUDE_EFFORTS) as ClaudeEffort[])
+                      // Grok tiers vary per model (4.5 has no xhigh, none have max).
+                      // An already-selected level stays visible so it can be changed.
+                      .filter((level) => selectedProvider !== 'grok'
+                        || grokSupportsEffort(grokModel, level)
+                        || selectedEffort === level)
+                      .map((level) => (
                       <button
                         key={level}
                         className={`spawn-select-btn spawn-select-btn--compact ${selectedEffort === level ? 'selected' : ''}`}

@@ -563,6 +563,12 @@
     color: var(--accent-orange);
     border-color: color-mix(in srgb, var(--accent-orange) 20%, transparent);
   }
+
+  &.file {
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    color: var(--accent-cyan);
+    border-color: color-mix(in srgb, var(--accent-cyan) 20%, transparent);
+  }
 }
 
 // Colored agent status chip in the result header (color set inline per status)
@@ -650,6 +656,31 @@
   color: var(--accent-green);
   background: color-mix(in srgb, var(--accent-green) 15%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent-green) 25%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+
+  svg {
+    flex-shrink: 0;
+    opacity: 0.85;
+  }
+}
+
+// Project / area chip on global file results
+.spotlight-item-project-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 220px;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--accent-orange);
+  background: color-mix(in srgb, var(--accent-orange) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-orange) 25%, transparent);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

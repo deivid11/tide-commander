@@ -39,10 +39,10 @@ $middle-min-width: 280px;
   width: 100%;
   background: var(--bg-primary);
   overflow: hidden;
-  // 64px left gutter keeps the columns from sitting under the global
-  // floating FAB stack (settings/spotlight/spawn buttons at left:16,
-  // width:36 → ~52px + breathing room).
-  padding-left: 64px;
+  // The FAB rail auto-hides in flat mode, so only a peek strip is reserved.
+  // The revealed rail overlays the left edge instead of pushing the columns.
+  // Mobile (`max-width: 768px`) drops this to 0 — the rail is hidden there.
+  padding-left: 10px;
   box-sizing: border-box;
   transition: grid-template-columns 0.25s ease;
 

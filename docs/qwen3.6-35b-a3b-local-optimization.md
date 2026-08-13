@@ -20,7 +20,9 @@ cache cuantizado en GPU y speculative decoding mediante el bloque MTP incluido
 en el GGUF. Una segunda ronda comparó este perfil con
 `NVIDIA-Nemotron-3.5-Lightning-30B-A3B-Q3_K_L`.
 
-El servidor quedó activo con estos datos:
+El servidor quedó activo con estos datos. No existe todavía una unidad
+`systemd`, así que tras un reinicio hay que lanzarlo manualmente con el comando
+reproducible de este documento:
 
 | Campo | Valor |
 | --- | --- |
@@ -320,6 +322,11 @@ Comando reproducible del nuevo perfil recomendado:
   --port 8080
 ```
 
+Advertencia (12 de agosto): en uso real con generaciones largas, el draft MTP
+de este build atasca el decode del modelo híbrido; ver la sección "El bloque
+MTP se atasca en generaciones largas". Este perfil queda solo para benchmarks
+cortos.
+
 El selector `-hf` usa el `IQ4_XS` y el draft MTP Q4_0 ya descargados en el caché.
 La profundidad MTP 3 siguió siendo la mejor: en el A/B de código real obtuvo
 84.07 tok/s frente a 74.91 con MTP 4. Cuantizar por separado el KV del draft no
@@ -345,6 +352,162 @@ a 24.58). Nemotron gana IFBench loose (71.88 frente a 63.71).
 En consecuencia, Nemotron es la elección local para máxima velocidad y contexto
 largo; Qwen sigue siendo la elección más prudente cuando importan más coding,
 razonamiento o calidad general que la latencia.
+
+## Perfil conservador para uso diario
+
+El perfil máximo de Nemotron `IQ4_XS` está afinado para benchmarks y deja el
+resto de la PC muy justa cuando se usa a la vez como escritorio de trabajo:
+
+- VRAM libre de ~334 MiB: el compositor Wayland y el navegador compiten con el
+  modelo por memoria de GPU.
+- `--threads 16 --cpu-strict 1 --poll 100`: dieciséis hilos fijados que hacen
+  busy-wait; ocupan los 8 P-cores y 8 E-cores incluso en las esperas.
+- `--load-mode none` copia los pesos CPU a RAM no reclamable y `--cache-ram
+  8192` retiene otros 8 GiB. Entre ambos, el servidor sostiene del orden de
+  15-20 GiB de RAM que el kernel no puede recuperar bajo presión.
+
+### Semántica real de `--n-cpu-moe`
+
+Un primer intento con `--n-cpu-moe 19` dejó solo ~460 MiB de VRAM libres con el
+escritorio cargado y la interfaz quedó inutilizable. La causa: `--n-cpu-moe N`
+cuenta **índices de bloque**, no capas MoE reales, y en Nemotron 3.5 Lightning
+solo 24 de los ~53 bloques tienen expertos MoE (índices 1, 3, 6, 8, 10, 13, 15,
+17, 20, 22, 24, 27, 29, 31, 34, 36, 38, 40, 43, 45, 47, 49, 51 y 52, verificado
+en los tensores `ffn_*_exps` del GGUF). Por eso `--n-cpu-moe 19` solo movía 8
+grupos de expertos a CPU y subirlo a 24 apenas añadía 2 más. Los valores del
+documento para los perfiles Q3 (18, 20, 21 "capas") sufren la misma
+reinterpretación: eran índices de bloque.
+
+Mediciones reales de VRAM del proceso `llama-server` (IQ4_XS, ctx 163,840):
+
+| `--n-cpu-moe` | Grupos MoE en CPU | ubatch | VRAM del proceso | VRAM libre total |
+| ---: | ---: | ---: | ---: | ---: |
+| 19 | 8 | 1536 | ~14.9 GB | ~0.46 GB (escritorio cargado) |
+| 24 | 10 | 512 | 14.2 GB | ~2.2 GB |
+| 32 | 14 | 512 | 11.5 GB | ~4.6 GB |
+
+### El bloque MTP se atasca en generaciones largas
+
+Con los perfiles de escritorio, las generaciones largas quedaban congeladas a
+mitad de respuesta de forma intermitente: el log dejaba de avanzar (por
+ejemplo en `n_decoded = 150`), la CPU se clavaba en 660-710% dentro de
+`ggml_vec_dot_iq4_nl_q8_0` (pilas capturadas con `eu-stack`) y la GPU caía al
+20-37%. Reproducción directa con el mismo prompt de 210 tokens y 500 de
+salida: con `--spec-type draft-mtp` el servidor llevaba más de 5 minutos
+atascado y hubo que matarlo; sin MTP la misma petición terminó en 11.0 s a
+47.1 tok/s.
+
+La explicación que encaja es el estado recurrente del híbrido Mamba2: cada
+rechazo del draft obliga a restaurar el estado, y en este build (`89e0aa6`)
+ese camino degenera en recomputación masiva en CPU. Es intermitente porque
+depende de los rechazos (aceptación observada de 0.59-0.60, más baja que el
+0.73-0.76 de los benchmarks). Las validaciones del documento no lo detectaron
+porque generaban solo 256-512 tokens por corrida.
+
+Consecuencia: el perfil diario elimina el MTP. Quitarlo libera además ~1 GB
+de VRAM (draft y su KV), presupuesto que se reinvierte en menos expertos en
+CPU y un `ubatch` mayor. Conviene reprobar el MTP tras cada actualización de
+llama.cpp.
+
+### Perfil diario validado (equilibrado, sin MTP)
+
+Medido el 12 de agosto con el escritorio cargado; script en
+`../tc-playground/nemotron-desktop-profile/start-nemotron-desktop.sh`:
+
+| Métrica | Valor |
+| --- | --- |
+| VRAM del proceso | 11.7 GB; ~4 GB libres en total tras generar |
+| Prefill con prompt real de 7,115 tokens | 1,361 tok/s (~5 s hasta el primer token) |
+| Generación | 47.5 tok/s sostenidos, 500+ tokens sin trabas |
+| Segundo turno de la misma conversación | reutilizó 7,111 tokens de caché; solo evaluó 26 nuevos |
+| RAM disponible con el servidor cargado | ~35 GiB |
+
+```bash
+/home/riven/.cache/llama-opt/llama.cpp/build-hip/bin/llama-server \
+  -hf bartowski/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF:IQ4_XS \
+  --alias nemotron-3.5-lightning-30b-a3b \
+  --device ROCm0 \
+  --n-gpu-layers 999 \
+  --n-cpu-moe 26 \
+  --ctx-size 163840 \
+  --flash-attn on \
+  --cache-type-k q4_0 \
+  --cache-type-v q4_0 \
+  --batch-size 1024 \
+  --ubatch-size 1024 \
+  --parallel 1 \
+  --jinja \
+  --no-mmproj \
+  --threads 12 \
+  -C 0f5555 \
+  --cpu-strict 0 \
+  --threads-batch 12 \
+  -Cb ffffffff \
+  --cpu-strict-batch 0 \
+  --poll 50 \
+  --poll-batch 50 \
+  --load-mode none \
+  --cache-ram 4096 \
+  --ctx-checkpoints 32 \
+  --host 0.0.0.0 \
+  --port 8080
+```
+
+Cambios frente al perfil máximo y su efecto:
+
+| Cambio | Efecto |
+| --- | --- |
+| Quitar `--spec-type draft-mtp` | Elimina las trabas de generación. Cuesta velocidad pico (el MTP daba +40% cuando funcionaba) y libera ~1 GB de VRAM. |
+| `--n-cpu-moe 26` | 11 de los 24 grupos de expertos a RAM. Con 22 (9 grupos) se ganan unos pocos tok/s a cambio de ~1.4 GB de VRAM. |
+| `--batch/--ubatch 1024` | Prefill medido de 1,361 tok/s a 7K tokens; buen compromiso entre buffers de VRAM y tiempo hasta el primer token. |
+| `--cache-ram 4096` | La mitad de retención que el perfil máximo; suficiente para agentes. Se probó 8192 el 12 de agosto (varios agentes de TC comparten el servidor y sus prefijos compiten por la caché), pero David reportó fallos feos en su sesión con ese valor y se revirtió el mismo día — el proceso del servidor nunca murió (mismo PID, turnos completos en el log), así que la causa real del fallo percibido quedó sin identificar. Si los re-prefills entre agentes se vuelven molestos, reintentar 8192 y observar. |
+| `--threads 12 -C 0f5555 --cpu-strict 0` | 8 P-cores + 4 E-cores; quedan 12 E-cores y los hermanos SMT para el escritorio. Medido sin MTP: -6.8% frente a 16 hilos. |
+| `--poll 50` | Espera intermedia: menos CPU quemada que el busy-wait de `--poll 100` sin la latencia extra de `--poll 0`. |
+| `--load-mode none` (conservado) | Pesos CPU copiados a RAM no reclamable: evita microtrabas por page faults de mmap durante el decode. Con ~35 GiB de RAM libres es asumible. |
+
+### Script hermano para Qwen
+
+`../tc-playground/nemotron-desktop-profile/start-qwen-desktop.sh` aplica el
+mismo tratamiento a Qwen3.6-35B-A3B `Q3_K_L`, validado el 12 de agosto:
+
+- Qwen es un MoE regular: 41 bloques MoE consecutivos (índices 0-40), así que
+  aquí `--n-cpu-moe` sí cuenta grupos reales (~330 MiB cada uno en Q3_K_L).
+- El MTP se conserva: Qwen es atención pura y no sufre el atasco del híbrido.
+  Validado con 500 tokens de salida: 10.5 s totales, sin trabas, aceptación
+  de drafts de 0.52.
+- Con `--n-cpu-moe 23`, `ubatch` 1024 y el resto de flags del perfil diario,
+  el proceso queda en 12.1 GB de VRAM (~3.3 GB libres tras generar). Prefill
+  de 1,155 tok/s con un prompt de 7,164 tokens (medido con `--n-cpu-moe` 20;
+  con 23 baja ligeramente) y generación de 47-55 tok/s. La caché entre turnos
+  reutilizó 7,160 tokens.
+- Ambos scripts comparten el puerto 8080: solo puede correr uno a la vez, y
+  un guard al inicio avisa si ya hay un `llama-server` activo.
+
+Detalle operativo: lanzar con `-hf` se colgó indefinidamente antes de cargar
+el modelo (resolución de red contra Hugging Face con el proceso a 0% de CPU);
+ambos scripts usan la ruta local del GGUF con `-m`, como ya recomendaba este
+documento para la instancia activa.
+
+Con la unidad `systemd` pendiente, los límites de cgroup completan la reserva
+sin renunciar a velocidad cuando la PC está desocupada. Mientras tanto sirve un
+scope puntual:
+
+```bash
+systemd-run --user --scope -p MemoryHigh=26G -p CPUWeight=50 <comando anterior>
+```
+
+`MemoryHigh` frena al servidor antes de que ahogue al resto y `CPUWeight=50`
+(el valor por defecto es 100) cede CPU al escritorio cuando ambos compiten.
+
+Si la velocidad máxima vuelve a importar en una sesión concreta, el perfil
+máximo de la sección anterior sigue siendo válido; son dos comandos
+intercambiables sobre los mismos GGUF ya descargados.
+
+Nota aparte: el servicio `ollama.service` del sistema corre en paralelo con sus
+propios modelos (`qwen3.6:27b`, `gemma4`, etc.). Nemotron no está en ollama;
+todo lo de este documento usa `llama-server`. Si ollama no se usa, conviene
+apagarlo (`systemctl disable --now ollama`) para que no cargue un segundo
+modelo compitiendo por la misma GPU y RAM.
 
 ## Alternativas probadas y descartadas
 
@@ -434,7 +597,8 @@ eliminar sólo los artefactos descartados después de revisar sus rutas.
 ## Próximos pasos opcionales
 
 1. Crear una unidad de usuario `systemd` para reinicio automático y logs
-   persistentes.
+   persistentes, con límites de cgroup (`MemoryHigh=`, `CPUWeight=`,
+   `AllowedCPUs=`) para proteger el escritorio.
 2. Añadir una API key antes de permitir acceso fuera de una LAN confiable.
 3. Liberar espacio eliminando Q4 y builds experimentales cuando ya no se necesite
    comparar calidad.

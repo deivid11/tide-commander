@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.182.0] - 2026-08-12
+
+### Added
+- **Spotlight finds files across every project** - Spotlight gained a Files section that searches filenames across all directories configured on your areas, not just the project currently open. It uses ripgrep when available and falls back to an async directory walk that never blocks the event loop, and the folders it skips (`node_modules`, `.git`, `dist`, `.venv` and friends) are now an editable list in Settings, so a project that keeps source somewhere unusual can be searched without patching anything.
+- **Grok 4.6** - selectable as a Grok model and now the default, replacing 4.5 (which stays available). It adds the `xhigh` reasoning tier, and the effort picker is driven per model, so 4.5 correctly offers only low/medium/high while 4.6 offers the full set — no more sending a tier the model doesn't accept.
+- **Serve HTTP and HTTPS at the same time** - setting a dedicated TLS port serves HTTPS alongside plain HTTP on the main port, so browsers, the phone and anything else can connect over whichever scheme suits them without running two instances. Both listeners share a single WebSocket server, so every client lands in the same broadcast group regardless of how it connected — standing up a second server per listener would have silently split clients in two and delivered broadcasts to only one half.
+- **Architecture documentation** - `docs/architecture.md` and a companion Mermaid diagram now describe the system end to end, from entry points through the runtime, providers and websocket layers.
+
+### Fixed
+- **Model chips guessing a Grok agent's model** - when no model was explicitly configured, the header and info chips fell back to a hardcoded guess. The CLI reports which model is actually serving the session, and that is now stored on the agent and displayed instead, so what's on screen is what's running.
+
 ## [1.181.0] - 2026-08-12
 
 ### Added

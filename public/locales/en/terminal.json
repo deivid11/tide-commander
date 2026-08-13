@@ -1018,6 +1018,7 @@
       "buildings": "Buildings",
       "areas": "Areas",
       "folders": "Folders",
+      "files": "Files",
       "commands": "Commands"
     },
     "categories": {
@@ -1026,6 +1027,7 @@
       "infrastructure": "Infrastructure",
       "areas": "Areas",
       "folders": "Folders & Repos",
+      "files": "Files",
       "modifiedFiles": "Modified Files",
       "recentActivity": "Recent Activity",
       "sessions": "Past Conversations"

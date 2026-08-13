@@ -884,12 +884,23 @@
     "killAgent": "Terminar agente",
     "navigate": "Navegar",
     "select": "Seleccionar",
+    "tabsLabel": "Categorías de resultados",
+    "tabs": {
+      "all": "Todo",
+      "agents": "Agentes",
+      "buildings": "Edificios",
+      "areas": "Áreas",
+      "folders": "Carpetas",
+      "files": "Archivos",
+      "commands": "Comandos"
+    },
     "categories": {
       "commands": "Comandos",
       "agents": "Agentes",
       "infrastructure": "Infraestructura",
       "areas": "Areas",
       "folders": "Carpetas y Repos",
+      "files": "Archivos",
       "modifiedFiles": "Archivos modificados",
       "recentActivity": "Actividad reciente",
       "sessions": "Conversaciones pasadas"

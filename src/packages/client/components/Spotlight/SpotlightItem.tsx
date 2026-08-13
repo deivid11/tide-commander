@@ -75,6 +75,18 @@ export const SpotlightItem = memo(function SpotlightItem({
               {result._gitBranch || 'git'}
             </span>
           )}
+          {result.type === 'file' && result._projectName && (
+            <span
+              className="spotlight-item-project-badge"
+              title={result._areaName && result._areaName !== result._projectName
+                ? `${result._projectName} · ${result._areaName}`
+                : result._projectName}
+            >
+              <Icon name="folder" size={9} aria-hidden />
+              {result._projectName}
+              {result._areaName && result._areaName !== result._projectName ? ` · ${result._areaName}` : ''}
+            </span>
+          )}
           <span className={`spotlight-item-type ${result.type}`} aria-label={getTypeLabel(result.type)}>
             {getTypeLabel(result.type)}
           </span>

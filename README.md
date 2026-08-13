@@ -81,8 +81,27 @@ Use HTTPS/WSS whenever Tide Commander is reachable beyond localhost, especially 
 - Generate a secure auth token automatically: `tide-commander start --https --generate-auth-token`
 - For development UI over HTTPS, set `DEV_HTTPS=1` and provide `DEV_TLS_KEY_PATH` + `DEV_TLS_CERT_PATH`.
 
+### Serving HTTP and HTTPS at the same time
+
+`HTTPS=1` replaces the plain listener — nothing is served in the clear. To serve
+**both**, set `HTTPS_PORT` instead: `PORT` keeps serving `http://` while TLS is served
+on `HTTPS_PORT`, from the same process, sharing one WebSocket client set.
+
+```bash
+HTTPS_PORT=5175 \
+TLS_KEY_PATH=~/.tide-commander/certs/localhost-key.pem \
+TLS_CERT_PATH=~/.tide-commander/certs/localhost.pem \
+tide-commander start
+```
+
+Useful when local browsers can stay on `http://localhost` but remote clients (a phone,
+another machine over a VPN) need a secure context for the clipboard API, service workers
+and `crypto.randomUUID`. `HTTPS_PORT` takes precedence if `HTTPS=1` is also set.
+
 Notes:
 - Local certs are stored in `~/.tide-commander/certs/` when using `--install-local-cert`.
+- For a cert that also covers a LAN/VPN address, include it in the mkcert SAN list:
+  `mkcert -cert-file … -key-file … localhost 127.0.0.1 ::1 10.20.0.2`.
 - `--generate-auth-token` prints the generated token at startup; save it in a secure password manager.
 - If `AUTH_TOKEN` is configured, keep using it with HTTPS for transport encryption plus access control.
 
@@ -384,7 +403,8 @@ Configuration via environment variables (see `.env.example`):
 | `TIDE_SERVER` | `http://localhost:$PORT` | Server URL for hooks |
 | `LISTEN_ALL_INTERFACES` | _(unset)_ | Set to `1` to listen on 0.0.0.0 instead of localhost |
 | `AUTH_TOKEN` | _(unset)_ | Token for authenticating WebSocket and HTTP connections |
-| `HTTPS` | _(unset)_ | Set to `1` to serve backend over HTTPS/WSS |
+| `HTTPS` | _(unset)_ | Set to `1` to serve backend over HTTPS/WSS **instead of** HTTP |
+| `HTTPS_PORT` | _(unset)_ | Serve TLS on this port **in addition to** plain HTTP on `PORT`; takes precedence over `HTTPS` |
 | `TLS_KEY_PATH` | `~/.tide-commander/certs/localhost-key.pem` | TLS private key path for backend HTTPS |
 | `TLS_CERT_PATH` | `~/.tide-commander/certs/localhost.pem` | TLS certificate path for backend HTTPS |
 | `DEV_HTTPS` | _(unset)_ | Set to `1` to run Vite dev server over HTTPS |

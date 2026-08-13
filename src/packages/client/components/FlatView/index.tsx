@@ -21,7 +21,7 @@ import {
 } from '../../store/selectors';
 import { store, useSettings } from '../../store';
 import { ConfirmModal } from '../shared/ConfirmModal';
-import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS } from '../../../shared/types';
+import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, DEFAULT_GROK_MODEL } from '../../../shared/types';
 import type { Agent, DrawingArea } from '../../../shared/types';
 import { providerAssetUrl, providerAgentTitle } from '../../utils/providerDisplay';
 import type { Building } from '../../../shared/building-types';
@@ -207,7 +207,7 @@ function getAgentModelLabel(agent: Agent): { model: string; effort?: string } {
     return { model: (agent as unknown as { opencodeModel?: string }).opencodeModel || 'opencode' };
   }
   if (agent.provider === 'grok') {
-    const id = (agent as unknown as { grokModel?: string }).grokModel || 'grok-4.5';
+    const id = (agent as unknown as { grokModel?: string }).grokModel || DEFAULT_GROK_MODEL;
     const effortId = agent.effort;
     const effortMeta = effortId
       ? (CLAUDE_EFFORTS as Record<string, { label: string }>)[effortId]
@@ -222,7 +222,7 @@ function getAgentModelLabel(agent: Agent): { model: string; effort?: string } {
       : undefined;
     return { model: id, effort: effortMeta?.label };
   }
-  const id = agent.model || 'sonnet';
+  const id = agent.model || agent.detectedModel || 'default';
   const meta = (CLAUDE_MODELS as Record<string, { label: string }>)[id];
   const effortId = agent.effort;
   const effortMeta = effortId

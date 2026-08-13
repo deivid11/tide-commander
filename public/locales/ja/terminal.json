@@ -889,6 +889,7 @@
       "agents": "エージェント",
       "infrastructure": "インフラ",
       "areas": "エリア",
+      "files": "ファイル",
       "modifiedFiles": "変更ファイル",
       "recentActivity": "最近のアクティビティ",
       "sessions": "過去の会話"

@@ -1,0 +1,95 @@
+flowchart TD
+    subgraph "Entry Points"
+        A[HTTP Server] -->|Express| App
+        B[CLI] -->|bun| Cli
+    end
+
+    subgraph "Server Package"
+        S[Server Index] -->|routes| Routes
+        S -->|services| Services
+        S -->|data| Data
+        S -->|utils| Utils
+    end
+
+    subgraph "Routes"
+        R1[API Routes] -->|auth| Auth
+        R1 -->|cad| Cad
+        R1 -->|grok| Grok
+        R1 -->|codex| Codex
+    end
+
+    subgraph "Core Services"
+        S1[Core Services] -->|session| Session
+        S1 -->|agent| AgentTypes
+        S1 -->|workflow| Wrkfl
+    end
+
+    subgraph "Claude Integration"
+        C1[Claude Backend] -->|process| Backend
+        C1 -->|runner| Runner
+        C1 -->|session| SessionLdr
+        C1 -->|interactive| Interactive
+    end
+
+    subgraph "Runner Subsystem"
+        R2[Process Lifecycle] -->|manage| ProcLife
+        R2 -->|restart| RestPolicy
+        R2 -->|monitor| ResMonitor
+        R2 -->|stdout| StdoutPipe
+        R2 -->|tmux| TmuxHelper
+        R2 -->|watchdog| Watchdog
+        R2 -->|store| RestPolicy2
+    end
+
+    subgraph "Shared Types"
+        AT[Agent Types] -->|defines| ATs
+        AT -->|workflow| WkflTyp
+        AT -->|integration| IntgTyp
+        AT -->|common| ComTyp
+        AT -->|database| DbTyp
+        AT -->|building| BuildTyp
+        AT -->|cad| CadTyp
+        AT -->|http| HttpTyp
+        AT -->|version| VersTyp
+    end
+
+    subgraph "Data Layer"
+        D[Data Mod] -->|config| Setup
+        D -->|types| DbTyp2
+    end
+
+    A --> S
+    B --> Cli
+    S --> Routes
+    S --> Services
+    S --> Data
+    S --> Utils
+    Routes --> Auth
+    Routes --> Cad
+    Routes --> Grok
+    Routes --> Codex
+    Services --> Session
+    Services --> AgentTypes
+    Services --> Wrkfl
+    Backend --> Backend
+    Runner --> Runner
+    SessionLdr --> SessionLdr
+    Interactive --> Interactive
+    ProcLife --> ProcLife
+    RestPolicy --> RestPolicy
+    ResMonitor --> ResMonitor
+    StdoutPipe --> StdoutPipe
+    TmuxHelper --> TmuxHelper
+    Watchdog --> Watchdog
+    RestPolicy2 --> RestPolicy2
+    ATs --> ATs
+    WkflTyp --> WkflTyp
+    IntgTyp --> IntgTyp
+    ComTyp --> ComTyp
+    DbTyp --> DbTyp
+    BuildTyp --> BuildTyp
+    CadTyp --> CadTyp
+    HttpTyp --> HttpTyp
+    VersTyp --> VersTyp
+    Setup --> Setup
+    DbTyp2 --> DbTyp2

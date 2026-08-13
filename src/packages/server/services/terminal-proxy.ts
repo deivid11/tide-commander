@@ -13,6 +13,7 @@
 
 import type { Express } from 'express';
 import type { Server as HttpServer, IncomingMessage } from 'http';
+import type { Server as HttpsServer } from 'https';
 import type { Socket } from 'net';
 import httpProxy from 'http-proxy';
 import { isTerminalRunning, getTerminalStatus } from './terminal-service.js';
@@ -205,7 +206,7 @@ export function setupTerminalHttpProxy(app: Express): void {
  * Set up WebSocket proxy for terminal buildings.
  * Called in index.ts after the HTTP server is created.
  */
-export function setupTerminalWsProxy(server: HttpServer): void {
+export function setupTerminalWsProxy(server: HttpServer | HttpsServer): void {
   const p = getProxy();
 
   server.on('upgrade', (req: IncomingMessage, socket: Socket, head: Buffer) => {

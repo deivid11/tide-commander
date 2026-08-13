@@ -13,6 +13,8 @@ import { logger } from '../utils/logger.js';
 import { loadAreas } from '../data/index.js';
 import { detectRunnerType, mightBeTestFile, mightBeVitestFile, mightBePhpTestFile } from '../services/test-runner-service.js';
 import type { TestRunnerType } from '../../shared/types.js';
+import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS, parseExcludeDirNames } from '../../shared/file-search.js';
+import { searchFilesGlobal, FILE_SEARCH_MIN_QUERY } from '../services/global-file-search.js';
 
 const log = logger.files;
 
@@ -1326,14 +1328,16 @@ router.post('/paste', (req: Request, res: Response) => {
   }
 });
 
-// Directories that are always skipped during file/content search. Kept as a
-// Set for O(1) lookups (this is checked once per directory entry during the
-// tree walk). Union of the old filename + content skip lists.
-const SEARCH_SKIP_DIRS = new Set([
-  'node_modules', 'dist', 'build', '.git', '__pycache__',
-  'venv', '.venv', 'target', 'vendor', '.next', '.cache',
-]);
+// Directories skipped during file/content search unless the request supplies
+// `exclude`. Kept as a Set for O(1) lookups (checked once per directory entry).
+const SEARCH_SKIP_DIRS = new Set<string>(DEFAULT_FILE_SEARCH_EXCLUDE_DIRS);
 const MAX_SEARCH_DEPTH = 10;
+
+/** Request `exclude` (comma list or repeated) overrides the default skip set. */
+function skipDirsFromQuery(req: Request): Set<string> {
+  if (req.query.exclude === undefined) return SEARCH_SKIP_DIRS;
+  return new Set(parseExcludeDirNames(req.query.exclude));
+}
 
 // Helper function to search files recursively (async / non-blocking).
 // Uses fs.promises so a deep tree walk never blocks the event loop, which
@@ -1343,7 +1347,8 @@ async function searchFilesAsync(
   queryLower: string,
   results: TreeNode[],
   maxResults: number,
-  depth: number = 0
+  depth: number = 0,
+  skipDirs: Set<string> = SEARCH_SKIP_DIRS,
 ): Promise<void> {
   if (results.length >= maxResults || depth > MAX_SEARCH_DEPTH) return;
 
@@ -1360,8 +1365,8 @@ async function searchFilesAsync(
     if (results.length >= maxResults) break;
 
     const isDir = entry.isDirectory();
-    // Skip common non-essential directories
-    if (isDir && SEARCH_SKIP_DIRS.has(entry.name)) continue;
+    // Skip configured non-essential directories
+    if (isDir && skipDirs.has(entry.name)) continue;
 
     const fullPath = path.join(dirPath, entry.name);
 
@@ -1388,7 +1393,7 @@ async function searchFilesAsync(
   // Recurse after listing this level so match/recurse order stays bounded.
   for (const sub of subdirs) {
     if (results.length >= maxResults) break;
-    await searchFilesAsync(sub, queryLower, results, maxResults, depth + 1);
+    await searchFilesAsync(sub, queryLower, results, maxResults, depth + 1, skipDirs);
   }
 }
 
@@ -1415,7 +1420,7 @@ router.get('/search', async (req: Request, res: Response) => {
     }
 
     const results: TreeNode[] = [];
-    await searchFilesAsync(dirPath, query.toLowerCase(), results, maxResults);
+    await searchFilesAsync(dirPath, query.toLowerCase(), results, maxResults, 0, skipDirsFromQuery(req));
 
     // Sort: files first (more likely what user wants), then by name
     results.sort((a, b) => {
@@ -1428,6 +1433,27 @@ router.get('/search', async (req: Request, res: Response) => {
     res.json({ results });
   } catch (err: any) {
     log.error(' Failed to search files:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/files/search-global - Filename search across every area directory
+router.get('/search-global', async (req: Request, res: Response) => {
+  try {
+    const query = typeof req.query.q === 'string' ? req.query.q : '';
+    if (query.trim().length < FILE_SEARCH_MIN_QUERY) {
+      res.json({ files: [] });
+      return;
+    }
+    const limit = parseInt(String(req.query.limit ?? ''), 10);
+    const files = await searchFilesGlobal({
+      query,
+      exclude: req.query.exclude,
+      limit: Number.isFinite(limit) ? limit : undefined,
+    });
+    res.json({ files });
+  } catch (err: any) {
+    log.error(' Global file search failed:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1468,7 +1494,8 @@ const MAX_CONTENT_FILE_SIZE = 1024 * 1024;
 function searchFileContentsRipgrep(
   dirPath: string,
   query: string,
-  maxResults: number
+  maxResults: number,
+  skipDirs: Set<string> = SEARCH_SKIP_DIRS,
 ): Promise<{ ok: boolean; results: ContentMatch[] }> {
   return new Promise((resolve) => {
     const args = [
@@ -1481,7 +1508,7 @@ function searchFileContentsRipgrep(
       '--hidden',                     // include dotfiles (.env, .github, ...)
       '--no-ignore',                  // don't honor .gitignore (match old behavior)
       '--no-messages',                // suppress permission/binary warnings on stderr
-      ...[...SEARCH_SKIP_DIRS].flatMap((d) => ['--glob', `!**/${d}/**`]),
+      ...[...skipDirs].flatMap((d) => ['--glob', `!**/${d}/**`]),
       '--',
       query,
       dirPath,
@@ -1566,7 +1593,8 @@ async function searchFileContentsAsync(
   queryLower: string,
   results: ContentMatch[],
   maxResults: number,
-  depth: number = 0
+  depth: number = 0,
+  skipDirs: Set<string> = SEARCH_SKIP_DIRS,
 ): Promise<void> {
   if (results.length >= maxResults || depth > MAX_SEARCH_DEPTH) return;
 
@@ -1583,7 +1611,7 @@ async function searchFileContentsAsync(
     if (results.length >= maxResults) break;
 
     if (entry.isDirectory()) {
-      if (!SEARCH_SKIP_DIRS.has(entry.name)) subdirs.push(path.join(dirPath, entry.name));
+      if (!skipDirs.has(entry.name)) subdirs.push(path.join(dirPath, entry.name));
       continue;
     }
 
@@ -1620,7 +1648,7 @@ async function searchFileContentsAsync(
 
   for (const sub of subdirs) {
     if (results.length >= maxResults) break;
-    await searchFileContentsAsync(sub, queryLower, results, maxResults, depth + 1);
+    await searchFileContentsAsync(sub, queryLower, results, maxResults, depth + 1, skipDirs);
   }
 }
 
@@ -1652,12 +1680,13 @@ router.get('/search-content', async (req: Request, res: Response) => {
     }
 
     let results: ContentMatch[] = [];
-    const rg = await searchFileContentsRipgrep(dirPath, query, maxResults);
+    const skipDirs = skipDirsFromQuery(req);
+    const rg = await searchFileContentsRipgrep(dirPath, query, maxResults, skipDirs);
     if (rg.ok) {
       results = rg.results;
     } else {
       // ripgrep unavailable — fall back to the pure-JS async walker.
-      await searchFileContentsAsync(dirPath, query.toLowerCase(), results, maxResults);
+      await searchFileContentsAsync(dirPath, query.toLowerCase(), results, maxResults, 0, skipDirs);
     }
 
     res.json({ results });

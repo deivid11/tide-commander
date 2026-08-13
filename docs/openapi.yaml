@@ -791,6 +791,8 @@ paths:
     get: { $ref: '#/components/x-operations/FileTree' }
   /files/search:
     get: { $ref: '#/components/x-operations/FileSearch' }
+  /files/search-global:
+    get: { $ref: '#/components/x-operations/FileSearchGlobal' }
   /files/search-content:
     get: { $ref: '#/components/x-operations/FileSearchContent' }
   /files/git-status:
@@ -1064,6 +1066,11 @@ components:
     FileSearch:
       tags: [Files]
       summary: Search for files by name
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileSearchGlobal:
+      tags: [Files]
+      summary: Search filenames across every area project directory
       responses:
         '200': { $ref: '#/components/responses/JsonSuccess' }
     FileSearchContent:

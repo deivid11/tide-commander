@@ -13,7 +13,7 @@ import { OpencodeModelSelect } from './OpencodeModelSelect';
 import { PiModelSelect } from './PiModelSelect';
 import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
 import { CODEX_REASONING_EFFORTS } from '../../shared/types';
-import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, GROK_MODELS, DEFAULT_GROK_MODEL } from '../../shared/types';
+import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, GROK_MODELS, DEFAULT_GROK_MODEL, grokSupportsEffort } from '../../shared/types';
 import { ShortcutConfig, formatShortcutString, parseShortcutString, shortcutValueToString } from '../store/shortcuts';
 import { apiUrl } from '../utils/storage';
 import { useModalClose } from '../hooks';
@@ -699,7 +699,13 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     >
                       <span>Default</span>
                     </button>
-                    {(Object.keys(CLAUDE_EFFORTS) as ClaudeEffort[]).map((level) => (
+                    {(Object.keys(CLAUDE_EFFORTS) as ClaudeEffort[])
+                      // Grok tiers vary per model (4.5 has no xhigh, none have max).
+                      // An already-selected level stays visible so it can be changed.
+                      .filter((level) => selectedProvider !== 'grok'
+                        || grokSupportsEffort(grokModel, level)
+                        || selectedEffort === level)
+                      .map((level) => (
                       <button
                         key={level}
                         className={`spawn-select-btn spawn-select-btn--compact ${selectedEffort === level ? 'selected' : ''}`}

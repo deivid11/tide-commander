@@ -8,7 +8,7 @@ import type React from 'react';
 import type { IconName } from '../Icon';
 
 // Search result types
-export type SearchResultType = 'agent' | 'command' | 'area' | 'modified-file' | 'building' | 'folder' | 'session';
+export type SearchResultType = 'agent' | 'command' | 'area' | 'modified-file' | 'building' | 'folder' | 'file' | 'session';
 
 /** Prefill for the Session Finder when a session hit has no live agent. */
 export interface SessionFinderPrefill {
@@ -17,10 +17,10 @@ export interface SessionFinderPrefill {
 }
 
 // Result-grouping tabs shown at the top of the palette. Order defines the
-// forward Tab-cycle order (All -> Agents -> Buildings -> Areas -> Folders -> Commands -> All).
-export type SpotlightTab = 'all' | 'agents' | 'buildings' | 'areas' | 'folders' | 'commands';
+// forward Tab-cycle order (All -> Agents -> Buildings -> Areas -> Folders -> Files -> Commands -> All).
+export type SpotlightTab = 'all' | 'agents' | 'buildings' | 'areas' | 'folders' | 'files' | 'commands';
 
-export const SPOTLIGHT_TABS: readonly SpotlightTab[] = ['all', 'agents', 'buildings', 'areas', 'folders', 'commands'];
+export const SPOTLIGHT_TABS: readonly SpotlightTab[] = ['all', 'agents', 'buildings', 'areas', 'folders', 'files', 'commands'];
 
 // One area section rendered in the "Areas" tab: the area plus the agents that
 // belong to it, ordered exactly the way the Agent Overview panel orders them.
@@ -55,6 +55,8 @@ export interface SearchResult {
   _ports?: number[]; // Auto-detected listening ports (building results only) — rendered as links
   _isGitRepo?: boolean; // Folder results only — whether the directory is a git repository
   _gitBranch?: string; // Folder results only — current git branch (rendered as a branch badge)
+  _projectName?: string; // File results — area-directory basename (the project)
+  _areaName?: string; // File results — area that owns the project
 }
 
 // Props for the main Spotlight component

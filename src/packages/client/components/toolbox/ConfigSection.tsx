@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react'; // settings + scene config panel
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { useSettings, store, useCustomAgentClassesArray } from '../../store';
@@ -70,6 +70,7 @@ import { WhatsAppHistoryPanel } from '../WhatsAppHistory/WhatsAppHistoryPanel';
 import { WhatsAppHubModal } from '../WhatsAppHub/WhatsAppHubModal';
 import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath, fetchTmuxModeSetting, updateTmuxModeSetting, fetchInteractiveModeSetting, updateInteractiveModeSetting, fetchCodexAppServerModeSetting, updateCodexAppServerModeSetting, fetchOpencodeServerModeSetting, updateOpencodeServerModeSetting, fetchPiRpcModeSetting, updatePiRpcModeSetting } from '../../api/system-settings';
 import { BUILTIN_AGENT_NAMES } from '../../scene/config';
+import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS, isValidExcludeDirName } from '../../../shared/file-search';
 import { Icon } from '../Icon';
 import type {
   SceneConfig,
@@ -241,7 +242,7 @@ function HighlightText({ text, query }: { text: string; query: string }) {
 
 // Define searchable settings configuration (English keywords for search matching)
 const SETTINGS_SECTIONS = [
-  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'low power', 'battery', 'bajo consumo', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title', 'tmux', 'process persistence', 'interactive', 'tui', 'terminal', 'experimental', 'claude', 'stream', 'streaming', 'word by word', 'live text', 'grok', 'codex', 'app-server', 'app server', 'opencode', 'serve', 'pi', 'rpc', 'steer', 'steering', 'mid-turn', 'mid turn', 'hover', 'preview', 'tooltip', 'ctrl', 'popup', 'vista previa', 'sound', 'sounds', 'sonido', 'sonidos', 'notification', 'notifications', 'notificacion', 'notificaciones', 'volume', 'volumen', 'tone', 'tones', 'tono', 'chime', 'alert', 'cue', 'audio', 'mute', 'silence', 'dock', 'activity', 'recent', 'notification sound', 'silenciar', 'custom sound', 'upload sound', 'alerta'] },
+  { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'low power', 'battery', 'bajo consumo', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title', 'tmux', 'process persistence', 'interactive', 'tui', 'terminal', 'experimental', 'claude', 'stream', 'streaming', 'word by word', 'live text', 'grok', 'codex', 'app-server', 'app server', 'opencode', 'serve', 'pi', 'rpc', 'steer', 'steering', 'mid-turn', 'mid turn', 'hover', 'preview', 'tooltip', 'ctrl', 'popup', 'vista previa', 'sound', 'sounds', 'sonido', 'sonidos', 'notification', 'notifications', 'notificacion', 'notificaciones', 'volume', 'volumen', 'tone', 'tones', 'tono', 'chime', 'alert', 'cue', 'audio', 'mute', 'silence', 'dock', 'activity', 'recent', 'notification sound', 'silenciar', 'custom sound', 'upload sound', 'alerta', 'file search', 'excluded folders', 'node_modules', 'vendor', 'git', 'spotlight', 'ignore'] },
   { id: 'agentNames', title: 'Agent Names', keywords: ['agent', 'names', 'custom', 'characters', 'rename'] },
   { id: 'defaultClass', title: 'Default Spawn Class', keywords: ['default', 'class', 'spawn', 'agent', 'scout', 'builder', 'random'] },
   { id: 'appearance', title: 'Appearance', keywords: ['theme', 'appearance', 'color', 'dark', 'light', 'style', 'look'] },
@@ -289,6 +290,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
   const [customSounds, setCustomSoundsState] = useState<Partial<Record<SoundKind, string | null>>>(() => getCustomSounds());
   const [uploadingSound, setUploadingSound] = useState<SoundKind | null>(null);
   const [soundUploadError, setSoundUploadError] = useState<string | null>(null);
+  const [newExcludeDir, setNewExcludeDir] = useState('');
 
   // Custom sounds live server-side, so pull the current map when settings open.
   useEffect(() => {
@@ -466,6 +468,27 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
 
   const handleResetToDefaults = () => {
     store.updateSettings({ customAgentNames: [] });
+  };
+
+  const fileSearchExcludeDirs = settings.fileSearchExcludeDirs ?? [...DEFAULT_FILE_SEARCH_EXCLUDE_DIRS];
+
+  const handleAddExcludeDir = () => {
+    const name = newExcludeDir.trim();
+    if (!isValidExcludeDirName(name)) return;
+    if (fileSearchExcludeDirs.includes(name)) {
+      setNewExcludeDir('');
+      return;
+    }
+    store.updateSettings({ fileSearchExcludeDirs: [...fileSearchExcludeDirs, name] });
+    setNewExcludeDir('');
+  };
+
+  const handleRemoveExcludeDir = (name: string) => {
+    store.updateSettings({ fileSearchExcludeDirs: fileSearchExcludeDirs.filter((d) => d !== name) });
+  };
+
+  const handleResetExcludeDirs = () => {
+    store.updateSettings({ fileSearchExcludeDirs: [...DEFAULT_FILE_SEARCH_EXCLUDE_DIRS] });
   };
 
   const handleAddBackendUrl = () => {
@@ -808,6 +831,30 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('config:general.tabTitle')} query={searchQuery} /></span>
           <input type="text" className="config-input" placeholder={t('config:general.tabTitlePlaceholder')} value={settings.tabTitle || ''} onChange={(e) => store.updateSettings({ tabTitle: e.target.value })} />
+        </div>
+        <div className="agent-names-section">
+          <span className="config-label"><HighlightText text={t('config:general.fileSearchExcludeDirs')} query={searchQuery} /></span>
+          <span className="config-hint">{t('config:general.fileSearchExcludeDirsHint')}</span>
+          <div className="agent-names-input-row">
+            <input
+              type="text"
+              className="config-input config-input-full"
+              placeholder={t('config:general.fileSearchExcludeDirsPlaceholder')}
+              value={newExcludeDir}
+              onChange={(e) => setNewExcludeDir(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { handleAddExcludeDir(); } }}
+            />
+            <button className="config-btn config-btn-sm" onClick={handleAddExcludeDir} disabled={!isValidExcludeDirName(newExcludeDir)} title={t('config:general.fileSearchExcludeDirsAdd')}>+</button>
+          </div>
+          <div className="agent-names-list">
+            {fileSearchExcludeDirs.map((name) => (
+              <div key={name} className="agent-name-chip">
+                <span className="agent-name-text">{name}</span>
+                <button className="agent-name-remove" onClick={() => handleRemoveExcludeDir(name)} title={t('common:buttons.remove')}>x</button>
+              </div>
+            ))}
+          </div>
+          <button className="config-btn config-btn-link" onClick={handleResetExcludeDirs}>{t('config:general.fileSearchExcludeDirsReset')}</button>
         </div>
         <div className="config-group">
           <span className="config-label"><HighlightText text={t('config:general.language')} query={searchQuery} /></span>
