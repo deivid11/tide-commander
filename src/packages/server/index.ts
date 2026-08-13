@@ -6,7 +6,9 @@
 import 'dotenv/config';
 
 import { createServer } from 'http';
+import type { Server as HttpServer } from 'http';
 import { createServer as createHttpsServer } from 'https';
+import type { Server as HttpsServer } from 'https';
 import fs from 'node:fs';
 import type { Socket } from 'node:net';
 import { createApp } from './app.js';
@@ -34,6 +36,10 @@ const HOST = process.env.HOST || (process.env.LISTEN_ALL_INTERFACES ? '::' : '12
 const HTTPS_ENABLED = process.env.HTTPS === '1';
 const TLS_KEY_PATH = process.env.TLS_KEY_PATH;
 const TLS_CERT_PATH = process.env.TLS_CERT_PATH;
+// When set, TLS is served on this port IN ADDITION to plain HTTP on PORT, so
+// http:// and https:// clients can both connect to the same instance. Takes
+// precedence over HTTPS=1 (which serves TLS on PORT and nothing in the clear).
+const HTTPS_PORT = process.env.HTTPS_PORT ? Number(process.env.HTTPS_PORT) : null;
 const FORCE_SHUTDOWN_TIMEOUT_MS = 4500;
 
 // ============================================================================
@@ -182,32 +188,56 @@ async function main(): Promise<void> {
   logger.server.log(`Data directory: ${getDataDir()}`);
   logger.server.log(`Log file: ${getLogFilePath()}`);
 
-  // Create Express app and HTTP server
+  // Create Express app and HTTP server(s)
   const app = createApp();
-  const server = HTTPS_ENABLED
-    ? createHttpsServer(
-      {
-        key: fs.readFileSync(assertTlsPath(TLS_KEY_PATH, 'TLS_KEY_PATH')),
-        cert: fs.readFileSync(assertTlsPath(TLS_CERT_PATH, 'TLS_CERT_PATH')),
-      },
-      app,
-    )
-    : createServer(app);
-  const sockets = new Set<Socket>();
 
-  server.on('connection', (socket) => {
-    sockets.add(socket);
-    socket.on('close', () => {
-      sockets.delete(socket);
-    });
+  const readTlsOptions = (reason: string): { key: Buffer; cert: Buffer } => ({
+    key: fs.readFileSync(assertTlsPath(TLS_KEY_PATH, 'TLS_KEY_PATH', reason)),
+    cert: fs.readFileSync(assertTlsPath(TLS_CERT_PATH, 'TLS_CERT_PATH', reason)),
   });
 
-  // Initialize WebSocket
-  const wss = websocket.init(server);
+  if (HTTPS_PORT && HTTPS_ENABLED) {
+    logger.server.warn('HTTPS=1 and HTTPS_PORT are both set; HTTPS_PORT wins '
+      + `(plain HTTP on ${PORT}, TLS on ${HTTPS_PORT})`);
+  }
+
+  // Listener set: either a single server (legacy) or HTTP + HTTPS side by side.
+  const listeners: Array<{ server: HttpServer | HttpsServer; protocol: 'http' | 'https'; port: number }> =
+    HTTPS_PORT
+      ? [
+        { server: createServer(app), protocol: 'http', port: Number(PORT) },
+        { server: createHttpsServer(readTlsOptions('HTTPS_PORT'), app), protocol: 'https', port: HTTPS_PORT },
+      ]
+      : [{
+        server: HTTPS_ENABLED ? createHttpsServer(readTlsOptions('HTTPS=1'), app) : createServer(app),
+        protocol: HTTPS_ENABLED ? 'https' : 'http',
+        port: Number(PORT),
+      }];
+
+  const primary = listeners[0].server;
+  const sockets = new Set<Socket>();
+
+  for (const { server: listener } of listeners) {
+    listener.on('connection', (socket: Socket) => {
+      sockets.add(socket);
+      socket.on('close', () => {
+        sockets.delete(socket);
+      });
+    });
+  }
+
+  // Initialize WebSocket. Every listener shares one WebSocketServer so clients
+  // land in the same client set no matter which scheme they arrived over.
+  const wss = websocket.init(primary);
+  for (const { server: listener } of listeners.slice(1)) {
+    websocket.attachServer(listener, wss);
+  }
 
   // Set up terminal WebSocket proxy for ttyd buildings
   // (HTTP proxy is set up in app.ts before API routes)
-  setupTerminalWsProxy(server);
+  for (const { server: listener } of listeners) {
+    setupTerminalWsProxy(listener);
+  }
 
   // Set up skill hot-reload (must be after websocket init to have broadcast available)
   skillService.setupSkillHotReload(agentService, runtimeService, websocket.broadcast);
@@ -221,23 +251,24 @@ async function main(): Promise<void> {
   // Start terminal (ttyd) status polling for buildings
   buildingService.startTerminalStatusPolling(websocket.broadcast);
 
-  // Start server
-  server.on('error', (err: NodeJS.ErrnoException) => {
-    logger.server.error('Server listen error:', err);
-    if (err.code === 'EADDRINUSE') {
-      logger.server.error(`Port ${PORT} is already in use. Exiting.`);
-      closeFileLogging();
-      process.exit(1);
-    }
-  });
+  // Start server(s)
+  for (const { server: listener, protocol, port } of listeners) {
+    listener.on('error', (err: NodeJS.ErrnoException) => {
+      logger.server.error(`Server listen error (${protocol}:${port}):`, err);
+      if (err.code === 'EADDRINUSE') {
+        logger.server.error(`Port ${port} is already in use. Exiting.`);
+        closeFileLogging();
+        process.exit(1);
+      }
+    });
 
-  server.listen(Number(PORT), HOST, () => {
-    const protocol = HTTPS_ENABLED ? 'https' : 'http';
-    const wsProtocol = HTTPS_ENABLED ? 'wss' : 'ws';
-    logger.server.log(`Server running on ${protocol}://${HOST}:${PORT}`);
-    logger.server.log(`WebSocket available at ${wsProtocol}://${HOST}:${PORT}/ws`);
-    logger.server.log(`API available at ${protocol}://${HOST}:${PORT}/api`);
-  });
+    listener.listen(port, HOST, () => {
+      const wsProtocol = protocol === 'https' ? 'wss' : 'ws';
+      logger.server.log(`Server running on ${protocol}://${HOST}:${port}`);
+      logger.server.log(`WebSocket available at ${wsProtocol}://${HOST}:${port}/ws`);
+      logger.server.log(`API available at ${protocol}://${HOST}:${port}/api`);
+    });
+  }
 
   let isShuttingDown = false;
   const gracefulShutdown = async (signal: NodeJS.Signals): Promise<void> => {
@@ -280,7 +311,9 @@ async function main(): Promise<void> {
       wss.clients.forEach((client) => client.terminate());
       await new Promise<void>((resolve) => wss.close(() => resolve()));
       sockets.forEach((socket) => socket.destroy());
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await Promise.all(listeners.map(({ server: listener }) => (
+        new Promise<void>((resolve) => listener.close(() => resolve()))
+      )));
       clearTimeout(forceShutdownTimer);
       closeFileLogging();
       process.exit(0);
@@ -296,9 +329,9 @@ async function main(): Promise<void> {
   process.on('SIGTERM', () => { void gracefulShutdown('SIGTERM'); });
 }
 
-function assertTlsPath(value: string | undefined, envName: string): string {
+function assertTlsPath(value: string | undefined, envName: string, reason: string): string {
   if (!value) {
-    throw new Error(`${envName} is required when HTTPS=1`);
+    throw new Error(`${envName} is required when ${reason} is set`);
   }
   return value;
 }

@@ -187,6 +187,13 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
       } as any);
       ctx.sendActivity(agentId, 'Compacting context...');
     } else if (event.type === 'init') {
+      // The CLI names the model actually serving the session. Park it on the
+      // agent record: when `model` is unset (CLI default) this is the only
+      // truthful source for the header/info chips — they must not guess.
+      const initAgent = agentService.getAgent(agentId);
+      if (initAgent?.provider === 'claude' && event.model && event.model !== initAgent.detectedModel) {
+        agentService.updateAgent(agentId, { detectedModel: event.model }, false);
+      }
       ctx.sendActivity(agentId, `Session initialized (${event.model})`);
     } else if (event.type === 'tool_start') {
       const details = formatToolActivity(event.toolName, event.toolInput);

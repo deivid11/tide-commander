@@ -274,6 +274,74 @@
   // Workspace wrapper's dropdown is positioned further down with viewport caps.
 }
 
+// Flat mode: slide the rail off the left edge and reveal on hover / keyboard
+// focus / an open popover. Same pattern as `.agent-bar` — a slim peek stays
+// on-screen with a hover catch zone so the rail stays discoverable. Not gated
+// on `(hover: hover)` so a tap on the peek still works on coarse pointers
+// (the rail is already `display: none` below 768px).
+.fab-rail--autohide {
+  // Flush to the viewport left so a cursor that opened the rail from the
+  // peek stays over the rail as it slides in (a 16px inset would leave the
+  // cursor in the gutter and the rail would bounce closed). 8px inner pad
+  // keeps the 36px buttons off the screen edge once revealed.
+  left: 0;
+  width: 44px;
+  padding-left: 8px;
+  box-sizing: border-box;
+  transform: translateX(calc(-100% + 4px));
+  transition: transform 220ms ease;
+  will-change: transform;
+
+  // Full-height catch zone just to the right of the peek, including the
+  // rail's 12px top/bottom inset so the whole left edge reveals it.
+  &::before {
+    content: '';
+    position: absolute;
+    top: -12px;
+    bottom: -12px;
+    left: 100%;
+    width: 20px;
+  }
+
+  // Visible tab so the hidden rail isn't just empty pixels.
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: -5px;
+    width: 5px;
+    height: 48px;
+    margin-top: -24px;
+    border-radius: 0 4px 4px 0;
+    background: color-mix(in srgb, var(--text-primary) 35%, var(--bg-tertiary));
+    box-shadow: 1px 0 8px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 160ms ease;
+  }
+
+  &:hover,
+  &:focus-within,
+  &:has(.fab-viewmode-menu),
+  &:has(.workspace-switcher-dropdown) {
+    transform: translateX(0);
+
+    &::after {
+      opacity: 0;
+    }
+  }
+
+  // Transform on the rail would otherwise become the containing block for
+  // this `position: fixed` button and pin it to a stale viewport slot.
+  // Fold it into the flex column so it hides and reveals with the rest.
+  .voice-assistant-btn {
+    position: relative;
+    top: auto;
+    left: auto;
+    bottom: auto;
+  }
+}
+
 // Compress the FAB rail on short viewports so all icons fit vertically without
 // the rail needing a scroll container, which would clip the side-anchored
 // popover menus. Width is intentionally not part of this query: tablets,

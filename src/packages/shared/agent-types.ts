@@ -100,20 +100,79 @@ export function providerDisplayName(
 // OpenCode model - uses provider/model format (e.g. 'minimax/MiniMax-M1-80k')
 export type OpencodeModel = string;
 
-// Grok CLI model id (e.g. 'grok-4.5')
+// Grok CLI model id (e.g. 'grok-4.6')
 export type GrokModel = string;
 
-export const GROK_MODELS: Record<string, { label: string; description: string; icon: string; contextWindow: number }> = {
-  'grok-4.5': {
-    label: 'Grok 4.5',
-    description: 'Default Grok Build model',
+// Reasoning-effort values the Grok CLI accepts for --reasoning-effort.
+// Grok has no 'max' tier — 'xhigh' is its ceiling (and only on 4.6+).
+export type GrokReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
+
+export const GROK_MODELS: Record<string, { label: string; description: string; icon: string; contextWindow: number; efforts: GrokReasoningEffort[] }> = {
+  'grok-4.6': {
+    label: 'Grok 4.6',
+    description: "SpaceXAI's latest frontier model — adds the xhigh reasoning tier",
     icon: '⚡',
     // Authoritative window from live Grok Build signals.json (contextWindowTokens).
     contextWindow: 500000,
+    efforts: ['low', 'medium', 'high', 'xhigh'],
+  },
+  'grok-4.5': {
+    label: 'Grok 4.5',
+    description: 'Previous Grok Build generation (still supported)',
+    icon: '🌊',
+    contextWindow: 500000,
+    // 4.5 has no xhigh tier — the model catalog only lists low/medium/high.
+    efforts: ['low', 'medium', 'high'],
   },
 };
 
-export const DEFAULT_GROK_MODEL = 'grok-4.5';
+export const DEFAULT_GROK_MODEL = 'grok-4.6';
+
+/** Effort tiers a Grok model accepts; unknown models get the full modern set. */
+export function grokEffortsFor(model?: string | null): GrokReasoningEffort[] {
+  return GROK_MODELS[model || '']?.efforts || ['low', 'medium', 'high', 'xhigh'];
+}
+
+// Tide effort labels → Grok CLI values. Grok tops out at 'xhigh', so 'max'
+// clamps down instead of being passed through as an unknown value.
+const GROK_EFFORT_VALUES: Record<ClaudeEffort, GrokReasoningEffort> = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  xHigh: 'xhigh',
+  max: 'xhigh',
+};
+
+/**
+ * Resolve a Tide effort label to the `--reasoning-effort` value for a Grok
+ * model, clamping to the highest tier that model actually supports (asking
+ * grok-4.5 for 'xhigh' would otherwise be rejected by the CLI).
+ */
+export function resolveGrokReasoningEffort(
+  model: string | undefined,
+  effort: string | undefined
+): GrokReasoningEffort | undefined {
+  if (!effort) return undefined;
+  const supported = grokEffortsFor(model);
+  const requested = GROK_EFFORT_VALUES[effort as ClaudeEffort]
+    || (effort.toLowerCase() as GrokReasoningEffort);
+  const order: GrokReasoningEffort[] = ['low', 'medium', 'high', 'xhigh'];
+  const requestedRank = order.indexOf(requested);
+  if (requestedRank === -1) return undefined;
+  for (let rank = requestedRank; rank >= 0; rank -= 1) {
+    if (supported.includes(order[rank])) return order[rank];
+  }
+  return undefined;
+}
+
+/**
+ * Tide effort labels selectable for a Grok model (drives the effort pickers).
+ * 'max' is Claude-only — Grok's ceiling is X-High, so it never shows for Grok.
+ */
+export function grokSupportsEffort(model: string | undefined, effort: ClaudeEffort): boolean {
+  if (effort === 'max') return false;
+  return grokEffortsFor(model).includes(GROK_EFFORT_VALUES[effort]);
+}
 
 // Pi coding agent model - uses provider/model format (e.g. 'anthropic/claude-sonnet-4-5').
 // Empty string means "use pi's own configured default" (~/.pi/agent/settings.json).
@@ -340,6 +399,11 @@ export interface Agent {
   // was configured with (silent Anthropic fallback — see shared/model-fallback.ts).
   // Cleared as soon as a turn comes back on the requested model again.
   modelFallback?: ModelFallbackInfo;
+
+  // Model id the CLI reported in its session init (e.g. 'claude-opus-5').
+  // When `model` is unset the CLI resolves its own default, and this is the
+  // only truthful source for the UI — refreshed at every turn init.
+  detectedModel?: string;
 
   // Latest TodoWrite snapshot for this agent (most recent task list)
   latestTodos?: AgentTodoItem[];

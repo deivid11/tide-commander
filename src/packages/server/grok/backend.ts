@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { CLIBackend, BackendConfig, StandardEvent } from '../claude/types.js';
+import { resolveGrokReasoningEffort } from '../../shared/agent-types.js';
 import { GrokJsonEventParser } from './json-event-parser.js';
 import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
 import { getSystemPrompt, isEchoPromptEnabled } from '../services/system-prompt-service.js';
@@ -142,16 +143,12 @@ export class GrokBackend implements CLIBackend {
     }
 
     if (config.effort) {
-      // Map Tide effort labels to Grok reasoning-effort values
-      const effortMap: Record<string, string> = {
-        low: 'low',
-        medium: 'medium',
-        high: 'high',
-        xHigh: 'xhigh',
-        max: 'max',
-      };
-      const mapped = effortMap[config.effort] || config.effort.toLowerCase();
-      args.push('--reasoning-effort', mapped);
+      // Map Tide effort labels to Grok reasoning-effort values, clamped to what
+      // the selected model supports (grok-4.5 has no xhigh tier; Grok has no max).
+      const mapped = resolveGrokReasoningEffort(config.model, config.effort);
+      if (mapped) {
+        args.push('--reasoning-effort', mapped);
+      }
     }
 
     // Session resume / fork

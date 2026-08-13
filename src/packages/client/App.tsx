@@ -903,8 +903,9 @@ function AppContent() {
       {/* Left-edge FAB rail. Single fixed-positioned scrollable column so
           the stack doesn't overflow off the bottom on short viewports
           (mobile landscape, small tablets). Children are rendered in normal
-          flow via CSS inside .fab-rail. */}
-      <div className="fab-rail">
+          flow via CSS inside .fab-rail. In flat mode the rail auto-hides
+          off the left edge and reveals on hover / focus. */}
+      <div className={`fab-rail${viewMode === 'flat' ? ' fab-rail--autohide' : ''}`}>
         <FloatingActionButtons
           onOpenToolbox={toolboxModal.open}
           onOpenSpotlight={spotlightModal.open}

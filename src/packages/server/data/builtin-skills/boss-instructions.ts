@@ -206,7 +206,7 @@ Spawn ONLY when the user EXPLICITLY requests it ("create an agent", "spawn a deb
   "customInstructions": "<optional extra system prompt for this agent>",
   "codexModel": "<optional: only when provider='codex'>",
   "opencodeModel": "<optional: only when provider='opencode'>",
-  "grokModel": "<optional: only when provider='grok'>",
+  "grokModel": "<optional: only when provider='grok': grok-4.6 | grok-4.5>",
   "piModel": "<optional: only when provider='pi', 'provider/model' pattern>"
 }]
 \\\`\\\`\\\`

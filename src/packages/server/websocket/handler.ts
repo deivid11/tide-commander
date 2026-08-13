@@ -3,7 +3,9 @@
  * Real-time communication with clients
  */
 
-import { Server as HttpServer } from 'http';
+import { Server as HttpServer, IncomingMessage } from 'http';
+import type { Server as HttpsServer } from 'https';
+import type { Duplex } from 'node:stream';
 import { hostname } from 'node:os';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { ClientMessage, ServerMessage } from '../../shared/types.js';
@@ -353,14 +355,16 @@ function handleClientMessage(ws: WebSocket, message: ClientMessage): void {
 // Initialization
 // ============================================================================
 
-export function init(server: HttpServer): WebSocketServer {
-  // Use noServer mode so we can manually route upgrade events.
-  // This allows the terminal proxy to handle /api/terminal/*/ws upgrades
-  // without the main WSS intercepting and rejecting them.
-  const wss = new WebSocketServer({ noServer: true });
-
-  // Handle upgrade events for /ws path only
-  server.on('upgrade', (request, socket, head) => {
+/**
+ * Route /ws upgrades from `server` into `wss`.
+ *
+ * Split out of init() so that when the server listens on both HTTP and HTTPS,
+ * the second listener shares the SAME WebSocketServer — and therefore the same
+ * client set and broadcast path. Standing up a second WebSocketServer would
+ * silently split clients into two groups, and broadcasts would only reach one.
+ */
+export function attachServer(server: HttpServer | HttpsServer, wss: WebSocketServer): void {
+  server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
     const pathname = request.url?.split('?')[0];
     if (pathname === '/ws') {
       // Auth check (verifyClient is not used in noServer mode)
@@ -376,6 +380,15 @@ export function init(server: HttpServer): WebSocketServer {
     }
     // Other paths (like /api/terminal/*/ws) are handled by the terminal proxy
   });
+}
+
+export function init(server: HttpServer | HttpsServer): WebSocketServer {
+  // Use noServer mode so we can manually route upgrade events.
+  // This allows the terminal proxy to handle /api/terminal/*/ws upgrades
+  // without the main WSS intercepting and rejecting them.
+  const wss = new WebSocketServer({ noServer: true });
+
+  attachServer(server, wss);
 
   wss.on('connection', (ws, request) => {
     clients.add(ws);

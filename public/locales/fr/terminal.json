@@ -889,6 +889,7 @@
       "agents": "Agents",
       "infrastructure": "Infrastructure",
       "areas": "Zones",
+      "files": "Fichiers",
       "modifiedFiles": "Fichiers modifiés",
       "recentActivity": "Activité récente",
       "sessions": "Conversations passées"

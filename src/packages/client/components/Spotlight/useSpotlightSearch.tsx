@@ -1,14 +1,14 @@
 /**
  * Custom hook for managing Spotlight search state including:
  * - Search query and results
- * - Fuse.js fuzzy search across agents, commands, areas, files
+ * - Fuse.js fuzzy search across agents, commands, areas, folders, files
  * - Result highlighting and selection
  * - Keyboard navigation
  */
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Fuse from 'fuse.js';
-import { store, useAgents, useAreas, useBuildings, useFileChanges, useToolExecutions, useAgentsWithUnseenOutput } from '../../store';
+import { store, useAgents, useAreas, useBuildings, useFileChanges, useToolExecutions, useAgentsWithUnseenOutput, useSettings } from '../../store';
 import { formatShortcut } from '../../store/shortcuts';
 import { makeAgentOverviewComparator, type AgentSortMode } from '../ClaudeOutputPanel/agentOverviewSort';
 import { STORAGE_KEYS, getStorage, setStorage, getStorageString, setStorageString } from '../../utils/storage';
@@ -19,14 +19,22 @@ import { getFileIconFromPath, getRecentAgentTimes, recordRecentAgent, agentRecen
 import { Icon, type IconName } from '../Icon';
 import { AgentIcon } from '../AgentIcon';
 import { searchFolders, type FolderSearchResult } from '../../api/folders';
+import { searchFilesGlobal, type GlobalFileSearchHit } from '../../api/files';
 import { searchGlobalSessions, type GlobalSessionMatch } from '../../api/sessions';
+import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS } from '../../../shared/file-search';
 
 // Category display order - must match SpotlightResults rendering
-const categoryOrder = ['command', 'agent', 'building', 'area', 'folder', 'modified-file', 'session'];
+const categoryOrder = ['command', 'agent', 'building', 'area', 'folder', 'file', 'modified-file', 'session'];
 
 // Minimum query length before hitting the folder-search endpoint (matches the
 // server's MIN_QUERY — folders are never shown for the empty/recent view).
 const FOLDER_MIN_QUERY = 2;
+
+// Filename search across area project trees. Same floor as folders so a single
+// character never walks every configured repo.
+const FILE_MIN_QUERY = 2;
+const FILE_RESULT_LIMIT = 50;
+const FILE_ALL_TAB_LIMIT = 10;
 
 // Minimum query length before full-text searching every session's JSONL. At 2
 // chars nearly every conversation matches — pure noise below the fold.
@@ -71,6 +79,7 @@ export function useSpotlightSearch({
   const agents = useAgents();
   const areas = useAreas();
   const buildings = useBuildings();
+  const settings = useSettings();
   const fileChanges = useFileChanges();
   // Used to order agents in the "Areas" tab exactly like the Agent Overview panel.
   const toolExecutions = useToolExecutions();
@@ -106,6 +115,8 @@ export function useSpotlightSearch({
   const [activeTab, setActiveTabState] = useState<SpotlightTab>(loadPersistedTab);
   // Folder/git-repo results fetched from the server (debounced, query-gated).
   const [folderData, setFolderData] = useState<FolderSearchResult[]>([]);
+  // Filename hits across every area directory (debounced, query-gated).
+  const [fileData, setFileData] = useState<GlobalFileSearchHit[]>([]);
   // Session full-text hits (debounced, query-gated). The query they were
   // fetched FOR rides along so click actions can prefill the Session Finder
   // with exactly what produced the hit.
@@ -154,6 +165,37 @@ export function useSpotlightSearch({
       clearTimeout(handle);
     };
   }, [isOpen, query]);
+
+  // Debounced filename search across every folder configured on areas.
+  const excludeDirsKey = (settings.fileSearchExcludeDirs ?? DEFAULT_FILE_SEARCH_EXCLUDE_DIRS).join(',');
+  useEffect(() => {
+    if (!isOpen) {
+      setFileData([]);
+      return;
+    }
+    const q = query.trim();
+    if (q.length < FILE_MIN_QUERY) {
+      setFileData([]);
+      return;
+    }
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      searchFilesGlobal(q, {
+        exclude: settings.fileSearchExcludeDirs ?? [...DEFAULT_FILE_SEARCH_EXCLUDE_DIRS],
+        limit: FILE_RESULT_LIMIT,
+      })
+        .then((files) => {
+          if (!cancelled) setFileData(files);
+        })
+        .catch(() => {
+          if (!cancelled) setFileData([]);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [isOpen, query, excludeDirsKey, settings.fileSearchExcludeDirs]);
 
   // Debounced full-text session search (the rg-engined /api/sessions/search —
   // fast enough for per-keystroke use; the server cancels superseded scans).
@@ -584,6 +626,38 @@ export function useSpotlightSearch({
     });
   }, [isOpen, folderData]);
 
+  // Filename hits from the debounced global search. Already query-filtered
+  // and ranked server-side. Clicking opens the big file explorer on the
+  // project root and reveals the file in the tree.
+  const fileResults: SearchResult[] = useMemo(() => {
+    if (!isOpen) return [];
+
+    return fileData.map((file) => {
+      const projectLabel = file.areaName && file.areaName !== file.projectName
+        ? `${file.projectName} · ${file.areaName}`
+        : file.projectName;
+      return {
+        id: `file-${file.path}`,
+        type: 'file' as const,
+        title: file.name,
+        subtitle: file.relativePath,
+        matchedText: `${file.path} ${projectLabel}`,
+        icon: getFileIconFromPath(file.path),
+        _searchText: `${file.name} ${file.relativePath} ${file.path} ${file.projectName} ${file.areaName}`,
+        _projectName: file.projectName,
+        _areaName: file.areaName,
+        action: () => {
+          onCloseRef.current();
+          const liveArea = store.getState().areas.get(file.areaId);
+          const rawDir = (liveArea?.directories || []).find((d) =>
+            d.replace(/\\/g, '/').replace(/\/+$/, '') === file.projectRoot.replace(/\/+$/, '')
+          ) || file.projectRoot;
+          store.revealFileInExplorer(file.path, rawDir);
+        },
+      };
+    });
+  }, [isOpen, fileData]);
+
   // Build session results from the debounced full-text search (rg-engined
   // server side, already ranked newest-first). Clicking jumps straight to the
   // agent that currently HOLDS the conversation, or opens the Session Finder
@@ -743,6 +817,7 @@ export function useSpotlightSearch({
     const matchedModifiedFiles = modifiedFileFuse.search(query).slice(0, 3);
     // Folders are already query-filtered + ranked server-side (no Fuse needed).
     const matchedFolders = folderResults.slice(0, 8);
+    const matchedFiles = fileResults.slice(0, FILE_ALL_TAB_LIMIT);
     const matchedBuildings = buildingFuse
       .search(query)
       .filter((r) => {
@@ -765,6 +840,7 @@ export function useSpotlightSearch({
       agent: 6,
       building: 5,
       folder: 4,
+      file: 4,
       command: 3,
       area: 2,
       'modified-file': 1,
@@ -846,6 +922,7 @@ export function useSpotlightSearch({
     for (const r of matchedAreas) pushScored(r.item, r.score);
     for (const r of matchedModifiedFiles) pushScored(r.item, r.score);
     for (const item of matchedFolders) pushScored(item, undefined);
+    for (const item of matchedFiles) pushScored(item, undefined);
 
     // Sort WITHIN each category. For AGENTS the user wants matching agents to
     // surface most-recently-USED first: relevance TIER stays the primary key
@@ -888,7 +965,7 @@ export function useSpotlightSearch({
     for (const item of sessionResults) finalResults.push(item);
 
     return finalResults;
-  }, [query, agentFuse, commandFuse, areaFuse, modifiedFileFuse, buildingFuse, commands, agentResults, areaResults, buildingResults, folderResults, sessionResults, recentAgentTimes]);
+  }, [query, agentFuse, commandFuse, areaFuse, modifiedFileFuse, buildingFuse, commands, agentResults, areaResults, buildingResults, folderResults, fileResults, sessionResults, recentAgentTimes]);
 
   // Filter the flat result list to the active tab. 'all' shows everything;
   // 'buildings'/'commands' filter by type; 'areas' is the flattened agent list
@@ -903,13 +980,15 @@ export function useSpotlightSearch({
         return allResults.filter((r) => r.type === 'command');
       case 'folders':
         return allResults.filter((r) => r.type === 'folder');
+      case 'files':
+        return fileResults;
       case 'areas':
         return areaSections.flatMap((s) => s.agents);
       case 'all':
       default:
         return allResults;
     }
-  }, [activeTab, allResults, areaSections]);
+  }, [activeTab, allResults, areaSections, fileResults]);
 
   // Clamp selected index to valid range
   useEffect(() => {

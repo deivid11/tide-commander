@@ -349,6 +349,16 @@ class Store
         merged.notificationSoundEnabled = DEFAULT_SETTINGS.notificationSoundEnabled;
         setStorageBoolean(STORAGE_KEYS.SOUND_OPT_IN_MIGRATED, true);
       }
+      if (
+        !Array.isArray(merged.fileSearchExcludeDirs)
+        || !merged.fileSearchExcludeDirs.every((name) => typeof name === 'string')
+      ) {
+        merged.fileSearchExcludeDirs = [...DEFAULT_SETTINGS.fileSearchExcludeDirs];
+      } else {
+        merged.fileSearchExcludeDirs = merged.fileSearchExcludeDirs
+          .map((name) => name.trim())
+          .filter(Boolean);
+      }
       return merged;
     }
     return { ...DEFAULT_SETTINGS };

@@ -5,6 +5,7 @@
  * - Agents (with modified files and user queries)
  * - Commands (spawn, commander view, settings)
  * - Areas (project groups)
+ * - Files (filename search across every area project)
  * - Modified files
  * - Recent activity
  */

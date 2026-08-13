@@ -17,3 +17,4 @@ export * from './websocket-messages.js';
 export * from './trigger-types.js';
 export * from './integration-types.js';
 export * from './workflow-types.js';
+export * from './file-search.js';

@@ -135,6 +135,8 @@ export function getTypeLabel(type: string): string {
       return 'Server';
     case 'folder':
       return 'Folder';
+    case 'file':
+      return 'File';
     default:
       return type;
   }

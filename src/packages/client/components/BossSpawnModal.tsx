@@ -4,7 +4,7 @@ import { store, useAgents, useCustomAgentClassesArray, useSkillsArray } from '..
 import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
 import { CODEX_REASONING_EFFORTS } from '../../shared/types';
-import { PERMISSION_MODES, AGENT_CLASSES, CLAUDE_MODELS, CODEX_MODELS } from '../../shared/types';
+import { PERMISSION_MODES, AGENT_CLASSES, CLAUDE_MODELS, CODEX_MODELS, DEFAULT_GROK_MODEL } from '../../shared/types';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
 import { FolderInput } from './shared/FolderInput';
@@ -621,7 +621,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                     placeholder="provider/model (e.g., minimax/MiniMax-M1-80k)"
                   />
                 ) : selectedProvider === 'grok' ? (
-                  <div className="spawn-inline-hint">grok-4.5</div>
+                  <div className="spawn-inline-hint">{DEFAULT_GROK_MODEL}</div>
                 ) : selectedProvider === 'pi' ? (
                   <div className="spawn-inline-hint">pi default (configure via agent edit)</div>
                 ) : (

@@ -110,6 +110,42 @@ describe('GrokBackend.buildArgs', () => {
     expect(args[args.indexOf('--reasoning-effort') + 1]).toBe('xhigh');
   });
 
+  it('clamps xHigh down to high on grok-4.5 (no xhigh tier)', () => {
+    const args = backend.buildArgs({
+      workingDir: '/tmp/project',
+      prompt: 'hi',
+      model: 'grok-4.5',
+      effort: 'xHigh',
+      permissionMode: 'bypass',
+    });
+
+    expect(args[args.indexOf('--reasoning-effort') + 1]).toBe('high');
+  });
+
+  it('clamps max to xhigh on grok-4.6 (Grok has no max tier)', () => {
+    const args = backend.buildArgs({
+      workingDir: '/tmp/project',
+      prompt: 'hi',
+      model: 'grok-4.6',
+      effort: 'max',
+      permissionMode: 'bypass',
+    });
+
+    expect(args[args.indexOf('--reasoning-effort') + 1]).toBe('xhigh');
+  });
+
+  it('omits --reasoning-effort for an unknown effort label', () => {
+    const args = backend.buildArgs({
+      workingDir: '/tmp/project',
+      prompt: 'hi',
+      model: 'grok-4.6',
+      effort: 'bogus' as never,
+      permissionMode: 'bypass',
+    });
+
+    expect(args).not.toContain('--reasoning-effort');
+  });
+
   it('declares no stdin and supports session resume', () => {
     expect(backend.requiresStdinInput()).toBe(false);
     expect(backend.shouldCloseStdinAfterPrompt?.()).toBe(true);

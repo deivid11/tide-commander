@@ -5,6 +5,7 @@
  */
 
 import { DEFAULT_TONES } from '../utils/notificationTones';
+import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS } from '../../shared/file-search';
 import type {
   Agent,
   DrawingArea,
@@ -216,6 +217,8 @@ export interface Settings {
   // Run Pi agents through a persistent `pi --mode rpc` process so mid-turn
   // messages STEER the live run instead of queueing (server-synced)
   piRpcMode: boolean;
+  // Folder names skipped by Spotlight / explorer filename search (node_modules, .git, …)
+  fileSearchExcludeDirs: string[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -246,6 +249,7 @@ export const DEFAULT_SETTINGS: Settings = {
   codexAppServerMode: false,
   opencodeServerMode: false,
   piRpcMode: false,
+  fileSearchExcludeDirs: [...DEFAULT_FILE_SEARCH_EXCLUDE_DIRS],
 };
 
 // Store state

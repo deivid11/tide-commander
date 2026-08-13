@@ -7,7 +7,8 @@
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useAreas, useFileViewerPath, useLatestTestRunId, useTestRun, useTestResultsModalOpen } from '../../store';
+import { store, useAreas, useFileViewerPath, useLatestTestRunId, useTestRun, useTestResultsModalOpen, useSettings } from '../../store';
+import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS } from '../../../shared/file-search';
 import { useFileViewerRevealInTree } from '../../store/selectors';
 import { matchesShortcut } from '../../store/shortcuts';
 import { DiffViewer } from '../DiffViewer';
@@ -85,6 +86,7 @@ export function FileExplorerPanel({
 }: FileExplorerPanelProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const areas = useAreas();
+  const settings = useSettings();
   const fileViewerPath = useFileViewerPath();
   const fileViewerRevealInTree = useFileViewerRevealInTree();
 
@@ -544,17 +546,19 @@ export function FileExplorerPanel({
     const timeoutId = setTimeout(async () => {
       try {
         const query = parsedSearch.query;
+        const exclude = (settings.fileSearchExcludeDirs ?? [...DEFAULT_FILE_SEARCH_EXCLUDE_DIRS]).join(',');
+        const excludeQs = `&exclude=${encodeURIComponent(exclude)}`;
 
         // Always search by filename
         const filenamePromise = authFetch(
-          apiUrl(`/api/files/search?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=200`),
+          apiUrl(`/api/files/search?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=200${excludeQs}`),
           { signal }
         ).then(res => res.json()).catch(() => ({ results: [] }));
 
         // Only search content if query is at least 2 chars and no line number specified
         const contentPromise = query.length >= 2 && !parsedSearch.lineNumber
           ? authFetch(
-              apiUrl(`/api/files/search-content?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=200`),
+              apiUrl(`/api/files/search-content?path=${encodeURIComponent(currentFolder)}&q=${encodeURIComponent(query)}&limit=200${excludeQs}`),
               { signal }
             ).then(res => res.json()).catch(() => ({ results: [] }))
           : Promise.resolve({ results: [] });
@@ -579,7 +583,7 @@ export function FileExplorerPanel({
       clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [parsedSearch.query, parsedSearch.lineNumber, currentFolder]);
+  }, [parsedSearch.query, parsedSearch.lineNumber, currentFolder, settings.fileSearchExcludeDirs]);
 
   // -------------------------------------------------------------------------
   // EFFECTS
