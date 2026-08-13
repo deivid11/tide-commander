@@ -39,6 +39,58 @@ export function consumeInstructionsDirty(agentId: string | undefined): boolean {
   return pendingRefresh.delete(agentId);
 }
 
+/** Minimal area shape needed to resolve the area-level prompt block. */
+export interface AreaPromptSource {
+  name: string;
+  prompt?: string;
+  assignedAgentIds: string[];
+}
+
+/**
+ * The area-prompt block an agent would receive, or undefined for none.
+ *
+ * Mirrors the backends exactly (`areas.find(a => a.assignedAgentIds.includes(id))`):
+ * the FIRST area listing the agent wins even when that area has no prompt — it
+ * does not fall through to a later one.
+ */
+export function resolveAreaPromptForAgent(
+  areas: AreaPromptSource[],
+  agentId: string
+): string | undefined {
+  const area = areas.find(a => a.assignedAgentIds.includes(agentId));
+  const prompt = area?.prompt?.trim();
+  return prompt ? `${area!.name}\n${prompt}` : undefined;
+}
+
+/**
+ * Flag every agent whose effective area prompt differs between two snapshots.
+ *
+ * Area prompts are baked into the instruction block when a session starts, so
+ * without this a running agent on a stdin backend (Codex/OpenCode/Grok/Pi) keeps
+ * the old text forever — editing an area's prompt appears to do nothing. Covers
+ * every way the resolved prompt can change: the text was edited, the area was
+ * renamed or deleted, or the agent moved between areas.
+ *
+ * Returns the affected agent ids (for logging).
+ */
+export function markInstructionsDirtyForAreaChanges(
+  previous: AreaPromptSource[],
+  next: AreaPromptSource[]
+): string[] {
+  const agentIds = new Set<string>();
+  for (const area of previous) for (const id of area.assignedAgentIds) agentIds.add(id);
+  for (const area of next) for (const id of area.assignedAgentIds) agentIds.add(id);
+
+  const affected: string[] = [];
+  for (const agentId of agentIds) {
+    if (resolveAreaPromptForAgent(previous, agentId) !== resolveAreaPromptForAgent(next, agentId)) {
+      markInstructionsDirty(agentId);
+      affected.push(agentId);
+    }
+  }
+  return affected;
+}
+
 /**
  * True when the user prompt is a bare CLI slash command (e.g. `/compact`,
  * `/clear`) with no arguments.

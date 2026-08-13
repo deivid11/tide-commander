@@ -78,7 +78,17 @@ export function createApp(): Express {
     }),
   );
 
-  app.use(express.json({ limit: '50mb' })); // Increased for audio uploads (STT)
+  // Increased for audio uploads (STT).
+  //
+  // /api/files/upload is exempt: it streams the raw request body itself with
+  // req.on('data'). When an uploaded file happens to be JSON (Content-Type
+  // application/json), this parser would consume the stream first, so the
+  // route's 'data'/'end' listeners never fire, no response is ever sent, and
+  // the request hangs until the browser gives up with "Failed to fetch".
+  const jsonParser = express.json({ limit: '50mb' });
+  app.use((req: Request, res: Response, next: NextFunction) => (
+    req.path === '/api/files/upload' ? next() : jsonParser(req, res, next)
+  ));
 
   // Request logging & timing
   app.use((req: Request, res: Response, next: NextFunction) => {
