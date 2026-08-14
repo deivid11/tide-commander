@@ -276,7 +276,18 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const markdownContentRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
-  const parsedReference = useMemo(() => parseFilePathReference(filePath), [filePath]);
+  // A path typed into the header box replaces the one passed in, so the modal
+  // can browse anywhere without being reopened from a tool card. Keyed to the
+  // incoming filePath so reopening on a DIFFERENT file discards a stale
+  // override on its own — clearing it from an effect instead would fire a
+  // second load for the path we just navigated away from.
+  const [pathOverride, setPathOverride] = useState<{ forFilePath: string; path: string } | null>(null);
+  const overrideRef = pathOverride?.forFilePath === filePath ? pathOverride.path : null;
+
+  const parsedReference = useMemo(
+    () => parseFilePathReference(overrideRef ?? filePath),
+    [overrideRef, filePath],
+  );
   // Resolve relative paths against searchRoot (the agent's cwd) so the modal
   // displays a canonical absolute path before the server response comes back.
   // Absolute paths and missing searchRoot pass through unchanged.
@@ -304,8 +315,46 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       setDirectoryPath(null);
       setFetchedUnifiedDiff(null);
       setFetchedOriginalContent(null);
+      // Reopening the same file should show that file, not wherever the last
+      // session was browsing.
+      setPathOverride(null);
     }
   }, [isOpen, effectivePath]);
+
+  // The path shown in (and typed into) the header box. Follows navigation while
+  // the box is not focused; while focused it is the user's draft and must not be
+  // yanked out from under them by a load completing.
+  const displayPath = fileData?.path || directoryPath || effectivePath;
+  const [pathDraft, setPathDraft] = useState('');
+  const [pathFocused, setPathFocused] = useState(false);
+
+  useEffect(() => {
+    if (!pathFocused) setPathDraft(displayPath);
+  }, [displayPath, pathFocused]);
+
+  const commitPathDraft = () => {
+    const next = pathDraft.trim();
+    if (!next || next === displayPath) {
+      setPathDraft(displayPath);
+      return;
+    }
+    setPathOverride({ forFilePath: filePath, path: next });
+  };
+
+  const handlePathKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitPathDraft();
+      e.currentTarget.blur();
+    } else if (e.key === 'Escape') {
+      // Revert and hand Escape back to the modal (blur first, since the global
+      // handler deliberately ignores keys typed inside an input).
+      e.preventDefault();
+      e.stopPropagation();
+      setPathDraft(displayPath);
+      e.currentTarget.blur();
+    }
+  };
 
   // Focus overlay when modal opens to capture keyboard events
   useEffect(() => {
@@ -1185,7 +1234,23 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
         </div>
 
         <div className="file-viewer-path">
-          {fileData?.path || directoryPath || effectivePath}
+          <input
+            type="text"
+            className="file-viewer-path-input"
+            value={pathDraft}
+            spellCheck={false}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            aria-label={t('terminal:fileViewer.pathInputLabel', { defaultValue: 'File path — edit and press Enter to open' })}
+            title={t('terminal:fileViewer.pathInputTitle', { defaultValue: 'Edit the path and press Enter to open another file or folder' })}
+            onChange={(e) => setPathDraft(e.target.value)}
+            onFocus={(e) => { setPathFocused(true); e.target.select(); }}
+            // Blur reverts rather than loads: a stray click elsewhere should
+            // never navigate. Enter is the only thing that commits.
+            onBlur={() => { setPathFocused(false); setPathDraft(displayPath); }}
+            onKeyDown={handlePathKeyDown}
+          />
         </div>
 
         {fileData && (

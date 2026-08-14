@@ -4,10 +4,15 @@ import './i18n';
 import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { initializeTheme } from './utils/themes';
+import { installTooltipLeakFix } from './utils/tooltipLeakFix';
 import './styles/main.scss';
 
 // Initialize theme from localStorage before React renders
 initializeTheme();
+
+// Keep Chromium from stranding a native tooltip above every other app when the
+// window loses focus while one is showing (most visible in the installed app).
+installTooltipLeakFix();
 
 // Recover from stale Vite chunk references after the server has been rebuilt
 // while this tab was idle. Vite emits `vite:preloadError` when a hashed

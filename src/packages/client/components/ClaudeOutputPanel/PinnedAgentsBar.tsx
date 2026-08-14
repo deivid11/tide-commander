@@ -8,6 +8,7 @@ import { useDockRoster, useWorkRecency } from './useDockRoster';
 import { useAgentDockRecentSize } from './agentDockPosition';
 import { useDockFlip } from './useDockFlip';
 import type { DockLane } from './dockRoster';
+import { providerAssetUrl, providerCssClass, providerLabel } from '../../utils/providerDisplay';
 import type { Agent } from '../../../shared/types';
 
 /**
@@ -361,6 +362,7 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
     const areaColor = areaColorById.get(agent.id) ?? null;
     const hasUnread = unseenAgents.has(agent.id);
     const isBoss = agent.class === 'boss' || !!agent.isBoss;
+    const provider = providerLabel(agent.provider);
     return (
       <button
         ref={registerItem(agent.id)}
@@ -371,10 +373,11 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
         }${isPinned ? '' : ' pinned-agent--unpinned'}${
           exitingIds.has(agent.id) ? ' exiting' : ''
         }${draggingId === agent.id ? ' dragging' : ''}${dropTarget && dropTarget.id === agent.id ? (dropTarget.after ? ' drop-after' : ' drop-before') : ''}`}
-        title={`${agent.name} — ${agent.status}${hasUnread ? ' — new output' : ''}${isPinned ? '' : ' — not pinned (right-click to pin)'}`}
+        title={`${agent.name} · ${provider} — ${agent.status}${hasUnread ? ' — new output' : ''}${isPinned ? '' : ' — not pinned (right-click to pin)'}`}
         // Keep an accessible name even in miniature mode, where the visible
-        // name label is hidden via CSS.
-        aria-label={`${agent.name}${hasUnread ? ', new output' : ''}${isPinned ? '' : ', not pinned'}`}
+        // name label is hidden via CSS. The provider badge is decorative, so its
+        // name rides here rather than as image alt text.
+        aria-label={`${agent.name}, ${provider}${hasUnread ? ', new output' : ''}${isPinned ? '' : ', not pinned'}`}
         style={areaColor ? ({ ['--area-color']: areaColor } as React.CSSProperties) : undefined}
         onClick={() => handleSelect(agent)}
         // Warm the history cache during hover so the switch on click paints
@@ -388,6 +391,16 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
       >
         <span className="pinned-agent-av">
           <AgentIcon classId={agent.class} size="100%" customClasses={customClasses} />
+          {/* Provider badge, bottom-right — the two free corners of the avatar
+              are taken by the unread dot (top-left) and the unpin × (top-right).
+              Survives miniature mode, where the name label is hidden. */}
+          <img
+            className={`pinned-agent-provider ${providerCssClass(agent.provider)}`}
+            src={providerAssetUrl(agent.provider, import.meta.env.BASE_URL)}
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+          />
         </span>
         {hasUnread && <span className="pinned-agent-notif" aria-hidden="true" />}
         <span className="pinned-agent-name">{agent.name}</span>

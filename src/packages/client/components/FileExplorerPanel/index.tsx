@@ -13,6 +13,7 @@ import { useFileViewerRevealInTree } from '../../store/selectors';
 import { matchesShortcut } from '../../store/shortcuts';
 import { DiffViewer } from '../DiffViewer';
 import { apiUrl, authFetch } from '../../utils/storage';
+import { downloadFile, downloadFolder } from '../../utils/fileDownload';
 
 // Types
 import type {
@@ -1334,6 +1335,19 @@ export function FileExplorerPanel({
         },
       );
     }
+
+    actions.push(
+      { id: 'divider-download', label: '', divider: true, onClick: () => {} },
+      {
+        id: 'download',
+        label: node.isDirectory ? 'Download Folder (.zip)' : 'Download File',
+        icon: <Icon name="download" size={14} />,
+        onClick: () => {
+          if (node.isDirectory) downloadFolder(node.path, node.name);
+          else downloadFile(node.path, node.name);
+        },
+      },
+    );
 
     actions.push(
       { id: 'divider-delete', label: '', divider: true, onClick: () => {} },

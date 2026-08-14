@@ -475,11 +475,16 @@ mismo tratamiento a Qwen3.6-35B-A3B `Q3_K_L`, validado el 12 de agosto:
 - El MTP se conserva: Qwen es atención pura y no sufre el atasco del híbrido.
   Validado con 500 tokens de salida: 10.5 s totales, sin trabas, aceptación
   de drafts de 0.52.
-- Con `--n-cpu-moe 23`, `ubatch` 1024 y el resto de flags del perfil diario,
-  el proceso queda en 12.1 GB de VRAM (~3.3 GB libres tras generar). Prefill
-  de 1,155 tok/s con un prompt de 7,164 tokens (medido con `--n-cpu-moe` 20;
-  con 23 baja ligeramente) y generación de 47-55 tok/s. La caché entre turnos
-  reutilizó 7,160 tokens.
+- Con `--n-cpu-moe 26`, `ubatch` 1024 y el resto de flags del perfil diario,
+  el proceso queda en ~11.0 GB de VRAM y la generación en ~52 tok/s. Se subió
+  de 23 a 26 el 14 de agosto: con 23 (proceso de 12.1 GB) y el escritorio
+  pesado (~3 GB de VRAM del navegador) la VRAM se sobresuscribía y el driver
+  desbordaba a GTT, congelando la generación por ráfagas de segundos
+  (firma en el log: `tg_3s` colapsando a <10 tok/s con recuperación
+  posterior; nada que ver con el wedge del MTP de Nemotron, que no se
+  recupera). Prefill de referencia: 1,155 tok/s con 7,164 tokens (medido con
+  `--n-cpu-moe` 20; con 26 baja algo). La caché entre turnos reutilizó 7,160
+  tokens.
 - Ambos scripts comparten el puerto 8080: solo puede correr uno a la vez, y
   un guard al inicio avisa si ya hay un `llama-server` activo.
 
@@ -508,6 +513,93 @@ propios modelos (`qwen3.6:27b`, `gemma4`, etc.). Nemotron no está en ollama;
 todo lo de este documento usa `llama-server`. Si ollama no se usa, conviene
 apagarlo (`systemctl disable --now ollama`) para que no cargue un segundo
 modelo compitiendo por la misma GPU y RAM.
+
+## Qwen3.8-27B denso: probado y descartado como driver diario
+
+El 14 de agosto se instaló `bartowski/Qwen3.8-27B-GGUF` IQ4_XS (14.5 GiB,
+modelo base `Qwen/Qwen3.8-27B`, denso de 28B/64 capas, multimodal, MTP
+embebido). El build local `89e0aa6` lo carga sin recompilar (arquitectura
+`qwen35`). GGUF en `../.cache/llama-opt/models/Qwen3.8-27B-IQ4_XS.gguf`,
+script en `../tc-playground/nemotron-desktop-profile/start-qwen38-desktop.sh`.
+
+Al ser denso no existe la palanca `--n-cpu-moe`: cada token toca todos los
+pesos, y su KV con GQA de 64 capas cuesta ~72 KiB/token en `q4_0` (163K de
+contexto serían ~11.5 GB solo de KV). La mejor configuración encontrada
+(42/64 capas en GPU, ctx 32,768, `threads-batch` 16, MTP 3) midió:
+
+| Métrica | Qwen3.8-27B denso | Qwen3.6-35B-A3B (perfil diario) |
+| --- | ---: | ---: |
+| Generación | 11.2 tok/s | 47-55 tok/s |
+| Prefill (~1K de prompt real) | 252 tok/s | ~1,000-1,400 tok/s |
+| Contexto | 32,768 | 163,840 |
+| VRAM del proceso | 11.8 GB | 12.1 GB |
+
+Un prompt de agente de 25K tokens tardaría ~100 s solo de prefill. Con capas
+en CPU el cuello es el tráfico de RAM de un denso (~6 GB por token con 22
+capas fuera), fisicamente incomparable con los 3B activos del MoE.
+
+### Segunda ronda: IQ3_XXS todo-en-GPU (perfil final del denso)
+
+La optimización a fondo del mismo día confirmó que en un denso las capas de
+CPU son el veneno completo: con solo 3 capas fuera (61/64 en GPU) la
+generación cae de 31.3 a 18.9 tok/s. La única configuración rápida es meter
+TODOS los pesos en VRAM, lo que exige bajar a `IQ3_XXS` (11.76 GiB) y
+recortar el contexto a 16,384 (el KV cuesta ~72 KiB/token):
+
+| Configuración (IQ3_XXS salvo indicado) | Generación | Nota |
+| --- | ---: | --- |
+| IQ4_XS, 42/64 GPU, ctx 32K (ronda 1) | 11.2 tok/s | híbrido, prefill 252 |
+| Todo-en-GPU, MTP 3, ubatch 1024 | 31.9 tok/s | proceso 13.8 GB |
+| Todo-en-GPU, MTP 3, ubatch 512 | 31.3 tok/s | proceso 13.7 GB, prefill 501 @4K |
+| Todo-en-GPU, MTP 4 | 27.1 tok/s | aceptación cae a 0.37 |
+| Todo-en-GPU, MTP 6 | 21.8 tok/s | aceptación colapsa a 0.24 |
+| 61/64 GPU (3 capas CPU), MTP 3 | 18.9 tok/s | proceso 12.8 GB |
+
+Perfil final en `start-qwen38-desktop.sh`: IQ3_XXS, `--n-gpu-layers 999`,
+ctx 24,576 (subido de 16,384 el 14 de agosto a petición de David; es el tope
+todo-en-GPU), KV `q4_0`, ubatch 512, MTP 3 → **~31 tok/s**, prefill ~500
+tok/s a 4K, proceso 13.95 GB. Se pidió 150K de contexto: es físicamente
+imposible en el denso (sin sliding window, KV de 72 KiB/token → 150K = ~10.5
+GB solo de caché, más 11.8 GiB de pesos, no cabe ni sacrificando todo el
+escritorio; con offload masivo a CPU daría ~6 tok/s y prefills de minutos).
+Advertencia reforzada: con 13.95 GB de proceso, el escritorio pesado (~3 GB)
+sobresuscribe la VRAM y aparecen congelones transitorios; usar el denso con
+pestañas cerradas.
+
+Nota MTP (14 de agosto, a raíz de un benchmark viral de una RTX 4090): se
+midió la base sin MTP del perfil todo-en-GPU: 19.9 tok/s. El MTP con
+profundidad 3-4 da 31.3-31.4 (1.58×, mejor ratio que el 1.47× del post
+citado). La receta del post (`--spec-draft-n-max 4 --spec-draft-p-min 0.7`)
+no sube la velocidad aquí, pero sí la aceptación (0.49 → 0.66, menos
+cómputo tirado), y se adoptó. Los 60 tok/s del post son hardware: 24 GB de
+VRAM (caben Q4_K_XL de 16.5 GiB + 130K de KV) y ~1 TB/s de banda; en 16 GB
+no hay flag que lo replique.
+
+Gotcha del template (tercer "crash" reportado el 14 de agosto): la plantilla
+Jinja del GGUF define `reasoning_effort|default('xhigh')` — por defecto el
+modelo razona larguísimo, y con el `maxTokens` de 4,096 que tenía la ficha de
+pi chocaba con el techo a media respuesta (firma en el log: `eval time ... /
+4096 tokens` exactos y turnos de 2+ minutos). Fix aplicado: el script lanza
+con `--chat-template-kwargs '{"reasoning_effort":"medium"}'` (valores
+válidos: `xhigh|medium|low`, y `enable_thinking false` para apagarlo) y la
+ficha de pi subió a `maxTokens` 8,192. Verificado: misma pregunta pasó de
+4,096 tokens cortados a 1,013 completos con `finish_reason: stop`. El GGUF `IQ4_XS` se conserva como variante de calidad
+(híbrida, 11 tok/s). El agente pi "Nico" (yfmupmgv) usa `ollama/qwen3.8-27b`
+con ventana 24,576 en `~/.pi/agent/models.json`; mientras el denso esté
+cargado, los agentes apuntados a `qwen3.6` (131K de ventana declarada)
+sufrirían truncamiento si superan 24K reales — no usarlos hasta volver al
+3.6.
+
+Veredicto: el 3.6-35B-A3B sigue siendo el driver diario (47-55 tok/s, 163K de
+contexto); el 3.8-27B queda como perfil opcional de calidad, ahora a
+velocidad usable, con el modelo `qwen3.8-27b` registrado en
+`~/.pi/agent/models.json` (ctx 16,384). Qwen no publicó un MoE mediano en la
+serie 3.8 (solo el 27B denso y un 2.4T-A95B); si aparece un sucesor A3B, esa
+será la actualización real.
+
+Del caché de Qwen3.6 se borraron los quants de comparación `Q4_K_M` (20.7
+GiB) e `IQ4_XS` (18.35 GiB), liberando ~39 GiB; el `Q3_K_L` activo se
+conserva porque el 3.8 no puede reemplazarlo.
 
 ## Alternativas probadas y descartadas
 

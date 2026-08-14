@@ -53,9 +53,17 @@ Accepted signatures are `build()`, `build(params)`, and
 select `"lower"` even when FreeCAD renamed the internal object.
 
 Headless scripts must not import `FreeCADGui` or unconditionally touch
-`ViewObject`. Shared scripts can guard GUI-only decoration with:
+`ViewObject`. A headless `saveAs` writes `Document.xml` only — there is no
+`GuiDocument.xml` — so the Tide Commander 3D viewer will not see
+`ViewObject.ShapeColor`. Persist the colour on the App object as well:
 
 ```python
+if "ShapeColor" not in part.PropertiesList:
+    part.addProperty("App::PropertyColor", "ShapeColor", "View")
+part.ShapeColor = (0.4, 0.6, 0.8)
+if "Transparency" not in part.PropertiesList:
+    part.addProperty("App::PropertyPercent", "Transparency", "View")
+part.Transparency = 0
 if App.GuiUp:
     part.ViewObject.ShapeColor = (0.4, 0.6, 0.8)
 ```

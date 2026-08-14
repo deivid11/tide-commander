@@ -89,6 +89,7 @@ export const STORAGE_KEYS = {
   GIT_PANEL_MODE: 'guake-git-panel-mode',
   GIT_PANEL_VIEW_MODE: 'guake-git-view-mode',
   GIT_PANEL_FOLDER_IDX: 'guake-git-folder-idx',
+  GIT_PANEL_RECENTS_OPEN: 'guake-git-recents-open',
 
   // Shared STL / FreeCAD web viewer appearance
   THREE_VIEWER_SETTINGS: 'tide-three-viewer-settings',

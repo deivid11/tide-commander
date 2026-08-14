@@ -1000,6 +1000,31 @@
   }
 }
 
+// Provider badge (Claude / Codex / OpenCode / Grok / Pi) tucked into the
+// avatar's bottom-right — the only free corner, with the unread dot at
+// top-left and the unpin × at top-right. Overrides the generic
+// `.pinned-agent-av img` rule above, which would otherwise stretch it to the
+// full avatar box. Stays visible in miniature mode, where it is the only
+// on-chip hint of which CLI is behind the agent.
+//
+// Selector must out-specify `.pinned-agent-av img` (0,1,1) above — a bare
+// `.pinned-agent-provider` (0,1,0) would lose border-radius and object-fit to
+// it and the badge would render stretched and square-cornered.
+.pinned-agent-av img.pinned-agent-provider {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  object-fit: contain;
+  background: var(--bg-primary);
+  border: 1px solid var(--bg-primary);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--text-muted) 45%, transparent);
+  z-index: 2;
+  pointer-events: none;
+}
+
 .pinned-agent-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1224,6 +1249,15 @@
     left: -2px;
     width: 8px;
     height: 8px;
+  }
+  // Same reasoning for the provider badge on the opposite corner: the chip's
+  // 2px padding here is tighter than the desktop one, so -3px would poke past
+  // the pill and get clipped by its overflow.
+  .pinned-agent-av img.pinned-agent-provider {
+    right: -2px;
+    bottom: -2px;
+    width: 9px;
+    height: 9px;
   }
   // Boss identity on mobile: the chip reset above strips borders (bare icons on
   // the pill), so the gold ring hugs the avatar instead. Distinct from the

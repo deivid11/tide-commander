@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.183.0] - 2026-08-14
+
+### Added
+- **Drag files out of the browser** - a file in the explorer or the git panel can be dragged straight into Finder, Explorer, an editor or a mail composer. Folders travel as a `.zip`, since the OS has no way to accept a stream of loose files from a web page, and the archive is streamed rather than assembled in memory, so a multi-gigabyte source tree costs a constant amount of RAM. A file that vanishes mid-walk (build output, a temp file) is skipped rather than failing the whole archive, and cancelling the drag abandons the walk instead of churning the disk with nowhere to write. This is Chromium-only; elsewhere the drop lands as a URL.
+- **Download a folder as a zip** - the same archive is available as an ordinary download from the file trees.
+- **Recent project folders in the Files tab** - the explorer lists the ten working directories you have most recently been in, newest first and deduplicated (many agents share one repo). Recency uses the same signal as the agent dock, so it reflects where you have actually been working rather than merely which agents exist. Picking one takes over the explorer until you switch agent, so the tab keeps following the selected agent by default instead of silently pinning another project's folder.
+- **Browse to any path from the file viewer** - the viewer's header accepts a typed path, so you can navigate anywhere without reopening it from a tool card. Reopening on a different file discards the override, so you always land on the file you asked for rather than wherever the last session was browsing.
+
+### Fixed
+- **FreeCAD viewer used one colour for every part of a headless assembly** - `.FCStd` files saved by `FreeCADCmd` have no `GuiDocument.xml`, and the viewer only read `ShapeColor` / `ShapeAppearance` from that GUI file. It now also reads App-side `ShapeColor`, `DiffuseColor` and `Transparency` from `Document.xml`, and treats FreeCAD display colours as sRGB, so a PCB, a battery and a case keep their own colours.
+- **Uploads failing with a network error while everything else worked** - Node closes an idle keep-alive socket after five seconds, but browsers hold sockets in their pool far longer. When the two raced, the browser wrote a request onto a socket the server was closing and it died mid-flight. Browsers silently retry an idempotent GET, but never a POST, so the only visible symptom was an upload failing outright. The server's idle window now sits well past any browser's.
+- **Tooltips stranded on top of every other application** - Chromium renders a native tooltip as its own floating window, and an installed web app can fail to tear it down when the window is deactivated mid-hover (Alt+Tab, or any other app taking focus). The tooltip then floats above everything and survives moving the cursor away, hiding the app, even minimizing it. Tide Commander now strips the `title` from whatever the cursor is over when the window loses focus, which destroys the tooltip window immediately, and restores it on focus.
+
 ## [1.182.1] - 2026-08-12
 
 ### Fixed

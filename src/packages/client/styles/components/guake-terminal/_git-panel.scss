@@ -1145,3 +1145,90 @@
 @keyframes guake-git-loadbar-sweep {
   to { left: 100%; }
 }
+
+// ── Recent folders ──────────────────────────────────────────────────────────
+// Pinned to the bottom of the Files tab. `margin-top: auto` parks it against
+// the floor no matter how short the tree is, and it never scrolls away with
+// the tree because it sits outside the scrolling list.
+.guake-git-recents {
+  margin-top: auto;
+  flex: none;
+  border-top: 1px solid color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 35%, transparent);
+}
+
+.guake-git-recents-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 5px 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+
+  &:hover { color: var(--text-primary); }
+}
+
+.guake-git-recents-title { flex: 1; text-align: left; }
+
+.guake-git-recents-count {
+  padding: 0 5px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
+  font-size: 9px;
+}
+
+// Capped so a long list can never swallow the tree — it scrolls on its own.
+.guake-git-recents-list {
+  max-height: 180px;
+  overflow-y: auto;
+  padding-bottom: 4px;
+}
+
+.guake-git-recent-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 10px;
+  background: none;
+  border: none;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: $font-mono;
+  text-align: left;
+
+  &:hover {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--bg-tertiary) 45%, transparent);
+  }
+
+  &.active {
+    color: var(--text-primary);
+    border-left-color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+  }
+}
+
+.guake-git-recent-name { flex: none; }
+
+// The parent path is context, not the label — it yields all the width and
+// truncates from the LEFT so the meaningful tail stays readable.
+.guake-git-recent-dir {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  opacity: 0.55;
+  font-size: 10px;
+}

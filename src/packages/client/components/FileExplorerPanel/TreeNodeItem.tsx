@@ -8,6 +8,7 @@
 import React, { memo, useMemo } from 'react';
 import type { TreeNode, TreeNodeProps, GitFileStatusType } from './types';
 import { getFileIcon, findMatchIndices } from './fileUtils';
+import { setNativeFileDrag } from '../../utils/fileDownload';
 import { Icon } from '../Icon';
 
 // ============================================================================
@@ -139,6 +140,15 @@ function TreeNodeItemComponent({
     onContextMenu(e, compactChain.terminalNode);
   };
 
+  // Drag a row straight out of the browser into any OS app (Finder, an editor,
+  // a mail composer). Folders travel as a .zip — the OS has no way to accept a
+  // stream of loose files from a web page. Chromium-only; elsewhere the drop
+  // lands as a URL (see setNativeFileDrag).
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    setNativeFileDrag(e.dataTransfer, node);
+  };
+
   return (
     <div className="tree-node-wrapper">
       <div
@@ -148,6 +158,8 @@ function TreeNodeItemComponent({
         style={{ paddingLeft: `${depth * 16}px` }}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
+        draggable
+        onDragStart={handleDragStart}
         data-path={node.path}
       >
         {node.isDirectory ? (

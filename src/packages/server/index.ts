@@ -218,6 +218,16 @@ async function main(): Promise<void> {
   const sockets = new Set<Socket>();
 
   for (const { server: listener } of listeners) {
+    // Node closes idle keep-alive sockets after 5s by default; browsers hold
+    // them in their pool far longer. When the two race — the browser writes a
+    // request onto a socket the server is closing — the request dies mid-flight.
+    // Browsers silently retry idempotent GETs, but never a POST, so the symptom
+    // is an upload failing with net::ERR_FAILED while every GET looks fine, and
+    // server-side an ECONNRESET the instant the headers land. Widen the window
+    // past any browser's idle timeout; headersTimeout must stay above it.
+    listener.keepAliveTimeout = 75_000;
+    listener.headersTimeout = 80_000;
+
     listener.on('connection', (socket: Socket) => {
       sockets.add(socket);
       socket.on('close', () => {

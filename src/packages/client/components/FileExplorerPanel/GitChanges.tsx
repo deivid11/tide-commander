@@ -14,6 +14,7 @@ import { GIT_STATUS_CONFIG } from './constants';
 import { buildGitTree, collectGitTreeDirPaths, getIconForExtension } from './fileUtils';
 import type { GitTreeNode } from './fileUtils';
 import { apiUrl, authFetch } from '../../utils/storage';
+import { downloadFile, downloadFolder } from '../../utils/fileDownload';
 import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
 import { useToast } from '../Toast';
@@ -586,6 +587,16 @@ function GitChangesComponent({
       });
     }
 
+    // Nothing to fetch for a deleted file — it is gone from disk.
+    if (status !== 'deleted') {
+      actions.push({
+        id: 'download-file',
+        label: 'Download File',
+        icon: <Icon name="download" size={14} />,
+        onClick: () => downloadFile(file.path, file.path.split('/').pop() || 'file'),
+      });
+    }
+
     actions.push({ id: 'divider-1', label: '', divider: true, onClick: () => {} });
 
     // Discard Changes / Delete File (danger actions)
@@ -700,6 +711,13 @@ function GitChangesComponent({
         label: `Stage All (${files.length} files)`,
         icon: <Icon name="plus" size={14} />,
         onClick: () => { void onStageFiles(files.map(f => f.path)); },
+      },
+      { id: 'divider-download', label: '', divider: true, onClick: () => {} },
+      {
+        id: 'download-dir',
+        label: 'Download Folder (.zip)',
+        icon: <Icon name="download" size={14} />,
+        onClick: () => downloadFolder(node.path, node.name),
       },
     ];
   }, [gitDirContextMenu, collectFilesFromNode, handleDiscardDir, onStageFiles]);

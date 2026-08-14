@@ -171,6 +171,35 @@
   text-overflow: ellipsis;
 }
 
+// The path doubles as an address bar: type a path, press Enter to open it.
+// Chromeless by default so the row still reads as a caption, and only picks up
+// input affordances on hover/focus.
+.file-viewer-path-input {
+  width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  text-overflow: ellipsis;
+  cursor: text;
+
+  &:hover:not(:focus) {
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.04);
+  }
+
+  &:focus {
+    outline: none;
+    color: var(--text-primary);
+    background: var(--bg-primary);
+    box-shadow: 0 0 0 4px var(--bg-primary), 0 0 0 5px var(--accent-cyan);
+    text-overflow: clip;
+  }
+}
+
 .file-viewer-meta {
   display: flex;
   gap: 10px;
