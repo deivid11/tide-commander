@@ -184,7 +184,12 @@ export function FcStdViewer({ url, filename, filePath, onFileSelect }: FcStdView
         geometries.push(geometry);
 
         const material = new THREE.MeshStandardMaterial({
-          color: new THREE.Color(...meshData.color),
+          color: new THREE.Color().setRGB(
+            meshData.color[0],
+            meshData.color[1],
+            meshData.color[2],
+            THREE.SRGBColorSpace,
+          ),
           metalness: 0.05,
           roughness: 0.68,
           side: THREE.DoubleSide,

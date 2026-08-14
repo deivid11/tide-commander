@@ -6,6 +6,7 @@
 import { Router, Request, Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
+import archiver from 'archiver';
 import { execFile, execFileSync, execSync, spawn } from 'child_process';
 import * as os from 'os';
 import { pathToFileURL } from 'url';
@@ -966,6 +967,86 @@ router.get('/binary', async (req: Request, res: Response) => {
   } catch (err: any) {
     log.error(' Failed to read binary file:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/files/download-folder - Stream a whole directory as a .zip
+//
+// Streams rather than building the archive in memory, so a multi-GB source tree
+// costs a constant amount of RAM. Auth accepts ?token= (see
+// extractTokenFromRequest), which is what makes this usable as a plain browser
+// download and as a native drag-out target — neither can send an auth header.
+router.get('/download-folder', async (req: Request, res: Response) => {
+  try {
+    const resolution = resolveAndValidateFilePath(
+      req.query.path as string | undefined,
+      req.query.baseDir as string | undefined,
+    );
+    if (!resolution.ok) {
+      res.status(resolution.status).json({ error: resolution.error });
+      return;
+    }
+    const dirPath = resolution.path;
+
+    if (!fs.existsSync(dirPath)) {
+      res.status(404).json({ error: 'Directory not found', path: dirPath });
+      return;
+    }
+    if (!fs.statSync(dirPath).isDirectory()) {
+      res.status(400).json({ error: 'Path is not a directory', path: dirPath });
+      return;
+    }
+
+    const folderName = path.basename(dirPath) || 'folder';
+    // Strip characters that would break the header or escape the filename quote.
+    const safeName = folderName.replace(/["\\\r\n]/g, '_');
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName}.zip"`);
+
+    // store-level for speed on already-compressed trees would be worse for
+    // source code; 6 is the balanced default.
+    const archive = archiver('zip', { zlib: { level: 6 } });
+
+    archive.on('warning', (err) => {
+      // ENOENT here is a file that vanished mid-walk (build output, temp file) —
+      // not worth failing an otherwise good archive.
+      if (err.code === 'ENOENT') {
+        log.warn(` Skipped missing entry while zipping ${dirPath}: ${err.message}`);
+      } else {
+        log.error(' Archive warning:', err);
+      }
+    });
+
+    archive.on('error', (err) => {
+      log.error(' Failed to zip folder:', err);
+      // Headers are already sent once streaming starts, so the only honest
+      // signal left is to break the response rather than end it cleanly and
+      // hand back a silently truncated archive.
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to create archive' });
+      } else {
+        res.destroy(err);
+      }
+    });
+
+    // Abandon the walk if the client goes away (cancelled download / drag), so a
+    // big tree doesn't keep churning the disk with nowhere to write.
+    res.on('close', () => {
+      if (!res.writableEnded) void archive.abort();
+    });
+
+    archive.pipe(res);
+    // Nest under the folder's own name so unzipping never scatters files
+    // across the download directory.
+    archive.directory(dirPath, folderName);
+    await archive.finalize();
+    log.log(` Zipped folder: ${dirPath} (${archive.pointer()} bytes)`);
+  } catch (err: any) {
+    log.error(' Failed to download folder:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
+    }
   }
 });
 
@@ -3437,9 +3518,13 @@ router.post('/upload', async (req: Request, res: Response) => {
 
     // Collect body data
     const chunks: Buffer[] = [];
+    let received = 0;
+    const startedAt = Date.now();
+    const declaredLength = Number(req.headers['content-length'] || 0);
 
     req.on('data', (chunk: Buffer) => {
       chunks.push(chunk);
+      received += chunk.length;
     });
 
     req.on('end', () => {
@@ -3461,9 +3546,27 @@ router.post('/upload', async (req: Request, res: Response) => {
       });
     });
 
+    // A bare "Upload error: ECONNRESET" says nothing about WHERE the transfer
+    // died, which is the only thing that separates a client abort from a
+    // connection torn down under us. Record how far the body got, so the log
+    // line alone distinguishes "never sent a byte" (socket was already dead —
+    // e.g. a keep-alive reuse race) from "stalled at N bytes" (network/size).
+    const describeTransfer = () => {
+      const elapsed = Date.now() - startedAt;
+      const pct = declaredLength > 0 ? ` (${Math.round((received / declaredLength) * 100)}%)` : '';
+      return `${received}/${declaredLength || '?'} bytes${pct} after ${elapsed}ms`
+        + ` · type=${contentType || 'none'} · secure=${req.secure} · peer=${req.socket.remoteAddress || '?'}`;
+    };
+
+    req.on('aborted', () => {
+      log.error(` Upload aborted by client: ${describeTransfer()}`);
+    });
+
     req.on('error', (err) => {
-      log.error(' Upload error:', err);
-      res.status(500).json({ error: 'Upload failed' });
+      log.error(` Upload error (${(err as NodeJS.ErrnoException).code || err.message}): ${describeTransfer()}`);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Upload failed' });
+      }
     });
   } catch (err: any) {
     log.error(' Failed to upload file:', err);

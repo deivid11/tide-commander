@@ -14,6 +14,8 @@ import { useAreas, useGitDirStatuses } from '../../store';
 import { acquireGitWatch, requestGitRefresh } from '../../services/gitWatch';
 import { DiffViewer } from '../DiffViewer';
 import { GIT_STATUS_CONFIG } from '../FileExplorerPanel/constants';
+import { downloadFile, downloadFolder, setNativeFileDrag } from '../../utils/fileDownload';
+import { agentRecency, getRecentAgentTimes } from '../../utils/agentRecency';
 import { getIconForFileName, buildGitTree } from '../FileExplorerPanel/fileUtils';
 import { getLanguageForExtension } from '../FileExplorerPanel/syntaxHighlighting';
 import type { GitTreeNode } from '../FileExplorerPanel/fileUtils';
@@ -95,6 +97,8 @@ const AUTO_EXPAND_MAX_FILES = 500;
 // Filter results auto-expand, so a loose query ("s") on a huge repo would
 // otherwise paint every change at once. Beyond this the user refines instead.
 const FILTER_RENDER_CAP = 300;
+/** How many recently-used agent working directories the Files tab lists. */
+const RECENT_FOLDER_LIMIT = 10;
 
 // The Files tab tree is lazy-loaded (3 levels), so a filter there also asks the
 // server to walk the folder — debounced, and only once the seed term is usable.
@@ -561,8 +565,53 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     });
   }, []);
 
+  // The 10 most recently used agents' working directories, newest first.
+  //
+  // Recency is the same signal the agent dock uses (agentRecency: the later of
+  // the locally recorded selection and the agent's own activity), so the list
+  // reflects where you have actually been working — not merely which agents
+  // exist. Deduped by directory, since many agents share one repo.
+  const recentFolders = useMemo(() => {
+    const recentTimes = getRecentAgentTimes();
+    const ranked = Array.from(agents.values())
+      .filter((a) => a.cwd && a.cwd.trim())
+      .map((a) => ({
+        dir: a.cwd.replace(/\/+$/, '') || a.cwd,
+        agentName: a.name,
+        when: agentRecency(a.id, Math.max(a.lastWorkedAt ?? 0, a.lastActivity ?? 0), recentTimes),
+      }))
+      .sort((a, b) => b.when - a.when);
+
+    const seen = new Set<string>();
+    const out: Array<{ dir: string; agentName: string; when: number }> = [];
+    for (const entry of ranked) {
+      if (seen.has(entry.dir)) continue;
+      seen.add(entry.dir);
+      out.push(entry);
+      if (out.length >= RECENT_FOLDER_LIMIT) break;
+    }
+    return out;
+  }, [agents]);
+
+  // A folder picked from the recents list takes over the explorer. Cleared when
+  // the panel switches agent, so the Files tab keeps following the selected
+  // agent by default instead of silently pinning a folder from another project.
+  const [recentFolderOverride, setRecentFolderOverride] = useState<string | null>(null);
+  useEffect(() => { setRecentFolderOverride(null); }, [agentId]);
+
+  const [recentsOpen, setRecentsOpen] = useState<boolean>(
+    () => getStorage<boolean>(STORAGE_KEYS.GIT_PANEL_RECENTS_OPEN, false)
+  );
+  const toggleRecents = useCallback(() => {
+    setRecentsOpen((prev) => {
+      setStorage(STORAGE_KEYS.GIT_PANEL_RECENTS_OPEN, !prev);
+      return !prev;
+    });
+  }, []);
+
   // Current explorer folder
-  const explorerFolder = areaDirs.length > 0 ? (areaDirs[explorerFolderIdx] || areaDirs[0]) : null;
+  const explorerFolder = recentFolderOverride
+    || (areaDirs.length > 0 ? (areaDirs[explorerFolderIdx] || areaDirs[0]) : null);
   const fileTree = useFileTree(panelMode === 'explorer' ? explorerFolder : null);
 
   // Persist the Files-tab expanded folders per folder (localStorage), so
@@ -1240,9 +1289,16 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       onClick: () => { navigator.clipboard.writeText(file.path); },
     });
 
-    // Open in editor
+    // Download + open in editor. Both are meaningless for a deleted file —
+    // there is nothing left on disk to fetch or open.
     if (file.status !== 'deleted') {
       actions.push({ id: 'div2', label: '', divider: true, onClick: () => {} });
+      actions.push({
+        id: 'download',
+        label: 'Download File',
+        icon: <Icon name="download" size={14} />,
+        onClick: () => downloadFile(fullPath, file.name),
+      });
       actions.push({
         id: 'open-editor',
         label: 'Open in Editor',
@@ -1312,6 +1368,13 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       onClick: () => { navigator.clipboard.writeText(folderPath); },
     });
 
+    actions.push({
+      id: 'download-folder',
+      label: 'Download Folder (.zip)',
+      icon: <Icon name="download" size={14} />,
+      onClick: () => downloadFolder(folderPath, node.name),
+    });
+
     actions.push({ id: 'div1', label: '', divider: true, onClick: () => {} });
 
     if (absFiles.length > 0) {
@@ -1371,6 +1434,17 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         onClick: () => { navigator.clipboard.writeText(relPath); },
       });
     }
+
+    actions.push({ id: 'div-download', label: '', divider: true, onClick: () => {} });
+    actions.push({
+      id: 'download',
+      label: node.isDirectory ? 'Download Folder (.zip)' : 'Download File',
+      icon: <Icon name="download" size={14} />,
+      onClick: () => {
+        if (node.isDirectory) downloadFolder(node.path, node.name);
+        else downloadFile(node.path, node.name);
+      },
+    });
 
     if (!node.isDirectory) {
       actions.push({ id: 'div2', label: '', divider: true, onClick: () => {} });
@@ -1977,6 +2051,10 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                           data-status={status}
                           onClick={() => handleExplorerFileSelect(node)}
                           onContextMenu={(e) => handleExplorerContextMenu(e, node)}
+                          // Filtered results are plain rows, not TreeNodeItem, so
+                          // they need the drag wiring of their own.
+                          draggable
+                          onDragStart={(e) => setNativeFileDrag(e.dataTransfer, node)}
                           title={node.path}
                         >
                           {iconSrc && <img src={iconSrc} alt="" className="guake-git-file-icon" />}
@@ -2018,6 +2096,75 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                     searchQuery=""
                   />
                 ))}
+              </div>
+            )}
+
+            {/* Recent folders — pinned to the bottom of the Files tab. Derived
+                from the most recently used agents' working directories, so it
+                doubles as "jump back to the project I was just in". Collapsed
+                by default: it must not eat tree space until asked for. */}
+            {recentFolders.length > 0 && (
+              <div className={`guake-git-recents${recentsOpen ? ' open' : ''}`}>
+                <button
+                  type="button"
+                  className="guake-git-recents-header"
+                  onClick={toggleRecents}
+                  aria-expanded={recentsOpen}
+                  title="Folders of your most recently used agents"
+                >
+                  <Icon name={recentsOpen ? 'caret-down' : 'caret-right'} size={10} />
+                  <Icon name="history" size={12} />
+                  <span className="guake-git-recents-title">Recent Folders</span>
+                  <span className="guake-git-recents-count">{recentFolders.length}</span>
+                </button>
+                {recentsOpen && (
+                  <div className="guake-git-recents-list">
+                    {recentFolders.map(({ dir, agentName }) => {
+                      const name = dir.split('/').filter(Boolean).pop() || dir;
+                      const parent = dir.slice(0, dir.length - name.length).replace(/\/$/, '');
+                      const isCurrent = dir === explorerFolder?.replace(/\/+$/, '');
+                      return (
+                        <button
+                          key={dir}
+                          type="button"
+                          className={`guake-git-recent-item${isCurrent ? ' active' : ''}`}
+                          onClick={() => setRecentFolderOverride(dir)}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setContextMenu({
+                              isOpen: true,
+                              position: { x: e.clientX, y: e.clientY },
+                              actions: [
+                                {
+                                  id: 'copy-path',
+                                  label: 'Copy Full Path',
+                                  icon: <Icon name="pin" size={14} />,
+                                  onClick: () => { navigator.clipboard.writeText(dir); },
+                                },
+                                {
+                                  id: 'download',
+                                  label: 'Download Folder (.zip)',
+                                  icon: <Icon name="download" size={14} />,
+                                  onClick: () => downloadFolder(dir, name),
+                                },
+                              ],
+                            });
+                          }}
+                          // Same native drag-out as the tree rows: drop the
+                          // whole project onto Finder as a .zip.
+                          draggable
+                          onDragStart={(e) => setNativeFileDrag(e.dataTransfer, { path: dir, name, isDirectory: true })}
+                          title={`${dir}\nLast used by ${agentName}`}
+                        >
+                          <Icon name="folder-open" size={12} />
+                          <span className="guake-git-recent-name">{name}</span>
+                          <span className="guake-git-recent-dir">{parent}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </>
