@@ -136,6 +136,17 @@ export function createApp(): Express {
       if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/attachments') || req.path.startsWith('/ws')) {
         return next();
       }
+      // A build replaces the hashed bundle and deletes the previous chunks, so a
+      // page that was already open asks for chunk URLs that no longer exist. If
+      // those fall through to index.html the browser gets HTML with a 200 and
+      // tries to execute it as JavaScript: the dynamic import fails with a
+      // syntax error and that slice of the UI silently stops updating, with
+      // nothing in the network tab looking wrong. Answer 404 instead so the
+      // client sees a real chunk-load error and can prompt for a reload.
+      if (req.path.startsWith('/assets/') || /\.(js|mjs|css|map|json|wasm)$/i.test(req.path)) {
+        res.status(404).json({ error: 'Asset not found', path: req.path });
+        return;
+      }
       const indexPath = path.join(DIST_DIR, 'index.html');
       if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);

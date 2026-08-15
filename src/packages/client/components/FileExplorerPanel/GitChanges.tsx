@@ -14,7 +14,7 @@ import { GIT_STATUS_CONFIG } from './constants';
 import { buildGitTree, collectGitTreeDirPaths, getIconForExtension } from './fileUtils';
 import type { GitTreeNode } from './fileUtils';
 import { apiUrl, authFetch } from '../../utils/storage';
-import { downloadFile, downloadFolder } from '../../utils/fileDownload';
+import { downloadFile, downloadFolder } from '../../utils/file-download';
 import { ContextMenu } from '../ContextMenu';
 import type { ContextMenuAction } from '../ContextMenu';
 import { useToast } from '../Toast';

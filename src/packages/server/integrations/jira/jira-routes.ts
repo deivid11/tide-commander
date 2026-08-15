@@ -11,6 +11,7 @@
  *   GET    /issues/:key/transitions         - List transitions
  *   POST   /issues/:key/transitions         - Transition issue
  *   GET    /issues/:key/attachments         - List issue attachments
+ *   POST   /issues/:key/attachments         - Upload local files as attachments
  *   GET    /issues/:key/comments/attachments - List attachments referenced by comments (optional ?commentId=)
  *   POST   /issues/:key/attachments/download-all - Server-side bulk download to outputDir
  *   GET    /attachments/:id/content         - Proxy an attachment's binary content
@@ -237,6 +238,35 @@ export function createJiraRoutes(client: JiraClient, ctx: IntegrationContext): R
       res.json({ attachments });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to list attachments';
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // Upload local files as attachments on an issue
+  router.post('/issues/:key/attachments', async (req: Request<{ key: string }>, res: Response) => {
+    try {
+      const { files } = req.body as { files?: string[] };
+      if (!Array.isArray(files) || files.length === 0) {
+        res.status(400).json({ error: 'files must be a non-empty array of absolute paths' });
+        return;
+      }
+
+      const uploaded = await client.uploadAttachments(req.params.key, files);
+
+      ctx.eventDb.logAudit({
+        category: 'jira',
+        action: 'attachments_uploaded',
+        agentId: req.headers['x-agent-id'] as string | undefined,
+        workflowInstanceId: req.headers['x-workflow-id'] as string | undefined,
+        details: { issueKey: req.params.key, filenames: uploaded.map((a) => a.filename) },
+        level: 'info',
+        createdAt: Date.now(),
+      });
+
+      res.status(201).json({ key: req.params.key, count: uploaded.length, attachments: uploaded });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to upload attachments';
+      ctx.log.error(`Attachment upload for ${req.params.key} failed: ${message}`);
       res.status(500).json({ error: message });
     }
   });

@@ -14,7 +14,7 @@ import { useAreas, useGitDirStatuses } from '../../store';
 import { acquireGitWatch, requestGitRefresh } from '../../services/gitWatch';
 import { DiffViewer } from '../DiffViewer';
 import { GIT_STATUS_CONFIG } from '../FileExplorerPanel/constants';
-import { downloadFile, downloadFolder, setNativeFileDrag } from '../../utils/fileDownload';
+import { downloadFile, downloadFolder, setNativeFileDrag } from '../../utils/file-download';
 import { agentRecency, getRecentAgentTimes } from '../../utils/agentRecency';
 import { getIconForFileName, buildGitTree } from '../FileExplorerPanel/fileUtils';
 import { getLanguageForExtension } from '../FileExplorerPanel/syntaxHighlighting';

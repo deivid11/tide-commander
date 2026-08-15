@@ -149,6 +149,14 @@ curl -s http://localhost:5174/api/jira/issues/SD-1234/attachments
 \`\`\`
 Returns \`{ "attachments": [ { "id", "filename", "mimeType", "size", "contentUrl", "authorDisplayName?", "created?" } ] }\`.
 
+**Upload local files as attachments:**
+\`\`\`bash
+curl -s -X POST http://localhost:5174/api/jira/issues/SD-1234/attachments \\
+  -H "Content-Type: application/json" \\
+  -d '{"files": ["/home/user/report.pdf", "/home/user/report.docx"]}'
+\`\`\`
+\`files\` is an array of absolute paths readable by the server. Returns \`{ "key", "count", "attachments": [ { "id", "filename", "mimeType", "size", "contentUrl" } ] }\`.
+
 **List attachments referenced by comments (optionally a single comment):**
 \`\`\`bash
 # All comment attachments on the issue

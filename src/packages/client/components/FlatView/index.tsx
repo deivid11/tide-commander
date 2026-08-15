@@ -296,6 +296,42 @@ const ChatView = React.memo(function ChatView({
   const classicTuiAvailable =
     !!settings.interactiveMode && (agent?.provider ?? 'claude') === 'claude' && !!agent?.sessionId;
   const [classicTuiOpen, setClassicTuiOpen] = useState(false);
+  // Anchor for the view-mode dropdown (null = closed).
+  const [viewModeMenu, setViewModeMenu] = useState<{ x: number; y: number } | null>(null);
+
+  // Every message-view option plus Classic TUI, with the active one ticked in
+  // the shortcut slot (ContextMenu has no checked state of its own).
+  const viewModeActions = useMemo((): ContextMenuAction[] => {
+    const actions: ContextMenuAction[] = TERMINAL_VIEW_MODES.map((mode) => {
+      const isActive = !classicTuiOpen && terminalViewMode === mode;
+      return {
+        id: `view-mode-${mode}`,
+        label: TERMINAL_VIEW_MODE_LABELS[mode],
+        icon: <span className="flat-terminal-wrapper__view-mode-icon">{TERMINAL_VIEW_MODE_ICONS[mode]}</span>,
+        shortcut: isActive ? '✓' : undefined,
+        onClick: () => {
+          setClassicTuiOpen(false);
+          onTerminalViewModeChange(mode);
+          setViewModeMenu(null);
+        },
+      };
+    });
+
+    if (classicTuiAvailable) {
+      actions.push({
+        id: 'view-mode-classic-tui',
+        label: 'Classic TUI',
+        icon: <Icon name="terminal" size={13} />,
+        shortcut: classicTuiOpen ? '✓' : undefined,
+        onClick: () => {
+          setClassicTuiOpen((open) => !open);
+          setViewModeMenu(null);
+        },
+      });
+    }
+
+    return actions;
+  }, [classicTuiAvailable, classicTuiOpen, terminalViewMode, onTerminalViewModeChange]);
   // Mobile-only bottom sheet that relocates the header action cluster (search /
   // clear / git / buildings / debug / destructive ops) into a thumb-reachable
   // surface. On phones the top-right cluster is hidden (CSS) and a single
@@ -805,51 +841,34 @@ const ChatView = React.memo(function ChatView({
           </span>
         </button>
         <div className="flat-terminal-wrapper__header-meta">
-          <div
-            className="flat-terminal-wrapper__view-mode"
-            role="group"
-            aria-label="Message view mode"
-          >
-            {TERMINAL_VIEW_MODES.map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                className={`flat-terminal-wrapper__view-mode-btn ${
-                  !classicTuiOpen && terminalViewMode === mode ? 'flat-terminal-wrapper__view-mode-btn--active' : ''
-                }`}
-                onClick={() => {
-                  setClassicTuiOpen(false);
-                  onTerminalViewModeChange(mode);
-                }}
-                title={TERMINAL_VIEW_MODE_DESCRIPTIONS[mode]}
-                aria-pressed={!classicTuiOpen && terminalViewMode === mode}
-              >
-                <span className="flat-terminal-wrapper__view-mode-icon" aria-hidden="true">
-                  {TERMINAL_VIEW_MODE_ICONS[mode]}
-                </span>
-                <span className="flat-terminal-wrapper__view-mode-label">
-                  {TERMINAL_VIEW_MODE_LABELS[mode]}
-                </span>
-              </button>
-            ))}
-            {classicTuiAvailable && (
-              <button
-                type="button"
-                className={`flat-terminal-wrapper__view-mode-btn ${
-                  classicTuiOpen ? 'flat-terminal-wrapper__view-mode-btn--active' : ''
-                }`}
-                onClick={() => setClassicTuiOpen((open) => !open)}
-                title="Classic TUI — attach to the live interactive claude session in a terminal"
-                aria-pressed={classicTuiOpen}
-              >
-                <span className="flat-terminal-wrapper__view-mode-icon" aria-hidden="true">
-                  <Icon name="terminal" size={13} />
-                </span>
-                <span className="flat-terminal-wrapper__view-mode-label">
-                  Classic TUI
-                </span>
-              </button>
-            )}
+          {/* One button showing the active mode; the rest live in a dropdown.
+              The segmented control grew a button per mode and crowded the
+              header, while all but one of them were always inactive. */}
+          <div className="flat-terminal-wrapper__view-mode">
+            <button
+              type="button"
+              className={`flat-terminal-wrapper__view-mode-btn flat-terminal-wrapper__view-mode-trigger${
+                viewModeMenu ? ' flat-terminal-wrapper__view-mode-trigger--open' : ''
+              }`}
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setViewModeMenu({ x: rect.left, y: rect.bottom + 4 });
+              }}
+              title={classicTuiOpen
+                ? 'Classic TUI — attach to the live interactive claude session in a terminal'
+                : TERMINAL_VIEW_MODE_DESCRIPTIONS[terminalViewMode]}
+              aria-haspopup="menu"
+              aria-expanded={!!viewModeMenu}
+              aria-label="Message view mode"
+            >
+              <span className="flat-terminal-wrapper__view-mode-icon" aria-hidden="true">
+                {classicTuiOpen ? <Icon name="terminal" size={13} /> : TERMINAL_VIEW_MODE_ICONS[terminalViewMode]}
+              </span>
+              <span className="flat-terminal-wrapper__view-mode-label">
+                {classicTuiOpen ? 'Classic TUI' : TERMINAL_VIEW_MODE_LABELS[terminalViewMode]}
+              </span>
+              <Icon name="caret-down" size={9} />
+            </button>
           </div>
           {/* Applicable guake-actions — back/forward, search, clear-context, more-menu */}
           <div className="flat-terminal-wrapper__actions" role="group" aria-label="Terminal actions">
@@ -1611,6 +1630,14 @@ const ChatView = React.memo(function ChatView({
       {debugPanelOpen && (
         <AgentDebugPanel agentId={agentId} onClose={closeDebugPanel} />
       )}
+
+      <ContextMenu
+        isOpen={viewModeMenu !== null}
+        position={viewModeMenu ?? { x: 0, y: 0 }}
+        worldPosition={{ x: 0, z: 0 }}
+        actions={viewModeActions}
+        onClose={() => setViewModeMenu(null)}
+      />
     </div>
   );
 });
