@@ -76,6 +76,58 @@
   color: inherit;
 }
 
+// ── Hidden-match snippet note ────────────────────────────────────────────────
+// Rendered INSIDE the active match's row when its hit text is not visible
+// there (truncated preview / collapsed section) — surfaces the matched source
+// text right where it lives. Carries data-search-skip so the highlighter's
+// row scan ignores it (see searchDomHighlight).
+.guake-search-hidden-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 2px;
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--accent-yellow, #facc15) 8%, var(--bg-secondary));
+  border: 1px solid color-mix(in srgb, var(--accent-yellow, #facc15) 30%, transparent);
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-primary);
+  min-width: 0;
+  max-width: 100%;
+
+  svg {
+    flex-shrink: 0;
+    color: var(--accent-yellow, #facc15);
+  }
+}
+
+.guake-search-hidden-label {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.guake-search-hidden-snippet {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+// ── Inline match painting (CSS Custom Highlight API) ─────────────────────────
+// Painted by useSearchDomHighlight over the normally-rendered output — no DOM
+// is mutated, so message markdown keeps its formatting while searching. Only
+// color / background-color / text-decoration / text-shadow apply here.
+::highlight(tc-search-match) {
+  background-color: rgba(250, 204, 21, 0.32);
+}
+
+// The occurrence inside the currently-navigated match (Chrome-style orange).
+::highlight(tc-search-active) {
+  background-color: #f59e0b;
+  color: #111;
+}
+
 // ── Results list ─────────────────────────────────────────────────────────────
 .guake-search-results-list {
   overflow-y: auto;

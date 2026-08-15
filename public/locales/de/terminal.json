@@ -32,7 +32,9 @@
     "closeTerminal": "Terminal schließen",
     "searchPlaceholder": "Gespräch durchsuchen... (Esc zum Schließen)",
     "searchResultsTitle": "Suchergebnisse:",
-    "searchResultsCount": "{{count}} Ergebnisse"
+    "searchResultsCount": "{{count}} Ergebnisse",
+    "searchToggleResults": "Ergebnisliste ein-/ausblenden",
+    "searchHiddenMatch": "Verborgener Treffer:"
   },
   "input": {
     "placeholder": "Nachricht an {{agent}}...",

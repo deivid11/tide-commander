@@ -151,5 +151,5 @@ Artifacts are exported to hidden staging files in their destination directory
 and atomically renamed only after a successful write. A failed export therefore
 does not leave a half-written final file.
 
-See [`examples/headless-cad`](../examples/headless-cad) for a runnable model
-and request body.
+The request body above is complete: point `script` at any FreeCAD Python file
+that builds a document, and the runner handles the rest.

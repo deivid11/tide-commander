@@ -42,9 +42,11 @@ interface VirtualizedOutputListProps {
 
   // UI state
   viewMode: 'simple' | 'chat' | 'advanced';
-  searchHighlight?: string;
   /** Index of the active search match to scroll to */
   searchActiveIndex?: number | null;
+  /** Note rendered inside the active match's row when its hit text is not
+   *  visible there (truncated preview / collapsed section). */
+  searchHiddenNote?: React.ReactNode;
   /** Height (px) of the search results panel overlaying the top of the output,
    *  so the scrolled-to match can be nudged clear of it. 0 when no panel. */
   searchPanelHeight?: number;
@@ -175,7 +177,7 @@ const VirtualRow = memo(function VirtualRow({
   isSelected,
   isSearchActive,
   messageIndex,
-  searchHighlight,
+  searchHiddenNote,
   onImageClick,
   onFileClick,
   onBashClick,
@@ -192,7 +194,7 @@ const VirtualRow = memo(function VirtualRow({
   isSelected: boolean;
   isSearchActive?: boolean;
   messageIndex: number;
-  searchHighlight?: string;
+  searchHiddenNote?: React.ReactNode;
   onImageClick?: (url: string, name: string) => void;
   onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
   onBashClick?: (command: string, output: string) => void;
@@ -224,7 +226,7 @@ const VirtualRow = memo(function VirtualRow({
             message={item as EnrichedHistoryMessage}
             agentId={agentId}
             simpleView={simpleView}
-            highlight={searchHighlight}
+            searchReveal={isSearchActive}
             subagents={subagents}
             execTasks={execTasks}
             testRunHandles={testRunHandles}
@@ -242,7 +244,7 @@ const VirtualRow = memo(function VirtualRow({
             testRunHandles={testRunHandles}
             httpRunHandles={httpRunHandles}
             subagents={subagents}
-            highlight={searchHighlight}
+            searchReveal={isSearchActive}
             onImageClick={onImageClick}
             onFileClick={onFileClick}
             onBashClick={onBashClick}
@@ -250,6 +252,7 @@ const VirtualRow = memo(function VirtualRow({
           />
         )}
       </ToolChipEnter>
+      {isSearchActive && searchHiddenNote}
     </div>
   );
 });
@@ -263,8 +266,8 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   httpRunHandles = [],
   subagents,
   viewMode,
-  searchHighlight,
   searchActiveIndex,
+  searchHiddenNote,
   searchPanelHeight = 0,
   selectedMessageIndex,
   isMessageSelected,
@@ -959,7 +962,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
               isSelected={isMessageSelected(virtualRow.index)}
               isSearchActive={searchActiveIndex != null && virtualRow.index === searchActiveIndex}
               messageIndex={virtualRow.index}
-              searchHighlight={searchHighlight}
+              searchHiddenNote={searchActiveIndex != null && virtualRow.index === searchActiveIndex ? searchHiddenNote : undefined}
               onImageClick={onImageClick}
               onFileClick={onFileClick}
               onBashClick={onBashClick}

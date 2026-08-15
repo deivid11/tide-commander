@@ -8,7 +8,17 @@ import { ModalPortal } from '../shared/ModalPortal';
 import { themes, getTheme, applyTheme, getSavedTheme, type ThemeId } from '../../utils/themes';
 import { Icon } from '../Icon';
 
-export const ThemeSelector = memo(function ThemeSelector() {
+interface ThemeSelectorProps {
+  /**
+   * Drop the theme name and show only the palette icon.
+   *
+   * For the terminal chrome, where header width is scarce. Settings keeps the
+   * label — there the control is the point of the row, not a space cost.
+   */
+  iconOnly?: boolean;
+}
+
+export const ThemeSelector = memo(function ThemeSelector({ iconOnly = false }: ThemeSelectorProps) {
   const { t } = useTranslation(['terminal']);
   const [isOpen, setIsOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeId>(() => getSavedTheme());
@@ -142,7 +152,9 @@ export const ThemeSelector = memo(function ThemeSelector() {
         title={t('terminal:themeSelector.themeTitle', { name: currentThemeData.name })}
       >
         <span className="theme-selector-icon"><Icon name="palette" size={14} /></span>
-        <span className="theme-selector-name">{currentThemeData.name}</span>
+        {/* When hidden, the name is still on the button's title and the active
+            theme is ticked in the dropdown — nothing becomes unreachable. */}
+        {!iconOnly && <span className="theme-selector-name">{currentThemeData.name}</span>}
         <span className="theme-selector-arrow"><Icon name={isOpen ? 'caret-up' : 'caret-down'} size={11} /></span>
       </button>
 

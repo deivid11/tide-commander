@@ -32,7 +32,9 @@
     "closeTerminal": "关闭终端",
     "searchPlaceholder": "搜索对话... (Esc 关闭)",
     "searchResultsTitle": "搜索结果：",
-    "searchResultsCount": "{{count}} 个结果"
+    "searchResultsCount": "{{count}} 个结果",
+    "searchToggleResults": "切换结果面板",
+    "searchHiddenMatch": "隐藏的匹配:"
   },
   "input": {
     "placeholder": "向 {{agent}} 发消息...",

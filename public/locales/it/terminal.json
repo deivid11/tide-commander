@@ -32,7 +32,9 @@
     "closeTerminal": "Chiudi terminale",
     "searchPlaceholder": "Cerca nella conversazione... (Esc per chiudere)",
     "searchResultsTitle": "Risultati ricerca:",
-    "searchResultsCount": "{{count}} risultati"
+    "searchResultsCount": "{{count}} risultati",
+    "searchToggleResults": "Mostra/nascondi pannello risultati",
+    "searchHiddenMatch": "Corrispondenza nascosta:"
   },
   "input": {
     "placeholder": "Messaggio a {{agent}}...",

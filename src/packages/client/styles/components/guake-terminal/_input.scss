@@ -84,6 +84,13 @@
   }
 }
 
+// Results-panel toggle: lit while the dropdown is open.
+.guake-search-results-toggle.active {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+}
+
 .guake-search-close {
   background: transparent;
   border: 1px solid var(--text-muted);

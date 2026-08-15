@@ -32,7 +32,9 @@
     "closeTerminal": "Cerrar terminal",
     "searchPlaceholder": "Buscar en conversacion... (Esc para cerrar)",
     "searchResultsTitle": "Resultados de busqueda:",
-    "searchResultsCount": "{{count}} resultados"
+    "searchResultsCount": "{{count}} resultados",
+    "searchToggleResults": "Mostrar/ocultar panel de resultados",
+    "searchHiddenMatch": "Coincidencia oculta:"
   },
   "input": {
     "placeholder": "Mensaje a {{agent}}...",

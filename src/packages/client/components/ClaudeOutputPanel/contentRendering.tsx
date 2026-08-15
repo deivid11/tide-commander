@@ -12,12 +12,12 @@ import { extractFileMentionBlocks } from '../../utils/fileMentions';
 import i18n from '../../i18n';
 
 /**
- * Helper to highlight search terms in text.
+ * Helper to highlight search terms in plain text (search-result snippets,
+ * list rows). Multi-word queries are tokenised so each word is highlighted
+ * independently (matches the token-AND search behaviour).
  *
- * Multi-word queries are tokenised so each word is highlighted independently
- * (matches the token-AND search behaviour). Single-word queries behave exactly
- * as before. The signature is unchanged so shared callers (OutputLine +
- * HistoryLine) need no updates.
+ * NOT used for conversation messages — those keep their markdown rendering
+ * and get painted by searchDomHighlight (CSS Custom Highlight API) instead.
  */
 export function highlightText(text: string, query?: string): React.ReactNode {
   if (!query) return text;

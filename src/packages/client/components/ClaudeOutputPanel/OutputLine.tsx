@@ -28,7 +28,7 @@ import { parseHttpResults } from './httpResultsParser';
 import { HttpResultsCard } from './HttpResultsCard';
 import { TestRunInline } from './TestRunInline';
 import { HttpRunInline, HttpRunLookup, matchHttpRunHandle } from './HttpRunInline';
-import { renderContentWithImages, renderUserPromptContent, highlightText, isThumbnailableImagePath, getLocalFileImageUrl, getImagePreviewUrl } from './contentRendering';
+import { renderContentWithImages, renderUserPromptContent, isThumbnailableImagePath, getLocalFileImageUrl, getImagePreviewUrl } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
@@ -68,10 +68,9 @@ interface OutputLineProps {
   onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
   onBashClick?: (command: string, output: string) => void;
   onViewMarkdown?: (content: string) => void;
-  // Active global-find query. When set, assistant content is rendered as plain
-  // text with the match highlighted (no markdown), mirroring HistoryLine so find
-  // results look identical for live outputs and history (esp. in simple mode).
-  highlight?: string;
+  /** Row is the active find match: reveal searchable content the renderer
+   *  normally hides (e.g. bash output when inline outputs are off). */
+  searchReveal?: boolean;
 }
 
 // Generate a short debug hash for an output (for debugging duplicates)
@@ -222,7 +221,7 @@ function TimestampWithMeta({ output, timeStr, debugHash, agentId }: { output: Cl
   );
 }
 
-export const OutputLine = memo(function OutputLine({ output, agentId, execTasks = [], testRunHandles = [], httpRunHandles = [], subagents, onImageClick, onFileClick, onBashClick, onViewMarkdown, highlight }: OutputLineProps) {
+export const OutputLine = memo(function OutputLine({ output, agentId, execTasks = [], testRunHandles = [], httpRunHandles = [], subagents, onImageClick, onFileClick, onBashClick, onViewMarkdown, searchReveal }: OutputLineProps) {
   const { t } = useTranslation(['tools', 'common', 'terminal']);
   const hideCost = useHideCost();
   const settings = useSettings();
@@ -1544,7 +1543,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         {/* Global inline-output mode: show the captured output right below the
             command. Skipped for rows that already stream their result inline
             (exec tasks, test runs, HTTP run cards). */}
-        {isBashTool && settings.inlineBashOutputs && !_isRunning
+        {isBashTool && (settings.inlineBashOutputs || searchReveal) && !_isRunning
           && !showInlineRunningTasks && !matchingTestRunId && !matchingHttpRunId && (
           <BashInlineOutput text={_bashOutput || (typeof payloadToolOutput === 'string' ? payloadToolOutput : '')} />
         )}
@@ -1983,16 +1982,14 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             <>
               <Icon name={subagentSuccess ? 'status-success' : 'status-error'} size={14} weight="fill" color={subagentSuccess ? '#4ade80' : '#f87171'} />
               {' '}
-              {highlight ? highlightText(subagentDisplayText, highlight) : renderContentWithImages(subagentDisplayText, onImageClick, onFileClick, agentCwd)}
+              {renderContentWithImages(subagentDisplayText, onImageClick, onFileClick, agentCwd)}
             </>
           ) : isSystemMessage && systemEmoji ? (
             <>
               <Icon name={systemIconName} size={14} />
               {' '}
-              {highlight ? highlightText(`[System]${systemRest}`, highlight) : renderContentWithImages(`[System]${systemRest}`, onImageClick, onFileClick, agentCwd)}
+              {renderContentWithImages(`[System]${systemRest}`, onImageClick, onFileClick, agentCwd)}
             </>
-          ) : highlight ? (
-            <div>{highlightText(text, highlight)}</div>
           ) : (
             // Streaming: word fade. Final/complete: soft block fade when the
             // answer never word-streamed (e.g. streamTextLive off, or a single

@@ -1784,6 +1784,16 @@
   100% { background-color: transparent; }
 }
 
+// Active search match whose hit text is NOT visible in the rendered row (it
+// lives in a truncated preview, collapsed section, or unmounted bash output).
+// Set imperatively by searchDomHighlight on the virtualizer row; the search
+// bar shows the matched source snippet alongside.
+[data-index].search-match-hidden {
+  outline: 1px dashed color-mix(in srgb, var(--accent-yellow, #facc15) 70%, transparent);
+  outline-offset: -1px;
+  border-radius: 4px;
+}
+
 // Context compaction indicator
 .compacting-indicator {
   display: flex;

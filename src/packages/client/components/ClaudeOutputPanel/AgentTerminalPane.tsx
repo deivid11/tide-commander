@@ -50,6 +50,10 @@ import { resolveTodoWriteDisplay, type MergeableTodo } from '../../utils/todoMer
 import { useHistoryLoader } from './useHistoryLoader';
 import { usePinnedSwipeNavigation } from './usePinnedSwipeNavigation';
 import { useSearchHistory, type UseSearchHistoryReturn } from './useSearchHistory';
+import { useSearchDomHighlight } from './searchDomHighlight';
+import { useModalStackRegistration } from '../../hooks/useModalStack';
+import { highlightText } from './contentRendering';
+import { Icon } from '../Icon';
 import { useTerminalInput } from './useTerminalInput';
 import { useMessageNavigation } from './useMessageNavigation';
 import { useFilteredOutputsWithLogging } from '../shared/useFilteredOutputs';
@@ -893,6 +897,43 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // Height of the search results dropdown, so scrolled-to matches clear it.
   const [searchPanelHeight, setSearchPanelHeight] = useState(0);
 
+  // True when the current match's hit text is invisible in the rendered row
+  // (truncated tool preview, collapsed section, unmounted bash output…). The
+  // row gets a dashed marker via CSS and the search bar shows the matched
+  // source snippet so the content is still readable.
+  const [activeMatchHidden, setActiveMatchHidden] = useState(false);
+  const handleActiveMatchHidden = useCallback((hidden: boolean) => {
+    setActiveMatchHidden(hidden);
+  }, []);
+
+  // Paint find matches over the rendered output (CSS Custom Highlight API) —
+  // messages keep their normal markdown rendering while searching.
+  useSearchDomHighlight(outputScrollRef, search.highlightQuery, search.scrollToIndex, handleActiveMatchHidden);
+
+  // Source-text snippet around the current match, for the hidden-match note.
+  const activeMatchSnippet = useMemo(() => {
+    if (search.scrollToIndex === null) return undefined;
+    return search.contentResults.find((r) => r.itemIndex === search.scrollToIndex)?.snippet;
+  }, [search.contentResults, search.scrollToIndex]);
+
+  // Rendered inside the active match's row when its hit text is invisible.
+  // data-search-skip keeps the note (which contains the query term) out of the
+  // highlighter's row scan — without it the note would dismiss itself.
+  const searchHiddenNote = useMemo(() => {
+    if (!activeMatchHidden || !activeMatchSnippet) return undefined;
+    return (
+      <div className="guake-search-hidden-note" data-search-skip="true" title={activeMatchSnippet}>
+        <Icon name="eye" size={12} />
+        <span className="guake-search-hidden-label">
+          {t('terminal:header.searchHiddenMatch', 'Hidden match:')}
+        </span>
+        <span className="guake-search-hidden-snippet">
+          {highlightText(activeMatchSnippet, search.searchQuery.trim())}
+        </span>
+      </div>
+    );
+  }, [activeMatchHidden, activeMatchSnippet, search.searchQuery, t]);
+
   // ── Message navigation ──
   const totalNavigableMessages = dedupedHistory.length + dedupedOutputs.length;
   const messageNav = useMessageNavigation({
@@ -1300,18 +1341,12 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     setHistoryFadeIn(true);
   }, [historyFadeIn, isAgentSwitching, pinToBottom, hasRenderedContent]);
 
-  // ── Escape key for search ──
-  useEffect(() => {
-    if (!search.searchMode) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopImmediatePropagation();
-        search.closeSearch();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown, true);
-    return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [search.searchMode, search.closeSearch]);
+  // ── Escape / Android-back closes search ──
+  // On the shared modal stack so the global Escape handler (useKeyboardShortcuts
+  // → closeTopModal) closes the search bar BEFORE falling through to closing
+  // the terminal / deselecting the agent. A local capture-phase listener can't
+  // do this reliably: the app-level handler registered first and wins the race.
+  useModalStackRegistration(`guake-search-${agentId ?? 'none'}`, search.searchMode, search.closeSearch);
 
   // ── Clean up keyboard styles on agent change ──
   useEffect(() => {
@@ -1364,8 +1399,10 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
             navigateNext={search.navigateNext}
             navigatePrev={search.navigatePrev}
             loadingFullHistory={search.loadingFullHistory}
+            resultsOpen={search.resultsOpen}
+            toggleResults={search.toggleResults}
           />
-          {(search.searchQuery.trim().length >= 2 || search.activeTab === 'files') && (
+          {search.resultsOpen && (
             <SearchResultsPanel
               activeTab={search.activeTab}
               setActiveTab={search.setActiveTab}
@@ -1423,8 +1460,8 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
               httpRunHandles={httpRunHandles}
               subagents={subagents}
               viewMode={viewMode}
-              searchHighlight={search.highlightQuery}
               searchActiveIndex={search.scrollToIndex}
+              searchHiddenNote={searchHiddenNote}
               searchPanelHeight={search.searchMode ? searchPanelHeight : 0}
               selectedMessageIndex={messageNav.selectedIndex}
               isMessageSelected={messageNav.isSelected}

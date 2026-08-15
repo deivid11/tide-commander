@@ -1865,7 +1865,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                 })}
               </span>
             )}
-            <ThemeSelector />
+            <ThemeSelector iconOnly />
           </span>
         </div>
 
