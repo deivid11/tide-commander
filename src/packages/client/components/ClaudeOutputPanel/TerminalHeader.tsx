@@ -809,6 +809,10 @@ export interface SearchBarProps {
   navigateNext: () => void;
   navigatePrev: () => void;
   loadingFullHistory?: boolean;
+  /** Whether the results dropdown is shown. */
+  resultsOpen?: boolean;
+  /** Toggle the results dropdown (it eats terminal space, so it's opt-in). */
+  toggleResults?: () => void;
 }
 
 export function SearchBar({
@@ -821,6 +825,8 @@ export function SearchBar({
   navigateNext,
   navigatePrev,
   loadingFullHistory,
+  resultsOpen,
+  toggleResults,
 }: SearchBarProps) {
   const { t } = useTranslation(['terminal', 'common']);
   return (
@@ -853,6 +859,15 @@ export function SearchBar({
               ? `${currentMatch + 1} / ${matchCount}`
               : t('terminal:header.searchNoResults', 'No results')}
         </span>
+      )}
+      {toggleResults && (
+        <button
+          className={`guake-search-nav guake-search-results-toggle${resultsOpen ? ' active' : ''}`}
+          onClick={toggleResults}
+          title={t('terminal:header.searchToggleResults', 'Toggle results panel')}
+        >
+          <Icon name="list" size={14} />
+        </button>
       )}
       <button
         className="guake-search-nav"

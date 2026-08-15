@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.185.0] - 2026-08-15
+
+### Changed
+- **Searching no longer destroys message formatting** - the terminal's find used to swap the Markdown renderer for a raw-text version with highlight tags whenever a search was active, so every message lost its formatting the moment you started typing. Matches are now painted on top of the normally-rendered output using the same browser mechanism Ctrl+F uses, so messages keep their tables, code blocks and emphasis while you search. A hit can also span inline formatting now — searching "hello world" matches `hello **world**` — the row you navigated to is highlighted more strongly than the rest, and the results panel and match navigation keep working on browsers that lack the API.
+- **Smaller, tidier terminal status bar** - the status bar's chips now sit two points below the header's type rather than three, and the context chip's readouts step down one further. The redundant "Ctx:" label and its icon are gone — the bar and the `12k/200k` readout already say what the chip is — and the readouts no longer break across two lines when space is tight.
+
+### Added
+- **Back / Forward in the diff modal** - the git panel's diff modal records every file that lands in it, however it got there — previous/next, a click in the tree, or a typed path — so Back and Forward work across all of them instead of only stepping through the changed-files list. It has an editable path box too, and Alt+arrows mirror a browser (Alt-modified so plain arrows stay free for scrolling).
+
+### Removed
+- **Stale repository files** - a checked-in `browser-extension.zip`, a screenshot, two superseded planning documents and a local-model research note were removed, along with the headless-CAD example (the request body in `docs/headless-cad.md` is self-contained).
+
 ## [1.184.0] - 2026-08-15
 
 ### Added

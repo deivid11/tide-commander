@@ -574,6 +574,45 @@
   min-width: 0;
 }
 
+// The header's filename doubles as an address bar: Back / Forward plus a field
+// you can type a path into. Takes the row's free space so long paths still get
+// the width the old static label had.
+.guake-git-diff-path {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+// Chromeless until touched, so the header keeps reading as a title rather than
+// a form. Same treatment as the file viewer's path box.
+.guake-git-diff-path-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: $font-mono;
+  font-size: 13px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  cursor: text;
+
+  &:hover:not(:focus) {
+    background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  }
+
+  &:focus {
+    outline: none;
+    background: var(--bg-primary);
+    border-color: var(--accent-cyan);
+    text-overflow: clip;
+  }
+}
+
 // Delete confirmation dialog
 .guake-git-delete-confirm {
   background: var(--bg-primary);

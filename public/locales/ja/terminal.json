@@ -32,7 +32,9 @@
     "closeTerminal": "ターミナルを閉じる",
     "searchPlaceholder": "会話を検索... (Escで閉じる)",
     "searchResultsTitle": "検索結果:",
-    "searchResultsCount": "{{count}}件の結果"
+    "searchResultsCount": "{{count}}件の結果",
+    "searchToggleResults": "検索結果パネルの切り替え",
+    "searchHiddenMatch": "非表示の一致:"
   },
   "input": {
     "placeholder": "{{agent}}にメッセージ...",

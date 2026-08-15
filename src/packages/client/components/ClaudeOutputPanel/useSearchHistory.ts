@@ -28,6 +28,8 @@ import {
 /** Which tab of the results panel is active. */
 export type SearchResultsTab = 'content' | 'files';
 
+const RESULTS_OPEN_STORAGE_KEY = 'guake-search-results-open';
+
 export interface UseSearchHistoryProps {
   selectedAgentId: string | null;
   isOpen: boolean;
@@ -50,6 +52,10 @@ export interface UseSearchHistoryReturn {
   searchQuery: string;
   /** Set search query */
   setSearchQuery: (query: string) => void;
+  /** Whether the results dropdown is shown (user-toggled, persisted) */
+  resultsOpen: boolean;
+  /** Toggle the results dropdown */
+  toggleResults: () => void;
   /** Ref for search input */
   searchInputRef: React.RefObject<HTMLInputElement | null>;
   /** Toggle search mode */
@@ -137,6 +143,15 @@ export function useSearchHistory({
 }: UseSearchHistoryProps): UseSearchHistoryReturn {
   const [searchMode, setSearchMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  // The results dropdown takes a big bite of the terminal, so it's opt-in via
+  // a toolbar toggle; the choice is remembered across sessions.
+  const [resultsOpen, setResultsOpen] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(RESULTS_OPEN_STORAGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
   const [currentMatch, setCurrentMatch] = useState(0);
   const [scrollToIndex, setScrollToIndex] = useState<number | null>(null);
   const [loadingFullHistory, setLoadingFullHistory] = useState(false);
@@ -263,6 +278,18 @@ export function useSearchHistory({
     setScrollToIndex(matchIndices[prev]);
   }, [currentMatch, matchIndices]);
 
+  const toggleResults = useCallback(() => {
+    setResultsOpen((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(RESULTS_OPEN_STORAGE_KEY, next ? '1' : '0');
+      } catch {
+        // Preference just won't stick — not worth surfacing.
+      }
+      return next;
+    });
+  }, []);
+
   // Jump the output to a specific item (from a results-panel click). Keeps the
   // prev/next pointer in sync when the target is one of the highlighted matches.
   const selectResult = useCallback((itemIndex: number) => {
@@ -336,7 +363,10 @@ export function useSearchHistory({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, searchMode]);
 
-  const highlightQuery = searchMode && searchQuery.trim().length >= 2 && matchIndices.length > 0
+  // Painted over the rendered DOM by useSearchDomHighlight — not gated on
+  // matchIndices because the matcher runs on raw source text while the
+  // painter finds hits in the rendered text (they can legitimately differ).
+  const highlightQuery = searchMode && searchQuery.trim().length >= 2
     ? searchQuery.trim()
     : undefined;
 
@@ -344,6 +374,8 @@ export function useSearchHistory({
     searchMode,
     searchQuery,
     setSearchQuery,
+    resultsOpen,
+    toggleResults,
     searchInputRef,
     toggleSearch,
     closeSearch,

@@ -1106,24 +1106,28 @@ body.flat-splitter-dragging {
       border-color: color-mix(in srgb, var(--text-primary) 4%, transparent);
     }
 
-    // Statusbar type runs 3px below the header's: this is ambient status, not a
+    // Statusbar type runs 2px below the header's: this is ambient status, not a
     // control surface, so it should not compete with the conversation.
     //
     // Scoped INSIDE the statusbar on purpose — .flat-terminal-wrapper__cwd and
     // __context also render in the header, and shrinking them at the source
     // would shrink both. Everything not listed here (branch counters, the
-    // fetch button, building buttons, the directory name) has no size of its
-    // own and simply inherits.
+    // fetch button, building buttons, the directory name, and the context
+    // chip's token readout) has no size of its own and simply inherits.
     .flat-terminal-wrapper__cwd,
     .flat-terminal-wrapper__context,
     .flat-terminal-wrapper__area-dir,
     .flat-terminal-wrapper__detached {
-      font-size: 8px;
+      font-size: 10px;
     }
 
-    // Sets its own 10px, so inheritance never reaches it — step it down too.
-    .flat-terminal-wrapper__context-free {
-      font-size: 7px;
+    // The context chip's readouts sit one step below the rest of the bar: they
+    // are the densest text here and read fine smaller. __context-free sets its
+    // own 10px (so inheritance never reaches it); __context-tokens inherits,
+    // and gets an explicit size to stay locked to its sibling.
+    .flat-terminal-wrapper__context-free,
+    .flat-terminal-wrapper__context-tokens {
+      font-size: 9px;
     }
   }
 
@@ -1285,14 +1289,20 @@ body.flat-splitter-dragging {
   }
 
   // ── Context chip extra sub-labels ───────────────────────────────────────
-  &__context-label {
-    color: var(--text-muted);
-    margin-right: 2px;
-  }
-
+  // The "Ctx:" label and its icon were dropped — the bar and the k/k readout
+  // already say what this chip is, and the words only cost width.
   &__context-free {
     color: var(--text-muted);
     font-size: 10px;
+  }
+
+  // "(50% free)" and "12k/200k" are single units of meaning. Without this they
+  // are flex items that shrink, and the text breaks at its internal space —
+  // which is what pushed the free-percentage onto a second line.
+  &__context-free,
+  &__context-tokens {
+    flex: none;
+    white-space: nowrap;
   }
 
   // ── Action button cluster (search / clear context / more) ───────────────
@@ -1564,11 +1574,6 @@ body.flat-splitter-dragging {
     &:hover {
       background: color-mix(in srgb, var(--text-primary) 8%, transparent);
       border-color: color-mix(in srgb, var(--text-primary) 14%, transparent);
-    }
-
-    &-icon {
-      font-size: 12px;
-      line-height: 1;
     }
 
     &-bar {

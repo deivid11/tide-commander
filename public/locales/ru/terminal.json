@@ -32,7 +32,9 @@
     "closeTerminal": "Закрыть терминал",
     "searchPlaceholder": "Поиск в разговоре... (Esc для закрытия)",
     "searchResultsTitle": "Результаты поиска:",
-    "searchResultsCount": "{{count}} результатов"
+    "searchResultsCount": "{{count}} результатов",
+    "searchToggleResults": "Показать/скрыть панель результатов",
+    "searchHiddenMatch": "Скрытое совпадение:"
   },
   "input": {
     "placeholder": "Сообщение для {{agent}}...",

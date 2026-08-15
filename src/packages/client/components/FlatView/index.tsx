@@ -1416,10 +1416,6 @@ const ChatView = React.memo(function ChatView({
                 : undefined
             }
           >
-            <span className="flat-terminal-wrapper__context-icon">
-              <Icon name="dashboard" size={12} />
-            </span>
-            <span className="flat-terminal-wrapper__context-label">Ctx:</span>
             <span className="flat-terminal-wrapper__context-bar">
               <span
                 className="flat-terminal-wrapper__context-bar-fill"
@@ -1602,7 +1598,7 @@ const ChatView = React.memo(function ChatView({
           </span>
         )}
         <div className="flat-terminal-wrapper__theme">
-          <ThemeSelector />
+          <ThemeSelector iconOnly />
         </div>
       </div>
       {/* Side panels — reuse the same GuakeGitPanel / AreaBuildingsPanel the

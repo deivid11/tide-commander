@@ -47,7 +47,9 @@
     "closeTerminal": "Close terminal",
     "searchPlaceholder": "Search conversation... (Esc to close)",
     "searchResultsTitle": "Search Results:",
-    "searchResultsCount": "{{count}} results"
+    "searchResultsCount": "{{count}} results",
+    "searchToggleResults": "Toggle results panel",
+    "searchHiddenMatch": "Hidden match:"
   },
   "queue": {
     "queued": "queued",

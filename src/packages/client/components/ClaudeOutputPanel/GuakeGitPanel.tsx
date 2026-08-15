@@ -10,7 +10,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiUrl, authFetch, STORAGE_KEYS, getStorageString, setStorageString, getStorage, setStorage, getAuthToken } from '../../utils/storage';
-import { useAreas, useGitDirStatuses } from '../../store';
+import { store, useAreas, useGitDirStatuses } from '../../store';
 import { acquireGitWatch, requestGitRefresh } from '../../services/gitWatch';
 import { DiffViewer } from '../DiffViewer';
 import { GIT_STATUS_CONFIG } from '../FileExplorerPanel/constants';
@@ -1109,7 +1109,106 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     });
   }, [modalState, allChangedFiles]);
 
-  const closeModal = useCallback(() => setModalState(null), []);
+  // ── Diff-modal path history ────────────────────────────────────────────────
+  // Every file that lands in the modal is recorded, whichever way it got there
+  // (prev/next, a click in the tree, a typed path), so Back/Forward work across
+  // all of them rather than only over the changed-files list.
+  const [pathHistory, setPathHistory] = useState<{ entries: string[]; index: number }>(
+    { entries: [], index: -1 }
+  );
+  // Set while replaying history, so the recorder below doesn't re-push the entry
+  // we just navigated to and truncate the forward trail.
+  const replayingHistoryRef = useRef(false);
+
+  const modalFilePath = modalState?.data.filePath;
+  useEffect(() => {
+    if (!modalFilePath) return;
+    if (replayingHistoryRef.current) {
+      replayingHistoryRef.current = false;
+      return;
+    }
+    setPathHistory((prev) => {
+      if (prev.entries[prev.index] === modalFilePath) return prev;
+      const entries = [...prev.entries.slice(0, prev.index + 1), modalFilePath];
+      return { entries, index: entries.length - 1 };
+    });
+  }, [modalFilePath]);
+
+  // Open an arbitrary path in the modal by reusing the explorer's own loader —
+  // it already picks diff vs plain content vs binary preview per file.
+  const openPathInModal = useCallback(async (rawPath: string) => {
+    const target = rawPath.trim();
+    if (!target) return;
+    const name = target.split('/').filter(Boolean).pop() || target;
+    await handleExplorerFileSelect({
+      path: target,
+      name,
+      isDirectory: false,
+      gitStatus: explorerGitStatusMap.get(target),
+    } as TreeNode);
+  }, [handleExplorerFileSelect, explorerGitStatusMap]);
+
+  const canHistoryBack = pathHistory.index > 0;
+  const canHistoryForward = pathHistory.index >= 0 && pathHistory.index < pathHistory.entries.length - 1;
+
+  const goHistory = useCallback((delta: -1 | 1) => {
+    const nextIdx = pathHistory.index + delta;
+    if (nextIdx < 0 || nextIdx >= pathHistory.entries.length) return;
+    replayingHistoryRef.current = true;
+    setPathHistory((prev) => ({ ...prev, index: nextIdx }));
+    void openPathInModal(pathHistory.entries[nextIdx]);
+  }, [pathHistory, openPathInModal]);
+
+  // Draft for the editable path box. Follows the modal while unfocused; while
+  // focused it belongs to the user and must not be overwritten by a load.
+  const [modalPathDraft, setModalPathDraft] = useState('');
+  const [modalPathFocused, setModalPathFocused] = useState(false);
+  useEffect(() => {
+    if (!modalPathFocused) setModalPathDraft(modalFilePath || '');
+  }, [modalFilePath, modalPathFocused]);
+
+  const modalParentFolder = useMemo(() => {
+    const base = (modalFilePath || '').replace(/\/+$/, '');
+    if (!base || base === '/' || !base.includes('/')) return null;
+    return base.slice(0, base.lastIndexOf('/')) || '/';
+  }, [modalFilePath]);
+
+  /**
+   * Up = the containing folder — handed to the File Viewer modal.
+   *
+   * This modal only renders a single file (diff / content / binary preview); it
+   * has no directory listing to show. Rather than a dead button, Up opens that
+   * folder where browsing actually works, and closes this modal so the two
+   * don't stack.
+   */
+  const goUpFromModal = useCallback(() => {
+    if (!modalParentFolder) return;
+    setModalState(null);
+    setPathHistory({ entries: [], index: -1 });
+    store.setFileViewerPath(modalParentFolder);
+  }, [modalParentFolder]);
+
+  // Alt+arrows mirror a browser. Alt-modified so plain arrows stay free for
+  // scrolling the diff, and typing in the path box is never intercepted.
+  useEffect(() => {
+    if (!modalState) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!e.altKey) return;
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'ArrowUp') return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      e.preventDefault();
+      if (e.key === 'ArrowUp') goUpFromModal();
+      else goHistory(e.key === 'ArrowLeft' ? -1 : 1);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [modalState, goHistory, goUpFromModal]);
+
+  const closeModal = useCallback(() => {
+    setModalState(null);
+    // Reopening should start a fresh trail, not resume the last one.
+    setPathHistory({ entries: [], index: -1 });
+  }, []);
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
   // Delete file with confirmation dialog
@@ -1693,12 +1792,68 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                 )}
               </div>
             )}
-            <span className="guake-git-diff-filename" title={modalState.data.filePath}>
-              {modalState.data.filePath}
+            <div className="guake-git-diff-path">
+              <button
+                className="guake-git-diff-nav-btn"
+                onClick={() => goHistory(-1)}
+                disabled={!canHistoryBack}
+                title="Back (Alt+←)"
+                aria-label="Back"
+              >
+                <Icon name="arrow-left" size={13} />
+              </button>
+              <button
+                className="guake-git-diff-nav-btn"
+                onClick={() => goHistory(1)}
+                disabled={!canHistoryForward}
+                title="Forward (Alt+→)"
+                aria-label="Forward"
+              >
+                <Icon name="arrow-right" size={13} />
+              </button>
+              <button
+                className="guake-git-diff-nav-btn"
+                onClick={goUpFromModal}
+                disabled={!modalParentFolder}
+                title={modalParentFolder
+                  ? `Up to ${modalParentFolder} — opens it in the file viewer (Alt+↑)`
+                  : 'Already at the root'}
+                aria-label="Up one folder"
+              >
+                <Icon name="arrow-up" size={13} />
+              </button>
+              <input
+                type="text"
+                className="guake-git-diff-path-input"
+                value={modalPathDraft}
+                spellCheck={false}
+                autoComplete="off"
+                title={`${modalState.data.filePath}\nEdit and press Enter to open another file`}
+                aria-label="File path — edit and press Enter to open"
+                onChange={(e) => setModalPathDraft(e.target.value)}
+                onFocus={(e) => { setModalPathFocused(true); e.target.select(); }}
+                // Blur reverts instead of loading: only Enter navigates, so a
+                // stray click never swaps the file out from under you.
+                onBlur={() => { setModalPathFocused(false); setModalPathDraft(modalFilePath || ''); }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const next = modalPathDraft.trim();
+                    if (next && next !== modalFilePath) void openPathInModal(next);
+                    e.currentTarget.blur();
+                  } else if (e.key === 'Escape') {
+                    // Revert, then hand Escape back to the modal's own handler.
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setModalPathDraft(modalFilePath || '');
+                    e.currentTarget.blur();
+                  }
+                }}
+              />
               {modalState.type === 'content' && modalState.isNewFile && (
                 <span className="guake-git-content-badge">new file</span>
               )}
-            </span>
+            </div>
             <button className="guake-git-close" onClick={closeModal} title="Close (Esc)"><Icon name="close" size={14} /></button>
           </div>
           <div className="guake-git-diff-content">

@@ -32,7 +32,9 @@
     "closeTerminal": "टर्मिनल बंद करें",
     "searchPlaceholder": "वार्तालाप में खोजें... (बंद करने के लिए Esc)",
     "searchResultsTitle": "खोज परिणाम:",
-    "searchResultsCount": "{{count}} परिणाम"
+    "searchResultsCount": "{{count}} परिणाम",
+    "searchToggleResults": "परिणाम पैनल टॉगल करें",
+    "searchHiddenMatch": "छिपा हुआ मिलान:"
   },
   "input": {
     "placeholder": "{{agent}} को संदेश भेजें...",

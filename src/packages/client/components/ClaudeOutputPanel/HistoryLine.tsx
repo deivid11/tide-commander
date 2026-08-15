@@ -33,7 +33,7 @@ import { parseHttpResults } from './httpResultsParser';
 import { HttpResultsCard } from './HttpResultsCard';
 import { HttpRunInline, HttpRunLookup, matchHttpRunHandle } from './HttpRunInline';
 import { TestRunInline } from './TestRunInline';
-import { highlightText, renderContentWithImages, renderUserPromptContent, isThumbnailableImagePath, getLocalFileImageUrl, getImagePreviewUrl } from './contentRendering';
+import { renderContentWithImages, renderUserPromptContent, isThumbnailableImagePath, getLocalFileImageUrl, getImagePreviewUrl } from './contentRendering';
 import { useTTS } from '../../hooks/useTTS';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { Icon } from '../Icon';
@@ -64,8 +64,10 @@ function getBasenameFromPath(filePath: string): string {
 interface HistoryLineProps {
   message: EnrichedHistoryMessage;
   agentId?: string | null;
-  highlight?: string;
   simpleView?: boolean;
+  /** Row is the active find match: reveal searchable content the renderer
+   *  normally hides (e.g. bash output when inline outputs are off). */
+  searchReveal?: boolean;
   /**
    * Subagents map keyed by subagent id. Needed so that persisted Task/Agent
    * tool_use rows can render the inline activity + stream panel — the live
@@ -98,8 +100,8 @@ function getHistoryDebugHash(message: EnrichedHistoryMessage): string {
 export const HistoryLine = memo(function HistoryLine({
   message,
   agentId,
-  highlight,
   simpleView,
+  searchReveal,
   subagents,
   execTasks = [],
   testRunHandles = [],
@@ -1213,7 +1215,7 @@ export const HistoryLine = memo(function HistoryLine({
           {/* Global inline-output mode: show the captured output right below the
               command. Skipped when the row already renders its result inline
               (exec tasks, exec output, test runs, HTTP run cards). */}
-          {isBashTool && settings.inlineBashOutputs && _bashOutput
+          {isBashTool && (settings.inlineBashOutputs || searchReveal) && _bashOutput
             && matchingExecTasks.length === 0 && !execTaskOutput && !matchingTestRunId && !matchingHttpRunId && (
             <BashInlineOutput text={_bashOutput} />
           )}
@@ -1657,7 +1659,7 @@ export const HistoryLine = memo(function HistoryLine({
               {chip}
               <BashInlineToggle enabled={settings.inlineBashOutputs} />
             </div>
-            {settings.inlineBashOutputs && _bashOutput && (
+            {(settings.inlineBashOutputs || searchReveal) && _bashOutput && (
               <BashInlineOutput text={_bashOutput} />
             )}
           </>
@@ -1676,7 +1678,7 @@ export const HistoryLine = memo(function HistoryLine({
         </div>
         {toolInputContent && (
           <div className="output-line output-tool-input">
-            <pre className="output-input-content">{highlightText(toolInputContent, highlight)}</pre>
+            <pre className="output-input-content">{toolInputContent}</pre>
           </div>
         )}
         {matchingSubagent && <SubagentInline subagent={matchingSubagent} />}
@@ -1750,7 +1752,7 @@ export const HistoryLine = memo(function HistoryLine({
       <div className={`output-line output-tool-result ${isError ? 'is-error' : ''}`}>
         {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
         <span className="output-result-icon"><Icon name={isError ? 'failure' : 'check'} size={12} /></span>
-        <pre className="output-result-content">{highlightText(content, highlight)}</pre>
+        <pre className="output-result-content">{content}</pre>
       </div>
     );
   }
@@ -1817,11 +1819,7 @@ export const HistoryLine = memo(function HistoryLine({
             />
             {taskNotif.contentWithoutNotification && (
               <span className="user-prompt-text">
-                {highlight ? (
-                  <div>{highlightText(taskNotif.contentWithoutNotification, highlight)}</div>
-                ) : (
-                  renderUserPromptContent(taskNotif.contentWithoutNotification, onImageClick, onFileClick)
-                )}
+                {renderUserPromptContent(taskNotif.contentWithoutNotification, onImageClick, onFileClick)}
               </span>
             )}
           </span>
@@ -1839,11 +1837,7 @@ export const HistoryLine = memo(function HistoryLine({
             <SubagentNotificationDisplay agentId={subagentNotif.agentId} status={subagentNotif.status} />
             {subagentNotif.contentWithoutNotification && (
               <span className="user-prompt-text">
-                {highlight ? (
-                  <div>{highlightText(subagentNotif.contentWithoutNotification, highlight)}</div>
-                ) : (
-                  renderUserPromptContent(subagentNotif.contentWithoutNotification, onImageClick, onFileClick)
-                )}
+                {renderUserPromptContent(subagentNotif.contentWithoutNotification, onImageClick, onFileClick)}
               </span>
             )}
           </span>
@@ -1923,11 +1917,7 @@ export const HistoryLine = memo(function HistoryLine({
           {parsedBoss.hasContext && parsedBoss.context && (
             <BossContext key={`boss-${timestamp || content.slice(0, 50)}`} context={parsedBoss.context} onFileClick={onFileClick ? (path) => onFileClick(path) : undefined} />
           )}
-          {highlight ? (
-            <div>{highlightText(displayMessage, highlight)}</div>
-          ) : (
-            renderUserPromptContent(displayMessage, onImageClick, onFileClick)
-          )}
+          {renderUserPromptContent(displayMessage, onImageClick, onFileClick)}
         </span>
       </div>
     );
@@ -1946,11 +1936,7 @@ export const HistoryLine = memo(function HistoryLine({
           {assistantOrSystemRoleLabel}
         </span>
         <span ref={markdownContentRef} className="history-content markdown-content">
-          {highlight ? (
-            <div>{highlightText(workPlanParsed.contentWithoutBlock, highlight)}</div>
-          ) : (
-            renderContentWithImages(workPlanParsed.contentWithoutBlock, onImageClick, onFileClick, agentCwd)
-          )}
+          {renderContentWithImages(workPlanParsed.contentWithoutBlock, onImageClick, onFileClick, agentCwd)}
           {workPlanParsed.hasWorkPlan && workPlanParsed.workPlan && (
             <WorkPlanBlock workPlan={workPlanParsed.workPlan} />
           )}
@@ -2003,9 +1989,7 @@ export const HistoryLine = memo(function HistoryLine({
         {isUser ? t('common:labels.you') : assistantOrSystemRoleLabel}
       </span>
       <span ref={markdownContentRef} className={`history-content ${isUser ? 'user-prompt-text' : 'markdown-content'}`}>
-        {highlight ? <div>{highlightText(content, highlight)}</div> : (
-          isUser ? renderUserPromptContent(content, onImageClick, onFileClick) : renderContentWithImages(content, onImageClick, onFileClick, agentCwd)
-        )}
+        {isUser ? renderUserPromptContent(content, onImageClick, onFileClick) : renderContentWithImages(content, onImageClick, onFileClick, agentCwd)}
       </span>
       {!isUser && (
         <div className="message-action-btns">
