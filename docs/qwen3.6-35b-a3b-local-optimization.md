@@ -556,7 +556,7 @@ recortar el contexto a 16,384 (el KV cuesta ~72 KiB/token):
 | 61/64 GPU (3 capas CPU), MTP 3 | 18.9 tok/s | proceso 12.8 GB |
 
 Perfil final en `start-qwen38-desktop.sh`: IQ3_XXS, `--n-gpu-layers 999`,
-ctx 24,576 (subido de 16,384 el 14 de agosto a petición de David; es el tope
+ctx 32,768 (subido de 16,384 a 24,576 y luego a 32,768 el 14 de agosto reinvirtiendo el GB del quant UD; cerca del tope
 todo-en-GPU), KV `q4_0`, ubatch 512, MTP 3 → **~31 tok/s**, prefill ~500
 tok/s a 4K, proceso 13.95 GB. Se pidió 150K de contexto: es físicamente
 imposible en el denso (sin sliding window, KV de 72 KiB/token → 150K = ~10.5
@@ -565,6 +565,15 @@ escritorio; con offload masivo a CPU daría ~6 tok/s y prefills de minutos).
 Advertencia reforzada: con 13.95 GB de proceso, el escritorio pesado (~3 GB)
 sobresuscribe la VRAM y aparecen congelones transitorios; usar el denso con
 pestañas cerradas.
+
+Actualización de quant (14 de agosto, tarde): A/B entre el IQ3_XXS de
+bartowski (11.76 GiB), el `Q3_K_S` de unsloth (11.71) y el **`UD-IQ3_XXS`
+Dynamic de unsloth (11.09)**. Ganó el UD: 32.7 tok/s (vs 31.4 y 30.1) y ~1 GB
+menos de VRAM de proceso (12.9 vs 13.95 GB), con la ventaja de calidad
+esperada de los quants Dynamic al mismo tamaño. Es el GGUF del perfil desde
+entonces (`../.cache/llama-opt/models/Qwen3.8-27B-UD-IQ3_XXS.gguf`); los
+otros dos se borraron. El kernel K no compensó en ROCm: Q3_K_S salió más
+lento que ambos IQ3_XXS.
 
 Nota MTP (14 de agosto, a raíz de un benchmark viral de una RTX 4090): se
 midió la base sin MTP del perfil todo-en-GPU: 19.9 tok/s. El MTP con

@@ -1105,6 +1105,26 @@ body.flat-splitter-dragging {
       background: transparent;
       border-color: color-mix(in srgb, var(--text-primary) 4%, transparent);
     }
+
+    // Statusbar type runs 3px below the header's: this is ambient status, not a
+    // control surface, so it should not compete with the conversation.
+    //
+    // Scoped INSIDE the statusbar on purpose — .flat-terminal-wrapper__cwd and
+    // __context also render in the header, and shrinking them at the source
+    // would shrink both. Everything not listed here (branch counters, the
+    // fetch button, building buttons, the directory name) has no size of its
+    // own and simply inherits.
+    .flat-terminal-wrapper__cwd,
+    .flat-terminal-wrapper__context,
+    .flat-terminal-wrapper__area-dir,
+    .flat-terminal-wrapper__detached {
+      font-size: 8px;
+    }
+
+    // Sets its own 10px, so inheritance never reaches it — step it down too.
+    .flat-terminal-wrapper__context-free {
+      font-size: 7px;
+    }
   }
 
   &__statusbar-spacer {
@@ -1620,6 +1640,32 @@ body.flat-splitter-dragging {
 
       &:hover {
         background: color-mix(in srgb, var(--accent-purple) 36%, transparent);
+      }
+    }
+  }
+
+  // Dropdown trigger: shows the ACTIVE mode, so it deliberately does NOT reuse
+  // the --active segment styling (a purple fill here would read as "selected
+  // option" rather than "open the menu"). Text colour carries the state.
+  &__view-mode-trigger {
+    color: var(--text-primary);
+    gap: 6px;
+
+    // The caret is the only affordance that this opens something — keep it
+    // quiet until hover so the header stays calm.
+    svg:last-child {
+      opacity: 0.55;
+      transition: opacity 0.15s ease, transform 0.15s ease;
+    }
+
+    &:hover svg:last-child { opacity: 1; }
+
+    &--open {
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+
+      svg:last-child {
+        opacity: 1;
+        transform: rotate(180deg);
       }
     }
   }

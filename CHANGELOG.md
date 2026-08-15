@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.184.0] - 2026-08-15
+
+### Added
+- **Browse from inside the file viewer** - the viewer is no longer a dead end on whatever opened it. It has an editable path box, Back / Forward / Up buttons (Alt+arrows, mirroring a file manager) and clickable directory listings, all sharing one navigation trail so the toolbar, the path box and what's on screen stay in step. The trail is seeded with the file you opened, so the first Back returns there rather than to an empty state, and reopening the viewer on a different file starts a fresh trail.
+- **Export Markdown as PDF** - a rendered Markdown file can be exported to PDF. The client hands the server the HTML it is already displaying, so the PDF matches what you are looking at instead of being re-parsed by a second, subtly different renderer, and images are rewritten to absolute self-authenticating URLs so they actually appear rather than rendering as broken boxes. The print stylesheet is deliberately its own, light and paper-first — the app's dark screen theme would print as a wall of ink.
+- **Attach files to a Jira issue** - local files can be uploaded as attachments on an issue through the Jira integration and its skill.
+- **View-mode menu in flat view** - the message-view segmented control became a dropdown listing every view plus Classic TUI, with the active one ticked, freeing header space and keeping the status bar quiet.
+
+### Fixed
+- **Parts of the UI silently freezing after an update** - a build replaces the hashed bundle and deletes the previous chunks, so a page that was already open requests chunk files that no longer exist. Those requests fell through to `index.html`, which returned HTML with a 200 that the browser then tried to execute as JavaScript: the dynamic import failed with a syntax error and that slice of the interface simply stopped updating, with nothing in the network tab looking wrong. Missing chunks now return a real 404, so the client sees a genuine chunk-load error and can prompt for a reload.
+
+### Changed
+- **Download helpers consolidated** - the drag-out and download helpers added last release lived in a second module alongside an existing one; they are now a single file.
+
 ## [1.183.0] - 2026-08-14
 
 ### Added

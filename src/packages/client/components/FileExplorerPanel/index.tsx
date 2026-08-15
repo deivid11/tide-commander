@@ -13,7 +13,7 @@ import { useFileViewerRevealInTree } from '../../store/selectors';
 import { matchesShortcut } from '../../store/shortcuts';
 import { DiffViewer } from '../DiffViewer';
 import { apiUrl, authFetch } from '../../utils/storage';
-import { downloadFile, downloadFolder } from '../../utils/fileDownload';
+import { downloadFile, downloadFolder } from '../../utils/file-download';
 
 // Types
 import type {

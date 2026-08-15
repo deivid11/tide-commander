@@ -8,7 +8,7 @@ import { DiffViewer } from './DiffViewer';
 import { PdfJsViewer } from './shared/PdfJsViewer';
 import { apiUrl, authFetch, getAuthToken } from '../utils/storage';
 import { copyRichContentToClipboard, copyTextToClipboard, inlineStylesForRichCopy } from '../utils/clipboard';
-import { downloadServerFile } from '../utils/file-download';
+import { downloadServerFile, absolutizeAssetUrl, triggerBrowserDownload } from '../utils/file-download';
 import { revealInFileExplorer } from '../api/files';
 import { store } from '../store';
 import { useModalClose } from '../hooks';
@@ -269,6 +269,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const [copyMarkdownStatus, setCopyMarkdownStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyOriginalStatus, setCopyOriginalStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [copyAllStatus, setCopyAllStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [pdfStatus, setPdfStatus] = useState<'idle' | 'working' | 'error'>('idle');
   const [revealStatus, setRevealStatus] = useState<'idle' | 'opening' | 'success' | 'error'>('idle');
   const [fetchedUnifiedDiff, setFetchedUnifiedDiff] = useState<string | null>(null);
   const [fetchedOriginalContent, setFetchedOriginalContent] = useState<string | null>(null);
@@ -276,13 +277,48 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const markdownContentRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
-  // A path typed into the header box replaces the one passed in, so the modal
-  // can browse anywhere without being reopened from a tool card. Keyed to the
-  // incoming filePath so reopening on a DIFFERENT file discards a stale
-  // override on its own — clearing it from an effect instead would fire a
-  // second load for the path we just navigated away from.
-  const [pathOverride, setPathOverride] = useState<{ forFilePath: string; path: string } | null>(null);
-  const overrideRef = pathOverride?.forFilePath === filePath ? pathOverride.path : null;
+  // In-modal navigation trail: the editable path box, Back/Forward/Up and every
+  // click on a directory entry all push through here, so the modal browses like
+  // a file manager instead of being a dead end on whatever it was opened with.
+  //
+  // Keyed to the incoming filePath so reopening on a DIFFERENT file starts a
+  // fresh trail. Deriving that (rather than clearing it from an effect) avoids
+  // firing a second load for the path we just navigated away from.
+  const [nav, setNav] = useState<{ forFilePath: string; entries: string[]; index: number } | null>(null);
+  const navTrail = nav?.forFilePath === filePath ? nav : null;
+  const overrideRef = navTrail ? navTrail.entries[navTrail.index] ?? null : null;
+  const canGoBack = !!navTrail && navTrail.index > 0;
+  const canGoForward = !!navTrail && navTrail.index < navTrail.entries.length - 1;
+
+  /**
+   * Push a destination onto the trail, truncating anything ahead of the cursor —
+   * the same rule a browser applies when you navigate after going Back.
+   *
+   * The trail is seeded with the ORIGINAL filePath so the first Back returns to
+   * whatever the modal was opened on, not to an empty state.
+   */
+  const navigateTo = useCallback((target: string) => {
+    const dest = target.trim();
+    if (!dest) return;
+    setNav((prev) => {
+      const cur = prev?.forFilePath === filePath
+        ? prev
+        : { forFilePath: filePath, entries: [filePath], index: 0 };
+      if (cur.entries[cur.index] === dest) return cur; // already there
+      const entries = [...cur.entries.slice(0, cur.index + 1), dest];
+      return { forFilePath: filePath, entries, index: entries.length - 1 };
+    });
+  }, [filePath]);
+
+  const goBack = useCallback(() => {
+    setNav((prev) => (prev && prev.index > 0 ? { ...prev, index: prev.index - 1 } : prev));
+  }, []);
+
+  const goForward = useCallback(() => {
+    setNav((prev) => (
+      prev && prev.index < prev.entries.length - 1 ? { ...prev, index: prev.index + 1 } : prev
+    ));
+  }, []);
 
   const parsedReference = useMemo(
     () => parseFilePathReference(overrideRef ?? filePath),
@@ -317,7 +353,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       setFetchedOriginalContent(null);
       // Reopening the same file should show that file, not wherever the last
       // session was browsing.
-      setPathOverride(null);
+      setNav(null);
     }
   }, [isOpen, effectivePath]);
 
@@ -332,13 +368,31 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     if (!pathFocused) setPathDraft(displayPath);
   }, [displayPath, pathFocused]);
 
+  /**
+   * The folder one level up from whatever is on screen.
+   *
+   * One formula covers both modes: for a file it yields its containing folder,
+   * for a directory listing it yields the parent. Null at the filesystem root,
+   * which is what disables the button.
+   */
+  const parentFolder = useMemo(() => {
+    const base = (directoryPath || fileData?.path || effectivePath || '').replace(/\/+$/, '');
+    if (!base || base === '/' || !base.includes('/')) return null;
+    const parent = base.slice(0, base.lastIndexOf('/')) || '/';
+    return parent === base ? null : parent;
+  }, [directoryPath, fileData?.path, effectivePath]);
+
+  const goUp = useCallback(() => {
+    if (parentFolder) navigateTo(parentFolder);
+  }, [parentFolder, navigateTo]);
+
   const commitPathDraft = () => {
     const next = pathDraft.trim();
     if (!next || next === displayPath) {
       setPathDraft(displayPath);
       return;
     }
-    setPathOverride({ forFilePath: filePath, path: next });
+    navigateTo(next);
   };
 
   const handlePathKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -380,6 +434,16 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
         onClose();
         return;
       }
+      // Alt+arrows mirror a browser/file manager. Alt (not bare arrows) so the
+      // keys stay free for scrolling the file being viewed.
+      if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp')) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === 'ArrowLeft') goBack();
+        else if (e.key === 'ArrowRight') goForward();
+        else goUp();
+        return;
+      }
       // Vim-style scrolling: j to scroll down, k to scroll up
       if (e.key === 'j' || e.key === 'k') {
         e.preventDefault();
@@ -416,7 +480,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     // Use capture phase to intercept before other handlers
     window.addEventListener('keydown', handleGlobalKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleGlobalKeyDown, { capture: true });
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, goBack, goForward, goUp]);
 
   // Compute original content by reversing the edit operation where possible.
   const originalContent = useMemo(() => {
@@ -686,11 +750,11 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     }
   };
 
-  // Navigate the in-modal listing up to the parent folder.
+  // Kept for the listing's own ".." row; shares the trail with the toolbar's Up.
   const handleDirectoryUp = () => {
     if (!directoryPath || directoryPath === '/') return;
     const parent = directoryPath.substring(0, directoryPath.lastIndexOf('/')) || '/';
-    void loadDirectoryInto(parent);
+    navigateTo(parent);
   };
 
   const loadFile = async () => {
@@ -819,33 +883,13 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     }
   };
 
-  const handleCandidateClick = async (candidate: ResolveResult) => {
-    if (candidate.isDirectory) {
-      // Navigate the in-modal listing into this subfolder.
-      await loadDirectoryInto(candidate.path);
-      return;
-    }
-    // Open the clicked file in this same viewer, replacing any directory listing.
-    setLoading(true);
-    setResolvedCandidates([]);
-    setDirectoryEntries([]);
-    setDirectoryPath(null);
-    setError(null);
-    try {
-      const result = await loadFileByPath(candidate.path);
-      if (result.ok) {
-        setFileData(result.data);
-      } else if (result.isDirectory) {
-        // Reported as a file but is actually a directory — browse it instead.
-        await loadDirectoryInto(result.requested || candidate.path);
-      } else {
-        setError(result.error || t('terminal:fileExplorer.failedToLoad'));
-      }
-    } catch (err: any) {
-      setError(err.message || t('terminal:fileExplorer.failedToLoad'));
-    } finally {
-      setLoading(false);
-    }
+  // Every in-modal jump — a resolved candidate, a row in the directory listing —
+  // goes through the trail rather than loading directly, so Back/Forward and the
+  // path box stay in step with what is on screen. The load itself is then the
+  // same one the modal performs on open (it already handles "this is actually a
+  // directory"), instead of a second, parallel implementation.
+  const handleCandidateClick = (candidate: ResolveResult) => {
+    navigateTo(candidate.path);
   };
 
   const { handleMouseDown: handleOverlayMouseDown, handleClick: handleOverlayClick } = useModalClose(onClose);
@@ -910,6 +954,49 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       setTimeout(() => setCopyHtmlStatus('idle'), 2000);
     }
   }, []);
+
+  const handleDownloadPdf = useCallback(async () => {
+    if (!markdownContentRef.current || !fileData) return;
+
+    setPdfStatus('working');
+    try {
+      // Send a CLONE: image sources are rewritten to absolute, self-authenticating
+      // URLs so headless Chrome can actually fetch them. Relative srcs (and any
+      // needing the auth header) would silently render as broken boxes.
+      const clone = markdownContentRef.current.cloneNode(true) as HTMLElement;
+      clone.querySelectorAll('img').forEach((img) => {
+        const src = img.getAttribute('src');
+        if (!src || src.startsWith('data:')) return;
+        try {
+          img.setAttribute('src', absolutizeAssetUrl(src));
+        } catch { /* leave the original src — worst case the image is missing */ }
+      });
+
+      const baseName = (fileData.path.split('/').pop() || 'document').replace(/\.[^.]+$/, '');
+      const res = await authFetch(apiUrl('/api/files/markdown-pdf'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html: clone.innerHTML, title: baseName }),
+      });
+
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        throw new Error(detail.error || `PDF export failed (${res.status})`);
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      triggerBrowserDownload(url, `${baseName}.pdf`);
+      // Revoke only after the click has been processed, or the download aborts.
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+      setPdfStatus('idle');
+    } catch (err) {
+      console.error('PDF export failed:', err);
+      setPdfStatus('error');
+      setTimeout(() => setPdfStatus('idle'), 2500);
+    }
+  }, [fileData]);
 
   const handleCopyMarkdown = useCallback(async () => {
     if (!fileData) {
@@ -1172,6 +1259,20 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                 >
                   {copyOriginalStatus === 'copied' ? t('common:status.copied') : copyOriginalStatus === 'error' ? t('common:status.error') : t('terminal:fileExplorer.copyOriginal')}
                 </button>
+                <button
+                  className={`file-viewer-copy-html-btn file-viewer-pdf-btn ${pdfStatus}`}
+                  onClick={handleDownloadPdf}
+                  disabled={pdfStatus === 'working'}
+                  title={t('terminal:fileViewer.downloadPdfTitle', {
+                    defaultValue: 'Download this Markdown as a PDF',
+                  })}
+                >
+                  {pdfStatus === 'working'
+                    ? '…'
+                    : pdfStatus === 'error'
+                      ? t('common:status.error')
+                      : 'PDF'}
+                </button>
               </>
             )}
             {fileData && !hasBinaryPreview && !isMarkdown && (
@@ -1234,6 +1335,38 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
         </div>
 
         <div className="file-viewer-path">
+          <div className="file-viewer-nav">
+            <button
+              type="button"
+              className="file-viewer-nav-btn"
+              onClick={goBack}
+              disabled={!canGoBack}
+              title="Back (Alt+←)"
+              aria-label="Back"
+            >
+              <Icon name="arrow-left" size={12} />
+            </button>
+            <button
+              type="button"
+              className="file-viewer-nav-btn"
+              onClick={goForward}
+              disabled={!canGoForward}
+              title="Forward (Alt+→)"
+              aria-label="Forward"
+            >
+              <Icon name="arrow-right" size={12} />
+            </button>
+            <button
+              type="button"
+              className="file-viewer-nav-btn"
+              onClick={goUp}
+              disabled={!parentFolder}
+              title={parentFolder ? `Up to ${parentFolder} (Alt+↑)` : 'Already at the root'}
+              aria-label="Up one folder"
+            >
+              <Icon name="arrow-up" size={12} />
+            </button>
+          </div>
           <input
             type="text"
             className="file-viewer-path-input"

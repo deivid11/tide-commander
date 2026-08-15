@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
 import archiver from 'archiver';
+import type { Browser as PuppeteerBrowser } from 'puppeteer-core';
 import { execFile, execFileSync, execSync, spawn } from 'child_process';
 import * as os from 'os';
 import { pathToFileURL } from 'url';
@@ -1047,6 +1048,139 @@ router.get('/download-folder', async (req: Request, res: Response) => {
     if (!res.headersSent) {
       res.status(500).json({ error: err.message });
     }
+  }
+});
+
+/** Chrome/Chromium used to print Markdown to PDF. Env override first. */
+function findChromeBinary(): string | null {
+  const fromEnv = process.env.CHROME_PATH || process.env.PUPPETEER_EXECUTABLE_PATH;
+  if (fromEnv && fs.existsSync(fromEnv)) return fromEnv;
+  const candidates = [
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/snap/bin/chromium',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  ];
+  return candidates.find((c) => fs.existsSync(c)) || null;
+}
+
+/**
+ * Print styles for the Markdown → PDF export.
+ *
+ * Deliberately self-contained rather than reusing the app's stylesheet: the UI
+ * theme is dark and tuned for a screen, which prints as a wall of ink. This is a
+ * light, paper-first rendering of the same structure.
+ */
+const MARKDOWN_PDF_CSS = `
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 11pt/1.6 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1a1a1a;
+    background: #fff;
+  }
+  h1, h2, h3, h4, h5, h6 { line-height: 1.25; margin: 1.4em 0 0.5em; page-break-after: avoid; }
+  h1 { font-size: 20pt; border-bottom: 1px solid #ddd; padding-bottom: 0.2em; }
+  h2 { font-size: 16pt; border-bottom: 1px solid #eee; padding-bottom: 0.2em; }
+  h3 { font-size: 13pt; }
+  p, li { orphans: 2; widows: 2; }
+  a { color: #0b5fff; text-decoration: none; }
+  code {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    font-size: 9.5pt;
+    background: #f4f4f6;
+    padding: 0.15em 0.35em;
+    border-radius: 3px;
+  }
+  pre {
+    background: #f6f7f9;
+    border: 1px solid #e3e5e9;
+    border-radius: 5px;
+    padding: 10px 12px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    page-break-inside: avoid;
+  }
+  pre code { background: none; padding: 0; font-size: 9pt; }
+  blockquote { margin: 1em 0; padding: 0.2em 1em; border-left: 3px solid #d6d8dd; color: #555; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; page-break-inside: avoid; }
+  th, td { border: 1px solid #d9dbe0; padding: 6px 9px; text-align: left; font-size: 10pt; }
+  th { background: #f2f3f5; }
+  img { max-width: 100%; }
+  hr { border: none; border-top: 1px solid #e0e0e0; margin: 1.6em 0; }
+  ul, ol { padding-left: 1.5em; }
+`;
+
+// POST /api/files/markdown-pdf - Render already-rendered Markdown HTML to a PDF
+//
+// The client sends the HTML it is ALREADY displaying, so the PDF matches what
+// the user is looking at (same Markdown renderer, same tables, same code
+// blocks) instead of re-parsing the source with a second, subtly different one.
+router.post('/markdown-pdf', async (req: Request, res: Response) => {
+  const chromePath = findChromeBinary();
+  if (!chromePath) {
+    res.status(501).json({
+      error: 'No Chrome/Chromium found for PDF export. Install Google Chrome or set CHROME_PATH.',
+    });
+    return;
+  }
+
+  const { html, title } = req.body as { html?: string; title?: string };
+  if (!html || typeof html !== 'string') {
+    res.status(400).json({ error: 'html is required' });
+    return;
+  }
+
+  const docTitle = (title || 'document').replace(/[<>]/g, '');
+  const page = `<!DOCTYPE html><html><head><meta charset="utf-8">`
+    + `<title>${docTitle}</title><style>${MARKDOWN_PDF_CSS}</style></head>`
+    + `<body>${html}</body></html>`;
+
+  let browser: PuppeteerBrowser | null = null;
+  try {
+    const puppeteer = (await import('puppeteer-core')).default;
+    browser = await puppeteer.launch({
+      executablePath: chromePath,
+      headless: true,
+      // A fresh, isolated profile: this must never attach to (or disturb) the
+      // user's real Chrome, which the browser-bridge drives over CDP.
+      args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+    });
+    const tab = await browser.newPage();
+    // The content is a local document, not an app — no scripts should run.
+    await tab.setJavaScriptEnabled(false);
+    // 'load' (not 'domcontentloaded') so images finish fetching before printing.
+    await tab.setContent(page, { waitUntil: 'load', timeout: 20000 });
+
+    const pdf = await tab.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '18mm', bottom: '18mm', left: '16mm', right: '16mm' },
+      displayHeaderFooter: true,
+      headerTemplate: '<div></div>',
+      footerTemplate:
+        '<div style="width:100%;font-size:8pt;color:#888;padding:0 16mm;'
+        + 'display:flex;justify-content:space-between;">'
+        + `<span>${docTitle.replace(/[&<>"]/g, '')}</span>`
+        + '<span class="pageNumber"></span></div>',
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', pdf.length);
+    log.log(` Markdown PDF generated: ${docTitle} (${pdf.length} bytes)`);
+    res.end(Buffer.from(pdf));
+  } catch (err: any) {
+    log.error(' Failed to render Markdown to PDF:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message || 'PDF generation failed' });
+    }
+  } finally {
+    // Always reap the browser — a leaked headless Chrome per export would pile
+    // up invisibly and eat the box.
+    if (browser) await browser.close().catch(() => { /* already gone */ });
   }
 });
 

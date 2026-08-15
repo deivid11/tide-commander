@@ -159,7 +159,45 @@
   }
 }
 
+// Back / Forward / Up, sharing the path row so navigation and the address sit
+// on one line instead of costing the viewer a second toolbar's height.
+.file-viewer-nav {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex: none;
+  margin-right: 8px;
+}
+
+.file-viewer-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  // Kept visible-but-inert rather than hidden: a button that disappears at the
+  // root makes the row jump and the remaining icons change position.
+  &:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+}
+
 .file-viewer-path {
+  display: flex;
+  align-items: center;
   padding: 8px 16px;
   font-family: $font-mono;
   font-size: 11px;

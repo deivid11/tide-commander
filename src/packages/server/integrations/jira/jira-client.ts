@@ -292,6 +292,68 @@ export class JiraClient {
   }
 
   /**
+   * Upload one or more local files as attachments on an issue.
+   * Jira's attachment endpoint is multipart and rejects requests without the
+   * X-Atlassian-Token: no-check header (its XSRF guard), so this bypasses the JSON
+   * `request` helper and builds the body by hand.
+   * @param issueKey Issue key or numeric id (e.g. "SD-1234").
+   * @param filePaths Absolute paths of the files to upload.
+   * @returns Descriptors of the attachments Jira created.
+   */
+  async uploadAttachments(issueKey: string, filePaths: string[]): Promise<JiraAttachment[]> {
+    if (!this.isConfigured) {
+      throw new Error('Jira client is not configured. Set base URL, email, and API token.');
+    }
+
+    const form = new FormData();
+    for (const filePath of filePaths) {
+      const bytes = await fs.readFile(filePath);
+      // Uint8Array copy: Blob rejects a Buffer backed by a pooled ArrayBuffer.
+      form.append('file', new Blob([new Uint8Array(bytes)]), path.basename(filePath));
+    }
+
+    const response = await fetch(
+      `${this.baseUrl}/rest/api/3/issue/${encodeURIComponent(issueKey)}/attachments`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${this.auth}`,
+          Accept: 'application/json',
+          'X-Atlassian-Token': 'no-check',
+        },
+        body: form,
+      }
+    );
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(
+        `Jira attachment upload failed for ${issueKey} (${response.status}): ${detail}`
+      );
+    }
+
+    const created = (await response.json()) as Array<{
+      id: string;
+      filename: string;
+      mimeType: string;
+      size: number;
+      content: string;
+      author?: { displayName?: string };
+      created?: string;
+    }>;
+
+    return created.map((a) => ({
+      id: a.id,
+      filename: a.filename,
+      mimeType: a.mimeType,
+      size: a.size,
+      contentUrl: a.content,
+      authorDisplayName: a.author?.displayName,
+      created: a.created,
+    }));
+  }
+
+  /**
    * List attachments referenced by comments on an issue.
    * Comments reference media via ADF nodes of type "media"; those ids resolve to entries in the
    * issue's own attachment list.

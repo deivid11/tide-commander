@@ -8,7 +8,7 @@
 import React, { memo, useMemo } from 'react';
 import type { TreeNode, TreeNodeProps, GitFileStatusType } from './types';
 import { getFileIcon, findMatchIndices } from './fileUtils';
-import { setNativeFileDrag } from '../../utils/fileDownload';
+import { setNativeFileDrag } from '../../utils/file-download';
 import { Icon } from '../Icon';
 
 // ============================================================================
