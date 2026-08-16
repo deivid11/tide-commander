@@ -66,6 +66,16 @@ export const SpotlightItem = memo(function SpotlightItem({
               {highlightMatch(result._taskLabel, query)}
             </span>
           )}
+          {result.type === 'agent' && result._areaName && (
+            <span className="spotlight-item-area-badge" title={`Area: ${result._areaName}`}>
+              <span
+                className="spotlight-area-dot"
+                style={result._areaColor ? { background: result._areaColor } : undefined}
+                aria-hidden="true"
+              />
+              {highlightMatch(result._areaName, query)}
+            </span>
+          )}
           {result.type === 'folder' && result._isGitRepo && (
             <span
               className="spotlight-item-git-badge"

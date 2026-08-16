@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.187.0] - 2026-08-16
+
+### Added
+- **Find agents by their area in Spotlight** - typing an area's name now surfaces every agent parked in it, even when neither the agent's name nor its working directory mentions that area. Each agent row also carries a badge in the area's own colour, so you can tell at a glance which part of the battlefield a result lives in. Membership is by position, the same rule the Agent Overview panel uses, and it is resolved in one pass over the areas rather than per agent, so a large roster doesn't pay for the lookup on every keystroke.
+
 ## [1.186.0] - 2026-08-16
 
 ### Changed

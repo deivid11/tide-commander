@@ -56,7 +56,8 @@ export interface SearchResult {
   _isGitRepo?: boolean; // Folder results only — whether the directory is a git repository
   _gitBranch?: string; // Folder results only — current git branch (rendered as a branch badge)
   _projectName?: string; // File results — area-directory basename (the project)
-  _areaName?: string; // File results — area that owns the project
+  _areaName?: string; // Area that owns the project (file results) or holds the agent (agent results — searchable + shown as a badge)
+  _areaColor?: string; // Agent results — colour of the area badge (the area's own colour)
 }
 
 // Props for the main Spotlight component

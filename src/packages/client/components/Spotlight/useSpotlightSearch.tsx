@@ -310,6 +310,26 @@ export function useSpotlightSearch({
     ];
   }, [isOpen, shortcuts]);
 
+  // agentId -> the area it currently sits in (position-based membership, the same
+  // rule the Agent Overview panel uses). One pass over the subscribed areas map
+  // instead of store.getAreaForAgent per agent, which re-reads store state and
+  // re-looks-up the agent on every call. Feeds BOTH the agent search text (so an
+  // agent is findable by its area's name) and the "Areas" tab grouping below.
+  const areaByAgentId = useMemo(() => {
+    const map = new Map<string, DrawingArea>();
+    if (!isOpen) return map;
+    const areaList = Array.from(areas.values());
+    for (const agent of agents.values()) {
+      for (const area of areaList) {
+        if (store.isPositionInArea({ x: agent.position.x, z: agent.position.z }, area)) {
+          map.set(agent.id, area);
+          break;
+        }
+      }
+    }
+    return map;
+  }, [isOpen, agents, areas]);
+
   // Build agent results with modified files and user queries included in searchable text
   const agentResults: SearchResult[] = useMemo(() => {
     if (!isOpen) return [];
@@ -332,10 +352,19 @@ export function useSpotlightSearch({
       // duplication — but kept in the searchable text so it stays findable.
       const subtitle = `${agent.class} • ${agent.cwd}`;
 
-      // Build searchable text including status, task label, file names and user queries
+      // The area the agent is parked in — searchable (so typing an area name
+      // surfaces every agent inside it, even when neither the agent's name nor
+      // its cwd mentions the area) and rendered as a colored badge on the row.
+      const agentArea = areaByAgentId.get(agent.id);
+      const areaName = agentArea?.name || '';
+
+      // Build searchable text including status, task label, area, file names and user queries
       let searchableText = `${agent.name} ${agent.class} ${agent.status} ${agent.cwd}`;
       if (agent.taskLabel) {
         searchableText += ` ${agent.taskLabel}`;
+      }
+      if (areaName) {
+        searchableText += ` ${areaName}`;
       }
 
       // Add file names to searchable text
@@ -377,6 +406,8 @@ export function useSpotlightSearch({
         _lastActivity: agent.lastActivity,
         _taskLabel: agent.taskLabel,
         _status: agent.status,
+        _areaName: areaName || undefined,
+        _areaColor: agentArea?.color,
         action: () => {
           onCloseRef.current();
           // Remember this pick so it floats to the top on the next Spotlight open.
@@ -388,7 +419,7 @@ export function useSpotlightSearch({
         },
       };
     });
-  }, [isOpen, agents, fileChanges]);
+  }, [isOpen, agents, fileChanges, areaByAgentId]);
 
   // Build area results
   const areaResults: SearchResult[] = useMemo(() => {
@@ -418,20 +449,20 @@ export function useSpotlightSearch({
     return map;
   }, [agentResults]);
 
-  // Group agents by the (non-archived) area they sit in, using the same
-  // position-based membership rule the Agent Overview panel uses.
+  // Group agents by the (non-archived) area they sit in, reusing the single
+  // membership pass built above.
   const agentsByAreaId = useMemo(() => {
     const map = new Map<string, Agent[]>();
     if (!isOpen) return map;
     for (const agent of agents.values()) {
-      const area = store.getAreaForAgent(agent.id);
+      const area = areaByAgentId.get(agent.id);
       if (!area || area.archived) continue;
       const list = map.get(area.id);
       if (list) list.push(agent);
       else map.set(area.id, [agent]);
     }
     return map;
-  }, [isOpen, agents, areas]);
+  }, [isOpen, agents, areaByAgentId]);
 
   // Latest tool-execution timestamp per agent (newest first), mirroring the
   // AgentOverviewPanel's toolsByAgent[0] lookup used by its 'recent' sort.

@@ -692,6 +692,33 @@
   }
 }
 
+// Area badge on agent rows — the area the agent is parked in, tinted with the
+// area's own colour dot (same visual language as the "Areas" tab headers).
+.spotlight-item-area-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 160px;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 22%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+
+  .spotlight-area-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--text-muted);
+  }
+}
+
 // Building listening-port links (open http://localhost:<port>)
 .spotlight-item-ports {
   display: flex;
