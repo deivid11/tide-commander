@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.186.0] - 2026-08-16
+
+### Changed
+- **Search opens what it finds** - landing on a match buried inside a collapsed thinking block used to show a note quoting the hidden text, because the highlighter cannot paint what is collapsed away. The finder now asks that block to open instead, so you see the hit in place. The note remains only for the genuinely unreachable case, where nothing in the row can expand — bash output the renderer never mounted, for instance.
+- **Spotlight puts agents first and files last** - agents are pinned to the top of the results and filename hits to the bottom, regardless of how strongly they score. Spotlight is first and foremost the way to reach an agent, and a filename that merely contains the query is the weakest reason to push that list down. Everything in between still orders by its strongest match, so the most relevant of those categories still leads the middle.
+
 ## [1.185.0] - 2026-08-15
 
 ### Changed

@@ -8,8 +8,9 @@
  * reading. Virtualization remounts restore the preference via `streamId`.
  */
 
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchExpandable } from './useSearchExpandable';
 import { Icon } from '../Icon';
 import { providerAssetUrl } from '../../utils/providerDisplay';
 import type { AgentProvider } from '../../../shared/types';
@@ -160,10 +161,19 @@ export const ThinkingBlock = memo(function ThinkingBlock({
     setExpandedPersist((v) => !v);
   }, [setExpandedPersist]);
 
+  // Open on demand when the finder lands on a match buried in the collapsed
+  // body, so the hit is painted in place instead of quoted in a note.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const expandForSearch = useCallback(() => {
+    setExpandedPersist(true);
+  }, [setExpandedPersist]);
+  useSearchExpandable(rootRef, !showFull, expandForSearch);
+
   if (!body && !liveStream) return null;
 
   return (
     <div
+      ref={rootRef}
       className={`output-line output-thinking ${liveStream ? 'output-streaming' : ''} ${showFull ? 'is-expanded' : 'is-collapsed'} ${canCollapse ? 'is-collapsible' : ''}`}
       onClick={canCollapse && !liveStream ? toggleExpanded : undefined}
       role={canCollapse && !liveStream ? 'button' : undefined}

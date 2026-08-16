@@ -946,17 +946,37 @@ export function useSpotlightSearch({
       }
     }
 
-    // Order category BLOCKS by their strongest member's score so the category
-    // holding the best match renders first. Each category stays contiguous, so
-    // SpotlightResults still shows exactly one header per category. The flat
-    // index therefore matches the visual render order (needed for keyboard nav).
+    // Order the category BLOCKS. Agents are PINNED to the top and file hits to
+    // the bottom no matter how strong their match is: Spotlight is first and
+    // foremost the way to reach an agent, while a filename that happens to
+    // contain the query is the weakest reason to interrupt that list. The
+    // categories in between still order by their strongest member's score, so
+    // the one holding the best match leads the middle. Each category stays
+    // contiguous, so SpotlightResults still shows exactly one header per
+    // category and the flat index matches the visual render order (needed for
+    // keyboard nav).
+    const BLOCK_RANK: Record<SearchResult['type'], number> = {
+      agent: 0,            // always first
+      building: 1,         // ── score-ordered middle ──
+      folder: 1,
+      command: 1,
+      area: 1,
+      'modified-file': 2,  // ── file-ish blocks, always last ──
+      file: 3,
+      session: 4,          // appended separately below; listed for exhaustiveness
+    };
     // Use the category's MAX score (not arr[0]) so the recency-based reordering
     // of agents above cannot change which category block ranks first.
     const blockScore = (arr: Scored[]): number => arr.reduce((max, s) => Math.max(max, s.score), -1);
     const finalResults: SearchResult[] = [];
-    Array.from(scoredByCategory.values())
-      .sort((a, b) => blockScore(b) - blockScore(a))
-      .forEach((arr) => {
+    Array.from(scoredByCategory.entries())
+      .sort(([typeA, a], [typeB, b]) => {
+        const rankA = BLOCK_RANK[typeA] ?? 1;
+        const rankB = BLOCK_RANK[typeB] ?? 1;
+        if (rankA !== rankB) return rankA - rankB;
+        return blockScore(b) - blockScore(a);
+      })
+      .forEach(([, arr]) => {
         for (const s of arr) finalResults.push(s.item);
       });
 

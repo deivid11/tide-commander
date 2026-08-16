@@ -45,6 +45,36 @@ export const HIDDEN_MATCH_CLASS = 'search-match-hidden';
  */
 export const SEARCH_SKIP_ATTR = 'data-search-skip';
 
+/**
+ * Opt-in contract for revealing a search hit that is collapsed away.
+ *
+ * A collapsible sets SEARCH_EXPANDABLE_ATTR on its root *while collapsed* and
+ * listens for SEARCH_EXPAND_EVENT on that element. When the finder lands on a
+ * match it cannot paint, it asks the row's collapsed regions to open rather
+ * than settling for a note about text you cannot see.
+ *
+ * Attribute-driven so the highlighter never imports a single renderer: any
+ * component can join by wiring useSearchExpandable().
+ */
+export const SEARCH_EXPANDABLE_ATTR = 'data-search-expandable';
+export const SEARCH_EXPAND_EVENT = 'tide:search-expand';
+
+/**
+ * Ask every collapsed region inside `row` to reveal itself.
+ *
+ * Returns how many were asked — 0 means nothing in this row can expand (e.g.
+ * bash output the renderer never mounts because inline outputs are off), which
+ * is when the caller falls back to the hidden-match note.
+ *
+ * Safe to call on every repaint: expanding clears the attribute, so the second
+ * call finds nothing and the loop terminates on its own.
+ */
+export function requestExpandHiddenContent(row: HTMLElement): number {
+  const targets = row.querySelectorAll<HTMLElement>(`[${SEARCH_EXPANDABLE_ATTR}]`);
+  targets.forEach((el) => el.dispatchEvent(new CustomEvent(SEARCH_EXPAND_EVENT)));
+  return targets.length;
+}
+
 export interface MatchSpan {
   start: number;
   end: number;
@@ -245,6 +275,20 @@ export function applySearchHighlights(
   if (activeRow) {
     const rowRect = activeRow.getBoundingClientRect();
     activeMatchHidden = !activeRanges.some((r) => rangeIsVisible(r, rowRect));
+
+    if (activeMatchHidden) {
+      // Prefer showing the real text over describing it: open whatever is
+      // collapsed in this row. The DOM change triggers another repaint, which
+      // paints the now-visible hit and drops the hidden state by itself.
+      //
+      // Only when nothing can expand do we keep the flag (and the note) — that
+      // is the genuinely unreachable case, e.g. output the renderer never
+      // mounted.
+      if (requestExpandHiddenContent(activeRow) > 0) {
+        activeMatchHidden = false;
+      }
+    }
+
     activeRow.classList.toggle(HIDDEN_MATCH_CLASS, activeMatchHidden);
   }
   return { activeMatchHidden };
