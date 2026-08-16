@@ -114,7 +114,7 @@ function normalizePiToolName(raw: string): string {
   return PI_TOOL_NAME_MAP[raw.toLowerCase()] || raw;
 }
 
-type SessionProvider = 'claude' | 'codex' | 'opencode' | 'grok' | 'pi';
+export type SessionProvider = 'claude' | 'codex' | 'opencode' | 'grok' | 'pi';
 
 interface ResolvedSessionFile {
   provider: SessionProvider;
@@ -798,6 +798,15 @@ function resolveSessionFile(cwd: string, sessionId: string): ResolvedSessionFile
 }
 
 /**
+ * Which provider owns the session (cwd, sessionId), or null when no session
+ * file exists. Used by restore flows so a grok/codex session is never
+ * restored onto a Claude agent.
+ */
+export function detectSessionProvider(cwd: string, sessionId: string): SessionProvider | null {
+  return resolveSessionFile(cwd, sessionId)?.provider ?? null;
+}
+
+/**
  * Encode a path to Claude's project directory format
  * /home/user/project -> -home-user-project
  * /home/user/project/ -> -home-user-project (trailing slash removed)
@@ -879,11 +888,14 @@ export async function listSessions(cwd: string): Promise<SessionInfo[]> {
 export interface GlobalSessionInfo {
   sessionId: string;
   projectPath: string;          // recovered cwd ("" if file is empty/unreadable)
-  projectDir: string;            // encoded dir name under ~/.claude/projects
+  projectDir: string;            // encoded dir name under the provider's sessions root
   lastModified: Date;
   messageCount: number;          // 0 = unknown / skipped for cost reasons
   firstPrompt: string;           // first user prompt content (truncated)
   sizeBytes: number;
+  /** Absolute path of the searchable JSONL (claude: <sessionId>.jsonl, grok: chat_history.jsonl). */
+  filePath: string;
+  provider: SessionProvider;
 }
 
 /**
@@ -897,6 +909,7 @@ export interface GlobalSessionSearchMatch {
   totalMatches: number;          // total matching lines in this session
   snippet: string;               // first matching line, trimmed
   firstPrompt: string;           // first user prompt content (truncated) for context
+  provider: SessionProvider;
 }
 
 const FIRST_PROMPT_MAX_LEN = 240;
@@ -979,6 +992,53 @@ async function readSessionHeader(filePath: string, maxLines = 20): Promise<{ cwd
           const text = extractClaudeMessageText(obj.message);
           if (text) firstPrompt = text;
         }
+        // Grok chat_history rows: content at top level (no `message`), real
+        // prompt possibly wrapped in <user_query> (unwrapped by the helper).
+        // Scaffolding-only rows (<user_info> / system reminders) are skipped.
+        if (
+          !firstPrompt && obj.type === 'user' && obj.message === undefined && obj.content !== undefined
+          && (obj as { synthetic_reason?: unknown }).synthetic_reason !== 'system_reminder'
+        ) {
+          const text = extractGrokUserDisplayText(obj.content);
+          if (
+            text
+            && !text.startsWith('<user_info>')
+            && !text.startsWith('<system-reminder>')
+            && !(text.includes('<system-reminder>') && !text.includes('<user_query>'))
+          ) {
+            firstPrompt = text;
+          }
+        }
+        // Codex session_meta (new format) carries the cwd in its payload.
+        if (!cwd && obj.type === 'session_meta' && isObject(obj.payload) && typeof obj.payload.cwd === 'string') {
+          cwd = obj.payload.cwd;
+        }
+        // Codex message rows: top level (old format) or response_item-wrapped
+        // (new format). The injected wrappers (<environment_context>, AGENTS.md)
+        // strip to '' and are skipped — but the environment_context text is the
+        // ONLY cwd source in old-format files, so mine it first.
+        const codexRec = obj.type === 'response_item' && isObject(obj.payload) ? obj.payload : obj;
+        if (codexRec.type === 'message' && (codexRec as { role?: unknown }).role === 'user') {
+          const raw = extractCodexMessageText((codexRec as { content?: unknown }).content);
+          if (!cwd) {
+            const envMatch = /Current working directory:\s*([^\n<]+)/.exec(raw);
+            if (envMatch) cwd = envMatch[1].trim();
+          }
+          if (!firstPrompt) {
+            const text = stripCodexInjectedUserMessage(raw);
+            if (text) firstPrompt = text;
+          }
+        }
+        if (!firstPrompt && obj.type === 'event_msg' && isObject(obj.payload)
+          && obj.payload.type === 'user_message' && typeof obj.payload.message === 'string') {
+          const text = stripCodexInjectedUserMessage(obj.payload.message);
+          if (text) firstPrompt = text;
+        }
+        // Pi rows: {type:'message', message:{role, content:[{type:'text'}]}}.
+        if (!firstPrompt && obj.type === 'message' && isObject(obj.message) && obj.message.role === 'user') {
+          const text = extractClaudeMessageText(obj.message);
+          if (text) firstPrompt = text;
+        }
         if (cwd && firstPrompt) break;
       } catch {
         // ignore malformed lines
@@ -1004,37 +1064,170 @@ export async function listAllSessions(options?: {
   limit?: number;             // cap how many sessions to return (newest first)
   includeMessageCount?: boolean; // when true, count user/assistant turns (slow)
 }): Promise<GlobalSessionInfo[]> {
-  if (!fs.existsSync(PROJECTS_DIR)) return [];
-  const projectDirs = fs.readdirSync(PROJECTS_DIR);
   const all: GlobalSessionInfo[] = [];
 
-  for (const projectDir of projectDirs) {
-    const fullProjectPath = path.join(PROJECTS_DIR, projectDir);
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(fullProjectPath, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith('.jsonl')) continue;
-      const sessionId = entry.name.replace(/\.jsonl$/, '');
-      const filePath = path.join(fullProjectPath, entry.name);
-      let stats: fs.Stats;
+  // Claude: ~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl
+  if (fs.existsSync(PROJECTS_DIR)) {
+    for (const projectDir of fs.readdirSync(PROJECTS_DIR)) {
+      const fullProjectPath = path.join(PROJECTS_DIR, projectDir);
+      let entries: fs.Dirent[];
       try {
-        stats = fs.statSync(filePath);
+        entries = fs.readdirSync(fullProjectPath, { withFileTypes: true });
       } catch {
         continue;
       }
-      all.push({
-        sessionId,
-        projectPath: '',
-        projectDir,
-        lastModified: stats.mtime,
-        messageCount: 0,
-        firstPrompt: '',
-        sizeBytes: stats.size,
-      });
+      for (const entry of entries) {
+        if (!entry.isFile() || !entry.name.endsWith('.jsonl')) continue;
+        const sessionId = entry.name.replace(/\.jsonl$/, '');
+        const filePath = path.join(fullProjectPath, entry.name);
+        let stats: fs.Stats;
+        try {
+          stats = fs.statSync(filePath);
+        } catch {
+          continue;
+        }
+        all.push({
+          sessionId,
+          projectPath: '',
+          projectDir,
+          lastModified: stats.mtime,
+          messageCount: 0,
+          firstPrompt: '',
+          sizeBytes: stats.size,
+          filePath,
+          provider: 'claude',
+        });
+      }
+    }
+  }
+
+  // Grok: ~/.grok/sessions/<encodeURIComponent(cwd)>/<sessionId>/chat_history.jsonl
+  // Without this, conversations held by grok-provider agents are invisible to
+  // the global session search (Spotlight / Session Finder).
+  if (fs.existsSync(GROK_SESSIONS_DIR)) {
+    let grokProjects: fs.Dirent[] = [];
+    try {
+      grokProjects = fs.readdirSync(GROK_SESSIONS_DIR, { withFileTypes: true });
+    } catch { /* unreadable — skip grok corpus */ }
+    for (const proj of grokProjects) {
+      if (!proj.isDirectory()) continue;
+      let cwd = proj.name;
+      try {
+        cwd = decodeURIComponent(proj.name);
+      } catch { /* keep the raw dir name */ }
+      let entries: fs.Dirent[];
+      try {
+        entries = fs.readdirSync(path.join(GROK_SESSIONS_DIR, proj.name), { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const filePath = path.join(GROK_SESSIONS_DIR, proj.name, entry.name, 'chat_history.jsonl');
+        let stats: fs.Stats;
+        try {
+          stats = fs.statSync(filePath);
+        } catch {
+          continue;
+        }
+        all.push({
+          sessionId: entry.name,
+          projectPath: cwd,
+          projectDir: proj.name,
+          lastModified: stats.mtime,
+          messageCount: 0,
+          firstPrompt: '',
+          sizeBytes: stats.size,
+          filePath,
+          provider: 'grok',
+        });
+      }
+    }
+  }
+
+  // Codex: ~/.codex/sessions/<YYYY>/<MM>/<DD>/rollout-<ts>-<uuid>.jsonl
+  // The session id is the uuid embedded in the filename; cwd comes from the
+  // session_meta header line (new format) or the <environment_context> user
+  // message (old format) during enrichment.
+  if (fs.existsSync(CODEX_SESSIONS_DIR)) {
+    const queue = [CODEX_SESSIONS_DIR];
+    while (queue.length > 0) {
+      const dir = queue.pop();
+      if (!dir) continue;
+      let entries: fs.Dirent[];
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          queue.push(fullPath);
+          continue;
+        }
+        if (!entry.isFile() || !entry.name.endsWith('.jsonl')) continue;
+        const idMatch = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i.exec(entry.name);
+        if (!idMatch) continue;
+        let stats: fs.Stats;
+        try {
+          stats = fs.statSync(fullPath);
+        } catch {
+          continue;
+        }
+        all.push({
+          sessionId: idMatch[1],
+          projectPath: '',
+          projectDir: path.relative(CODEX_SESSIONS_DIR, dir),
+          lastModified: stats.mtime,
+          messageCount: 0,
+          firstPrompt: '',
+          sizeBytes: stats.size,
+          filePath: fullPath,
+          provider: 'codex',
+        });
+      }
+    }
+  }
+
+  // Pi: ~/.pi/agent/sessions/<encoded-cwd>/<ts>_<sessionId>.jsonl
+  // The first line is {type:'session', cwd} — enrichment recovers the cwd.
+  if (fs.existsSync(PI_SESSIONS_DIR)) {
+    let piProjects: fs.Dirent[] = [];
+    try {
+      piProjects = fs.readdirSync(PI_SESSIONS_DIR, { withFileTypes: true });
+    } catch { /* unreadable — skip pi corpus */ }
+    for (const proj of piProjects) {
+      if (!proj.isDirectory()) continue;
+      let entries: fs.Dirent[];
+      try {
+        entries = fs.readdirSync(path.join(PI_SESSIONS_DIR, proj.name), { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const entry of entries) {
+        if (!entry.isFile() || !entry.name.endsWith('.jsonl')) continue;
+        const idMatch = /_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i.exec(entry.name);
+        if (!idMatch) continue;
+        const filePath = path.join(PI_SESSIONS_DIR, proj.name, entry.name);
+        let stats: fs.Stats;
+        try {
+          stats = fs.statSync(filePath);
+        } catch {
+          continue;
+        }
+        all.push({
+          sessionId: idMatch[1],
+          projectPath: '',
+          projectDir: proj.name,
+          lastModified: stats.mtime,
+          messageCount: 0,
+          firstPrompt: '',
+          sizeBytes: stats.size,
+          filePath,
+          provider: 'pi',
+        });
+      }
     }
   }
 
@@ -1053,9 +1246,11 @@ export async function listAllSessions(options?: {
       while (cursor < limited.length) {
         const idx = cursor++;
         const item = limited[idx];
-        const filePath = path.join(PROJECTS_DIR, item.projectDir, `${item.sessionId}.jsonl`);
+        const filePath = item.filePath;
         const header = await readSessionHeaderCached(filePath, item.sizeBytes);
-        item.projectPath = header.cwd;
+        // Grok files carry no cwd field — their projectPath comes from the
+        // directory name and must not be erased by the empty header value.
+        if (header.cwd) item.projectPath = header.cwd;
         item.firstPrompt = header.firstPrompt;
         if (options?.includeMessageCount) {
           try {
@@ -1198,6 +1393,35 @@ export function planFileSearch(
   return tailPlan ?? { kind: 'full' };
 }
 
+/**
+ * Cache plan for MULTI-WORD (AND-of-words) queries. Word semantics make the
+ * phrase cache's line-refinement and tail-merge unsound (different words match
+ * different LINES, and head+tail counts don't min-combine), so only two safe
+ * answers are reused — both restricted to an UNCHANGED file:
+ * - an entry for the exact same query string;
+ * - the zero-prune: an entry with 0 matches whose query is contained in this
+ *   one (if "jira" appears nowhere in the file, "jira krunner" cannot
+ *   AND-match either — regardless of which semantics produced the 0).
+ * Returns null when the file must be scanned.
+ */
+export function planTokenFileSearch(
+  entries: readonly SearchFileCacheEntry[] | undefined,
+  queryLower: string,
+  mtimeMs: number,
+  sizeBytes: number,
+): { totalMatches: number; snippet: string } | null {
+  for (const entry of entries ?? []) {
+    if (entry.mtimeMs !== mtimeMs || entry.sizeBytes !== sizeBytes) continue;
+    if (entry.query === queryLower) {
+      return { totalMatches: entry.totalMatches, snippet: entry.snippet };
+    }
+    if (entry.totalMatches === 0 && queryLower.includes(entry.query)) {
+      return { totalMatches: 0, snippet: '' };
+    }
+  }
+  return null;
+}
+
 /** Insert/replace an outcome in a file's entry list (newest first, capped). */
 function storeSearchEntry(filePath: string, entry: SearchFileCacheEntry): void {
   if (searchFileCache.size >= SEARCH_FILE_CACHE_MAX) searchFileCache.clear();
@@ -1246,18 +1470,50 @@ function firstToolText(content: unknown): string {
 /** Best human-readable text for a matched JSONL line, with its quality rank. */
 function extractReadableLineText(line: string): { text: string; rank: number } {
   try {
-    const obj = JSON.parse(line) as { type?: string; message?: unknown; content?: unknown; summary?: unknown };
+    const obj = JSON.parse(line) as { type?: string; message?: unknown; content?: unknown; summary?: unknown; payload?: unknown };
     if (obj.type === 'user' || obj.type === 'assistant') {
       const text = extractClaudeMessageText(obj.message);
       if (text.trim()) return { text, rank: SNIPPET_RANK_MESSAGE };
       const toolText = firstToolText((obj.message as { content?: unknown } | undefined)?.content);
       if (toolText) return { text: toolText, rank: SNIPPET_RANK_TOOL };
+      // Grok chat_history rows carry content at the TOP level (no `message`):
+      // a string, or an array of {type:'text', text} blocks.
+      const grokText = typeof obj.content === 'string' ? obj.content : extractClaudeMessageText(obj);
+      if (grokText.trim()) return { text: grokText, rank: SNIPPET_RANK_MESSAGE };
+    }
+    // Pi rows: {type:'message', message:{role, content:[{type:'text', text}]}}.
+    if (obj.type === 'message' && isObject(obj.message)) {
+      const text = extractClaudeMessageText(obj.message);
+      if (text.trim()) return { text, rank: SNIPPET_RANK_MESSAGE };
+    }
+    // Codex rows: {type:'message', role, content:[{type:'input_text'|'output_text', text}]}
+    // at the top level (old format) or wrapped in response_item.payload (new).
+    const codexRec = obj.type === 'response_item' && isObject(obj.payload) ? obj.payload : (obj as Record<string, unknown>);
+    if (codexRec.type === 'message' && (codexRec.role === 'user' || codexRec.role === 'assistant')) {
+      const text = extractCodexMessageText(codexRec.content);
+      if (text.trim()) return { text, rank: SNIPPET_RANK_MESSAGE };
+    }
+    if (obj.type === 'event_msg' && isObject(obj.payload)
+      && obj.payload.type === 'user_message' && typeof obj.payload.message === 'string' && obj.payload.message.trim()) {
+      return { text: obj.payload.message, rank: SNIPPET_RANK_MESSAGE };
     }
     if (obj.type === 'queue-operation' && typeof obj.content === 'string' && obj.content.trim()) {
       return { text: obj.content, rank: SNIPPET_RANK_MESSAGE };
     }
+    // Grok tool_result rows: plain string content.
+    if (obj.type === 'tool_result' && typeof obj.content === 'string' && obj.content.trim()) {
+      return { text: obj.content, rank: SNIPPET_RANK_TOOL };
+    }
     if (typeof obj.summary === 'string' && obj.summary.trim()) {
       return { text: obj.summary, rank: SNIPPET_RANK_TOOL };
+    }
+    // Grok reasoning rows: summary is an ARRAY of {text} blocks.
+    if (Array.isArray(obj.summary)) {
+      const text = obj.summary
+        .map((s) => (s && typeof s === 'object' && typeof (s as { text?: unknown }).text === 'string' ? (s as { text: string }).text : ''))
+        .filter(Boolean)
+        .join(' ');
+      if (text.trim()) return { text, rank: SNIPPET_RANK_TOOL };
     }
   } catch { /* not JSON — treat as raw */ }
   return { text: line, rank: SNIPPET_RANK_RAW };
@@ -1483,16 +1739,31 @@ async function searchViaRipgrep(
   candidates: GlobalSessionInfo[],
   query: string,
   queryLower: string,
+  tokens: string[],
   limit: number,
   generation: number,
 ): Promise<GlobalSessionSearchMatch[] | null> {
   interface Hit { session: GlobalSessionInfo; filePath: string; totalMatches: number; snippet: string }
+  const multiToken = tokens.length > 1;
+  // Snippets for multi-word queries window around the LONGEST word (the most
+  // selective one) — a single line rarely contains the whole phrase.
+  const snippetNeedle = multiToken ? tokens.reduce((a, b) => (b.length > a.length ? b : a)) : query;
+  const snippetNeedleLower = snippetNeedle.toLowerCase();
   const reused: Hit[] = [];
   const toScan: Array<{ session: GlobalSessionInfo; filePath: string; mtimeMs: number }> = [];
 
   for (const session of candidates) {
-    const filePath = path.join(PROJECTS_DIR, session.projectDir, `${session.sessionId}.jsonl`);
+    const filePath = session.filePath;
     const mtimeMs = session.lastModified.getTime();
+    if (multiToken) {
+      const plan = planTokenFileSearch(searchFileCache.get(filePath), queryLower, mtimeMs, session.sizeBytes);
+      if (plan) {
+        if (plan.totalMatches > 0) reused.push({ session, filePath, totalMatches: plan.totalMatches, snippet: plan.snippet });
+      } else {
+        toScan.push({ session, filePath, mtimeMs });
+      }
+      continue;
+    }
     const plan = planFileSearch(searchFileCache.get(filePath), queryLower, mtimeMs, session.sizeBytes);
     if (plan.kind === 'reuse') {
       if (plan.totalMatches > 0) reused.push({ session, filePath, totalMatches: plan.totalMatches, snippet: plan.snippet });
@@ -1502,7 +1773,7 @@ async function searchViaRipgrep(
   }
 
   let counts = new Map<string, number>();
-  if (toScan.length > 0) {
+  if (toScan.length > 0 && !multiToken) {
     const output = await runRg([
       '-i', '--fixed-strings', '-a', '--no-config', '--no-messages', '-c', '--',
       query, ...toScan.map((f) => f.filePath),
@@ -1510,6 +1781,29 @@ async function searchViaRipgrep(
     if (output === null) return null;
     if (generation !== searchAllSessionsGeneration) return []; // superseded — client discards
     counts = parseRgCounts(output);
+  } else if (toScan.length > 0) {
+    // AND-of-words: one `rg -c` per word, then intersect — a file qualifies
+    // only when EVERY word appears somewhere in it, and its match count is the
+    // bottleneck word's count (the honest "at most this many joint hits").
+    const perToken: Map<string, number>[] = [];
+    for (const token of tokens) {
+      const output = await runRg([
+        '-i', '--fixed-strings', '-a', '--no-config', '--no-messages', '-c', '--',
+        token, ...toScan.map((f) => f.filePath),
+      ]);
+      if (output === null) return null;
+      if (generation !== searchAllSessionsGeneration) return []; // superseded
+      perToken.push(parseRgCounts(output));
+    }
+    for (const f of toScan) {
+      let min = Infinity;
+      for (const tokenCounts of perToken) {
+        const c = tokenCounts.get(f.filePath) ?? 0;
+        if (c < min) min = c;
+        if (min === 0) break;
+      }
+      if (min > 0 && Number.isFinite(min)) counts.set(f.filePath, min);
+    }
   }
 
   const all: Hit[] = [
@@ -1527,7 +1821,7 @@ async function searchViaRipgrep(
     const output = await runRg([
       '-i', '--fixed-strings', '-a', '--no-config', '--no-messages', '--with-filename',
       '--max-columns', '4096', '-m', String(RG_SAMPLE_LINES_PER_FILE), '--',
-      query, ...needLines,
+      snippetNeedle, ...needLines,
     ]);
     if (output !== null) samples = parseRgSampleLines(output);
   }
@@ -1539,7 +1833,7 @@ async function searchViaRipgrep(
       const readable = extractReadableLineText(line);
       if (readable.rank > bestRank) {
         bestRank = readable.rank;
-        hit.snippet = windowSnippet(readable.text, queryLower);
+        hit.snippet = windowSnippet(readable.text, snippetNeedleLower);
       }
       if (bestRank >= SNIPPET_RANK_MESSAGE) break;
     }
@@ -1580,7 +1874,109 @@ async function searchViaRipgrep(
     totalMatches: h.totalMatches,
     snippet: h.snippet,
     firstPrompt: h.session.firstPrompt,
+    provider: h.session.provider,
   }));
+}
+
+/** LIKE-pattern escape for SQLite (`\` as the ESCAPE character). */
+function escapeSqlLike(text: string): string {
+  return text.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+/**
+ * Search opencode conversations. Opencode stores sessions in a SQLite DB
+ * (`part` rows carry the message text as JSON, indexed by session_id) — not
+ * per-session files — so they can't ride the rg/JS file engines. One LIKE
+ * pass per word gives the same AND-of-words semantics; counts intersect via
+ * the bottleneck word (min), mirroring the file engines.
+ */
+function searchOpencodeSessions(tokens: string[], limit: number, cwdFilter?: string): GlobalSessionSearchMatch[] {
+  const db = getOpencodeDb();
+  if (!db || tokens.length === 0) return [];
+  try {
+    // length() guard: giant parts are base64 image payloads (screenshots,
+    // read-image outputs) where case-insensitive LIKE matches short words by
+    // pure chance ("PoEm" occurs in random base64) — count only realistic
+    // text-sized parts.
+    let combined: Map<string, number> | null = null;
+    for (const token of tokens) {
+      const rows = db
+        .prepare("SELECT session_id AS sid, COUNT(*) AS c FROM part WHERE length(data) < 65536 AND data LIKE ? ESCAPE '\\' GROUP BY session_id")
+        .all(`%${escapeSqlLike(token)}%`) as Array<{ sid: string; c: number }>;
+      const counts = new Map(rows.map((r) => [r.sid, r.c]));
+      if (combined === null) {
+        combined = counts;
+      } else {
+        for (const [sid, c] of combined) {
+          const other = counts.get(sid) ?? 0;
+          if (other === 0) combined.delete(sid);
+          else combined.set(sid, Math.min(c, other));
+        }
+      }
+      if (combined.size === 0) return [];
+    }
+    if (!combined) return [];
+
+    // Snippets window around the longest (most selective) word. Prefer TEXT
+    // parts (real conversation) — the word often also hits tool-output parts
+    // whose JSON has no `.text` to show.
+    const snippetNeedle = tokens.reduce((a, b) => (b.length > a.length ? b : a));
+    const sessionStmt = db.prepare('SELECT id, directory, title, time_updated FROM session WHERE id = ? LIMIT 1');
+    const textPartStmt = db.prepare(
+      "SELECT data FROM part WHERE session_id = ? AND length(data) < 65536 AND data LIKE ? ESCAPE '\\' AND data LIKE '%\"type\":\"text\"%' LIMIT 5"
+    );
+    const anyPartStmt = db.prepare("SELECT data FROM part WHERE session_id = ? AND length(data) < 65536 AND data LIKE ? ESCAPE '\\' LIMIT 1");
+    const out: GlobalSessionSearchMatch[] = [];
+    for (const [sid, totalMatches] of combined) {
+      const session = sessionStmt.get(sid) as { id: string; directory: string | null; title: string | null; time_updated: number } | undefined;
+      if (!session) continue;
+      const directory = session.directory ?? '';
+      if (cwdFilter && !directory.toLowerCase().includes(cwdFilter)) continue;
+      const needleParam = `%${escapeSqlLike(snippetNeedle)}%`;
+      let snippet = '';
+      for (const row of textPartStmt.all(sid, needleParam) as Array<{ data: string }>) {
+        try {
+          const data = JSON.parse(row.data) as { text?: unknown };
+          if (typeof data.text === 'string' && data.text.trim()) {
+            snippet = windowSnippet(data.text, snippetNeedle);
+            break;
+          }
+        } catch { /* unparseable part — try the next */ }
+      }
+      if (!snippet) {
+        const row = anyPartStmt.get(sid, needleParam) as { data: string } | undefined;
+        if (row) snippet = windowSnippet(row.data, snippetNeedle);
+      }
+      out.push({
+        sessionId: sid,
+        projectPath: directory,
+        projectDir: 'opencode',
+        lastModified: new Date(session.time_updated),
+        totalMatches,
+        snippet,
+        firstPrompt: session.title ?? '',
+        provider: 'opencode',
+      });
+    }
+    out.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+    return out.slice(0, limit);
+  } catch (err) {
+    log.warn(`opencode session search failed: ${String(err)}`);
+    return [];
+  }
+}
+
+/** Merge file-engine and DB matches, newest first, capped. */
+function mergeSessionMatches(
+  a: GlobalSessionSearchMatch[],
+  b: GlobalSessionSearchMatch[],
+  limit: number,
+): GlobalSessionSearchMatch[] {
+  if (b.length === 0) return a.slice(0, limit);
+  if (a.length === 0) return b.slice(0, limit);
+  const merged = [...a, ...b];
+  merged.sort((x, y) => y.lastModified.getTime() - x.lastModified.getTime());
+  return merged.slice(0, limit);
 }
 
 /**
@@ -1604,6 +2000,11 @@ export async function searchAllSessions(
   const trimmed = query.trim();
   if (!trimmed) return [];
   const queryLower = trimmed.toLowerCase();
+  // AND-of-words: a multi-word query matches a session when EVERY word appears
+  // somewhere in it — each word on its own line if need be ("jira krunner" =
+  // sessions mentioning both), which a literal phrase search cannot do.
+  const tokens = queryLower.split(/\s+/).filter(Boolean);
+  const multiToken = tokens.length > 1;
   const limit = options?.limit ?? 100;
   const cwdFilter = options?.cwdFilter?.toLowerCase();
 
@@ -1617,9 +2018,13 @@ export async function searchAllSessions(
     ? sessions.filter((s) => s.projectPath.toLowerCase().includes(cwdFilter))
     : sessions;
 
+  // Opencode sessions live in SQLite, outside the file corpus — searched
+  // separately (cheap indexed LIKE) and merged into either engine's results.
+  const opencodeMatches = searchOpencodeSessions(tokens, limit, cwdFilter);
+
   if (isRgAvailable()) {
-    const viaRg = await searchViaRipgrep(candidates, trimmed, queryLower, limit, generation);
-    if (viaRg !== null) return viaRg;
+    const viaRg = await searchViaRipgrep(candidates, trimmed, queryLower, tokens, limit, generation);
+    if (viaRg !== null) return mergeSessionMatches(viaRg, opencodeMatches, limit);
     // rg hiccup — fall through to the JS engine.
   }
 
@@ -1635,8 +2040,60 @@ export async function searchAllSessions(
         const idx = cursor++;
         if (idx >= candidates.length) break;
         const session = candidates[idx];
-        const filePath = path.join(PROJECTS_DIR, session.projectDir, `${session.sessionId}.jsonl`);
+        const filePath = session.filePath;
         const mtimeMs = session.lastModified.getTime();
+
+        // Multi-word queries: scan per word (longest/most-selective first so
+        // misses bail early and the snippet comes from the specific word),
+        // AND-combine via the minimum count. The phrase cache's tail/refine
+        // machinery is unsound for word semantics — see planTokenFileSearch.
+        if (multiToken) {
+          const tokenPlan = planTokenFileSearch(searchFileCache.get(filePath), queryLower, mtimeMs, session.sizeBytes);
+          let tokenResult = tokenPlan;
+          if (!tokenResult) {
+            let minMatches = Infinity;
+            let snippet = '';
+            let unreadable = false;
+            for (const token of [...tokens].sort((a, b) => b.length - a.length)) {
+              let scan: Awaited<ReturnType<typeof scanSessionFileForQuery>>;
+              try {
+                scan = await scanSessionFileForQuery(filePath, token);
+              } catch {
+                unreadable = true;
+                break;
+              }
+              if (scan.totalMatches === 0) {
+                minMatches = 0;
+                snippet = '';
+                break;
+              }
+              minMatches = Math.min(minMatches, scan.totalMatches);
+              if (!snippet) snippet = scan.snippet;
+            }
+            if (unreadable) continue; // skip file, cache nothing
+            tokenResult = { totalMatches: Number.isFinite(minMatches) ? minMatches : 0, snippet };
+            storeSearchEntry(filePath, {
+              mtimeMs,
+              sizeBytes: session.sizeBytes,
+              query: queryLower,
+              totalMatches: tokenResult.totalMatches,
+              snippet: tokenResult.snippet,
+            });
+          }
+          if (tokenResult.totalMatches > 0) {
+            out.push({
+              sessionId: session.sessionId,
+              projectPath: session.projectPath,
+              projectDir: session.projectDir,
+              lastModified: session.lastModified,
+              totalMatches: tokenResult.totalMatches,
+              snippet: tokenResult.snippet,
+              firstPrompt: session.firstPrompt,
+              provider: session.provider,
+            });
+          }
+          continue;
+        }
 
         const plan = planFileSearch(searchFileCache.get(filePath), queryLower, mtimeMs, session.sizeBytes);
         let result: { totalMatches: number; snippet: string };
@@ -1693,6 +2150,7 @@ export async function searchAllSessions(
             totalMatches: result.totalMatches,
             snippet: result.snippet,
             firstPrompt: session.firstPrompt,
+            provider: session.provider,
           });
         }
       }
@@ -1701,7 +2159,7 @@ export async function searchAllSessions(
   await Promise.all(workers);
 
   out.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
-  return out.slice(0, limit);
+  return mergeSessionMatches(out.slice(0, limit), opencodeMatches, limit);
 }
 
 /**

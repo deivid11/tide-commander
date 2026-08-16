@@ -1493,7 +1493,11 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               </span>
             ) : bashCurlParsed ? (
               <div className="output-tool-param bash-curl-param">
-                <CurlCard parsed={bashCurlParsed} rawCommand={bashCommand} />
+                <CurlCard
+                  parsed={bashCurlParsed}
+                  rawCommand={bashCommand}
+                  output={_bashOutput || (typeof payloadToolOutput === 'string' ? payloadToolOutput : undefined)}
+                />
               </div>
             ) : (
               <span

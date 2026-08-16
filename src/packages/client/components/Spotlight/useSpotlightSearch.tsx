@@ -16,6 +16,7 @@ import type { Agent, DrawingArea } from '../../../shared/types';
 import type { SearchResult, UseSpotlightSearchOptions, SpotlightSearchState, SpotlightTab, SpotlightAreaSection } from './types';
 import { SPOTLIGHT_TABS } from './types';
 import { getFileIconFromPath, getRecentAgentTimes, recordRecentAgent, agentRecency } from './utils';
+import { tokenizeQuery, searchAllTokens, matchTierForQuery, escapeRegExp } from './multiTokenSearch';
 import { Icon, type IconName } from '../Icon';
 import { AgentIcon } from '../AgentIcon';
 import { searchFolders, type FolderSearchResult } from '../../api/folders';
@@ -479,6 +480,10 @@ export function useSpotlightSearch({
   const areaSections: SpotlightAreaSection[] = useMemo(() => {
     if (!isOpen) return [];
     const q = query.trim().toLowerCase();
+    // Multi-word queries split roles: words matching the area NAME select the
+    // area, the leftover words narrow the agents INSIDE it — "daisy designer"
+    // keeps the DaisySeed section but only shows its "Designer 3D print" agent.
+    const tokens = tokenizeQuery(q);
     const comparator = makeAgentOverviewComparator({
       sortMode: getOverviewSortMode(),
       agentsWithUnseenOutput,
@@ -487,17 +492,32 @@ export function useSpotlightSearch({
 
     const candidateAreas = Array.from(areas.values())
       .filter((area) => !area.archived)
-      .filter((area) => (q ? area.name.toLowerCase().includes(q) : true))
+      .filter((area) => {
+        if (tokens.length === 0) return true;
+        const name = area.name.toLowerCase();
+        return tokens.some((t) => name.includes(t));
+      })
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 
     const sections: SpotlightAreaSection[] = [];
     for (const area of candidateAreas) {
+      const name = area.name.toLowerCase();
+      const leftoverTokens = tokens.filter((t) => !name.includes(t));
       const areaAgents = (agentsByAreaId.get(area.id) || []).slice().sort(comparator);
-      const agentResultsForArea = areaAgents
+      let agentResultsForArea = areaAgents
         .map((a) => agentResultById.get(a.id))
         .filter((r): r is SearchResult => !!r);
-      // No query: hide empty areas to reduce noise. With a query: keep
-      // name-matched areas visible even when they currently hold no agents.
+      if (leftoverTokens.length > 0) {
+        agentResultsForArea = agentResultsForArea.filter((r) => {
+          const searchable = `${r.title} ${r.subtitle || ''} ${r._searchText || ''}`.toLowerCase();
+          return leftoverTokens.every((t) => searchable.includes(t));
+        });
+        // Every leftover word must land on at least one agent, else the area
+        // is only a partial match for the query.
+        if (agentResultsForArea.length === 0) continue;
+      }
+      // No query: hide empty areas to reduce noise. With a query fully covered
+      // by the area name: keep it visible even when it currently holds no agents.
       if (!q && agentResultsForArea.length === 0) continue;
       sections.push({ areaId: area.id, areaName: area.name, areaColor: area.color, agents: agentResultsForArea });
     }
@@ -839,23 +859,28 @@ export function useSpotlightSearch({
     }
 
     const lowerQuery = query.trim().toLowerCase();
+    // Words of the query. Multi-word queries match with AND-of-words semantics
+    // (each word may hit a different field — "daisy designer" = the "Designer
+    // 3D print" agent inside the "DaisySeed" area), which plain Fuse cannot do:
+    // it fuzzy-matches the whole phrase as one contiguous pattern.
+    const queryTokens = tokenizeQuery(lowerQuery);
 
     // Search each category (retrieval — per-category limits and the building
     // fuzzy-noise filter are preserved; ranking happens afterwards).
-    const matchedAgents = agentFuse.search(query).slice(0, 8);
-    const matchedCommands = commandFuse.search(query).slice(0, 3);
-    const matchedAreas = areaFuse.search(query).slice(0, 2);
-    const matchedModifiedFiles = modifiedFileFuse.search(query).slice(0, 3);
+    const matchedAgents = searchAllTokens(agentFuse, query).slice(0, 8);
+    const matchedCommands = searchAllTokens(commandFuse, query).slice(0, 3);
+    const matchedAreas = searchAllTokens(areaFuse, query).slice(0, 2);
+    const matchedModifiedFiles = searchAllTokens(modifiedFileFuse, query).slice(0, 3);
     // Folders are already query-filtered + ranked server-side (no Fuse needed).
     const matchedFolders = folderResults.slice(0, 8);
     const matchedFiles = fileResults.slice(0, FILE_ALL_TAB_LIMIT);
-    const matchedBuildings = buildingFuse
-      .search(query)
+    const matchedBuildings = searchAllTokens(buildingFuse, query)
       .filter((r) => {
         const score = r.score ?? 1;
         const searchable = `${r.item.title} ${r.item.subtitle || ''} ${r.item._searchText || ''}`.toLowerCase();
-        // Keep direct text matches; only keep pure fuzzy matches if they are very strong.
-        return searchable.includes(lowerQuery) || score <= 0.2;
+        // Keep direct text matches (every word present); only keep pure fuzzy
+        // matches if they are very strong.
+        return queryTokens.every((t) => searchable.includes(t)) || score <= 0.2;
       })
       .slice(0, 4);
 
@@ -883,17 +908,15 @@ export function useSpotlightSearch({
     // Tiered match quality (higher = better):
     //   6 exact title  ·  5 prefix  ·  4 whole-word  ·  3 title substring
     //   2 other-field substring  ·  1 fuzzy/subsequence only.
-    const matchTier = (item: SearchResult): number => {
-      if (!lowerQuery) return 1;
-      const title = item.title.toLowerCase();
-      if (title === lowerQuery) return 6;
-      if (title.startsWith(lowerQuery)) return 5;
-      if (title.split(/[^a-z0-9]+/i).includes(lowerQuery)) return 4;
-      if (title.includes(lowerQuery)) return 3;
-      const haystack = `${(item.subtitle || '')} ${(item._searchText || '')} ${(item.matchedText || '')}`.toLowerCase();
-      if (haystack.includes(lowerQuery)) return 2;
-      return 1; // matched only by Fuse fuzzy/subsequence, no literal substring
-    };
+    // Multi-word queries tier the full phrase first, then fall back to the
+    // weakest word — so a cross-field match ("daisy designer") lands at tier
+    // ≥ 2 instead of the fuzzy-only floor. See matchTierForQuery.
+    const matchTier = (item: SearchResult): number =>
+      matchTierForQuery(
+        lowerQuery,
+        item.title,
+        `${(item.subtitle || '')} ${(item._searchText || '')} ${(item.matchedText || '')}`
+      );
 
     // combinedScore = tier*100 (dominant, gaps of 100) + typeWeight*5 (≤25) +
     // fuse refinement (<4). The weight/refinement terms only reorder items that
@@ -915,27 +938,35 @@ export function useSpotlightSearch({
     // Agents - check for matching files and user queries (enrichment preserved)
     for (const r of matchedAgents) {
       const item = { ...r.item };
-      // Find files that match the query
+      // Find files that match the query (any word — enrichment display only)
       if (item._modifiedFiles && item._modifiedFiles.length > 0) {
         const matchingFiles = item._modifiedFiles.filter((fp) => {
           const fileName = fp.split('/').pop()?.toLowerCase() || '';
           const fullPath = fp.toLowerCase();
-          return fileName.includes(lowerQuery) || fullPath.includes(lowerQuery);
+          return queryTokens.some((t) => fileName.includes(t) || fullPath.includes(t));
         });
         if (matchingFiles.length > 0) {
           item.matchedFiles = matchingFiles;
         }
       }
-      // Find user queries that match the search
+      // Find user queries that match the search (any word)
       if (item._userQueries && item._userQueries.length > 0) {
-        const matchingQuery = item._userQueries.find((q) => q.toLowerCase().includes(lowerQuery));
+        const matchingQuery = item._userQueries.find((q) =>
+          queryTokens.some((t) => q.toLowerCase().includes(t))
+        );
         if (matchingQuery) {
+          // The word that hit, used to center the context window below. The
+          // full phrase is preferred when it is present verbatim.
+          const lowerMatching = matchingQuery.toLowerCase();
+          const matchedNeedle = lowerMatching.includes(lowerQuery)
+            ? lowerQuery
+            : queryTokens.find((t) => lowerMatching.includes(t)) ?? lowerQuery;
           // Truncate the query if it's too long (show context around match)
           const maxLen = 200;
           if (matchingQuery.length > maxLen) {
-            const matchIdx = matchingQuery.toLowerCase().indexOf(lowerQuery);
+            const matchIdx = lowerMatching.indexOf(matchedNeedle);
             const start = Math.max(0, matchIdx - 60);
-            const end = Math.min(matchingQuery.length, matchIdx + lowerQuery.length + 100);
+            const end = Math.min(matchingQuery.length, matchIdx + matchedNeedle.length + 100);
             item.matchedQuery =
               (start > 0 ? '...' : '') +
               matchingQuery.slice(start, end) +
@@ -1089,33 +1120,40 @@ export function useSpotlightSearch({
     [results, selectedIndex]
   );
 
-  // Highlight matching text - improved version that highlights all occurrences
+  // Highlight matching text — every occurrence of every query WORD is marked
+  // (a multi-word query highlights each word independently, matching the
+  // AND-of-words retrieval above).
   const highlightMatch = useCallback(
     (text: string, searchQuery: string): React.ReactNode => {
       if (!searchQuery || !text) return text;
 
-      const lowerText = text.toLowerCase();
-      const lowerSearchQuery = searchQuery.toLowerCase();
+      const tokens = tokenizeQuery(searchQuery);
+      if (tokens.length === 0) return text;
+      // Longer words first so overlapping alternatives prefer the longest match.
+      const pattern = new RegExp(
+        tokens.map(escapeRegExp).sort((a, b) => b.length - a.length).join('|'),
+        'gi'
+      );
+
       const parts: React.ReactNode[] = [];
       let lastIndex = 0;
-      let idx = lowerText.indexOf(lowerSearchQuery);
       let keyCounter = 0;
+      let match: RegExpExecArray | null;
 
-      while (idx !== -1) {
+      while ((match = pattern.exec(text)) !== null) {
         // Add text before match
-        if (idx > lastIndex) {
-          parts.push(text.slice(lastIndex, idx));
+        if (match.index > lastIndex) {
+          parts.push(text.slice(lastIndex, match.index));
         }
         // Add highlighted match
         parts.push(
           React.createElement(
             'mark',
             { key: keyCounter++, className: 'spotlight-highlight' },
-            text.slice(idx, idx + searchQuery.length)
+            match[0]
           )
         );
-        lastIndex = idx + searchQuery.length;
-        idx = lowerText.indexOf(lowerSearchQuery, lastIndex);
+        lastIndex = match.index + match[0].length;
       }
 
       // Add remaining text

@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.189.0] - 2026-08-16
+
+### Added
+- **Alfred workflow for macOS** - a workflow that searches your agents, buildings and areas from Alfred and jumps straight to one, plus a second command that searches past conversations. The server does both the searching and the formatting, returning ready-to-render Alfred JSON, so the workflow itself is a thin curl. Results mirror the in-app Spotlight: agents first, ranked by match quality then recency, followed by buildings and areas. Selecting a result focuses the agent in an already-open window, opens a deep link, or copies the text.
+- **Multi-word search in Spotlight** - a query whose words match different fields of the same item now finds it. Searching "daisy designer" previously found nothing, because the matcher treated the whole phrase as one pattern and no single region of an agent named "Designer 3D print" in the "DaisySeed" area was close enough to it. Every word must still match, but each may match on its own, in any field and any order.
+- **Cards for Tide Commander's own API calls** - a curl against the local API renders as a labelled card with the response laid out as a table (agents, buildings, areas, skills and so on) instead of a wall of JSON. Works on `jq` projections too, and falls back to pretty JSON or plain text when a payload isn't recognised, so nothing is ever hidden.
+
+### Changed
+- **Session restore checks the provider** - the loader now reports which provider owns a session, so a Grok or Codex conversation can no longer be restored onto a Claude agent.
+- **Release pipeline scans for leaks** - the built-in release skill gained a mandatory secret and artifact scan that runs before any other work and again immediately before the release commit is staged. It checks the files a release will actually commit for credential-shaped strings, sensitive file types, stray build artifacts, and internal network addresses — and stops the release for the user to decide rather than fixing anything itself.
+
 ## [1.188.0] - 2026-08-16
 
 ### Added

@@ -11,6 +11,7 @@ import { agentService, runtimeService, skillService, customClassService, bossSer
 import { markInstructionsDirty } from '../../services/instruction-refresh.js';
 import { createLogger } from '../../utils/index.js';
 import { ClaudeBackend, parseContextOutput } from '../../claude/backend.js';
+import { detectSessionProvider } from '../../claude/session-loader.js';
 import { getGrokSessionDir, readGrokSignalsUsage } from '../../grok/session-watcher.js';
 import type { HandlerContext } from './types.js';
 
@@ -231,9 +232,10 @@ const FORKABLE_PROVIDERS: ReadonlySet<AgentProvider> = new Set(['claude', 'codex
  * Handle restore_session_new_agent — restore a (possibly orphaned) session
  * onto a BRAND-NEW agent. The new agent copies the configuration and skills
  * of the most similar existing agent: the most recently worked one whose cwd
- * matches the session's project (Claude-provider preferred — the Session
- * Finder only surfaces Claude JSONL sessions). Without a similar agent it
- * spawns a default builder in the session's cwd.
+ * matches the session's project (same-provider preferred — the session's
+ * provider is detected from where its file lives, so a grok session gets a
+ * grok agent). Without a similar agent it spawns a default builder in the
+ * session's cwd.
  */
 export async function handleRestoreSessionNewAgent(
   ctx: HandlerContext,
@@ -244,14 +246,15 @@ export async function handleRestoreSessionNewAgent(
     return;
   }
 
+  const provider: AgentProvider = detectSessionProvider(payload.cwd, payload.sessionId) ?? 'claude';
   const candidates = agentService
     .getAllAgents()
     .filter((a) => a.cwd === payload.cwd)
     .sort((a, b) => (b.lastWorkedAt ?? b.lastActivity ?? 0) - (a.lastWorkedAt ?? a.lastActivity ?? 0));
-  const source = candidates.find((a) => (a.provider ?? 'claude') === 'claude') ?? candidates[0];
+  const source = candidates.find((a) => (a.provider ?? 'claude') === provider) ?? candidates[0];
 
   log.log(
-    `Restoring session ${payload.sessionId} onto a new agent in ${payload.cwd}` +
+    `Restoring ${provider} session ${payload.sessionId} onto a new agent in ${payload.cwd}` +
       (source ? ` (config from ${source.name})` : ' (no similar agent — defaults)')
   );
 
@@ -262,7 +265,7 @@ export async function handleRestoreSessionNewAgent(
       agent = await duplicateAgentConfig(source, name, duplicateOffset(source), {
         cwd: payload.cwd,
         sessionId: payload.sessionId,
-        provider: 'claude',
+        provider,
       });
     } else {
       agent = await agentService.createAgent(
@@ -270,7 +273,15 @@ export async function handleRestoreSessionNewAgent(
         'builder',
         payload.cwd,
         undefined,
-        payload.sessionId
+        payload.sessionId,
+        undefined,          // useChrome
+        undefined,          // permissionMode (default)
+        undefined,          // initialSkillIds
+        undefined,          // isBoss
+        undefined,          // model
+        undefined,          // codexModel
+        undefined,          // customInstructions
+        provider
       );
       for (const skillId of customClassService.getClassDefaultSkillIds(agent.class)) {
         skillService.assignSkillToAgent(skillId, agent.id);

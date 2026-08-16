@@ -475,6 +475,59 @@ export function detectBrowserAction(parsed: ParsedCurl): BrowserAction | null {
   return { endpoint, verb, icon, tab, target, detail, diff, body: parsed.bodyJson };
 }
 
+const TC_API_URL_RE = /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(\/api\/[^?#]*)/i;
+
+export interface TcApiCall {
+  method: string;
+  /** Normalized endpoint path, e.g. `/api/agents`. */
+  path: string;
+  /** First path segment under /api/, e.g. `agents`. */
+  resource: string;
+  /** Display label for the resource, e.g. `Agents`. */
+  label: string;
+  /** Icon name (from the shared Icon set). */
+  icon: string;
+}
+
+// Known internal API resources → branding for the card header. Anything not
+// listed still gets a TC card, just with the raw segment as its label.
+const TC_API_RESOURCES: Record<string, { label: string; icon: string }> = {
+  agents: { label: 'Agents', icon: 'robot' },
+  skills: { label: 'Skills', icon: 'sparkle' },
+  areas: { label: 'Areas', icon: 'map' },
+  buildings: { label: 'Buildings', icon: 'buildings' },
+  notify: { label: 'Notify', icon: 'bell' },
+  sessions: { label: 'Sessions', icon: 'history' },
+  system: { label: 'System', icon: 'gear' },
+  'http-requests': { label: 'HTTP requests', icon: 'globe' },
+  tests: { label: 'Tests', icon: 'flask' },
+  exec: { label: 'Exec', icon: 'terminal' },
+};
+
+/**
+ * Detect a curl against Tide Commander's OWN local API (`localhost:…/api/…`)
+ * so the transcript can brand it as an internal call instead of a generic
+ * HTTP request. Runs AFTER the more specific detectors (browser bridge,
+ * agent fetch, agent message) — those keep their dedicated cards.
+ */
+export function detectTcApiCall(parsed: ParsedCurl): TcApiCall | null {
+  if (!parsed) return null;
+  const match = TC_API_URL_RE.exec(parsed.url);
+  if (!match) return null;
+  const path = match[1].replace(/\/+$/, '') || '/api';
+  const segments = path.split('/').filter(Boolean); // ['api', 'agents', …]
+  const resource = (segments[1] || '').toLowerCase();
+  if (!resource) return null;
+  const meta = TC_API_RESOURCES[resource];
+  return {
+    method: parsed.method,
+    path,
+    resource,
+    label: meta?.label ?? resource,
+    icon: meta?.icon ?? 'waves',
+  };
+}
+
 const AGENT_MESSAGE_URL_RE = /^https?:\/\/[^/]+\/api\/agents\/([A-Za-z0-9_-]+)\/message$/;
 
 /**

@@ -15,6 +15,8 @@ export interface GlobalSessionRow {
   messageCount: number;
   firstPrompt: string;
   sizeBytes: number;
+  /** Which CLI owns the session ('claude' | 'grok' | …). Absent on older servers. */
+  provider?: string;
 }
 
 export interface GlobalSessionMatch {
@@ -25,6 +27,8 @@ export interface GlobalSessionMatch {
   totalMatches: number;
   snippet: string;
   firstPrompt: string;
+  /** Which CLI owns the session ('claude' | 'grok' | …). Absent on older servers. */
+  provider?: string;
 }
 
 export interface SessionPreviewMessage {

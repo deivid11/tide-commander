@@ -11,6 +11,7 @@ import * as path from 'path';
 import {
   scanSessionFileForQuery,
   planFileSearch,
+  planTokenFileSearch,
   parseRgCounts,
   parseRgSampleLines,
   type SearchFileCacheEntry,
@@ -254,5 +255,91 @@ describe('planFileSearch', () => {
     expect(planFileSearch([entry({ query: 'scroll', scannedBytes: 500 })], 'scroll', 2000, 300)).toEqual({ kind: 'full' });
     // Changed file with no scannedBytes (previous scan hit the match cap).
     expect(planFileSearch([entry({ query: 'scroll' })], 'scroll', 2000, 900)).toEqual({ kind: 'full' });
+  });
+});
+
+describe('scanSessionFileForQuery — provider line shapes', () => {
+  it('extracts message snippets from grok chat_history rows (top-level content)', async () => {
+    const file = writeTmpJsonl([
+      JSON.stringify({ type: 'system', content: 'You are Grok.' }),
+      JSON.stringify({ type: 'user', content: [{ type: 'text', text: 'look up the Jira ticket for me' }] }),
+      JSON.stringify({ type: 'tool_result', tool_call_id: 'x', content: 'jira result body' }),
+    ]);
+
+    const result = await scanSessionFileForQuery(file, 'jira');
+
+    expect(result.totalMatches).toBe(2);
+    // Message text beats tool_result chatter for the snippet.
+    expect(result.snippet).toBe('look up the Jira ticket for me');
+  });
+
+  it('extracts message snippets from codex rows (old top-level and new response_item formats)', async () => {
+    const oldFormat = writeTmpJsonl([
+      JSON.stringify({ id: 'abc', timestamp: '2025-08-18T11:23:56.105Z' }),
+      JSON.stringify({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'build the zombie shooter game' }] }),
+    ]);
+    const newFormat = writeTmpJsonl([
+      JSON.stringify({ type: 'session_meta', payload: { cwd: '/x' } }),
+      JSON.stringify({ type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'The zombie wave spawner is ready.' }] } }),
+    ]);
+
+    expect((await scanSessionFileForQuery(oldFormat, 'zombie')).snippet).toBe('build the zombie shooter game');
+    expect((await scanSessionFileForQuery(newFormat, 'zombie')).snippet).toBe('The zombie wave spawner is ready.');
+  });
+
+  it('extracts message snippets from pi rows (nested message envelope)', async () => {
+    const file = writeTmpJsonl([
+      JSON.stringify({ type: 'session', version: 3, id: 's1', cwd: '/home/riven' }),
+      JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'which model are you exactly?' }] } }),
+    ]);
+
+    expect((await scanSessionFileForQuery(file, 'model')).snippet).toBe('which model are you exactly?');
+  });
+});
+
+describe('planTokenFileSearch (multi-word AND queries)', () => {
+  const entry = (overrides: Partial<SearchFileCacheEntry>): SearchFileCacheEntry => ({
+    mtimeMs: 1000,
+    sizeBytes: 500,
+    query: 'jira',
+    totalMatches: 0,
+    snippet: '',
+    ...overrides,
+  });
+
+  it('reuses an exact-query result on an unchanged file', () => {
+    const cached = entry({ query: 'jira krunner', totalMatches: 3, snippet: 'the jira board' });
+
+    expect(planTokenFileSearch([cached], 'jira krunner', 1000, 500)).toEqual({ totalMatches: 3, snippet: 'the jira board' });
+  });
+
+  it('zero-prunes from a contained query with no matches ("jira" absent → "jira krunner" cannot AND-match)', () => {
+    expect(planTokenFileSearch([entry({ query: 'jira', totalMatches: 0 })], 'jira krunner', 1000, 500)).toEqual({ totalMatches: 0, snippet: '' });
+  });
+
+  it('does NOT reuse positive phrase refinements — different words match different lines', () => {
+    // The phrase cache would re-test these lines for the full string
+    // "jira krunner" and wrongly answer 0; word semantics must rescan.
+    const cached = entry({
+      query: 'jira',
+      totalMatches: 2,
+      snippet: 'jira ticket',
+      matchingLines: [
+        JSON.stringify({ type: 'user', message: { content: 'open the jira ticket' } }),
+        JSON.stringify({ type: 'user', message: { content: 'jira sync done' } }),
+      ],
+    });
+
+    expect(planTokenFileSearch([cached], 'jira krunner', 1000, 500)).toBeNull();
+  });
+
+  it('ignores entries from a changed file', () => {
+    expect(planTokenFileSearch([entry({ query: 'jira krunner', totalMatches: 3 })], 'jira krunner', 2000, 500)).toBeNull();
+    expect(planTokenFileSearch([entry({ query: 'jira', totalMatches: 0 })], 'jira krunner', 1000, 900)).toBeNull();
+  });
+
+  it('returns null without cached entries', () => {
+    expect(planTokenFileSearch(undefined, 'jira krunner', 1000, 500)).toBeNull();
+    expect(planTokenFileSearch([], 'jira krunner', 1000, 500)).toBeNull();
   });
 });

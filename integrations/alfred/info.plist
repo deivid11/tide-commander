@@ -1,0 +1,452 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>bundleid</key>
+	<string>mx.tide.tide-commander.alfred</string>
+	<key>category</key>
+	<string>Productivity</string>
+	<key>connections</key>
+	<dict>
+		<key>7C2A1E10-0001-4B1B-9E2A-TCSEARCH0001</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>7C2A1E10-0003-4B1B-9E2A-TCACTION0003</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>7C2A1E10-0002-4B1B-9E2A-TCSESSION002</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>7C2A1E10-0003-4B1B-9E2A-TCACTION0003</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>7C2A1E10-0004-4B1B-9E2A-TCFALLBACK04</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>7C2A1E10-0006-4B1B-9E2A-TCRELAYTC006</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>7C2A1E10-0005-4B1B-9E2A-TCFALLBACK05</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>7C2A1E10-0007-4B1B-9E2A-TCRELAYTS007</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>7C2A1E10-0008-4B1B-9E2A-TCHOTKEY0008</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>7C2A1E10-0006-4B1B-9E2A-TCRELAYTC006</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+	</dict>
+	<key>createdby</key>
+	<string>Tide Commander</string>
+	<key>description</key>
+	<string>Search and focus Tide Commander agents, areas, buildings and conversations</string>
+	<key>disabled</key>
+	<false/>
+	<key>name</key>
+	<string>Tide Commander</string>
+	<key>objects</key>
+	<array>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>alfredfiltersresults</key>
+				<false/>
+				<key>alfredfiltersresultsmatchmode</key>
+				<integer>0</integer>
+				<key>argumenttreatemptyqueryasnil</key>
+				<false/>
+				<key>argumenttype</key>
+				<integer>1</integer>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>keyword</key>
+				<string>tc</string>
+				<key>queuedelaycustom</key>
+				<integer>1</integer>
+				<key>queuedelayimmediatelyinitially</key>
+				<true/>
+				<key>queuedelaymode</key>
+				<integer>0</integer>
+				<key>queuemode</key>
+				<integer>2</integer>
+				<key>runningsubtext</key>
+				<string>Searching Tide Commander…</string>
+				<key>script</key>
+				<string>q="${1:-}"
+out="$(/usr/bin/curl -sS -m 6 -G -H "X-Auth-Token: ${TC_TOKEN}" --data-urlencode "q=${q}" "${TC_HOST}/api/alfred/search" 2&gt;/dev/null)"
+case "$out" in
+  *'"items"'*) printf '%s' "$out" ;;
+  *) printf '{"items":[{"title":"Tide Commander unreachable","subtitle":"%s - check Server URL / token in the workflow configuration","valid":false}]}' "${TC_HOST}" ;;
+esac</string>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>scriptfile</key>
+				<string></string>
+				<key>subtext</key>
+				<string>Agents · areas · buildings (⏎ focus in open UI · ⌘⏎ open in browser · ⌥⏎ copy id)</string>
+				<key>title</key>
+				<string>Search Tide Commander</string>
+				<key>type</key>
+				<integer>0</integer>
+				<key>withspace</key>
+				<true/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.input.scriptfilter</string>
+			<key>uid</key>
+			<string>7C2A1E10-0001-4B1B-9E2A-TCSEARCH0001</string>
+			<key>version</key>
+			<integer>3</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>alfredfiltersresults</key>
+				<false/>
+				<key>alfredfiltersresultsmatchmode</key>
+				<integer>0</integer>
+				<key>argumenttreatemptyqueryasnil</key>
+				<false/>
+				<key>argumenttype</key>
+				<integer>1</integer>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>keyword</key>
+				<string>tcs</string>
+				<key>queuedelaycustom</key>
+				<integer>2</integer>
+				<key>queuedelayimmediatelyinitially</key>
+				<false/>
+				<key>queuedelaymode</key>
+				<integer>1</integer>
+				<key>queuemode</key>
+				<integer>2</integer>
+				<key>runningsubtext</key>
+				<string>Searching conversations (all harnesses)…</string>
+				<key>script</key>
+				<string>q="${1:-}"
+out="$(/usr/bin/curl -sS -m 10 -G -H "X-Auth-Token: ${TC_TOKEN}" --data-urlencode "q=${q}" "${TC_HOST}/api/alfred/sessions" 2&gt;/dev/null)"
+case "$out" in
+  *'"items"'*) printf '%s' "$out" ;;
+  *) printf '{"items":[{"title":"Tide Commander unreachable","subtitle":"%s - check Server URL / token in the workflow configuration","valid":false}]}' "${TC_HOST}" ;;
+esac</string>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>scriptfile</key>
+				<string></string>
+				<key>subtext</key>
+				<string>Full-text search across every agent conversation (claude · grok · codex · opencode · pi)</string>
+				<key>title</key>
+				<string>Search Tide Commander conversations</string>
+				<key>type</key>
+				<integer>0</integer>
+				<key>withspace</key>
+				<true/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.input.scriptfilter</string>
+			<key>uid</key>
+			<string>7C2A1E10-0002-4B1B-9E2A-TCSESSION002</string>
+			<key>version</key>
+			<integer>3</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>concurrently</key>
+				<false/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>script</key>
+				<string>arg="${1:-}"
+case "$arg" in
+  focus:*)
+    /usr/bin/curl -sS -m 5 -X POST -H "X-Auth-Token: ${TC_TOKEN}" -H "Content-Type: application/json" \
+      -d "{\"agentId\":\"${arg#focus:}\",\"openTerminal\":true}" "${TC_HOST}/api/focus-agent" &gt;/dev/null 2&gt;&amp;1 ;;
+  url:*)
+    /usr/bin/open "${arg#url:}" ;;
+  copy:*)
+    printf '%s' "${arg#copy:}" | /usr/bin/pbcopy ;;
+esac</string>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>scriptfile</key>
+				<string></string>
+				<key>type</key>
+				<integer>0</integer>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>7C2A1E10-0003-4B1B-9E2A-TCACTION0003</string>
+			<key>version</key>
+			<integer>2</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>subtext</key>
+				<string>Agents · areas · buildings</string>
+				<key>text</key>
+				<string>Search Tide Commander</string>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.trigger.fallback</string>
+			<key>uid</key>
+			<string>7C2A1E10-0004-4B1B-9E2A-TCFALLBACK04</string>
+			<key>version</key>
+			<integer>1</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>subtext</key>
+				<string>Full-text across every agent conversation</string>
+				<key>text</key>
+				<string>Search Tide Commander conversations</string>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.trigger.fallback</string>
+			<key>uid</key>
+			<string>7C2A1E10-0005-4B1B-9E2A-TCFALLBACK05</string>
+			<key>version</key>
+			<integer>1</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>argument</key>
+				<integer>0</integer>
+				<key>focusedappvariable</key>
+				<false/>
+				<key>focusedappvariablename</key>
+				<string></string>
+				<key>hotkey</key>
+				<integer>0</integer>
+				<key>hotmod</key>
+				<integer>0</integer>
+				<key>hotstring</key>
+				<string></string>
+				<key>leftcursor</key>
+				<false/>
+				<key>modsmode</key>
+				<integer>0</integer>
+				<key>relatedAppsMode</key>
+				<integer>0</integer>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.trigger.hotkey</string>
+			<key>uid</key>
+			<string>7C2A1E10-0008-4B1B-9E2A-TCHOTKEY0008</string>
+			<key>version</key>
+			<integer>2</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>concurrently</key>
+				<false/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>script</key>
+				<string>q="${1:-}"
+esc="${q//\\/\\\\}"
+esc="${esc//\"/\\\"}"
+exec /usr/bin/osascript -e "tell application id \"com.runningwithcrayons.Alfred\" to search \"tc ${esc}\""</string>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>scriptfile</key>
+				<string></string>
+				<key>type</key>
+				<integer>0</integer>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>7C2A1E10-0006-4B1B-9E2A-TCRELAYTC006</string>
+			<key>version</key>
+			<integer>2</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>concurrently</key>
+				<false/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>script</key>
+				<string>q="${1:-}"
+esc="${q//\\/\\\\}"
+esc="${esc//\"/\\\"}"
+exec /usr/bin/osascript -e "tell application id \"com.runningwithcrayons.Alfred\" to search \"tcs ${esc}\""</string>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>scriptfile</key>
+				<string></string>
+				<key>type</key>
+				<integer>0</integer>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>7C2A1E10-0007-4B1B-9E2A-TCRELAYTS007</string>
+			<key>version</key>
+			<integer>2</integer>
+		</dict>
+	</array>
+	<key>readme</key>
+	<string>Search Tide Commander from Alfred.
+
+Keywords:
+  tc  [query]  — agents, areas and buildings. Enter focuses the agent in any open Tide Commander UI; Cmd+Enter opens it in the browser; Alt+Enter copies the agent id. Empty query lists the most recently active agents.
+  tcs [query]  — full-text search across every agent conversation (claude, grok, codex, opencode, pi). Enter focuses the agent that holds the conversation.
+
+Configure the Server URL and API token in the workflow configuration.</string>
+	<key>uidata</key>
+	<dict>
+		<key>7C2A1E10-0001-4B1B-9E2A-TCSEARCH0001</key>
+		<dict>
+			<key>xpos</key>
+			<real>80</real>
+			<key>ypos</key>
+			<real>60</real>
+		</dict>
+		<key>7C2A1E10-0002-4B1B-9E2A-TCSESSION002</key>
+		<dict>
+			<key>xpos</key>
+			<real>80</real>
+			<key>ypos</key>
+			<real>220</real>
+		</dict>
+		<key>7C2A1E10-0003-4B1B-9E2A-TCACTION0003</key>
+		<dict>
+			<key>xpos</key>
+			<real>420</real>
+			<key>ypos</key>
+			<real>140</real>
+		</dict>
+		<key>7C2A1E10-0004-4B1B-9E2A-TCFALLBACK04</key>
+		<dict>
+			<key>xpos</key>
+			<real>80</real>
+			<key>ypos</key>
+			<real>380</real>
+		</dict>
+		<key>7C2A1E10-0005-4B1B-9E2A-TCFALLBACK05</key>
+		<dict>
+			<key>xpos</key>
+			<real>80</real>
+			<key>ypos</key>
+			<real>540</real>
+		</dict>
+		<key>7C2A1E10-0006-4B1B-9E2A-TCRELAYTC006</key>
+		<dict>
+			<key>xpos</key>
+			<real>420</real>
+			<key>ypos</key>
+			<real>420</real>
+		</dict>
+		<key>7C2A1E10-0007-4B1B-9E2A-TCRELAYTS007</key>
+		<dict>
+			<key>xpos</key>
+			<real>420</real>
+			<key>ypos</key>
+			<real>540</real>
+		</dict>
+		<key>7C2A1E10-0008-4B1B-9E2A-TCHOTKEY0008</key>
+		<dict>
+			<key>xpos</key>
+			<real>80</real>
+			<key>ypos</key>
+			<real>700</real>
+		</dict>
+	</dict>
+	<key>userconfigurationconfig</key>
+	<array>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string></string>
+				<key>placeholder</key>
+				<string>http://host:5174</string>
+				<key>required</key>
+				<true/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>Tide Commander server URL, without a trailing slash.</string>
+			<key>label</key>
+			<string>Server URL</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>TC_HOST</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string>abcd</string>
+				<key>placeholder</key>
+				<string>API token</string>
+				<key>required</key>
+				<true/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>The X-Auth-Token the Tide Commander server expects.</string>
+			<key>label</key>
+			<string>API token</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>TC_TOKEN</string>
+		</dict>
+	</array>
+	<key>version</key>
+	<string>1.0.0</string>
+	<key>webaddress</key>
+	<string></string>
+</dict>
+</plist>

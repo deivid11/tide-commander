@@ -1183,7 +1183,7 @@ export const HistoryLine = memo(function HistoryLine({
               </span>
             ) : isBashTool && bashCurlParsed ? (
               <div className="output-tool-param bash-curl-param">
-                <CurlCard parsed={bashCurlParsed} rawCommand={bashCommand} />
+                <CurlCard parsed={bashCurlParsed} rawCommand={bashCommand} output={_bashOutput} />
               </div>
             ) : isBashTool && bashCommand ? (
               <span
@@ -1661,7 +1661,7 @@ export const HistoryLine = memo(function HistoryLine({
           </span>
         ) : bashCurlParsed ? (
           <div className="output-tool-param bash-curl-param">
-            <CurlCard parsed={bashCurlParsed} rawCommand={bashCommand} />
+            <CurlCard parsed={bashCurlParsed} rawCommand={bashCommand} output={_bashOutput} />
           </div>
         ) : (
           <pre

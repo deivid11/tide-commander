@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useId, useMemo, useState } from 'react';
-import { detectAgentFetch, detectAgentMessage, detectBrowserAction, type BrowserAction, type ParsedCurl } from './curlParser';
+import { detectAgentFetch, detectAgentMessage, detectBrowserAction, detectTcApiCall, type BrowserAction, type ParsedCurl, type TcApiCall } from './curlParser';
+import { classifyTcApiOutput, type TcAgentRow, type TcApiListing } from './tcApiOutput';
 import { useAgent } from '../../store/selectors';
 import { store, useViewMode } from '../../store';
 import { AgentIcon } from '../AgentIcon';
@@ -11,6 +12,8 @@ const AGENT_MESSAGE_COLLAPSE_CHAR_THRESHOLD = 280;
 interface CurlCardProps {
   parsed: ParsedCurl;
   rawCommand?: string;
+  /** Bash tool output paired with the command — lets internal TC API calls render their result inline. */
+  output?: string;
 }
 
 function formatJsonWithHighlight(value: unknown): string {
@@ -264,7 +267,235 @@ function BrowserActionCard({ action, rawCommand }: { action: BrowserAction; rawC
   );
 }
 
-export const CurlCard = memo(function CurlCard({ parsed, rawCommand }: CurlCardProps) {
+// ── Tide Commander internal API card ─────────────────────────────────────────
+
+const TC_API_VISIBLE_ROWS = 6;
+const TC_API_TEXT_VISIBLE_LINES = 5;
+const TC_API_TEXT_MAX_LINES = 200;
+
+/** One agent row in a TC API listing — resolves the live agent for its icon and click-to-open. */
+function TcAgentRowItem({ row }: { row: TcAgentRow }) {
+  const agent = useAgent(row.id ?? '');
+  const viewMode = useViewMode();
+
+  // Same selection path as clicking a pinned chip / the agent-message card.
+  const openAgent = useCallback(() => {
+    if (!agent) return;
+    store.setLastSelectionViaDirectClick(true);
+    store.selectAgent(agent.id);
+    if (viewMode !== 'flat') store.setTerminalOpen(true);
+  }, [agent, viewMode]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      e.stopPropagation();
+      openAgent();
+    }
+  }, [openAgent]);
+
+  const status = agent?.status ?? row.status;
+  return (
+    <div className="tc-api-row tc-api-row--agent">
+      {agent
+        ? <AgentIcon agent={agent} size={14} />
+        : <span className="tc-api-row-icon"><Icon name="robot" size={12} /></span>}
+      {agent ? (
+        <span
+          className="tc-api-row-name clickable-agent-name"
+          role="button"
+          tabIndex={0}
+          title={`Open ${agent.name}`}
+          onClick={(e) => { e.stopPropagation(); openAgent(); }}
+          onKeyDown={handleKeyDown}
+        >
+          {row.name}
+        </span>
+      ) : (
+        <span className="tc-api-row-name" title={row.id}>{row.name}</span>
+      )}
+      {status && <span className={`tc-api-status tc-api-status--${status}`}>{status}</span>}
+      {row.agentClass && <span className="tc-api-row-dim">{row.agentClass}</span>}
+      {row.cwd && <span className="tc-api-row-path" title={row.cwd}>{truncateMiddle(row.cwd, 42)}</span>}
+    </div>
+  );
+}
+
+function tcApiCountLabel(listing: TcApiListing): string | undefined {
+  switch (listing.kind) {
+    case 'agents': return `${listing.total} agent${listing.total === 1 ? '' : 's'}`;
+    case 'skills': return `${listing.total} skill${listing.total === 1 ? '' : 's'}`;
+    case 'areas': return `${listing.total} area${listing.total === 1 ? '' : 's'}`;
+    case 'buildings': return `${listing.total} building${listing.total === 1 ? '' : 's'}`;
+    default: return undefined;
+  }
+}
+
+function TcApiCard({ call, output, rawCommand }: { call: TcApiCall; output?: string; rawCommand?: string }) {
+  const [showAll, setShowAll] = useState(false);
+  const [showRaw, setShowRaw] = useState(false);
+
+  const listing = useMemo(() => classifyTcApiOutput(output), [output]);
+
+  // Raw view: pretty-printed JSON when the output parses, plain text otherwise.
+  const rawPretty = useMemo(() => {
+    if (!showRaw || !output) return null;
+    try {
+      return formatJsonWithHighlight(JSON.parse(output.trim()));
+    } catch {
+      return null;
+    }
+  }, [showRaw, output]);
+
+  const toggleRaw = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowRaw(v => !v);
+  }, []);
+
+  const methodClass = `curl-method method-${call.method.toLowerCase()}`;
+  const countLabel = listing ? tcApiCountLabel(listing) : undefined;
+
+  const renderRows = (): React.ReactNode => {
+    if (!listing) return null;
+    if (listing.kind === 'text') {
+      const lines = listing.text.split('\n');
+      if (lines.length === 1 && listing.text.length <= 100) {
+        return (
+          <div className="tc-api-result-line">
+            <Icon name="check" size={11} />
+            <code>{listing.text}</code>
+          </div>
+        );
+      }
+      const visible = showAll ? lines.slice(0, TC_API_TEXT_MAX_LINES) : lines.slice(0, TC_API_TEXT_VISIBLE_LINES);
+      return (
+        <>
+          <pre className="tc-api-text-pre">{visible.join('\n')}</pre>
+          {lines.length > TC_API_TEXT_VISIBLE_LINES && (
+            <button type="button" className="tc-api-more-btn" onClick={(e) => { e.stopPropagation(); setShowAll(v => !v); }}>
+              {showAll ? 'Show less' : `+${lines.length - TC_API_TEXT_VISIBLE_LINES} more lines`}
+            </button>
+          )}
+        </>
+      );
+    }
+    if (listing.kind === 'json') {
+      return (
+        <div className="tc-api-result-line">
+          <Icon name="check" size={11} />
+          <code title="Result">{listing.preview}</code>
+        </div>
+      );
+    }
+
+    const rows = showAll ? listing.rows : listing.rows.slice(0, TC_API_VISIBLE_ROWS);
+    const hiddenCount = listing.total - rows.length;
+    let rendered: React.ReactNode;
+    switch (listing.kind) {
+      case 'agents':
+        rendered = rows.map((row, i) => <TcAgentRowItem key={row.id ?? i} row={row as TcAgentRow} />);
+        break;
+      case 'skills':
+        rendered = (rows as typeof listing.rows).map((row, i) => (
+          <div className="tc-api-row" key={row.id ?? i}>
+            <span className="tc-api-row-icon"><Icon name="sparkle" size={12} /></span>
+            <span className="tc-api-row-name" title={row.description}>{row.name}</span>
+            {row.enabled === false && <span className="tc-api-status tc-api-status--off">off</span>}
+            {row.assignedCount !== undefined && (
+              <span className="tc-api-row-dim">{row.assignedCount} assigned</span>
+            )}
+            {row.description && <span className="tc-api-row-path" title={row.description}>{truncateMiddle(row.description, 48)}</span>}
+          </div>
+        ));
+        break;
+      case 'areas':
+        rendered = (rows as typeof listing.rows).map((row, i) => (
+          <div className="tc-api-row" key={row.id ?? i}>
+            <span className="tc-api-area-dot" style={row.color ? { background: row.color } : undefined} />
+            <span className="tc-api-row-name">{row.name}</span>
+            {row.agentCount !== undefined && (
+              <span className="tc-api-row-dim">{row.agentCount} agent{row.agentCount === 1 ? '' : 's'}</span>
+            )}
+          </div>
+        ));
+        break;
+      case 'buildings':
+        rendered = (rows as typeof listing.rows).map((row, i) => (
+          <div className="tc-api-row" key={row.id ?? i}>
+            <span className="tc-api-row-icon">
+              <Icon name={row.buildingType === 'boss' ? 'crown' : row.buildingType === 'database' ? 'database' : row.buildingType === 'tests' ? 'flask' : 'buildings'} size={12} />
+            </span>
+            <span className="tc-api-row-name">{row.name}</span>
+            {row.status && <span className={`tc-api-status tc-api-status--${row.status}`}>{row.status}</span>}
+            {row.buildingType && <span className="tc-api-row-dim">{row.buildingType}</span>}
+          </div>
+        ));
+        break;
+    }
+    return (
+      <>
+        <div className="tc-api-rows">{rendered}</div>
+        {hiddenCount > 0 && (
+          <button type="button" className="tc-api-more-btn" onClick={(e) => { e.stopPropagation(); setShowAll(true); }}>
+            +{hiddenCount} more
+          </button>
+        )}
+        {showAll && listing.total > listing.rows.length && (
+          <div className="tc-api-truncation-note">…and {listing.total - listing.rows.length} more (see raw output)</div>
+        )}
+        {showAll && hiddenCount <= 0 && listing.total > TC_API_VISIBLE_ROWS && (
+          <button type="button" className="tc-api-more-btn" onClick={(e) => { e.stopPropagation(); setShowAll(false); }}>
+            Show less
+          </button>
+        )}
+      </>
+    );
+  };
+
+  return (
+    <div className="curl-card curl-card--tc" title={rawCommand}>
+      <div className="tc-api-head">
+        <span className="tc-api-brand-icon"><Icon name="waves" size={13} /></span>
+        <span className="tc-api-brand">Tide Commander</span>
+        <span className={methodClass}>{call.method}</span>
+        <span className="tc-api-label">
+          <Icon name={call.icon as React.ComponentProps<typeof Icon>['name']} size={12} />
+          {call.label}
+        </span>
+        <code className="tc-api-path" title={call.path}>{truncateMiddle(call.path, 44)}</code>
+        <span className="tc-api-spacer" />
+        {countLabel && <span className="tc-api-count">{countLabel}</span>}
+        {output !== undefined && output !== '' && (
+          <button
+            type="button"
+            className="curl-expand-btn"
+            onClick={toggleRaw}
+            aria-expanded={showRaw}
+            aria-label={showRaw ? 'Hide raw output' : 'Show raw output'}
+            title={showRaw ? 'Hide raw output' : 'Raw output'}
+          >
+            <Icon name={showRaw ? 'caret-down' : 'caret-right'} size={12} />
+          </button>
+        )}
+      </div>
+      {!showRaw && renderRows()}
+      {showRaw && output && (
+        <div className="curl-card-row curl-body-row">
+          <div className="curl-body-block">
+            {rawPretty !== null ? (
+              <pre className="curl-body-pre" dangerouslySetInnerHTML={{ __html: rawPretty }} />
+            ) : (
+              <pre className="curl-body-pre">{output}</pre>
+            )}
+            <CopyButton value={output} title="Copy output" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export const CurlCard = memo(function CurlCard({ parsed, rawCommand, output }: CurlCardProps) {
   const browserAction = detectBrowserAction(parsed);
   if (browserAction) {
     return <BrowserActionCard action={browserAction} rawCommand={rawCommand} />;
@@ -282,6 +513,10 @@ export const CurlCard = memo(function CurlCard({ parsed, rawCommand }: CurlCardP
   const agentFetch = detectAgentFetch(parsed);
   if (agentFetch) {
     return <AgentFetchCard agentId={agentFetch.agentId} rawCommand={rawCommand} />;
+  }
+  const tcApi = detectTcApiCall(parsed);
+  if (tcApi) {
+    return <TcApiCard call={tcApi} output={output} rawCommand={rawCommand} />;
   }
   return <GenericCurlCard parsed={parsed} rawCommand={rawCommand} />;
 });

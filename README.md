@@ -101,7 +101,7 @@ and `crypto.randomUUID`. `HTTPS_PORT` takes precedence if `HTTPS=1` is also set.
 Notes:
 - Local certs are stored in `~/.tide-commander/certs/` when using `--install-local-cert`.
 - For a cert that also covers a LAN/VPN address, include it in the mkcert SAN list:
-  `mkcert -cert-file … -key-file … localhost 127.0.0.1 ::1 10.20.0.2`.
+  `mkcert -cert-file … -key-file … localhost 127.0.0.1 ::1 192.168.1.100`.
 - `--generate-auth-token` prints the generated token at startup; save it in a secure password manager.
 - If `AUTH_TOKEN` is configured, keep using it with HTTPS for transport encryption plus access control.
 

@@ -76,7 +76,7 @@ function getAreaBounds(area: DrawingArea): Bounds {
 /**
  * Check if a position is inside an area's bounds.
  */
-function isPositionInArea(pos: { x: number; z: number }, area: DrawingArea): boolean {
+export function isPositionInArea(pos: { x: number; z: number }, area: DrawingArea): boolean {
   if (area.type === 'rectangle' && area.width && area.height) {
     const halfW = area.width / 2;
     const halfH = area.height / 2;
