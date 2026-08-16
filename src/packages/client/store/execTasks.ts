@@ -7,7 +7,17 @@
  */
 
 import type { ExecTask } from '../../shared/types';
+import { TerminalRenderer } from '../../shared/terminal-render';
+import { apiUrl, authFetch } from '../utils/storage';
 import type { StoreState } from './types';
+
+// Per-task PTY replay state (non-serializable — lives outside the store).
+// PTY tasks stream raw terminal output (in-place redraws, ANSI); the renderer
+// turns each chunk into the current screen text so cards update in place.
+const ptyRenderers = new Map<string, TerminalRenderer>();
+
+// Cap what the card keeps, matching the legacy line cap.
+const MAX_OUTPUT_LINES = 500;
 
 export interface ExecTaskActions {
   // Task lifecycle
@@ -16,7 +26,8 @@ export interface ExecTaskActions {
     agentId: string,
     agentName: string,
     command: string,
-    cwd: string
+    cwd: string,
+    pty?: boolean
   ): void;
   handleExecTaskOutput(taskId: string, agentId: string, output: string, isError?: boolean): void;
   handleExecTaskCompleted(taskId: string, agentId: string, exitCode: number | null, success: boolean): void;
@@ -46,7 +57,8 @@ export function createExecTaskActions(
       agentId: string,
       agentName: string,
       command: string,
-      cwd: string
+      cwd: string,
+      pty?: boolean
     ): void {
       setState((state) => {
         const task: ExecTask = {
@@ -58,10 +70,15 @@ export function createExecTaskActions(
           status: 'running',
           output: [],
           startedAt: Date.now(),
+          pty,
         };
 
         if (!state.execTasks) {
           state.execTasks = new Map();
+        }
+
+        if (pty) {
+          ptyRenderers.set(taskId, new TerminalRenderer());
         }
 
         // Store task by taskId for quick lookup
@@ -75,6 +92,20 @@ export function createExecTaskActions(
         const task = state.execTasks?.get(taskId);
         if (!task) return;
 
+        // PTY stream: replay through the renderer so progress bars / spinners
+        // update IN PLACE instead of appending every redraw as a new line.
+        const renderer = task.pty ? ptyRenderers.get(taskId) : undefined;
+        if (renderer) {
+          renderer.write(output);
+          const rendered = renderer.getLines();
+          const newOutput = rendered.length > MAX_OUTPUT_LINES
+            ? rendered.slice(-MAX_OUTPUT_LINES)
+            : rendered;
+          state.execTasks!.set(taskId, { ...task, output: newOutput });
+          return;
+        }
+
+        // Legacy pipe stream: append lines (stderr tagged).
         // Build new output array (immutable update for selector change detection)
         const lines = output.split('\n');
         const newOutput = [...task.output];
@@ -84,8 +115,8 @@ export function createExecTaskActions(
           }
         }
         // Keep only the last 500 lines to avoid memory issues
-        if (newOutput.length > 500) {
-          newOutput.splice(0, newOutput.length - 500);
+        if (newOutput.length > MAX_OUTPUT_LINES) {
+          newOutput.splice(0, newOutput.length - MAX_OUTPUT_LINES);
         }
         // Create new task object so shallowArrayEqual in useExecTasks detects the change
         state.execTasks!.set(taskId, { ...task, output: newOutput });
@@ -99,6 +130,7 @@ export function createExecTaskActions(
       exitCode: number | null,
       success: boolean
     ): void {
+      ptyRenderers.delete(taskId);
       setState((state) => {
         const task = state.execTasks?.get(taskId);
         if (task) {
@@ -112,7 +144,9 @@ export function createExecTaskActions(
 
     async stopExecTask(taskId: string): Promise<boolean> {
       try {
-        const response = await fetch(`/api/exec/tasks/${taskId}`, {
+        // authFetch + apiUrl: a bare fetch('/api/…') has no auth token — with
+        // auth enabled the DELETE 401'd silently and the button did nothing.
+        const response = await authFetch(apiUrl(`/api/exec/tasks/${taskId}`), {
           method: 'DELETE',
         });
         if (response.ok) {
@@ -160,6 +194,7 @@ export function createExecTaskActions(
         for (const [taskId, task] of state.execTasks.entries()) {
           if (task.agentId === agentId && task.status !== 'running') {
             state.execTasks.delete(taskId);
+            ptyRenderers.delete(taskId);
           }
         }
       });
@@ -172,6 +207,7 @@ export function createExecTaskActions(
         for (const [taskId, task] of state.execTasks.entries()) {
           if (task.agentId === agentId) {
             state.execTasks.delete(taskId);
+            ptyRenderers.delete(taskId);
           }
         }
       });
@@ -179,6 +215,7 @@ export function createExecTaskActions(
     },
 
     removeExecTask(taskId: string): void {
+      ptyRenderers.delete(taskId);
       setState((state) => {
         if (!state.execTasks) return;
         state.execTasks.delete(taskId);

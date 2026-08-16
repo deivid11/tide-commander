@@ -2,7 +2,7 @@ import type {
   Agent, AgentClass, AgentProvider, PermissionMode, ClaudeModel, ClaudeEffort, CodexModel, CodexConfig,
   ContextStats, Subagent, DelegationDecision,
   WorkPlan, AnalysisRequest,
-  CustomAgentClass,
+  CustomAgentClass, AgentBackgroundTask,
 } from './agent-types.js';
 import type {
   Building, ExistingDockerContainer, ExistingComposeProject,
@@ -519,6 +519,17 @@ export interface SubagentStreamMessage extends WSMessage {
     toolUseId: string;
     parentAgentId: string;
     entries: import('./agent-types.js').SubagentStreamEntry[];
+  };
+}
+
+// Active-background-task snapshot for one agent (Server -> Client).
+// Sent whenever the agent's set of live background tasks changes (task
+// launched / finished / cleared) and on connect for agents with active tasks.
+export interface BackgroundTasksUpdateMessage extends WSMessage {
+  type: 'background_tasks_update';
+  payload: {
+    agentId: string;
+    tasks: AgentBackgroundTask[];
   };
 }
 
@@ -1197,6 +1208,9 @@ export interface ExecTaskStartedMessage extends WSMessage {
     agentName: string;
     command: string;
     cwd: string;
+    // Running under a PTY — output chunks are a raw terminal stream to replay
+    // through TerminalRenderer instead of appending line-by-line.
+    pty?: boolean;
   };
 }
 
@@ -1832,6 +1846,7 @@ export type ServerMessage =
   | SubagentOutputMessage
   | SubagentCompletedMessage
   | SubagentStreamMessage
+  | BackgroundTasksUpdateMessage
   | TriggersUpdateMessage
   | TriggerCreatedMessage
   | TriggerUpdatedMessage

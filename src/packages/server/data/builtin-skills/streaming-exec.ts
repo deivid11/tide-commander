@@ -24,8 +24,20 @@ Body only — wrap with the scaffolding from the API Calling Convention above:
 - \`agentId\` (required): your agent ID from the system prompt
 - \`command\` (required): the shell command to execute
 - \`cwd\` (optional): working directory; defaults to your agent's current directory
+- \`tail\` (optional, number): return only the last N lines of output in the response. **This is the right way to keep YOUR context small** — the user's live terminal card still receives the FULL output stream; only your response is trimmed.
+- \`pty\` (optional, default true): commands run under a pseudo-terminal, so TTY-aware CLIs (vitest, npm, pip, cargo) show their live progress in the user's card. Your response \`output\` is the clean rendered result (progress bars collapsed to their final state, colors stripped) — never raw terminal noise. Pass \`false\` only if a command misbehaves under a TTY.
 
 Wrap indefinitely-running commands (like dev servers) with \`timeout\`: \`{"agentId":"YOUR_AGENT_ID","command":"timeout 30 npm run dev"}\`
+
+## Keeping your context small — use \`tail\`, not pipes
+
+Do NOT append \`| tail -25\` (or \`| head\`, \`>/dev/null\`, \`2>&1 | tail -c 3000\`, …) to the command to shrink its output. A pipe filter buffers everything, so the user's live card stays EMPTY until the command ends — they lose all real-time visibility. Pass \`"tail": 25\` instead:
+
+\`\`\`json
+{"agentId":"YOUR_AGENT_ID","command":"npm test","tail":30}
+\`\`\`
+
+Safety net: if a command DOES end in \`| tail -N\` / \`| tail -n N\` / \`| tail -c N\`, the server strips that filter before executing (so the live stream shows real progress) and applies the same tail to your response instead — you receive what you asked for either way. Don't rely on it; prefer the \`tail\` param.
 
 ## Response (JSON, returned when the command completes)
 
@@ -33,5 +45,7 @@ Wrap indefinitely-running commands (like dev servers) with \`timeout\`: \`{"agen
 {"success": true, "taskId": "abc123", "exitCode": 0, "output": "Full command output...", "duration": 12345}
 \`\`\`
 
-\`success\` is \`true\` whenever the command executed, even with a non-zero exit code. A non-zero \`exitCode\` means the command itself failed (e.g. test failures) — a normal result to analyze via \`output\`, not an API error.`,
+\`success\` is \`true\` whenever the command executed, even with a non-zero exit code. A non-zero \`exitCode\` means the command itself failed (e.g. test failures) — a normal result to analyze via \`output\`, not an API error.
+
+When a tail was applied (param or stripped pipe filter) the response also carries \`"tailApplied": true\` and \`"fullOutputBytes"\` — the untruncated size, so you know how much output the user saw that you didn't.`,
 };

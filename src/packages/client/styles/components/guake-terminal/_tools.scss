@@ -2638,6 +2638,46 @@
   }
 }
 
+.exec-task-inline-command {
+  color: var(--accent-cyan, #00b4dc);
+  font-weight: 600;
+  padding-bottom: 6px !important;
+}
+
+// Cancel button for a running inline exec — sits at the end of the `$ command` line.
+.exec-task-inline-stop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+  padding: 1px 6px;
+  vertical-align: middle;
+  background: color-mix(in srgb, var(--accent-red, #ef4444) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-red, #ef4444) 35%, transparent);
+  border-radius: 3px;
+  color: var(--accent-red, #ef4444);
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-red, #ef4444) 25%, transparent);
+  }
+}
+
+.exec-task-inline-exit {
+  margin-top: 6px !important;
+  padding-top: 6px !important;
+  border-top: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  font-weight: 600;
+
+  &.success {
+    color: var(--accent-green, #22c55e);
+  }
+
+  &.error {
+    color: var(--accent-red, #ef4444);
+  }
+}
+
 .exec-task-cursor {
   animation: blink 1s step-end infinite;
   color: var(--accent-cyan);

@@ -17,6 +17,7 @@ import type { TestRunHandle, HttpRunHandle } from '../../store';
 import { buildItemKey, bridgeIdsFor } from './virtualizedOutputKey';
 import { buildPromptMarkers, type PromptMarker } from './promptMarkers';
 import { PromptMarkersRail } from './PromptMarkersRail';
+import { BackgroundTasksRail } from './BackgroundTasksRail';
 export { buildItemKey } from './virtualizedOutputKey';
 export type { TaggedItem, TaggedHistoryItem, TaggedLiveItem } from './virtualizedOutputKey';
 
@@ -932,6 +933,9 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
           />
         </div>
       )}
+      <div className="bg-tasks-anchor">
+        <BackgroundTasksRail agentId={agentId} scrollContainerRef={scrollContainerRef} />
+      </div>
       {virtualItems.map((virtualRow) => {
         const tagged = allItems[virtualRow.index];
         if (!tagged) return null;

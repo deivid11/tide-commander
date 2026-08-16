@@ -20,6 +20,7 @@ import type {
   QueryResult,
   QueryHistoryEntry,
   Subagent,
+  AgentBackgroundTask,
   GitWatchedDirStatus,
   SessionHistoryEntry,
 } from '../../shared/types';
@@ -1306,6 +1307,24 @@ export function useSubagentsForAgent(parentAgentId: string | null): Subagent[] {
         );
       },
       [parentAgentId]
+    ),
+    shallowArrayEqual
+  );
+}
+
+/**
+ * Active CLI background tasks (backgrounded Bash / async subagents) for one
+ * agent. Empty array (stable identity) when the agent has none.
+ */
+const EMPTY_BACKGROUND_TASKS: AgentBackgroundTask[] = [];
+export function useBackgroundTasksForAgent(agentId: string | null): AgentBackgroundTask[] {
+  return useSelector(
+    useCallback(
+      (state: StoreState) => {
+        if (!agentId) return EMPTY_BACKGROUND_TASKS;
+        return state.backgroundTasks.get(agentId) ?? EMPTY_BACKGROUND_TASKS;
+      },
+      [agentId]
     ),
     shallowArrayEqual
   );

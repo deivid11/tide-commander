@@ -1607,10 +1607,27 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                   {/* Output lines */}
                   <div className="exec-task-inline-terminal">
                     <pre className="exec-task-inline-output">
+                      <div className="exec-task-inline-command">
+                        $ {task.command}
+                        {task.status === 'running' && (
+                          <button
+                            className="exec-task-inline-stop"
+                            title={t('tools:exec.stopTask')}
+                            onClick={(e) => { e.stopPropagation(); void store.stopExecTask(task.taskId); }}
+                          >
+                            <Icon name="stop" size={10} weight="fill" />
+                          </button>
+                        )}
+                      </div>
                       {displayLines.map((line, idx) => (
                         <div key={idx} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
                       ))}
                       {task.status === 'running' && <span className="exec-task-cursor">▌</span>}
+                      {task.status !== 'running' && task.exitCode != null && (
+                        <div className={`exec-task-inline-exit ${task.exitCode === 0 ? 'success' : 'error'}`}>
+                          {t('tools:display.exitCode', { code: task.exitCode })}
+                        </div>
+                      )}
                     </pre>
                   </div>
                 </div>

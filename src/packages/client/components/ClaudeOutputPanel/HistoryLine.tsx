@@ -361,7 +361,7 @@ export const HistoryLine = memo(function HistoryLine({
   // For user messages, parse boss context
   const parsedBoss = type === 'user' ? parseBossContext(content) : null;
 
-  const extractExecTaskOutputLines = (raw: string): string[] | null => {
+  const extractExecTaskOutput = (raw: string): { output: string[]; exitCode: number | null } | null => {
     if (!raw) return null;
 
     // Strip <persisted-output> wrapper tags from Claude Code's large output storage
@@ -381,11 +381,14 @@ export const HistoryLine = memo(function HistoryLine({
       }
     }
 
-    const tryParse = (value: string): string[] | null => {
+    const tryParse = (value: string): { output: string[]; exitCode: number | null } | null => {
       try {
         const parsed = JSON.parse(value);
         if (parsed && typeof parsed === 'object' && typeof (parsed as any).output === 'string') {
-          return (parsed as any).output.split('\n').filter((line: string) => line.length > 0);
+          return {
+            output: (parsed as any).output.split('\n').filter((line: string) => line.length > 0),
+            exitCode: typeof (parsed as any).exitCode === 'number' ? (parsed as any).exitCode : null,
+          };
         }
       } catch {
         // ignore parse errors and fall through
@@ -429,7 +432,10 @@ export const HistoryLine = memo(function HistoryLine({
           .replace(/\\\\/g, '\\');
       }
       const lines = outputStr.split('\n').filter((line: string) => line.length > 0);
-      if (lines.length > 0) return lines;
+      if (lines.length > 0) {
+        const exitCodeMatch = content.match(/"exitCode"\s*:\s*(-?\d+)/);
+        return { output: lines, exitCode: exitCodeMatch ? Number(exitCodeMatch[1]) : null };
+      }
     }
 
     return null;
@@ -888,15 +894,10 @@ export const HistoryLine = memo(function HistoryLine({
         : (isFileClickable ? t('tools:display.clickToViewFile') : undefined);
 
       // Check if this is a curl exec command and try to parse the exec output
-      let execTaskOutput: { output: string[] } | null = null;
+      let execTaskOutput: { output: string[]; exitCode: number | null } | null = null;
 
       if (isCurlExecCommand && matchingExecTasks.length === 0 && _bashOutput) {
-        const outputLines = extractExecTaskOutputLines(_bashOutput);
-        if (outputLines && outputLines.length > 0) {
-          execTaskOutput = {
-            output: outputLines,
-          };
-        }
+        execTaskOutput = extractExecTaskOutput(_bashOutput);
       }
 
       // Special case: TodoWrite renders the formatted checklist inline
@@ -1267,10 +1268,27 @@ export const HistoryLine = memo(function HistoryLine({
 
                     <div className="exec-task-inline-terminal">
                       <pre className="exec-task-inline-output">
+                        <div className="exec-task-inline-command">
+                          $ {task.command}
+                          {task.status === 'running' && (
+                            <button
+                              className="exec-task-inline-stop"
+                              title={t('tools:exec.stopTask')}
+                              onClick={(e) => { e.stopPropagation(); void store.stopExecTask(task.taskId); }}
+                            >
+                              <Icon name="stop" size={10} weight="fill" />
+                            </button>
+                          )}
+                        </div>
                         {displayLines.map((line, idx) => (
                           <div key={idx} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
                         ))}
                         {task.status === 'running' && <span className="exec-task-cursor">▌</span>}
+                        {task.status !== 'running' && task.exitCode != null && (
+                          <div className={`exec-task-inline-exit ${task.exitCode === 0 ? 'success' : 'error'}`}>
+                            {t('tools:display.exitCode', { code: task.exitCode })}
+                          </div>
+                        )}
                       </pre>
                     </div>
                   </div>
@@ -1335,9 +1353,15 @@ export const HistoryLine = memo(function HistoryLine({
                       {/* Output lines */}
                       <div className="exec-task-inline-terminal">
                         <pre className="exec-task-inline-output">
+                          <div className="exec-task-inline-command">$ {execInnerCommand || bashCommand}</div>
                           {displayLines.map((line, idx) => (
                             <div key={idx} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
                           ))}
+                          {execTaskOutput.exitCode != null && (
+                            <div className={`exec-task-inline-exit ${execTaskOutput.exitCode === 0 ? 'success' : 'error'}`}>
+                              {t('tools:display.exitCode', { code: execTaskOutput.exitCode })}
+                            </div>
+                          )}
                         </pre>
                       </div>
                     </>

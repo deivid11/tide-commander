@@ -9,6 +9,7 @@ import { agentService, runtimeService } from '../../services/index.js';
 import { logger, formatToolActivity } from '../../utils/index.js';
 import { parseBossDelegation, parseBossSpawn, getBossForSubordinate, clearDelegation } from '../handlers/boss-response-handler.js';
 import { startWatching as startJsonlWatching, stopWatching as stopJsonlWatching, isWatching as isJsonlWatching, getSubagentsDir } from '../../services/subagent-jsonl-watcher.js';
+import { getBackgroundTasksForAgent, onBackgroundTasksChanged } from '../../services/background-tasks.js';
 
 const log = logger.ws;
 const MAX_SYNTHETIC_DIFF_FILE_BYTES = 256 * 1024;
@@ -41,6 +42,15 @@ function sanitizeParsedContextStats(stats: ContextStats): ContextStats {
 }
 
 export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
+  // Live background-task visibility: push the agent's full active set on every
+  // change (launch, completion, clear) so clients can render/drop indicators.
+  onBackgroundTasksChanged((agentId) => {
+    ctx.broadcast({
+      type: 'background_tasks_update',
+      payload: { agentId, tasks: getBackgroundTasksForAgent(agentId) },
+    });
+  });
+
   const pendingBashCommands = new Map<string, string>();
   // Accumulate all text emitted during a boss agent's turn so we can parse
   // delegation/spawn blocks even when the boss calls a tool after outputting them

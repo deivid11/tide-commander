@@ -512,6 +512,22 @@ export interface SubagentActivity {
   timestamp: number;
 }
 
+// An active background task inside an agent's CLI process: a Bash command
+// launched with run_in_background, a slow Bash command promoted to the
+// background at its timeout, or an async Task/Agent launch. Tracked from its
+// launch stub / task_started event until its <task-notification> completion.
+export interface AgentBackgroundTask {
+  agentId: string;
+  key: string;                      // Stable identity: toolUseId, else taskId
+  taskId?: string;                  // CLI-assigned short id (names the .output file)
+  toolUseId?: string;               // tool_use block that launched it
+  toolName?: string;                // 'Bash' | 'Task' | 'Agent' | ...
+  description?: string;             // Bash description param / subagent description
+  command?: string;                 // Bash command line
+  outputFile?: string;              // /tmp/claude-*/.../tasks/<taskId>.output when known
+  startedAt: number;
+}
+
 // Streaming entry from subagent JSONL file
 export interface SubagentStreamEntry {
   type: 'text' | 'tool_use' | 'tool_result';

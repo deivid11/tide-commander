@@ -230,6 +230,9 @@ export interface ExecTask {
   startedAt: number;
   completedAt?: number;
   exitCode?: number | null;
+  // Command runs under a pseudo-terminal: output chunks are a raw PTY stream
+  // (in-place redraws, ANSI) that the client replays through TerminalRenderer.
+  pty?: boolean;
 }
 
 // ============================================================================

@@ -1,0 +1,204 @@
+// =============================================================================
+// Guake Terminal - Background-task rail
+// =============================================================================
+// Live indicators for the CLI's background work (backgrounded Bash commands,
+// async subagent launches): a stack of pulsing dots pinned to the top-right of
+// the conversation viewport, just above the prompt-marker rail's centered dot
+// stack. Hovering/tapping expands a panel with each task's command, elapsed
+// time and a live tail of its output file. Mounted inside a sticky zero-height
+// anchor exactly like the prompt-marker rail.
+// =============================================================================
+
+@use '../../variables' as *;
+
+.bg-tasks-anchor {
+  position: sticky;
+  top: 0;
+  height: 0;
+  // Above the prompt-markers rail (z-index 6) so the expanded panel wins.
+  z-index: 7;
+}
+
+// Spans the visible pane (inline height) so the dots/panel can pin to the
+// BOTTOM edge, below the centered prompt-marker stack.
+.bg-tasks-rail {
+  position: absolute;
+  top: 0;
+  // Mirror the prompt-marker rail: pulled into the .guake-output right gutter.
+  right: -14px;
+  width: 20px;
+  pointer-events: none;
+}
+
+.bg-tasks-dots {
+  position: absolute;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+  padding: 4px 6px 4px 10px; // generous hit area, dots hug the right edge
+  background: none;
+  border: none;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.bg-task-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-cyan) 55%, transparent);
+  animation: bg-task-pulse 1.6s ease-out infinite;
+}
+
+@keyframes bg-task-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-cyan) 55%, transparent); }
+  70% { box-shadow: 0 0 0 6px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.bg-tasks-panel {
+  position: absolute;
+  right: 24px;
+  width: max-content;
+  max-width: min(440px, 70vw);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-md;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+}
+
+.bg-tasks-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+  padding: 0 2px 2px;
+}
+
+.bg-tasks-panel-count {
+  font-size: 9px;
+  color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+  border-radius: 8px;
+  padding: 0 6px;
+  font-weight: 600;
+}
+
+.bg-task-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--bg-primary) 55%, transparent);
+}
+
+.bg-task-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+
+  .bg-task-dot {
+    width: 6px;
+    height: 6px;
+  }
+}
+
+.bg-task-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bg-task-elapsed {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+// Cancel button for exec-linked tasks (kills the exec's process tree).
+.bg-task-stop {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  font-size: 9px;
+  line-height: 1.4;
+  background: color-mix(in srgb, var(--accent-red, #ef4444) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-red, #ef4444) 35%, transparent);
+  border-radius: 3px;
+  color: var(--accent-red, #ef4444);
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-red, #ef4444) 25%, transparent);
+  }
+}
+
+// Marks tasks whose live output comes from a Commander exec stream.
+.bg-task-exec-badge {
+  flex-shrink: 0;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 0 5px;
+  border-radius: 3px;
+  color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent);
+}
+
+.bg-task-command {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// Live tail of the task's output file — follows the newest lines.
+.bg-task-output {
+  margin: 0;
+  padding: 5px 7px;
+  max-height: 140px;
+  overflow-y: auto;
+  font-family: $font-mono;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border-radius: 3px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bg-task-output-note {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 1px 2px;
+}

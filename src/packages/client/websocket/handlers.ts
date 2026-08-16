@@ -671,6 +671,17 @@ export function handleServerMessage(message: ServerMessage): void {
       break;
     }
 
+    case 'background_tasks_update': {
+      // Full replacement snapshot of an agent's live CLI background tasks
+      // (backgrounded Bash commands / async subagent launches).
+      const { agentId, tasks } = message.payload as {
+        agentId: string;
+        tasks: import('../../shared/types').AgentBackgroundTask[];
+      };
+      store.setAgentBackgroundTasks(agentId, tasks);
+      break;
+    }
+
     case 'boss_spawned_agent': {
       // Boss spawned a subordinate agent - do NOT auto-select, walk to boss position
       const { agent, bossPosition } = message.payload as {
@@ -887,15 +898,16 @@ export function handleServerMessage(message: ServerMessage): void {
     // ========================================================================
 
     case 'exec_task_started': {
-      const { taskId, agentId, agentName, command, cwd } = message.payload as {
+      const { taskId, agentId, agentName, command, cwd, pty } = message.payload as {
         taskId: string;
         agentId: string;
         agentName: string;
         command: string;
         cwd: string;
+        pty?: boolean;
       };
       console.log(`[WebSocket] Exec task started: ${taskId} for agent ${agentName}: ${command.slice(0, 50)}...`);
-      store.handleExecTaskStarted(taskId, agentId, agentName, command, cwd);
+      store.handleExecTaskStarted(taskId, agentId, agentName, command, cwd, pty);
       break;
     }
 

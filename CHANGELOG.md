@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.188.0] - 2026-08-16
+
+### Added
+- **Live view of an agent's background work** - a small stack of pulsing dots sits in the corner of the chat, one per background task the CLI currently has running: a Bash command launched in the background, a slow command promoted to the background when it hit its timeout, or an async Task launch. Hovering or tapping expands a panel with each task's description, a ticking elapsed time and its live output — streamed directly for commander exec calls, tailed from the task's own output file for plain Bash. Tasks appear from the moment they launch and only disappear when they genuinely finish.
+- **Exec commands run under a pseudo-terminal** - CLIs like vitest, npm and pip detect a pipe and switch to CI-style block-buffered output, so an exec card could sit empty for minutes while the command was clearly working. They now run under a PTY and report live progress. Their output carries in-place redraws (progress bars, spinners, cursor moves), so a small terminal renderer replays that stream into what the screen would actually show: the card updates in place with its colours intact instead of appending every redraw, and agents receive clean final text.
+
+### Changed
+- **`| tail -25` no longer blanks the live view** - agents routinely append a tail filter to keep a command's output small in their own context, but a pipe buffers everything, so the user watched an empty card until the command ended. A trailing tail filter is now detected, stripped before execution so the live stream carries real progress, and applied to the agent's response instead — it still receives exactly the truncated output it asked for, now with the untruncated size alongside it. The streaming-exec skill documents a `tail` parameter as the direct way to do this; the stripping is a safety net for commands that ask the old way. Filters whose meaning differs (`tail -f`, `tail -n +25`, anything followed by more of the command) run untouched.
+
 ## [1.187.0] - 2026-08-16
 
 ### Added

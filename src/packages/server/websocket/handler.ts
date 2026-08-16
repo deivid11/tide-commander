@@ -80,6 +80,7 @@ import {
 import { handleSendCommand } from './handlers/command-handler.js';
 import { handleGitWatch, handleGitRefresh } from './handlers/git-handler.js';
 import { gitWatchService } from '../services/git-watch-service.js';
+import { getAgentIdsWithBackgroundTasks, getBackgroundTasksForAgent } from '../services/background-tasks.js';
 import {
   handleCreateSecret,
   handleUpdateSecret,
@@ -452,6 +453,15 @@ export function init(server: HttpServer | HttpsServer): WebSocketServer {
 
       const workflowDefs = workflowService.listDefinitions();
       ws.send(JSON.stringify({ type: 'workflow_definitions_update', payload: workflowDefs }));
+
+      // Agents with live background tasks (backgrounded Bash / async subagents)
+      // — sent per agent so a reload doesn't lose the running-task indicators.
+      for (const bgAgentId of getAgentIdsWithBackgroundTasks()) {
+        ws.send(JSON.stringify({
+          type: 'background_tasks_update',
+          payload: { agentId: bgAgentId, tasks: getBackgroundTasksForAgent(bgAgentId) },
+        }));
+      }
 
       const pendingPermissions = permissionService.getPendingRequests();
       if (pendingPermissions.length > 0) {

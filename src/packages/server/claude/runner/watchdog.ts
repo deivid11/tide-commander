@@ -5,6 +5,7 @@ import type { RunnerInternalEventBus } from './internal-events.js';
 import { hasTmuxSession, isTmuxPaneCommandAlive, killTmuxSession } from './tmux-helper.js';
 import * as agentService from '../../services/agent-service.js';
 import { clearPendingBackgroundTasks } from '../../services/runtime-subagents.js';
+import { clearBackgroundTasks } from '../../services/background-tasks.js';
 import { getTmuxIdleTimeoutMs } from '../../services/system-prompt-service.js';
 
 const log = createLogger('Runner');
@@ -278,6 +279,7 @@ export class RunnerWatchdog {
       + `(threshold=${STUCK_WORKING_RECONCILE_MS / 1000}s) — reconciling to idle and clearing pending background tasks`
     );
     clearPendingBackgroundTasks(agentId);
+    clearBackgroundTasks(agentId);
     agentService.updateAgent(agentId, {
       status: 'idle',
       currentTask: undefined,

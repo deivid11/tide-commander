@@ -6,7 +6,7 @@
  * module provides actions that operate on shared state.
  */
 
-import type { ClientMessage, GitWatchedDirStatus } from '../../shared/types';
+import type { AgentBackgroundTask, ClientMessage, GitWatchedDirStatus } from '../../shared/types';
 import { STORAGE_KEYS, getStorage, setStorage, getStorageString, setStorageString, getStorageBoolean, setStorageBoolean } from '../utils/storage';
 import { closeAllModalsExcept } from '../hooks';
 import { MAX_VIBRATION_INTENSITY } from '../utils/haptics';
@@ -173,6 +173,7 @@ export {
   useSubagents,
   useSubagentsForAgent,
   useSubagentsMapForAgent,
+  useBackgroundTasksForAgent,
   useViewMode,
   useOverviewPanelOpen,
   useTrackingBoardVisible,
@@ -285,6 +286,7 @@ class Store
       lastSelectionViaSwipe: false,
       lastSelectionViaDirectClickAt: null,
       subagents: new Map(),
+      backgroundTasks: new Map(),
       viewMode: (() => {
         const saved = getStorageString(STORAGE_KEYS.SCENE_VIEW_MODE, '3d');
         // Legacy value from when Flat view shipped as "2d-experimental" —
@@ -1602,6 +1604,22 @@ class Store
   updateSubagentStats(...args: Parameters<SubagentActions['updateSubagentStats']>) { return this.subagentActions.updateSubagentStats(...args); }
   addSubagentStreamEntries(...args: Parameters<SubagentActions['addSubagentStreamEntries']>) { return this.subagentActions.addSubagentStreamEntries(...args); }
   hydrateSubagentsFromHistory(...args: Parameters<SubagentActions['hydrateSubagentsFromHistory']>) { return this.subagentActions.hydrateSubagentsFromHistory(...args); }
+
+  // ============================================================================
+  // Background Tasks (CLI backgrounded Bash / async subagent launches)
+  // ============================================================================
+
+  /** Replace an agent's active background-task list (background_tasks_update). */
+  setAgentBackgroundTasks(agentId: string, tasks: AgentBackgroundTask[]): void {
+    const next = new Map(this.state.backgroundTasks);
+    if (tasks.length === 0) {
+      if (!next.delete(agentId)) return; // nothing tracked and nothing new — skip notify
+    } else {
+      next.set(agentId, tasks);
+    }
+    this.state.backgroundTasks = next;
+    this.notify();
+  }
 }
 
 // Extend Window interface for HMR persistence
@@ -1615,7 +1633,9 @@ declare global {
 // Increment this when Store class has breaking changes that require fresh instance
 // (e.g. new methods) — otherwise HMR keeps the old singleton, which lacks them.
 // v4: added loadTestRunFromHistory (tests-building "Previous runs" list).
-const STORE_VERSION = 8;
+// v9: added setAgentBackgroundTasks (live background-task rail).
+// v10: exec PTY replay — handleExecTaskStarted/Output route through TerminalRenderer.
+const STORE_VERSION = 10;
 
 // Singleton store instance - persisted on window for HMR
 function getOrCreateStore(): Store {

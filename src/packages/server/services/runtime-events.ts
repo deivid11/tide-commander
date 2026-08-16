@@ -18,6 +18,13 @@ import {
   resolvePendingBackgroundTask,
   resolvePendingBackgroundTaskByTaskId,
 } from './runtime-subagents.js';
+import {
+  clearBackgroundTasks,
+  completeBackgroundTask,
+  noteToolStart,
+  parseBashBackgroundStub,
+  registerBackgroundTask,
+} from './background-tasks.js';
 
 const DEFAULT_CLAUDE_CONTEXT_WINDOW = 200000;
 const DEFAULT_CODEX_CONTEXT_WINDOW = 258400;
@@ -265,6 +272,9 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
             currentTool: event.toolName,
           });
         }
+        // Remember what this invocation was (command/description) so a later
+        // task_started — which only carries ids — can name the background task.
+        noteToolStart(event);
         if (handleTaskToolStart(agentId, event, log)) {
           emitEvent(agentId, {
             ...event,
@@ -273,7 +283,7 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         }
         break;
 
-      case 'tool_result':
+      case 'tool_result': {
         handleTaskToolResult(agentId, event, log);
         if (event.toolUseId) {
           // Any tool_result for a tracked toolUseId means that task delivered its
@@ -281,8 +291,30 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
           // must NOT be limited to Task/Agent tools — that gap pinned agents 'working'.
           resolvePendingBackgroundTask(agentId, event.toolUseId);
         }
+        // Bash background launch stub: the "result" only announces the task id
+        // and output file while the command keeps running — register it as an
+        // active background task instead of completing one. IMPORTANT: the
+        // real CLI emits the run_in_background stub with EMPTY content
+        // (tool_use_result.stdout is ''), right after the task_started that
+        // registered the task — an unconditional complete-on-tool_result
+        // deleted the registration a millisecond after it was made. Only a
+        // tool_result carrying REAL output means the command finished inline;
+        // background tasks are completed by their <task-notification>.
+        if (event.toolUseId && !event.parentToolUseId) {
+          const stub = event.toolName === 'Bash' ? parseBashBackgroundStub(event.toolOutput) : null;
+          if (stub) {
+            registerBackgroundTask(agentId, {
+              toolUseId: event.toolUseId,
+              taskId: stub.taskId,
+              outputFile: stub.outputFile,
+            });
+          } else if (event.toolOutput && event.toolOutput.length > 0) {
+            completeBackgroundTask(agentId, { toolUseId: event.toolUseId });
+          }
+        }
         agentService.updateAgent(agentId, { currentTool: undefined });
         break;
+      }
 
       case 'task_started':
         // Tool promoted to a background task (async Task/Agent, slow Bash): it can
@@ -290,12 +322,14 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         // while it runs.
         if (event.toolUseId) {
           addPendingBackgroundTask(agentId, event.toolUseId, event.taskId);
+          registerBackgroundTask(agentId, { toolUseId: event.toolUseId, taskId: event.taskId });
           log.log(`[task] Background task pending for ${agentId}: toolUseId=${event.toolUseId}${event.taskId ? `, taskId=${event.taskId}` : ''}`);
         }
         break;
 
       case 'task_notification': {
         // A background task finished and the CLI is waking the model with its result.
+        completeBackgroundTask(agentId, { toolUseId: event.toolUseId, taskId: event.taskId });
         if (!event.toolUseId && event.taskId) {
           resolvePendingBackgroundTaskByTaskId(agentId, event.taskId);
         }
@@ -625,6 +659,7 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         // Background tasks are children of the CLI process — an errored run means
         // they're gone; a stale pending set would pin the agent 'working' forever.
         clearPendingBackgroundTasks(agentId);
+        clearBackgroundTasks(agentId);
         agentService.updateAgent(agentId, { status: 'error' });
         break;
 
@@ -673,6 +708,7 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
   function handleComplete(agentId: string, success: boolean): void {
     // Process closed — any background tasks died with it.
     clearPendingBackgroundTasks(agentId);
+    clearBackgroundTasks(agentId);
     const receivedStepComplete = consumeStepCompleteReceived(agentId);
     const agent = agentService.getAgent(agentId);
     const isCodexProvider = (agent?.provider ?? 'claude') === 'codex';
@@ -724,6 +760,7 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
   function handleError(agentId: string, error: string): void {
     // Same as 'error' events: a failed run takes its background tasks with it.
     clearPendingBackgroundTasks(agentId);
+    clearBackgroundTasks(agentId);
     const agent = agentService.getAgent(agentId);
     const timestamp = new Date().toISOString();
 
