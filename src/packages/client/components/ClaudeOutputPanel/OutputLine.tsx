@@ -40,7 +40,8 @@ import { filePreviewHandlers, toolPreviewHandlers, type ToolPreviewTarget } from
 import type { EditData } from './types';
 import type { ExecTask, Subagent } from '../../../shared/types';
 import { SubagentInline } from './SubagentInline';
-import { providerAssetUrl, providerAgentTitle, providerLabel } from '../../utils/providerDisplay';
+import { providerLabel } from '../../utils/providerDisplay';
+import { ProviderIcon } from '../ProviderIcon';
 import { ThinkingBlock } from './ThinkingBlock';
 import { GrepResultsModal } from './GrepResultsModal';
 
@@ -351,7 +352,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   // Tool attribution badge: only subagent names add information — the parent
   // agent's own name is redundant inside its own chat, so it's not shown.
   const agentName = output.subagentName || null;
-  const provider = agentId ? store.getState().agents.get(agentId)?.provider : undefined;
+  const currentAgent = agentId ? store.getState().agents.get(agentId) : undefined;
+  const provider = currentAgent?.provider;
   const assistantRoleLabel = providerLabel(provider);
 
   // All hooks must be called before any conditional returns (Rules of Hooks)
@@ -1899,11 +1901,11 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           <span className="output-role">
             {provider && (
-              <img
-                src={providerAssetUrl(provider, import.meta.env.BASE_URL)}
+              <ProviderIcon
+                agent={currentAgent}
+                provider={provider}
                 alt=""
                 className="output-role-icon"
-                title={providerAgentTitle(provider)}
               />
             )}
             {assistantRoleLabel}
@@ -1991,11 +1993,11 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       {outputRoleLabel && (
         <span className="output-role">
           {isClaudeMessage && provider && (
-            <img
-              src={providerAssetUrl(provider, import.meta.env.BASE_URL)}
+            <ProviderIcon
+              agent={currentAgent}
+              provider={provider}
               alt=""
               className="output-role-icon"
-              title={providerAgentTitle(provider)}
             />
           )}
           {outputRoleLabel}

@@ -7,7 +7,8 @@ import React, { memo } from 'react';
 import type { SearchResult } from './types';
 import { formatDuration, getTypeLabel } from './utils';
 import { getAgentStatusColor } from '../../utils/colors';
-import { providerAssetUrl, providerAgentTitle, providerLabel } from '../../utils/providerDisplay';
+import { providerLabel } from '../../utils/providerDisplay';
+import { ProviderIcon } from '../ProviderIcon';
 import { Icon } from '../Icon';
 
 interface SpotlightItemProps {
@@ -62,11 +63,12 @@ export const SpotlightItem = memo(function SpotlightItem({
         <div className="spotlight-item-header">
           <span className="spotlight-item-title">{highlightMatch(result.title, query)}</span>
           {result._provider && (
-            <img
+            <ProviderIcon
               className="spotlight-item-provider"
-              src={providerAssetUrl(result._provider, import.meta.env.BASE_URL)}
-              alt={providerLabel(result._provider)}
-              title={providerAgentTitle(result._provider)}
+              provider={result._provider}
+              piModel={result._piModel}
+              piModelProvider={result._piModelProvider}
+              alt={providerLabel(result._provider, result._piModel, result._piModelProvider)}
             />
           )}
           {result._status && statusColor && (

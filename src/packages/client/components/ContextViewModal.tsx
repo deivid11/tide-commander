@@ -15,11 +15,13 @@ import {
   type ClaudeUsageSnapshot,
   type CodexUsageSnapshot,
   type GrokUsageSnapshot,
+  type PiUsageSnapshot,
   type ProviderUsageSnapshot,
 } from '../api/claude-usage';
 import { getUsedPercentColor, formatResetTime } from '../utils/claude-usage-format';
 import { ClaudeCredentialsPanel } from './ClaudeCredentialsPanel';
 import { ProviderCredentialsPanel } from './ProviderCredentialsPanel';
+import { PiCredentialsPanel } from './PiCredentialsPanel';
 
 interface ContextViewModalProps {
   agent: Agent;
@@ -81,7 +83,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
     const usedPercent = Math.min(100, Math.round((used / limit) * 100));
     const free = Math.max(0, limit - used);
     return {
-      model: agent.grokModel || agent.opencodeModel || agent.codexModel || agent.model || agent.provider || 'unknown',
+      model: agent.piModel || agent.grokModel || agent.opencodeModel || agent.codexModel || agent.model || agent.provider || 'unknown',
       contextWindow: limit,
       totalTokens: used,
       usedPercent,
@@ -94,7 +96,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
       },
       lastUpdated: Date.now(),
     };
-  }, [agent.contextStats, agent.contextUsed, agent.contextLimit, agent.model, agent.grokModel, agent.opencodeModel, agent.codexModel, agent.provider]);
+  }, [agent.contextStats, agent.contextUsed, agent.contextLimit, agent.model, agent.piModel, agent.grokModel, agent.opencodeModel, agent.codexModel, agent.provider]);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Provider usage snapshot. Populated lazily when the modal opens.
@@ -103,7 +105,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
   const [usageError, setUsageError] = useState<string | null>(null);
   const usageReqRef = useRef(0);
 
-  const showUsageSection = agent.provider === 'claude' || agent.provider === 'codex' || agent.provider === 'grok';
+  const showUsageSection = agent.provider === 'claude' || agent.provider === 'codex' || agent.provider === 'grok' || agent.provider === 'pi';
 
   const loadUsage = useMemo(() => {
     return () => {
@@ -400,7 +402,7 @@ export function ContextViewModal({ agent, isOpen, onClose, onRefresh }: ContextV
 }
 
 // ---------------------------------------------------------------------------
-// Provider Usage section (Claude plan limits + Grok credit/week limits)
+// Provider Usage section (native provider limits + Pi-loaded subscriptions)
 // ---------------------------------------------------------------------------
 
 interface ProviderUsageSectionProps {
@@ -436,14 +438,32 @@ function buildRateLimitWindows(
   t: (key: string) => string,
 ): Array<{ key: string; label: string; window: ClaudeRateLimitWindow | null }> {
   const windows: Array<{ key: string; label: string; window: ClaudeRateLimitWindow | null }> = [];
+  if (snapshot.provider === 'pi' && snapshot.quotaWindows?.length > 0) {
+    const labels: Record<string, string> = {
+      session: t('terminal:usage.currentSession'),
+      daily: t('terminal:usage.dailyLimit'),
+      weekly: t('terminal:usage.weeklyLimit'),
+      'weekly-opus': t('terminal:usage.currentWeekOpus'),
+      'weekly-fable': t('terminal:usage.currentWeekFable'),
+      monthly: t('terminal:usage.monthlyLimit'),
+      'on-demand': t('terminal:usage.onDemandLimit'),
+    };
+    return snapshot.quotaWindows.map((window) => ({
+      key: window.key,
+      label: labels[window.key] ?? window.key,
+      window,
+    }));
+  }
+
   if (!snapshot.rateLimits) return windows;
 
-  if (snapshot.provider === 'claude') {
+  if (snapshot.provider === 'claude' || (snapshot.provider === 'pi' && snapshot.modelProvider === 'anthropic')) {
+    const limits = snapshot.rateLimits as ClaudeUsageSnapshot['rateLimits'];
     const candidates = [
-      { key: 'fiveHour', label: t('terminal:usage.currentSession'), window: snapshot.rateLimits.fiveHour },
-      { key: 'sevenDay', label: t('terminal:usage.currentWeekAll'), window: snapshot.rateLimits.sevenDay },
-      { key: 'sevenDayOpus', label: t('terminal:usage.currentWeekOpus'), window: snapshot.rateLimits.sevenDayOpus },
-      { key: 'sevenDayFable', label: t('terminal:usage.currentWeekFable'), window: snapshot.rateLimits.sevenDayFable },
+      { key: 'fiveHour', label: t('terminal:usage.currentSession'), window: limits!.fiveHour },
+      { key: 'sevenDay', label: t('terminal:usage.currentWeekAll'), window: limits!.sevenDay },
+      { key: 'sevenDayOpus', label: t('terminal:usage.currentWeekOpus'), window: limits!.sevenDayOpus },
+      { key: 'sevenDayFable', label: t('terminal:usage.currentWeekFable'), window: limits!.sevenDayFable },
     ];
     for (const candidate of candidates) {
       if (candidate.window || candidate.key === 'sevenDayFable') windows.push(candidate);
@@ -488,6 +508,7 @@ function ProviderUsageSection({ snapshot, loading, error, onRefresh, showClaudeA
   const { t } = useTranslation(['terminal', 'common']);
 
   const claudeSnapshot = snapshot?.provider === 'claude' ? (snapshot as ClaudeUsageSnapshot) : null;
+  const piSnapshot = snapshot?.provider === 'pi' ? (snapshot as PiUsageSnapshot) : null;
   const session = snapshot && 'session' in snapshot ? snapshot.session : null;
 
   // Compute peak so the day bars share a stable scale across the range.
@@ -500,7 +521,9 @@ function ProviderUsageSection({ snapshot, loading, error, onRefresh, showClaudeA
     ? 'terminal:usage.titleGrok'
     : snapshot?.provider === 'codex'
       ? 'terminal:usage.titleCodex'
-      : 'terminal:usage.title';
+      : snapshot?.provider === 'pi'
+        ? 'terminal:usage.titlePi'
+        : 'terminal:usage.title';
 
   return (
     <div
@@ -575,6 +598,63 @@ function ProviderUsageSection({ snapshot, loading, error, onRefresh, showClaudeA
 
       {snapshot && (
         <>
+          {/* Pi subscriptions are loaded from ~/.pi/agent/auth.json. */}
+          {piSnapshot && (
+            <div style={{
+              marginBottom: '12px',
+              padding: '10px 12px',
+              background: 'var(--bg-secondary)',
+              borderRadius: '6px',
+            }}>
+              <div style={{
+                fontSize: '11px',
+                color: 'var(--text-secondary)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '8px',
+              }}>
+                {t('terminal:usage.loadedSubscriptions')}
+              </div>
+              {piSnapshot.subscriptions.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {piSnapshot.subscriptions.map((subscription) => (
+                    <div
+                      key={subscription.provider}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                        fontSize: '12px',
+                      }}
+                    >
+                      <span style={{ fontWeight: subscription.active ? 600 : 400 }}>
+                        {subscription.label}
+                      </span>
+                      <span style={{
+                        padding: '2px 6px',
+                        borderRadius: '999px',
+                        background: subscription.active
+                          ? 'color-mix(in srgb, var(--accent-cyan) 20%, transparent)'
+                          : 'var(--bg-tertiary)',
+                        color: subscription.active ? 'var(--accent-cyan)' : 'var(--text-muted)',
+                        fontSize: '10px',
+                      }}>
+                        {subscription.active
+                          ? t('terminal:usage.activeModelSubscription')
+                          : t('terminal:usage.loaded')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                  {t('terminal:usage.noLoadedSubscriptions')}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Session — totals tracked by Tide for providers that expose it. */}
           {session && <div style={{
             marginBottom: '12px',
@@ -760,6 +840,15 @@ function ProviderUsageSection({ snapshot, loading, error, onRefresh, showClaudeA
       {showCodexAccounts && (
         <ProviderCredentialsPanel provider="codex" compact onSwitched={onRefresh} />
       )}
+
+      {/* Pi switches only the active model provider and keeps other logins intact. */}
+      {piSnapshot?.modelProvider && (
+        <PiCredentialsPanel
+          modelProvider={piSnapshot.modelProvider}
+          compact
+          onSwitched={onRefresh}
+        />
+      )}
     </div>
   );
 }
@@ -768,6 +857,7 @@ function RateLimitGauge({ label, window }: { label: string; window: ClaudeRateLi
   const { t } = useTranslation(['terminal']);
   const percent = window ? Math.max(0, Math.min(100, window.utilization)) : 0;
   const color = getUsedPercentColor(percent);
+  const remainingPercent = Math.max(0, 100 - percent);
   const hasCredits = window != null &&
     typeof window.used === 'number' &&
     typeof window.limit === 'number' &&
@@ -784,8 +874,8 @@ function RateLimitGauge({ label, window }: { label: string; window: ClaudeRateLi
         marginBottom: '4px',
       }}>
         <span style={{ fontWeight: 500 }}>{label}</span>
-        <span style={{ color, fontVariantNumeric: 'tabular-nums' }}>
-          {t('terminal:usage.percentUsed', { percent: Math.round(percent) })}
+        <span style={{ color, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+          {t('terminal:usage.percentRemaining', { percent: Math.round(remainingPercent), defaultValue: `${Math.round(remainingPercent)}% left` })}
         </span>
       </div>
       <div style={{
@@ -810,6 +900,7 @@ function RateLimitGauge({ label, window }: { label: string; window: ClaudeRateLi
         marginTop: '3px',
       }}>
         {window && <span>{t('terminal:usage.resets', { time: formatResetTime(window.resetsAt) })}</span>}
+        {window && !hasCredits && <span>{t('terminal:usage.percentUsed', { percent: Math.round(percent) })}</span>}
         {hasCredits && (
           <span style={{ fontVariantNumeric: 'tabular-nums' }}>
             {t('terminal:usage.creditsUsed', {

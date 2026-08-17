@@ -13,6 +13,8 @@ import { STORAGE_KEYS, getStorageString, setStorageString } from '../../utils/st
 import { formatIdleCompact, calculateContextInfo, getContextBarColor, groupAgentsByArea, sortAreaIds, sortAgentsByActivity } from './agentUtils';
 import type { AgentsListProps, AgentListItemProps } from './types';
 import { AgentIcon } from '../AgentIcon';
+import { ProviderIcon } from '../ProviderIcon';
+import { providerLabel, providerShortCode } from '../../utils/providerDisplay';
 import { Icon } from '../Icon';
 import { TaskProgressDots } from '../shared/TaskProgressDots';
 import { SubordinateProgressDots } from '../shared/SubordinateProgressDots';
@@ -354,8 +356,8 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQu
   const contextBarColor = getContextBarColor(contextInfo.remainingPercent);
 
   // Provider info
-  const providerLabel = agent.provider === 'codex' ? 'CX' : agent.provider === 'opencode' ? 'OC' : agent.provider === 'grok' ? 'GK' : agent.provider === 'pi' ? 'PI' : 'CL';
-  const providerTitle = agent.provider === 'codex' ? 'OpenAI Codex' : agent.provider === 'opencode' ? 'OpenCode' : agent.provider === 'grok' ? 'Grok' : agent.provider === 'pi' ? 'Pi' : 'Claude';
+  const providerCode = providerShortCode(agent.provider);
+  const providerTitle = providerLabel(agent.provider, agent.piModel, agent.piModelProvider);
 
   // Highlight matching text
   const highlightText = (text: string) => {
@@ -386,7 +388,8 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQu
         <div className="agent-item-top-row">
           <span className="agent-item-name">{highlightText(agent.name)}</span>
           <span className={`agent-item-provider ${agent.provider}`} title={providerTitle}>
-            {providerLabel}
+            <ProviderIcon agent={agent} alt="" className="agent-item-provider-icon" />
+            {providerCode}
           </span>
         </div>
 

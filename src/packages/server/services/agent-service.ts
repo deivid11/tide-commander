@@ -21,6 +21,7 @@ import { loadSubagentHistory, type SubagentHistoryEntry } from '../claude/subage
 import { logger, generateId } from '../utils/index.js';
 import { publishNotification } from '../integrations/whatsapp/whatsapp-notification-publisher.js';
 import { markInstructionsDirty, resolveAreaPromptForAgent } from './instruction-refresh.js';
+import { getPiModelCatalog, getPiModelContextWindow } from '../pi/model-catalog.js';
 
 const log = logger.agent;
 const VALID_CLAUDE_MODELS = new Set<ClaudeModel>(
@@ -41,11 +42,12 @@ interface CodexContextSnapshot {
 function getDefaultContextLimit(
   provider: AgentProvider | undefined,
   model?: ClaudeModel,
-  grokModel?: GrokModel
+  grokModel?: GrokModel,
+  piContextWindow?: number,
 ): number {
   if (provider === 'codex') return DEFAULT_CODEX_CONTEXT_LIMIT;
   if (provider === 'opencode') return DEFAULT_OPENCODE_CONTEXT_LIMIT;
-  if (provider === 'pi') return DEFAULT_PI_CONTEXT_LIMIT;
+  if (provider === 'pi') return piContextWindow || DEFAULT_PI_CONTEXT_LIMIT;
   if (provider === 'grok') {
     if (grokModel && GROK_MODELS[grokModel]?.contextWindow) {
       return GROK_MODELS[grokModel].contextWindow;
@@ -301,14 +303,46 @@ export function initAgents(): void {
         opencodeModel: sanitizeOpencodeModel(stored.opencodeModel),
         grokModel: sanitizeGrokModel(stored.grokModel),
         piModel: sanitizePiModel(stored.piModel),
+        piModelProvider: stored.piModelProvider,
         // Boss field - fallback to checking class for backward compatibility
         isBoss: stored.isBoss ?? stored.class === 'boss',
       };
       agents.set(agent.id, agent);
     }
     log.log(` Loaded ${agents.size} agents from ${getDataDir()}`);
+    // Pi's model catalog is authoritative for context windows (for example,
+    // claude-opus-5 is 1M in Pi even though the direct Claude model's legacy
+    // metadata may say 200K). Repair restored agents asynchronously at startup.
+    void refreshPiAgentContextLimits().catch((err) => {
+      log.warn(` Could not refresh Pi model context windows: ${String(err)}`);
+    });
   } catch (err) {
     log.error(' Failed to load agents:', err);
+  }
+}
+
+export async function resolvePiModelContextLimit(piModel: string | undefined): Promise<number | undefined> {
+  try {
+    return await getPiModelContextWindow(piModel);
+  } catch (err) {
+    log.warn(` Could not resolve Pi context window for ${piModel || 'default'}: ${String(err)}`);
+    return undefined;
+  }
+}
+
+export async function refreshPiAgentContextLimits(refresh = false): Promise<void> {
+  const entries = await getPiModelCatalog(refresh);
+  const contextByModel = new Map(entries.map((entry) => [entry.id, entry.contextWindow]));
+  for (const agent of agents.values()) {
+    if (agent.provider !== 'pi' || !agent.piModel) continue;
+    const contextLimit = contextByModel.get(agent.piModel);
+    if (!contextLimit || contextLimit === agent.contextLimit) continue;
+    updateAgent(agent.id, {
+      contextLimit,
+      // Stored estimated stats use the old denominator. Clearing them makes
+      // clients immediately use contextUsed/contextLimit until the next turn.
+      contextStats: undefined,
+    }, false);
   }
 }
 
@@ -424,6 +458,10 @@ export async function createAgent(
   const sanitizedGrokModel = provider === 'grok'
     ? (sanitizeGrokModel(grokModel) || DEFAULT_GROK_MODEL)
     : undefined;
+  const sanitizedPiModel = provider === 'pi' ? sanitizePiModel(piModel) : undefined;
+  const piContextWindow = provider === 'pi'
+    ? await resolvePiModelContextLimit(sanitizedPiModel)
+    : undefined;
 
   // Create agent object
   // SessionId can be provided to link to an existing Claude session
@@ -447,10 +485,18 @@ export async function createAgent(
     codexConfig,
     opencodeModel: provider === 'opencode' ? sanitizeOpencodeModel(opencodeModel) : undefined,
     grokModel: sanitizedGrokModel,
-    piModel: provider === 'pi' ? sanitizePiModel(piModel) : undefined,
+    piModel: sanitizedPiModel,
+    piModelProvider: provider === 'pi' && sanitizedPiModel?.includes('/')
+      ? sanitizedPiModel.slice(0, sanitizedPiModel.indexOf('/')).trim().toLowerCase() || undefined
+      : undefined,
     tokensUsed: 0,
     contextUsed: 0,
-    contextLimit: getDefaultContextLimit(provider, sanitizeModelForProvider(provider, model), sanitizedGrokModel),
+    contextLimit: getDefaultContextLimit(
+      provider,
+      sanitizeModelForProvider(provider, model),
+      sanitizedGrokModel,
+      piContextWindow,
+    ),
     taskCount: 0, // Initialize task counter
     createdAt: Date.now(),
     lastActivity: Date.now(),

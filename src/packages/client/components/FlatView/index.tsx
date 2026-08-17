@@ -23,7 +23,7 @@ import { store, useSettings } from '../../store';
 import { ConfirmModal } from '../shared/ConfirmModal';
 import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, DEFAULT_GROK_MODEL } from '../../../shared/types';
 import type { Agent, DrawingArea } from '../../../shared/types';
-import { providerAssetUrl, providerAgentTitle } from '../../utils/providerDisplay';
+import { ProviderIcon } from '../ProviderIcon';
 import type { Building } from '../../../shared/building-types';
 import { BUILDING_TYPES } from '../../../shared/building-types';
 import { AgentIcon } from '../AgentIcon';
@@ -854,11 +854,10 @@ const ChatView = React.memo(function ChatView({
             </span>
           )}
           <span className="flat-terminal-wrapper__header-model">
-            <img
-              src={providerAssetUrl(agent.provider, import.meta.env.BASE_URL)}
-              alt={agent.provider}
+            <ProviderIcon
+              agent={agent}
+              alt={`${agent.name} provider`}
               className="flat-terminal-wrapper__header-provider-icon"
-              title={providerAgentTitle(agent.provider)}
             />
             {(() => {
               const { model, effort } = getAgentModelLabel(agent);
@@ -3129,11 +3128,10 @@ export function FlatView({
                                   </span>
                                 )}
                                 <span className="flat-map-agent-chip__name">{agent.name}</span>
-                                <img
-                                  src={providerAssetUrl(agent.provider, import.meta.env.BASE_URL)}
-                                  alt={agent.provider}
+                                <ProviderIcon
+                                  agent={agent}
+                                  alt={`${agent.name} provider`}
                                   className="flat-map-agent-chip__provider-icon"
-                                  title={providerAgentTitle(agent.provider)}
                                 />
                                 <span
                                   className="flat-map-agent-chip__dot"

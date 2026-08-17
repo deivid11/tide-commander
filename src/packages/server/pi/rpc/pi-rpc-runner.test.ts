@@ -118,6 +118,101 @@ describe('Pi RPC process isolation', () => {
   });
 });
 
+describe('Pi RPC native model switching', () => {
+  function makeHarness(model = 'anthropic/claude-sonnet-4-5') {
+    const callbacks = {
+      onEvent: vi.fn(),
+      onOutput: vi.fn(),
+      onSessionId: vi.fn(),
+      onComplete: vi.fn(),
+      onError: vi.fn(),
+    };
+    const writes: string[] = [];
+    const runner = new PiRpcRunner(callbacks);
+    const state = {
+      agentId: 'agent-pi',
+      process: {
+        exitCode: null,
+        killed: false,
+        stdin: {
+          writable: true,
+          write: (line: string) => { writes.push(line); return true; },
+        },
+      },
+      workingDir: '/tmp/project',
+      model,
+      effort: undefined as string | undefined,
+      startTime: Date.now(),
+      turnState: 'waiting_for_input',
+      lastActivityTime: Date.now(),
+      lastRequest: {
+        agentId: 'agent-pi',
+        prompt: '',
+        workingDir: '/tmp/project',
+        model,
+      },
+      responseBuffer: '',
+      stderrTail: '',
+      idleWaiters: [],
+    };
+    (runner as any).agents.set('agent-pi', state);
+    return { runner, callbacks, writes, state };
+  }
+
+  it('uses set_model and keeps the live Pi session state', async () => {
+    const { runner, writes, state } = makeHarness();
+    const switching = runner.switchModel('agent-pi', 'openai-codex/gpt-5.6-sol', 'high');
+
+    const command = JSON.parse(writes[0]);
+    expect(command).toMatchObject({
+      type: 'set_model',
+      provider: 'openai-codex',
+      modelId: 'gpt-5.6-sol',
+    });
+
+    (runner as any).handleResponseLine('agent-pi', JSON.stringify({
+      id: command.id,
+      type: 'response',
+      command: 'set_model',
+      success: true,
+      data: { provider: 'openai-codex', id: 'gpt-5.6-sol' },
+    }));
+
+    await Promise.resolve();
+    const thinkingCommand = JSON.parse(writes[1]);
+    expect(thinkingCommand).toMatchObject({ type: 'set_thinking_level', level: 'high' });
+    (runner as any).handleResponseLine('agent-pi', JSON.stringify({
+      id: thinkingCommand.id,
+      type: 'response',
+      command: 'set_thinking_level',
+      success: true,
+    }));
+
+    await expect(switching).resolves.toBe(true);
+    expect(state.model).toBe('openai-codex/gpt-5.6-sol');
+    expect(state.effort).toBe('high');
+    expect(state.lastRequest.model).toBe('openai-codex/gpt-5.6-sol');
+    expect(JSON.parse(writes.at(-1)!)).toMatchObject({ type: 'get_state' });
+  });
+
+  it('keeps the old model when Pi rejects the target', async () => {
+    const { runner, writes, state } = makeHarness();
+    const switching = runner.switchModel('agent-pi', 'openai-codex/not-available');
+    const command = JSON.parse(writes[0]);
+
+    (runner as any).handleResponseLine('agent-pi', JSON.stringify({
+      id: command.id,
+      type: 'response',
+      command: 'set_model',
+      success: false,
+      error: 'Model not found',
+    }));
+
+    await expect(switching).rejects.toThrow('Model not found');
+    expect(state.model).toBe('anthropic/claude-sonnet-4-5');
+  });
+});
+
 describe('Pi RPC native compaction', () => {
   function makeHarness(turnState: 'processing' | 'waiting_for_input' = 'waiting_for_input') {
     const callbacks = {

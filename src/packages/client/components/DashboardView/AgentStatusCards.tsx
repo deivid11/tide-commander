@@ -6,6 +6,7 @@ import { formatIdleTime, formatTimeAgo } from '../../utils/formatting';
 import { getIdleTimerColor } from '../../utils/colors';
 import { useAgentsWithUnseenOutput } from '../../store';
 import { AgentIcon } from '../AgentIcon';
+import { ProviderIcon } from '../ProviderIcon';
 import { Icon } from '../Icon';
 
 interface AgentCardProps {
@@ -73,12 +74,7 @@ export const AgentCard = React.memo(({
         <span className="dash-card__name">{agent.name}</span>
         <span className="dash-card__class"><AgentIcon agent={agent} size={14} /> {agent.class}</span>
         <span className={`dash-card__provider dash-card__provider--${agent.provider}`}>
-          <Icon
-            name={agent.provider === 'codex' || agent.provider === 'opencode' || agent.provider === 'grok' || agent.provider === 'pi' ? 'status-pending' : 'robot'}
-            size={11}
-            weight={agent.provider === 'codex' || agent.provider === 'opencode' || agent.provider === 'grok' || agent.provider === 'pi' ? 'fill' : 'regular'}
-            color={agent.provider === 'codex' ? '#a16207' : agent.provider === 'opencode' ? '#4ade80' : agent.provider === 'grok' ? '#6366f1' : agent.provider === 'pi' ? '#a855f7' : undefined}
-          /> {agent.provider}
+          <ProviderIcon agent={agent} alt="" className="dash-card__provider-icon" /> {agent.provider}
         </span>
         {hasUnseen && (
           <span

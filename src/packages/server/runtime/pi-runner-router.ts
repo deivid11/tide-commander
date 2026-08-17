@@ -88,6 +88,11 @@ export class PiRunnerRouter implements RuntimeRunner {
       : false;
   }
 
+  async switchModel(agentId: string, model: string, effort?: string): Promise<boolean> {
+    const owner = this.ownerRunner(agentId);
+    return owner.switchModel ? owner.switchModel(agentId, model, effort) : false;
+  }
+
   getQueuedMessages(agentId: string): string[] {
     return this.ownerRunner(agentId).getQueuedMessages?.(agentId) ?? [];
   }

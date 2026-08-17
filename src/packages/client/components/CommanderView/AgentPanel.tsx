@@ -22,6 +22,7 @@ import { STATUS_COLORS } from './types';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { useModalStackRegistration } from '../../hooks/useModalStack';
 import { Icon } from '../Icon';
+import { ProviderIcon } from '../ProviderIcon';
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -370,6 +371,7 @@ export function AgentPanel({
           <span className={`agent-panel-status-label ${agent.status}`}>{agent.status}</span>
           <span className="agent-panel-class">{agent.class}</span>
           <span className={`agent-panel-provider ${agent.provider === 'codex' ? 'codex' : agent.provider === 'opencode' ? 'opencode' : agent.provider === 'grok' ? 'grok' : agent.provider === 'pi' ? 'pi' : 'claude'}`}>
+            <ProviderIcon agent={agent} alt="" className="agent-panel-provider-icon" />
             {agent.provider || 'claude'}
           </span>
           <span className="agent-panel-id" title={`ID: ${agent.id}`}>

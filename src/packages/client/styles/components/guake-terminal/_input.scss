@@ -1014,10 +1014,9 @@
 // full avatar box. Stays visible in miniature mode, where it is the only
 // on-chip hint of which CLI is behind the agent.
 //
-// Selector must out-specify `.pinned-agent-av img` (0,1,1) above — a bare
-// `.pinned-agent-provider` (0,1,0) would lose border-radius and object-fit to
-// it and the badge would render stretched and square-cornered.
-.pinned-agent-av img.pinned-agent-provider {
+// Keep the selector valid for both a normal provider <img> and Pi's paired
+// <span> badge while remaining more specific than the avatar image rule.
+.pinned-agent-av .pinned-agent-provider {
   position: absolute;
   right: -3px;
   bottom: -3px;
@@ -1208,6 +1207,14 @@
     width: 24px;
     height: 24px;
   }
+  // In icon-only mode this badge is the only visible runtime/model-provider
+  // cue, so keep it large enough to recognize at a glance.
+  .pinned-agent-av .pinned-agent-provider {
+    right: -4px;
+    bottom: -4px;
+    width: 13px;
+    height: 13px;
+  }
 }
 
 // On mobile (touch), pinned agents are shown icon-only and CANNOT be unpinned by
@@ -1260,11 +1267,17 @@
   // Same reasoning for the provider badge on the opposite corner: the chip's
   // 2px padding here is tighter than the desktop one, so -3px would poke past
   // the pill and get clipped by its overflow.
-  .pinned-agent-av img.pinned-agent-provider {
+  .pinned-agent-av .pinned-agent-provider {
     right: -2px;
     bottom: -2px;
     width: 9px;
     height: 9px;
+  }
+  .pinned-agents-bar.miniature .pinned-agent-av .pinned-agent-provider {
+    right: -2px;
+    bottom: -2px;
+    width: 11px;
+    height: 11px;
   }
   // Boss identity on mobile: the chip reset above strips borders (bare icons on
   // the pill), so the gold ring hugs the avatar instead. Distinct from the

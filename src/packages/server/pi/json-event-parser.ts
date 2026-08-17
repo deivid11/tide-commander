@@ -47,6 +47,7 @@ interface PiMessage {
   stopReason?: string;
   errorMessage?: string | null;
   model?: string;
+  provider?: string;
 }
 
 interface PiAssistantMessageEvent {
@@ -315,17 +316,24 @@ export class PiJsonEventParser {
     }
 
     // Track usage for context accounting; input+cacheRead approximates context.
-    if (message.usage && (message.usage.input || message.usage.output || message.usage.totalTokens)) {
-      this.lastUsage = message.usage;
+    // The provider is separate from the Pi harness and lets the UI show both
+    // layers even when the agent uses Pi's configured default model.
+    const hasUsage = !!message.usage
+      && !!(message.usage.input || message.usage.output || message.usage.totalTokens);
+    if (hasUsage || message.provider) {
+      if (hasUsage) this.lastUsage = message.usage!;
       events.push({
         type: 'usage_snapshot',
         model: message.model,
-        tokens: {
-          input: message.usage.input || 0,
-          output: message.usage.output || 0,
-          cacheCreation: message.usage.cacheWrite || 0,
-          cacheRead: message.usage.cacheRead || 0,
-        },
+        modelProvider: message.provider,
+        ...(hasUsage ? {
+          tokens: {
+            input: message.usage!.input || 0,
+            output: message.usage!.output || 0,
+            cacheCreation: message.usage!.cacheWrite || 0,
+            cacheRead: message.usage!.cacheRead || 0,
+          },
+        } : {}),
       });
     }
 

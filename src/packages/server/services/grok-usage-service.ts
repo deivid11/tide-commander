@@ -306,8 +306,8 @@ export function parseSpendConfig(config: Record<string, unknown>): GrokRateLimit
  * Raw network calls to the CLI chat-proxy billing endpoints. Prefer
  * `getGrokRateLimits()` which caches + single-flights.
  */
-async function fetchGrokBillingFromApi(): Promise<BillingFetchResult> {
-  const creds = readGrokAccessToken();
+async function fetchGrokBillingFromApi(accessToken?: string): Promise<BillingFetchResult> {
+  const creds = accessToken ? { token: accessToken } : readGrokAccessToken();
   if ('error' in creds) {
     return { rateLimits: null, error: creds.error };
   }
@@ -385,6 +385,15 @@ async function fetchGrokBillingFromApi(): Promise<BillingFetchResult> {
       err?.name === 'TimeoutError' ? 'request timed out' : (err?.message ?? 'request failed');
     return { rateLimits: null, error: `Could not reach Grok billing endpoint (${reason})` };
   }
+}
+
+/** Fetch Grok's weekly/monthly limits for an explicit OAuth token. */
+export async function fetchGrokRateLimitsForToken(token: string): Promise<{
+  rateLimits: GrokRateLimits | null;
+  error: string | null;
+}> {
+  const result = await fetchGrokBillingFromApi(token);
+  return { rateLimits: result.rateLimits, error: result.error };
 }
 
 interface RateLimitCacheEntry {

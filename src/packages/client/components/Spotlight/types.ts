@@ -52,6 +52,8 @@ export interface SearchResult {
   _agentId?: string; // Raw agent id (agent + session results) — recency/MRU ranking; on sessions, the live agent holding the conversation (promotes the hit to an agent row)
   _sessionMatches?: number; // Full-text hit count of the matched conversation (session + promoted agent rows) — relevance weight in the agent ordering
   _provider?: string; // Harness kind ('claude' | 'codex' | 'grok' | 'opencode' | 'pi') — rendered as a logo badge on agent and session rows
+  _piModel?: string; // Pi's provider/model selection, used for the model-provider badge
+  _piModelProvider?: string; // Pi runtime provider when the model came from Pi's configured default
   _lastActivity?: number; // Raw agent lastActivity epoch ms (agent results only) — recency sort key
   _taskLabel?: string; // Brief task label (agent results only) — rendered as a chip in the header
   _status?: string; // Raw agent status (agent results only) — rendered as a colored chip

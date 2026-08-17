@@ -1278,6 +1278,9 @@
 
 // ── Provider Badge ───────────────────────────────────────────────────────────
 .agent-item-provider {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   font-size: 7px;
   font-weight: 700;
   font-family: $font-mono;
@@ -1287,6 +1290,12 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   line-height: 14px;
+
+  .agent-item-provider-icon {
+    width: 10px;
+    height: 10px;
+    object-fit: contain;
+  }
 
   &.claude {
     background: rgba(180, 140, 255, 0.15);

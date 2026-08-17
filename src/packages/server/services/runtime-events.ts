@@ -370,6 +370,15 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         if (event.parentToolUseId) {
           break;
         }
+        // Pi reports the model provider independently from the Pi harness. Keep
+        // it on the agent so every client surface can render both badges, even
+        // when piModel is empty and Pi selected its configured default.
+        if ((agent.provider ?? 'claude') === 'pi' && event.modelProvider) {
+          const modelProvider = event.modelProvider.trim().toLowerCase();
+          if (modelProvider && modelProvider !== agent.piModelProvider) {
+            agentService.updateAgent(agentId, { piModelProvider: modelProvider }, false);
+          }
+        }
         // Real-time context tracking from streaming usage data.
         // Context window usage = input tokens only (output tokens don't count toward the limit).
         // total_input = cache_read + cache_creation + input_tokens (the full prompt size).

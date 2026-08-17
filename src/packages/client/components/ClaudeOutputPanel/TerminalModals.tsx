@@ -29,7 +29,8 @@ import { useModalClose } from '../../hooks';
 import { ModalPortal } from '../shared/ModalPortal';
 import { fetchAgentInjectedPrompt } from '../../api/agent-prompt';
 import { Icon } from '../Icon';
-import { providerAssetUrl, providerAgentTitle, providerLabel } from '../../utils/providerDisplay';
+import { providerLabel } from '../../utils/providerDisplay';
+import { ProviderIcon } from '../ProviderIcon';
 
 // ImageModal lives in shared/ so that light consumers (e.g.
 // WhatsAppAttachmentPreview, reachable from node-environment unit tests) can
@@ -671,13 +672,12 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
                 <div className="agent-info-item">
                   <span>{t('terminal:agentInfo.backend')}</span>
                   <strong>
-                    <img
-                      src={providerAssetUrl(agent.provider, import.meta.env.BASE_URL)}
-                      alt={agent.provider}
+                    <ProviderIcon
+                      agent={agent}
+                      alt={`${agent.name} provider`}
                       className="agent-info-provider-icon"
-                      title={providerAgentTitle(agent.provider)}
                     />
-                    {providerLabel(agent.provider)}
+                    {providerLabel(agent.provider, agent.piModel, agent.piModelProvider)}
                   </strong>
                 </div>
                 <div className="agent-info-item"><span>{t('terminal:agentInfo.model')}</span><strong>{model}</strong></div>

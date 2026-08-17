@@ -1256,15 +1256,38 @@
     "waiting-subordinates": "Esperando trabajo delegado",
     "working": "Trabajando"
   },
+  "usage": {
+    "titlePi": "Uso de suscripciones de Pi",
+    "loadedSubscriptions": "Suscripciones cargadas",
+    "activeModelSubscription": "Modelo activo",
+    "loaded": "Cargada",
+    "noLoadedSubscriptions": "No hay inicios de sesión por suscripción cargados en Pi.",
+    "amountRemaining": "Quedan {{remaining}} / {{limit}}",
+    "percentRemaining": "{{percent}}% disponible"
+  },
   "credentials": {
     "gaugeSession": "Sesión",
     "gaugeDaily": "Día",
     "gaugeWeek": "Semana",
+    "gaugeMonth": "Mes",
+    "gaugeOnDemand": "Bajo demanda",
     "gaugeWeekOpus": "Opus sem",
     "gaugeWeekFable": "Fable sem",
     "gaugeNoSession": "sin sesión activa",
+    "loadingLimits": "Cargando límites disponibles…",
+    "noLimitWindows": "El proveedor no informó ventanas de límites.",
+    "limitsLoadError": "No se pudieron cargar los límites de las cuentas: {{message}}",
     "providerTitle": "Cuentas de {{provider}}",
     "providerHelp": "Copias nombradas de {{dir}}/auth.json. Cambia la cuenta activa de {{provider}} cuando llegues a los límites — igual que renombrar el archivo a mano.",
+    "piTitle": "Cuentas de {{provider}} en Pi",
+    "piHelp": "Copias nombradas de {{dir}}/auth.json. El cambio reemplaza solo el inicio de sesión de {{provider}} usado por Pi y conserva los demás proveedores.",
+    "piAnthropicHelp": "Sesiones de cuentas de Claude en {{dir}}. Usa una cuenta para cambiar el inicio de sesión de Anthropic de Pi en {{piDir}}/auth.json sin modificar los demás proveedores.",
+    "piCodexHelp": "Sesiones de cuentas de Codex en {{dir}}. Usa una cuenta para cambiar el inicio de sesión de OpenAI Codex de Pi en {{piDir}}/auth.json sin modificar los demás proveedores.",
+    "piGrokHelp": "Sesiones de Grok en {{dir}} y sesiones xAI guardadas por Pi. El cambio modifica solo el inicio de sesión xAI de Pi en {{piDir}}/auth.json.",
+    "piQuotaHelp": "Cada cuenta muestra el porcentaje disponible del plan y la hora de reinicio. Los proveedores no exponen el número exacto de tokens restantes.",
+    "piUseTitle": "Usar esta cuenta para el proveedor del modelo activo de Pi",
+    "piSwitched": "Pi cambió a la cuenta «{{name}}».",
+    "piSwitchedWithStash": "Se guardó el inicio de sesión anterior de Pi como «{{stash}}» y se cambió a «{{name}}».",
     "switched": "Cuenta activa cambiada a «{{name}}».",
     "appServerRestarted": "El app-server de Codex se reinició para tomar la cuenta nueva — reenvía el mensaje que estuviera en curso."
   }

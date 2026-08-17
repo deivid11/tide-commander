@@ -379,6 +379,9 @@
 }
 
 .dash-card__provider {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 9px;
   color: var(--text-muted);
   padding: 1px 4px;
@@ -387,6 +390,12 @@
   white-space: nowrap;
   flex-shrink: 0;
   text-transform: capitalize;
+
+  .dash-card__provider-icon {
+    width: 11px;
+    height: 11px;
+    object-fit: contain;
+  }
 
   &--claude {
     color: rgba(100, 200, 255, 0.8);

@@ -12,7 +12,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { useTranslation } from 'react-i18next';
 import { useSearchExpandable } from './useSearchExpandable';
 import { Icon } from '../Icon';
-import { providerAssetUrl } from '../../utils/providerDisplay';
+import { ProviderIcon } from '../ProviderIcon';
 import type { AgentProvider } from '../../../shared/types';
 import { StreamFadeText } from './StreamFadeText';
 import { renderContentWithImages } from './contentRendering';
@@ -100,6 +100,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
   onFileClick,
 }: ThinkingBlockProps) {
   const { t } = useTranslation(['tools']);
+  const currentAgent = agentId ? store.getState().agents.get(agentId) : undefined;
   const body = useMemo(() => normalizeThinkingText(text), [text]);
   const canCollapse = body.length > collapseAt || body.includes('\n');
 
@@ -215,11 +216,11 @@ export const ThinkingBlock = memo(function ThinkingBlock({
           </span>
         )}
         {provider && (
-          <img
-            src={providerAssetUrl(provider as AgentProvider, import.meta.env.BASE_URL)}
+          <ProviderIcon
+            agent={currentAgent}
+            provider={provider ?? undefined}
             alt=""
             className="output-thinking-provider"
-            title={String(provider)}
           />
         )}
         <span className="output-thinking-label">{label}</span>

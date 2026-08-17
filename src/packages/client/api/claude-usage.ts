@@ -5,6 +5,7 @@
  * Claude: local tracking + ~/.claude/stats-cache.json + Anthropic OAuth
  * session/weekly rate-limit gauges (CLI `/usage`).
  * Grok: local tracking + CLI chat-proxy billing/credit gauges (CLI `/usage`).
+ * Pi: subscriptions loaded by Pi plus limits for the active model provider.
  * When a live fetch fails, `rateLimits` is null and `cliHint` is shown.
  */
 
@@ -84,7 +85,41 @@ export interface CodexUsageSnapshot {
   cliHint: string;
 }
 
-export type ProviderUsageSnapshot = ClaudeUsageSnapshot | CodexUsageSnapshot | GrokUsageSnapshot;
+export interface PiLoadedSubscription {
+  provider: string;
+  label: string;
+  active: boolean;
+}
+
+export type PiQuotaWindowKey =
+  | 'session'
+  | 'daily'
+  | 'weekly'
+  | 'weekly-opus'
+  | 'weekly-fable'
+  | 'monthly'
+  | 'on-demand';
+
+export interface PiQuotaWindow extends ClaudeRateLimitWindow {
+  key: PiQuotaWindowKey;
+}
+
+export interface PiUsageSnapshot {
+  provider: 'pi';
+  fetchedAt: number;
+  modelProvider: string | null;
+  credentialType: 'oauth' | 'api_key' | null;
+  subscriptions: PiLoadedSubscription[];
+  session: ClaudeUsageSession;
+  /** Anthropic compatibility payload used by older servers. */
+  rateLimits: ClaudeRateLimits | null;
+  /** Active-account windows for Anthropic, Codex, or xAI. */
+  quotaWindows: PiQuotaWindow[];
+  rateLimitsError: string | null;
+  cliHint: string;
+}
+
+export type ProviderUsageSnapshot = ClaudeUsageSnapshot | CodexUsageSnapshot | GrokUsageSnapshot | PiUsageSnapshot;
 
 export interface ClaudeTokenTotals {
   input: number;
@@ -152,7 +187,7 @@ export async function fetchClaudeUsage(agentId: string): Promise<ClaudeUsageSnap
   return snapshot;
 }
 
-/** Fetch Claude or Grok usage snapshot for an agent (same endpoint). */
+/** Fetch the provider/subscription usage snapshot for an agent. */
 export async function fetchProviderUsage(agentId: string): Promise<ProviderUsageSnapshot> {
   const response = await authFetch(apiUrl(`/api/agents/${encodeURIComponent(agentId)}/usage`));
   if (!response.ok) {

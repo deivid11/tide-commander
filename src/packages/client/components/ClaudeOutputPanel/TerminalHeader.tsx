@@ -60,7 +60,7 @@ import { ConfirmModal } from '../shared/ConfirmModal';
 import { ContextMenu } from '../ContextMenu';
 import { ModalPortal } from '../shared/ModalPortal';
 import { buildAgentContextMenuActions } from './agentContextMenuActions';
-import { providerAssetUrl, providerAgentTitle } from '../../utils/providerDisplay';
+import { ProviderIcon } from '../ProviderIcon';
 
 /**
  * Model chip in the terminal header. Turns into a warning that names the swap
@@ -393,11 +393,10 @@ export const TerminalHeader = memo(function TerminalHeader({
                 )}
               </span>
               <span className="guake-title-accessory">
-                <img
-                  src={providerAssetUrl(selectedAgent.provider, import.meta.env.BASE_URL)}
-                  alt={selectedAgent.provider}
+                <ProviderIcon
+                  agent={selectedAgent}
+                  alt={`${selectedAgent.name} provider`}
                   className="guake-provider-icon"
-                  title={providerAgentTitle(selectedAgent.provider)}
                 />
                 <ModelChip agent={selectedAgent} />
               </span>
@@ -419,11 +418,10 @@ export const TerminalHeader = memo(function TerminalHeader({
                 )}
               </span>
               <span className="guake-title-accessory">
-                <img
-                  src={providerAssetUrl(selectedAgent.provider, import.meta.env.BASE_URL)}
-                  alt={selectedAgent.provider}
+                <ProviderIcon
+                  agent={selectedAgent}
+                  alt={`${selectedAgent.name} provider`}
                   className="guake-provider-icon"
-                  title={providerAgentTitle(selectedAgent.provider)}
                 />
                 <ModelChip agent={selectedAgent} />
               </span>

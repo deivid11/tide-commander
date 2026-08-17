@@ -493,6 +493,8 @@ export function useSpotlightSearch({
         _taskLabel: agent.taskLabel,
         _status: agent.status,
         _provider: agent.provider ?? 'claude',
+        _piModel: agent.piModel,
+        _piModelProvider: agent.piModelProvider,
         _areaName: areaName || undefined,
         _areaColor: agentArea?.color,
         action: () => {

@@ -356,6 +356,11 @@
 .bulk-change-model-row {
   border-top: 1px solid var(--border-color);
   padding-top: 10px;
+
+  .opencode-model-select {
+    width: min(420px, 45vw);
+    min-width: 280px;
+  }
 }
 
 .bulk-change-model-label {
@@ -421,5 +426,10 @@
   .bulk-footer {
     flex-direction: column;
     gap: 8px;
+  }
+
+  .bulk-change-model-row .opencode-model-select {
+    width: 100%;
+    min-width: 0;
   }
 }

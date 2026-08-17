@@ -65,6 +65,7 @@ export interface StoredAgent {
   opencodeModel?: Agent['opencodeModel']; // May be missing in older data
   grokModel?: Agent['grokModel']; // May be missing in older data
   piModel?: Agent['piModel']; // May be missing in older data
+  piModelProvider?: Agent['piModelProvider']; // Actual Pi model provider, including configured defaults
   createdAt: number;
   lastActivity: number;
   sessionId?: string;
@@ -209,6 +210,7 @@ function toStoredAgents(agents: Agent[]): StoredAgent[] {
     opencodeModel: agent.opencodeModel,
     grokModel: agent.grokModel,
     piModel: agent.piModel,
+    piModelProvider: agent.piModelProvider,
     createdAt: agent.createdAt,
     lastActivity: agent.lastActivity,
     sessionId: agent.sessionId,

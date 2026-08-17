@@ -19,7 +19,7 @@ import { truncateOrEmpty } from '../utils/string.js';
 import { buildCustomAgentConfig, expandFileMentions } from '../websocket/handlers/command-handler.js';
 import { clearDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
 import { OpencodeBackend } from '../opencode/backend.js';
-import { PiBackend } from '../pi/backend.js';
+import { getPiModelCatalog, getPiModelCatalogFetchedAt } from '../pi/model-catalog.js';
 import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled, isInteractiveModeEnabled, setInteractiveModeEnabled, isCodexAppServerModeEnabled, setCodexAppServerModeEnabled, isOpencodeServerModeEnabled, setOpencodeServerModeEnabled, isPiRpcModeEnabled, setPiRpcModeEnabled } from '../services/system-prompt-service.js';
 import { markInstructionsDirtyForAll } from '../services/instruction-refresh.js';
 import { startAgentTerminal, stopAgentTerminal } from '../services/agent-terminal-service.js';
@@ -27,6 +27,7 @@ import { buildClaudeUsageByAgentSummary, buildClaudeUsageByDaySummary, buildClau
 import { getBackgroundTasksForAgent } from '../services/background-tasks.js';
 import { buildGrokUsageSnapshot } from '../services/grok-usage-service.js';
 import { buildCodexUsageSnapshot } from '../services/codex-usage-service.js';
+import { buildPiSubscriptionUsageSnapshot } from '../services/pi-subscription-usage-service.js';
 import { getBackupStatus, setBackupEnabled } from '../services/backup-service.js';
 import type { ServerMessage } from '../../shared/types.js';
 
@@ -159,55 +160,23 @@ router.get('/opencode/models', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/agents/pi/models - List pi CLI models (providers with credentials only)
-// NOTE: Defined BEFORE /:id routes so "pi" is not parsed as an agent id.
-interface PiModelsCache {
-  models: string[];
-  fetchedAt: number;
-}
-let piModelsCache: PiModelsCache | null = null;
-const PI_MODELS_TTL_MS = 60 * 60 * 1000; // 1 hour
-
+// GET /api/agents/pi/models - List Pi CLI models and their authoritative
+// context windows (providers with credentials only). Defined before /:id so
+// "pi" is not parsed as an agent id.
 router.get('/pi/models', async (req: Request, res: Response) => {
   const refresh = req.query.refresh === 'true' || req.query.refresh === '1';
-  const now = Date.now();
-
-  if (!refresh && piModelsCache && now - piModelsCache.fetchedAt < PI_MODELS_TTL_MS) {
-    res.json({
-      models: piModelsCache.models,
-      source: 'cli',
-      cached: true,
-      fetchedAt: piModelsCache.fetchedAt,
-    });
-    return;
-  }
+  const previousFetchedAt = getPiModelCatalogFetchedAt();
 
   try {
-    const piExe = new PiBackend().getExecutablePath();
-    const result = await runCommandWithTimeout(piExe, ['--list-models'], 15000);
-
-    // Output is a whitespace table: provider  model  context  max-out  thinking  images
-    const models = result.output
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0 && !line.startsWith('provider '))
-      .map((line) => {
-        const cols = line.split(/\s+/);
-        return cols.length >= 2 ? `${cols[0]}/${cols[1]}` : '';
-      })
-      .filter(Boolean);
-
-    if (models.length === 0) {
-      res.status(502).json({
-        error: 'pi CLI returned no models (are provider credentials configured?)',
-        stderr: result.errorOutput || undefined,
-        exitCode: result.exitCode,
-      });
-      return;
-    }
-
-    piModelsCache = { models, fetchedAt: now };
-    res.json({ models, source: 'cli', cached: false, fetchedAt: now });
+    const modelDetails = await getPiModelCatalog(refresh);
+    const fetchedAt = getPiModelCatalogFetchedAt() || Date.now();
+    res.json({
+      models: modelDetails.map((entry) => entry.id),
+      modelDetails,
+      source: 'cli',
+      cached: !refresh && previousFetchedAt === fetchedAt,
+      fetchedAt,
+    });
   } catch (err: any) {
     log.error(' pi models fetch failed:', err);
     res.status(500).json({ error: err?.message || 'Failed to run pi CLI' });
@@ -715,7 +684,8 @@ router.post('/bulk/clear-context', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/agents/bulk/change-model - Change model for multiple agents (clears sessions)
+// POST /api/agents/bulk/change-model - Change model for multiple agents.
+// Pi sessions are provider-neutral and are preserved across model providers.
 router.post('/bulk/change-model', async (req: Request, res: Response) => {
   try {
     const { agentIds, provider, model, effort } = req.body as {
@@ -752,7 +722,7 @@ router.post('/bulk/change-model', async (req: Request, res: Response) => {
       return;
     }
 
-    // Effort is Claude/Grok. `null` means "clear back to default"; undefined means "leave unchanged".
+    // Effort is Claude/Grok/Pi. `null` means "clear back to default"; undefined means "leave unchanged".
     const VALID_EFFORTS = new Set(['low', 'medium', 'high', 'xHigh', 'max']);
     let effortUpdate: { set: true; value: string | undefined } | { set: false } = { set: false };
     if (effort !== undefined && (provider === 'claude' || provider === 'grok' || provider === 'pi')) {
@@ -777,22 +747,52 @@ router.post('/bulk/change-model', async (req: Request, res: Response) => {
           continue;
         }
 
-        await runtimeService.stopAgent(agentId);
+        if (provider === 'pi') {
+          const switchedInPlace = await runtimeService.switchAgentModel(
+            agentId,
+            sanitized,
+            effortUpdate.set ? effortUpdate.value : agent.effort,
+          );
+          if (!switchedInPlace && runtimeService.isAgentRunning(agentId)) {
+            // Pi single-shot mode cannot switch live, but the same Pi session
+            // can resume on the selected provider/model after this stop.
+            await runtimeService.stopAgent(agentId);
+          }
+        } else {
+          await runtimeService.stopAgent(agentId);
+        }
 
-        const modelUpdates: Record<string, unknown> = {
-          status: 'idle',
-          currentTask: undefined,
-          currentTool: undefined,
-          sessionId: undefined,
-          tokensUsed: 0,
-          contextUsed: 0,
-          contextStats: undefined,
-        };
+        const modelUpdates: Record<string, unknown> = provider === 'pi'
+          ? {
+              status: 'idle',
+              currentTask: undefined,
+              currentTool: undefined,
+              contextStats: undefined,
+            }
+          : {
+              status: 'idle',
+              currentTask: undefined,
+              currentTool: undefined,
+              sessionId: undefined,
+              tokensUsed: 0,
+              contextUsed: 0,
+              contextStats: undefined,
+            };
         if (provider === 'claude') modelUpdates.model = sanitized;
         else if (provider === 'codex') modelUpdates.codexModel = sanitized;
         else if (provider === 'opencode') modelUpdates.opencodeModel = sanitized;
         else if (provider === 'grok') modelUpdates.grokModel = sanitized;
-        else if (provider === 'pi') modelUpdates.piModel = sanitized;
+        else if (provider === 'pi') {
+          modelUpdates.piModel = sanitized;
+          modelUpdates.piModelProvider = sanitized?.includes('/')
+            ? sanitized.slice(0, sanitized.indexOf('/')).trim().toLowerCase() || undefined
+            : undefined;
+          const piContextLimit = await agentService.resolvePiModelContextLimit(sanitized);
+          if (piContextLimit) {
+            modelUpdates.contextLimit = piContextLimit;
+            modelUpdates.contextStats = undefined;
+          }
+        }
 
         if (effortUpdate.set) modelUpdates.effort = effortUpdate.value;
 
@@ -1266,6 +1266,7 @@ router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
 //
 // Claude: local agent stats + Anthropic OAuth rate-limit gauges (CLI `/usage`).
 // Grok: local agent stats + CLI chat-proxy billing/credit gauges (CLI `/usage`).
+// Pi: loaded subscription metadata + limits for the selected model provider.
 router.get('/:id/usage', async (req: Request<{ id: string }>, res: Response) => {
   const agent = agentService.getAgent(req.params.id);
   if (!agent) {
@@ -1273,20 +1274,22 @@ router.get('/:id/usage', async (req: Request<{ id: string }>, res: Response) => 
     return;
   }
   const provider = agent.provider ?? 'claude';
-  if (provider !== 'claude' && provider !== 'grok' && provider !== 'codex') {
+  if (provider !== 'claude' && provider !== 'grok' && provider !== 'codex' && provider !== 'pi') {
     res.status(400).json({
-      error: 'Usage data is only available for Claude, Codex, and Grok agents',
+      error: 'Usage data is only available for Claude, Codex, Grok, and Pi agents',
       provider,
     });
     return;
   }
   try {
     const snapshot =
-      provider === 'codex'
-        ? await buildCodexUsageSnapshot(agent)
-        : provider === 'grok'
-        ? await buildGrokUsageSnapshot(agent)
-        : await buildClaudeUsageSnapshot(agent);
+      provider === 'pi'
+        ? await buildPiSubscriptionUsageSnapshot(agent)
+        : provider === 'codex'
+          ? await buildCodexUsageSnapshot(agent)
+          : provider === 'grok'
+            ? await buildGrokUsageSnapshot(agent)
+            : await buildClaudeUsageSnapshot(agent);
     res.json(snapshot);
   } catch (err: any) {
     log.error(`Failed to build ${provider} usage snapshot:`, err);

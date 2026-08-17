@@ -39,6 +39,14 @@ import {
   type CredentialProviderId,
 } from '../services/provider-credentials-service.js';
 import { getCodexCredentialProfilesUsage } from '../services/codex-usage-service.js';
+import {
+  deletePiCredentialProfile,
+  getPiCredentialProfilesUsage,
+  listPiCredentialProfiles,
+  renamePiCredentialProfile,
+  saveActivePiCredentialProfile,
+  switchPiCredentialProfile,
+} from '../services/pi-subscription-usage-service.js';
 import { killDetachedAppServerDaemon } from '../codex/app-server/app-server-process.js';
 
 const log = createLogger('SystemRoutes');
@@ -678,6 +686,111 @@ router.delete('/claude-credentials/:name', (req: Request, res: Response) => {
     const message = (err as Error).message;
     log.error(`Failed to delete Claude credentials profile: ${message}`);
     const status = /not found|Invalid/i.test(message) ? 400 : 500;
+    res.status(status).json({ error: message });
+  }
+});
+
+/**
+ * Pi OAuth credential profiles. A named auth.<name>.json can hold several Pi
+ * providers; switching replaces only the selected model provider's credential
+ * in auth.json, preserving every other loaded login.
+ */
+function piModelProvider(req: Request): string {
+  const value = req.body?.modelProvider ?? req.query.modelProvider;
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error('modelProvider is required');
+  }
+  return value.trim();
+}
+
+router.get('/pi-credentials', (req: Request, res: Response) => {
+  try {
+    res.json(listPiCredentialProfiles(piModelProvider(req)));
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`Failed to list Pi credentials: ${message}`);
+    res.status(/required|Invalid/i.test(message) ? 400 : 500).json({ error: message });
+  }
+});
+
+router.get('/pi-credentials/usage', async (req: Request, res: Response) => {
+  try {
+    res.json(await getPiCredentialProfilesUsage(piModelProvider(req)));
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`Failed to fetch Pi credentials usage: ${message}`);
+    res.status(/required|Invalid/i.test(message) ? 400 : 500).json({ error: message });
+  }
+});
+
+router.post('/pi-credentials/switch', (req: Request, res: Response) => {
+  try {
+    const name = req.body?.name;
+    const stashActiveAs = req.body?.stashActiveAs;
+    if (typeof name !== 'string' || !name.trim()) {
+      res.status(400).json({ error: 'Body must include { name: string }' });
+      return;
+    }
+    if (stashActiveAs !== undefined && typeof stashActiveAs !== 'string') {
+      res.status(400).json({ error: 'stashActiveAs must be a string when provided' });
+      return;
+    }
+    res.json(switchPiCredentialProfile(piModelProvider(req), name.trim(), {
+      stashActiveAs: typeof stashActiveAs === 'string' ? stashActiveAs.trim() : undefined,
+    }));
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`Failed to switch Pi credentials: ${message}`);
+    const status = /not found|Invalid|required|already exists|cannot be|no valid/i.test(message) ? 400 : 500;
+    res.status(status).json({ error: message });
+  }
+});
+
+router.post('/pi-credentials/save', (req: Request, res: Response) => {
+  try {
+    const name = req.body?.name;
+    if (typeof name !== 'string' || !name.trim()) {
+      res.status(400).json({ error: 'Body must include { name: string }' });
+      return;
+    }
+    res.json(saveActivePiCredentialProfile(piModelProvider(req), name.trim(), { force: Boolean(req.body?.force) }));
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`Failed to save Pi credentials profile: ${message}`);
+    const status = /not found|Invalid|required|already exists|No valid/i.test(message) ? 400 : 500;
+    res.status(status).json({ error: message });
+  }
+});
+
+router.post('/pi-credentials/rename', (req: Request, res: Response) => {
+  try {
+    const from = req.body?.from;
+    const to = req.body?.to;
+    if (typeof from !== 'string' || !from.trim() || typeof to !== 'string' || !to.trim()) {
+      res.status(400).json({ error: 'Body must include { from: string, to: string }' });
+      return;
+    }
+    res.json(renamePiCredentialProfile(piModelProvider(req), from.trim(), to.trim()));
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`Failed to rename Pi credentials profile: ${message}`);
+    const status = /not found|Invalid|required|already exists/i.test(message) ? 400 : 500;
+    res.status(status).json({ error: message });
+  }
+});
+
+router.delete('/pi-credentials/:name', (req: Request, res: Response) => {
+  try {
+    const name = typeof req.params.name === 'string' ? req.params.name : '';
+    if (!name) {
+      res.status(400).json({ error: 'Profile name required' });
+      return;
+    }
+    res.json(deletePiCredentialProfile(piModelProvider(req), name));
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`Failed to delete Pi credentials profile: ${message}`);
+    const status = /not found|Invalid|required/i.test(message) ? 400 : 500;
     res.status(status).json({ error: message });
   }
 });

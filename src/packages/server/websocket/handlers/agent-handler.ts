@@ -1219,6 +1219,8 @@ export async function handleUpdateAgentProperties(
 
   if (updates.provider !== undefined) {
     agentUpdates.provider = updates.provider;
+    if (updates.provider !== 'pi') agentUpdates.piModelProvider = undefined;
+    if (updates.provider === 'pi' && updates.piModel === undefined) agentUpdates.piModelProvider = undefined;
   }
 
   if (updates.codexConfig !== undefined) {
@@ -1260,6 +1262,15 @@ export async function handleUpdateAgentProperties(
 
   if (updates.piModel !== undefined) {
     agentUpdates.piModel = normalizedUpdatedPiModel as any;
+    const source = normalizedUpdatedPiModel?.includes('/')
+      ? normalizedUpdatedPiModel.slice(0, normalizedUpdatedPiModel.indexOf('/')).trim().toLowerCase()
+      : '';
+    agentUpdates.piModelProvider = source || undefined;
+    const piContextLimit = await agentService.resolvePiModelContextLimit(normalizedUpdatedPiModel);
+    if (piContextLimit && piContextLimit !== agent.contextLimit) {
+      agentUpdates.contextLimit = piContextLimit;
+      agentUpdates.contextStats = undefined;
+    }
   }
 
   if (updates.effort !== undefined) {
@@ -1317,10 +1328,50 @@ export async function handleUpdateAgentProperties(
     agentService.updateAgent(agentId, agentUpdates, false);
   }
 
-  // If model changed, do a hot restart: stop process, resume with new model
-  // This preserves context by using --resume with the existing sessionId
+  // Pi RPC owns a provider-neutral session, so a pure Pi model/provider change
+  // can use its native set_model command without replacing the process or
+  // conversation. Other runtime/config changes still use stop + resume.
   const modelLikeChanged = modelChanged || codexModelChanged || opencodeModelChanged || grokModelChanged || piModelChanged || providerChanged || codexConfigChanged || classChanged;
-  if (modelLikeChanged && sessionId) {
+  const onlyPiModelChanged = piModelChanged
+    && nextProvider === 'pi'
+    && !providerChanged
+    && !modelChanged
+    && !codexModelChanged
+    && !opencodeModelChanged
+    && !grokModelChanged
+    && !codexConfigChanged
+    && !classChanged;
+  let piModelSwitchedInPlace = false;
+  let piModelSwitchFailed = false;
+  if (onlyPiModelChanged && normalizedUpdatedPiModel) {
+    try {
+      piModelSwitchedInPlace = await runtimeService.switchAgentModel(
+        agentId,
+        normalizedUpdatedPiModel,
+        updates.effort ?? agent.effort,
+      );
+      if (piModelSwitchedInPlace) {
+        ctx.sendActivity(agentId, `Pi model changed to ${normalizedUpdatedPiModel} - context preserved`);
+      }
+    } catch (err) {
+      piModelSwitchFailed = true;
+      const previousSource = agent.piModel?.includes('/')
+        ? agent.piModel.slice(0, agent.piModel.indexOf('/')).trim().toLowerCase()
+        : agent.piModelProvider;
+      agentService.updateAgent(agentId, {
+        piModel: agent.piModel,
+        piModelProvider: previousSource,
+        contextLimit: agent.contextLimit,
+        contextStats: agent.contextStats,
+      }, false);
+      log.warn(`Native Pi model switch failed for ${agent.name}; keeping ${agent.piModel || 'current model'}: ${String(err)}`);
+      ctx.sendActivity(agentId, `Pi model switch failed - keeping ${agent.piModel || 'the current model'}`);
+    }
+  }
+
+  // If model changed, do a hot restart: stop process, resume with new model.
+  // This preserves context when the old and new model share the same harness.
+  if (modelLikeChanged && sessionId && !piModelSwitchedInPlace && !piModelSwitchFailed) {
     const reason = providerChanged
       ? `runtime changed to ${updates.provider}`
       : classChanged
@@ -1348,7 +1399,7 @@ export async function handleUpdateAgentProperties(
     } catch (err) {
       log.error(`Failed to hot restart agent ${agent.name} after runtime config change:`, err);
     }
-  } else if (modelLikeChanged && !sessionId) {
+  } else if (modelLikeChanged && !sessionId && !piModelSwitchedInPlace && !piModelSwitchFailed) {
     const reason = providerChanged
       ? `runtime changed to ${updates.provider}`
       : classChanged

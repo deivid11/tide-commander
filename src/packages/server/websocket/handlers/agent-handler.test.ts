@@ -6,9 +6,16 @@ vi.mock('../../services/index.js', () => ({
     updateAgent: vi.fn(),
     archiveCurrentSession: vi.fn(),
     getAgentSessionHistory: vi.fn(() => []),
+    sanitizeModelForProvider: vi.fn((_provider, model) => model),
+    sanitizeCodexModel: vi.fn((model) => model),
+    sanitizeOpencodeModel: vi.fn((model) => model),
+    sanitizeGrokModel: vi.fn((model) => model),
+    sanitizePiModel: vi.fn((model) => typeof model === 'string' && model.trim() ? model.trim() : undefined),
+    resolvePiModelContextLimit: vi.fn(async () => 272000),
   },
   runtimeService: {
     stopAgent: vi.fn(),
+    switchAgentModel: vi.fn(async () => false),
   },
   skillService: {
     assignSkillToAgent: vi.fn(),
@@ -37,7 +44,7 @@ vi.mock('../../claude/backend.js', () => ({
 }));
 
 import { agentService, runtimeService, skillService } from '../../services/index.js';
-import { handleClearContext } from './agent-handler.js';
+import { handleClearContext, handleUpdateAgentProperties } from './agent-handler.js';
 
 describe('Agent Handler', () => {
   beforeEach(() => {
@@ -66,6 +73,99 @@ describe('Agent Handler', () => {
       contextStats: undefined,
     }));
     expect(ctx.sendActivity).toHaveBeenCalledWith('agent-1', expect.stringContaining('Context cleared'));
+  });
+
+  it('switches a Pi model provider in place without stopping its session', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'agent-pi',
+      name: 'Portable',
+      provider: 'pi',
+      piModel: 'anthropic/claude-sonnet-4-5',
+      effort: 'high',
+      sessionId: 'pi-session',
+      class: 'scout',
+      permissionMode: 'bypass',
+      cwd: '/tmp/project',
+      contextLimit: 1_000_000,
+      useChrome: false,
+    } as any);
+    vi.mocked(runtimeService.switchAgentModel).mockResolvedValue(true);
+
+    const ctx = {
+      sendActivity: vi.fn(),
+      sendError: vi.fn(),
+      broadcast: vi.fn(),
+    } as any;
+
+    await handleUpdateAgentProperties(ctx, {
+      agentId: 'agent-pi',
+      updates: { piModel: 'openai-codex/gpt-5.6-sol' },
+    });
+
+    expect(runtimeService.switchAgentModel).toHaveBeenCalledWith(
+      'agent-pi',
+      'openai-codex/gpt-5.6-sol',
+      'high',
+    );
+    expect(runtimeService.stopAgent).not.toHaveBeenCalled();
+    expect(agentService.updateAgent).toHaveBeenCalledWith(
+      'agent-pi',
+      expect.objectContaining({
+        piModel: 'openai-codex/gpt-5.6-sol',
+        piModelProvider: 'openai-codex',
+        contextLimit: 272000,
+      }),
+      false,
+    );
+    expect(ctx.sendActivity).toHaveBeenCalledWith(
+      'agent-pi',
+      expect.stringContaining('context preserved'),
+    );
+  });
+
+  it('keeps the previous Pi model when the live switch is rejected', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'agent-pi',
+      name: 'Portable',
+      provider: 'pi',
+      piModel: 'anthropic/claude-sonnet-4-5',
+      piModelProvider: 'anthropic',
+      effort: 'high',
+      sessionId: 'pi-session',
+      class: 'scout',
+      permissionMode: 'bypass',
+      cwd: '/tmp/project',
+      contextLimit: 1_000_000,
+      contextStats: { contextWindow: 1_000_000 },
+      useChrome: false,
+    } as any);
+    vi.mocked(runtimeService.switchAgentModel).mockRejectedValue(new Error('Model not found'));
+
+    const ctx = {
+      sendActivity: vi.fn(),
+      sendError: vi.fn(),
+      broadcast: vi.fn(),
+    } as any;
+
+    await handleUpdateAgentProperties(ctx, {
+      agentId: 'agent-pi',
+      updates: { piModel: 'openai-codex/not-available' },
+    });
+
+    expect(runtimeService.stopAgent).not.toHaveBeenCalled();
+    expect(agentService.updateAgent).toHaveBeenLastCalledWith(
+      'agent-pi',
+      expect.objectContaining({
+        piModel: 'anthropic/claude-sonnet-4-5',
+        piModelProvider: 'anthropic',
+        contextLimit: 1_000_000,
+      }),
+      false,
+    );
+    expect(ctx.sendActivity).toHaveBeenCalledWith(
+      'agent-pi',
+      expect.stringContaining('keeping anthropic/claude-sonnet-4-5'),
+    );
   });
 
   it('clear_context preserves skill assignments (regression: skills must survive context clearing)', async () => {

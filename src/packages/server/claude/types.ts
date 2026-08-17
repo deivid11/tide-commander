@@ -66,6 +66,8 @@ export interface StandardEvent {
   reasoningEncrypted?: boolean;
   reasoningSummaryOnly?: boolean;
   model?: string;
+  /** Underlying model provider (not the harness), currently reported by Pi. */
+  modelProvider?: string;
   // model_fallback: the model the session asked for vs the one that answered.
   // `fallbackRestored` marks the turn where the requested model came back.
   requestedModel?: string;

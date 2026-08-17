@@ -75,6 +75,13 @@ export interface RuntimeRunner {
    */
   compactContext?(agentId: string, customInstructions?: string): Promise<boolean>;
   /**
+   * Switch a live harness session to another model without replacing its
+   * conversation. Persistent runners may abort an active turn first. Returns
+   * false when the runner cannot switch in place, allowing callers to fall
+   * back to stop + resume with the same session id.
+   */
+  switchModel?(agentId: string, model: string, effort?: string): Promise<boolean>;
+  /**
    * Snapshot of mid-run content queued inside this runner awaiting delivery
    * (drained autonomously at turn end). Multiple sends are coalesced into one
    * entry. Positional: entry i is identified to clients as index i of THIS

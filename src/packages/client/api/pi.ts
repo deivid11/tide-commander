@@ -5,8 +5,19 @@
 
 import { apiUrl, authFetch } from '../utils/storage';
 
+export interface PiModelDetail {
+  id: string;
+  provider: string;
+  model: string;
+  contextWindow: number;
+  maxOutputTokens: number;
+  thinking: boolean;
+  images: boolean;
+}
+
 export interface PiModelsResponse {
   models: string[];
+  modelDetails?: PiModelDetail[];
   source: 'cli';
   cached: boolean;
   fetchedAt: number;

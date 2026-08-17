@@ -423,6 +423,16 @@ export async function collapseAgentContext(
   return getCollapseService().collapse(agentId, opts);
 }
 
+export async function switchAgentModel(
+  agentId: string,
+  model: string,
+  effort?: string,
+): Promise<boolean> {
+  const runner = getRunnerForAgent(agentId);
+  if (!runner?.switchModel) return false;
+  return runner.switchModel(agentId, model, effort);
+}
+
 export async function stopAgent(agentId: string): Promise<void> {
   await commandExecution.stopAgent(agentId);
 }

@@ -21,7 +21,7 @@ import { isAgentVisibleInWorkspace, useWorkspaceFilter } from '../WorkspaceSwitc
 import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
 import { Tooltip } from '../shared/Tooltip';
-import { providerAssetUrl } from '../../utils/providerDisplay';
+import { ProviderIcon } from '../ProviderIcon';
 import { prefetchAgentHistory } from './useHistoryLoader';
 import { useDockRoster } from './useDockRoster';
 import { useAgentDockRecentSize } from './agentDockPosition';
@@ -133,7 +133,7 @@ export function AgentActivityDock({ activeAgentId, onSelectAgent }: AgentActivit
                 onMouseEnter={() => prefetchAgentHistory(agent.id)}
               >
                 <AgentIcon agent={agent} size="100%" customClasses={customClasses} />
-                <img src={providerAssetUrl(agent.provider, import.meta.env.BASE_URL)} alt="" className="aop-working-thumb-provider" />
+                <ProviderIcon agent={agent} alt="" className="aop-working-thumb-provider" />
                 {hasUnread && <span className="aop-working-thumb-unread" aria-hidden="true" />}
               </button>
             </Tooltip>

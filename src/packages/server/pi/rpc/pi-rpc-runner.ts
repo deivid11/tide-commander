@@ -39,7 +39,25 @@ const ABORT_SETTLE_TIMEOUT_MS = 4000;
 const PERSIST_INTERVAL_MS = 10_000;
 const LIVENESS_INTERVAL_MS = 5_000;
 const TMUX_START_TIMEOUT_MS = 2500;
+const RPC_COMMAND_TIMEOUT_MS = 10_000;
 const LOG_TAIL_SCAN_BYTES = 64 * 1024;
+
+interface PiRpcResponse {
+  id?: string;
+  type?: string;
+  command?: string;
+  success?: boolean;
+  error?: string;
+  data?: unknown;
+}
+
+interface PendingPiRpcCommand {
+  agentId: string;
+  command: string;
+  resolve: (response: PiRpcResponse) => void;
+  reject: (error: Error) => void;
+  timer: NodeJS.Timeout;
+}
 
 interface PiRpcAgentState {
   agentId: string;
@@ -121,6 +139,8 @@ export class PiRpcRunner implements RuntimeRunner {
   private readonly pipeline: RunnerStdoutPipeline;
   private readonly agents = new Map<string, PiRpcAgentState>();
   private readonly nextActivityCallbacks = new Map<string, Array<() => void>>();
+  private readonly pendingCommands = new Map<string, PendingPiRpcCommand>();
+  private commandSequence = 0;
   private persistTimer: NodeJS.Timeout | null = null;
   private livenessTimer: NodeJS.Timeout | null = null;
   private started = false;
@@ -314,6 +334,7 @@ export class PiRpcRunner implements RuntimeRunner {
       state.tmuxTailer?.stop();
       this.agents.delete(agentId);
       this.releaseIdleWaiters(state);
+      this.rejectPendingCommands(agentId, new Error('Pi RPC tmux session exited'));
       if (state.turnState === 'processing') {
         const stderr = this.readTmuxStderr(state);
         const detail = stderr ? `: ${stderr}` : '';
@@ -358,16 +379,53 @@ export class PiRpcRunner implements RuntimeRunner {
     }
   }
 
+  private sendCommandAndWait(
+    state: PiRpcAgentState,
+    command: Record<string, unknown> & { type: string },
+  ): Promise<PiRpcResponse> {
+    const id = `tc-${command.type}-${state.agentId}-${Date.now()}-${++this.commandSequence}`;
+    return new Promise<PiRpcResponse>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingCommands.delete(id);
+        reject(new Error(`Pi RPC ${command.type} timed out`));
+      }, RPC_COMMAND_TIMEOUT_MS);
+      this.pendingCommands.set(id, {
+        agentId: state.agentId,
+        command: command.type,
+        resolve,
+        reject,
+        timer,
+      });
+      if (!this.writeCommand(state, { id, ...command })) {
+        clearTimeout(timer);
+        this.pendingCommands.delete(id);
+        reject(new Error(`Pi RPC ${command.type} write failed`));
+      }
+    });
+  }
+
+  private rejectPendingCommands(agentId: string, error: Error): void {
+    for (const [id, pending] of this.pendingCommands) {
+      if (pending.agentId !== agentId) continue;
+      clearTimeout(pending.timer);
+      this.pendingCommands.delete(id);
+      pending.reject(error);
+    }
+  }
+
   private handleResponseLine(agentId: string, line: string): void {
-    let parsed: {
-      type?: string;
-      command?: string;
-      success?: boolean;
-      error?: string;
-      data?: { sessionId?: string };
-    };
+    let parsed: PiRpcResponse;
     try { parsed = JSON.parse(line); } catch { return; }
     if (parsed?.type !== 'response') return;
+
+    if (parsed.id) {
+      const pending = this.pendingCommands.get(parsed.id);
+      if (pending && pending.agentId === agentId) {
+        clearTimeout(pending.timer);
+        this.pendingCommands.delete(parsed.id);
+        pending.resolve(parsed);
+      }
+    }
 
     const state = this.agents.get(agentId);
     const isManualCompaction = parsed.command === 'compact';
@@ -400,14 +458,41 @@ export class PiRpcRunner implements RuntimeRunner {
       return;
     }
 
-    if (parsed.command === 'get_state' && parsed.data?.sessionId) {
-      const sessionId = parsed.data.sessionId;
-      if (state) {
-        state.sessionId = sessionId;
-        if (state.lastRequest) state.lastRequest.sessionId = sessionId;
+    if (parsed.command === 'get_state') {
+      const data = parsed.data as {
+        sessionId?: string;
+        model?: { provider?: string; contextWindow?: number } | null;
+      } | undefined;
+      const modelProvider = typeof data?.model?.provider === 'string'
+        ? data.model.provider.trim().toLowerCase()
+        : '';
+      const contextWindow = typeof data?.model?.contextWindow === 'number'
+        ? data.model.contextWindow
+        : 0;
+      const currentAgent = agentService.getAgent(agentId);
+      const modelUpdates: {
+        piModelProvider?: string;
+        contextLimit?: number;
+        contextStats?: undefined;
+      } = {};
+      if (modelProvider) modelUpdates.piModelProvider = modelProvider;
+      if (contextWindow > 0 && contextWindow !== currentAgent?.contextLimit) {
+        modelUpdates.contextLimit = contextWindow;
+        modelUpdates.contextStats = undefined;
       }
-      this.callbacks.onSessionId(agentId, sessionId);
-      this.persistAll();
+      if (Object.keys(modelUpdates).length > 0) {
+        agentService.updateAgent(agentId, modelUpdates, false);
+      }
+
+      if (data?.sessionId) {
+        const sessionId = data.sessionId;
+        if (state) {
+          state.sessionId = sessionId;
+          if (state.lastRequest) state.lastRequest.sessionId = sessionId;
+        }
+        this.callbacks.onSessionId(agentId, sessionId);
+        this.persistAll();
+      }
     }
   }
 
@@ -525,6 +610,7 @@ export class PiRpcRunner implements RuntimeRunner {
         this.agents.delete(request.agentId);
         const midTurn = state.turnState === 'processing';
         this.releaseIdleWaiters(state);
+        this.rejectPendingCommands(request.agentId, new Error('Pi RPC process exited'));
         if (midTurn) {
           const detail = state.stderrTail.trim().split('\n').slice(-3).join('\n');
           this.callbacks.onError(request.agentId, `Pi RPC process exited mid-turn (code=${code ?? 'null'})${detail ? `: ${detail}` : ''}`);
@@ -535,6 +621,7 @@ export class PiRpcRunner implements RuntimeRunner {
       child.on('error', (err) => {
         if (this.agents.get(request.agentId) !== state) return;
         this.agents.delete(request.agentId);
+        this.rejectPendingCommands(request.agentId, new Error(`Pi RPC process error: ${String(err)}`));
         this.callbacks.onError(request.agentId, `Failed to start pi RPC: ${String(err)}`);
         this.callbacks.onComplete(request.agentId, false);
       });
@@ -619,6 +706,60 @@ export class PiRpcRunner implements RuntimeRunner {
     return true;
   }
 
+  async switchModel(agentId: string, model: string, effort?: string): Promise<boolean> {
+    let state = this.agents.get(agentId);
+    const separator = model.indexOf('/');
+    if (!this.isProcessAlive(state) || separator <= 0 || separator === model.length - 1) return false;
+
+    if (state.turnState === 'processing') {
+      await this.interruptTurn(agentId, true);
+      state = this.agents.get(agentId);
+      if (!this.isProcessAlive(state) || state.turnState !== 'waiting_for_input') return false;
+    }
+
+    const provider = model.slice(0, separator);
+    const modelId = model.slice(separator + 1);
+    try {
+      const response = await this.sendCommandAndWait(state, {
+        type: 'set_model',
+        provider,
+        modelId,
+      });
+      if (response.success !== true) {
+        throw new Error(response.error || `Pi rejected model ${model}`);
+      }
+
+      state.model = model;
+      if (state.lastRequest) state.lastRequest.model = model;
+
+      if (effort) {
+        try {
+          const thinkingResponse = await this.sendCommandAndWait(state, {
+            type: 'set_thinking_level',
+            level: piThinkingLevelForEffort(effort),
+          });
+          if (thinkingResponse.success === true) {
+            state.effort = effort;
+            if (state.lastRequest) state.lastRequest.effort = effort;
+          }
+        } catch (err) {
+          // The model change already succeeded. Keep it and let Pi retain or
+          // clamp its current thinking level rather than reporting a false
+          // model-switch failure that would desync Tide from the live session.
+          log.warn(`Pi model switched for ${agentId.slice(0, 8)}, but thinking level could not be updated: ${String(err)}`);
+        }
+      }
+
+      state.lastActivityTime = Date.now();
+      this.persistAll();
+      this.writeCommand(state, { type: 'get_state' });
+      return true;
+    } catch (err) {
+      log.warn(`Could not switch Pi model for ${agentId.slice(0, 8)}: ${String(err)}`);
+      throw err;
+    }
+  }
+
   async compactContext(agentId: string, customInstructions?: string): Promise<boolean> {
     const state = this.agents.get(agentId);
     if (!this.isProcessAlive(state) || state.turnState !== 'waiting_for_input') return false;
@@ -660,6 +801,7 @@ export class PiRpcRunner implements RuntimeRunner {
       return;
     }
     this.releaseIdleWaiters(state);
+    this.rejectPendingCommands(agentId, new Error('Pi RPC agent stopped'));
     try { this.writeCommand(state, { type: 'abort' }); } catch { /* best effort */ }
     state.tmuxTailer?.stop();
     if (state.tmuxSession) {
@@ -681,6 +823,7 @@ export class PiRpcRunner implements RuntimeRunner {
     for (const [agentId, state] of [...this.agents]) {
       state.tmuxTailer?.stop();
       this.releaseIdleWaiters(state);
+      this.rejectPendingCommands(agentId, new Error('Pi RPC runner stopped'));
       this.agents.delete(agentId);
       if (state.tmuxSession) {
         if (killProcesses) killPiRpcTmuxSession(agentId);
@@ -689,6 +832,11 @@ export class PiRpcRunner implements RuntimeRunner {
       }
     }
     this.nextActivityCallbacks.clear();
+    for (const pending of this.pendingCommands.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error('Pi RPC runner stopped'));
+    }
+    this.pendingCommands.clear();
     if (killProcesses) clearPiRpcProcesses();
   }
 

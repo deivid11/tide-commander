@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.192.0] - 2026-08-17
+
+### Added
+- **Switch a Pi agent's model provider without ending the conversation** - the agent editor and Bulk Manage can now change a live Pi RPC agent from Anthropic to OpenAI Codex (or any other Pi-loaded provider) in the same session. The runner issues a native `set_model` on the persistent process, so the conversation and context stay intact instead of being cleared like a Claude or Codex model change.
+- **Pi subscription accounts and usage** - Pi logins stored as `auth.json` plus named `auth.<name>.json` profiles can be listed, saved, renamed, switched and deleted from the UI. Switching replaces only the selected model provider's credential and leaves every other loaded login in place. Context view and the usage panel show the loaded subscriptions plus session / daily / weekly / monthly / on-demand quota windows for the active provider.
+- **Provider-aware Pi badges** - agent lists, Spotlight, the activity dock, the dashboard and the unit panel show the actual loaded provider (Anthropic, OpenAI, xAI, Gemini, Copilot, …) instead of a generic Pi mark, using the reported `piModelProvider` when the stored model is just Pi's configured default.
+- **Accurate Pi context windows** - Tide now reads `pi --list-models` and uses that catalog for context limits (for example Claude Opus 5 is 1M in Pi even when the direct Claude metadata still says 200K). Existing Pi agents are repaired on startup so the usage bar immediately uses the new denominator.
+
+### Changed
+- **Thinking-level updates on a live Pi RPC turn** - changing effort on a Pi agent now talks to the running process instead of waiting for the next spawn, and a failed thinking-level update no longer rolls back a successful model switch.
+
 ## [1.191.0] - 2026-08-16
 
 ### Added

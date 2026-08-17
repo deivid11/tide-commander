@@ -8,7 +8,8 @@ import { useDockRoster, useWorkRecency } from './useDockRoster';
 import { useAgentDockRecentSize } from './agentDockPosition';
 import { useDockFlip } from './useDockFlip';
 import type { DockLane } from './dockRoster';
-import { providerAssetUrl, providerCssClass, providerLabel } from '../../utils/providerDisplay';
+import { providerCssClass, providerLabel } from '../../utils/providerDisplay';
+import { ProviderIcon } from '../ProviderIcon';
 import type { Agent } from '../../../shared/types';
 
 /**
@@ -362,7 +363,7 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
     const areaColor = areaColorById.get(agent.id) ?? null;
     const hasUnread = unseenAgents.has(agent.id);
     const isBoss = agent.class === 'boss' || !!agent.isBoss;
-    const provider = providerLabel(agent.provider);
+    const provider = providerLabel(agent.provider, agent.piModel, agent.piModelProvider);
     return (
       <button
         ref={registerItem(agent.id)}
@@ -394,11 +395,10 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
           {/* Provider badge, bottom-right — the two free corners of the avatar
               are taken by the unread dot (top-left) and the unpin × (top-right).
               Survives miniature mode, where the name label is hidden. */}
-          <img
+          <ProviderIcon
+            agent={agent}
             className={`pinned-agent-provider ${providerCssClass(agent.provider)}`}
-            src={providerAssetUrl(agent.provider, import.meta.env.BASE_URL)}
             alt=""
-            aria-hidden="true"
             draggable={false}
           />
         </span>

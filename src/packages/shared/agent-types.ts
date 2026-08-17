@@ -377,6 +377,8 @@ export interface Agent {
   opencodeModel?: OpencodeModel; // OpenCode model to use (for provider='opencode')
   grokModel?: GrokModel; // Grok model to use (for provider='grok')
   piModel?: PiModel; // Pi model to use (for provider='pi', 'provider/model' pattern)
+  /** Actual model provider reported by Pi (needed when piModel uses Pi's configured default). */
+  piModelProvider?: string;
 
   // Resources
   tokensUsed: number;

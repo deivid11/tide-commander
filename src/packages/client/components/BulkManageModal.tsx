@@ -7,6 +7,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ModalPortal } from './shared/ModalPortal';
 import { Icon } from './Icon';
+import { PiModelSelect } from './PiModelSelect';
 import { useAgentsArray, useAreas, useSkillsArray } from '../store';
 import {
   bulkDeleteAgents,
@@ -24,7 +25,7 @@ import type { Agent, DrawingArea, Skill } from '../../shared/types';
 import { CLAUDE_MODELS, CODEX_MODELS, CLAUDE_EFFORTS, isDeprecatedClaudeModel, type ClaudeModel, type ClaudeEffort, type CodexModel } from '../../shared/agent-types';
 import '../styles/components/bulk-manage-modal.scss';
 
-type ModelProvider = 'claude' | 'codex';
+type ModelProvider = 'claude' | 'codex' | 'pi';
 
 /** Convert areas Map to array */
 function areasToArray(areas: Map<string, DrawingArea>): DrawingArea[] {
@@ -91,6 +92,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
   const [modelProvider, setModelProvider] = useState<ModelProvider>('claude');
   const [newClaudeModel, setNewClaudeModel] = useState<ClaudeModel>('claude-opus-4-8[1m]');
   const [newCodexModel, setNewCodexModel] = useState<CodexModel>('gpt-5.6-luna');
+  const [newPiModel, setNewPiModel] = useState<string>('');
   // 'default' represents "leave unchanged / use default"; other values are ClaudeEffort levels
   const [newEffort, setNewEffort] = useState<ClaudeEffort | 'default'>('xHigh');
   const [error, setError] = useState<string | null>(null);
@@ -306,8 +308,12 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
           setConfirmAction(null);
           return;
         }
-        const model = modelProvider === 'claude' ? newClaudeModel : newCodexModel;
-        const effort = modelProvider === 'claude'
+        const model = modelProvider === 'claude'
+          ? newClaudeModel
+          : modelProvider === 'codex'
+            ? newCodexModel
+            : newPiModel;
+        const effort = modelProvider === 'claude' || modelProvider === 'pi'
           ? (newEffort === 'default' ? null : newEffort)
           : undefined;
         result = await bulkChangeModel(ids, modelProvider, model, effort);
@@ -777,9 +783,11 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                       Change model to <strong>
                         {modelProvider === 'claude'
                           ? CLAUDE_MODELS[newClaudeModel].label
-                          : CODEX_MODELS[newCodexModel].label}
+                          : modelProvider === 'codex'
+                            ? CODEX_MODELS[newCodexModel].label
+                            : newPiModel}
                       </strong>
-                      {modelProvider === 'claude' && (
+                      {(modelProvider === 'claude' || modelProvider === 'pi') && (
                         <>
                           {' '}at <strong>
                             {newEffort === 'default' ? 'default effort' : `${CLAUDE_EFFORTS[newEffort].label} effort`}
@@ -793,11 +801,16 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                         {selectedIds.size - modelProviderSelectedIds.length} selected agent(s) with a different provider will be skipped.
                       </p>
                     )}
-                    <p style={{ color: 'var(--color-danger, #e55)', fontWeight: 600 }}>
-                      <Icon name="warn" size={14} /> The current conversation/context will be CLEARED for each affected agent.
-                      Their Claude sessions will be stopped and restarted on the next command
-                      so the new model takes effect.
-                    </p>
+                    {modelProvider === 'pi' ? (
+                      <p style={{ color: 'var(--color-success, #4caf7d)', fontWeight: 600 }}>
+                        The Pi conversation and context will be preserved while changing model provider.
+                      </p>
+                    ) : (
+                      <p style={{ color: 'var(--color-danger, #e55)', fontWeight: 600 }}>
+                        <Icon name="warn" size={14} /> The current conversation/context will be CLEARED for each affected agent.
+                        Their sessions will restart on the next command so the new model takes effect.
+                      </p>
+                    )}
                   </>
                 ) : confirmAction === 'add-skill' ? (
                   <p>
@@ -835,7 +848,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                     onClick={() => handleAction(confirmAction)}
                     disabled={
                       actionInProgress ||
-                      (confirmAction === 'change-model' && modelProviderSelectedIds.length === 0) ||
+                      (confirmAction === 'change-model' && (modelProviderSelectedIds.length === 0 || (modelProvider === 'pi' && !newPiModel))) ||
                       ((confirmAction === 'add-skill' || confirmAction === 'remove-skill') && pendingSkillIds.size === 0)
                     }
                   >
@@ -921,6 +934,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
               >
                 <option value="claude">Claude</option>
                 <option value="codex">Codex</option>
+                <option value="pi">Pi Universal</option>
               </select>
 
               {modelProvider === 'claude' ? (
@@ -938,7 +952,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                       </option>
                     ))}
                 </select>
-              ) : (
+              ) : modelProvider === 'codex' ? (
                 <select
                   value={newCodexModel}
                   onChange={e => setNewCodexModel(e.target.value as CodexModel)}
@@ -951,9 +965,15 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                     </option>
                   ))}
                 </select>
+              ) : (
+                <PiModelSelect
+                  value={newPiModel}
+                  onChange={setNewPiModel}
+                  inputId="bulk-pi-model"
+                />
               )}
 
-              {modelProvider === 'claude' && (
+              {(modelProvider === 'claude' || modelProvider === 'pi') && (
                 <select
                   value={newEffort}
                   onChange={e => setNewEffort(e.target.value as ClaudeEffort | 'default')}
@@ -977,7 +997,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
             <div className="footer-buttons-right">
               <button
                 className="btn btn-primary"
-                disabled={modelProviderSelectedIds.length === 0 || actionInProgress}
+                disabled={modelProviderSelectedIds.length === 0 || actionInProgress || (modelProvider === 'pi' && !newPiModel)}
                 onClick={() => setConfirmAction('change-model')}
               >
                 Change Model

@@ -863,6 +863,7 @@ export function createAgentActions(
         codexModel?: CodexModel;
         opencodeModel?: string;
         grokModel?: string;
+        piModel?: string;
         model?: ClaudeModel;
         effort?: ClaudeEffort;
         useChrome?: boolean;
@@ -909,6 +910,9 @@ export function createAgentActions(
           }
           if (updates.grokModel !== undefined) {
             (updatedAgent as any).grokModel = updates.grokModel;
+          }
+          if (updates.piModel !== undefined) {
+            updatedAgent.piModel = updates.piModel;
           }
           if (updates.useChrome !== undefined) {
             updatedAgent.useChrome = updates.useChrome;

@@ -241,7 +241,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (permissionMode !== agent.permissionMode) return true;
     if (selectedProvider !== (agent.provider || 'claude')) return true;
     if (selectedProvider === 'claude' && selectedModel !== (agent.model || 'sonnet')) return true;
-    if ((selectedProvider === 'claude' || selectedProvider === 'grok') && selectedEffort !== (agent.effort || undefined)) return true;
+    if ((selectedProvider === 'claude' || selectedProvider === 'grok' || selectedProvider === 'pi') && selectedEffort !== (agent.effort || undefined)) return true;
     if (selectedProvider === 'codex' && selectedCodexModel !== getSelectableCodexModel(agent.codexModel)) return true;
     if (selectedProvider === 'codex' && JSON.stringify(codexConfig || {}) !== JSON.stringify(agent.codexConfig || {})) return true;
     if (selectedProvider === 'opencode' && opencodeModel !== ((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k')) return true;
@@ -334,7 +334,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       updates.model = selectedModel;
     }
 
-    if ((selectedProvider === 'claude' || selectedProvider === 'grok') && selectedEffort !== (agent.effort || undefined)) {
+    if ((selectedProvider === 'claude' || selectedProvider === 'grok' || selectedProvider === 'pi') && selectedEffort !== (agent.effort || undefined)) {
       updates.effort = selectedEffort;
     }
 
@@ -676,11 +676,16 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     ))}
                   </div>
                 ) : selectedProvider === 'pi' ? (
-                  <PiModelSelect
-                    value={piModel}
-                    onChange={setPiModel}
-                    inputId="edit-pi-model"
-                  />
+                  <>
+                    <PiModelSelect
+                      value={piModel}
+                      onChange={setPiModel}
+                      inputId="edit-pi-model"
+                    />
+                    <div className="spawn-inline-hint">
+                      Change between Anthropic, OpenAI Codex, or any Pi provider without clearing this conversation.
+                    </div>
+                  </>
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.codex.configuration')}</div>
                 )}
