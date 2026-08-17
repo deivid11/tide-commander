@@ -6,9 +6,10 @@
 import type {} from '../../../shared/types';
 import type React from 'react';
 import type { IconName } from '../Icon';
+import type { SpotlightFileDetail } from './SpotlightFileDetailModal';
 
 // Search result types
-export type SearchResultType = 'agent' | 'command' | 'area' | 'modified-file' | 'building' | 'folder' | 'file' | 'session';
+export type SearchResultType = 'agent' | 'command' | 'area' | 'modified-file' | 'building' | 'folder' | 'file' | 'file-content' | 'session';
 
 /** Prefill for the Session Finder when a session hit has no live agent. */
 export interface SessionFinderPrefill {
@@ -18,9 +19,9 @@ export interface SessionFinderPrefill {
 
 // Result-grouping tabs shown at the top of the palette. Order defines the
 // forward Tab-cycle order (All -> Agents -> Buildings -> Areas -> Folders -> Files -> Commands -> All).
-export type SpotlightTab = 'all' | 'agents' | 'buildings' | 'areas' | 'folders' | 'files' | 'commands';
+export type SpotlightTab = 'all' | 'agents' | 'buildings' | 'areas' | 'folders' | 'files' | 'contents' | 'commands';
 
-export const SPOTLIGHT_TABS: readonly SpotlightTab[] = ['all', 'agents', 'buildings', 'areas', 'folders', 'files', 'commands'];
+export const SPOTLIGHT_TABS: readonly SpotlightTab[] = ['all', 'agents', 'buildings', 'areas', 'folders', 'files', 'contents', 'commands'];
 
 // One area section rendered in the "Areas" tab: the area plus the agents that
 // belong to it, ordered exactly the way the Agent Overview panel orders them.
@@ -48,7 +49,9 @@ export interface SearchResult {
   _searchText?: string;
   _modifiedFiles?: string[];
   _userQueries?: string[];
-  _agentId?: string; // Raw agent id (agent results only) — used for recency/MRU ranking
+  _agentId?: string; // Raw agent id (agent + session results) — recency/MRU ranking; on sessions, the live agent holding the conversation (promotes the hit to an agent row)
+  _sessionMatches?: number; // Full-text hit count of the matched conversation (session + promoted agent rows) — relevance weight in the agent ordering
+  _provider?: string; // Harness kind ('claude' | 'codex' | 'grok' | 'opencode' | 'pi') — rendered as a logo badge on agent and session rows
   _lastActivity?: number; // Raw agent lastActivity epoch ms (agent results only) — recency sort key
   _taskLabel?: string; // Brief task label (agent results only) — rendered as a chip in the header
   _status?: string; // Raw agent status (agent results only) — rendered as a colored chip
@@ -58,6 +61,7 @@ export interface SearchResult {
   _projectName?: string; // File results — area-directory basename (the project)
   _areaName?: string; // Area that owns the project (file results) or holds the agent (agent results — searchable + shown as a badge)
   _areaColor?: string; // Agent results — colour of the area badge (the area's own colour)
+  _lineNumber?: number; // File-content results — first matching line
 }
 
 // Props for the main Spotlight component
@@ -89,6 +93,7 @@ export interface UseSpotlightSearchOptions {
   onOpenDatabasePanel: (buildingId: string) => void;
   onOpenMonitoringModal?: () => void;
   onOpenSessionFinder?: (data: SessionFinderPrefill) => void;
+  onOpenFileDetail: (detail: SpotlightFileDetail) => void;
 }
 
 // Return type for useSpotlightSearch hook
@@ -103,6 +108,7 @@ export interface SpotlightSearchState {
 
   // Results (already filtered to the active tab)
   results: SearchResult[];
+  loadingTypes: SearchResultType[];
 
   // Tab state
   activeTab: SpotlightTab;

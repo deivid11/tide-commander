@@ -4,7 +4,7 @@
  * with query-refinement pruning.
  */
 
-import { describe, it, expect, afterAll } from 'vitest';
+import { describe, it, expect, afterAll, vi } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -14,6 +14,10 @@ import {
   planTokenFileSearch,
   parseRgCounts,
   parseRgSampleLines,
+  sessionSearchScore,
+  rankSessionMatches,
+  foldAccents,
+  accentFoldPattern,
   type SearchFileCacheEntry,
 } from './session-loader.js';
 
@@ -341,5 +345,107 @@ describe('planTokenFileSearch (multi-word AND queries)', () => {
   it('returns null without cached entries', () => {
     expect(planTokenFileSearch(undefined, 'jira krunner', 1000, 500)).toBeNull();
     expect(planTokenFileSearch([], 'jira krunner', 1000, 500)).toBeNull();
+  });
+});
+
+describe('accent-insensitive matching', () => {
+  it('foldAccents collapses accented vowels and ñ, preserving length', () => {
+    expect(foldAccents('conciliación automática')).toBe('conciliacion automatica');
+    expect(foldAccents('Ñoño ÁÉÍÓÚ ü')).toBe('nono aeiou u');
+    expect(foldAccents('conciliación').length).toBe('conciliación'.length);
+  });
+
+  it('accentFoldPattern matches both spellings regardless of which one was typed', () => {
+    for (const literal of ['conciliación', 'conciliacion']) {
+      const re = new RegExp(accentFoldPattern(literal), 'i');
+      expect(re.test('la CONCILIACIÓN de PASE')).toBe(true);
+      expect(re.test('la conciliacion de PASE')).toBe(true);
+      expect(re.test('reconciliar')).toBe(false);
+    }
+  });
+
+  it('scanner finds accented content with an unaccented query (and vice versa)', async () => {
+    const file = writeTmpJsonl([
+      userLine('Revisar la conciliación automática de PASE'),
+      userLine('nada relacionado'),
+    ]);
+
+    const unaccented = await scanSessionFileForQuery(file, 'conciliacion');
+    expect(unaccented.totalMatches).toBe(1);
+    expect(unaccented.snippet).toContain('conciliación');
+
+    const accented = await scanSessionFileForQuery(file, 'automática');
+    expect(accented.totalMatches).toBe(1);
+  });
+
+  it('planFileSearch answers a folded refinement from accented retained lines', () => {
+    const cached: SearchFileCacheEntry = {
+      mtimeMs: 1000,
+      sizeBytes: 500,
+      query: 'concilia',
+      totalMatches: 1,
+      snippet: 'la conciliación automática',
+      matchingLines: [JSON.stringify({ type: 'user', message: { content: 'la conciliación automática' } })],
+    };
+
+    const plan = planFileSearch([cached], 'conciliacion', 1000, 500);
+    expect(plan.kind).toBe('reuse');
+    if (plan.kind === 'reuse') {
+      expect(plan.totalMatches).toBe(1);
+    }
+  });
+});
+
+describe('session search ranking (relevance × recency)', () => {
+  const DAY = 86_400_000;
+  const now = 1_700_000_000_000;
+  const match = (sessionId: string, totalMatches: number, ageDays: number) => ({
+    sessionId,
+    totalMatches,
+    lastModified: new Date(now - ageDays * DAY),
+  });
+  // Freeze "now" so rankSessionMatches scores against the fixtures' epoch.
+  const rank = (ms: ReturnType<typeof match>[]) => {
+    const spy = vi.spyOn(Date, 'now').mockReturnValue(now);
+    try {
+      return rankSessionMatches(ms).map((m) => m.sessionId);
+    } finally {
+      spy.mockRestore();
+    }
+  };
+
+  it('ranks a topical session above fresher one-hit sessions (the "conciliación pase" case)', () => {
+    expect(rank([
+      match('one-hit-today-a', 1, 0),
+      match('one-hit-today-b', 2, 0),
+      match('topical-2d-ago', 10, 2),
+    ])).toEqual(['topical-2d-ago', 'one-hit-today-b', 'one-hit-today-a']);
+  });
+
+  it('prefers the newer session at equal match counts (recency decay)', () => {
+    expect(rank([
+      match('older', 5, 10),
+      match('newer', 5, 1),
+    ])).toEqual(['newer', 'older']);
+  });
+
+  it('keeps a heavily-matching old session above a fresh incidental one (decay floor)', () => {
+    expect(rank([
+      match('one-hit-today', 1, 0),
+      match('topical-1y-ago', 50, 365),
+    ])).toEqual(['topical-1y-ago', 'one-hit-today']);
+  });
+
+  it('log-scales match counts so a huge session cannot bury moderately-topical fresh ones', () => {
+    // 300 hits from a month ago vs 12 hits from today: recency wins.
+    const huge = sessionSearchScore(300, new Date(now - 30 * DAY), now);
+    const fresh = sessionSearchScore(12, new Date(now), now);
+    expect(fresh).toBeGreaterThan(huge);
+  });
+
+  it('breaks exact score ties newest-first', () => {
+    const a = match('tie-old', 3, 5);
+    const b = { ...match('tie-new', 3, 5), lastModified: new Date(now - 5 * DAY + 1) };
+    expect(rank([a, b])).toEqual(['tie-new', 'tie-old']);
   });
 });

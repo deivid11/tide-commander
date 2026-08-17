@@ -1021,6 +1021,7 @@
       "areas": "Areas",
       "folders": "Folders",
       "files": "Files",
+      "contents": "Contents",
       "commands": "Commands"
     },
     "categories": {
@@ -1030,10 +1031,12 @@
       "areas": "Areas",
       "folders": "Folders & Repos",
       "files": "Files",
+      "fileContents": "File contents",
       "modifiedFiles": "Modified Files",
       "recentActivity": "Recent Activity",
       "sessions": "Past Conversations"
-    }
+    },
+    "searching": "Searching..."
   },
   "diffViewer": {
     "original": "Original",
@@ -1053,6 +1056,7 @@
     "openInFileExplorer": "Open in file explorer",
     "originalHead": "Original (HEAD)",
     "modifiedContent": "Modified Content",
+    "fileContent": "File Content",
     "modifiedWorking": "Modified (Working)"
   },
   "buildingAction": {

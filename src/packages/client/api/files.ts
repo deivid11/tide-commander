@@ -10,6 +10,10 @@ export interface GlobalFileSearchHit {
   areaName: string;
 }
 
+export interface GlobalFileContentSearchHit extends GlobalFileSearchHit {
+  matches: Array<{ line: number; content: string }>;
+}
+
 /** Filename search across every directory configured on areas. */
 export async function searchFilesGlobal(
   query: string,
@@ -22,6 +26,25 @@ export async function searchFilesGlobal(
   if (!response.ok) {
     const errBody = await response.json().catch(() => ({}));
     throw new Error(errBody.error || `Failed to search files: ${response.statusText}`);
+  }
+  const data = await response.json();
+  return Array.isArray(data.files) ? data.files : [];
+}
+
+/** Full-text search across every directory configured on areas. */
+export async function searchFileContentsGlobal(
+  query: string,
+  options?: { exclude?: string[]; limit?: number; signal?: AbortSignal }
+): Promise<GlobalFileContentSearchHit[]> {
+  const params = new URLSearchParams({ q: query });
+  if (options?.limit != null) params.set('limit', String(options.limit));
+  if (options?.exclude) params.set('exclude', options.exclude.join(','));
+  const response = await authFetch(apiUrl(`/api/files/search-content-global?${params.toString()}`), {
+    signal: options?.signal,
+  });
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
+    throw new Error(errBody.error || `Failed to search file contents: ${response.statusText}`);
   }
   const data = await response.json();
   return Array.isArray(data.files) ? data.files : [];

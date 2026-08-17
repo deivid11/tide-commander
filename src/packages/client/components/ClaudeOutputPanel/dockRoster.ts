@@ -26,7 +26,7 @@ export function isWorkingStatus(status: Agent['status']): boolean {
 
 /** Default size of the "recently active" lane — the user can override it via
  * Settings (see useAgentDockRecentSize in agentDockPosition.ts). */
-export const DOCK_RECENT_SIZE = 4;
+export const DOCK_RECENT_SIZE = 12;
 
 /** How long an agent keeps its working-lane slot after its last sign of work. */
 export const DOCK_WORKING_HOLD_MS = 4000;

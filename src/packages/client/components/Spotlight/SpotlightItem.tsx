@@ -7,6 +7,7 @@ import React, { memo } from 'react';
 import type { SearchResult } from './types';
 import { formatDuration, getTypeLabel } from './utils';
 import { getAgentStatusColor } from '../../utils/colors';
+import { providerAssetUrl, providerAgentTitle, providerLabel } from '../../utils/providerDisplay';
 import { Icon } from '../Icon';
 
 interface SpotlightItemProps {
@@ -16,6 +17,15 @@ interface SpotlightItemProps {
   highlightMatch: (text: string, searchQuery: string) => React.ReactNode;
   onClick: () => void;
   onMouseEnter: () => void;
+}
+
+// Idle-age emphasis for the time pill: fresh (minutes) → green, warm (<1h) →
+// yellow, stale (<1d) → orange, old (≥1d) → red.
+function idleAgeClass(ms: number): string {
+  if (ms < 10 * 60_000) return 'is-fresh';
+  if (ms < 3600_000) return 'is-warm';
+  if (ms < 86_400_000) return 'is-stale';
+  return 'is-old';
 }
 
 export const SpotlightItem = memo(function SpotlightItem({
@@ -51,6 +61,14 @@ export const SpotlightItem = memo(function SpotlightItem({
         {/* Main header: Title + Status chip + Type Badge */}
         <div className="spotlight-item-header">
           <span className="spotlight-item-title">{highlightMatch(result.title, query)}</span>
+          {result._provider && (
+            <img
+              className="spotlight-item-provider"
+              src={providerAssetUrl(result._provider, import.meta.env.BASE_URL)}
+              alt={providerLabel(result._provider)}
+              title={providerAgentTitle(result._provider)}
+            />
+          )}
           {result._status && statusColor && (
             <span
               className={`spotlight-item-agent-status${result._status === 'working' ? ' spotlight-item-agent-status--working' : ''}`}
@@ -85,7 +103,7 @@ export const SpotlightItem = memo(function SpotlightItem({
               {result._gitBranch || 'git'}
             </span>
           )}
-          {result.type === 'file' && result._projectName && (
+          {(result.type === 'file' || result.type === 'file-content') && result._projectName && (
             <span
               className="spotlight-item-project-badge"
               title={result._areaName && result._areaName !== result._projectName
@@ -151,10 +169,14 @@ export const SpotlightItem = memo(function SpotlightItem({
           </div>
         )}
 
-        {/* Time indicators */}
-        {result.timeAway !== undefined && (
+        {/* Time indicators — prominent idle-age pill. Hidden while working:
+            the pulsing status chip in the header already owns that state. */}
+        {result.timeAway !== undefined && result._status !== 'working' && (
           <span className="spotlight-item-time">
-            <span className="spotlight-time-away">Idle: {formatDuration(result.timeAway)}</span>
+            <span className={`spotlight-time-away ${idleAgeClass(result.timeAway)}`}>
+              <Icon name="hourglass" size={9} aria-hidden />
+              Idle: {formatDuration(result.timeAway)}
+            </span>
           </span>
         )}
 

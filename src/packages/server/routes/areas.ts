@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { loadAreas, ensureAreaLogosDir, getAreaLogosDir, deleteAreaLogo } from '../data/index.js';
 import { organizeArea, organizeAllAreas } from '../services/area-layout-service.js';
+import { startAreaTerminal, stopAreaTerminal } from '../services/area-terminal-service.js';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('Areas');
@@ -153,6 +154,31 @@ router.delete('/:areaId/logo', (_req: Request, res: Response) => {
     log.error(' Failed to delete logo:', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// POST /api/areas/:areaId/terminal - Start (or reuse) the area's zero-config
+// default terminal (ttyd + tmux, cwd'd to the area's folder). Returns the
+// proxy URL for <TerminalEmbed>.
+router.post('/:areaId/terminal', async (req: Request, res: Response) => {
+  try {
+    const result = await startAreaTerminal(String(req.params.areaId));
+    if (!result.success) {
+      const status = result.error === 'Area not found' ? 404 : 409;
+      res.status(status).json({ error: result.error });
+      return;
+    }
+    res.json({ url: result.url });
+  } catch (err: any) {
+    log.error(' Failed to start area terminal:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/areas/:areaId/terminal - Stop the area's ttyd viewer (the tmux
+// session keeps running, so the shell state survives).
+router.delete('/:areaId/terminal', (req: Request, res: Response) => {
+  stopAreaTerminal(String(req.params.areaId));
+  res.json({ ok: true });
 });
 
 // POST /api/areas/organize-all - Organize agents in all areas

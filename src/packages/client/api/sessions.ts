@@ -29,6 +29,9 @@ export interface GlobalSessionMatch {
   firstPrompt: string;
   /** Which CLI owns the session ('claude' | 'grok' | …). Absent on older servers. */
   provider?: string;
+  /** Agent that owns the conversation — resolved through CURRENT sessions and
+   * archived session history, so it survives the agent rotating sessions. */
+  agentId?: string;
 }
 
 export interface SessionPreviewMessage {

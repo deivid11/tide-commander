@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Fuse from 'fuse.js';
-import { store, useAgents, useAreas, useBuildings, useFileChanges, useToolExecutions, useAgentsWithUnseenOutput, useSettings } from '../../store';
+import { store, useAgents, useAreas, useBuildings, useToolExecutions, useAgentsWithUnseenOutput, useSettings } from '../../store';
 import { formatShortcut } from '../../store/shortcuts';
 import { makeAgentOverviewComparator, type AgentSortMode } from '../ClaudeOutputPanel/agentOverviewSort';
 import { STORAGE_KEYS, getStorage, setStorage, getStorageString, setStorageString } from '../../utils/storage';
@@ -20,12 +20,26 @@ import { tokenizeQuery, searchAllTokens, matchTierForQuery, escapeRegExp } from 
 import { Icon, type IconName } from '../Icon';
 import { AgentIcon } from '../AgentIcon';
 import { searchFolders, type FolderSearchResult } from '../../api/folders';
-import { searchFilesGlobal, type GlobalFileSearchHit } from '../../api/files';
+import {
+  searchFilesGlobal,
+  searchFileContentsGlobal,
+  type GlobalFileSearchHit,
+  type GlobalFileContentSearchHit,
+} from '../../api/files';
 import { searchGlobalSessions, type GlobalSessionMatch } from '../../api/sessions';
 import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS } from '../../../shared/file-search';
 
-// Category display order - must match SpotlightResults rendering
-const categoryOrder = ['command', 'agent', 'building', 'area', 'folder', 'file', 'modified-file', 'session'];
+// Fixed category display order for the All tab. Commands remain available in
+// their dedicated tab, but do not interrupt navigation/search results.
+const ALL_CATEGORY_ORDER: readonly SearchResult['type'][] = [
+  'agent',
+  'session',
+  'building',
+  'file',
+  'file-content',
+  'folder',
+  'area',
+];
 
 // Minimum query length before hitting the folder-search endpoint (matches the
 // server's MIN_QUERY — folders are never shown for the empty/recent view).
@@ -36,11 +50,18 @@ const FOLDER_MIN_QUERY = 2;
 const FILE_MIN_QUERY = 2;
 const FILE_RESULT_LIMIT = 50;
 const FILE_ALL_TAB_LIMIT = 10;
+const CONTENT_MIN_QUERY = 3;
+const CONTENT_RESULT_LIMIT = 30;
+const CONTENT_ALL_TAB_LIMIT = 8;
 
 // Minimum query length before full-text searching every session's JSONL. At 2
 // chars nearly every conversation matches — pure noise below the fold.
 const SESSION_MIN_QUERY = 3;
-const SESSION_RESULT_LIMIT = 6;
+// Fetch more than the collapsed view shows: the surplus feeds the agent
+// promotion (ownership through session history) and the "Show all" row.
+const SESSION_RESULT_LIMIT = 15;
+const SESSION_DISPLAY_LIMIT = 5;
+const AGENT_DISPLAY_LIMIT = 5;
 
 // Load the persisted tab, falling back to 'all' for unknown/legacy values.
 function loadPersistedTab(): SpotlightTab {
@@ -75,13 +96,13 @@ export function useSpotlightSearch({
   onOpenDatabasePanel,
   onOpenMonitoringModal,
   onOpenSessionFinder,
+  onOpenFileDetail,
 }: UseSpotlightSearchOptions): SpotlightSearchState {
   // Granular selectors — only re-render when the specific slice changes
   const agents = useAgents();
   const areas = useAreas();
   const buildings = useBuildings();
   const settings = useSettings();
-  const fileChanges = useFileChanges();
   // Used to order agents in the "Areas" tab exactly like the Agent Overview panel.
   const toolExecutions = useToolExecutions();
   const agentsWithUnseenOutput = useAgentsWithUnseenOutput();
@@ -109,6 +130,8 @@ export function useSpotlightSearch({
   onOpenMonitoringModalRef.current = onOpenMonitoringModal;
   const onOpenSessionFinderRef = useRef(onOpenSessionFinder);
   onOpenSessionFinderRef.current = onOpenSessionFinder;
+  const onOpenFileDetailRef = useRef(onOpenFileDetail);
+  onOpenFileDetailRef.current = onOpenFileDetail;
 
   const [query, setQueryState] = useState<string>(loadPersistedQuery);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -118,10 +141,24 @@ export function useSpotlightSearch({
   const [folderData, setFolderData] = useState<FolderSearchResult[]>([]);
   // Filename hits across every area directory (debounced, query-gated).
   const [fileData, setFileData] = useState<GlobalFileSearchHit[]>([]);
+  const [contentData, setContentData] = useState<GlobalFileContentSearchHit[]>([]);
+  const [isFolderLoading, setIsFolderLoading] = useState(false);
+  const [isFileLoading, setIsFileLoading] = useState(false);
+  const [isContentLoading, setIsContentLoading] = useState(false);
+  const [isSessionLoading, setIsSessionLoading] = useState(false);
   // Session full-text hits (debounced, query-gated). The query they were
   // fetched FOR rides along so click actions can prefill the Session Finder
   // with exactly what produced the hit.
   const [sessionData, setSessionData] = useState<{ query: string; rows: GlobalSessionMatch[] }>({ query: '', rows: [] });
+  // Agents / conversations display caps — collapsed to a few rows with a
+  // "Show all" row when more matched; expansion is per-query (reset on typing
+  // and on reopen).
+  const [showAllAgents, setShowAllAgents] = useState(false);
+  const [showAllSessions, setShowAllSessions] = useState(false);
+  useEffect(() => {
+    setShowAllAgents(false);
+    setShowAllSessions(false);
+  }, [query, isOpen]);
 
   // Persisting query setter so the last search is remembered across opens.
   const setQuery = useCallback((value: string) => {
@@ -144,13 +181,17 @@ export function useSpotlightSearch({
   useEffect(() => {
     if (!isOpen) {
       setFolderData([]);
+      setIsFolderLoading(false);
       return;
     }
     const q = query.trim();
     if (q.length < FOLDER_MIN_QUERY) {
       setFolderData([]);
+      setIsFolderLoading(false);
       return;
     }
+    setFolderData([]);
+    setIsFolderLoading(true);
     let cancelled = false;
     const handle = setTimeout(() => {
       searchFolders(q)
@@ -159,6 +200,9 @@ export function useSpotlightSearch({
         })
         .catch(() => {
           if (!cancelled) setFolderData([]);
+        })
+        .finally(() => {
+          if (!cancelled) setIsFolderLoading(false);
         });
     }, 250);
     return () => {
@@ -172,13 +216,17 @@ export function useSpotlightSearch({
   useEffect(() => {
     if (!isOpen) {
       setFileData([]);
+      setIsFileLoading(false);
       return;
     }
     const q = query.trim();
     if (q.length < FILE_MIN_QUERY) {
       setFileData([]);
+      setIsFileLoading(false);
       return;
     }
+    setFileData([]);
+    setIsFileLoading(true);
     let cancelled = false;
     const handle = setTimeout(() => {
       searchFilesGlobal(q, {
@@ -190,6 +238,9 @@ export function useSpotlightSearch({
         })
         .catch(() => {
           if (!cancelled) setFileData([]);
+        })
+        .finally(() => {
+          if (!cancelled) setIsFileLoading(false);
         });
     }, 250);
     return () => {
@@ -198,18 +249,61 @@ export function useSpotlightSearch({
     };
   }, [isOpen, query, excludeDirsKey, settings.fileSearchExcludeDirs]);
 
+  // Debounced full-text search across every area project. Kept separate from
+  // filename hits so both blocks can stream their own loading/result state.
+  useEffect(() => {
+    if (!isOpen) {
+      setContentData([]);
+      setIsContentLoading(false);
+      return;
+    }
+    const q = query.trim();
+    if (q.length < CONTENT_MIN_QUERY) {
+      setContentData([]);
+      setIsContentLoading(false);
+      return;
+    }
+    setContentData([]);
+    setIsContentLoading(true);
+    const controller = new AbortController();
+    const handle = setTimeout(() => {
+      searchFileContentsGlobal(q, {
+        exclude: settings.fileSearchExcludeDirs ?? [...DEFAULT_FILE_SEARCH_EXCLUDE_DIRS],
+        limit: CONTENT_RESULT_LIMIT,
+        signal: controller.signal,
+      })
+        .then((files) => {
+          if (!controller.signal.aborted) setContentData(files);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setContentData([]);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setIsContentLoading(false);
+        });
+    }, 300);
+    return () => {
+      clearTimeout(handle);
+      controller.abort();
+    };
+  }, [isOpen, query, excludeDirsKey, settings.fileSearchExcludeDirs]);
+
   // Debounced full-text session search (the rg-engined /api/sessions/search —
   // fast enough for per-keystroke use; the server cancels superseded scans).
   useEffect(() => {
     if (!isOpen) {
       setSessionData({ query: '', rows: [] });
+      setIsSessionLoading(false);
       return;
     }
     const q = query.trim();
     if (q.length < SESSION_MIN_QUERY) {
       setSessionData({ query: '', rows: [] });
+      setIsSessionLoading(false);
       return;
     }
+    setSessionData({ query: '', rows: [] });
+    setIsSessionLoading(true);
     let cancelled = false;
     const handle = setTimeout(() => {
       searchGlobalSessions(q, { limit: SESSION_RESULT_LIMIT })
@@ -218,6 +312,9 @@ export function useSpotlightSearch({
         })
         .catch(() => {
           if (!cancelled) setSessionData({ query: '', rows: [] });
+        })
+        .finally(() => {
+          if (!cancelled) setIsSessionLoading(false);
         });
     }, 250);
     return () => {
@@ -331,17 +428,11 @@ export function useSpotlightSearch({
     return map;
   }, [isOpen, agents, areas]);
 
-  // Build agent results with modified files and user queries included in searchable text
+  // Build agent results with user queries included in searchable text.
   const agentResults: SearchResult[] = useMemo(() => {
     if (!isOpen) return [];
 
     return Array.from(agents.values()).map((agent: Agent) => {
-      // Get modified files for this agent
-      const agentFiles = (fileChanges || []).filter((fc) => fc.agentId === agent.id).map((fc) => fc.filePath);
-      // Get unique file names for search
-      const uniqueFiles = [...new Set(agentFiles)];
-      const fileNames = uniqueFiles.map((fp) => fp.split('/').pop() || fp);
-
       // Get user queries (lastAssignedTask)
       const userQueries: string[] = [];
       if (agent.lastAssignedTask) {
@@ -359,18 +450,13 @@ export function useSpotlightSearch({
       const agentArea = areaByAgentId.get(agent.id);
       const areaName = agentArea?.name || '';
 
-      // Build searchable text including status, task label, area, file names and user queries
+      // Build searchable text including status, task label, area and user queries.
       let searchableText = `${agent.name} ${agent.class} ${agent.status} ${agent.cwd}`;
       if (agent.taskLabel) {
         searchableText += ` ${agent.taskLabel}`;
       }
       if (areaName) {
         searchableText += ` ${areaName}`;
-      }
-
-      // Add file names to searchable text
-      if (fileNames.length > 0) {
-        searchableText += ` ${fileNames.join(' ')} ${uniqueFiles.join(' ')}`;
       }
 
       // Add user queries to searchable text
@@ -401,12 +487,12 @@ export function useSpotlightSearch({
         timeAway,
         icon: <AgentIcon agent={agent} size={20} />,
         _searchText: searchableText,
-        _modifiedFiles: uniqueFiles,
         _userQueries: userQueries,
         _agentId: agent.id,
         _lastActivity: agent.lastActivity,
         _taskLabel: agent.taskLabel,
         _status: agent.status,
+        _provider: agent.provider ?? 'claude',
         _areaName: areaName || undefined,
         _areaColor: agentArea?.color,
         action: () => {
@@ -420,7 +506,7 @@ export function useSpotlightSearch({
         },
       };
     });
-  }, [isOpen, agents, fileChanges, areaByAgentId]);
+  }, [isOpen, agents, areaByAgentId]);
 
   // Build area results
   const areaResults: SearchResult[] = useMemo(() => {
@@ -594,61 +680,6 @@ export function useSpotlightSearch({
       });
   }, [isOpen, buildings]);
 
-  // Build modified files results from file changes
-  const modifiedFileResults: SearchResult[] = useMemo(() => {
-    if (!isOpen) return [];
-
-    const fc = fileChanges || [];
-    const seenPaths = new Set<string>();
-    const results: SearchResult[] = [];
-
-    // Get unique file paths with their most recent change
-    for (const change of fc) {
-      if (seenPaths.has(change.filePath)) continue;
-      seenPaths.add(change.filePath);
-
-      const fileName = change.filePath.split('/').pop() || change.filePath;
-      const actionLabel =
-        change.action === 'created'
-          ? 'Created'
-          : change.action === 'modified'
-            ? 'Modified'
-            : change.action === 'deleted'
-              ? 'Deleted'
-              : 'Read';
-
-      results.push({
-        id: `modified-${change.filePath}-${change.timestamp}`,
-        type: 'modified-file',
-        title: fileName,
-        subtitle: `${actionLabel} by ${change.agentName} • ${change.filePath}`,
-        matchedText: change.filePath,
-        icon: change.action === 'deleted' ? <Icon name="trash" size={16} /> : getFileIconFromPath(change.filePath),
-        action: () => {
-          onCloseRef.current();
-          // Try to find an area that contains this file (read live from store)
-          const currentAreas = Array.from(store.getState().areas.values());
-          for (const area of currentAreas) {
-            for (const dir of area.directories || []) {
-              if (change.filePath.startsWith(dir)) {
-                store.setFileViewerPath(change.filePath);
-                onOpenFileExplorerRef.current(area.id);
-                return;
-              }
-            }
-          }
-          // If no area found, just select the agent
-          store.selectAgent(change.agentId);
-        },
-      });
-
-      // Limit to 50 unique files
-      if (results.length >= 50) break;
-    }
-
-    return results;
-  }, [isOpen, fileChanges]);
-
   // Build folder/git-repo results from the debounced server fetch. The list is
   // already query-filtered + ranked server-side, so it needs no Fuse instance.
   const folderResults: SearchResult[] = useMemo(() => {
@@ -699,18 +730,50 @@ export function useSpotlightSearch({
         _areaName: file.areaName,
         action: () => {
           onCloseRef.current();
-          const liveArea = store.getState().areas.get(file.areaId);
-          const rawDir = (liveArea?.directories || []).find((d) =>
-            d.replace(/\\/g, '/').replace(/\/+$/, '') === file.projectRoot.replace(/\/+$/, '')
-          ) || file.projectRoot;
-          store.revealFileInExplorer(file.path, rawDir);
+          onOpenFileDetailRef.current({
+            filePath: file.path,
+            projectRoot: file.projectRoot,
+            searchQuery: query.trim(),
+          });
         },
       };
     });
-  }, [isOpen, fileData]);
+  }, [isOpen, fileData, query]);
+
+  const contentResults: SearchResult[] = useMemo(() => {
+    if (!isOpen) return [];
+    return contentData.map((file) => {
+      const firstMatch = file.matches[0];
+      const projectLabel = file.areaName && file.areaName !== file.projectName
+        ? `${file.projectName} · ${file.areaName}`
+        : file.projectName;
+      return {
+        id: `file-content-${file.path}`,
+        type: 'file-content' as const,
+        title: file.name,
+        subtitle: `${file.relativePath}${firstMatch?.line ? `:${firstMatch.line}` : ''}`,
+        matchedQuery: firstMatch?.content,
+        matchedText: `${file.path} ${projectLabel}`,
+        icon: getFileIconFromPath(file.path),
+        _projectName: file.projectName,
+        _areaName: file.areaName,
+        _lineNumber: firstMatch?.line,
+        action: () => {
+          onCloseRef.current();
+          onOpenFileDetailRef.current({
+            filePath: file.path,
+            projectRoot: file.projectRoot,
+            targetLine: firstMatch?.line,
+            searchQuery: query.trim(),
+          });
+        },
+      };
+    });
+  }, [isOpen, contentData, query]);
 
   // Build session results from the debounced full-text search (rg-engined
-  // server side, already ranked newest-first). Clicking jumps straight to the
+  // server side, relevance-ranked: match count × recency decay). Clicking
+  // jumps straight to the
   // agent that currently HOLDS the conversation, or opens the Session Finder
   // prefilled to restore it. The agent is resolved again at CLICK time —
   // sessions can attach/detach while the palette is open.
@@ -727,9 +790,13 @@ export function useSpotlightSearch({
 
     return sessionData.rows.map((row) => {
       const attachedNow = Array.from(agents.values()).find((a) => a.sessionId === row.sessionId);
+      // Ownership through archived session HISTORY too (server-resolved): an
+      // agent that rotated to a new session still owns its old conversations,
+      // so the hit can surface as that agent instead of an anonymous archive.
+      const ownerAgent = attachedNow ?? (row.agentId ? agents.get(row.agentId) : undefined);
       const title = (row.firstPrompt || row.snippet || row.sessionId).slice(0, 90);
       const parts = [row.projectPath || row.projectDir];
-      if (attachedNow) parts.push(`→ ${attachedNow.name}`);
+      if (ownerAgent) parts.push(`→ ${ownerAgent.name}${attachedNow ? '' : ' (past session)'}`);
       const when = timeAgo(row.lastModified);
       if (when) parts.push(when);
       parts.push(`${row.totalMatches}×`);
@@ -739,8 +806,15 @@ export function useSpotlightSearch({
         title,
         subtitle: parts.join(' • '),
         matchedQuery: row.snippet || undefined,
-        icon: attachedNow
-          ? <AgentIcon agent={attachedNow} size={20} />
+        // Set when an agent owns this conversation (current OR archived) —
+        // allResults uses it to surface the hit as an AGENT row instead of an
+        // archive row.
+        _agentId: ownerAgent?.id,
+        _sessionMatches: row.totalMatches,
+        // The conversation's harness — shown as a logo badge on the row.
+        _provider: row.provider || 'claude',
+        icon: ownerAgent
+          ? <AgentIcon agent={ownerAgent} size={20} />
           : <Icon name="history" size={16} />,
         action: () => {
           onCloseRef.current();
@@ -800,18 +874,6 @@ export function useSpotlightSearch({
     [areaResults]
   );
 
-  const modifiedFileFuse = useMemo(
-    () =>
-      new Fuse(modifiedFileResults, {
-        keys: ['title', 'subtitle', 'matchedText'],
-        threshold: 0.4,
-        ignoreLocation: true,
-        includeScore: true,
-        includeMatches: true,
-      }),
-    [modifiedFileResults]
-  );
-
   const buildingFuse = useMemo(
     () =>
       new Fuse(buildingResults, {
@@ -827,10 +889,11 @@ export function useSpotlightSearch({
   // Compute the full (All-tab) search results
   const allResults = useMemo(() => {
     if (!query.trim()) {
-      // Show recent/suggested items when no query - prioritize buildings, then agents
+      // Show recent/suggested items in the same fixed order as query results.
       const suggested: SearchResult[] = [];
 
-      // Show buildings first (servers/bosses) - most likely what user wants to access quickly
+      // Collection order does not matter here; the fixed category sort below
+      // determines the rendered order.
       suggested.push(...buildingResults);
 
       // Show all agents most-recently-used first. Recency = the later of the
@@ -844,15 +907,13 @@ export function useSpotlightSearch({
       });
       suggested.push(...sortedAgents);
 
-      // Show first few commands
-      suggested.push(...commands.slice(0, 2));
-
       // Show first few areas
       suggested.push(...areaResults.slice(0, 2));
 
-      // Sort by categoryOrder so the flat array index matches the visual render order.
+      // Sort by the fixed All-tab category order so keyboard navigation matches
+      // the visual grouping.
       const categoryIndex: Record<string, number> = {};
-      categoryOrder.forEach((cat, i) => { categoryIndex[cat] = i; });
+      ALL_CATEGORY_ORDER.forEach((cat, i) => { categoryIndex[cat] = i; });
       suggested.sort((a, b) => (categoryIndex[a.type] ?? 999) - (categoryIndex[b.type] ?? 999));
 
       return suggested;
@@ -867,10 +928,13 @@ export function useSpotlightSearch({
 
     // Search each category (retrieval — per-category limits and the building
     // fuzzy-noise filter are preserved; ranking happens afterwards).
-    const matchedAgents = searchAllTokens(agentFuse, query).slice(0, 8);
-    const matchedCommands = searchAllTokens(commandFuse, query).slice(0, 3);
+    //
+    // Agents keep their fuzzy matches (typo tolerance) — the tier ranking
+    // sends fuzzy-only hits to the BOTTOM of the agents block (an AND-fuzzy
+    // pair over a long task text matches almost anything), and the display
+    // cap + "Show all" row below keeps them out of sight unless expanded.
+    const matchedAgents = searchAllTokens(agentFuse, query).slice(0, 30);
     const matchedAreas = searchAllTokens(areaFuse, query).slice(0, 2);
-    const matchedModifiedFiles = searchAllTokens(modifiedFileFuse, query).slice(0, 3);
     // Folders are already query-filtered + ranked server-side (no Fuse needed).
     const matchedFolders = folderResults.slice(0, 8);
     const matchedFiles = fileResults.slice(0, FILE_ALL_TAB_LIMIT);
@@ -897,6 +961,7 @@ export function useSpotlightSearch({
       building: 5,
       folder: 4,
       file: 4,
+      'file-content': 4,
       command: 3,
       area: 2,
       'modified-file': 1,
@@ -935,20 +1000,19 @@ export function useSpotlightSearch({
       else scoredByCategory.set(item.type, [entry]);
     };
 
+    // Full-text session hits whose conversation is currently HELD by a live
+    // agent surface the AGENT itself ("find the agent that talked about X"),
+    // not an archive row: they enrich an already-matched agent, or add the
+    // agent to this category below, and are dropped from the trailing
+    // Past Conversations block. First hit per agent wins (best-ranked).
+    const sessionHitByAgentId = new Map<string, SearchResult>();
+    for (const s of sessionResults) {
+      if (s._agentId && !sessionHitByAgentId.has(s._agentId)) sessionHitByAgentId.set(s._agentId, s);
+    }
+
     // Agents - check for matching files and user queries (enrichment preserved)
     for (const r of matchedAgents) {
       const item = { ...r.item };
-      // Find files that match the query (any word — enrichment display only)
-      if (item._modifiedFiles && item._modifiedFiles.length > 0) {
-        const matchingFiles = item._modifiedFiles.filter((fp) => {
-          const fileName = fp.split('/').pop()?.toLowerCase() || '';
-          const fullPath = fp.toLowerCase();
-          return queryTokens.some((t) => fileName.includes(t) || fullPath.includes(t));
-        });
-        if (matchingFiles.length > 0) {
-          item.matchedFiles = matchingFiles;
-        }
-      }
       // Find user queries that match the search (any word)
       if (item._userQueries && item._userQueries.length > 0) {
         const matchingQuery = item._userQueries.find((q) =>
@@ -976,31 +1040,73 @@ export function useSpotlightSearch({
           }
         }
       }
+      // A conversation hit upgrades the row: show the snippet (unless a task
+      // match already claimed the slot) and land INSIDE the conversation at
+      // the match on click instead of merely selecting the agent.
+      const sessionHit = item._agentId ? sessionHitByAgentId.get(item._agentId) : undefined;
+      if (sessionHit) {
+        if (!item.matchedQuery) item.matchedQuery = sessionHit.matchedQuery;
+        item.action = sessionHit.action;
+        item._sessionMatches = sessionHit._sessionMatches;
+        // The conversation verifiably contains every query word (the server
+        // counted real occurrences) — reflect that in the tiered text so the
+        // content match ranks as a substring hit (tier ≥ 2), above
+        // fuzzy-only leftovers, instead of the fuzzy floor.
+        item._searchText = `${item._searchText || ''} ${sessionHit.matchedQuery || ''} ${lowerQuery}`;
+      }
       pushScored(item, r.score);
     }
 
+    // Agents whose CONVERSATION matched but whose name/fields didn't: add them
+    // to the agent category. They tier as content matches, so they rank below
+    // direct name/field matches but inside the agents block — which is where
+    // the user looks for them.
+    for (const [agentId, sessionHit] of sessionHitByAgentId) {
+      if (matchedAgents.some((r) => r.item._agentId === agentId)) continue;
+      const base = agentResultById.get(agentId);
+      if (!base) continue;
+      pushScored({
+        ...base,
+        matchedQuery: sessionHit.matchedQuery,
+        action: sessionHit.action,
+        _sessionMatches: sessionHit._sessionMatches,
+        // See the enrichment above: verified content match → substring tier.
+        _searchText: `${base._searchText || ''} ${sessionHit.matchedQuery || ''} ${lowerQuery}`,
+      }, undefined);
+    }
+
     for (const r of matchedBuildings) pushScored(r.item, r.score);
-    for (const r of matchedCommands) pushScored(r.item, r.score);
     for (const r of matchedAreas) pushScored(r.item, r.score);
-    for (const r of matchedModifiedFiles) pushScored(r.item, r.score);
     for (const item of matchedFolders) pushScored(item, undefined);
     for (const item of matchedFiles) pushScored(item, undefined);
+    for (const item of contentResults.slice(0, CONTENT_ALL_TAB_LIMIT)) pushScored(item, undefined);
 
-    // Sort WITHIN each category. For AGENTS the user wants matching agents to
-    // surface most-recently-USED first: relevance TIER stays the primary key
-    // (an exact/prefix match still ranks above a weaker fuzzy match), but WITHIN
-    // the same tier we order by recency (the later of last activity and last
-    // Spotlight pick, newest first). Fuse score is only the final tiebreaker.
+    // Sort WITHIN each category. For AGENTS: relevance TIER stays the primary
+    // key (an exact/prefix name match still ranks above everything weaker);
+    // WITHIN a tier, blend HOW MUCH the agent matches with HOW RECENTLY it was
+    // used — verified conversation hits (log-scaled, so 300 hits don't drown
+    // the list) plus an activity-recency decay (24h half-life; the later of
+    // last activity and last Spotlight pick). Agents without content hits keep
+    // pure most-recent-first order (the decay is monotonic in recency), while
+    // a topical conversation lifts a two-day-idle agent above a just-touched
+    // one with a single incidental mention. Fuse score is the final tiebreak.
     // Non-agent categories keep the plain combined-score ordering.
+    const AGENT_RECENCY_HALF_LIFE_MS = 24 * 3600_000;
+    const nowMs = Date.now();
+    const agentBlend = (s: Scored): number => {
+      const rec = agentRecency(s.item._agentId, s.item._lastActivity, recentAgentTimes);
+      const decay = Math.exp((-Math.LN2 * Math.max(0, nowMs - rec)) / AGENT_RECENCY_HALF_LIFE_MS);
+      return Math.log2(1 + (s.item._sessionMatches ?? 0)) + 4 * decay;
+    };
     for (const [type, arr] of scoredByCategory) {
       if (type === 'agent') {
         arr.sort((a, b) => {
           const tierA = matchTier(a.item);
           const tierB = matchTier(b.item);
           if (tierB !== tierA) return tierB - tierA;
-          const recA = agentRecency(a.item._agentId, a.item._lastActivity, recentAgentTimes);
-          const recB = agentRecency(b.item._agentId, b.item._lastActivity, recentAgentTimes);
-          if (recB !== recA) return recB - recA;
+          const blendA = agentBlend(a);
+          const blendB = agentBlend(b);
+          if (blendB !== blendA) return blendB - blendA;
           return b.score - a.score;
         });
       } else {
@@ -1008,46 +1114,51 @@ export function useSpotlightSearch({
       }
     }
 
-    // Order the category BLOCKS. Agents are PINNED to the top and file hits to
-    // the bottom no matter how strong their match is: Spotlight is first and
-    // foremost the way to reach an agent, while a filename that happens to
-    // contain the query is the weakest reason to interrupt that list. The
-    // categories in between still order by their strongest member's score, so
-    // the one holding the best match leads the middle. Each category stays
-    // contiguous, so SpotlightResults still shows exactly one header per
-    // category and the flat index matches the visual render order (needed for
-    // keyboard nav).
-    const BLOCK_RANK: Record<SearchResult['type'], number> = {
-      agent: 0,            // always first
-      building: 1,         // ── score-ordered middle ──
-      folder: 1,
-      command: 1,
-      area: 1,
-      'modified-file': 2,  // ── file-ish blocks, always last ──
-      file: 3,
-      session: 4,          // appended separately below; listed for exhaustiveness
-    };
-    // Use the category's MAX score (not arr[0]) so the recency-based reordering
-    // of agents above cannot change which category block ranks first.
-    const blockScore = (arr: Scored[]): number => arr.reduce((max, s) => Math.max(max, s.score), -1);
+    // Assemble contiguous blocks in the product-defined order. Match quality
+    // only ranks results within a category; it never moves whole categories.
     const finalResults: SearchResult[] = [];
-    Array.from(scoredByCategory.entries())
-      .sort(([typeA, a], [typeB, b]) => {
-        const rankA = BLOCK_RANK[typeA] ?? 1;
-        const rankB = BLOCK_RANK[typeB] ?? 1;
-        if (rankA !== rankB) return rankA - rankB;
-        return blockScore(b) - blockScore(a);
-      })
-      .forEach(([, arr]) => {
-        for (const s of arr) finalResults.push(s.item);
-      });
-
-    // Session hits trail the list as their own contiguous block: an archive
-    // lookup is useful but never more urgent than a live agent/building match.
-    for (const item of sessionResults) finalResults.push(item);
+    for (const type of ALL_CATEGORY_ORDER) {
+      if (type === 'session') {
+        if (!showAllSessions && sessionResults.length > SESSION_DISPLAY_LIMIT) {
+          finalResults.push(...sessionResults.slice(0, SESSION_DISPLAY_LIMIT));
+          finalResults.push({
+            id: 'session-show-all',
+            type: 'session',
+            title: `Show all conversations (${sessionResults.length})`,
+            subtitle: `${sessionResults.length - SESSION_DISPLAY_LIMIT} more matches`,
+            icon: <Icon name="arrow-down" size={16} />,
+            action: () => setShowAllSessions(true),
+          });
+        } else {
+          finalResults.push(...sessionResults);
+        }
+        continue;
+      }
+      const arr = scoredByCategory.get(type);
+      if (!arr) continue;
+      // Agents collapse to the top AGENT_DISPLAY_LIMIT with a "Show all"
+      // row: the tail is mostly weak fuzzy matches, useful on demand but
+      // noise by default.
+      // The row is a regular agent-typed result so grouping and keyboard
+      // navigation treat it like any other row; activating it expands the
+      // list in place (no close).
+      if (type === 'agent' && !showAllAgents && arr.length > AGENT_DISPLAY_LIMIT) {
+        for (const s of arr.slice(0, AGENT_DISPLAY_LIMIT)) finalResults.push(s.item);
+        finalResults.push({
+          id: 'agent-show-all',
+          type: 'agent',
+          title: `Show all agents (${arr.length})`,
+          subtitle: `${arr.length - AGENT_DISPLAY_LIMIT} more matches`,
+          icon: <Icon name="arrow-down" size={16} />,
+          action: () => setShowAllAgents(true),
+        });
+        continue;
+      }
+      for (const s of arr) finalResults.push(s.item);
+    }
 
     return finalResults;
-  }, [query, agentFuse, commandFuse, areaFuse, modifiedFileFuse, buildingFuse, commands, agentResults, areaResults, buildingResults, folderResults, fileResults, sessionResults, recentAgentTimes]);
+  }, [query, agentFuse, areaFuse, buildingFuse, agentResults, agentResultById, areaResults, buildingResults, folderResults, fileResults, contentResults, sessionResults, recentAgentTimes, showAllAgents, showAllSessions]);
 
   // Filter the flat result list to the active tab. 'all' shows everything;
   // 'buildings'/'commands' filter by type; 'areas' is the flattened agent list
@@ -1059,18 +1170,37 @@ export function useSpotlightSearch({
       case 'buildings':
         return allResults.filter((r) => r.type === 'building');
       case 'commands':
-        return allResults.filter((r) => r.type === 'command');
+        return query.trim()
+          ? searchAllTokens(commandFuse, query).slice(0, 3).map((r) => r.item)
+          : commands;
       case 'folders':
         return allResults.filter((r) => r.type === 'folder');
       case 'files':
         return fileResults;
+      case 'contents':
+        return contentResults;
       case 'areas':
         return areaSections.flatMap((s) => s.agents);
       case 'all':
       default:
         return allResults;
     }
-  }, [activeTab, allResults, areaSections, fileResults]);
+  }, [activeTab, allResults, areaSections, fileResults, contentResults, query, commandFuse, commands]);
+
+  const loadingTypes = useMemo(() => {
+    const loading: SearchResult['type'][] = [];
+    if (isSessionLoading) loading.push('session');
+    if (isFileLoading) loading.push('file');
+    if (isContentLoading) loading.push('file-content');
+    if (isFolderLoading) loading.push('folder');
+    if (activeTab === 'all') return loading;
+    const typeForTab: Partial<Record<SpotlightTab, SearchResult['type']>> = {
+      buildings: 'building', folders: 'folder', files: 'file', contents: 'file-content',
+      agents: 'agent', commands: 'command',
+    };
+    const type = typeForTab[activeTab];
+    return type && loading.includes(type) ? [type] : [];
+  }, [activeTab, isSessionLoading, isFileLoading, isContentLoading, isFolderLoading]);
 
   // Clamp selected index to valid range
   useEffect(() => {
@@ -1172,6 +1302,7 @@ export function useSpotlightSearch({
     selectedIndex,
     setSelectedIndex,
     results,
+    loadingTypes,
     activeTab,
     setActiveTab,
     cycleTab,

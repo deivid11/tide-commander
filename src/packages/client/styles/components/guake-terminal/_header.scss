@@ -533,6 +533,12 @@
       background: color-mix(in srgb, var(--accent-orange) 10%, transparent);
     }
   }
+
+  // Zero-config area default terminal — cyan-tinted idle state so it reads
+  // apart from configured terminal buildings (it exists for every area).
+  &.default:not(.active) {
+    color: color-mix(in srgb, var(--accent-cyan) 80%, var(--text-muted));
+  }
 }
 
 .guake-agent-link {

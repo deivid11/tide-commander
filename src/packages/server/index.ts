@@ -24,6 +24,7 @@ import { initBackupService, shutdownBackupService } from './services/backup-serv
 import { initAutoUpdateService, shutdownAutoUpdateService } from './services/auto-update-service.js';
 import { initAttachmentJanitor, shutdownAttachmentJanitor } from './services/attachment-janitor.js';
 import { stopAllAgentTerminals, sweepAllAgentTtyds } from './services/agent-terminal-service.js';
+import { stopAllAreaTerminals, sweepAllAreaTtyds } from './services/area-terminal-service.js';
 import {
   initClaudeCredentialKeepAlive,
   shutdownClaudeCredentialKeepAlive,
@@ -87,8 +88,9 @@ async function main(): Promise<void> {
   agentService.initAgents();
   agentService.initSessionHistory();
   runtimeService.init();
-  // Clean up any agent terminal viewers orphaned by a prior instance.
+  // Clean up any agent/area terminal viewers orphaned by a prior instance.
   sweepAllAgentTtyds();
+  sweepAllAreaTtyds();
   bossService.init();
   skillService.initSkills();
   customClassService.initCustomClasses();
@@ -313,6 +315,7 @@ async function main(): Promise<void> {
       buildingService.stopTerminalStatusPolling();
       buildingService.cleanupAllTerminals();
       stopAllAgentTerminals();
+      stopAllAreaTerminals();
       await databaseService.closeAllConnections();
       await runtimeService.shutdown();
       agentService.shutdownSessionHistory();

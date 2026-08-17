@@ -5,11 +5,12 @@
 
 import React, { forwardRef, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { SearchResult, SpotlightTab, SpotlightAreaSection } from './types';
+import type { SearchResult, SearchResultType, SpotlightTab, SpotlightAreaSection } from './types';
 import { SpotlightItem } from './SpotlightItem';
 
 interface SpotlightResultsProps {
   results: SearchResult[];
+  loadingTypes: SearchResultType[];
   selectedIndex: number;
   query: string;
   activeTab: SpotlightTab;
@@ -19,7 +20,7 @@ interface SpotlightResultsProps {
 }
 
 export const SpotlightResults = forwardRef<HTMLDivElement, SpotlightResultsProps>(function SpotlightResults(
-  { results, selectedIndex, query, activeTab, areaSections, highlightMatch, onSelectIndex },
+  { results, loadingTypes, selectedIndex, query, activeTab, areaSections, highlightMatch, onSelectIndex },
   ref
 ) {
   const { t } = useTranslation(['terminal']);
@@ -56,6 +57,7 @@ export const SpotlightResults = forwardRef<HTMLDivElement, SpotlightResultsProps
     area: t('terminal:spotlight.categories.areas'),
     folder: t('terminal:spotlight.categories.folders'),
     file: t('terminal:spotlight.categories.files'),
+    'file-content': t('terminal:spotlight.categories.fileContents'),
     'modified-file': t('terminal:spotlight.categories.modifiedFiles'),
     session: t('terminal:spotlight.categories.sessions'),
   };
@@ -83,8 +85,13 @@ export const SpotlightResults = forwardRef<HTMLDivElement, SpotlightResultsProps
       groups.push([currentCategory, currentItems]);
     }
 
+    for (const category of loadingTypes) {
+      if (!groups.some(([existing]) => existing === category)) groups.push([category, []]);
+    }
+    const order: SearchResultType[] = ['agent', 'session', 'building', 'file', 'file-content', 'folder', 'area', 'command'];
+    groups.sort(([a], [b]) => order.indexOf(a as SearchResultType) - order.indexOf(b as SearchResultType));
     return groups;
-  }, [results]);
+  }, [results, loadingTypes]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -143,7 +150,7 @@ export const SpotlightResults = forwardRef<HTMLDivElement, SpotlightResultsProps
     );
   }
 
-  if (results.length === 0) {
+  if (results.length === 0 && loadingTypes.length === 0) {
     return (
       <div className="spotlight-results" ref={ref}>
         <div className="spotlight-empty">{t('terminal:spotlight.noResults')}</div>
@@ -155,7 +162,15 @@ export const SpotlightResults = forwardRef<HTMLDivElement, SpotlightResultsProps
     <div className="spotlight-results" ref={ref}>
       {groupedResults.map(([category, items]) => (
         <div key={category}>
-          {groupedResults.length > 1 && <div className="spotlight-category-header">{categoryLabels[category] || category}</div>}
+          {(activeTab === 'all' || groupedResults.length > 1) && (
+            <div className="spotlight-category-header">{categoryLabels[category] || category}</div>
+          )}
+          {loadingTypes.includes(category as SearchResultType) && (
+            <div className="spotlight-block-loading" role="status">
+              <span className="spotlight-loading-spinner" aria-hidden="true" />
+              {t('terminal:spotlight.searching')}
+            </div>
+          )}
           {items.map(({ result, index }) => (
             <SpotlightItem
               key={result.id}

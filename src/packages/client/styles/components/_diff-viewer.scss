@@ -8,6 +8,14 @@
   overflow: hidden;
   background: var(--bg-primary);
   font-family: $font-mono;
+
+  .diff-search-highlight {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--accent-yellow) 72%, transparent);
+    border-radius: 2px;
+    padding: 0 1px;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-yellow) 35%, transparent);
+  }
 }
 
 .diff-viewer-header {

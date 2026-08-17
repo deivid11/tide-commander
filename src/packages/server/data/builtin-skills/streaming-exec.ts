@@ -7,6 +7,14 @@ export const streamingExec: BuiltinSkillDefinition = {
   allowedTools: ['Bash(curl:*)'],
   content: `# Streaming Command Execution
 
+## Mandatory command-routing rule
+
+You MUST execute builds, test suites, package installs, dev servers, Docker/container commands, and other long-running or operationally important commands through \`POST /api/exec\`.
+
+Never run those commands directly through Bash, \`exec_command\`, or another shell-execution tool. A direct call such as \`npm run build\`, \`npm test\`, \`npm install\`, \`cargo build\`, \`docker build\`, or \`make\` is a violation of this rule. The only shell command you should invoke directly for these tasks is the \`curl\` request to \`POST /api/exec\`.
+
+Direct shell execution is allowed only for short, near-instant inspection commands such as \`rg\`, \`grep\`, \`sed\`, \`head\`, \`tail\`, \`ls\`, \`pwd\`, \`stat\`, \`git status\`, \`git diff\`, and a short \`git log\`.
+
 Route long-running, noisy, or operationally important commands through \`POST /api/exec\` so the user sees live progress in the terminal "Running Tasks" section; you receive the full output when the command completes.
 
 **Use for:** builds (\`npm run build\`, \`cargo build\`, \`make\`), test suites (\`npm test\`, \`pytest\`, \`jest\`), dev servers (\`npm run dev\`, \`bun run dev\`), package installs (\`npm install\`, \`pip install\`), docker/container commands (\`docker build\`, \`docker compose up\`, \`docker logs\`), long git/network ops (\`git clone\`, \`git fetch\`, \`git push\`) — anything expected to run longer than a couple seconds.

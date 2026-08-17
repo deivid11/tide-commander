@@ -822,12 +822,12 @@ class Store
 
   // Open the file-explorer-panel rooted at `folderRoot` and reveal `filePath`
   // in its tree (expand all ancestors, select, scroll into view).
-  revealFileInExplorer(filePath: string, folderRoot: string): void {
+  revealFileInExplorer(filePath: string, folderRoot: string, targetLine?: number): void {
     this.state.explorerFolderPath = folderRoot;
     this.state.explorerAreaId = null;
     this.state.fileViewerPath = filePath;
     this.state.fileViewerRevealInTree = true;
-    this.state.fileViewerEditData = null;
+    this.state.fileViewerEditData = targetLine ? { targetLine } : null;
     this.state.fileViewerSearchRoot = folderRoot;
     this.notify();
   }

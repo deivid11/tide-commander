@@ -1173,6 +1173,16 @@ body.flat-splitter-dragging {
       }
     }
 
+    // Zero-config area default terminal — cyan tint so it reads apart from
+    // configured terminal buildings (it exists for every area, no setup).
+    &--default {
+      color: color-mix(in srgb, var(--accent-cyan) 80%, var(--text-muted));
+
+      &:hover {
+        color: var(--accent-cyan);
+      }
+    }
+
     &--active {
       color: var(--text-primary);
       background: color-mix(in srgb, var(--accent-purple) 28%, transparent);

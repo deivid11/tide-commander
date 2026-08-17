@@ -16,7 +16,12 @@ import { loadAreas } from '../data/index.js';
 import { detectRunnerType, mightBeTestFile, mightBeVitestFile, mightBePhpTestFile } from '../services/test-runner-service.js';
 import type { TestRunnerType } from '../../shared/types.js';
 import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS, parseExcludeDirNames } from '../../shared/file-search.js';
-import { searchFilesGlobal, FILE_SEARCH_MIN_QUERY } from '../services/global-file-search.js';
+import {
+  searchFilesGlobal,
+  searchFileContentsGlobal,
+  FILE_SEARCH_MIN_QUERY,
+  FILE_CONTENT_SEARCH_MIN_QUERY,
+} from '../services/global-file-search.js';
 
 const log = logger.files;
 
@@ -1669,6 +1674,27 @@ router.get('/search-global', async (req: Request, res: Response) => {
     res.json({ files });
   } catch (err: any) {
     log.error(' Global file search failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/files/search-content-global - Content search across every area directory
+router.get('/search-content-global', async (req: Request, res: Response) => {
+  try {
+    const query = typeof req.query.q === 'string' ? req.query.q : '';
+    if (query.trim().length < FILE_CONTENT_SEARCH_MIN_QUERY) {
+      res.json({ files: [] });
+      return;
+    }
+    const limit = parseInt(String(req.query.limit ?? ''), 10);
+    const files = await searchFileContentsGlobal({
+      query,
+      exclude: req.query.exclude,
+      limit: Number.isFinite(limit) ? limit : undefined,
+    });
+    res.json({ files });
+  } catch (err: any) {
+    log.error(' Global file content search failed:', err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -131,19 +131,21 @@ describe('settleWorkRecency', () => {
 
 describe('buildDockRoster', () => {
   it('keeps recent-lane membership fixed when only lastActivity moves (a click)', () => {
-    // Five idle agents, four slots; 'e' is the least recent and stays out.
-    const ids = ['a', 'b', 'c', 'd', 'e'];
+    // One more idle agent than the default capacity; the least recent stays out.
+    const ids = Array.from({ length: DOCK_RECENT_SIZE + 1 }, (_, i) => String.fromCharCode(97 + i));
+    const visibleIds = ids.slice(0, DOCK_RECENT_SIZE);
+    const excludedId = ids.at(-1)!;
     const recency = new Map(ids.map((id, i) => [id, 1_000 - i]));
     const before = ids.map((id) => agent(id, 'idle', 0));
     const first = buildDockRoster(before, new Set(), EMPTY_DOCK_SLOTS, recency);
-    expect(first.slots.recent).toEqual(['a', 'b', 'c', 'd']);
+    expect(first.slots.recent).toEqual(visibleIds);
 
-    // The user clicks 'e' — the server restamps its lastActivity sky-high, but
+    // The user clicks the excluded agent — the server restamps its lastActivity sky-high, but
     // its settled recency is unchanged, so the lane must not churn.
-    const afterClick = before.map((a) => (a.id === 'e' ? agent('e', 'idle', 999_999) : a));
+    const afterClick = before.map((a) => (a.id === excludedId ? agent(excludedId, 'idle', 999_999) : a));
     const second = buildDockRoster(afterClick, new Set(), first.slots, recency);
 
-    expect(second.slots.recent).toEqual(['a', 'b', 'c', 'd']);
+    expect(second.slots.recent).toEqual(visibleIds);
   });
 
   it('holds each working agent in the slot it already occupies', () => {

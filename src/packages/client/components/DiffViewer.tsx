@@ -10,7 +10,7 @@ import { downloadServerFile } from '../utils/file-download';
 import { PdfJsViewer } from './shared/PdfJsViewer';
 import { Tooltip } from './shared/Tooltip';
 import { Icon } from './Icon';
-import { VirtualLineList } from './shared/VirtualLineList';
+import { VirtualLineList, scrollLineIntoView } from './shared/VirtualLineList';
 import { computeDiffOps } from './diffLineOps';
 
 interface DiffViewerProps {
@@ -21,6 +21,12 @@ interface DiffViewerProps {
   language: string;
   /** Start in "Modified Only" view mode */
   initialModifiedOnly?: boolean;
+  /** Highlight matching text in code lines (used by Spotlight content hits). */
+  searchQuery?: string;
+  /** Scroll the modified pane to this one-based source line. */
+  targetLine?: number;
+  /** Neutral file-content viewer: no added/modified semantics or change navigation. */
+  readOnly?: boolean;
 }
 
 interface DiffLine {
@@ -48,6 +54,31 @@ interface ChangeBlock {
 function highlightLine(line: string, language: string): string {
   if (!line) return '';
   return highlightCode(line, language || 'plaintext');
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function escapeSearchRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Highlight literal query matches without injecting untrusted HTML. */
+function highlightSearchMatch(line: string, query: string): string | null {
+  const needle = query.trim();
+  if (!needle || !line.toLowerCase().includes(needle.toLowerCase())) return null;
+  const matcher = new RegExp(`(${escapeSearchRegExp(needle)})`, 'gi');
+  return line.split(matcher).map((part, index) =>
+    index % 2 === 1
+      ? `<mark class="diff-search-highlight">${escapeHtml(part)}</mark>`
+      : escapeHtml(part)
+  ).join('');
 }
 
 // Compute diff lines and alignment points for intelligent scroll sync
@@ -227,7 +258,17 @@ const KNOWN_BINARY_EXTENSIONS = [
   '.apk', '.jar', '.db', '.sqlite', '.sqlite3', '.parquet',
 ];
 
-export function DiffViewer({ originalContent, modifiedContent, filename, filePath, language, initialModifiedOnly = false }: DiffViewerProps) {
+export function DiffViewer({
+  originalContent,
+  modifiedContent,
+  filename,
+  filePath,
+  language,
+  initialModifiedOnly = false,
+  searchQuery = '',
+  targetLine,
+  readOnly = false,
+}: DiffViewerProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
@@ -251,8 +292,8 @@ export function DiffViewer({ originalContent, modifiedContent, filename, filePat
   }, [language]);
 
   // Detect new (added) or deleted files
-  const isNewFile = !originalContent;
-  const isDeletedFile = !modifiedContent;
+  const isNewFile = !readOnly && !originalContent;
+  const isDeletedFile = !readOnly && !modifiedContent;
 
   // Check if file is markdown
   const isMarkdown = useMemo(() => {
@@ -398,8 +439,8 @@ export function DiffViewer({ originalContent, modifiedContent, filename, filePat
   }, [filePath, revealStatus]);
 
   const { leftLines, rightLines, alignments, changeBlocks } = useMemo(
-    () => computeDiff(originalContent, modifiedContent),
-    [originalContent, modifiedContent]
+    () => computeDiff(readOnly ? modifiedContent : originalContent, modifiedContent),
+    [originalContent, modifiedContent, readOnly]
   );
 
   /**
@@ -419,11 +460,25 @@ export function DiffViewer({ originalContent, modifiedContent, filename, filePat
       if (!text) return '';
       const cached = cache.get(text);
       if (cached !== undefined) return cached;
-      const html = highlightLine(text, prismLang);
+      const html = highlightSearchMatch(text, searchQuery) ?? highlightLine(text, prismLang);
       cache.set(text, html);
       return html;
     };
-  }, [language, langReady]);
+  }, [language, langReady, searchQuery]);
+
+  // Content-search results carry a source line. Center that line after the
+  // virtualized modified pane mounts so the highlighted hit is immediately visible.
+  useEffect(() => {
+    if (!targetLine || !rightRef.current) return;
+    const index = rightLines.findIndex((line) => line.num === targetLine);
+    if (index < 0) return;
+    const frame = requestAnimationFrame(() => {
+      if (rightRef.current) {
+        scrollLineIntoView(rightRef.current, index, LINE_HEIGHT);
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [targetLine, rightLines, viewOnlyModified]);
 
   // Paint connector gutter canvas - called outside React render cycle for performance
   const paintConnector = useCallback(() => {
@@ -579,46 +634,29 @@ export function DiffViewer({ originalContent, modifiedContent, filename, filePat
     return { added, removed };
   }, [leftLines, rightLines]);
 
-  // Find diff hunk positions (line indices where changes start)
+  // Find exact modified-pane indices where change blocks start. Deriving this
+  // from changeBlocks matters for removed-only hunks: their left index is not
+  // generally the corresponding right index after earlier insertions/deletions.
   const diffHunks = useMemo(() => {
-    const hunks: number[] = [];
-    let inHunk = false;
+    const lastRightIndex = Math.max(0, rightLines.length - 1);
+    return [...new Set(changeBlocks.map((block) =>
+      Math.min(block.rightStart, lastRightIndex)
+    ))].sort((a, b) => a - b);
+  }, [changeBlocks, rightLines.length]);
 
-    // Use the right panel (modified) to find hunks
-    rightLines.forEach((line, idx) => {
-      if (line.type === 'added') {
-        if (!inHunk) {
-          hunks.push(idx);
-          inHunk = true;
-        }
-      } else {
-        inHunk = false;
-      }
+  const searchMatchLines = useMemo(() => {
+    const needle = searchQuery.trim().toLowerCase();
+    if (!needle) return [];
+    const matches: number[] = [];
+    rightLines.forEach((line, index) => {
+      if (line.text.toLowerCase().includes(needle)) matches.push(index);
     });
-
-    // Also check left panel for removed-only hunks
-    let leftInHunk = false;
-    leftLines.forEach((line, idx) => {
-      if (line.type === 'removed') {
-        if (!leftInHunk) {
-          // Find corresponding position in right panel
-          // Use alignments to map left position to right
-          const rightIdx = Math.min(idx, rightLines.length - 1);
-          if (!hunks.includes(rightIdx)) {
-            hunks.push(rightIdx);
-          }
-          leftInHunk = true;
-        }
-      } else {
-        leftInHunk = false;
-      }
-    });
-
-    return hunks.sort((a, b) => a - b);
-  }, [leftLines, rightLines]);
+    return matches;
+  }, [rightLines, searchQuery]);
 
   // Current hunk index for navigation
   const [currentHunkIndex, setCurrentHunkIndex] = useState(0);
+  const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
 
   const LINE_HEIGHT = 20; // Must match CSS
   const openExplorerLabel = t('terminal:diffViewer.openInFileExplorer');
@@ -696,11 +734,10 @@ export function DiffViewer({ originalContent, modifiedContent, filename, filePat
     if (hunkIndex < 0 || hunkIndex >= diffHunks.length) return;
 
     const lineIndex = diffHunks[hunkIndex];
-    const scrollTop = lineIndex * LINE_HEIGHT;
-
-    // Scroll the right panel (modified), which will sync the left
+    // Center the destination; placing it at scrollTop=0 hid the first row near
+    // sticky chrome and made nearby hunks look as if navigation had not moved.
     if (rightRef.current) {
-      rightRef.current.scrollTop = scrollTop;
+      scrollLineIntoView(rightRef.current, lineIndex, LINE_HEIGHT);
     }
 
     setCurrentHunkIndex(hunkIndex);
@@ -716,16 +753,40 @@ export function DiffViewer({ originalContent, modifiedContent, filename, filePat
     goToHunk(prevIndex);
   }, [currentHunkIndex, goToHunk]);
 
+  const goToSearchResult = useCallback((resultIndex: number) => {
+    if (resultIndex < 0 || resultIndex >= searchMatchLines.length || !rightRef.current) return;
+    scrollLineIntoView(rightRef.current, searchMatchLines[resultIndex], LINE_HEIGHT);
+    setCurrentSearchIndex(resultIndex);
+  }, [searchMatchLines]);
+
+  useEffect(() => {
+    if (!readOnly || searchMatchLines.length === 0) {
+      setCurrentSearchIndex(0);
+      return;
+    }
+    const targetIndex = targetLine
+      ? searchMatchLines.findIndex((lineIndex) => rightLines[lineIndex]?.num === targetLine)
+      : -1;
+    const selectedIndex = targetIndex >= 0 ? targetIndex : 0;
+    setCurrentSearchIndex(selectedIndex);
+    const frame = requestAnimationFrame(() => {
+      if (rightRef.current) {
+        scrollLineIntoView(rightRef.current, searchMatchLines[selectedIndex], LINE_HEIGHT);
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [readOnly, searchMatchLines, rightLines, targetLine]);
+
   // Jump to first diff on mount and repaint connector
   useEffect(() => {
-    if (diffHunks.length > 0) {
+    if (diffHunks.length > 0 && !targetLine) {
       // Small delay to ensure DOM is ready
       setTimeout(() => {
         goToHunk(0);
         requestAnimationFrame(() => paintConnector());
       }, 100);
     }
-  }, [diffHunks, goToHunk, paintConnector]);
+  }, [diffHunks, goToHunk, paintConnector, targetLine]);
 
   // Images: render the working-tree image instead of raw-bytes-as-text. SVG
   // starts here too (rendered by default) but can toggle to the source view.
@@ -848,7 +909,32 @@ export function DiffViewer({ originalContent, modifiedContent, filename, filePat
       <div className="diff-viewer-header">
         <div className="diff-viewer-filename">{filename}</div>
         <div className="diff-viewer-nav">
-          {diffHunks.length > 0 && (
+          {readOnly && searchMatchLines.length > 0 && (
+            <>
+              <Tooltip content="Previous result" position="bottom">
+                <button
+                  className="diff-nav-btn"
+                  onClick={() => goToSearchResult(currentSearchIndex - 1)}
+                  disabled={currentSearchIndex === 0}
+                >
+                  <Icon name="caret-up" size={12} />
+                </button>
+              </Tooltip>
+              <span className="diff-nav-counter">
+                {currentSearchIndex + 1} / {searchMatchLines.length}
+              </span>
+              <Tooltip content="Next result" position="bottom">
+                <button
+                  className="diff-nav-btn"
+                  onClick={() => goToSearchResult(currentSearchIndex + 1)}
+                  disabled={currentSearchIndex === searchMatchLines.length - 1}
+                >
+                  <Icon name="caret-down" size={12} />
+                </button>
+              </Tooltip>
+            </>
+          )}
+          {!readOnly && diffHunks.length > 0 && (
             <>
               <Tooltip content="Previous change (Up)" position="bottom">
                 <button
@@ -875,8 +961,8 @@ export function DiffViewer({ originalContent, modifiedContent, filename, filePat
           )}
         </div>
         <div className="diff-viewer-stats">
-          {stats.added > 0 && <span className="diff-stat added">+{stats.added}</span>}
-          {stats.removed > 0 && <span className="diff-stat removed">-{stats.removed}</span>}
+          {!readOnly && stats.added > 0 && <span className="diff-stat added">+{stats.added}</span>}
+          {!readOnly && stats.removed > 0 && <span className="diff-stat removed">-{stats.removed}</span>}
         </div>
         <div className="diff-viewer-actions">
           <Tooltip content={openExplorerLabel} position="bottom">
@@ -898,7 +984,7 @@ export function DiffViewer({ originalContent, modifiedContent, filename, filePat
             </Tooltip>
           )}
           {downloadButton}
-          {!isNewFile && !isDeletedFile && (
+          {!readOnly && !isNewFile && !isDeletedFile && (
             <Tooltip content={viewOnlyModified ? 'Show diff view' : 'View only modified'} position="bottom">
               <button
                 className={`diff-toggle-btn ${viewOnlyModified ? 'active' : ''}`}
@@ -908,7 +994,7 @@ export function DiffViewer({ originalContent, modifiedContent, filename, filePat
               </button>
             </Tooltip>
           )}
-          <Tooltip content={isMarkdown && viewOnlyModified ? 'Copy as rich text' : 'Copy modified content'} position="bottom">
+          <Tooltip content={readOnly ? 'Copy file content' : isMarkdown && viewOnlyModified ? 'Copy as rich text' : 'Copy modified content'} position="bottom">
             <button
               className={`diff-copy-btn ${copyStatus}`}
               onClick={handleCopyModified}
@@ -983,9 +1069,15 @@ export function DiffViewer({ originalContent, modifiedContent, filename, filePat
         {!isDeletedFile && (
           <div className="diff-panel diff-panel-modified">
             <div className="diff-panel-header">
-              <span className="diff-panel-label">{(viewOnlyModified || isNewFile) ? t('terminal:diffViewer.modifiedContent') : t('terminal:diffViewer.modifiedWorking')}</span>
+              <span className="diff-panel-label">
+                {readOnly
+                  ? t('terminal:diffViewer.fileContent')
+                  : (viewOnlyModified || isNewFile)
+                    ? t('terminal:diffViewer.modifiedContent')
+                    : t('terminal:diffViewer.modifiedWorking')}
+              </span>
             </div>
-            {viewOnlyModified && isMarkdown ? (
+            {viewOnlyModified && isMarkdown && !searchQuery ? (
               // Render markdown when in modified-only view
               <div className="diff-panel-content diff-markdown-content" ref={markdownContentRef}>
                 <div className="markdown-content">

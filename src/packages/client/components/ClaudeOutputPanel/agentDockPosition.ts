@@ -4,11 +4,11 @@
  * The dock renders in exactly one place, so every possible host reads this and
  * only the matching one renders it:
  *
- * - `overview` — its own strip at the bottom of the agent overview panel (default).
+ * - `overview` — its own strip at the bottom of the agent overview panel.
  * - `composer` — no separate strip at all: the working / recently-active agents
  *   are appended to the pinned-agents row above the composer, which already
  *   shows the same avatars with the same status marks. See PinnedAgentsBar's
- *   `includeActiveAgents`.
+ *   `includeActiveAgents` (default).
  * - `hidden` — nowhere.
  */
 
@@ -26,7 +26,7 @@ export const AGENT_DOCK_POSITION_LABELS: Record<AgentDockPosition, string> = {
   hidden: 'Hidden',
 };
 
-const DEFAULT_POSITION: AgentDockPosition = 'overview';
+const DEFAULT_POSITION: AgentDockPosition = 'composer';
 
 /** Fired on the window so hosts in THIS tab re-read — `storage` only fires in other tabs. */
 const CHANGE_EVENT = 'tide:agent-dock-position';

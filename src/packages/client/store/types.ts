@@ -196,7 +196,7 @@ export interface Settings {
   // (global: applies to every bash output, live and history)
   inlineBashOutputs: boolean;
   // Ctrl+hover mini preview over terminal tool rows and clickable file paths
-  // (file contents, edit diff, command output). Default on.
+  // (file contents, edit diff, command output). Default off.
   toolHoverPreview: boolean;
   /**
    * Word-by-word / token live streaming for Claude Code and Grok assistant
@@ -242,7 +242,7 @@ export const DEFAULT_SETTINGS: Settings = {
   toneCompletion: DEFAULT_TONES.completion,
   tabTitle: '',
   inlineBashOutputs: false,
-  toolHoverPreview: true,
+  toolHoverPreview: false,
   streamTextLive: true,
   tmuxMode: false,
   interactiveMode: false,

@@ -4,6 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   excludeDirsFromInput,
+  searchFileContentsGlobal,
   searchFilesGlobal,
 } from './global-file-search';
 import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS } from '../../shared/file-search';
@@ -139,5 +140,28 @@ describe('searchFilesGlobal', () => {
     });
 
     expect(hits[0]?.name).toBe('config.ts');
+  });
+
+  it('finds content across projects with line metadata and respects excludes', async () => {
+    const alpha = tmpProject('tc-content-alpha-');
+    const beta = tmpProject('tc-content-beta-');
+    makeTree(alpha, ['src/Alpha.ts', 'node_modules/pkg/Hidden.ts']);
+    makeTree(beta, ['lib/Beta.ts']);
+    fs.writeFileSync(path.join(alpha, 'src/Alpha.ts'), 'first line\nunique spotlight phrase\n');
+    fs.writeFileSync(path.join(alpha, 'node_modules/pkg/Hidden.ts'), 'unique spotlight phrase\n');
+    fs.writeFileSync(path.join(beta, 'lib/Beta.ts'), 'const value = "unique spotlight phrase";\n');
+
+    const hits = await searchFileContentsGlobal({
+      query: 'unique spotlight phrase',
+      areas: [
+        { id: 'alpha', name: 'Alpha', directories: [alpha] },
+        { id: 'beta', name: 'Beta', directories: [beta] },
+      ],
+    });
+
+    expect(hits.map((hit) => hit.relativePath).sort()).toEqual(['lib/Beta.ts', 'src/Alpha.ts']);
+    const alphaHit = hits.find((hit) => hit.name === 'Alpha.ts');
+    expect(alphaHit?.areaName).toBe('Alpha');
+    expect(alphaHit?.matches[0]).toMatchObject({ line: 2, content: 'unique spotlight phrase' });
   });
 });

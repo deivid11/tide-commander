@@ -1007,6 +1007,23 @@ export function archiveCurrentSession(agentId: string): void {
   log.log?.(`Archived session ${agent.sessionId} for agent ${agent.name}`);
 }
 
+/**
+ * Resolve which agent OWNS a session id — current sessions first, then the
+ * archived session history. Powers the global session search's "this
+ * conversation belongs to agent X" annotation: Spotlight promotes such hits
+ * to agent rows even after the agent rotated to a new session (the fix the
+ * user remembers lives in the agent's PREVIOUS conversation).
+ */
+export function findAgentIdBySessionId(sessionId: string): string | null {
+  for (const agent of agents.values()) {
+    if (agent.sessionId === sessionId) return agent.id;
+  }
+  for (const [agentId, entries] of sessionHistories) {
+    if (entries.some((e) => e.sessionId === sessionId)) return agentId;
+  }
+  return null;
+}
+
 export function getAgentSessionHistory(agentId: string): SessionHistoryEntry[] {
   const agent = agents.get(agentId);
   const entries = getSessionHistoryForAgent(sessionHistories, agentId);

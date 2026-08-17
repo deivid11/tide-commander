@@ -9,6 +9,7 @@
 
 import { Router, Request, Response } from 'express';
 import { listAllSessions, searchAllSessions, loadSession, loadSessionAroundMatch } from '../claude/session-loader.js';
+import { findAgentIdBySessionId } from '../services/agent-service.js';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('Routes');
@@ -59,6 +60,11 @@ router.get('/search', async (req: Request, res: Response) => {
         totalMatches: m.totalMatches,
         snippet: m.snippet,
         firstPrompt: m.firstPrompt,
+        provider: m.provider,
+        // Owner resolution includes archived session history, so a
+        // conversation an agent held BEFORE rotating sessions still maps to
+        // that agent in the client.
+        agentId: findAgentIdBySessionId(m.sessionId) ?? undefined,
       })),
     });
   } catch (err: any) {

@@ -114,6 +114,66 @@ function commandExists(cmd: string): boolean {
 }
 
 /**
+ * Apply Commander's standard tmux session options (mouse, OSC 52 clipboard,
+ * themed status bar, right-click context menu). Shared by building terminals
+ * and the per-area default terminals.
+ */
+export function configureTideTmuxSession(tmuxSession: string): void {
+  try {
+    const tmuxOpts = [
+      `tmux set-option -t ${tmuxSession} mouse on`,
+      // Allow OSC 52 clipboard (ttyd/xterm.js use this for copy)
+      `tmux set-option -t ${tmuxSession} set-clipboard on`,
+      // Copy selection to clipboard via OSC 52 escape sequence
+      `tmux set-option -t ${tmuxSession} -s copy-command 'true'`,
+      // Subtle dark status bar matching Commander's theme
+      `tmux set-option -t ${tmuxSession} status-style 'bg=#1a1a2e,fg=#a9b1d6'`,
+      `tmux set-option -t ${tmuxSession} status-left '#[fg=#6272a4]#{session_name} '`,
+      `tmux set-option -t ${tmuxSession} status-right '#[fg=#6272a4]%H:%M'`,
+      `tmux set-option -t ${tmuxSession} status-left-length 20`,
+      `tmux set-option -t ${tmuxSession} window-status-current-style 'fg=#8be9fd'`,
+      `tmux set-option -t ${tmuxSession} window-status-style 'fg=#6272a4'`,
+      // Allow terminal override for clipboard passthrough
+      `tmux set-option -t ${tmuxSession} -sa terminal-features ',xterm-256color:clipboard'`,
+      // Auto-copy selection to clipboard on mouse drag end (both emacs and vi copy modes)
+      `tmux bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-selection-and-cancel`,
+      `tmux bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-selection-and-cancel`,
+    ];
+    execSync(tmuxOpts.join(' && '));
+
+    // Bind right-click context menu via tmux config file (complex display-menu syntax
+    // cannot be reliably escaped in JS strings)
+    const tmuxConfPath = join(tmpdir(), `tide-tmux-${tmuxSession}.conf`);
+    writeFileSync(tmuxConfPath, [
+      '# Right-click context menu (mirrors default M-MouseDown3Pane)',
+      'bind-key -T root MouseDown3Pane display-menu -T "#[align=centre]#{pane_index} (#{pane_id})" -t = -x M -y M \\',
+      '  "#{?#{m/r:(copy|view)-mode,#{pane_mode}},Go To Top,}" "<" {send-keys -X history-top} \\',
+      '  "#{?#{m/r:(copy|view)-mode,#{pane_mode}},Go To Bottom,}" ">" {send-keys -X history-bottom} \\',
+      '  "" \\',
+      '  "#{?mouse_word,Search For #[underscore]#{=/9/...:mouse_word},}" C-r {if-shell -F "#{?#{m/r:(copy|view)-mode,#{pane_mode}},0,1}" "copy-mode -t=" ; send-keys -X -t = search-backward "#{q:mouse_word}"} \\',
+      '  "#{?mouse_word,Type #[underscore]#{=/9/...:mouse_word},}" C-y {copy-mode -q ; send-keys -l "#{q:mouse_word}"} \\',
+      '  "#{?mouse_word,Copy #[underscore]#{=/9/...:mouse_word},}" c {copy-mode -q ; set-buffer "#{q:mouse_word}"} \\',
+      '  "#{?mouse_line,Copy Line,}" l {copy-mode -q ; set-buffer "#{q:mouse_line}"} \\',
+      '  "" \\',
+      '  "Horizontal Split" h {split-window -h} \\',
+      '  "Vertical Split" v {split-window -v} \\',
+      '  "" \\',
+      '  "#{?#{>:#{window_panes},1},,-}Swap Up" u {swap-pane -U} \\',
+      '  "#{?#{>:#{window_panes},1},,-}Swap Down" d {swap-pane -D} \\',
+      '  "#{?pane_marked_set,,-}Swap Marked" s {swap-pane} \\',
+      '  "" \\',
+      '  Kill X {kill-pane} \\',
+      '  Respawn R {respawn-pane -k} \\',
+      '  "#{?pane_marked,Unmark,Mark}" m {select-pane -m} \\',
+      '  "#{?#{>:#{window_panes},1},,-}#{?window_zoomed_flag,Unzoom,Zoom}" z {resize-pane -Z}',
+    ].join('\n'));
+    execSync(`tmux source-file ${tmuxConfPath}`);
+  } catch {
+    log.warn(`Failed to configure tmux session ${tmuxSession}`);
+  }
+}
+
+/**
  * Start a terminal (ttyd) for a building
  */
 export async function startTerminal(building: Building): Promise<{ success: boolean; error?: string }> {
@@ -194,58 +254,7 @@ export async function startTerminal(building: Building): Promise<{ success: bool
     }
 
     // Configure tmux session: mouse support + subtle status bar
-    try {
-      const tmuxOpts = [
-        `tmux set-option -t ${tmuxSession} mouse on`,
-        // Allow OSC 52 clipboard (ttyd/xterm.js use this for copy)
-        `tmux set-option -t ${tmuxSession} set-clipboard on`,
-        // Copy selection to clipboard via OSC 52 escape sequence
-        `tmux set-option -t ${tmuxSession} -s copy-command 'true'`,
-        // Subtle dark status bar matching Commander's theme
-        `tmux set-option -t ${tmuxSession} status-style 'bg=#1a1a2e,fg=#a9b1d6'`,
-        `tmux set-option -t ${tmuxSession} status-left '#[fg=#6272a4]#{session_name} '`,
-        `tmux set-option -t ${tmuxSession} status-right '#[fg=#6272a4]%H:%M'`,
-        `tmux set-option -t ${tmuxSession} status-left-length 20`,
-        `tmux set-option -t ${tmuxSession} window-status-current-style 'fg=#8be9fd'`,
-        `tmux set-option -t ${tmuxSession} window-status-style 'fg=#6272a4'`,
-        // Allow terminal override for clipboard passthrough
-        `tmux set-option -t ${tmuxSession} -sa terminal-features ',xterm-256color:clipboard'`,
-        // Auto-copy selection to clipboard on mouse drag end (both emacs and vi copy modes)
-        `tmux bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-selection-and-cancel`,
-        `tmux bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-selection-and-cancel`,
-      ];
-      execSync(tmuxOpts.join(' && '));
-
-      // Bind right-click context menu via tmux config file (complex display-menu syntax
-      // cannot be reliably escaped in JS strings)
-      const tmuxConfPath = join(tmpdir(), `tide-tmux-${tmuxSession}.conf`);
-      writeFileSync(tmuxConfPath, [
-        '# Right-click context menu (mirrors default M-MouseDown3Pane)',
-        'bind-key -T root MouseDown3Pane display-menu -T "#[align=centre]#{pane_index} (#{pane_id})" -t = -x M -y M \\',
-        '  "#{?#{m/r:(copy|view)-mode,#{pane_mode}},Go To Top,}" "<" {send-keys -X history-top} \\',
-        '  "#{?#{m/r:(copy|view)-mode,#{pane_mode}},Go To Bottom,}" ">" {send-keys -X history-bottom} \\',
-        '  "" \\',
-        '  "#{?mouse_word,Search For #[underscore]#{=/9/...:mouse_word},}" C-r {if-shell -F "#{?#{m/r:(copy|view)-mode,#{pane_mode}},0,1}" "copy-mode -t=" ; send-keys -X -t = search-backward "#{q:mouse_word}"} \\',
-        '  "#{?mouse_word,Type #[underscore]#{=/9/...:mouse_word},}" C-y {copy-mode -q ; send-keys -l "#{q:mouse_word}"} \\',
-        '  "#{?mouse_word,Copy #[underscore]#{=/9/...:mouse_word},}" c {copy-mode -q ; set-buffer "#{q:mouse_word}"} \\',
-        '  "#{?mouse_line,Copy Line,}" l {copy-mode -q ; set-buffer "#{q:mouse_line}"} \\',
-        '  "" \\',
-        '  "Horizontal Split" h {split-window -h} \\',
-        '  "Vertical Split" v {split-window -v} \\',
-        '  "" \\',
-        '  "#{?#{>:#{window_panes},1},,-}Swap Up" u {swap-pane -U} \\',
-        '  "#{?#{>:#{window_panes},1},,-}Swap Down" d {swap-pane -D} \\',
-        '  "#{?pane_marked_set,,-}Swap Marked" s {swap-pane} \\',
-        '  "" \\',
-        '  Kill X {kill-pane} \\',
-        '  Respawn R {respawn-pane -k} \\',
-        '  "#{?pane_marked,Unmark,Mark}" m {select-pane -m} \\',
-        '  "#{?#{>:#{window_panes},1},,-}#{?window_zoomed_flag,Unzoom,Zoom}" z {resize-pane -Z}',
-      ].join('\n'));
-      execSync(`tmux source-file ${tmuxConfPath}`);
-    } catch {
-      log.warn(`Failed to configure tmux session ${tmuxSession}`);
-    }
+    configureTideTmuxSession(tmuxSession);
 
     // ttyd will attach to the tmux session
     ttydArgs.push('tmux', 'attach-session', '-t', tmuxSession);

@@ -211,6 +211,69 @@
   line-height: 1.6;
 }
 
+.spotlight-block-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 7px 14px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.spotlight-loading-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid color-mix(in srgb, var(--accent-blue) 25%, transparent);
+  border-top-color: var(--accent-blue);
+  border-radius: 50%;
+  animation: spotlight-loading-spin 0.7s linear infinite;
+}
+
+@keyframes spotlight-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+.spotlight-file-detail-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spotlight-file-detail-line {
+  color: var(--accent-purple);
+  font-weight: 700;
+}
+
+.spotlight-file-detail-explorer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 5px 9px;
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 35%, transparent);
+  border-radius: 5px;
+  color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-blue) 22%, transparent);
+  }
+}
+
+.spotlight-file-detail-message {
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+  padding: 24px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
 // Category/section header
 .spotlight-category-header {
   padding: 5px 12px 3px;
@@ -335,12 +398,6 @@
   white-space: nowrap;
   flex-shrink: 0;
   letter-spacing: 0.2px;
-
-  .spotlight-highlight {
-    background: color-mix(in srgb, var(--accent-blue) 35%, transparent);
-    color: color-mix(in srgb, var(--accent-blue) 82%, white);
-    font-weight: 600;
-  }
 }
 
 .spotlight-item-last-input {
@@ -353,12 +410,6 @@
   min-width: 0;
   font-style: italic;
   opacity: 0.85;
-
-  .spotlight-highlight {
-    background: color-mix(in srgb, var(--accent-purple) 30%, transparent);
-    color: color-mix(in srgb, var(--accent-purple) 82%, white);
-    font-weight: 500;
-  }
 }
 
 .spotlight-item-subtitle {
@@ -368,12 +419,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   opacity: 0.8;
-
-  .spotlight-highlight {
-    background: color-mix(in srgb, var(--accent-orange) 25%, transparent);
-    color: color-mix(in srgb, var(--accent-orange) 88%, white);
-    font-weight: 500;
-  }
 }
 
 .spotlight-item-status {
@@ -388,12 +433,6 @@
   background: color-mix(in srgb, var(--accent-green) 10%, transparent);
   border-radius: 3px;
   width: fit-content;
-
-  .spotlight-highlight {
-    background: color-mix(in srgb, var(--accent-green) 35%, transparent);
-    color: color-mix(in srgb, var(--accent-green) 82%, white);
-    font-weight: 600;
-  }
 }
 
 .spotlight-item-activity {
@@ -406,12 +445,6 @@
   overflow: hidden;
   opacity: 0.85;
   padding: 0 2px;
-
-  .spotlight-highlight {
-    background: color-mix(in srgb, var(--accent-orange) 30%, transparent);
-    color: color-mix(in srgb, var(--accent-orange) 88%, white);
-    font-weight: 500;
-  }
 }
 
 // Details container for grouped secondary info
@@ -441,11 +474,6 @@
     }
   }
 
-  .spotlight-highlight {
-    background: color-mix(in srgb, var(--accent-blue) 30%, transparent);
-    color: color-mix(in srgb, var(--accent-blue) 82%, white);
-    font-weight: 500;
-  }
 }
 
 .spotlight-item-query {
@@ -458,12 +486,6 @@
   font-style: italic;
   opacity: 0.85;
   padding: 0 2px;
-
-  .spotlight-highlight {
-    background: color-mix(in srgb, var(--accent-purple) 30%, transparent);
-    color: color-mix(in srgb, var(--accent-purple) 82%, white);
-    font-weight: 500;
-  }
 }
 
 .spotlight-item-history {
@@ -476,12 +498,6 @@
   opacity: 0.85;
   padding: 0;
 
-  .spotlight-highlight {
-    background: color-mix(in srgb, var(--accent-cyan) 30%, transparent);
-    color: color-mix(in srgb, var(--accent-cyan) 82%, white);
-    font-weight: 500;
-  }
-
   .spotlight-history-time {
     margin-left: 8px;
     color: var(--text-muted);
@@ -491,18 +507,43 @@
 }
 
 .spotlight-item-time {
-  font-size: 7px;
+  font-size: 10px;
   color: var(--text-muted);
   display: flex;
   gap: 6px;
   align-items: center;
-  opacity: 0.75;
-  padding-top: 2px;
+  padding-top: 3px;
 }
 
+// Idle-age pill — deliberately prominent (the user scans for "who's free /
+// who's gone cold"): color encodes how long the agent has been idle.
 .spotlight-time-away {
-  color: var(--accent-purple);
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 9px;
+  font-weight: 600;
+
+  &.is-fresh {
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 14%, transparent);
+  }
+
+  &.is-warm {
+    color: #f1fa8c;
+    background: color-mix(in srgb, #f1fa8c 12%, transparent);
+  }
+
+  &.is-stale {
+    color: var(--accent-orange);
+    background: color-mix(in srgb, var(--accent-orange) 14%, transparent);
+  }
+
+  &.is-old {
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+  }
 }
 
 .spotlight-status-time {
@@ -569,19 +610,35 @@
     color: var(--accent-cyan);
     border-color: color-mix(in srgb, var(--accent-cyan) 20%, transparent);
   }
+
+  &.file-content {
+    background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+    color: var(--accent-purple);
+    border-color: color-mix(in srgb, var(--accent-purple) 20%, transparent);
+  }
 }
 
 // Colored agent status chip in the result header (color set inline per status)
+// Harness-kind logo (claude/codex/grok/opencode/pi) on agent + session rows.
+.spotlight-item-provider {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  object-fit: contain;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
 .spotlight-item-agent-status {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  font-size: 7px;
+  gap: 4px;
+  font-size: 10px;
   text-transform: uppercase;
   font-weight: 700;
   letter-spacing: 0.3px;
-  padding: 1px 5px;
-  border-radius: 3px;
+  padding: 2px 7px;
+  border-radius: 4px;
   border: 1px solid transparent;
   flex-shrink: 0;
   white-space: nowrap;
@@ -593,8 +650,8 @@
 }
 
 .spotlight-working-dot {
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: currentColor;
   flex-shrink: 0;
@@ -635,11 +692,6 @@
     opacity: 0.85;
   }
 
-  .spotlight-highlight {
-    background: color-mix(in srgb, var(--accent-purple) 35%, transparent);
-    color: color-mix(in srgb, var(--accent-purple) 82%, white);
-    font-weight: 700;
-  }
 }
 
 // Git-branch chip in the result header (folder results that are git repos)
@@ -747,10 +799,12 @@
   }
 }
 
-// Highlight matched text - improved visibility
+// Highlight matched text — one yellow marker style everywhere (title,
+// subtitle, snippets, badges): find-in-page-like, dark text on solid yellow
+// so the query words pop no matter the section's own text color.
 .spotlight-highlight {
-  background: color-mix(in srgb, var(--accent-orange) 35%, transparent);
-  color: inherit;
+  background: #f1fa8c;
+  color: #1a1a2e;
   border-radius: 2px;
   padding: 0 2px;
   font-weight: 600;

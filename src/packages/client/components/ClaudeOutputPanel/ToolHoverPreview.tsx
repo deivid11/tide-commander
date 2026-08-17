@@ -450,7 +450,7 @@ export function ToolHoverPreviewHost() {
   // The hover store is a plain module (no store import), so the setting is
   // pushed into it from here — the one component that both subscribes to
   // settings and owns the popup.
-  const previewEnabled = settings.toolHoverPreview !== false;
+  const previewEnabled = settings.toolHoverPreview === true;
   useEffect(() => {
     setToolPreviewEnabled(previewEnabled);
   }, [previewEnabled]);

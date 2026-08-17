@@ -53,6 +53,12 @@ import { HttpRequestsBrowser } from '../HttpRequestsBuildingModal';
 import { TestsBrowser } from '../TestsBuildingModal';
 import { BottomPm2LogContent } from './BottomPm2LogContent';
 import { getBuildingViewMode, expandBuilding } from '../../utils/buildingViewMode';
+import {
+  areaTerminalId,
+  isAreaTerminalId,
+  areaIdFromTerminalId,
+  startAreaTerminal,
+} from '../../api/area-terminal';
 import type { Agent } from '../../../shared/types';
 
 // Import types
@@ -307,11 +313,27 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   }, [activeAgentId, areas, activeAgentPosX, activeAgentPosZ]);
 
   // Terminal buildings in the active agent's area (for status-bar toggle buttons)
+  //
+  // Proxy URLs of started zero-config area terminals (areaId → url) + last
+  // start error per area. Session-local cache; the start endpoint is
+  // idempotent so re-opening revalidates. Mirrors FlatView.
+  const [areaTerminalUrls, setAreaTerminalUrls] = useState<Record<string, string>>({});
+  const [areaTerminalErrors, setAreaTerminalErrors] = useState<Record<string, string>>({});
   const areaTerminalBuildings = useMemo(() => {
     if (!activeAgentId) return [];
     const area = store.getAreaForAgent(activeAgentId);
     if (!area) return [];
-    const result: { id: string; name: string; hasUrl: boolean }[] = [];
+    const result: { id: string; name: string; hasUrl: boolean; isDefault?: boolean }[] = [];
+    // Zero-config default terminal — every area gets one (cwd'd to its first
+    // assigned folder), no terminal building required.
+    const areaDir = area.directories.find((d) => d && d.trim().length > 0)?.trim();
+    const dirLabel = areaDir ? (areaDir.split('/').filter(Boolean).pop() || areaDir) : area.name;
+    result.push({
+      id: areaTerminalId(area.id),
+      name: dirLabel,
+      hasUrl: !!areaTerminalUrls[area.id],
+      isDefault: true,
+    });
     for (const building of buildings.values()) {
       if (building.type === 'terminal' && store.isPositionInArea(building.position, area)) {
         result.push({
@@ -322,7 +344,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
       }
     }
     return result;
-  }, [activeAgentId, buildings, areas]);
+  }, [activeAgentId, buildings, areas, areaTerminalUrls]);
 
   // PM2 server buildings in the active agent's area (for status-bar log buttons)
   const areaPm2Buildings = useMemo(() => {
@@ -794,6 +816,35 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   }, [splitDirection, splitRatios]);
+
+  // Zero-config area terminals: start (or revalidate — the endpoint is
+  // idempotent) for every mounted virtual panel. Covers the statusbar button
+  // click and the per-area restore from localStorage; hidden panels of other
+  // areas stay warm too (their iframes are kept alive on purpose).
+  useEffect(() => {
+    let cancelled = false;
+    for (const panel of bottomPanels) {
+      if (panel.type !== 'terminal' || !isAreaTerminalId(panel.buildingId)) continue;
+      const areaId = areaIdFromTerminalId(panel.buildingId);
+      startAreaTerminal(areaId)
+        .then((res) => {
+          if (cancelled) return;
+          setAreaTerminalUrls((prev) => (prev[areaId] === res.url ? prev : { ...prev, [areaId]: res.url }));
+          setAreaTerminalErrors((prev) => {
+            if (!(areaId in prev)) return prev;
+            const next = { ...prev };
+            delete next[areaId];
+            return next;
+          });
+        })
+        .catch((err: unknown) => {
+          if (cancelled) return;
+          const message = err instanceof Error ? err.message : 'Failed to start terminal';
+          setAreaTerminalErrors((prev) => (prev[areaId] === message ? prev : { ...prev, [areaId]: message }));
+        });
+    }
+    return () => { cancelled = true; };
+  }, [bottomPanels]);
 
   // Start PM2 log streaming for newly added PM2 panels
   const prevPm2PanelIdsRef = useRef<Set<string>>(new Set());
@@ -1693,6 +1744,36 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
               <span className="guake-status-terminals">
                 {areaTerminalBuildings.map((tb) => {
                   const isActive = bottomPanelBuildingIds.has(tb.id);
+                  // The area default terminal is zero-config: no building to
+                  // start/expand — opening the panel is all it takes (the
+                  // start effect spins up the ttyd on demand). Right-click
+                  // still offers open/split (no modal surface).
+                  if (tb.isDefault) {
+                    return (
+                      <button
+                        key={tb.id}
+                        className={`guake-status-terminal-btn default ${isActive ? 'active' : ''}`}
+                        title={`${isActive ? 'Hide' : 'Show'} area terminal: ${tb.name}`}
+                        onClick={() => {
+                          if (isActive) {
+                            const panel = bottomPanels.find(p => p.buildingId === tb.id);
+                            if (panel) closeBottomPanel(panel.id);
+                          } else {
+                            openBottomPanel(tb.id, 'terminal');
+                          }
+                        }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (!bottomPanelBuildingIds.has(tb.id)) {
+                            setSplitContextMenu({ position: { x: e.clientX, y: e.clientY }, buildingId: tb.id, type: 'terminal' });
+                          }
+                        }}
+                      >
+                        <Icon name="terminal" size={14} />
+                      </button>
+                    );
+                  }
                   return (
                     <button
                       key={tb.id}
@@ -1879,12 +1960,15 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
               icon: <Icon name="arrow-down" size={14} />,
               onClick: () => openBottomPanel(splitContextMenu.buildingId, splitContextMenu.type),
             });
-            splitActions.push({
-              id: 'open-modal',
-              label: 'Open as modal',
-              icon: <Icon name="fullscreen" size={14} />,
-              onClick: () => expandBuilding(splitContextMenu.buildingId),
-            });
+            // The zero-config area default terminal has no modal surface.
+            if (!isAreaTerminalId(splitContextMenu.buildingId)) {
+              splitActions.push({
+                id: 'open-modal',
+                label: 'Open as modal',
+                icon: <Icon name="fullscreen" size={14} />,
+                onClick: () => expandBuilding(splitContextMenu.buildingId),
+              });
+            }
             if (activeAreaPanels.length > 0) {
               splitActions.push({
                 id: 'split-right',
@@ -1928,41 +2012,56 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
             >
               {activeAreaPanels.map((panel, panelIndex) => {
                 const building = buildings.get(panel.buildingId);
-                if (!building) return null;
+                // The zero-config area default terminal has no backing
+                // building — resolve its name from the statusbar entry and
+                // its URL from the area-terminal start cache.
+                const isAreaDefault = panel.type === 'terminal' && isAreaTerminalId(panel.buildingId);
+                if (!building && !isAreaDefault) return null;
                 const ratio = splitRatios[panelIndex] ?? 1;
 
                 const panelContent = (() => {
                   if (panel.type === 'terminal') {
-                    if (!building.terminalStatus?.url) {
+                    const termName = isAreaDefault
+                      ? `Terminal — ${areaTerminalBuildings.find((b) => b.id === panel.buildingId)?.name ?? 'area'}`
+                      : building?.name ?? '';
+                    const termUrl = isAreaDefault
+                      ? areaTerminalUrls[areaIdFromTerminalId(panel.buildingId)]
+                      : building?.terminalStatus?.url;
+                    if (!termUrl) {
+                      const startError = isAreaDefault
+                        ? areaTerminalErrors[areaIdFromTerminalId(panel.buildingId)]
+                        : undefined;
                       return (
                         <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
                           <div className="guake-bottom-terminal-header">
-                            <span className="guake-bottom-terminal-title"><Icon name="terminal" size={12} /> {building.name} (starting...)</span>
+                            <span className="guake-bottom-terminal-title"><Icon name="terminal" size={12} /> {termName} (starting...)</span>
                             <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                               </svg>
                             </button>
                           </div>
-                          <div className="guake-bottom-terminal-starting"><span>Starting terminal...</span></div>
+                          <div className="guake-bottom-terminal-starting"><span>{startError ?? 'Starting terminal...'}</span></div>
                         </div>
                       );
                     }
                     return (
                       <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
                         <div className="guake-bottom-terminal-header">
-                          <span className="guake-bottom-terminal-title"><Icon name="terminal" size={12} /> {building.name}</span>
+                          <span className="guake-bottom-terminal-title"><Icon name="terminal" size={12} /> {termName}</span>
                           <div className="guake-bottom-terminal-controls">
-                            <button
-                              className="guake-bottom-terminal-close"
-                              onClick={() => {
-                                closeBottomPanel(panel.id);
-                                expandBuilding(panel.buildingId);
-                              }}
-                              title="Maximize — open as modal"
-                            >
-                              <Icon name="fullscreen" size={12} />
-                            </button>
+                            {!isAreaDefault && (
+                              <button
+                                className="guake-bottom-terminal-close"
+                                onClick={() => {
+                                  closeBottomPanel(panel.id);
+                                  expandBuilding(panel.buildingId);
+                                }}
+                                title="Maximize — open as modal"
+                              >
+                                <Icon name="fullscreen" size={12} />
+                              </button>
+                            )}
                             <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -1971,12 +2070,14 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                           </div>
                         </div>
                         <TerminalEmbed
-                          terminalUrl={building.terminalStatus.url}
+                          terminalUrl={termUrl}
                           visible={true}
                         />
                       </div>
                     );
                   }
+
+                  if (!building) return null;
 
                   if (panel.type === 'pm2-logs') {
                     const filterValue = bottomPanelFilters[panel.id] || '';

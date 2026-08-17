@@ -21,9 +21,13 @@ function toPosixSeparators(p: string): string {
 
 export const FILE_SEARCH_MIN_QUERY = 2;
 export const FILE_SEARCH_MAX_RESULTS = 50;
+export const FILE_CONTENT_SEARCH_MIN_QUERY = 3;
+export const FILE_CONTENT_SEARCH_MAX_RESULTS = 30;
 const MAX_AREA_DIRS = 48;
 const MAX_SEARCH_DEPTH = 12;
 const RG_TIMEOUT_MS = 4000;
+const MAX_CONTENT_MATCHES_PER_FILE = 3;
+const MAX_CONTENT_FILE_SIZE = 1024 * 1024;
 
 export interface GlobalFileHit {
   path: string;
@@ -33,6 +37,10 @@ export interface GlobalFileHit {
   projectRoot: string;
   areaId: string;
   areaName: string;
+}
+
+export interface GlobalFileContentHit extends GlobalFileHit {
+  matches: Array<{ line: number; content: string }>;
 }
 
 export interface AreaSearchRoot {
@@ -50,6 +58,8 @@ export interface SearchFilesGlobalOptions {
   /** Injected in tests. Production uses loadAreas(). */
   areas?: AreaSearchRoot[];
 }
+
+export type SearchFileContentsGlobalOptions = SearchFilesGlobalOptions;
 
 interface ResolvedRoot {
   areaId: string;
@@ -322,4 +332,94 @@ export async function searchFilesGlobal(opts: SearchFilesGlobalOptions): Promise
   }
 
   return sortHits(hits, queryLower).slice(0, limit);
+}
+
+/** Full-text search across every non-archived area directory. */
+export async function searchFileContentsGlobal(
+  opts: SearchFileContentsGlobalOptions
+): Promise<GlobalFileContentHit[]> {
+  const query = (opts.query || '').trim();
+  if (query.length < FILE_CONTENT_SEARCH_MIN_QUERY) return [];
+
+  const limit = Math.max(1, Math.min(
+    opts.limit ?? FILE_CONTENT_SEARCH_MAX_RESULTS,
+    FILE_CONTENT_SEARCH_MAX_RESULTS
+  ));
+  const exclude = excludeDirsFromInput(opts.exclude, true);
+  const roots = gatherRoots(opts.areas ?? loadAreas());
+  if (roots.length === 0) return [];
+
+  return new Promise((resolve) => {
+    const args = [
+      '--json',
+      '--ignore-case',
+      '--fixed-strings',
+      '--hidden',
+      '--no-ignore',
+      '--no-messages',
+      '--max-count', String(MAX_CONTENT_MATCHES_PER_FILE),
+      '--max-filesize', String(MAX_CONTENT_FILE_SIZE),
+      '--max-depth', String(MAX_SEARCH_DEPTH + 1),
+      ...[...exclude].flatMap((d) => ['--glob', `!${d}/**`, '--glob', `!**/${d}/**`]),
+      '--',
+      query,
+      ...roots.map((root) => root.resolved),
+    ];
+
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn('rg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch {
+      resolve([]);
+      return;
+    }
+
+    const hits = new Map<string, GlobalFileContentHit>();
+    let buffer = '';
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve([...hits.values()].slice(0, limit));
+    };
+    const timer = setTimeout(() => {
+      try { child.kill(); } catch { /* already exited */ }
+      finish();
+    }, RG_TIMEOUT_MS);
+
+    child.on('error', finish);
+    child.stdout?.setEncoding('utf-8');
+    child.stdout?.on('data', (chunk: string) => {
+      buffer += chunk;
+      let newline: number;
+      while ((newline = buffer.indexOf('\n')) !== -1) {
+        const raw = buffer.slice(0, newline);
+        buffer = buffer.slice(newline + 1);
+        if (!raw) continue;
+        let event: any;
+        try { event = JSON.parse(raw); } catch { continue; }
+        if (event.type !== 'match') continue;
+        const rawPath = event.data?.path?.text;
+        if (typeof rawPath !== 'string') continue;
+        const resolvedPath = path.resolve(rawPath);
+        const root = matchRoot(resolvedPath, roots);
+        if (!root) continue;
+
+        let hit = hits.get(resolvedPath);
+        if (!hit) {
+          if (hits.size >= limit) {
+            try { child.kill(); } catch { /* already exited */ }
+            break;
+          }
+          hit = { ...toHit(resolvedPath, root), matches: [] };
+          hits.set(resolvedPath, hit);
+        }
+        if (hit.matches.length >= MAX_CONTENT_MATCHES_PER_FILE) continue;
+        const content = String(event.data?.lines?.text ?? '').replace(/\r?\n$/, '').slice(0, 240);
+        hit.matches.push({ line: Number(event.data?.line_number) || 0, content });
+      }
+    });
+    child.on('close', finish);
+  });
 }

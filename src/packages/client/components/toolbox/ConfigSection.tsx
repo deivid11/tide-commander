@@ -609,7 +609,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
             <HighlightText text={t('config:general.toolHoverPreview')} query={searchQuery} />
           </span>
           <Toggle
-            checked={settings.toolHoverPreview !== false}
+            checked={settings.toolHoverPreview === true}
             onChange={(checked) => store.updateSettings({ toolHoverPreview: checked })}
           />
         </div>

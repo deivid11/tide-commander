@@ -147,6 +147,10 @@ function getOpencodeDb(): Database.Database | null {
     // Readonly: opencode owns this DB and may have it open in WAL mode.
     // fileMustExist guards against silent DB creation if the file vanishes.
     cachedOpencodeDb = new Database(OPENCODE_DB_PATH, { readonly: true, fileMustExist: true });
+    // Accent-blind search: SQL LIKE can't fold accents, so the same fold the
+    // file engines use is exposed as a deterministic connection-level UDF.
+    cachedOpencodeDb.function('tc_fold', { deterministic: true }, (v: unknown) =>
+      foldAccents(String(v ?? '').toLowerCase()));
     return cachedOpencodeDb;
   } catch (err) {
     opencodeDbOpenFailed = true;
@@ -1341,7 +1345,7 @@ function headAnswerFrom(
   // Refined query: its matches are a subset of the cached query's matching
   // lines — when we have ALL of them, answer by re-testing just those lines.
   if (entry.matchingLines) {
-    const matcher = new RegExp(escapeRegExp(queryLower), 'i');
+    const matcher = new RegExp(accentFoldPattern(queryLower), 'i');
     const matchingLines: string[] = [];
     let snippet = '';
     for (const line of entry.matchingLines) {
@@ -1435,6 +1439,42 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// ── Accent-insensitive matching ──────────────────────────────────────────────
+// The corpus is Spanish-heavy and inconsistently accented: users type
+// "conciliacion" while conversations say "conciliación" (and vice versa) —
+// both spellings must find each other in every engine (JS scanner, rg,
+// opencode SQLite). The query is folded once at the search entry points and
+// every text comparison folds its haystack the same way.
+
+/** Length-preserving fold: accented vowels / ñ collapse to their base
+ * lowercase letter (uppercase variants included; other chars keep case).
+ * 1:1 per char, so indexes computed on a folded copy remain valid on the
+ * original string — snippet windowing relies on that. */
+export function foldAccents(s: string): string {
+  return s
+    .replace(/[áàäâÁÀÄÂ]/g, 'a')
+    .replace(/[éèëêÉÈËÊ]/g, 'e')
+    .replace(/[íìïîÍÌÏÎ]/g, 'i')
+    .replace(/[óòöôÓÒÖÔ]/g, 'o')
+    .replace(/[úùüûÚÙÜÛ]/g, 'u')
+    .replace(/[ñÑ]/g, 'n');
+}
+
+/** Regex source matching `literal` accent-insensitively (pair with the `i`
+ * flag — JS RegExp or rg -i): each foldable letter becomes a character class
+ * of its variants, everything else is escaped. Produces the same pattern
+ * whether `literal` arrives accented or folded. */
+export function accentFoldPattern(literal: string): string {
+  const CLASSES: Record<string, string> = {
+    a: '[aáàäâ]', e: '[eéèëê]', i: '[iíìïî]', o: '[oóòöô]', u: '[uúùüû]', n: '[nñ]',
+  };
+  let out = '';
+  for (const ch of literal) {
+    out += CLASSES[foldAccents(ch.toLowerCase())] ?? escapeRegExp(ch);
+  }
+  return out;
+}
+
 /** Snippet quality ranks — higher wins. The Session Finder shows the snippet
  * to a human: real conversation text beats tool chatter beats raw JSON. */
 const SNIPPET_RANK_RAW = 1;
@@ -1524,7 +1564,9 @@ function extractReadableLineText(line: string): { text: string; rank: number } {
 function windowSnippet(text: string, queryLower: string): string {
   const collapsed = text.replace(/\s+/g, ' ').trim();
   if (collapsed.length <= SEARCH_SNIPPET_MAX_LEN) return collapsed;
-  const at = queryLower ? collapsed.toLowerCase().indexOf(queryLower) : -1;
+  // Fold the haystack so an accented hit windows correctly for a folded
+  // needle (foldAccents is length-preserving — indexes stay aligned).
+  const at = queryLower ? foldAccents(collapsed.toLowerCase()).indexOf(queryLower) : -1;
   if (at <= 80) return truncate(collapsed, SEARCH_SNIPPET_MAX_LEN);
   const start = at - 80;
   const end = Math.min(collapsed.length, start + SEARCH_SNIPPET_MAX_LEN - 2);
@@ -1556,8 +1598,8 @@ export async function scanSessionFileForQuery(
    * parsed conversation. */
   keepFirst?: number,
 ): Promise<{ totalMatches: number; snippet: string; matchingLines?: string[]; firstLines?: string[]; reachedEof: boolean }> {
-  const matcher = new RegExp(escapeRegExp(query), 'i');
-  const queryLower = query.toLowerCase();
+  const matcher = new RegExp(accentFoldPattern(query), 'i');
+  const queryLower = foldAccents(query.toLowerCase());
   let totalMatches = 0;
   let snippet = '';
   let snippetRank = 0;
@@ -1583,7 +1625,7 @@ export async function scanSessionFileForQuery(
         if (line.length <= FIRST_LINE_WINDOW) {
           firstLines.push(line);
         } else {
-          const at = line.toLowerCase().indexOf(queryLower);
+          const at = foldAccents(line.toLowerCase()).indexOf(queryLower);
           const start = Math.max(0, at - 400);
           const end = Math.min(line.length, start + FIRST_LINE_WINDOW);
           firstLines.push(`${start > 0 ? '…' : ''}${line.slice(start, end)}${end < line.length ? '…' : ''}`);
@@ -1748,7 +1790,7 @@ async function searchViaRipgrep(
   // Snippets for multi-word queries window around the LONGEST word (the most
   // selective one) — a single line rarely contains the whole phrase.
   const snippetNeedle = multiToken ? tokens.reduce((a, b) => (b.length > a.length ? b : a)) : query;
-  const snippetNeedleLower = snippetNeedle.toLowerCase();
+  const snippetNeedleLower = foldAccents(snippetNeedle.toLowerCase());
   const reused: Hit[] = [];
   const toScan: Array<{ session: GlobalSessionInfo; filePath: string; mtimeMs: number }> = [];
 
@@ -1774,9 +1816,11 @@ async function searchViaRipgrep(
 
   let counts = new Map<string, number>();
   if (toScan.length > 0 && !multiToken) {
+    // accentFoldPattern (not --fixed-strings): accent-blind matching — see
+    // the fold helpers above.
     const output = await runRg([
-      '-i', '--fixed-strings', '-a', '--no-config', '--no-messages', '-c', '--',
-      query, ...toScan.map((f) => f.filePath),
+      '-i', '-a', '--no-config', '--no-messages', '-c', '--',
+      accentFoldPattern(query), ...toScan.map((f) => f.filePath),
     ]);
     if (output === null) return null;
     if (generation !== searchAllSessionsGeneration) return []; // superseded — client discards
@@ -1788,8 +1832,8 @@ async function searchViaRipgrep(
     const perToken: Map<string, number>[] = [];
     for (const token of tokens) {
       const output = await runRg([
-        '-i', '--fixed-strings', '-a', '--no-config', '--no-messages', '-c', '--',
-        token, ...toScan.map((f) => f.filePath),
+        '-i', '-a', '--no-config', '--no-messages', '-c', '--',
+        accentFoldPattern(token), ...toScan.map((f) => f.filePath),
       ]);
       if (output === null) return null;
       if (generation !== searchAllSessionsGeneration) return []; // superseded
@@ -1812,16 +1856,23 @@ async function searchViaRipgrep(
       .filter((f) => (counts.get(f.filePath) ?? 0) > 0)
       .map((f) => ({ session: f.session, filePath: f.filePath, totalMatches: counts.get(f.filePath) as number, snippet: '' })),
   ];
-  all.sort((a, b) => b.session.lastModified.getTime() - a.session.lastModified.getTime());
+  // Relevance ranking BEFORE the cut — `all` holds every matching session, so
+  // the top-`limit` here is exact (snippets are then fetched only for those).
+  const rgNow = Date.now();
+  all.sort((a, b) =>
+    sessionSearchScore(b.totalMatches, b.session.lastModified, rgNow)
+      - sessionSearchScore(a.totalMatches, a.session.lastModified, rgNow)
+    || b.session.lastModified.getTime() - a.session.lastModified.getTime()
+  );
   const top = all.slice(0, limit);
 
   const needLines = top.filter((h) => !h.snippet).map((h) => h.filePath);
   let samples = new Map<string, string[]>();
   if (needLines.length > 0) {
     const output = await runRg([
-      '-i', '--fixed-strings', '-a', '--no-config', '--no-messages', '--with-filename',
+      '-i', '-a', '--no-config', '--no-messages', '--with-filename',
       '--max-columns', '4096', '-m', String(RG_SAMPLE_LINES_PER_FILE), '--',
-      snippetNeedle, ...needLines,
+      accentFoldPattern(snippetNeedle), ...needLines,
     ]);
     if (output !== null) samples = parseRgSampleLines(output);
   }
@@ -1853,7 +1904,7 @@ async function searchViaRipgrep(
       : lines !== undefined
           && totalMatches <= RG_SAMPLE_LINES_PER_FILE
           && lines.length >= totalMatches
-          && lines.every((l) => l.length <= SEARCH_CACHE_LINE_LEN_MAX && l.toLowerCase().includes(queryLower))
+          && lines.every((l) => l.length <= SEARCH_CACHE_LINE_LEN_MAX && foldAccents(l.toLowerCase()).includes(queryLower))
         ? lines.slice(0, totalMatches)
         : undefined;
     storeSearchEntry(f.filePath, {
@@ -1878,11 +1929,6 @@ async function searchViaRipgrep(
   }));
 }
 
-/** LIKE-pattern escape for SQLite (`\` as the ESCAPE character). */
-function escapeSqlLike(text: string): string {
-  return text.replace(/[\\%_]/g, (c) => `\\${c}`);
-}
-
 /**
  * Search opencode conversations. Opencode stores sessions in a SQLite DB
  * (`part` rows carry the message text as JSON, indexed by session_id) — not
@@ -1900,9 +1946,12 @@ function searchOpencodeSessions(tokens: string[], limit: number, cwdFilter?: str
     // text-sized parts.
     let combined: Map<string, number> | null = null;
     for (const token of tokens) {
+      // instr(tc_fold(...)) instead of LIKE: accent-blind substring match.
+      // The leading-wildcard LIKE was already a full scan, so the UDF does
+      // not change the asymptotics — the length() guard bounds the work.
       const rows = db
-        .prepare("SELECT session_id AS sid, COUNT(*) AS c FROM part WHERE length(data) < 65536 AND data LIKE ? ESCAPE '\\' GROUP BY session_id")
-        .all(`%${escapeSqlLike(token)}%`) as Array<{ sid: string; c: number }>;
+        .prepare('SELECT session_id AS sid, COUNT(*) AS c FROM part WHERE length(data) < 65536 AND instr(tc_fold(data), ?) > 0 GROUP BY session_id')
+        .all(token) as Array<{ sid: string; c: number }>;
       const counts = new Map(rows.map((r) => [r.sid, r.c]));
       if (combined === null) {
         combined = counts;
@@ -1923,16 +1972,16 @@ function searchOpencodeSessions(tokens: string[], limit: number, cwdFilter?: str
     const snippetNeedle = tokens.reduce((a, b) => (b.length > a.length ? b : a));
     const sessionStmt = db.prepare('SELECT id, directory, title, time_updated FROM session WHERE id = ? LIMIT 1');
     const textPartStmt = db.prepare(
-      "SELECT data FROM part WHERE session_id = ? AND length(data) < 65536 AND data LIKE ? ESCAPE '\\' AND data LIKE '%\"type\":\"text\"%' LIMIT 5"
+      'SELECT data FROM part WHERE session_id = ? AND length(data) < 65536 AND instr(tc_fold(data), ?) > 0 AND data LIKE \'%"type":"text"%\' LIMIT 5'
     );
-    const anyPartStmt = db.prepare("SELECT data FROM part WHERE session_id = ? AND length(data) < 65536 AND data LIKE ? ESCAPE '\\' LIMIT 1");
+    const anyPartStmt = db.prepare('SELECT data FROM part WHERE session_id = ? AND length(data) < 65536 AND instr(tc_fold(data), ?) > 0 LIMIT 1');
     const out: GlobalSessionSearchMatch[] = [];
     for (const [sid, totalMatches] of combined) {
       const session = sessionStmt.get(sid) as { id: string; directory: string | null; title: string | null; time_updated: number } | undefined;
       if (!session) continue;
       const directory = session.directory ?? '';
       if (cwdFilter && !directory.toLowerCase().includes(cwdFilter)) continue;
-      const needleParam = `%${escapeSqlLike(snippetNeedle)}%`;
+      const needleParam = snippetNeedle;
       let snippet = '';
       for (const row of textPartStmt.all(sid, needleParam) as Array<{ data: string }>) {
         try {
@@ -1958,7 +2007,7 @@ function searchOpencodeSessions(tokens: string[], limit: number, cwdFilter?: str
         provider: 'opencode',
       });
     }
-    out.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+    rankSessionMatches(out);
     return out.slice(0, limit);
   } catch (err) {
     log.warn(`opencode session search failed: ${String(err)}`);
@@ -1966,7 +2015,33 @@ function searchOpencodeSessions(tokens: string[], limit: number, cwdFilter?: str
   }
 }
 
-/** Merge file-engine and DB matches, newest first, capped. */
+/**
+ * Relevance score for a session search hit. Pure newest-first ordering buried
+ * topical sessions under fresher ones with a single incidental mention (a
+ * 10-hit conversation from two days ago lost to five 1-hit sessions from
+ * today and fell past Spotlight's display cap, so "conciliación pase" never
+ * surfaced the agent that owned the topic). Weight how much a session talks
+ * about the query (log-scaled match count, so 300 hits don't drown everything)
+ * by how recently it was touched (exponential decay), with a decay floor so a
+ * heavily-matching old session stays findable.
+ */
+const SEARCH_RECENCY_HALF_LIFE_DAYS = 7;
+export function sessionSearchScore(totalMatches: number, lastModified: Date, now: number): number {
+  const ageDays = Math.max(0, (now - lastModified.getTime()) / 86_400_000);
+  const decay = Math.exp((-Math.LN2 * ageDays) / SEARCH_RECENCY_HALF_LIFE_DAYS);
+  return Math.log2(1 + Math.max(1, totalMatches)) * (0.5 + decay);
+}
+
+/** Sort matches by sessionSearchScore (best first), newest-first on ties. In place. */
+export function rankSessionMatches<T extends { totalMatches: number; lastModified: Date }>(matches: T[]): T[] {
+  const now = Date.now();
+  return matches.sort((a, b) =>
+    sessionSearchScore(b.totalMatches, b.lastModified, now) - sessionSearchScore(a.totalMatches, a.lastModified, now)
+    || b.lastModified.getTime() - a.lastModified.getTime()
+  );
+}
+
+/** Merge file-engine and DB matches, best-ranked first, capped. */
 function mergeSessionMatches(
   a: GlobalSessionSearchMatch[],
   b: GlobalSessionSearchMatch[],
@@ -1975,7 +2050,7 @@ function mergeSessionMatches(
   if (b.length === 0) return a.slice(0, limit);
   if (a.length === 0) return b.slice(0, limit);
   const merged = [...a, ...b];
-  merged.sort((x, y) => y.lastModified.getTime() - x.lastModified.getTime());
+  rankSessionMatches(merged);
   return merged.slice(0, limit);
 }
 
@@ -1986,9 +2061,11 @@ function mergeSessionMatches(
  * grows forever): cached headers (listAllSessions), per-file result cache with
  * query-refinement pruning (planFileSearch), a ripgrep cold-scan engine when
  * available (single process, all cores), chunked JS scanning as the fallback,
- * and early termination — sessions are scheduled newest-first, so once `limit`
- * sessions have matched, every unscheduled session is older than every
- * collected match and cannot make the cut.
+ * and early termination — sessions are scheduled newest-first and collection
+ * stops at 3× the requested limit; the final relevance ranking
+ * (sessionSearchScore: match count × recency decay) then picks the top
+ * `limit` from that window, so a topical multi-hit session beats fresher
+ * one-hit ones without the scan having to visit the whole corpus.
  */
 export async function searchAllSessions(
   query: string,
@@ -1999,7 +2076,9 @@ export async function searchAllSessions(
 ): Promise<GlobalSessionSearchMatch[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
-  const queryLower = trimmed.toLowerCase();
+  // Folded once here — every engine below matches accent-blind against it
+  // (cache keys therefore store folded queries, keeping refinement sound).
+  const queryLower = foldAccents(trimmed.toLowerCase());
   // AND-of-words: a multi-word query matches a session when EVERY word appears
   // somewhere in it — each word on its own line if need be ("jira krunner" =
   // sessions mentioning both), which a literal phrase search cannot do.
@@ -2013,7 +2092,12 @@ export async function searchAllSessions(
   // results the client will discard (it seq-guards responses).
   const generation = ++searchAllSessionsGeneration;
 
-  const sessions = await listAllSessions({ limit: 1000 });
+  // Corpus window: how many newest sessions the search considers. The real
+  // corpus (claude + grok + codex + pi files) already exceeds 2.5k — the old
+  // 1000 cap silently hid every older conversation from Past Conversations.
+  // rg chews through the full set fine, and header enrichment is cached per
+  // file, so only the first cold search pays for the wider window.
+  const sessions = await listAllSessions({ limit: 5000 });
   const candidates = cwdFilter
     ? sessions.filter((s) => s.projectPath.toLowerCase().includes(cwdFilter))
     : sessions;
@@ -2030,13 +2114,17 @@ export async function searchAllSessions(
 
   const out: GlobalSessionSearchMatch[] = [];
   const concurrency = 10;
+  // Collect a wider window than the display cap: files are visited newest-
+  // first, but the final order is relevance-ranked, so an older topical
+  // session inside the window can still beat a fresh one-hit session.
+  const collectCap = limit * 3;
   let cursor = 0;
   const workers: Promise<void>[] = [];
   for (let i = 0; i < concurrency; i++) {
     workers.push((async () => {
       while (true) {
         if (generation !== searchAllSessionsGeneration) break; // superseded
-        if (out.length >= limit) break; // see early-termination note above
+        if (out.length >= collectCap) break; // see early-termination note above
         const idx = cursor++;
         if (idx >= candidates.length) break;
         const session = candidates[idx];
@@ -2158,7 +2246,7 @@ export async function searchAllSessions(
   }
   await Promise.all(workers);
 
-  out.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+  rankSessionMatches(out);
   return mergeSessionMatches(out.slice(0, limit), opencodeMatches, limit);
 }
 
@@ -3500,7 +3588,7 @@ export async function loadSessionAroundMatch(
   }
   const { messages } = await parseSessionMessagesCached(resolved);
   const totalCount = messages.length;
-  const q = query.trim().toLowerCase();
+  const q = foldAccents(query.trim().toLowerCase());
 
   let anchor = -1;
   if (q) {
@@ -3512,7 +3600,7 @@ export async function loadSessionAroundMatch(
       if (m.toolInput !== undefined) {
         try { text += ' ' + JSON.stringify(m.toolInput, null, 2); } catch { /* unstringifiable input */ }
       }
-      if (text.toLowerCase().includes(q)) {
+      if (foldAccents(text.toLowerCase()).includes(q)) {
         anchor = i;
         break;
       }
@@ -3533,7 +3621,7 @@ export async function loadSessionAroundMatch(
             // Prefer the readable text when it actually contains the hit;
             // otherwise show the (windowed) raw line — that's where it lives.
             const readable = extractReadableLineText(line);
-            const content = readable.rank > SNIPPET_RANK_RAW && readable.text.toLowerCase().includes(q)
+            const content = readable.rank > SNIPPET_RANK_RAW && foldAccents(readable.text.toLowerCase()).includes(q)
               ? readable.text
               : line;
             let timestamp = '';
@@ -3584,12 +3672,12 @@ export async function searchSession(
   }
 
   const { messages } = await parseSessionMessagesCached(resolved);
-  const queryLower = query.toLowerCase();
+  const queryLower = foldAccents(query.toLowerCase());
   const matches: SessionMessage[] = [];
 
   for (const message of messages) {
-    const contentLower = message.content.toLowerCase();
-    const toolNameLower = message.toolName?.toLowerCase() || '';
+    const contentLower = foldAccents(message.content.toLowerCase());
+    const toolNameLower = foldAccents(message.toolName?.toLowerCase() || '');
     const matched = contentLower.includes(queryLower) || toolNameLower.includes(queryLower);
     if (!matched) continue;
     matches.push(message);

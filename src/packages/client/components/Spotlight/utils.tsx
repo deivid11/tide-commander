@@ -137,6 +137,8 @@ export function getTypeLabel(type: string): string {
       return 'Folder';
     case 'file':
       return 'File';
+    case 'file-content':
+      return 'Content';
     default:
       return type;
   }

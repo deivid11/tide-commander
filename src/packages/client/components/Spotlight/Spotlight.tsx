@@ -10,13 +10,14 @@
  * - Recent activity
  */
 
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import type { SpotlightProps } from './types';
 import { useSpotlightSearch } from './useSpotlightSearch';
 import { SpotlightInput } from './SpotlightInput';
 import { SpotlightTabs } from './SpotlightTabs';
 import { SpotlightResults } from './SpotlightResults';
 import { SpotlightFooter } from './SpotlightFooter';
+import { SpotlightFileDetailModal, type SpotlightFileDetail } from './SpotlightFileDetailModal';
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -37,6 +38,7 @@ export function Spotlight({
   const overlayRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const resultsLengthRef = useRef(0);
+  const [fileDetail, setFileDetail] = useState<SpotlightFileDetail | null>(null);
 
   const {
     query,
@@ -44,6 +46,7 @@ export function Spotlight({
     selectedIndex,
     setSelectedIndex,
     results,
+    loadingTypes,
     activeTab,
     setActiveTab,
     cycleTab,
@@ -62,6 +65,7 @@ export function Spotlight({
     onOpenDatabasePanel,
     onOpenMonitoringModal,
     onOpenSessionFinder,
+    onOpenFileDetail: setFileDetail,
   });
 
   resultsLengthRef.current = results.length;
@@ -179,7 +183,11 @@ export function Spotlight({
     setSelectedIndex(0);
   }, [setSelectedIndex]);
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    return fileDetail
+      ? <SpotlightFileDetailModal detail={fileDetail} onClose={() => setFileDetail(null)} />
+      : null;
+  }
 
   return (
     <div ref={overlayRef} className="spotlight-overlay" onClick={handleBackdropClick}>
@@ -197,6 +205,7 @@ export function Spotlight({
         <SpotlightResults
           ref={resultsRef}
           results={results}
+          loadingTypes={loadingTypes}
           selectedIndex={selectedIndex}
           query={query}
           activeTab={activeTab}

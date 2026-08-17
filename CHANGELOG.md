@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.190.0] - 2026-08-16
+
+### Added
+- **A terminal for every area with no setup** - each area now exposes an on-demand tmux terminal rooted in its first project directory, directly from the Commander and flat-view status bars. The shell survives viewer and server restarts, uses its own isolated port range, and no longer requires creating a terminal building first.
+- **Search inside project files from Spotlight** - the new Contents tab searches text across every configured area project, streams its own loading state, and opens a matching file directly at the relevant line. The inline detail view shows either the working-tree diff or read-only file content with highlighted matches and next/previous navigation, with a shortcut into the full File Explorer.
+- **Find an agent by what it discussed** - conversation results now resolve ownership through both current and archived session history, so a topic search can surface the agent that handled it and jump straight to the matching exchange. Accent-insensitive matching and relevance-plus-recency ranking keep topical Spanish-language conversations findable even when the query omits accents.
+
+### Changed
+- **Cleaner Spotlight result groups** - agents and conversations collapse behind “Show all” rows, categories stay in a predictable order, provider badges identify each conversation's harness, and weak fuzzy matches no longer crowd out stronger topical results.
+- **A larger recent-agent dock** - the dock now retains twelve recently active agents instead of four.
+- **Tool hover previews are opt-in** - file, diff, and command hover previews now default off while remaining available in Settings.
+
 ## [1.189.0] - 2026-08-16
 
 ### Added

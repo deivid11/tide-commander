@@ -64,6 +64,12 @@ import { BottomPm2LogContent } from '../ClaudeOutputPanel/BottomPm2LogContent';
 import { DatabasePanelInline } from '../database/DatabasePanelInline';
 import { getBuildingViewMode, expandBuilding, type DockPanelType } from '../../utils/buildingViewMode';
 import {
+  areaTerminalId,
+  isAreaTerminalId,
+  areaIdFromTerminalId,
+  startAreaTerminal,
+} from '../../api/area-terminal';
+import {
   BOTTOM_PM2_LOG_RETENTION_OPTIONS,
   readBottomPm2LogRetention,
   writeBottomPm2LogRetention,
@@ -490,10 +496,25 @@ const ChatView = React.memo(function ChatView({
   // ── Area-scoped buildings for the statusbar (terminal / PM2 / database) ──
   // Mirrors ClaudeOutputPanel so the chat statusbar surfaces the same shortcut
   // buttons for buildings in the agent's working area.
+  //
+  // Proxy URLs of started zero-config area terminals (areaId → url). Session-
+  // local cache; the start endpoint is idempotent so re-opening revalidates.
+  const [areaTerminalUrls, setAreaTerminalUrls] = useState<Record<string, string>>({});
+  const [areaTerminalError, setAreaTerminalError] = useState<string | null>(null);
   const areaTerminalBuildings = useMemo(() => {
     const area = store.getAreaForAgent(agentId);
     if (!area) return [];
-    const result: { id: string; name: string; hasUrl: boolean }[] = [];
+    const result: { id: string; name: string; hasUrl: boolean; isDefault?: boolean }[] = [];
+    // Zero-config default terminal — every area gets one (cwd'd to its first
+    // assigned folder), no terminal building required.
+    const areaDir = area.directories.find((d) => d && d.trim().length > 0)?.trim();
+    const dirLabel = areaDir ? (areaDir.split('/').filter(Boolean).pop() || areaDir) : area.name;
+    result.push({
+      id: areaTerminalId(area.id),
+      name: dirLabel,
+      hasUrl: !!areaTerminalUrls[area.id],
+      isDefault: true,
+    });
     for (const building of buildings.values()) {
       if (building.type === 'terminal' && store.isPositionInArea(building.position, area)) {
         result.push({
@@ -504,7 +525,7 @@ const ChatView = React.memo(function ChatView({
       }
     }
     return result;
-  }, [agentId, buildings]);
+  }, [agentId, buildings, areas, areaTerminalUrls]);
 
   const areaPm2Buildings = useMemo(() => {
     const area = store.getAreaForAgent(agentId);
@@ -610,6 +631,24 @@ const ChatView = React.memo(function ChatView({
     const id = embeddedPanel.buildingId;
     store.startLogStreaming(id, 200);
     return () => store.stopLogStreaming(id);
+  }, [embeddedPanel]);
+  // Zero-config area terminal: start (or revalidate — the endpoint is
+  // idempotent) whenever the embedded panel targets it. Covers both the
+  // statusbar button click and the saved-panel restore on mount/area switch.
+  // The ttyd is left running on close so reopening is instant.
+  useEffect(() => {
+    setAreaTerminalError(null);
+    if (embeddedPanel?.type !== 'terminal' || !isAreaTerminalId(embeddedPanel.buildingId)) return;
+    const areaId = areaIdFromTerminalId(embeddedPanel.buildingId);
+    let cancelled = false;
+    startAreaTerminal(areaId)
+      .then((res) => {
+        if (!cancelled) setAreaTerminalUrls((prev) => (prev[areaId] === res.url ? prev : { ...prev, [areaId]: res.url }));
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setAreaTerminalError(err instanceof Error ? err.message : 'Failed to start terminal');
+      });
+    return () => { cancelled = true; };
   }, [embeddedPanel]);
   // Shared resizer — same hook the Guake bottom panel uses, so the persisted
   // height is kept in sync across both surfaces.
@@ -1175,8 +1214,17 @@ const ChatView = React.memo(function ChatView({
           hasModalOpen={false}
         />
       ) : null}
-      {embeddedPanel && embeddedBuilding && (() => {
+      {embeddedPanel && (embeddedBuilding || isAreaTerminalId(embeddedPanel.buildingId)) && (() => {
         const panelType = embeddedPanel.type;
+        // The zero-config area default terminal has no backing building —
+        // resolve its name from the statusbar entry and its URL from the
+        // area-terminal start cache.
+        const isAreaDefault = isAreaTerminalId(embeddedPanel.buildingId);
+        const panelName = embeddedBuilding?.name
+          ?? `Terminal — ${areaTerminalBuildings.find((b) => b.id === embeddedPanel.buildingId)?.name ?? 'area'}`;
+        const terminalUrl = isAreaDefault
+          ? areaTerminalUrls[areaIdFromTerminalId(embeddedPanel.buildingId)]
+          : embeddedBuilding?.terminalStatus?.url;
         const titleIcon: Record<DockPanelType, IconName> = {
           terminal: 'terminal',
           'pm2-logs': 'scroll',
@@ -1184,9 +1232,10 @@ const ChatView = React.memo(function ChatView({
           tests: 'flask',
           http: 'globe',
         };
-        const terminalStarting = panelType === 'terminal' && !embeddedBuilding.terminalStatus?.url;
-        // Terminals without a URL can't maximize (the modal needs the URL).
-        const canMaximize = !terminalStarting;
+        const terminalStarting = panelType === 'terminal' && !terminalUrl;
+        // Terminals without a URL can't maximize (the modal needs the URL);
+        // the area default terminal has no modal surface at all.
+        const canMaximize = !terminalStarting && !isAreaDefault;
         return (
           <>
             <div
@@ -1199,17 +1248,17 @@ const ChatView = React.memo(function ChatView({
             <div
               className="flat-bottom-panel"
               role="region"
-              aria-label={`${embeddedBuilding.name} panel`}
+              aria-label={`${panelName} panel`}
               style={{ height: embeddedHeight }}
             >
               <div className="flat-bottom-panel__header">
                 <span className="flat-bottom-panel__title">
                   <Icon name={titleIcon[panelType]} size={12} />
-                  <span>{embeddedBuilding.name}</span>
+                  <span>{panelName}</span>
                   {terminalStarting && <span className="flat-bottom-panel__muted">(starting...)</span>}
                 </span>
                 <span className="flat-bottom-panel__header-actions">
-                  {panelType === 'pm2-logs' && (
+                  {panelType === 'pm2-logs' && embeddedBuilding && (
                     <>
                       <input
                         type="text"
@@ -1281,13 +1330,13 @@ const ChatView = React.memo(function ChatView({
               </div>
               <div className="flat-bottom-panel__body">
                 {panelType === 'terminal' ? (
-                  embeddedBuilding.terminalStatus?.url ? (
+                  terminalUrl ? (
                     <TerminalEmbed
-                      terminalUrl={embeddedBuilding.terminalStatus.url}
+                      terminalUrl={terminalUrl}
                       visible={true}
                     />
                   ) : (
-                    <div className="flat-bottom-panel__placeholder">Starting terminal...</div>
+                    <div className="flat-bottom-panel__placeholder">{areaTerminalError ?? 'Starting terminal...'}</div>
                   )
                 ) : panelType === 'pm2-logs' ? (
                   <BottomPm2LogContent
@@ -1295,7 +1344,7 @@ const ChatView = React.memo(function ChatView({
                     filterText={embeddedPm2Filter}
                     maxRetention={embeddedPm2Retention}
                   />
-                ) : panelType === 'database' ? (
+                ) : !embeddedBuilding ? null : panelType === 'database' ? (
                   <DatabasePanelInline building={embeddedBuilding} />
                 ) : panelType === 'tests' ? (
                   <div className="tests-panel-host">
@@ -1443,6 +1492,25 @@ const ChatView = React.memo(function ChatView({
           <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area terminals">
             {areaTerminalBuildings.map((tb) => {
               const isActive = embeddedPanel?.buildingId === tb.id;
+              // The area default terminal is zero-config: no building to
+              // start/expand — opening the panel is all it takes (the start
+              // effect spins up the ttyd on demand).
+              if (tb.isDefault) {
+                return (
+                  <button
+                    key={tb.id}
+                    type="button"
+                    className={`flat-terminal-wrapper__building-btn flat-terminal-wrapper__building-btn--default ${isActive ? 'flat-terminal-wrapper__building-btn--active' : ''}`}
+                    title={`${isActive ? 'Hide' : 'Show'} area terminal: ${tb.name}`}
+                    onClick={() => {
+                      if (isActive) closeEmbeddedPanel();
+                      else toggleEmbeddedPanel('terminal', tb.id);
+                    }}
+                  >
+                    <Icon name="terminal" size={14} />
+                  </button>
+                );
+              }
               return (
                 <button
                   key={tb.id}
