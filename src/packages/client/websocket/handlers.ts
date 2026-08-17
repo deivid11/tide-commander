@@ -155,7 +155,12 @@ export function handleServerMessage(message: ServerMessage): void {
         // Claude), so ask the server for real stats instead of leaving a stale
         // number on screen until the next message.
         if (pendingCompactRefresh.delete(updatedAgent.id)) {
-          store.refreshAgentContext(updatedAgent.id);
+          // Pi RPC's native compact event carries estimatedTokensAfter and its
+          // built-in /context command is TUI-only. Sending `/context` as an RPC
+          // prompt would wake the model and pollute the newly compacted context.
+          if (updatedAgent.provider !== 'pi') {
+            store.refreshAgentContext(updatedAgent.id);
+          }
         }
       }
 
@@ -290,7 +295,7 @@ export function handleServerMessage(message: ServerMessage): void {
           // Live events used to discard non-Bash results. History later linked
           // the same ids, making Grep (and other result-aware cards) appear to
           // start working only after /history loaded.
-          store.attachToolResult(event.agentId, toolUseId, event.toolOutput);
+          store.attachToolResult(event.agentId, toolUseId, event.toolOutput, event.toolInput);
         }
         if (event.parentToolUseId && event.toolName === 'Bash') {
           // Mirror the parent-agent behavior (only Bash results get a terminal
@@ -326,6 +331,10 @@ export function handleServerMessage(message: ServerMessage): void {
         toolInput?: Record<string, unknown>;
         toolInputRaw?: string;
         toolOutput?: string;
+        reasoningTokens?: number;
+        reasoningSummaryCount?: number;
+        reasoningEncrypted?: boolean;
+        reasoningSummaryOnly?: boolean;
       };
       debugLog.debug(`Output: "${output.text.slice(0, 80)}..."`, {
         agentId: output.agentId,
@@ -363,6 +372,10 @@ export function handleServerMessage(message: ServerMessage): void {
         toolName: output.toolName,
         toolInput: output.toolInput,
         toolOutput: output.toolOutput,
+        reasoningTokens: output.reasoningTokens,
+        reasoningSummaryCount: output.reasoningSummaryCount,
+        reasoningEncrypted: output.reasoningEncrypted,
+        reasoningSummaryOnly: output.reasoningSummaryOnly,
       });
       break;
     }

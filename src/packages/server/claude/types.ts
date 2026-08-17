@@ -6,6 +6,19 @@
 import type { CodexConfig } from '../../shared/types.js';
 import type { ModelFallbackTransition } from '../../shared/model-fallback.js';
 
+export interface OutputMetadata {
+  toolName?: string;
+  toolInput?: Record<string, unknown>;
+  /** Provider-reported reasoning tokens for the assistant message. */
+  reasoningTokens?: number;
+  /** Number of plaintext reasoning summaries exposed by the provider. */
+  reasoningSummaryCount?: number;
+  /** Detailed reasoning is present only as an encrypted provider payload. */
+  reasoningEncrypted?: boolean;
+  /** Visible thinking text is a summary, not the full chain of thought. */
+  reasoningSummaryOnly?: boolean;
+}
+
 // Standard normalized event format (backend-agnostic)
 export interface StandardEvent {
   type:
@@ -48,6 +61,10 @@ export interface StandardEvent {
   cost?: number;
   durationMs?: number;
   isStreaming?: boolean;
+  reasoningTokens?: number;
+  reasoningSummaryCount?: number;
+  reasoningEncrypted?: boolean;
+  reasoningSummaryOnly?: boolean;
   model?: string;
   // model_fallback: the model the session asked for vs the one that answered.
   // `fallbackRestored` marks the turn where the requested model came back.
@@ -272,7 +289,7 @@ export interface RunnerRequest {
 // Runner callbacks
 export interface RunnerCallbacks {
   onEvent: (agentId: string, event: StandardEvent) => void;
-  onOutput: (agentId: string, text: string, isStreaming?: boolean, subagentName?: string, uuid?: string, toolMeta?: { toolName?: string; toolInput?: Record<string, unknown> }) => void;
+  onOutput: (agentId: string, text: string, isStreaming?: boolean, subagentName?: string, uuid?: string, outputMeta?: OutputMetadata) => void;
   onSessionId: (agentId: string, sessionId: string) => void;
   onComplete: (agentId: string, success: boolean) => void;
   onError: (agentId: string, error: string) => void;

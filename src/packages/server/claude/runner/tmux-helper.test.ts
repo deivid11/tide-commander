@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { createFileTailer } from './tmux-helper.js';
+import { createFileTailer, isHeadlessAgentTmuxSessionName } from './tmux-helper.js';
 
 function makeTempLog(): string {
   return path.join(os.tmpdir(), `tc-tailer-test-${Date.now()}-${Math.random().toString(36).slice(2)}.log`);
@@ -16,6 +16,14 @@ async function waitFor(predicate: () => boolean, timeoutMs = 1000): Promise<void
   }
   throw new Error('waitFor timed out');
 }
+
+describe('tmux session ownership', () => {
+  it('keeps Pi RPC sessions out of the generic headless recovery sweep', () => {
+    expect(isHeadlessAgentTmuxSessionName('tc-agent123')).toBe(true);
+    expect(isHeadlessAgentTmuxSessionName('tc-int-agent123')).toBe(false);
+    expect(isHeadlessAgentTmuxSessionName('tc-pi-rpc-agent123')).toBe(false);
+  });
+});
 
 describe('createFileTailer (tmux log tailer)', () => {
   let tmpPath: string;

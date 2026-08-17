@@ -79,6 +79,15 @@ export class PiRunnerRouter implements RuntimeRunner {
     return owner.interruptTurn ? owner.interruptTurn(agentId, clearQueue) : false;
   }
 
+  async compactContext(agentId: string, customInstructions?: string): Promise<boolean> {
+    const owner = this.ownerRunner(agentId);
+    // Built-in slash commands are TUI-only when sent as prompts in RPC mode.
+    // Delegate to the RPC runner's native `{ type: 'compact' }` operation.
+    return owner.compactContext
+      ? owner.compactContext(agentId, customInstructions)
+      : false;
+  }
+
   getQueuedMessages(agentId: string): string[] {
     return this.ownerRunner(agentId).getQueuedMessages?.(agentId) ?? [];
   }

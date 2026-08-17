@@ -60,6 +60,17 @@ export type ToolName =
 // Skills Types
 // ============================================================================
 
+/** Skills pre-selected when spawning a regular or boss agent. */
+export const DEFAULT_AGENT_SKILL_SLUGS = [
+  'full-notifications',
+  'streaming-exec',
+  'task-label',
+  'report-task-to-boss',
+  'agent-tracking',
+  'agent-memory',
+  'send-message-to-agent',
+] as const;
+
 /**
  * Skill - A reusable capability that can be assigned to agents
  *

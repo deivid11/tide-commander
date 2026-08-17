@@ -10,13 +10,16 @@
  *      thinking_start/thinking_delta/thinking_end, toolcall_start/toolcall_delta/toolcall_end
  *  - tool_execution_start / tool_execution_update / tool_execution_end
  *
- * One agentic run spans several turn_start/turn_end pairs (one per LLM call);
- * step_complete is emitted on agent_end only. Deltas stream token-by-token, so
- * we mint a stable uuid per (message, contentIndex) block for client merging.
+ * One session-level run spans several turn_start/turn_end pairs and may continue
+ * through retry/compaction after agent_end. step_complete is emitted only on
+ * agent_settled (or manual compaction_end). Deltas stream token-by-token, so we
+ * mint a stable uuid per (message, contentIndex) block for client merging.
  */
 
 import type { StandardEvent } from '../claude/types.js';
 import { createLogger } from '../utils/logger.js';
+import { normalizePiToolInput } from './tool-input.js';
+import { extractPiReasoningMetadata } from './reasoning-metadata.js';
 
 const log = createLogger('PiParser');
 
@@ -24,6 +27,7 @@ interface PiContentBlock {
   type?: string;
   text?: string;
   thinking?: string;
+  thinkingSignature?: string;
 }
 
 interface PiUsage {
@@ -31,6 +35,7 @@ interface PiUsage {
   output?: number;
   cacheRead?: number;
   cacheWrite?: number;
+  reasoning?: number;
   totalTokens?: number;
   cost?: { total?: number };
 }
@@ -48,7 +53,9 @@ interface PiAssistantMessageEvent {
   type?: string;
   contentIndex?: number;
   delta?: string;
-  content?: PiContentBlock;
+  // Current Pi emits the completed block as a string; older releases emitted
+  // the typed content object. Accept both for resumable sessions across upgrades.
+  content?: PiContentBlock | string;
 }
 
 interface PiRawEvent {
@@ -59,9 +66,16 @@ interface PiRawEvent {
   toolCallId?: string;
   toolName?: string;
   args?: Record<string, unknown>;
-  result?: { content?: PiContentBlock[] } | string;
+  result?: {
+    content?: PiContentBlock[];
+    details?: { patch?: unknown; firstChangedLine?: unknown };
+    tokensBefore?: number;
+    estimatedTokensAfter?: number;
+    usage?: PiUsage;
+  } | string | null;
   isError?: boolean;
   reason?: string;
+  aborted?: boolean;
   errorMessage?: string;
 }
 
@@ -111,9 +125,13 @@ export class PiJsonEventParser {
   /** Open streaming uuids (by contentIndex) awaiting their *_end finalize. */
   private openTextStreams = new Map<number, string>();
   private openThinkingStreams = new Map<number, string>();
+  /** Completed plaintext thinking held until message_end adds usage/signature metadata. */
+  private completedThinking = new Map<number, { text: string; uuid: string }>();
   /** Usage from the last assistant message_end (context accounting + cost). */
   private lastUsage: PiUsage | undefined;
   private lastErrorMessage: string | undefined;
+  /** Start args retained until Pi returns the exact edit patch. */
+  private toolInputs = new Map<string, { toolName: string; args: Record<string, unknown> }>();
 
   parseEvent(rawEvent: unknown): StandardEvent[] {
     const event = rawEvent as PiRawEvent;
@@ -143,9 +161,16 @@ export class PiJsonEventParser {
       case 'tool_execution_end':
         return this.parseToolEnd(event);
       case 'agent_end':
+        // A low-level agent run may still be followed by overflow compaction,
+        // retry, or queued continuations. `agent_settled` is the only true
+        // session-level idle boundary.
+        return [];
+      case 'agent_settled':
         return this.parseAgentEnd();
       case 'compaction_start':
         return [{ type: 'compacting' }];
+      case 'compaction_end':
+        return this.parseCompactionEnd(event);
       case 'auto_retry_start':
         return [{
           type: 'text',
@@ -159,7 +184,6 @@ export class PiJsonEventParser {
       case 'turn_end':
       case 'tool_execution_update':
       case 'queue_update':
-      case 'compaction_end':
       case 'auto_retry_end':
       case 'response':
         return [];
@@ -178,6 +202,7 @@ export class PiJsonEventParser {
       this.messageCounter++;
       this.openTextStreams.clear();
       this.openThinkingStreams.clear();
+      this.completedThinking.clear();
     }
     return [];
   }
@@ -210,7 +235,9 @@ export class PiJsonEventParser {
       case 'text_end': {
         const uuid = this.openTextStreams.get(idx) ?? this.streamUuid('text', idx);
         this.openTextStreams.delete(idx);
-        const full = ame.content?.text ?? this.lastTextContent;
+        const full = typeof ame.content === 'string'
+          ? ame.content
+          : ame.content?.text ?? this.lastTextContent;
         if (!full) return [];
         this.lastTextContent = full;
         this.textEventEmittedInRun = true;
@@ -219,10 +246,16 @@ export class PiJsonEventParser {
       case 'thinking_end': {
         const uuid = this.openThinkingStreams.get(idx) ?? this.streamUuid('thinking', idx);
         this.openThinkingStreams.delete(idx);
-        const full = ame.content?.thinking ?? '';
+        const full = typeof ame.content === 'string'
+          ? ame.content
+          : ame.content?.thinking ?? '';
         if (!full) return [];
         this.lastThinkingContent = full;
-        return [{ type: 'thinking', text: full, isStreaming: false, uuid }];
+        // message_end carries authoritative usage + thinkingSignature. Defer the
+        // final row a few milliseconds so the UI can label summary-only OpenAI
+        // reasoning and show how many hidden reasoning tokens were consumed.
+        this.completedThinking.set(idx, { text: full, uuid });
+        return [];
       }
       // Tool-call arg streaming is covered by tool_execution_start.
       case 'thinking_start':
@@ -240,6 +273,41 @@ export class PiJsonEventParser {
     if (message?.role !== 'assistant') return [];
 
     const events: StandardEvent[] = [];
+
+    // Finalize every thinking block with the metadata unavailable on streamed
+    // deltas. For OpenAI/Codex Responses models, Pi persists only plaintext
+    // summary titles plus an encrypted detailed-reasoning payload.
+    const blocks = Array.isArray(message.content) ? message.content : [];
+    const thinkingIndexes = new Set<number>();
+    for (let index = 0; index < blocks.length; index++) {
+      const block = blocks[index];
+      if (block?.type !== 'thinking') continue;
+      const completed = this.completedThinking.get(index);
+      const text = block.thinking || completed?.text || '';
+      if (!text) continue;
+      thinkingIndexes.add(index);
+      this.lastThinkingContent = text;
+      events.push({
+        type: 'thinking',
+        text,
+        isStreaming: false,
+        uuid: completed?.uuid ?? this.streamUuid('thinking', index),
+        ...extractPiReasoningMetadata(block.thinkingSignature, message.usage?.reasoning),
+      });
+    }
+    // Defensive fallback for aborted/legacy messages whose message_end omits
+    // content even though a thinking_end event already supplied the text.
+    for (const [index, completed] of this.completedThinking) {
+      if (thinkingIndexes.has(index)) continue;
+      events.push({
+        type: 'thinking',
+        text: completed.text,
+        isStreaming: false,
+        uuid: completed.uuid,
+        ...extractPiReasoningMetadata(undefined, message.usage?.reasoning),
+      });
+    }
+    this.completedThinking.clear();
 
     if (message.stopReason === 'error' && message.errorMessage) {
       this.lastErrorMessage = message.errorMessage;
@@ -266,12 +334,15 @@ export class PiJsonEventParser {
 
   private parseToolStart(event: PiRawEvent): StandardEvent[] {
     const toolName = normalizeToolName(event.toolName || 'unknown');
+    const args = event.args || {};
+    const toolInput = normalizePiToolInput(toolName, args);
     const toolStart: StandardEvent = {
       type: 'tool_start',
       toolName,
-      toolInput: event.args,
+      toolInput,
     };
     if (event.toolCallId) {
+      this.toolInputs.set(event.toolCallId, { toolName, args });
       toolStart.toolUseId = event.toolCallId;
       toolStart.uuid = event.toolCallId;
     }
@@ -290,10 +361,50 @@ export class PiJsonEventParser {
       toolOutput: output,
     };
     if (event.toolCallId) {
+      const pending = this.toolInputs.get(event.toolCallId);
+      this.toolInputs.delete(event.toolCallId);
       toolResult.toolUseId = event.toolCallId;
       toolResult.uuid = event.toolCallId;
+      if (toolName === 'Edit' && pending) {
+        const details = typeof event.result === 'object' ? event.result?.details : undefined;
+        toolResult.toolInput = normalizePiToolInput(pending.toolName, pending.args, details);
+      }
     }
     return [toolResult];
+  }
+
+  private parseCompactionEnd(event: PiRawEvent): StandardEvent[] {
+    if (!event.result || typeof event.result === 'string') {
+      return [{
+        type: 'text',
+        text: event.aborted
+          ? '(Pi compaction aborted)'
+          : `(Pi compaction failed: ${event.errorMessage || 'unknown error'})`,
+        isStreaming: false,
+        uuid: `pi-compaction-end-${Date.now()}`,
+      }];
+    }
+
+    const events: StandardEvent[] = [{
+      type: 'text',
+      // Reuse the existing compacted-pill renderer in both live and history.
+      text: '<local-command-stdout>Compacted</local-command-stdout>',
+      isStreaming: false,
+      uuid: `pi-compaction-end-${Date.now()}`,
+    }];
+    const estimatedTokensAfter = event.result.estimatedTokensAfter;
+    if (typeof estimatedTokensAfter === 'number' && estimatedTokensAfter > 0) {
+      events.push({
+        type: 'usage_snapshot',
+        tokens: { input: estimatedTokensAfter, output: 0, cacheRead: 0, cacheCreation: 0 },
+      });
+    }
+    if (event.reason === 'manual') {
+      // Native RPC compaction has no agent_settled. Finalize the runner and
+      // clear RunnerStdoutPipeline's per-turn streaming state here.
+      events.push({ type: 'step_complete' });
+    }
+    return events;
   }
 
   private parseAgentEnd(): StandardEvent[] {
@@ -332,6 +443,8 @@ export class PiJsonEventParser {
     this.lastErrorMessage = undefined;
     this.openTextStreams.clear();
     this.openThinkingStreams.clear();
+    this.completedThinking.clear();
+    this.toolInputs.clear();
 
     return events;
   }

@@ -73,14 +73,39 @@ describe('PiJsonEventParser', () => {
       assistantMessageEvent: {
         type: 'thinking_end',
         contentIndex: 0,
-        content: { type: 'thinking', thinking: 'hmm done' },
+        // Current Pi sends the completed content as a string.
+        content: 'hmm done',
       },
     });
-    expect(thinkEnd[0]).toMatchObject({
+    // Finalization waits for message_end, where Pi includes the authoritative
+    // reasoning usage and encrypted/summary signature metadata.
+    expect(thinkEnd).toHaveLength(0);
+
+    const messageEnd = parser.parseEvent({
+      type: 'message_end',
+      message: {
+        role: 'assistant',
+        content: [{
+          type: 'thinking',
+          thinking: 'hmm done',
+          thinkingSignature: JSON.stringify({
+            encrypted_content: 'opaque',
+            content: [],
+            summary: [{ type: 'summary_text', text: 'hmm done' }],
+          }),
+        }],
+        usage: { input: 10, output: 20, reasoning: 17, totalTokens: 30 },
+      },
+    });
+    expect(messageEnd[0]).toMatchObject({
       type: 'thinking',
       text: 'hmm done',
       isStreaming: false,
       uuid: think[0].uuid,
+      reasoningTokens: 17,
+      reasoningSummaryCount: 1,
+      reasoningEncrypted: true,
+      reasoningSummaryOnly: true,
     });
   });
 
@@ -127,6 +152,52 @@ describe('PiJsonEventParser', () => {
       toolName: 'Write',
       toolOutput: 'Successfully wrote 7 bytes to hello.txt',
       toolUseId: 'toolu_01Sxt1Te4a8BizPXKpkBWrfs',
+    });
+  });
+
+  it('normalizes Pi edit args and attaches the exact result patch', () => {
+    const parser = new PiJsonEventParser();
+    const start = parser.parseEvent({
+      type: 'tool_execution_start',
+      toolCallId: 'edit-call',
+      toolName: 'edit',
+      args: {
+        path: 'src/example.ts',
+        edits: [{ oldText: 'const a = 1;', newText: 'const a = 2;' }],
+      },
+    });
+
+    expect(start[0]).toMatchObject({
+      type: 'tool_start',
+      toolName: 'Edit',
+      toolInput: {
+        file_path: 'src/example.ts',
+        old_string: 'const a = 1;',
+        new_string: 'const a = 2;',
+        operation: 'pi-edit',
+      },
+    });
+
+    const patch = '--- src/example.ts\n+++ src/example.ts\n@@ -1 +1 @@\n-const a = 1;\n+const a = 2;\n';
+    const end = parser.parseEvent({
+      type: 'tool_execution_end',
+      toolCallId: 'edit-call',
+      toolName: 'edit',
+      result: {
+        content: [{ type: 'text', text: 'Successfully replaced 1 block(s).' }],
+        details: { patch, firstChangedLine: 1 },
+      },
+      isError: false,
+    });
+
+    expect(end[0]).toMatchObject({
+      type: 'tool_result',
+      toolName: 'Edit',
+      toolInput: {
+        file_path: 'src/example.ts',
+        unified_diff: patch,
+        first_changed_line: 1,
+      },
     });
   });
 
@@ -191,7 +262,7 @@ describe('PiJsonEventParser', () => {
     });
   });
 
-  it('emits step_complete with resultText, tokens, and cost on agent_end', () => {
+  it('waits for agent_settled before emitting step_complete', () => {
     const parser = new PiJsonEventParser();
     parser.parseEvent({ type: 'message_start', message: { role: 'assistant', content: [] } });
     parser.parseEvent({
@@ -220,7 +291,8 @@ describe('PiJsonEventParser', () => {
       },
     });
 
-    const events = parser.parseEvent({ type: 'agent_end', messages: [] });
+    expect(parser.parseEvent({ type: 'agent_end', messages: [] })).toHaveLength(0);
+    const events = parser.parseEvent({ type: 'agent_settled' });
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
       type: 'step_complete',
@@ -241,14 +313,30 @@ describe('PiJsonEventParser', () => {
         content: { type: 'thinking', thinking: 'only thoughts' },
       },
     });
-    const events = parser.parseEvent({ type: 'agent_end', messages: [] });
+    const events = parser.parseEvent({ type: 'agent_settled' });
     expect(events[0].type).toBe('step_complete');
     expect(events[0].resultText).toContain('Empty response');
   });
 
-  it('maps compaction_start to compacting and skips lifecycle noise', () => {
+  it('maps compaction lifecycle and refreshes Pi context from the rebuilt estimate', () => {
     const parser = new PiJsonEventParser();
-    expect(parser.parseEvent({ type: 'compaction_start', reason: 'threshold' })[0]).toMatchObject({ type: 'compacting' });
+    expect(parser.parseEvent({ type: 'compaction_start', reason: 'manual' })[0]).toMatchObject({ type: 'compacting' });
+    expect(parser.parseEvent({
+      type: 'compaction_end',
+      reason: 'manual',
+      result: { tokensBefore: 150000, estimatedTokensAfter: 32000 },
+      aborted: false,
+    })).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: '<local-command-stdout>Compacted</local-command-stdout>',
+      }),
+      expect.objectContaining({
+        type: 'usage_snapshot',
+        tokens: { input: 32000, output: 0, cacheRead: 0, cacheCreation: 0 },
+      }),
+      expect.objectContaining({ type: 'step_complete' }),
+    ]);
     expect(parser.parseEvent({ type: 'turn_start' })).toHaveLength(0);
     expect(parser.parseEvent({ type: 'turn_end', message: {}, toolResults: [] })).toHaveLength(0);
     expect(parser.parseEvent({ type: 'queue_update', steering: [], followUp: [] })).toHaveLength(0);

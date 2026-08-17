@@ -954,6 +954,39 @@ export function extractExecPayloadCommand(cmd: string): string | null {
     }
   }
 
+  // Agents also use a quoted heredoc when the JSON contains enough shell
+  // metacharacters that an inline `-d '...'` becomes awkward:
+  //
+  //   curl ... -d @- <<'EOF'
+  //   {"command":"npm test"}
+  //   EOF
+  //
+  // Recovering this body matters beyond presentation: it lets the terminal row
+  // match the websocket ExecTask by its exact inner command and attach the live
+  // command-output component instead of relying on a narrow timestamp window.
+  const heredocPattern = /(?:-d|--data|--data-raw|--data-binary)\s+@-\s*<<(-)?\s*(?:'([^'\r\n]+)'|"([^"\r\n]+)"|([^\s'"\r\n;&|]+))[^\r\n]*(?:\r?\n|$)/g;
+  let heredocMatch: RegExpExecArray | null;
+  while ((heredocMatch = heredocPattern.exec(cmd)) !== null) {
+    const stripLeadingTabs = heredocMatch[1] === '-';
+    const delimiter = heredocMatch[2] || heredocMatch[3] || heredocMatch[4];
+    if (!delimiter) continue;
+
+    const bodyStart = heredocPattern.lastIndex;
+    let lineStart = bodyStart;
+    while (lineStart <= cmd.length) {
+      const newline = cmd.indexOf('\n', lineStart);
+      const lineEnd = newline === -1 ? cmd.length : newline;
+      let line = cmd.slice(lineStart, lineEnd).replace(/\r$/, '');
+      if (stripLeadingTabs) line = line.replace(/^\t+/, '');
+      if (line === delimiter) {
+        candidates.push(cmd.slice(bodyStart, lineStart).replace(/\r?\n$/, ''));
+        break;
+      }
+      if (newline === -1) break;
+      lineStart = newline + 1;
+    }
+  }
+
   for (const raw of candidates) {
     const attempts = [
       raw,

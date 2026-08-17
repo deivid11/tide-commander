@@ -194,6 +194,31 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
 
     const processRunning = runner.isRunning(agentId);
 
+    // Pi RPC does not execute built-in TUI slash commands sent through the
+    // generic `prompt` command. Route bare /compact through the runner's native
+    // control operation so the harness compacts instead of asking the model to
+    // interpret the text.
+    if (command.trim() === '/compact' && runner.compactContext) {
+      if (!processRunning) {
+        throw new Error('Native context compaction requires a live Pi RPC session');
+      }
+      const initiated = await runner.compactContext(agentId);
+      if (!initiated) {
+        throw new Error('Cannot compact Pi context while the harness is busy');
+      }
+      notifyCommandStarted(agentId, command);
+      agentService.updateAgent(agentId, {
+        status: 'working',
+        currentTask: '/compact',
+        isDetached: false,
+        taskCount: (agent.taskCount || 0) + 1,
+        lastAssignedTask: '/compact',
+        lastAssignedTaskTime: Date.now(),
+        taskLabel: undefined,
+      });
+      return;
+    }
+
     // Backends that close stdin after the initial prompt (Grok, Codex, OpenCode)
     // cannot receive mid-run follow-ups via a pipe. Two delivery modes:
     //
@@ -299,9 +324,9 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
         undefined,
         'system-interrupt-restart'
       );
-      // Snapshot other queued messages so the forced prompt can jump the line
-      // without dropping them: clear, send the forced prompt (queue head),
-      // then re-append the siblings behind it.
+      // Snapshot other queued content so the forced prompt can jump the line
+      // without dropping it: clear, send the forced prompt first, then append
+      // the prior content behind it in the runner's single combined entry.
       const siblings = runner.getQueuedMessages?.(agentId) ?? [];
       const interrupted = await runner.interruptTurn(agentId, true);
       if (interrupted) {
@@ -336,11 +361,17 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
         log.log(`[sendCommand] Agent ${agentId}: Process alive, reusing via stdin (turnState=${turnState}, cmd=${command.substring(0, 60)})`);
         // Persistent-stream runners (codex app-server, opencode serve) queue
         // mid-turn messages internally instead of writing them through. Detect
-        // that via the queue length so the client sees the same queued
+        // that via a queue snapshot so the client sees the same queued
         // feedback (⏳ + queued command_started) as the stdin-closed path.
-        const queueLenBefore = runner.getQueuedMessages?.(agentId).length ?? 0;
+        // Comparing only the length is insufficient because the queue is
+        // intentionally capped at one entry and later prompts append to it.
+        const queueBefore = runner.getQueuedMessages?.(agentId) ?? [];
         const sent = runner.sendMessage(agentId, command);
-        const wasQueued = (runner.getQueuedMessages?.(agentId).length ?? 0) > queueLenBefore;
+        const queueAfter = runner.getQueuedMessages?.(agentId) ?? [];
+        const wasQueued = queueAfter.length > 0 && (
+          queueAfter.length !== queueBefore.length
+          || queueAfter.some((text, index) => text !== queueBefore[index])
+        );
         if (sent) {
           if (wasQueued) {
             notifyCommandStarted(agentId, command, { queued: true });

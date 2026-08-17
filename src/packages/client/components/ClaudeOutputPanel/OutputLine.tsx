@@ -1973,6 +1973,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         timeStr={timeStr}
         timestampTitle={`${timestamp || Date.now()} | ${debugHash}`}
         streamId={output.uuid}
+        reasoningTokens={output.reasoningTokens}
+        reasoningSummaryCount={output.reasoningSummaryCount}
+        reasoningEncrypted={output.reasoningEncrypted}
+        reasoningSummaryOnly={output.reasoningSummaryOnly}
         onImageClick={onImageClick}
         onFileClick={onFileClick}
       />

@@ -14,6 +14,10 @@ export interface HistoryMessage {
   toolName?: string;
   toolUseId?: string; // For linking tool_use with tool_result
   toolInput?: Record<string, unknown>; // Parsed tool input
+  reasoningTokens?: number;
+  reasoningSummaryCount?: number;
+  reasoningEncrypted?: boolean;
+  reasoningSummaryOnly?: boolean;
 }
 
 /**

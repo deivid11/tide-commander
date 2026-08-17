@@ -25,6 +25,7 @@ import { RunnerRestartPolicy } from './runner/restart-policy.js';
 import { RunnerWatchdog } from './runner/watchdog.js';
 import { RunnerRecoveryStore } from './runner/recovery-store.js';
 import { RunnerResourceMonitor } from './runner/resource-monitor.js';
+import { appendQueuedMessage, prependQueuedMessage } from '../../shared/message-queue.js';
 
 const log = createLogger('Runner');
 
@@ -421,9 +422,9 @@ export class ClaudeRunner {
       const tmuxBackendClosesStdin = this.backend.shouldCloseStdinAfterPrompt?.() === true;
       if (tmuxBackendClosesStdin) {
         const queue = this.messageQueue.get(agentId) ?? [];
-        queue.push(message);
+        appendQueuedMessage(queue, message);
         this.messageQueue.set(agentId, queue);
-        log.log(`📋 [QUEUE-TMUX] Agent ${agentId}: queued message (stdin-closed backend, turnState=${tmuxTurnState}, queue=${queue.length}, ${message.length} chars)`);
+        log.log(`📋 [QUEUE-TMUX] Agent ${agentId}: coalesced queued message (stdin-closed backend, turnState=${tmuxTurnState}, ${queue[0].length} total chars)`);
         return true;
       }
       const stdinInput = this.backend.formatStdinInput(message);
@@ -448,9 +449,9 @@ export class ClaudeRunner {
     // delivery path (cleanTurnEnd in runner.ts:248 picks it up).
     if (backendClosesStdin) {
       const queue = this.messageQueue.get(agentId) ?? [];
-      queue.push(message);
+      appendQueuedMessage(queue, message);
       this.messageQueue.set(agentId, queue);
-      log.log(`📋 [QUEUE] Agent ${agentId}: queued message for respawn delivery (stdin-closed backend, turnState=${turnState}, queue=${queue.length}, ${messageLen} chars)`);
+      log.log(`📋 [QUEUE] Agent ${agentId}: coalesced queued message for respawn delivery (stdin-closed backend, turnState=${turnState}, ${queue[0].length} total chars)`);
       return true;
     }
 
@@ -467,7 +468,7 @@ export class ClaudeRunner {
       // message instead of dropping it.
       log.warn(`⚠️ [SEND_MESSAGE] Agent ${agentId}: stdin not writable (stdin=${!!stdin}, writable=${stdin?.writable}); queueing for recovery path (turnState=${turnState}, ${messageLen} chars)`);
       const queue = this.messageQueue.get(agentId) ?? [];
-      queue.push(message);
+      appendQueuedMessage(queue, message);
       this.messageQueue.set(agentId, queue);
       return true;
     }
@@ -600,7 +601,7 @@ export class ClaudeRunner {
       log.error(`❌ [RESPAWN] Failed to respawn ${agentId} with queued message: ${err}`);
       // Put the message back at the head of the queue so it isn't lost.
       const currentQueue = this.messageQueue.get(agentId) ?? [];
-      currentQueue.unshift(nextMessage);
+      prependQueuedMessage(currentQueue, nextMessage);
       this.messageQueue.set(agentId, currentQueue);
       this.callbacks.onError(agentId, `Failed to deliver queued message: ${err}`);
     });

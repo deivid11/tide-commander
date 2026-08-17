@@ -705,7 +705,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           }} />
         </div>
         <div className="config-row">
-          <span className="config-label" title="Run Pi agents through a persistent `pi --mode rpc` process per agent. Messages sent mid-turn STEER the live run (delivered after the current tool round, before the next model call) instead of queueing until the turn ends. RPC processes end with the commander; sessions resume on the next message. Applies to new Pi turns; no server restart needed to toggle."><HighlightText text={t('config:general.piRpcMode')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
+          <span className="config-label" title="Run Pi agents through a persistent `pi --mode rpc` process per agent. Messages sent mid-turn STEER the live run (delivered after the current tool round, before the next model call) instead of queueing until the turn ends. With tmux mode enabled, live RPC turns survive Commander restarts and reconnect automatically; otherwise sessions resume on the next message. Applies to new Pi turns; no server restart needed to toggle."><HighlightText text={t('config:general.piRpcMode')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
           <Toggle checked={settings.piRpcMode} onChange={async (checked) => {
             store.updateSettings({ piRpcMode: checked });
             try {

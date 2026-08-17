@@ -22,7 +22,7 @@ import {
 } from '../claude/session-loader.js';
 import * as agentService from './agent-service.js';
 import { ModelFallbackTracker } from '../../shared/model-fallback.js';
-import { toModelFallbackEvent } from '../claude/types.js';
+import { toModelFallbackEvent, type OutputMetadata } from '../claude/types.js';
 import { loadRunningProcesses, isProcessRunning } from '../data/index.js';
 import { logger } from '../utils/logger.js';
 import {
@@ -54,7 +54,7 @@ const log = logger.claude;
 // Event types emitted by runtime service
 export interface RuntimeServiceEvents {
   event: (agentId: string, event: RuntimeEvent) => void;
-  output: (agentId: string, text: string, isStreaming?: boolean, subagentName?: string, uuid?: string, toolMeta?: { toolName?: string; toolInput?: Record<string, unknown> }) => void;
+  output: (agentId: string, text: string, isStreaming?: boolean, subagentName?: string, uuid?: string, outputMeta?: OutputMetadata) => void;
   complete: (agentId: string, success: boolean) => void;
   error: (agentId: string, error: string) => void;
 }
@@ -202,8 +202,8 @@ const commandExecution = createRuntimeCommandExecution({
 const runtimeEvents = createRuntimeEventHandlers({
   log,
   emitEvent: (agentId, event) => emit('event', agentId, event),
-  emitOutput: (agentId, text, isStreaming, subagentName, uuid, toolMeta) => {
-    emit('output', agentId, text, isStreaming, subagentName, uuid, toolMeta);
+  emitOutput: (agentId, text, isStreaming, subagentName, uuid, outputMeta) => {
+    emit('output', agentId, text, isStreaming, subagentName, uuid, outputMeta);
   },
   emitComplete: (agentId, success) => emit('complete', agentId, success),
   emitError: (agentId, error) => emit('error', agentId, error),
@@ -370,15 +370,16 @@ export function removeQueuedMessageForAgent(agentId: string, index: number, expe
 }
 
 /**
- * Send Claude Code's `/compact` slash command to collapse an agent's context.
- * Only fires when the agent exists AND is idle — the CLI rejects slash commands
- * mid-turn. Pass `waitForIdle: true` to queue the `/compact` for when the agent
+ * Compact an agent's harness context. Runtime command execution routes Pi RPC
+ * through its native compact control command and other providers through their
+ * `/compact` slash command. Only fires when the agent exists AND is idle —
+ * harnesses reject compaction mid-turn. Pass `waitForIdle: true` to queue the `/compact` for when the agent
  * next goes idle (the main use case is an agent auto-collapsing its OWN context
  * at the end of a turn — by definition still `working` when it makes the call).
  *
  * Callers: WS `collapse_context` handler, REST `POST /api/agents/:id/collapse-context`.
- * Plain `/message` cannot carry slash commands (they're sent as message body, not
- * intercepted by the CLI) — this helper is the only correct path.
+ * Plain `/message` cannot carry harness control commands (they are chat prompts) —
+ * this helper is the correct path for agent-to-agent/self compaction.
  *
  * Backed by a small in-module queue + a one-shot agent-event subscriber; see
  * `./collapse-context.ts` for the unit-testable factory.

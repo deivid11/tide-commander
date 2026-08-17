@@ -66,6 +66,10 @@ export interface AgentOutput {
   toolName?: string; // Tool name extracted from "Using tool:" messages (for real-time display)
   toolInput?: Record<string, unknown>; // Parsed tool input JSON (for key param extraction before look-ahead)
   toolOutput?: string; // Tool result/bash output text
+  reasoningTokens?: number; // Provider-reported hidden reasoning tokens
+  reasoningSummaryCount?: number; // Number of visible provider summaries
+  reasoningEncrypted?: boolean; // Full reasoning exists only as encrypted data
+  reasoningSummaryOnly?: boolean; // Visible text is a summary, not full reasoning
   isError?: boolean; // True when this entry represents an error event (rendered in red/danger styling)
 }
 

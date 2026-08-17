@@ -105,8 +105,14 @@ export class RunnerStdoutPipeline {
    * tmux mode: tail a log file instead of reading process.stdout.
    * Lines are processed identically to the pipe-based path.
    */
-  handleTmuxLog(agentId: string, logFile: string, startOffset?: number): TmuxFileTailer {
+  handleTmuxLog(
+    agentId: string,
+    logFile: string,
+    startOffset?: number,
+    onRawLine?: (line: string) => void,
+  ): TmuxFileTailer {
     const tailer = createFileTailer(logFile, (line) => {
+      onRawLine?.(line);
       this.processLine(agentId, line);
     });
     if (startOffset !== undefined) {
@@ -225,6 +231,17 @@ export class RunnerStdoutPipeline {
       case 'thinking':
         if (event.text) {
           const streamKey = event.uuid ? `${agentId}:${event.uuid}` : undefined;
+          const reasoningMeta = event.reasoningTokens !== undefined
+            || event.reasoningSummaryCount !== undefined
+            || event.reasoningEncrypted !== undefined
+            || event.reasoningSummaryOnly !== undefined
+            ? {
+                reasoningTokens: event.reasoningTokens,
+                reasoningSummaryCount: event.reasoningSummaryCount,
+                reasoningEncrypted: event.reasoningEncrypted,
+                reasoningSummaryOnly: event.reasoningSummaryOnly,
+              }
+            : undefined;
           if (!event.isStreaming) {
             if (event.uuid) {
               this.flushStreamCoalesce(`${agentId}:thinking:${event.uuid}`);
@@ -232,7 +249,7 @@ export class RunnerStdoutPipeline {
             const thinkingOut = event.text.startsWith('[thinking]')
               ? event.text
               : `[thinking] ${event.text}`;
-            this.callbacks.onOutput(agentId, thinkingOut, false, undefined, event.uuid);
+            this.callbacks.onOutput(agentId, thinkingOut, false, undefined, event.uuid, reasoningMeta);
             if (streamKey) {
               this.thinkingStreamPrefixed.delete(streamKey);
             }

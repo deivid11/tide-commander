@@ -46,6 +46,11 @@ export interface ThinkingBlockProps {
    * preference across re-renders and virtualized remounts.
    */
   streamId?: string;
+  /** Provider-reported reasoning usage and visibility (Pi/OpenAI summaries). */
+  reasoningTokens?: number;
+  reasoningSummaryCount?: number;
+  reasoningEncrypted?: boolean;
+  reasoningSummaryOnly?: boolean;
   onImageClick?: (url: string, name: string) => void;
   onFileClick?: (path: string) => void;
 }
@@ -87,6 +92,10 @@ export const ThinkingBlock = memo(function ThinkingBlock({
   // Slightly shorter default so collapsed preview fits a phone width cleanly
   collapseAt = 100,
   streamId,
+  reasoningTokens,
+  reasoningSummaryCount,
+  reasoningEncrypted,
+  reasoningSummaryOnly,
   onImageClick,
   onFileClick,
 }: ThinkingBlockProps) {
@@ -214,6 +223,16 @@ export const ThinkingBlock = memo(function ThinkingBlock({
           />
         )}
         <span className="output-thinking-label">{label}</span>
+        {reasoningSummaryCount !== undefined && reasoningSummaryCount > 0 && (
+          <span className="output-thinking-metric" title="Plaintext reasoning summaries exposed by the provider">
+            {reasoningSummaryCount} {reasoningSummaryCount === 1 ? 'summary' : 'summaries'}
+          </span>
+        )}
+        {reasoningTokens !== undefined && reasoningTokens > 0 && (
+          <span className="output-thinking-metric" title="Reasoning tokens consumed by the model">
+            {reasoningTokens.toLocaleString()} tokens
+          </span>
+        )}
         {liveStream && <span className="output-thinking-pulse" aria-hidden />}
         {canCollapse && !liveStream && (
           <span className="output-thinking-toggle" aria-hidden>
@@ -240,6 +259,14 @@ export const ThinkingBlock = memo(function ThinkingBlock({
           preview
         )}
       </div>
+      {!liveStream && reasoningSummaryOnly && (
+        <div className="output-thinking-visibility" title="The provider does not return decryptable detailed chain-of-thought text">
+          <Icon name="info" size={11} />
+          <span>
+            Provider summary only{reasoningEncrypted ? ' · detailed reasoning is encrypted' : ''}.
+          </span>
+        </div>
+      )}
     </div>
   );
 });

@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-describe('session-loader codex normalization', () => {
+describe('session-loader provider normalization', () => {
   let tempHomeDir: string;
 
   beforeEach(() => {
@@ -77,6 +77,145 @@ describe('session-loader codex normalization', () => {
       toolName: 'Bash',
       toolUseId: 'call-1',
       content: 'hello\n',
+    });
+  });
+
+  it('hydrates Pi edit history with its exact result patch', async () => {
+    const cwd = '/workspace/pi-project';
+    const sessionId = 'pi-session-123';
+    const sessionDir = path.join(tempHomeDir, '.pi', 'agent', 'sessions', '--workspace-pi-project--');
+    fs.mkdirSync(sessionDir, { recursive: true });
+    const sessionFile = path.join(sessionDir, `2026-08-17T00-00-00-000Z_${sessionId}.jsonl`);
+    const patch = '--- src/a.ts\n+++ src/a.ts\n@@ -1 +1 @@\n-old\n+new\n';
+
+    const entries = [
+      { type: 'session', version: 3, id: sessionId, timestamp: '2026-08-17T00:00:00.000Z', cwd },
+      {
+        type: 'message',
+        id: 'assistant-1',
+        parentId: null,
+        timestamp: '2026-08-17T00:00:01.000Z',
+        message: {
+          role: 'assistant',
+          content: [{
+            type: 'toolCall',
+            id: 'pi-edit-call',
+            name: 'edit',
+            arguments: {
+              path: 'src/a.ts',
+              edits: [{ oldText: 'old', newText: 'new' }],
+            },
+          }],
+        },
+      },
+      {
+        type: 'message',
+        id: 'result-1',
+        parentId: 'assistant-1',
+        timestamp: '2026-08-17T00:00:02.000Z',
+        message: {
+          role: 'toolResult',
+          toolCallId: 'pi-edit-call',
+          toolName: 'edit',
+          content: [{ type: 'text', text: 'Successfully replaced 1 block(s).' }],
+          details: { patch, firstChangedLine: 1 },
+          isError: false,
+        },
+      },
+    ];
+    fs.writeFileSync(sessionFile, `${entries.map(entry => JSON.stringify(entry)).join('\n')}\n`, 'utf8');
+
+    const { loadSession } = await import('./session-loader.js');
+    const history = await loadSession(cwd, sessionId, 20, 0);
+    const toolUse = history?.messages.find(message => message.type === 'tool_use');
+
+    expect(toolUse).toMatchObject({
+      toolName: 'Edit',
+      toolInput: {
+        file_path: 'src/a.ts',
+        old_string: 'old',
+        new_string: 'new',
+        operation: 'pi-edit',
+        unified_diff: patch,
+        first_changed_line: 1,
+      },
+    });
+  });
+
+  it('hydrates native Pi compaction entries as compacted history markers', async () => {
+    const cwd = '/workspace/pi-compaction';
+    const sessionId = 'pi-compaction-session';
+    const sessionDir = path.join(tempHomeDir, '.pi', 'agent', 'sessions', '--workspace-pi-compaction--');
+    fs.mkdirSync(sessionDir, { recursive: true });
+    const sessionFile = path.join(sessionDir, `2026-08-17T00-00-00-000Z_${sessionId}.jsonl`);
+
+    const entries = [
+      { type: 'session', version: 3, id: sessionId, timestamp: '2026-08-17T00:00:00.000Z', cwd },
+      {
+        type: 'compaction',
+        id: 'compact-1',
+        parentId: null,
+        timestamp: '2026-08-17T00:00:01.000Z',
+        summary: 'Internal summary that should not flood chat history',
+        tokensBefore: 150000,
+        retainedTail: [],
+      },
+    ];
+    fs.writeFileSync(sessionFile, `${entries.map(entry => JSON.stringify(entry)).join('\n')}\n`, 'utf8');
+
+    const { loadSession } = await import('./session-loader.js');
+    const history = await loadSession(cwd, sessionId, 20, 0);
+
+    expect(history?.messages).toContainEqual(expect.objectContaining({
+      type: 'assistant',
+      content: '<local-command-stdout>Compacted</local-command-stdout>',
+      uuid: 'pi-compaction-compact-1',
+    }));
+  });
+
+  it('hydrates Pi reasoning summaries with token and encryption metadata', async () => {
+    const cwd = '/workspace/pi-reasoning';
+    const sessionId = 'pi-reasoning-session';
+    const sessionDir = path.join(tempHomeDir, '.pi', 'agent', 'sessions', '--workspace-pi-reasoning--');
+    fs.mkdirSync(sessionDir, { recursive: true });
+    const sessionFile = path.join(sessionDir, `2026-08-17T00-00-00-000Z_${sessionId}.jsonl`);
+    const thinkingSignature = JSON.stringify({
+      encrypted_content: 'opaque-provider-reasoning',
+      content: [],
+      summary: [
+        { type: 'summary_text', text: 'Inspecting event flow' },
+        { type: 'summary_text', text: 'Planning UI metadata' },
+      ],
+    });
+
+    fs.writeFileSync(sessionFile, `${JSON.stringify({
+      type: 'session', version: 3, id: sessionId, timestamp: '2026-08-17T00:00:00.000Z', cwd,
+    })}\n${JSON.stringify({
+      type: 'message',
+      id: 'assistant-reasoning',
+      parentId: null,
+      timestamp: '2026-08-17T00:00:01.000Z',
+      message: {
+        role: 'assistant',
+        content: [{
+          type: 'thinking',
+          thinking: '**Inspecting event flow**\n\n**Planning UI metadata**',
+          thinkingSignature,
+        }],
+        usage: { input: 100, output: 80, reasoning: 64, totalTokens: 180 },
+      },
+    })}\n`, 'utf8');
+
+    const { loadSession } = await import('./session-loader.js');
+    const history = await loadSession(cwd, sessionId, 20, 0);
+
+    expect(history?.messages[0]).toMatchObject({
+      type: 'assistant',
+      content: '[thinking] **Inspecting event flow**\n\n**Planning UI metadata**',
+      reasoningTokens: 64,
+      reasoningSummaryCount: 2,
+      reasoningEncrypted: true,
+      reasoningSummaryOnly: true,
     });
   });
 

@@ -9,6 +9,7 @@ import { agentDebugger } from '../services/agentDebugger';
 import { STORAGE_KEYS } from '../utils/storage';
 import { getWs, getConnectFn } from './state';
 import { cb } from './callbacks';
+import { appendQueuedMessage } from '../../shared/message-queue';
 
 /* ------------------------------------------------------------------ */
 /*  Pending-message queue (localStorage-backed)                       */
@@ -49,7 +50,52 @@ function savePendingMessages(items: PendingMessage[]): void {
 
 function queueMessage(message: ClientMessage): void {
   const pending = loadPendingMessages();
-  pending.push({ message, queuedAt: Date.now() });
+  if (message.type !== 'send_command') {
+    pending.push({ message, queuedAt: Date.now() });
+    savePendingMessages(pending);
+    return;
+  }
+
+  const { agentId, command } = message.payload;
+  const matchingIndexes: number[] = [];
+  const commands: string[] = [];
+  let forceInterrupt = message.payload.forceInterrupt === true;
+
+  for (let index = 0; index < pending.length; index++) {
+    const queued = pending[index].message;
+    if (queued.type !== 'send_command' || queued.payload.agentId !== agentId) continue;
+    matchingIndexes.push(index);
+    commands.push(queued.payload.command);
+    forceInterrupt ||= queued.payload.forceInterrupt === true;
+  }
+
+  appendQueuedMessage(commands, command);
+  if (matchingIndexes.length === 0) {
+    pending.push({
+      message: {
+        ...message,
+        payload: { ...message.payload, command: commands[0] },
+      },
+      queuedAt: Date.now(),
+    });
+  } else {
+    const firstIndex = matchingIndexes[0];
+    pending[firstIndex] = {
+      message: {
+        ...message,
+        payload: {
+          ...message.payload,
+          command: commands[0],
+          ...(forceInterrupt ? { forceInterrupt: true } : {}),
+        },
+      },
+      // Refresh the age because the combined entry now contains new content.
+      queuedAt: Date.now(),
+    };
+    for (let index = matchingIndexes.length - 1; index >= 1; index--) {
+      pending.splice(matchingIndexes[index], 1);
+    }
+  }
   savePendingMessages(pending);
 }
 

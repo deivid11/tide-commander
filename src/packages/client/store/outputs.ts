@@ -45,6 +45,10 @@ function isSameOutputEvent(a: AgentOutput, b: AgentOutput): boolean {
     && a.subagentName === b.subagentName
     && a.toolName === b.toolName
     && a.toolOutput === b.toolOutput
+    && a.reasoningTokens === b.reasoningTokens
+    && a.reasoningSummaryCount === b.reasoningSummaryCount
+    && a.reasoningEncrypted === b.reasoningEncrypted
+    && a.reasoningSummaryOnly === b.reasoningSummaryOnly
     && a.isError === b.isError
     // Grok re-emits the same "Using tool: X" uuid with empty then full toolInput.
     // Without this, the upgrade is treated as an exact resend and the merge
@@ -105,8 +109,13 @@ export function serverNow(): number {
 
 export interface OutputActions {
   addOutput(agentId: string, output: AgentOutput): void;
-  /** Attach a tool result to its existing live tool-use card. */
-  attachToolResult(agentId: string, toolUseId: string, toolOutput: string): void;
+  /** Attach a tool result (and any result-time input enrichment) to its live card. */
+  attachToolResult(
+    agentId: string,
+    toolUseId: string,
+    toolOutput: string,
+    toolInput?: Record<string, unknown>,
+  ): void;
   clearOutputs(agentId: string): void;
   /** Force any open isStreaming rows for this agent to settle (e.g. agent went idle). */
   settleOpenStreams(agentId: string): void;
@@ -208,6 +217,10 @@ export function createOutputActions(
                     toolName: output.toolName ?? existing.toolName,
                     toolInput: output.toolInput ?? existing.toolInput,
                     toolOutput: output.toolOutput ?? existing.toolOutput,
+                    reasoningTokens: output.reasoningTokens ?? existing.reasoningTokens,
+                    reasoningSummaryCount: output.reasoningSummaryCount ?? existing.reasoningSummaryCount,
+                    reasoningEncrypted: output.reasoningEncrypted ?? existing.reasoningEncrypted,
+                    reasoningSummaryOnly: output.reasoningSummaryOnly ?? existing.reasoningSummaryOnly,
                     isError: output.isError ?? existing.isError,
                   }
                 : {
@@ -315,7 +328,12 @@ export function createOutputActions(
       perf.end('store:addOutput');
     },
 
-    attachToolResult(agentId: string, toolUseId: string, toolOutput: string): void {
+    attachToolResult(
+      agentId: string,
+      toolUseId: string,
+      toolOutput: string,
+      toolInput?: Record<string, unknown>,
+    ): void {
       if (!toolUseId) return;
       let changed = false;
       setState((s) => {
@@ -327,12 +345,16 @@ export function createOutputActions(
         const index = currentOutputs.findIndex((output) =>
           output.uuid === toolUseId && output.text.startsWith('Using tool:')
         );
-        if (index < 0 || currentOutputs[index].toolOutput === toolOutput) return;
+        if (index < 0) return;
+        const current = currentOutputs[index];
+        const toolInputChanged = !!toolInput && !toolInputEquals(current.toolInput, toolInput);
+        if (current.toolOutput === toolOutput && !toolInputChanged) return;
 
         const updatedOutputs = [...currentOutputs];
         updatedOutputs[index] = {
-          ...updatedOutputs[index],
+          ...current,
           toolOutput,
+          ...(toolInput ? { toolInput } : {}),
           isStreaming: false,
         };
         const newAgentOutputs = new Map(s.agentOutputs);

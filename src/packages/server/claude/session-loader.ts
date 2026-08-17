@@ -14,6 +14,8 @@ import { spawn, spawnSync } from 'child_process';
 import Database from 'better-sqlite3';
 import { createLogger } from '../utils/logger.js';
 import { materializeCodexGeneratedImage } from '../codex/generated-image.js';
+import { normalizePiToolInput } from '../pi/tool-input.js';
+import { extractPiReasoningMetadata } from '../pi/reasoning-metadata.js';
 import { serializeToolResultContent } from './tool-result-content.js';
 
 const log = createLogger('Session');
@@ -189,6 +191,10 @@ export interface SessionMessage {
   toolName?: string;
   toolInput?: Record<string, unknown>;
   toolUseId?: string; // For linking tool_use with tool_result
+  reasoningTokens?: number;
+  reasoningSummaryCount?: number;
+  reasoningEncrypted?: boolean;
+  reasoningSummaryOnly?: boolean;
 }
 
 export interface SessionInfo {
@@ -3250,8 +3256,9 @@ function extractPiContentText(content: unknown): string {
 
 /**
  * Parse a pi session JSONL file (~/.pi/agent/sessions/…) into SessionMessages.
- * Entries have type 'message' with an AgentMessage payload; other entry types
- * (model_change, compaction, labels, …) are metadata. Entries form a tree via
+ * Entries normally have type 'message' with an AgentMessage payload. Native
+ * compaction entries are also rendered as a compact history marker; remaining
+ * metadata (model_change, labels, …) is skipped. Entries form a tree via
  * id/parentId but TC-driven sessions are linear appends, so file order is used.
  */
 function parsePiSessionMessages(
@@ -3259,6 +3266,7 @@ function parsePiSessionMessages(
 ): { messages: SessionMessage[]; lastMessageType: SessionActivityMessageType; lastMessageTimestamp: Date | null } {
   const messages: SessionMessage[] = [];
   const toolUseIdToName = new Map<string, string>();
+  const toolUseById = new Map<string, SessionMessage>();
 
   let content = '';
   try {
@@ -3290,6 +3298,16 @@ function parsePiSessionMessages(
     let rowOffset = 0;
     const stamp = () => new Date(baseTsMs + rowOffset++).toISOString();
 
+    if (entryType === 'compaction') {
+      messages.push({
+        type: 'assistant',
+        content: '<local-command-stdout>Compacted</local-command-stdout>',
+        timestamp: stamp(),
+        uuid: `pi-compaction-${entryId}`,
+      });
+      continue;
+    }
+
     if (entryType !== 'message') continue;
     const message = entry.message as Record<string, unknown> | undefined;
     if (!message || typeof message !== 'object') continue;
@@ -3310,14 +3328,18 @@ function parsePiSessionMessages(
 
     if (role === 'assistant') {
       const blocks = Array.isArray(message.content) ? message.content : [];
+      const usage = message.usage && typeof message.usage === 'object'
+        ? message.usage as { reasoning?: unknown }
+        : undefined;
       for (let bi = 0; bi < blocks.length; bi++) {
-        const block = blocks[bi] as { type?: string; text?: string; thinking?: string; id?: string; name?: string; arguments?: Record<string, unknown> };
+        const block = blocks[bi] as { type?: string; text?: string; thinking?: string; thinkingSignature?: string; id?: string; name?: string; arguments?: Record<string, unknown> };
         if (block?.type === 'thinking' && block.thinking?.trim()) {
           messages.push({
             type: 'assistant',
             content: `[thinking] ${block.thinking}`,
             timestamp: stamp(),
             uuid: `pi-thinking-${entryId}-${bi}`,
+            ...extractPiReasoningMetadata(block.thinkingSignature, usage?.reasoning),
           });
         } else if (block?.type === 'text' && block.text?.trim()) {
           messages.push({
@@ -3329,16 +3351,18 @@ function parsePiSessionMessages(
         } else if (block?.type === 'toolCall') {
           const callId = block.id || `pi-call-${entryId}-${bi}`;
           const toolName = normalizePiToolName(block.name || 'unknown');
-          toolUseIdToName.set(callId, toolName);
-          messages.push({
+          const toolUse: SessionMessage = {
             type: 'tool_use',
             content: '',
             timestamp: stamp(),
             uuid: callId,
             toolName,
-            toolInput: block.arguments || {},
+            toolInput: normalizePiToolInput(toolName, block.arguments || {}),
             toolUseId: callId,
-          });
+          };
+          toolUseIdToName.set(callId, toolName);
+          toolUseById.set(callId, toolUse);
+          messages.push(toolUse);
         }
       }
       continue;
@@ -3352,6 +3376,13 @@ function parsePiSessionMessages(
       let output = extractPiContentText(message.content);
       if (message.isError && output) {
         output = `Error: ${output}`;
+      }
+      const toolUse = toolUseById.get(callId);
+      if (toolName === 'Edit' && toolUse) {
+        const details = message.details && typeof message.details === 'object'
+          ? message.details as { patch?: unknown; firstChangedLine?: unknown }
+          : undefined;
+        toolUse.toolInput = normalizePiToolInput(toolName, toolUse.toolInput, details);
       }
       messages.push({
         type: 'tool_result',

@@ -4,6 +4,7 @@ import * as path from 'path';
 import type { AgentTodoItem, AgentTodoStatus, ContextStats, ServerMessage, Subagent } from '../../../shared/types.js';
 import { detectModelFallback, formatModelName } from '../../../shared/model-fallback.js';
 import { parseContextOutput } from '../../claude/backend.js';
+import type { OutputMetadata } from '../../claude/types.js';
 import { parseAllFormats } from '../handlers/agent-handler.js';
 import { agentService, runtimeService } from '../../services/index.js';
 import { logger, formatToolActivity } from '../../utils/index.js';
@@ -464,7 +465,7 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
       isStreaming: boolean | undefined,
       subagentName: string | undefined,
       uuid: string | undefined,
-      toolMeta?: { toolName?: string; toolInput?: Record<string, unknown> }
+      outputMeta?: OutputMetadata
     ) => {
       const textPreview = text.slice(0, 80).replace(/\n/g, '\\n');
       log.log(`[OUTPUT] agent=${agentId.slice(0, 4)} streaming=${isStreaming} text="${textPreview}" uuid=${uuid || 'none'}`);
@@ -478,11 +479,23 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
         ...(uuid ? { uuid } : {}),
       };
 
-      if (toolMeta?.toolName) {
-        payload.toolName = toolMeta.toolName;
+      if (outputMeta?.toolName) {
+        payload.toolName = outputMeta.toolName;
       }
-      if (toolMeta?.toolInput) {
-        payload.toolInput = toolMeta.toolInput;
+      if (outputMeta?.toolInput) {
+        payload.toolInput = outputMeta.toolInput;
+      }
+      if (outputMeta?.reasoningTokens !== undefined) {
+        payload.reasoningTokens = outputMeta.reasoningTokens;
+      }
+      if (outputMeta?.reasoningSummaryCount !== undefined) {
+        payload.reasoningSummaryCount = outputMeta.reasoningSummaryCount;
+      }
+      if (outputMeta?.reasoningEncrypted !== undefined) {
+        payload.reasoningEncrypted = outputMeta.reasoningEncrypted;
+      }
+      if (outputMeta?.reasoningSummaryOnly !== undefined) {
+        payload.reasoningSummaryOnly = outputMeta.reasoningSummaryOnly;
       }
 
       if (text.startsWith('Using tool:') && !payload.toolName) {

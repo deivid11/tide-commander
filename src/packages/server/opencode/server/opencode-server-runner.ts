@@ -36,6 +36,7 @@ import {
 import * as agentService from '../../services/agent-service.js';
 import { createLogger } from '../../utils/logger.js';
 import { withAgentContext } from '../../utils/log-context.js';
+import { appendQueuedMessage, prependQueuedMessage } from '../../../shared/message-queue.js';
 
 const log = createLogger('OpencodeServerRunner');
 
@@ -367,7 +368,7 @@ export class OpencodeServerRunner implements RuntimeRunner {
     const next = state.queue.shift()!;
     const proc = this.process;
     if (!proc || !proc.isAlive()) {
-      state.queue.unshift(next);
+      prependQueuedMessage(state.queue, next);
       return;
     }
     log.log(`📤 Delivering queued follow-up to ${agentId.slice(0, 8)} (${state.queue.length} remaining)`);
@@ -386,8 +387,8 @@ export class OpencodeServerRunner implements RuntimeRunner {
       if (!proc || !proc.isAlive()) return false;
 
       if (state.turnState === 'processing') {
-        state.queue.push(message);
-        log.log(`📋 Queued mid-turn message for ${agentId.slice(0, 8)} (queue=${state.queue.length})`);
+        appendQueuedMessage(state.queue, message);
+        log.log(`📋 Coalesced mid-turn message for ${agentId.slice(0, 8)} (${state.queue[0].length} total chars)`);
         return true;
       }
 

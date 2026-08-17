@@ -4,7 +4,7 @@ import { store, useAgents, useCustomAgentClassesArray, useSkillsArray } from '..
 import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
 import { CODEX_REASONING_EFFORTS } from '../../shared/types';
-import { PERMISSION_MODES, AGENT_CLASSES, CLAUDE_MODELS, CODEX_MODELS, DEFAULT_GROK_MODEL } from '../../shared/types';
+import { PERMISSION_MODES, AGENT_CLASSES, CLAUDE_MODELS, CODEX_MODELS, DEFAULT_GROK_MODEL, DEFAULT_AGENT_SKILL_SLUGS } from '../../shared/types';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
 import { FolderInput } from './shared/FolderInput';
@@ -91,16 +91,13 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
     return skills.filter(s => customClass.defaultSkillIds.includes(s.id));
   }, [customClasses, selectedClass, skills]);
 
-  // Default skill slugs that should be pre-selected for new boss agents
-  const DEFAULT_SKILL_SLUGS = ['full-notifications', 'streaming-exec', 'task-label', 'report-task-to-boss', 'agent-tracking', 'agent-memory', 'send-message-to-agent'];
-
   // Initialize default skills and (optionally) a random class once per open event
   useEffect(() => {
     const didJustOpen = isOpen && !wasOpenRef.current;
     if (didJustOpen) {
       if (availableSkills.length > 0) {
         const defaultSkillIds = availableSkills
-          .filter(s => DEFAULT_SKILL_SLUGS.includes(s.slug))
+          .filter(s => DEFAULT_AGENT_SKILL_SLUGS.includes(s.slug as (typeof DEFAULT_AGENT_SKILL_SLUGS)[number]))
           .map(s => s.id);
         if (defaultSkillIds.length > 0) {
           setSelectedSkillIds(new Set(defaultSkillIds));

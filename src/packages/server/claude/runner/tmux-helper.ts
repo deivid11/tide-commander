@@ -328,6 +328,12 @@ export function killTmuxSession(agentId: string): void {
  * Returns the bare agent IDs (the prefix is stripped).
  * Used at startup to find orphaned sessions whose owning agent is gone.
  */
+export function isHeadlessAgentTmuxSessionName(name: string): boolean {
+  return name.startsWith('tc-')
+    && !name.startsWith('tc-int-')
+    && !name.startsWith('tc-pi-rpc-');
+}
+
 export function listAgentTmuxSessions(): string[] {
   try {
     const out = execSync(
@@ -340,8 +346,76 @@ export function listAgentTmuxSessions(): string[] {
       // Headless sessions only — exclude interactive-TUI sessions (tc-int-*),
       // which are owned by the InteractiveClaudeRunner and must not be swept
       // by the headless/codex/opencode orphan cleanup.
-      .filter((name) => name.startsWith('tc-') && !name.startsWith('tc-int-'))
+      .filter(isHeadlessAgentTmuxSessionName)
       .map((name) => name.slice('tc-'.length));
+  } catch {
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Pi RPC mode
+// ---------------------------------------------------------------------------
+// Pi's long-lived RPC process needs its own namespace so the generic headless
+// recovery store cannot mistake it for a one-shot `tc-<agentId>` process.
+
+const PI_RPC_TMUX_KEY_PREFIX = 'pi-rpc-';
+const PI_RPC_TMUX_SESSION_PREFIX = `tc-${PI_RPC_TMUX_KEY_PREFIX}`;
+
+function piRpcTmuxAgentKey(agentId: string): string {
+  return `${PI_RPC_TMUX_KEY_PREFIX}${agentId}`;
+}
+
+export function piRpcTmuxSessionName(agentId: string): string {
+  return tmuxSessionName(piRpcTmuxAgentKey(agentId));
+}
+
+export function piRpcTmuxLogPath(agentId: string): string {
+  return tmuxLogPath(piRpcTmuxAgentKey(agentId));
+}
+
+export function spawnInPiRpcTmux(
+  executable: string,
+  args: string[],
+  options: {
+    agentId: string;
+    cwd: string;
+    env: Record<string, string | undefined>;
+  },
+): TmuxSpawnResult {
+  return spawnInTmux(executable, args, {
+    ...options,
+    agentId: piRpcTmuxAgentKey(options.agentId),
+  });
+}
+
+export function sendToPiRpcTmux(agentId: string, text: string): boolean {
+  return sendToTmux(piRpcTmuxAgentKey(agentId), text);
+}
+
+export function hasPiRpcTmuxSession(agentId: string): boolean {
+  return hasTmuxSession(piRpcTmuxAgentKey(agentId));
+}
+
+export function killPiRpcTmuxSession(agentId: string): void {
+  killTmuxSession(piRpcTmuxAgentKey(agentId));
+}
+
+export function getPiRpcTmuxPanePid(agentId: string): number | undefined {
+  return getTmuxPanePid(piRpcTmuxAgentKey(agentId));
+}
+
+export function listPiRpcTmuxSessions(): string[] {
+  try {
+    const out = execSync(
+      `tmux list-sessions -F '#{session_name}' 2>/dev/null`,
+      { encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'], env: tmuxEnv() },
+    );
+    return out
+      .split('\n')
+      .map((name) => name.trim())
+      .filter((name) => name.startsWith(PI_RPC_TMUX_SESSION_PREFIX))
+      .map((name) => name.slice(PI_RPC_TMUX_SESSION_PREFIX.length));
   } catch {
     return [];
   }

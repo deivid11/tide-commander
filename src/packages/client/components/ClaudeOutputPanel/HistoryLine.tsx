@@ -202,6 +202,10 @@ export const HistoryLine = memo(function HistoryLine({
         timeStr={timeStr}
         timestampTitle={`${timestampMs} | ${debugHash}`}
         streamId={toolUseId || message.uuid || (timestampMs ? `hist-${timestampMs}` : undefined)}
+        reasoningTokens={message.reasoningTokens}
+        reasoningSummaryCount={message.reasoningSummaryCount}
+        reasoningEncrypted={message.reasoningEncrypted}
+        reasoningSummaryOnly={message.reasoningSummaryOnly}
         onImageClick={onImageClick}
         onFileClick={onFileClick}
       />

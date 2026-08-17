@@ -8,6 +8,7 @@ import type {
   StandardEvent,
   CustomAgentDefinition as ClaudeCustomAgentDefinition,
   RunnerRequest,
+  OutputMetadata,
 } from '../claude/types.js';
 
 export type RuntimeEvent = StandardEvent;
@@ -22,7 +23,7 @@ export interface RuntimeRunnerCallbacks {
     isStreaming?: boolean,
     subagentName?: string,
     uuid?: string,
-    toolMeta?: { toolName?: string; toolInput?: Record<string, unknown> }
+    outputMeta?: OutputMetadata
   ) => void;
   onSessionId: (agentId: string, sessionId: string) => void;
   onComplete: (agentId: string, success: boolean) => void;
@@ -67,9 +68,17 @@ export interface RuntimeRunner {
    */
   interruptTurn?(agentId: string, clearQueue?: boolean): Promise<boolean>;
   /**
-   * Snapshot of mid-run messages queued inside this runner awaiting delivery
-   * (drained autonomously at turn end). Positional: entry i is identified to
-   * clients as index i of THIS snapshot.
+   * Run the provider's native context compaction control operation. Unlike a
+   * chat prompt containing `/compact`, this must invoke the harness protocol
+   * directly (for example Pi RPC's `{ type: 'compact' }`). Returns false when
+   * no live/idle session can accept the operation.
+   */
+  compactContext?(agentId: string, customInstructions?: string): Promise<boolean>;
+  /**
+   * Snapshot of mid-run content queued inside this runner awaiting delivery
+   * (drained autonomously at turn end). Multiple sends are coalesced into one
+   * entry. Positional: entry i is identified to clients as index i of THIS
+   * snapshot.
    */
   getQueuedMessages?(agentId: string): string[];
   /**

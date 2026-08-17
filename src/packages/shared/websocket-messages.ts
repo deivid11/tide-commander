@@ -179,6 +179,10 @@ export interface OutputMessage extends WSMessage {
     toolInput?: Record<string, unknown>; // Parsed tool input parameters
     toolInputRaw?: string; // Raw tool input if JSON parsing failed
     toolOutput?: string; // Tool output/result
+    reasoningTokens?: number; // Provider-reported hidden reasoning token count
+    reasoningSummaryCount?: number; // Plaintext summaries exposed by the provider
+    reasoningEncrypted?: boolean; // Detailed reasoning is an encrypted payload
+    reasoningSummaryOnly?: boolean; // Visible thinking is only a provider summary
   };
 }
 

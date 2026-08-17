@@ -16,6 +16,7 @@ import * as os from 'os';
 import * as path from 'path';
 import type { CLIBackend, BackendConfig, StandardEvent } from '../claude/types.js';
 import { PiJsonEventParser } from './json-event-parser.js';
+import { addPiDetailedReasoningExtension } from './detailed-reasoning.js';
 import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
 import { getSystemPrompt, isEchoPromptEnabled } from '../services/system-prompt-service.js';
 import { consumeInstructionsDirty, isBareSlashCommand } from '../services/instruction-refresh.js';
@@ -161,6 +162,7 @@ export class PiBackend implements CLIBackend {
 
     const prompt = buildPiPrompt(config);
     const args: string[] = ['--mode', 'json', '-p'];
+    addPiDetailedReasoningExtension(args);
 
     if (shouldPassPiModel(config.model)) {
       args.push('--model', config.model);

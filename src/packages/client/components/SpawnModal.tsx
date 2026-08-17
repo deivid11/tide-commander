@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { store, useSkillsArray, useCustomAgentClassesArray, useCustomAgentNames } from '../store';
 import { AGENT_CLASS_CONFIG, BUILTIN_AGENT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
-import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, CODEX_REASONING_EFFORTS, GROK_MODELS, DEFAULT_GROK_MODEL, grokSupportsEffort } from '../../shared/types';
+import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, CODEX_REASONING_EFFORTS, GROK_MODELS, DEFAULT_GROK_MODEL, DEFAULT_AGENT_SKILL_SLUGS, grokSupportsEffort } from '../../shared/types';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl, authFetch } from '../utils/storage';
 import { BUILT_IN_AGENT_CLASSES } from '../../shared/agent-types';
 import { ModelPreview } from './ModelPreview';
@@ -101,16 +101,13 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
   // Get available skills (enabled ones)
   const availableSkills = useMemo(() => skills.filter(s => s.enabled), [skills]);
 
-  // Default skill slugs that should be pre-selected for new agents
-  const DEFAULT_SKILL_SLUGS = ['full-notifications', 'streaming-exec', 'task-label', 'report-task-to-boss', 'agent-tracking', 'agent-memory', 'send-message-to-agent'];
-
   // Initialize default skills and class once per open event
   useEffect(() => {
     const didJustOpen = isOpen && !wasOpenRef.current;
     if (didJustOpen) {
       if (availableSkills.length > 0) {
         const defaultSkillIds = availableSkills
-          .filter(s => DEFAULT_SKILL_SLUGS.includes(s.slug))
+          .filter(s => DEFAULT_AGENT_SKILL_SLUGS.includes(s.slug as (typeof DEFAULT_AGENT_SKILL_SLUGS)[number]))
           .map(s => s.id);
         if (defaultSkillIds.length > 0) {
           setSelectedSkillIds(new Set(defaultSkillIds));

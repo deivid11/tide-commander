@@ -85,6 +85,35 @@ describe('RunnerStdoutPipeline', () => {
     expect(typeof onActivity.mock.calls[0][0].timestamp).toBe('number');
   });
 
+  it('forwards finalized thinking visibility metadata to the terminal output', () => {
+    const { callbacks, pipeline } = createPipeline('pi');
+
+    (pipeline as any).handleEvent('agent-pi', {
+      type: 'thinking',
+      text: 'Planning the patch',
+      isStreaming: false,
+      uuid: 'pi-thinking-1-0',
+      reasoningTokens: 693,
+      reasoningSummaryCount: 1,
+      reasoningEncrypted: true,
+      reasoningSummaryOnly: true,
+    } satisfies StandardEvent);
+
+    expect(callbacks.onOutput).toHaveBeenCalledWith(
+      'agent-pi',
+      '[thinking] Planning the patch',
+      false,
+      undefined,
+      'pi-thinking-1-0',
+      {
+        reasoningTokens: 693,
+        reasoningSummaryCount: 1,
+        reasoningEncrypted: true,
+        reasoningSummaryOnly: true,
+      },
+    );
+  });
+
   it('forwards non-json lines as raw output', () => {
     const { callbacks, pipeline } = createPipeline();
 

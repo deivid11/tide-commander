@@ -7,8 +7,8 @@ export const mermaidDiagrams: BuiltinSkillDefinition = {
     'Use whenever a picture communicates faster than prose — architecture, control/data flow, sequence of calls, state machine, data model, or timeline. Output a ```mermaid fenced block and Tide Commander renders it as a diagram inline in the chat.',
   // Output-only skill: no tools needed, it changes HOW you present, not what you can do.
   allowedTools: [],
-  // Available to every agent by default.
-  assignedAgentClasses: ['*'],
+  // Opt-in: enable it per agent/class in the Skills panel.
+  assignedAgentClasses: [],
   content: `# Mermaid Diagrams
 
 Tide Commander renders **Mermaid** diagrams inline in the chat UI. When a visual would

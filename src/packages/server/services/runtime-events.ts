@@ -1,5 +1,6 @@
 import type { Agent, ContextStats } from '../../shared/types.js';
 import type { SessionMessage } from '../claude/session-loader.js';
+import type { OutputMetadata } from '../claude/types.js';
 import { loadSession } from '../claude/session-loader.js';
 import type { RuntimeEvent } from '../runtime/index.js';
 import * as agentService from './agent-service.js';
@@ -55,7 +56,7 @@ interface RuntimeEventsDeps {
     isStreaming?: boolean,
     subagentName?: string,
     uuid?: string,
-    toolMeta?: { toolName?: string; toolInput?: Record<string, unknown> }
+    outputMeta?: OutputMetadata
   ) => void;
   emitComplete: (agentId: string, success: boolean) => void;
   emitError: (agentId: string, error: string) => void;
@@ -76,7 +77,7 @@ export interface RuntimeRunnerCallbacks {
     isStreaming?: boolean,
     subagentName?: string,
     uuid?: string,
-    toolMeta?: { toolName?: string; toolInput?: Record<string, unknown> }
+    outputMeta?: OutputMetadata
   ) => void;
   handleSessionId: (agentId: string, sessionId: string) => void;
   handleComplete: (agentId: string, success: boolean) => void;
@@ -676,9 +677,9 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
     isStreaming?: boolean,
     subagentName?: string,
     uuid?: string,
-    toolMeta?: { toolName?: string; toolInput?: Record<string, unknown> }
+    outputMeta?: OutputMetadata
   ): void {
-    emitOutput(agentId, text, isStreaming, subagentName, uuid, toolMeta);
+    emitOutput(agentId, text, isStreaming, subagentName, uuid, outputMeta);
   }
 
   function handleSessionId(agentId: string, sessionId: string): void {

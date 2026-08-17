@@ -1528,10 +1528,10 @@ router.post('/:id/message', async (req: Request<{ id: string }>, res: Response) 
   }
 });
 
-// POST /api/agents/:id/collapse-context — Send Claude Code's /compact slash command
-// to the agent's runner. Use case: any agent (including the same agent via a
-// scheduled cron) auto-collapsing its own context. Plain /message can't carry
-// slash commands; this is the only correct path.
+// POST /api/agents/:id/collapse-context — Dispatch provider-native context
+// compaction to the agent's runner. Pi uses its RPC compact control command;
+// TUI-backed providers use /compact. Plain /message is only a chat prompt and
+// cannot invoke harness control commands.
 //
 // Body (optional):
 //   { "waitForIdle": true }  — if the agent is currently busy, queue the

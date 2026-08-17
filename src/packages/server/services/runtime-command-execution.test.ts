@@ -311,4 +311,106 @@ describe('runtime-command-execution mid-run persistent-stream (app-server/serve)
     expect(runner.sendMessage).toHaveBeenCalledWith('agent-codex', 'just a note');
     expect(runner.stop).not.toHaveBeenCalled();
   });
+
+  it('reports an appended prompt as queued when the single-entry queue length stays unchanged', async () => {
+    let queue = ['first note'];
+    const runner = {
+      ...makeRunner({ closesStdin: false, supportsStdin: true, turnState: 'processing' }),
+      getQueuedMessages: vi.fn(() => [...queue]),
+      sendMessage: vi.fn((_agentId: string, message: string) => {
+        queue = [`${queue[0]}\n\n${message}`];
+        return true;
+      }),
+    };
+    const api = makeApi(runner);
+
+    await api.sendCommand('agent-codex', 'second note');
+
+    expect(queue).toEqual(['first note\n\nsecond note']);
+    expect(notifyCommandStarted).toHaveBeenCalledWith(
+      'agent-codex',
+      'second note',
+      { queued: true },
+    );
+    expect(emitOutput).toHaveBeenCalledWith(
+      'agent-codex',
+      expect.stringContaining('Mid-run message for Codex will be sent when the agent is free'),
+      false,
+      undefined,
+      expect.stringMatching(/^system-midrun-queued-/),
+    );
+  });
+});
+
+describe('runtime-command-execution native harness controls', () => {
+  const log = { log: vi.fn(), warn: vi.fn() };
+  const notifyCommandStarted = vi.fn();
+  const emitOutput = vi.fn();
+  const killDetached = vi.fn(async () => false);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetAgent.mockReturnValue({
+      id: 'agent-pi',
+      provider: 'pi',
+      status: 'idle',
+      taskCount: 4,
+      cwd: '/tmp/project',
+      class: 'dev',
+    });
+  });
+
+  it('routes bare /compact to Pi RPC instead of sending it as a model prompt', async () => {
+    const runner = {
+      ...makeRunner({
+        isRunning: true,
+        closesStdin: false,
+        supportsStdin: true,
+        turnState: 'waiting_for_input',
+      }),
+      compactContext: vi.fn(async () => true),
+    };
+    const api = createRuntimeCommandExecution({
+      log,
+      getRunner: () => runner as any,
+      getRunnerForAgent: () => runner as any,
+      notifyCommandStarted,
+      emitOutput,
+      killDetachedProviderProcessInCwd: killDetached,
+    });
+
+    await api.sendCommand('agent-pi', '/compact');
+
+    expect(runner.compactContext).toHaveBeenCalledExactlyOnceWith('agent-pi');
+    expect(runner.sendMessage).not.toHaveBeenCalled();
+    expect(runner.run).not.toHaveBeenCalled();
+    expect(notifyCommandStarted).toHaveBeenCalledWith('agent-pi', '/compact');
+    expect(mockUpdateAgent).toHaveBeenCalledWith('agent-pi', expect.objectContaining({
+      status: 'working',
+      currentTask: '/compact',
+      lastAssignedTask: '/compact',
+      taskCount: 5,
+    }));
+  });
+
+  it('does not fall back to prompting the model when native compaction is busy', async () => {
+    const runner = {
+      ...makeRunner({ isRunning: true, closesStdin: false, supportsStdin: true }),
+      compactContext: vi.fn(async () => false),
+    };
+    const api = createRuntimeCommandExecution({
+      log,
+      getRunner: () => runner as any,
+      getRunnerForAgent: () => runner as any,
+      notifyCommandStarted,
+      emitOutput,
+      killDetachedProviderProcessInCwd: killDetached,
+    });
+
+    await expect(api.sendCommand('agent-pi', '/compact')).rejects.toThrow(
+      'Cannot compact Pi context while the harness is busy',
+    );
+    expect(runner.sendMessage).not.toHaveBeenCalled();
+    expect(runner.run).not.toHaveBeenCalled();
+  });
 });

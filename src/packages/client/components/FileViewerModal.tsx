@@ -516,11 +516,14 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     return null;
   }, [fileData, editData]);
 
-  // Codex apply_patch cards may know the touched file but not carry Claude's
-  // old_string/new_string pair. Treat that as edit intent so the modal fetches
-  // the file's Git diff and original content just like a native Edit tool.
+  // Patch-style cards (Codex apply_patch and multi-edit Pi calls) may know the
+  // touched file without one representative old/new pair. Treat the operation
+  // marker as edit intent so the modal can fetch original content as fallback.
   const hasEditStrings = !!editData && (!editData.highlightRange) && (
-    !!editData.oldString || !!editData.newString || editData.operation === 'codex-patch'
+    !!editData.oldString
+    || !!editData.newString
+    || editData.operation === 'codex-patch'
+    || editData.operation === 'pi-edit'
   );
   const resolvedUnifiedDiff = editData?.unifiedDiff || fetchedUnifiedDiff;
   const hasUnifiedDiff = !!resolvedUnifiedDiff;

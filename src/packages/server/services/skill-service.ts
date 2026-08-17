@@ -417,29 +417,32 @@ function buildApiConventionPreamble(): string {
   const authToken = getAuthToken();
   const authHeader = authToken ? `-H "X-Auth-Token: ${authToken}" ` : '';
 
-  const authNote = authToken
-    ? '\n- Auth is enabled; the `X-Auth-Token` header in the template above is already filled in — keep it on every call.'
-    : '';
+  return `## Tide Commander API
 
-  return `## API Calling Convention
-
-All skills below call the Tide Commander local API at \`${baseUrl}\`. Every request uses the **same curl scaffolding** — only the HTTP method, path, and JSON body change per skill.
-
-**Default template (always use this shape):**
+For a skill's \`METHOD /api/path\` and JSON example, use:
 
 \`\`\`bash
-curl -s -X <METHOD> ${authHeader}${baseUrl}/<path> -H "Content-Type: application/json" -d '<json-body>'
+curl -s -X METHOD ${authHeader}${baseUrl}/api/path -H "Content-Type: application/json" -d 'JSON'
 \`\`\`
 
-**Substitutions on every call:**
-- \`<METHOD>\` — HTTP verb specified by the skill (\`POST\`, \`PATCH\`, \`DELETE\`, etc.)
-- \`<path>\` — endpoint path specified by the skill (begins with \`/api/\`)
-- \`<json-body>\` — the JSON body shown in the skill example
-- \`YOUR_AGENT_ID\` inside any body or path — your real agent ID from the Agent Identity block
+Replace \`YOUR_AGENT_ID\` with your identity. Omit the body/header when unnecessary (such as GET). Keep the auth header when shown, and never put \`!\` in a shell command.`;
+}
 
-**Global rules for every API call:**
-- No exclamation marks (\`!\`) anywhere in the command — bash history expansion will corrupt it.
-- Per-skill examples below omit the scaffolding (method host/headers). Combine them with this template to form the full \`curl\`.${authNote}`;
+function usesCommanderApi(skill: Skill): boolean {
+  return skill.content.includes('http://localhost:5174') || /(?:^|[\s`])\/api\//m.test(skill.content);
+}
+
+function buildSkillSections(agentSkills: Skill[]): string[] {
+  return agentSkills.map(skill => {
+    const contentWithAuth = injectAuthIntoSkillContent(skill.content);
+    return `## Skill: ${skill.name}\n\n_${skill.description}_\n\n${contentWithAuth}`;
+  });
+}
+
+function buildOptionalApiPreamble(agentSkills: Skill[]): string {
+  return agentSkills.some(usesCommanderApi)
+    ? `${buildApiConventionPreamble()}\n\n---\n\n`
+    : '';
 }
 
 /**
@@ -453,32 +456,13 @@ export function buildSkillPromptContent(agentId: string, agentClass: AgentClass,
     return '';
   }
 
-  const sections = agentSkills.map(skill => {
-    let section = `## Skill: ${skill.name}\n\n`;
-    section += `**Description:** ${skill.description}\n\n`;
-
-    if (skill.allowedTools.length > 0) {
-      section += `**Allowed Tools:** ${skill.allowedTools.join(', ')}\n\n`;
-    }
-
-    // Inject auth token into curl commands
-    const contentWithAuth = injectAuthIntoSkillContent(skill.content);
-    section += contentWithAuth;
-    return section;
-  });
-
-  const preamble = buildApiConventionPreamble();
+  const sections = buildSkillSections(agentSkills);
+  const apiPreamble = buildOptionalApiPreamble(agentSkills);
 
   return `
 # Available Skills
 
-The following skills are available to you. Use them when appropriate based on their descriptions.
-
-${preamble}
-
----
-
-${sections.join('\n\n---\n\n')}
+${apiPreamble}${sections.join('\n\n---\n\n')}
 `;
 }
 
@@ -578,27 +562,14 @@ export function buildSkillUpdateNotification(agentId: string, agentClass: AgentC
     return '';
   }
 
-  const sections = agentSkills.map(skill => {
-    let section = `## Skill: ${skill.name}\n\n`;
-    section += `**Description:** ${skill.description}\n\n`;
-
-    if (skill.allowedTools.length > 0) {
-      section += `**Allowed Tools:** ${skill.allowedTools.join(', ')}\n\n`;
-    }
-
-    // Inject auth token into curl commands
-    const contentWithAuth = injectAuthIntoSkillContent(skill.content);
-    section += contentWithAuth;
-    return section;
-  });
+  const sections = buildSkillSections(agentSkills);
+  const apiPreamble = buildOptionalApiPreamble(agentSkills);
 
   return `
 ---
 # 🔄 SKILL UPDATE
 
-Your available skills have been updated. Here are your current skills:
-
-${sections.join('\n\n---\n\n')}
+${apiPreamble}${sections.join('\n\n---\n\n')}
 ---
 
 `;

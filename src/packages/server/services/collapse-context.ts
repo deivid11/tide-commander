@@ -24,7 +24,7 @@ export type SubscribeUnsubscribe = () => void;
 export interface CollapseContextDeps {
   /** Lookup the current snapshot for an agent id. */
   getAgent: (id: string) => CollapseAgentSnapshot | undefined;
-  /** Send a raw command (used for `/compact`). */
+  /** Dispatch `/compact`; runtime execution selects the provider-native path. */
   sendCommand: (agentId: string, command: string) => Promise<void>;
   /**
    * Subscribe to agent change events. The collapse service only cares about

@@ -426,6 +426,23 @@ describe('extractExecWrappedCommand', () => {
     expect(extractExecWrappedCommand(cmd)).toBe('npm test -- src/packages/client/utils/outputRendering.test.ts src/packages/client/utils/filePaths.test.ts');
   });
 
+  it('unwraps curl /api/exec payload command supplied through a quoted heredoc', () => {
+    const cmd = String.raw`curl -s -X POST -H "X-Auth-Token: abcd" http://localhost:5174/api/exec -H "Content-Type: application/json" -d @- <<'EOF'
+{"agentId":"legup3xu","command":"printf '{\\"type\\":\\"get_state\\"}\\n' | timeout 10 /home/riven/.nvm/versions/node/v22.21.1/bin/pi --mode rpc --no-session --extension /home/riven/d/tide-commander/src/packages/server/pi/detailed-reasoning-extension.ts","cwd":"/home/riven/d/tide-commander","tail":40,"pty":false}
+EOF`;
+
+    expect(extractExecWrappedCommand(cmd)).toBe(
+      `printf '{"type":"get_state"}\\n' | timeout 10 /home/riven/.nvm/versions/node/v22.21.1/bin/pi --mode rpc --no-session --extension /home/riven/d/tide-commander/src/packages/server/pi/detailed-reasoning-extension.ts`,
+    );
+  });
+
+  it('supports tab-stripped curl /api/exec heredocs', () => {
+    const cmd = `curl http://localhost:5174/api/exec --data-binary @- <<-'JSON'
+\t{"command":"npm run build"}
+\tJSON`;
+    expect(extractExecWrappedCommand(cmd)).toBe('npm run build');
+  });
+
   it('returns original command when not wrapped', () => {
     const cmd = '/usr/bin/zsh -lc "npm run build"';
     expect(extractExecWrappedCommand(cmd)).toBe(cmd);

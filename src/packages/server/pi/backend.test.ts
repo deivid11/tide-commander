@@ -10,6 +10,8 @@ describe('PiBackend.buildArgs', () => {
     });
 
     expect(args.slice(0, 3)).toEqual(['--mode', 'json', '-p']);
+    expect(args).toContain('--extension');
+    expect(args[args.indexOf('--extension') + 1]).toMatch(/detailed-reasoning-extension\.(?:ts|js)$/);
     expect(args).not.toContain('--session');
     expect(args).not.toContain('--fork');
     // Prompt is the last argument (instruction block included on first run).

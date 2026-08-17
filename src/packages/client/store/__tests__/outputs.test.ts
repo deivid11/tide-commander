@@ -69,6 +69,30 @@ describe('Output Store Actions', () => {
       expect(outputs[0].toolOutput).toBe('src/a.ts:4:needle');
       expect(outputs[1].toolOutput).toBeUndefined();
     });
+
+    it('attaches Pi result-time unified diff enrichment to the edit card', () => {
+      const { state, actions } = createMockStore();
+      actions.addOutput('agent-1', makeOutput({
+        text: 'Using tool: Edit',
+        uuid: 'pi-edit-1',
+        toolName: 'Edit',
+        toolInput: { path: 'src/a.ts', file_path: 'src/a.ts', operation: 'pi-edit' },
+      }));
+
+      actions.attachToolResult('agent-1', 'pi-edit-1', 'Successfully replaced 2 blocks.', {
+        path: 'src/a.ts',
+        file_path: 'src/a.ts',
+        operation: 'pi-edit',
+        unified_diff: '@@ -1 +1 @@\n-old\n+new',
+      });
+
+      const outputs = state.agentOutputs.get('agent-1')!;
+      expect(outputs).toHaveLength(1);
+      expect(outputs[0].toolInput).toMatchObject({
+        operation: 'pi-edit',
+        unified_diff: '@@ -1 +1 @@\n-old\n+new',
+      });
+    });
   });
 
   describe('addOutput', () => {

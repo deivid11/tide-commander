@@ -5,55 +5,20 @@ export const streamingExec: BuiltinSkillDefinition = {
   name: 'Streaming Command Execution',
   description: 'Execute long-running commands with real-time output streaming to the terminal',
   allowedTools: ['Bash(curl:*)'],
-  content: `# Streaming Command Execution
+  content: `# Streaming Execution (MANDATORY)
 
-## Mandatory command-routing rule
-
-You MUST execute builds, test suites, package installs, dev servers, Docker/container commands, and other long-running or operationally important commands through \`POST /api/exec\`.
-
-Never run those commands directly through Bash, \`exec_command\`, or another shell-execution tool. A direct call such as \`npm run build\`, \`npm test\`, \`npm install\`, \`cargo build\`, \`docker build\`, or \`make\` is a violation of this rule. The only shell command you should invoke directly for these tasks is the \`curl\` request to \`POST /api/exec\`.
-
-Direct shell execution is allowed only for short, near-instant inspection commands such as \`rg\`, \`grep\`, \`sed\`, \`head\`, \`tail\`, \`ls\`, \`pwd\`, \`stat\`, \`git status\`, \`git diff\`, and a short \`git log\`.
-
-Route long-running, noisy, or operationally important commands through \`POST /api/exec\` so the user sees live progress in the terminal "Running Tasks" section; you receive the full output when the command completes.
-
-**Use for:** builds (\`npm run build\`, \`cargo build\`, \`make\`), test suites (\`npm test\`, \`pytest\`, \`jest\`), dev servers (\`npm run dev\`, \`bun run dev\`), package installs (\`npm install\`, \`pip install\`), docker/container commands (\`docker build\`, \`docker compose up\`, \`docker logs\`), long git/network ops (\`git clone\`, \`git fetch\`, \`git push\`) — anything expected to run longer than a couple seconds.
-
-**Don't use for:** near-instant inspection commands (\`cat\`, \`grep\`, \`rg\`, \`sed\`, \`head\`, \`tail\`, \`ls\`, \`pwd\`, \`stat\`, \`git status\`, \`git diff\`, \`git log -n 5\`) — run those directly with normal shell tools.
-
-## Request
-
-Body only — wrap with the scaffolding from the API Calling Convention above:
+Run builds, test suites, installs, dev servers, containers, long git/network operations, and any noisy or multi-second command through \`POST /api/exec\`. Never run them directly with Bash or another shell tool. Direct shell is only for near-instant inspection such as \`rg\`, \`ls\`, \`git status\`, \`git diff\`, or a short \`git log\`.
 
 \`\`\`json
-{"agentId":"YOUR_AGENT_ID","command":"npm run build"}
+{"agentId":"YOUR_AGENT_ID","command":"npm run build","cwd":"/optional/path","tail":30,"pty":true}
 \`\`\`
 
-- \`agentId\` (required): your agent ID from the system prompt
-- \`command\` (required): the shell command to execute
-- \`cwd\` (optional): working directory; defaults to your agent's current directory
-- \`tail\` (optional, number): return only the last N lines of output in the response. **This is the right way to keep YOUR context small** — the user's live terminal card still receives the FULL output stream; only your response is trimmed.
-- \`pty\` (optional, default true): commands run under a pseudo-terminal, so TTY-aware CLIs (vitest, npm, pip, cargo) show their live progress in the user's card. Your response \`output\` is the clean rendered result (progress bars collapsed to their final state, colors stripped) — never raw terminal noise. Pass \`false\` only if a command misbehaves under a TTY.
+Required: \`agentId\`, \`command\`. Optional:
+- \`cwd\` defaults to the agent's directory
+- \`tail\` limits only the API response; the user's live card still gets all output
+- \`pty\` defaults to \`true\`; use \`false\` only for commands that misbehave under a TTY
 
-Wrap indefinitely-running commands (like dev servers) with \`timeout\`: \`{"agentId":"YOUR_AGENT_ID","command":"timeout 30 npm run dev"}\`
+Never add \`| tail\`, \`| head\`, or output redirection merely to reduce returned output; buffering hides live progress. Use the \`tail\` field. Wrap indefinite commands with \`timeout\` (for example, \`timeout 30 npm run dev\`).
 
-## Keeping your context small — use \`tail\`, not pipes
-
-Do NOT append \`| tail -25\` (or \`| head\`, \`>/dev/null\`, \`2>&1 | tail -c 3000\`, …) to the command to shrink its output. A pipe filter buffers everything, so the user's live card stays EMPTY until the command ends — they lose all real-time visibility. Pass \`"tail": 25\` instead:
-
-\`\`\`json
-{"agentId":"YOUR_AGENT_ID","command":"npm test","tail":30}
-\`\`\`
-
-Safety net: if a command DOES end in \`| tail -N\` / \`| tail -n N\` / \`| tail -c N\`, the server strips that filter before executing (so the live stream shows real progress) and applies the same tail to your response instead — you receive what you asked for either way. Don't rely on it; prefer the \`tail\` param.
-
-## Response (JSON, returned when the command completes)
-
-\`\`\`json
-{"success": true, "taskId": "abc123", "exitCode": 0, "output": "Full command output...", "duration": 12345}
-\`\`\`
-
-\`success\` is \`true\` whenever the command executed, even with a non-zero exit code. A non-zero \`exitCode\` means the command itself failed (e.g. test failures) — a normal result to analyze via \`output\`, not an API error.
-
-When a tail was applied (param or stripped pipe filter) the response also carries \`"tailApplied": true\` and \`"fullOutputBytes"\` — the untruncated size, so you know how much output the user saw that you didn't.`,
+The response contains \`taskId\`, \`exitCode\`, \`output\`, and \`duration\`. \`success\` means execution started, not that the command passed; judge the command by \`exitCode\`. With \`tail\`, \`tailApplied\` and \`fullOutputBytes\` describe truncation.`,
 };

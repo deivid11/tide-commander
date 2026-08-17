@@ -125,6 +125,10 @@ export interface EnrichedHistoryMessage {
   toolName?: string;
   toolUseId?: string;
   toolInput?: Record<string, unknown>;
+  reasoningTokens?: number;
+  reasoningSummaryCount?: number;
+  reasoningEncrypted?: boolean;
+  reasoningSummaryOnly?: boolean;
   // Enrichment fields
   _bashOutput?: string; // Linked tool_result content for Bash tools
   _toolOutput?: string; // Linked result for generic/Codex exec tool cards

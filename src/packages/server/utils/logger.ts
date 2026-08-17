@@ -21,7 +21,10 @@ interface FileLogConfig {
 }
 
 const fileLogConfig: FileLogConfig = {
-  enabled: true,
+  // Vitest workers share the repository cwd with the live dev server. Writing
+  // their startup/test diagnostics into logs/server.log interleaves fake
+  // server starts and watchdog errors with production evidence.
+  enabled: process.env.VITEST !== 'true' && process.env.NODE_ENV !== 'test',
   directory: path.join(process.cwd(), 'logs'),
   filename: 'server.log',
   maxSizeBytes: 10 * 1024 * 1024, // 10MB

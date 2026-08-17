@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.191.0] - 2026-08-16
+
+### Added
+- **Pi RPC turns survive a Commander restart** - each Pi RPC process now runs inside its own isolated tmux session and is reconnected on startup, so a restart no longer kills a live turn. The runner persists the session, working directory, model and turn state, replays the log tail it missed, and infers whether the agent was still processing or waiting for input — agents that were working resume streaming into the same conversation instead of silently stalling.
+- **/compact works natively on Pi** - a bare `/compact` sent to a Pi RPC agent is routed through the harness's own compaction operation instead of being typed at the model as text, and the resulting compaction is rendered as a marker in the restored conversation history. Context is no longer re-queried afterwards on Pi, where doing so woke the model and polluted the freshly compacted context.
+- **Thinking blocks report reasoning usage** - a thinking block can now show how many reasoning tokens the model spent and how many plaintext summaries the provider exposed, plus an explicit note when the visible text is only a provider summary and the detailed chain of thought is an encrypted payload Tide cannot decrypt. Pi runs load an extension that asks providers for detailed safe summaries so there is more to show.
+- **Pi edit calls render as diff cards** - Pi's `{ path, edits: [...] }` tool payload is translated into the shape the diff cards consume, so Pi file edits appear as proper diffs, and the file viewer treats a multi-edit Pi call as edit intent and falls back to the Git diff and original content.
+
+### Changed
+- **Message bursts become one follow-up** - prompts sent to the same agent while it is busy or temporarily disconnected now append to one queued message, separated by blank lines, instead of building an unbounded backlog of turns. The combined follow-up drains once when the agent is available, across classic, Codex app-server, and OpenCode serve runners, and the same merging now applies to prompts queued in the browser while the connection is down.
+- **Mermaid Diagrams is opt-in** - the built-in skill is no longer forced onto every agent. It can be enabled manually for an agent or class from the Skills UI, and existing persisted wildcard assignments are removed automatically while intentional direct assignments remain intact.
+- **Leaner built-in skills** - every built-in skill was rewritten to say the same thing in far fewer tokens, and the API calling convention is now included only when at least one of the agent's skills actually calls the Tide Commander API. A regression test keeps the default skill set inside its size budget, so the prompt overhead an agent carries before it reads a single file stays small.
+- **Exec cards attach to heredoc commands** - an exec call whose JSON body is passed with `-d @- <<'EOF'` is now recognised, so its terminal row matches the running task by its exact command and shows the live output instead of guessing from timing.
+
+### Fixed
+- **Test runs no longer write into the server log** - Vitest workers share the repository directory with the live dev server and were interleaving fake server starts and watchdog errors into `logs/server.log`; logging is now disabled under test.
+
 ## [1.190.0] - 2026-08-16
 
 ### Added
