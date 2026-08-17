@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import { spawn } from 'child_process';
 import type { Agent, AgentProvider, CodexConfig, ContextStats } from '../../../shared/types.js';
+import { providerDisplayName } from '../../../shared/types.js';
 import { CLAUDE_MODELS as CLAUDE_MODEL_METADATA } from '../../../shared/agent-types.js';
 import { agentService, runtimeService, skillService, customClassService, bossService, permissionService } from '../../services/index.js';
 import { markInstructionsDirty } from '../../services/instruction-refresh.js';
@@ -501,18 +502,27 @@ export async function handleRestoreSession(
   }
 
   const targetCwd = payload.cwd && payload.cwd !== agent.cwd ? payload.cwd : undefined;
+  const restoredCwd = targetCwd || agent.cwd;
+  const restoredProvider = detectSessionProvider(restoredCwd, payload.sessionId);
+  if (!restoredProvider) {
+    ctx.sendError(`Session not found: ${payload.sessionId}`);
+    return;
+  }
   log.log(
-    `Agent ${agent.name}: Restoring session ${payload.sessionId}` +
+    `Agent ${agent.name}: Restoring ${restoredProvider} session ${payload.sessionId}` +
       (targetCwd ? ` (cwd change: ${agent.cwd} -> ${targetCwd})` : '')
   );
 
-  // Archive the current session first (if any)
+  // Archive the current session first (if any). Provider detection above makes
+  // this a real rollback path for native → Pi transfers in both directions.
   agentService.archiveCurrentSession(payload.agentId);
 
   // Stop any running process
   await runtimeService.stopAgent(payload.agentId);
 
   const updates: Parameters<typeof agentService.updateAgent>[1] = {
+    provider: restoredProvider,
+    piModelProvider: restoredProvider === 'pi' ? agent.piModelProvider : undefined,
     status: 'idle',
     currentTask: undefined,
     taskLabel: undefined,
@@ -533,7 +543,7 @@ export async function handleRestoreSession(
       ? `Session restored from ${targetCwd} - will resume on next command`
       : `Session restored - will resume on next command`
   );
-  log.log(`Agent ${agent.name}: Session restored to ${payload.sessionId}`);
+  log.log(`Agent ${agent.name}: ${restoredProvider} session restored to ${payload.sessionId}`);
 }
 
 /**
@@ -1154,6 +1164,16 @@ export async function handleUpdateAgentProperties(
   }
 
   const nextProvider = updates.provider ?? agent.provider;
+  if (updates.provider !== undefined && updates.provider !== (agent.provider ?? 'claude') && agent.sessionId) {
+    // A session id only resumes on the runtime that created it. Cross-runtime
+    // changes go through POST /api/agents/:id/convert-runtime, which copies the
+    // conversation into a NEW native session (or starts fresh) and archives the
+    // source for rollback.
+    ctx.sendError(
+      `Use Convert to ${providerDisplayName(updates.provider)} so the ${providerDisplayName(agent.provider)} session is migrated into a compatible session instead of being resumed on another runtime.`,
+    );
+    return;
+  }
   const normalizedUpdatedModel =
     updates.model !== undefined
       ? agentService.sanitizeModelForProvider(nextProvider, updates.model)

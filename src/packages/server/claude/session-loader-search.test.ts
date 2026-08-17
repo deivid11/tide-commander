@@ -14,6 +14,10 @@ import {
   planTokenFileSearch,
   parseRgCounts,
   parseRgSampleLines,
+  pickSnippetFromLines,
+  pickExtractsFromLines,
+  userPromptWithNeedlePattern,
+  SNIPPETS_PER_SESSION,
   sessionSearchScore,
   rankSessionMatches,
   foldAccents,
@@ -67,7 +71,7 @@ describe('scanSessionFileForQuery', () => {
 
     const result = await scanSessionFileForQuery(file, 'zebra');
 
-    expect(result).toEqual({ totalMatches: 0, snippet: '', matchingLines: [], reachedEof: true });
+    expect(result).toEqual({ totalMatches: 0, snippet: '', extracts: [], matchingLines: [], reachedEof: true });
   });
 
   it('renders a readable snippet for tool-only matches instead of raw JSON', async () => {
@@ -185,6 +189,247 @@ describe('ripgrep output parsers', () => {
   });
 });
 
+describe('pickSnippetFromLines (rg sample → display snippet)', () => {
+  it('returns an empty snippet when every sample line was an omitted long line', () => {
+    // parseRgSampleLines drops "[Omitted long matching line]" markers, so a file
+    // whose first N matches all exceeded --max-columns yields NO lines at all.
+    const samples = parseRgSampleLines('/p/a.jsonl:[Omitted long matching line]\n/p/a.jsonl:[Omitted long matching line]');
+    expect(samples.get('/p/a.jsonl')).toBeUndefined();
+    expect(pickSnippetFromLines(samples.get('/p/a.jsonl') ?? [], 'convert')).toBe('');
+  });
+
+  it('windows a huge tool-result line around the needle (the long-line re-sample case)', () => {
+    const doc = 'x '.repeat(3000) + 'instead of converting thinking to text' + ' y'.repeat(3000);
+    const line = JSON.stringify({ type: 'message', message: { role: 'toolResult', content: [{ type: 'text', text: doc }] } });
+    expect(line.length).toBeGreaterThan(4096);
+
+    const snippet = pickSnippetFromLines([line], 'convert');
+
+    expect(snippet).toContain('converting thinking to text');
+    expect(snippet.startsWith('…')).toBe(true);
+    expect(snippet.length).toBeLessThanOrEqual(282);
+  });
+
+  it('prefers readable text that CONTAINS the needle over conversation text that does not', () => {
+    // Assistant text says nothing about the query; the match lives in the tool
+    // call — the row highlights the query, so the tool text is the useful preview.
+    const assistantNoNeedle = JSON.stringify({ type: 'assistant', message: { content: [
+      { type: 'text', text: 'Sure, doing that now.' },
+      { type: 'tool_use', name: 'Bash', input: { command: 'pi convert --all' } },
+    ] } });
+    const toolWithNeedle = JSON.stringify({ type: 'assistant', message: { content: [
+      { type: 'tool_use', name: 'Bash', input: { command: 'pi convert --all' } },
+    ] } });
+
+    expect(pickSnippetFromLines([assistantNoNeedle, toolWithNeedle], 'convert')).toBe('Bash: pi convert --all');
+  });
+
+  it('still prefers conversation text over tool chatter when both contain the needle', () => {
+    const tool = JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Bash', input: { command: 'grep scroll src/' } }] } });
+    const user = JSON.stringify({ type: 'user', message: { content: 'the scroll bug is back' } });
+
+    expect(pickSnippetFromLines([tool, user], 'scroll')).toBe('the scroll bug is back');
+    // Order-independent: the message-rank text wins regardless of position.
+    expect(pickSnippetFromLines([user, tool], 'scroll')).toBe('the scroll bug is back');
+  });
+
+  it('matches the needle accent-blind inside the readable text', () => {
+    const user = JSON.stringify({ type: 'user', message: { content: 'la conciliación quedó lista' } });
+    const raw = 'plain raw line with conciliacion in it';
+
+    // Folded needle "conciliacion" is contained in the accented message → the
+    // message wins over the raw line (contains bonus + message rank).
+    expect(pickSnippetFromLines([raw, user], 'conciliacion')).toBe('la conciliación quedó lista');
+  });
+});
+
+describe('pickExtractsFromLines (multi-extract, user prompts first, role-tagged)', () => {
+  const claudeUser = (text: string) => JSON.stringify({ type: 'user', message: { role: 'user', content: text } });
+  const claudeAssistant = (text: string) => JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text }] } });
+  const claudeThinking = (thinking: string, cmd: string) => JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [
+    { type: 'thinking', thinking, signature: 'sig' },
+    { type: 'tool_use', name: 'Bash', input: { command: cmd } },
+  ] } });
+  const claudeTool = (cmd: string) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Bash', input: { command: cmd } }] } });
+
+  it('ranks the user prompt above assistant text above tool output, tagging each with who said it', () => {
+    const lines = [
+      claudeTool('pi convert --dry-run'),
+      claudeAssistant('I will convert the sessions now.'),
+      claudeUser('can you convert my pi sessions?'),
+    ];
+
+    expect(pickExtractsFromLines(lines, 'convert')).toEqual([
+      { text: 'can you convert my pi sessions?', kind: 'user' },
+      { text: 'I will convert the sessions now.', kind: 'assistant' },
+      { text: 'Bash: pi convert --dry-run', kind: 'tool' },
+    ]);
+  });
+
+  it('surfaces the agent reasoning (thinking block) as agent text when a row has no visible text', () => {
+    const lines = [claudeThinking('The user wants me to convert the sessions; check the format first.', 'ls sessions/')];
+
+    expect(pickExtractsFromLines(lines, 'convert')).toEqual([
+      { text: 'The user wants me to convert the sessions; check the format first.', kind: 'assistant' },
+    ]);
+  });
+
+  it('caps at SNIPPETS_PER_SESSION and dedupes repeated extracts (resumed-session duplicate rows)', () => {
+    const lines = [
+      claudeUser('convert A'),
+      claudeUser('convert A'), // duplicate row
+      claudeUser('convert B'),
+      claudeUser('convert C'),
+      claudeUser('convert D'),
+      claudeUser('convert E'),
+    ];
+
+    const out = pickExtractsFromLines(lines, 'convert');
+
+    expect(out).toHaveLength(SNIPPETS_PER_SESSION);
+    expect(out.map((e) => e.text)).toEqual(['convert A', 'convert B', 'convert C', 'convert D']);
+    expect(out.every((e) => e.kind === 'user')).toBe(true);
+  });
+
+  it('keeps file order among equal-rank extracts and returns [] for no lines', () => {
+    expect(pickExtractsFromLines([claudeUser('first convert'), claudeUser('second convert')], 'convert').map((e) => e.text))
+      .toEqual(['first convert', 'second convert']);
+    expect(pickExtractsFromLines([], 'convert')).toEqual([]);
+  });
+
+  it('pickSnippetFromLines is the text of the first extract', () => {
+    const lines = [claudeTool('grep convert'), claudeUser('please convert this')];
+    expect(pickSnippetFromLines(lines, 'convert')).toBe(pickExtractsFromLines(lines, 'convert')[0].text);
+  });
+
+  it('tags Claude last-prompt bookkeeping rows as the user voice', () => {
+    const row = JSON.stringify({ type: 'last-prompt', lastPrompt: 'deploy pls convert pipeline', leafUuid: 'x', sessionId: 's' });
+    expect(pickExtractsFromLines([row], 'convert')).toEqual([{ text: 'deploy pls convert pipeline', kind: 'user' }]);
+  });
+
+  it('tags pi rows by role (user / assistant / toolResult) and grok reasoning as agent text', () => {
+    const piUser = JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'pi convert please' }] } });
+    const piAssistant = JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: 'Converting now.' }] } });
+    const piToolResult = JSON.stringify({ type: 'message', message: { role: 'toolResult', content: [{ type: 'text', text: '# Docs about convert' }] } });
+    const grokReasoning = JSON.stringify({ type: 'reasoning', summary: [{ text: 'Need to convert the file first' }] });
+
+    expect(pickExtractsFromLines([piToolResult, grokReasoning, piAssistant, piUser], 'convert')).toEqual([
+      { text: 'pi convert please', kind: 'user' },
+      { text: 'Need to convert the file first', kind: 'assistant' },
+      { text: 'Converting now.', kind: 'assistant' },
+      { text: '# Docs about convert', kind: 'tool' },
+    ]);
+  });
+
+  it('tags codex rows: user_message / agent_message / agent_reasoning / reasoning / function_call(+output) / custom_tool_call', () => {
+    const rows = [
+      JSON.stringify({ type: 'response_item', payload: { type: 'function_call_output', call_id: 'c1', output: 'Chunk convert done\nexit 0' } }),
+      JSON.stringify({ type: 'response_item', payload: { type: 'function_call', name: 'exec_command', arguments: '{"cmd":"pi convert"}' } }),
+      JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call', name: 'apply_patch', input: '*** convert patch' } }),
+      JSON.stringify({ type: 'event_msg', payload: { type: 'agent_reasoning', text: '**Planning the convert step**' } }),
+      JSON.stringify({ type: 'response_item', payload: { type: 'reasoning', summary: [{ type: 'summary_text', text: 'Deciding how to convert' }], content: null } }),
+      JSON.stringify({ type: 'event_msg', payload: { type: 'agent_message', message: 'I converted the file.' } }),
+      JSON.stringify({ type: 'event_msg', payload: { type: 'user_message', message: 'convert it please', images: [] } }),
+    ];
+
+    const out = pickExtractsFromLines(rows, 'convert');
+
+    expect(out).toEqual([
+      { text: 'convert it please', kind: 'user' },
+      { text: '**Planning the convert step**', kind: 'assistant' },
+      { text: 'Deciding how to convert', kind: 'assistant' },
+      { text: 'I converted the file.', kind: 'assistant' },
+    ]);
+    // Tool rows are parsed (not raw) — visible when the agent-voice rows are absent.
+    expect(pickExtractsFromLines(rows.slice(0, 3), 'convert')).toEqual([
+      { text: 'Chunk convert done exit 0', kind: 'tool' },
+      { text: 'exec_command: {"cmd":"pi convert"}', kind: 'tool' },
+      { text: 'apply_patch: *** convert patch', kind: 'tool' },
+    ]);
+  });
+
+  it('parses grok assistant tool_calls (empty content) as tool voice and dedupes the call against its result', () => {
+    // ≥48 shared chars on both sides of the needle — the dedupe key is the
+    // escape-stripped span around the needle, so the passage must be long
+    // enough that the span never reaches the rows' differing prefixes.
+    const passage = '## Theme notes\n- Panels used compile-time $dracula-* SCSS; high-traffic guake/input/header/agent-bar converted to var(--accent-*) / var(--bg-*)\n- Extended theme vars: --selection-bg, --selection-text';
+    const grokToolResult = JSON.stringify({ type: 'tool_result', tool_call_id: 'c1', content: `exit: 0\n--- memory ---\n${passage}` });
+    // The call that WROTE that memory: the passage sits inside a JSON-encoded
+    // arguments string (one escaping level deeper than the result).
+    const grokAssistantCall = JSON.stringify({ type: 'assistant', content: '', tool_calls: [
+      { id: 'c1', name: 'run_terminal_command', arguments: JSON.stringify({ command: `curl -d ${JSON.stringify({ memory: passage })}` }) },
+    ] });
+
+    const out = pickExtractsFromLines([grokToolResult, grokAssistantCall], 'converted');
+
+    expect(out).toHaveLength(1);
+    expect(out[0].kind).toBe('tool');
+    expect(out[0].text).toContain('converted to var(--accent-*)');
+    // On its own the call row is a readable tool extract, not raw JSON.
+    expect(pickExtractsFromLines([grokAssistantCall], 'converted')[0]).toMatchObject({ kind: 'tool' });
+    expect(pickExtractsFromLines([grokAssistantCall], 'converted')[0].text.startsWith('run_terminal_command: ')).toBe(true);
+  });
+
+  it('dedupes the same passage seen parsed and raw (JSON-escaped newlines / quotes)', () => {
+    const parsed = JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'convert "this"\nnow' }] } });
+    const rawEscaped = 'prefix convert \\"this\\"\\nnow'; // not JSON → raw, but the same words
+    const out = pickExtractsFromLines([parsed, rawEscaped], 'convert');
+    expect(out).toHaveLength(2); // different leading text ("prefix ") → distinct
+    const same = pickExtractsFromLines([parsed, 'convert \\"this\\"\\nnow'], 'convert');
+    expect(same).toEqual([{ text: 'convert "this" now', kind: 'assistant' }]);
+  });
+
+  it('scanSessionFileForQuery returns the same ranked, tagged extracts (JS engine parity)', async () => {
+    const file = writeTmpJsonl([
+      claudeTool('pi convert --dry-run'),
+      claudeAssistant('I will convert the sessions now.'),
+      claudeUser('can you convert my pi sessions?'),
+    ]);
+
+    const result = await scanSessionFileForQuery(file, 'convert');
+
+    expect(result.extracts).toEqual([
+      { text: 'can you convert my pi sessions?', kind: 'user' },
+      { text: 'I will convert the sessions now.', kind: 'assistant' },
+      { text: 'Bash: pi convert --dry-run', kind: 'tool' },
+    ]);
+    expect(result.snippet).toBe('can you convert my pi sessions?');
+  });
+});
+
+describe('userPromptWithNeedlePattern (rg pass B-user)', () => {
+  // Real line shapes per harness (abridged from actual session files).
+  const CLAUDE_PROMPT_STRING = '{"parentUuid":null,"type":"user","message":{"role":"user","content":"deploy pls convert pipeline"},"uuid":"1"}';
+  const CLAUDE_PROMPT_BLOCK = '{"type":"user","message":{"role":"user","content":[{"type":"text","text":"Base directory convert here"}]}}';
+  const CLAUDE_TOOL_RESULT = '{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_1","type":"tool_result","content":"convert output"}]}}';
+  const CLAUDE_ASSISTANT = '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"I will convert it"}]}}';
+  const PI_USER = '{"type":"message","id":"d1","message":{"role":"user","content":[{"type":"text","text":"pi convert please"}]}}';
+  const PI_TOOL_RESULT = '{"type":"message","id":"d2","message":{"role":"toolResult","content":[{"type":"text","text":"# Docs convert"}]}}';
+  const CODEX_EVENT = '{"timestamp":"t","type":"event_msg","payload":{"type":"user_message","message":"convert this","images":[]}}';
+  const CODEX_ITEM = '{"type":"message","id":null,"role":"user","content":[{"type":"input_text","text":"<environment_context>convert</environment_context>"}]}';
+  const GROK_USER = '{"type":"user","content":[{"type":"text","text":"<user_info>convert</user_info>"}]}';
+
+  const re = () => new RegExp(userPromptWithNeedlePattern(accentFoldPattern('convert')), 'i');
+
+  it('matches user-typed rows of every harness that contain the needle', () => {
+    for (const line of [CLAUDE_PROMPT_STRING, CLAUDE_PROMPT_BLOCK, PI_USER, CODEX_EVENT, CODEX_ITEM, GROK_USER]) {
+      expect(re().test(line), line).toBe(true);
+    }
+  });
+
+  it('does NOT match tool results, assistant rows, or user rows without the needle', () => {
+    for (const line of [CLAUDE_TOOL_RESULT, CLAUDE_ASSISTANT, PI_TOOL_RESULT]) {
+      expect(re().test(line), line).toBe(false);
+    }
+    expect(re().test('{"type":"user","message":{"role":"user","content":"unrelated"}}')).toBe(false);
+  });
+
+  it('is accent-blind through accentFoldPattern', () => {
+    const line = '{"type":"user","message":{"role":"user","content":"la conciliación de hoy"}}';
+    expect(new RegExp(userPromptWithNeedlePattern(accentFoldPattern('conciliacion')), 'i').test(line)).toBe(true);
+  });
+});
+
 describe('planFileSearch', () => {
   const entry = (overrides: Partial<SearchFileCacheEntry>): SearchFileCacheEntry => ({
     mtimeMs: 1000,
@@ -198,12 +443,12 @@ describe('planFileSearch', () => {
   it('reuses an exact-query result on an unchanged file', () => {
     const cached = entry({ query: 'scroll', totalMatches: 3, snippet: 'the scroll bug' });
 
-    expect(planFileSearch([cached], 'scroll', 1000, 500)).toEqual({ kind: 'reuse', totalMatches: 3, snippet: 'the scroll bug' });
+    expect(planFileSearch([cached], 'scroll', 1000, 500)).toEqual({ kind: 'reuse', totalMatches: 3, snippet: 'the scroll bug', extracts: [{ text: 'the scroll bug', kind: 'raw' }] });
   });
 
   it('prunes a refined query when the shorter query already had zero matches', () => {
     // "scro" was nowhere in the file → "scroll" cannot be either.
-    expect(planFileSearch([entry({})], 'scroll', 1000, 500)).toEqual({ kind: 'reuse', totalMatches: 0, snippet: '' });
+    expect(planFileSearch([entry({})], 'scroll', 1000, 500)).toEqual({ kind: 'reuse', totalMatches: 0, snippet: '', extracts: [] });
   });
 
   it('answers a refined query from retained matching lines without a file read', () => {
@@ -221,6 +466,7 @@ describe('planFileSearch', () => {
       kind: 'reuse',
       totalMatches: 1,
       snippet: 'fix the SCROLL bar',
+      extracts: [{ text: 'fix the SCROLL bar', kind: 'user' }],
     });
   });
 
@@ -232,7 +478,7 @@ describe('planFileSearch', () => {
       entry({ query: 'scro', totalMatches: 4, snippet: 'older exact' }),
     ];
 
-    expect(planFileSearch(entries, 'scro', 1000, 500)).toEqual({ kind: 'reuse', totalMatches: 4, snippet: 'older exact' });
+    expect(planFileSearch(entries, 'scro', 1000, 500)).toEqual({ kind: 'reuse', totalMatches: 4, snippet: 'older exact', extracts: [{ text: 'older exact', kind: 'raw' }] });
   });
 
   it('falls back to a full scan for an unrelated query or a positive result without lines', () => {
@@ -250,7 +496,7 @@ describe('planFileSearch', () => {
     expect(plan).toEqual({
       kind: 'tail',
       startByte: 500,
-      head: { totalMatches: 2, snippet: 'old snippet', matchingLines: [] },
+      head: { totalMatches: 2, snippet: 'old snippet', extracts: [{ text: 'old snippet', kind: 'raw' }], matchingLines: [] },
     });
   });
 
@@ -314,11 +560,11 @@ describe('planTokenFileSearch (multi-word AND queries)', () => {
   it('reuses an exact-query result on an unchanged file', () => {
     const cached = entry({ query: 'jira krunner', totalMatches: 3, snippet: 'the jira board' });
 
-    expect(planTokenFileSearch([cached], 'jira krunner', 1000, 500)).toEqual({ totalMatches: 3, snippet: 'the jira board' });
+    expect(planTokenFileSearch([cached], 'jira krunner', 1000, 500)).toEqual({ totalMatches: 3, snippet: 'the jira board', extracts: [{ text: 'the jira board', kind: 'raw' }] });
   });
 
   it('zero-prunes from a contained query with no matches ("jira" absent → "jira krunner" cannot AND-match)', () => {
-    expect(planTokenFileSearch([entry({ query: 'jira', totalMatches: 0 })], 'jira krunner', 1000, 500)).toEqual({ totalMatches: 0, snippet: '' });
+    expect(planTokenFileSearch([entry({ query: 'jira', totalMatches: 0 })], 'jira krunner', 1000, 500)).toEqual({ totalMatches: 0, snippet: '', extracts: [] });
   });
 
   it('does NOT reuse positive phrase refinements — different words match different lines', () => {

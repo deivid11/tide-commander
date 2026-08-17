@@ -59,6 +59,7 @@ router.get('/search', async (req: Request, res: Response) => {
         lastModified: m.lastModified.toISOString(),
         totalMatches: m.totalMatches,
         snippet: m.snippet,
+        extracts: m.extracts,
         firstPrompt: m.firstPrompt,
         provider: m.provider,
         // Owner resolution includes archived session history, so a

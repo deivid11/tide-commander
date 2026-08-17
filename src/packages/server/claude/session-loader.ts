@@ -917,13 +917,31 @@ export interface GlobalSessionSearchMatch {
   projectDir: string;
   lastModified: Date;
   totalMatches: number;          // total matching lines in this session
-  snippet: string;               // first matching line, trimmed
+  snippet: string;               // best extract text (= extracts[0].text or '') — kept for single-snippet consumers
+  /** Up to SNIPPETS_PER_SESSION distinct extracts, best-first: user prompts
+   * containing the query, then agent text/reasoning, then tool output — a
+   * glimpse of what the conversation is about, not just one line. Each
+   * carries who said it so the UI can color by role. */
+  extracts: SessionExtract[];
   firstPrompt: string;           // first user prompt content (truncated) for context
   provider: SessionProvider;
 }
 
+/** Who produced an extract's text. `assistant` covers the agent's visible
+ * messages AND its reasoning/thinking; `tool` is tool calls/results; `raw`
+ * is an unparseable line shown as-is. */
+export type SessionExtractKind = 'user' | 'assistant' | 'tool' | 'raw';
+
+export interface SessionExtract {
+  text: string;
+  kind: SessionExtractKind;
+}
+
 const FIRST_PROMPT_MAX_LEN = 240;
 const SEARCH_SNIPPET_MAX_LEN = 280;
+/** Extracts returned per session hit (Spotlight shows them stacked under the
+ * agent row so the topic is readable at a glance). */
+export const SNIPPETS_PER_SESSION = 4;
 
 function truncate(text: string, max: number): string {
   if (text.length <= max) return text;
@@ -1305,6 +1323,9 @@ export interface SearchFileCacheEntry {
   query: string;
   totalMatches: number;
   snippet: string;
+  /** Ranked extracts (see GlobalSessionSearchMatch.extracts); absent on
+   * entries written before extracts existed — derive from `snippet`. */
+  extracts?: SessionExtract[];
   /** The COMPLETE set of matching lines, present only when the scan saw all of
    * them within the retention bounds. A refined query (one containing `query`)
    * can then be answered by re-testing just these lines — no file read. */
@@ -1339,34 +1360,35 @@ let searchAllSessionsGeneration = 0;
  */
 /** Head answer (count/snippet/lines) derivable from a cache entry for
  * `queryLower` WITHOUT reading the bytes the entry covers. */
+/** Extracts of a cache entry — entries written before extracts existed only
+ * carry the single `snippet` (role unknown → 'raw'). */
+function entryExtracts(entry: SearchFileCacheEntry): SessionExtract[] {
+  return entry.extracts ?? (entry.snippet ? [{ text: entry.snippet, kind: 'raw' }] : []);
+}
+
 function headAnswerFrom(
   entry: SearchFileCacheEntry,
   queryLower: string,
-): { totalMatches: number; snippet: string; matchingLines?: string[] } | null {
+): { totalMatches: number; snippet: string; extracts: SessionExtract[]; matchingLines?: string[] } | null {
   if (entry.query === queryLower) {
-    return { totalMatches: entry.totalMatches, snippet: entry.snippet, matchingLines: entry.matchingLines };
+    return { totalMatches: entry.totalMatches, snippet: entry.snippet, extracts: entryExtracts(entry), matchingLines: entry.matchingLines };
   }
   if (!queryLower.includes(entry.query)) return null;
-  if (entry.totalMatches === 0) return { totalMatches: 0, snippet: '', matchingLines: [] };
+  if (entry.totalMatches === 0) return { totalMatches: 0, snippet: '', extracts: [], matchingLines: [] };
   // Refined query: its matches are a subset of the cached query's matching
   // lines — when we have ALL of them, answer by re-testing just those lines.
   if (entry.matchingLines) {
     const matcher = new RegExp(accentFoldPattern(queryLower), 'i');
-    const matchingLines: string[] = [];
-    let snippet = '';
-    for (const line of entry.matchingLines) {
-      if (!matcher.test(line)) continue;
-      matchingLines.push(line);
-      if (!snippet) snippet = deriveSearchSnippet(line, queryLower);
-    }
-    return { totalMatches: matchingLines.length, snippet, matchingLines };
+    const matchingLines = entry.matchingLines.filter((line) => matcher.test(line));
+    const extracts = pickExtractsFromLines(matchingLines, queryLower);
+    return { totalMatches: matchingLines.length, snippet: extracts[0]?.text ?? '', extracts, matchingLines };
   }
   return null;
 }
 
 export type FileSearchPlan =
-  | { kind: 'reuse'; totalMatches: number; snippet: string }
-  | { kind: 'tail'; startByte: number; head: { totalMatches: number; snippet: string; matchingLines?: string[] } }
+  | { kind: 'reuse'; totalMatches: number; snippet: string; extracts: SessionExtract[] }
+  | { kind: 'tail'; startByte: number; head: { totalMatches: number; snippet: string; extracts: SessionExtract[]; matchingLines?: string[] } }
   | { kind: 'full' };
 
 /**
@@ -1391,7 +1413,7 @@ export function planFileSearch(
     const head = headAnswerFrom(entry, queryLower);
     if (!head) continue;
     if (entry.mtimeMs === mtimeMs && entry.sizeBytes === sizeBytes) {
-      return { kind: 'reuse', totalMatches: head.totalMatches, snippet: head.snippet };
+      return { kind: 'reuse', totalMatches: head.totalMatches, snippet: head.snippet, extracts: head.extracts };
     }
     if (entry.scannedBytes !== undefined && sizeBytes >= entry.scannedBytes) {
       // Prefer the entry that leaves the smallest tail to scan.
@@ -1419,14 +1441,14 @@ export function planTokenFileSearch(
   queryLower: string,
   mtimeMs: number,
   sizeBytes: number,
-): { totalMatches: number; snippet: string } | null {
+): { totalMatches: number; snippet: string; extracts: SessionExtract[] } | null {
   for (const entry of entries ?? []) {
     if (entry.mtimeMs !== mtimeMs || entry.sizeBytes !== sizeBytes) continue;
     if (entry.query === queryLower) {
-      return { totalMatches: entry.totalMatches, snippet: entry.snippet };
+      return { totalMatches: entry.totalMatches, snippet: entry.snippet, extracts: entryExtracts(entry) };
     }
     if (entry.totalMatches === 0 && queryLower.includes(entry.query)) {
-      return { totalMatches: 0, snippet: '' };
+      return { totalMatches: 0, snippet: '', extracts: [] };
     }
   }
   return null;
@@ -1486,6 +1508,67 @@ export function accentFoldPattern(literal: string): string {
 const SNIPPET_RANK_RAW = 1;
 const SNIPPET_RANK_TOOL = 2;
 const SNIPPET_RANK_MESSAGE = 3;
+/** Text the USER typed (a prompt) — the strongest signal of what a
+ * conversation is about, so it outranks the assistant's own prose. */
+const SNIPPET_RANK_USER = 4;
+/** Added on top of the readable rank when the extracted text itself contains
+ * the needle — dominates the readable tiers (10 > 4), so "shows the match"
+ * beats "is conversation text" while readability still breaks ties. */
+const SNIPPET_CONTAINS_BONUS = 10;
+/** Highest possible candidate score — a user prompt containing the needle. */
+const SNIPPET_RANK_CEILING = SNIPPET_RANK_USER + SNIPPET_CONTAINS_BONUS;
+
+/** Readable rank → who said it (1:1 — the rank IS the role tier). */
+function extractKindForRank(rank: number): SessionExtractKind {
+  if (rank >= SNIPPET_RANK_USER) return 'user';
+  if (rank >= SNIPPET_RANK_MESSAGE) return 'assistant';
+  if (rank >= SNIPPET_RANK_TOOL) return 'tool';
+  return 'raw';
+}
+
+/** Snippet candidate score for a matched line's readable text: the readable
+ * rank plus the contains-needle bonus. `needleLower` is already accent-folded
+ * and lowercased (the search entry points fold once). */
+function snippetCandidateRank(readable: { text: string; rank: number }, needleLower: string): number {
+  const contains = needleLower.length > 0 && foldAccents(readable.text.toLowerCase()).includes(needleLower);
+  return readable.rank + (contains ? SNIPPET_CONTAINS_BONUS : 0);
+}
+
+/** The agent's reasoning text (`{type:'thinking', thinking}` blocks — Claude
+ * and Pi share the shape), joined. Surfaced as agent-side text when a row has
+ * no visible text: what the agent was thinking about the query is a better
+ * glimpse than the tool call it made next. */
+function extractThinkingText(content: unknown): string {
+  if (!Array.isArray(content)) return '';
+  const parts: string[] = [];
+  for (const block of content) {
+    if (!block || typeof block !== 'object') continue;
+    const b = block as { type?: unknown; thinking?: unknown };
+    if (b.type === 'thinking' && typeof b.thinking === 'string' && b.thinking.trim()) parts.push(b.thinking);
+  }
+  return parts.join('\n');
+}
+
+/** Joined text of reasoning-summary blocks (`[{text}]`, grok and codex). */
+function summaryBlocksText(summary: unknown[]): string {
+  return summary
+    .map((s) => (s && typeof s === 'object' && typeof (s as { text?: unknown }).text === 'string' ? (s as { text: string }).text : ''))
+    .filter(Boolean)
+    .join(' ');
+}
+
+/** Readable one-liner for a grok `tool_calls` entry (`{name, arguments}`), if any. */
+function firstGrokToolCallText(toolCalls: unknown): string {
+  if (!Array.isArray(toolCalls)) return '';
+  for (const call of toolCalls) {
+    if (!call || typeof call !== 'object') continue;
+    const c = call as { name?: unknown; arguments?: unknown; function?: { name?: unknown; arguments?: unknown } };
+    const name = typeof c.name === 'string' ? c.name : typeof c.function?.name === 'string' ? c.function.name : 'tool';
+    const args = typeof c.arguments === 'string' ? c.arguments : typeof c.function?.arguments === 'string' ? c.function.arguments : '';
+    if (name || args) return `${name}: ${args}`;
+  }
+  return '';
+}
 
 /** Readable one-liner for a tool_use / tool_result content block, if any. */
 function firstToolText(content: unknown): string {
@@ -1518,33 +1601,83 @@ function extractReadableLineText(line: string): { text: string; rank: number } {
   try {
     const obj = JSON.parse(line) as { type?: string; message?: unknown; content?: unknown; summary?: unknown; payload?: unknown };
     if (obj.type === 'user' || obj.type === 'assistant') {
+      // Text the user typed outranks the assistant's prose (Claude/Grok mark
+      // the role at the row level; a user row holding only tool_result blocks
+      // has no text and falls through to the tool rank).
+      const roleRank = obj.type === 'user' ? SNIPPET_RANK_USER : SNIPPET_RANK_MESSAGE;
       const text = extractClaudeMessageText(obj.message);
-      if (text.trim()) return { text, rank: SNIPPET_RANK_MESSAGE };
-      const toolText = firstToolText((obj.message as { content?: unknown } | undefined)?.content);
+      if (text.trim()) return { text, rank: roleRank };
+      const content = (obj.message as { content?: unknown } | undefined)?.content;
+      if (obj.type === 'assistant') {
+        const thinking = extractThinkingText(content);
+        if (thinking) return { text: thinking, rank: SNIPPET_RANK_MESSAGE };
+      }
+      const toolText = firstToolText(content);
       if (toolText) return { text: toolText, rank: SNIPPET_RANK_TOOL };
       // Grok chat_history rows carry content at the TOP level (no `message`):
       // a string, or an array of {type:'text', text} blocks.
       const grokText = typeof obj.content === 'string' ? obj.content : extractClaudeMessageText(obj);
-      if (grokText.trim()) return { text: grokText, rank: SNIPPET_RANK_MESSAGE };
+      if (grokText.trim()) return { text: grokText, rank: roleRank };
+      // Grok assistant tool calls: top-level `tool_calls: [{name, arguments}]`
+      // with empty content — the call is the readable part (tool voice).
+      const grokCall = firstGrokToolCallText((obj as { tool_calls?: unknown }).tool_calls);
+      if (grokCall) return { text: grokCall, rank: SNIPPET_RANK_TOOL };
     }
-    // Pi rows: {type:'message', message:{role, content:[{type:'text', text}]}}.
+    // Pi rows: {type:'message', message:{role, content:[{type:'text', text}]}}
+    // — role is 'user' | 'assistant' | 'toolResult'.
     if (obj.type === 'message' && isObject(obj.message)) {
+      const role = (obj.message as { role?: unknown }).role;
       const text = extractClaudeMessageText(obj.message);
-      if (text.trim()) return { text, rank: SNIPPET_RANK_MESSAGE };
+      if (text.trim()) {
+        const rank = role === 'user' ? SNIPPET_RANK_USER : role === 'toolResult' ? SNIPPET_RANK_TOOL : SNIPPET_RANK_MESSAGE;
+        return { text, rank };
+      }
+      if (role === 'assistant') {
+        const thinking = extractThinkingText((obj.message as { content?: unknown }).content);
+        if (thinking) return { text: thinking, rank: SNIPPET_RANK_MESSAGE };
+      }
     }
     // Codex rows: {type:'message', role, content:[{type:'input_text'|'output_text', text}]}
     // at the top level (old format) or wrapped in response_item.payload (new).
     const codexRec = obj.type === 'response_item' && isObject(obj.payload) ? obj.payload : (obj as Record<string, unknown>);
     if (codexRec.type === 'message' && (codexRec.role === 'user' || codexRec.role === 'assistant')) {
       const text = extractCodexMessageText(codexRec.content);
+      if (text.trim()) return { text, rank: codexRec.role === 'user' ? SNIPPET_RANK_USER : SNIPPET_RANK_MESSAGE };
+    }
+    // Codex reasoning item: {type:'reasoning', summary:[{type:'summary_text', text}]} — agent reasoning.
+    if (codexRec.type === 'reasoning' && Array.isArray(codexRec.summary)) {
+      const text = summaryBlocksText(codexRec.summary);
       if (text.trim()) return { text, rank: SNIPPET_RANK_MESSAGE };
     }
-    if (obj.type === 'event_msg' && isObject(obj.payload)
-      && obj.payload.type === 'user_message' && typeof obj.payload.message === 'string' && obj.payload.message.trim()) {
-      return { text: obj.payload.message, rank: SNIPPET_RANK_MESSAGE };
+    // Codex tool rows: the call ({type:'function_call'|'custom_tool_call', name, arguments|input})
+    // and its output ({type:'function_call_output', output}).
+    if (codexRec.type === 'function_call_output' && typeof codexRec.output === 'string' && codexRec.output.trim()) {
+      return { text: codexRec.output, rank: SNIPPET_RANK_TOOL };
+    }
+    if ((codexRec.type === 'function_call' || codexRec.type === 'custom_tool_call') && typeof codexRec.name === 'string') {
+      const arg = typeof codexRec.arguments === 'string' ? codexRec.arguments : typeof codexRec.input === 'string' ? codexRec.input : '';
+      return { text: `${codexRec.name}: ${arg}`, rank: SNIPPET_RANK_TOOL };
+    }
+    if (obj.type === 'event_msg' && isObject(obj.payload)) {
+      const payload = obj.payload;
+      if (payload.type === 'user_message' && typeof payload.message === 'string' && payload.message.trim()) {
+        return { text: payload.message, rank: SNIPPET_RANK_USER };
+      }
+      // The agent's visible reply and its reasoning stream — both agent voice.
+      if (payload.type === 'agent_message' && typeof payload.message === 'string' && payload.message.trim()) {
+        return { text: payload.message, rank: SNIPPET_RANK_MESSAGE };
+      }
+      if (payload.type === 'agent_reasoning' && typeof payload.text === 'string' && payload.text.trim()) {
+        return { text: payload.text, rank: SNIPPET_RANK_MESSAGE };
+      }
     }
     if (obj.type === 'queue-operation' && typeof obj.content === 'string' && obj.content.trim()) {
-      return { text: obj.content, rank: SNIPPET_RANK_MESSAGE };
+      return { text: obj.content, rank: SNIPPET_RANK_USER };
+    }
+    // Claude bookkeeping row echoing the user's latest prompt verbatim.
+    const lastPrompt = (obj as { lastPrompt?: unknown }).lastPrompt;
+    if (obj.type === 'last-prompt' && typeof lastPrompt === 'string' && lastPrompt.trim()) {
+      return { text: lastPrompt, rank: SNIPPET_RANK_USER };
     }
     // Grok tool_result rows: plain string content.
     if (obj.type === 'tool_result' && typeof obj.content === 'string' && obj.content.trim()) {
@@ -1553,13 +1686,11 @@ function extractReadableLineText(line: string): { text: string; rank: number } {
     if (typeof obj.summary === 'string' && obj.summary.trim()) {
       return { text: obj.summary, rank: SNIPPET_RANK_TOOL };
     }
-    // Grok reasoning rows: summary is an ARRAY of {text} blocks.
+    // Grok reasoning rows: summary is an ARRAY of {text} blocks — the agent's
+    // own reasoning, so it ranks (and colors) as agent text.
     if (Array.isArray(obj.summary)) {
-      const text = obj.summary
-        .map((s) => (s && typeof s === 'object' && typeof (s as { text?: unknown }).text === 'string' ? (s as { text: string }).text : ''))
-        .filter(Boolean)
-        .join(' ');
-      if (text.trim()) return { text, rank: SNIPPET_RANK_TOOL };
+      const text = summaryBlocksText(obj.summary);
+      if (text.trim()) return { text, rank: SNIPPET_RANK_MESSAGE };
     }
   } catch { /* not JSON — treat as raw */ }
   return { text: line, rank: SNIPPET_RANK_RAW };
@@ -1579,9 +1710,81 @@ function windowSnippet(text: string, queryLower: string): string {
   return `…${collapsed.slice(start, end)}${end < collapsed.length ? '…' : ''}`;
 }
 
-/** Clean display snippet from a matching JSONL line (message text preferred). */
-function deriveSearchSnippet(line: string, queryLower: string): string {
-  return windowSnippet(extractReadableLineText(line).text, queryLower);
+/** Ranked extract candidate — kept while collecting, reduced at the end. */
+interface SnippetCandidate { text: string; rank: number; kind: SessionExtractKind; order: number }
+
+/**
+ * Collector for a session's display extracts. Every matched line offers its
+ * readable text; the collector keeps them scored (snippetCandidateRank) and
+ * `finish()` returns the SNIPPETS_PER_SESSION best, best-first, distinct
+ * (Claude duplicates prompt rows on resume/compaction — a repeated extract
+ * would waste a slot), stable in file order among equals. `saturated` lets a
+ * scanner stop parsing lines early once the top slots are all ceiling-rank
+ * (user prompts containing the needle) — nothing can displace them.
+ */
+class SnippetCollector {
+  private readonly candidates: SnippetCandidate[] = [];
+  private readonly seen = new Set<string>();
+  private order = 0;
+  constructor(private readonly needleLower: string) {}
+
+  offer(readable: { text: string; rank: number }): void {
+    const rank = snippetCandidateRank(readable, this.needleLower);
+    const text = windowSnippet(readable.text, this.needleLower);
+    if (!text) return;
+    // Dedupe on a normalized key: the same passage reaches us through
+    // different rows/escaping levels (a tool result and the tool call that
+    // wrote it; parsed newlines vs JSON-escaped `\n`, `\\n`) — one slot, not
+    // two. Escapes shift the ±80 window, so key on the escape-stripped span
+    // AROUND THE NEEDLE rather than the whole window.
+    const norm = foldAccents(
+      text.replace(/\\+[nrt]/g, ' ').replace(/\\+/g, '').replace(/\s+/g, ' ').trim().toLowerCase(),
+    );
+    const at = this.needleLower ? norm.indexOf(this.needleLower) : -1;
+    const key = at >= 0 ? norm.slice(Math.max(0, at - 48), at + this.needleLower.length + 48) : norm;
+    if (this.seen.has(key)) return;
+    this.seen.add(key);
+    this.candidates.push({ text, rank, kind: extractKindForRank(readable.rank), order: this.order++ });
+  }
+
+  offerLine(line: string): void {
+    this.offer(extractReadableLineText(line));
+  }
+
+  /** True once SNIPPETS_PER_SESSION ceiling-rank extracts are held. */
+  get saturated(): boolean {
+    let n = 0;
+    for (const c of this.candidates) if (c.rank >= SNIPPET_RANK_CEILING && ++n >= SNIPPETS_PER_SESSION) return true;
+    return false;
+  }
+
+  finish(): SessionExtract[] {
+    return [...this.candidates]
+      .sort((a, b) => b.rank - a.rank || a.order - b.order)
+      .slice(0, SNIPPETS_PER_SESSION)
+      .map((c) => ({ text: c.text, kind: c.kind }));
+  }
+}
+
+/**
+ * Best display extracts among one file's rg sample lines: user prompts beat
+ * assistant text beat tool chatter beat raw JSON — and, above that, a
+ * readable text that actually CONTAINS the needle beats one that doesn't.
+ * The row highlights the query inside each extract, so a message-rank text
+ * whose match sits in a sibling tool block (not in the extracted text) shows
+ * nothing to highlight; the tool text that holds the word is the more useful
+ * preview. Returns ≤ SNIPPETS_PER_SESSION distinct extracts, best-first,
+ * each tagged with who said it.
+ */
+export function pickExtractsFromLines(lines: readonly string[], needleLower: string): SessionExtract[] {
+  const collector = new SnippetCollector(needleLower);
+  for (const line of lines) collector.offerLine(line);
+  return collector.finish();
+}
+
+/** Single best extract text (see pickExtractsFromLines) or '' when there is none. */
+export function pickSnippetFromLines(lines: readonly string[], needleLower: string): string {
+  return pickExtractsFromLines(lines, needleLower)[0]?.text ?? '';
 }
 
 /**
@@ -1603,12 +1806,11 @@ export async function scanSessionFileForQuery(
    * preview's raw-match fallback, which must SHOW hits that live outside the
    * parsed conversation. */
   keepFirst?: number,
-): Promise<{ totalMatches: number; snippet: string; matchingLines?: string[]; firstLines?: string[]; reachedEof: boolean }> {
+): Promise<{ totalMatches: number; snippet: string; extracts: SessionExtract[]; matchingLines?: string[]; firstLines?: string[]; reachedEof: boolean }> {
   const matcher = new RegExp(accentFoldPattern(query), 'i');
   const queryLower = foldAccents(query.toLowerCase());
   let totalMatches = 0;
-  let snippet = '';
-  let snippetRank = 0;
+  const snippets = new SnippetCollector(queryLower);
   let snippetAttempts = 0;
   let reachedEof = true;
   const firstLines: string[] | undefined = keepFirst ? [] : undefined;
@@ -1637,15 +1839,12 @@ export async function scanSessionFileForQuery(
           firstLines.push(`${start > 0 ? '…' : ''}${line.slice(start, end)}${end < line.length ? '…' : ''}`);
         }
       }
-      // Upgrade the snippet until real conversation text is found (bounded:
-      // each attempt JSON-parses one matched line).
-      if (snippetRank < SNIPPET_RANK_MESSAGE && snippetAttempts < 30) {
+      // Collect extract candidates until the top slots hold user prompts
+      // CONTAINING the query (bounded: each attempt JSON-parses one matched
+      // line). Same scoring as the rg engine's pickExtractsFromLines.
+      if (snippetAttempts < 30 && !snippets.saturated) {
         snippetAttempts++;
-        const readable = extractReadableLineText(line);
-        if (readable.rank > snippetRank) {
-          snippetRank = readable.rank;
-          snippet = windowSnippet(readable.text, queryLower);
-        }
+        snippets.offerLine(line);
       }
       if (matchingLines) {
         // Partial giant-line slices are also unsafe to retain, but they always
@@ -1689,9 +1888,11 @@ export async function scanSessionFileForQuery(
     stream.destroy();
   }
   if (reachedEof && carry) countMatchingLines(carry);
+  const picked = snippets.finish();
   return {
     totalMatches,
-    snippet,
+    snippet: picked[0]?.text ?? '',
+    extracts: picked,
     // Only a COMPLETE set answers refinements (a capped scan saw a subset).
     matchingLines: matchingLines !== null && reachedEof ? matchingLines : undefined,
     firstLines,
@@ -1749,6 +1950,19 @@ export function parseRgCounts(output: string): Map<string, number> {
   return counts;
 }
 
+/** How many sample lines pass B asks rg for, per file — enough raw material
+ * to pick SNIPPETS_PER_SESSION good extracts (the first hits in a session are
+ * often tool output). A cache entry whose totalMatches is within this bound
+ * therefore retains its COMPLETE match set and can answer refined queries
+ * from memory. */
+const RG_SAMPLE_LINES_PER_FILE = 12;
+
+/** Lines the user-prompt pass (B-user) asks for per file. */
+const RG_USER_SAMPLE_LINES_PER_FILE = 6;
+
+/** Safety cap on parsed sample lines per file (rg's -m already bounds it). */
+const RG_SAMPLE_PARSE_CAP = 32;
+
 /** Parse plain rg output (`path:matched line text`) into path → sample lines.
  * Our absolute session paths contain no ':', so the first colon splits.
  * Lines rg replaced under --max-columns ("[Omitted long matching line]") are
@@ -1763,24 +1977,53 @@ export function parseRgSampleLines(output: string): Map<string, string[]> {
     const text = line.slice(sep + 1);
     if (text.startsWith('[Omitted long')) continue;
     const lines = byPath.get(filePath) ?? [];
-    if (lines.length < 8) lines.push(text);
+    if (lines.length < RG_SAMPLE_PARSE_CAP) lines.push(text);
     byPath.set(filePath, lines);
   }
   return byPath;
 }
 
-/** How many sample lines pass B asks rg for, per file. A cache entry whose
- * totalMatches is within this bound therefore retains its COMPLETE match set
- * and can answer refined queries from memory. */
-const RG_SAMPLE_LINES_PER_FILE = 5;
+/**
+ * Regex fragment matching JSONL rows that hold text the USER typed, across
+ * every harness's line shape (verified against real files):
+ *   claude / pi   `"message":{"role":"user","content":"…"}` or
+ *                 `…"content":[{"type":"text","text":…` — a user row whose
+ *                 content is `[{"tool_use_id"…,"type":"tool_result"…` is a
+ *                 tool result, NOT a prompt, and is deliberately excluded;
+ *   codex         `"role":"user","content":[{"type":"input_text"…` and the
+ *                 event row `"type":"user_message"`;
+ *   grok          top-level `"type":"user","content":"…"` / `[{"type":"text"`.
+ * Used by pass B-user to pull prompt lines that contain the needle even when
+ * the session's first dozen hits are all tool output — the user's own words
+ * are the strongest signal of what a conversation is about.
+ */
+export const RG_USER_PROMPT_MARKER = '"(?:role|type)":"user","content":(?:"|\\[\\{"type":"(?:text|input_text)")|"type":"user_message"';
+
+/** Pattern for "a user-prompt row that also contains the needle" (both
+ * orders, so a needle before the marker still qualifies). */
+export function userPromptWithNeedlePattern(needlePattern: string): string {
+  return `(?:${RG_USER_PROMPT_MARKER}).*(?:${needlePattern})|(?:${needlePattern}).*(?:${RG_USER_PROMPT_MARKER})`;
+}
+
+/** Column cap for the snippet RE-sample of files whose first sample lines were
+ * ALL over the regular 4096 cap (rg replaces those with an omission marker,
+ * which parseRgSampleLines drops — leaving the row with NO snippet). Big tool
+ * results and pasted docs routinely run 20–50 KB per JSONL line, so a
+ * conversation whose only hits live in them rendered snippet-less: the
+ * Spotlight/Session Finder row then showed unrelated fallback text ("ok")
+ * with nothing to highlight. Multi-MB attachment lines stay dropped. */
+const RG_SAMPLE_LONG_LINE_MAX = 262_144;
+/** Lines the long-line fallback asks for per file (each may be ~250 KB). */
+const RG_LONG_SAMPLE_LINES_PER_FILE = 5;
 
 /**
  * ripgrep-engined search over the candidate sessions. Two passes:
  *   A) one `rg -c` over every file the cache can't answer → per-file counts
  *      (also learns which files have ZERO matches — that knowledge prunes
  *      every refined query later);
- *   B) one `rg -m N` over just the displayed top files → sample lines for
- *      readable snippets and (small files) the refinement cache.
+ *   B) `rg -m N` runs over just the displayed top files → sample lines for
+ *      readable extracts (user-prompt pass + any-row pass, plus a long-line
+ *      fallback) and (small files) the refinement cache.
  * Returns null when rg misbehaves so the caller can use the JS engine.
  */
 async function searchViaRipgrep(
@@ -1791,7 +2034,7 @@ async function searchViaRipgrep(
   limit: number,
   generation: number,
 ): Promise<GlobalSessionSearchMatch[] | null> {
-  interface Hit { session: GlobalSessionInfo; filePath: string; totalMatches: number; snippet: string }
+  interface Hit { session: GlobalSessionInfo; filePath: string; totalMatches: number; snippet: string; extracts: SessionExtract[] }
   const multiToken = tokens.length > 1;
   // Snippets for multi-word queries window around the LONGEST word (the most
   // selective one) — a single line rarely contains the whole phrase.
@@ -1806,7 +2049,7 @@ async function searchViaRipgrep(
     if (multiToken) {
       const plan = planTokenFileSearch(searchFileCache.get(filePath), queryLower, mtimeMs, session.sizeBytes);
       if (plan) {
-        if (plan.totalMatches > 0) reused.push({ session, filePath, totalMatches: plan.totalMatches, snippet: plan.snippet });
+        if (plan.totalMatches > 0) reused.push({ session, filePath, totalMatches: plan.totalMatches, snippet: plan.snippet, extracts: plan.extracts });
       } else {
         toScan.push({ session, filePath, mtimeMs });
       }
@@ -1814,7 +2057,7 @@ async function searchViaRipgrep(
     }
     const plan = planFileSearch(searchFileCache.get(filePath), queryLower, mtimeMs, session.sizeBytes);
     if (plan.kind === 'reuse') {
-      if (plan.totalMatches > 0) reused.push({ session, filePath, totalMatches: plan.totalMatches, snippet: plan.snippet });
+      if (plan.totalMatches > 0) reused.push({ session, filePath, totalMatches: plan.totalMatches, snippet: plan.snippet, extracts: plan.extracts });
     } else {
       toScan.push({ session, filePath, mtimeMs });
     }
@@ -1860,7 +2103,7 @@ async function searchViaRipgrep(
     ...reused,
     ...toScan
       .filter((f) => (counts.get(f.filePath) ?? 0) > 0)
-      .map((f) => ({ session: f.session, filePath: f.filePath, totalMatches: counts.get(f.filePath) as number, snippet: '' })),
+      .map((f) => ({ session: f.session, filePath: f.filePath, totalMatches: counts.get(f.filePath) as number, snippet: '', extracts: [] as SessionExtract[] })),
   ];
   // Relevance ranking BEFORE the cut — `all` holds every matching session, so
   // the top-`limit` here is exact (snippets are then fetched only for those).
@@ -1872,27 +2115,81 @@ async function searchViaRipgrep(
   );
   const top = all.slice(0, limit);
 
-  const needLines = top.filter((h) => !h.snippet).map((h) => h.filePath);
+  // Pass B — sample lines for the displayed hits that still lack extracts.
+  // Two rg runs over the same files, both bounded by -m and the 4096 column
+  // cap (over-long lines come back as omission markers the parser drops):
+  //   B-user: rows holding text the USER typed that contain the needle —
+  //           pulled explicitly because a session's first dozen hits are
+  //           usually tool output, and the user's own words are the best
+  //           glimpse of what the conversation is about;
+  //   B-any:  the first N matching rows of any kind (assistant text, tool
+  //           output) — filler for the remaining slots, and (small files)
+  //           the refinement cache's retained match set.
+  // Both feed one ranked collector per file → ≤ SNIPPETS_PER_SESSION extracts.
+  const needLines = top.filter((h) => h.extracts.length === 0).map((h) => h.filePath);
   let samples = new Map<string, string[]>();
+  let userSamples = new Map<string, string[]>();
   if (needLines.length > 0) {
-    const output = await runRg([
-      '-i', '-a', '--no-config', '--no-messages', '--with-filename',
-      '--max-columns', '4096', '-m', String(RG_SAMPLE_LINES_PER_FILE), '--',
-      accentFoldPattern(snippetNeedle), ...needLines,
+    const needlePattern = accentFoldPattern(snippetNeedle);
+    const [userOutput, anyOutput] = await Promise.all([
+      runRg([
+        '-i', '-a', '--no-config', '--no-messages', '--with-filename',
+        '--max-columns', '4096', '-m', String(RG_USER_SAMPLE_LINES_PER_FILE), '--',
+        userPromptWithNeedlePattern(needlePattern), ...needLines,
+      ]),
+      runRg([
+        '-i', '-a', '--no-config', '--no-messages', '--with-filename',
+        '--max-columns', '4096', '-m', String(RG_SAMPLE_LINES_PER_FILE), '--',
+        needlePattern, ...needLines,
+      ]),
     ]);
-    if (output !== null) samples = parseRgSampleLines(output);
+    if (userOutput !== null) userSamples = parseRgSampleLines(userOutput);
+    if (anyOutput !== null) samples = parseRgSampleLines(anyOutput);
   }
 
+  const setExtracts = (hit: Hit, lines: readonly string[]) => {
+    hit.extracts = pickExtractsFromLines(lines, snippetNeedleLower);
+    hit.snippet = hit.extracts[0]?.text ?? '';
+  };
   for (const hit of top) {
-    if (hit.snippet) continue;
-    let bestRank = 0;
-    for (const line of samples.get(hit.filePath) ?? []) {
-      const readable = extractReadableLineText(line);
-      if (readable.rank > bestRank) {
-        bestRank = readable.rank;
-        hit.snippet = windowSnippet(readable.text, snippetNeedleLower);
+    if (hit.extracts.length > 0) continue;
+    // User-prompt lines first so they take the top slots at equal rank; the
+    // collector dedupes a line present in both outputs by its extract text.
+    setExtracts(hit, [...(userSamples.get(hit.filePath) ?? []), ...(samples.get(hit.filePath) ?? [])]);
+  }
+
+  // Long-line fallback: a hit whose first N matching lines were ALL over the
+  // 4096 column cap got no usable sample (rg emitted only omission markers,
+  // which the parser drops) → still no extract. Re-sample just those files
+  // with a far larger cap so a 20–50 KB tool result / pasted doc still yields
+  // a readable, windowed preview. Only displayed hits pay, only when needed;
+  // the retention cache below still uses pass B-any's ≤4096 lines.
+  const stillBare = top.filter((h) => h.extracts.length === 0).map((h) => h.filePath);
+  if (stillBare.length > 0) {
+    const output = await runRg([
+      '-i', '-a', '--no-config', '--no-messages', '--with-filename',
+      '--max-columns', String(RG_SAMPLE_LONG_LINE_MAX), '-m', String(RG_LONG_SAMPLE_LINES_PER_FILE), '--',
+      accentFoldPattern(snippetNeedle), ...stillBare,
+    ]);
+    if (output !== null) {
+      const longSamples = parseRgSampleLines(output);
+      for (const hit of top) {
+        if (hit.extracts.length > 0) continue;
+        setExtracts(hit, longSamples.get(hit.filePath) ?? []);
       }
-      if (bestRank >= SNIPPET_RANK_MESSAGE) break;
+    }
+  }
+
+  // A cache-reused hit that carried NO extracts (it was outside the displayed
+  // top when its entry was written, or an older run found no sample) just had
+  // them fetched above — write them back so the next keystroke reuses them
+  // instead of re-running the sample passes for that file.
+  for (const hit of reused) {
+    if (hit.extracts.length === 0) continue;
+    const entry = searchFileCache.get(hit.filePath)?.find((e) => e.query === queryLower);
+    if (entry && entryExtracts(entry).length === 0) {
+      entry.extracts = hit.extracts;
+      entry.snippet = hit.snippet;
     }
   }
 
@@ -1919,6 +2216,7 @@ async function searchViaRipgrep(
       query: queryLower,
       totalMatches,
       snippet: topByPath.get(f.filePath)?.snippet ?? '',
+      extracts: topByPath.get(f.filePath)?.extracts ?? [],
       matchingLines,
     });
   }
@@ -1930,6 +2228,7 @@ async function searchViaRipgrep(
     lastModified: h.session.lastModified,
     totalMatches: h.totalMatches,
     snippet: h.snippet,
+    extracts: h.extracts,
     firstPrompt: h.session.firstPrompt,
     provider: h.session.provider,
   }));
@@ -1977,8 +2276,13 @@ function searchOpencodeSessions(tokens: string[], limit: number, cwdFilter?: str
     // whose JSON has no `.text` to show.
     const snippetNeedle = tokens.reduce((a, b) => (b.length > a.length ? b : a));
     const sessionStmt = db.prepare('SELECT id, directory, title, time_updated FROM session WHERE id = ? LIMIT 1');
+    // Text parts joined to their message so each extract knows WHO said it
+    // (opencode keeps the role on the message row, not the part). Ordered
+    // user-first so prompts take the top slots, like the JSONL engines.
     const textPartStmt = db.prepare(
-      'SELECT data FROM part WHERE session_id = ? AND length(data) < 65536 AND instr(tc_fold(data), ?) > 0 AND data LIKE \'%"type":"text"%\' LIMIT 5'
+      'SELECT p.data AS data, m.data AS mdata FROM part p LEFT JOIN message m ON m.id = p.message_id '
+      + 'WHERE p.session_id = ? AND length(p.data) < 65536 AND instr(tc_fold(p.data), ?) > 0 AND p.data LIKE \'%"type":"text"%\' '
+      + 'ORDER BY CASE WHEN m.data LIKE \'%"role":"user"%\' THEN 0 ELSE 1 END, p.time_created LIMIT 8'
     );
     const anyPartStmt = db.prepare('SELECT data FROM part WHERE session_id = ? AND length(data) < 65536 AND instr(tc_fold(data), ?) > 0 LIMIT 1');
     const out: GlobalSessionSearchMatch[] = [];
@@ -1988,19 +2292,30 @@ function searchOpencodeSessions(tokens: string[], limit: number, cwdFilter?: str
       const directory = session.directory ?? '';
       if (cwdFilter && !directory.toLowerCase().includes(cwdFilter)) continue;
       const needleParam = snippetNeedle;
-      let snippet = '';
-      for (const row of textPartStmt.all(sid, needleParam) as Array<{ data: string }>) {
+      // Up to SNIPPETS_PER_SESSION distinct text-part extracts, user prompts
+      // first (see the ORDER BY), each tagged with its message's role;
+      // raw-part fallback when no text part holds the word.
+      const extracts: SessionExtract[] = [];
+      for (const row of textPartStmt.all(sid, needleParam) as Array<{ data: string; mdata: string | null }>) {
+        if (extracts.length >= SNIPPETS_PER_SESSION) break;
         try {
           const data = JSON.parse(row.data) as { text?: unknown };
           if (typeof data.text === 'string' && data.text.trim()) {
-            snippet = windowSnippet(data.text, snippetNeedle);
-            break;
+            const text = windowSnippet(data.text, snippetNeedle);
+            if (text && !extracts.some((e) => e.text === text)) {
+              let kind: SessionExtractKind = 'assistant';
+              try {
+                const role = row.mdata ? (JSON.parse(row.mdata) as { role?: unknown }).role : undefined;
+                if (role === 'user') kind = 'user';
+              } catch { /* role unknown — keep assistant */ }
+              extracts.push({ text, kind });
+            }
           }
         } catch { /* unparseable part — try the next */ }
       }
-      if (!snippet) {
+      if (extracts.length === 0) {
         const row = anyPartStmt.get(sid, needleParam) as { data: string } | undefined;
-        if (row) snippet = windowSnippet(row.data, snippetNeedle);
+        if (row) extracts.push({ text: windowSnippet(row.data, snippetNeedle), kind: 'raw' });
       }
       out.push({
         sessionId: sid,
@@ -2008,7 +2323,8 @@ function searchOpencodeSessions(tokens: string[], limit: number, cwdFilter?: str
         projectDir: 'opencode',
         lastModified: new Date(session.time_updated),
         totalMatches,
-        snippet,
+        snippet: extracts[0]?.text ?? '',
+        extracts,
         firstPrompt: session.title ?? '',
         provider: 'opencode',
       });
@@ -2146,7 +2462,7 @@ export async function searchAllSessions(
           let tokenResult = tokenPlan;
           if (!tokenResult) {
             let minMatches = Infinity;
-            let snippet = '';
+            let extracts: SessionExtract[] = [];
             let unreadable = false;
             for (const token of [...tokens].sort((a, b) => b.length - a.length)) {
               let scan: Awaited<ReturnType<typeof scanSessionFileForQuery>>;
@@ -2158,20 +2474,21 @@ export async function searchAllSessions(
               }
               if (scan.totalMatches === 0) {
                 minMatches = 0;
-                snippet = '';
+                extracts = [];
                 break;
               }
               minMatches = Math.min(minMatches, scan.totalMatches);
-              if (!snippet) snippet = scan.snippet;
+              if (extracts.length === 0) extracts = scan.extracts;
             }
             if (unreadable) continue; // skip file, cache nothing
-            tokenResult = { totalMatches: Number.isFinite(minMatches) ? minMatches : 0, snippet };
+            tokenResult = { totalMatches: Number.isFinite(minMatches) ? minMatches : 0, snippet: extracts[0]?.text ?? '', extracts };
             storeSearchEntry(filePath, {
               mtimeMs,
               sizeBytes: session.sizeBytes,
               query: queryLower,
               totalMatches: tokenResult.totalMatches,
               snippet: tokenResult.snippet,
+              extracts: tokenResult.extracts,
             });
           }
           if (tokenResult.totalMatches > 0) {
@@ -2182,6 +2499,7 @@ export async function searchAllSessions(
               lastModified: session.lastModified,
               totalMatches: tokenResult.totalMatches,
               snippet: tokenResult.snippet,
+              extracts: tokenResult.extracts,
               firstPrompt: session.firstPrompt,
               provider: session.provider,
             });
@@ -2190,7 +2508,7 @@ export async function searchAllSessions(
         }
 
         const plan = planFileSearch(searchFileCache.get(filePath), queryLower, mtimeMs, session.sizeBytes);
-        let result: { totalMatches: number; snippet: string };
+        let result: { totalMatches: number; snippet: string; extracts: SessionExtract[] };
         if (plan.kind === 'reuse') {
           result = plan;
         } else {
@@ -2206,10 +2524,19 @@ export async function searchAllSessions(
           }
           const head = plan.kind === 'tail'
             ? plan.head
-            : { totalMatches: 0, snippet: '', matchingLines: [] as string[] | undefined };
+            : { totalMatches: 0, snippet: '', extracts: [] as SessionExtract[], matchingLines: [] as string[] | undefined };
+          // Extracts: the cached head's first, topped up (deduped by text)
+          // from the freshly scanned tail — a streaming session keeps its
+          // extracts stable while new hits still get a slot when there is room.
+          const mergedExtracts = [...head.extracts];
+          for (const ex of scan.extracts) {
+            if (mergedExtracts.length >= SNIPPETS_PER_SESSION) break;
+            if (!mergedExtracts.some((m) => m.text === ex.text)) mergedExtracts.push(ex);
+          }
           const merged = {
             totalMatches: head.totalMatches + scan.totalMatches,
-            snippet: head.snippet || scan.snippet,
+            snippet: mergedExtracts[0]?.text ?? '',
+            extracts: mergedExtracts,
             matchingLines:
               head.matchingLines && scan.matchingLines
                 && head.matchingLines.length + scan.matchingLines.length <= SEARCH_CACHE_LINES_MAX
@@ -2229,6 +2556,7 @@ export async function searchAllSessions(
             query: queryLower,
             totalMatches: merged.totalMatches,
             snippet: merged.snippet,
+            extracts: merged.extracts,
             matchingLines: merged.matchingLines,
             scannedBytes,
           });
@@ -2243,6 +2571,7 @@ export async function searchAllSessions(
             lastModified: session.lastModified,
             totalMatches: result.totalMatches,
             snippet: result.snippet,
+            extracts: result.extracts,
             firstPrompt: session.firstPrompt,
             provider: session.provider,
           });

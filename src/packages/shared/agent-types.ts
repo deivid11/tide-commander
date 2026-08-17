@@ -685,5 +685,50 @@ export interface SessionHistoryEntry {
   startedAt: number;      // Timestamp when session was first used
   endedAt: number;        // Timestamp when session was cleared/replaced
   messageCount?: number;  // Approximate message count at time of archival
-  fileExists?: boolean;   // Computed at request time - true if the .jsonl file still exists on disk
+  fileExists?: boolean;   // Computed at request time - true if the provider session still exists on disk
+  /** Provider/cwd at archive time. Older entries omit these and are detected from disk. */
+  provider?: AgentProvider;
+  cwd?: string;
+}
+
+// ============================================================================
+// Runtime (harness) migration — any provider → any provider
+// ============================================================================
+
+export type SessionTransferMode = 'smart' | 'full' | 'fresh';
+
+/**
+ * Runtimes whose native session store Commander knows how to write, so a
+ * conversation can be imported into them (Smart Context / Visible Transcript).
+ * Every provider can still be a migration TARGET via Fresh Start, and every
+ * provider is a valid SOURCE because the session loader reads all of them.
+ */
+export type SessionTransferTarget = 'claude' | 'codex' | 'grok' | 'pi';
+
+export const SESSION_TRANSFER_TARGETS: readonly SessionTransferTarget[] = ['claude', 'codex', 'grok', 'pi'];
+
+export function supportsSessionImport(
+  provider?: AgentProvider | string | null,
+): provider is SessionTransferTarget {
+  return (SESSION_TRANSFER_TARGETS as readonly string[]).includes(String(provider));
+}
+
+export interface SessionTransferSummary {
+  sourceProvider: AgentProvider;
+  targetProvider: AgentProvider;
+  sourceSessionId?: string;
+  targetSessionId?: string;
+  mode: SessionTransferMode;
+  sourceMessageCount: number;
+  importedTurnCount: number;
+  droppedTurnCount: number;
+  droppedToolResultBodies: number;
+  estimatedTokens: number;
+  contextLimit: number;
+  warnings: string[];
+}
+
+export interface SessionTransferResponse {
+  agent: Agent;
+  transfer: SessionTransferSummary;
 }

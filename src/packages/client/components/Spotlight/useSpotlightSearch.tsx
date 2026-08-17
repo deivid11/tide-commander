@@ -17,6 +17,7 @@ import type { SearchResult, UseSpotlightSearchOptions, SpotlightSearchState, Spo
 import { SPOTLIGHT_TABS } from './types';
 import { getFileIconFromPath, getRecentAgentTimes, recordRecentAgent, agentRecency } from './utils';
 import { tokenizeQuery, searchAllTokens, matchTierForQuery, escapeRegExp } from './multiTokenSearch';
+import { mergeExtracts } from './matchedExtracts';
 import { Icon, type IconName } from '../Icon';
 import { AgentIcon } from '../AgentIcon';
 import { searchFolders, type FolderSearchResult } from '../../api/folders';
@@ -808,6 +809,7 @@ export function useSpotlightSearch({
         title,
         subtitle: parts.join(' • '),
         matchedQuery: row.snippet || undefined,
+        matchedExtracts: row.extracts && row.extracts.length > 0 ? row.extracts : undefined,
         // Set when an agent owns this conversation (current OR archived) —
         // allResults uses it to surface the hit as an AGENT row instead of an
         // archive row.
@@ -1048,6 +1050,17 @@ export function useSpotlightSearch({
       const sessionHit = item._agentId ? sessionHitByAgentId.get(item._agentId) : undefined;
       if (sessionHit) {
         if (!item.matchedQuery) item.matchedQuery = sessionHit.matchedQuery;
+        // Extracts: a store-side user-query match (already a user prompt)
+        // leads, the conversation's ranked extracts fill the remaining slots
+        // — deduped so the same prompt doesn't show twice.
+        // The store match is an ANY-token hit (weak for short words like
+        // "pi"); it leads only when it genuinely contains every query word.
+        const storeMatch = item.matchedQuery;
+        const storeMatchLower = storeMatch?.toLowerCase() ?? '';
+        item.matchedExtracts = mergeExtracts(
+          storeMatch && queryTokens.every((t) => storeMatchLower.includes(t)) ? storeMatch : undefined,
+          sessionHit.matchedExtracts,
+        );
         item.action = sessionHit.action;
         item._sessionMatches = sessionHit._sessionMatches;
         // The conversation verifiably contains every query word (the server
@@ -1070,6 +1083,7 @@ export function useSpotlightSearch({
       pushScored({
         ...base,
         matchedQuery: sessionHit.matchedQuery,
+        matchedExtracts: sessionHit.matchedExtracts,
         action: sessionHit.action,
         _sessionMatches: sessionHit._sessionMatches,
         // See the enrichment above: verified content match → substring tier.

@@ -12,10 +12,10 @@ import { loadAgents, saveAgents, saveAgentsAsync, getDataDir, loadAreas, saveAre
 import {
   listSessions,
   getSessionSummary,
-  getProjectDir,
   loadSession,
   loadToolHistory,
   searchSession,
+  detectSessionProvider,
 } from '../claude/session-loader.js';
 import { loadSubagentHistory, type SubagentHistoryEntry } from '../claude/subagent-history-loader.js';
 import { logger, generateId } from '../utils/index.js';
@@ -1046,6 +1046,8 @@ export function archiveCurrentSession(agentId: string): void {
     summary: agent.taskLabel || agent.lastAssignedTask || agent.currentTask || 'No description',
     startedAt: agent.createdAt,
     endedAt: Date.now(),
+    provider: agent.provider ?? 'claude',
+    cwd: agent.cwd,
   };
 
   addSessionHistoryEntry(sessionHistories, agentId, entry);
@@ -1075,10 +1077,11 @@ export function getAgentSessionHistory(agentId: string): SessionHistoryEntry[] {
   const entries = getSessionHistoryForAgent(sessionHistories, agentId);
   if (!agent) return entries;
 
-  const projectDir = getProjectDir(agent.cwd);
   return entries.map((entry) => ({
     ...entry,
-    fileExists: fs.existsSync(path.join(projectDir, `${entry.sessionId}.jsonl`)),
+    // Session history spans native and Pi runtimes. Resolve through the shared
+    // provider-aware loader instead of assuming every archive is Claude JSONL.
+    fileExists: detectSessionProvider(entry.cwd || agent.cwd, entry.sessionId) !== null,
   }));
 }
 

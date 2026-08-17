@@ -19,8 +19,23 @@ import * as os from 'os';
 // ---------------------------------------------------------------------------
 
 vi.mock('../services/index.js', () => ({
-  agentService: { getAgent: vi.fn() },
-  runtimeService: { sendCommand: vi.fn(), stopAgent: vi.fn(), collapseAgentContext: vi.fn() },
+  agentService: {
+    getAgent: vi.fn(),
+    archiveCurrentSession: vi.fn(),
+    updateAgent: vi.fn(),
+    sanitizeModelForProvider: vi.fn((provider: string, model: unknown) =>
+      provider === 'claude' && typeof model === 'string' && ['sonnet', 'haiku', 'opus'].includes(model) ? model : undefined),
+    sanitizeCodexModel: vi.fn((model: unknown) => (typeof model === 'string' && model.trim() ? model.trim() : undefined)),
+    sanitizeGrokModel: vi.fn((model: unknown) => (typeof model === 'string' && model.trim() ? model.trim() : undefined)),
+    sanitizeOpencodeModel: vi.fn((model: unknown) => (typeof model === 'string' && model.trim() ? model.trim() : undefined)),
+    sanitizePiModel: vi.fn((model: unknown) => (typeof model === 'string' && model.trim() ? model.trim() : undefined)),
+  },
+  runtimeService: {
+    sendCommand: vi.fn(),
+    stopAgent: vi.fn(),
+    collapseAgentContext: vi.fn(),
+    isAgentRunning: vi.fn(() => false),
+  },
   bossMessageService: { buildBossMessage: vi.fn() },
   skillService: { buildSkillPromptContent: vi.fn(), hasPendingSkillUpdates: vi.fn(() => false), getSkillUpdateData: vi.fn(), clearPendingSkillUpdates: vi.fn() },
 }));
@@ -36,6 +51,7 @@ vi.mock('../claude/session-loader.js', () => ({
   loadSession: vi.fn(async () => []),
   listSessions: vi.fn(async () => []),
   searchSession: vi.fn(async () => ({ results: [] })),
+  detectSessionProvider: vi.fn(() => null),
 }));
 
 vi.mock('../services/custom-class-service.js', () => ({
@@ -104,7 +120,7 @@ vi.mock('../services/backup-service.js', () => ({
   setBackupEnabled: vi.fn(),
 }));
 
-import { agentService } from '../services/index.js';
+import { agentService, runtimeService } from '../services/index.js';
 import agentsRouter from './agents.js';
 
 // ---------------------------------------------------------------------------
@@ -159,6 +175,174 @@ function makeAgent(cwd = tmpDir) {
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+describe('POST /api/agents/:id/convert-runtime — harness migration', () => {
+  const nativeAgent = {
+    ...makeAgent(),
+    provider: 'claude',
+    sessionId: 'native-session-id',
+  };
+
+  it('stops an idle resident runtime without treating it as an active task (legacy /convert-to-pi alias)', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue(nativeAgent as any);
+    vi.mocked(runtimeService.isAgentRunning).mockReturnValue(true);
+    vi.mocked(agentService.updateAgent).mockReturnValue({
+      ...nativeAgent,
+      provider: 'pi',
+      sessionId: undefined,
+    } as any);
+
+    const res = await fetch(`${baseUrl}/api/agents/agent-1/convert-to-pi`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: 'fresh' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(runtimeService.stopAgent).toHaveBeenCalledWith('agent-1');
+    expect(agentService.updateAgent).toHaveBeenCalledWith(
+      'agent-1',
+      expect.objectContaining({ provider: 'pi' }),
+      false,
+    );
+  });
+
+  it('still requires confirmation when the agent status has an active task', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({ ...nativeAgent, status: 'working' } as any);
+    vi.mocked(runtimeService.isAgentRunning).mockReturnValue(true);
+
+    const res = await fetch(`${baseUrl}/api/agents/agent-1/convert-runtime`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ targetProvider: 'codex', mode: 'fresh' }),
+    });
+
+    expect(res.status).toBe(409);
+    expect(runtimeService.stopAgent).not.toHaveBeenCalled();
+  });
+
+  it('migrates Claude → Codex fresh, carrying the Codex model/config and archiving the source', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue(nativeAgent as any);
+    vi.mocked(runtimeService.isAgentRunning).mockReturnValue(false);
+    vi.mocked(agentService.updateAgent).mockImplementation((_id, updates) => ({ ...nativeAgent, ...updates }) as any);
+
+    const res = await fetch(`${baseUrl}/api/agents/agent-1/convert-runtime`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        targetProvider: 'codex',
+        mode: 'fresh',
+        model: 'gpt-5.6-luna',
+        codexConfig: { fullAuto: true, sandbox: 'workspace-write' },
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.transfer).toMatchObject({
+      sourceProvider: 'claude',
+      targetProvider: 'codex',
+      mode: 'fresh',
+      sourceSessionId: 'native-session-id',
+      contextLimit: 258_400,
+    });
+    expect(agentService.archiveCurrentSession).toHaveBeenCalledWith('agent-1');
+    expect(agentService.updateAgent).toHaveBeenCalledWith(
+      'agent-1',
+      expect.objectContaining({
+        provider: 'codex',
+        sessionId: undefined,
+        codexModel: 'gpt-5.6-luna',
+        codexConfig: { fullAuto: true, sandbox: 'workspace-write' },
+        piModelProvider: undefined,
+      }),
+      false,
+    );
+  });
+
+  it('migrates Pi → Claude fresh and applies the Claude model context window', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({ ...nativeAgent, provider: 'pi', piModel: 'anthropic/claude-sonnet-5', piModelProvider: 'anthropic' } as any);
+    vi.mocked(agentService.updateAgent).mockImplementation((_id, updates) => ({ ...nativeAgent, ...updates }) as any);
+
+    const res = await fetch(`${baseUrl}/api/agents/agent-1/convert-runtime`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ targetProvider: 'claude', mode: 'fresh', model: 'sonnet', effort: 'high' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(agentService.updateAgent).toHaveBeenCalledWith(
+      'agent-1',
+      expect.objectContaining({ provider: 'claude', model: 'sonnet', effort: 'high', contextLimit: 200_000, piModelProvider: undefined }),
+      false,
+    );
+  });
+
+  it('rejects an unknown Claude model for the target', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({ ...nativeAgent, provider: 'grok' } as any);
+    const res = await fetch(`${baseUrl}/api/agents/agent-1/convert-runtime`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ targetProvider: 'claude', mode: 'fresh', model: 'not-a-model' }),
+    });
+    expect(res.status).toBe(400);
+    expect(agentService.updateAgent).not.toHaveBeenCalled();
+  });
+
+  it('refuses to import into OpenCode (no writable session store) but allows a fresh start', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue(nativeAgent as any);
+    vi.mocked(agentService.updateAgent).mockImplementation((_id, updates) => ({ ...nativeAgent, ...updates }) as any);
+
+    const importRes = await fetch(`${baseUrl}/api/agents/agent-1/convert-runtime`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ targetProvider: 'opencode', mode: 'smart' }),
+    });
+    expect(importRes.status).toBe(422);
+    expect((await importRes.json()).code).toBe('target-unsupported');
+    expect(agentService.updateAgent).not.toHaveBeenCalled();
+
+    const freshRes = await fetch(`${baseUrl}/api/agents/agent-1/convert-runtime`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ targetProvider: 'opencode', mode: 'fresh', model: 'minimax/MiniMax-M1-80k' }),
+    });
+    expect(freshRes.status).toBe(200);
+    expect(agentService.updateAgent).toHaveBeenCalledWith(
+      'agent-1',
+      expect.objectContaining({ provider: 'opencode', opencodeModel: 'minimax/MiniMax-M1-80k' }),
+      false,
+    );
+  });
+
+  it('rejects converting to the runtime the agent already uses and unknown targets', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue(nativeAgent as any);
+    const same = await fetch(`${baseUrl}/api/agents/agent-1/convert-runtime`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ targetProvider: 'claude', mode: 'fresh' }),
+    });
+    expect(same.status).toBe(400);
+    const unknown = await fetch(`${baseUrl}/api/agents/agent-1/convert-runtime`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ targetProvider: 'cursor', mode: 'fresh' }),
+    });
+    expect(unknown.status).toBe(400);
+  });
+
+  it('blocks a cross-runtime PATCH while the agent holds a session', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue(nativeAgent as any);
+    const res = await fetch(`${baseUrl}/api/agents/agent-1`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ provider: 'grok' }),
+    });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe('use-convert-runtime');
+    expect(agentService.updateAgent).not.toHaveBeenCalled();
+  });
+});
 
 describe('GET /api/agents/:id/files — @ mention file listing', () => {
   describe('agent not found', () => {

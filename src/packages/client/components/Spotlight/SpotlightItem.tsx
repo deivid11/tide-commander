@@ -5,6 +5,7 @@
 
 import React, { memo } from 'react';
 import type { SearchResult } from './types';
+import type { SessionExtractKind } from '../../api/sessions';
 import { formatDuration, getTypeLabel } from './utils';
 import { getAgentStatusColor } from '../../utils/colors';
 import { providerLabel } from '../../utils/providerDisplay';
@@ -19,6 +20,22 @@ interface SpotlightItemProps {
   onClick: () => void;
   onMouseEnter: () => void;
 }
+
+// Extract voice tags — a short marker before each conversation extract, in
+// the same role palette the Session Finder uses (user blue, agent green,
+// tool orange). `raw` is an unparseable line shown muted, unlabeled.
+const EXTRACT_KIND_LABEL: Record<SessionExtractKind, string> = {
+  user: 'you',
+  assistant: 'agent',
+  tool: 'tool',
+  raw: '',
+};
+const EXTRACT_KIND_TITLE: Record<SessionExtractKind, string> = {
+  user: 'Your prompt',
+  assistant: 'Agent message / reasoning',
+  tool: 'Tool call / output',
+  raw: 'Raw line',
+};
 
 // Idle-age emphasis for the time pill: fresh (minutes) → green, warm (<1h) →
 // yellow, stale (<1d) → orange, old (≥1d) → red.
@@ -38,10 +55,12 @@ export const SpotlightItem = memo(function SpotlightItem({
   onMouseEnter,
 }: SpotlightItemProps) {
   // Determine if this result has secondary information
+  const extracts = result.matchedExtracts && result.matchedExtracts.length > 0 ? result.matchedExtracts : undefined;
   const hasSecondaryInfo =
     result.activityText ||
     (result.matchedFiles && result.matchedFiles.length > 0) ||
-    result.matchedQuery;
+    result.matchedQuery ||
+    extracts;
 
   // Colored status chip for agent results.
   const statusColor = result._status ? getAgentStatusColor(result._status) : undefined;
@@ -78,6 +97,20 @@ export const SpotlightItem = memo(function SpotlightItem({
             >
               {result._status === 'working' && <span className="spotlight-working-dot" aria-hidden="true" />}
               {result._status.replace(/_/g, ' ')}
+            </span>
+          )}
+          {/* Conversation hit count — how many times the query occurs in the
+              agent's conversation. Present only for full-text hits (the
+              snippet below shows one of them). Session rows already carry
+              the count in their subtitle ("N×"), so agents only. */}
+          {result.type === 'agent' && result._sessionMatches !== undefined && result._sessionMatches > 0 && (
+            <span
+              className="spotlight-item-match-count"
+              title={`${result._sessionMatches} match${result._sessionMatches === 1 ? '' : 'es'} in conversation`}
+            >
+              <Icon name="chat" size={9} aria-hidden />
+              {result._sessionMatches}
+              {result._sessionMatches === 1 ? ' match' : ' matches'}
             </span>
           )}
           {result._taskLabel && (
@@ -164,8 +197,24 @@ export const SpotlightItem = memo(function SpotlightItem({
               </span>
             )}
 
-            {/* User query/task */}
-            {result.matchedQuery && (
+            {/* Conversation extracts (agent + session full-text hits): up to
+                4 stacked lines — user prompts first — colored by who said
+                it (you / agent / tool) so the topic AND the voice read at a
+                glance. Falls back to the single matched user query/task. */}
+            {extracts ? (
+              <ul className="spotlight-item-extracts" aria-label="Matching conversation extracts">
+                {extracts.map((ex, i) => (
+                  <li
+                    key={i}
+                    className={`spotlight-item-extract is-${ex.kind}`}
+                    title={EXTRACT_KIND_TITLE[ex.kind]}
+                  >
+                    <span className="spotlight-extract-role" aria-hidden="true">{EXTRACT_KIND_LABEL[ex.kind]}</span>
+                    {highlightMatch(ex.text, query)}
+                  </li>
+                ))}
+              </ul>
+            ) : result.matchedQuery && (
               <span className="spotlight-item-query">{highlightMatch(result.matchedQuery, query)}</span>
             )}
           </div>
@@ -183,7 +232,7 @@ export const SpotlightItem = memo(function SpotlightItem({
         )}
 
         {/* Last user input if not already shown */}
-        {result.lastUserInput && !result.matchedQuery && (
+        {result.lastUserInput && !result.matchedQuery && !extracts && (
           <span className="spotlight-item-last-input">"{highlightMatch(result.lastUserInput, query)}"</span>
         )}
       </div>

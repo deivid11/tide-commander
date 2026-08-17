@@ -11,14 +11,15 @@ import { ModelPreview } from './ModelPreview';
 import { FolderInput } from './shared/FolderInput';
 import { OpencodeModelSelect } from './OpencodeModelSelect';
 import { PiModelSelect } from './PiModelSelect';
-import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
+import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort, SessionTransferMode } from '../../shared/types';
 import { CODEX_REASONING_EFFORTS } from '../../shared/types';
-import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, GROK_MODELS, DEFAULT_GROK_MODEL, grokSupportsEffort } from '../../shared/types';
+import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, GROK_MODELS, DEFAULT_GROK_MODEL, grokSupportsEffort, providerDisplayName, supportsSessionImport } from '../../shared/types';
 import { ShortcutConfig, formatShortcutString, parseShortcutString, shortcutValueToString } from '../store/shortcuts';
 import { apiUrl } from '../utils/storage';
 import { useModalClose } from '../hooks';
 import { AgentIcon } from './AgentIcon';
 import { Icon } from './Icon';
+import { convertAgentRuntime } from '../api/session-transfer';
 
 interface AgentEditModalProps {
   agent: Agent;
@@ -29,11 +30,50 @@ interface AgentEditModalProps {
 type AgentWithShortcut = Agent & { shortcut?: string };
 
 const DEFAULT_CODEX_MODEL: CodexModel = 'gpt-5.6-luna';
+const DEFAULT_CODEX_CONFIG: CodexConfig = {
+  fullAuto: true,
+  sandbox: 'workspace-write',
+  approvalMode: 'on-request',
+  search: false,
+};
+
+function normalizedCodexConfig(config: CodexConfig | undefined): CodexConfig {
+  return config ?? DEFAULT_CODEX_CONFIG;
+}
+
+function codexConfigChanged(current: CodexConfig, saved: CodexConfig | undefined): boolean {
+  return JSON.stringify(current) !== JSON.stringify(normalizedCodexConfig(saved));
+}
 
 function getSelectableCodexModel(model: Agent['codexModel']): CodexModel {
   return model && Object.prototype.hasOwnProperty.call(CODEX_MODELS, model)
     ? model
     : DEFAULT_CODEX_MODEL;
+}
+
+/**
+ * Best-effort Pi model suggestion when migrating INTO Pi: keep the same family
+ * the agent already uses on its native runtime so the conversation continues
+ * with a comparable model.
+ */
+function suggestedPiModel(agent: Agent): string {
+  if (agent.piModel) return agent.piModel;
+  if (agent.provider === 'codex' && agent.codexModel) {
+    return `openai-codex/${agent.codexModel}`;
+  }
+  if (agent.provider === 'grok' && agent.grokModel) {
+    return `xai/${agent.grokModel}`;
+  }
+  if (agent.provider === 'claude' && agent.model) {
+    const aliases: Partial<Record<ClaudeModel, string>> = {
+      sonnet: 'claude-sonnet-5',
+      opus: 'claude-opus-5',
+      'opus[1m]': 'claude-opus-4-7',
+    };
+    const model = aliases[agent.model] || agent.model.replace(/\[1m\]$/, '');
+    if (model !== 'haiku') return `anthropic/${model}`;
+  }
+  return '';
 }
 
 export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) {
@@ -46,18 +86,17 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const [selectedClass, setSelectedClass] = useState<AgentClass>(agent.class);
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(agent.permissionMode);
   const [selectedProvider, setSelectedProvider] = useState<AgentProvider>(agent.provider || 'claude');
-  const [codexConfig, setCodexConfig] = useState<CodexConfig>(agent.codexConfig || {
-    fullAuto: true,
-    sandbox: 'workspace-write',
-    approvalMode: 'on-request',
-    search: false,
-  });
+  const [codexConfig, setCodexConfig] = useState<CodexConfig>(normalizedCodexConfig(agent.codexConfig));
   const [selectedModel, setSelectedModel] = useState<ClaudeModel>(agent.model || 'sonnet');
   const [selectedEffort, setSelectedEffort] = useState<ClaudeEffort | undefined>(agent.effort);
   const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>(getSelectableCodexModel(agent.codexModel));
   const [opencodeModel, setOpencodeModel] = useState<string>((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k');
   const [grokModel, setGrokModel] = useState<string>((agent as any).grokModel || DEFAULT_GROK_MODEL);
-  const [piModel, setPiModel] = useState<string>((agent as any).piModel || '');
+  const [piModel, setPiModel] = useState<string>(suggestedPiModel(agent));
+  const [transferMode, setTransferMode] = useState<SessionTransferMode>(agent.sessionId ? 'smart' : 'fresh');
+  const [stopActiveForTransfer, setStopActiveForTransfer] = useState(false);
+  const [transferLoading, setTransferLoading] = useState(false);
+  const [transferError, setTransferError] = useState<string | null>(null);
   const [useChrome, setUseChrome] = useState<boolean>(agent.useChrome || false);
   const [workdir, setWorkdir] = useState<string>(agent.cwd);
   const [shortcut, setShortcut] = useState<string>(((agent as AgentWithShortcut).shortcut || '').trim());
@@ -106,11 +145,12 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
 
   // Initialize selected skills from current assignments
   useEffect(() => {
+    if (!isOpen) return;
     const directlyAssigned = allSkills
       .filter(s => s.assignedAgentIds.includes(agent.id))
       .map(s => s.id);
     setSelectedSkillIds(new Set(directlyAssigned));
-  }, [allSkills, agent.id]);
+  }, [allSkills, agent.id, isOpen]);
 
   // Reset form when modal opens
   useEffect(() => {
@@ -119,18 +159,17 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       setSelectedClass(agent.class);
       setPermissionMode(agent.permissionMode);
       setSelectedProvider(agent.provider || 'claude');
-      setCodexConfig(agent.codexConfig || {
-        fullAuto: true,
-        sandbox: 'workspace-write',
-        approvalMode: 'on-request',
-        search: false,
-      });
+      setCodexConfig(normalizedCodexConfig(agent.codexConfig));
       setSelectedModel(agent.model || 'sonnet');
       setSelectedEffort(agent.effort);
       setSelectedCodexModel(getSelectableCodexModel(agent.codexModel));
       setOpencodeModel((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k');
       setGrokModel((agent as any).grokModel || DEFAULT_GROK_MODEL);
-      setPiModel((agent as any).piModel || '');
+      setPiModel(suggestedPiModel(agent));
+      setTransferMode(agent.sessionId ? 'smart' : 'fresh');
+      setStopActiveForTransfer(false);
+      setTransferLoading(false);
+      setTransferError(null);
       setUseChrome(agent.useChrome || false);
       setWorkdir(agent.cwd);
       setShortcut((((agent as AgentWithShortcut).shortcut) || '').trim());
@@ -141,12 +180,11 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       setAutoCollapseCron(agent.autoCollapseCron || '');
       setAutoCollapseTz(agent.autoCollapseTz || '');
       setAutoCollapsePrompt(agent.autoCollapsePrompt || '');
-      const directlyAssigned = allSkills
-        .filter(s => s.assignedAgentIds.includes(agent.id))
-        .map(s => s.id);
-      setSelectedSkillIds(new Set(directlyAssigned));
     }
-  }, [isOpen, agent, allSkills]);
+    // Deliberately do not depend on the full agent object: status/context
+    // broadcasts can arrive while a long conversion is running and must not
+    // reset the selected mode or clear its loading/error state.
+  }, [isOpen, agent.id]);
 
   // Get available skills (enabled ones)
   const availableSkills = useMemo(() => allSkills.filter(s => s.enabled), [allSkills]);
@@ -243,7 +281,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     if (selectedProvider === 'claude' && selectedModel !== (agent.model || 'sonnet')) return true;
     if ((selectedProvider === 'claude' || selectedProvider === 'grok' || selectedProvider === 'pi') && selectedEffort !== (agent.effort || undefined)) return true;
     if (selectedProvider === 'codex' && selectedCodexModel !== getSelectableCodexModel(agent.codexModel)) return true;
-    if (selectedProvider === 'codex' && JSON.stringify(codexConfig || {}) !== JSON.stringify(agent.codexConfig || {})) return true;
+    if (selectedProvider === 'codex' && codexConfigChanged(codexConfig, agent.codexConfig)) return true;
     if (selectedProvider === 'opencode' && opencodeModel !== ((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k')) return true;
     if (selectedProvider === 'grok' && grokModel !== ((agent as any).grokModel || DEFAULT_GROK_MODEL)) return true;
     if (selectedProvider === 'pi' && piModel !== ((agent as any).piModel || '')) return true;
@@ -269,8 +307,109 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     return false;
   }, [agentName, selectedClass, permissionMode, selectedProvider, selectedModel, selectedEffort, selectedCodexModel, codexConfig, opencodeModel, grokModel, piModel, useChrome, workdir, shortcut, customInstructions, soundsMuted, autoCollapse, autoCollapseCron, autoCollapseTz, autoCollapsePrompt, selectedSkillIds, agent, allSkills]);
 
-  // Handle save
-  const handleSave = () => {
+  // Conversion is intentionally one atomic operation. Prevent unrelated form
+  // edits from being silently lost or racing the source snapshot.
+  const hasNonTransferChanges = useMemo(() => {
+    if (agentName.trim() && agentName.trim() !== agent.name) return true;
+    if (selectedClass !== agent.class) return true;
+    if (permissionMode !== agent.permissionMode) return true;
+    if (agent.provider === 'claude' && selectedModel !== (agent.model || 'sonnet')) return true;
+    if (agent.provider === 'codex' && selectedCodexModel !== getSelectableCodexModel(agent.codexModel)) return true;
+    if (agent.provider === 'codex' && codexConfigChanged(codexConfig, agent.codexConfig)) return true;
+    if (agent.provider === 'opencode' && opencodeModel !== ((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k')) return true;
+    if (agent.provider === 'grok' && grokModel !== ((agent as any).grokModel || DEFAULT_GROK_MODEL)) return true;
+    if (agent.provider === 'pi' && piModel !== ((agent as any).piModel || '')) return true;
+    if (useChrome !== (agent.useChrome || false)) return true;
+    if (workdir !== agent.cwd) return true;
+    if (shortcut !== (((agent as AgentWithShortcut).shortcut || '').trim())) return true;
+    if (customInstructions !== (agent.customInstructions || '')) return true;
+    if (soundsMuted !== (agent.soundsMuted || false)) return true;
+    if (autoCollapse !== (agent.autoCollapse || false)) return true;
+    if (autoCollapseCron !== (agent.autoCollapseCron || '')) return true;
+    if (autoCollapseTz !== (agent.autoCollapseTz || '')) return true;
+    if (autoCollapsePrompt !== (agent.autoCollapsePrompt || '')) return true;
+    const currentSkills = allSkills
+      .filter((skill) => skill.assignedAgentIds.includes(agent.id))
+      .map((skill) => skill.id)
+      .sort()
+      .join(',');
+    return currentSkills !== Array.from(selectedSkillIds).sort().join(',');
+  }, [agentName, selectedClass, permissionMode, selectedModel, selectedCodexModel, codexConfig, opencodeModel, grokModel, piModel, useChrome, workdir, shortcut, customInstructions, soundsMuted, autoCollapse, autoCollapseCron, autoCollapseTz, autoCollapsePrompt, allSkills, selectedSkillIds, agent]);
+
+  // Any runtime change is a migration: the source session can only resume on
+  // the harness that created it, so Commander copies the conversation into a
+  // NEW native session for the target (or starts fresh) instead of PATCHing
+  // the provider. Import modes need a target with a writable session store.
+  const sourceProvider: AgentProvider = agent.provider || 'claude';
+  const isRuntimeChange = selectedProvider !== sourceProvider;
+  const targetSupportsImport = supportsSessionImport(selectedProvider);
+  const sourceLabel = providerDisplayName(sourceProvider);
+  const targetLabel = providerDisplayName(selectedProvider);
+  const effectiveTransferMode: SessionTransferMode = targetSupportsImport ? transferMode : 'fresh';
+  const agentIsActive = agent.status === 'working'
+    || agent.status === 'waiting'
+    || agent.status === 'waiting_permission'
+    || agent.status === 'orphaned';
+
+  /** Model chosen for the TARGET runtime (drives the transfer's context budget). */
+  const targetModel = selectedProvider === 'claude'
+    ? selectedModel
+    : selectedProvider === 'codex'
+      ? selectedCodexModel
+      : selectedProvider === 'grok'
+        ? grokModel
+        : selectedProvider === 'pi'
+          ? piModel
+          : opencodeModel;
+  const targetSupportsEffort = selectedProvider === 'claude' || selectedProvider === 'grok' || selectedProvider === 'pi';
+
+  // Handle save / runtime migration.
+  const handleSave = async () => {
+    if (isRuntimeChange) {
+      if (hasNonTransferChanges) {
+        setTransferError('Save your other agent edits before converting the runtime.');
+        return;
+      }
+      if (effectiveTransferMode !== 'fresh' && !agent.sessionId) {
+        setTransferError(`This agent has no saved ${sourceLabel} session. Choose Fresh Start.`);
+        return;
+      }
+      if (agentIsActive && !stopActiveForTransfer) {
+        setTransferError('Confirm that Commander may stop the active task before converting.');
+        return;
+      }
+      setTransferLoading(true);
+      setTransferError(null);
+      try {
+        const response = await convertAgentRuntime(agent.id, {
+          targetProvider: selectedProvider,
+          mode: effectiveTransferMode,
+          model: targetModel || undefined,
+          effort: targetSupportsEffort ? (selectedEffort ?? null) : undefined,
+          codexConfig: selectedProvider === 'codex' ? codexConfig : undefined,
+          stopActive: stopActiveForTransfer,
+        });
+        store.applySessionTransfer(response.agent);
+        const from = providerDisplayName(response.transfer.sourceProvider);
+        const to = providerDisplayName(response.transfer.targetProvider);
+        store.addActivity({
+          agentId: response.agent.id,
+          agentName: response.agent.name,
+          message: response.transfer.targetSessionId
+            ? `Converted ${from} session to ${to} (${response.transfer.importedTurnCount} imported turns)`
+            : `Changed ${from} runtime to ${to} with a fresh session`,
+          timestamp: Date.now(),
+        });
+        store.requestSessionHistory(response.agent.id);
+        onClose();
+      } catch (error) {
+        setTransferError(error instanceof Error ? error.message : `Failed to convert session to ${targetLabel}`);
+      } finally {
+        setTransferLoading(false);
+      }
+      return;
+    }
+
     const trimmedName = agentName.trim();
     const updates: {
       class?: AgentClass;
@@ -307,11 +446,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
       updates.permissionMode = permissionMode;
     }
 
-    if (selectedProvider !== (agent.provider || 'claude')) {
-      updates.provider = selectedProvider;
-    }
-
-    if (selectedProvider === 'codex' && JSON.stringify(codexConfig || {}) !== JSON.stringify(agent.codexConfig || {})) {
+    if (selectedProvider === 'codex' && codexConfigChanged(codexConfig, agent.codexConfig)) {
       updates.codexConfig = codexConfig;
     }
 
@@ -692,6 +827,61 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
               </div>
             </div>
 
+            {isRuntimeChange && (
+              <div className="runtime-transfer-panel">
+                <div className="runtime-transfer-panel__title">
+                  <Icon name="arrow-right" size={14} /> Convert {sourceLabel} conversation to {targetLabel}
+                </div>
+                <div className="spawn-inline-hint">
+                  {targetSupportsImport
+                    ? `Commander creates and validates a new ${targetLabel} session. The original ${sourceLabel} session remains archived for rollback.`
+                    : `Commander cannot write ${targetLabel} sessions yet, so the agent starts ${targetLabel} fresh. The original ${sourceLabel} session remains archived for rollback.`}
+                </div>
+                {targetSupportsImport && (
+                  <div className="runtime-transfer-mode-grid">
+                    {([
+                      ['smart', 'Smart Context', 'First request, useful history, changed files, and recent turns.'],
+                      ['full', 'Visible Transcript', 'Import visible user/assistant turns and safe tool activity up to the context budget.'],
+                      ['fresh', 'Fresh Start', `Archive the ${sourceLabel} session but start ${targetLabel} without importing its conversation.`],
+                    ] as Array<[SessionTransferMode, string, string]>).map(([mode, label, description]) => (
+                      <button
+                        type="button"
+                        key={mode}
+                        className={`runtime-transfer-mode ${transferMode === mode ? 'selected' : ''}`}
+                        onClick={() => setTransferMode(mode)}
+                      >
+                        <strong>{label}</strong>
+                        <span>{description}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!agent.sessionId && effectiveTransferMode !== 'fresh' && (
+                  <div className="model-change-notice warning">
+                    This agent has no saved {sourceLabel} session. Choose Fresh Start.
+                  </div>
+                )}
+                {hasNonTransferChanges && (
+                  <div className="model-change-notice warning">
+                    Save your other agent edits before converting the runtime.
+                  </div>
+                )}
+                {agentIsActive && (
+                  <label className="spawn-checkbox runtime-transfer-stop-confirmation">
+                    <input
+                      type="checkbox"
+                      checked={stopActiveForTransfer}
+                      onChange={(event) => setStopActiveForTransfer(event.target.checked)}
+                    />
+                    <span>Stop the active task before taking the transfer snapshot</span>
+                  </label>
+                )}
+                {transferError && (
+                  <div className="model-change-notice warning" role="alert">{transferError}</div>
+                )}
+              </div>
+            )}
+
             <div className="spawn-form-row">
               {(selectedProvider === 'claude' || selectedProvider === 'grok' || selectedProvider === 'pi') && (
                 <div className="spawn-field">
@@ -996,15 +1186,19 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
         </div>
 
         <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>
+          <button className="btn btn-secondary" onClick={onClose} disabled={transferLoading}>
             {t('common:buttons.cancel')}
           </button>
           <button
             className="btn btn-primary"
             onClick={handleSave}
-            disabled={!hasChanges}
+            disabled={transferLoading || (!isRuntimeChange && !hasChanges)}
           >
-            {t('common:buttons2.saveChanges')}
+            {transferLoading
+              ? 'Converting…'
+              : isRuntimeChange
+                ? `Convert to ${targetLabel}`
+                : t('common:buttons2.saveChanges')}
           </button>
         </div>
       </div>

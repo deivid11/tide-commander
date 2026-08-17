@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.193.0] - 2026-08-17
+
+### Added
+- **Move a conversation between runtimes** - the agent editor can now switch an agent from any provider to Claude, Codex, Grok or Pi and carry the conversation with it. Three modes: Smart Context (a condensed hand-off), Visible Transcript (the full readable conversation) and Fresh Start (runtime change only). Commander writes a real native session for the target CLI so the agent resumes normally, reports what was imported or dropped (turns, tool-result bodies, estimated tokens against the target's context limit) and rolls the new session back if the switch fails. Switching into Pi also suggests the closest equivalent model.
+- **Conversation extracts in Spotlight** - agent rows in Spotlight now show up to four ranked, role-tagged snippets of the matching conversation (user prompts containing the query first, then agent text and reasoning, then tool output), so a search hit is identifiable without opening the agent. Extracts coming from the session files and from the in-memory store are deduplicated.
+
+### Changed
+- **Session history remembers its runtime** - archived sessions now store the provider and working directory they belong to, so existence checks and re-use work for non-Claude runtimes instead of assuming a Claude `.jsonl` path.
+
 ## [1.192.0] - 2026-08-17
 
 ### Added

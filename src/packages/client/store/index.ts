@@ -1245,6 +1245,7 @@ class Store
   setAgents(...args: Parameters<AgentActions['setAgents']>) { return this.agentActions.setAgents(...args); }
   addAgent(...args: Parameters<AgentActions['addAgent']>) { return this.agentActions.addAgent(...args); }
   updateAgent(...args: Parameters<AgentActions['updateAgent']>) { return this.agentActions.updateAgent(...args); }
+  applySessionTransfer(...args: Parameters<AgentActions['applySessionTransfer']>) { return this.agentActions.applySessionTransfer(...args); }
   setAgentCurrentTool(...args: Parameters<AgentActions['setAgentCurrentTool']>) { return this.agentActions.setAgentCurrentTool(...args); }
   updateAgentContextStats(...args: Parameters<AgentActions['updateAgentContextStats']>) { return this.agentActions.updateAgentContextStats(...args); }
   updateAgentContext(...args: Parameters<AgentActions['updateAgentContext']>) { return this.agentActions.updateAgentContext(...args); }

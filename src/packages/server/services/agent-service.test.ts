@@ -28,6 +28,7 @@ vi.mock('../claude/session-loader.js', () => ({
   loadSession: vi.fn(),
   loadToolHistory: vi.fn(),
   searchSession: vi.fn(),
+  detectSessionProvider: vi.fn(() => 'claude'),
 }));
 
 vi.mock('../claude/subagent-history-loader.js', () => ({

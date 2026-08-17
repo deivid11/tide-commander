@@ -1202,6 +1202,74 @@
   }
 }
 
+.runtime-transfer-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--accent-cyan) 7%, var(--bg-secondary));
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, var(--border-color));
+  border-radius: $radius-md;
+}
+
+.runtime-transfer-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--accent-cyan);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.runtime-transfer-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.runtime-transfer-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px;
+  text-align: left;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-sm;
+  cursor: pointer;
+
+  strong {
+    color: var(--text-primary);
+    font-size: 11px;
+  }
+
+  span {
+    font-size: 10px;
+    line-height: 1.35;
+  }
+
+  &:hover,
+  &.selected {
+    border-color: var(--accent-cyan);
+  }
+
+  &.selected {
+    background: color-mix(in srgb, var(--accent-cyan) 12%, var(--bg-primary));
+  }
+}
+
+.runtime-transfer-stop-confirmation {
+  color: var(--accent-orange);
+}
+
+@media (max-width: 700px) {
+  .runtime-transfer-mode-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 // Compact skills chips for edit modal
 .skills-chips-compact {
   display: flex;

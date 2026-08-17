@@ -19,6 +19,14 @@ export interface GlobalSessionRow {
   provider?: string;
 }
 
+/** Who produced a conversation extract — drives the per-line color. */
+export type SessionExtractKind = 'user' | 'assistant' | 'tool' | 'raw';
+
+export interface SessionExtract {
+  text: string;
+  kind: SessionExtractKind;
+}
+
 export interface GlobalSessionMatch {
   sessionId: string;
   projectPath: string;
@@ -26,6 +34,10 @@ export interface GlobalSessionMatch {
   lastModified: string;
   totalMatches: number;
   snippet: string;
+  /** Up to 4 distinct extracts, best-first (user prompts containing the query,
+   * then agent text/reasoning, then tool output), each tagged with who said
+   * it. Absent on older servers. */
+  extracts?: SessionExtract[];
   firstPrompt: string;
   /** Which CLI owns the session ('claude' | 'grok' | …). Absent on older servers. */
   provider?: string;

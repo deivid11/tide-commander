@@ -62,6 +62,8 @@ export interface AgentActions {
   setAgents(agentList: Agent[]): void;
   addAgent(agent: Agent): void;
   updateAgent(agent: Agent): void;
+  /** Apply a server-confirmed runtime migration (any harness → any harness) and discard stale live rows. */
+  applySessionTransfer(agent: Agent): void;
   setAgentCurrentTool(agentId: string, toolName: string | undefined): void;
   updateAgentContextStats(agentId: string, stats: ContextStats): void;
   updateAgentContext(agentId: string, contextUsed: number, contextLimit: number): void;
@@ -294,6 +296,30 @@ export function createAgentActions(
       if (statusChanged) {
         logAgentStore(`[Store] Agent ${normalizedAgent.name} status now in store: ${getState().agents.get(normalizedAgent.id)?.status}`);
       }
+    },
+
+    applySessionTransfer(agent: Agent): void {
+      setState((state) => {
+        const agents = new Map(state.agents);
+        agents.set(agent.id, agent);
+        state.agents = agents;
+
+        const outputs = new Map(state.agentOutputs);
+        outputs.delete(agent.id);
+        state.agentOutputs = outputs;
+
+        const prompts = new Map(state.lastPrompts);
+        prompts.delete(agent.id);
+        state.lastPrompts = prompts;
+
+        const subagents = new Map(state.subagents);
+        for (const [id, subagent] of subagents) {
+          if (subagent.parentAgentId === agent.id) subagents.delete(id);
+        }
+        state.subagents = subagents;
+      });
+      evictHistoryCache(agent.id);
+      notify();
     },
 
     // Local patch driven by `event` messages (tool_start/tool_result). The

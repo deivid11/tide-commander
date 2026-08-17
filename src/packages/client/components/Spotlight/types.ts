@@ -4,6 +4,7 @@
 
 // Types imported but used via SearchResultType and SearchResult interface
 import type {} from '../../../shared/types';
+import type { SessionExtract } from '../../api/sessions';
 import type React from 'react';
 import type { IconName } from '../Icon';
 import type { SpotlightFileDetail } from './SpotlightFileDetailModal';
@@ -42,6 +43,7 @@ export interface SearchResult {
   matchedText?: string; // The text that matched the search query
   matchedFiles?: string[]; // Files that matched the search query (for agents)
   matchedQuery?: string; // User query that matched the search
+  matchedExtracts?: SessionExtract[]; // Conversation extracts (≤4, best-first: user prompts, then agent text/reasoning, then tool output), role-tagged — rendered stacked + colored under agent + session rows
   timeAway?: number; // Time away in milliseconds (for agents)
   icon: React.ReactNode;
   action: () => void;

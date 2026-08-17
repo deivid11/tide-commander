@@ -43,8 +43,13 @@ vi.mock('../../claude/backend.js', () => ({
   parseContextOutput: vi.fn(() => null),
 }));
 
+vi.mock('../../claude/session-loader.js', () => ({
+  detectSessionProvider: vi.fn(() => 'claude'),
+}));
+
 import { agentService, runtimeService, skillService } from '../../services/index.js';
-import { handleClearContext, handleUpdateAgentProperties } from './agent-handler.js';
+import { detectSessionProvider } from '../../claude/session-loader.js';
+import { handleClearContext, handleRestoreSession, handleUpdateAgentProperties } from './agent-handler.js';
 
 describe('Agent Handler', () => {
   beforeEach(() => {
@@ -165,6 +170,103 @@ describe('Agent Handler', () => {
     expect(ctx.sendActivity).toHaveBeenCalledWith(
       'agent-pi',
       expect.stringContaining('keeping anthropic/claude-sonnet-4-5'),
+    );
+  });
+
+  it('refuses to reuse a native session id when changing directly to Pi', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'agent-native',
+      name: 'Native',
+      provider: 'claude',
+      sessionId: 'claude-session',
+      class: 'builder',
+      permissionMode: 'bypass',
+      cwd: '/workspace/project',
+    } as any);
+    const ctx = { sendActivity: vi.fn(), sendError: vi.fn(), broadcast: vi.fn() } as any;
+
+    await handleUpdateAgentProperties(ctx, {
+      agentId: 'agent-native',
+      updates: { provider: 'pi', piModel: 'anthropic/claude-sonnet-5' },
+    });
+
+    expect(ctx.sendError).toHaveBeenCalledWith(expect.stringContaining('Convert to Pi'));
+    expect(agentService.updateAgent).not.toHaveBeenCalled();
+    expect(runtimeService.stopAgent).not.toHaveBeenCalled();
+  });
+
+  it('refuses any cross-runtime change that would resume a foreign session (Claude → Codex)', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'agent-native',
+      name: 'Native',
+      provider: 'claude',
+      sessionId: 'claude-session',
+      class: 'builder',
+      permissionMode: 'bypass',
+      cwd: '/workspace/project',
+    } as any);
+    const ctx = { sendActivity: vi.fn(), sendError: vi.fn(), broadcast: vi.fn() } as any;
+
+    await handleUpdateAgentProperties(ctx, {
+      agentId: 'agent-native',
+      updates: { provider: 'codex', codexModel: 'gpt-5.6-luna' },
+    });
+
+    expect(ctx.sendError).toHaveBeenCalledWith(expect.stringContaining('Convert to Codex'));
+    expect(agentService.updateAgent).not.toHaveBeenCalled();
+    expect(runtimeService.stopAgent).not.toHaveBeenCalled();
+  });
+
+  it('allows a runtime change when the agent has no session to migrate', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'agent-fresh',
+      name: 'Fresh',
+      provider: 'pi',
+      sessionId: undefined,
+      class: 'builder',
+      permissionMode: 'bypass',
+      cwd: '/workspace/project',
+    } as any);
+    const ctx = { sendActivity: vi.fn(), sendError: vi.fn(), broadcast: vi.fn() } as any;
+
+    await handleUpdateAgentProperties(ctx, {
+      agentId: 'agent-fresh',
+      updates: { provider: 'grok' },
+    });
+
+    expect(ctx.sendError).not.toHaveBeenCalled();
+    expect(agentService.updateAgent).toHaveBeenCalledWith(
+      'agent-fresh',
+      expect.objectContaining({ provider: 'grok' }),
+      false,
+    );
+  });
+
+  it('restores the archived native provider when rolling back a Pi transfer', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'agent-pi',
+      name: 'Portable',
+      provider: 'pi',
+      sessionId: 'pi-session',
+      cwd: '/workspace/project',
+    } as any);
+    vi.mocked(detectSessionProvider).mockReturnValue('grok');
+    const ctx = { sendActivity: vi.fn(), sendError: vi.fn(), broadcast: vi.fn() } as any;
+
+    await handleRestoreSession(ctx, {
+      agentId: 'agent-pi',
+      sessionId: 'grok-source-session',
+    });
+
+    expect(agentService.archiveCurrentSession).toHaveBeenCalledWith('agent-pi');
+    expect(runtimeService.stopAgent).toHaveBeenCalledWith('agent-pi');
+    expect(agentService.updateAgent).toHaveBeenCalledWith(
+      'agent-pi',
+      expect.objectContaining({
+        provider: 'grok',
+        sessionId: 'grok-source-session',
+        piModelProvider: undefined,
+      }),
     );
   });
 
