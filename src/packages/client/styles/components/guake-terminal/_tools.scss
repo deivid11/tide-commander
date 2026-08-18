@@ -2506,7 +2506,9 @@
     font-family: $font-mono;
     font-size: 11px;
     line-height: 1.45;
-    color: var(--text-muted);
+    // Base tone for un-tokenized text; semantic `.sh-*` runs (see
+    // _shell-output.scss) and ANSI-colored spans paint on top of it.
+    color: var(--text-secondary);
     background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
     border-left: 2px solid color-mix(in srgb, var(--accent-blue) 40%, transparent);
     border-radius: 0 $radius-sm $radius-sm 0;

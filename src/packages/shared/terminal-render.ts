@@ -19,6 +19,9 @@
  */
 
 const MAX_LINES = 10_000;
+// Once the buffer is full, trim in batches instead of one splice per newline
+// (a per-line splice made replaying multi-MB streams quadratic: 4 MB ≈ 1.2 s).
+const LINE_DROP_SLACK = 1_000;
 // Longest escape sequence we buffer across chunk boundaries before giving up.
 const MAX_PENDING_SEQ = 64;
 // Cap for pathological SGR accumulation (styles with no reset in sight).
@@ -142,7 +145,7 @@ export class TerminalRenderer {
     this.row += 1;
     this.col = 0;
     this.ensureRow(this.row);
-    if (this.lines.length > MAX_LINES) {
+    if (this.lines.length > MAX_LINES + LINE_DROP_SLACK) {
       const drop = this.lines.length - MAX_LINES;
       this.lines.splice(0, drop);
       this.attrs.splice(0, drop);

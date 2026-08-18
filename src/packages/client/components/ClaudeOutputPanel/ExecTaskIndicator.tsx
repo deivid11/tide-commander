@@ -3,10 +3,10 @@
  * executed via /api/exec endpoint
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ExecTask } from '../../../shared/types';
-import { ansiToHtml } from '../../utils/ansiToHtml';
+import { renderedLinesToHtml } from '../../utils/terminalOutputHtml';
 import { store } from '../../store';
 import { Icon, type IconName } from '../Icon';
 
@@ -28,6 +28,14 @@ export function ExecTaskIndicator({
   const [userCollapsed, setUserCollapsed] = useState<boolean | null>(null);
   const [stopping, setStopping] = useState(false);
   const outputRef = useRef<HTMLDivElement>(null);
+  // Same rendering as inline Bash outputs: PTY lines that already carry ANSI
+  // keep the tool's own colors; plain lines (git, ls, grep, source dumps…)
+  // get semantic / Prism highlighting. `[stderr] ` markers are peeled off
+  // first so they do not confuse the code detection.
+  const outputHtml = useMemo(() => {
+    const clean = task.output.map((line) => line.replace(/^\[stderr\] /, ''));
+    return renderedLinesToHtml(clean);
+  }, [task.output]);
 
   // Auto-expand when running
   const isExpanded = userCollapsed !== null
@@ -131,12 +139,11 @@ export function ExecTaskIndicator({
             ) : (
               task.output.map((line, index) => {
                 const isStderr = line.startsWith('[stderr]');
-                const cleanLine = line.replace(/^\[stderr\] /, '');
                 return (
                   <div
                     key={index}
                     className={`exec-task-output-line ${isStderr ? 'stderr' : ''}`}
-                    dangerouslySetInnerHTML={{ __html: ansiToHtml(cleanLine) }}
+                    dangerouslySetInnerHTML={{ __html: outputHtml[index] ?? '' }}
                   />
                 );
               })

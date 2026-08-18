@@ -21,7 +21,7 @@ import {
 import { ContextViewModal } from '../ContextViewModal';
 import { FileViewerModal } from '../FileViewerModal';
 import { AgentResponseModal } from './AgentResponseModal';
-import { ansiToHtml } from '../../utils/ansiToHtml';
+import { terminalOutputToHtmlLines } from '../../utils/terminalOutputHtml';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import type { Agent } from '../../../shared/types';
 import { DEFAULT_GROK_MODEL } from '../../../shared/types';
@@ -311,6 +311,14 @@ export function BashModal({ state, onClose }: BashModalProps) {
     return { jsonResult: tryParseJson(state.output), displayOutput: state.output };
   }, [state.output, state.isLive]);
 
+  // Same color-preserving path as the inline output rows: replay through the
+  // terminal renderer (resolves \r redraws, drops non-SGR control sequences)
+  // and convert each line's ANSI colors to inline styles.
+  const outputHtmlLines = React.useMemo(
+    () => (jsonResult.ok ? [] : terminalOutputToHtmlLines(displayOutput)),
+    [jsonResult.ok, displayOutput],
+  );
+
   return (
     <ModalPortal>
       <div className="bash-modal-overlay" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
@@ -331,8 +339,8 @@ export function BashModal({ state, onClose }: BashModalProps) {
               <JsonViewer data={jsonResult.data} />
             ) : (
               <pre className="exec-task-inline-output bash-modal-ansi-output">
-                {displayOutput.split('\n').map((line, idx) => (
-                  <div key={idx} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
+                {outputHtmlLines.map((html, idx) => (
+                  <div key={idx} dangerouslySetInnerHTML={{ __html: html }} />
                 ))}
               </pre>
             )}

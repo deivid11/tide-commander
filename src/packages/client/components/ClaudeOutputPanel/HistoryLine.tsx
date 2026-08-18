@@ -1200,7 +1200,7 @@ export const HistoryLine = memo(function HistoryLine({
               (exec tasks, exec output, test runs, HTTP run cards). */}
           {isBashTool && (settings.inlineBashOutputs || searchReveal) && _bashOutput
             && matchingExecTasks.length === 0 && !execTaskOutput && !matchingTestRunId && !matchingHttpRunId && (
-            <BashInlineOutput text={_bashOutput} />
+            <BashInlineOutput text={_bashOutput} onFileClick={onFileClick ? (p) => onFileClick(p) : undefined} />
           )}
           {/* Inline image thumbnail when a Read targets an image file */}
           {readImageThumb && (
@@ -1666,7 +1666,7 @@ export const HistoryLine = memo(function HistoryLine({
               <BashInlineToggle enabled={settings.inlineBashOutputs} />
             </div>
             {(settings.inlineBashOutputs || searchReveal) && _bashOutput && (
-              <BashInlineOutput text={_bashOutput} />
+              <BashInlineOutput text={_bashOutput} onFileClick={onFileClick ? (p) => onFileClick(p) : undefined} />
             )}
           </>
         );

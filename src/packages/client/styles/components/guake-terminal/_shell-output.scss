@@ -1,0 +1,69 @@
+// =============================================================================
+// Semantic shell-output highlighting (utils/shellOutputHighlight.ts)
+// =============================================================================
+// Classes emitted for PLAIN command output — lines that carried no ANSI of
+// their own (git, ls, grep, cat, curl bodies…). Used by the inline Bash
+// output rows, the Bash output modal and the exec cards. Colors come from
+// the theme variables so light/dark and custom themes stay consistent; the
+// palette mirrors what a colored terminal shows for the same content.
+// =============================================================================
+
+// --- line-level roles --------------------------------------------------------
+.sh-error   { color: var(--accent-red); }
+.sh-warn    { color: var(--accent-yellow); }
+.sh-ok      { color: var(--accent-green); }
+.sh-info    { color: var(--accent-blue); }
+.sh-dim     { color: var(--text-muted); }
+.sh-lvl     { font-weight: 700; }
+.sh-head    { color: var(--text-primary); font-weight: 600; }
+.sh-section { color: var(--accent-cyan); font-weight: 700; }
+.sh-sep     { color: var(--text-muted); opacity: 0.55; }
+.sh-cmd     { color: var(--text-primary); }
+.sh-stderr  { color: var(--accent-red); opacity: 0.8; }
+
+// --- unified diff ------------------------------------------------------------
+.sh-diff-head { color: var(--text-primary); font-weight: 700; }
+.sh-diff-file { color: var(--text-primary); font-weight: 700; }
+.sh-diff-hunk { color: var(--accent-cyan); }
+.sh-diff-add  { color: var(--accent-green); }
+.sh-diff-del  { color: var(--accent-red); }
+
+// --- git status (git's own palette: index green, worktree red) --------------
+.sh-git-index     { color: var(--accent-green); font-weight: 700; }
+.sh-git-work      { color: var(--accent-red); font-weight: 700; }
+.sh-git-untracked { color: var(--accent-red); font-weight: 700; }
+.sh-git-conflict  { color: var(--accent-orange); font-weight: 700; }
+
+// --- source code (Prism `.token.*` palette from file-explorer/_syntax.scss) ---
+// Base tone for identifiers so they read like the file viewer, not dimmer than
+// the punctuation around them.
+.sh-code { color: var(--text-primary); }
+
+// --- inline tokens -----------------------------------------------------------
+.sh-path { color: var(--accent-blue); }
+.sh-url  { color: var(--accent-blue); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent-blue) 45%, transparent); }
+.sh-key  { color: var(--accent-cyan); }
+.sh-tag  { color: var(--accent-purple); }
+.sh-str  { color: var(--accent-green); }
+.sh-num  { color: var(--accent-purple); }
+.sh-lit  { color: var(--accent-purple); font-style: italic; }
+.sh-hash { color: var(--accent-yellow); }
+.sh-time { color: var(--text-muted); }
+.sh-ls-dir  { color: var(--accent-blue); }
+.sh-ls-link { color: var(--accent-cyan); }
+
+// Paths open the file viewer when the host wired a click handler.
+.has-file-links .sh-path {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: color-mix(in srgb, var(--accent-blue) 40%, transparent);
+  text-underline-offset: 2px;
+
+  &:hover {
+    text-decoration-style: solid;
+    text-decoration-color: var(--accent-blue);
+    background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+    border-radius: 2px;
+  }
+}

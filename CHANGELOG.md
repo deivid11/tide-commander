@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.197.0] - 2026-08-18
+
+### Added
+- **Command output keeps its colors, and gets them when it never had any** - Bash results, exec streams and log tails are now replayed through the shared terminal renderer before rendering, so the original ANSI colors survive while cursor/erase sequences and `\r` progress redraws no longer leak as `[?25l` garbage or stacked duplicate lines. Lines that arrive with no color of their own get semantic highlighting instead: unified diffs, `git status`, log levels, section markers, clickable file paths, URLs, hashes, durations, timestamps, quoted strings and JSON keys. Output that a tool already colored is never repainted.
+- **Source code in output is syntax-highlighted** - when a `cat`, `sed -n` or `rg -n` dump is recognisably code, it goes through Prism with the same token palette as the file viewer, including the code half of `path:line:` result rows. Detection is conservative: prose, markdown, logs and mixed output stay on the semantic highlighter, and only eagerly-bundled grammars are used so nothing loads mid-render.
+
 ## [1.196.0] - 2026-08-18
 
 ### Added

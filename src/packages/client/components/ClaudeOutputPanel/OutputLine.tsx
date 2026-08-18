@@ -1525,7 +1525,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             (exec tasks, test runs, HTTP run cards). */}
         {isBashTool && (settings.inlineBashOutputs || searchReveal) && !_isRunning
           && !showInlineRunningTasks && !matchingTestRunId && !matchingHttpRunId && (
-          <BashInlineOutput text={_bashOutput || (typeof payloadToolOutput === 'string' ? payloadToolOutput : '')} />
+          <BashInlineOutput
+            text={_bashOutput || (typeof payloadToolOutput === 'string' ? payloadToolOutput : '')}
+            onFileClick={onFileClick ? (p) => onFileClick(p) : undefined}
+          />
         )}
 
         {/* Inline image thumbnail when a Read targets an image file */}

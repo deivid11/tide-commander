@@ -29,6 +29,9 @@
 // Tool display styles (Edit, Read, Bash, Todo, etc.)
 @forward 'tools';
 
+// Semantic colors for plain (ANSI-free) command output
+@forward 'shell-output';
+
 // Ctrl+hover mini preview popup for tool rows
 @forward 'tool-hover-preview';
 

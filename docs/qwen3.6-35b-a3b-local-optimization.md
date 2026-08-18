@@ -766,6 +766,29 @@ apuntan a un build fijo sino al symlink `../.cache/llama-opt/llama-current`
 y reiniciar el servicio. El build viejo se conserva intacto. Nota: HEAD
 activa `--fit` por defecto y avisa (warning inofensivo) que lo ignora cuando
 `--n-gpu-layers` está fijado.
+### Perfil rápido `qwen38-fast` y helper `llama-ask` (18 de agosto)
+
+Para preguntas sueltas sin historial David pidió un perfil de 16K: es el
+perfil de 32K todo-en-GPU con `--ctx-size 16384` y `--cache-ram 0` (no
+conserva conversaciones; ~0.5-1 GB menos de VRAM que el de 32K, y ~1 GB menos
+que el de 128K). No puede convivir con otro perfil (dos copias del modelo no
+caben en 16 GB): se alterna con `llama-profile qwen38-fast`. El helper
+`llama-profile` ahora **ajusta la ficha de pi al cambiar de perfil**
+(longctx → 131072/8192, desktop → 32768/8192, fast → 16384/4096), cerrando el
+gotcha de las respuestas cortadas por ventana desalineada.
+
+Nuevo comando `llama-ask "pregunta"` (también `cat archivo | llama-ask
+"..."`): pregunta directa al :8080 en streaming, razonamiento a stderr
+atenuado, respuesta a stdout, y al final tokens/tiempo/tok-s. Medido la
+misma pregunta corta: perfil 128K con la VRAM sobresuscrita por el escritorio
+(17.06/17.16 GB usados, 5.4 GB en GTT) → 3.9-7 tok/s y 21 s hasta el primer
+token; perfil `qwen38-fast` → **43.6 tok/s, primer token en 2 s, 3.3 s en
+total**, GTT de vuelta a 1.9 GB.
+
+Incidente del mismo día: el servicio apareció `inactive` desde las 23:08 del
+17; el journal muestra una parada limpia (`Stopping…`, exit 0) — no un crash —
+y `Restart=on-failure` no reinicia paradas manuales. Si se quiere que
+sobreviva incluso a un `stop` accidental, cambiar a `Restart=always`.
 ## Alternativas probadas y descartadas
 
 - `Q4_K_M` con 40 capas expert en CPU: alrededor de 23 tok/s.
