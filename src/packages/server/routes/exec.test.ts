@@ -15,7 +15,6 @@ const HAS_SCRIPT = (() => {
 
 // Keep the route layer off the real service graph — exec only needs an agent
 // lookup and secret passthrough.
-const guardState = { enabled: true, agentHasSkill: true };
 vi.mock('../services/index.js', () => ({
   agentService: {
     getAgent: vi.fn((id: string) => (id === 'agent-1'
@@ -25,15 +24,6 @@ vi.mock('../services/index.js', () => ({
   secretsService: {
     replaceSecrets: vi.fn((command: string) => command),
   },
-  skillService: {
-    getSkillsForAgent: vi.fn(() => (guardState.agentHasSkill ? [{ id: 'builtin-streaming-exec' }] : [])),
-  },
-}));
-vi.mock('../services/system-prompt-service.js', () => ({
-  isExecGuardEnabled: vi.fn(() => guardState.enabled),
-}));
-vi.mock('../auth/index.js', () => ({
-  getAuthToken: vi.fn(() => 'tok'),
 }));
 
 import execRouter, { applyTailFilter, setBroadcast, splitTrailingTailFilter, getRunningTasksSnapshot } from './exec.js';
@@ -133,64 +123,6 @@ describe('getRunningTasksSnapshot (WS initial state)', () => {
 
     await done;
     expect(getRunningTasksSnapshot()).toEqual([]);
-  });
-});
-
-describe('POST /api/exec/guard — streaming-exec guard', () => {
-  let server: http.Server;
-  let baseUrl: string;
-
-  beforeAll(async () => {
-    const app = express();
-    app.use(express.json());
-    app.use('/api/exec', execRouter);
-    server = http.createServer(app);
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
-    const addr = server.address() as AddressInfo;
-    baseUrl = `http://127.0.0.1:${addr.port}`;
-  });
-
-  afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
-
-  beforeEach(() => {
-    guardState.enabled = true;
-    guardState.agentHasSkill = true;
-  });
-
-  async function guard(body: Record<string, unknown>) {
-    const res = await fetch(`${baseUrl}/api/exec/guard`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    expect(res.status).toBe(200);
-    return res.json() as Promise<{ allow: boolean; reason?: string; signals?: string[] }>;
-  }
-
-  it('denies a long-running direct command with a ready-to-run /api/exec curl (agent id, cwd, auth)', async () => {
-    const v = await guard({ agentId: 'agent-1', cwd: '/repo', command: 'npm run build' });
-    expect(v.allow).toBe(false);
-    expect(v.signals).toContain('npm task/install');
-    expect(v.reason).toContain('/api/exec');
-    expect(v.reason).toContain('"agentId":"agent-1"');
-    expect(v.reason).toContain('"cwd":"/repo"');
-    expect(v.reason).toContain('X-Auth-Token: tok');
-  });
-
-  it('allows quick commands, background runs and the API itself', async () => {
-    expect((await guard({ agentId: 'agent-1', command: 'git status' })).allow).toBe(true);
-    expect((await guard({ agentId: 'agent-1', command: 'npm run dev', runInBackground: true })).allow).toBe(true);
-    expect((await guard({ agentId: 'agent-1', command: `curl -s -X POST http://localhost:5174/api/exec -d '{}'` })).allow).toBe(true);
-  });
-
-  it('is opt-in and fail-open: guard off, unknown agent, agent without the skill, empty body → allow', async () => {
-    guardState.enabled = false;
-    expect((await guard({ agentId: 'agent-1', command: 'npm run build' })).allow).toBe(true);
-    guardState.enabled = true;
-    expect((await guard({ agentId: 'nope', command: 'npm run build' })).allow).toBe(true);
-    guardState.agentHasSkill = false;
-    expect((await guard({ agentId: 'agent-1', command: 'npm run build' })).allow).toBe(true);
-    expect((await guard({})).allow).toBe(true);
   });
 });
 

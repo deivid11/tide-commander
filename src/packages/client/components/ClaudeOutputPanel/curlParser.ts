@@ -29,13 +29,17 @@ export function shellTokenize(input: string): string[] | null {
     if (inDouble) {
       if (ch === '\\') {
         const next = input[i + 1];
-        if (next === '"' || next === '\\' || next === '$' || next === '`' || next === '\n') {
+        if (next === '\n') {
+          // Backslash-newline inside double quotes is a line continuation — both removed.
+          i++;
+        } else if (next === '"' || next === '\\' || next === '$' || next === '`') {
           current += next;
           i++;
+          hasToken = true;
         } else {
           current += ch;
+          hasToken = true;
         }
-        hasToken = true;
       } else if (ch === '"') {
         inDouble = false;
       } else {
@@ -57,7 +61,10 @@ export function shellTokenize(input: string): string[] | null {
     }
     if (ch === '\\') {
       const next = input[i + 1];
-      if (next !== undefined) {
+      if (next === '\n') {
+        // Line continuation: backslash-newline is removed entirely (no token).
+        i++;
+      } else if (next !== undefined) {
         current += next;
         i++;
         hasToken = true;
@@ -580,4 +587,146 @@ export function detectAgentMessage(
 
   if (message === undefined) return null;
   return { targetAgentId, message };
+}
+
+// ── Bolba tasks board (bolba-tasks service, 127.0.0.1:7492) ──────────────────
+
+const BOLBA_TASKS_URL_RE = /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\]):7492(\/[^?#]*)?(?:\?([^#]*))?$/i;
+
+export type BolbaTasksAction =
+  | 'board' | 'task' | 'search' | 'duplicates' | 'stats' | 'health'
+  | 'create' | 'update' | 'timeline' | 'close' | 'reopen' | 'delete'
+  | 'render' | 'sync' | 'config' | 'other';
+
+export interface BolbaTasksCall {
+  method: string;
+  /** Normalized path, e.g. `/tasks/5261/close`. */
+  path: string;
+  action: BolbaTasksAction;
+  /** Display verb for the card header (Spanish — the board's language). */
+  verb: string;
+  /** Icon name (from the shared Icon set). */
+  icon: string;
+  /** Numeric task id when the path targets one task. */
+  taskId?: string;
+  /** Search query (`q=` on /search, `title=` on /duplicates), decoded. */
+  query?: string;
+  /** Human-readable summary of the list filters (`due=overdue · stale=14`). */
+  filters?: string;
+  /** Whether the call asked for the text rendering (`as=text`). */
+  asText: boolean;
+  /** Parsed JSON request body — inline `-d '{}'` or `-d @-` heredoc. */
+  body?: Record<string, unknown>;
+  /** X-Actor header value when present (bolba | david). */
+  actor?: string;
+}
+
+const BOLBA_VERBS: Record<BolbaTasksAction, { verb: string; icon: string }> = {
+  board: { verb: 'Tablero', icon: 'list-checks' },
+  task: { verb: 'Tarea', icon: 'task' },
+  search: { verb: 'Búsqueda', icon: 'search' },
+  duplicates: { verb: 'Duplicados', icon: 'copy' },
+  stats: { verb: 'Stats', icon: 'chart-line' },
+  health: { verb: 'Salud', icon: 'health' },
+  create: { verb: 'Nueva tarea', icon: 'plus' },
+  update: { verb: 'Actualizar', icon: 'edit' },
+  timeline: { verb: 'Eventos', icon: 'history' },
+  close: { verb: 'Cerrar', icon: 'check' },
+  reopen: { verb: 'Reabrir', icon: 'arrow-clockwise' },
+  delete: { verb: 'Borrar', icon: 'trash' },
+  render: { verb: 'Re-render', icon: 'refresh' },
+  sync: { verb: 'Sync', icon: 'arrow-clockwise' },
+  config: { verb: 'Config', icon: 'gear' },
+  other: { verb: 'Llamada', icon: 'plant' },
+};
+
+/** Filter params worth echoing on the card header (everything except q/title/as/format). */
+const BOLBA_FILTER_KEYS = new Set(['status', 'proj', 'type', 'due', 'stale', 'from', 'coti', 'limit', 'scope']);
+
+/**
+ * Detect a curl against the bolba-tasks board service (`127.0.0.1:7492`) so the
+ * transcript renders a branded task-board card instead of a generic HTTP one.
+ * Mutation bodies arrive as `-d @-` heredocs (markdown/emoji payloads), so the
+ * raw command is consulted when the inline body is absent.
+ */
+export function detectBolbaTasksCall(parsed: ParsedCurl, rawCommand?: string): BolbaTasksCall | null {
+  if (!parsed) return null;
+  const match = BOLBA_TASKS_URL_RE.exec(parsed.url);
+  if (!match) return null;
+  const path = (match[1] || '/').replace(/\/+$/, '') || '/';
+  const segments = path.split('/').filter(Boolean);
+  const method = parsed.method;
+
+  // Body: inline JSON first; heredoc fallback for the `-d @-` pattern.
+  let body: Record<string, unknown> | undefined;
+  const readBody = (value: unknown): Record<string, unknown> | undefined =>
+    value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+  body = readBody(parsed.bodyJson);
+  if (body === undefined && parsed.body === '@-' && rawCommand) {
+    const heredoc = extractHeredocBody(rawCommand);
+    if (heredoc) {
+      try {
+        body = readBody(JSON.parse(heredoc.trim()));
+      } catch {
+        /* unparseable heredoc — leave undefined */
+      }
+    }
+  }
+
+  // Query params → search query, as=text flag, and a compact filter summary.
+  let query: string | undefined;
+  let asText = false;
+  const filters: string[] = [];
+  if (match[2]) {
+    for (const pair of match[2].split('&')) {
+      const eq = pair.indexOf('=');
+      if (eq <= 0) continue;
+      const key = pair.slice(0, eq).toLowerCase();
+      const rawVal = pair.slice(eq + 1);
+      let val: string;
+      try {
+        val = decodeURIComponent(rawVal.replace(/\+/g, ' '));
+      } catch {
+        val = rawVal;
+      }
+      if (key === 'q' || key === 'title') query = val;
+      else if (key === 'as' && val === 'text') asText = true;
+      else if (BOLBA_FILTER_KEYS.has(key)) filters.push(`${key}=${val}`);
+    }
+  }
+
+  let action: BolbaTasksAction = 'other';
+  let taskId: string | undefined;
+  const root = (segments[0] || '').toLowerCase();
+  if (root === 'tasks') {
+    taskId = segments[1] && /^\d+$/.test(segments[1]) ? segments[1] : undefined;
+    const sub = (segments[2] || '').toLowerCase();
+    if (taskId && sub === 'close') action = 'close';
+    else if (taskId && sub === 'reopen') action = 'reopen';
+    else if (taskId && sub === 'timeline') action = 'timeline';
+    else if (taskId) action = method === 'DELETE' ? 'delete' : (method === 'PATCH' || method === 'PUT') ? 'update' : 'task';
+    else action = method === 'POST' ? 'create' : 'board';
+  } else if (root === 'search') action = 'search';
+  else if (root === 'duplicates') action = 'duplicates';
+  else if (root === 'stats') action = 'stats';
+  else if (root === 'health') action = 'health';
+  else if (root === 'render') action = 'render';
+  else if (root === 'sync') action = 'sync';
+  else if (root === 'config') action = 'config';
+
+  const actorEntry = Object.entries(parsed.headers).find(([k]) => k.toLowerCase() === 'x-actor');
+
+  return {
+    method,
+    path,
+    action,
+    verb: BOLBA_VERBS[action].verb,
+    icon: BOLBA_VERBS[action].icon,
+    taskId,
+    query,
+    filters: filters.length > 0 ? filters.join(' · ') : undefined,
+    asText,
+    body,
+    actor: actorEntry?.[1],
+  };
 }

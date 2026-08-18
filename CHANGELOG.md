@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.196.0] - 2026-08-18
+
+### Added
+- **Bolba tasks board card** - curls against a local `bolba-tasks` board (`127.0.0.1:7492`) now render as a dedicated card instead of raw JSON: the board and search listings become a table, a single task becomes a detail view, and create / update / timeline / close / reopen / delete, health, stats and duplicate-conflict responses each get their own compact summary. Output piped through `python3 -c` one-liners or anything unparseable falls back to plain text.
+
+### Changed
+- **Streaming Execution skill rewritten** - the built-in skill now explains why the exec API matters (the user is watching a live terminal) instead of only stating the rule, and gives a shorter, clearer boundary between what belongs in `POST /api/exec` and what can stay in direct Bash.
+
+### Removed
+- **Streaming-exec guard** - the Claude `PreToolUse` hook that denied direct long-running Bash calls has been removed, along with its Settings toggle and the `/api/exec/guard` endpoint. Routing long commands through the exec API is guidance in the skill again, not a mechanical block.
+
 ## [1.195.0] - 2026-08-17
 
 ### Added

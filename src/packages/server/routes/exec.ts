@@ -8,11 +8,8 @@
 
 import { Router, Request, Response } from 'express';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
-import { agentService, secretsService, skillService } from '../services/index.js';
+import { agentService, secretsService } from '../services/index.js';
 import { createLogger, generateId, getCommanderBaseUrl } from '../utils/index.js';
-import { isExecGuardEnabled } from '../services/system-prompt-service.js';
-import { getAuthToken } from '../auth/index.js';
-import { classifyDirectBashCommand, buildExecGuardDenyReason } from '../claude/exec-guard.js';
 import { findBashToolUseForExec } from '../services/bash-toolcall-registry.js';
 import { killProcessTree } from '../services/process-tree-kill.js';
 import type { ServerMessage } from '../../shared/types.js';
@@ -455,69 +452,6 @@ router.post('/', async (req: Request, res: Response) => {
         syscall: err.syscall,
       }
     });
-  }
-});
-
-/** Skill whose assignment opts an agent into the streaming-exec guard. */
-const STREAMING_EXEC_SKILL_ID = 'builtin-streaming-exec';
-
-/**
- * POST /api/exec/guard - Should this DIRECT Bash command have gone through
- * POST /api/exec instead?
- *
- * Called by the Claude PreToolUse hook (exec-guard-hook.mjs) before every
- * Bash tool call. Body: { command, agentId?, cwd?, runInBackground? }.
- * Response: { allow: true } or { allow: false, reason, signals } — the reason
- * is what the model reads when its tool call is denied, and it contains the
- * ready-to-run curl for the same command through the Streaming Exec API.
- *
- * Gates (each one → allow, i.e. the guard is opt-in and fail-open):
- *  - the guard setting is off;
- *  - the agent is unknown to the Commander;
- *  - the agent does not have the "Streaming Command Execution" skill —
- *    enforcement follows the instruction, never precedes it;
- *  - the command is not clearly long-running (see exec-guard.ts).
- */
-router.post('/guard', (req: Request, res: Response) => {
-  try {
-    const { agentId, command, cwd, runInBackground } = req.body ?? {};
-    if (typeof command !== 'string' || !command.trim()) {
-      res.json({ allow: true });
-      return;
-    }
-    if (!isExecGuardEnabled()) {
-      res.json({ allow: true });
-      return;
-    }
-    const agent = typeof agentId === 'string' ? agentService.getAgent(agentId) : undefined;
-    if (!agent) {
-      res.json({ allow: true });
-      return;
-    }
-    const hasSkill = skillService
-      .getSkillsForAgent(agent.id, agent.class, agent.isBoss)
-      .some((skill) => skill.id === STREAMING_EXEC_SKILL_ID);
-    if (!hasSkill) {
-      res.json({ allow: true });
-      return;
-    }
-    const verdict = classifyDirectBashCommand({ command, runInBackground: runInBackground === true });
-    if (!verdict.block) {
-      res.json({ allow: true });
-      return;
-    }
-    const reason = buildExecGuardDenyReason(command, verdict.signals, {
-      agentId: agent.id,
-      baseUrl: getCommanderBaseUrl(),
-      cwd: typeof cwd === 'string' && cwd ? cwd : undefined,
-      authToken: getAuthToken() || undefined,
-    });
-    log.log(`[ExecGuard] Blocked direct Bash for ${agent.name} (${agent.id}): ${verdict.signals.join(', ')} — ${command.slice(0, 120)}${command.length > 120 ? '…' : ''}`);
-    res.json({ allow: false, reason, signals: verdict.signals });
-  } catch (err: any) {
-    // Never let the guard itself break a tool call.
-    log.error('[ExecGuard] guard evaluation failed (allowing):', err);
-    res.json({ allow: true });
   }
 });
 

@@ -58,34 +58,12 @@ export function writePromptToFile(prompt: string, agentId?: string): string {
 const PERMISSION_PROMPT_SERVER_BASENAME = 'permission-prompt-server.mjs';
 // CLI tool reference shape: `mcp__<server-name-in-mcp-config>__<tool-name>`.
 const PERMISSION_PROMPT_TOOL = 'mcp__tideperm__permission_prompt';
-// Streaming-exec guard: a PreToolUse hook (matcher Bash) that asks the
-// Commander whether a direct Bash command should have gone through
-// POST /api/exec (see exec-guard.ts / exec-guard-hook.mjs). Bundled next to
-// this file exactly like the permission-prompt server.
-const EXEC_GUARD_HOOK_BASENAME = 'exec-guard-hook.mjs';
-
 /** Path of a bundled helper script that lives next to this module — in dev
  * (tsx) the source dir, in the prebuilt bundle dist/… (copied by
  * `npm run build:server`, see package.json). */
 function bundledHelperPath(basename: string): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
   return path.join(here, basename);
-}
-
-/**
- * The hooks.PreToolUse entry for the streaming-exec guard. Always installed
- * for Commander-launched Claude agents: the hook asks the server on every
- * Bash call, and the SERVER decides (guard setting, skill assignment,
- * command classification) — so toggling the guard in Settings takes effect
- * immediately, even for agents already running. The hook fails open.
- */
-function execGuardHookEntry(): { matcher: string; hooks: Array<{ type: string; command: string; timeout: number }> } {
-  // Quote the path: home dirs / install paths may contain spaces.
-  const script = bundledHelperPath(EXEC_GUARD_HOOK_BASENAME).replace(/"/g, '\\"');
-  return {
-    matcher: 'Bash',
-    hooks: [{ type: 'command', command: `node "${script}"`, timeout: 10 }],
-  };
 }
 
 /**
@@ -349,10 +327,6 @@ export class ClaudeBackend implements CLIBackend {
     }
 
     // Permission mode - bypass for autonomous agents, interactive uses hooks.
-    // Both modes carry the streaming-exec guard hook (PreToolUse, matcher
-    // Bash); hooks run regardless of --dangerously-skip-permissions (verified
-    // against Claude Code 2.1.x: a `deny` from the hook blocks the call and
-    // its reason is fed to the model).
     const tideDataDir = path.join(os.homedir(), '.tide-commander');
     if (!fs.existsSync(tideDataDir)) {
       fs.mkdirSync(tideDataDir, { recursive: true });
@@ -364,10 +338,6 @@ export class ClaudeBackend implements CLIBackend {
       const mcpConfigPath = getPermissionPromptMcpConfigPath();
       args.push('--mcp-config', mcpConfigPath);
       args.push('--permission-prompt-tool', PERMISSION_PROMPT_TOOL);
-      const guardSettings = { hooks: { PreToolUse: [execGuardHookEntry()] } };
-      const settingsPath = path.join(tideDataDir, 'exec-guard-settings.json');
-      fs.writeFileSync(settingsPath, JSON.stringify(guardSettings, null, 2));
-      args.push('--settings', settingsPath);
     } else if (config.permissionMode === 'interactive') {
       // For interactive mode, configure the PreToolUse hook to ask for permission
       // The hook script calls the Tide Commander server which shows UI for approval
@@ -375,7 +345,6 @@ export class ClaudeBackend implements CLIBackend {
       const hookSettings = {
         hooks: {
           PreToolUse: [
-            execGuardHookEntry(),
             {
               hooks: [
                 {

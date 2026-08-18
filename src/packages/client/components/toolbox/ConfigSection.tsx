@@ -68,7 +68,7 @@ import { WhatsAppConfigModal } from '../WhatsAppConfigModal';
 import { WhatsAppNotificationsModal } from '../WhatsAppNotificationsModal';
 import { WhatsAppHistoryPanel } from '../WhatsAppHistory/WhatsAppHistoryPanel';
 import { WhatsAppHubModal } from '../WhatsAppHub/WhatsAppHubModal';
-import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath, fetchTmuxModeSetting, updateTmuxModeSetting, fetchInteractiveModeSetting, updateInteractiveModeSetting, fetchCodexAppServerModeSetting, updateCodexAppServerModeSetting, fetchOpencodeServerModeSetting, updateOpencodeServerModeSetting, fetchPiRpcModeSetting, updatePiRpcModeSetting, fetchExecGuardSetting, updateExecGuardSetting } from '../../api/system-settings';
+import { fetchEchoPromptSetting, updateEchoPromptSetting, fetchCodexBinaryPath, updateCodexBinaryPath, fetchTmuxModeSetting, updateTmuxModeSetting, fetchInteractiveModeSetting, updateInteractiveModeSetting, fetchCodexAppServerModeSetting, updateCodexAppServerModeSetting, fetchOpencodeServerModeSetting, updateOpencodeServerModeSetting, fetchPiRpcModeSetting, updatePiRpcModeSetting } from '../../api/system-settings';
 import { BUILTIN_AGENT_NAMES } from '../../scene/config';
 import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS, isValidExcludeDirName } from '../../../shared/file-search';
 import { Icon } from '../Icon';
@@ -391,15 +391,6 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
     }).catch(() => { /* ignore fetch errors on mount */ });
   }, []);
 
-  // Sync the streaming-exec guard setting from server on mount
-  useEffect(() => {
-    fetchExecGuardSetting().then((enabled) => {
-      if (enabled !== settings.execGuard) {
-        store.updateSettings({ execGuard: enabled });
-      }
-    }).catch(() => { /* ignore fetch errors on mount */ });
-  }, []);
-
   // Sync experimental Codex app-server (streaming) mode setting from server on mount
   useEffect(() => {
     fetchCodexAppServerModeSetting().then((enabled) => {
@@ -688,17 +679,6 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
               await updateInteractiveModeSetting(checked);
             } catch (err) {
               console.error('Failed to sync interactive mode setting to server:', err);
-            }
-          }} />
-        </div>
-        <div className="config-row">
-          <span className="config-label" title="Streaming-exec guard: Claude agents that have the 'Streaming Command Execution' skill get a PreToolUse hook that DENIES direct Bash calls which look long-running (builds, tests, installs, polling loops, downloads, model binaries…) and hands back the exact POST /api/exec curl for the same command — so you see live output in the exec card instead of a silent spinner. Quick inspection commands (ls, cat, rg, git status, API curls) always pass; detached/background runs are never blocked. Takes effect immediately, even for running agents. Claude only (other harnesses have no tool hooks — they rely on the skill text)."><HighlightText text={t('config:general.execGuard')} query={searchQuery} /> <Icon name="terminal" size={12} /></span>
-          <Toggle checked={settings.execGuard} onChange={async (checked) => {
-            store.updateSettings({ execGuard: checked });
-            try {
-              await updateExecGuardSetting(checked);
-            } catch (err) {
-              console.error('Failed to sync exec guard setting to server:', err);
             }
           }} />
         </div>

@@ -302,33 +302,6 @@ paths:
         '404':
           $ref: '#/components/responses/ErrorResponse'
 
-  /exec/guard:
-    post:
-      tags: [Exec]
-      summary: Streaming-exec guard — should this direct Bash command have used /api/exec?
-      description: >-
-        Called by the Claude PreToolUse hook (exec-guard-hook.mjs) before every
-        Bash tool call. Returns `{allow:true}` unless the guard is enabled, the
-        agent has the Streaming Command Execution skill, and the command looks
-        long-running (build/test/install, polling loop, download, model binary…);
-        then `{allow:false, reason, signals}` where `reason` contains the exact
-        `POST /api/exec` curl for the same command. Fail-open by design.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [command]
-              properties:
-                command: { type: string }
-                agentId: { type: string }
-                cwd: { type: string }
-                runInBackground: { type: boolean }
-      responses:
-        '200':
-          $ref: '#/components/responses/JsonSuccess'
-
   /exec/generate-curl:
     post:
       tags: [Exec]

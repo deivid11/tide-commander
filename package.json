@@ -1,6 +1,6 @@
 {
   "name": "tide-commander",
-  "version": "1.195.0",
+  "version": "1.196.0",
   "description": "Visual multi-agent orchestrator and manager for Claude Code with 3D/2D interface",
   "repository": {
     "type": "git",
@@ -26,7 +26,7 @@
     "docs:preview": "npm --prefix src/packages/landing run preview",
     "docs:install": "npm --prefix src/packages/landing install",
     "build": "npm run build:types && vite build && npm run build:server",
-    "build:server": "tsc -p tsconfig.server.json && cp -r src/packages/server/data/migrations dist/src/packages/server/data/ && cp src/packages/server/claude/permission-prompt-server.mjs src/packages/server/claude/exec-guard-hook.mjs dist/src/packages/server/claude/ && mkdir -p dist/src/packages/server/cad && cp src/packages/server/cad/freecad-runner.py dist/src/packages/server/cad/",
+    "build:server": "tsc -p tsconfig.server.json && cp -r src/packages/server/data/migrations dist/src/packages/server/data/ && cp src/packages/server/claude/permission-prompt-server.mjs dist/src/packages/server/claude/ && mkdir -p dist/src/packages/server/cad && cp src/packages/server/cad/freecad-runner.py dist/src/packages/server/cad/",
     "preview": "vite preview",
     "setup": "tsx src/packages/server/setup.ts",
     "lint": "eslint src/",

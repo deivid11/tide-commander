@@ -198,42 +198,6 @@ export async function updateInteractiveModeSetting(enabled: boolean): Promise<vo
   }
 }
 
-/**
- * Get the streaming-exec guard setting (default on): Claude agents with the
- * Streaming Command Execution skill get direct long-running Bash calls
- * denied with the ready-to-run POST /api/exec curl.
- */
-export async function fetchExecGuardSetting(): Promise<boolean> {
-  const token = getAuthToken();
-  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/exec-guard`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch exec guard setting: ${response.statusText}`);
-  }
-  const data = await response.json();
-  return data.enabled !== false;
-}
-
-/**
- * Update the streaming-exec guard setting
- */
-export async function updateExecGuardSetting(enabled: boolean): Promise<void> {
-  const token = getAuthToken();
-  const response = await fetch(`${getApiBaseUrl()}/api/agents/system-settings/exec-guard`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-    body: JSON.stringify({ enabled }),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to update exec guard setting: ${response.statusText}`);
-  }
-}
 
 /**
  * Get the current experimental Codex app-server (streaming) mode setting

@@ -39,7 +39,6 @@
     "lowPowerMode": "Low Power Mode",
     "tmuxMode": "Tmux Process Persistence",
     "interactiveMode": "Interactive TUI Mode (Experimental)",
-    "execGuard": "Streaming Exec Guard (Claude)",
     "codexAppServerMode": "Codex Streaming / app-server (Experimental)",
     "opencodeServerMode": "OpenCode Streaming / serve (Experimental)",
     "piRpcMode": "Pi Mid-turn Steering / rpc",
