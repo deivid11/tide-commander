@@ -40,7 +40,10 @@ function formatTime(timestampMs: number): string | null {
   }
 }
 
-export function PromptMarkersRail({
+// Memo: the parent list re-renders on every live chunk; with a stable
+// `markers` array (see buildPromptMarkers) the rail only re-renders when a
+// prompt is added or the active position moves.
+export const PromptMarkersRail = React.memo(function PromptMarkersRail({
   markers,
   activePos,
   scrollContainerRef,
@@ -167,6 +170,6 @@ export function PromptMarkersRail({
       )}
     </div>
   );
-}
+});
 
 export default PromptMarkersRail;

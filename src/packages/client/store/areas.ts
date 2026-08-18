@@ -387,18 +387,25 @@ export function createAreaActions(
         a.center = targetCenter;
         a.zIndex = nextZ; // Bring to front
 
-        // Move assigned agents with the area if position changed
+        // Move assigned agents with the area if position changed. Replace the
+        // agent objects and the Map (never mutate in place): selectors and the
+        // scene sync detect agent changes by identity.
         if (offsetX !== 0 || offsetZ !== 0) {
+          const movedAgents = new Map(s.agents);
           for (const agentId of a.assignedAgentIds) {
-            const agent = s.agents.get(agentId);
+            const agent = movedAgents.get(agentId);
             if (agent) {
-              agent.position = {
-                x: agent.position.x + offsetX,
-                y: agent.position.y,
-                z: agent.position.z + offsetZ,
-              };
+              movedAgents.set(agentId, {
+                ...agent,
+                position: {
+                  x: agent.position.x + offsetX,
+                  y: agent.position.y,
+                  z: agent.position.z + offsetZ,
+                },
+              });
             }
           }
+          s.agents = movedAgents;
         }
       });
       touchAreasMap();

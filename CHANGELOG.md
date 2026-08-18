@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.197.1] - 2026-08-18
+
+### Changed
+- **Much less CPU while an agent is streaming** - the terminal now memoizes the expensive parts of rendering instead of redoing them on every chunk: highlighted output HTML, per-line analysis and cost-stripped text are cached by content in bounded LRUs, prompt-marker extraction reuses its previous array when nothing changed, and the agent overview panel keeps its area sections and cards memo-stable so one agent's tool start no longer re-renders the whole panel.
+- **Idle 3D loop no longer ticks at 60 Hz** - in flat, 2D and dashboard views the render loop polls for the detached canvas every 250 ms instead of requesting an animation frame with nothing to draw, and the scene sync skips work while the canvas is away.
+- **Glow and pulse animations are compositor-only** - the overview panel and tracking board animate opacity and transform on dedicated overlays instead of animating `box-shadow`, which repainted the whole panel layer on every frame of an infinite loop.
+
 ## [1.197.0] - 2026-08-18
 
 ### Added

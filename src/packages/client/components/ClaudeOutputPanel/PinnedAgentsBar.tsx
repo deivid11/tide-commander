@@ -114,6 +114,102 @@ interface ChipGroup {
  * section the order is always pin order, and unpinned chips hold their slots
  * (see dockRoster.ts).
  */
+
+interface PinnedChipProps {
+  agent: Agent;
+  isPinned: boolean;
+  isActive: boolean;
+  areaColor: string | null;
+  hasUnread: boolean;
+  isExiting: boolean;
+  isDragging: boolean;
+  dropState: 'before' | 'after' | null;
+  customClasses: ReturnType<typeof useCustomAgentClassesArray>;
+  registerItem: (id: string) => (element: HTMLElement | null) => void;
+  onSelect: (agent: Agent) => void;
+  onTogglePin: (e: React.MouseEvent, agentId: string) => void;
+  onDragStart: (e: React.DragEvent, agentId: string) => void;
+  onDragOver: (e: React.DragEvent, agentId: string) => void;
+  onDrop: (e: React.DragEvent, agentId: string) => void;
+  onDragEnd: () => void;
+}
+
+const PinnedChip = memo(function PinnedChip({
+  agent,
+  isPinned,
+  isActive,
+  areaColor,
+  hasUnread,
+  isExiting,
+  isDragging,
+  dropState,
+  customClasses,
+  registerItem,
+  onSelect,
+  onTogglePin,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+}: PinnedChipProps) {
+  const working = statusBucket(agent) === 'working';
+  const isBoss = agent.class === 'boss' || !!agent.isBoss;
+  const provider = providerLabel(agent.provider, agent.piModel, agent.piModelProvider);
+  return (
+    <button
+      ref={registerItem(agent.id)}
+      type="button"
+      draggable={isPinned}
+      className={`pinned-agent${isActive ? ' active' : ''}${working ? ' working' : ''}${isBoss ? ' is-boss' : ''}${areaColor ? ' has-area' : ''}${
+        hasUnread ? ' has-unread' : ''
+      }${isPinned ? '' : ' pinned-agent--unpinned'}${
+        isExiting ? ' exiting' : ''
+      }${isDragging ? ' dragging' : ''}${dropState ? (dropState === 'after' ? ' drop-after' : ' drop-before') : ''}`}
+      title={`${agent.name} · ${provider} — ${agent.status}${hasUnread ? ' — new output' : ''}${isPinned ? '' : ' — not pinned (right-click to pin)'}`}
+      // Keep an accessible name even in miniature mode, where the visible
+      // name label is hidden via CSS. The provider badge is decorative, so its
+      // name rides here rather than as image alt text.
+      aria-label={`${agent.name}, ${provider}${hasUnread ? ', new output' : ''}${isPinned ? '' : ', not pinned'}`}
+      style={areaColor ? ({ ['--area-color']: areaColor } as React.CSSProperties) : undefined}
+      onClick={() => onSelect(agent)}
+      // Warm the history cache during hover so the switch on click paints
+      // the conversation in its first frame (no-op when already cached).
+      onMouseEnter={() => prefetchAgentHistory(agent.id)}
+      onContextMenu={(e) => onTogglePin(e, agent.id)}
+      onDragStart={isPinned ? (e) => onDragStart(e, agent.id) : undefined}
+      onDragOver={isPinned ? (e) => onDragOver(e, agent.id) : undefined}
+      onDrop={isPinned ? (e) => onDrop(e, agent.id) : undefined}
+      onDragEnd={isPinned ? onDragEnd : undefined}
+    >
+      <span className="pinned-agent-av">
+        <AgentIcon classId={agent.class} size="100%" customClasses={customClasses} />
+        {/* Provider badge, bottom-right — the two free corners of the avatar
+            are taken by the unread dot (top-left) and the unpin × (top-right).
+            Survives miniature mode, where the name label is hidden. */}
+        <ProviderIcon
+          agent={agent}
+          className={`pinned-agent-provider ${providerCssClass(agent.provider)}`}
+          alt=""
+          draggable={false}
+        />
+      </span>
+      {hasUnread && <span className="pinned-agent-notif" aria-hidden="true" />}
+      <span className="pinned-agent-name">{agent.name}</span>
+      {isPinned && (
+        <span
+          className="pinned-agent-unpin"
+          role="button"
+          aria-label="Unpin agent"
+          title="Unpin"
+          onClick={(e) => onTogglePin(e, agent.id)}
+        >
+          ×
+        </span>
+      )}
+    </button>
+  );
+});
+
 export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, includeActiveAgents = false }: PinnedAgentsBarProps) {
   const pinnedIds = usePinnedAgentIds();
   const agents = useAgents();
@@ -357,67 +453,30 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
     setDropTarget(null);
   }, []);
 
-  const renderChip = useCallback(({ agent, pinned: isPinned }: RowEntry) => {
-    const working = statusBucket(agent) === 'working';
-    const isActive = agent.id === activeAgentId;
-    const areaColor = areaColorById.get(agent.id) ?? null;
-    const hasUnread = unseenAgents.has(agent.id);
-    const isBoss = agent.class === 'boss' || !!agent.isBoss;
-    const provider = providerLabel(agent.provider, agent.piModel, agent.piModelProvider);
-    return (
-      <button
-        ref={registerItem(agent.id)}
-        type="button"
-        draggable={isPinned}
-        className={`pinned-agent${isActive ? ' active' : ''}${working ? ' working' : ''}${isBoss ? ' is-boss' : ''}${areaColor ? ' has-area' : ''}${
-          hasUnread ? ' has-unread' : ''
-        }${isPinned ? '' : ' pinned-agent--unpinned'}${
-          exitingIds.has(agent.id) ? ' exiting' : ''
-        }${draggingId === agent.id ? ' dragging' : ''}${dropTarget && dropTarget.id === agent.id ? (dropTarget.after ? ' drop-after' : ' drop-before') : ''}`}
-        title={`${agent.name} · ${provider} — ${agent.status}${hasUnread ? ' — new output' : ''}${isPinned ? '' : ' — not pinned (right-click to pin)'}`}
-        // Keep an accessible name even in miniature mode, where the visible
-        // name label is hidden via CSS. The provider badge is decorative, so its
-        // name rides here rather than as image alt text.
-        aria-label={`${agent.name}, ${provider}${hasUnread ? ', new output' : ''}${isPinned ? '' : ', not pinned'}`}
-        style={areaColor ? ({ ['--area-color']: areaColor } as React.CSSProperties) : undefined}
-        onClick={() => handleSelect(agent)}
-        // Warm the history cache during hover so the switch on click paints
-        // the conversation in its first frame (no-op when already cached).
-        onMouseEnter={() => prefetchAgentHistory(agent.id)}
-        onContextMenu={(e) => handleTogglePin(e, agent.id)}
-        onDragStart={isPinned ? (e) => handleDragStart(e, agent.id) : undefined}
-        onDragOver={isPinned ? (e) => handleDragOver(e, agent.id) : undefined}
-        onDrop={isPinned ? (e) => handleDrop(e, agent.id) : undefined}
-        onDragEnd={isPinned ? handleDragEnd : undefined}
-      >
-        <span className="pinned-agent-av">
-          <AgentIcon classId={agent.class} size="100%" customClasses={customClasses} />
-          {/* Provider badge, bottom-right — the two free corners of the avatar
-              are taken by the unread dot (top-left) and the unpin × (top-right).
-              Survives miniature mode, where the name label is hidden. */}
-          <ProviderIcon
-            agent={agent}
-            className={`pinned-agent-provider ${providerCssClass(agent.provider)}`}
-            alt=""
-            draggable={false}
-          />
-        </span>
-        {hasUnread && <span className="pinned-agent-notif" aria-hidden="true" />}
-        <span className="pinned-agent-name">{agent.name}</span>
-        {isPinned && (
-          <span
-            className="pinned-agent-unpin"
-            role="button"
-            aria-label="Unpin agent"
-            title="Unpin"
-            onClick={(e) => handleTogglePin(e, agent.id)}
-          >
-            ×
-          </span>
-        )}
-      </button>
-    );
-  }, [activeAgentId, areaColorById, unseenAgents, exitingIds, draggingId, dropTarget, customClasses, registerItem, handleSelect, handleTogglePin, handleDragStart, handleDragOver, handleDrop, handleDragEnd]);
+  // Chips are a memo component: this bar re-renders on every agent update
+  // while agents work (it subscribes to the whole agents Map), and building
+  // ~8 elements + closures per chip per render was its entire cost. With
+  // primitive props only the chip whose agent/flags changed re-renders.
+  const renderChip = useCallback(({ agent, pinned: isPinned }: RowEntry) => (
+    <PinnedChip
+      agent={agent}
+      isPinned={isPinned}
+      isActive={agent.id === activeAgentId}
+      areaColor={areaColorById.get(agent.id) ?? null}
+      hasUnread={unseenAgents.has(agent.id)}
+      isExiting={exitingIds.has(agent.id)}
+      isDragging={draggingId === agent.id}
+      dropState={dropTarget && dropTarget.id === agent.id ? (dropTarget.after ? 'after' : 'before') : null}
+      customClasses={customClasses}
+      registerItem={registerItem}
+      onSelect={handleSelect}
+      onTogglePin={handleTogglePin}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      onDragEnd={handleDragEnd}
+    />
+  ), [activeAgentId, areaColorById, unseenAgents, exitingIds, draggingId, dropTarget, customClasses, registerItem, handleSelect, handleTogglePin, handleDragStart, handleDragOver, handleDrop, handleDragEnd]);
 
   // Interleave lane separators, mirroring the overview dock's divider: one where
   // the unpinned actives start, one where their recent lane starts (working

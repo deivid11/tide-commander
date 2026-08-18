@@ -6,7 +6,10 @@ import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHideCost, useSettings, ClaudeOutput, store, useAgentPrompts, type TestRunHandle, type HttpRunHandle } from '../../store';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, findExecTaskForCurlRow, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget, summarizeWebSearch } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, findExecTaskForCurlRow, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget, summarizeWebSearch,
+  isCurlCommandTo,
+  bashCommandDisplaySlice,
+} from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { getSlashCommandInfo } from '../../utils/slashCommands';
@@ -1180,7 +1183,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     if (isBashTool && !bashCommand) {
       return null;
     }
-    const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
+    const isCurlExecCommand = isCurlCommandTo(bashCommand, '/api/exec');
 
 
     // The exec task this curl row spawned (exact inner-command match, else a
@@ -1339,11 +1342,13 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
 
     const renderBashCommandWithFileLinks = () => {
       if (!displayCommand) return null;
+      // One-line chip: highlight/link only what can be shown (see helper).
+      const shown = bashCommandDisplaySlice(displayCommand);
       if (!onFileClick) {
-        return <span dangerouslySetInnerHTML={{ __html: highlightCode(displayCommand, 'bash') }} />;
+        return <span dangerouslySetInnerHTML={{ __html: highlightCode(shown, 'bash') }} />;
       }
 
-      const segments = splitCommandForFileLinks(displayCommand);
+      const segments = splitCommandForFileLinks(shown);
 
       return segments.map((segment, idx) => {
         if (!segment.fileRef) {
@@ -1527,7 +1532,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           && !showInlineRunningTasks && !matchingTestRunId && !matchingHttpRunId && (
           <BashInlineOutput
             text={_bashOutput || (typeof payloadToolOutput === 'string' ? payloadToolOutput : '')}
-            onFileClick={onFileClick ? (p) => onFileClick(p) : undefined}
+            onFileClick={onFileClick}
           />
         )}
 

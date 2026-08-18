@@ -136,12 +136,22 @@ type _TaggedLiveItem = { kind: 'live'; item: EnrichedOutput; originalIndex: numb
 type TaggedItem = _TaggedHistoryItem | _TaggedLiveItem;
 
 /** Canonical 'created at' in epoch ms — bridges history's ISO strings and live's number ts. */
+// History rows carry ISO timestamps; the merge memo below runs on every live
+// chunk (~20×/s while streaming) over the WHOLE history, so the Date parse is
+// cached per message object (history objects are stable between refreshes).
+const historyTsCache = new WeakMap<object, number>();
 function getCanonicalTimestampMs(tagged: TaggedItem): number {
   if (tagged.kind === 'history') {
+    const cached = historyTsCache.get(tagged.item);
+    if (cached !== undefined) return cached;
     const ts = tagged.item.timestamp;
-    if (!ts) return 0;
-    const parsed = new Date(ts).getTime();
-    return Number.isFinite(parsed) ? parsed : 0;
+    let ms = 0;
+    if (ts) {
+      const parsed = new Date(ts).getTime();
+      ms = Number.isFinite(parsed) ? parsed : 0;
+    }
+    historyTsCache.set(tagged.item, ms);
+    return ms;
   }
   return tagged.item.timestamp ?? 0;
 }
@@ -296,15 +306,25 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   //
   // Stable sort: ascending canonical timestamp, then uuid lex ascending,
   // then original insertion order (history-block first, then live-block).
+  // History half of the merge, decorated ONCE per historyMessages identity:
+  // the merge below runs on every live chunk (~20×/s while streaming) and the
+  // history part (thousands of rows on long sessions) is identical each time —
+  // only the live tail changes. Keys for history rows never depend on order,
+  // so they are precomputed here too.
+  const historyDecorated = useMemo(() => {
+    const out: Array<{ tagged: TaggedItem; tsMs: number; uuid: string; key: string }> = new Array(historyMessages.length);
+    for (let i = 0; i < historyMessages.length; i++) {
+      const tagged: TaggedItem = { kind: 'history', item: historyMessages[i], originalIndex: i };
+      out[i] = { tagged, tsMs: getCanonicalTimestampMs(tagged), uuid: getCanonicalUuid(tagged), key: buildItemKey(tagged, agentId) };
+    }
+    return out;
+  }, [historyMessages, agentId]);
+
   const { allItems, allKeys } = useMemo(() => {
     // Decorate: precompute the canonical timestamp (a Date parse for history
     // rows) and uuid ONCE per item — the comparator previously re-derived
     // both per comparison (~2·N·logN Date parses per streamed chunk).
-    const decorated: Array<{ tagged: TaggedItem; tsMs: number; uuid: string }> = [];
-    for (let i = 0; i < historyMessages.length; i++) {
-      const tagged: TaggedItem = { kind: 'history', item: historyMessages[i], originalIndex: i };
-      decorated.push({ tagged, tsMs: getCanonicalTimestampMs(tagged), uuid: getCanonicalUuid(tagged) });
-    }
+    const decorated: Array<{ tagged: TaggedItem; tsMs: number; uuid: string; key?: string }> = historyDecorated.slice();
     for (let i = 0; i < liveOutputs.length; i++) {
       const tagged: TaggedItem = { kind: 'live', item: liveOutputs[i], originalIndex: historyMessages.length + i };
       decorated.push({ tagged, tsMs: getCanonicalTimestampMs(tagged), uuid: getCanonicalUuid(tagged) });
@@ -343,9 +363,12 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     const items: TaggedItem[] = [];
     const keys: string[] = [];
     const liveOrdinals = new Map<string, number>();
-    for (const { tagged } of decorated) {
+    for (const entry of decorated) {
+      const { tagged } = entry;
       let key: string;
-      if (tagged.kind === 'live' && tagged.item.uuid) {
+      if (entry.key !== undefined) {
+        key = entry.key; // history row — precomputed
+      } else if (tagged.kind === 'live' && tagged.item.uuid) {
         const group = `${tagged.item.uuid}:${tagged.item.timestamp ?? 0}`;
         const ordinal = liveOrdinals.get(group) ?? 0;
         liveOrdinals.set(group, ordinal + 1);
@@ -359,10 +382,15 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
       keys.push(key);
     }
     return { allItems: items, allKeys: keys };
-  }, [historyMessages, liveOutputs, agentId]);
+  }, [historyDecorated, historyMessages.length, liveOutputs, agentId]);
 
   // One marker per user prompt, in merged order — feeds the overview rail.
-  const promptMarkers = useMemo(() => buildPromptMarkers(allItems, allKeys), [allItems, allKeys]);
+  const prevPromptMarkersRef = useRef<PromptMarker[]>([]);
+  const promptMarkers = useMemo(() => {
+    const next = buildPromptMarkers(allItems, allKeys, prevPromptMarkersRef.current);
+    prevPromptMarkersRef.current = next;
+    return next;
+  }, [allItems, allKeys]);
 
   // Track if we're programmatically scrolling (to avoid triggering onUserScroll)
   const isProgrammaticScrollRef = useRef(false);
@@ -685,15 +713,35 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     if (isLoadingHistory) return;
     if (allItems.length === 0) return;
 
+    // Only WRITE when the content grew or the view drifted off the bottom.
+    // The pin re-arms on every background history refresh while the viewed
+    // agent streams, so this loop is effectively always on for a working
+    // agent — an unconditional scrollTop write per frame fired a scroll event
+    // → virtualizer reconcile → style recalc + repaint at 60 fps even when
+    // nothing had changed. Reads on a clean layout are cheap.
+    // Checked EVERY frame: the check is reads only (a forced layout only when
+    // something dirtied it — and then the frame was going to lay out anyway);
+    // the write is what's conditional. A throttled check (every 3rd frame)
+    // let the just-mounted rows of an agent switch settle 1–2 frames off the
+    // bottom before the correction landed — visible as a flicker.
     let rafId: number;
+    let lastScrollHeight = -1;
     const enforce = () => {
-      isProgrammaticScrollRef.current = true;
-      scrollToBottom();
+      const container = scrollContainerRef.current;
+      if (container) {
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        const atBottom = scrollHeight - scrollTop - clientHeight <= 1;
+        if (scrollHeight !== lastScrollHeight || !atBottom) {
+          lastScrollHeight = scrollHeight;
+          isProgrammaticScrollRef.current = true;
+          scrollToBottom();
+        }
+      }
       rafId = requestAnimationFrame(enforce);
     };
     rafId = requestAnimationFrame(enforce);
     return () => cancelAnimationFrame(rafId);
-  }, [pinToBottom, isLoadingHistory, allItems.length, scrollToBottom]);
+  }, [pinToBottom, isLoadingHistory, allItems.length, scrollToBottom, scrollContainerRef]);
 
   // Auto-scroll to bottom when new items arrive.
   // useLayoutEffect, not useEffect: a scroll correction applied AFTER the

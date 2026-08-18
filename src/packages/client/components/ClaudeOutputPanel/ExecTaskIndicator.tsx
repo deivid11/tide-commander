@@ -32,10 +32,11 @@ export function ExecTaskIndicator({
   // keep the tool's own colors; plain lines (git, ls, grep, source dumps…)
   // get semantic / Prism highlighting. `[stderr] ` markers are peeled off
   // first so they do not confuse the code detection.
+  const streaming = task.status === 'running';
   const outputHtml = useMemo(() => {
     const clean = task.output.map((line) => line.replace(/^\[stderr\] /, ''));
-    return renderedLinesToHtml(clean);
-  }, [task.output]);
+    return renderedLinesToHtml(clean, { streaming });
+  }, [task.output, streaming]);
 
   // Auto-expand when running
   const isExpanded = userCollapsed !== null

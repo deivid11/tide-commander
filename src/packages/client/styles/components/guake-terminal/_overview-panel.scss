@@ -729,9 +729,25 @@
     &--working {
       border-color: color-mix(in srgb, var(--aop-area-color, var(--text-muted)) 70%, var(--accent-green));
       background: color-mix(in srgb, var(--aop-area-color, var(--text-muted)) 12%, var(--bg-tertiary));
-      animation: aop-area-working-breathe 2.4s ease-in-out infinite;
+      position: relative;
+
+      // Breathing glow. The shadow itself is static on a pseudo-element and
+      // only its opacity animates — a compositor-only animation. Animating
+      // box-shadow directly repainted the whole panel layer every frame.
+      &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        box-shadow: 0 0 8px color-mix(in srgb, var(--aop-area-color, var(--text-muted)) 32%, color-mix(in srgb, var(--accent-green) 28%, transparent));
+        opacity: 0;
+        will-change: opacity;
+        animation: aop-glow-breathe 2.4s ease-in-out infinite;
+      }
 
       .aop-area-color {
+        will-change: transform, opacity;
         animation: aop-area-working-color 1.2s ease-in-out infinite;
       }
     }
@@ -925,18 +941,16 @@
   }
 }
 
-@keyframes aop-area-working-breathe {
-  0%, 100% {
-    box-shadow: 0 0 0 color-mix(in srgb, var(--accent-green) 0%, transparent);
-  }
-  50% {
-    box-shadow: 0 0 8px color-mix(in srgb, var(--aop-area-color, var(--text-muted)) 32%, color-mix(in srgb, var(--accent-green) 28%, transparent));
-  }
+// Shared opacity-only breathe for static-shadow glow overlays (compositor-only).
+@keyframes aop-glow-breathe {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
 }
 
+// Dot pulse: transform + opacity only (the old box-shadow glow repainted per frame).
 @keyframes aop-area-working-color {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 0 color-mix(in srgb, var(--accent-green) 0%, transparent); }
-  50% { transform: scale(1.35); box-shadow: 0 0 7px color-mix(in srgb, var(--accent-green) 80%, transparent); }
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.35); opacity: 1; }
 }
 
 @keyframes aop-area-working-bar {
@@ -1127,7 +1141,25 @@
       color-mix(in srgb, var(--accent-cyan) 5%, var(--bg-secondary))
     );
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-green) 15%, transparent);
-    animation: aop-working-card-breathe 2.8s ease-in-out infinite;
+
+    // Breathing ring: static shadows on an overlay whose opacity animates
+    // (compositor-only). Animating box-shadow on the card itself invalidated
+    // the root layer every frame — the single biggest paint cost while an
+    // agent works.
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      z-index: 0;
+      box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--accent-green) 20%, transparent),
+        0 0 0 2px color-mix(in srgb, var(--accent-green) 14%, transparent);
+      opacity: 0;
+      will-change: opacity;
+      animation: aop-glow-breathe 2.8s ease-in-out infinite;
+    }
 
     // Soft orbital aurora. It is deliberately oversized and blurred, so its
     // motion never exposes a hard gradient edge inside the clipped card.
@@ -1211,8 +1243,10 @@
   // Subordinate of currently selected boss agent — a quiet gold "tether" that
   // breathes in sync with the badge so the connection feels alive, not loud.
   &.subordinate-of-active-boss {
-    border-left-color: color-mix(in srgb, #ffd700 55%, var(--border-color));
-    animation: aop-subordinate-tether 2.8s ease-in-out infinite;
+    // Static tether: the gold left edge no longer animates border-color (a
+    // per-frame repaint of every subordinate card while a boss is selected);
+    // the chain-link badge keeps breathing (opacity/transform, compositor).
+    border-left-color: color-mix(in srgb, #ffd700 60%, var(--border-color));
   }
 
   // Active card retains its selection color even when also marked as subordinate.
@@ -1611,19 +1645,8 @@
   }
 }
 
-@keyframes aop-working-card-breathe {
-  0%,
-  100% {
-    box-shadow:
-      inset 0 0 0 1px color-mix(in srgb, var(--accent-green) 15%, transparent),
-      0 0 0 0 color-mix(in srgb, var(--accent-green) 0%, transparent);
-  }
-  50% {
-    box-shadow:
-      inset 0 0 0 1px color-mix(in srgb, var(--accent-green) 20%, transparent),
-      0 0 0 2px color-mix(in srgb, var(--accent-green) 14%, transparent);
-  }
-}
+// (aop-working-card-breathe removed: the card ring now breathes via
+// `.aop-agent-card.working::after` opacity — see aop-glow-breathe.)
 
 @keyframes aop-working-aurora {
   0% { transform: rotate(0deg) scale(0.92); opacity: 0.22; }
@@ -1636,16 +1659,6 @@
 // Subordinate-of-active-boss tether breathe — the left edge gently brightens
 // in sync with the chain-link badge, so the connection feels like a live wire
 // without ever shouting for attention.
-@keyframes aop-subordinate-tether {
-  0%,
-  100% {
-    border-left-color: color-mix(in srgb, #ffd700 40%, var(--border-color));
-  }
-  50% {
-    border-left-color: color-mix(in srgb, #ffd700 75%, var(--border-color));
-  }
-}
-
 @keyframes aop-subordinate-breathe {
   0%,
   100% {

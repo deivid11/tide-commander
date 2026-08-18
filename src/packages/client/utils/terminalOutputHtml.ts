@@ -23,6 +23,7 @@ import { TerminalRenderer } from '../../shared/terminal-render';
 import { ansiToHtml } from './ansiToHtml';
 import { analyzeShellOutput, highlightShellLine, isSegmentBoundary, structuralHtml, wrapCode, type ShellHighlightContext } from './shellOutputHighlight';
 import { highlightCodeHtml, splitHighlightedHtml } from './codeHighlight';
+import { LruCache, contentKey } from './lruCache';
 
 const SGR_RE = /\x1b\[[0-9;]*m/g;
 const HAS_SGR_RE = /\x1b\[[0-9;]*m/;
@@ -35,10 +36,40 @@ const TRAILING_WS_RE = /[ \t]+((?:\x1b\[[0-9;]*m)*)$/;
 // terminal renderer keeps at most 10k lines anyway.
 export const MAX_RENDER_CHARS = 512_000;
 
+// ---------------------------------------------------------------------------
+// Memoization — three levels, all keyed by content hash so remounts (virtual
+// list rows scrolling back in), OutputLine/HistoryLine showing the same
+// output, and streaming re-renders never redo work already done:
+//   1. whole output text  → rendered HTML lines (inline rows, modal)
+//   2. segment (between section markers) → HTML lines (exec cards: only the
+//      growing tail segment is recomputed on each chunk)
+//   3. single line (+ctx) → HTML (streaming tail; per-line Prism/semantic)
+// Budgets are in HTML chars; entries are strings/arrays already in memory.
+// ---------------------------------------------------------------------------
+const htmlArraySize = (arr: string[]): number => arr.reduce((n, l) => n + l.length + 8, 16);
+const outputCache = new LruCache<string[]>(300, 16_000_000, htmlArraySize);
+const segmentCache = new LruCache<string[]>(600, 8_000_000, htmlArraySize);
+const analysisCache = new LruCache<ShellHighlightContext>(1000, 1_000_000, () => 64);
 // Per-line memo: streaming exec cards re-render their whole visible window on
 // every chunk, and the same lines come back unchanged each time.
 const LINE_CACHE_MAX = 4000;
 const lineCache = new Map<string, string>();
+
+// While a segment is still streaming its shape is decided by its head (long
+// before line 240): keying the memo on that head keeps the context stable and
+// free while the tail grows. Finished segments are analysed in full once —
+// their rendered lines are cached under the whole-content key anyway.
+const ANALYSIS_WINDOW = 240;
+
+/** analyzeShellOutput with a content-hash memo (the regex sweep is ~1 ms/500 lines). */
+function analyzeCached(lines: string[], streaming: boolean): ShellHighlightContext {
+  if (!streaming) return analyzeShellOutput(lines);
+  const head = lines.length > ANALYSIS_WINDOW ? lines.slice(0, ANALYSIS_WINDOW) : lines;
+  const key = contentKey(head.join('\n'));
+  const hit = analysisCache.get(key);
+  if (hit) return hit;
+  return analysisCache.set(key, analyzeShellOutput(head));
+}
 
 const NO_CTX: ShellHighlightContext = { diff: false, format: null, lang: null };
 
@@ -92,6 +123,17 @@ export function renderTerminalLines(text: string): string[] {
   return lines.slice(0, end).map((line) => line.replace(TRAILING_WS_RE, '$1'));
 }
 
+export interface RenderOptions {
+  /**
+   * The output is still growing (running exec card): code segments are
+   * highlighted line by line (per-line memo, only new lines cost anything)
+   * instead of one Prism pass over the whole block per chunk. Once the
+   * command finishes the caller renders once more without this flag and the
+   * block pass (multi-line comment fidelity) is cached for good.
+   */
+  streaming?: boolean;
+}
+
 /**
  * Rendered lines converted to HTML strings (one per line, safe to inject).
  *
@@ -99,29 +141,42 @@ export function renderTerminalLines(text: string): string[] {
  * are split at section markers / separators and each segment is analysed on
  * its own, so a TSX dump followed by an SCSS dump each get the right grammar
  * and a `git status` before a `git diff` does not inherit diff context.
+ *
+ * Memoized on the text's content hash — repeated calls with the same text
+ * (re-renders, remounts, both render paths) return the cached array.
  */
 export function terminalOutputToHtmlLines(text: string): string[] {
-  return renderedLinesToHtml(renderTerminalLines(text));
+  const key = contentKey(text);
+  const hit = outputCache.get(key);
+  if (hit) return hit;
+  return outputCache.set(key, renderedLinesToHtml(renderTerminalLines(text)));
 }
 
 /** Same as terminalOutputToHtmlLines for lines that were already rendered (exec cards). */
-export function renderedLinesToHtml(lines: string[]): string[] {
+export function renderedLinesToHtml(lines: string[], opts: RenderOptions = {}): string[] {
   const out: string[] = new Array(lines.length);
   let start = 0;
   for (let i = 0; i <= lines.length; i += 1) {
     const boundary = i === lines.length || isSegmentBoundary(lines[i]);
     if (!boundary) continue;
-    if (i > start) renderSegment(lines, start, i, out);
+    if (i > start) renderSegment(lines, start, i, out, opts);
     if (i < lines.length) out[i] = shellLineToHtml(lines[i], NO_CTX);
     start = i + 1;
   }
   return out;
 }
 
-function renderSegment(lines: string[], start: number, end: number, out: string[]): void {
+function renderSegment(lines: string[], start: number, end: number, out: string[], opts: RenderOptions): void {
   const seg = lines.slice(start, end);
-  const ctx = analyzeShellOutput(seg);
-  if (ctx.format === 'code' && ctx.lang) {
+  const key = (opts.streaming ? 's|' : 'b|') + contentKey(seg.join('\n'));
+  const cached = segmentCache.get(key);
+  if (cached && cached.length === seg.length) {
+    for (let i = 0; i < seg.length; i += 1) out[start + i] = cached[i];
+    return;
+  }
+  const ctx = analyzeCached(seg, !!opts.streaming);
+  const rendered: string[] = new Array(seg.length);
+  if (ctx.format === 'code' && ctx.lang && !opts.streaming) {
     // A source-file dump: highlight the whole block at once so block
     // comments / template strings that span lines keep their state, then
     // split back into lines. Structural lines (`Exit code`, wc/path lines)
@@ -129,13 +184,15 @@ function renderSegment(lines: string[], start: number, end: number, out: string[
     const prismLines = splitHighlightedHtml(highlightCodeHtml(seg.join('\n'), ctx.lang));
     for (let i = 0; i < seg.length; i += 1) {
       const line = seg[i];
-      out[start + i] = HAS_SGR_RE.test(line)
+      rendered[i] = HAS_SGR_RE.test(line)
         ? ansiToHtml(line)
         : (structuralHtml(line, ctx) ?? (prismLines[i] !== undefined ? wrapCode(prismLines[i]) : shellLineToHtml(line, ctx)));
     }
-    return;
+  } else {
+    for (let i = 0; i < seg.length; i += 1) rendered[i] = shellLineToHtml(seg[i], ctx);
   }
-  for (let i = 0; i < seg.length; i += 1) out[start + i] = shellLineToHtml(seg[i], ctx);
+  segmentCache.set(key, rendered);
+  for (let i = 0; i < seg.length; i += 1) out[start + i] = rendered[i];
 }
 
 /** Whole output as one HTML block (lines joined by `\n`, for a `<pre>`). */

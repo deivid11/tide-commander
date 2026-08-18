@@ -45,19 +45,31 @@
 }
 
 .bg-task-dot {
+  position: relative;
   width: 7px;
   height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
   background: var(--accent-cyan);
-  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-cyan) 55%, transparent);
-  animation: bg-task-pulse 1.6s ease-out infinite;
+
+  // Expanding ripple as a transform/opacity animation on a pseudo-element
+  // (compositor-only). The previous box-shadow spread animation repainted the
+  // rail — and the root layer — every frame for as long as any task ran.
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--accent-cyan) 55%, transparent);
+    will-change: transform, opacity;
+    animation: bg-task-pulse 1.6s ease-out infinite;
+  }
 }
 
 @keyframes bg-task-pulse {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-cyan) 55%, transparent); }
-  70% { box-shadow: 0 0 0 6px transparent; }
-  100% { box-shadow: 0 0 0 0 transparent; }
+  0% { transform: scale(1); opacity: 1; }
+  70% { transform: scale(2.4); opacity: 0; }
+  100% { transform: scale(2.4); opacity: 0; }
 }
 
 .bg-tasks-panel {

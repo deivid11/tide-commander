@@ -140,7 +140,9 @@ function TaskOutputTail({ agentId, task, linkedExec }: {
   );
 }
 
-export function BackgroundTasksRail({ agentId, scrollContainerRef }: BackgroundTasksRailProps) {
+// Memo: props are (agentId, ref) — the parent list re-renders per live chunk
+// while this rail only needs its own store subscriptions.
+export const BackgroundTasksRail = React.memo(function BackgroundTasksRail({ agentId, scrollContainerRef }: BackgroundTasksRailProps) {
   const tasks = useBackgroundTasksForAgent(agentId);
   const execTasks = useExecTasks(agentId);
   const [open, setOpen] = useState(false);
@@ -255,6 +257,6 @@ export function BackgroundTasksRail({ agentId, scrollContainerRef }: BackgroundT
       )}
     </div>
   );
-}
+});
 
 export default BackgroundTasksRail;

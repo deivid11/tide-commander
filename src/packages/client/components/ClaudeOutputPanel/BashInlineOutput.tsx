@@ -38,7 +38,10 @@ export function BashInlineToggle({ enabled }: { enabled: boolean }) {
  * ANSI at all (git, ls, grep, cat…) get semantic highlighting instead:
  * diffs, `git status`, log levels, numbers, hashes, and clickable file paths.
  */
-export function BashInlineOutput({ text, onFileClick }: { text: string; onFileClick?: (path: string) => void }) {
+export const BashInlineOutput = React.memo(function BashInlineOutput({ text, onFileClick }: { text: string; onFileClick?: (path: string) => void }) {
+  // terminalOutputToHtml is itself memoized on the text's content hash, so a
+  // remount (virtualized row scrolling back in) or the history/live twin of
+  // this row reuses the rendered HTML; useMemo only skips the hash+lookup.
   const html = React.useMemo(() => (text.trim() ? terminalOutputToHtml(text) : ''), [text]);
   const handleClick = React.useCallback((e: React.MouseEvent<HTMLElement>) => {
     if (!onFileClick) return;
@@ -54,4 +57,4 @@ export function BashInlineOutput({ text, onFileClick }: { text: string; onFileCl
       <pre onClick={onFileClick ? handleClick : undefined} dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );
-}
+});

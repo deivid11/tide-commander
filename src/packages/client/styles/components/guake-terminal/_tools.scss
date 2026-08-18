@@ -2681,6 +2681,11 @@
 }
 
 .exec-task-cursor {
+  // inline-block + will-change: an opacity animation on a plain inline span
+  // cannot be composited, so it ticked a main-thread style recalc every frame
+  // for the whole run of any exec task.
+  display: inline-block;
+  will-change: opacity;
   animation: blink 1s step-end infinite;
   color: var(--accent-cyan);
 }

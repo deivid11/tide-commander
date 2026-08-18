@@ -166,6 +166,223 @@ interface AreaGroup {
   agents: Agent[];
 }
 
+// ── Identity preservation for derived collections ──
+// This panel re-renders on every agent update while agents work (it lists
+// them, sorted by recency). Everything derived from `agents` is recomputed
+// then, but most of it comes out identical — returning the PREVIOUS
+// collection when the new one is element-wise equal keeps `renderAgentCards`
+// (and the memoized area sections / AgentCards below it) stable, so a single
+// agent update rebuilds one section instead of the whole list.
+function sameArray<T>(a: readonly T[] | undefined, b: readonly T[]): a is T[] {
+  if (!a || a.length !== b.length) return false;
+  for (let i = 0; i < b.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+function keepArray<T>(prev: readonly T[] | undefined, next: T[]): T[] {
+  return sameArray(prev, next) ? (prev as T[]) : next;
+}
+function keepMap<K, V>(prev: Map<K, V>, next: Map<K, V>, eq: (a: V, b: V) => boolean = (a, b) => a === b): Map<K, V> {
+  if (prev.size !== next.size) return next;
+  for (const [k, v] of next) {
+    const pv = prev.get(k);
+    if (pv === undefined || !eq(pv, v)) return next;
+  }
+  return prev;
+}
+function keepSet<T>(prev: Set<T> | null, next: Set<T> | null): Set<T> | null {
+  if (!prev || !next) return prev === next ? prev : next;
+  if (prev.size !== next.size) return next;
+  for (const v of next) if (!prev.has(v)) return next;
+  return prev;
+}
+
+// ── Area group section ──
+// One `.aop-area-group` (header + optional prompt editor + cards). Memoized so
+// that, on an agent update, only the section whose `group` object changed
+// rebuilds its element tree — element creation for every group on every
+// update was ~80% of the panel's render time.
+interface AreaGroupSectionProps {
+  group: AreaGroup;
+  groupByArea: boolean;
+  isCollapsed: boolean;
+  unassignedLabel: string;
+  isEditingPrompt: boolean;
+  /** '' unless this section is the one being edited (keeps the prop stable). */
+  editingPromptText: string;
+  setEditingPromptText: (text: string) => void;
+  setEditingPromptAreaId: (areaId: string | null) => void;
+  toggleArea: (areaKey: string) => void;
+  openAreaContextMenu: (area: DrawingArea, position: { x: number; y: number }) => void;
+  toggleAreaVisibility: (areaId: string) => void;
+  renderAgentCards: (groupAgents: Agent[]) => React.ReactNode;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}
+
+const AreaGroupSection = React.memo(function AreaGroupSection({
+  group,
+  groupByArea,
+  isCollapsed,
+  unassignedLabel,
+  isEditingPrompt,
+  editingPromptText,
+  setEditingPromptText,
+  setEditingPromptAreaId,
+  toggleArea,
+  openAreaContextMenu,
+  toggleAreaVisibility,
+  renderAgentCards,
+  t,
+}: AreaGroupSectionProps) {
+  const areaKey = group.area?.id || '__unassigned__';
+  const areaName = group.area?.name || (groupByArea ? unassignedLabel : '');
+  const areaColor = group.area?.color || '#6272a4';
+  const workingAgentCount = group.agents.filter(agent => agent.status === 'working').length;
+  return (
+    <div className="aop-area-group">
+      {/* Only show area header when grouping is on */}
+      {groupByArea && (
+        <div
+          className={`aop-area-header${workingAgentCount > 0 ? ' aop-area-header--working' : ''}`}
+          data-area-id={areaKey}
+          onClick={() => toggleArea(areaKey)}
+          onContextMenu={(event) => {
+            if (!group.area) return;
+            event.preventDefault();
+            event.stopPropagation();
+            openAreaContextMenu(group.area, {
+              x: event.clientX,
+              y: event.clientY,
+            });
+          }}
+          style={{
+            borderLeftColor: areaColor,
+            '--aop-area-color': areaColor,
+          } as React.CSSProperties}
+        >
+          <span className="aop-area-expand"><Icon name={isCollapsed ? 'caret-right' : 'caret-down'} size={10} /></span>
+          <span className="aop-area-color" style={{ background: areaColor }} />
+          <span
+            className="aop-area-name"
+            onContextMenu={(event) => {
+              if (!group.area) return;
+              event.preventDefault();
+              event.stopPropagation();
+              openAreaContextMenu(group.area, {
+                x: event.clientX,
+                y: event.clientY,
+              });
+            }}
+          >
+            {areaName}
+          </span>
+          <button
+            type="button"
+            className="aop-area-eye-btn"
+            title="Hide area"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              toggleAreaVisibility(areaKey);
+            }}
+          >
+            <Icon name="target" size={14} />
+          </button>
+          {group.area && (
+            <button
+              type="button"
+              className="aop-area-eye-btn"
+              title="Edit area prompt"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const area = group.area!;
+                if (isEditingPrompt) {
+                  setEditingPromptAreaId(null);
+                } else {
+                  setEditingPromptText(area.prompt || '');
+                  setEditingPromptAreaId(area.id);
+                }
+              }}
+            >
+              <Icon name="edit" size={12} />
+            </button>
+          )}
+          {group.area && (() => {
+            const area = group.area;
+            return (
+            <button
+              type="button"
+              className="aop-area-add-btn"
+              title={t('common:agentBar.newAgent')}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const rect = event.currentTarget.getBoundingClientRect();
+                openAreaContextMenu(area, {
+                  x: rect.left,
+                  y: rect.bottom + 6,
+                });
+              }}
+            >
+              +
+            </button>
+            );
+          })()}
+          {workingAgentCount > 0 && (
+            <span
+              className="aop-area-working"
+              title={`${workingAgentCount} working agent${workingAgentCount === 1 ? '' : 's'}`}
+              aria-label={`${workingAgentCount} working agent${workingAgentCount === 1 ? '' : 's'}`}
+            >
+              <span className="aop-area-working-bars" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
+              <span>{workingAgentCount}</span>
+            </span>
+          )}
+          <span className="aop-area-count">{group.agents.length}</span>
+        </div>
+      )}
+      {isEditingPrompt && group.area && (
+        <div className="aop-area-prompt-editor" onClick={(e) => e.stopPropagation()}>
+          <textarea
+            className="aop-area-prompt-textarea"
+            value={editingPromptText}
+            onChange={(e) => setEditingPromptText(e.target.value)}
+            placeholder="System prompt for agents in this area..."
+            rows={3}
+            autoFocus
+          />
+          <div className="aop-area-prompt-actions">
+            <button
+              className="aop-area-prompt-save"
+              onClick={() => {
+                store.updateArea(group.area!.id, { prompt: editingPromptText });
+                setEditingPromptAreaId(null);
+              }}
+            >
+              Save
+            </button>
+            <button
+              className="aop-area-prompt-cancel"
+              onClick={() => setEditingPromptAreaId(null)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {(!groupByArea || !isCollapsed) && (
+        <div className={groupByArea ? 'aop-area-content' : undefined}>
+          {renderAgentCards(group.agents)}
+        </div>
+      )}
+    </div>
+  );
+});
+
 export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agentListRef: externalAgentListRef, twoFingerState, expandedAreas: externalExpandedAreas, onToggleArea: externalOnToggleArea, onSetExpandedAreas }: AgentOverviewPanelProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const allAgents = useAgentsArray();
@@ -185,28 +402,41 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   const dockPosition = useAgentDockPosition();
 
   // Resolve subordinate Agent objects per boss for the SubordinateProgressDots indicator.
+  const prevSubordinatesByBossRef = useRef<Map<string, Agent[]>>(new Map());
   const subordinatesByBoss = useMemo(() => {
     const byId = new Map(allAgents.map((a) => [a.id, a]));
     const map = new Map<string, Agent[]>();
+    const prev = prevSubordinatesByBossRef.current;
     for (const agent of allAgents) {
       if ((agent.isBoss || agent.class === 'boss') && agent.subordinateIds && agent.subordinateIds.length > 0) {
         const subs = agent.subordinateIds
           .map((id) => byId.get(id))
           .filter((a): a is Agent => a !== undefined);
-        if (subs.length > 0) map.set(agent.id, subs);
+        if (subs.length > 0) {
+          // Keep the previous array when the subordinate objects are the same
+          // (AgentCard prop → memo stability across unrelated agent updates).
+          map.set(agent.id, keepArray(prev.get(agent.id), subs));
+        }
       }
     }
-    return map;
+    const kept = keepMap(prev, map);
+    prevSubordinatesByBossRef.current = kept;
+    return kept;
   }, [allAgents]);
 
   // When the currently selected agent is a boss, highlight its subordinates in the panel
   // so the user can quickly see which agents report to the boss they just clicked.
+  const prevSubordinatesOfActiveBossRef = useRef<Set<string> | null>(null);
   const subordinatesOfActiveBoss = useMemo(() => {
     const active = allAgents.find((a) => a.id === activeAgentId);
-    if (!active) return null;
-    const isBoss = active.isBoss || active.class === 'boss';
-    if (!isBoss || !active.subordinateIds || active.subordinateIds.length === 0) return null;
-    return new Set(active.subordinateIds);
+    let next: Set<string> | null = null;
+    if (active) {
+      const isBoss = active.isBoss || active.class === 'boss';
+      if (isBoss && active.subordinateIds && active.subordinateIds.length > 0) next = new Set(active.subordinateIds);
+    }
+    const kept = keepSet(prevSubordinatesOfActiveBossRef.current, next);
+    prevSubordinatesOfActiveBossRef.current = kept;
+    return kept;
   }, [allAgents, activeAgentId]);
 
   // Load persisted config from localStorage
@@ -465,31 +695,49 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   }, []);
 
   // Map agent -> area info (color + name) for badge display
-  const agentAreaInfo = useMemo(() => {
-    const map = new Map<string, { color: string; name: string }>();
-    for (const agent of agents) {
-      const area = store.getAreaForAgent(agent.id);
-      if (!area || area.archived) continue;
-      map.set(agent.id, { color: area.color, name: area.name });
-    }
-    return map;
-  }, [agents, areas]);
-
-  // Map agent -> area name for the area SEARCH path only. Unlike agentAreaInfo
-  // (used for badge display, which excludes archived areas), this includes
-  // archived (disabled) areas so the area search matches across ALL areas,
-  // regardless of their enabled/disabled state.
-  const agentAreaSearchName = useMemo(() => {
-    const map = new Map<string, string>();
+  // One getAreaForAgent pass per (agents, areas) change feeds three lookups
+  // (badge info, search name, area id) — this panel re-renders on every agent
+  // update while agents work, and three separate O(agents) area walks per
+  // render were the top memo cost in the profiler.
+  const prevAgentAreaInfoRef = useRef<Map<string, { color: string; name: string }>>(new Map());
+  const prevAgentAreaSearchNameRef = useRef<Map<string, string>>(new Map());
+  const prevAgentToAreaIdRef = useRef<Map<string, string>>(new Map());
+  const { agentAreaInfo, agentAreaSearchName, agentToAreaId } = useMemo(() => {
+    const info = new Map<string, { color: string; name: string }>();
+    // Search path includes archived (disabled) areas so the area search
+    // matches across ALL areas, regardless of their enabled/disabled state;
+    // the badge/grouping maps exclude them.
+    const searchName = new Map<string, string>();
+    const areaId = new Map<string, string>();
+    const prevInfo = prevAgentAreaInfoRef.current;
     for (const agent of agents) {
       const area = store.getAreaForAgent(agent.id);
       if (!area) continue;
-      map.set(agent.id, area.name);
+      searchName.set(agent.id, area.name);
+      if (area.archived) continue;
+      // Reuse the previous {color,name} object when unchanged — it is an
+      // AgentCard prop, and a fresh object per agent per render made every
+      // card re-render on every agent update.
+      const before = prevInfo.get(agent.id);
+      info.set(agent.id, before && before.color === area.color && before.name === area.name
+        ? before
+        : { color: area.color, name: area.name });
+      areaId.set(agent.id, area.id);
     }
-    return map;
+    const keptInfo = keepMap(prevAgentAreaInfoRef.current, info);
+    const keptSearchName = keepMap(prevAgentAreaSearchNameRef.current, searchName);
+    const keptAreaId = keepMap(prevAgentToAreaIdRef.current, areaId);
+    prevAgentAreaInfoRef.current = keptInfo;
+    prevAgentAreaSearchNameRef.current = keptSearchName;
+    prevAgentToAreaIdRef.current = keptAreaId;
+    return { agentAreaInfo: keptInfo, agentAreaSearchName: keptSearchName, agentToAreaId: keptAreaId };
   }, [agents, areas]);
 
-  // Group tool executions by agent
+  // Group tool executions by agent. Per-agent arrays keep their identity when
+  // that agent's executions did not change: a new array for EVERY agent on
+  // each tool start/finish defeated AgentCard's memo across the whole panel
+  // (every card re-rendered on every tool event of any agent).
+  const prevToolsByAgentRef = useRef<Map<string, ToolExecution[]>>(new Map());
   const toolsByAgent = useMemo(() => {
     const map = new Map<string, ToolExecution[]>();
     for (const exec of toolExecutions) {
@@ -497,10 +745,15 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       list.push(exec);
       map.set(exec.agentId, list);
     }
-    return map;
+    const prev = prevToolsByAgentRef.current;
+    for (const [id, list] of map) map.set(id, keepArray(prev.get(id), list));
+    const kept = keepMap(prev, map);
+    prevToolsByAgentRef.current = kept;
+    return kept;
   }, [toolExecutions]);
 
-  // Group subagents by parent
+  // Group subagents by parent (same identity preservation as toolsByAgent).
+  const prevSubagentsByParentRef = useRef<Map<string, Subagent[]>>(new Map());
   const subagentsByParent = useMemo(() => {
     const map = new Map<string, Subagent[]>();
     for (const [, sub] of subagents) {
@@ -508,21 +761,15 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       list.push(sub);
       map.set(sub.parentAgentId, list);
     }
-    return map;
+    const prev = prevSubagentsByParentRef.current;
+    for (const [id, list] of map) map.set(id, keepArray(prev.get(id), list));
+    const kept = keepMap(prev, map);
+    prevSubagentsByParentRef.current = kept;
+    return kept;
   }, [subagents]);
 
-  // Map agent ID → area ID for efficient lookups
-  const agentToAreaId = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const agent of agents) {
-      const area = store.getAreaForAgent(agent.id);
-      if (!area || area.archived) continue;
-      map.set(agent.id, area.id);
-    }
-    return map;
-  }, [agents, areas]);
-
   // Filter agents — deep search through file changes and user tasks
+  const prevSearchMatchContextsRef = useRef<Map<string, SearchMatchContext>>(new Map());
   const [filteredAgents, searchMatchContexts] = useMemo(() => {
     const activeAreaId = agentToAreaId.get(activeAgentId) ?? null;
     const contexts = new Map<string, SearchMatchContext>();
@@ -574,7 +821,9 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       return true;
     });
 
-    return [result, contexts] as const;
+    const keptContexts = keepMap(prevSearchMatchContextsRef.current, contexts, (a, b) => a.type === b.type && a.text === b.text);
+    prevSearchMatchContextsRef.current = keptContexts;
+    return [result, keptContexts] as const;
   }, [agents, filterMode, searchQuery, areaSearchQuery, agentAreaSearchName, sameAreaOnly, agentToAreaId, activeAgentId, fileChanges, visibleProviders]);
 
   // Sort agents within groups — uses stable ordering to prevent scroll-jumping.
@@ -646,26 +895,44 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   }, [sortMode, toolsByAgent, agentsWithUnseenOutput]);
 
   // Build area groups (or flat list), applying the area visibility filter
+  const prevAreaGroupsRef = useRef<Map<string, AreaGroup>>(new Map());
   const areaGroups = useMemo(() => {
     if (!groupByArea) {
       // Flat list: single group with no area
-      return [{ area: null, agents: sortAgents(filteredAgents, '__flat__') }] as AreaGroup[];
+      const before = prevAreaGroupsRef.current.get('__flat__');
+      const sorted = keepArray(before?.agents, sortAgents(filteredAgents, '__flat__'));
+      const group = before && before.agents === sorted ? before : { area: null, agents: sorted };
+      prevAreaGroupsRef.current = new Map([['__flat__', group]]);
+      return [group] as AreaGroup[];
     }
 
     const agentsByAreaId = new Map<string, Agent[]>();
     const unassignedAgents: Agent[] = [];
     for (const agent of filteredAgents) {
-      const area = store.getAreaForAgent(agent.id);
-      if (!area || area.archived) {
+      // agentToAreaId already excludes archived areas (same rule as before);
+      // reusing it avoids a second point-in-area walk over every agent.
+      const areaId = agentToAreaId.get(agent.id);
+      if (!areaId) {
         unassignedAgents.push(agent);
         continue;
       }
-      const list = agentsByAreaId.get(area.id);
+      const list = agentsByAreaId.get(areaId);
       if (list) list.push(agent);
-      else agentsByAreaId.set(area.id, [agent]);
+      else agentsByAreaId.set(areaId, [agent]);
     }
 
     const groups: AreaGroup[] = [];
+    // Reuse the previous group object (and its sorted array) when nothing in
+    // it changed — the area sections below are memoized on it.
+    const prevGroups = prevAreaGroupsRef.current;
+    const nextGroups = new Map<string, AreaGroup>();
+    const keepGroup = (key: string, area: DrawingArea | null, sorted: Agent[]): AreaGroup => {
+      const before = prevGroups.get(key);
+      const agentsKept = keepArray(before?.agents, sorted);
+      const group = before && before.area === area && before.agents === agentsKept ? before : { area, agents: agentsKept };
+      nextGroups.set(key, group);
+      return group;
+    };
 
     for (const [areaId, area] of areas) {
       if (area.archived) continue;
@@ -673,14 +940,15 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       if (visibleAreaIds && !visibleAreaIds.has(areaId)) continue;
       const areaAgents = agentsByAreaId.get(areaId) || [];
       if (areaAgents.length > 0) {
-        groups.push({ area, agents: sortAgents(areaAgents, `area_${areaId}`) });
+        groups.push(keepGroup(`area_${areaId}`, area, sortAgents(areaAgents, `area_${areaId}`)));
       }
     }
 
     // Unassigned agents: show when no filter or when filter explicitly allows __unassigned__
     if (unassignedAgents.length > 0 && (!visibleAreaIds || visibleAreaIds.has('__unassigned__'))) {
-      groups.push({ area: null, agents: sortAgents(unassignedAgents, '__unassigned__') });
+      groups.push(keepGroup('__unassigned__', null, sortAgents(unassignedAgents, '__unassigned__')));
     }
+    prevAreaGroupsRef.current = nextGroups;
 
     groups.sort((a, b) => {
       // Keep Unassigned after named areas, while ordering named areas A-Z.
@@ -691,7 +959,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     });
 
     return groups;
-  }, [areas, filteredAgents, sortAgents, groupByArea, visibleAreaIds]);
+  }, [areas, filteredAgents, sortAgents, groupByArea, visibleAreaIds, agentToAreaId]);
   const displayedAreaGroups = useMemo(() => {
     if (!splitAreas || !groupByArea) return areaGroups;
     const byId = new Map(areaGroups.map((group) => [group.area?.id || '__unassigned__', group]));
@@ -765,7 +1033,8 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     });
   };
 
-  const toggleArea = (areaKey: string) => {
+  const unassignedLabel = t('terminal:overview.unassigned');
+  const toggleArea = useCallback((areaKey: string) => {
     if (splitAreas && groupByArea) {
       // Accordion: opening an area closes every other one; closing the open
       // area leaves everything collapsed.
@@ -784,7 +1053,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       else next.add(areaKey);
       return next;
     });
-  };
+  }, [splitAreas, groupByArea, expandedAreas, onSetExpandedAreas, externalOnToggleArea]);
 
   // When the selected agent changes, make sure its area is expanded so the
   // card is actually visible. Without this, selecting an agent from another
@@ -1195,158 +1464,27 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         ) : (
           displayedAreaGroups.map((group, groupIndex) => {
             const areaKey = group.area?.id || '__unassigned__';
-            const areaName = group.area?.name || (groupByArea ? t('terminal:overview.unassigned') : '');
-            const areaColor = group.area?.color || '#6272a4';
-            const workingAgentCount = group.agents.filter(agent => agent.status === 'working').length;
-            const isCollapsed = !expandedAreas.has(areaKey);
-
+            const isEditingPrompt = editingPromptAreaId === areaKey && !!group.area;
             return (
               <React.Fragment key={`${splitAreas && groupIndex < splitAreaDividerIndex ? 'recent' : 'all'}-${areaKey}-${groupIndex}`}>
               {splitAreaDividerIndex > 0 && groupIndex === splitAreaDividerIndex && (
                 <div className="aop-split-areas-divider"><span>All areas</span></div>
               )}
-              <div className="aop-area-group">
-                {/* Only show area header when grouping is on */}
-                {groupByArea && (
-                  <div
-                    className={`aop-area-header${workingAgentCount > 0 ? ' aop-area-header--working' : ''}`}
-                    data-area-id={areaKey}
-                    onClick={() => toggleArea(areaKey)}
-                    onContextMenu={(event) => {
-                      if (!group.area) return;
-                      event.preventDefault();
-                      event.stopPropagation();
-                      openAreaContextMenu(group.area, {
-                        x: event.clientX,
-                        y: event.clientY,
-                      });
-                    }}
-                    style={{
-                      borderLeftColor: areaColor,
-                      '--aop-area-color': areaColor,
-                    } as React.CSSProperties}
-                  >
-                    <span className="aop-area-expand"><Icon name={isCollapsed ? 'caret-right' : 'caret-down'} size={10} /></span>
-                    <span className="aop-area-color" style={{ background: areaColor }} />
-                    <span
-                      className="aop-area-name"
-                      onContextMenu={(event) => {
-                        if (!group.area) return;
-                        event.preventDefault();
-                        event.stopPropagation();
-                        openAreaContextMenu(group.area, {
-                          x: event.clientX,
-                          y: event.clientY,
-                        });
-                      }}
-                    >
-                      {areaName}
-                    </span>
-                    <button
-                      type="button"
-                      className="aop-area-eye-btn"
-                      title="Hide area"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        toggleAreaVisibility(areaKey);
-                      }}
-                    >
-                      <Icon name="target" size={14} />
-                    </button>
-                    {group.area && (
-                      <button
-                        type="button"
-                        className="aop-area-eye-btn"
-                        title="Edit area prompt"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          const area = group.area!;
-                          if (editingPromptAreaId === area.id) {
-                            setEditingPromptAreaId(null);
-                          } else {
-                            setEditingPromptText(area.prompt || '');
-                            setEditingPromptAreaId(area.id);
-                          }
-                        }}
-                      >
-                        <Icon name="edit" size={12} />
-                      </button>
-                    )}
-                    {group.area && (() => {
-                      const area = group.area;
-                      return (
-                      <button
-                        type="button"
-                        className="aop-area-add-btn"
-                        title={t('common:agentBar.newAgent')}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          const rect = event.currentTarget.getBoundingClientRect();
-                          openAreaContextMenu(area, {
-                            x: rect.left,
-                            y: rect.bottom + 6,
-                          });
-                        }}
-                      >
-                        +
-                      </button>
-                      );
-                    })()}
-                    {workingAgentCount > 0 && (
-                      <span
-                        className="aop-area-working"
-                        title={`${workingAgentCount} working agent${workingAgentCount === 1 ? '' : 's'}`}
-                        aria-label={`${workingAgentCount} working agent${workingAgentCount === 1 ? '' : 's'}`}
-                      >
-                        <span className="aop-area-working-bars" aria-hidden="true">
-                          <i />
-                          <i />
-                          <i />
-                        </span>
-                        <span>{workingAgentCount}</span>
-                      </span>
-                    )}
-                    <span className="aop-area-count">{group.agents.length}</span>
-                  </div>
-                )}
-                {editingPromptAreaId === areaKey && group.area && (
-                  <div className="aop-area-prompt-editor" onClick={(e) => e.stopPropagation()}>
-                    <textarea
-                      className="aop-area-prompt-textarea"
-                      value={editingPromptText}
-                      onChange={(e) => setEditingPromptText(e.target.value)}
-                      placeholder="System prompt for agents in this area..."
-                      rows={3}
-                      autoFocus
-                    />
-                    <div className="aop-area-prompt-actions">
-                      <button
-                        className="aop-area-prompt-save"
-                        onClick={() => {
-                          store.updateArea(group.area!.id, { prompt: editingPromptText });
-                          setEditingPromptAreaId(null);
-                        }}
-                      >
-                        Save
-                      </button>
-                      <button
-                        className="aop-area-prompt-cancel"
-                        onClick={() => setEditingPromptAreaId(null)}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {(!groupByArea || !isCollapsed) && (
-                  <div className={groupByArea ? 'aop-area-content' : undefined}>
-                    {renderAgentCards(group.agents)}
-                  </div>
-                )}
-              </div>
+              <AreaGroupSection
+                group={group}
+                groupByArea={groupByArea}
+                isCollapsed={!expandedAreas.has(areaKey)}
+                unassignedLabel={unassignedLabel}
+                isEditingPrompt={isEditingPrompt}
+                editingPromptText={isEditingPrompt ? editingPromptText : ''}
+                setEditingPromptText={setEditingPromptText}
+                setEditingPromptAreaId={setEditingPromptAreaId}
+                toggleArea={toggleArea}
+                openAreaContextMenu={openAreaContextMenu}
+                toggleAreaVisibility={toggleAreaVisibility}
+                renderAgentCards={renderAgentCards}
+                t={t}
+              />
               </React.Fragment>
             );
           })

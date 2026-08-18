@@ -69,10 +69,16 @@ function getAgentArea(agent: Agent, areas: DrawingArea[]): DrawingArea | null {
   return null;
 }
 
+const NO_AGENTS: Agent[] = [];
+
 export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
-  const agents = useAgentsArray();
+  const liveAgents = useAgentsArray();
+  // Closed modal: don't feed the (agents × filters) memos below — this
+  // component stays mounted inside the overview panel and re-rendered on
+  // every agent update while agents work.
+  const agents = isOpen ? liveAgents : NO_AGENTS;
   const areasMap = useAreas();
-  const areas = areasToArray(areasMap);
+  const areas = useMemo(() => areasToArray(areasMap), [areasMap]);
   const skills = useSkillsArray();
 
   // Filters

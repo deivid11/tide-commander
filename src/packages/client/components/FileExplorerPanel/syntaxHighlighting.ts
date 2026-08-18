@@ -6,6 +6,7 @@
  */
 
 import Prism from 'prismjs';
+import { LruCache } from '../../utils/lruCache';
 
 // Import Prism language components
 // NOTE: Import order matters! Base languages must come before those that extend them.
@@ -178,15 +179,27 @@ function escapeHtml(text: string): string {
  * Returns an HTML string safe for dangerouslySetInnerHTML.
  * Falls back to HTML-escaped plain text if the language is unsupported.
  */
+// Memo: chat rows (OutputLine/HistoryLine) highlight their Bash command on
+// EVERY render and re-mount on scroll / the live→history swap; markdown code
+// blocks and hover previews re-highlight the same text too. Keyed by
+// language + code (V8 caches string hashes, so repeat lookups are O(1)),
+// bounded so long sessions cannot pin memory.
+const highlightCache = new LruCache<string>(1024, 6 * 1024 * 1024, (html) => html.length);
+
 export function highlightCode(code: string, language: string): string {
   if (!code) return '';
   const grammar = Prism.languages[language];
   if (!grammar) return escapeHtml(code);
+  const key = `${language}\u0000${code}`;
+  const hit = highlightCache.get(key);
+  if (hit !== undefined) return hit;
+  let html: string;
   try {
-    return Prism.highlight(code, grammar, language);
+    html = Prism.highlight(code, grammar, language);
   } catch {
-    return escapeHtml(code);
+    html = escapeHtml(code);
   }
+  return highlightCache.set(key, html);
 }
 
 // Re-export Prism for direct usage if needed

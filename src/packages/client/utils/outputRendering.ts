@@ -175,14 +175,21 @@ export function getTodoStatusIcon(status: string): string {
  * Format timestamp for display (HH:MM:SS in 24h format)
  * Accepts either a number (epoch ms) or ISO string
  */
+// One shared formatter: `toLocaleTimeString(locale, options)` builds a new
+// Intl.DateTimeFormat on every call (~30 µs), and every rendered row formats
+// its timestamp on every render.
+let timestampFormatter: Intl.DateTimeFormat | null = null;
 export function formatTimestamp(timestamp: number | string): string {
   const date = typeof timestamp === 'string' ? new Date(timestamp) : new Date(timestamp);
-  return date.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  });
+  if (!timestampFormatter) {
+    timestampFormatter = new Intl.DateTimeFormat('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+  }
+  return timestampFormatter.format(date);
 }
 
 /**
@@ -1135,6 +1142,39 @@ export function extractExecPayloadCommand(cmd: string): string | null {
   }
 
   return null;
+}
+
+/**
+ * `\bcurl\b[\s\S]*<path>` without the regex: on a long command (a heredoc
+ * writing a file full of "curl" words) the greedy `[\s\S]*` backtracks the
+ * whole string once per `curl` occurrence — O(n·k), tens of ms per row
+ * render. Same truth table: some word `curl` before some `<path>` occurrence
+ * whose next char passes `boundary` (default: not a word char, i.e. `\b`).
+ */
+export function isCurlCommandTo(
+  cmd: string,
+  path: string,
+  boundary: (nextChar: string) => boolean = (c) => !/[A-Za-z0-9_]/.test(c),
+): boolean {
+  let from = 0;
+  for (;;) {
+    const idx = cmd.indexOf(path, from);
+    if (idx === -1) return false;
+    if (boundary(cmd.charAt(idx + path.length)) && /\bcurl\b/.test(cmd.slice(0, idx))) return true;
+    from = idx + path.length;
+  }
+}
+
+/** Display cap for the one-line command chip: the row ellipsizes to a single
+ * line, so highlighting + link-splitting a 100 KB heredoc (and setting it as
+ * a `title` tooltip) only builds hidden DOM. Cuts on a whitespace boundary so
+ * no half-path becomes a clickable link; the click/modal keeps the full text. */
+export const BASH_COMMAND_DISPLAY_MAX = 1200;
+export function bashCommandDisplaySlice(cmd: string, max: number = BASH_COMMAND_DISPLAY_MAX): string {
+  if (cmd.length <= max) return cmd;
+  const head = cmd.slice(0, max);
+  const cut = Math.max(head.lastIndexOf('\n'), head.lastIndexOf(' '), head.lastIndexOf('\t'));
+  return `${cut > max * 0.5 ? head.slice(0, cut) : head} …`;
 }
 
 /**

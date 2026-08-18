@@ -11,6 +11,13 @@ export function useSelectionSync(sceneRef: React.RefObject<SceneManager | null>)
     let lastSelectedAgentIds = '';
     let lastSelectedBuildingIds = '';
     let lastAgentVersion = new Map<string, number>();
+    // Identity of the inputs at the last check. The store notifies on EVERY
+    // change (each streaming chunk included) and this used to rebuild a hash
+    // string per agent per notification; the agents Map and the agent
+    // selection Set are replaced (not mutated) when they change, so identity
+    // is a complete "nothing to do" test for them.
+    let lastAgentsMap: Map<string, any> | null = null;
+    let lastSelectedAgentSet: Set<string> | null = null;
 
     const getAgentVersion = (agents: Map<string, any>) => {
       let changed = false;
@@ -18,7 +25,8 @@ export function useSelectionSync(sceneRef: React.RefObject<SceneManager | null>)
 
       for (const [id, agent] of agents) {
         const hash = `${agent.position.x.toFixed(2)},${agent.position.z.toFixed(2)},${agent.status},${agent.class},${agent.isBoss},${agent.subordinateIds?.length ?? 0}`;
-        const hashCode = hash.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0);
+        let hashCode = 0;
+        for (let i = 0; i < hash.length; i++) hashCode = ((hashCode << 5) - hashCode) + hash.charCodeAt(i);
         newVersion.set(id, hashCode);
 
         if (lastAgentVersion.get(id) !== hashCode) {
@@ -35,10 +43,22 @@ export function useSelectionSync(sceneRef: React.RefObject<SceneManager | null>)
 
     return store.subscribe(() => {
       const state = store.getState();
-      const selectedAgentIds = Array.from(state.selectedAgentIds).sort().join(',');
+      // selectedBuildingIds is mutated in place by the building actions, so
+      // it is compared by content (a handful of ids); agents/agent selection
+      // are replaced on change and compared by identity.
       const selectedBuildingIds = Array.from(state.selectedBuildingIds).sort().join(',');
-      const agentSelectionChanged = selectedAgentIds !== lastSelectedAgentIds;
       const buildingSelectionChanged = selectedBuildingIds !== lastSelectedBuildingIds;
+      if (
+        !buildingSelectionChanged
+        && state.agents === lastAgentsMap
+        && state.selectedAgentIds === lastSelectedAgentSet
+      ) {
+        return;
+      }
+      lastAgentsMap = state.agents;
+      lastSelectedAgentSet = state.selectedAgentIds;
+      const selectedAgentIds = Array.from(state.selectedAgentIds).sort().join(',');
+      const agentSelectionChanged = selectedAgentIds !== lastSelectedAgentIds;
       const { newVersion, changed: agentsChanged } = getAgentVersion(state.agents);
 
       if (agentSelectionChanged || buildingSelectionChanged || agentsChanged) {

@@ -10,7 +10,10 @@ import { useHideCost, useSettings, useAgentPrompts } from '../../store';
 import { store, type TestRunHandle, type HttpRunHandle } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, findExecTaskForCurlRow, extractExecWrappedCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget, summarizeWebSearch } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, findExecTaskForCurlRow, extractExecWrappedCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget, summarizeWebSearch,
+  isCurlCommandTo,
+  bashCommandDisplaySlice,
+} from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { filePreviewHandlers, toolPreviewHandlers, type ToolPreviewTarget } from './toolPreviewHover';
 import { getSlashCommandInfo } from '../../utils/slashCommands';
@@ -132,10 +135,6 @@ export const HistoryLine = memo(function HistoryLine({
   // Agent cwd — resolves relative file references for the Ctrl+hover preview,
   // matching how onFileClick resolves them for the click that opens the modal.
   const agentCwd = agentId ? store.getState().agents.get(agentId)?.cwd : undefined;
-  const markdownComponents = createMarkdownComponents({
-    onFileClick: onFileClick ? (path) => onFileClick(path) : undefined,
-    baseDir: agentCwd,
-  });
   const markdownContentRef = useRef<HTMLSpanElement>(null);
   const [copyRichStatus, setCopyRichStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const handleCopyRichText = useCallback(async () => {
@@ -228,7 +227,9 @@ export const HistoryLine = memo(function HistoryLine({
         <span className="session-continuation-toggle"><Icon name={sessionExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
         {sessionExpanded && (
           <div className="session-continuation-content">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            {/* Built here (only branch that needs it) — creating the component
+                map on every row render cost ~20 closures per line for nothing. */}
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={createMarkdownComponents({ onFileClick: onFileClick ? (path) => onFileClick(path) : undefined, baseDir: agentCwd })}>
               {content}
             </ReactMarkdown>
           </div>
@@ -705,7 +706,7 @@ export const HistoryLine = memo(function HistoryLine({
       const bashReportTaskCommand = isBashTool && bashCommand ? parseBashReportTaskCommand(bashCommand) : null;
       const bashMemoryCommand = isBashTool && bashCommand && !bashTrackingStatusCommand && !bashTaskLabelCommand && !bashReportTaskCommand ? parseBashMemoryCommand(bashCommand) : null;
       const bashMemoryResponse = bashMemoryCommand ? parseMemoryResponseInfo(_bashOutput) : undefined;
-      const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
+      const isCurlExecCommand = isCurlCommandTo(bashCommand, '/api/exec');
       // Same matcher as the live OutputLine (exact inner command, else a
       // server-clock time window) — parity keeps the card after a reload.
       const bashTimestampMs = timestamp ? new Date(timestamp).getTime() : 0;
@@ -713,7 +714,7 @@ export const HistoryLine = memo(function HistoryLine({
       const matchingExecTasks = matchedExecTask ? [matchedExecTask] : [];
       // A persisted `curl … /api/tests/run` line → re-attach the in-store run so
       // the inline test component shows on refresh (parity with live OutputLine).
-      const isCurlTestRunCommand = /\bcurl\b[\s\S]*\/api\/tests\/run(?!s)/.test(bashCommand);
+      const isCurlTestRunCommand = isCurlCommandTo(bashCommand, '/api/tests/run', (c) => c !== 's');
       const matchingTestRunId = isCurlTestRunCommand && testRunHandles.length > 0
         ? (() => {
             const near = testRunHandles.filter(
@@ -727,7 +728,7 @@ export const HistoryLine = memo(function HistoryLine({
         : null;
       // A persisted `curl … /api/http-requests/run` line → re-attach the in-store
       // run so the inline HTTP card shows on refresh (parity with OutputLine).
-      const isCurlHttpRunCommand = /\bcurl\b[\s\S]*\/api\/http-requests\/run(?!s)/.test(bashCommand);
+      const isCurlHttpRunCommand = isCurlCommandTo(bashCommand, '/api/http-requests/run', (c) => c !== 's');
       const matchingHttpRunId = isCurlHttpRunCommand
         ? matchHttpRunHandle(httpRunHandles, bashCommand, bashTimestampMs)
         : null;
@@ -840,8 +841,10 @@ export const HistoryLine = memo(function HistoryLine({
       };
 
       const renderBashCommandWithFileLinks = () => {
-        const cmd = bashCommand || keyParam;
-        if (!cmd) return null;
+        const fullCmd = bashCommand || keyParam;
+        if (!fullCmd) return null;
+        // One-line chip: highlight/link only what can be shown (see helper).
+        const cmd = bashCommandDisplaySlice(fullCmd);
         if (!onFileClick) {
           return <span dangerouslySetInnerHTML={{ __html: highlightCode(cmd, 'bash') }} />;
         }
@@ -1171,7 +1174,7 @@ export const HistoryLine = memo(function HistoryLine({
               <span
                 className="output-tool-param bash-command"
                 onClick={onBashClick ? handleBashClick : undefined}
-                title={onBashClick ? t('tools:display.clickToViewOutput') : bashCommand}
+                title={onBashClick ? t('tools:display.clickToViewOutput') : bashCommandDisplaySlice(bashCommand)}
                 style={onBashClick ? { cursor: 'pointer' } : undefined}
               >
                 {renderBashCommandWithFileLinks()}
@@ -1200,7 +1203,7 @@ export const HistoryLine = memo(function HistoryLine({
               (exec tasks, exec output, test runs, HTTP run cards). */}
           {isBashTool && (settings.inlineBashOutputs || searchReveal) && _bashOutput
             && matchingExecTasks.length === 0 && !execTaskOutput && !matchingTestRunId && !matchingHttpRunId && (
-            <BashInlineOutput text={_bashOutput} onFileClick={onFileClick ? (p) => onFileClick(p) : undefined} />
+            <BashInlineOutput text={_bashOutput} onFileClick={onFileClick} />
           )}
           {/* Inline image thumbnail when a Read targets an image file */}
           {readImageThumb && (
@@ -1551,7 +1554,7 @@ export const HistoryLine = memo(function HistoryLine({
           ? parseBashMemoryCommand(bashCommand)
           : null;
         const bashMemoryResponse = bashMemoryCommand ? parseMemoryResponseInfo(_bashOutput) : undefined;
-        const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
+        const isCurlExecCommand = isCurlCommandTo(bashCommand, '/api/exec');
         const bashCurlParsed = (
           !bashTrackingStatusCommand
           && !bashNotificationCommand
@@ -1666,7 +1669,7 @@ export const HistoryLine = memo(function HistoryLine({
               <BashInlineToggle enabled={settings.inlineBashOutputs} />
             </div>
             {(settings.inlineBashOutputs || searchReveal) && _bashOutput && (
-              <BashInlineOutput text={_bashOutput} onFileClick={onFileClick ? (p) => onFileClick(p) : undefined} />
+              <BashInlineOutput text={_bashOutput} onFileClick={onFileClick} />
             )}
           </>
         );

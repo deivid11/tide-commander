@@ -104,7 +104,20 @@ export function extractPromptPreview(raw: string): string | null {
  * VirtualizedOutputList already computes (sorted + deduped), so marker.index
  * is directly usable with virtualizer.scrollToIndex.
  */
-export function buildPromptMarkers(items: TaggedItem[], keys: string[]): PromptMarker[] {
+// Per-message preview memo. The merged list is rebuilt on every live chunk
+// (~20×/s while streaming) but its message objects are stable (history rows
+// and WeakMap-cached enrichment), so the regex-heavy extractPromptPreview
+// runs once per prompt instead of once per prompt per chunk.
+const previewCache = new WeakMap<object, string | null>();
+function previewFor(item: object, raw: string): string | null {
+  const hit = previewCache.get(item);
+  if (hit !== undefined) return hit;
+  const preview = extractPromptPreview(raw);
+  previewCache.set(item, preview);
+  return preview;
+}
+
+export function buildPromptMarkers(items: TaggedItem[], keys: string[], previous?: PromptMarker[]): PromptMarker[] {
   const markers: PromptMarker[] = [];
   for (let i = 0; i < items.length; i++) {
     const tagged = items[i];
@@ -122,10 +135,19 @@ export function buildPromptMarkers(items: TaggedItem[], keys: string[]): PromptM
       raw = tagged.item.text || '';
       timestampMs = tagged.item.timestamp ?? 0;
     }
-    const preview = extractPromptPreview(raw);
+    const preview = previewFor(tagged.item, raw);
     if (preview === null) continue;
     markers.push({ index: i, key: keys[i] ?? String(i), preview, timestampMs });
   }
   // Keep only the newest prompts so the rail stays readable on long sessions.
-  return markers.length > MAX_PROMPT_MARKERS ? markers.slice(-MAX_PROMPT_MARKERS) : markers;
+  const result = markers.length > MAX_PROMPT_MARKERS ? markers.slice(-MAX_PROMPT_MARKERS) : markers;
+  // Same markers as last time → return the previous array so the rail's memo
+  // holds (it re-rendered per chunk on a fresh-but-identical array before).
+  if (previous && previous.length === result.length && previous.every((m, i) => {
+    const n = result[i];
+    return m.index === n.index && m.key === n.key && m.preview === n.preview && m.timestampMs === n.timestampMs;
+  })) {
+    return previous;
+  }
+  return result;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeTideFileHref, isImageViewTool, getImageViewTarget, extractExecWrappedCommand, extractExecPayloadCommand, shellSplitWords, findExecTaskForCurlRow, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, summarizeCodexExecScript, extractToolKeyParam, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, prettifyToolName, summarizeWebSearch } from './outputRendering';
+import { decodeTideFileHref, isImageViewTool, getImageViewTarget, extractExecWrappedCommand, extractExecPayloadCommand, shellSplitWords, findExecTaskForCurlRow, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, summarizeCodexExecScript, extractToolKeyParam, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, prettifyToolName, summarizeWebSearch, isCurlCommandTo, bashCommandDisplaySlice, formatTimestamp } from './outputRendering';
 
 describe('Codex exec activity summaries', () => {
   it('describes parallel terminal commands without exposing orchestration code', () => {
@@ -635,5 +635,63 @@ describe('findExecTaskForCurlRow', () => {
     expect(findExecTaskForCurlRow(tasks, row, T)?.taskId).toBe('jitter');
     expect(findExecTaskForCurlRow(tasks, row, 0)).toBeUndefined(); // no timestamp → no guess
     expect(findExecTaskForCurlRow([], row, T)).toBeUndefined();
+  });
+});
+
+describe('isCurlCommandTo (regex-free `\\bcurl\\b[\\s\\S]*<path>`)', () => {
+  const legacy = (cmd: string, re: RegExp) => re.test(cmd);
+  it('matches the same commands as the legacy regexes', () => {
+    const cases: Array<[string, boolean, boolean, boolean]> = [
+      ['curl -s -X POST http://localhost:5174/api/exec -d @-', true, false, false],
+      ['curl http://x/api/execute', false, false, false],
+      ['echo hi; curl -X POST http://x/api/tests/run', false, true, false],
+      ['curl http://x/api/tests/runs/abc', false, false, false],
+      ['curl http://x/api/http-requests/run', false, false, true],
+      ['curl http://x/api/http-requests/runs', false, false, false],
+      ['/api/exec then curl', false, false, false],
+      ['scurl http://x/api/exec', false, false, false],
+      ['CURL http://x/api/exec', false, false, false],
+      ['cat > f <<EOF\nno curl here\nEOF\ncurl -s http://x/api/exec', true, false, false],
+    ];
+    for (const [cmd, exec, tests, http] of cases) {
+      expect(isCurlCommandTo(cmd, '/api/exec')).toBe(exec);
+      expect(isCurlCommandTo(cmd, '/api/exec')).toBe(legacy(cmd, /\bcurl\b[\s\S]*\/api\/exec\b/));
+      expect(isCurlCommandTo(cmd, '/api/tests/run', (c) => c !== 's')).toBe(tests);
+      expect(isCurlCommandTo(cmd, '/api/tests/run', (c) => c !== 's')).toBe(legacy(cmd, /\bcurl\b[\s\S]*\/api\/tests\/run(?!s)/));
+      expect(isCurlCommandTo(cmd, '/api/http-requests/run', (c) => c !== 's')).toBe(http);
+      expect(isCurlCommandTo(cmd, '/api/http-requests/run', (c) => c !== 's')).toBe(legacy(cmd, /\bcurl\b[\s\S]*\/api\/http-requests\/run(?!s)/));
+    }
+  });
+  it('stays linear on a heredoc full of "curl" words with no target path', () => {
+    const cmd = `cat > notes.md <<'EOF'\n${'curl is a tool. '.repeat(20000)}\nEOF`;
+    const t = performance.now();
+    expect(isCurlCommandTo(cmd, '/api/exec')).toBe(false);
+    expect(performance.now() - t).toBeLessThan(50);
+  });
+});
+
+describe('bashCommandDisplaySlice', () => {
+  it('returns short commands untouched', () => {
+    expect(bashCommandDisplaySlice('ls -la')).toBe('ls -la');
+  });
+  it('cuts long commands on a whitespace boundary and marks the cut', () => {
+    const cmd = `${'word '.repeat(300)}/home/riven/d/tide-commander/README.md tail`;
+    const shown = bashCommandDisplaySlice(cmd);
+    expect(shown.length).toBeLessThanOrEqual(1202);
+    expect(shown.endsWith(' …')).toBe(true);
+    // never ends mid-token
+    expect(shown.slice(0, -2).endsWith('word')).toBe(true);
+  });
+  it('hard-cuts a single giant token', () => {
+    const shown = bashCommandDisplaySlice('x'.repeat(5000), 100);
+    expect(shown).toBe(`${'x'.repeat(100)} …`);
+  });
+});
+
+describe('formatTimestamp', () => {
+  it('formats HH:MM:SS 24h like toLocaleTimeString did', () => {
+    const d = new Date(2026, 7, 18, 14, 5, 9);
+    expect(formatTimestamp(d.getTime())).toBe(d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }));
+    expect(formatTimestamp(d.toISOString())).toBe(formatTimestamp(d.getTime()));
   });
 });

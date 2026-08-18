@@ -7,6 +7,9 @@ import { CAMERA_SAVE_INTERVAL } from './config';
 import { store } from '../store';
 import type { AgentMeshData } from './characters';
 
+// How often to re-check for a detached canvas (view switched away from 3D).
+const DETACHED_CANVAS_POLL_MS = 250;
+
 export interface RenderLoopDependencies {
   getRenderer: () => THREE.WebGLRenderer | null;
   getScene: () => THREE.Scene | null;
@@ -71,6 +74,7 @@ export class RenderLoop {
 
   // Animation frame
   private animationFrameId: number | null = null;
+  private detachedPollTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Movement activity checker
   private hasActiveMovements: () => boolean = () => false;
@@ -152,6 +156,10 @@ export class RenderLoop {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
+    if (this.detachedPollTimer !== null) {
+      clearTimeout(this.detachedPollTimer);
+      this.detachedPollTimer = null;
+    }
   }
 
   isRunning(): boolean {
@@ -182,8 +190,16 @@ export class RenderLoop {
     const canvas = this.deps.getCanvas();
     if (!canvas.isConnected) {
       // Canvas temporarily detached (React reconciliation, StrictMode remount, view switch).
-      // Keep the loop alive so rendering resumes automatically once the canvas reattaches.
-      this.animationFrameId = requestAnimationFrame(this.animate);
+      // Keep the loop alive so rendering resumes automatically once the canvas reattaches —
+      // but poll gently: in flat/2D/dashboard mode the canvas stays detached for the whole
+      // session, and a 60 Hz rAF here was a permanent (if small) tick with nothing to draw.
+      this.animationFrameId = requestAnimationFrame(() => {
+        // Placeholder id keeps isRunning() true; the timer re-enters the loop.
+        this.detachedPollTimer = setTimeout(() => {
+          this.detachedPollTimer = null;
+          if (this.animationFrameId !== null) this.animate();
+        }, DETACHED_CANVAS_POLL_MS);
+      });
       return;
     }
 

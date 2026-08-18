@@ -78,18 +78,59 @@ export { getIdleTimerColor } from './colors';
 
 // Filter out cost/price mentions from text
 // Used globally when hideCost setting is enabled
+// Memo for filterCostText: OutputLine/HistoryLine call it on EVERY render
+// (streaming rows re-render per chunk, history rows re-mount on scroll / the
+// live→history swap / the virtualizer warm-up walk), and the regex passes are
+// O(text) — ~10 ms for a 500 KB tool output. Keyed by the text itself: V8
+// caches a string's hash on the string, so repeat lookups are O(1). Bounded
+// by entries + total chars so long sessions can't pin memory.
+const FILTER_COST_MAX_ENTRIES = 512;
+const FILTER_COST_MAX_CHARS = 8 * 1024 * 1024;
+const filterCostCache = new Map<string, string>();
+let filterCostCacheChars = 0;
+
+function filterCostTextUncached(text: string): string {
+  // Only spend the regex passes when there is a `$<digit>` to strip — the
+  // common case (prose, and code full of shell `$VAR`s) returns the exact
+  // input, preserving indentation.
+  if (text.indexOf('$') === -1 || !/\$[\d.]/.test(text)) return text;
+  // Remove patterns like "$0.05", "cost: $1.23", "(cost $0.50)", "~$0.10", etc.
+  // Whitespace is only touched around a removed match (the leading `\s*` in
+  // each pattern absorbs the space before it); a blanket collapse would
+  // destroy code indentation / table alignment in messages that mention a
+  // price once.
+  return text
+    .replace(/[^\S\n]*\(?[^\S\n]*~?\$[\d,.]+(?:[^\S\n]*\))?/g, '')
+    .replace(/[^\S\n]*cost[:\s]+~?\$[\d,.]+/gi, '')
+    .replace(/[^\S\n]*price[:\s]+~?\$[\d,.]+/gi, '')
+    .replace(/[^\S\n]*\(~?\$[\d,.]+[^\S\n]*(?:USD|cost|spent)?\)/gi, '')
+    .replace(/[^\S\n]*-[^\S\n]*~?\$[\d,.]+[^\S\n]*$/g, '')  // trailing " - $0.05"
+    .replace(/[^\S\n]+$/gm, '')  // trailing spaces left behind on a line
+    .trim();
+}
+
 export function filterCostText(text: string | undefined, hideCost: boolean): string {
   if (!text) return '';
   if (!hideCost) return text;
-  // Remove patterns like "$0.05", "cost: $1.23", "(cost $0.50)", "~$0.10", etc.
-  return text
-    .replace(/\s*\(?\s*~?\$[\d,.]+\s*\)?/g, '')
-    .replace(/\s*cost[:\s]+~?\$[\d,.]+/gi, '')
-    .replace(/\s*price[:\s]+~?\$[\d,.]+/gi, '')
-    .replace(/\s*\(~?\$[\d,.]+\s*(?:USD|cost|spent)?\)/gi, '')
-    .replace(/\s*-\s*~?\$[\d,.]+\s*$/g, '')  // trailing " - $0.05"
-    .replace(/[^\S\n]+/g, ' ')  // normalize whitespace but preserve newlines
-    .trim();
+  const hit = filterCostCache.get(text);
+  if (hit !== undefined) {
+    // Refresh recency (Map keeps insertion order).
+    filterCostCache.delete(text);
+    filterCostCache.set(text, hit);
+    return hit;
+  }
+  const out = filterCostTextUncached(text);
+  if (text.length <= FILTER_COST_MAX_CHARS) {
+    filterCostCache.set(text, out);
+    filterCostCacheChars += text.length;
+    while (filterCostCache.size > FILTER_COST_MAX_ENTRIES || filterCostCacheChars > FILTER_COST_MAX_CHARS) {
+      const oldest = filterCostCache.keys().next().value as string | undefined;
+      if (oldest === undefined) break;
+      filterCostCache.delete(oldest);
+      filterCostCacheChars -= oldest.length;
+    }
+  }
+  return out;
 }
 
 /**

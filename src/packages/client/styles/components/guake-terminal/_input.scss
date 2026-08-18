@@ -169,26 +169,37 @@
   // Working state - animated gradient border on all four sides
   .is-working & {
     border: 2px solid transparent !important;
-    background: color-mix(in srgb, var(--bg-secondary) 95%, transparent) !important;
+    // The fill is painted by the ::after cover (see below) so the traveling
+    // gradient can live BEHIND the content instead of on a masked ring.
+    background: transparent !important;
     position: relative;
     overflow: hidden;
+    isolation: isolate;
     // Soft ambient glow so the busy state reads even at a glance
     box-shadow:
       0 0 0 1px color-mix(in srgb, var(--accent-cyan) 12%, transparent),
       0 0 14px color-mix(in srgb, var(--accent-purple) 22%, transparent) !important;
 
-    // Full perimeter traveling gradient (masked to the border only)
+    // Full-perimeter traveling gradient. Implemented as an oversized square
+    // that ROTATES (transform → compositor-only, zero main-thread work per
+    // frame); the container clips it to the rounded box and the ::after cover
+    // hides everything but the 2px border ring. The previous version rotated
+    // the conic angle through an animated custom property, which re-styled and
+    // repainted the ring — and invalidated the root layer — on every frame for
+    // as long as the agent worked.
     &::before {
       content: '';
       position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      padding: 2px;
-      box-sizing: border-box;
+      left: 50%;
+      top: 50%;
+      width: 160%;
+      aspect-ratio: 1;
+      border-radius: 50%; // disc: constant bounding box while rotating (see the pinned comet)
+      z-index: -2;
       pointer-events: none;
-      z-index: 2;
+      transform: translate(-50%, -50%) rotate(0deg);
       background: conic-gradient(
-        from var(--working-border-angle, 0deg),
+        from 0deg,
         var(--accent-cyan) 0%,
         var(--accent-pink) 18%,
         var(--accent-purple) 36%,
@@ -197,18 +208,23 @@
         var(--accent-pink) 90%,
         var(--accent-cyan) 100%
       );
-      // Show gradient only in the 2px padding ring; punch out the center
-      -webkit-mask:
-        linear-gradient(#fff 0 0) content-box,
-        linear-gradient(#fff 0 0);
-      mask:
-        linear-gradient(#fff 0 0) content-box,
-        linear-gradient(#fff 0 0);
-      -webkit-mask-composite: xor;
-      mask-composite: exclude;
+      will-change: transform, opacity;
       animation:
         working-border-spin 1.6s linear infinite,
         working-border-glow 1.8s ease-in-out infinite;
+    }
+
+    // Cover: the box fill. `overflow: hidden` clips at the PADDING box, so the
+    // ring lives in the outer 2px of the padding box (exactly where the old
+    // masked ring sat: inset 0 + 2px padding) — the cover starts 2px in.
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 2px;
+      border-radius: 4px; // padding-box radius (6px) minus the 2px ring
+      z-index: -1;
+      pointer-events: none;
+      background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
     }
   }
 
@@ -221,28 +237,22 @@
   }
 }
 
-// Animatable custom property for rotating the conic border without spinning the box
-@property --working-border-angle {
-  syntax: '<angle>';
-  initial-value: 0deg;
-  inherits: false;
-}
-
-// Full-border loading: spin the conic gradient around the input perimeter
+// Full-border loading: spin the gradient square behind the input perimeter
+// (transform only — see .is-working .guake-input-container::before).
 @keyframes working-border-spin {
   to {
-    --working-border-angle: 360deg;
+    transform: translate(-50%, -50%) rotate(360deg);
   }
 }
 
-// Gentle brightness pulse so the ring stays noticeable without being harsh
+// Gentle pulse so the ring stays noticeable without being harsh. Opacity only:
+// the previous filter: brightness()/saturate() pulse forced a per-frame
+// re-raster of the ring layer.
 @keyframes working-border-glow {
   0%, 100% {
-    filter: brightness(1) saturate(1);
-    opacity: 0.92;
+    opacity: 0.8;
   }
   50% {
-    filter: brightness(1.25) saturate(1.15);
     opacity: 1;
   }
 }
@@ -871,7 +881,26 @@
   // read as a heavy green wash). The border + ring convey "working" cleanly.
   &.working {
     border-color: var(--accent-green);
-    animation: pinned-agent-glow 1.6s ease-in-out infinite;
+    position: relative;
+
+    // Pulsing ring/halo as a static box-shadow on an overlay whose opacity
+    // animates — compositor-only. Animating box-shadow on the chip repainted
+    // the pinned bar (and the root layer) every frame while an agent worked.
+    // (Unpinned/transient chips draw their comet ring on ::before instead —
+    // see .pinned-agent--unpinned.working below.)
+    &:not(.pinned-agent--unpinned)::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--accent-green) 55%, transparent),
+        0 0 7px -4px color-mix(in srgb, var(--accent-green) 55%, transparent);
+      opacity: 0.45;
+      will-change: opacity;
+      animation: pinned-agent-glow 1.6s ease-in-out infinite;
+    }
   }
 
   // Deliberately NO opacity animation on the avatar itself — a working agent
@@ -916,6 +945,12 @@
   &.working {
     border-color: color-mix(in srgb, var(--accent-green) 55%, transparent);
 
+    // Comet arc on a masked ring, spun through the registered angle property.
+    // This one stays a main-thread animation on purpose: Chrome would not
+    // composite a transform rotation for this pseudo (measured), and the
+    // transform/negative-z variant made every frame re-layerize the whole
+    // page (~55 ms/s with the tracking board open). Own layer + 50 steps per
+    // revolution keeps it to ~10 tiny repaints/s — 6x cheaper than before.
     &::before {
       content: '';
       position: absolute;
@@ -943,8 +978,9 @@
       -webkit-mask-composite: xor;
       mask-composite: exclude;
       pointer-events: none;
-      // One revolution every 5s — a glide, not a spinner.
-      animation: pinned-dash-rotate 5s linear infinite;
+      will-change: transform;
+      // One revolution every 5s — a glide, not a spinner (7.2° hops).
+      animation: pinned-dash-rotate 5s steps(50) infinite;
     }
 
     // The sweeping arc is the working signal — the avatar ripple on top of it
@@ -959,8 +995,7 @@
   }
 }
 
-// Animatable custom property so the dash ring spins smoothly (a transform
-// rotation would spin the chip's box, not the gradient).
+// Animatable custom property so the comet ring spins without spinning the box.
 @property --pinned-dash-angle {
   syntax: '<angle>';
   initial-value: 0deg;
@@ -1312,11 +1347,6 @@
 // Subtle green ring that pulses around a working chip — a thin border-hug plus a
 // faint, tight halo (kept small so it never reads as a green background wash).
 @keyframes pinned-agent-glow {
-  0%, 100% {
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-green) 25%, transparent);
-  }
-  50% {
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-green) 55%, transparent),
-                0 0 7px -4px color-mix(in srgb, var(--accent-green) 55%, transparent);
-  }
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
 }
