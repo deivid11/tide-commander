@@ -1526,6 +1526,7 @@ class Store
 
   handleExecTaskStarted(...args: Parameters<ExecTaskActions['handleExecTaskStarted']>) { return this.execTaskActions.handleExecTaskStarted(...args); }
   handleExecTaskOutput(...args: Parameters<ExecTaskActions['handleExecTaskOutput']>) { return this.execTaskActions.handleExecTaskOutput(...args); }
+  handleExecTasksSnapshot(...args: Parameters<ExecTaskActions['handleExecTasksSnapshot']>) { return this.execTaskActions.handleExecTasksSnapshot(...args); }
   handleExecTaskCompleted(...args: Parameters<ExecTaskActions['handleExecTaskCompleted']>) { return this.execTaskActions.handleExecTaskCompleted(...args); }
   stopExecTask(...args: Parameters<ExecTaskActions['stopExecTask']>) { return this.execTaskActions.stopExecTask(...args); }
   getExecTasks(...args: Parameters<ExecTaskActions['getExecTasks']>) { return this.execTaskActions.getExecTasks(...args); }
@@ -1636,7 +1637,8 @@ declare global {
 // v4: added loadTestRunFromHistory (tests-building "Previous runs" list).
 // v9: added setAgentBackgroundTasks (live background-task rail).
 // v10: exec PTY replay — handleExecTaskStarted/Output route through TerminalRenderer.
-const STORE_VERSION = 10;
+// v11: exec tasks snapshot — handleExecTasksSnapshot seeds running exec cards on (re)connect.
+const STORE_VERSION = 11;
 
 // Singleton store instance - persisted on window for HMR
 function getOrCreateStore(): Store {

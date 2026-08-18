@@ -1215,6 +1215,33 @@ export interface ExecTaskStartedMessage extends WSMessage {
     // Running under a PTY — output chunks are a raw terminal stream to replay
     // through TerminalRenderer instead of appending line-by-line.
     pty?: boolean;
+    /** Server-clock start (ms) — matches the server-stamped terminal rows. */
+    startedAt?: number;
+    /** tool_use id of the Bash call that issued the /api/exec curl (server-paired). */
+    toolUseId?: string;
+  };
+}
+
+// Running exec tasks snapshot (Server -> Client, on connection). A page that
+// loads or reconnects MID-task would otherwise never see exec_task_started —
+// the live card could not exist. Carries a bounded output tail to seed the
+// card; the client also resolves any local "running" card absent from the
+// snapshot (its task ended while disconnected).
+export interface ExecTasksSnapshotMessage extends WSMessage {
+  type: 'exec_tasks_snapshot';
+  payload: {
+    tasks: Array<{
+      taskId: string;
+      agentId: string;
+      agentName: string;
+      command: string;
+      cwd: string;
+      pty?: boolean;
+      startedAt: number;
+      toolUseId?: string;
+      /** Buffered output so far (tail-capped server-side). */
+      outputTail: string;
+    }>;
   };
 }
 
@@ -1237,6 +1264,8 @@ export interface ExecTaskCompletedMessage extends WSMessage {
     agentId: string;
     exitCode: number | null;
     success: boolean;
+    /** Server-clock completion time (ms). */
+    completedAt?: number;
   };
 }
 
@@ -1820,6 +1849,7 @@ export type ServerMessage =
   | WhatsAppMessageReceivedMessage
   | FocusAgentMessage
   | ExecTaskStartedMessage
+  | ExecTasksSnapshotMessage
   | ExecTaskOutputMessage
   | ExecTaskCompletedMessage
   | TestRunStartedMessage

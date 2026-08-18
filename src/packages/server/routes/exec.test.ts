@@ -36,7 +36,7 @@ vi.mock('../auth/index.js', () => ({
   getAuthToken: vi.fn(() => 'tok'),
 }));
 
-import execRouter, { applyTailFilter, setBroadcast, splitTrailingTailFilter } from './exec.js';
+import execRouter, { applyTailFilter, setBroadcast, splitTrailingTailFilter, getRunningTasksSnapshot } from './exec.js';
 
 describe('splitTrailingTailFilter', () => {
   it('parses the common short form', () => {
@@ -88,6 +88,51 @@ describe('applyTailFilter', () => {
 
   it('applies byte (char) tails', () => {
     expect(applyTailFilter('abcdefgh', { bytes: 3 })).toBe('fgh');
+  });
+});
+
+describe('getRunningTasksSnapshot (WS initial state)', () => {
+  let server: http.Server;
+  let baseUrl: string;
+
+  beforeAll(async () => {
+    const app = express();
+    app.use(express.json());
+    app.use('/api/exec', execRouter);
+    server = http.createServer(app);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+    const addr = server.address() as AddressInfo;
+    baseUrl = `http://127.0.0.1:${addr.port}`;
+  });
+
+  afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
+
+  it('lists a running task with buffered output tail, cwd/pty and the paired toolUseId; empty when idle', async () => {
+    expect(getRunningTasksSnapshot()).toEqual([]);
+
+    // Start a slow command; snapshot it mid-flight.
+    const done = fetch(`${baseUrl}/api/exec`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId: 'agent-1', command: 'echo snapshot-probe; sleep 1.2', pty: false }),
+    });
+    await new Promise((r) => setTimeout(r, 500));
+
+    const snapshot = getRunningTasksSnapshot();
+    expect(snapshot).toHaveLength(1);
+    expect(snapshot[0]).toMatchObject({
+      agentId: 'agent-1',
+      agentName: 'Probe',
+      command: 'echo snapshot-probe; sleep 1.2',
+      pty: false,
+    });
+    expect(typeof snapshot[0].taskId).toBe('string');
+    expect(typeof snapshot[0].cwd).toBe('string');
+    expect(snapshot[0].startedAt).toBeGreaterThan(0);
+    expect(snapshot[0].outputTail).toContain('snapshot-probe');
+
+    await done;
+    expect(getRunningTasksSnapshot()).toEqual([]);
   });
 });
 

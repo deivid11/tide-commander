@@ -595,6 +595,36 @@ describe('findExecTaskForCurlRow', () => {
     expect(findExecTaskForCurlRow(tasks, curlRow, T)?.taskId).toBe('new');
   });
 
+  it('re-running the SAME command yields one task per row, never one task on two rows', () => {
+    const cmd = `curl -s -X POST http://localhost:5174/api/exec -d '{"agentId":"a","command":"npm run build"}'`;
+    // Two runs of the identical command, both paired by the server.
+    const paired = [
+      { taskId: 'run1', command: 'npm run build', startedAt: T + 100, toolUseId: 'toolu_row1' },
+      { taskId: 'run2', command: 'npm run build', startedAt: T + 120_000, toolUseId: 'toolu_row2' },
+    ];
+    expect(findExecTaskForCurlRow(paired, cmd, T, 'toolu_row1')?.taskId).toBe('run1');
+    expect(findExecTaskForCurlRow(paired, cmd, T + 120_000, 'toolu_row2')?.taskId).toBe('run2');
+
+    // Unpaired tasks (registry miss / pre-restart): closest-in-time pairing
+    // still gives each row its own run — the old bug attached BOTH rows to run2.
+    const unpaired = [
+      { taskId: 'run1', command: 'npm run build', startedAt: T + 100 },
+      { taskId: 'run2', command: 'npm run build', startedAt: T + 120_000 },
+    ];
+    expect(findExecTaskForCurlRow(unpaired, cmd, T, 'toolu_row1')?.taskId).toBe('run1');
+    expect(findExecTaskForCurlRow(unpaired, cmd, T + 119_500, 'toolu_row2')?.taskId).toBe('run2');
+  });
+
+  it('never steals a task identity-claimed by another tool call', () => {
+    const cmd = `curl -s http://localhost:5174/api/exec -d '{"command":"npm run build"}'`;
+    // The only same-command task belongs to a DIFFERENT row (toolu_other):
+    // better no card than duplicating another row's card.
+    const tasks = [{ taskId: 'other', command: 'npm run build', startedAt: T + 100, toolUseId: 'toolu_other' }];
+    expect(findExecTaskForCurlRow(tasks, cmd, T, 'toolu_mine')).toBeUndefined();
+    // A row WITHOUT an id keeps the full candidate set (cannot reason about claims).
+    expect(findExecTaskForCurlRow(tasks, cmd, T)?.taskId).toBe('other');
+  });
+
   it('falls back to a server-clock window (−2s … +10s) when the body is unparseable', () => {
     const row = `curl -s http://localhost:5174/api/exec -d @/tmp/body.json`; // no inline body
     const tasks = [

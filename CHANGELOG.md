@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.195.0] - 2026-08-17
+
+### Added
+- **Live exec cards survive a reload or reconnect** - the server now sends a snapshot of every running exec task when a client connects, including a buffered tail of the output so far. Opening the app (or coming back from a dropped connection) in the middle of a build or test run rebuilds the live card and keeps streaming into it, instead of showing nothing until the command ends. Cards left "running" in a client whose task finished while it was disconnected are resolved from the same snapshot.
+
+### Fixed
+- **The streaming-exec guard no longer trips on quoted text** - the classifier masks the contents of quoted spans and heredoc bodies before looking for long-running commands, so a `sed` replacement, a `grep -E` pattern or a heredoc that merely mentions `npm run build` or `sleep` is treated as data instead of being blocked. Commands hidden behind a newline in a multi-line script are now classified too, and `$(…)` / backticks still count as real execution.
+- **A re-run of the same command no longer shares one card** - each curl row pairs with the exec task closest to its own timestamp rather than the newest one, and tasks already claimed by another tool call are excluded from the fallback heuristics. Running the same command twice used to attach both rows to the second task, showing duplicated output.
+
 ## [1.194.1] - 2026-08-17
 
 ### Fixed

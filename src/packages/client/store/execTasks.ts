@@ -35,6 +35,12 @@ export interface ExecTaskActions {
     toolUseId?: string
   ): void;
   handleExecTaskOutput(taskId: string, agentId: string, output: string, isError?: boolean): void;
+  /** Connection snapshot: seed/replace running tasks (with buffered output
+   * tail) and resolve local "running" cards absent from the snapshot. */
+  handleExecTasksSnapshot(tasks: Array<{
+    taskId: string; agentId: string; agentName: string; command: string; cwd: string;
+    pty?: boolean; startedAt: number; toolUseId?: string; outputTail: string;
+  }>): void;
   handleExecTaskCompleted(taskId: string, agentId: string, exitCode: number | null, success: boolean, completedAt?: number): void;
 
   // Task control
@@ -94,6 +100,57 @@ export function createExecTaskActions(
 
         // Store task by taskId for quick lookup
         state.execTasks.set(taskId, task);
+      });
+      notify();
+    },
+
+    handleExecTasksSnapshot(tasks): void {
+      setState((state) => {
+        if (!state.execTasks) state.execTasks = new Map();
+        const runningIds = new Set(tasks.map((t) => t.taskId));
+
+        // Any local card still "running" whose task the server no longer has
+        // ended while this client was disconnected — resolve it instead of
+        // leaving it spinning forever (exit code unknown).
+        for (const [taskId, task] of state.execTasks.entries()) {
+          if (task.status === 'running' && !runningIds.has(taskId)) {
+            task.status = 'completed';
+            task.exitCode = null;
+            task.completedAt = serverNow();
+            task.output.push('[Task ended while disconnected]');
+            ptyRenderers.delete(taskId);
+          }
+        }
+
+        // Seed/replace each running task from the server's authoritative
+        // buffer (a reconnecting client may have missed chunks — replacing
+        // wholesale is simpler and correct; PTY tails rebuild fine).
+        for (const t of tasks) {
+          ptyRenderers.delete(t.taskId);
+          const task: ExecTask = {
+            taskId: t.taskId,
+            agentId: t.agentId,
+            agentName: t.agentName,
+            command: t.command,
+            cwd: t.cwd,
+            status: 'running',
+            output: [],
+            startedAt: t.startedAt,
+            pty: t.pty,
+            toolUseId: t.toolUseId,
+          };
+          if (t.pty) {
+            const renderer = new TerminalRenderer();
+            ptyRenderers.set(t.taskId, renderer);
+            renderer.write(t.outputTail);
+            const rendered = renderer.getLines();
+            task.output = rendered.length > MAX_OUTPUT_LINES ? rendered.slice(-MAX_OUTPUT_LINES) : rendered;
+          } else if (t.outputTail) {
+            const lines = t.outputTail.split('\n').filter((l) => l.length > 0);
+            task.output = lines.length > MAX_OUTPUT_LINES ? lines.slice(-MAX_OUTPUT_LINES) : lines;
+          }
+          state.execTasks.set(t.taskId, task);
+        }
       });
       notify();
     },

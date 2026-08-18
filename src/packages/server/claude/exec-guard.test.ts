@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyDirectBashCommand, buildExecGuardDenyReason, targetsCommanderApi } from './exec-guard.js';
+import { classifyDirectBashCommand, buildExecGuardDenyReason, targetsCommanderApi, maskShellLiterals } from './exec-guard.js';
 
 const block = (command: string, runInBackground?: boolean) => classifyDirectBashCommand({ command, runInBackground }).block;
 const signals = (command: string) => classifyDirectBashCommand({ command }).signals;
@@ -164,6 +164,31 @@ describe('exec guard — classifyDirectBashCommand', () => {
     expect(block('for d in a b c; do (cd $d && git status --short); done')).toBe(false);
   });
 
+  it('never matches inside quoted strings — the sed/grep/echo false positives that spammed agents', () => {
+    // The reported case: a sed expression whose s|…|…| delimiter looks like a
+    // pipe and whose replacement contains a model-binary path.
+    const sed = "sed -i 's|^/home/riven/.cache/llama-opt/llama.cpp/build-hip/bin/llama-server -m $M|" +
+      "${LLAMA_BIN:-/home/riven/.cache/llama-opt/llama.cpp/build-hip/bin/llama-server} -m $M|' bench/sweep.sh";
+    expect(block(sed)).toBe(false);
+    expect(block("grep -E 'error|npm run build|Linking' log.txt")).toBe(false);
+    expect(block(`git commit -m "npm run build now passes; sleep 30 removed"`)).toBe(false);
+    expect(block("echo 'timeout 900 cmake --build' > plan.txt")).toBe(false);
+    expect(block(`awk '{print "docker build done"}' x`)).toBe(false);
+  });
+
+  it('never matches inside heredoc bodies — scripts piped into files/interpreters are data', () => {
+    expect(block("cat > /tmp/x.sh <<'SH'\nsleep 300\nnpm run build\nSH")).toBe(false);
+    expect(block('python3 - <<PYX\nimport time\n# make apk && sleep 60\nprint("ok")\nPYX')).toBe(false);
+    // But a long command AROUND the heredoc still trips.
+    expect(block("cat > x.txt <<'EOF'\nhello\nEOF\nnpm run build")).toBe(true);
+  });
+
+  it('still classifies sh -c payloads (real commands hidden by the quote masking)', () => {
+    expect(signals('bash -c "sleep 30"')).toContain('sleep 30s');
+    expect(signals("zsh -lc 'cargo build --release'")).toContain('cargo');
+    expect(block(`bash -c "echo 'npm run build'"`)).toBe(false); // quoted INSIDE the payload too
+  });
+
   it('does not trip on the tool name appearing inside an argument', () => {
     expect(block('rg -n "npm run build" src/')).toBe(false);
     expect(block('echo "run: make apk-release-nondev"')).toBe(false);
@@ -194,5 +219,26 @@ describe('exec guard — buildExecGuardDenyReason', () => {
     const reason = buildExecGuardDenyReason('make', ['build system'], { baseUrl: 'http://localhost:5174' });
     expect(reason).not.toContain('X-Auth-Token');
     expect(reason).toContain('"agentId":"YOUR_AGENT_ID"');
+  });
+});
+
+describe('maskShellLiterals', () => {
+  it('blanks quoted content but keeps structure, quotes and unquoted text', () => {
+    expect(maskShellLiterals("echo 'a|b' x")).toBe("echo '   ' x");
+    expect(maskShellLiterals('run "in \\" quo" tail')).toBe('run "         " tail');
+    expect(maskShellLiterals("a\\'b 'c'")).toBe("a\\'b ' '");
+  });
+
+  it('blanks heredoc bodies up to the delimiter line, keeping the rest visible', () => {
+    const cmd = "cat <<'EOF' > x\nsleep 9\nEOF\nnpm test";
+    const masked = maskShellLiterals(cmd);
+    expect(masked).not.toContain('sleep 9');
+    expect(masked).toContain('npm test');
+    expect(masked).toContain('EOF');
+  });
+
+  it('leaves herestrings and command substitution visible', () => {
+    expect(maskShellLiterals('wc -l <<< abc')).toBe('wc -l <<< abc');
+    expect(maskShellLiterals('echo $(make)')).toBe('echo $(make)');
   });
 });

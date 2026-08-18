@@ -33,6 +33,8 @@ interface RunningTask {
   process: ChildProcess;
   output: string[];
   startedAt: number;
+  cwd: string;
+  pty: boolean;
   /** tool_use id of the Bash call that issued the curl (when the server could pair it). */
   toolUseId?: string;
 }
@@ -142,6 +144,35 @@ export function setBroadcast(fn: (message: ServerMessage) => void): void {
  */
 export function getRunningTasks(agentId: string): RunningTask[] {
   return Array.from(runningTasks.values()).filter(t => t.agentId === agentId);
+}
+
+/** Bounded output tail for the connection snapshot (the client card keeps
+ * ~500 lines; PTY renderers rebuild fine from a partial stream). */
+const SNAPSHOT_OUTPUT_TAIL_BYTES = 256 * 1024;
+
+/**
+ * Snapshot of every running exec task, for the WS initial state. Without it,
+ * a page that loads/reconnects MID-task never sees exec_task_started and the
+ * live card cannot exist ("sometimes the streamed command doesn't render").
+ */
+export function getRunningTasksSnapshot(): Array<{
+  taskId: string; agentId: string; agentName: string; command: string; cwd: string;
+  pty?: boolean; startedAt: number; toolUseId?: string; outputTail: string;
+}> {
+  return Array.from(runningTasks.values()).map((t) => {
+    const joined = t.output.join('');
+    return {
+      taskId: t.id,
+      agentId: t.agentId,
+      agentName: agentService.getAgent(t.agentId)?.name ?? t.agentId,
+      command: t.command,
+      cwd: t.cwd,
+      pty: t.pty,
+      startedAt: t.startedAt,
+      toolUseId: t.toolUseId,
+      outputTail: joined.length > SNAPSHOT_OUTPUT_TAIL_BYTES ? joined.slice(-SNAPSHOT_OUTPUT_TAIL_BYTES) : joined,
+    };
+  });
 }
 
 /**
@@ -301,6 +332,8 @@ router.post('/', async (req: Request, res: Response) => {
       process: childProcess,
       output: [],
       startedAt: Date.now(),
+      cwd: workingDir,
+      pty: usePty,
       toolUseId,
     };
     runningTasks.set(taskId, task);

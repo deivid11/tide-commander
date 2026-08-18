@@ -23,6 +23,7 @@ import {
 import { loadAreas, loadBuildings } from '../data/index.js';
 import { logger } from '../utils/index.js';
 import { setNotificationBroadcast, setExecBroadcast, setTestsBroadcast, setHttpRequestsBroadcast, setFocusAgentBroadcast, setAgentsBroadcast, setTriggerBroadcast, setBuildingsBroadcast, setSkillsBroadcast } from '../routes/index.js';
+import { getRunningTasksSnapshot } from '../routes/exec.js';
 import { validateWebSocketAuth, isAuthEnabled } from '../auth/index.js';
 import { incrementWsSent, incrementWsReceived, setWsClientsCount } from '../routes/perf.js';
 import type { HandlerContext, MessageHandler } from './handlers/types.js';
@@ -453,6 +454,14 @@ export function init(server: HttpServer | HttpsServer): WebSocketServer {
 
       const workflowDefs = workflowService.listDefinitions();
       ws.send(JSON.stringify({ type: 'workflow_definitions_update', payload: workflowDefs }));
+
+      // Running exec tasks (streamed /api/exec commands) — without this a page
+      // that loads or reconnects MID-task never sees exec_task_started and the
+      // live command card cannot render.
+      const execSnapshot = getRunningTasksSnapshot();
+      if (execSnapshot.length > 0) {
+        ws.send(JSON.stringify({ type: 'exec_tasks_snapshot', payload: { tasks: execSnapshot } }));
+      }
 
       // Agents with live background tasks (backgrounded Bash / async subagents)
       // — sent per agent so a reload doesn't lose the running-task indicators.

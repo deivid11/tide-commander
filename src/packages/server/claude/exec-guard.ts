@@ -48,7 +48,7 @@ const TIMEOUT_BLOCK_SECONDS = 5;
 // (`VAR=x`, `sudo`, `env`, `nice`, `time`, `command`, `stdbuf`), so a word
 // inside an argument (e.g. `rg "npm run build" src/`, `echo "make sure"`)
 // does not trip.
-const POS = String.raw`(?:^|[;&|(]\s*|\$\(\s*|\`\s*|\b(?:ba|z|da)?sh\s+(?:-[a-zA-Z]+\s+)*-c\s+["'])`;
+const POS = String.raw`(?:^|[;&|(\n]\s*|\$\(\s*|\`\s*|\b(?:ba|z|da)?sh\s+(?:-[a-zA-Z]+\s+)*-c\s+["'])`;
 const PREFIX = String.raw`(?:(?:\w+=(?:"[^"]*"|'[^']*'|\S*)\s+)|sudo\s+(?:-\S+\s+)*|env\s+(?:-\S+\s+)*|nice\s+(?:-n\s*-?\d+\s+)?|time\s+|command\s+|stdbuf\s+-\S+\s+|caffeinate\s+(?:-\S+\s+)*|timeout\s+(?:-\S+\s+)*\d+(?:\.\d+)?[smhd]?\s+)*`;
 // Tools are matched by NAME, optionally behind a directory path
 // (`/x/llama.cpp/build/bin/llama-gguf`, `./gradlew`, `node_modules/.bin/tsc`).
@@ -131,6 +131,85 @@ const toSeconds = (n: string, unit?: string): number => {
   }
 };
 
+/**
+ * Replace the CONTENT of quoted spans with spaces (quotes kept) and heredoc
+ * BODIES with spaces, so the classifier never matches tool names, sleeps or
+ * pipes that live inside string literals — `sed -i 's|/bin/llama-server…|'`,
+ * `grep -E 'a|npm run build'`, `cat > x <<EOF … sleep 300 … EOF` are data,
+ * not commands. `$(…)`/backticks stay visible (they DO execute).
+ */
+export function maskShellLiterals(command: string): string {
+  const out = command.split('');
+  const n = command.length;
+  let i = 0;
+  // Heredoc delimiters opened on the current line; their bodies start after
+  // the next newline, in order.
+  let pendingHeredocs: string[] = [];
+
+  const maskHeredocBody = (from: number, delimiter: string): number => {
+    let lineStart = from;
+    while (lineStart < n) {
+      let lineEnd = command.indexOf('\n', lineStart);
+      if (lineEnd === -1) lineEnd = n;
+      const line = command.slice(lineStart, lineEnd).replace(/^\t+/, '');
+      if (line === delimiter) return lineEnd; // delimiter line kept visible
+      for (let k = lineStart; k < lineEnd; k++) out[k] = ' ';
+      lineStart = lineEnd + 1;
+    }
+    return n;
+  };
+
+  while (i < n) {
+    const ch = command[i];
+    if (ch === '\\') { i += 2; continue; }
+    if (ch === "'") {
+      const end = command.indexOf("'", i + 1);
+      const stop = end === -1 ? n : end;
+      for (let k = i + 1; k < stop; k++) out[k] = ' ';
+      i = stop + 1;
+      continue;
+    }
+    if (ch === '"') {
+      let k = i + 1;
+      while (k < n && command[k] !== '"') k += command[k] === '\\' ? 2 : 1;
+      for (let m = i + 1; m < k && m < n; m++) out[m] = ' ';
+      i = k + 1;
+      continue;
+    }
+    if (ch === '<' && command[i + 1] === '<' && command[i + 2] !== '<') {
+      // Heredoc opener <<[-] ['"]?DELIM['"]? (not the <<< herestring).
+      const m = /^<<-?\s*(['"]?)([A-Za-z0-9_]+)\1/.exec(command.slice(i));
+      if (m) {
+        pendingHeredocs.push(m[2]);
+        i += m[0].length;
+        continue;
+      }
+    }
+    if (ch === '\n' && pendingHeredocs.length > 0) {
+      let pos = i + 1;
+      for (const delimiter of pendingHeredocs) pos = maskHeredocBody(pos, delimiter);
+      pendingHeredocs = [];
+      i = pos;
+      continue;
+    }
+    i++;
+  }
+  return out.join('');
+}
+
+/** Payloads of `sh|bash|zsh -c '…'/"…"` in the ORIGINAL command — classified
+ * recursively, since their content is masked out of the top-level pass. */
+function shellDashCPayloads(command: string): string[] {
+  const payloads: string[] = [];
+  const re = /\b(?:ba|z|da)?sh\s+(?:-[a-zA-Z]+\s+)*-[a-zA-Z]*c\s+(?:"((?:\\.|[^"\\])*)"|'([^']*)')/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(command)) !== null) {
+    const payload = m[1] !== undefined ? m[1].replace(/\\(["\\$`])/g, '$1') : m[2];
+    if (payload && payload.trim()) payloads.push(payload);
+  }
+  return payloads;
+}
+
 /** True when the command talks to the Commander API (any route) — never block. */
 export function targetsCommanderApi(command: string): boolean {
   return /\/api\/exec\b/.test(command)
@@ -140,7 +219,7 @@ export function targetsCommanderApi(command: string): boolean {
 /**
  * Classify a direct Bash command. See the module header for the rules.
  */
-export function classifyDirectBashCommand(input: ExecGuardInput): ExecGuardVerdict {
+export function classifyDirectBashCommand(input: ExecGuardInput, depth = 0): ExecGuardVerdict {
   const command = (input.command || '').trim();
   const allow: ExecGuardVerdict = { block: false, signals: [] };
   if (!command) return allow;
@@ -148,22 +227,29 @@ export function classifyDirectBashCommand(input: ExecGuardInput): ExecGuardVerdi
   if (targetsCommanderApi(command)) return allow;
   if (DETACHED_RE.test(command)) return allow;
 
+  // Pattern checks run on the MASKED command: quoted strings and heredoc
+  // bodies are data (sed/grep/echo arguments, scripts piped into a file or
+  // interpreter), not commands — matching inside them produced the false
+  // positives that made the guard noisy. `sh -c` payloads (real commands
+  // hidden by the masking) are classified recursively below.
+  const masked = maskShellLiterals(command);
+
   const signals: string[] = [];
 
   // sleep: long on its own, or any sleep inside a loop (a polling loop).
-  const isLoop = LOOP_RE.test(command) || REPEAT_RE.test(command);
+  const isLoop = LOOP_RE.test(masked) || REPEAT_RE.test(masked);
   let maxSleep = 0;
-  for (const m of command.matchAll(SLEEP_RE)) maxSleep = Math.max(maxSleep, toSeconds(m[1], m[2]));
+  for (const m of masked.matchAll(SLEEP_RE)) maxSleep = Math.max(maxSleep, toSeconds(m[1], m[2]));
   if (maxSleep >= SLEEP_BLOCK_SECONDS) signals.push(`sleep ${maxSleep}s`);
   else if (maxSleep > 0 && isLoop) signals.push('polling loop (sleep inside a loop)');
 
-  const t = TIMEOUT_RE.exec(command);
+  const t = TIMEOUT_RE.exec(masked);
   if (t && toSeconds(t[1], t[2]) >= TIMEOUT_BLOCK_SECONDS) signals.push(`timeout ${toSeconds(t[1], t[2])}s wrapper`);
 
-  if (CURL_DOWNLOAD.test(command)) signals.push('curl download');
+  if (CURL_DOWNLOAD.test(masked)) signals.push('curl download');
 
   for (const [re, label] of LONG_TOOL_PATTERNS) {
-    if (re.test(command)) {
+    if (re.test(masked)) {
       signals.push(label);
       // A loop around a long tool is still one signal family; keep the list short.
       if (signals.length >= 3) break;
@@ -174,6 +260,16 @@ export function classifyDirectBashCommand(input: ExecGuardInput): ExecGuardVerdi
   // a loop on its own (e.g. `for f in *.ts; do wc -l "$f"; done`) is not.
   if (signals.length > 0 && isLoop && !signals.some((s) => s.startsWith('polling loop'))) {
     signals.push('inside a loop');
+  }
+
+  // `bash -c "npm run build"`: the payload is a real command the masking hid.
+  if (depth < 2) {
+    for (const payload of shellDashCPayloads(command)) {
+      const inner = classifyDirectBashCommand({ command: payload }, depth + 1);
+      for (const sig of inner.signals) {
+        if (!signals.includes(sig)) signals.push(sig);
+      }
+    }
   }
 
   return signals.length > 0 ? { block: true, signals } : allow;

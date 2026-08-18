@@ -1176,21 +1176,34 @@ export function findExecTaskForCurlRow<T extends { command: string; startedAt: n
   rowToolUseId?: string,
 ): T | undefined {
   if (execTasks.length === 0) return undefined;
+  const newest = (tasks: T[]) => tasks.reduce((latest, cur) => (cur.startedAt > latest.startedAt ? cur : latest));
+  // Closest-in-time beats newest for the heuristics: when the SAME command ran
+  // twice, "newest wins" attached BOTH rows to the second task (two cards
+  // showing identical output). Each row pairs with the task that started
+  // nearest its own timestamp instead.
+  const closest = (tasks: T[]) => tasks.reduce((best, cur) => (
+    Math.abs(cur.startedAt - rowTimestampMs) < Math.abs(best.startedAt - rowTimestampMs) ? cur : best
+  ));
   if (rowToolUseId) {
     const byId = execTasks.filter((t) => t.toolUseId === rowToolUseId);
-    if (byId.length > 0) return byId.reduce((latest, cur) => (cur.startedAt > latest.startedAt ? cur : latest));
+    if (byId.length > 0) return newest(byId);
   }
+  // Tasks identity-claimed by a DIFFERENT tool call belong to other rows —
+  // keep them out of the heuristics (a re-run of the same command must not
+  // put one task under two rows). Rows without an id can't reason about
+  // claims, so they keep the full set.
+  const candidates = rowToolUseId ? execTasks.filter((t) => !t.toolUseId) : [...execTasks];
+  if (candidates.length === 0) return undefined;
   const inner = extractExecPayloadCommand(bashCommand);
-  const newest = (tasks: T[]) => tasks.reduce((latest, cur) => (cur.startedAt > latest.startedAt ? cur : latest));
   if (inner) {
-    const byCommand = execTasks.filter((t) => t.command === inner);
-    if (byCommand.length > 0) return newest(byCommand);
+    const byCommand = candidates.filter((t) => t.command === inner);
+    if (byCommand.length > 0) return rowTimestampMs ? closest(byCommand) : newest(byCommand);
   }
   if (!rowTimestampMs) return undefined;
-  const inWindow = execTasks.filter(
+  const inWindow = candidates.filter(
     (t) => t.startedAt >= rowTimestampMs - EXEC_MATCH_WINDOW_BEFORE_MS && t.startedAt <= rowTimestampMs + EXEC_MATCH_WINDOW_AFTER_MS,
   );
-  return inWindow.length > 0 ? newest(inWindow) : undefined;
+  return inWindow.length > 0 ? closest(inWindow) : undefined;
 }
 
 /**

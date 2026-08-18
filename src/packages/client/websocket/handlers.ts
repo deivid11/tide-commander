@@ -926,6 +926,18 @@ export function handleServerMessage(message: ServerMessage): void {
       break;
     }
 
+    case 'exec_tasks_snapshot': {
+      const { tasks } = message.payload as {
+        tasks: Array<{
+          taskId: string; agentId: string; agentName: string; command: string; cwd: string;
+          pty?: boolean; startedAt: number; toolUseId?: string; outputTail: string;
+        }>;
+      };
+      console.log(`[WebSocket] Exec tasks snapshot: ${tasks.length} running`);
+      store.handleExecTasksSnapshot(tasks);
+      break;
+    }
+
     case 'exec_task_output': {
       const { taskId, agentId, output, isError } = message.payload as {
         taskId: string;

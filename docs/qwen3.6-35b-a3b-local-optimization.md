@@ -700,6 +700,72 @@ la variación entre corridas es ±2-3 tok/s. El ratio MTP real en esta GPU es
 1.4-1.9× según el tipo de texto (código acepta más). Los 2.5-2.9× del Strix
 Halo nacen de una base muy lenta (14 tok/s): a mayor base, menos margen para
 el especulativo. Nada que cambiar en los perfiles.
+### La mejor opción para 100K+: KV en VRAM + FFN de bloques DeltaNet a CPU (17 de agosto, noche)
+
+Medido con el probe `bench/ctxfill.sh` (prompt real de código, decode con el
+contexto LLENO — que es lo que importa, no el contexto vacío):
+
+| Estrategia (ventana 128K) | 30K llenos | ~100K llenos | Prefill @100K | VRAM |
+| --- | ---: | ---: | ---: | ---: |
+| KV en RAM (`--no-kv-offload`, perfil anterior) | 15.4 | 6.6 (117K) | 192 tok/s | 14.4 GB |
+| `--fit on` automático (pesos a CPU a ciegas) | 11.7 | 5.8 | 216 tok/s | 13.8 GB |
+| **KV en VRAM + FFN de 16 bloques DeltaNet en CPU (`-ot`)** | **20.2** | **14.2** | **240 tok/s** | 15.2 GB |
+| ídem con 12 bloques | 22.4 | — | 384 @30K | 15.6 GB (zona de congelones) |
+
+La clave: el modelo es híbrido y solo 16 de 64 bloques (3, 7, 11, …, 63)
+tienen KV. Con `--no-kv-offload` ese KV se relee por PCIe en cada token y el
+decode cae linealmente con el contexto. En cambio, dejando el KV entero en
+VRAM y sacando a RAM sólo los FFN de bloques DeltaNet (que no tienen KV; ~200
+MB por bloque, tráfico fijo por token), la curva es mucho más plana: 14.2
+tok/s con 102K llenos, 2.4× más que las otras dos vías. `--fit` hace lo mismo
+pero elige capas a ciegas (incluidas de atención) y pierde. Con 8 bloques
+fuera el contexto MTP no cabe; 12 da +10% pero deja la VRAM en 15.6 GB.
+
+**200K no cabe con esta técnica** (ni sacando 24 bloques entra el KV en
+VRAM): 128K es el techo. Perfil adoptado en `start-qwen38-longctx.sh`
+(activo en el servicio): `-ot 'blk\.(0|1|2|4|5|6|8|9|10|12|13|14|16|17|18|20)\.ffn_(up|gate|down)\.weight=CPU'`,
+ctx 131,072, resto igual. Ficha de pi `qwen3.8-27b` → ventana 131,072.
+Herramientas: `bench/ctxfill.sh <label> <chars> <flags>` (servidor efímero en
+:8081 y medición con contexto lleno) y `bench/longctx-probe.py`.
+
+Segunda pasada de afinado sobre este perfil (30K llenos, ventana 128K):
+
+| Variante | Decode | Prefill | VRAM |
+| --- | ---: | ---: | ---: |
+| 16 bloques FFN, ubatch 256 (base) | 20.2 | 375 | 15.2 GB |
+| **16 bloques FFN, ubatch 512** | **23.7** | **416** | 15.4 GB |
+| 16 bloques FFN, ubatch 1024 | 19.2 | 414 | 15.4 GB |
+| 20 bloques FFN, ubatch 512 | 18.6 | 408 | 14.8 GB |
+| solo `ffn_down` de 24 bloques | no cabe el contexto MTP | — | — |
+| ubatch 512 + K en `q8_0` | prefill se desploma a ~38 tok/s (desborde a GTT) | — | — |
+
+Se adoptó **ubatch 512** (+17% decode, +11% prefill por 0.2 GB). ubatch 1024
+ya empeora; sacar más bloques cuesta ~1.2 tok/s por bloque; los `ffn_down`
+solos no liberan lo suficiente; y el KV `q8_0` en K no cabe en VRAM en esta
+configuración (la sugerencia de NInfer no aplica aquí). Perfil vigente:
+16 bloques, ub 512, 128K → 22-24 tok/s hasta 30K, ~15-16 estimado a 100K.
+### Recompilación de llama.cpp a HEAD (17 de agosto, noche)
+
+El build en uso era del 11 de agosto (`89e0aa6`, PR #26433). Se clonó HEAD
+(`01818e4`, PR #27272, ~840 PRs después; ggml 0.19.0 → 0.20.1) en
+`../.cache/llama-opt/llama.cpp-head` y se compiló con la misma receta
+(`GGML_HIP=ON`, `GPU_TARGETS=gfx1101`, `GGML_HIP_GRAPHS`, `GGML_HIP_MMQ_MFMA`,
+`GGML_HIP_NO_VMM`, hipcc/clang 20 de ROCm, ~6 min con 28 hilos). A/B con
+`bench/ctxfill.sh`, mismo GGUF, mismos flags, contexto lleno:
+
+| Perfil | Build viejo (89e0aa6) | Build HEAD (01818e4) | Δ decode |
+| --- | --- | --- | ---: |
+| 128K quirúrgico, 30K llenos | prefill 416 / decode 19.0 | prefill 421 / decode **22.2** | **+17%** |
+| 32K todo-en-GPU, 28K llenos | prefill 431 / decode 33.8 | prefill 436 / decode **38.6** | **+14%** |
+
+Los kernels HIP nuevos mejoran el decode en ambos perfiles sin cambio de
+flags; el prefill queda igual. Adoptado: los scripts y el servicio ya no
+apuntan a un build fijo sino al symlink `../.cache/llama-opt/llama-current`
+(→ `llama.cpp-head/build-hip/bin`). Para volver al viejo:
+`ln -sfn llama.cpp/build-hip/bin /home/riven/.cache/llama-opt/llama-current`
+y reiniciar el servicio. El build viejo se conserva intacto. Nota: HEAD
+activa `--fit` por defecto y avisa (warning inofensivo) que lo ignora cuando
+`--n-gpu-layers` está fijado.
 ## Alternativas probadas y descartadas
 
 - `Q4_K_M` con 40 capas expert en CPU: alrededor de 23 tok/s.
