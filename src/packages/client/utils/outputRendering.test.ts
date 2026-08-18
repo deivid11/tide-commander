@@ -350,6 +350,32 @@ describe('linkifyFilePathsForMarkdown', () => {
     expect(output).toContain('[`docs/Operación/informe-análisis.md`](tide-file://');
   });
 
+  it('does not linkify a domain followed by a path, query or fragment', () => {
+    // Regression: the trailing lookahead used to accept an interior `.` as a token
+    // terminator, so a greedy domain match backtracked and stopped mid-name whenever
+    // the next char was not a valid terminator. The truncated fragment no longer ended
+    // in a TLD, slipped past the URL_TLDS guard, and rendered as
+    // "[inbound-smtp.us-west-2.amazonaws](tide-file://...).com/path".
+    for (const tail of ['/path', '?q=1', '#frag', '"', '**']) {
+      const output = linkifyFilePathsForMarkdown(`see inbound-smtp.us-west-2.amazonaws.com${tail} here`);
+      expect(output).not.toContain('tide-file://');
+      expect(output).toContain(`inbound-smtp.us-west-2.amazonaws.com${tail}`);
+    }
+  });
+
+  it('does not linkify a bare domain in prose', () => {
+    const input = 'add the MX record 10 inbound-smtp.us-west-2.amazonaws.com for in.finkai.tid.mx in Route 53';
+    const output = linkifyFilePathsForMarkdown(input);
+    expect(output).toBe(input);
+  });
+
+  it('still linkifies paths followed by sentence punctuation', () => {
+    expect(linkifyFilePathsForMarkdown('did you see src/foo.ts?')).toContain('[src/foo.ts](tide-file://src%2Ffoo.ts)');
+    expect(linkifyFilePathsForMarkdown('see docs/architecture.md, then')).toContain('[docs/architecture.md](tide-file://docs%2Farchitecture.md)');
+    expect(linkifyFilePathsForMarkdown('edit src/foo.ts:12:3 now')).toContain('[src/foo.ts:12:3](tide-file://');
+    expect(linkifyFilePathsForMarkdown('open lib/libfoo.so here')).toContain('[lib/libfoo.so](tide-file://');
+  });
+
   it('linkifies backtick-wrapped file paths from history markdown', () => {
     const input = [
       '### Added',

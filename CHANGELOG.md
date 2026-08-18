@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.194.1] - 2026-08-17
+
+### Fixed
+- **Domain names no longer render as broken `tide-file://` links** - the file-path autolinker could stop a match on an interior dot, so a domain followed by `/`, `?`, `#`, `:`, a quote or `**` was truncated mid-name. The fragment no longer ended in a TLD, slipped past the URL guard, and rendered as `[inbound-smtp.us-west-2.amazonaws](tide-file://...).com/path` in agent messages. A dot now only ends a path token when the dot itself is followed by end-of-line or real punctuation. Paths followed by sentence punctuation (`src/foo.ts?`, `src/foo.ts:12`) also linkify correctly now, which they previously did not.
+
 ## [1.194.0] - 2026-08-17
 
 ### Added

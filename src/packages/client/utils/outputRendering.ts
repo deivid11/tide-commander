@@ -1344,7 +1344,15 @@ const TIDE_FILE_LINK_SCHEME = 'tide-file://';
 // Path segments allow Unicode letters/marks (see COMMAND_FILE_REF_REGEX above)
 // so accented absolute paths (e.g. /home/.../Operación/file.pdf) are matched in
 // full. The `u` flag is required for the \p{...} escapes.
-const FILE_PATH_TOKEN_REGEX = /(^|[\s(>])((?:\.\.?\/|\/)?(?:[\p{L}\p{M}\p{N}._-]+\/)*[\p{L}\p{M}\p{N}._-]+(?:\.[\p{L}\p{M}\p{N}._-]+)+(?:#L\d+(?:C\d+)?)?(?::\d+(?::\d+)?)?)(?=$|[\s),.;])/gu;
+// The trailing lookahead must NOT let a token end on an interior dot. A bare `.`
+// terminator plus a dot-bearing character class means the engine can backtrack a
+// greedy domain match and stop mid-name whenever the next char is not a valid
+// terminator (`/`, `?`, `#`, `"`, `*`, ...). That truncated the domain in e.g.
+// "inbound-smtp.us-west-2.amazonaws.com/path" to "inbound-smtp.us-west-2.amazonaws",
+// which no longer ends in a TLD, so the URL_TLDS guard below missed it and the
+// fragment was linkified as a file. A `.` therefore only terminates a token when the
+// dot itself is followed by end-of-line or real punctuation (sentence periods).
+const FILE_PATH_TOKEN_REGEX = /(^|[\s(>])((?:\.\.?\/|\/)?(?:[\p{L}\p{M}\p{N}._-]+\/)*[\p{L}\p{M}\p{N}._-]+(?:\.[\p{L}\p{M}\p{N}._-]+)+(?:#L\d+(?:C\d+)?)?(?::\d+(?::\d+)?)?)(?=$|[\s),;:?!'"]|\.(?:$|[\s),;:?!'"]))/gu;
 const INLINE_CODE_FILE_PATH_REGEX = /`((?:\.\.?\/|\/)?(?:[\p{L}\p{M}\p{N}._-]+\/)*[\p{L}\p{M}\p{N}._-]+(?:\.[\p{L}\p{M}\p{N}._-]+)+(?:#L\d+(?:C\d+)?)?(?::\d+(?::\d+)?)?)`/gu;
 
 // Common TLDs to distinguish URLs from file paths
