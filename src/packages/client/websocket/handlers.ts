@@ -911,16 +911,18 @@ export function handleServerMessage(message: ServerMessage): void {
     // ========================================================================
 
     case 'exec_task_started': {
-      const { taskId, agentId, agentName, command, cwd, pty } = message.payload as {
+      const { taskId, agentId, agentName, command, cwd, pty, startedAt, toolUseId } = message.payload as {
         taskId: string;
         agentId: string;
         agentName: string;
         command: string;
         cwd: string;
         pty?: boolean;
+        startedAt?: number;
+        toolUseId?: string;
       };
       console.log(`[WebSocket] Exec task started: ${taskId} for agent ${agentName}: ${command.slice(0, 50)}...`);
-      store.handleExecTaskStarted(taskId, agentId, agentName, command, cwd, pty);
+      store.handleExecTaskStarted(taskId, agentId, agentName, command, cwd, pty, startedAt, toolUseId);
       break;
     }
 
@@ -936,14 +938,15 @@ export function handleServerMessage(message: ServerMessage): void {
     }
 
     case 'exec_task_completed': {
-      const { taskId, agentId, exitCode, success } = message.payload as {
+      const { taskId, agentId, exitCode, success, completedAt } = message.payload as {
         taskId: string;
         agentId: string;
         exitCode: number | null;
         success: boolean;
+        completedAt?: number;
       };
       console.log(`[WebSocket] Exec task completed: ${taskId} for agent ${agentId}, success: ${success}`);
-      store.handleExecTaskCompleted(taskId, agentId, exitCode, success);
+      store.handleExecTaskCompleted(taskId, agentId, exitCode, success, completedAt);
       break;
     }
 

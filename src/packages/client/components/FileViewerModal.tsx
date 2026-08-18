@@ -10,6 +10,8 @@ import { apiUrl, authFetch, getAuthToken } from '../utils/storage';
 import { copyRichContentToClipboard, copyTextToClipboard, inlineStylesForRichCopy } from '../utils/clipboard';
 import { downloadServerFile, absolutizeAssetUrl, triggerBrowserDownload } from '../utils/file-download';
 import { revealInFileExplorer } from '../api/files';
+import { ArchiveViewer } from './shared/ArchiveViewer';
+import { ARCHIVE_EXTENSIONS } from '../../shared/archive-types';
 import { store } from '../store';
 import { useModalClose } from '../hooks';
 import { parseFilePathReference, resolveAgentFilePath } from '../utils/filePaths';
@@ -675,8 +677,10 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     const isGcodeFile = GCODE_EXTENSIONS.includes(ext);
     const isAudioFile = (AUDIO_EXTENSIONS as readonly string[]).includes(ext);
     const isVideoFile = (VIDEO_EXTENSIONS as readonly string[]).includes(ext);
+    // Archives are never read as text: metadata here, entries via /api/files/archive.
+    const isArchiveFile = ARCHIVE_EXTENSIONS.includes(ext);
 
-    const endpoint = (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGlbFile || isGcodeFile || isAudioFile || isVideoFile)
+    const endpoint = (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGlbFile || isGcodeFile || isAudioFile || isVideoFile || isArchiveFile)
       ? `/api/files/info?path=${encodeURIComponent(filePath)}${baseDirParam}`
       : `/api/files/read?path=${encodeURIComponent(filePath)}${baseDirParam}`;
 
@@ -694,7 +698,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       };
     }
 
-    if (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGlbFile || isGcodeFile || isAudioFile || isVideoFile) {
+    if (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGlbFile || isGcodeFile || isAudioFile || isVideoFile || isArchiveFile) {
       data.content = '';
     }
 
@@ -1134,7 +1138,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const isGcode = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, GCODE_EXTENSIONS));
   const isAudio = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, AUDIO_EXTENSIONS as readonly string[] as string[]));
   const isVideo = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, VIDEO_EXTENSIONS as readonly string[] as string[]));
-  const language = isSvg ? 'SVG' : isImage ? 'Image' : isPdf ? 'PDF' : isStl ? 'STL · 3D' : isFcStd ? 'FreeCAD · 3D' : isGlb ? 'GLB · 3D' : isGcode ? 'G-code · Print' : isAudio ? 'Audio' : isVideo ? 'Video' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
+  const isArchive = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, ARCHIVE_EXTENSIONS as string[]));
+  const language = isSvg ? 'SVG' : isImage ? 'Image' : isPdf ? 'PDF' : isStl ? 'STL · 3D' : isFcStd ? 'FreeCAD · 3D' : isGlb ? 'GLB · 3D' : isGcode ? 'G-code · Print' : isAudio ? 'Audio' : isVideo ? 'Video' : isArchive ? 'Archive' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
   const authToken = getAuthToken();
   // Use the resolved file path (a clicked directory entry has its own path that
   // differs from the modal's original effectivePath — which may be the folder).
@@ -1157,7 +1162,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     : null;
   // Every format rendered by a dedicated viewer instead of the text/code panes:
   // they have no line count, nothing to copy as text and their own download path.
-  const hasBinaryPreview = isImage || isPdf || isStl || isFcStd || isGlb || isGcode || isAudio || isVideo;
+  const hasBinaryPreview = isImage || isPdf || isStl || isFcStd || isGlb || isGcode || isAudio || isVideo || isArchive;
   // The text preview endpoint deliberately rejects files over 1 MB, but those
   // files can still be saved through the streaming binary endpoint.
   const canDownloadWithoutPreview = !fileData && error?.startsWith('File too large');
@@ -1517,6 +1522,9 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
               </div>
             ) : isPdf && pdfUrl ? (
               <PdfJsViewer url={pdfUrl} authToken={authToken || undefined} />
+            ) : isArchive ? (
+              // Compressed archive: browsable entry tree (server lists without extracting)
+              <ArchiveViewer filePath={binaryPath} baseDir={searchRoot} filename={fileData.filename} />
             ) : isStl && stlUrl ? (
               <React.Suspense fallback={<div className="file-viewer-loading">{t('terminal:fileViewerModal.loading3d')}</div>}>
                 <StlViewer

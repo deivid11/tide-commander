@@ -11,6 +11,7 @@ import { logger, formatToolActivity } from '../../utils/index.js';
 import { parseBossDelegation, parseBossSpawn, getBossForSubordinate, clearDelegation } from '../handlers/boss-response-handler.js';
 import { startWatching as startJsonlWatching, stopWatching as stopJsonlWatching, isWatching as isJsonlWatching, getSubagentsDir } from '../../services/subagent-jsonl-watcher.js';
 import { getBackgroundTasksForAgent, onBackgroundTasksChanged } from '../../services/background-tasks.js';
+import { registerBashToolCall, completeBashToolCall, clearBashToolCalls } from '../../services/bash-toolcall-registry.js';
 
 const log = logger.ws;
 const MAX_SYNTHETIC_DIFF_FILE_BYTES = 256 * 1024;
@@ -145,6 +146,16 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
   }
 
   runtimeService.on('event', (agentId, event) => {
+    // Track in-flight Bash tool calls (parent agent and its subagents alike):
+    // POST /api/exec from this agent is paired with the Bash call that issued
+    // the curl, so the terminal attaches the exec card by tool_use id.
+    if (event.type === 'tool_start' && event.toolName === 'Bash') {
+      const cmd = (event.toolInput as Record<string, unknown> | undefined)?.command;
+      registerBashToolCall(agentId, event.toolUseId || event.uuid, typeof cmd === 'string' ? cmd : undefined);
+    } else if (event.type === 'tool_result' && event.toolName === 'Bash') {
+      completeBashToolCall(agentId, event.toolUseId || event.uuid);
+    }
+
     // Clear compacting state when agent resumes with new output after compaction
     if (compactingAgents.has(agentId) && event.type !== 'compacting') {
       compactingAgents.delete(agentId);
@@ -548,6 +559,7 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
 
   runtimeService.on('complete', (agentId, success) => {
     pendingBashCommands.delete(agentId);
+    clearBashToolCalls(agentId);
     ctx.sendActivity(agentId, success ? 'Task completed' : 'Task failed');
 
     const delegation = getBossForSubordinate(agentId);
@@ -569,6 +581,7 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
 
   runtimeService.on('error', (agentId, error) => {
     pendingBashCommands.delete(agentId);
+    clearBashToolCalls(agentId);
     ctx.sendActivity(agentId, `Error: ${error}`);
   });
 

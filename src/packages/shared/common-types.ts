@@ -244,6 +244,9 @@ export interface ExecTask {
   // Command runs under a pseudo-terminal: output chunks are a raw PTY stream
   // (in-place redraws, ANSI) that the client replays through TerminalRenderer.
   pty?: boolean;
+  /** tool_use id of the Bash call that issued the /api/exec curl (server-paired);
+   * the terminal attaches the live card to that row by identity. */
+  toolUseId?: string;
 }
 
 // ============================================================================

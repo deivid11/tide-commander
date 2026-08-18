@@ -16,6 +16,7 @@ import { loadAreas } from '../data/index.js';
 import { detectRunnerType, mightBeTestFile, mightBeVitestFile, mightBePhpTestFile } from '../services/test-runner-service.js';
 import type { TestRunnerType } from '../../shared/types.js';
 import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS, parseExcludeDirNames } from '../../shared/file-search.js';
+import { detectArchiveFormat, listArchive } from '../services/archive-listing.js';
 import {
   searchFilesGlobal,
   searchFileContentsGlobal,
@@ -899,6 +900,65 @@ router.get('/info', async (req: Request, res: Response) => {
   } catch (err: any) {
     log.error(' Failed to get file info:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/files/archive - List the entries of a compressed archive (zip/jar/
+// tar.*/7z/rar/… — see archive-listing.ts) without extracting it. Used by the
+// file viewers to render an archive as a browsable tree instead of "binary".
+router.get('/archive', async (req: Request, res: Response) => {
+  try {
+    const resolution = findFileWithFallbacks(
+      req.query.path as string | undefined,
+      req.query.baseDir as string | undefined,
+    );
+    if (!resolution.ok) {
+      const body: Record<string, unknown> = { error: resolution.error };
+      if (resolution.requested) body.path = resolution.requested;
+      if (resolution.tried) body.triedRoots = resolution.tried;
+      res.status(resolution.status).json(body);
+      return;
+    }
+    const filePath = resolution.path;
+    const stats = fs.statSync(filePath);
+    if (stats.isDirectory()) {
+      res.status(400).json({ error: 'Path is a directory', path: filePath });
+      return;
+    }
+    const filename = path.basename(filePath);
+    if (!detectArchiveFormat(filename)) {
+      res.status(415).json({ error: 'Not a supported archive type', path: filePath });
+      return;
+    }
+    const listing = await listArchive(filePath);
+    let fileCount = 0;
+    let dirCount = 0;
+    let totalSize: number | null = 0;
+    let totalCompressed: number | null = 0;
+    for (const e of listing.entries) {
+      if (e.isDir) dirCount++; else fileCount++;
+      if (totalSize !== null) totalSize = e.size === null && !e.isDir ? null : totalSize + (e.size ?? 0);
+      if (totalCompressed !== null) totalCompressed = e.compressedSize === null && !e.isDir ? null : totalCompressed + (e.compressedSize ?? 0);
+    }
+    res.json({
+      path: filePath,
+      filename,
+      extension: path.extname(filePath).toLowerCase(),
+      size: stats.size,
+      modified: stats.mtime,
+      format: listing.format,
+      tool: listing.tool,
+      entries: listing.entries,
+      entryCount: listing.entries.length,
+      fileCount,
+      dirCount,
+      totalSize,
+      totalCompressed,
+      truncated: listing.truncated,
+    });
+  } catch (err: any) {
+    log.error(' Failed to list archive:', err);
+    res.status(422).json({ error: err.message });
   }
 });
 

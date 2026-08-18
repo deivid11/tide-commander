@@ -9,6 +9,7 @@
 import type { ExecTask } from '../../shared/types';
 import { TerminalRenderer } from '../../shared/terminal-render';
 import { apiUrl, authFetch } from '../utils/storage';
+import { serverNow } from './outputs';
 import type { StoreState } from './types';
 
 // Per-task PTY replay state (non-serializable — lives outside the store).
@@ -27,10 +28,14 @@ export interface ExecTaskActions {
     agentName: string,
     command: string,
     cwd: string,
-    pty?: boolean
+    pty?: boolean,
+    /** Server-stamped start (ms). Falls back to the skew-corrected server clock. */
+    startedAt?: number,
+    /** tool_use id of the Bash call that issued the curl (server-paired). */
+    toolUseId?: string
   ): void;
   handleExecTaskOutput(taskId: string, agentId: string, output: string, isError?: boolean): void;
-  handleExecTaskCompleted(taskId: string, agentId: string, exitCode: number | null, success: boolean): void;
+  handleExecTaskCompleted(taskId: string, agentId: string, exitCode: number | null, success: boolean, completedAt?: number): void;
 
   // Task control
   stopExecTask(taskId: string): Promise<boolean>;
@@ -58,7 +63,9 @@ export function createExecTaskActions(
       agentName: string,
       command: string,
       cwd: string,
-      pty?: boolean
+      pty?: boolean,
+      startedAt?: number,
+      toolUseId?: string
     ): void {
       setState((state) => {
         const task: ExecTask = {
@@ -69,8 +76,12 @@ export function createExecTaskActions(
           cwd,
           status: 'running',
           output: [],
-          startedAt: Date.now(),
+          // SERVER time domain, like the terminal rows it gets matched against
+          // (a device clock ahead/behind the server would miss the row's
+          // time window — the row itself is server-stamped).
+          startedAt: startedAt ?? serverNow(),
           pty,
+          toolUseId,
         };
 
         if (!state.execTasks) {
@@ -128,7 +139,8 @@ export function createExecTaskActions(
       taskId: string,
       agentId: string,
       exitCode: number | null,
-      success: boolean
+      success: boolean,
+      completedAt?: number
     ): void {
       ptyRenderers.delete(taskId);
       setState((state) => {
@@ -136,7 +148,7 @@ export function createExecTaskActions(
         if (task) {
           task.status = success ? 'completed' : 'failed';
           task.exitCode = exitCode;
-          task.completedAt = Date.now();
+          task.completedAt = completedAt ?? serverNow();
         }
       });
       notify();
@@ -149,22 +161,25 @@ export function createExecTaskActions(
         const response = await authFetch(apiUrl(`/api/exec/tasks/${taskId}`), {
           method: 'DELETE',
         });
-        if (response.ok) {
-          // Mark the task as failed/stopped in local state immediately
-          // (Server will also broadcast exec_task_completed event)
+        // 200 = the server is killing the tree. 404 = the task is already gone
+        // server-side (it finished, or completion was lost to a WS drop) — the
+        // card is stale, so resolve it too instead of leaving it spinning
+        // forever. Any other status is a real failure the button can't fix.
+        const resolvedLocally = response.ok || response.status === 404;
+        if (resolvedLocally) {
+          const stoppedByUser = response.ok;
           setState((state) => {
             const task = state.execTasks?.get(taskId);
             if (task && task.status === 'running') {
               task.status = 'failed';
               task.exitCode = -15; // SIGTERM exit code
               task.completedAt = Date.now();
-              task.output.push('[Task stopped by user]');
+              task.output.push(stoppedByUser ? '[Task stopped by user]' : '[Task already ended]');
             }
           });
           notify();
-          return true;
         }
-        return false;
+        return resolvedLocally;
       } catch (err) {
         console.error('Failed to stop exec task:', err);
         return false;

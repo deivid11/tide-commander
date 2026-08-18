@@ -727,6 +727,317 @@
   margin-top: 8px;
 }
 
+// ── Archive viewer (zip / jar / apk / tar.* / 7z / rar …) ────────────────────
+// Rendered by both FileViewerModal and the guake git-panel binary modal.
+// Self-contained layout: a fixed head (summary · toolbar · column header)
+// and a body that scrolls on its own — no sticky offset math that depends on
+// the host's geometry. If the host cannot give it a definite height, the head
+// still sticks to the top of the host scroller (position: sticky, top: 0).
+// Column layout is driven by a class on the root (cols-name-size[-stored][-mtime])
+// and adapts to the CONTAINER width (phones, the narrow guake side panel):
+// Modified drops first, then Stored, so the name column always keeps room.
+.archive-viewer {
+  --archive-cols: minmax(0, 1fr) 96px;
+  --archive-row-h: 24px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  container-type: inline-size;
+  font-family: $font-mono;
+  font-size: 12px;
+  color: var(--text-primary);
+
+  &.cols-name-size-stored { --archive-cols: minmax(0, 1fr) 96px 96px; }
+  &.cols-name-size-mtime { --archive-cols: minmax(0, 1fr) 96px 132px; }
+  &.cols-name-size-stored-mtime { --archive-cols: minmax(0, 1fr) 96px 96px 132px; }
+}
+
+.archive-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.archive-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 12px;
+  scrollbar-width: thin;
+}
+
+.archive-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 8px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+  color: var(--text-secondary);
+
+  b { color: var(--text-primary); font-weight: 600; }
+}
+
+.archive-format-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: var(--accent-orange);
+  background: color-mix(in srgb, var(--accent-orange) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-orange) 30%, transparent);
+}
+
+.archive-summary-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+
+  svg { opacity: 0.75; }
+}
+
+.archive-ratio {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-green);
+  background: color-mix(in srgb, var(--accent-green) 14%, transparent);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.archive-summary-tool {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.archive-summary-warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent-yellow);
+  font-size: 11px;
+}
+
+.archive-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  padding: 6px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+}
+
+.archive-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 180px;
+  max-width: 420px;
+  min-width: 0;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+
+  &:focus-within { border-color: color-mix(in srgb, var(--accent-blue) 60%, transparent); }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 12px;
+  }
+}
+
+.archive-filter-clear {
+  display: inline-flex;
+  padding: 2px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 3px;
+
+  &:hover { color: var(--text-primary); background: color-mix(in srgb, var(--text-muted) 15%, transparent); }
+}
+
+.archive-toolbar-actions {
+  display: flex;
+  gap: 6px;
+
+  button {
+    font: inherit;
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover { color: var(--text-primary); border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+  }
+}
+
+.archive-filter-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.archive-row {
+  display: grid;
+  grid-template-columns: var(--archive-cols);
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  height: var(--archive-row-h);
+  line-height: var(--archive-row-h);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 35%, transparent);
+
+  &:hover { background: color-mix(in srgb, var(--accent-blue) 6%, transparent); }
+
+  &.is-dir { cursor: pointer; }
+  &.is-dir.is-flat { cursor: default; }
+  &.is-dir:focus-visible { outline: 1px solid var(--accent-blue); outline-offset: -1px; }
+}
+
+.archive-header-row {
+  height: 22px;
+  line-height: 22px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: none;
+
+  &:hover { background: transparent; }
+}
+
+.archive-cell {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.archive-cell-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.archive-indent {
+  flex-shrink: 0;
+  width: calc(var(--depth, 0) * 16px);
+}
+
+.archive-caret {
+  flex-shrink: 0;
+  display: inline-flex;
+  width: 12px;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+// File rows have no caret: keep the icon column aligned with folder rows.
+.archive-row.is-file:not(.is-flat) .archive-icon { margin-left: 17px; }
+
+.archive-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--text-secondary);
+
+  .archive-row.is-dir & { color: var(--accent-yellow); }
+}
+
+.archive-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  .archive-row.is-dir & { color: var(--text-primary); font-weight: 600; }
+}
+
+.archive-dir-count {
+  flex-shrink: 0;
+  margin-left: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.archive-cell-size {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+
+  .archive-row.is-dir & { color: var(--text-muted); }
+}
+
+.archive-cell-compressed { color: var(--text-muted); }
+
+.archive-cell-mtime {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.archive-empty {
+  padding: 24px 14px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.archive-viewer-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+}
+
+// Narrow containers (phones, guake side panel): drop Modified, keep Stored.
+// NOTE: a container query matches an element's ANCESTOR container, so the
+// overrides must land on the viewer's children (head/body — the rows inherit
+// the variables), never on .archive-viewer itself.
+@container (max-width: 640px) {
+  .archive-head, .archive-body { --archive-row-h: 30px; } // touch-friendlier rows
+  .cols-name-size-mtime > :is(.archive-head, .archive-body) { --archive-cols: minmax(0, 1fr) 84px; }
+  .cols-name-size-stored > :is(.archive-head, .archive-body) { --archive-cols: minmax(0, 1fr) 84px 84px; }
+  .cols-name-size-stored-mtime > :is(.archive-head, .archive-body) { --archive-cols: minmax(0, 1fr) 84px 84px; }
+  .archive-cell-mtime { display: none; }
+  .archive-row { gap: 8px; padding: 0 10px; }
+  .archive-summary { padding: 6px 10px; gap: 4px 10px; font-size: 11px; }
+  .archive-summary-tool { display: none; }
+  .archive-toolbar { padding: 6px 10px; }
+  .archive-dir-count { display: none; }
+}
+
+// Very narrow (phone portrait): name + size only.
+@container (max-width: 440px) {
+  .cols-name-size-stored > :is(.archive-head, .archive-body) { --archive-cols: minmax(0, 1fr) 78px; }
+  .cols-name-size-stored-mtime > :is(.archive-head, .archive-body) { --archive-cols: minmax(0, 1fr) 78px; }
+  .archive-cell-compressed { display: none; }
+}
+
 // Scroll position indicator (less-style navigation)
 .file-viewer-scroll-indicator {
   position: absolute;

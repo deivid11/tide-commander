@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeTideFileHref, isImageViewTool, getImageViewTarget, extractExecWrappedCommand, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, summarizeCodexExecScript, extractToolKeyParam, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, prettifyToolName, summarizeWebSearch } from './outputRendering';
+import { decodeTideFileHref, isImageViewTool, getImageViewTarget, extractExecWrappedCommand, extractExecPayloadCommand, shellSplitWords, findExecTaskForCurlRow, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, summarizeCodexExecScript, extractToolKeyParam, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, prettifyToolName, summarizeWebSearch } from './outputRendering';
 
 describe('Codex exec activity summaries', () => {
   it('describes parallel terminal commands without exposing orchestration code', () => {
@@ -447,6 +447,38 @@ EOF`;
     const cmd = '/usr/bin/zsh -lc "npm run build"';
     expect(extractExecWrappedCommand(cmd)).toBe(cmd);
   });
+
+  it("resolves the shell '\\'' idiom (literal single quote inside a single-quoted body) — the ssh/docker --format case", () => {
+    // Exactly what a Claude agent ran: the JSON body is single-quoted for the
+    // shell, and the docker --format template needs literal single quotes, so
+    // the agent wrote  '\''  (close, escaped quote, reopen). The old regex
+    // stopped at the first quote and the row never matched its exec card.
+    const cmd = String.raw`curl -s -X POST -H "X-Auth-Token: abcd" http://localhost:5174/api/exec -H "Content-Type: application/json" -d '{"agentId":"cgvh568f","command":"ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new deploy@ops.example.com \"echo CONNECTED; docker ps --filter name=demo-core --format '\''{{.ID}}  {{.Names}}  {{.Status}}'\''\"","tail":40}'`;
+    // What the server received (the shell resolved '\'' → ' and \" → " inside JSON).
+    expect(extractExecPayloadCommand(cmd)).toBe(
+      `ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new deploy@ops.example.com "echo CONNECTED; docker ps --filter name=demo-core --format '{{.ID}}  {{.Names}}  {{.Status}}'"`,
+    );
+  });
+
+  it('handles -d attached / --data= / --json forms and double-quoted bodies', () => {
+    expect(extractExecPayloadCommand(`curl http://localhost:5174/api/exec -d'{"command":"make apk"}'`)).toBe('make apk');
+    expect(extractExecPayloadCommand(`curl http://localhost:5174/api/exec --data-raw='{"command":"npm ci"}'`)).toBe('npm ci');
+    // Shell text verbatim: inside double quotes each JSON `\"` is `\\\"`.
+    expect(extractExecPayloadCommand(String.raw`curl http://localhost:5174/api/exec --json "{\"command\":\"echo \\\"hi\\\"\"}"`)).toBe('echo "hi"');
+  });
+});
+
+describe('shellSplitWords', () => {
+  it('splits like POSIX sh: quotes, escapes, adjacent segments, continuations', () => {
+    expect(shellSplitWords(`a 'b c' "d e" f\\ g`)).toEqual(['a', 'b c', 'd e', 'f g']);
+    expect(shellSplitWords(`'x'\\''y'`)).toEqual([`x'y`]);
+    expect(shellSplitWords(`"say \\"hi\\" \\$HOME \\\\ ok"`)).toEqual([`say "hi" $HOME \\ ok`]);
+    expect(shellSplitWords(`one \\\ntwo`)).toEqual(['one', 'two']);
+    expect(shellSplitWords(`'' x`)).toEqual(['', 'x']);
+    expect(shellSplitWords(`$'a\\tb' c`)).toEqual(['a\tb', 'c']);
+    // Unterminated quote consumes to the end instead of throwing.
+    expect(shellSplitWords(`echo 'unterminated`)).toEqual(['echo', 'unterminated']);
+  });
 });
 
 describe('view_image tool target', () => {
@@ -503,5 +535,49 @@ describe('summarizeWebSearch', () => {
     const json = JSON.stringify({ query: 'kimi k3 context' });
     expect(extractToolKeyParam('web_search', json)).toBe('"kimi k3 context"');
     expect(extractToolKeyParam('WebSearch', json)).toBe('"kimi k3 context"');
+  });
+});
+
+describe('findExecTaskForCurlRow', () => {
+  const sshCmd = `ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new deploy@ops.example.com "echo CONNECTED; docker ps --filter name=demo-core --format '{{.ID}}  {{.Names}}  {{.Status}}'"`;
+  const curlRow = String.raw`curl -s -X POST -H "X-Auth-Token: abcd" http://localhost:5174/api/exec -H "Content-Type: application/json" -d '{"agentId":"cgvh568f","command":"ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new deploy@ops.example.com \"echo CONNECTED; docker ps --filter name=demo-core --format '\''{{.ID}}  {{.Names}}  {{.Status}}'\''\"","tail":40}'`;
+  const T = 1_000_000;
+
+  it('matches by tool_use identity first (server-paired), regardless of body or clocks', () => {
+    const tasks = [
+      { taskId: 'other', command: 'unrelated', startedAt: T + 100, toolUseId: 'toolu_other' },
+      { taskId: 'mine', command: 'something the parser could never derive', startedAt: T + 60_000, toolUseId: 'toolu_row' },
+    ];
+    expect(findExecTaskForCurlRow(tasks, `curl -s http://localhost:5174/api/exec -d @/tmp/x.json`, T, 'toolu_row')?.taskId).toBe('mine');
+    // No id on the row → falls back to the other strategies (here: window).
+    expect(findExecTaskForCurlRow(tasks, `curl -s http://localhost:5174/api/exec -d @/tmp/x.json`, T)?.taskId).toBe('other');
+  });
+
+  it('matches by the exact inner command even when the row and task clocks disagree', () => {
+    const tasks = [
+      { taskId: 'a', command: 'npm run build', startedAt: T + 100 },
+      { taskId: 'b', command: sshCmd, startedAt: T + 60_000 }, // far outside any window
+    ];
+    expect(findExecTaskForCurlRow(tasks, curlRow, T)?.taskId).toBe('b');
+  });
+
+  it('prefers the most recent task when the same command ran several times', () => {
+    const tasks = [
+      { taskId: 'old', command: sshCmd, startedAt: T - 90_000 },
+      { taskId: 'new', command: sshCmd, startedAt: T + 200 },
+    ];
+    expect(findExecTaskForCurlRow(tasks, curlRow, T)?.taskId).toBe('new');
+  });
+
+  it('falls back to a server-clock window (−2s … +10s) when the body is unparseable', () => {
+    const row = `curl -s http://localhost:5174/api/exec -d @/tmp/body.json`; // no inline body
+    const tasks = [
+      { taskId: 'early', command: 'x', startedAt: T - 5_000 },
+      { taskId: 'jitter', command: 'y', startedAt: T - 1_000 }, // exec started just before the row was stamped
+      { taskId: 'late', command: 'z', startedAt: T + 30_000 },
+    ];
+    expect(findExecTaskForCurlRow(tasks, row, T)?.taskId).toBe('jitter');
+    expect(findExecTaskForCurlRow(tasks, row, 0)).toBeUndefined(); // no timestamp → no guess
+    expect(findExecTaskForCurlRow([], row, T)).toBeUndefined();
   });
 });

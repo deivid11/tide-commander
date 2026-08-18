@@ -216,6 +216,7 @@ export interface Settings {
   // Experimental: run Codex agents through a persistent `codex app-server`
   // process so replies stream word-by-word (server-synced)
   codexAppServerMode: boolean;
+  execGuard: boolean; // Streaming-exec guard: deny direct long-running Bash for Claude agents with the streaming-exec skill (server-side setting, mirrored here)
   // Experimental: run OpenCode agents through a persistent `opencode serve`
   // process so replies stream word-by-word (server-synced)
   opencodeServerMode: boolean;
@@ -252,6 +253,7 @@ export const DEFAULT_SETTINGS: Settings = {
   interactiveMode: false,
   // Opt-in (experimental): streaming server modes default OFF until hardened.
   codexAppServerMode: false,
+  execGuard: true,
   opencodeServerMode: false,
   piRpcMode: false,
   fileSearchExcludeDirs: [...DEFAULT_FILE_SEARCH_EXCLUDE_DIRS],

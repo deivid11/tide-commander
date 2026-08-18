@@ -350,6 +350,59 @@ export function setInteractiveModeEnabled(enabled: boolean): void {
 }
 
 // ============================================================================
+// Streaming-Exec Guard Setting
+// ============================================================================
+//
+// When enabled (default), Claude agents that have the "Streaming Command
+// Execution" skill get a PreToolUse hook that DENIES direct Bash calls which
+// look long-running (builds, tests, installs, polling loops, downloads,
+// model binaries…) and hands back the exact `POST /api/exec` curl for the
+// same command — so the user sees live output instead of a silent spinner.
+// Read live on every hook call (the hook always asks the server), so
+// toggling takes effect immediately for running agents.
+
+const EXEC_GUARD_FILE = path.join(DATA_DIR, 'exec-guard-setting.json');
+
+interface ExecGuardSetting {
+  enabled: boolean;
+  updatedAt: number;
+}
+
+/**
+ * Check if the streaming-exec guard is enabled (default: on).
+ */
+export function isExecGuardEnabled(): boolean {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(EXEC_GUARD_FILE)) {
+      const data: ExecGuardSetting = JSON.parse(fs.readFileSync(EXEC_GUARD_FILE, 'utf-8'));
+      return data.enabled;
+    }
+  } catch (error: any) {
+    log.error(` Failed to load exec guard setting: ${error.message}`);
+  }
+  return true;
+}
+
+/**
+ * Enable/disable the streaming-exec guard.
+ */
+export function setExecGuardEnabled(enabled: boolean): void {
+  ensureDataDir();
+  const data: ExecGuardSetting = {
+    enabled,
+    updatedAt: Date.now(),
+  };
+  try {
+    fs.writeFileSync(EXEC_GUARD_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    log.log(` Exec guard setting updated: enabled=${enabled}`);
+  } catch (error: any) {
+    log.error(` Failed to save exec guard setting: ${error.message}`);
+    throw error;
+  }
+}
+
+// ============================================================================
 // Codex App-Server Mode Setting
 // ============================================================================
 //

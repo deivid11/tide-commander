@@ -13,6 +13,8 @@ import { apiUrl, authFetch, STORAGE_KEYS, getStorageString, setStorageString, ge
 import { store, useAreas, useGitDirStatuses } from '../../store';
 import { acquireGitWatch, requestGitRefresh } from '../../services/gitWatch';
 import { DiffViewer } from '../DiffViewer';
+import { ArchiveViewer } from '../shared/ArchiveViewer';
+import { ARCHIVE_EXTENSIONS } from '../../../shared/archive-types';
 import { GIT_STATUS_CONFIG } from '../FileExplorerPanel/constants';
 import { downloadFile, downloadFolder, setNativeFileDrag } from '../../utils/file-download';
 import { agentRecency, getRecentAgentTimes } from '../../utils/agentRecency';
@@ -140,7 +142,7 @@ interface ContentState {
   language: string;
 }
 
-type BinaryPreviewKind = 'image' | 'pdf' | 'stl' | 'fcstd' | 'glb' | 'gcode' | 'binary';
+type BinaryPreviewKind = 'image' | 'pdf' | 'stl' | 'fcstd' | 'glb' | 'gcode' | 'archive' | 'binary';
 
 interface BinaryState {
   filePath: string;
@@ -185,6 +187,8 @@ function getBinaryPreviewKind(filename: string): BinaryPreviewKind | null {
   if (extension === '.fcstd') return 'fcstd';
   if (extension === '.glb' || extension === '.gbl') return 'glb';
   if (extension === '.gcode' || extension === '.gco') return 'gcode';
+  // Compressed containers get a browsable entry tree instead of "binary".
+  if (ARCHIVE_EXTENSIONS.includes(extension)) return 'archive';
   return GIT_BINARY_EXTENSIONS.has(extension) ? 'binary' : null;
 }
 
@@ -264,6 +268,13 @@ function GitBinaryPreview({ data, onFileSelect }: { data: BinaryState; onFileSel
     return (
       <div className="guake-git-binary-preview">
         <PdfJsViewer url={rawUrl} authToken={authToken || undefined} />
+      </div>
+    );
+  }
+  if (data.previewKind === 'archive' && !data.isDeleted) {
+    return (
+      <div className="guake-git-binary-preview">
+        <ArchiveViewer filePath={data.filePath} filename={data.fileName} />
       </div>
     );
   }

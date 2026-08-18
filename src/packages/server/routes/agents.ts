@@ -27,7 +27,7 @@ import {
   SessionTransferError,
   type CreatedTransfer,
 } from '../services/session-transfer-service.js';
-import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled, isInteractiveModeEnabled, setInteractiveModeEnabled, isCodexAppServerModeEnabled, setCodexAppServerModeEnabled, isOpencodeServerModeEnabled, setOpencodeServerModeEnabled, isPiRpcModeEnabled, setPiRpcModeEnabled } from '../services/system-prompt-service.js';
+import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled, isInteractiveModeEnabled, setInteractiveModeEnabled, isCodexAppServerModeEnabled, setCodexAppServerModeEnabled, isOpencodeServerModeEnabled, setOpencodeServerModeEnabled, isPiRpcModeEnabled, setPiRpcModeEnabled, isExecGuardEnabled, setExecGuardEnabled } from '../services/system-prompt-service.js';
 import { markInstructionsDirtyForAll } from '../services/instruction-refresh.js';
 import { startAgentTerminal, stopAgentTerminal } from '../services/agent-terminal-service.js';
 import { buildClaudeUsageByAgentSummary, buildClaudeUsageByDaySummary, buildClaudeUsageSnapshot } from '../services/claude-usage-service.js';
@@ -2179,6 +2179,32 @@ router.post('/system-settings/interactive-mode', (req: Request, res: Response) =
     res.json({ success: true, enabled });
   } catch (err: any) {
     log.error(' Failed to set interactive mode setting:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/system-settings/exec-guard - Get the streaming-exec guard setting
+router.get('/system-settings/exec-guard', (_req: Request, res: Response) => {
+  try {
+    res.json({ enabled: isExecGuardEnabled() });
+  } catch (err: any) {
+    log.error(' Failed to get exec guard setting:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/system-settings/exec-guard - Update the streaming-exec guard setting
+router.post('/system-settings/exec-guard', (req: Request, res: Response) => {
+  try {
+    const { enabled } = req.body;
+    if (typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'enabled must be a boolean' });
+      return;
+    }
+    setExecGuardEnabled(enabled);
+    res.json({ success: true, enabled });
+  } catch (err: any) {
+    log.error(' Failed to set exec guard setting:', err);
     res.status(500).json({ error: err.message });
   }
 });

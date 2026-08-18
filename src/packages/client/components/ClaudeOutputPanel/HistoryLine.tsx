@@ -10,7 +10,7 @@ import { useHideCost, useSettings, useAgentPrompts } from '../../store';
 import { store, type TestRunHandle, type HttpRunHandle } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget, summarizeWebSearch } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, findExecTaskForCurlRow, extractExecWrappedCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget, summarizeWebSearch } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { filePreviewHandlers, toolPreviewHandlers, type ToolPreviewTarget } from './toolPreviewHover';
 import { getSlashCommandInfo } from '../../utils/slashCommands';
@@ -706,33 +706,11 @@ export const HistoryLine = memo(function HistoryLine({
       const bashMemoryCommand = isBashTool && bashCommand && !bashTrackingStatusCommand && !bashTaskLabelCommand && !bashReportTaskCommand ? parseBashMemoryCommand(bashCommand) : null;
       const bashMemoryResponse = bashMemoryCommand ? parseMemoryResponseInfo(_bashOutput) : undefined;
       const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
+      // Same matcher as the live OutputLine (exact inner command, else a
+      // server-clock time window) — parity keeps the card after a reload.
       const bashTimestampMs = timestamp ? new Date(timestamp).getTime() : 0;
-      const execInnerCommand = isCurlExecCommand ? extractExecPayloadCommand(bashCommand) : null;
-      const matchingExecTasks = isCurlExecCommand && execTasks.length > 0
-        ? (() => {
-            if (execInnerCommand) {
-              const commandMatches = execTasks.filter((task) => task.command === execInnerCommand);
-              if (commandMatches.length > 0) {
-                const mostRecent = commandMatches.reduce((latest, current) =>
-                  current.startedAt > latest.startedAt ? current : latest
-                );
-                return [mostRecent];
-              }
-            }
-
-            const tasksAfterBash = execTasks.filter(
-              (task) => task.startedAt >= bashTimestampMs && task.startedAt <= bashTimestampMs + 5000
-            );
-            if (tasksAfterBash.length > 0) {
-              const mostRecent = tasksAfterBash.reduce((latest, current) =>
-                current.startedAt > latest.startedAt ? current : latest
-              );
-              return [mostRecent];
-            }
-
-            return [];
-          })()
-        : [];
+      const matchedExecTask = isCurlExecCommand ? findExecTaskForCurlRow(execTasks, bashCommand, bashTimestampMs, toolUseId || message.uuid) : undefined;
+      const matchingExecTasks = matchedExecTask ? [matchedExecTask] : [];
       // A persisted `curl … /api/tests/run` line → re-attach the in-store run so
       // the inline test component shows on refresh (parity with live OutputLine).
       const isCurlTestRunCommand = /\bcurl\b[\s\S]*\/api\/tests\/run(?!s)/.test(bashCommand);
@@ -1357,7 +1335,7 @@ export const HistoryLine = memo(function HistoryLine({
                       {/* Output lines */}
                       <div className="exec-task-inline-terminal">
                         <pre className="exec-task-inline-output">
-                          <div className="exec-task-inline-command">$ {execInnerCommand || bashCommand}</div>
+                          <div className="exec-task-inline-command">$ {matchedExecTask?.command || extractExecWrappedCommand(bashCommand)}</div>
                           {displayLines.map((line, idx) => (
                             <div key={idx} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
                           ))}

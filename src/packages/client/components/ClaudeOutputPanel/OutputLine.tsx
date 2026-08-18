@@ -6,7 +6,7 @@ import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHideCost, useSettings, ClaudeOutput, store, useAgentPrompts, type TestRunHandle, type HttpRunHandle } from '../../store';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, extractExecPayloadCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget, summarizeWebSearch } from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, findExecTaskForCurlRow, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget, summarizeWebSearch } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { getSlashCommandInfo } from '../../utils/slashCommands';
@@ -1183,37 +1183,11 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const isCurlExecCommand = /\bcurl\b[\s\S]*\/api\/exec\b/.test(bashCommand);
 
 
-    // Show only the MOST RECENT exec task that started shortly after this bash command
+    // The exec task this curl row spawned (exact inner-command match, else a
+    // server-clock time window) — shared with HistoryLine, see the helper.
     const bashTimestampMs = timestamp ? new Date(timestamp).getTime() : 0;
-    // Extract the inner command from the curl payload for accurate matching
-    const execInnerCommand = isCurlExecCommand ? extractExecPayloadCommand(bashCommand) : null;
-    const matchingExecTasks = isCurlExecCommand && execTasks.length > 0
-      ? (() => {
-          // Primary: match by command name (most reliable, avoids cross-task duplication)
-          if (execInnerCommand) {
-            const commandMatches = execTasks.filter((task) => task.command === execInnerCommand);
-            if (commandMatches.length > 0) {
-              // Return only the most recent command match
-              const mostRecent = commandMatches.reduce((latest, current) =>
-                current.startedAt > latest.startedAt ? current : latest
-              );
-              return [mostRecent];
-            }
-          }
-          // Fallback: time-window matching (within 5 seconds after bash command)
-          const tasksAfterBash = execTasks.filter(
-            (task) => task.startedAt >= bashTimestampMs && task.startedAt <= bashTimestampMs + 5000
-          );
-          if (tasksAfterBash.length > 0) {
-            // Return only the most recent one
-            const mostRecent = tasksAfterBash.reduce((latest, current) =>
-              current.startedAt > latest.startedAt ? current : latest
-            );
-            return [mostRecent];
-          }
-          return [];
-        })()
-      : [];
+    const matchedExecTask = isCurlExecCommand ? findExecTaskForCurlRow(execTasks, bashCommand, bashTimestampMs, output.uuid) : undefined;
+    const matchingExecTasks = matchedExecTask ? [matchedExecTask] : [];
     const showInlineRunningTasks = Boolean(isBashTool && isCurlExecCommand && matchingExecTasks.length > 0);
     const _truncatedTaskCommand = (value: string) => (value.length > 52 ? `${value.slice(0, 52)}...` : value);
 

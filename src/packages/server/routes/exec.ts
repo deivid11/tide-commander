@@ -8,8 +8,13 @@
 
 import { Router, Request, Response } from 'express';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
-import { agentService, secretsService } from '../services/index.js';
+import { agentService, secretsService, skillService } from '../services/index.js';
 import { createLogger, generateId, getCommanderBaseUrl } from '../utils/index.js';
+import { isExecGuardEnabled } from '../services/system-prompt-service.js';
+import { getAuthToken } from '../auth/index.js';
+import { classifyDirectBashCommand, buildExecGuardDenyReason } from '../claude/exec-guard.js';
+import { findBashToolUseForExec } from '../services/bash-toolcall-registry.js';
+import { killProcessTree } from '../services/process-tree-kill.js';
 import type { ServerMessage } from '../../shared/types.js';
 import { TerminalRenderer } from '../../shared/terminal-render.js';
 
@@ -28,6 +33,8 @@ interface RunningTask {
   process: ChildProcess;
   output: string[];
   startedAt: number;
+  /** tool_use id of the Bash call that issued the curl (when the server could pair it). */
+  toolUseId?: string;
 }
 
 const runningTasks = new Map<string, RunningTask>();
@@ -138,10 +145,12 @@ export function getRunningTasks(agentId: string): RunningTask[] {
 }
 
 /**
- * Kill a running task by ID. Tasks spawn detached (own process group), so the
- * TERM/KILL goes to the WHOLE tree — under PTY mode the visible child is
- * script(1); killing only it can leave the actual command (and grandchildren
- * like test workers) running.
+ * Kill a running task by ID. Under PTY mode the direct child is script(1),
+ * which puts the ACTUAL command in a separate session/process group (setsid to
+ * grab the pty) — so signalling only script's group leaves the command tree
+ * alive and script waiting, and the card stays "running". killProcessTree
+ * walks /proc to signal every descendant's group + pid (captured before they
+ * reparent), then SIGKILLs survivors. See process-tree-kill.ts.
  */
 export function killTask(taskId: string): boolean {
   const task = runningTasks.get(taskId);
@@ -149,20 +158,7 @@ export function killTask(taskId: string): boolean {
   const pid = task.process.pid;
   try {
     if (pid) {
-      try {
-        process.kill(-pid, 'SIGTERM');
-      } catch {
-        task.process.kill('SIGTERM');
-      }
-      // Escalate if the tree survives the polite signal.
-      setTimeout(() => {
-        if (!runningTasks.has(taskId)) return;
-        try {
-          process.kill(-pid, 'SIGKILL');
-        } catch {
-          try { task.process.kill('SIGKILL'); } catch { /* already gone */ }
-        }
-      }, 3000);
+      killProcessTree(pid, { escalateMs: 3000, stillTracked: () => runningTasks.has(taskId) });
     } else {
       task.process.kill('SIGTERM');
     }
@@ -249,6 +245,12 @@ router.post('/', async (req: Request, res: Response) => {
     // Generate task ID
     const taskId = generateId();
 
+    // Which Bash tool call (terminal row) issued this curl? Lets the client
+    // attach the live card by tool_use id instead of re-parsing the curl body
+    // or guessing by time. Undefined when unknown (non-agent callers, exotic
+    // flows) — the client then falls back to its heuristics.
+    const toolUseId = findBashToolUseForExec(agentId, command);
+
     // Log original command (not processed, to avoid leaking secrets in logs)
     log.log(`[${agent.name}] Executing: ${command} (task: ${taskId}${usePty ? ', pty' : ''})`);
 
@@ -263,6 +265,12 @@ router.post('/', async (req: Request, res: Response) => {
           command,
           cwd: workingDir,
           pty: usePty,
+          // Server clock: the terminal matches this task to the agent's curl
+          // row by time when the body can't be parsed — the row's timestamp is
+          // server-stamped too, so both sides must be in the same domain
+          // (client Date.now() on a phone/other PC is skewed).
+          startedAt: Date.now(),
+          ...(toolUseId ? { toolUseId } : {}),
         },
       } as ServerMessage);
     }
@@ -293,6 +301,7 @@ router.post('/', async (req: Request, res: Response) => {
       process: childProcess,
       output: [],
       startedAt: Date.now(),
+      toolUseId,
     };
     runningTasks.set(taskId, task);
 
@@ -371,6 +380,7 @@ router.post('/', async (req: Request, res: Response) => {
           agentId,
           exitCode,
           success: exitCode !== null,
+          completedAt: Date.now(),
         },
       } as ServerMessage);
     }
@@ -415,6 +425,69 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
+/** Skill whose assignment opts an agent into the streaming-exec guard. */
+const STREAMING_EXEC_SKILL_ID = 'builtin-streaming-exec';
+
+/**
+ * POST /api/exec/guard - Should this DIRECT Bash command have gone through
+ * POST /api/exec instead?
+ *
+ * Called by the Claude PreToolUse hook (exec-guard-hook.mjs) before every
+ * Bash tool call. Body: { command, agentId?, cwd?, runInBackground? }.
+ * Response: { allow: true } or { allow: false, reason, signals } — the reason
+ * is what the model reads when its tool call is denied, and it contains the
+ * ready-to-run curl for the same command through the Streaming Exec API.
+ *
+ * Gates (each one → allow, i.e. the guard is opt-in and fail-open):
+ *  - the guard setting is off;
+ *  - the agent is unknown to the Commander;
+ *  - the agent does not have the "Streaming Command Execution" skill —
+ *    enforcement follows the instruction, never precedes it;
+ *  - the command is not clearly long-running (see exec-guard.ts).
+ */
+router.post('/guard', (req: Request, res: Response) => {
+  try {
+    const { agentId, command, cwd, runInBackground } = req.body ?? {};
+    if (typeof command !== 'string' || !command.trim()) {
+      res.json({ allow: true });
+      return;
+    }
+    if (!isExecGuardEnabled()) {
+      res.json({ allow: true });
+      return;
+    }
+    const agent = typeof agentId === 'string' ? agentService.getAgent(agentId) : undefined;
+    if (!agent) {
+      res.json({ allow: true });
+      return;
+    }
+    const hasSkill = skillService
+      .getSkillsForAgent(agent.id, agent.class, agent.isBoss)
+      .some((skill) => skill.id === STREAMING_EXEC_SKILL_ID);
+    if (!hasSkill) {
+      res.json({ allow: true });
+      return;
+    }
+    const verdict = classifyDirectBashCommand({ command, runInBackground: runInBackground === true });
+    if (!verdict.block) {
+      res.json({ allow: true });
+      return;
+    }
+    const reason = buildExecGuardDenyReason(command, verdict.signals, {
+      agentId: agent.id,
+      baseUrl: getCommanderBaseUrl(),
+      cwd: typeof cwd === 'string' && cwd ? cwd : undefined,
+      authToken: getAuthToken() || undefined,
+    });
+    log.log(`[ExecGuard] Blocked direct Bash for ${agent.name} (${agent.id}): ${verdict.signals.join(', ')} — ${command.slice(0, 120)}${command.length > 120 ? '…' : ''}`);
+    res.json({ allow: false, reason, signals: verdict.signals });
+  } catch (err: any) {
+    // Never let the guard itself break a tool call.
+    log.error('[ExecGuard] guard evaluation failed (allowing):', err);
+    res.json({ allow: true });
+  }
+});
+
 /**
  * GET /api/exec/tasks/:agentId - List running tasks for an agent
  */
@@ -425,6 +498,7 @@ router.get('/tasks/:agentId', (req: Request, res: Response) => {
     command: t.command,
     startedAt: t.startedAt,
     outputLines: t.output.length,
+    toolUseId: t.toolUseId,
   }));
   res.json({ tasks });
 });

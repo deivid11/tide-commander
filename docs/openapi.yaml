@@ -302,6 +302,33 @@ paths:
         '404':
           $ref: '#/components/responses/ErrorResponse'
 
+  /exec/guard:
+    post:
+      tags: [Exec]
+      summary: Streaming-exec guard — should this direct Bash command have used /api/exec?
+      description: >-
+        Called by the Claude PreToolUse hook (exec-guard-hook.mjs) before every
+        Bash tool call. Returns `{allow:true}` unless the guard is enabled, the
+        agent has the Streaming Command Execution skill, and the command looks
+        long-running (build/test/install, polling loop, download, model binary…);
+        then `{allow:false, reason, signals}` where `reason` contains the exact
+        `POST /api/exec` curl for the same command. Fail-open by design.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [command]
+              properties:
+                command: { type: string }
+                agentId: { type: string }
+                cwd: { type: string }
+                runInBackground: { type: boolean }
+      responses:
+        '200':
+          $ref: '#/components/responses/JsonSuccess'
+
   /exec/generate-curl:
     post:
       tags: [Exec]
@@ -783,6 +810,8 @@ paths:
     get: { $ref: '#/components/x-operations/FileExists' }
   /files/info:
     get: { $ref: '#/components/x-operations/FileInfo' }
+  /files/archive:
+    get: { $ref: '#/components/x-operations/FileArchive' }
   /files/binary:
     get: { $ref: '#/components/x-operations/FileBinary' }
   /files/list:
@@ -1034,6 +1063,31 @@ components:
           schema: { type: string }
       responses:
         '200': { $ref: '#/components/responses/JsonSuccess' }
+    FileArchive:
+      tags: [Files]
+      summary: List the entries of a compressed archive without extracting it
+      description: >-
+        zip/jar/apk/whl… (built-in central-directory reader), tar / tar.gz /
+        tar.xz / tar.bz2 / tar.zst… (built-in streaming tar parser fed by zlib or
+        the matching decompressor CLI), 7z / rar / iso / cab / deb / rpm… (via
+        `7z l -slt`, `unrar lt`, `bsdtar -tvf`), and single-file gz/bz2/xz/zst.
+        Returns `{format, tool, entries[{path,isDir,size,compressedSize,mtime}],
+        entryCount, fileCount, dirCount, totalSize, totalCompressed, truncated}`
+        (entries capped at 20000). 415 for non-archive paths, 422 when no
+        strategy could read the container.
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+        - in: query
+          name: baseDir
+          required: false
+          schema: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '415': { $ref: '#/components/responses/ErrorResponse' }
+        '422': { $ref: '#/components/responses/ErrorResponse' }
     FileBinary:
       tags: [Files]
       summary: Read binary file

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.194.0] - 2026-08-17
+
+### Added
+- **Streaming-exec guard** - a new Settings → General toggle installs a Claude `PreToolUse` hook that denies direct Bash calls which look long-running (builds, tests, installs, polling loops, downloads) and hands the agent the exact `POST /api/exec` curl for the same command, so the output lands in a live exec card instead of a silent spinner. It fails open: quick inspection commands (`ls`, `cat`, `rg`, `git status`, Commander API curls) always pass, detached/background runs are never blocked, and the setting applies immediately to running agents. Claude only — other harnesses still rely on the skill text.
+- **Archive browsing in the file viewers** - zip, jar, war, apk, tar.\*, 7z, rar, cab, iso, deb, rpm and single-file compressed blobs now open as a browsable tree with per-folder sizes, a filter box and a summary bar (format, entry counts, uncompressed vs stored size, ratio). Entries are enumerated without extracting: zip archives are read from the central directory and tar streams from their headers, so a multi-GB file lists in milliseconds, with `7z` / `unrar` / `bsdtar` as fallbacks.
+
+### Fixed
+- **Stopping a streamed exec task now really kills it** - the Stop button walks `/proc` to collect every descendant of the task and signals each process group and pid, instead of only the `script` wrapper's group. PTY tasks run in a different session than their wrapper, so builds, servers and test workers used to survive the stop and leave the card stuck on "running".
+- **Exec cards pair with their curl row again** - the row matcher resolves the shell `'\''` idiom and the attached `-d` / `--data=` / `--json` body forms, so commands whose JSON payload contains literal single quotes (ssh with a `docker --format` template, for example) match their task instead of rendering as a raw curl line.
+
 ## [1.193.0] - 2026-08-17
 
 ### Added

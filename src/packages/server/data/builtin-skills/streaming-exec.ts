@@ -7,18 +7,17 @@ export const streamingExec: BuiltinSkillDefinition = {
   allowedTools: ['Bash(curl:*)'],
   content: `# Streaming Execution (MANDATORY)
 
-Run builds, test suites, installs, dev servers, containers, long git/network operations, and any noisy or multi-second command through \`POST /api/exec\`. Never run them directly with Bash or another shell tool. Direct shell is only for near-instant inspection such as \`rg\`, \`ls\`, \`git status\`, \`git diff\`, or a short \`git log\`.
+Anything that RUNS A PROGRAM or can take more than ~2 s goes through \`POST /api/exec\` — never directly through Bash. That includes builds, tests, installs, dev servers, containers, downloads, \`git clone/pull/push\`, model/media binaries, and any \`sleep\`, polling loop, or \`timeout\` wrapper. Direct Bash is only for instant inspection: \`ls\`, \`cat\`, \`rg\`/\`grep\`, \`sed -n\`, \`git status\`/\`diff\`/short \`log\`, quick Commander API curls, one-liners (\`node -e\`, \`python3 -c\`).
 
 \`\`\`json
 {"agentId":"YOUR_AGENT_ID","command":"npm run build","cwd":"/optional/path","tail":30,"pty":true}
 \`\`\`
 
-Required: \`agentId\`, \`command\`. Optional:
-- \`cwd\` defaults to the agent's directory
-- \`tail\` limits only the API response; the user's live card still gets all output
-- \`pty\` defaults to \`true\`; use \`false\` only for commands that misbehave under a TTY
+Required: \`agentId\`, \`command\`. Optional: \`cwd\` (defaults to the agent's directory), \`tail\` (limits only the API response; the user's live card keeps ALL output), \`pty\` (default true; false only for commands that misbehave under a TTY). Wrap indefinite commands with \`timeout\` (\`timeout 30 npm run dev\`).
 
-Never add \`| tail\`, \`| head\`, or output redirection merely to reduce returned output; buffering hides live progress. Use the \`tail\` field. Wrap indefinite commands with \`timeout\` (for example, \`timeout 30 npm run dev\`).
+Pipes that are part of the command's logic (\`| grep\`, \`| sort | uniq -c | head -8\`) are fine. What is forbidden is appending \`| tail\`/\`| head\`/redirection merely to shrink what comes back — buffering hides live progress; use the \`tail\` field instead.
 
-The response contains \`taskId\`, \`exitCode\`, \`output\`, and \`duration\`. \`success\` means execution started, not that the command passed; judge the command by \`exitCode\`. With \`tail\`, \`tailApplied\` and \`fullOutputBytes\` describe truncation.`,
+The response contains \`taskId\`, \`exitCode\`, \`output\`, \`duration\`. \`success\` means execution started, not that the command passed — judge by \`exitCode\`. With \`tail\`, \`tailApplied\`/\`fullOutputBytes\` describe truncation.
+
+Claude agents: a guard DENIES direct long-running Bash calls and returns the exact \`/api/exec\` curl for that command — re-issue it through the API, don't retry directly.`,
 };
