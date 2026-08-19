@@ -391,6 +391,19 @@ export function useFilteredOutputs({
         // For Bash: if no output captured yet, mark as running
         const isRunning = toolName === 'Bash' && !bashOutput;
 
+        // Match OutputLine's early-tool guard here, before virtualization. A
+        // tool_started event with `{}` renders null until its args arrive; if
+        // it remains in the virtual list, the virtualizer reserves an estimated
+        // row and later measures it as 0px, forcing a visible bottom correction
+        // during agent switches.
+        const payloadInput = output.toolInput;
+        const earlyEmptyInput = !payloadInput
+          || (typeof payloadInput === 'object'
+            && !Array.isArray(payloadInput)
+            && Object.keys(payloadInput).length === 0);
+        const hasLookAheadArgs = !!(keyParam || bashCommand || editData || todoInputText);
+        if (earlyEmptyInput && !hasLookAheadArgs) continue;
+
         const toolKeyParam = keyParam || undefined;
         const cached = prevEnriched.get(output);
         const enriched: EnrichedOutput = cached

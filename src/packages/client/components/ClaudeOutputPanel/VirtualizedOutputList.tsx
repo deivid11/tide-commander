@@ -101,11 +101,12 @@ interface VirtualizedOutputListProps {
 
 // Estimated heights for different message types (used for initial sizing)
 const ESTIMATED_HEIGHTS = {
-  user: 60,
-  assistant: 120,
-  tool_use: 40,
-  tool_result: 80,
-  default: 60,
+  user: 100,
+  assistant: 80,
+  thinking: 56,
+  tool_use: 32,
+  tool_result: 40,
+  default: 48,
 };
 
 // ── Measurement warm-up ──
@@ -122,10 +123,14 @@ const ESTIMATED_HEIGHTS = {
 // user is stationary. Once warmed, re-mounting during a fling yields
 // delta=0 → no correction → momentum survives.
 const WARMUP_SLICE = 6;
-// Bound the walk for huge histories ("load all"). Profiling rapid Flat-view
-// agent switching showed the old 240-row walk mounting thousands of markdown
-// rows that were never viewed, creating 30–180 ms tasks and substantial GC.
+// Background warm-up mounted offscreen rows for 1–2 seconds after a cold
+// switch. Their measurements repeatedly changed total size and made the
+// bottom-pinned viewport tremble. Normal overscan still measures rows before
+// they enter view and the per-agent cache preserves those measurements.
+const ENABLE_MEASUREMENT_WARMUP = false;
+// Bound retained for an easy, measured opt-in if browser behavior changes.
 const WARMUP_MAX_ROWS = 120;
+const INITIAL_VIEWPORT_HEIGHT = 800;
 
 interface AgentMeasurementCache {
   heights: Map<string, number>;
@@ -206,6 +211,7 @@ function getEstimatedHeight(tagged: TaggedItem): number {
   if (output.isUserPrompt) return ESTIMATED_HEIGHTS.user;
   if (output.text?.startsWith('Using tool:')) return ESTIMATED_HEIGHTS.tool_use;
   if (output.text?.startsWith('Tool result:')) return ESTIMATED_HEIGHTS.tool_result;
+  if (output.text?.startsWith('[thinking]')) return ESTIMATED_HEIGHTS.thinking;
   return ESTIMATED_HEIGHTS.assistant;
 }
 
@@ -428,6 +434,25 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
 
   // Track if we're programmatically scrolling (to avoid triggering onUserScroll)
   const isProgrammaticScrollRef = useRef(false);
+  const pinToBottomRef = useRef(pinToBottom);
+  pinToBottomRef.current = pinToBottom;
+
+  // Ref callbacks run in the commit phase before paint. Put the scroll element
+  // at the real DOM bottom as soon as the virtual spacer mounts; waiting for a
+  // layout/effect-driven scroll exposed one frame with bottom-index rows laid
+  // out below a scrollTop of 0, followed by the visible forced jump.
+  const handleVirtualContentMount = useCallback((element: HTMLDivElement | null) => {
+    if (!element || !pinToBottomRef.current) return;
+    // Descendant refs attach before the parent output ref, so defer to the
+    // commit's microtask checkpoint. This is still before the browser's paint.
+    queueMicrotask(() => {
+      if (!element.isConnected || !pinToBottomRef.current) return;
+      const container = scrollContainerRef.current;
+      if (!container) return;
+      isProgrammaticScrollRef.current = true;
+      container.scrollTop = container.scrollHeight;
+    });
+  }, [scrollContainerRef]);
 
   // THE auto-scroll contract: follow the stream ONLY while the viewport sits at
   // the very bottom. Latched synchronously in handleScroll at the very bottom,
@@ -474,6 +499,33 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // Track virtual content height to detect remeasurement changes.
   const prevTotalSizeRef = useRef(0);
 
+  const estimateItemSize = useCallback((index: number) => {
+    const tagged = allItems[index];
+    if (!tagged) return ESTIMATED_HEIGHTS.default;
+    const itemKey = allKeys[index];
+    if (itemKey) {
+      const measured = measurementCache.heights.get(`k:${itemKey}`);
+      if (measured !== undefined) return measured;
+    }
+    for (const id of bridgeIdsFor(tagged)) {
+      const bridged = measurementCache.heights.get(`b:${id}`);
+      if (bridged !== undefined) return bridged;
+    }
+    return getEstimatedHeight(tagged);
+  }, [allItems, allKeys, measurementCache]);
+
+  // Start the virtualizer at its estimated bottom on a keyed pane mount. The
+  // old offset=0 first range rendered the oldest rows, then swapped them for
+  // the newest range 1–2 frames later when scrollToIndex settled — the exact
+  // content flash seen during agent selection. The browser clamps this offset
+  // to the real maximum once the scroll element is connected.
+  const initialBottomOffsetRef = useRef<number | null>(null);
+  if (initialBottomOffsetRef.current === null) {
+    let total = 0;
+    for (let i = 0; i < allItems.length; i++) total += estimateItemSize(i);
+    initialBottomOffsetRef.current = Math.max(0, total - INITIAL_VIEWPORT_HEIGHT);
+  }
+
   // Warm-up walk state: exclusive upper bound of the next slice to mount
   // ([warmupFront - WARMUP_SLICE, warmupFront)); null = not walking.
   const [warmupFront, setWarmupFront] = useState<number | null>(null);
@@ -482,7 +534,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
 
   const rangeExtractor = useCallback((range: Range) => {
     const defaults = defaultRangeExtractor(range);
-    if (warmupFront === null) return defaults;
+    if (!ENABLE_MEASUREMENT_WARMUP || warmupFront === null) return defaults;
     const top = Math.min(warmupFront, allItemsCountRef.current);
     const sliceStart = Math.max(0, top - WARMUP_SLICE);
     if (sliceStart >= top) return defaults;
@@ -503,20 +555,8 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   const virtualizer = useVirtualizer({
     count: allItems.length,
     getScrollElement: () => scrollContainerRef.current,
-    estimateSize: (index) => {
-      const tagged = allItems[index];
-      if (!tagged) return ESTIMATED_HEIGHTS.default;
-      const itemKey = allKeys[index];
-      if (itemKey) {
-        const measured = measurementCache.heights.get(`k:${itemKey}`);
-        if (measured !== undefined) return measured;
-      }
-      for (const id of bridgeIdsFor(tagged)) {
-        const bridged = measurementCache.heights.get(`b:${id}`);
-        if (bridged !== undefined) return bridged;
-      }
-      return getEstimatedHeight(tagged);
-    },
+    estimateSize: estimateItemSize,
+    initialOffset: initialBottomOffsetRef.current,
     // Two-phase overscan. While pinned (pane mount / agent switch) keep it
     // small — every overscanned row is a markdown-parsed OutputLine/HistoryLine
     // mounted synchronously, and that mount is the main cost of the switch.
@@ -525,7 +565,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     // unpin commit, while the content is still faded out.
     overscan: pinToBottom ? 8 : 16,
     rangeExtractor,
-    initialRect: { width: 500, height: 800 },
+    initialRect: { width: 500, height: INITIAL_VIEWPORT_HEIGHT },
     // Stable per-item key, precomputed (with live ordinals) in the merge memo
     // above. agentId is part of the key so identical content across agents
     // can never collide.
@@ -572,6 +612,10 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // follow snapped back from, a per-chunk flicker while streaming.
   // (Instance property in this virtual-core version, not a constructor option.)
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => {
+    // At the bottom, pin/auto-follow is the sole scroll writer. Letting
+    // virtual-core also apply anchor corrections for offscreen measurements
+    // produced a correction → bottom snap race that looked like shaking.
+    if (pinToBottomRef.current || stickyBottomRef.current) return false;
     if (item.index === allItemsCountRef.current - 1) {
       return false;
     }
@@ -616,6 +660,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // content. One pass per mount (per agent, thanks to key={agentId}); prepends
   // re-arm it below.
   useEffect(() => {
+    if (!ENABLE_MEASUREMENT_WARMUP) return;
     if (pinToBottom || isLoadingHistory) return;
     if (allItems.length === 0) return;
     if (warmupDoneRef.current || warmupFront !== null) return;
@@ -688,6 +733,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   const prevFirstKeyRef = useRef<string | null>(null);
   const prevCountForPrependRef = useRef(0);
   useEffect(() => {
+    if (!ENABLE_MEASUREMENT_WARMUP) return;
     const prevKey = prevFirstKeyRef.current;
     const prevCount = prevCountForPrependRef.current;
     prevFirstKeyRef.current = firstItemKey;
@@ -1043,6 +1089,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
 
   return (
     <div
+      ref={handleVirtualContentMount}
       style={{
         height: `${virtualizer.getTotalSize()}px`,
         width: '100%',

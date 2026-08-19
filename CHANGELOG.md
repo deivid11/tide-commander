@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.199.1] - 2026-08-19
+
+### Fixed
+- **Switching agents no longer flashes or shakes the terminal** - a keyed pane now mounts already scrolled to its estimated bottom, and the scroll element is placed at the real bottom in the commit phase before paint, so the old sequence of rendering the oldest rows and jumping to the newest one or two frames later is gone. While pinned to the bottom, auto-follow is the only thing that writes scroll position, ending the anchor-correction versus bottom-snap race that made the view tremble, and offscreen row warm-up after a cold switch was dropped for the same reason. The separate agent-switch fade is no longer needed and was removed.
+
 ## [1.199.0] - 2026-08-19
 
 ### Added

@@ -11,7 +11,6 @@
 
 import React, {
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
   useCallback,
@@ -1014,7 +1013,10 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     setShouldAutoScroll(false);
   }, []);
 
-  const [pinToBottom, setPinToBottom] = useState(false);
+  // Keyed panes always open at the latest message. Starting pinned lets the
+  // virtualizer perform its first bottom jump in a layout effect before paint;
+  // arming this from a normal effect exposed one top-of-list frame.
+  const [pinToBottom, setPinToBottom] = useState(true);
   const handlePinCancel = useCallback(() => setPinToBottom(false), []);
 
   // Re-pin on EVERY explicit agent selection click — including re-selecting
@@ -1126,56 +1128,40 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // upward scroll, re-classifying them as "at bottom" and yanking the view.
   // ONE writer only — do not re-add a scroll effect keyed on output length.
 
-  // ── History fade-in & agent switching ──
-  const [historyFadeIn, setHistoryFadeIn] = useState(false);
-  const [isAgentSwitching, setIsAgentSwitching] = useState(false);
-  // True while showing an agent whose history was NOT cached at switch time.
-  // That path unmounts the output list and remounts it once the fetch lands, so
-  // every row measures from scratch and the content keeps growing for far
-  // longer than on a warm switch. Starts true: the very first agent shown after
-  // a page load is cold by definition.
-  const coldOpenRef = useRef(true);
+  // ── Initial history readiness ──
+  // AgentTerminalPane is keyed by agent id, so its old "previous agent" ref
+  // always started empty and never detected a cold switch. The live tail then
+  // painted alone, disappeared when history arrived, and reappeared as a full
+  // virtual list. Capture cache state on this keyed mount instead: warm panes
+  // paint immediately; cold panes keep the loading overlay until the first
+  // history request completes.
+  const openedFromHistoryCacheRef = useRef(historyLoader.hasCachedHistory(agentId));
+  const initialHistoryVersionRef = useRef(historyLoader.historyLoadVersion);
+  const [isAgentSwitching, setIsAgentSwitching] = useState(
+    () => hasSessionId && !openedFromHistoryCacheRef.current,
+  );
+  const coldOpenRef = useRef(!openedFromHistoryCacheRef.current);
 
-  // Hide content immediately on agent change, then fade in after scroll settles
-  const prevSelectedAgentIdRef = useRef<string | null>(null);
-  useLayoutEffect(() => {
-    const prev = prevSelectedAgentIdRef.current;
-    const changed = prev !== null && prev !== agentId;
-
-    if (changed) {
-      setHistoryFadeIn(false);
-      const hasCached = historyLoader.hasCachedHistory(agentId);
-      coldOpenRef.current = !hasCached;
-      if (!hasCached) {
-        setIsAgentSwitching(true);
-      }
-    } else if (!agentId) {
-      setHistoryFadeIn(false);
-    }
-
-    prevSelectedAgentIdRef.current = agentId;
-  }, [agentId]);
-
-  // Resolve agent switching after history loads
   useEffect(() => {
     if (!isAgentSwitching) return;
     if (historyLoader.fetchingHistory) return;
+    if (historyLoader.historyLoadVersion <= initialHistoryVersionRef.current) return;
     setIsAgentSwitching(false);
   }, [isAgentSwitching, historyLoader.fetchingHistory, historyLoader.historyLoadVersion]);
 
   // ── Pin to bottom (stabilization loop) ──
-  const pendingFadeInRef = useRef(false);
-
-  // "Waiting" means we have NOTHING to render yet. When cached history (or
-  // live outputs) can already paint, the pin + reveal must not wait for the
-  // network refetch — that wait made agent switches feel slow, and any reveal
-  // that fires before the pin settles paints the conversation at the wrong
-  // scroll position, then visibly snaps to the bottom when the fetch lands.
+  // "Waiting" means we have NOTHING to render yet. Warm history is available
+  // synchronously; a cold mount remains behind isAgentSwitching's loading
+  // overlay until its first complete page is available.
   const hasRenderedContent = dedupedHistory.length > 0 || dedupedOutputs.length > 0;
-  const waitingForFirstContent = historyLoader.fetchingHistory && !hasRenderedContent;
+  const waitingForFirstContent = isAgentSwitching
+    || (historyLoader.fetchingHistory && !hasRenderedContent);
+  // Cold histories need one measurement pass after their first page arrives.
+  // Keep the loading overlay over that pass so estimated row heights never
+  // become visible as a short shake before the bottom position stabilizes.
+  const preparingColdContent = isAgentSwitching || (coldOpenRef.current && pinToBottom);
 
   useEffect(() => {
-    pendingFadeInRef.current = true;
     setPinToBottom(true);
   }, [agentId, reconnectCount]);
 
@@ -1218,7 +1204,6 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       // following the bottom; sending a command resets the ref, so their own
       // next message still pins as before.
       if (isUserScrolledUpRef.current) return;
-      pendingFadeInRef.current = true;
       setPinToBottom(true);
     }
   }, [historyLoader.fetchingHistory]);
@@ -1233,6 +1218,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
     let rafId: number | null = null;
     const start = performance.now();
+    const minimumPinDuration = coldOpenRef.current ? 220 : 0;
     let stableFrames = 0;
     let lastScrollHeight = -1;
 
@@ -1279,7 +1265,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
       lastScrollHeight = currentScrollHeight;
 
-      if (stableFrames >= REQUIRED_STABLE_FRAMES) {
+      if (stableFrames >= REQUIRED_STABLE_FRAMES && now - start >= minimumPinDuration) {
         endPin();
         return;
       }
@@ -1300,46 +1286,6 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
   }, [pinToBottom, isOpen, waitingForFirstContent, historyLoader.historyLoadVersion]);
-
-  // Fade in after scroll stabilization
-  const prevPinToBottomRef = useRef(false);
-  useEffect(() => {
-    if (prevPinToBottomRef.current && !pinToBottom && pendingFadeInRef.current) {
-      pendingFadeInRef.current = false;
-      setHistoryFadeIn(true);
-    }
-    prevPinToBottomRef.current = pinToBottom;
-  }, [pinToBottom]);
-
-  // Fallback fade-in
-  useEffect(() => {
-    if (!isOpen) return;
-    if (!pendingFadeInRef.current) return;
-    if (pinToBottom) return;
-    if (waitingForFirstContent) return;
-
-    const rafId = requestAnimationFrame(() => {
-      if (pendingFadeInRef.current) {
-        pendingFadeInRef.current = false;
-        setHistoryFadeIn(true);
-      }
-    });
-    return () => cancelAnimationFrame(rafId);
-  }, [historyLoader.historyLoadVersion, isOpen, pinToBottom, waitingForFirstContent]);
-
-  // Last-resort reveal for content that arrives while no pin pass is pending
-  // (e.g. the optimistic live prompt on an empty chat). Never preempt an
-  // active pin: revealing before the pin settles paints the conversation at
-  // the wrong scroll position and the later snap-to-bottom reads as flicker.
-  useEffect(() => {
-    if (historyFadeIn) return;
-    if (isAgentSwitching) return;
-    if (pinToBottom) return;
-    if (!hasRenderedContent) return;
-
-    pendingFadeInRef.current = false;
-    setHistoryFadeIn(true);
-  }, [historyFadeIn, isAgentSwitching, pinToBottom, hasRenderedContent]);
 
   // ── Escape / Android-back closes search ──
   // On the shared modal stack so the global Escape handler (useKeyboardShortcuts
@@ -1428,12 +1374,12 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
             until the pin settles) and sticks to the viewport — inside the
             wrapper it was invisible, so a slow history fetch showed a plain
             black pane. */}
-        {(isAgentSwitching || (historyLoader.loadingHistory && historyLoader.history.length === 0 && outputs.length === 0)) && (
+        {(preparingColdContent || (historyLoader.loadingHistory && historyLoader.history.length === 0 && outputs.length === 0)) && (
           <div className="guake-loading-overlay">
             <div className="guake-empty loading">{t('terminal:empty.loadingConversation')}<span className="loading-dots"><span></span><span></span><span></span></span></div>
           </div>
         )}
-        <div className={`guake-history-content ${historyFadeIn ? 'fade-in' : ''}`}>
+        <div className={`guake-history-content${preparingColdContent ? ' is-preparing' : ''}`}>
           {!isAgentSwitching && !historyLoader.loadingHistory && historyLoader.history.length === 0 && displayOutputs.length === 0 && agent.status !== 'working' && (
             <div className="guake-empty">{t('terminal:empty.noOutput')}</div>
           )}

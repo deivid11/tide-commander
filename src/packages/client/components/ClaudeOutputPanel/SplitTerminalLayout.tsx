@@ -53,12 +53,6 @@ interface SplitTerminalLayoutProps {
   onSwipeClose?: () => void;
   /** Whether any modal is open */
   hasModalOpen?: boolean;
-  /**
-   * True while an agent switch is pending and the outgoing conversation is
-   * fading out (the parent swaps `activeAgentId` when the fade completes).
-   * Only the conversation fades — pane chrome stays solid.
-   */
-  fadingOut?: boolean;
 }
 
 // ─── Split Pane Header ──────────────────────────────────────────────────────
@@ -109,7 +103,6 @@ export const SplitTerminalLayout = memo(function SplitTerminalLayout(props: Spli
     onSwipeCloseOffsetChange,
     onSwipeClose,
     hasModalOpen,
-    fadingOut,
   } = props;
 
   const splitPaneAgentIds = useSplitPaneAgentIds();
@@ -169,7 +162,7 @@ export const SplitTerminalLayout = memo(function SplitTerminalLayout(props: Spli
   if (!isSplitMode) {
     return (
       <div
-        className={`split-terminal-layout single ${dragOver ? 'drop-zone-active' : ''} ${fadingOut ? 'pane-fading-out' : ''}`}
+        className={`split-terminal-layout single ${dragOver ? 'drop-zone-active' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}

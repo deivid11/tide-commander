@@ -14,7 +14,7 @@ import { dedupeOutputsAgainstHistory, mergeOlderHistoryPage } from './historyDed
 // Maximum number of agents to keep cached history for (LRU eviction).
 // A cached agent switches instantly (pin + reveal run on the cached page while
 // the refetch happens in the background); an uncached one waits for the fetch.
-const HISTORY_CACHE_MAX_AGENTS = 10;
+const HISTORY_CACHE_MAX_AGENTS = 24;
 
 // Per-agent history cache for instant display on revisit (LRU: most recent access last)
 const historyCache = new Map<string, {
@@ -146,7 +146,10 @@ export function useHistoryLoader({
   const mountCached = selectedAgentId && hasSessionId ? historyCache.get(selectedAgentId) : undefined;
   const [history, setHistory] = useState<HistoryMessage[]>(() => mountCached?.messages ?? []);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [fetchingHistory, setFetchingHistory] = useState(false);
+  // A cold keyed pane is guaranteed to start a fetch in the mount effect.
+  // Mark it pending in the first render so consumers never briefly reveal the
+  // live tail before the persisted history page arrives.
+  const [fetchingHistory, setFetchingHistory] = useState(() => !!selectedAgentId && hasSessionId && !mountCached);
   const [historyLoadVersion, setHistoryLoadVersion] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(() => mountCached?.hasMore ?? false);

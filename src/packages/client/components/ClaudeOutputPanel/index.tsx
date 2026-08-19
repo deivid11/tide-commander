@@ -90,7 +90,6 @@ import { GuakeGitPanel } from './GuakeGitPanel';
 import { AgentOverviewPanel } from './AgentOverviewPanel';
 import { type AgentTerminalPaneHandle } from './AgentTerminalPane';
 import { SplitTerminalLayout } from './SplitTerminalLayout';
-import { useAgentSwitchFade } from './useAgentSwitchFade';
 import { AreaBuildingsPanel } from './AreaBuildingsPanel';
 import { WorkflowPanel } from '../WorkflowPanel';
 import { useTwoFingerSelector } from '../../hooks/useTwoFingerSelector';
@@ -256,12 +255,10 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
     return map;
   }, [activeAgent]);
 
-  // Agent-switch crossfade (shared with the Flat view — see useAgentSwitchFade):
-  // the keyed pane remounts atomically once the short fade-out of the outgoing
-  // conversation completes. The remount itself is cheap because
-  // useHistoryLoader hydrates from its cache in the pane's first render.
-  const { displayedAgentId, fadingOut: paneFadingOut } = useAgentSwitchFade(activeAgentId);
-  const displayedAgent = useAgent(displayedAgentId) || null;
+  // Swap the keyed pane immediately. Cached history hydrates synchronously;
+  // cold history stays behind the loading overlay until its first page lands.
+  const displayedAgentId = activeAgentId;
+  const displayedAgent = activeAgent;
   const trackingBoardVisible = useTrackingBoardVisible();
 
   const handleTrackingBoardSelectAgent = useCallback((agentId: string) => {
@@ -1613,7 +1610,6 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
           {displayedAgent && displayedAgentId && <SplitTerminalLayout
             activeAgentId={displayedAgentId}
             activeAgent={displayedAgent}
-            fadingOut={paneFadingOut}
             paneRef={paneRef}
             viewMode={viewMode}
             isOpen={isOpen}
