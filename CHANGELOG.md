@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.198.1] - 2026-08-19
+
+### Fixed
+- **Code identifiers no longer render as `tide-file://` links** - the file-path autolinker only tested whether a token contained a dot, so ordinary prose about code was turned into broken file links: `nature: [alert.kind](tide-file://alert.kind) === 'deposit'`, `[res.data](tide-file://res.data)`, `[Transaction.transferPeerId](tide-file://Transaction.transferPeerId)`. A token without a path separator now has to end in a known file extension to become a link, while anything containing a `/` is still treated as a path whatever its extension (`config/app.local`). Shell scripts keep linking when named bare (`deploy.sh`), since they come up far more often than `.sh` domains; `.so` shared objects stay excluded unless they carry a real path. The same rule feeds Spotlight's search indexing, which no longer indexes property names as file paths.
+
 ## [1.198.0] - 2026-08-18
 
 ### Added

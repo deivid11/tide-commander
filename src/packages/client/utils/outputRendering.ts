@@ -1411,15 +1411,70 @@ const INLINE_CODE_FILE_PATH_REGEX = /`((?:\.\.?\/|\/)?(?:[\p{L}\p{M}\p{N}._-]+\/
 // Common TLDs to distinguish URLs from file paths
 const URL_TLDS = /\.(com|org|net|io|dev|app|co|me|info|biz|us|uk|de|fr|jp|cn|ru|edu|gov|mil|int|xyz|tech|online|site|store|blog|cloud|ai|gg|tv|cc|sh|fm|to|ly|gl|so|is|it|at|nl|ch|se|no|fi|dk|be|cz|pl|pt|br|mx|ar|cl|in|au|nz|za|sg|hk|tw|kr|id|ph|th|vn|my)(?:[:/\s#?]|$)/i;
 
+// Trailing `:12`, `:12:3`, `#L12` and `#L12C3` suffixes are part of a file
+// reference, not of its extension, so they are stripped before either the
+// extension check or token de-duplication looks at the name.
+const FILE_PATH_LINE_SUFFIX_REGEX = /(?:#L\d+(?:C\d+)?)?(?::\d+(?::\d+)?)?$/;
+
+// A dotted token with no path separator only reads as a file when it ends in a
+// known extension. Agent prose is full of property accesses and qualified names
+// -- `alert.kind`, `res.data`, `Transaction.transferPeerId` -- and every one of
+// them used to become a `tide-file://` link, because the only test was "contains
+// a dot". Anything containing a `/` is still treated as a path regardless of
+// extension, so unusual ones (`config/app.local`) keep working.
+const FILE_EXTENSIONS = new Set([
+  // source
+  'ts', 'tsx', 'mts', 'cts', 'js', 'jsx', 'mjs', 'cjs', 'py', 'pyi', 'rb', 'go', 'rs',
+  'java', 'kt', 'kts', 'c', 'h', 'cpp', 'hpp', 'cc', 'cxx', 'hh', 'cs', 'swift', 'dart',
+  'scala', 'groovy', 'php', 'pl', 'pm', 'lua', 'r', 'jl', 'ex', 'exs', 'erl', 'hs',
+  'clj', 'cljs', 'vue', 'svelte', 'astro', 'sh', 'bash', 'zsh', 'fish', 'ps1', 'bat',
+  'cmd', 'sql', 'wasm',
+  // markup and styles
+  'html', 'htm', 'css', 'scss', 'sass', 'less', 'styl', 'svg', 'xml', 'xsl',
+  // config and data
+  'json', 'jsonc', 'json5', 'jsonl', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf',
+  'env', 'properties', 'lock', 'gradle', 'tf', 'tfvars', 'csv', 'tsv', 'parquet',
+  // docs
+  'md', 'mdx', 'txt', 'rst', 'adoc', 'tex', 'pdf', 'doc', 'docx', 'xls', 'xlsx',
+  'ppt', 'pptx', 'odt', 'ods', 'rtf', 'epub', 'log',
+  // media
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'ico', 'bmp', 'tiff', 'psd',
+  'mp3', 'wav', 'ogg', 'flac', 'mp4', 'mov', 'webm', 'mkv', 'avi',
+  'ttf', 'otf', 'woff', 'woff2', 'eot',
+  // archives and binaries
+  'zip', 'tar', 'gz', 'tgz', 'bz2', 'xz', '7z', 'rar', 'jar', 'war', 'apk', 'deb',
+  'rpm', 'iso', 'dmg', 'so', 'dll', 'dylib', 'exe', 'bin', 'class', 'o', 'a',
+  // misc build output
+  'map', 'snap', 'patch', 'diff', 'sqlite', 'db', 'bak', 'tmp',
+]);
+
+// A few file extensions double as country/vanity TLDs, so the domain guard below
+// would otherwise swallow them. Shell scripts come up far more often in agent
+// output than `.sh` domains do, so `sh` wins; `so` deliberately does not, since a
+// shared object is a binary rather than something worth opening in the viewer.
+// `cc` and `pl` also collide but stay with the domain guard.
+const EXTENSIONS_BEATING_URL_TLDS = new Set(['sh']);
+
 function isLikelyFilePathToken(token: string): boolean {
   if (!token) return false;
   if (token.includes('://')) return false;
   if (token.startsWith('www.')) return false;
   if (token.includes('@')) return false;
+  if (!token.includes('.') || token.endsWith('.')) return false;
+
+  const bare = token.replace(FILE_PATH_LINE_SUFFIX_REGEX, '');
+  // Everything after the last dot. For a domain carrying a path this still holds
+  // the path ("example.sh/run" -> "sh/run"), so such a token can never pass as a
+  // bare script through the TLD exception below.
+  const ext = bare.slice(bare.lastIndexOf('.') + 1).toLowerCase();
+
   // Exclude domain-like tokens (e.g. npmmirror.com, github.io/path)
   const base = token.split('/')[0];
-  if (URL_TLDS.test(base)) return false;
-  return token.includes('.') && !token.endsWith('.');
+  if (URL_TLDS.test(base) && !EXTENSIONS_BEATING_URL_TLDS.has(ext)) return false;
+
+  // An explicit path separator is signal enough on its own.
+  if (bare.includes('/')) return true;
+  return FILE_EXTENSIONS.has(ext);
 }
 
 /**
@@ -1490,7 +1545,7 @@ export function extractFilePathTokens(text: string): string[] {
   while ((match = FILE_PATH_TOKEN_REGEX.exec(text)) !== null) {
     const token = match[2];
     if (!isLikelyFilePathToken(token)) continue;
-    const bare = token.replace(/(?:#L\d+(?:C\d+)?)?(?::\d+(?::\d+)?)?$/, '');
+    const bare = token.replace(FILE_PATH_LINE_SUFFIX_REGEX, '');
     if (!bare || seen.has(bare)) continue;
     seen.add(bare);
     out.push(bare);

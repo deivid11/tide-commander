@@ -376,6 +376,39 @@ describe('linkifyFilePathsForMarkdown', () => {
     expect(linkifyFilePathsForMarkdown('open lib/libfoo.so here')).toContain('[lib/libfoo.so](tide-file://');
   });
 
+  it('does not linkify property accesses and qualified names', () => {
+    // Regression: the only test used to be "contains a dot", so ordinary prose
+    // about code turned into file links, e.g.
+    // "nature: [alert.kind](tide-file://alert.kind) === 'deposit'".
+    for (const input of [
+      "hard-codes nature: alert.kind === 'deposit' ? 'INCOME' : 'EXPENSE'",
+      'The Transaction.transferPeerId column',
+      'returns res.data and user.name from the payload',
+      'call baz.qux then obj.method',
+    ]) {
+      expect(linkifyFilePathsForMarkdown(input)).toBe(input);
+    }
+  });
+
+  it('linkifies real paths regardless of how unusual the extension is', () => {
+    // A path separator is signal enough on its own, so `.local` still links.
+    expect(linkifyFilePathsForMarkdown('check config/app.local too')).toContain('tide-file://config%2Fapp.local');
+    expect(linkifyFilePathsForMarkdown('../../mark/finkai/apps/api/src/ingest/ingest.service.ts:254 hard-codes it'))
+      .toContain('tide-file://');
+  });
+
+  it('linkifies bare shell scripts but not bare shared objects', () => {
+    // `.sh` and `.so` both collide with TLDs. Shell scripts come up far more often
+    // than `.sh` domains, so they win the domain guard; a `.so` is a binary and
+    // stays excluded unless it carries a real path.
+    expect(linkifyFilePathsForMarkdown('run deploy.sh now')).toContain('tide-file://deploy.sh');
+    expect(linkifyFilePathsForMarkdown('edit setup.sh:12 there')).toContain('tide-file://setup.sh%3A12');
+    expect(linkifyFilePathsForMarkdown('binary libfoo.so is stripped')).toBe('binary libfoo.so is stripped');
+    expect(linkifyFilePathsForMarkdown('open lib/libfoo.so here')).toContain('tide-file://lib%2Flibfoo.so');
+    // The exception must not re-admit a .sh domain carrying a path.
+    expect(linkifyFilePathsForMarkdown('visit example.sh/run for docs')).toBe('visit example.sh/run for docs');
+  });
+
   it('linkifies backtick-wrapped file paths from history markdown', () => {
     const input = [
       '### Added',
