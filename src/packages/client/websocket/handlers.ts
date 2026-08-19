@@ -10,6 +10,7 @@ import { debugLog } from '../services/agentDebugger';
 import { cb } from './callbacks';
 import { sendMessage } from './send';
 import { playCompletionSound, startQuestionAlert, stopQuestionAlert } from '../utils/notificationSounds';
+import { consumeLocalAgentCreationIntent } from './agentCreationIntent';
 
 /** 0..10 volume level for notification sounds, or 0 when the feature is off. */
 function soundLevel(): number {
@@ -53,6 +54,22 @@ const REATTACH_RETRY_DELAY_MS = 5000;
 
 /** Agents whose in-flight turn is a /compact — see the agent_updated handler. */
 const pendingCompactRefresh = new Set<string>();
+
+/**
+ * Background websocket events must never replace the conversation while the
+ * user is composing a message. Agent creation is broadcast to every client,
+ * and focus_agent can come from desktop integrations; neither is proof that
+ * this particular tab intended to abandon its current draft.
+ */
+function isTerminalComposerFocused(): boolean {
+  if (typeof document === 'undefined') return false;
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement)) return false;
+  const isEditable = active.tagName === 'INPUT'
+    || active.tagName === 'TEXTAREA'
+    || active.isContentEditable;
+  return isEditable && active.closest('.guake-input-wrapper') !== null;
+}
 
 function maybeRequestReattach(agent: Agent): void {
   if (!agent.isDetached || !agent.sessionId) {
@@ -106,26 +123,37 @@ export function handleServerMessage(message: ServerMessage): void {
       const newAgent = message.payload as Agent;
       console.log('[WebSocket] Agent created:', newAgent);
       store.addAgent(newAgent);
-      const pendingAreaId = (window as Window & {
-        __spawnModalAreaContext?: { areaId: string } | null;
-      }).__spawnModalAreaContext?.areaId;
-      if (pendingAreaId) {
-        store.assignAgentToArea(newAgent.id, pendingAreaId);
-        (window as Window & {
+
+      // agent_created is broadcast to every connected browser. Only the tab
+      // that actually sent the matching creation request may focus it or close
+      // its spawn UI; background creations must never replace an agent while
+      // the user is typing (or merely reading) in this tab.
+      const locallyRequested = consumeLocalAgentCreationIntent(newAgent);
+      if (locallyRequested) {
+        const pendingAreaId = (window as Window & {
           __spawnModalAreaContext?: { areaId: string } | null;
-        }).__spawnModalAreaContext = null;
+        }).__spawnModalAreaContext?.areaId;
+        if (pendingAreaId) {
+          store.assignAgentToArea(newAgent.id, pendingAreaId);
+          (window as Window & {
+            __spawnModalAreaContext?: { areaId: string } | null;
+          }).__spawnModalAreaContext = null;
+        }
+
+        if (!isTerminalComposerFocused()) {
+          store.selectAgent(newAgent.id);
+        } else {
+          console.info(`[WebSocket] Preserved active draft; not focusing newly created agent ${newAgent.id}`);
+        }
+        cb.onSpawnSuccess?.();
+        if (!cb.onSpawnSuccess && (window as any).__spawnModalSuccess) {
+          (window as any).__spawnModalSuccess();
+        }
+        cb.onToast?.('success', 'Agent Deployed', `${newAgent.name} is ready for commands`);
       }
-      store.selectAgent(newAgent.id);
+
+      // Every tab still adds the new mesh/card to its scene.
       cb.onAgentCreated?.(newAgent);
-      cb.onSpawnSuccess?.();
-
-      // Call global handler if it exists (for SpawnModal)
-      if ((window as any).__spawnModalSuccess) {
-        console.log('[WebSocket] Calling __spawnModalSuccess');
-        (window as any).__spawnModalSuccess();
-      }
-
-      cb.onToast?.('success', 'Agent Deployed', `${newAgent.name} is ready for commands`);
       break;
     }
 
@@ -890,6 +918,10 @@ export function handleServerMessage(message: ServerMessage): void {
       const agent = store.getState().agents.get(agentId);
       if (!agent) {
         console.warn(`[WebSocket] focus_agent ignored - agent not found: ${agentId}`);
+        break;
+      }
+      if (isTerminalComposerFocused() && !store.getState().selectedAgentIds.has(agentId)) {
+        console.info(`[WebSocket] focus_agent ignored while composing a draft for another agent: ${agentId}`);
         break;
       }
       store.selectAgent(agentId);

@@ -24,6 +24,7 @@ import { useServerMessageQueue } from '../../hooks/useServerMessageQueue';
 import { QueuedMessagesBar } from './QueuedMessagesBar';
 import { apiUrl, authFetch } from '../../utils/storage';
 import { getDisplayContextInfo } from '../../utils/context';
+import { resolveElapsedTimerStartedAt } from './elapsedTimer';
 
 /**
  * Isolated elapsed timer component — owns its own 1-second setInterval so the
@@ -40,17 +41,39 @@ const ElapsedTimer = memo(function ElapsedTimer({
 }) {
   const { t } = useTranslation(['terminal']);
   const [elapsed, setElapsed] = useState(0);
+  const fallbackStartedAtRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!isWorking || !timestamp) {
+    if (!isWorking) {
+      fallbackStartedAtRef.current = null;
       setElapsed(0);
       return;
     }
-    setElapsed(Date.now() - timestamp);
-    const interval = setInterval(() => {
-      setElapsed(Date.now() - timestamp);
-    }, 1000);
-    return () => clearInterval(interval);
+
+    // lastPrompts is client-local and can be empty after reload, reconnect, or
+    // when another browser/device started the turn. Never render a permanently
+    // frozen 0:00 in that case: start a local fallback clock, then replace it
+    // with the authoritative timestamp if one arrives later.
+    const now = Date.now();
+    const startedAt = resolveElapsedTimerStartedAt(timestamp, fallbackStartedAtRef.current, now);
+    fallbackStartedAtRef.current = startedAt;
+
+    const updateElapsed = () => {
+      setElapsed(Math.max(0, Date.now() - startedAt));
+    };
+    const handleVisibilityChange = () => {
+      if (!document.hidden) updateElapsed();
+    };
+
+    updateElapsed();
+    const interval = window.setInterval(updateElapsed, 1000);
+    window.addEventListener('focus', updateElapsed);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', updateElapsed);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [isWorking, timestamp]);
 
   if (!isWorking) return null;
@@ -300,6 +323,16 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   // re-rendering the entire TerminalInputArea every second.
   const lastPrompt = useLastPrompt(selectedAgentId);
   const isWorking = selectedAgent.status === 'working';
+  // The local lastPrompt map is not hydrated in every client. Agent task time
+  // is server-persisted and therefore the primary cross-device fallback;
+  // lastWorkedAt covers legacy/silent work that has no assigned-task stamp.
+  const latestPromptOrTaskTimestamp = Math.max(
+    lastPrompt?.timestamp ?? 0,
+    selectedAgent.lastAssignedTaskTime ?? 0,
+  );
+  const elapsedTimerTimestamp = latestPromptOrTaskTimestamp > 0
+    ? latestPromptOrTaskTimestamp
+    : selectedAgent.lastWorkedAt;
   const pinnedAgentIds = usePinnedAgentIds();
   const isPinned = pinnedAgentIds.includes(selectedAgentId);
 
@@ -1255,7 +1288,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
           <ElapsedTimer
             agentId={selectedAgentId}
             isWorking={isWorking}
-            timestamp={lastPrompt?.timestamp}
+            timestamp={elapsedTimerTimestamp}
           />
           {/* Completion elapsed time - shown briefly when agent finishes */}
           {showCompletion && completionElapsed !== null && (

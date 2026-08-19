@@ -461,9 +461,10 @@ export function useSceneSetup({
     setCallbacks({
       onAgentCreated: (agent) => {
         sceneRef.current?.addAgent(agent);
-        // Refresh selection visuals after mesh is added so newly auto-selected agent gets highlighted
+        // Refresh selection visuals after mesh is added so a locally-created,
+        // auto-selected agent is highlighted. Spawn completion is handled by
+        // the dedicated onSpawnSuccess callback only for the requesting tab.
         sceneRef.current?.refreshSelectionVisuals();
-        (window as any).__spawnModalSuccess?.();
       },
       onAgentUpdated: (agent, positionChanged) => {
         // Read the merged agent from the store instead of using the raw server

@@ -10,6 +10,7 @@ import { STORAGE_KEYS } from '../utils/storage';
 import { getWs, getConnectFn } from './state';
 import { cb } from './callbacks';
 import { appendQueuedMessage } from '../../shared/message-queue';
+import { recordLocalAgentCreationIntent } from './agentCreationIntent';
 
 /* ------------------------------------------------------------------ */
 /*  Pending-message queue (localStorage-backed)                       */
@@ -207,6 +208,7 @@ function sendMessageDirect(message: ClientMessage): boolean {
     }
 
     ws.send(messageStr);
+    recordLocalAgentCreationIntent(message);
     return true;
   } catch {
     return false;
@@ -267,6 +269,7 @@ export function sendMessage(message: ClientMessage): boolean {
     }
 
     ws.send(messageStr);
+    recordLocalAgentCreationIntent(message);
     return true;
   } catch (error) {
     if (message.type === 'send_command') {

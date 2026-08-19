@@ -84,6 +84,12 @@ interface VirtualizedOutputListProps {
    * keeping the viewport at the latest message even while row heights are still being measured.
    */
   pinToBottom?: boolean;
+  /**
+   * Monotonic generation for explicit bottom requests. Unlike the boolean pin,
+   * this changes even when a second request arrives while pinning is already
+   * active (same-agent re-click, mobile panel reopen, or send during settling).
+   */
+  bottomRequestToken?: number;
   /** Optional callback when the user scrolls during pin mode (so the parent can cancel pinning). */
   onPinCancel?: () => void;
 
@@ -334,6 +340,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   shouldAutoScroll,
   onUserScroll,
   pinToBottom = false,
+  bottomRequestToken = 0,
   onPinCancel,
   isLoadingHistory,
   anchorCorrectionsRef,
@@ -821,12 +828,16 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // Immediate synchronous scroll before first paint.
   useLayoutEffect(() => {
     if (!pinToBottom) return;
-    if (isLoadingHistory) return;
-    if (allItems.length === 0) return;
+    // An explicit open always supersedes the previous reading position. Reset
+    // the write-time gate before scrolling so subsequent mobile viewport
+    // resizes (keyboard/browser chrome/composer height) remain bottom-anchored.
+    stickyBottomRef.current = true;
     isProgrammaticScrollRef.current = true;
     agentSwitchGraceRef.current = true;
+    if (isLoadingHistory) return;
+    if (allItems.length === 0) return;
     scrollToBottom();
-  }, [pinToBottom, isLoadingHistory, allItems.length, scrollToBottom]);
+  }, [pinToBottom, bottomRequestToken, isLoadingHistory, allItems.length, scrollToBottom]);
 
   // Continuous scroll enforcement while pinned — the virtualizer re-measures
   // items across multiple frames which changes scrollHeight.  A one-shot
@@ -1033,6 +1044,78 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     observer.observe(container);
     return () => observer.disconnect();
   }, [scrollContainerRef]);
+
+  // Mobile changes the output's bottom padding through CSS variables while the
+  // keyboard, browser chrome, bottom navigation, and pinned-agent strip settle.
+  // Those changes can increase scrollHeight without changing clientHeight, so
+  // ResizeObserver alone does not guarantee that an opened agent remains at
+  // the true bottom. Re-anchor after the CSS update has crossed two frames,
+  // but only while the sticky-bottom latch is active — readers who deliberately
+  // scrolled upward remain untouched.
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || typeof window === 'undefined') return;
+
+    const mobileQuery = window.matchMedia('(max-width: 768px)');
+    let firstRaf = 0;
+    let secondRaf = 0;
+    let releaseRaf = 0;
+
+    const cancelScheduled = () => {
+      if (firstRaf) cancelAnimationFrame(firstRaf);
+      if (secondRaf) cancelAnimationFrame(secondRaf);
+      if (releaseRaf) cancelAnimationFrame(releaseRaf);
+      firstRaf = 0;
+      secondRaf = 0;
+      releaseRaf = 0;
+    };
+
+    const scheduleMobileBottomReanchor = () => {
+      if (!mobileQuery.matches || !stickyBottomRef.current) return;
+      cancelScheduled();
+      firstRaf = requestAnimationFrame(() => {
+        firstRaf = 0;
+        secondRaf = requestAnimationFrame(() => {
+          secondRaf = 0;
+          if (!container.isConnected || !stickyBottomRef.current) return;
+          isProgrammaticScrollRef.current = true;
+          scrollToBottom();
+          container.dispatchEvent(new Event('scroll'));
+          releaseRaf = requestAnimationFrame(() => {
+            releaseRaf = 0;
+            isProgrammaticScrollRef.current = false;
+          });
+        });
+      });
+    };
+
+    const viewport = window.visualViewport;
+    viewport?.addEventListener('resize', scheduleMobileBottomReanchor);
+    viewport?.addEventListener('scroll', scheduleMobileBottomReanchor);
+    mobileQuery.addEventListener('change', scheduleMobileBottomReanchor);
+
+    // Native Android keyboard insets and measured bottom-bar/pinned-bar heights
+    // are published as CSS variables on one of these ancestors. Attribute
+    // observation catches those updates even when visualViewport does not fire.
+    const mutationObserver = new MutationObserver(scheduleMobileBottomReanchor);
+    const mutationTargets = new Set<Element>([
+      document.documentElement,
+      ...[container.closest('.app'), container.closest('.guake-terminal')]
+        .filter((element): element is Element => element !== null),
+    ]);
+    for (const target of mutationTargets) {
+      mutationObserver.observe(target, { attributes: true, attributeFilter: ['class', 'style'] });
+    }
+    scheduleMobileBottomReanchor();
+
+    return () => {
+      cancelScheduled();
+      viewport?.removeEventListener('resize', scheduleMobileBottomReanchor);
+      viewport?.removeEventListener('scroll', scheduleMobileBottomReanchor);
+      mobileQuery.removeEventListener('change', scheduleMobileBottomReanchor);
+      mutationObserver.disconnect();
+    };
+  }, [scrollContainerRef, scrollToBottom]);
 
   // Scroll to selected message when navigating
   useEffect(() => {

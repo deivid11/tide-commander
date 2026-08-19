@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.199.4] - 2026-08-19
+
+### Fixed
+- **A new agent no longer steals the conversation you are typing in** - only the tab that actually requested a spawn, clone, fork or session restore switches to the new agent, and it stays put if you are mid-draft in the composer. Creations broadcast from another tab or device, and `focus_agent` from desktop integrations, no longer pull you away from the agent you are writing to.
+- **The working timer no longer sits frozen at 0:00** - when the authoritative turn timestamp is missing (after a reload or reconnect, or when another device started the turn) the timer falls back to the server-persisted task time, then to a local clock, and swaps in the real timestamp when it arrives. Timestamps materially in the future are ignored, so clock skew on phones can't stall it.
+- **Opening an agent on mobile really lands at the bottom** - explicit open/send requests now bump a generation counter instead of a boolean, so a second request while pinning is still settling (re-clicking the same agent, reopening the panel, sending during layout) still scrolls, and the view re-anchors after the keyboard, browser chrome and pinned-agent strip finish changing the output padding. Readers who scrolled up deliberately are left alone.
+
 ## [1.199.3] - 2026-08-19
 
 ### Fixed

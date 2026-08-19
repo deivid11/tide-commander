@@ -11,6 +11,7 @@
 
 import React, {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useCallback,
@@ -1047,7 +1048,31 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // virtualizer perform its first bottom jump in a layout effect before paint;
   // arming this from a normal effect exposed one top-of-list frame.
   const [pinToBottom, setPinToBottom] = useState(true);
+  // A boolean alone cannot retrigger the virtualizer when another bottom
+  // request arrives while a previous pin is still active. This generation is
+  // forwarded to the list so every explicit open/selection gets its own
+  // pre-paint bottom write — important for delayed mobile taps and viewport
+  // changes while the software keyboard is settling.
+  const [bottomRequestToken, setBottomRequestToken] = useState(0);
   const handlePinCancel = useCallback(() => setPinToBottom(false), []);
+
+  const armBottomPin = useCallback(() => {
+    isUserScrolledUpRef.current = false;
+    setShouldAutoScroll(true);
+    setPinToBottom(true);
+    setBottomRequestToken((token) => token + 1);
+
+    // If this pane is already mounted (same-agent re-click / collapsed Guake
+    // reopening), move its real DOM viewport immediately. Layout effects call
+    // this before paint; the virtualizer token then owns continued settling as
+    // rows measure and as the mobile viewport changes size.
+    const container = outputScrollRef.current;
+    if (container) {
+      const bottomOffset = Math.max(0, container.scrollHeight - container.clientHeight);
+      container.scrollTop = bottomOffset;
+      lastScrollTopRef.current = bottomOffset;
+    }
+  }, [outputScrollRef]);
 
   // Re-pin on EVERY explicit agent selection click — including re-selecting
   // the agent this pane already shows. agentId doesn't change on a same-agent
@@ -1058,16 +1083,14 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // panel, same-agent click on the board/dock/pinned bar).
   const agentSelectionSeq = useAgentSelectionSeq();
   const prevSelectionSeqRef = useRef(agentSelectionSeq);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (agentSelectionSeq === prevSelectionSeqRef.current) return;
     prevSelectionSeqRef.current = agentSelectionSeq;
     // Split layouts mount one pane per agent — only the pane showing the
     // just-clicked agent re-pins; the others keep their scroll position.
     if (!agentId || store.getState().lastSelectedAgentId !== agentId) return;
-    isUserScrolledUpRef.current = false;
-    setShouldAutoScroll(true);
-    setPinToBottom(true);
-  }, [agentSelectionSeq, agentId]);
+    armBottomPin();
+  }, [agentSelectionSeq, agentId, armBottomPin]);
 
   // Re-pin when the panel reopens on the SAME agent. toggleTerminal /
   // setTerminalOpen write selectedAgentIds directly — no selection-seq bump,
@@ -1076,23 +1099,19 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // always land at the very bottom: arm the pin on the closed→open
   // transition. Always-open hosts (Flat view) never transition — no-op there.
   const prevIsOpenRef = useRef(isOpen);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const wasOpen = prevIsOpenRef.current;
     prevIsOpenRef.current = isOpen;
     if (wasOpen || !isOpen) return;
-    isUserScrolledUpRef.current = false;
-    setShouldAutoScroll(true);
-    setPinToBottom(true);
-  }, [isOpen]);
+    armBottomPin();
+  }, [isOpen, armBottomPin]);
 
   const handleSendCommand = useCallback(() => {
-    isUserScrolledUpRef.current = false;
-    setShouldAutoScroll(true);
     // Force the jump: the list's sticky-bottom write gate refuses auto-scroll
     // while the viewport is up — sending your own message must still land the
     // view at the bottom, and the pin loop is the sanctioned force path.
-    setPinToBottom(true);
-  }, []);
+    armBottomPin();
+  }, [armBottomPin]);
 
   // Reset auto-scroll on agent change
   useEffect(() => {
@@ -1453,6 +1472,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
               shouldAutoScroll={shouldAutoScroll}
               onUserScroll={handleUserScrollUp}
               pinToBottom={pinToBottom}
+              bottomRequestToken={bottomRequestToken}
               onPinCancel={handlePinCancel}
               isLoadingHistory={waitingForFirstContent}
               anchorCorrectionsRef={anchorCorrectionsRef}
