@@ -329,7 +329,10 @@
     "copyOutput": "Copy Output",
     "command": "Command",
     "fetched": "Fetched",
-    "exit": "Exit"
+    "exit": "Exit",
+    "captureOn": "Capture ON",
+    "captureOff": "Capture OFF",
+    "captureOffHint": "Message capture is off — nothing is recorded until you turn it on (it re-parses and buffers every WebSocket frame, so it stays off by default). The choice is remembered."
   },
   "fileExplorer": {
     "title": "File Explorer",
@@ -1507,5 +1510,54 @@
     "colStored": "Stored",
     "colModified": "Modified",
     "label": "Archive"
+  },
+  "spreadsheetViewer": {
+    "loading": "Reading spreadsheet…",
+    "error": "Could not read spreadsheet",
+    "sheetCount_one": "{{count}} sheet",
+    "sheetCount_other": "{{count}} sheets",
+    "sheets": "Sheets",
+    "extentTitle": "Rows × columns of this sheet",
+    "delimiterTitle": "Detected delimiter",
+    "delimiter": {
+      "comma": "comma-separated",
+      "semicolon": "semicolon-separated",
+      "tab": "tab-separated",
+      "pipe": "pipe-separated"
+    },
+    "truncatedRows": "showing {{shown}} of {{total}} rows",
+    "truncatedCols": "{{shown}} of {{total}} columns",
+    "loadMore": "load up to {{count}} rows",
+    "copyTsv": "Copy TSV",
+    "copyTsvTitle": "Copy the visible grid as tab-separated text",
+    "copied": "Copied",
+    "hiddenSheet": "{{name}} (hidden sheet)",
+    "empty": "Empty sheet",
+    "showGrid": "Show as grid",
+    "showText": "Show as text",
+    "grid": "Grid",
+    "text": "Text",
+    "label": "Spreadsheet",
+    "filterPlaceholder": "Filter rows…",
+    "matches_one": "{{count}} match",
+    "matches_other": "{{count}} matches",
+    "clearFilter": "Clear",
+    "noMatches": "No rows match the filter",
+    "selectAll": "Select all",
+    "selectColumn": "Select column {{label}} (shift-click to extend)",
+    "selectRow": "Select row {{n}} (shift-click to extend)",
+    "sortColumn": "Sort by this column",
+    "copySelection": "Copy selection",
+    "copySelectionTitle": "Copy the selected cells as tab-separated text (Ctrl/Cmd+C)",
+    "clearSelection": "Clear selection",
+    "hint": "Click a cell, drag a range, Ctrl/Cmd+click to add more, or click a column/row header — count · sum · avg · min · max",
+    "stat": {
+      "count": "Count",
+      "numbers": "Numbers",
+      "sum": "Sum",
+      "avg": "Avg",
+      "min": "Min",
+      "max": "Max"
+    }
   }
 }

@@ -1727,6 +1727,7 @@
     display: inline-flex;
     flex-shrink: 0;
     color: var(--accent-color);
+    will-change: transform; // compositor-only spinner
     animation: guake-task-banner-spin 1.4s linear infinite;
   }
 

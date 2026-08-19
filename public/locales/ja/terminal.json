@@ -289,7 +289,10 @@
     "copyOutput": "出力をコピー",
     "command": "コマンド",
     "fetched": "取得済み",
-    "exit": "終了"
+    "exit": "終了",
+    "captureOn": "キャプチャ ON",
+    "captureOff": "キャプチャ OFF",
+    "captureOffHint": "メッセージのキャプチャはオフです。オンにするまで何も記録されません（すべての WebSocket フレームを再解析してバッファするため、既定ではオフです）。設定は保存されます。"
   },
   "fileExplorer": {
     "title": "ファイルエクスプローラー",

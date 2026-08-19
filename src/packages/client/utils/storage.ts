@@ -86,6 +86,9 @@ export const STORAGE_KEYS = {
 
   // Git Panel
   GIT_PANEL_OPEN: 'guake-git-panel-open',
+  // Agent message debugger capture (off by default — it double-parses and
+  // buffers every WS frame; opt-in from the Debug panel).
+  AGENT_DEBUGGER_ENABLED: 'tide-agent-debugger-enabled',
   GIT_PANEL_MODE: 'guake-git-panel-mode',
   GIT_PANEL_VIEW_MODE: 'guake-git-view-mode',
   GIT_PANEL_FOLDER_IDX: 'guake-git-folder-idx',

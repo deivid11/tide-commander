@@ -54,6 +54,7 @@ export class SceneManager {
   // State
   private resizeObserver: ResizeObserver | null = null;
   private isReattaching = false;
+  private selectionRefreshPending = false;
   private onFolderIconClickCallback: ((areaId: string) => void) | null = null;
   private proceduralBodiesCache = new Map<string, THREE.Object3D>();
   private proceduralBodiesDirty = true;
@@ -115,7 +116,12 @@ export class SceneManager {
         getCanvas: () => this.sceneCore.getCanvas(),
         isReattaching: () => this.isReattaching,
         getAgentMeshes: () => this.agentManager.getAgentMeshes(),
-        render: (camera) => this.sceneCore.render(camera),
+        render: (camera) => {
+          // A selection/visual refresh deferred while the canvas was detached
+          // (flat/2D mode) lands on the first frame that is actually drawn.
+          if (this.selectionRefreshPending) this.refreshSelectionVisuals();
+          this.sceneCore.render(camera);
+        },
       },
       {
         onUpdateBattlefield: (deltaTime, now) => this.updateBattlefield(deltaTime, now),
@@ -539,7 +545,18 @@ export class SceneManager {
   updateAgent(agent: Agent, animatePosition = false): void { this.agentManager.updateAgent(agent, animatePosition); }
   syncAgents(agents: Agent[]): void { this.agentManager.syncAgents(agents); }
   setCustomAgentClasses(classes: Map<string, CustomAgentClass>): void { this.agentManager.setCustomAgentClasses(classes); }
-  refreshSelectionVisuals(): void { this.selectionManager.refreshSelectionVisuals(); }
+  refreshSelectionVisuals(): void {
+    // Flat/2D/dashboard mode keeps the scene alive with a DETACHED canvas: the
+    // sprites this redraws (status bars, name/task labels — canvas text
+    // draws) are invisible there, yet every agent status/task change of every
+    // agent triggered the whole pass. Defer it until the canvas is drawn again.
+    if (!this.sceneCore.getCanvas().isConnected) {
+      this.selectionRefreshPending = true;
+      return;
+    }
+    this.selectionRefreshPending = false;
+    this.selectionManager.refreshSelectionVisuals();
+  }
 
   // ============================================
   // Public API - Effects

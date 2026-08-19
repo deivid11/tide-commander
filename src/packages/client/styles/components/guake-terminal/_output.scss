@@ -681,6 +681,7 @@
   margin-right: 6px;
   color: var(--text-secondary);
   vertical-align: middle;
+  will-change: opacity;
   animation: pending-echo-pulse 1.4s ease-in-out infinite;
 }
 
@@ -1024,6 +1025,7 @@
   border-radius: 50%;
   background: var(--status-working);
   flex-shrink: 0;
+  will-change: transform, opacity; // compositor-only
   animation: thinking-pulse 1.2s ease-in-out infinite;
 }
 
@@ -1264,6 +1266,7 @@
   border-radius: 1px;
   background: color-mix(in srgb, var(--accent-cyan, #22d3ee) 85%, white 10%);
   box-shadow: 0 0 6px color-mix(in srgb, var(--accent-cyan, #22d3ee) 50%, transparent);
+  will-change: opacity;
   animation: stream-caret-pulse 0.9s ease-in-out infinite;
 }
 

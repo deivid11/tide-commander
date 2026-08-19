@@ -12,6 +12,8 @@ import { downloadServerFile, absolutizeAssetUrl, triggerBrowserDownload } from '
 import { revealInFileExplorer } from '../api/files';
 import { ArchiveViewer } from './shared/ArchiveViewer';
 import { ARCHIVE_EXTENSIONS } from '../../shared/archive-types';
+import { SpreadsheetViewer } from './shared/SpreadsheetViewer';
+import { DELIMITED_EXTENSIONS, SPREADSHEET_BINARY_EXTENSIONS } from '../../shared/spreadsheet-types';
 import { store } from '../store';
 import { useModalClose } from '../hooks';
 import { parseFilePathReference, resolveAgentFilePath } from '../utils/filePaths';
@@ -101,6 +103,8 @@ interface FileData {
   strategy?: ResolutionStrategy;
   areaId?: string;
   areaName?: string;
+  /** Delimited file too large for the text pane — only the grid can show it. */
+  gridOnly?: boolean;
 }
 
 interface NotFoundDetail {
@@ -679,13 +683,29 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     const isVideoFile = (VIDEO_EXTENSIONS as readonly string[]).includes(ext);
     // Archives are never read as text: metadata here, entries via /api/files/archive.
     const isArchiveFile = ARCHIVE_EXTENSIONS.includes(ext);
+    // Workbooks (xlsx/xlsm/xls/ods) likewise: metadata here, grid via /api/files/spreadsheet.
+    const isSpreadsheetFile = SPREADSHEET_BINARY_EXTENSIONS.includes(ext);
+    const isDelimitedFile = (DELIMITED_EXTENSIONS as readonly string[]).includes(ext);
 
-    const endpoint = (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGlbFile || isGcodeFile || isAudioFile || isVideoFile || isArchiveFile)
-      ? `/api/files/info?path=${encodeURIComponent(filePath)}${baseDirParam}`
+    const infoEndpoint = `/api/files/info?path=${encodeURIComponent(filePath)}${baseDirParam}`;
+    const endpoint = (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGlbFile || isGcodeFile || isAudioFile || isVideoFile || isArchiveFile || isSpreadsheetFile)
+      ? infoEndpoint
       : `/api/files/read?path=${encodeURIComponent(filePath)}${baseDirParam}`;
 
     const res = await authFetch(apiUrl(endpoint));
     const data = await res.json();
+
+    // A csv/tsv beyond the text pane's size limit still opens — as a grid only
+    // (the spreadsheet endpoint has its own, much larger cap).
+    if (!res.ok && isDelimitedFile && typeof data.error === 'string' && data.error.startsWith('File too large')) {
+      const infoRes = await authFetch(apiUrl(infoEndpoint));
+      const info = await infoRes.json();
+      if (infoRes.ok) {
+        info.content = '';
+        info.gridOnly = true;
+        return { ok: true, data: info };
+      }
+    }
 
     if (!res.ok) {
       const isDir = data.error === 'Path is a directory';
@@ -698,7 +718,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       };
     }
 
-    if (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGlbFile || isGcodeFile || isAudioFile || isVideoFile || isArchiveFile) {
+    if (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGlbFile || isGcodeFile || isAudioFile || isVideoFile || isArchiveFile || isSpreadsheetFile) {
       data.content = '';
     }
 
@@ -1098,6 +1118,9 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   }, [fileData?.path, searchRoot, onClose]);
 
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'error'>('idle');
+  // csv/tsv: text pane by default, grid on demand. Resets per file.
+  const [gridMode, setGridMode] = useState(false);
+  useEffect(() => { setGridMode(false); }, [effectivePath]);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const handleDownload = useCallback(async () => {
@@ -1139,7 +1162,12 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const isAudio = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, AUDIO_EXTENSIONS as readonly string[] as string[]));
   const isVideo = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, VIDEO_EXTENSIONS as readonly string[] as string[]));
   const isArchive = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, ARCHIVE_EXTENSIONS as string[]));
-  const language = isSvg ? 'SVG' : isImage ? 'Image' : isPdf ? 'PDF' : isStl ? 'STL · 3D' : isFcStd ? 'FreeCAD · 3D' : isGlb ? 'GLB · 3D' : isGcode ? 'G-code · Print' : isAudio ? 'Audio' : isVideo ? 'Video' : isArchive ? 'Archive' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
+  // Workbooks always render as a grid; csv/tsv render as text by default with a
+  // Grid toggle (or grid-only when the file exceeds the text pane's limit).
+  const isSpreadsheet = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, SPREADSHEET_BINARY_EXTENSIONS as string[]));
+  const isDelimited = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, DELIMITED_EXTENSIONS as readonly string[] as string[]));
+  const showGrid = isSpreadsheet || (isDelimited && (gridMode || Boolean(fileData?.gridOnly)));
+  const language = isSvg ? 'SVG' : isImage ? 'Image' : isPdf ? 'PDF' : isStl ? 'STL · 3D' : isFcStd ? 'FreeCAD · 3D' : isGlb ? 'GLB · 3D' : isGcode ? 'G-code · Print' : isAudio ? 'Audio' : isVideo ? 'Video' : isArchive ? 'Archive' : isSpreadsheet ? 'Spreadsheet' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
   const authToken = getAuthToken();
   // Use the resolved file path (a clicked directory entry has its own path that
   // differs from the modal's original effectivePath — which may be the folder).
@@ -1162,7 +1190,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     : null;
   // Every format rendered by a dedicated viewer instead of the text/code panes:
   // they have no line count, nothing to copy as text and their own download path.
-  const hasBinaryPreview = isImage || isPdf || isStl || isFcStd || isGlb || isGcode || isAudio || isVideo || isArchive;
+  const hasBinaryPreview = isImage || isPdf || isStl || isFcStd || isGlb || isGcode || isAudio || isVideo || isArchive || showGrid;
   // The text preview endpoint deliberately rejects files over 1 MB, but those
   // files can still be saved through the streaming binary endpoint.
   const canDownloadWithoutPreview = !fileData && error?.startsWith('File too large');
@@ -1282,6 +1310,19 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                       : 'PDF'}
                 </button>
               </>
+            )}
+            {isDelimited && fileData && !fileData.gridOnly && !showDiffView && !showUnifiedDiffView && !showHighlightView && (
+              <button
+                type="button"
+                className={`file-viewer-copy-html-btn file-viewer-grid-toggle${gridMode ? ' active' : ''}`}
+                onClick={() => setGridMode((v) => !v)}
+                title={gridMode
+                  ? t('terminal:spreadsheetViewer.showText', { defaultValue: 'Show as text' })
+                  : t('terminal:spreadsheetViewer.showGrid', { defaultValue: 'Show as grid' })}
+              >
+                <Icon name={gridMode ? 'file-text' : 'grid'} size={12} />
+                {gridMode ? t('terminal:spreadsheetViewer.text', { defaultValue: 'Text' }) : t('terminal:spreadsheetViewer.grid', { defaultValue: 'Grid' })}
+              </button>
             )}
             {fileData && !hasBinaryPreview && !isMarkdown && (
               <button
@@ -1525,6 +1566,9 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
             ) : isArchive ? (
               // Compressed archive: browsable entry tree (server lists without extracting)
               <ArchiveViewer filePath={binaryPath} baseDir={searchRoot} filename={fileData.filename} />
+            ) : showGrid ? (
+              // Workbook / delimited file as a grid (server parses one sheet per call)
+              <SpreadsheetViewer filePath={binaryPath} baseDir={searchRoot} filename={fileData.filename} />
             ) : isStl && stlUrl ? (
               <React.Suspense fallback={<div className="file-viewer-loading">{t('terminal:fileViewerModal.loading3d')}</div>}>
                 <StlViewer

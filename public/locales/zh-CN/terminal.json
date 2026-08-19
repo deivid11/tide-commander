@@ -289,7 +289,10 @@
     "copyOutput": "复制输出",
     "command": "命令",
     "fetched": "已获取",
-    "exit": "退出"
+    "exit": "退出",
+    "captureOn": "捕获 开",
+    "captureOff": "捕获 关",
+    "captureOffHint": "消息捕获已关闭：在你打开之前不会记录任何内容（它会重新解析并缓冲每个 WebSocket 帧，因此默认关闭）。你的选择会被记住。"
   },
   "fileExplorer": {
     "title": "文件浏览器",

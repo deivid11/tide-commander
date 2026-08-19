@@ -674,6 +674,7 @@
 
 .output-tool-loading {
   color: var(--text-muted);
+  will-change: opacity;
   animation: pulse-dots 1.5s infinite;
 }
 
@@ -1526,6 +1527,8 @@
 
     .todo-status-icon {
       color: var(--accent-blue);
+      display: inline-block; // inline boxes cannot be composited
+      will-change: opacity;
       animation: pulse-icon 1.5s ease-in-out infinite;
     }
     .todo-content {
@@ -1658,6 +1661,8 @@
   background: color-mix(in srgb, var(--accent-blue) 6%, transparent);
   .task-tool-status-icon {
     color: var(--accent-blue);
+    display: inline-block; // inline boxes cannot be composited
+    will-change: opacity;
     animation: pulse-icon 1.5s ease-in-out infinite;
   }
   .task-tool-content { color: var(--accent-blue); font-weight: 500; }

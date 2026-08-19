@@ -25,6 +25,15 @@
   z-index: 201;
   overflow: hidden;
 
+  .agent-debug-capture-hint {
+    padding: 6px 16px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--accent-orange) 8%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--accent-orange) 25%, transparent);
+  }
+
   .agent-debug-header {
     display: flex;
     justify-content: space-between;
@@ -44,6 +53,47 @@
 
       .icon {
         font-size: 16px;
+      }
+    }
+
+    // Message-capture switch (off by default, persisted — see agentDebugger).
+    .agent-debug-capture-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: auto;
+      margin-right: 8px;
+      padding: 3px 9px;
+      border: 1px solid color-mix(in srgb, var(--text-muted) 40%, transparent);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--text-muted);
+      font-family: $font-mono;
+      font-size: 11px;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+
+      .agent-debug-capture-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--text-muted);
+      }
+
+      &:hover {
+        color: var(--text-primary);
+        border-color: color-mix(in srgb, var(--text-muted) 70%, transparent);
+      }
+
+      &.on {
+        color: var(--accent-green);
+        border-color: color-mix(in srgb, var(--accent-green) 60%, transparent);
+        background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+
+        .agent-debug-capture-dot {
+          background: var(--accent-green);
+          box-shadow: 0 0 6px color-mix(in srgb, var(--accent-green) 70%, transparent);
+        }
       }
     }
 

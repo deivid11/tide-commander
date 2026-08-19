@@ -289,7 +289,10 @@
     "copyOutput": "Copia output",
     "command": "Comando",
     "fetched": "Recuperato",
-    "exit": "Uscita"
+    "exit": "Uscita",
+    "captureOn": "Cattura ON",
+    "captureOff": "Cattura OFF",
+    "captureOffHint": "La cattura dei messaggi è spenta: non viene registrato nulla finché non la accendi (rianalizza e memorizza ogni frame WebSocket, per questo è spenta di default). La scelta viene ricordata."
   },
   "fileExplorer": {
     "title": "Esplora file",

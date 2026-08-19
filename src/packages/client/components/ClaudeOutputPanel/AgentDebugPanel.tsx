@@ -8,6 +8,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next';
 import {
   agentDebugger,
+  useAgentDebuggerEnabled,
   type AgentDebugMessage,
   type AgentDebugStats,
   type DebugLog,
@@ -247,6 +248,7 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
   const [textOnlyMode, setTextOnlyMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
+  const captureEnabled = useAgentDebuggerEnabled();
   const scrollRef = useRef<HTMLDivElement>(null);
   const logsScrollRef = useRef<HTMLDivElement>(null);
 
@@ -501,10 +503,24 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
           <span className="icon"><Icon name="bug" size={16} /></span>
           {t('terminal:debug.title')}
         </div>
+        {/* Capture switch — off by default (see agentDebugger), persisted. */}
+        <button
+          type="button"
+          className={`agent-debug-capture-toggle${captureEnabled ? ' on' : ''}`}
+          onClick={() => agentDebugger.setEnabled(!captureEnabled)}
+          title={captureEnabled ? t('terminal:debug.captureOn') : t('terminal:debug.captureOffHint')}
+          aria-pressed={captureEnabled}
+        >
+          <span className="agent-debug-capture-dot" aria-hidden="true" />
+          {captureEnabled ? t('terminal:debug.captureOn') : t('terminal:debug.captureOff')}
+        </button>
         <button className="close-btn" onClick={onClose} title={t('common:buttons.close')}>
           <Icon name="close" size={14} />
         </button>
       </div>
+      {!captureEnabled && (
+        <div className="agent-debug-capture-hint">{t('terminal:debug.captureOffHint')}</div>
+      )}
 
       {/* Tabs */}
       <div className="agent-debug-tabs">

@@ -289,7 +289,10 @@
     "copyOutput": "Copiar salida",
     "command": "Comando",
     "fetched": "Obtenido",
-    "exit": "Salida"
+    "exit": "Salida",
+    "captureOn": "Captura ON",
+    "captureOff": "Captura OFF",
+    "captureOffHint": "La captura de mensajes está apagada: no se registra nada hasta que la enciendas (vuelve a parsear y guarda cada frame del WebSocket, por eso viene apagada). La elección se recuerda."
   },
   "fileExplorer": {
     "title": "Explorador de archivos",

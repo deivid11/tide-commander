@@ -15,6 +15,8 @@ import { acquireGitWatch, requestGitRefresh } from '../../services/gitWatch';
 import { DiffViewer } from '../DiffViewer';
 import { ArchiveViewer } from '../shared/ArchiveViewer';
 import { ARCHIVE_EXTENSIONS } from '../../../shared/archive-types';
+import { SpreadsheetViewer } from '../shared/SpreadsheetViewer';
+import { SPREADSHEET_BINARY_EXTENSIONS } from '../../../shared/spreadsheet-types';
 import { GIT_STATUS_CONFIG } from '../FileExplorerPanel/constants';
 import { downloadFile, downloadFolder, setNativeFileDrag } from '../../utils/file-download';
 import { agentRecency, getRecentAgentTimes } from '../../utils/agentRecency';
@@ -142,7 +144,7 @@ interface ContentState {
   language: string;
 }
 
-type BinaryPreviewKind = 'image' | 'pdf' | 'stl' | 'fcstd' | 'glb' | 'gcode' | 'archive' | 'binary';
+type BinaryPreviewKind = 'image' | 'pdf' | 'stl' | 'fcstd' | 'glb' | 'gcode' | 'archive' | 'spreadsheet' | 'binary';
 
 interface BinaryState {
   filePath: string;
@@ -189,6 +191,8 @@ function getBinaryPreviewKind(filename: string): BinaryPreviewKind | null {
   if (extension === '.gcode' || extension === '.gco') return 'gcode';
   // Compressed containers get a browsable entry tree instead of "binary".
   if (ARCHIVE_EXTENSIONS.includes(extension)) return 'archive';
+  // Workbooks get the sheet grid (legacy .xls/.ods explain themselves inside it).
+  if (SPREADSHEET_BINARY_EXTENSIONS.includes(extension)) return 'spreadsheet';
   return GIT_BINARY_EXTENSIONS.has(extension) ? 'binary' : null;
 }
 
@@ -275,6 +279,13 @@ function GitBinaryPreview({ data, onFileSelect }: { data: BinaryState; onFileSel
     return (
       <div className="guake-git-binary-preview">
         <ArchiveViewer filePath={data.filePath} filename={data.fileName} />
+      </div>
+    );
+  }
+  if (data.previewKind === 'spreadsheet' && !data.isDeleted) {
+    return (
+      <div className="guake-git-binary-preview">
+        <SpreadsheetViewer filePath={data.filePath} filename={data.fileName} />
       </div>
     );
   }

@@ -289,7 +289,10 @@
     "copyOutput": "Ausgabe kopieren",
     "command": "Befehl",
     "fetched": "Abgerufen",
-    "exit": "Beenden"
+    "exit": "Beenden",
+    "captureOn": "Aufzeichnung AN",
+    "captureOff": "Aufzeichnung AUS",
+    "captureOffHint": "Die Nachrichtenaufzeichnung ist aus – es wird nichts gespeichert, bis du sie einschaltest (sie parst und puffert jeden WebSocket-Frame, deshalb standardmäßig aus). Die Wahl wird gespeichert."
   },
   "fileExplorer": {
     "title": "Datei-Explorer",

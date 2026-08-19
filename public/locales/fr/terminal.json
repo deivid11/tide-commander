@@ -289,7 +289,10 @@
     "copyOutput": "Copier la sortie",
     "command": "Commande",
     "fetched": "Récupéré",
-    "exit": "Sortie"
+    "exit": "Sortie",
+    "captureOn": "Capture ON",
+    "captureOff": "Capture OFF",
+    "captureOffHint": "La capture des messages est désactivée : rien n’est enregistré tant que vous ne l’activez pas (elle ré-analyse et met en tampon chaque trame WebSocket, d’où le défaut à OFF). Le choix est mémorisé."
   },
   "fileExplorer": {
     "title": "Explorateur de fichiers",

@@ -94,7 +94,6 @@ import { useAgentSwitchFade } from './useAgentSwitchFade';
 import { AreaBuildingsPanel } from './AreaBuildingsPanel';
 import { WorkflowPanel } from '../WorkflowPanel';
 import { useTwoFingerSelector } from '../../hooks/useTwoFingerSelector';
-import { agentDebugger } from '../../services/agentDebugger';
 import { ThemeSelector } from './ThemeSelector';
 import { Tooltip } from '../shared/Tooltip';
 import TerminalEmbed from '../TerminalEmbed';
@@ -450,9 +449,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   useModalStackRegistration('guake-context-confirm', contextConfirm !== null, () => setContextConfirm(null));
   useModalStackRegistration('guake-agent-info', agentInfoOpen, () => setAgentInfoOpen(false));
 
-  // Debug panel state
+  // Debug panel state (message capture itself is a persisted opt-in switch
+  // inside the panel — opening the panel no longer turns capture on).
   const [debugPanelOpen, setDebugPanelOpen] = useState(false);
-  const [debuggerEnabled, setDebuggerEnabled] = useState(() => agentDebugger.isEnabled());
 
   // Git panel state (persisted in localStorage)
   const [gitPanelOpen, setGitPanelOpenRaw] = useState(() => getStorageBoolean(STORAGE_KEYS.GIT_PANEL_OPEN, false));
@@ -1018,14 +1017,6 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
     onSelect: handleTwoFingerSelect,
   });
 
-  // Auto-enable debugger when panel opens
-  useEffect(() => {
-    if (debugPanelOpen && !debuggerEnabled) {
-      setDebuggerEnabled(true);
-      agentDebugger.setEnabled(true);
-    }
-  }, [debugPanelOpen, debuggerEnabled]);
-
   useEffect(() => {
     if (!isOpen) {
       setAgentInfoOpen(false);
@@ -1557,8 +1548,6 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
           closeSearch={paneRef.current?.search.closeSearch ?? (() => {})}
           debugPanelOpen={debugPanelOpen}
           setDebugPanelOpen={setDebugPanelOpen}
-          debuggerEnabled={debuggerEnabled}
-          setDebuggerEnabled={setDebuggerEnabled}
           gitPanelOpen={gitPanelOpen}
           setGitPanelOpen={setGitPanelOpen}
           buildingsPanelOpen={buildingsPanelOpen}

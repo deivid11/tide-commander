@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { store, useAgents, usePinnedAgentIds, useCustomAgentClassesArray, useAreas, useViewMode, useAgentsWithUnseenOutput } from '../../store';
+import { store, useAgents, usePinnedAgentIds, useCustomAgentClassesArray, useAreas, useViewMode, useAgentsWithUnseenOutput, useSettings } from '../../store';
 import { AgentIcon } from '../AgentIcon';
 import { STORAGE_KEYS, getStorage, getStorageString, setStorageString, removeStorage } from '../../utils/storage';
 import { isAgentVisibleInWorkspace, useWorkspaceFilter } from '../WorkspaceSwitcher';
@@ -35,6 +35,9 @@ function readMiniatureThreshold(): number {
 const PINNED_ACTIVE_WINDOW_MS = 10 * 60 * 1000;
 
 const NO_AGENTS: Agent[] = [];
+
+/** Current comet angle (deg) for unpinned working chips — see the ticker effect. */
+let cometAngle = 0;
 
 /**
  * The bar's single control cycles through these on each click: every pin flat →
@@ -404,6 +407,51 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
       target.style.removeProperty('--pinned-agents-bar-height');
     };
   }, []);
+
+  // Comet ticker for unpinned working chips. The comet is a conic gradient
+  // whose start angle is the CSS var below. Driving that var from a CSS
+  // animation (even `steps(50)`) made Blink recalc style + repaint EVERY frame
+  // (~45 ms/s measured with a single working chip); one JS tick per 100 ms
+  // moves the same 7.2° hop with ~1/6 of the work and stops when there is
+  // nothing to animate (or the tab is hidden).
+  const hasUnpinnedWorking = useMemo(
+    () => row.some((entry) => !entry.pinned && statusBucket(entry.agent) === 'working'),
+    [row],
+  );
+  // Low Power Mode freezes every CSS animation (styles/_low-power.scss); this
+  // JS-driven one must stop too or it keeps repainting the chips 10×/s.
+  const lowPowerMode = useSettings().lowPowerMode === true;
+  useEffect(() => {
+    const el = barRef.current;
+    if (!el || !hasUnpinnedWorking || lowPowerMode) return;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    // Angle lives at module level so re-runs of this effect (bar re-render
+    // with a changed roster, StrictMode) continue the glide instead of
+    // snapping the comet back to 0°.
+    // Set the var on each working unpinned chip (not on the bar): an inherited
+    // custom property changed on the bar recalculated every descendant of the
+    // whole bar 10×/s; per-chip keeps each recalc to that chip's few nodes.
+    const apply = () => {
+      const chips = el.querySelectorAll<HTMLElement>('.pinned-agent--unpinned.working');
+      const value = `${cometAngle}deg`;
+      for (let i = 0; i < chips.length; i++) chips[i].style.setProperty('--pinned-dash-angle', value);
+    };
+    const tick = () => {
+      cometAngle = (cometAngle + 7.2) % 360;
+      apply();
+    };
+    const start = () => { if (timer === null) { apply(); timer = setInterval(tick, 100); } };
+    const stop = () => { if (timer !== null) { clearInterval(timer); timer = null; } };
+    const onVisibility = () => (document.hidden ? stop() : start());
+    document.addEventListener('visibilitychange', onVisibility);
+    onVisibility();
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+      // Leave the last angle in place: a re-run continues from it and a chip
+      // that stops working simply keeps a static (invisible: not .working) ring.
+    };
+  }, [hasUnpinnedWorking, lowPowerMode]);
 
   // ── drag-to-reorder (pins only — an unpinned chip has no manual order) ──
   // Reordering edits the global pin order, so it works the same in grouped

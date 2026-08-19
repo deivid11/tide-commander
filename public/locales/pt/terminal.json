@@ -289,7 +289,10 @@
     "copyOutput": "Copiar Saida",
     "command": "Comando",
     "fetched": "Buscado",
-    "exit": "Saida"
+    "exit": "Saida",
+    "captureOn": "Captura ON",
+    "captureOff": "Captura OFF",
+    "captureOffHint": "A captura de mensagens está desligada: nada é registrado até você ligá-la (ela reanalisa e armazena cada frame do WebSocket, por isso vem desligada). A escolha é lembrada."
   },
   "fileExplorer": {
     "title": "Explorador de Arquivos",

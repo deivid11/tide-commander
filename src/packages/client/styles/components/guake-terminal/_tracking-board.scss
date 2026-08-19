@@ -600,6 +600,7 @@
   height: 4px;
   border-radius: 50%;
   background: #ff9edb;
+  will-change: transform, opacity; // compositor-only
   animation: tracking-board-typing-bounce 1s ease-in-out infinite;
 
   &:nth-child(2) { animation-delay: 0.15s; }

@@ -5,6 +5,9 @@
  * for debugging purposes. Integrates with the Guake Terminal UI.
  */
 
+import { useSyncExternalStore } from 'react';
+import { STORAGE_KEYS, getStorageBoolean, setStorageBoolean } from '../utils/storage';
+
 /**
  * Generate a UUID, with fallback for non-secure contexts where crypto.randomUUID is unavailable
  */
@@ -55,17 +58,30 @@ class AgentDebuggerService {
   private logs: DebugLog[] = [];
   private maxMessagesPerAgent = 200;
   private maxLogs = 500;
-  // Keep message capture active by default so buffers fill even when the debug panel is closed.
-  private enabled = true;
+  // Capture is OFF by default and persisted: while on, every WS frame is
+  // parsed a second time and buffered (raw payload included — streamed bash
+  // outputs can be hundreds of KB), which is real CPU/memory on the hottest
+  // client path. The Debug panel has the switch; the choice survives reloads.
+  private enabled = getStorageBoolean(STORAGE_KEYS.AGENT_DEBUGGER_ENABLED, false);
   private listeners: Set<DebugListener> = new Set();
   private logListeners: Set<LogListener> = new Set();
+  private enabledListeners: Set<LogListener> = new Set();
 
   /**
-   * Enable or disable the debugger
+   * Enable or disable the debugger (persisted).
    */
   setEnabled(enabled: boolean): void {
+    if (this.enabled === enabled) return;
     this.enabled = enabled;
+    setStorageBoolean(STORAGE_KEYS.AGENT_DEBUGGER_ENABLED, enabled);
+    this.enabledListeners.forEach((listener) => listener());
     this.notifyListeners('all');
+  }
+
+  /** Subscribe to enabled/disabled changes (for useSyncExternalStore). */
+  subscribeEnabled(listener: LogListener): () => void {
+    this.enabledListeners.add(listener);
+    return () => this.enabledListeners.delete(listener);
   }
 
   /**
@@ -79,9 +95,9 @@ class AgentDebuggerService {
    * Capture a message sent to the server for a specific agent
    */
   captureSent(agentId: string, raw: string): void {
+    if (!this.enabled) return;
     try {
       const parsed = JSON.parse(raw);
-      console.log(`[AgentDebugger] SENT - agent: ${agentId.slice(0,4)}, type: ${parsed.type}, size: ${raw.length}B`);
       this.addMessage(agentId, {
         id: generateUUID(),
         agentId,
@@ -111,9 +127,9 @@ class AgentDebuggerService {
    * Capture a message received from the server for a specific agent
    */
   captureReceived(agentId: string, raw: string): void {
+    if (!this.enabled) return;
     try {
       const parsed = JSON.parse(raw);
-      console.log(`[AgentDebugger] RECEIVED - agent: ${agentId.slice(0,4)}, type: ${parsed.type}, size: ${raw.length}B`);
       this.addMessage(agentId, {
         id: generateUUID(),
         agentId,
@@ -151,7 +167,6 @@ class AgentDebuggerService {
     }
 
     agentMessages.push(message);
-    console.log(`[AgentDebugger] Added message for ${agentId}, total: ${agentMessages.length}, type: ${message.type}, direction: ${message.direction}`);
 
     // Keep only the latest N messages per agent
     if (agentMessages.length > this.maxMessagesPerAgent) {
@@ -231,6 +246,9 @@ class AgentDebuggerService {
    * Add a log entry
    */
   log(level: DebugLog['level'], message: string, data?: unknown, source?: string): void {
+    // The log tab only exists inside the Debug panel; with capture off these
+    // entries would never be seen (and `debugLog.debug` fires per streamed chunk).
+    if (!this.enabled) return;
     const entry: DebugLog = {
       id: generateUUID(),
       level,
@@ -310,3 +328,12 @@ export const debugLog = {
   warn: (message: string, data?: unknown, source?: string) => agentDebugger.warn(message, data, source),
   error: (message: string, data?: unknown, source?: string) => agentDebugger.error(message, data, source),
 };
+
+/** React hook: is agent-message capture enabled (Debug panel switch)? */
+export function useAgentDebuggerEnabled(): boolean {
+  return useSyncExternalStore(
+    (listener) => agentDebugger.subscribeEnabled(listener),
+    () => agentDebugger.isEnabled(),
+    () => false,
+  );
+}

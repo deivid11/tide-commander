@@ -17,6 +17,7 @@ import { detectRunnerType, mightBeTestFile, mightBeVitestFile, mightBePhpTestFil
 import type { TestRunnerType } from '../../shared/types.js';
 import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS, parseExcludeDirNames } from '../../shared/file-search.js';
 import { detectArchiveFormat, listArchive } from '../services/archive-listing.js';
+import { readSpreadsheet, detectSpreadsheetKind, UnsupportedSpreadsheetError, SPREADSHEET_DEFAULT_MAX_ROWS, SPREADSHEET_DEFAULT_MAX_COLS, SPREADSHEET_HARD_MAX_ROWS, SPREADSHEET_HARD_MAX_COLS } from '../services/spreadsheet-parse.js';
 import {
   searchFilesGlobal,
   searchFileContentsGlobal,
@@ -958,6 +959,66 @@ router.get('/archive', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     log.error(' Failed to list archive:', err);
+    res.status(422).json({ error: err.message });
+  }
+});
+
+// GET /api/files/spreadsheet - Parse a spreadsheet (xlsx/xlsm/csv/tsv — see
+// spreadsheet-parse.ts) into a capped grid for the file viewers. One sheet per
+// call (`sheet` index, default 0); `rows`/`cols` raise the caps up to a hard
+// limit. Legacy formats (.xls/.ods) answer 415 with a human explanation.
+router.get('/spreadsheet', async (req: Request, res: Response) => {
+  try {
+    const resolution = findFileWithFallbacks(
+      req.query.path as string | undefined,
+      req.query.baseDir as string | undefined,
+    );
+    if (!resolution.ok) {
+      const body: Record<string, unknown> = { error: resolution.error };
+      if (resolution.requested) body.path = resolution.requested;
+      if (resolution.tried) body.triedRoots = resolution.tried;
+      res.status(resolution.status).json(body);
+      return;
+    }
+    const filePath = resolution.path;
+    const stats = fs.statSync(filePath);
+    if (stats.isDirectory()) {
+      res.status(400).json({ error: 'Path is a directory', path: filePath });
+      return;
+    }
+    const filename = path.basename(filePath);
+    if (!detectSpreadsheetKind(filename)) {
+      res.status(415).json({ error: 'Not a supported spreadsheet type', path: filePath });
+      return;
+    }
+    const num = (v: unknown, fallback: number, hardMax: number): number => {
+      const n = typeof v === 'string' ? parseInt(v, 10) : NaN;
+      return Number.isFinite(n) && n > 0 ? Math.min(n, hardMax) : fallback;
+    };
+    const maxRows = num(req.query.rows, SPREADSHEET_DEFAULT_MAX_ROWS, SPREADSHEET_HARD_MAX_ROWS);
+    const maxCols = num(req.query.cols, SPREADSHEET_DEFAULT_MAX_COLS, SPREADSHEET_HARD_MAX_COLS);
+    const sheetIndex = num(req.query.sheet, 0, 10_000);
+    const parsed = await readSpreadsheet(filePath, { sheetIndex, maxRows, maxCols });
+    res.json({
+      path: filePath,
+      filename,
+      extension: path.extname(filePath).toLowerCase(),
+      size: stats.size,
+      modified: stats.mtime,
+      format: parsed.format,
+      delimiter: parsed.delimiter,
+      sheets: parsed.sheets,
+      sheetIndex: parsed.sheetIndex,
+      sheet: parsed.sheet,
+      maxRows,
+      maxCols,
+    });
+  } catch (err: any) {
+    if (err instanceof UnsupportedSpreadsheetError) {
+      res.status(415).json({ error: err.message, extension: err.extension, unsupported: true });
+      return;
+    }
+    log.error(' Failed to parse spreadsheet:', err);
     res.status(422).json({ error: err.message });
   }
 });

@@ -1038,6 +1038,388 @@
   .archive-cell-compressed { display: none; }
 }
 
+// =============================================================================
+// Spreadsheet viewer (xlsx / xlsm / xls / ods / csv / tsv / html tables) —
+// VisiData-style grid: sticky column letters + row numbers, virtualized rows,
+// fixed column widths, filter, per-column sort, range selection with a status
+// bar (count · sum · avg · min · max). Same host contract as the archive
+// viewer: fills the wrapper, its own scroller, adapts to the CONTAINER width.
+// =============================================================================
+.spreadsheet-viewer {
+  --sheet-row-h: 24px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  container-type: inline-size;
+  font-family: $font-mono;
+  font-size: 12px;
+  color: var(--text-primary);
+  outline: none;
+  user-select: none;
+}
+
+.spreadsheet-head {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.spreadsheet-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 6px 12px;
+  color: var(--text-secondary);
+
+  b { color: var(--text-primary); font-weight: 600; }
+}
+
+.spreadsheet-format-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: var(--accent-green);
+  background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-green) 30%, transparent);
+}
+
+.spreadsheet-summary-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+
+  svg { opacity: 0.75; }
+}
+
+.spreadsheet-delimiter {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.spreadsheet-summary-warn {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  color: var(--accent-yellow);
+  font-size: 11px;
+}
+
+.spreadsheet-summary-spacer { flex: 1 1 auto; }
+
+.spreadsheet-more-btn,
+.spreadsheet-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover:not(:disabled) {
+    color: var(--text-primary);
+    border-color: var(--accent-blue);
+  }
+  &:disabled { opacity: 0.5; cursor: default; }
+}
+
+.spreadsheet-more-btn {
+  margin-left: 4px;
+  color: var(--accent-yellow);
+  border-color: color-mix(in srgb, var(--accent-yellow) 45%, transparent);
+  &:hover:not(:disabled) { border-color: var(--accent-yellow); color: var(--accent-yellow); }
+}
+
+.spreadsheet-copy-btn {
+  &.is-copied { color: var(--accent-green); border-color: var(--accent-green); }
+  &.is-error { color: var(--accent-red); border-color: var(--accent-red); }
+}
+
+.spreadsheet-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  min-width: 0;
+
+  &:focus-within { border-color: var(--accent-blue); }
+
+  input {
+    width: 140px;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 11px;
+    line-height: 18px;
+  }
+}
+
+.spreadsheet-filter-count {
+  font-size: 10px;
+  color: var(--accent-blue);
+  white-space: nowrap;
+}
+
+.spreadsheet-filter-clear,
+.spreadsheet-status-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  &:hover { color: var(--text-primary); background: color-mix(in srgb, var(--border-color) 60%, transparent); }
+}
+
+.spreadsheet-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 0 10px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+}
+
+.spreadsheet-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-family: inherit;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 220px;
+
+  span { overflow: hidden; text-overflow: ellipsis; }
+  &:hover { color: var(--text-primary); background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent); }
+  &.is-active {
+    color: var(--text-primary);
+    font-weight: 600;
+    background: var(--bg-primary);
+    border-color: var(--border-color);
+    box-shadow: 0 1px 0 var(--bg-primary); // hides the head's bottom border under the tab
+  }
+  &.is-hidden-sheet { opacity: 0.6; font-style: italic; }
+}
+
+.spreadsheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  background: var(--bg-primary);
+  transition: opacity $transition-fast;
+  &.is-loading { opacity: 0.55; }
+}
+
+.spreadsheet-empty {
+  padding: 24px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.spreadsheet-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+
+  th, td {
+    height: var(--sheet-row-h);
+    padding: 0 8px;
+    border-right: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    white-space: nowrap;
+    line-height: var(--sheet-row-h);
+    box-sizing: border-box;
+  }
+
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 10.5px;
+    text-align: center;
+    border-bottom-color: var(--border-color);
+    cursor: pointer;
+    overflow: hidden;
+
+    &.is-selected { background: color-mix(in srgb, var(--accent-blue) 22%, var(--bg-secondary)); color: var(--text-primary); }
+    &:hover { color: var(--text-primary); }
+  }
+
+  .spreadsheet-corner {
+    left: 0;
+    z-index: 3;
+    padding: 0;
+  }
+
+  .spreadsheet-col-head {
+    padding: 0 4px 0 8px;
+  }
+
+  .spreadsheet-col-label { pointer-events: none; }
+
+  .spreadsheet-sort-btn {
+    float: right;
+    display: inline-flex;
+    align-items: center;
+    height: var(--sheet-row-h);
+    padding: 0 2px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    opacity: 0.35;
+    cursor: pointer;
+    &:hover { opacity: 1; color: var(--accent-blue); }
+  }
+  thead th.is-sorted-asc .spreadsheet-sort-btn,
+  thead th.is-sorted-desc .spreadsheet-sort-btn { opacity: 1; color: var(--accent-blue); }
+
+  .spreadsheet-row-head {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 10.5px;
+    text-align: right;
+    border-right-color: var(--border-color);
+    cursor: pointer;
+    &.is-selected { background: color-mix(in srgb, var(--accent-blue) 22%, var(--bg-secondary)); color: var(--text-primary); }
+  }
+
+  .spreadsheet-cell {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-primary);
+    cursor: cell;
+    &.is-number { text-align: right; font-variant-numeric: tabular-nums; }
+    &.is-selected {
+      background: color-mix(in srgb, var(--accent-blue) 18%, var(--bg-primary));
+      border-right-color: color-mix(in srgb, var(--accent-blue) 45%, transparent);
+      border-bottom-color: color-mix(in srgb, var(--accent-blue) 45%, transparent);
+    }
+  }
+
+  .spreadsheet-spacer td { padding: 0; border: none; height: auto; line-height: 0; }
+
+  tbody tr:hover .spreadsheet-cell:not(.is-selected) { background: color-mix(in srgb, var(--accent-blue) 6%, transparent); }
+  tbody tr:hover .spreadsheet-row-head { color: var(--text-primary); }
+}
+
+// Status bar (bottom): selection stats or a hint.
+.spreadsheet-status {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  min-height: 26px;
+  padding: 3px 12px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.spreadsheet-status-range {
+  font-weight: 700;
+  color: var(--accent-blue);
+  font-variant-numeric: tabular-nums;
+}
+
+.spreadsheet-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+
+  b { color: var(--text-primary); font-weight: 600; }
+  &.spreadsheet-stat--sum b { color: var(--accent-green); }
+}
+
+.spreadsheet-stat-label {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+}
+
+.spreadsheet-stat-dim { color: var(--text-muted); font-size: 10px; }
+
+.spreadsheet-status-hint {
+  color: var(--text-muted);
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spreadsheet-viewer-error {
+  &.is-unsupported {
+    color: var(--text-secondary);
+    svg { color: var(--accent-blue); }
+  }
+}
+
+// Narrow containers (phones, guake side panel): tighter header, taller rows
+// for touch. The overrides land on the viewer's CHILDREN — a container query
+// matches an ancestor container, never the container element itself.
+@container (max-width: 640px) {
+  .spreadsheet-head, .spreadsheet-body, .spreadsheet-status { --sheet-row-h: 30px; }
+  .spreadsheet-summary { padding: 6px 10px; gap: 4px 10px; font-size: 11px; }
+  .spreadsheet-tabs { padding: 0 6px; }
+  .spreadsheet-tab { padding: 5px 9px; font-size: 11px; max-width: 150px; }
+  .spreadsheet-copy-btn span { display: none; }
+  .spreadsheet-filter input { width: 96px; }
+  .spreadsheet-status { gap: 3px 10px; padding: 3px 8px; }
+  .spreadsheet-status-hint { white-space: normal; font-size: 10px; }
+}
+
+@container (max-width: 440px) {
+  .spreadsheet-delimiter { display: none; }
+  .spreadsheet-stat-label { display: none; }
+}
+
 // Scroll position indicator (less-style navigation)
 .file-viewer-scroll-indicator {
   position: absolute;

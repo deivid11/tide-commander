@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.198.0] - 2026-08-18
+
+### Added
+- **Spreadsheet viewer** - `.xlsx`, `.xlsm`, `.xls`, `.ods`, `.csv` and `.tsv` files now open as a VisiData-style grid instead of binary junk: sheet tabs, sticky column letters and row numbers, virtualized rows so a 10k-row sheet scrolls smoothly, a filter box and per-column sort. Cells, ranges, whole columns and rows can be selected (drag, Shift to extend, Ctrl/Cmd+click for non-contiguous ranges) with a live status bar showing count, numeric count, sum, average, min and max, and Ctrl/Cmd+C copies the selection as TSV. Parsing is dependency-free — OOXML through zlib and a tolerant tag scanner, `.xls` through a CFB + BIFF reader, `.ods` through content.xml — with dates, percentages and number formats rendered the way the spreadsheet app would show them.
+- **Content sniffing for mislabelled spreadsheets** - the file type is detected from the bytes, not the extension, so a `.xls` that is really CSV or an HTML table (as bank portals routinely export) still opens correctly.
+- **Message capture toggle in the agent debug panel** - WebSocket frame capture is now off by default and remembered per browser, since it re-parses and buffers every frame; turn it on only while debugging.
+
 ## [1.197.1] - 2026-08-18
 
 ### Changed

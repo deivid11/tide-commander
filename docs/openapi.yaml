@@ -785,6 +785,8 @@ paths:
     get: { $ref: '#/components/x-operations/FileInfo' }
   /files/archive:
     get: { $ref: '#/components/x-operations/FileArchive' }
+  /files/spreadsheet:
+    get: { $ref: '#/components/x-operations/FileSpreadsheet' }
   /files/binary:
     get: { $ref: '#/components/x-operations/FileBinary' }
   /files/list:
@@ -1057,6 +1059,53 @@ components:
           name: baseDir
           required: false
           schema: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '415': { $ref: '#/components/responses/ErrorResponse' }
+        '422': { $ref: '#/components/responses/ErrorResponse' }
+    FileSpreadsheet:
+      tags: [Files]
+      summary: Parse a spreadsheet into a capped grid (one sheet per call)
+      description: >-
+        Dependency-free readers for `.xlsx`/`.xlsm` (zip + OOXML — shared strings,
+        rich text, dates/times from number formats, percentages, booleans,
+        errors), `.xls` (OLE2/CFB + BIFF5/BIFF8 records, SST across CONTINUE,
+        RK/MULRK, formulas with cached results, code pages), `.ods` (zip +
+        content.xml, repeated rows/cols collapsed) and `.csv`/`.tsv` (RFC
+        4180-ish, delimiter sniffed, utf-8/BOM or latin1). The CONTENT is
+        sniffed before dispatch, so a CSV or HTML table that a portal named
+        `.xls` still opens (`format` reports what it really was: xlsx | xls |
+        ods | csv | tsv | html). Returns `{format, delimiter?, sheets[{name,
+        hidden?}], sheetIndex, sheet{name,rows[][],rowCount,colCount,
+        truncatedRows,truncatedCols}, maxRows, maxCols}` — `rows` are display
+        strings, sparse (empty row = `[]`, rows end at the last non-empty
+        cell). Only the requested sheet's grid is materialized. 415 for
+        non-spreadsheet extensions and BIFF2-4 worksheets (`{error,
+        unsupported:true}`), 422 for corrupt files or files over 64 MB.
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+        - in: query
+          name: baseDir
+          required: false
+          schema: { type: string }
+        - in: query
+          name: sheet
+          required: false
+          description: 0-based sheet index (default 0)
+          schema: { type: integer, default: 0 }
+        - in: query
+          name: rows
+          required: false
+          description: Row cap (default 500, hard max 20000)
+          schema: { type: integer, default: 500 }
+        - in: query
+          name: cols
+          required: false
+          description: Column cap (default 100, hard max 500)
+          schema: { type: integer, default: 100 }
       responses:
         '200': { $ref: '#/components/responses/JsonSuccess' }
         '415': { $ref: '#/components/responses/ErrorResponse' }

@@ -915,6 +915,7 @@
     border-radius: 7px;
     border: 1.5px solid var(--accent-green);
     opacity: 0.5;
+    will-change: transform, opacity; // compositor-only (was a per-frame chip repaint)
     animation: pinned-agent-ring 1.1s ease-out infinite;
   }
 
@@ -945,12 +946,14 @@
   &.working {
     border-color: color-mix(in srgb, var(--accent-green) 55%, transparent);
 
-    // Comet arc on a masked ring, spun through the registered angle property.
-    // This one stays a main-thread animation on purpose: Chrome would not
-    // composite a transform rotation for this pseudo (measured), and the
-    // transform/negative-z variant made every frame re-layerize the whole
-    // page (~55 ms/s with the tracking board open). Own layer + 50 steps per
-    // revolution keeps it to ~10 tiny repaints/s — 6x cheaper than before.
+    // Comet arc on a masked ring. The start angle is `--pinned-dash-angle`,
+    // set on the bar by a 100 ms JS ticker in PinnedAgentsBar (only while an
+    // unpinned chip is working, paused when the tab is hidden). A CSS
+    // animation of that property — even with steps() — made Blink recalc
+    // style and repaint every frame; the ticker does the same 7.2° hop at
+    // 10 Hz for a fraction of the cost. (A transform rotation would not
+    // composite for this masked pseudo, and the disc+cover variant made every
+    // frame re-layerize the page with the tracking board open — measured.)
     &::before {
       content: '';
       position: absolute;
@@ -960,7 +963,7 @@
       // Mostly transparent; the tail fades in behind the bright head, which
       // leads the clockwise sweep and cuts off cleanly in front.
       background: conic-gradient(
-        from var(--pinned-dash-angle),
+        from var(--pinned-dash-angle, 0deg),
         transparent 0deg,
         transparent 288deg,
         color-mix(in srgb, var(--accent-green) 40%, transparent) 322deg,
@@ -978,9 +981,9 @@
       -webkit-mask-composite: xor;
       mask-composite: exclude;
       pointer-events: none;
+      // Own layer: the 10 Hz gradient repaint stays inside this pseudo instead
+      // of invalidating the bar/root layer.
       will-change: transform;
-      // One revolution every 5s — a glide, not a spinner (7.2° hops).
-      animation: pinned-dash-rotate 5s steps(50) infinite;
     }
 
     // The sweeping arc is the working signal — the avatar ripple on top of it
@@ -995,16 +998,9 @@
   }
 }
 
-// Animatable custom property so the comet ring spins without spinning the box.
-@property --pinned-dash-angle {
-  syntax: '<angle>';
-  initial-value: 0deg;
-  inherits: false;
-}
-
-@keyframes pinned-dash-rotate {
-  to { --pinned-dash-angle: 360deg; }
-}
+// (`--pinned-dash-angle` is a plain inherited custom property written on the
+// bar by PinnedAgentsBar's ticker — no @property/keyframes: a CSS animation of
+// it cost a style recalc + repaint every frame.)
 
 // Lane separator: one where the unpinned actives start, one where their working
 // lane starts. Same green gradient as the overview dock's
@@ -1117,6 +1113,7 @@
   box-shadow: 0 0 6px color-mix(in srgb, var(--accent-blue, #4a9eff) 70%, transparent);
   z-index: 2;
   pointer-events: none;
+  will-change: transform;
   animation: pinned-agent-notif-pulse 1.5s ease-in-out infinite;
 }
 

@@ -8,7 +8,6 @@ import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from '
 import { useTranslation } from 'react-i18next';
 import { store, useSettings, useLastPrompt, useSubagentsForAgent, useAreas } from '../../store';
 import { STORAGE_KEYS, setStorageString } from '../../utils/storage';
-import { agentDebugger } from '../../services/agentDebugger';
 import { Tooltip } from '../shared/Tooltip';
 
 import type { Agent } from '../../../shared/types';
@@ -119,8 +118,6 @@ export interface TerminalHeaderProps {
   closeSearch: () => void;
   debugPanelOpen: boolean;
   setDebugPanelOpen: (open: boolean) => void;
-  debuggerEnabled: boolean;
-  setDebuggerEnabled: (enabled: boolean) => void;
   outputsLength: number;
   setContextConfirm: (action: 'collapse' | 'clear' | 'clear-subordinates' | null) => void;
   onClearContextDirect: () => void;
@@ -177,8 +174,6 @@ export const TerminalHeader = memo(function TerminalHeader({
   closeSearch,
   debugPanelOpen,
   setDebugPanelOpen,
-  debuggerEnabled,
-  setDebuggerEnabled,
   outputsLength,
   setContextConfirm,
   onClearContextDirect,
@@ -217,13 +212,10 @@ export const TerminalHeader = memo(function TerminalHeader({
     setStorageString(STORAGE_KEYS.VIEW_MODE, nextMode);
   };
 
+  // Opening the panel does NOT switch message capture on — capture is a
+  // persisted opt-in inside the panel (see agentDebugger service).
   const handleDebugToggle = () => {
-    const newOpen = !debugPanelOpen;
-    setDebugPanelOpen(newOpen);
-    if (newOpen && !debuggerEnabled) {
-      setDebuggerEnabled(true);
-      agentDebugger.setEnabled(true);
-    }
+    setDebugPanelOpen(!debugPanelOpen);
   };
 
   const handleSearchToggle = () => {

@@ -45,7 +45,6 @@ import { AgentDebugPanel } from '../ClaudeOutputPanel/AgentDebugPanel';
 import { AreaBuildingsPanel } from '../ClaudeOutputPanel/AreaBuildingsPanel';
 import { GuakeGitPanel } from '../ClaudeOutputPanel/GuakeGitPanel';
 import { GuakeTaskBanner } from '../ClaudeOutputPanel/GuakeTaskBanner';
-import { agentDebugger } from '../../services/agentDebugger';
 import { ContextConfirmModal, ImageModal, BashModal, AgentInfoModal, AgentResponseModalWrapper, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
 import { useModalStackRegistration } from '../../hooks/useModalStack';
 import { useKeyboardHeight } from '../ClaudeOutputPanel/useKeyboardHeight';
@@ -666,16 +665,13 @@ const ChatView = React.memo(function ChatView({
   const [buildingsPanelOpen, setBuildingsPanelOpen] = useState<boolean>(() =>
     getStorageBoolean(STORAGE_KEYS.BUILDINGS_PANEL_OPEN, false)
   );
-  // Debug panel parity with the Guake terminal header: same AgentDebugPanel,
-  // same auto-enable-on-open behavior. Not persisted to storage — the Guake
-  // version also keeps it session-local.
+  // Debug panel parity with the Guake terminal header: same AgentDebugPanel.
+  // Opening it does NOT turn message capture on — that is a persisted opt-in
+  // switch inside the panel (see agentDebugger). Panel open state itself is
+  // session-local, like the Guake version.
   const [debugPanelOpen, setDebugPanelOpen] = useState(false);
   const toggleDebugPanel = useCallback(() => {
-    setDebugPanelOpen((prev) => {
-      const next = !prev;
-      if (next) agentDebugger.setEnabled(true);
-      return next;
-    });
+    setDebugPanelOpen((prev) => !prev);
   }, []);
   const closeDebugPanel = useCallback(() => setDebugPanelOpen(false), []);
   const toggleGitPanel = useCallback(() => {

@@ -863,6 +863,9 @@
         border-radius: 2px;
         background: currentColor;
         transform-origin: center bottom;
+        // Own compositor layer: without it this ran on the main thread and
+        // repainted the whole panel (root layer) every frame.
+        will-change: transform, opacity;
         animation: aop-area-working-bar 0.72s ease-in-out infinite alternate;
 
         &:nth-child(2) { animation-delay: -0.48s; }
@@ -1171,14 +1174,19 @@
       pointer-events: none;
       border-radius: 50%;
       opacity: 0.3;
+      // Softness comes from wide gradient stops, NOT from `filter: blur()`:
+      // a blurred, oversized layer rotating under every working card was
+      // re-filtered by the GPU process every frame (GPU-process CPU, not the
+      // main thread — invisible in JS profiles, very visible in Task Manager).
       background: conic-gradient(
         from 20deg,
-        transparent 0deg 72deg,
-        color-mix(in srgb, var(--accent-green) 72%, transparent) 118deg,
-        color-mix(in srgb, var(--accent-cyan) 58%, transparent) 164deg,
-        transparent 218deg 360deg
+        transparent 0deg 56deg,
+        color-mix(in srgb, var(--accent-green) 22%, transparent) 84deg,
+        color-mix(in srgb, var(--accent-green) 62%, transparent) 118deg,
+        color-mix(in srgb, var(--accent-cyan) 50%, transparent) 164deg,
+        color-mix(in srgb, var(--accent-cyan) 16%, transparent) 200deg,
+        transparent 236deg 360deg
       );
-      filter: blur(16px);
       transform-origin: center;
       will-change: transform, opacity;
       animation: aop-working-aurora 6.5s linear infinite;
@@ -1265,6 +1273,7 @@
     margin-right: 1px;
     line-height: 0;
     transform-origin: center;
+    will-change: transform, opacity;
     animation: aop-subordinate-breathe 2.8s ease-in-out infinite;
   }
 
