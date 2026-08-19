@@ -371,7 +371,14 @@ export function attachServer(server: HttpServer | HttpsServer, wss: WebSocketSer
     if (pathname === '/ws') {
       // Auth check (verifyClient is not used in noServer mode)
       if (isAuthEnabled() && !validateWebSocketAuth(request)) {
-        log.log('[WS] Connection rejected: invalid or missing auth token');
+        // Name the client: a stale tab / extension / device retrying every few
+        // seconds without a token is otherwise impossible to identify from the log.
+        const forwardedFor = request.headers['x-forwarded-for'];
+        const remote = (Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor?.split(',')[0]?.trim())
+          || request.socket.remoteAddress || 'unknown';
+        const origin = request.headers.origin || 'no-origin';
+        const userAgent = (request.headers['user-agent'] || 'no-ua').slice(0, 80);
+        log.log(`[WS] Connection rejected: invalid or missing auth token (from ${remote}, origin=${origin}, ua="${userAgent}")`);
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
         socket.destroy();
         return;
@@ -388,7 +395,24 @@ export function init(server: HttpServer | HttpsServer): WebSocketServer {
   // Use noServer mode so we can manually route upgrade events.
   // This allows the terminal proxy to handle /api/terminal/*/ws upgrades
   // without the main WSS intercepting and rejecting them.
-  const wss = new WebSocketServer({ noServer: true });
+  // permessage-deflate, negotiated per client (browsers and the Android
+  // WebView support it; clients that don't simply get uncompressed frames).
+  // Only frames >= 8 KB are compressed: streaming deltas/events stay cheap,
+  // while the connect handshake — agents_update (~365 KB with 180 agents),
+  // skills_update (~400 KB), custom_agent_classes_update (~140 KB) — shrinks
+  // 5-8x, which is what a phone re-downloads on every resume/reconnect.
+  // No context takeover keeps per-connection zlib memory flat. Escape hatch:
+  // TIDE_WS_COMPRESSION=0.
+  const wsCompression = process.env.TIDE_WS_COMPRESSION === '0'
+    ? false
+    : {
+        threshold: 8 * 1024,
+        serverNoContextTakeover: true,
+        clientNoContextTakeover: true,
+        zlibDeflateOptions: { level: 3 },
+        concurrencyLimit: 4,
+      };
+  const wss = new WebSocketServer({ noServer: true, perMessageDeflate: wsCompression });
 
   attachServer(server, wss);
 
@@ -503,13 +527,14 @@ export function init(server: HttpServer | HttpsServer): WebSocketServer {
       log.log(`Client disconnected (remaining: ${clients.size})`);
     });
 
-    // Background sync – refreshes agent status after initial data is sent
+    // Background sync – refreshes agent status after initial data is sent.
+    // Any status flip it performs goes through agentService.updateAgent, whose
+    // 'updated' listener already broadcasts a per-agent `agent_updated` to this
+    // (now registered) socket — so no second full `agents_update` is needed.
+    // That resend was ~365 KB per connection with 180 agents, and on the
+    // client it triggered a full store.setAgents + another tool-history fetch.
     if (!notifyOnly) {
-      runtimeService.syncAllAgentStatus().then(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'agents_update', payload: agentService.getAllAgents() }));
-        }
-      }).catch(() => {});
+      runtimeService.syncAllAgentStatus().catch(() => {});
 
       // PM2 polling pauses while no clients are connected — run one poll now
       // so building status badges are fresh for this client.

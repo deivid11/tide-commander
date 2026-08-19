@@ -478,8 +478,11 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
       uuid: string | undefined,
       outputMeta?: OutputMetadata
     ) => {
-      const textPreview = text.slice(0, 80).replace(/\n/g, '\\n');
-      log.log(`[OUTPUT] agent=${agentId.slice(0, 4)} streaming=${isStreaming} text="${textPreview}" uuid=${uuid || 'none'}`);
+      if (process.env.DEBUG) {
+        // Per-chunk trace (one line per streaming delta) — debug only.
+        const textPreview = text.slice(0, 80).replace(/\n/g, '\\n');
+        log.debug(`[OUTPUT] agent=${agentId.slice(0, 4)} streaming=${isStreaming} text="${textPreview}" uuid=${uuid || 'none'}`);
+      }
 
       const payload: Record<string, unknown> = {
         agentId,

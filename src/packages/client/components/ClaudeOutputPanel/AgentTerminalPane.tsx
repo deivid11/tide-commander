@@ -86,6 +86,10 @@ import { VirtualizedOutputList } from './VirtualizedOutputList';
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const LIVE_DUPLICATE_WINDOW_MS = 10_000;
+// The source emits stream-final and result fallback synchronously. Keeping this
+// identity fallback window tiny prevents two real, identical turns from ever
+// being mistaken for the observed uuid-bearing/uuid-less twin.
+const LIVE_RESULT_FALLBACK_DUPLICATE_WINDOW_MS = 250;
 const HISTORY_OUTPUT_DUPLICATE_WINDOW_MS = 30_000;
 const HISTORY_ASSISTANT_OUTPUT_DUPLICATE_WINDOW_MS = 120_000;
 /**
@@ -790,6 +794,10 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     let lastLiveUserTs = 0;
     // toolKey → last kept live timestamp (collapse early + call-* twins)
     const latestLiveToolTsByKey = new Map<string, number>();
+    // Claude normally finalizes a streamed row with the same uuid. Its result
+    // fallback can occasionally repeat the full text without a uuid, though;
+    // retain the canonical uuid-bearing row and hide that exact live twin.
+    const latestLiveAssistantByKey = new Map<string, { ts: number; resultIndex: number }>();
 
     for (const output of filteredOutputs) {
       if (!output.isUserPrompt) {
@@ -847,11 +855,33 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
         }
 
         if (!output.isStreaming && !isToolOrSystemOutput(text)) {
-          const key = normalizeAssistantMessage(text);
-          const historyTs = latestHistoryAssistantTsByKey.get(key);
+          const normalized = normalizeAssistantMessage(text);
+          const historyTs = latestHistoryAssistantTsByKey.get(normalized);
           if (historyTs && Math.abs(ts - historyTs) <= HISTORY_ASSISTANT_OUTPUT_DUPLICATE_WINDOW_MS) {
             continue;
           }
+
+          // Keep attribution boundaries: identical replies from two subagents
+          // are separate messages, while the stream-final/result fallback pair
+          // has the same attribution and lands within milliseconds.
+          const liveKey = `${output.subagentName || ''}:${output.isDelegation ? 'delegated' : 'direct'}:${normalized}`;
+          const prior = latestLiveAssistantByKey.get(liveKey);
+          if (prior && Math.abs(ts - prior.ts) <= LIVE_RESULT_FALLBACK_DUPLICATE_WINDOW_MS) {
+            const priorOutput = result[prior.resultIndex];
+            // The confirmed failure shape is one stream-final with a uuid and
+            // one result fallback without it. Do not collapse two uuid-bearing
+            // messages: identical short replies in distinct turns are valid.
+            const isResultFallbackTwin = Boolean(priorOutput.uuid) !== Boolean(output.uuid);
+            if (isResultFallbackTwin) {
+              // Prefer a stable uuid if events arrived in the opposite order.
+              if (!priorOutput.uuid && output.uuid) {
+                result[prior.resultIndex] = output;
+                latestLiveAssistantByKey.set(liveKey, { ts, resultIndex: prior.resultIndex });
+              }
+              continue;
+            }
+          }
+          latestLiveAssistantByKey.set(liveKey, { ts, resultIndex: result.length });
         }
         result.push(output);
         continue;

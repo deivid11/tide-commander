@@ -44,6 +44,10 @@ interface CacheEntry {
 
 const subscriptions = new Map<WebSocket, Set<string>>();
 const cache = new Map<string, CacheEntry>();
+// Last over-cap file count warned per dir, so the 10 s poll doesn't repeat the
+// same "has N changed files" warning forever (it used to log ~12 lines/min per
+// big repo); re-warn only when the count changes.
+const overCapWarned = new Map<string, number>();
 let pollTimer: NodeJS.Timeout | null = null;
 let pollInFlight = false;
 
@@ -192,9 +196,14 @@ async function computeStatus(
   }
 
   if (totalFiles > MAX_STATUS_FILES) {
-    log.warn(
-      `[GitWatch] ${dirPath} has ${totalFiles} changed files — pushing the first ${MAX_STATUS_FILES}`
-    );
+    if (overCapWarned.get(dirPath) !== totalFiles) {
+      overCapWarned.set(dirPath, totalFiles);
+      log.warn(
+        `[GitWatch] ${dirPath} has ${totalFiles} changed files — pushing the first ${MAX_STATUS_FILES}`
+      );
+    }
+  } else {
+    overCapWarned.delete(dirPath);
   }
 
   let branch: string | null = null;
@@ -293,7 +302,10 @@ async function pollOnce(): Promise<void> {
 
     // Drop cache entries nobody watches anymore.
     for (const key of cache.keys()) {
-      if (!union.has(key)) cache.delete(key);
+      if (!union.has(key)) {
+        cache.delete(key);
+        overCapWarned.delete(key);
+      }
     }
 
     // Sequential on purpose: keeps the git subprocess load flat no matter how

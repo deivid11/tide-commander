@@ -15,6 +15,7 @@ import { dedupeOutputsAgainstHistory, mergeOlderHistoryPage } from './historyDed
 // A cached agent switches instantly (pin + reveal run on the cached page while
 // the refetch happens in the background); an uncached one waits for the fetch.
 const HISTORY_CACHE_MAX_AGENTS = 24;
+const HISTORY_FETCH_TIMEOUT_MS = 12_000;
 
 // Per-agent history cache for instant display on revisit (LRU: most recent access last)
 const historyCache = new Map<string, {
@@ -51,37 +52,59 @@ export function evictHistoryCache(agentId: string): void {
   historyCache.delete(agentId);
 }
 
-// Prefetches currently in flight (dedup guard).
+// Hovering across the miniature dock can touch many chips in a second. Keep
+// speculative history traffic below the browser's per-origin connection limit
+// so real selection requests always have a free socket.
+const MAX_CONCURRENT_HISTORY_PREFETCHES = 2;
 const prefetchInFlight = new Set<string>();
+const prefetchQueue: string[] = [];
+let activeHistoryPrefetches = 0;
 
-/**
- * Warm the history cache for an agent BEFORE the user switches to it (e.g. on
- * pinned-chip hover). By click time the cache is usually populated, so the
- * pane's first paint after the switch already shows the conversation. No-op if
- * the agent is already cached or a prefetch is in flight; a real load that
- * lands meanwhile wins (we never overwrite an existing entry).
- */
+function drainHistoryPrefetchQueue(): void {
+  while (activeHistoryPrefetches < MAX_CONCURRENT_HISTORY_PREFETCHES && prefetchQueue.length > 0) {
+    const agentId = prefetchQueue.shift();
+    if (!agentId) return;
+    if (historyCache.has(agentId)) {
+      prefetchInFlight.delete(agentId);
+      continue;
+    }
+
+    activeHistoryPrefetches += 1;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), HISTORY_FETCH_TIMEOUT_MS);
+    authFetch(
+      apiUrl(`/api/agents/${agentId}/history?limit=${MESSAGES_PER_PAGE}&offset=0`),
+      { signal: controller.signal },
+    )
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data || !Array.isArray(data.messages) || data.messages.length === 0) return;
+        if (historyCache.has(agentId)) return;
+        historyCache.set(agentId, {
+          messages: data.messages,
+          hasMore: data.hasMore || false,
+          totalCount: data.totalCount || 0,
+        });
+        historyCacheEvict();
+        const subagents = Array.isArray(data.subagents) ? data.subagents : [];
+        if (subagents.length > 0) store.hydrateSubagentsFromHistory(agentId, subagents);
+      })
+      .catch(() => { /* best-effort; the real load retries */ })
+      .finally(() => {
+        window.clearTimeout(timeout);
+        activeHistoryPrefetches -= 1;
+        prefetchInFlight.delete(agentId);
+        drainHistoryPrefetchQueue();
+      });
+  }
+}
+
+/** Warm history before selection without competing with foreground loads. */
 export function prefetchAgentHistory(agentId: string): void {
   if (!agentId || historyCache.has(agentId) || prefetchInFlight.has(agentId)) return;
   prefetchInFlight.add(agentId);
-  authFetch(apiUrl(`/api/agents/${agentId}/history?limit=${MESSAGES_PER_PAGE}&offset=0`))
-    .then((res) => (res.ok ? res.json() : null))
-    .then((data) => {
-      if (!data || !Array.isArray(data.messages) || data.messages.length === 0) return;
-      if (historyCache.has(agentId)) return;
-      historyCache.set(agentId, {
-        messages: data.messages,
-        hasMore: data.hasMore || false,
-        totalCount: data.totalCount || 0,
-      });
-      historyCacheEvict();
-      const subagents = Array.isArray(data.subagents) ? data.subagents : [];
-      if (subagents.length > 0) {
-        store.hydrateSubagentsFromHistory(agentId, subagents);
-      }
-    })
-    .catch(() => { /* prefetch is best-effort; the real load will retry */ })
-    .finally(() => prefetchInFlight.delete(agentId));
+  prefetchQueue.push(agentId);
+  drainHistoryPrefetchQueue();
 }
 
 
@@ -235,6 +258,7 @@ export function useHistoryLoader({
 
     // Preserve outputs on reconnect
     let preservedOutputsSnapshot: ClaudeOutput[] | undefined;
+    let showedCachedHistory = false;
     if (isReconnect) {
       const currentOutputs = store.getOutputs(selectedAgentId);
       if (currentOutputs.length > 0) {
@@ -265,6 +289,7 @@ export function useHistoryLoader({
       // instead of blanking the screen while waiting for the network fetch.
       const cached = historyCache.get(selectedAgentId);
       if (cached) {
+        showedCachedHistory = true;
         historyCacheTouch(selectedAgentId);
         setHistory(cached.messages);
         historyLengthRef.current = cached.messages.length;
@@ -292,7 +317,21 @@ export function useHistoryLoader({
       }, 80); // Only show loading if fetch takes longer than this; until then the pane is blank
     }
 
-    authFetch(apiUrl(`/api/agents/${selectedAgentId}/history?limit=${MESSAGES_PER_PAGE}&offset=0`))
+    // A keyed pane unmounts on every agent switch. Abort its history request
+    // immediately so rapid switches cannot leave enough 2–3 second requests
+    // alive to exhaust the browser's per-origin connection pool. A hard reload
+    // used to appear to "fix" the frozen UI only because it aborted that queue.
+    const abortController = new AbortController();
+    let fetchTimedOut = false;
+    const fetchTimeout = window.setTimeout(() => {
+      fetchTimedOut = true;
+      abortController.abort();
+    }, HISTORY_FETCH_TIMEOUT_MS);
+
+    authFetch(
+      apiUrl(`/api/agents/${selectedAgentId}/history?limit=${MESSAGES_PER_PAGE}&offset=0`),
+      { signal: abortController.signal },
+    )
       .then((res) => {
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -358,13 +397,22 @@ export function useHistoryLoader({
         }
       })
       .catch((err) => {
-        console.error('Failed to load history:', err);
-        setHistory([]);
-        historyLengthRef.current = 0;
-        paginationOffsetRef.current = 0;
-        setHasMore(false);
-        hasMoreRef.current = false;
-        setTotalCount(0);
+        const wasAborted = err instanceof Error && err.name === 'AbortError';
+        // Effect cleanup means another agent/fetch owns the pane now. Do not
+        // clear state or log a false failure for that expected cancellation.
+        if (wasAborted && !fetchTimedOut) return;
+        if (fetchTimedOut) console.warn('History request timed out:', selectedAgentId);
+        else console.error('Failed to load history:', err);
+        // A failed background refresh must not erase the cached conversation
+        // that was already painted successfully.
+        if (!showedCachedHistory) {
+          setHistory([]);
+          historyLengthRef.current = 0;
+          paginationOffsetRef.current = 0;
+          setHasMore(false);
+          hasMoreRef.current = false;
+          setTotalCount(0);
+        }
         // Restore preserved outputs on error
         if (shouldClearOutputs && preservedOutputsSnapshot && preservedOutputsSnapshot.length > 0) {
           store.clearOutputs(selectedAgentId);
@@ -374,6 +422,7 @@ export function useHistoryLoader({
         }
       })
       .finally(() => {
+        window.clearTimeout(fetchTimeout);
         if (!isMountedRef.current) return;
         // Ignore out-of-order completions if a newer fetch started
         if (fetchSeq !== fetchSeqRef.current) return;
@@ -387,6 +436,20 @@ export function useHistoryLoader({
         setFetchingHistory(false);
         setHistoryLoadVersion((v) => v + 1);
       });
+
+    return () => {
+      window.clearTimeout(fetchTimeout);
+      abortController.abort();
+      // React StrictMode replays effects with the same dependencies. Release
+      // this effect's guards so the replay starts a fresh request instead of
+      // inheriting an aborted loadKey and remaining empty.
+      if (loadedForRef.current === loadKey) loadedForRef.current = null;
+      if (fetchSeqRef.current === fetchSeq) fetchSeqRef.current += 1;
+      if (loadingTimerRef.current) {
+        clearTimeout(loadingTimerRef.current);
+        loadingTimerRef.current = null;
+      }
+    };
   // Note: lastPrompts intentionally excluded from deps - we only use it to set initial prompt, not to trigger reloads
   }, [selectedAgentId, hasSessionId, reconnectCount, historyRefreshTrigger]);
 

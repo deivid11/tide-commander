@@ -14,11 +14,8 @@ import {
   killOpencodeProcessInCwd,
   killGrokProcessInCwd,
   killPiProcessInCwd,
-  findClaudeProcessPidInCwd,
-  findCodexProcessPidInCwd,
-  findOpencodeProcessPidInCwd,
-  findGrokProcessPidInCwd,
-  findPiProcessPidInCwd,
+  snapshotProviderProcesses,
+  type ProviderProcessInfo,
 } from '../claude/session-loader.js';
 import * as agentService from './agent-service.js';
 import { ModelFallbackTracker } from '../../shared/model-fallback.js';
@@ -182,7 +179,10 @@ function emit<K extends keyof RuntimeServiceEvents>(
 
   if (event === 'event') {
     const standardEvent = args[1] as any;
-    log.log(`[EMIT] event: type=${standardEvent?.type} tool=${standardEvent?.toolName || 'n/a'} listeners=${listenerCount}`);
+    // debug-level: fires once per streaming delta (text/thinking) — at log
+    // level it was ~65k lines per afternoon, and every console.log under pm2
+    // is a synchronous pipe write on Linux.
+    log.debug(`[EMIT] event: type=${standardEvent?.type} tool=${standardEvent?.toolName || 'n/a'} listeners=${listenerCount}`);
   }
 
   if (listeners) {
@@ -461,58 +461,102 @@ export interface AgentRuntimeProcessInfo {
  * Prefers in-memory active runner state, then falls back to persisted crash-recovery state.
  */
 export async function getAgentRuntimeProcessInfo(agentId: string): Promise<AgentRuntimeProcessInfo> {
-  // Check all in-memory runners first so provider drift/migration doesn't hide live processes.
+  const [info] = await getAgentRuntimeProcessInfoBatch([agentId]);
+  return info ?? { isRunning: false, source: 'none' };
+}
+
+/**
+ * Batch variant of getAgentRuntimeProcessInfo: resolves every agent against
+ * ONE read of the persisted crash-recovery file and ONE process snapshot
+ * (a single `ps` + cwd lookups), instead of re-reading the file and spawning
+ * `ps aux | grep` + `readlink` per agent. With hundreds of agents the per-agent
+ * form made a single /api/perf poll take ~30 s of mostly event-loop-blocking
+ * work; this one is a handful of milliseconds after the snapshot.
+ *
+ * Result order matches `agentIds`. Unknown agents resolve to `{ source: 'none' }`.
+ */
+export async function getAgentRuntimeProcessInfoBatch(agentIds: string[]): Promise<AgentRuntimeProcessInfo[]> {
+  // 1. In-memory runner state, gathered once across all runners so provider
+  //    drift/migration doesn't hide live processes. First runner wins per agent
+  //    (same as the former sequential scan).
+  const activePids = new Map<string, number>();
   for (const runner of runners.values()) {
     const runnerWithState = runner as RuntimeRunnerWithProcessState;
     if (!runnerWithState.getActiveProcessesState) {
       continue;
     }
-    const state = runnerWithState.getActiveProcessesState().find((proc) => proc.agentId === agentId);
-    if (state?.pid) {
-      return {
-        pid: state.pid,
-        isRunning: true,
-        source: 'active',
-      };
+    for (const state of runnerWithState.getActiveProcessesState()) {
+      if (state.pid && !activePids.has(state.agentId)) {
+        activePids.set(state.agentId, state.pid);
+      }
     }
   }
 
-  const persistedProcess = loadRunningProcesses().find((proc) => proc.agentId === agentId);
-  if (persistedProcess?.pid && isProcessRunning(persistedProcess.pid)) {
-    return {
-      pid: persistedProcess.pid,
-      isRunning: true,
-      source: 'persisted',
-    };
-  }
-
-  const agent = agentService.getAgent(agentId);
-  if (agent?.cwd) {
-    const provider = agent.provider ?? 'claude';
-    const discoveredPid =
-      provider === 'codex'
-        ? await findCodexProcessPidInCwd(agent.cwd)
-        : provider === 'opencode'
-          ? await findOpencodeProcessPidInCwd(agent.cwd)
-          : provider === 'grok'
-            ? await findGrokProcessPidInCwd(agent.cwd)
-            : provider === 'pi'
-              ? await findPiProcessPidInCwd(agent.cwd)
-              : await findClaudeProcessPidInCwd(agent.cwd);
-
-    if (discoveredPid && isProcessRunning(discoveredPid)) {
-      return {
-        pid: discoveredPid,
-        isRunning: true,
-        source: 'discovered',
-      };
+  const results: AgentRuntimeProcessInfo[] = [];
+  const pendingDiscovery: Array<{ index: number; cwd: string; provider: AgentProvider }> = [];
+  // Persisted crash-recovery state: the file is mtime-cached by loadRunningProcesses,
+  // but read it once per batch regardless so all agents see the same view.
+  let persistedByAgent: Map<string, number> | null = null;
+  const getPersistedPid = (agentId: string): number | undefined => {
+    if (!persistedByAgent) {
+      persistedByAgent = new Map();
+      for (const proc of loadRunningProcesses()) {
+        if (proc.pid && !persistedByAgent.has(proc.agentId)) {
+          persistedByAgent.set(proc.agentId, proc.pid);
+        }
+      }
     }
-  }
-
-  return {
-    isRunning: false,
-    source: 'none',
+    return persistedByAgent.get(agentId);
   };
+
+  for (const agentId of agentIds) {
+    const activePid = activePids.get(agentId);
+    if (activePid) {
+      results.push({ pid: activePid, isRunning: true, source: 'active' });
+      continue;
+    }
+
+    const persistedPid = getPersistedPid(agentId);
+    if (persistedPid && isProcessRunning(persistedPid)) {
+      results.push({ pid: persistedPid, isRunning: true, source: 'persisted' });
+      continue;
+    }
+
+    results.push({ isRunning: false, source: 'none' });
+    const agent = agentService.getAgent(agentId);
+    if (agent?.cwd) {
+      pendingDiscovery.push({ index: results.length - 1, cwd: agent.cwd, provider: agent.provider ?? 'claude' });
+    }
+  }
+
+  // 2. OS-level discovery by cwd — one snapshot for every agent that needs it.
+  if (pendingDiscovery.length > 0) {
+    let processes: ProviderProcessInfo[] = [];
+    try {
+      processes = await snapshotProviderProcesses();
+    } catch (err) {
+      log.error('Failed to snapshot provider processes:', err);
+    }
+    const normalizeCwd = (cwd: string): string => cwd.replace(/\/+$/, '');
+    const byProviderAndCwd = new Map<string, number>();
+    for (const proc of processes) {
+      if (proc.cwd === null) continue;
+      const key = `${proc.provider}\0${normalizeCwd(proc.cwd)}`;
+      // First match wins, like the former "first pid in ps order" lookup.
+      if (!byProviderAndCwd.has(key)) {
+        byProviderAndCwd.set(key, proc.pid);
+      }
+    }
+
+    for (const { index, cwd, provider } of pendingDiscovery) {
+      const discoveredPid = byProviderAndCwd.get(`${provider}\0${normalizeCwd(cwd)}`);
+      if (discoveredPid && isProcessRunning(discoveredPid)) {
+        results[index] = { pid: discoveredPid, isRunning: true, source: 'discovered' };
+      }
+    }
+  }
+
+  return results;
 }
 
 /**

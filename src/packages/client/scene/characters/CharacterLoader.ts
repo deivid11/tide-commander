@@ -30,6 +30,12 @@ export class CharacterLoader {
   private loadingCustomModels = new Map<string, Promise<void>>(); // Track in-flight custom model loads
 
   constructor() {
+    // All 12 bundled character GLBs reference the SAME external texture
+    // (assets/characters/Textures/colormap.png). Without three's loader cache
+    // every model's ImageBitmapLoader issues its own fetch — 12-24 identical
+    // requests per scene build. With it, the first fetch's promise is shared
+    // and the texture is downloaded once.
+    THREE.Cache.enabled = true;
     this.loader = new GLTFLoader();
     // Configure DRACOLoader for Draco-compressed models
     this.dracoLoader = new DRACOLoader();
@@ -70,6 +76,9 @@ export class CharacterLoader {
       modelNames.map((name) => this.loadModel(name))
     ).then(() => {
       this.loaded = true;
+      // The decoded models/textures live in this.models now; drop the raw
+      // GLB ArrayBuffers three's cache retained during the batch (~3 MB).
+      THREE.Cache.clear();
       console.log(`[CharacterLoader] All models loaded. Cache size: ${this.models.size}`);
     });
 

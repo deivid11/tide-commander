@@ -6,7 +6,8 @@
 import { Router } from 'express';
 import * as agentService from '../services/agent-service.js';
 import * as runtimeService from '../services/runtime-service.js';
-import { execSync } from 'child_process';
+import { execFile } from 'child_process';
+import * as fs from 'fs';
 import os from 'os';
 
 const router = Router();
@@ -53,24 +54,33 @@ export function recordRequestTiming(method: string, path: string, duration: numb
   }
 }
 
-function getProcessMemoryMB(pid: number): number | undefined {
+/**
+ * Resident memory of a PID in MB. Reads /proc directly on Linux (no subprocess);
+ * falls back to an async `ps` elsewhere. Never blocks the event loop — this runs
+ * once per agent process on every perf poll.
+ */
+async function getProcessMemoryMB(pid: number): Promise<number | undefined> {
   try {
-    const status = execSync(`cat /proc/${pid}/status 2>/dev/null | grep VmRSS`, {
-      encoding: 'utf8',
-      timeout: 500,
-    });
+    const status = await fs.promises.readFile(`/proc/${pid}/status`, 'utf8');
     const match = status.match(/VmRSS:\s+(\d+)\s+kB/);
     if (match) {
       return Math.round(parseInt(match[1], 10) / 1024);
     }
   } catch {
-    try {
-      const psOutput = execSync(`ps -o rss= -p ${pid}`, { encoding: 'utf8', timeout: 500 });
-      const kB = parseInt(psOutput.trim(), 10);
-      if (!isNaN(kB)) return Math.round(kB / 1024);
-    } catch {
-      // Process may not exist
-    }
+    // Not Linux, or the process is gone — try ps below.
+  }
+
+  try {
+    const psOutput = await new Promise<string>((resolve, reject) => {
+      execFile('ps', ['-o', 'rss=', '-p', String(pid)], { encoding: 'utf8', timeout: 500 }, (err, stdout) => {
+        if (err) reject(err);
+        else resolve(stdout);
+      });
+    });
+    const kB = parseInt(psOutput.trim(), 10);
+    if (!isNaN(kB)) return Math.round(kB / 1024);
+  } catch {
+    // Process may not exist
   }
   return undefined;
 }
@@ -110,25 +120,24 @@ router.get('/', async (_req, res) => {
       pid?: number;
     }> = [];
 
-    for (const agent of agents) {
-      try {
-        const info = await runtimeService.getAgentRuntimeProcessInfo(agent.id);
-        rawProcessInfo.push({
-          id: agent.id,
-          name: agent.name,
-          status: agent.status,
-          source: info.source,
-          pid: info.pid,
-        });
-      } catch {
-        rawProcessInfo.push({
-          id: agent.id,
-          name: agent.name,
-          status: agent.status,
-          source: 'none',
-        });
-      }
+    // One batched lookup: a single persisted-file read + a single process
+    // snapshot for all agents (the per-agent form spawned `ps` per agent).
+    let processInfos: runtimeService.AgentRuntimeProcessInfo[] = [];
+    try {
+      processInfos = await runtimeService.getAgentRuntimeProcessInfoBatch(agents.map((agent) => agent.id));
+    } catch {
+      processInfos = [];
     }
+    agents.forEach((agent, index) => {
+      const info = processInfos[index];
+      rawProcessInfo.push({
+        id: agent.id,
+        name: agent.name,
+        status: agent.status,
+        source: info?.source ?? 'none',
+        pid: info?.pid,
+      });
+    });
 
     // "discovered" PIDs are inferred by cwd and may map multiple agents to one process.
     // Only show discovered PID/memory when that discovered PID is unique in this snapshot.
@@ -140,7 +149,7 @@ router.get('/', async (_req, res) => {
       discoveredPidCounts.set(info.pid, (discoveredPidCounts.get(info.pid) ?? 0) + 1);
     }
 
-    for (const info of rawProcessInfo) {
+    const memoryReads = rawProcessInfo.map(async (info) => {
       const isReliableSource = info.source === 'active' || info.source === 'persisted';
       const isUniqueDiscoveredPid =
         info.source === 'discovered' &&
@@ -148,16 +157,17 @@ router.get('/', async (_req, res) => {
         (discoveredPidCounts.get(info.pid) ?? 0) === 1;
       const shouldShowProcessMetrics = isReliableSource || isUniqueDiscoveredPid;
       const pid = shouldShowProcessMetrics ? info.pid : undefined;
-      const memMB = pid ? getProcessMemoryMB(pid) : undefined;
+      const memMB = pid ? await getProcessMemoryMB(pid) : undefined;
 
-      agentProcesses.push({
+      return {
         id: info.id,
         name: info.name,
         status: info.status,
         memoryMB: memMB,
         pid,
-      });
-    }
+      };
+    });
+    agentProcesses.push(...(await Promise.all(memoryReads)));
 
     // Request latency stats
     const last30s = recentRequests.filter(r => Date.now() - r.timestamp < 30000);

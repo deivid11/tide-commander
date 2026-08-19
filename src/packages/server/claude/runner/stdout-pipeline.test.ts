@@ -123,6 +123,85 @@ describe('RunnerStdoutPipeline', () => {
     expect(callbacks.onEvent).not.toHaveBeenCalled();
   });
 
+  it('does not duplicate a completed response merely because its prose mentions error', () => {
+    const { callbacks, pipeline } = createPipeline('claude');
+    const text = 'Done. The unrelated whatsapp-error.log file was not changed.';
+
+    (pipeline as any).handleEvent('agent-dedup', {
+      type: 'text',
+      text,
+      isStreaming: false,
+      uuid: 'claude-stream-1',
+    } satisfies StandardEvent);
+    (pipeline as any).handleEvent('agent-dedup', {
+      type: 'step_complete',
+      resultText: text,
+    } satisfies StandardEvent);
+
+    expect(callbacks.onOutput).toHaveBeenCalledTimes(1);
+    expect(callbacks.onOutput).toHaveBeenCalledWith(
+      'agent-dedup', text, false, undefined, 'claude-stream-1',
+    );
+  });
+
+  it('still surfaces an explicit error result after partial text output', () => {
+    const { callbacks, pipeline } = createPipeline('claude');
+
+    (pipeline as any).handleEvent('agent-error', {
+      type: 'text',
+      text: 'Partial answer',
+      isStreaming: false,
+      uuid: 'claude-stream-2',
+    } satisfies StandardEvent);
+    (pipeline as any).handleEvent('agent-error', {
+      type: 'step_complete',
+      resultText: 'API Error: overloaded',
+    } satisfies StandardEvent);
+
+    expect(callbacks.onOutput).toHaveBeenCalledTimes(2);
+    expect(callbacks.onOutput).toHaveBeenLastCalledWith(
+      'agent-error', 'API Error: overloaded', false, undefined, undefined,
+    );
+  });
+
+  it('keeps a distinct result instead of treating any earlier text as completion', () => {
+    const { callbacks, pipeline } = createPipeline('claude');
+
+    (pipeline as any).handleEvent('agent-distinct', {
+      type: 'text',
+      text: 'An intermediate answer',
+      isStreaming: false,
+      uuid: 'claude-stream-3',
+    } satisfies StandardEvent);
+    (pipeline as any).handleEvent('agent-distinct', {
+      type: 'step_complete',
+      resultText: 'The actual final answer',
+    } satisfies StandardEvent);
+
+    expect(callbacks.onOutput).toHaveBeenCalledTimes(2);
+    expect(callbacks.onOutput).toHaveBeenLastCalledWith(
+      'agent-distinct', 'The actual final answer', false, undefined, undefined,
+    );
+  });
+
+  it('keeps legitimately identical responses from separate turns', () => {
+    const { callbacks, pipeline } = createPipeline('claude');
+    const textEvent: StandardEvent = {
+      type: 'text',
+      text: 'Done.',
+      isStreaming: false,
+      uuid: 'claude-stream-repeat',
+    };
+    const completeEvent: StandardEvent = { type: 'step_complete', resultText: 'Done.' };
+
+    (pipeline as any).handleEvent('agent-repeat', textEvent);
+    (pipeline as any).handleEvent('agent-repeat', completeEvent);
+    (pipeline as any).handleEvent('agent-repeat', { ...textEvent, uuid: 'claude-stream-repeat-2' });
+    (pipeline as any).handleEvent('agent-repeat', completeEvent);
+
+    expect(callbacks.onOutput).toHaveBeenCalledTimes(2);
+  });
+
   it('suppresses output-producing events after notification curl', () => {
     const { callbacks, pipeline } = createPipeline('opencode');
 

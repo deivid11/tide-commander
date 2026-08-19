@@ -702,16 +702,51 @@ interface RunningProcessesData {
 }
 
 /**
+ * Parsed running-processes file, keyed on the file's (mtime, size) so repeat
+ * callers (per-agent PID lookups, the periodic per-provider persist) don't
+ * re-parse a ~150 KB JSON (it embeds `lastRequest` per process) on every call.
+ * The file is only rewritten by saveRunningProcesses/clearRunningProcesses, so
+ * a stat() is enough to detect staleness.
+ */
+let runningProcessesCache: { mtimeMs: number; size: number; processes: RunningProcessInfo[] } | null = null;
+let runningProcessesLoggedOnce = false;
+
+/**
  * Load running processes info from disk
  * Used on startup to detect orphaned processes from previous commander instance
  */
 export function loadRunningProcesses(): RunningProcessInfo[] {
   ensureDataDir();
+
+  let stat: fs.Stats | null = null;
+  try {
+    stat = fs.statSync(RUNNING_PROCESSES_FILE);
+  } catch {
+    stat = null;
+  }
+
+  if (stat && runningProcessesCache && runningProcessesCache.mtimeMs === stat.mtimeMs && runningProcessesCache.size === stat.size) {
+    return [...runningProcessesCache.processes];
+  }
+
   const data = safeReadJsonSync<RunningProcessesData>(RUNNING_PROCESSES_FILE, 'Running processes');
   if (data?.processes) {
-    log.log(` Loaded ${data.processes.length} running process records (from commander PID ${data.commanderPid})`);
-    return data.processes;
+    // The first load is a meaningful startup message; every later reload is
+    // just the periodic persist refreshing the file (was ~180 lines per
+    // /api/perf poll before the callers were batched — see runtime-service).
+    const message = ` Loaded ${data.processes.length} running process records (from commander PID ${data.commanderPid})`;
+    if (!runningProcessesLoggedOnce) {
+      runningProcessesLoggedOnce = true;
+      log.log(message);
+    } else {
+      log.debug(message);
+    }
+    if (stat) {
+      runningProcessesCache = { mtimeMs: stat.mtimeMs, size: stat.size, processes: data.processes };
+    }
+    return [...data.processes];
   }
+  runningProcessesCache = null;
   return [];
 }
 

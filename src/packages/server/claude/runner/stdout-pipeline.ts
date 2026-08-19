@@ -18,10 +18,10 @@ export class RunnerStdoutPipeline {
   private callbacks: RunnerCallbacks;
   private bus: RunnerInternalEventBus;
   private activeSubagentName: Map<string, string> = new Map();
-  private textEmittedInTurn: Set<string> = new Set();
-  // Track last emitted text per agent to suppress consecutive identical outputs
-  // (OpenCode's agentic loop can re-emit the same text in the next turn after a tool call)
-  private lastEmittedText: Map<string, string> = new Map();
+  // Exact finalized text rows emitted during the current turn. `resultText` is
+  // only suppressed when it matches one of these, so a partial stream followed
+  // by a different completion/error can never be lost.
+  private finalTextKeysInTurn: Map<string, Set<string>> = new Map();
   // Track agents that have sent a completion notification.
   // OpenCode's agentic loop gives the model another turn after tool calls, causing infinite
   // loops (respond → notify → respond → notify → ...). Once the notification is sent,
@@ -194,7 +194,7 @@ export class RunnerStdoutPipeline {
 
     switch (event.type) {
       case 'init':
-        this.lastEmittedText.delete(agentId);
+        this.finalTextKeysInTurn.delete(agentId);
         this.notificationSent.delete(agentId);
         this.clearThinkingPrefixState(agentId);
         this.callbacks.onOutput(agentId, `Session started: ${event.sessionId} (${event.model})`);
@@ -202,15 +202,6 @@ export class RunnerStdoutPipeline {
 
       case 'text':
         if (event.text) {
-          // Suppress consecutive identical text (extra safety for OpenCode agentic loop)
-          // Skip for streaming chunks — token-level deltas are intentionally small and
-          // may legitimately repeat, and they are merged client-side by uuid.
-          const prevText = this.lastEmittedText.get(agentId);
-          if (!event.isStreaming && prevText && prevText === event.text.trim()) {
-            log.log(`[text] Suppressing duplicate text for agent ${agentId.slice(0, 4)}`);
-            this.textEmittedInTurn.add(agentId);
-            break;
-          }
           if (event.isStreaming && event.uuid && this.shouldCoalesceStreaming()) {
             this.enqueueStreamChunk(agentId, event.uuid, 'text', event.text);
           } else {
@@ -219,12 +210,16 @@ export class RunnerStdoutPipeline {
             if (event.uuid) {
               this.flushStreamCoalesce(`${agentId}:text:${event.uuid}`);
             }
-            if (!event.isStreaming) {
-              this.lastEmittedText.set(agentId, event.text.trim());
-            }
             this.callbacks.onOutput(agentId, event.text, event.isStreaming, undefined, event.uuid);
           }
-          this.textEmittedInTurn.add(agentId);
+          if (!event.isStreaming) {
+            let keys = this.finalTextKeysInTurn.get(agentId);
+            if (!keys) {
+              keys = new Set<string>();
+              this.finalTextKeysInTurn.set(agentId, keys);
+            }
+            keys.add(event.text.trim().replace(/\r\n/g, '\n'));
+          }
         }
         break;
 
@@ -337,14 +332,19 @@ export class RunnerStdoutPipeline {
       case 'step_complete': {
         // Flush any pending coalesced stream chunks before finalizing the turn
         this.flushAllStreamCoalesceForAgent(agentId);
-        const hasErrorResultText = this.isLikelyErrorResultText(event.resultText);
-        if (event.resultText && (!this.textEmittedInTurn.has(agentId) || hasErrorResultText)) {
-          log.log(`[step_complete] Emitting resultText as fallback (no prior text events) for agent ${agentId.slice(0, 4)}`);
+        const finalTextKeys = this.finalTextKeysInTurn.get(agentId);
+        const normalizedResult = event.resultText?.trim().replace(/\r\n/g, '\n');
+        const isExactFinalDuplicate = !!normalizedResult && finalTextKeys?.has(normalizedResult) === true;
+        if (event.resultText && !isExactFinalDuplicate) {
+          const reason = this.isLikelyErrorResultText(event.resultText)
+            ? 'explicit error result'
+            : finalTextKeys?.size ? 'distinct from prior finalized text' : 'no prior finalized text';
+          log.log(`[step_complete] Emitting resultText as fallback (${reason}) for agent ${agentId.slice(0, 4)}`);
           this.callbacks.onOutput(agentId, event.resultText, false, undefined, event.uuid);
         } else if (event.resultText) {
-          log.log(`[step_complete] Skipping resultText (already emitted via text events) for agent ${agentId.slice(0, 4)}`);
+          log.log(`[step_complete] Skipping exact resultText duplicate (already emitted via text event) for agent ${agentId.slice(0, 4)}`);
         }
-        this.textEmittedInTurn.delete(agentId);
+        this.finalTextKeysInTurn.delete(agentId);
         this.clearThinkingPrefixState(agentId);
         if (event.permissionDenials && event.permissionDenials.length > 0) {
           for (const denial of event.permissionDenials) {
@@ -360,7 +360,6 @@ export class RunnerStdoutPipeline {
             this.callbacks.onOutput(agentId, `[System] Permission denied: ${denialSummary}`, false, undefined, event.uuid);
           }
         }
-        this.textEmittedInTurn.delete(agentId);
         if (event.tokens) {
           this.callbacks.onOutput(agentId, `Tokens: ${event.tokens.input} in, ${event.tokens.output} out`, false, undefined, event.uuid);
         }
@@ -477,14 +476,12 @@ export class RunnerStdoutPipeline {
 
   private isLikelyErrorResultText(resultText?: string): boolean {
     if (!resultText) return false;
-    const lower = resultText.toLowerCase();
-    return (
-      lower.includes('api error') ||
-      lower.includes('internal server error') ||
-      lower.includes('permission denied') ||
-      lower.includes('tool denied') ||
-      lower.includes('error')
-    );
+    // Result text is normally the same complete assistant response already
+    // emitted by the text event. The old broad `includes('error')` classified
+    // ordinary recaps mentioning `error.log`, error handling, etc. as failures
+    // and emitted the whole response a second time. Only accept explicit
+    // error-line shapes here; parser-level error events use the `error` case.
+    return /(?:^|\n)\s*(?:(?:api error|internal server error|permission denied|tool denied)\s*:|error\s*:)/i.test(resultText);
   }
 
   private formatPermissionDenialSummary(toolName: string, input?: Record<string, unknown>): string {

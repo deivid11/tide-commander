@@ -5,6 +5,7 @@
 
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import path from 'path';
 import os from 'os';
 import fs from 'fs';
@@ -34,6 +35,11 @@ function findProjectRoot(): string {
 const PROJECT_ROOT = findProjectRoot();
 const DIST_DIR = path.join(PROJECT_ROOT, 'dist');
 const PUBLIC_DIR = path.join(PROJECT_ROOT, 'public');
+// Vite's default output: `<name>-<8-char base64url hash>.<ext>` emitted FLAT
+// in dist/assets (vendor-three-CBPuP1jE.js, index-CzNcNpQ6.css, …). Only code/
+// font/wasm types: public/ copies keep their subdirectories and some of their
+// names happen to end in an 8-letter word (vscode-icons/file_type_eas-metadata.svg).
+const VITE_HASHED_ASSET = /-[A-Za-z0-9_-]{8}\.(?:js|mjs|css|map|wasm|woff2?|ttf)$/;
 
 // Paths matched here are skipped by the HTTP request logger to reduce noise from
 // frequently-polled endpoints. Match is exact OR startsWith. Add new entries as
@@ -122,13 +128,33 @@ export function createApp(): Express {
   // Auth is already applied above via app.use('/api', authMiddleware)
   setupTerminalHttpProxy(app);
 
+  // gzip/brotli-negotiated compression for everything below: API JSON and the
+  // static bundle. Agent history pages are 130-200 KB of JSON, /api/agents is
+  // ~400 KB with 180 agents — all highly compressible, and phones reload them
+  // on every reconnect. Mounted AFTER the terminal proxy so ttyd responses are
+  // piped through untouched, and `compression` already skips responses that
+  // set `Cache-Control: no-transform` (the self-update SSE stream) or a
+  // non-compressible Content-Type (images, binaries).
+  app.use(compression({ threshold: 1024 }));
+
   // API routes
   app.use('/api', routes);
 
   // Serve static assets from dist (production build) or public (development)
   // Check dist first, then fall back to public
   if (fs.existsSync(DIST_DIR)) {
-    app.use('/assets', express.static(path.join(DIST_DIR, 'assets')));
+    // Vite emits content-hashed bundle files (`name-<hash>.js/.css/...`) —
+    // those can be cached forever, since any change produces a new URL.
+    // Unhashed assets copied from public/ (character models, textures, icons)
+    // keep the default ETag revalidation so an in-place update still shows up.
+    app.use('/assets', express.static(path.join(DIST_DIR, 'assets'), {
+      setHeaders: (res, filePath) => {
+        const isRootLevel = path.dirname(filePath) === path.join(DIST_DIR, 'assets');
+        if (isRootLevel && VITE_HASHED_ASSET.test(path.basename(filePath))) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      },
+    }));
     // Serve index.html for SPA routes
     app.use(express.static(DIST_DIR));
     app.get('/{*path}', (req: Request, res: Response, next: NextFunction) => {

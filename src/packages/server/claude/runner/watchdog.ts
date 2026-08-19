@@ -50,7 +50,8 @@ export class RunnerWatchdog {
   runWatchdog(): void {
     const activeCount = this.activeProcesses.size;
     if (activeCount > 0) {
-      log.log(`🐕 [WATCHDOG] Checking ${activeCount} process(es)...`);
+      // Heartbeat only — actions (kills/respawns) log at log level below.
+      log.debug(`🐕 [WATCHDOG] Checking ${activeCount} process(es)...`);
     }
 
     const idleTimeoutMs = getTmuxIdleTimeoutMs();

@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.199.2] - 2026-08-19
+
+### Changed
+- **Responses are gzip/brotli compressed** - API JSON and the static bundle are now negotiated-compression encoded, which matters most on phones that refetch 130–200 KB history pages and a ~400 KB agent list on every reconnect. The terminal proxy is mounted first so ttyd streams pass through untouched, and responses marked `no-transform` or already-compressed content types are skipped.
+- **Process lookups reuse a one-second snapshot** - orphan polling, perf metrics and PID resolution share a cached `ps` snapshot instead of each spawning their own `ps aux | grep` plus `readlink`, which with hundreds of agents meant hundreds of blocking spawns back to back. Kill paths still force a fresh read.
+
+### Fixed
+- **Rapid agent switching no longer freezes the UI** - a keyed pane aborts its history request as soon as it unmounts, and speculative warm-up from hovering the dock is capped below the browser's per-origin connection limit, so quick switches can't pile up 2–3 second requests until no socket is left for the agent you actually selected (the "fixed by reloading" freeze). A failed background refresh also no longer wipes the conversation already on screen, and cancellations are no longer logged as failures.
+
 ## [1.199.1] - 2026-08-19
 
 ### Fixed

@@ -4258,8 +4258,6 @@ const PROVIDER_PROCESS_PATTERNS: Record<SessionProvider, string> = {
   pi: '( |/)pi *$|pi-coding-agent|(^|/)pi (.* )?--mode (json|rpc)',
 };
 
-type ExecSyncFn = typeof import('child_process').execSync;
-
 function providerDisplayName(provider: SessionProvider): string {
   if (provider === 'codex') return 'Codex';
   if (provider === 'opencode') return 'OpenCode';
@@ -4268,43 +4266,159 @@ function providerDisplayName(provider: SessionProvider): string {
   return 'Claude';
 }
 
-function getProviderProcessPids(provider: SessionProvider, execSync: ExecSyncFn): string[] {
-  const pattern = PROVIDER_PROCESS_PATTERNS[provider];
-  try {
-    const psOutput = execSync(`ps aux | grep -E "${pattern}" | grep -v grep | awk '{print $2}'`, {
-      encoding: 'utf-8',
-      timeout: 5000,
-    }).trim();
-    if (!psOutput) {
-      return [];
-    }
-    return psOutput.split('\n').filter(p => p.trim());
-  } catch {
-    return [];
-  }
+/** A live provider CLI process found by `ps`, with its working directory when readable. */
+export interface ProviderProcessInfo {
+  pid: number;
+  provider: SessionProvider;
+  /** null when the cwd could not be resolved (process exited, or owned by another user). */
+  cwd: string | null;
 }
 
-function getProcessCwd(pid: string, execSync: ExecSyncFn): string | null {
+const PROVIDER_PROCESS_REGEXES: Array<{ provider: SessionProvider; regex: RegExp }> =
+  (Object.keys(PROVIDER_PROCESS_PATTERNS) as SessionProvider[]).map((provider) => ({
+    provider,
+    regex: new RegExp(PROVIDER_PROCESS_PATTERNS[provider]),
+  }));
+
+/**
+ * How long a process snapshot is reused by callers that don't ask for a fresh
+ * one. The snapshot is what every per-agent lookup (orphan polling, perf
+ * metrics, PID resolution) needs, and those lookups come in bursts of one per
+ * agent — with hundreds of agents that used to mean hundreds of blocking
+ * `ps aux | grep` + `readlink` spawns back-to-back. One second of staleness is
+ * harmless for all of them (a process that just died fails `process.kill(pid, 0)`
+ * downstream anyway); kill paths pass `fresh: true`.
+ */
+const PROCESS_SNAPSHOT_TTL_MS = 1000;
+
+let processSnapshotCache: { takenAt: number; processes: ProviderProcessInfo[] } | null = null;
+let processSnapshotInFlight: Promise<ProviderProcessInfo[]> | null = null;
+
+function normalizeCwd(cwd: string): string {
+  return cwd.replace(/\/+$/, '');
+}
+
+function runCommand(file: string, args: string[], timeoutMs: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(file, args, { stdio: ['ignore', 'pipe', 'ignore'] });
+    const chunks: Buffer[] = [];
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill('SIGKILL');
+      reject(new Error(`${file} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+    child.stdout.on('data', (chunk: Buffer) => chunks.push(chunk));
+    child.on('error', (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(err);
+    });
+    child.on('close', (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (code !== 0) {
+        reject(new Error(`${file} exited with code ${code}`));
+        return;
+      }
+      resolve(Buffer.concat(chunks).toString('utf-8'));
+    });
+  });
+}
+
+/** Resolve a process's cwd without blocking: /proc readlink on Linux, lsof on macOS. */
+async function readProcessCwd(pid: number): Promise<string | null> {
   try {
     if (process.platform === 'darwin') {
-      const lsofOutput = execSync(`lsof -a -d cwd -p ${pid} -Fn 2>/dev/null | grep '^n'`, {
-        encoding: 'utf-8',
-        timeout: 2000,
-        shell: '/bin/bash',
-      }).trim();
-      if (!lsofOutput.startsWith('n')) {
-        return null;
-      }
-      return lsofOutput.substring(1);
+      const lsofOutput = await runCommand('lsof', ['-a', '-d', 'cwd', '-p', String(pid), '-Fn'], 2000);
+      const line = lsofOutput.split('\n').find((l) => l.startsWith('n'));
+      return line ? line.substring(1).trim() : null;
     }
-
-    return execSync(`readlink /proc/${pid}/cwd`, {
-      encoding: 'utf-8',
-      timeout: 1000,
-    }).trim();
+    return (await fs.promises.readlink(`/proc/${pid}/cwd`)).trim();
   } catch {
     return null;
   }
+}
+
+/**
+ * List every running provider CLI process (claude/codex/opencode/grok/pi) with
+ * its cwd, using ONE `ps aux` spawn plus one non-blocking cwd lookup per match.
+ * Matching runs against the full `ps aux` line, exactly like the former
+ * `ps aux | grep -E <pattern>` pipeline, so the provider patterns keep their
+ * meaning. Snapshots are memoized for PROCESS_SNAPSHOT_TTL_MS and concurrent
+ * callers share the in-flight promise; pass `fresh: true` to bypass both.
+ */
+export async function snapshotProviderProcesses(options: { fresh?: boolean } = {}): Promise<ProviderProcessInfo[]> {
+  if (process.platform === 'win32') {
+    return [];
+  }
+
+  const now = Date.now();
+  if (!options.fresh) {
+    if (processSnapshotCache && now - processSnapshotCache.takenAt < PROCESS_SNAPSHOT_TTL_MS) {
+      return processSnapshotCache.processes;
+    }
+    if (processSnapshotInFlight) {
+      return processSnapshotInFlight;
+    }
+  }
+
+  const work = (async (): Promise<ProviderProcessInfo[]> => {
+    let psOutput: string;
+    try {
+      psOutput = await runCommand('ps', ['aux'], 5000);
+    } catch (err) {
+      log.error(' Failed to list processes with ps:', err);
+      return [];
+    }
+
+    const matches: Array<{ pid: number; provider: SessionProvider }> = [];
+    for (const line of psOutput.split('\n')) {
+      if (!line) continue;
+      // A line may satisfy more than one provider pattern; keep it under each,
+      // as the former one-grep-per-provider pipeline did.
+      const providers = PROVIDER_PROCESS_REGEXES.filter(({ regex }) => regex.test(line));
+      if (providers.length === 0) continue;
+      // `ps aux` columns: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
+      const pid = Number.parseInt(line.trim().split(/\s+/)[1] ?? '', 10);
+      if (!Number.isFinite(pid) || pid <= 0) continue;
+      for (const { provider } of providers) {
+        matches.push({ pid, provider });
+      }
+    }
+
+    const processes = await Promise.all(
+      matches.map(async ({ pid, provider }): Promise<ProviderProcessInfo> => ({
+        pid,
+        provider,
+        cwd: await readProcessCwd(pid),
+      }))
+    );
+    processSnapshotCache = { takenAt: Date.now(), processes };
+    return processes;
+  })();
+
+  processSnapshotInFlight = work;
+  try {
+    return await work;
+  } finally {
+    if (processSnapshotInFlight === work) {
+      processSnapshotInFlight = null;
+    }
+  }
+}
+
+/** First snapshot entry of `provider` whose cwd matches `cwd` (trailing slashes ignored). */
+function findProviderProcessInSnapshot(
+  processes: ProviderProcessInfo[],
+  cwd: string,
+  provider: SessionProvider
+): ProviderProcessInfo | undefined {
+  const normalizedCwd = normalizeCwd(cwd);
+  return processes.find((p) => p.provider === provider && p.cwd !== null && normalizeCwd(p.cwd) === normalizedCwd);
 }
 
 async function isProviderProcessRunningInCwd(cwd: string, provider: SessionProvider): Promise<boolean> {
@@ -4314,27 +4428,12 @@ async function isProviderProcessRunningInCwd(cwd: string, provider: SessionProvi
   }
 
   try {
-    const { execSync } = await import('child_process');
-    const pids = getProviderProcessPids(provider, execSync);
-    if (pids.length === 0) {
+    const match = findProviderProcessInSnapshot(await snapshotProviderProcesses(), cwd, provider);
+    if (!match) {
       return false;
     }
-
-    const normalizedCwd = cwd.replace(/\/+$/, '');
-
-    for (const pid of pids) {
-      const processCwd = getProcessCwd(pid, execSync);
-      if (!processCwd) {
-        continue;
-      }
-      const normalizedProcessCwd = processCwd.replace(/\/+$/, '');
-      if (normalizedProcessCwd === normalizedCwd) {
-        log.log(` Found ${providerDisplayName(provider)} process ${pid} running in ${cwd}`);
-        return true;
-      }
-    }
-
-    return false;
+    log.log(` Found ${providerDisplayName(provider)} process ${match.pid} running in ${cwd}`);
+    return true;
   } catch (err) {
     log.error(` Error checking for ${providerDisplayName(provider)} processes:`, err);
     return false;
@@ -4347,29 +4446,7 @@ async function findProviderProcessPidInCwd(cwd: string, provider: SessionProvide
   }
 
   try {
-    const { execSync } = await import('child_process');
-    const pids = getProviderProcessPids(provider, execSync);
-    if (pids.length === 0) {
-      return undefined;
-    }
-
-    const normalizedCwd = cwd.replace(/\/+$/, '');
-
-    for (const pid of pids) {
-      const processCwd = getProcessCwd(pid, execSync);
-      if (!processCwd) {
-        continue;
-      }
-      const normalizedProcessCwd = processCwd.replace(/\/+$/, '');
-      if (normalizedProcessCwd === normalizedCwd) {
-        const numericPid = Number.parseInt(pid, 10);
-        if (Number.isFinite(numericPid) && numericPid > 0) {
-          return numericPid;
-        }
-      }
-    }
-
-    return undefined;
+    return findProviderProcessInSnapshot(await snapshotProviderProcesses(), cwd, provider)?.pid;
   } catch (err) {
     log.error(` Error finding ${providerDisplayName(provider)} PID in ${cwd}:`, err);
     return undefined;
@@ -4383,36 +4460,27 @@ async function killProviderProcessInCwd(cwd: string, provider: SessionProvider):
   }
 
   try {
-    const { execSync } = await import('child_process');
-    const pids = getProviderProcessPids(provider, execSync);
-    if (pids.length === 0) {
-      return false;
-    }
+    // Always look at live state here: killing on a stale snapshot could target
+    // a PID that was already reused.
+    const processes = await snapshotProviderProcesses({ fresh: true });
+    const normalizedCwd = normalizeCwd(cwd);
+    const label = providerDisplayName(provider);
 
-    const normalizedCwd = cwd.replace(/\/+$/, '');
-
-    for (const pid of pids) {
-      const processCwd = getProcessCwd(pid, execSync);
-      if (!processCwd) {
+    for (const proc of processes) {
+      if (proc.provider !== provider || proc.cwd === null || normalizeCwd(proc.cwd) !== normalizedCwd) {
         continue;
       }
 
-      const normalizedProcessCwd = processCwd.replace(/\/+$/, '');
-      if (normalizedProcessCwd !== normalizedCwd) {
-        continue;
-      }
-
-      const label = providerDisplayName(provider);
+      const pid = proc.pid;
       log.log(`🛑 Killing detached ${label} process ${pid} in ${cwd}`);
 
       try {
-        const numericPid = parseInt(pid, 10);
-        process.kill(numericPid, 'SIGTERM');
+        process.kill(pid, 'SIGTERM');
         setTimeout(() => {
           try {
-            process.kill(numericPid, 0);
+            process.kill(pid, 0);
             log.log(`🛑 Force killing ${label} process ${pid}`);
-            process.kill(numericPid, 'SIGKILL');
+            process.kill(pid, 'SIGKILL');
           } catch {
             // Process already dead, good
           }

@@ -405,8 +405,9 @@ export class ClaudeBackend implements CLIBackend {
   parseEvent(rawEvent: unknown, agentId?: string): StandardEvent | StandardEvent[] | null {
     const event = rawEvent as ClaudeRawEvent;
 
-    // Log ALL events to understand what we're receiving
-    log.log(`parseEvent: type=${event.type}, subtype=${event.subtype || 'none'}, tool_name=${event.tool_name || 'n/a'}`);
+    // Trace ALL events (debug only — one line per streaming delta at log
+    // level was the second-largest source of log volume).
+    log.debug(`parseEvent: type=${event.type}, subtype=${event.subtype || 'none'}, tool_name=${event.tool_name || 'n/a'}`);
 
     // Log assistant events with tool_use blocks
     if (event.type === 'assistant' && event.message?.content) {
@@ -452,8 +453,8 @@ export class ClaudeBackend implements CLIBackend {
     }
 
     if (result === null && event.type !== 'assistant') {
-      // Log when we're dropping events (assistant events may return null for text-only content)
-      log.log(`parseEvent: returned NULL for type=${event.type}, subtype=${event.subtype || 'none'}`);
+      // Trace dropped events (assistant events may return null for text-only content)
+      log.debug(`parseEvent: returned NULL for type=${event.type}, subtype=${event.subtype || 'none'}`);
     }
 
     // Propagate parent_tool_use_id onto all returned events (links subagent internal events to parent)
