@@ -43,6 +43,8 @@ import {
 import { createRuntimeEventHandlers } from './runtime-events.js';
 import { createRuntimeStatusSync } from './runtime-status-sync.js';
 import { ClaudeRunnerRouter } from '../runtime/claude-runner-router.js';
+import { OpencodeRunnerRouter } from '../runtime/opencode-runner-router.js';
+import type { OpencodeModelCatalogReloadResult } from '../opencode/server/opencode-server-runner.js';
 import {
   getActiveSubagentByToolUseId as getTrackedSubagentByToolUseId,
   getActiveSubagentsForAgent as getTrackedSubagentsForAgent,
@@ -431,6 +433,13 @@ export async function switchAgentModel(
   const runner = getRunnerForAgent(agentId);
   if (!runner?.switchModel) return false;
   return runner.switchModel(agentId, model, effort);
+}
+
+/** Reload the persistent OpenCode daemon's in-memory model catalog safely. */
+export function requestOpencodeModelCatalogReload(): OpencodeModelCatalogReloadResult {
+  const runner = getRunner('opencode');
+  if (!(runner instanceof OpencodeRunnerRouter)) return 'not-running';
+  return runner.requestModelCatalogReload();
 }
 
 export async function stopAgent(agentId: string): Promise<void> {

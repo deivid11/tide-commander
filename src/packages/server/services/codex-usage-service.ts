@@ -195,29 +195,84 @@ function persistRefreshedAuth(group: CodexProfileGroup, seededRaw: string, refre
   log.log(`Refreshed dormant Codex credentials for profile(s): ${group.ids.join(', ')}`);
 }
 
-async function readDormantProfileRateLimits(group: CodexProfileGroup) {
-  const sourcePath = group.paths[0];
-  const seededRaw = fs.readFileSync(sourcePath, 'utf-8');
+async function readSeededAuthRateLimits(
+  seededRaw: string,
+  configDir: string,
+): Promise<{ rateLimits: CodexProfileUsage['rateLimits']; refreshedRaw: string }> {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'tc-codex-usage-'));
   try {
     fs.writeFileSync(path.join(tmpHome, 'auth.json'), seededRaw, { encoding: 'utf-8', mode: 0o600 });
     // Custom config can affect auth flows (enterprise base URLs, auth prefs).
-    const configPath = path.join(path.dirname(sourcePath), 'config.toml');
+    const configPath = path.join(configDir, 'config.toml');
     if (fs.existsSync(configPath)) fs.copyFileSync(configPath, path.join(tmpHome, 'config.toml'));
 
     const rateLimits = classifyCodexRateLimits(await readRateLimits(tmpHome));
-
+    let refreshedRaw = seededRaw;
     try {
-      const refreshedRaw = fs.readFileSync(path.join(tmpHome, 'auth.json'), 'utf-8');
-      if (refreshedRaw !== seededRaw) persistRefreshedAuth(group, seededRaw, refreshedRaw);
+      refreshedRaw = fs.readFileSync(path.join(tmpHome, 'auth.json'), 'utf-8');
     } catch {
-      // refresh write-back is best-effort; the gauges are still valid
+      // Refresh write-back is best-effort; the gauges are still valid.
     }
-
-    return rateLimits;
+    return { rateLimits, refreshedRaw };
   } finally {
     fs.rmSync(tmpHome, { recursive: true, force: true });
   }
+}
+
+async function readDormantProfileRateLimits(group: CodexProfileGroup) {
+  const sourcePath = group.paths[0];
+  const seededRaw = fs.readFileSync(sourcePath, 'utf-8');
+  const result = await readSeededAuthRateLimits(seededRaw, path.dirname(sourcePath));
+  if (result.refreshedRaw !== seededRaw) persistRefreshedAuth(group, seededRaw, result.refreshedRaw);
+  return result.rateLimits;
+}
+
+export interface CodexOAuthCredential {
+  accessToken: string;
+  refreshToken: string;
+  accountId?: string;
+}
+
+/**
+ * Read plan limits for a Codex OAuth grant that is not stored in ~/.codex.
+ * Pi keeps its own OpenAI grant in ~/.pi/agent/auth.json, so it must be read
+ * through an isolated CODEX_HOME rather than changing the operator's active
+ * Codex CLI login. Codex requires an id_token field when loading auth.json;
+ * the access JWT is sufficient for this read-only rate-limit request.
+ */
+export async function readCodexRateLimitsForOAuthCredential(
+  credential: CodexOAuthCredential,
+): Promise<{ rateLimits: CodexProfileUsage['rateLimits']; credential: CodexOAuthCredential }> {
+  const seededRaw = JSON.stringify({
+    auth_mode: 'chatgpt',
+    OPENAI_API_KEY: null,
+    tokens: {
+      id_token: credential.accessToken,
+      access_token: credential.accessToken,
+      refresh_token: credential.refreshToken,
+      ...(credential.accountId ? { account_id: credential.accountId } : {}),
+    },
+    last_refresh: new Date().toISOString(),
+  });
+  const configDir = listProviderCredentialProfiles('codex').dir;
+  const result = await readSeededAuthRateLimits(seededRaw, configDir);
+
+  try {
+    const parsed = JSON.parse(result.refreshedRaw) as Record<string, unknown>;
+    const tokens = parsed.tokens as Record<string, unknown> | undefined;
+    const accessToken = typeof tokens?.access_token === 'string' ? tokens.access_token : '';
+    const refreshToken = typeof tokens?.refresh_token === 'string' ? tokens.refresh_token : '';
+    const accountId = typeof tokens?.account_id === 'string' ? tokens.account_id : undefined;
+    if (accessToken && refreshToken) {
+      return {
+        rateLimits: result.rateLimits,
+        credential: { accessToken, refreshToken, ...(accountId ? { accountId } : {}) },
+      };
+    }
+  } catch {
+    // Keep the original credential when Codex did not rewrite valid auth JSON.
+  }
+  return { rateLimits: result.rateLimits, credential };
 }
 
 function fetchUsageForCodexGroup(fingerprint: string, group: CodexProfileGroup): Promise<ProfileUsageCacheEntry> {

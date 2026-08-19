@@ -26,7 +26,7 @@ import type { RuntimeRunner } from '../../runtime/types.js';
 import { OpencodeBackend, buildOpencodePrompt } from '../backend.js';
 import { RunnerInternalEventBus } from '../../claude/runner/internal-events.js';
 import { RunnerStdoutPipeline } from '../../claude/runner/stdout-pipeline.js';
-import { OpencodeServerProcess } from './opencode-server-process.js';
+import { OpencodeServerProcess, isOpencodeTransportError } from './opencode-server-process.js';
 import { OpencodeServerEventAdapter } from './opencode-server-event-adapter.js';
 import {
   loadOpencodeAgents,
@@ -40,10 +40,11 @@ import { appendQueuedMessage, prependQueuedMessage } from '../../../shared/messa
 
 const log = createLogger('OpencodeServerRunner');
 
-const RECOVER_DELAY_MS = 1500;
 /** How long after the turn's message POST resolves (= turn ended server-side)
  *  to wait for the real `session.idle` before force-finalizing the turn. */
 const POST_IDLE_GRACE_MS = 3000;
+
+export type OpencodeModelCatalogReloadResult = 'restarted' | 'deferred' | 'not-running';
 
 interface AgentState {
   sessionId: string;
@@ -72,6 +73,8 @@ export class OpencodeServerRunner implements RuntimeRunner {
   private process: OpencodeServerProcess | null = null;
   private started = false;
   private recovered = false;
+  private recoveryPromise: Promise<void> | null = null;
+  private modelCatalogReloadPending = false;
 
   constructor(callbacks: RunnerCallbacks) {
     this.callbacks = callbacks;
@@ -85,7 +88,14 @@ export class OpencodeServerRunner implements RuntimeRunner {
   start(): void {
     if (this.started) return;
     this.started = true;
-    setTimeout(() => { void this.recover(); }, RECOVER_DELAY_MS);
+    // Agent records are loaded before runtimeService.init(), so recovery can
+    // begin immediately. Commands await this promise and can never overwrite
+    // the recovery file during the old 1.5s startup gap.
+    this.recoveryPromise = this.recover().catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error(`OpenCode recovery failed: ${message}`);
+      this.recovered = true;
+    });
     log.log('🛡️ OpenCode server runner started (streaming, restart-surviving)');
   }
 
@@ -99,6 +109,84 @@ export class OpencodeServerRunner implements RuntimeRunner {
       onDisconnect: () => this.handleDisconnect(),
     });
     return this.process;
+  }
+
+  /**
+   * Invalidate the persistent daemon after `opencode models --refresh`.
+   * Active turns are never interrupted: their reload is applied after the last
+   * turn (and any queued follow-up) finishes.
+   */
+  requestModelCatalogReload(): OpencodeModelCatalogReloadResult {
+    if ([...this.agents.values()].some((state) => state.turnState === 'processing')) {
+      this.modelCatalogReloadPending = true;
+      log.log('OpenCode model catalog reload deferred until active turns finish');
+      return 'deferred';
+    }
+    return this.restartDaemonForModelCatalog();
+  }
+
+  private restartDaemonForModelCatalog(): OpencodeModelCatalogReloadResult {
+    this.modelCatalogReloadPending = false;
+    const attached = this.process;
+    this.process = null;
+    let invalidated = false;
+    if (attached) {
+      attached.killDaemon();
+      invalidated = true;
+    } else {
+      invalidated = OpencodeServerProcess.terminatePersistedDaemon();
+    }
+    if (invalidated) {
+      log.log('♻️ Invalidated OpenCode server so its model catalog reloads on next prompt');
+      return 'restarted';
+    }
+    return 'not-running';
+  }
+
+  private applyPendingModelCatalogReload(): void {
+    if (!this.modelCatalogReloadPending) return;
+    if ([...this.agents.values()].some((state) => state.turnState === 'processing')) return;
+    this.restartDaemonForModelCatalog();
+  }
+
+  private invalidateFailedProcess(proc: OpencodeServerProcess, err: unknown): void {
+    if (this.process !== proc || !isOpencodeTransportError(err)) return;
+    log.warn('OpenCode daemon transport failed; invalidating it for automatic recovery');
+    proc.killDaemon();
+    this.process = null;
+  }
+
+  private async processWithRequestedModel(
+    agentId: string,
+    workingDir: string,
+    model: string | undefined,
+    proc: OpencodeServerProcess,
+  ): Promise<OpencodeServerProcess | null> {
+    const modelRef = this.modelRef(model);
+    if (!modelRef) return proc;
+    const available = await proc.hasModel(modelRef.providerID, modelRef.modelID, workingDir);
+    if (available !== false) return proc;
+
+    log.warn(`OpenCode daemon catalog does not contain ${model}; restarting before prompt`);
+    const reload = this.requestModelCatalogReload();
+    if (reload === 'deferred') {
+      this.callbacks.onError(
+        agentId,
+        `OpenCode model catalog refresh for ${model} is waiting for active turns to finish. Retry shortly.`,
+      );
+      return null;
+    }
+
+    const fresh = this.ensureProcess(workingDir);
+    try {
+      await fresh.ensureStarted();
+    } catch (err) {
+      this.invalidateFailedProcess(fresh, err);
+      const message = err instanceof Error ? err.message : String(err);
+      this.callbacks.onError(agentId, `OpenCode server failed to reload model catalog: ${message}`);
+      return null;
+    }
+    return fresh;
   }
 
   private async recover(): Promise<void> {
@@ -126,8 +214,13 @@ export class OpencodeServerRunner implements RuntimeRunner {
     }
 
     log.log(`🔗 Recovery: rejoined server; re-attaching ${persisted.length} session(s)`);
-    const active = await proc.activeSessionIds();
+    const activeByDirectory = new Map<string, Set<string>>();
     for (const p of persisted) {
+      let active = activeByDirectory.get(p.workingDir);
+      if (!active) {
+        active = await proc.activeSessionIds(p.workingDir);
+        activeByDirectory.set(p.workingDir, active);
+      }
       const state: AgentState = {
         sessionId: p.sessionId,
         adapter: new OpencodeServerEventAdapter(),
@@ -135,7 +228,7 @@ export class OpencodeServerRunner implements RuntimeRunner {
         startTime: Date.now(),
         lastActivityTime: Date.now(),
         lastRequest: p.lastRequest,
-        queue: [],
+        queue: [...(p.queue ?? [])],
         turnSeq: 0,
       };
       this.agents.set(p.agentId, state);
@@ -150,6 +243,7 @@ export class OpencodeServerRunner implements RuntimeRunner {
         // Turn ended during downtime — finalize now (no session.idle will replay).
         state.turnState = 'waiting_for_input';
         this.callbacks.onComplete(p.agentId, true);
+        this.drainQueue(p.agentId, state);
       }
     }
     this.persistAgents();
@@ -227,24 +321,36 @@ export class OpencodeServerRunner implements RuntimeRunner {
       // opencode on step_complete (it expects it on process exit), so drive it here.
       this.callbacks.onComplete(agentId, true);
       this.drainQueue(agentId, state);
+      this.applyPendingModelCatalogReload();
     }
   }
 
   async run(request: RunnerRequest): Promise<void> {
+    if (this.recoveryPromise) await this.recoveryPromise;
     await withAgentContext(request.agentId, () => this.runImpl(request));
   }
 
   private async runImpl(request: RunnerRequest): Promise<void> {
     const { agentId, workingDir } = request;
-    const proc = this.ensureProcess(workingDir);
+    let proc = this.ensureProcess(workingDir);
     try {
       await proc.ensureStarted();
     } catch (err) {
+      this.invalidateFailedProcess(proc, err);
       const msg = err instanceof Error ? err.message : String(err);
       log.error(`Failed to start opencode server for ${agentId.slice(0, 8)}: ${msg}`);
       this.callbacks.onError(agentId, `OpenCode server failed to start: ${msg}`);
       return;
     }
+
+    const modelReadyProcess = await this.processWithRequestedModel(
+      agentId,
+      workingDir,
+      request.model,
+      proc,
+    );
+    if (!modelReadyProcess) return;
+    proc = modelReadyProcess;
 
     const wantNew = request.forceNewSession || !request.sessionId;
     let state = this.agents.get(agentId);
@@ -264,6 +370,7 @@ export class OpencodeServerRunner implements RuntimeRunner {
         try {
           sessionId = await proc.createSession(workingDir);
         } catch (err) {
+          this.invalidateFailedProcess(proc, err);
           const msg = err instanceof Error ? err.message : String(err);
           log.error(`createSession failed for ${agentId.slice(0, 8)}: ${msg}`);
           this.callbacks.onError(agentId, `OpenCode session create failed: ${msg}`);
@@ -328,6 +435,11 @@ export class OpencodeServerRunner implements RuntimeRunner {
     state.turnSeq += 1;
     const seq = state.turnSeq;
 
+    // Persist BEFORE the turn-length HTTP request. `sendPrompt` resolves only
+    // when the whole model turn ends, so saving afterwards leaves no recovery
+    // entry during the exact window in which a Commander reset can happen.
+    this.persistAgents();
+
     try {
       await proc.sendPrompt(state.sessionId, promptText, this.modelRef(state.lastRequest.model));
       // opencode holds the message POST open for the ENTIRE turn, so resolving
@@ -344,6 +456,7 @@ export class OpencodeServerRunner implements RuntimeRunner {
         }
       }, POST_IDLE_GRACE_MS);
     } catch (err) {
+      this.invalidateFailedProcess(proc, err);
       const msg = err instanceof Error ? err.message : String(err);
       log.error(`sendPrompt failed for ${agentId.slice(0, 8)}: ${msg}`);
       this.callbacks.onError(agentId, `OpenCode prompt failed: ${msg}`);
@@ -359,6 +472,7 @@ export class OpencodeServerRunner implements RuntimeRunner {
       if (this.agents.get(agentId) === state && state.turnState === 'processing') {
         state.turnState = 'waiting_for_input';
         this.drainQueue(agentId, state);
+        this.applyPendingModelCatalogReload();
       }
     }
   }
@@ -388,6 +502,7 @@ export class OpencodeServerRunner implements RuntimeRunner {
 
       if (state.turnState === 'processing') {
         appendQueuedMessage(state.queue, message);
+        this.persistAgents();
         log.log(`📋 Coalesced mid-turn message for ${agentId.slice(0, 8)} (${state.queue[0].length} total chars)`);
         return true;
       }
@@ -405,6 +520,7 @@ export class OpencodeServerRunner implements RuntimeRunner {
     const queue = this.agents.get(agentId)?.queue;
     if (!queue || index < 0 || index >= queue.length || queue[index] !== expectedText) return false;
     queue.splice(index, 1);
+    this.persistAgents();
     log.log(`🗑️ Removed queued message at ${index} for ${agentId.slice(0, 8)} (${queue.length} remaining)`);
     return true;
   }
@@ -445,23 +561,28 @@ export class OpencodeServerRunner implements RuntimeRunner {
       this.agents.delete(agentId);
       this.activityCallbacks.delete(agentId);
       this.persistAgents();
+      this.applyPendingModelCatalogReload();
     });
   }
 
   async stopAll(killProcesses: boolean = true, _clearQueue?: boolean): Promise<void> {
+    // A graceful Commander restart must snapshot live sessions BEFORE clearing
+    // the maps. The previous order saved an empty array on every SIGTERM, so the
+    // detached daemon survived but the new Commander had nothing to reattach.
+    if (!killProcesses) this.persistAgents();
+
     this.agents.clear();
     this.sessionToAgent.clear();
     this.activityCallbacks.clear();
+    this.modelCatalogReloadPending = false;
     if (this.process) {
-      if (killProcesses) {
-        this.process.killDaemon();
-        saveOpencodeAgents([]);
-      } else {
-        this.persistAgents();
-        this.process.disconnect();
-      }
+      if (killProcesses) this.process.killDaemon();
+      else this.process.disconnect();
       this.process = null;
+    } else if (killProcesses) {
+      OpencodeServerProcess.terminatePersistedDaemon();
     }
+    if (killProcesses) saveOpencodeAgents([]);
   }
 
   isRunning(agentId: string): boolean {
@@ -517,6 +638,7 @@ export class OpencodeServerRunner implements RuntimeRunner {
         turnState: state.turnState,
         agentStatus: agent?.status,
         lastRequest: state.lastRequest,
+        queue: [...state.queue],
       });
     }
     saveOpencodeAgents(list);

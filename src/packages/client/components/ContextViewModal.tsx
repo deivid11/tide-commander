@@ -441,6 +441,7 @@ function buildRateLimitWindows(
   if (snapshot.provider === 'pi' && snapshot.quotaWindows?.length > 0) {
     const labels: Record<string, string> = {
       session: t('terminal:usage.currentSession'),
+      'five-hour': t('terminal:usage.fiveHourLimit'),
       daily: t('terminal:usage.dailyLimit'),
       weekly: t('terminal:usage.weeklyLimit'),
       'weekly-opus': t('terminal:usage.currentWeekOpus'),

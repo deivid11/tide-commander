@@ -28,6 +28,7 @@ function providerLabel(provider: string): string {
   const known: Record<string, string> = {
     anthropic: 'Anthropic',
     'openai-codex': 'OpenAI Codex',
+    'opencode-go': 'OpenCode Go',
     'github-copilot': 'GitHub Copilot',
     xai: 'xAI',
     radius: 'Radius',
@@ -67,6 +68,7 @@ function formatQuotaAmount(value: number): string {
 function quotaLabel(key: PiQuotaWindowKey, t: (key: string, options?: Record<string, unknown>) => string): string {
   const labels: Record<PiQuotaWindowKey, string> = {
     session: t('terminal:credentials.gaugeSession', { defaultValue: 'Session' }),
+    'five-hour': t('terminal:credentials.gaugeFiveHour', { defaultValue: '5-hour' }),
     daily: t('terminal:credentials.gaugeDaily', { defaultValue: 'Daily' }),
     weekly: t('terminal:credentials.gaugeWeek', { defaultValue: 'Week' }),
     'weekly-opus': t('terminal:credentials.gaugeWeekOpus', { defaultValue: 'Opus wk' }),

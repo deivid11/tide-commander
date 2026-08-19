@@ -1024,14 +1024,8 @@
   height: 6px;
   border-radius: 50%;
   background: var(--status-working);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--status-working) 30%, transparent);
   flex-shrink: 0;
-  will-change: transform, opacity; // compositor-only
-  animation: thinking-pulse 1.2s ease-in-out infinite;
-}
-
-@keyframes thinking-pulse {
-  0%, 100% { opacity: 0.35; transform: scale(0.85); }
-  50% { opacity: 1; transform: scale(1.15); }
 }
 
 .output-thinking-time {
@@ -1266,18 +1260,7 @@
   border-radius: 1px;
   background: color-mix(in srgb, var(--accent-cyan, #22d3ee) 85%, white 10%);
   box-shadow: 0 0 6px color-mix(in srgb, var(--accent-cyan, #22d3ee) 50%, transparent);
-  will-change: opacity;
-  animation: stream-caret-pulse 0.9s ease-in-out infinite;
-}
-
-@keyframes stream-caret-pulse {
-  0%,
-  100% {
-    opacity: 0.2;
-  }
-  50% {
-    opacity: 1;
-  }
+  opacity: 0.7;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1289,7 +1272,6 @@
   }
 
   .output-streaming .stream-fade-text::after {
-    animation: none;
     opacity: 0.55;
   }
 }

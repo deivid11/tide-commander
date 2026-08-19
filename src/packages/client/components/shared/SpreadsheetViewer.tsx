@@ -369,7 +369,7 @@ export function SpreadsheetViewer({ filePath, baseDir, filename, className }: Sp
             </span>
           )}
           <span className="spreadsheet-summary-item" title={t('spreadsheetViewer.extentTitle', { defaultValue: 'Rows × columns of this sheet' })}>
-            <Icon name="grid" size={12} aria-hidden /> <b>{formatExtent(sheet.rowCount, sheet.colCount)}</b>
+            <Icon name="grid" size={12} aria-hidden /> <b>{formatExtent(sheet.rowCount, sheet.colCount, sheet.rowCountApprox === true)}</b>
           </span>
           {delimiterName && (
             <span className="spreadsheet-summary-item spreadsheet-delimiter" title={t('spreadsheetViewer.delimiterTitle', { defaultValue: 'Detected delimiter' })}>
@@ -380,7 +380,7 @@ export function SpreadsheetViewer({ filePath, baseDir, filename, className }: Sp
             <span className="spreadsheet-summary-warn">
               <Icon name="warn" size={12} aria-hidden />
               {sheet.truncatedRows && (
-                <span>{t('spreadsheetViewer.truncatedRows', { shown: shownRows.toLocaleString(), total: sheet.rowCount.toLocaleString(), defaultValue: 'showing {{shown}} of {{total}} rows' })}</span>
+                <span>{t('spreadsheetViewer.truncatedRows', { shown: shownRows.toLocaleString(), total: `${sheet.rowCountApprox ? '≈ ' : ''}${sheet.rowCount.toLocaleString()}`, defaultValue: 'showing {{shown}} of {{total}} rows' })}</span>
               )}
               {sheet.truncatedRows && sheet.truncatedCols && <span aria-hidden> · </span>}
               {sheet.truncatedCols && (

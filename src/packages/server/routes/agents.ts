@@ -161,7 +161,14 @@ router.get('/opencode/models', async (req: Request, res: Response) => {
     }
 
     opencodeModelsCache = { models, fetchedAt: now, source: 'cli' };
-    res.json({ models, source: 'cli', cached: false, fetchedAt: now });
+    // `opencode serve` keeps the Models.dev catalog in memory for its entire
+    // lifetime. Refreshing the CLI cache alone can therefore show a new model
+    // in the picker while the persistent daemon still rejects it. Invalidate
+    // the daemon too; active turns defer this safely until they finish.
+    const daemonReload = refresh
+      ? runtimeService.requestOpencodeModelCatalogReload()
+      : undefined;
+    res.json({ models, source: 'cli', cached: false, fetchedAt: now, daemonReload });
   } catch (err: any) {
     log.error(' opencode models fetch failed:', err);
     res.status(500).json({ error: err?.message || 'Failed to run opencode CLI' });

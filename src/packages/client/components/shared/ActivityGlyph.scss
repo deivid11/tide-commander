@@ -1,0 +1,62 @@
+.activity-glyph {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  color: var(--accent-green);
+  background: radial-gradient(
+    circle closest-side,
+    transparent 0 38%,
+    rgba(8, 11, 16, 0.68) 43% 56%,
+    transparent 61%
+  );
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 2px rgba(8, 11, 16, 0.78),
+    0 0 0 1px color-mix(in srgb, #0047ff 22%, transparent),
+    0 0 8px color-mix(in srgb, var(--accent-cyan) 45%, transparent);
+  overflow: hidden;
+  vertical-align: middle;
+  contain: strict;
+
+  &__image,
+  &__static {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  &__image {
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  &__track,
+  &__arc {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+  }
+
+  &__track { opacity: 0.2; }
+
+  &__arc {
+    opacity: 0.88;
+    stroke-linecap: round;
+  }
+
+  &__head { fill: currentColor; }
+
+  &--animated &__static {
+    display: none;
+  }
+}
+
+// Animated images are not governed by CSS animation-duration. Swap to the
+// inline static artwork so Low Power Mode still stops every motion source.
+html.low-power .activity-glyph--animated {
+  .activity-glyph__image { display: none; }
+  .activity-glyph__static { display: block; }
+}

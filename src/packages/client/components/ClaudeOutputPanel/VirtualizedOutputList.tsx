@@ -121,10 +121,44 @@ const ESTIMATED_HEIGHTS = {
 // frames (extra indexes via rangeExtractor), letting them measure while the
 // user is stationary. Once warmed, re-mounting during a fling yields
 // delta=0 → no correction → momentum survives.
-const WARMUP_SLICE = 12;
-// Bound the walk for huge histories ("load all"): warm at most this many
-// rows above the bottom (or above the just-prepended page boundary).
-const WARMUP_MAX_ROWS = 240;
+const WARMUP_SLICE = 6;
+// Bound the walk for huge histories ("load all"). Profiling rapid Flat-view
+// agent switching showed the old 240-row walk mounting thousands of markdown
+// rows that were never viewed, creating 30–180 ms tasks and substantial GC.
+const WARMUP_MAX_ROWS = 120;
+
+interface AgentMeasurementCache {
+  heights: Map<string, number>;
+  warmupComplete: boolean;
+  measuredWidth: number | null;
+}
+
+// Preserve measured heights across the per-agent virtualizer remount. Revisiting
+// an agent should reuse the work from its previous visit instead of remounting
+// up to WARMUP_MAX_ROWS solely to rebuild an identical size cache.
+const MAX_AGENT_MEASUREMENT_CACHES = 100;
+const MAX_HEIGHT_ENTRIES_PER_AGENT = 3000;
+const measurementCaches = new Map<string, AgentMeasurementCache>();
+
+function getAgentMeasurementCache(agentId: string): AgentMeasurementCache {
+  const existing = measurementCaches.get(agentId);
+  if (existing) return existing;
+  const cache: AgentMeasurementCache = { heights: new Map(), warmupComplete: false, measuredWidth: null };
+  measurementCaches.set(agentId, cache);
+  if (measurementCaches.size > MAX_AGENT_MEASUREMENT_CACHES) {
+    const oldest = measurementCaches.keys().next().value as string | undefined;
+    if (oldest !== undefined) measurementCaches.delete(oldest);
+  }
+  return cache;
+}
+
+function rememberHeight(cache: AgentMeasurementCache, key: string, height: number): void {
+  if (!cache.heights.has(key) && cache.heights.size >= MAX_HEIGHT_ENTRIES_PER_AGENT) {
+    const oldest = cache.heights.keys().next().value as string | undefined;
+    if (oldest !== undefined) cache.heights.delete(oldest);
+  }
+  cache.heights.set(key, height);
+}
 
 // Tagged wrapper so the merged history+live array can be sorted while still
 // telling each renderer which component to use (HistoryLine vs OutputLine).
@@ -430,23 +464,21 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // Ref for allItems count so scrollToBottom can read it without being recreated
   const allItemsCountRef = useRef(allItems.length);
   allItemsCountRef.current = allItems.length;
-  // Ref for the items themselves so measureElement (stable option) can map a
-  // measured element back to its item for the height bridge below.
+  // Refs let stable virtualizer callbacks resolve the item and key currently
+  // occupying a measured index.
   const allItemsRef = useRef(allItems);
   allItemsRef.current = allItems;
-  // Measured-height bridge across the live→history identity swap: bridge id
-  // (see bridgeIdsFor) → last measured px. Written on every row measurement,
-  // consulted by estimateSize for keys the size cache has never seen — so a
-  // history twin replacing an already-measured live row lays out at the right
-  // height instead of collapsing to the type estimate and reflowing.
-  const measuredHeightByIdRef = useRef(new Map<string, number>());
-  // Track virtual content height to detect remeasurement changes
+  const allKeysRef = useRef(allKeys);
+  allKeysRef.current = allKeys;
+  const measurementCache = useMemo(() => getAgentMeasurementCache(agentId), [agentId]);
+  // Track virtual content height to detect remeasurement changes.
   const prevTotalSizeRef = useRef(0);
 
   // Warm-up walk state: exclusive upper bound of the next slice to mount
   // ([warmupFront - WARMUP_SLICE, warmupFront)); null = not walking.
   const [warmupFront, setWarmupFront] = useState<number | null>(null);
-  const warmupDoneRef = useRef(false);
+  const warmupDoneRef = useRef(measurementCache.warmupComplete);
+  const warmupHasStartedRef = useRef(false);
 
   const rangeExtractor = useCallback((range: Range) => {
     const defaults = defaultRangeExtractor(range);
@@ -455,10 +487,15 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     const sliceStart = Math.max(0, top - WARMUP_SLICE);
     if (sliceStart >= top) return defaults;
     const merged = new Set<number>();
-    for (let i = sliceStart; i < top; i++) merged.add(i);
+    for (let i = sliceStart; i < top; i++) {
+      const key = allKeysRef.current[i];
+      // A revisited agent already has this row's height. Advancing over it
+      // without mounting avoids repeated markdown parsing and detached DOM.
+      if (!key || !measurementCache.heights.has(`k:${key}`)) merged.add(i);
+    }
     for (const i of defaults) merged.add(i);
     return Array.from(merged).sort((a, b) => a - b);
-  }, [warmupFront]);
+  }, [measurementCache, warmupFront]);
 
   // Create virtualizer
   // initialRect prevents the first render from having outerSize=0 (which yields
@@ -469,8 +506,13 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     estimateSize: (index) => {
       const tagged = allItems[index];
       if (!tagged) return ESTIMATED_HEIGHTS.default;
+      const itemKey = allKeys[index];
+      if (itemKey) {
+        const measured = measurementCache.heights.get(`k:${itemKey}`);
+        if (measured !== undefined) return measured;
+      }
       for (const id of bridgeIdsFor(tagged)) {
-        const bridged = measuredHeightByIdRef.current.get(id);
+        const bridged = measurementCache.heights.get(`b:${id}`);
         if (bridged !== undefined) return bridged;
       }
       return getEstimatedHeight(tagged);
@@ -481,7 +523,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     // Once settled, widen the window so scrolling reaches pre-mounted rows
     // instead of blank container background. The extra rows mount in the
     // unpin commit, while the content is still faded out.
-    overscan: pinToBottom ? 10 : 25,
+    overscan: pinToBottom ? 8 : 16,
     rangeExtractor,
     initialRect: { width: 500, height: 800 },
     // Stable per-item key, precomputed (with live ordinals) in the merge memo
@@ -489,15 +531,28 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     // can never collide.
     getItemKey: (index) => allKeys[index] ?? index,
     measureElement: (element) => {
-      // Measure actual rendered height for accurate positioning
-      const height = element.getBoundingClientRect().height;
-      // Feed the live→history height bridge (see measuredHeightByIdRef).
+      // Measure actual rendered height for accurate positioning.
+      const rect = element.getBoundingClientRect();
+      const height = rect.height;
+      // Cached heights are width-dependent (especially markdown/code). Drop a
+      // previous visit's values after a meaningful pane resize.
+      if (measurementCache.measuredWidth !== null && Math.abs(measurementCache.measuredWidth - rect.width) > 8) {
+        measurementCache.heights.clear();
+        measurementCache.warmupComplete = false;
+        warmupDoneRef.current = false;
+      }
+      measurementCache.measuredWidth = rect.width;
+      // Feed both the stable per-row cache (agent revisits) and the
+      // live→history identity bridge.
       const idxAttr = element.getAttribute('data-index');
       if (idxAttr !== null) {
-        const tagged = allItemsRef.current[Number(idxAttr)];
+        const index = Number(idxAttr);
+        const tagged = allItemsRef.current[index];
+        const itemKey = allKeysRef.current[index];
+        if (itemKey) rememberHeight(measurementCache, `k:${itemKey}`, height);
         if (tagged) {
           for (const id of bridgeIdsFor(tagged)) {
-            measuredHeightByIdRef.current.set(id, height);
+            rememberHeight(measurementCache, `b:${id}`, height);
           }
         }
       }
@@ -567,39 +622,61 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     setWarmupFront(allItems.length);
   }, [pinToBottom, isLoadingHistory, allItems.length, warmupFront]);
 
-  // Advance the slice during idle frames only — never mount/measure work while
-  // the user's finger or fling is active (that's the jank we're preventing).
-  // Two frames per step: one for React to mount the slice, one for the
-  // ResizeObserver measurements (and their silent, anchored corrections) to land.
+  // Advance only during real browser idle time. The previous two-rAF loop ran
+  // at normal priority while users rapidly switched/scrolled agents; each
+  // slice could parse rich markdown and turn a click into a long task.
   useEffect(() => {
     if (warmupFront === null) return;
     if (pinToBottom) return; // paused; resumes when the pin releases
     let cancelled = false;
-    let rafId: number;
+    let rafId: number | null = null;
+    let idleId: number | null = null;
+    let timeoutId: number | null = null;
+
     const advance = () => {
       if (cancelled) return;
       if (virtualizer.isScrolling) {
-        rafId = requestAnimationFrame(advance);
+        rafId = requestAnimationFrame(scheduleIdleAdvance);
         return;
       }
+      warmupHasStartedRef.current = true;
       const floor = Math.max(0, allItemsCountRef.current - WARMUP_MAX_ROWS);
-      setWarmupFront((front) => {
-        if (front === null) return null;
-        if (front <= floor) {
-          warmupDoneRef.current = true;
-          return null;
-        }
-        return Math.max(floor, front - WARMUP_SLICE);
-      });
+      if (warmupFront <= floor) {
+        warmupDoneRef.current = true;
+        measurementCache.warmupComplete = true;
+        React.startTransition(() => setWarmupFront(null));
+        return;
+      }
+      const nextFront = Math.max(floor, warmupFront - WARMUP_SLICE);
+      React.startTransition(() => setWarmupFront(nextFront));
     };
-    rafId = requestAnimationFrame(() => {
-      rafId = requestAnimationFrame(advance);
-    });
+
+    function scheduleIdleAdvance() {
+      if (cancelled) return;
+      if (typeof window.requestIdleCallback === 'function') {
+        idleId = window.requestIdleCallback(advance, { timeout: 750 });
+      } else {
+        // Safari/WebView fallback: retain the old two-frame measurement gap.
+        rafId = requestAnimationFrame(() => {
+          rafId = requestAnimationFrame(advance);
+        });
+      }
+    }
+
+    // Let the visible conversation settle before beginning speculative work.
+    // Subsequent slices use idle callbacks immediately.
+    const delay = warmupHasStartedRef.current ? 0 : 250;
+    timeoutId = window.setTimeout(scheduleIdleAdvance, delay);
+
     return () => {
       cancelled = true;
-      cancelAnimationFrame(rafId);
+      if (timeoutId !== null) clearTimeout(timeoutId);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      if (idleId !== null && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleId);
+      }
     };
-  }, [warmupFront, pinToBottom, virtualizer]);
+  }, [measurementCache, warmupFront, pinToBottom, virtualizer]);
 
   // A history prepend (load-more) shifts every index up and introduces a page
   // of unmeasured rows exactly where the user is about to scroll — re-arm the
@@ -619,8 +696,9 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     if (firstItemKey === prevKey || allItems.length <= prevCount) return;
     const delta = allItems.length - prevCount;
     warmupDoneRef.current = false;
+    measurementCache.warmupComplete = false;
     setWarmupFront((front) => (front === null ? delta : front + delta));
-  }, [firstItemKey, allItems.length]);
+  }, [firstItemKey, allItems.length, measurementCache]);
 
   const scrollToBottom = useCallback(() => {
     const container = scrollContainerRef.current;

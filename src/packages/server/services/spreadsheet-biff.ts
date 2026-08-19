@@ -513,10 +513,14 @@ function parseSheetSubstream(stream: Buffer, start: number, g: WorkbookGlobals, 
   let dimCols: number | undefined;
   let truncatedCols = false;
 
+  // Cell records come in ascending row blocks, so once a cell past the cap
+  // shows up (and DIMENSIONS already told us the extent) the rest of the
+  // substream can be skipped without decoding — the window is complete.
+  let stopEarly = false;
   const put = (row: number, col: number, text: string) => {
     if (row > maxRowSeen) maxRowSeen = row;
     if (col > maxColSeen) maxColSeen = col;
-    if (row >= maxRows) return;
+    if (row >= maxRows) { if (dimRows !== undefined) stopEarly = true; return; }
     if (col >= maxCols) { truncatedCols = true; return; }
     if (text === '') return;
     while (rows.length <= row) rows.push([]);
@@ -536,7 +540,7 @@ function parseSheetSubstream(stream: Buffer, start: number, g: WorkbookGlobals, 
   while ((rec = readRecord(stream, pos)) !== null) {
     pos = rec.next;
     const d = rec.data;
-    if (rec.type === REC.EOF) break;
+    if (rec.type === REC.EOF || stopEarly) break;
     switch (rec.type) {
       case REC.DIMENSIONS:
         if (g.biff8 && d.length >= 12) {
@@ -639,8 +643,11 @@ function parseSheetSubstream(stream: Buffer, start: number, g: WorkbookGlobals, 
   // Extent = cells that carry a value (every cell record passes through `put`,
   // capped or not), which matches what xlrd/VisiData report; DIMENSIONS also
   // counts formatted-but-empty rows/cols, so it only serves as a fallback.
-  const rowCount = maxRowSeen >= 0 ? maxRowSeen + 1 : (dimRows ?? 0);
-  const colCount = maxColSeen >= 0 ? maxColSeen + 1 : (dimCols ?? 0);
+  // When the scan stopped early the tail was never seen: DIMENSIONS is the
+  // extent (Excel/LibreOffice write it exactly; it may include formatted
+  // empty rows/cols, which is acceptable for a truncated view).
+  const rowCount = stopEarly ? Math.max(maxRowSeen + 1, dimRows ?? 0) : (maxRowSeen >= 0 ? maxRowSeen + 1 : (dimRows ?? 0));
+  const colCount = stopEarly ? Math.max(maxColSeen + 1, dimCols ?? 0) : (maxColSeen >= 0 ? maxColSeen + 1 : (dimCols ?? 0));
   if (colCount > maxCols) truncatedCols = true;
   return {
     rows,

@@ -38,6 +38,8 @@ export interface PersistedOpencodeAgent {
   turnState: 'processing' | 'waiting_for_input';
   agentStatus?: string;
   lastRequest: RunnerRequest;
+  /** Mid-turn follow-ups waiting behind the active prompt. */
+  queue?: string[];
 }
 
 function ensureDataDir(): void {

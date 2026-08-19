@@ -60,6 +60,7 @@ import { ContextMenu } from '../ContextMenu';
 import { ModalPortal } from '../shared/ModalPortal';
 import { buildAgentContextMenuActions } from './agentContextMenuActions';
 import { ProviderIcon } from '../ProviderIcon';
+import { ActivityGlyph } from '../shared/ActivityGlyph';
 
 /**
  * Model chip in the terminal header. Turns into a warning that names the swap
@@ -372,6 +373,9 @@ export const TerminalHeader = memo(function TerminalHeader({
             >
               <span className={`guake-agent-avatar${selectedAgent.status === 'working' ? ' is-working' : ''}`}>
                 <AgentIcon agent={selectedAgent} size="100%" />
+                {selectedAgent.status === 'working' && (
+                  <ActivityGlyph animated size={12} className="guake-agent-activity" />
+                )}
               </span>
               <span className="guake-title-block">
                 <span className="guake-title-main-row">
@@ -397,6 +401,9 @@ export const TerminalHeader = memo(function TerminalHeader({
             <div className="guake-title-with-provider">
               <span className={`guake-agent-avatar${selectedAgent.status === 'working' ? ' is-working' : ''}`}>
                 <AgentIcon agent={selectedAgent} size="100%" />
+                {selectedAgent.status === 'working' && (
+                  <ActivityGlyph animated size={12} className="guake-agent-activity" />
+                )}
               </span>
               <span className="guake-title-block">
                 <span className="guake-title-main-row">

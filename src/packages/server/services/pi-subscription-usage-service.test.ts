@@ -39,6 +39,10 @@ function oauth(access: string, refresh = `refresh-${access}`, expires = Date.now
   return { type: 'oauth', access, refresh, expires };
 }
 
+function apiKey(key: string) {
+  return { type: 'api_key', key };
+}
+
 function authFile(entries: Record<string, unknown>): string {
   return JSON.stringify(entries, null, 2);
 }
@@ -218,6 +222,47 @@ describe('pi-subscription-usage-service', () => {
     expect(snapshot.rateLimitsError).toBeNull();
   });
 
+  it('reads live Codex limits directly for a Pi login with no matching saved Codex account', async () => {
+    fs.writeFileSync(path.join(dir, 'auth.json'), authFile({
+      'openai-codex': { ...oauth('pi-only-access', 'pi-only-refresh'), accountId: 'acct-pi' },
+    }));
+    setCodexNativeRateLimitsReaderForTests(async (codexHome) => {
+      expect(codexHome).toBeTruthy();
+      const seeded = JSON.parse(fs.readFileSync(path.join(codexHome!, 'auth.json'), 'utf-8'));
+      expect(seeded).toMatchObject({
+        auth_mode: 'chatgpt',
+        tokens: {
+          id_token: 'pi-only-access',
+          access_token: 'pi-only-access',
+          refresh_token: 'pi-only-refresh',
+          account_id: 'acct-pi',
+        },
+      });
+      return {
+        primary: { usedPercent: 10, resetsAt: 1_800_000_000, windowDurationMins: 300 },
+        secondary: { usedPercent: 20, resetsAt: 1_800_500_000, windowDurationMins: 10_080 },
+      };
+    });
+
+    const result = await getPiCredentialProfilesUsage('openai-codex');
+    const snapshot = await buildPiSubscriptionUsageSnapshot({
+      ...baseAgent,
+      piModel: 'openai-codex/gpt-5.6-sol',
+    });
+    const active = result.usage.find((entry) => entry.id === 'active');
+
+    expect(active?.quotaWindows.map((window) => [window.key, window.utilization])).toEqual([
+      ['daily', 10],
+      ['weekly', 20],
+    ]);
+    expect(active?.error).toBeNull();
+    expect(snapshot.quotaWindows.map((window) => [window.key, window.utilization])).toEqual([
+      ['daily', 10],
+      ['weekly', 20],
+    ]);
+    expect(snapshot.rateLimitsError).toBeNull();
+  });
+
   it('shows weekly/monthly xAI limits for Pi-owned Grok sessions', async () => {
     fs.writeFileSync(path.join(dir, 'auth.json'), authFile({ xai: oauth('xai-access') }));
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
@@ -248,6 +293,50 @@ describe('pi-subscription-usage-service', () => {
       ['monthly', 25],
     ]);
     expect(active?.quotaWindows.find((window) => window.key === 'monthly')).toMatchObject({ used: 250, limit: 1000 });
+  });
+
+  it('shows five-hour, weekly, and monthly usage for OpenCode Go API-key profiles', async () => {
+    fs.writeFileSync(path.join(dir, 'auth.json'), authFile({
+      'opencode-go': apiKey('go-subscription-key'),
+      anthropic: oauth('keep-anthropic'),
+    }));
+    fs.writeFileSync(path.join(dir, 'auth.team.json'), authFile({
+      'opencode-go': apiKey('go-subscription-key'),
+    }));
+    const usageFetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      expect(String(input)).toBe('https://opencode.ai/zen/go/v1/usage');
+      expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer go-subscription-key');
+      return new Response(JSON.stringify({
+        usage: {
+          rolling: { status: 'ok', percent: 2, resetsAt: '2026-08-19T21:48:48.507Z' },
+          weekly: { status: 'ok', percent: 8, resetsAt: '2026-08-24T00:00:00.507Z' },
+          monthly: { status: 'ok', percent: 0, resetsAt: '2026-09-17T17:36:43.507Z' },
+        },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    });
+    vi.stubGlobal('fetch', usageFetch);
+
+    const profiles = await getPiCredentialProfilesUsage('opencode-go');
+    const snapshot = await buildPiSubscriptionUsageSnapshot({
+      ...baseAgent,
+      piModel: 'opencode-go/kimi-k3',
+    });
+
+    expect(profiles.usage.map((entry) => entry.id).sort()).toEqual(['active', 'team']);
+    expect(profiles.usage.find((entry) => entry.id === 'active')?.quotaWindows.map((window) => [window.key, window.utilization])).toEqual([
+      ['five-hour', 2],
+      ['weekly', 8],
+      ['monthly', 0],
+    ]);
+    expect(snapshot.quotaWindows.map((window) => [window.key, window.utilization])).toEqual([
+      ['five-hour', 2],
+      ['weekly', 8],
+      ['monthly', 0],
+    ]);
+    expect(snapshot.rateLimitsError).toBeNull();
+    expect(snapshot.subscriptions).toContainEqual({ provider: 'opencode-go', label: 'OpenCode Go', active: true });
+    expect(JSON.stringify({ profiles, snapshot })).not.toContain('go-subscription-key');
+    expect(usageFetch).toHaveBeenCalledTimes(1);
   });
 
   it('refreshes an expired dormant Anthropic profile and persists the rotated grant', async () => {

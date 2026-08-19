@@ -10,6 +10,7 @@ export interface OpencodeModelsResponse {
   source: 'cli' | 'fallback';
   cached: boolean;
   fetchedAt: number;
+  daemonReload?: 'restarted' | 'deferred' | 'not-running';
 }
 
 export async function fetchOpencodeModels(refresh = false): Promise<OpencodeModelsResponse> {

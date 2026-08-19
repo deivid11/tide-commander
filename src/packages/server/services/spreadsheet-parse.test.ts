@@ -9,6 +9,7 @@ import {
   decodeXmlEntities,
   detectSpreadsheetKind,
   indexZip,
+  makeRowCounter,
   parseDelimited,
   parseHtmlTable,
   parseOdsBuffer,
@@ -128,7 +129,7 @@ function workbook(files: Record<string, string>, deflate = false): Buffer {
 }
 
 describe('zip helpers', () => {
-  it('indexes and reads stored + deflated members', () => {
+  it('indexes and reads stored + deflated members', async () => {
     for (const deflate of [false, true]) {
       const buf = buildZip({ 'a.txt': 'hola', 'dir/b.txt': 'mundo' }, { deflate });
       const idx = indexZip(buf);
@@ -137,24 +138,24 @@ describe('zip helpers', () => {
     }
   });
 
-  it('rejects non-zips', () => {
+  it('rejects non-zips', async () => {
     expect(() => indexZip(Buffer.from('definitely not a zip file at all, no EOCD'))).toThrow(/not a zip/);
   });
 });
 
 describe('xml + format helpers', () => {
-  it('decodes entities incl. numeric', () => {
+  it('decodes entities incl. numeric', async () => {
     expect(decodeXmlEntities('a &amp; b &lt;c&gt; &#233; &#x1F600; &quot;')).toBe('a & b <c> é 😀 "');
   });
 
-  it('maps column letters', () => {
+  it('maps column letters', async () => {
     expect(columnLetterToIndex('A')).toBe(1);
     expect(columnLetterToIndex('Z')).toBe(26);
     expect(columnLetterToIndex('AA')).toBe(27);
     expect(columnLetterToIndex('XFD')).toBe(16384);
   });
 
-  it('classifies number formats (built-in and custom)', () => {
+  it('classifies number formats (built-in and custom)', async () => {
     expect(classifyNumberFormat(0).kind).toBe('general');
     expect(classifyNumberFormat(14).kind).toBe('date');
     expect(classifyNumberFormat(21).kind).toBe('time');
@@ -173,7 +174,7 @@ describe('xml + format helpers', () => {
     expect(classifyNumberFormat(164, '@').kind).toBe('general');
   });
 
-  it('formats serial dates for both epochs', () => {
+  it('formats serial dates for both epochs', async () => {
     expect(formatSerialDate(46252, 'date')).toBe('2026-08-18');
     expect(formatSerialDate(46252.395, 'datetime')).toBe('2026-08-18 09:28:48');
     expect(formatSerialDate(0.75, 'time')).toBe('18:00');
@@ -181,7 +182,7 @@ describe('xml + format helpers', () => {
     expect(formatSerialDate(44790, 'date', true)).toBe('2026-08-18');
   });
 
-  it('formats general numbers like Excel', () => {
+  it('formats general numbers like Excel', async () => {
     expect(formatGeneralNumber('0.30000000000000004')).toBe('0.3');
     expect(formatGeneralNumber('1E-05')).toBe('0.00001');
     expect(formatGeneralNumber('1234567.891')).toBe('1234567.891');
@@ -200,8 +201,8 @@ describe('parseXlsxBuffer (hand-crafted Excel-style workbook)', () => {
     'xl/worksheets/sheet2.xml': SHEET2,
   };
 
-  it('lists sheets (decoded names, hidden flag) and parses the first grid', () => {
-    const parsed = parseXlsxBuffer(workbook(files));
+  it('lists sheets (decoded names, hidden flag) and parses the first grid', async () => {
+    const parsed = await parseXlsxBuffer(workbook(files));
     expect(parsed.format).toBe('xlsx');
     expect(parsed.sheets).toEqual([{ name: 'Ventas & Costos' }, { name: 'Resumen', hidden: true }]);
     expect(parsed.sheetIndex).toBe(0);
@@ -225,39 +226,39 @@ describe('parseXlsxBuffer (hand-crafted Excel-style workbook)', () => {
     expect(s.truncatedCols).toBe(false);
   });
 
-  it('resolves absolute rel targets and hidden sheets by index', () => {
-    const parsed = parseXlsxBuffer(workbook(files), { sheetIndex: 1 });
+  it('resolves absolute rel targets and hidden sheets by index', async () => {
+    const parsed = await parseXlsxBuffer(workbook(files), { sheetIndex: 1 });
     expect(parsed.sheet.name).toBe('Resumen');
     expect(parsed.sheet.hidden).toBe(true);
     expect(parsed.sheet.rows[0]).toEqual(['oculto']);
   });
 
-  it('works on deflated members too', () => {
-    const parsed = parseXlsxBuffer(workbook(files, true));
+  it('works on deflated members too', async () => {
+    const parsed = await parseXlsxBuffer(workbook(files, true));
     expect(parsed.sheet.rows[0][0]).toBe('Producto');
   });
 
-  it('falls back to sheetN.xml numbering when rels are missing', () => {
+  it('falls back to sheetN.xml numbering when rels are missing', async () => {
     const { 'xl/_rels/workbook.xml.rels': _rels, ...noRels } = files;
     void _rels;
-    const parsed = parseXlsxBuffer(workbook(noRels), { sheetIndex: 1 });
+    const parsed = await parseXlsxBuffer(workbook(noRels), { sheetIndex: 1 });
     expect(parsed.sheet.rows[0]).toEqual(['oculto']);
   });
 
-  it('honors date1904 and namespace-prefixed tags', () => {
+  it('honors date1904 and namespace-prefixed tags', async () => {
     const wb = `<x:workbook xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><x:workbookPr date1904="1"/><x:sheets><x:sheet name="S" sheetId="1" r:id="rId1"/></x:sheets></x:workbook>`;
     const sheet = `<x:worksheet xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><x:sheetData><x:row r="1"><x:c r="A1" s="1"><x:v>44790</x:v></x:c></x:row></x:sheetData></x:worksheet>`;
-    const parsed = parseXlsxBuffer(workbook({ 'xl/workbook.xml': wb, 'xl/worksheets/sheet1.xml': sheet, 'xl/styles.xml': STYLES }));
+    const parsed = await parseXlsxBuffer(workbook({ 'xl/workbook.xml': wb, 'xl/worksheets/sheet1.xml': sheet, 'xl/styles.xml': STYLES }));
     expect(parsed.sheet.rows[0]).toEqual(['2026-08-18']);
   });
 
-  it('caps rows and columns and reports the real extent', () => {
+  it('caps rows and columns and reports the real extent', async () => {
     const rows: string[] = [];
     for (let r = 1; r <= 1200; r++) {
       rows.push(`<row r="${r}"><c r="A${r}"><v>${r}</v></c><c r="CZ${r}"><v>${r * 2}</v></c></row>`);
     }
     const big = `<worksheet><dimension ref="A1:CZ1200"/><sheetData>${rows.join('')}</sheetData></worksheet>`;
-    const parsed = parseXlsxBuffer(workbook({ 'xl/workbook.xml': WORKBOOK_TWO_SHEETS, 'xl/worksheets/sheet1.xml': big, 'xl/worksheets/sheet2.xml': SHEET2 }), { maxRows: 100, maxCols: 50 });
+    const parsed = await parseXlsxBuffer(workbook({ 'xl/workbook.xml': WORKBOOK_TWO_SHEETS, 'xl/worksheets/sheet1.xml': big, 'xl/worksheets/sheet2.xml': SHEET2 }), { maxRows: 100, maxCols: 50 });
     expect(parsed.sheet.rows).toHaveLength(100);
     expect(parsed.sheet.rows[99]).toEqual(['100']);            // CZ (col 104) beyond the col cap
     expect(parsed.sheet.rowCount).toBe(1200);
@@ -266,14 +267,14 @@ describe('parseXlsxBuffer (hand-crafted Excel-style workbook)', () => {
     expect(parsed.sheet.truncatedCols).toBe(true);
   });
 
-  it('rejects zips that are not workbooks', () => {
-    expect(() => parseXlsxBuffer(buildZip({ 'hello.txt': 'x' }))).toThrow(/xl\/workbook\.xml/);
+  it('rejects zips that are not workbooks', async () => {
+    await expect(parseXlsxBuffer(buildZip({ 'hello.txt': 'x' }))).rejects.toThrow(/xl\/workbook\.xml/);
   });
 });
 
 describe('parseXlsxBuffer (real openpyxl fixture)', () => {
-  it('reads sample.xlsx: strings, numbers, dates, times, percents, booleans, multi-line', () => {
-    const parsed = parseXlsxBuffer(fs.readFileSync(FIXTURE));
+  it('reads sample.xlsx: strings, numbers, dates, times, percents, booleans, multi-line', async () => {
+    const parsed = await parseXlsxBuffer(fs.readFileSync(FIXTURE));
     expect(parsed.sheets.map((s) => s.name)).toEqual(['Datos', 'Dispersa', 'Oculta', 'Ancha']);
     expect(parsed.sheets[2]).toEqual({ name: 'Oculta', hidden: true });
     const s = parsed.sheet;
@@ -287,8 +288,8 @@ describe('parseXlsxBuffer (real openpyxl fixture)', () => {
     expect(s.rowCount).toBe(4);
   });
 
-  it('keeps sparse sheets positionally faithful', () => {
-    const parsed = parseXlsxBuffer(fs.readFileSync(FIXTURE), { sheetIndex: 1 });
+  it('keeps sparse sheets positionally faithful', async () => {
+    const parsed = await parseXlsxBuffer(fs.readFileSync(FIXTURE), { sheetIndex: 1 });
     const s = parsed.sheet;
     expect(s.name).toBe('Dispersa');
     expect(s.rows[0]).toEqual(['esquina']);
@@ -299,8 +300,8 @@ describe('parseXlsxBuffer (real openpyxl fixture)', () => {
     expect(s.colCount).toBe(5);
   });
 
-  it('flags wide sheets beyond the column cap', () => {
-    const parsed = parseXlsxBuffer(fs.readFileSync(FIXTURE), { sheetIndex: 3, maxCols: 100 });
+  it('flags wide sheets beyond the column cap', async () => {
+    const parsed = await parseXlsxBuffer(fs.readFileSync(FIXTURE), { sheetIndex: 3, maxCols: 100 });
     expect(parsed.sheet.rows[0]).toHaveLength(100);
     expect(parsed.sheet.rows[0][99]).toBe('1100');
     expect(parsed.sheet.colCount).toBe(150);
@@ -310,7 +311,7 @@ describe('parseXlsxBuffer (real openpyxl fixture)', () => {
 });
 
 describe('csv / tsv', () => {
-  it('sniffs the delimiter by consistency', () => {
+  it('sniffs the delimiter by consistency', async () => {
     expect(sniffDelimiter('a,b,c\n1,2,3\n')).toBe(',');
     expect(sniffDelimiter('a;b;c\n1;2;3\n')).toBe(';');
     expect(sniffDelimiter('a\tb\n1\t2\n')).toBe('\t');
@@ -320,7 +321,7 @@ describe('csv / tsv', () => {
     expect(sniffDelimiter('single column\nvalue\n')).toBe(',');
   });
 
-  it('parses quotes, doubled quotes, embedded newlines and CRLF', () => {
+  it('parses quotes, doubled quotes, embedded newlines and CRLF', async () => {
     const grid = parseDelimited('id,name,note\r\n1,"Smith, John","said ""hi""\r\nand left"\r\n2,Ana,\r\n', ',');
     expect(grid.rows).toEqual([
       ['id', 'name', 'note'],
@@ -332,7 +333,7 @@ describe('csv / tsv', () => {
     expect(grid.truncatedRows).toBe(false);
   });
 
-  it('caps rows/cols and counts the real extent', () => {
+  it('caps rows/cols and counts the real extent', async () => {
     const lines: string[] = [];
     for (let i = 0; i < 50; i++) lines.push(Array.from({ length: 12 }, (_, c) => `${i}-${c}`).join(','));
     const grid = parseDelimited(lines.join('\n'), ',', { maxRows: 10, maxCols: 5 });
@@ -344,7 +345,7 @@ describe('csv / tsv', () => {
     expect(grid.truncatedCols).toBe(true);
   });
 
-  it('does not count the trailing newline as a record but keeps blank lines', () => {
+  it('does not count the trailing newline as a record but keeps blank lines', async () => {
     expect(parseDelimited('a,b\n', ',').rowCount).toBe(1);
     expect(parseDelimited('a,b', ',').rowCount).toBe(1);
     expect(parseDelimited('a,b\n\nc,d\n', ',').rows).toEqual([['a', 'b'], [], ['c', 'd']]);
@@ -398,25 +399,25 @@ describe('readSpreadsheet (disk)', () => {
     }
   });
 
-  it('opens mislabeled files by CONTENT: an xlsx named .xls, a csv named .xls, an html table named .xls', () => {
+  it('opens mislabeled files by CONTENT: an xlsx named .xls, a csv named .xls, an html table named .xls', async () => {
     const xlsx = fs.readFileSync(FIXTURE);
     expect(sniffSpreadsheetBuffer(xlsx)).toBe('xlsx');
-    expect(parseSpreadsheetBuffer(xlsx, '/portal/export.xls').format).toBe('xlsx');
+    expect((await parseSpreadsheetBuffer(xlsx, '/portal/export.xls')).format).toBe('xlsx');
 
     const csv = Buffer.from('folio,contraparte,monto\n1,AZTECA,61530.00\n', 'utf8');
     expect(sniffSpreadsheetBuffer(csv)).toBe('delimited');
-    const parsedCsv = parseSpreadsheetBuffer(csv, '/portal/transacciones.xls');
+    const parsedCsv = await parseSpreadsheetBuffer(csv, '/portal/transacciones.xls');
     expect(parsedCsv.format).toBe('csv');
     expect(parsedCsv.sheet.rows[1]).toEqual(['1', 'AZTECA', '61530.00']);
 
     const html = Buffer.from('<html><body><table><tr><th>Folio</th><th>Monto</th></tr><tr><td>1</td><td>10&nbsp;500,00</td></tr></table></body></html>');
     expect(sniffSpreadsheetBuffer(html)).toBe('html');
-    const parsedHtml = parseSpreadsheetBuffer(html, '/portal/historial.xls');
+    const parsedHtml = await parseSpreadsheetBuffer(html, '/portal/historial.xls');
     expect(parsedHtml.format).toBe('html');
     expect(parsedHtml.sheet.rows).toEqual([['Folio', 'Monto'], ['1', '10 500,00']]);
   });
 
-  it('detects kinds by extension', () => {
+  it('detects kinds by extension', async () => {
     expect(detectSpreadsheetKind('a.XLSX')).toBe('xlsx');
     expect(detectSpreadsheetKind('a.xlsm')).toBe('xlsx');
     expect(detectSpreadsheetKind('a.csv')).toBe('csv');
@@ -523,7 +524,7 @@ function buildBiff8Workbook(): Buffer {
   const globalsLen = globals.reduce((n, b) => n + b.length, 0) + boundsheetLen + boundsheet2Len + rest.reduce((n, b) => n + b.length, 0);
   const sheet1: Buffer[] = [
     rec(0x0809, u16(0x0600), u16(0x0010), u16(0x0dbb), u16(0x07cc), u32(0), u32(0)),
-    rec(0x0200, u32(0), u32(4), u16(0), u16(6), u16(0)),
+    rec(0x0200, u32(0), u32(4), u16(0), u16(5), u16(0)),   // rows 0..3, cols 0..4 (exact, like Excel writes it)
     rec(0x00fd, cell(0, 0, XF_GENERAL), u32(0)),               // A1 "Producto"
     rec(0x00fd, cell(0, 1, XF_GENERAL), u32(1)),               // B1 long wide string
     rec(0x00fd, cell(0, 2, XF_GENERAL), u32(2)),               // C1 "Rico"
@@ -554,7 +555,7 @@ function buildBiff8Workbook(): Buffer {
 }
 
 describe('parseXlsBuffer (hand-crafted BIFF8 in a CFB container)', () => {
-  it('reads SST across CONTINUE, RK/MULRK/NUMBER, BOOLERR, formula strings, dates and percents, hidden sheets', () => {
+  it('reads SST across CONTINUE, RK/MULRK/NUMBER, BOOLERR, formula strings, dates and percents, hidden sheets', async () => {
     const buf = buildCfb('Workbook', buildBiff8Workbook());
     expect(sniffSpreadsheetBuffer(buf)).toBe('xls');
     const parsed = parseXlsBuffer(buf, { maxRows: 500, maxCols: 100 });
@@ -574,7 +575,7 @@ describe('parseXlsBuffer (hand-crafted BIFF8 in a CFB container)', () => {
     expect(hidden.sheet.rows[0]).toEqual(['secreto']);
   });
 
-  it('caps rows/cols and reports the data extent', () => {
+  it('caps rows/cols and reports the data extent', async () => {
     const buf = buildCfb('Workbook', buildBiff8Workbook());
     const parsed = parseXlsBuffer(buf, { maxRows: 2, maxCols: 3 });
     expect(parsed.sheet.rows).toHaveLength(2);
@@ -585,16 +586,16 @@ describe('parseXlsBuffer (hand-crafted BIFF8 in a CFB container)', () => {
     expect(parsed.sheet.truncatedCols).toBe(true);
   });
 
-  it('rejects OLE2 files without a Workbook stream', () => {
+  it('rejects OLE2 files without a Workbook stream', async () => {
     const buf = buildCfb('WordDocument', Buffer.from('not excel'));
     expect(() => parseXlsBuffer(buf, { maxRows: 10, maxCols: 10 })).toThrow(/Workbook stream/);
   });
 });
 
 describe('parseXlsBuffer (LibreOffice-written sample.xls fixture)', () => {
-  it('matches the xlsx fixture cell for cell', () => {
+  it('matches the xlsx fixture cell for cell', async () => {
     const xls = parseXlsBuffer(fs.readFileSync(FIXTURE_XLS), { maxRows: 500, maxCols: 100 });
-    const xlsx = parseXlsxBuffer(fs.readFileSync(FIXTURE));
+    const xlsx = await parseXlsxBuffer(fs.readFileSync(FIXTURE));
     expect(xls.sheets).toEqual(xlsx.sheets);
     // J1 formula: LibreOffice stores the computed value in the .xls (59.97).
     expect(xls.sheet.rows[0].slice(0, 9)).toEqual(xlsx.sheet.rows[0].slice(0, 9));
@@ -609,7 +610,7 @@ describe('parseXlsBuffer (LibreOffice-written sample.xls fixture)', () => {
 });
 
 describe('parseOdsBuffer (LibreOffice-written sample.ods fixture)', () => {
-  it('reads tables, hidden flag, repeated rows/cols, rendered text', () => {
+  it('reads tables, hidden flag, repeated rows/cols, rendered text', async () => {
     const ods = parseOdsBuffer(fs.readFileSync(FIXTURE_ODS));
     expect(ods.format).toBe('ods');
     expect(ods.sheets.map((s) => s.name)).toEqual(['Datos', 'Dispersa', 'Oculta', 'Ancha']);
@@ -635,7 +636,7 @@ describe('parseOdsBuffer (LibreOffice-written sample.ods fixture)', () => {
 });
 
 describe('parseHtmlTable', () => {
-  it('picks the largest table, handles colspan, br, entities and header cells', () => {
+  it('picks the largest table, handles colspan, br, entities and header cells', async () => {
     const html = `<html><body>
       <table><tr><td>menu</td></tr></table>
       <table class="data">
@@ -649,5 +650,88 @@ describe('parseHtmlTable', () => {
     expect(grid.rows).toEqual([['Folio', 'Cuenta'], ['1', 'A&B\n2', 'x'], ['2', '', 'y']]);
     expect(grid.rowCount).toBe(3);
     expect(grid.colCount).toBe(3);
+  });
+});
+
+describe('readSpreadsheet windows (big files)', () => {
+  it('reads a delimited file by window: exact rows in the window, tail counted by newlines (approx flag)', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tc-sheet-'));
+    try {
+      const big = path.join(dir, 'big.csv');
+      // ~3 MB: header + 60k rows, one with a quoted embedded newline near the top.
+      const lines: string[] = ['id,name,amount'];
+      lines.push('1,"multi\nline",10');
+      for (let i = 2; i <= 60_000; i++) lines.push(`${i},row ${i},${i * 1.5}`);
+      fs.writeFileSync(big, lines.join('\n') + '\n');
+      const parsed = await readSpreadsheet(big, { maxRows: 100 });
+      expect(parsed.format).toBe('csv');
+      expect(parsed.sheet.rows).toHaveLength(100);
+      expect(parsed.sheet.rows[0]).toEqual(['id', 'name', 'amount']);
+      expect(parsed.sheet.rows[1]).toEqual(['1', 'multi\nline', '10']);
+      expect(parsed.sheet.rows[99]).toEqual(['99', 'row 99', '148.5']);
+      // 60,001 records; the tail count is by newlines so it may only overshoot.
+      expect(parsed.sheet.rowCount).toBeGreaterThanOrEqual(60_001);
+      expect(parsed.sheet.rowCount).toBeLessThanOrEqual(60_002);
+      expect(parsed.sheet.truncatedRows).toBe(true);
+      expect(parsed.sheet.rowCountApprox).toBe(true);
+      // Ask for more than the file has → exact, whole file, no approx flag.
+      const all = await readSpreadsheet(big, { maxRows: 20_000 });
+      expect(all.sheet.rows.length).toBe(20_000);
+      expect(all.sheet.rowCount).toBeGreaterThanOrEqual(60_001);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('streams an xlsx worksheet: the window is exact and the extent comes from <dimension>', async () => {
+    const rows: string[] = [];
+    for (let r = 1; r <= 3000; r++) rows.push(`<row r="${r}"><c r="A${r}"><v>${r}</v></c><c r="B${r}" t="inlineStr"><is><t>fila ${r}</t></is></c></row>`);
+    const big = `<worksheet><dimension ref="A1:B3000"/><sheetData>${rows.join('')}</sheetData></worksheet>`;
+    const buf = buildZip({ 'xl/workbook.xml': WORKBOOK_TWO_SHEETS, 'xl/worksheets/sheet1.xml': big, 'xl/worksheets/sheet2.xml': SHEET2 }, { deflate: true });
+    const parsed = await parseXlsxBuffer(buf, { maxRows: 50 });
+    expect(parsed.sheet.rows).toHaveLength(50);
+    expect(parsed.sheet.rows[49]).toEqual(['50', 'fila 50']);
+    expect(parsed.sheet.rowCount).toBe(3000);
+    expect(parsed.sheet.colCount).toBe(2);
+    expect(parsed.sheet.truncatedRows).toBe(true);
+    // Without <dimension> (streaming writers) the extent is ESTIMATED from the
+    // bytes-per-row seen vs. the member's inflated size — flagged approximate,
+    // never a full inflate. Rows here are homogeneous, so it lands close.
+    const noDim = buildZip({ 'xl/workbook.xml': WORKBOOK_TWO_SHEETS, 'xl/worksheets/sheet1.xml': big.replace('<dimension ref="A1:B3000"/>', ''), 'xl/worksheets/sheet2.xml': SHEET2 }, { deflate: true });
+    const parsed2 = await parseXlsxBuffer(noDim, { maxRows: 50 });
+    expect(parsed2.sheet.rows).toHaveLength(50);
+    expect(parsed2.sheet.rowCountApprox).toBe(true);
+    expect(parsed2.sheet.rowCount).toBeGreaterThan(2000);
+    expect(parsed2.sheet.rowCount).toBeLessThan(4000);
+    expect(parsed2.sheet.truncatedRows).toBe(true);
+    // A window that covers the whole sheet is exact again.
+    const parsed3 = await parseXlsxBuffer(noDim, { maxRows: 5000 });
+    expect(parsed3.sheet.rowCount).toBe(3000);
+    expect(parsed3.sheet.rowCountApprox).toBeUndefined();
+  });
+});
+
+describe('makeRowCounter', () => {
+  it('counts rows once across chunk boundaries and stops after maxRows+1', () => {
+    const xml = Buffer.from('<sheetData>' + Array.from({ length: 30 }, (_, i) => `<row r="${i + 1}"><c r="A${i + 1}"><v>${i}</v></c></row>`).join('') + '</sheetData>');
+    // Feed in awkward chunk sizes so tags split at every possible offset.
+    for (const size of [1, 2, 3, 5, 7, 11, 13, 64]) {
+      const enough = makeRowCounter(10);
+      let stoppedAt = -1;
+      let total = 0;
+      for (let off = 0; off < xml.length && stoppedAt === -1; off += size) {
+        const chunk = xml.subarray(off, Math.min(xml.length, off + size));
+        total += chunk.length;
+        if (enough(chunk, total)) stoppedAt = total;
+      }
+      // Must stop once the 11th <row has opened (never earlier: 10 rows must be
+      // complete) — a big chunk may legitimately carry a few more rows.
+      const prefix = xml.subarray(0, stoppedAt).toString();
+      const opened = (prefix.match(/<row /g) || []).length;
+      const closed = prefix.split('</row>').length - 1;
+      expect(opened, `chunk ${size}`).toBeGreaterThanOrEqual(11);
+      expect(closed, `chunk ${size}`).toBeGreaterThanOrEqual(10);
+      if (size <= 13) expect(opened, `chunk ${size}`).toBe(11); // tiny chunks stop exactly there
+    }
   });
 });

@@ -25,7 +25,6 @@ import { ProviderIcon } from '../ProviderIcon';
 import { prefetchAgentHistory } from './useHistoryLoader';
 import { useDockRoster } from './useDockRoster';
 import { useAgentDockRecentSize } from './agentDockPosition';
-import { useDockFlip } from './useDockFlip';
 
 interface AgentActivityDockProps {
   /** The agent the host surface is showing — its thumb is highlighted. */
@@ -48,7 +47,7 @@ export function AgentActivityDock({ activeAgentId, onSelectAgent }: AgentActivit
 
   const recentSize = useAgentDockRecentSize();
   // Scoped so the roster survives host remounts (see DockScopeState).
-  const { entries, exitingIds, workingIds, layoutSignature } = useDockRoster(agents, { scope: 'overview-dock', recentSize });
+  const { entries, exitingIds, workingIds } = useDockRoster(agents, { scope: 'overview-dock', recentSize });
 
   const [expanded, setExpanded] = useState<boolean>(() => getStorage<boolean>(STORAGE_KEYS.AGENT_DOCK_COLLAPSED, false) !== true);
   const toggleExpanded = useCallback(() => {
@@ -67,8 +66,6 @@ export function AgentActivityDock({ activeAgentId, onSelectAgent }: AgentActivit
     // Guake terminal there would stack a second chat on top of it.
     if (viewMode !== 'flat') store.setTerminalOpen(true);
   }, [onSelectAgent, viewMode]);
-
-  const { registerItem } = useDockFlip(layoutSignature, exitingIds);
 
   return (
     <div
@@ -102,9 +99,8 @@ export function AgentActivityDock({ activeAgentId, onSelectAgent }: AgentActivit
         const areaColor = area?.color;
         const opensRecentLane = !isWorking && entryIndex > 0 && entries[entryIndex - 1].lane === 'working';
         return (
-          // Keyed by agent id alone, across both lanes: an agent that finishes
-          // work keeps its DOM node, so it glides across the divider and
-          // crossfades its styling instead of popping out and back in.
+          // Keyed by agent id alone across both lanes so a status change keeps
+          // the existing DOM node even though its position updates immediately.
           <React.Fragment key={agent.id}>
             {opensRecentLane && <span className="aop-working-strip-divider" aria-hidden="true" />}
             <Tooltip
@@ -124,7 +120,6 @@ export function AgentActivityDock({ activeAgentId, onSelectAgent }: AgentActivit
               )}
             >
               <button
-                ref={registerItem(agent.id)}
                 type="button"
                 className={`aop-working-thumb${isWorking ? '' : ' recent'}${isActive ? ' active' : ''}${isExiting ? ' exiting' : ''}`}
                 style={areaColor ? ({ '--aop-thumb-area': areaColor } as React.CSSProperties) : undefined}

@@ -1500,7 +1500,7 @@
   &.task-progress-dot-in_progress {
     background: var(--accent-blue);
     border-color: var(--accent-blue);
-    animation: task-progress-dot-pulse 1.5s ease-in-out infinite;
+    box-shadow: 0 0 4px color-mix(in srgb, var(--accent-blue) 55%, transparent);
   }
 
   &.task-progress-dot-pending {
@@ -1515,10 +1515,6 @@
   margin-left: 2px;
 }
 
-@keyframes task-progress-dot-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
 
 // ── Subordinate progress dots (boss watching its team) ───────────────────────
 .subordinate-progress-dots {
@@ -1544,7 +1540,7 @@
   &.status-working {
     background: var(--accent-blue);
     border-color: var(--accent-blue);
-    animation: task-progress-dot-pulse 1.5s ease-in-out infinite;
+    box-shadow: 0 0 4px color-mix(in srgb, var(--accent-blue) 55%, transparent);
   }
   &.status-idle {
     background: var(--accent-green);

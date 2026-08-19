@@ -38,6 +38,7 @@ export interface PiCredentialsSwitchResult {
 
 export type PiQuotaWindowKey =
   | 'session'
+  | 'five-hour'
   | 'daily'
   | 'weekly'
   | 'weekly-opus'

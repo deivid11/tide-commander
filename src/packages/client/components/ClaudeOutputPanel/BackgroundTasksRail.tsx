@@ -155,11 +155,15 @@ export const BackgroundTasksRail = React.memo(function BackgroundTasksRail({ age
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    setViewportHeight(container.clientHeight);
-    const observer = new ResizeObserver(() => {
-      setViewportHeight(container.clientHeight);
+    // contentRect comes from the layout pass that delivered ResizeObserver;
+    // reading clientHeight synchronously after a large virtual-list commit
+    // forced another full style/layout calculation on every agent switch.
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      const height = Math.round(entry?.borderBoxSize[0]?.blockSize ?? entry?.contentRect.height ?? 0);
+      setViewportHeight((previous) => previous === height ? previous : height);
     });
-    observer.observe(container);
+    observer.observe(container, { box: 'border-box' });
     return () => observer.disconnect();
   }, [scrollContainerRef]);
 

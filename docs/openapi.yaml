@@ -1079,9 +1079,12 @@ components:
         hidden?}], sheetIndex, sheet{name,rows[][],rowCount,colCount,
         truncatedRows,truncatedCols}, maxRows, maxCols}` — `rows` are display
         strings, sparse (empty row = `[]`, rows end at the last non-empty
-        cell). Only the requested sheet's grid is materialized. 415 for
-        non-spreadsheet extensions and BIFF2-4 worksheets (`{error,
-        unsupported:true}`), 422 for corrupt files or files over 64 MB.
+        cell). Only the requested sheet's grid is materialized, and only the
+        bytes needed for it are read/inflated (zip members streamed from the
+        file with early stop; csv/tsv by byte window with the tail counted by
+        newlines — `sheet.rowCountApprox: true` marks an estimated total).
+        415 for non-spreadsheet extensions and BIFF2-4 worksheets (`{error,
+        unsupported:true}`), 422 for corrupt files (xls/html over 256 MB).
       parameters:
         - in: query
           name: path

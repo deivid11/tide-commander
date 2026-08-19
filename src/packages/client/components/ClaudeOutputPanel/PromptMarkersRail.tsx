@@ -58,11 +58,14 @@ export const PromptMarkersRail = React.memo(function PromptMarkersRail({
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    setViewportHeight(container.clientHeight);
-    const observer = new ResizeObserver(() => {
-      setViewportHeight(container.clientHeight);
+    // Avoid a forced clientHeight read immediately after virtual rows mount;
+    // ResizeObserver already supplies the laid-out content box.
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      const height = Math.round(entry?.borderBoxSize[0]?.blockSize ?? entry?.contentRect.height ?? 0);
+      setViewportHeight((previous) => previous === height ? previous : height);
     });
-    observer.observe(container);
+    observer.observe(container, { box: 'border-box' });
     return () => observer.disconnect();
   }, [scrollContainerRef]);
 

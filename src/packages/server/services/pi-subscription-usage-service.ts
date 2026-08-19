@@ -25,6 +25,8 @@ import {
 } from './provider-credentials-service.js';
 import {
   getCodexCredentialProfilesUsage,
+  readCodexRateLimitsForOAuthCredential,
+  type CodexOAuthCredential,
   type CodexRateLimitWindow,
 } from './codex-usage-service.js';
 import {
@@ -43,12 +45,14 @@ const PROVIDER_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 const SUBSCRIPTION_LABELS: Record<string, string> = {
   anthropic: 'Anthropic Claude Pro/Max',
   'openai-codex': 'OpenAI ChatGPT Plus/Pro',
+  'opencode-go': 'OpenCode Go',
   'github-copilot': 'GitHub Copilot',
   xai: 'xAI Grok/X',
   radius: 'Radius',
 };
 
 const ANTHROPIC_TOKEN_URL = 'https://platform.claude.com/v1/oauth/token';
+const OPENCODE_GO_USAGE_URL = 'https://opencode.ai/zen/go/v1/usage';
 const ANTHROPIC_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e';
 const TOKEN_REFRESH_TIMEOUT_MS = 10_000;
 const PROFILE_USAGE_TTL_OK_MS = 2 * 60_000;
@@ -121,6 +125,7 @@ export interface PiCredentialsSwitchResult {
 
 export type PiQuotaWindowKey =
   | 'session'
+  | 'five-hour'
   | 'daily'
   | 'weekly'
   | 'weekly-opus'
@@ -163,7 +168,7 @@ export interface PiSubscriptionUsageSnapshot {
   };
   /** Anthropic compatibility payload used by older clients. */
   rateLimits: ClaudeRateLimits | null;
-  /** Active account windows for Anthropic, Codex, or xAI. */
+  /** Active-account windows for providers with live subscription usage APIs. */
   quotaWindows: PiQuotaWindow[];
   rateLimitsError: string | null;
   cliHint: string;
@@ -637,6 +642,12 @@ interface ProfileUsageCacheEntry {
   validUntil: number;
 }
 
+interface CodexProfileTokenGroup {
+  ids: string[];
+  paths: string[];
+  credential: PiOAuthCredential;
+}
+
 const profileUsageCache = new Map<string, ProfileUsageCacheEntry>();
 const profileUsageInFlight = new Map<string, Promise<ProfileUsageCacheEntry>>();
 const xaiUsageCache = new Map<string, ProfileUsageCacheEntry>();
@@ -694,6 +705,21 @@ function grokQuotaWindows(
     quotaWindow('monthly', limits.monthly),
     quotaWindow('on-demand', limits.onDemand),
   ]);
+}
+
+function openCodeGoQuotaWindow(key: PiQuotaWindowKey, value: unknown): PiQuotaWindow | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const window = value as Record<string, unknown>;
+  if (typeof window.percent !== 'number' && typeof window.percent !== 'string') return null;
+  const percent = Number(window.percent);
+  if (!Number.isFinite(percent) || typeof window.resetsAt !== 'string') return null;
+  const resetsAt = new Date(window.resetsAt);
+  if (Number.isNaN(resetsAt.getTime())) return null;
+  return {
+    key,
+    utilization: Math.max(0, Math.min(100, percent)),
+    resetsAt: resetsAt.toISOString(),
+  };
 }
 
 function clearProfileUsageCache(): void {
@@ -801,6 +827,87 @@ function fetchUsageForGroup(cacheKey: string, group: ProfileTokenGroup): Promise
   return request;
 }
 
+function jwtExpiresAt(token: string): number | null {
+  const payload = token.split('.')[1];
+  if (!payload) return null;
+  try {
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+    const claims = JSON.parse(Buffer.from(padded, 'base64').toString('utf-8')) as Record<string, unknown>;
+    return typeof claims.exp === 'number' ? claims.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistRefreshedCodexGroup(
+  group: CodexProfileTokenGroup,
+  refreshed: CodexOAuthCredential,
+): void {
+  const changed = group.paths.some((filePath) => {
+    const current = parseCredentialFile(filePath, 'openai-codex')?.credential;
+    return current?.type !== 'oauth'
+      || current.access !== group.credential.access
+      || current.refresh !== group.credential.refresh;
+  });
+  if (changed) {
+    log.warn(`Pi Codex credentials changed during usage read; preserving newer on-disk grant (${group.ids.join(', ')})`);
+    return;
+  }
+  const credential: PiOAuthCredential = {
+    ...group.credential,
+    access: refreshed.accessToken,
+    refresh: refreshed.refreshToken,
+    expires: jwtExpiresAt(refreshed.accessToken) ?? group.credential.expires,
+    ...(refreshed.accountId ? { accountId: refreshed.accountId } : {}),
+  };
+  for (const filePath of group.paths) writeProviderCredential(filePath, 'openai-codex', credential);
+  log.log(`Refreshed Pi Codex credentials while reading usage (${group.ids.join(', ')})`);
+}
+
+function fetchPiCodexUsage(cacheKey: string, group: CodexProfileTokenGroup): Promise<ProfileUsageCacheEntry> {
+  const scopedKey = `codex:${cacheKey}`;
+  const cached = profileUsageCache.get(scopedKey);
+  if (cached && cached.validUntil > Date.now()) return Promise.resolve(cached);
+  const pending = profileUsageInFlight.get(scopedKey);
+  if (pending) return pending;
+
+  const request = (async (): Promise<ProfileUsageCacheEntry> => {
+    let quotaWindows: PiQuotaWindow[] = [];
+    let error: string | null = null;
+    try {
+      const result = await readCodexRateLimitsForOAuthCredential({
+        accessToken: group.credential.access,
+        refreshToken: group.credential.refresh,
+        ...(typeof group.credential.accountId === 'string' && group.credential.accountId
+          ? { accountId: group.credential.accountId }
+          : {}),
+      });
+      quotaWindows = codexQuotaWindows(result.rateLimits);
+      if (
+        result.credential.accessToken !== group.credential.access
+        || result.credential.refreshToken !== group.credential.refresh
+      ) {
+        persistRefreshedCodexGroup(group, result.credential);
+      }
+    } catch (err) {
+      error = friendlyCodexUsageError(err instanceof Error ? err.message : String(err));
+    }
+    const entry: ProfileUsageCacheEntry = {
+      rateLimits: null,
+      quotaWindows,
+      error,
+      fetchedAt: Date.now(),
+      validUntil: Date.now() + (error ? PROFILE_USAGE_TTL_ERR_MS : PROFILE_USAGE_TTL_OK_MS),
+    };
+    profileUsageCache.set(scopedKey, entry);
+    return entry;
+  })().finally(() => profileUsageInFlight.delete(scopedKey));
+
+  profileUsageInFlight.set(scopedKey, request);
+  return request;
+}
+
 function fetchXaiUsage(cacheKey: string, accessToken: string): Promise<ProfileUsageCacheEntry> {
   const cached = xaiUsageCache.get(cacheKey);
   if (cached && cached.validUntil > Date.now()) return Promise.resolve(cached);
@@ -824,6 +931,59 @@ function fetchXaiUsage(cacheKey: string, accessToken: string): Promise<ProfileUs
   return request;
 }
 
+function fetchOpenCodeGoUsage(cacheKey: string, apiKey: string): Promise<ProfileUsageCacheEntry> {
+  const scopedKey = `opencode-go:${cacheKey}`;
+  const cached = profileUsageCache.get(scopedKey);
+  if (cached && cached.validUntil > Date.now()) return Promise.resolve(cached);
+  const pending = profileUsageInFlight.get(scopedKey);
+  if (pending) return pending;
+
+  const request = (async (): Promise<ProfileUsageCacheEntry> => {
+    let quotaWindows: PiQuotaWindow[] = [];
+    let error: string | null = null;
+    try {
+      const response = await fetch(OPENCODE_GO_USAGE_URL, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(TOKEN_REFRESH_TIMEOUT_MS),
+      });
+      if (!response.ok) {
+        if (response.status === 401) error = 'OpenCode Go API key rejected — sign in again with Pi /login';
+        else if (response.status === 403) error = 'No active OpenCode Go subscription for this API key';
+        else error = `OpenCode Go usage request failed (${response.status})`;
+      } else {
+        const body = await response.json() as Record<string, unknown>;
+        const usage = body.usage && typeof body.usage === 'object' && !Array.isArray(body.usage)
+          ? body.usage as Record<string, unknown>
+          : null;
+        if (usage) {
+          quotaWindows = compactWindows([
+            openCodeGoQuotaWindow('five-hour', usage.rolling),
+            openCodeGoQuotaWindow('weekly', usage.weekly),
+            openCodeGoQuotaWindow('monthly', usage.monthly),
+          ]);
+        }
+        if (quotaWindows.length === 0) error = 'OpenCode Go returned no recognizable usage windows';
+      }
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      error = `Could not reach OpenCode Go usage (${reason})`;
+    }
+
+    const entry: ProfileUsageCacheEntry = {
+      rateLimits: null,
+      quotaWindows,
+      error,
+      fetchedAt: Date.now(),
+      validUntil: Date.now() + (error ? PROFILE_USAGE_TTL_ERR_MS : PROFILE_USAGE_TTL_OK_MS),
+    };
+    profileUsageCache.set(scopedKey, entry);
+    return entry;
+  })().finally(() => profileUsageInFlight.delete(scopedKey));
+
+  profileUsageInFlight.set(scopedKey, request);
+  return request;
+}
+
 /** Fetch usage for every named login of the selected Pi model provider. */
 export async function getPiCredentialProfilesUsage(modelProvider: string): Promise<PiProfilesUsageResult> {
   const provider = normalizeProvider(modelProvider);
@@ -832,36 +992,71 @@ export async function getPiCredentialProfilesUsage(modelProvider: string): Promi
   const usage: PiProfileUsage[] = [];
 
   if (provider === 'openai-codex') {
-    // Reuse Codex's native per-account app-server reads. This exposes the same
-    // daily/weekly plan windows in Pi without ever returning OAuth secrets.
+    // Reuse native Codex reads for matching ~/.codex sessions. A separately
+    // authenticated Pi grant will not share the same access-token fingerprint,
+    // so read that grant through an isolated CODEX_HOME instead of requiring
+    // the operator to save or switch another Codex account first.
     const nativeList = listProviderCredentialProfiles('codex');
     const nativeCandidates = [...(nativeList.active ? [nativeList.active] : []), ...nativeList.profiles];
     const nativeUsage = await getCodexCredentialProfilesUsage();
     const nativeUsageById = new Map(nativeUsage.usage.map((entry) => [entry.id, entry]));
+    const directGroups = new Map<string, CodexProfileTokenGroup>();
 
     for (const meta of candidates) {
       const nativeMeta = meta.source === 'codex'
         ? nativeCandidates.find((candidate) => candidate.id === meta.id)
         : nativeCandidates.find((candidate) => Boolean(meta.fingerprint) && candidate.fingerprint === meta.fingerprint);
       const entry = nativeMeta ? nativeUsageById.get(nativeMeta.id) : undefined;
+      if (entry) {
+        usage.push({
+          id: meta.id,
+          rateLimits: null,
+          quotaWindows: codexQuotaWindows(entry.rateLimits),
+          error: friendlyCodexUsageError(entry.error),
+          fetchedAt: entry.fetchedAt,
+        });
+        continue;
+      }
+
       const credential = meta.source === 'codex'
         ? credentialFromNativeProviderProfile('codex', meta.path, meta.expiresAt)
         : parseCredentialFile(meta.path, provider)?.credential ?? null;
-      usage.push({
-        id: meta.id,
-        rateLimits: null,
-        quotaWindows: codexQuotaWindows(entry?.rateLimits ?? null),
-        error: friendlyCodexUsageError(entry?.error)
-          ?? (entry
-            ? null
-            : credential?.type === 'api_key'
-              ? 'This profile uses an API key, not a subscription'
-              : meta.valid
-                ? 'Live limits require a matching saved Codex account'
-                : 'Invalid credentials file'),
-        fetchedAt: entry?.fetchedAt ?? Date.now(),
-      });
+      if (credential?.type !== 'oauth') {
+        usage.push({
+          id: meta.id,
+          rateLimits: null,
+          quotaWindows: [],
+          error: credential?.type === 'api_key'
+            ? 'This profile uses an API key, not a subscription'
+            : 'Invalid credentials file',
+          fetchedAt: Date.now(),
+        });
+        continue;
+      }
+
+      const key = fingerprintToken(credential.refresh || credential.access);
+      const existing = directGroups.get(key);
+      if (existing) {
+        existing.ids.push(meta.id);
+        if (!existing.paths.includes(meta.path)) existing.paths.push(meta.path);
+        if (credential.expires > existing.credential.expires) existing.credential = credential;
+      } else {
+        directGroups.set(key, { ids: [meta.id], paths: [meta.path], credential });
+      }
     }
+
+    await Promise.all(Array.from(directGroups.entries()).map(async ([key, group]) => {
+      const entry = await fetchPiCodexUsage(key, group);
+      for (const id of group.ids) {
+        usage.push({
+          id,
+          rateLimits: null,
+          quotaWindows: entry.quotaWindows,
+          error: entry.error,
+          fetchedAt: entry.fetchedAt,
+        });
+      }
+    }));
     return { usage };
   }
 
@@ -890,6 +1085,45 @@ export async function getPiCredentialProfilesUsage(modelProvider: string): Promi
     }
     await Promise.all(Array.from(groups.entries()).map(async ([key, group]) => {
       const entry = await fetchXaiUsage(key, group.accessToken);
+      for (const id of group.ids) {
+        usage.push({
+          id,
+          rateLimits: null,
+          quotaWindows: entry.quotaWindows,
+          error: entry.error,
+          fetchedAt: entry.fetchedAt,
+        });
+      }
+    }));
+    return { usage };
+  }
+
+  if (provider === 'opencode-go') {
+    const groups = new Map<string, { ids: string[]; apiKey: string }>();
+    for (const meta of candidates) {
+      const credential = parseCredentialFile(meta.path, provider)?.credential;
+      const apiKey = credential?.type === 'api_key' && typeof credential.key === 'string'
+        ? credential.key.trim()
+        : '';
+      if (!apiKey) {
+        usage.push({
+          id: meta.id,
+          rateLimits: null,
+          quotaWindows: [],
+          error: credential?.type === 'oauth'
+            ? 'OpenCode Go subscription usage requires an API key login'
+            : 'Invalid credentials file',
+          fetchedAt: Date.now(),
+        });
+        continue;
+      }
+      const key = fingerprintToken(apiKey);
+      const existing = groups.get(key);
+      if (existing) existing.ids.push(meta.id);
+      else groups.set(key, { ids: [meta.id], apiKey });
+    }
+    await Promise.all(Array.from(groups.entries()).map(async ([key, group]) => {
+      const entry = await fetchOpenCodeGoUsage(key, group.apiKey);
       for (const id of group.ids) {
         usage.push({
           id,
@@ -1021,7 +1255,11 @@ export function resolvePiModelProvider(agent: Agent): string | null {
 function loadedSubscriptions(modelProvider: string | null): PiLoadedSubscription[] {
   const data = readJsonObject(activePath()) ?? {};
   return Object.entries(data)
-    .filter(([provider, value]) => parseCredential(value)?.type === 'oauth' && provider in SUBSCRIPTION_LABELS)
+    .filter(([provider, value]) => {
+      const credential = parseCredential(value);
+      if (!credential || !(provider in SUBSCRIPTION_LABELS)) return false;
+      return credential.type === 'oauth' || (provider === 'opencode-go' && credential.type === 'api_key');
+    })
     .map(([provider]) => ({ provider, label: SUBSCRIPTION_LABELS[provider], active: provider === modelProvider }))
     .sort((a, b) => Number(b.active) - Number(a.active) || a.label.localeCompare(b.label));
 }
@@ -1038,7 +1276,7 @@ export async function buildPiSubscriptionUsageSnapshot(agent: Agent): Promise<Pi
     ? `Pi does not expose live plan-limit gauges for ${modelProvider}.`
     : 'Select an explicit provider/model for this Pi agent to match subscription usage.';
 
-  if (modelProvider && ['anthropic', 'openai-codex', 'xai'].includes(modelProvider)) {
+  if (modelProvider && ['anthropic', 'openai-codex', 'opencode-go', 'xai'].includes(modelProvider)) {
     cliHint = 'Use the Pi accounts panel below to compare remaining limits or switch subscriptions.';
     const profileUsage = await getPiCredentialProfilesUsage(modelProvider);
     const activeUsage = profileUsage.usage.find((entry) => entry.id === 'active');

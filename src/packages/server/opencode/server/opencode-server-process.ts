@@ -74,7 +74,15 @@ export class OpencodeServerProcess {
   }
 
   async ensureStarted(): Promise<void> {
-    if (this.connected) return;
+    // `connected` reflects the SSE client's last-known state, not necessarily
+    // the daemon's current health. A detached daemon can die without the stream
+    // delivering an `end` event, leaving every later request pointed at a dead
+    // port. Probe before reuse so the next command self-heals immediately.
+    if (this.connected && this.port && (await probeHealth(this.port, 1500))) return;
+    if (this.connected) {
+      log.warn('Cached opencode server connection is unhealthy; replacing daemon');
+      this.disconnect();
+    }
     this.stopped = false;
 
     // 1. Rejoin an already-running daemon if healthy.
@@ -87,6 +95,9 @@ export class OpencodeServerProcess {
       this.connected = true;
       return;
     }
+
+    // Never leave an unresponsive persisted daemon orphaned when replacing it.
+    if (existing) OpencodeServerProcess.terminatePersistedDaemon();
 
     // 2. Spawn a fresh detached daemon.
     this.reconnectedToExisting = false;
@@ -216,7 +227,7 @@ export class OpencodeServerProcess {
     try {
       res = await this.doFetch(method, path, body);
     } catch (err) {
-      if (method !== 'GET' || !isTransportError(err)) throw err;
+      if (method !== 'GET' || !isOpencodeTransportError(err)) throw err;
       log.warn(`GET ${path} transport error (${describeError(err)}); retrying once on a fresh connection`);
       await sleep(100);
       res = await this.doFetch(method, path, body);
@@ -314,8 +325,39 @@ export class OpencodeServerProcess {
     } catch { /* best-effort */ }
   }
 
+  /** Whether this daemon's in-memory provider catalog contains a model. */
+  async hasModel(
+    providerID: string,
+    modelID: string,
+    directory?: string,
+  ): Promise<boolean | null> {
+    try {
+      const path = directory
+        ? `/provider?directory=${encodeURIComponent(directory)}`
+        : '/provider';
+      const catalog = await this.httpJson('GET', path);
+      return providerCatalogHasModel(catalog, providerID, modelID);
+    } catch (err) {
+      log.warn(`Could not inspect opencode provider catalog: ${describeError(err)}`);
+      return null;
+    }
+  }
+
   /** Session IDs currently generating (busy), used to detect turns still in flight. */
-  async activeSessionIds(): Promise<Set<string>> {
+  async activeSessionIds(directory?: string): Promise<Set<string>> {
+    // OpenCode 1.18 exposes the authoritative map at /session/status. The old
+    // /api/session/active compatibility route can return an empty data object
+    // while a turn is demonstrably busy, which made recovery finalize live
+    // agents and then wedge them when more SSE deltas arrived.
+    try {
+      const path = directory
+        ? `/session/status?directory=${encodeURIComponent(directory)}`
+        : '/session/status';
+      const status = await this.httpJson('GET', path);
+      const ids = busySessionIdsFromStatus(status);
+      if (ids !== null) return ids;
+    } catch { /* fall through for older OpenCode versions */ }
+
     try {
       const resp = await this.httpJson('GET', '/api/session/active');
       const raw = resp?.data ?? resp;
@@ -327,7 +369,6 @@ export class OpencodeServerProcess {
           else if (item?.sessionID) ids.add(item.sessionID);
         }
       } else if (raw && typeof raw === 'object') {
-        // 1.18.x returns a map keyed by sessionID: {"ses_…": {…}}
         for (const key of Object.keys(raw)) {
           if (key.startsWith('ses')) ids.add(key);
         }
@@ -350,17 +391,83 @@ export class OpencodeServerProcess {
     }
   }
 
-  /** Disconnect AND kill the daemon (used on explicit full shutdown). */
-  killDaemon(): void {
-    this.disconnect();
+  /** Kill the daemon recorded by the recovery store, even if no runner is attached. */
+  static terminatePersistedDaemon(): boolean {
     const info = loadDaemonInfo();
-    if (info && isPidAlive(info.pid)) {
+    const wasRunning = Boolean(info && isPidAlive(info.pid));
+    if (info && wasRunning) {
       try {
         process.kill(info.pid, 'SIGTERM');
       } catch { /* ignore */ }
     }
     clearDaemonInfo();
+    return wasRunning;
   }
+
+  /** Disconnect AND kill the daemon (used on explicit full shutdown/reload). */
+  killDaemon(): boolean {
+    this.disconnect();
+    return OpencodeServerProcess.terminatePersistedDaemon();
+  }
+}
+
+/** Parse OpenCode's `GET /session/status` map into currently busy sessions. */
+export function busySessionIdsFromStatus(payload: unknown): Set<string> | null {
+  const envelope = payload && typeof payload === 'object'
+    ? payload as Record<string, unknown>
+    : null;
+  const raw = envelope?.data && typeof envelope.data === 'object'
+    ? envelope.data as Record<string, unknown>
+    : envelope;
+  if (!raw || Array.isArray(raw)) return null;
+
+  const ids = new Set<string>();
+  for (const [sessionId, value] of Object.entries(raw)) {
+    if (!sessionId.startsWith('ses')) continue;
+    const type = value && typeof value === 'object'
+      ? (value as Record<string, unknown>).type
+      : value;
+    if (type === 'busy' || type === 'processing' || type === 'running') ids.add(sessionId);
+  }
+  return ids;
+}
+
+/**
+ * Check a `GET /provider` payload for the model shape used by OpenCode 1.x.
+ * Returns null when the payload is not a recognizable provider catalog.
+ */
+export function providerCatalogHasModel(
+  payload: unknown,
+  providerID: string,
+  modelID: string,
+): boolean | null {
+  const envelope = payload && typeof payload === 'object'
+    ? payload as Record<string, unknown>
+    : null;
+  const root = envelope?.data && typeof envelope.data === 'object'
+    ? envelope.data as Record<string, unknown>
+    : envelope;
+  if (!root || !Array.isArray(root.all)) return null;
+
+  const provider = root.all.find((candidate) => {
+    return candidate && typeof candidate === 'object'
+      && (candidate as Record<string, unknown>).id === providerID;
+  }) as Record<string, unknown> | undefined;
+  if (!provider) return false;
+
+  const models = provider.models;
+  if (Array.isArray(models)) {
+    return models.some((model) => {
+      return model && typeof model === 'object'
+        && (model as Record<string, unknown>).id === modelID;
+    });
+  }
+  if (!models || typeof models !== 'object') return false;
+  if (Object.prototype.hasOwnProperty.call(models, modelID)) return true;
+  return Object.values(models).some((model) => {
+    return model && typeof model === 'object'
+      && (model as Record<string, unknown>).id === modelID;
+  });
 }
 
 /**
@@ -423,15 +530,17 @@ function sleep(ms: number): Promise<void> {
  * whose `cause` carries the undici socket error (ECONNRESET / UND_ERR_SOCKET /
  * ECONNREFUSED) — the dead-keep-alive-socket case we retry.
  */
-function isTransportError(err: unknown): boolean {
-  if (!(err instanceof TypeError)) return false;
+export function isOpencodeTransportError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
   const cause = (err as { cause?: unknown }).cause;
-  const code = (cause as { code?: string } | undefined)?.code;
+  const code = (err as { code?: string }).code
+    ?? (cause as { code?: string } | undefined)?.code;
   if (code && ['ECONNRESET', 'ECONNREFUSED', 'UND_ERR_SOCKET', 'EPIPE', 'ETIMEDOUT'].includes(code)) {
     return true;
   }
-  // Fall back to the message: undici surfaces the generic "fetch failed" here.
-  return /fetch failed/i.test(err.message);
+  // Undici surfaces a generic TypeError("fetch failed") and stores the useful
+  // socket code on `cause`; Node's http client often puts it on the error itself.
+  return /fetch failed|ECONNRESET|ECONNREFUSED|socket hang up/i.test(err.message);
 }
 
 function describeError(err: unknown): string {

@@ -1,6 +1,7 @@
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useTrackingBoardVisible } from '../store';
+import { store, useAgentCount, useSelectedAgentIds, useTrackingBoardVisible } from '../store';
+import { getStorageString, STORAGE_KEYS } from '../utils/storage';
 import { Icon } from './Icon';
 
 interface MobileBottomMenuProps {
@@ -37,6 +38,12 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
   const { t } = useTranslation(['common']);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const trackingBoardVisible = useTrackingBoardVisible();
+  // Keep selection-driven mobile-nav updates local. AppContent used to
+  // subscribe to selectedAgentIds solely for this menu, rebuilding the entire
+  // Flat view on every agent click before FlatView handled the same update.
+  const selectedAgentIds = useSelectedAgentIds();
+  const agentCount = useAgentCount();
+  const [storedLastAgent, setStoredLastAgent] = useState<{ id: string; name: string } | null>(null);
   // Capture initial viewport height before any keyboard opens
   const initialHeightRef = useRef<number>(
     window.visualViewport ? window.visualViewport.height : window.innerHeight
@@ -59,6 +66,16 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
     return () => vv.removeEventListener('resize', handleResize);
   }, []);
 
+  useEffect(() => {
+    if (!isFlatView || selectedAgentIds.size > 0) {
+      setStoredLastAgent(null);
+      return;
+    }
+    const id = getStorageString(STORAGE_KEYS.LAST_OPENED_AGENT, '');
+    const agent = id ? store.getState().agents.get(id) : undefined;
+    setStoredLastAgent(agent ? { id, name: agent.name } : null);
+  }, [isFlatView, selectedAgentIds, agentCount]);
+
   if (keyboardOpen) return null;
   if (sidebarOpen) return null;
   if (trackingBoardVisible) return null;
@@ -68,12 +85,14 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
   // available from the empty-state map, FAB, or header — Search must NOT be
   // trimmed: it has no other reachable surface while a chat is open on mobile.
   // Flat view drops Spawn entirely: its middle column carries + Agent / + Boss.
-  const agentChatOpen = !!onCloseAgent;
+  const agentChatOpen = isFlatView ? selectedAgentIds.size > 0 : !!onCloseAgent;
+  const effectiveLastAgentName = lastAgentName ?? storedLastAgent?.name;
+  const canOpenLastAgent = !!onOpenLastAgent && (!!lastAgentName || storedLastAgent !== null);
 
   return (
     <nav
       className={`mobile-bottom-menu${agentChatOpen ? ' mobile-bottom-menu--chat-open' : ''}${
-        onOpenLastAgent && !agentChatOpen ? ' mobile-bottom-menu--has-last-agent' : ''
+        canOpenLastAgent && !agentChatOpen ? ' mobile-bottom-menu--has-last-agent' : ''
       }`}
       aria-label={t('common:mobileBottomMenu.label', { defaultValue: 'Quick actions' })}
     >
@@ -170,26 +189,26 @@ export const MobileBottomMenu = memo(function MobileBottomMenu({
         </button>
       )}
 
-      {onOpenLastAgent && !agentChatOpen && (
+      {canOpenLastAgent && !agentChatOpen && (
         <button
           type="button"
           className="mobile-bottom-menu__btn mobile-bottom-menu__btn--last-agent"
           onClick={onOpenLastAgent}
-          title={lastAgentName
-            ? t('common:mobileBottomMenu.openLastAgentNamed', { name: lastAgentName, defaultValue: `Open ${lastAgentName}` })
+          title={effectiveLastAgentName
+            ? t('common:mobileBottomMenu.openLastAgentNamed', { name: effectiveLastAgentName, defaultValue: `Open ${effectiveLastAgentName}` })
             : t('common:mobileBottomMenu.lastAgent', { defaultValue: 'Last agent' })}
-          aria-label={lastAgentName
-            ? t('common:mobileBottomMenu.openLastAgentNamed', { name: lastAgentName, defaultValue: `Open ${lastAgentName}` })
+          aria-label={effectiveLastAgentName
+            ? t('common:mobileBottomMenu.openLastAgentNamed', { name: effectiveLastAgentName, defaultValue: `Open ${effectiveLastAgentName}` })
             : t('common:mobileBottomMenu.lastAgent', { defaultValue: 'Last agent' })}
         >
           <span className="mobile-bottom-menu__icon"><Icon name="chat" size={18} /></span>
           <span className="mobile-bottom-menu__label">
-            {lastAgentName || t('common:mobileBottomMenu.lastAgent', { defaultValue: 'Last agent' })}
+            {effectiveLastAgentName || t('common:mobileBottomMenu.lastAgent', { defaultValue: 'Last agent' })}
           </span>
         </button>
       )}
 
-      {onCloseAgent && (
+      {agentChatOpen && onCloseAgent && (
         <button
           type="button"
           className="mobile-bottom-menu__btn mobile-bottom-menu__btn--close"

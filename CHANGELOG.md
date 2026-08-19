@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.199.0] - 2026-08-19
+
+### Added
+- **OpenCode Go limits in Pi usage** - Pi agents using an OpenCode Go subscription now show the live 5-hour, weekly and monthly usage gauges and reset times for the active API key and every saved Pi profile. OpenCode Go also appears in the loaded-subscriptions list, and duplicate profiles sharing one key reuse a short-lived cached quota request.
+- **Working glyph is a pre-rendered animation** - the activity spinner shown while an agent works is now one shared animated WebP instead of a CSS transform loop, so it no longer keeps a compositor layer repainting at the monitor's refresh rate. Low Power Mode swaps it for a static SVG.
+
+### Changed
+- **Huge spreadsheets open without being fully expanded** - worksheets are inflated only as far as the requested rows need, pulling compressed bytes from disk in slices and stopping early, so a 200k-row sheet no longer expands to hundreds of megabytes just to show its first screen.
+- **OpenCode daemon survives restarts and model refreshes** - live sessions are snapshotted before the maps are cleared on shutdown (a graceful restart used to save an empty list and orphan the detached daemon), recovery starts before the runtime service finishes initializing so commands can't overwrite the recovery file during the startup gap, session state is persisted before the turn-length request rather than after, and `opencode models --refresh` invalidates the daemon after the current turn and any queued follow-up instead of interrupting it.
+
+### Fixed
+- **Pi Codex usage works for its current login** - live limits are now read directly from Pi's own OpenAI Codex OAuth session through an isolated Codex home, so the current account shows its weekly/daily gauges even when its token is not duplicated as a saved `~/.codex` profile. The operator's active Codex CLI account remains untouched, and any rotated Pi grant is written back safely without replacing other Pi provider logins.
+
 ## [1.198.1] - 2026-08-19
 
 ### Fixed

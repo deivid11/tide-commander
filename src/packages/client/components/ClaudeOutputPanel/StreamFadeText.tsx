@@ -66,13 +66,7 @@ function StreamCaret() {
         borderRadius: 1,
         background: 'var(--accent-cyan, #22d3ee)',
         boxShadow: '0 0 8px color-mix(in srgb, var(--accent-cyan, #22d3ee) 60%, transparent)',
-        // Own compositor layer — an inline-block with an animated opacity but no
-        // will-change ran on the main thread and repainted the whole chat every frame.
-        willChange: 'opacity',
-        animationName: 'tide-stream-caret-blink',
-        animationDuration: '0.85s',
-        animationTimingFunction: 'ease-in-out',
-        animationIterationCount: 'infinite',
+        opacity: 0.7,
       }}
     />
   );
@@ -90,10 +84,6 @@ const KEYFRAMES_CSS = `
     opacity: 1;
     transform: translateY(0);
   }
-}
-@keyframes tide-stream-caret-blink {
-  0%, 100% { opacity: 0.2; }
-  50% { opacity: 1; }
 }
 @keyframes tide-stream-block-in {
   0% {

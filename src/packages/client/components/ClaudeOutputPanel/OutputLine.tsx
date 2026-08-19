@@ -47,6 +47,7 @@ import { providerLabel } from '../../utils/providerDisplay';
 import { ProviderIcon } from '../ProviderIcon';
 import { ThinkingBlock } from './ThinkingBlock';
 import { GrepResultsModal } from './GrepResultsModal';
+import { ActivityGlyph } from '../shared/ActivityGlyph';
 
 /** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
 function getExtFromPath(filePath: string): string {
@@ -1511,7 +1512,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
 
           {isBashTool && _isRunning && (
             <span className="bash-output-indicator bash-output-indicator--running">
-              <span className="bash-spinner" />
+              <ActivityGlyph animated size={11} className="bash-activity-glyph" />
             </span>
           )}
           {isBashTool && !_isRunning && (

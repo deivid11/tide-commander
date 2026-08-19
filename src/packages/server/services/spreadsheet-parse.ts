@@ -41,8 +41,6 @@ export const SPREADSHEET_DEFAULT_MAX_ROWS = 500;
 export const SPREADSHEET_HARD_MAX_ROWS = 20_000;
 export const SPREADSHEET_DEFAULT_MAX_COLS = 100;
 export const SPREADSHEET_HARD_MAX_COLS = 500;
-/** Whole-file cap: the workbook is buffered in memory. */
-export const SPREADSHEET_MAX_FILE_BYTES = 64 * 1024 * 1024;
 /** Inflated size cap for any single zip member (a worksheet XML). */
 const MAX_MEMBER_BYTES = 256 * 1024 * 1024;
 
@@ -99,43 +97,21 @@ interface ZipMember {
   localHeaderOffset: number;
 }
 
-/** Central-directory index of an in-memory zip. Throws when it isn't a zip. */
-export function indexZip(buf: Buffer): Map<string, ZipMember> {
-  if (buf.length < 22) throw new Error('not a zip archive (too small)');
-  let eocdPos = -1;
-  const scanFrom = Math.max(0, buf.length - 22 - 0xffff);
-  for (let i = buf.length - 22; i >= scanFrom; i--) {
-    if (buf.readUInt32LE(i) === SIG_EOCD) { eocdPos = i; break; }
-  }
-  if (eocdPos < 0) throw new Error('not a zip archive (no end-of-central-directory record)');
-  let cdSize: number = buf.readUInt32LE(eocdPos + 12);
-  let cdOffset: number = buf.readUInt32LE(eocdPos + 16);
-  if (cdSize === 0xffffffff || cdOffset === 0xffffffff) {
-    const locPos = eocdPos - 20;
-    if (locPos >= 0 && buf.readUInt32LE(locPos) === SIG_EOCD64_LOCATOR) {
-      const rec = Number(buf.readBigUInt64LE(locPos + 8));
-      if (rec + 56 <= buf.length && buf.readUInt32LE(rec) === SIG_EOCD64) {
-        cdSize = Number(buf.readBigUInt64LE(rec + 40));
-        cdOffset = Number(buf.readBigUInt64LE(rec + 48));
-      }
-    }
-  }
-  if (cdOffset + cdSize > buf.length) throw new Error('corrupt zip (central directory beyond end of file)');
-
+/** Parse a central directory blob into members (offsets are absolute file offsets). */
+function parseCentralDirectory(cd: Buffer): Map<string, ZipMember> {
   const members = new Map<string, ZipMember>();
-  let pos = cdOffset;
-  const end = cdOffset + cdSize;
-  while (pos + 46 <= end && buf.readUInt32LE(pos) === SIG_CENTRAL) {
-    const flags = buf.readUInt16LE(pos + 8);
-    const method = buf.readUInt16LE(pos + 10);
-    let csize: number = buf.readUInt32LE(pos + 20);
-    let usize: number = buf.readUInt32LE(pos + 24);
-    const nameLen = buf.readUInt16LE(pos + 28);
-    const extraLen = buf.readUInt16LE(pos + 30);
-    const commentLen = buf.readUInt16LE(pos + 32);
-    let localHeaderOffset: number = buf.readUInt32LE(pos + 42);
-    const nameBytes = buf.subarray(pos + 46, pos + 46 + nameLen);
-    const extra = buf.subarray(pos + 46 + nameLen, pos + 46 + nameLen + extraLen);
+  let pos = 0;
+  while (pos + 46 <= cd.length && cd.readUInt32LE(pos) === SIG_CENTRAL) {
+    const flags = cd.readUInt16LE(pos + 8);
+    const method = cd.readUInt16LE(pos + 10);
+    let csize: number = cd.readUInt32LE(pos + 20);
+    let usize: number = cd.readUInt32LE(pos + 24);
+    const nameLen = cd.readUInt16LE(pos + 28);
+    const extraLen = cd.readUInt16LE(pos + 30);
+    const commentLen = cd.readUInt16LE(pos + 32);
+    let localHeaderOffset: number = cd.readUInt32LE(pos + 42);
+    const nameBytes = cd.subarray(pos + 46, pos + 46 + nameLen);
+    const extra = cd.subarray(pos + 46 + nameLen, pos + 46 + nameLen + extraLen);
     let ep = 0;
     while (ep + 4 <= extra.length) {
       const id = extra.readUInt16LE(ep);
@@ -157,20 +133,248 @@ export function indexZip(buf: Buffer): Map<string, ZipMember> {
   return members;
 }
 
-/** Inflate one member (stored or deflated). */
+/** Find the central directory from a file TAIL (`tail` = the last bytes of
+ * the file, starting at absolute offset `tailOffset`). */
+function locateCentralDirectory(tail: Buffer, tailOffset: number): { cdOffset: number; cdSize: number } {
+  if (tail.length < 22) throw new Error('not a zip archive (too small)');
+  let eocdPos = -1;
+  for (let i = tail.length - 22; i >= 0; i--) {
+    if (tail.readUInt32LE(i) === SIG_EOCD) { eocdPos = i; break; }
+  }
+  if (eocdPos < 0) throw new Error('not a zip archive (no end-of-central-directory record)');
+  let cdSize: number = tail.readUInt32LE(eocdPos + 12);
+  let cdOffset: number = tail.readUInt32LE(eocdPos + 16);
+  if (cdSize === 0xffffffff || cdOffset === 0xffffffff) {
+    const locPos = eocdPos - 20;
+    if (locPos >= 0 && tail.readUInt32LE(locPos) === SIG_EOCD64_LOCATOR) {
+      const recAbs = Number(tail.readBigUInt64LE(locPos + 8));
+      const rec = recAbs - tailOffset;
+      if (rec >= 0 && rec + 56 <= tail.length && tail.readUInt32LE(rec) === SIG_EOCD64) {
+        cdSize = Number(tail.readBigUInt64LE(rec + 40));
+        cdOffset = Number(tail.readBigUInt64LE(rec + 48));
+      }
+    }
+  }
+  return { cdOffset, cdSize };
+}
+
+/** Central-directory index of an in-memory zip. Throws when it isn't a zip. */
+export function indexZip(buf: Buffer): Map<string, ZipMember> {
+  const { cdOffset, cdSize } = locateCentralDirectory(buf, 0);
+  if (cdOffset + cdSize > buf.length) throw new Error('corrupt zip (central directory beyond end of file)');
+  return parseCentralDirectory(buf.subarray(cdOffset, cdOffset + cdSize));
+}
+
+const ZIP_TAIL_BYTES = 22 + 0xffff + 20 + 56;
+const MAX_CENTRAL_DIRECTORY_BYTES = 64 * 1024 * 1024;
+
+async function readAt(fd: fs.promises.FileHandle, offset: number, length: number): Promise<Buffer> {
+  const buf = Buffer.alloc(length);
+  let done = 0;
+  while (done < length) {
+    const { bytesRead } = await fd.read(buf, done, length - done, offset + done);
+    if (bytesRead <= 0) break;
+    done += bytesRead;
+  }
+  return done === length ? buf : buf.subarray(0, done);
+}
+
+/** Central-directory index straight from an open file — reads only the tail
+ * and the directory, never the members. */
+export async function indexZipFromFd(fd: fs.promises.FileHandle, size: number): Promise<Map<string, ZipMember>> {
+  const tailLen = Math.min(size, ZIP_TAIL_BYTES);
+  const tail = await readAt(fd, size - tailLen, tailLen);
+  const { cdOffset, cdSize } = locateCentralDirectory(tail, size - tailLen);
+  if (cdSize > MAX_CENTRAL_DIRECTORY_BYTES) throw new Error('zip central directory too large');
+  if (cdOffset + cdSize > size) throw new Error('corrupt zip (central directory beyond end of file)');
+  return parseCentralDirectory(await readAt(fd, cdOffset, cdSize));
+}
+
+/** Local header → absolute offset of the member's compressed bytes. */
+function memberDataStart(localHeader: Buffer, member: ZipMember): number {
+  if (localHeader.length < 30 || localHeader.readUInt32LE(0) !== SIG_LOCAL) throw new Error(`corrupt zip (bad local header for ${member.name})`);
+  return member.localHeaderOffset + 30 + localHeader.readUInt16LE(26) + localHeader.readUInt16LE(28);
+}
+
+/** Inflate one member (stored or deflated) from an in-memory zip. */
 export function readZipMember(buf: Buffer, member: ZipMember): Buffer {
   const lh = member.localHeaderOffset;
-  if (lh + 30 > buf.length || buf.readUInt32LE(lh) !== SIG_LOCAL) throw new Error(`corrupt zip (bad local header for ${member.name})`);
-  const nameLen = buf.readUInt16LE(lh + 26);
-  const extraLen = buf.readUInt16LE(lh + 28);
-  const start = lh + 30 + nameLen + extraLen;
+  if (lh + 30 > buf.length) throw new Error(`corrupt zip (bad local header for ${member.name})`);
+  const start = memberDataStart(buf.subarray(lh, lh + 30), member);
   const endPos = start + member.compressedSize;
   if (endPos > buf.length) throw new Error(`corrupt zip (member ${member.name} beyond end of file)`);
+  return inflateWhole(buf.subarray(start, endPos), member);
+}
+
+function inflateWhole(data: Buffer, member: ZipMember): Buffer {
   if (member.uncompressedSize > MAX_MEMBER_BYTES) throw new Error(`${member.name} is too large to read (${member.uncompressedSize} bytes)`);
-  const data = buf.subarray(start, endPos);
   if (member.method === 0) return data;
   if (member.method === 8) return zlib.inflateRawSync(data, { maxOutputLength: MAX_MEMBER_BYTES });
   throw new Error(`unsupported zip compression method ${member.method} for ${member.name}`);
+}
+
+/**
+ * Inflate a deflated member only as far as the caller needs: `enough(chunk,
+ * total)` is evaluated after every output chunk and, once true, the inflater
+ * is torn down and the prefix returned (`complete: false`). The compressed
+ * bytes are pulled through `readSlice(offset, length)` in 256 KB slices, so
+ * an early stop also stops READING (from disk, for the fd source). This is
+ * what keeps a 200k-row worksheet from being expanded to 200+ MB when the
+ * viewer only asked for the first 500 rows.
+ */
+export function inflatePrefixFromSlices(
+  readSlice: (offset: number, length: number) => Buffer | Promise<Buffer>,
+  compressedSize: number,
+  member: ZipMember,
+  enough: (chunk: Buffer, total: number) => boolean,
+): Promise<{ data: Buffer; complete: boolean }> {
+  if (member.method === 0) {
+    return Promise.resolve(readSlice(0, compressedSize)).then((data) => ({ data, complete: true }));
+  }
+  if (member.method !== 8) throw new Error(`unsupported zip compression method ${member.method} for ${member.name}`);
+  return new Promise((resolve, reject) => {
+    const inflate = zlib.createInflateRaw();
+    const chunks: Buffer[] = [];
+    let total = 0;
+    let done = false;
+    const finish = (complete: boolean) => {
+      if (done) return;
+      done = true;
+      inflate.removeAllListeners();
+      inflate.on('error', () => { /* torn down on purpose */ });
+      inflate.destroy();
+      resolve({ data: Buffer.concat(chunks, total), complete });
+    };
+    inflate.on('data', (chunk: Buffer) => {
+      if (done) return;
+      chunks.push(chunk);
+      total += chunk.length;
+      if (total > MAX_MEMBER_BYTES) { finish(false); return; }
+      if (enough(chunk, total)) finish(false);
+    });
+    inflate.on('end', () => finish(true));
+    inflate.on('error', (e) => { if (!done) { done = true; reject(e); } });
+    const SLICE = 256 * 1024;
+    let off = 0;
+    const pump = async () => {
+      try {
+        while (!done) {
+          if (off >= compressedSize) { inflate.end(); return; }
+          const len = Math.min(SLICE, compressedSize - off);
+          const slice = await readSlice(off, len);
+          off += len;
+          if (done) return;
+          if (!inflate.write(slice)) {
+            await new Promise<void>((r) => inflate.once('drain', () => r()));
+          } else {
+            await new Promise<void>((r) => setImmediate(r));
+          }
+        }
+      } catch (e) {
+        if (!done) { done = true; reject(e as Error); }
+      }
+    };
+    void pump();
+  });
+}
+
+/** In-memory convenience wrapper over `inflatePrefixFromSlices`. */
+export function inflateZipMemberPrefix(
+  buf: Buffer,
+  member: ZipMember,
+  enough: (chunk: Buffer, total: number) => boolean,
+): Promise<{ data: Buffer; complete: boolean }> {
+  const lh = member.localHeaderOffset;
+  if (lh + 30 > buf.length) throw new Error(`corrupt zip (bad local header for ${member.name})`);
+  const start = memberDataStart(buf.subarray(lh, lh + 30), member);
+  if (start + member.compressedSize > buf.length) throw new Error(`corrupt zip (member ${member.name} beyond end of file)`);
+  return inflatePrefixFromSlices((o, l) => buf.subarray(start + o, start + o + l), member.compressedSize, member, enough);
+}
+
+/**
+ * Uniform access to a zip's members for the workbook readers — backed by an
+ * in-memory buffer (tests, small files) or an open file (the route: only the
+ * central directory + the members actually needed are read from disk).
+ */
+export interface ZipSource {
+  members: Map<string, ZipMember>;
+  /** Whole member, inflated; null when absent. */
+  readMember(name: string): Promise<Buffer | null>;
+  /** Streaming inflate with early stop (see inflatePrefixFromSlices). */
+  inflatePrefix(member: ZipMember, enough: (chunk: Buffer, total: number) => boolean): Promise<{ data: Buffer; complete: boolean }>;
+}
+
+export function zipSourceFromBuffer(buf: Buffer): ZipSource {
+  const members = indexZip(buf);
+  return {
+    members,
+    readMember: (name) => {
+      const m = members.get(name);
+      return Promise.resolve(m ? readZipMember(buf, m) : null);
+    },
+    inflatePrefix: (member, enough) => inflateZipMemberPrefix(buf, member, enough),
+  };
+}
+
+export async function zipSourceFromFd(fd: fs.promises.FileHandle, size: number): Promise<ZipSource> {
+  const members = await indexZipFromFd(fd, size);
+  const dataStart = async (member: ZipMember): Promise<number> => {
+    const lh = await readAt(fd, member.localHeaderOffset, 30);
+    const start = memberDataStart(lh, member);
+    if (start + member.compressedSize > size) throw new Error(`corrupt zip (member ${member.name} beyond end of file)`);
+    return start;
+  };
+  return {
+    members,
+    readMember: async (name) => {
+      const m = members.get(name);
+      if (!m) return null;
+      const start = await dataStart(m);
+      return inflateWhole(await readAt(fd, start, m.compressedSize), m);
+    },
+    inflatePrefix: async (member, enough) => {
+      const start = await dataStart(member);
+      return inflatePrefixFromSlices((o, l) => readAt(fd, start + o, l), member.compressedSize, member, enough);
+    },
+  };
+}
+
+/** Byte-level element counter for streamed XML — the predicate that stops
+ * inflating once `stopAfter` complete elements are guaranteed (it fires when
+ * element #stopAfter+1 OPENS, or when `endTag` closes the list). Keeps a few
+ * bytes of overlap so a tag split across chunks is seen exactly once. */
+export function makeTagCounter(tag: string, endTag: string, stopAfter: number): (chunk: Buffer, total: number) => boolean {
+  let seen = 0;
+  let sawEnd = false;
+  const TAG = Buffer.from(tag);
+  const END = Buffer.from(endTag);
+  // A match needs `tag` + 1 byte of lookahead: keep tag.length bytes so a
+  // split tag is seen once (a match that already had its lookahead cannot
+  // start inside the kept tail, so it is never recounted).
+  let carry: Buffer = Buffer.alloc(0);
+  let endCarry: Buffer = Buffer.alloc(0);
+  return (chunk) => {
+    const hay = carry.length ? Buffer.concat([carry, chunk]) : chunk;
+    let pos = 0;
+    while (!sawEnd) {
+      const at = hay.indexOf(TAG, pos);
+      if (at === -1 || at + TAG.length >= hay.length) break;
+      const nx = hay[at + TAG.length];
+      // `<row ` / `<row>` / `<row/` (not `<rowBreaks`).
+      if (nx === 0x20 || nx === 0x3e || nx === 0x2f || nx === 0x0a || nx === 0x0d || nx === 0x09) seen++;
+      pos = at + TAG.length;
+    }
+    carry = hay.subarray(Math.max(0, hay.length - TAG.length));
+    const endHay = endCarry.length ? Buffer.concat([endCarry, chunk]) : chunk;
+    if (endHay.indexOf(END) !== -1) sawEnd = true;
+    endCarry = chunk.subarray(Math.max(0, chunk.length - (END.length - 1)));
+    return sawEnd || seen > stopAfter;
+  };
+}
+
+/** Worksheet rows: enough once row #maxRows is closed. */
+export function makeRowCounter(maxRows: number): (chunk: Buffer, total: number) => boolean {
+  return makeTagCounter('<row', '</sheetData', maxRows);
 }
 
 // ── tolerant XML helpers ────────────────────────────────────────────────────
@@ -323,12 +527,18 @@ function parseStyles(xml: string): Styles {
 }
 
 interface SheetParseContext {
-  sharedStrings: string[];
+  /** Resolved shared strings — or null to DEFER: `t="s"` cells then record
+   * their index in `sstRefs` and get a placeholder, so the shared-strings
+   * member can be inflated only up to the highest index the window uses. */
+  sharedStrings: string[] | null;
+  sstRefs?: Array<[row: number, col: number, idx: number]>;
   styles: Styles;
   date1904: boolean;
   maxRows: number;
   maxCols: number;
 }
+
+const SST_PLACEHOLDER = '\u0000';
 
 function cellDisplay(attrs: string, inner: string | undefined, ctx: SheetParseContext): string {
   const t = attr(attrs, 't') ?? 'n';
@@ -339,7 +549,9 @@ function cellDisplay(attrs: string, inner: string | undefined, ctx: SheetParseCo
   switch (t) {
     case 's': {
       const idx = parseInt(v, 10);
-      return Number.isFinite(idx) ? (ctx.sharedStrings[idx] ?? '') : '';
+      if (!Number.isFinite(idx)) return '';
+      if (ctx.sharedStrings) return ctx.sharedStrings[idx] ?? '';
+      return SST_PLACEHOLDER; // resolved after the scan (see resolveSstRefs)
     }
     case 'str': return v;          // formula string result
     case 'b': return v === '1' || v.toLowerCase() === 'true' ? 'TRUE' : 'FALSE';
@@ -392,6 +604,10 @@ function parseWorksheet(xml: string, ctx: SheetParseContext): Omit<SpreadsheetSh
         if (col > ctx.maxCols) { truncatedCols = true; continue; }
         const text = cellDisplay(cm[1], cm[2], ctx);
         if (text === '') continue;
+        if (text === SST_PLACEHOLDER && ctx.sstRefs) {
+          const vm = cm[2] === undefined ? null : /<(?:[\w.-]+:)?v\b[^>]*?>([\s\S]*?)<\/(?:[\w.-]+:)?v>/.exec(cm[2]);
+          ctx.sstRefs.push([rowNum - 1, col - 1, vm ? parseInt(vm[1], 10) : -1]);
+        }
         while (cells.length < col - 1) cells.push('');
         cells[col - 1] = text;
       }
@@ -431,19 +647,41 @@ function parseWorksheet(xml: string, ctx: SheetParseContext): Omit<SpreadsheetSh
   };
 }
 
+/** Row extent promised by `<dimension ref="A1:H500"/>` (undefined when absent). */
+function dimensionRowExtent(xml: string): { rows: number; cols: number } | undefined {
+  const dim = /<(?:[\w.-]+:)?dimension\b([^>]*?)\/?>/.exec(xml);
+  const dimRef = dim ? attr(dim[1], 'ref') : undefined;
+  if (!dimRef) return undefined;
+  const endRef = dimRef.split(':')[1] ?? dimRef.split(':')[0];
+  const parsedEnd = parseCellRef(endRef);
+  return parsedEnd ? { rows: parsedEnd.row, cols: parsedEnd.col } : undefined;
+}
+
 /** Parse an .xlsx/.xlsm buffer: full sheet list + ONE sheet's grid. */
-export function parseXlsxBuffer(buf: Buffer, opts: ParseOptions = {}): ParsedSpreadsheet {
+export function parseXlsxBuffer(buf: Buffer, opts: ParseOptions = {}): Promise<ParsedSpreadsheet> {
+  return parseXlsxSource(zipSourceFromBuffer(buf), opts);
+}
+
+/**
+ * Parse an OOXML workbook from a zip source. The worksheet member is inflated
+ * in streaming mode and stopped as soon as the requested window is complete;
+ * the shared-strings member is inflated only up to the highest index that
+ * window references (writers append strings in row order, so a window near
+ * the top touches a tiny prefix of a 30 MB SST). Workbook, rels and styles
+ * are small and read whole.
+ */
+export async function parseXlsxSource(src: ZipSource, opts: ParseOptions = {}): Promise<ParsedSpreadsheet> {
   const { maxRows, maxCols } = clampCaps(opts);
-  const members = indexZip(buf);
-  const read = (name: string): string | null => {
-    const m = members.get(name);
-    return m ? readZipMember(buf, m).toString('utf8') : null;
+  const members = src.members;
+  const readText = async (name: string): Promise<string | null> => {
+    const b = await src.readMember(name);
+    return b ? b.toString('utf8') : null;
   };
-  const workbookXml = read('xl/workbook.xml');
+  const workbookXml = await readText('xl/workbook.xml');
   if (workbookXml === null) throw new Error('not an Excel workbook (xl/workbook.xml missing)');
   const workbook = parseWorkbook(workbookXml);
   if (workbook.sheets.length === 0) throw new Error('workbook has no sheets');
-  const rels = parseWorkbookRels(read('xl/_rels/workbook.xml.rels') ?? '');
+  const rels = parseWorkbookRels((await readText('xl/_rels/workbook.xml.rels')) ?? '');
 
   const sheets: SpreadsheetSheetInfo[] = workbook.sheets.map((s) => (s.hidden ? { name: s.name, hidden: true } : { name: s.name }));
   const sheetIndex = Math.min(Math.max(0, Math.floor(opts.sheetIndex ?? 0)), workbook.sheets.length - 1);
@@ -454,22 +692,76 @@ export function parseXlsxBuffer(buf: Buffer, opts: ParseOptions = {}): ParsedSpr
     const fallback = `xl/worksheets/sheet${sheetIndex + 1}.xml`;
     memberName = members.has(fallback) ? fallback : memberName;
   }
-  const sheetXml = memberName ? read(memberName) : null;
-  if (sheetXml === null) throw new Error(`worksheet "${target.name}" not found in workbook`);
+  const sheetMember = memberName ? members.get(memberName) : undefined;
+  if (!sheetMember) throw new Error(`worksheet "${target.name}" not found in workbook`);
 
+  const sstMember = members.get('xl/sharedStrings.xml');
   const ctx: SheetParseContext = {
-    sharedStrings: parseSharedStrings(read('xl/sharedStrings.xml') ?? ''),
-    styles: parseStyles(read('xl/styles.xml') ?? ''),
+    sharedStrings: sstMember ? null : [],
+    sstRefs: sstMember ? [] : undefined,
+    styles: parseStyles((await readText('xl/styles.xml')) ?? ''),
     date1904: workbook.date1904,
     maxRows,
     maxCols,
   };
+  // Stream the worksheet: stop after maxRows+1 row elements (or </sheetData>).
+  const { data: sheetBytes, complete } = await src.inflatePrefix(sheetMember, makeRowCounter(maxRows));
+  const sheetXml = sheetBytes.toString('utf8');
   const grid = parseWorksheet(sheetXml, ctx);
+
+  // Resolve deferred shared strings from a prefix of the SST.
+  if (sstMember && ctx.sstRefs && ctx.sstRefs.length > 0) {
+    let maxIdx = -1;
+    for (const ref of ctx.sstRefs) if (ref[2] > maxIdx) maxIdx = ref[2];
+    const { data: sstBytes } = await src.inflatePrefix(sstMember, makeTagCounter('<si', '</sst', maxIdx + 1));
+    const sst = parseSharedStrings(sstBytes.toString('utf8'));
+    for (const [r, c, idx] of ctx.sstRefs) {
+      const row = grid.rows[r];
+      if (!row) continue;
+      row[c] = idx >= 0 ? (sst[idx] ?? '') : '';
+    }
+    // Keep the "row ends at its last non-empty cell" invariant.
+    for (const [r] of ctx.sstRefs) {
+      const row = grid.rows[r];
+      if (!row) continue;
+      let end = row.length;
+      while (end > 0 && row[end - 1] === '') end--;
+      if (end !== row.length) row.length = end;
+    }
+  }
+
+  const sawEnd = complete || sheetXml.includes('</sheetData');
+  let rowCountApprox = false;
+  if (!sawEnd) {
+    // The tail was never inflated. The extent comes from <dimension> when the
+    // sheet declares one (Excel, LibreOffice, Google Sheets do); a streaming
+    // writer without it (openpyxl, POI SXSSF) gets an ESTIMATE from the
+    // bytes-per-row seen so far vs. the member's inflated size — flagged
+    // approximate — instead of a 200 MB full inflate.
+    const dim = dimensionRowExtent(sheetXml);
+    const lastRowTag = Math.max(sheetXml.lastIndexOf('<row '), sheetXml.lastIndexOf(':row '));
+    let lastRowSeen = grid.rowCount;
+    if (lastRowTag !== -1) {
+      const tagEnd = sheetXml.indexOf('>', lastRowTag);
+      lastRowSeen = Math.max(lastRowSeen, parseInt(attr(sheetXml.slice(lastRowTag, tagEnd === -1 ? undefined : tagEnd), 'r') ?? '0', 10) || 0);
+    }
+    if (dim && dim.rows >= lastRowSeen) {
+      grid.rowCount = dim.rows;
+      grid.colCount = Math.max(grid.colCount, dim.cols);
+    } else {
+      const bytesSoFar = sheetBytes.length;
+      const ratio = bytesSoFar > 0 && lastRowSeen > 0 ? sheetMember.uncompressedSize / bytesSoFar : 1;
+      grid.rowCount = Math.max(lastRowSeen, Math.round(lastRowSeen * ratio));
+      rowCountApprox = true;
+    }
+    grid.truncatedRows = grid.rowCount > grid.rows.length;
+    grid.truncatedCols = grid.truncatedCols || grid.colCount > maxCols;
+  }
   return {
     format: 'xlsx',
     sheets,
     sheetIndex,
-    sheet: { ...sheets[sheetIndex], ...grid },
+    sheet: rowCountApprox ? { ...sheets[sheetIndex], ...grid, rowCountApprox: true } : { ...sheets[sheetIndex], ...grid },
   };
 }
 
@@ -619,11 +911,15 @@ function odsCellText(attrs: string, inner: string | undefined): string {
 
 /** Parse an .ods buffer (zip + content.xml): full table list + ONE table's grid. */
 export function parseOdsBuffer(buf: Buffer, opts: ParseOptions = {}): ParsedSpreadsheet {
-  const { maxRows, maxCols } = clampCaps(opts);
   const members = indexZip(buf);
   const content = members.get('content.xml');
   if (!content) throw new Error('not an OpenDocument spreadsheet (content.xml missing)');
-  const xml = readZipMember(buf, content).toString('utf8');
+  return parseOdsContentXml(readZipMember(buf, content).toString('utf8'), opts);
+}
+
+/** Parse the content.xml of an OpenDocument spreadsheet. */
+export function parseOdsContentXml(xml: string, opts: ParseOptions = {}): ParsedSpreadsheet {
+  const { maxRows, maxCols } = clampCaps(opts);
 
   // Hidden sheets are expressed through the table's automatic style:
   // <style:style style:name="ta2" style:family="table"><style:table-properties table:display="false"/>.
@@ -815,22 +1111,152 @@ export function sniffSpreadsheetBuffer(buf: Buffer): SniffedKind {
   return 'delimited';
 }
 
+/** Cheap sniff on the first bytes of a file (no central directory needed). */
+export type SniffedHead = 'zip' | 'xls' | 'biff-legacy' | 'html' | 'delimited';
+export function sniffSpreadsheetHead(head: Buffer): SniffedHead {
+  if (isCfbBuffer(head)) return 'xls';
+  if (head.length >= 4 && head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x03 && head[3] === 0x04) return 'zip';
+  if (isBiffLegacyStream(head)) return 'biff-legacy';
+  const text = decodeTextBuffer(head.subarray(0, 4096)).trimStart().toLowerCase();
+  if (/^<\?xml[^>]*>\s*<(?:[\w:]*:)?workbook\b/.test(text) || /<(?:!doctype\s+)?html\b|<table\b|<tr\b|<body\b/.test(text)) return 'html';
+  return 'delimited';
+}
+
+/** Whole-file cap for containers that must be in memory (xlsx/xls/ods/html). */
+export const SPREADSHEET_MAX_CONTAINER_BYTES = 256 * 1024 * 1024;
+/** Delimited files are read by WINDOW (any size); this bounds the prefix. */
+const DELIMITED_PREFIX_MAX_BYTES = 64 * 1024 * 1024;
+const DELIMITED_FIRST_CHUNK = 1024 * 1024;
+
+async function readFilePrefix(fd: fs.promises.FileHandle, bytes: number): Promise<Buffer> {
+  const buf = Buffer.alloc(bytes);
+  const { bytesRead } = await fd.read(buf, 0, bytes, 0);
+  return bytesRead === bytes ? buf : buf.subarray(0, bytesRead);
+}
+
+/** Count `\n` from `offset` to EOF in 4 MB chunks (native indexOf — fast). */
+async function countNewlinesFrom(fd: fs.promises.FileHandle, offset: number, size: number): Promise<{ newlines: number; endsWithNewline: boolean }> {
+  const CHUNK = 4 * 1024 * 1024;
+  const buf = Buffer.alloc(CHUNK);
+  let pos = offset;
+  let newlines = 0;
+  let last = 0x0a;
+  while (pos < size) {
+    const { bytesRead } = await fd.read(buf, 0, Math.min(CHUNK, size - pos), pos);
+    if (bytesRead <= 0) break;
+    let i = 0;
+    for (;;) {
+      const at = buf.indexOf(0x0a, i);
+      if (at === -1 || at >= bytesRead) break;
+      newlines++;
+      i = at + 1;
+    }
+    last = buf[bytesRead - 1];
+    pos += bytesRead;
+  }
+  return { newlines, endsWithNewline: last === 0x0a };
+}
+
+/**
+ * Delimited file by window: read a prefix just big enough for `maxRows`
+ * complete records (growing 1 → 4 → 16 → 64 MB), parse it, then count the
+ * remaining newlines to report the total. Files of any size open in ~O(window);
+ * a quoted field containing newlines makes the tail count an overestimate,
+ * which the response flags as approximate.
+ */
+async function readDelimitedWindow(fd: fs.promises.FileHandle, size: number, ext: string, opts: ParseOptions): Promise<ParsedSpreadsheet> {
+  const { maxRows, maxCols } = clampCaps(opts);
+  let prefixBytes = Math.min(size, DELIMITED_FIRST_CHUNK);
+  let text = '';
+  let delimiter = ext === '.tsv' ? '\t' : ',';
+  let grid = parseDelimited('', delimiter, opts);
+  let usedBytes = 0;
+  for (;;) {
+    const raw = await readFilePrefix(fd, prefixBytes);
+    // Cut at the last newline unless this is the whole file.
+    let cut = raw.length;
+    if (raw.length < size) {
+      const nl = raw.lastIndexOf(0x0a);
+      cut = nl === -1 ? 0 : nl + 1;
+    }
+    usedBytes = cut;
+    text = decodeTextBuffer(raw.subarray(0, cut));
+    delimiter = ext === '.tsv' ? '\t' : sniffDelimiter(text);
+    grid = parseDelimited(text, delimiter, { ...opts, maxRows, maxCols });
+    const enough = grid.rowCount > maxRows || raw.length >= size;
+    if (enough || prefixBytes >= DELIMITED_PREFIX_MAX_BYTES) break;
+    prefixBytes = Math.min(size, Math.max(prefixBytes * 4, DELIMITED_FIRST_CHUNK));
+  }
+  let rowCountApprox = false;
+  if (usedBytes < size) {
+    const tail = await countNewlinesFrom(fd, usedBytes, size);
+    grid.rowCount += tail.newlines + (tail.endsWithNewline ? 0 : 1);
+    grid.truncatedRows = grid.rowCount > grid.rows.length;
+    rowCountApprox = true;
+  }
+  return {
+    format: ext === '.tsv' ? 'tsv' : 'csv',
+    delimiter,
+    sheets: [{ name: '' }],
+    sheetIndex: 0,
+    sheet: rowCountApprox ? { name: '', ...grid, rowCountApprox: true } : { name: '', ...grid },
+  };
+}
+
 /** Read a spreadsheet file from disk. Throws `UnsupportedSpreadsheetError`
  * for recognized-but-unparseable formats and plain Errors for corrupt files. */
 export async function readSpreadsheet(filePath: string, opts: ParseOptions = {}): Promise<ParsedSpreadsheet> {
   const kind = detectSpreadsheetKind(filePath);
   const ext = path.extname(filePath).toLowerCase();
+  const name = path.basename(filePath, ext);
   if (kind === null) throw new UnsupportedSpreadsheetError(`Not a spreadsheet: ${ext || 'no extension'}`, ext);
-  const stat = await fs.promises.stat(filePath);
-  if (stat.size > SPREADSHEET_MAX_FILE_BYTES) {
-    throw new Error(`File too large to preview as a grid (${Math.round(stat.size / 1024 / 1024)} MB > ${SPREADSHEET_MAX_FILE_BYTES / 1024 / 1024} MB)`);
+  const fd = await fs.promises.open(filePath, 'r');
+  try {
+    const { size } = await fd.stat();
+    const head = await readFilePrefix(fd, Math.min(size, 64 * 1024));
+    const sniffed = sniffSpreadsheetHead(head);
+    if (sniffed === 'delimited') {
+      const parsed = await readDelimitedWindow(fd, size, ext, opts);
+      parsed.sheets = [{ name }];
+      parsed.sheet = { ...parsed.sheet, name };
+      return parsed;
+    }
+    if (sniffed === 'zip') {
+      // Workbooks/ODS: index the central directory from the tail and read only
+      // the members needed — the file itself is never loaded whole.
+      const src = await zipSourceFromFd(fd, size);
+      if (src.members.has('xl/workbook.xml')) return await parseXlsxSource(src, opts);
+      if (src.members.has('content.xml')) {
+        const mime = await src.readMember('mimetype');
+        const mimeText = mime ? mime.toString('utf8') : '';
+        if (!mimeText || /spreadsheet/.test(mimeText)) {
+          const content = await src.readMember('content.xml');
+          if (!content) throw new Error('not an OpenDocument spreadsheet (content.xml missing)');
+          return parseOdsContentXml(content.toString('utf8'), opts);
+        }
+      }
+      throw new Error('zip container is neither an Excel workbook nor an OpenDocument spreadsheet');
+    }
+    if (size > SPREADSHEET_MAX_CONTAINER_BYTES) {
+      throw new Error(`File too large to preview as a grid (${Math.round(size / 1024 / 1024)} MB > ${SPREADSHEET_MAX_CONTAINER_BYTES / 1024 / 1024} MB)`);
+    }
+    const buf = Buffer.alloc(size);
+    let off = 0;
+    while (off < size) {
+      const { bytesRead } = await fd.read(buf, off, size - off, off);
+      if (bytesRead <= 0) break;
+      off += bytesRead;
+    }
+    // `await` inside the try: a rejection must be observed before `finally`
+    // yields to close the fd, or Node reports it as unhandled for a tick.
+    return await parseSpreadsheetBuffer(buf, filePath, opts);
+  } finally {
+    await fd.close();
   }
-  const buf = await fs.promises.readFile(filePath);
-  return parseSpreadsheetBuffer(buf, filePath, opts);
 }
 
 /** Parse from memory: sniff the real format, then dispatch. */
-export function parseSpreadsheetBuffer(buf: Buffer, filePath: string, opts: ParseOptions = {}): ParsedSpreadsheet {
+export async function parseSpreadsheetBuffer(buf: Buffer, filePath: string, opts: ParseOptions = {}): Promise<ParsedSpreadsheet> {
   const ext = path.extname(filePath).toLowerCase();
   const name = path.basename(filePath, ext);
   const { maxRows, maxCols } = clampCaps(opts);

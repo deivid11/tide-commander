@@ -963,6 +963,10 @@ router.get('/archive', async (req: Request, res: Response) => {
   }
 });
 
+/** Parsed spreadsheet windows, most-recently-used last (Map preserves order). */
+const spreadsheetCache = new Map<string, Record<string, unknown>>();
+const SPREADSHEET_CACHE_ENTRIES = 24;
+
 // GET /api/files/spreadsheet - Parse a spreadsheet (xlsx/xlsm/csv/tsv — see
 // spreadsheet-parse.ts) into a capped grid for the file viewers. One sheet per
 // call (`sheet` index, default 0); `rows`/`cols` raise the caps up to a hard
@@ -998,8 +1002,18 @@ router.get('/spreadsheet', async (req: Request, res: Response) => {
     const maxRows = num(req.query.rows, SPREADSHEET_DEFAULT_MAX_ROWS, SPREADSHEET_HARD_MAX_ROWS);
     const maxCols = num(req.query.cols, SPREADSHEET_DEFAULT_MAX_COLS, SPREADSHEET_HARD_MAX_COLS);
     const sheetIndex = num(req.query.sheet, 0, 10_000);
+    // Tab switches / "load more" hit the same file seconds apart: serve the
+    // parsed window from a small LRU keyed by identity + mtime + size + window.
+    const cacheKey = `${filePath}|${stats.mtimeMs}|${stats.size}|${sheetIndex}|${maxRows}|${maxCols}`;
+    const cached = spreadsheetCache.get(cacheKey);
+    if (cached) {
+      spreadsheetCache.delete(cacheKey);
+      spreadsheetCache.set(cacheKey, cached);
+      res.json(cached);
+      return;
+    }
     const parsed = await readSpreadsheet(filePath, { sheetIndex, maxRows, maxCols });
-    res.json({
+    const body = {
       path: filePath,
       filename,
       extension: path.extname(filePath).toLowerCase(),
@@ -1012,7 +1026,14 @@ router.get('/spreadsheet', async (req: Request, res: Response) => {
       sheet: parsed.sheet,
       maxRows,
       maxCols,
-    });
+    };
+    spreadsheetCache.set(cacheKey, body);
+    while (spreadsheetCache.size > SPREADSHEET_CACHE_ENTRIES) {
+      const oldest = spreadsheetCache.keys().next().value;
+      if (oldest === undefined) break;
+      spreadsheetCache.delete(oldest);
+    }
+    res.json(body);
   } catch (err: any) {
     if (err instanceof UnsupportedSpreadsheetError) {
       res.status(415).json({ error: err.message, extension: err.extension, unsupported: true });

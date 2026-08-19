@@ -96,33 +96,22 @@
     border-radius: 7px;
   }
 
-  // Soft side-to-side tilt while the agent is loading / working
   &.is-working {
     border-color: color-mix(in srgb, var(--accent-cyan) 55%, var(--border-color));
-    // Status feedback — always animate while working (do not honor
-    // prefers-reduced-motion here; users treat this as a live activity cue).
-    animation: guake-avatar-sway 1.2s ease-in-out infinite !important;
-
-    // Low power mode wins over the always-animate exception (battery saver).
-    html.low-power & {
-      animation: none !important;
-    }
     z-index: 1;
-    will-change: transform;
-    transform-origin: center center;
   }
 }
 
-@keyframes guake-avatar-sway {
-  0%, 100% {
-    transform: rotate(0deg);
-  }
-  25% {
-    transform: rotate(-8deg);
-  }
-  75% {
-    transform: rotate(8deg);
-  }
+.guake-agent-activity {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 12px;
+  height: 12px;
+  padding: 1px;
+  border-radius: 50%;
+  color: var(--accent-green);
+  box-sizing: content-box;
 }
 
 .guake-title-block {
@@ -1727,8 +1716,6 @@
     display: inline-flex;
     flex-shrink: 0;
     color: var(--accent-color);
-    will-change: transform; // compositor-only spinner
-    animation: guake-task-banner-spin 1.4s linear infinite;
   }
 
   .guake-task-banner-label {
@@ -1774,11 +1761,6 @@
   }
 }
 
-@keyframes guake-task-banner-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
 
 // On narrow screens keep it readable — drop the uppercase label, keep the task.
 @media (max-width: 620px) {

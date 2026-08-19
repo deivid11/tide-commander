@@ -93,6 +93,16 @@ import './app/sceneLifecycle';
 
 const HIDE_ORGANIZE_BUTTON = import.meta.env.VITE_HIDE_ORGANIZE_BUTTON === '1';
 
+const SelectionAwareTrackingBoard = React.memo(function SelectionAwareTrackingBoard({
+  onSelectAgent,
+}: {
+  onSelectAgent: (agentId: string) => void;
+}) {
+  const selectedAgentIds = useSelectedAgentIds();
+  const activeAgentId = selectedAgentIds.values().next().value ?? '';
+  return <TrackingBoard activeAgentId={activeAgentId} onSelectAgent={onSelectAgent} />;
+});
+
 function AppContent() {
   const { t } = useTranslation(['common', 'notifications']);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -287,12 +297,10 @@ function AppContent() {
   const agentCount = useAgentCount();
   const areas = useAreas();
   const buildings = useBuildings();
-  const selectedAgentIds = useSelectedAgentIds();
   const selectedBuildingIds = useSelectedBuildingIds();
   const selectedAreaId = useSelectedAreaId();
   const activeTool = useActiveTool();
   const settings = useSettings();
-  const selectedAgentIdsArray = useMemo(() => Array.from(selectedAgentIds), [selectedAgentIds]);
   const deepLinkHandledRef = useRef(false);
 
   useRenderCounter('AppContent');
@@ -836,26 +844,15 @@ function AppContent() {
     store.deselectAll();
   }, []);
 
-  // Flat view with no chat open: offer a one-tap way back into the agent the
-  // user was last in (FlatView persists the id; the desktop equivalent is the
-  // Space/Backspace shortcut). Re-resolved whenever the selection or the agent
-  // roster changes so a deleted agent never leaves a dead button behind.
-  const [lastFlatAgent, setLastFlatAgent] = useState<{ id: string; name: string } | null>(null);
-  useEffect(() => {
-    if (viewMode !== 'flat' || selectedAgentIds.size > 0) {
-      setLastFlatAgent(null);
-      return;
-    }
-    const id = getStorageString(STORAGE_KEYS.LAST_OPENED_AGENT, '');
-    const agent = id ? store.getState().agents.get(id) : undefined;
-    setLastFlatAgent(agent ? { id, name: agent.name } : null);
-  }, [viewMode, selectedAgentIds, agentCount]);
-
+  // Resolve the last Flat agent only when the button is actually pressed.
+  // MobileBottomMenu owns the tiny reactive label/visibility state so agent
+  // selection no longer forces the 1,600-line AppContent tree to render.
   const handleOpenLastFlatAgent = useCallback(() => {
-    if (!lastFlatAgent) return;
+    const id = getStorageString(STORAGE_KEYS.LAST_OPENED_AGENT, '');
+    if (!id || !store.getState().agents.has(id)) return;
     closeAllMobileBottomNavViews();
-    store.selectAgent(lastFlatAgent.id);
-  }, [lastFlatAgent, closeAllMobileBottomNavViews]);
+    store.selectAgent(id);
+  }, [closeAllMobileBottomNavViews]);
 
   // Open/focus a building from the Recents overlay — mirrors the building
   // double-click / scene-click routing and records the access for recency.
@@ -1300,10 +1297,7 @@ function AppContent() {
           {sidebarView === 'tracking' ? (
             <div className="sidebar-section sidebar-tracking-section">
               <div className="sidebar-tracking-body">
-                <TrackingBoard
-                  activeAgentId={selectedAgentIdsArray[0] ?? ''}
-                  onSelectAgent={handleTrackingBoardSelectAgent}
-                />
+                <SelectionAwareTrackingBoard onSelectAgent={handleTrackingBoardSelectAgent} />
               </div>
             </div>
           ) : (
@@ -1322,10 +1316,15 @@ function AppContent() {
           </>
         )}
 
-        {/* Guake-style dropdown terminal */}
-        <Profiler id="GuakeOutputPanel" onRender={profileRender}>
-          <GuakeOutputPanel />
-        </Profiler>
+        {/* Flat view already mounts AgentTerminalPane in its chat column. Do
+            not keep a second, CSS-hidden Guake tree alive: selecting an agent
+            otherwise parses and renders both conversations before the click
+            can settle (the dominant long task in the Flat-mode profile). */}
+        {viewMode !== 'flat' && (
+          <Profiler id="GuakeOutputPanel" onRender={profileRender}>
+            <GuakeOutputPanel />
+          </Profiler>
+        )}
 
         {/* File viewer + context modal hosts. Mounted here (not inside
             GuakeOutputPanel) because the guake panel returns null without an
@@ -1575,9 +1574,8 @@ function AppContent() {
           sidebarOpen={sidebarOpen}
           onToggleAgentsDrawer={viewMode === 'flat' ? handleToggleAgentsDrawer : undefined}
           onToggleInspector={viewMode === 'flat' ? handleToggleInspector : undefined}
-          onCloseAgent={viewMode === 'flat' && selectedAgentIds.size > 0 ? handleCloseFlatAgent : undefined}
-          onOpenLastAgent={lastFlatAgent ? handleOpenLastFlatAgent : undefined}
-          lastAgentName={lastFlatAgent?.name}
+          onCloseAgent={viewMode === 'flat' ? handleCloseFlatAgent : undefined}
+          onOpenLastAgent={viewMode === 'flat' ? handleOpenLastFlatAgent : undefined}
           isFlatView={viewMode === 'flat'}
           activeView={
             toolboxModal.isOpen ? 'settings'

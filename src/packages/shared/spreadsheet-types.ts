@@ -48,6 +48,9 @@ export interface SpreadsheetSheetData extends SpreadsheetSheetInfo {
   colCount: number;
   truncatedRows: boolean;
   truncatedCols: boolean;
+  /** Delimited files are counted by newlines past the parsed window — a
+   * quoted field with embedded newlines makes `rowCount` an overestimate. */
+  rowCountApprox?: boolean;
 }
 
 export interface SpreadsheetResponse {

@@ -35,8 +35,6 @@
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #fff 5%, transparent),
     0 3px 10px rgba(#000, 0.2);
-  transform-origin: right bottom;
-  transition: background 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
 
   &::-webkit-scrollbar { display: none; }
 
@@ -130,16 +128,6 @@
   border-radius: 7px;
   background: color-mix(in srgb, var(--aop-thumb-area) 10%, var(--bg-secondary));
   cursor: pointer;
-  // A thumb keeps its DOM node when it moves between the recent and working
-  // lanes, so the lane styling has to crossfade over the same window as the
-  // FLIP glide — otherwise the border and dimming would snap mid-slide.
-  transition:
-    transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1),
-    border-color 320ms ease,
-    background 320ms ease,
-    opacity 320ms ease,
-    box-shadow 0.16s ease;
-  animation: aop-working-thumb-in 240ms cubic-bezier(0.18, 0.9, 0.28, 1.25) both;
 
   > img:not(.aop-working-thumb-provider),
   > span:not(.aop-working-thumb-unread):not(.aop-working-thumb-provider) {
@@ -173,18 +161,13 @@
       opacity: 1;
     }
 
-    // Leaving the dock from the recent lane — the more specific selector wins
-    // over the working-lane exit below. Both last DOCK_EXIT_MS (dockRoster.ts).
-    &.exiting {
-      animation: aop-recent-thumb-out 260ms cubic-bezier(0.4, 0, 1, 1) both;
-    }
   }
 
-  // Only a thumb leaving the dock entirely animates out. Moving between the
-  // recent and working lanes is a FLIP glide, not an exit.
+  // Keep the roster's short exit hold for stable layout, but hide departed
+  // thumbs immediately rather than running another high-refresh animation.
   &.exiting {
     pointer-events: none;
-    animation: aop-working-thumb-out 260ms ease-in both;
+    opacity: 0;
   }
 }
 
@@ -257,20 +240,6 @@
 }
 
 
-@keyframes aop-working-thumb-in {
-  from { opacity: 0; transform: translateX(8px) scale(0.65); }
-  to { opacity: 1; transform: translateX(0) scale(1); }
-}
-
-@keyframes aop-working-thumb-out {
-  from { opacity: 1; transform: translateX(0) scale(1); }
-  to { opacity: 0; transform: translateX(7px) scale(0.62); }
-}
-
-@keyframes aop-recent-thumb-out {
-  from { opacity: 0.78; transform: translateX(0) scale(1); filter: blur(0); }
-  to { opacity: 0; transform: translateX(-7px) scale(0.72); filter: blur(2px); }
-}
 
 // Toggle button in header
 .guake-overview-toggle.active {
@@ -730,26 +699,7 @@
       border-color: color-mix(in srgb, var(--aop-area-color, var(--text-muted)) 70%, var(--accent-green));
       background: color-mix(in srgb, var(--aop-area-color, var(--text-muted)) 12%, var(--bg-tertiary));
       position: relative;
-
-      // Breathing glow. The shadow itself is static on a pseudo-element and
-      // only its opacity animates — a compositor-only animation. Animating
-      // box-shadow directly repainted the whole panel layer every frame.
-      &::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        border-radius: inherit;
-        pointer-events: none;
-        box-shadow: 0 0 8px color-mix(in srgb, var(--aop-area-color, var(--text-muted)) 32%, color-mix(in srgb, var(--accent-green) 28%, transparent));
-        opacity: 0;
-        will-change: opacity;
-        animation: aop-glow-breathe 2.4s ease-in-out infinite;
-      }
-
-      .aop-area-color {
-        will-change: transform, opacity;
-        animation: aop-area-working-color 1.2s ease-in-out infinite;
-      }
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-green) 12%, transparent);
     }
 
     .aop-area-expand {
@@ -850,27 +800,8 @@
       box-shadow: 0 0 7px color-mix(in srgb, var(--accent-green) 16%, transparent);
     }
 
-    .aop-area-working-bars {
-      display: inline-flex;
-      align-items: center;
-      gap: 1.5px;
-      height: 10px;
-
-      i {
-        display: block;
-        width: 2px;
-        height: 100%;
-        border-radius: 2px;
-        background: currentColor;
-        transform-origin: center bottom;
-        // Own compositor layer: without it this ran on the main thread and
-        // repainted the whole panel (root layer) every frame.
-        will-change: transform, opacity;
-        animation: aop-area-working-bar 0.72s ease-in-out infinite alternate;
-
-        &:nth-child(2) { animation-delay: -0.48s; }
-        &:nth-child(3) { animation-delay: -0.24s; }
-      }
+    .aop-area-working-glyph {
+      color: currentColor;
     }
   }
 
@@ -941,48 +872,6 @@
     border-left: 1px solid color-mix(in srgb, var(--border-color) 65%, transparent);
     border-radius: 0 0 $radius-sm $radius-sm;
     background: color-mix(in srgb, var(--bg-secondary) 50%, var(--bg-primary));
-  }
-}
-
-// Shared opacity-only breathe for static-shadow glow overlays (compositor-only).
-@keyframes aop-glow-breathe {
-  0%, 100% { opacity: 0; }
-  50% { opacity: 1; }
-}
-
-// Dot pulse: transform + opacity only (the old box-shadow glow repainted per frame).
-@keyframes aop-area-working-color {
-  0%, 100% { transform: scale(1); opacity: 0.85; }
-  50% { transform: scale(1.35); opacity: 1; }
-}
-
-@keyframes aop-area-working-bar {
-  0% { transform: scaleY(0.25); opacity: 0.55; }
-  100% { transform: scaleY(1); opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .aop-area-header--working {
-    animation: none;
-
-    .aop-area-color {
-      animation: none;
-    }
-
-    .aop-area-working-bars i {
-      animation-duration: 1.8s;
-    }
-  }
-
-  .aop-agent-working-bars i {
-    animation-duration: 1.8s;
-  }
-
-  .aop-agent-card.working::before,
-  .aop-agent-card.compacting::before {
-    animation: none;
-    opacity: 0.24;
-    transform: rotate(28deg) scale(1);
   }
 }
 
@@ -1113,7 +1002,8 @@
     box-shadow: inset 0 0 0 1px color-mix(in srgb, #ffd700 18%, transparent);
   }
 
-  &.active {
+  &.active,
+  &:has(.aop-agent-state-marker--active) {
     border-color: var(--aop-selected);
     border-left-color: var(--aop-selected);
     background: color-mix(in srgb, var(--aop-selected) 22%, var(--bg-secondary));
@@ -1128,7 +1018,8 @@
     }
   }
 
-  &.active.boss {
+  &.active.boss,
+  &:has(.aop-agent-state-marker--active).boss {
     border-color: color-mix(in srgb, #ffd700 58%, var(--aop-selected));
     border-left-color: #ffd700;
     background: color-mix(in srgb, var(--aop-selected) 18%, color-mix(in srgb, #ffd700 12%, var(--bg-secondary)));
@@ -1145,53 +1036,8 @@
     );
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-green) 15%, transparent);
 
-    // Breathing ring: static shadows on an overlay whose opacity animates
-    // (compositor-only). Animating box-shadow on the card itself invalidated
-    // the root layer every frame — the single biggest paint cost while an
-    // agent works.
-    &::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      pointer-events: none;
-      z-index: 0;
-      box-shadow:
-        inset 0 0 0 1px color-mix(in srgb, var(--accent-green) 20%, transparent),
-        0 0 0 2px color-mix(in srgb, var(--accent-green) 14%, transparent);
-      opacity: 0;
-      will-change: opacity;
-      animation: aop-glow-breathe 2.8s ease-in-out infinite;
-    }
-
-    // Soft orbital aurora. It is deliberately oversized and blurred, so its
-    // motion never exposes a hard gradient edge inside the clipped card.
-    &::before {
-      content: '';
-      position: absolute;
-      inset: -130% -55%;
-      z-index: 0;
-      pointer-events: none;
-      border-radius: 50%;
-      opacity: 0.3;
-      // Softness comes from wide gradient stops, NOT from `filter: blur()`:
-      // a blurred, oversized layer rotating under every working card was
-      // re-filtered by the GPU process every frame (GPU-process CPU, not the
-      // main thread — invisible in JS profiles, very visible in Task Manager).
-      background: conic-gradient(
-        from 20deg,
-        transparent 0deg 56deg,
-        color-mix(in srgb, var(--accent-green) 22%, transparent) 84deg,
-        color-mix(in srgb, var(--accent-green) 62%, transparent) 118deg,
-        color-mix(in srgb, var(--accent-cyan) 50%, transparent) 164deg,
-        color-mix(in srgb, var(--accent-cyan) 16%, transparent) 200deg,
-        transparent 236deg 360deg
-      );
-      transform-origin: center;
-      will-change: transform, opacity;
-      animation: aop-working-aurora 6.5s linear infinite;
-    }
-
+    // Activity now lives in a tiny SVG glyph. Keeping card-sized gradients and
+    // shadows static avoids one compositor layer per working agent.
     > * {
       position: relative;
       z-index: 1;
@@ -1216,7 +1062,15 @@
   &.active.error,
   &.active.waiting_input,
   &.active.waiting_permission,
-  &.active.stopped {
+  &.active.stopped,
+  &:has(.aop-agent-state-marker--active).working,
+  &:has(.aop-agent-state-marker--active).compacting,
+  &:has(.aop-agent-state-marker--active).idle,
+  &:has(.aop-agent-state-marker--active).unread,
+  &:has(.aop-agent-state-marker--active).error,
+  &:has(.aop-agent-state-marker--active).waiting_input,
+  &:has(.aop-agent-state-marker--active).waiting_permission,
+  &:has(.aop-agent-state-marker--active).stopped {
     border-color: var(--aop-selected);
     border-left-color: var(--aop-selected);
     background: color-mix(in srgb, var(--aop-selected) 22%, var(--bg-secondary));
@@ -1229,7 +1083,9 @@
   // Keep the selected-agent outline, but do not hide the working motion under
   // the otherwise solid selected background.
   &.active.working,
-  &.active.compacting {
+  &.active.compacting,
+  &:has(.aop-agent-state-marker--active).working,
+  &:has(.aop-agent-state-marker--active).compacting {
     background: linear-gradient(
       110deg,
       color-mix(in srgb, var(--accent-green) 12%, color-mix(in srgb, var(--aop-selected) 14%, var(--bg-secondary))),
@@ -1250,7 +1106,8 @@
 
   // Subordinate of currently selected boss agent — a quiet gold "tether" that
   // breathes in sync with the badge so the connection feels alive, not loud.
-  &.subordinate-of-active-boss {
+  &.subordinate-of-active-boss,
+  &:has(.aop-subordinate-badge) {
     // Static tether: the gold left edge no longer animates border-color (a
     // per-frame repaint of every subordinate card while a boss is selected);
     // the chain-link badge keeps breathing (opacity/transform, compositor).
@@ -1258,10 +1115,16 @@
   }
 
   // Active card retains its selection color even when also marked as subordinate.
-  &.active.subordinate-of-active-boss {
+  &.active.subordinate-of-active-boss,
+  &:has(.aop-agent-state-marker--active):has(.aop-subordinate-badge) {
     border-color: var(--aop-selected);
     border-left-color: var(--aop-selected);
     animation: none;
+  }
+
+  // The marker lets selection context update without rebuilding the card.
+  .aop-agent-state-marker--active {
+    display: none;
   }
 
   // Inline badge — chain-link glyph that gently breathes, suggesting the agent
@@ -1272,9 +1135,6 @@
     justify-content: center;
     margin-right: 1px;
     line-height: 0;
-    transform-origin: center;
-    will-change: transform, opacity;
-    animation: aop-subordinate-breathe 2.8s ease-in-out infinite;
   }
 
   // Card header (always visible)
@@ -1317,32 +1177,17 @@
       font-size: 14px;
     }
 
-    .aop-agent-working-bars {
+    .aop-agent-working-glyph {
       display: inline-flex;
       align-items: center;
-      gap: 1.5px;
-      width: 14px;
+      justify-content: center;
+      width: 16px;
       height: 16px;
-      padding: 3px;
       flex-shrink: 0;
       color: var(--accent-green);
       background: color-mix(in srgb, var(--accent-green) 12%, transparent);
       border: 1px solid color-mix(in srgb, var(--accent-green) 34%, transparent);
       border-radius: $radius-sm;
-      box-shadow: 0 0 7px color-mix(in srgb, var(--accent-green) 16%, transparent);
-
-      i {
-        display: block;
-        width: 2px;
-        height: 100%;
-        border-radius: 2px;
-        background: currentColor;
-        transform-origin: center bottom;
-        animation: aop-area-working-bar 0.72s ease-in-out infinite alternate;
-
-        &:nth-child(2) { animation-delay: -0.48s; }
-        &:nth-child(3) { animation-delay: -0.24s; }
-      }
     }
 
     .aop-provider-icon {
@@ -1651,32 +1496,6 @@
         background: color-mix(in srgb, var(--accent-red) 80%, transparent);
       }
     }
-  }
-}
-
-// (aop-working-card-breathe removed: the card ring now breathes via
-// `.aop-agent-card.working::after` opacity — see aop-glow-breathe.)
-
-@keyframes aop-working-aurora {
-  0% { transform: rotate(0deg) scale(0.92); opacity: 0.22; }
-  25% { opacity: 0.34; }
-  50% { transform: rotate(180deg) scale(1.06); opacity: 0.27; }
-  75% { opacity: 0.36; }
-  100% { transform: rotate(360deg) scale(0.92); opacity: 0.22; }
-}
-
-// Subordinate-of-active-boss tether breathe — the left edge gently brightens
-// in sync with the chain-link badge, so the connection feels like a live wire
-// without ever shouting for attention.
-@keyframes aop-subordinate-breathe {
-  0%,
-  100% {
-    opacity: 0.45;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.85;
-    transform: scale(1.08);
   }
 }
 

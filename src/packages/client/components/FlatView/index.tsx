@@ -11,7 +11,8 @@ import React, { useState, useMemo, useCallback, useRef, useEffect, useReducer } 
 import { useTranslation } from 'react-i18next';
 import {
   useAgents,
-  useAgentsArray,
+  useAgentsArrayWhen,
+  useAgentIds,
   useSelectedAgentIds,
   useAgent,
   useAreas,
@@ -33,6 +34,7 @@ import { getAreaLogoUrl } from '../../api/area-logos';
 import { TaskProgressDots } from '../shared/TaskProgressDots';
 import { SubordinateProgressDots } from '../shared/SubordinateProgressDots';
 import { AgentHoverTooltip } from '../shared/AgentHoverTooltip';
+import { ActivityGlyph } from '../shared/ActivityGlyph';
 import { ContextMenu, type ContextMenuAction } from '../ContextMenu';
 import { getAgentStatusColor, getBuildingStatusColor } from '../../utils/colors';
 import { getDisplayContextInfo } from '../../utils/context';
@@ -833,6 +835,9 @@ const ChatView = React.memo(function ChatView({
         >
           <span className={`flat-terminal-wrapper__header-avatar${agent.status === 'working' ? ' is-working' : ''}`}>
             <AgentIcon agent={agent} size={28} />
+            {agent.status === 'working' && (
+              <ActivityGlyph animated size={12} className="flat-terminal-wrapper__header-activity" />
+            )}
           </span>
           <span className="flat-terminal-wrapper__header-info">
             <span className="flat-terminal-wrapper__header-name">{agent.name}</span>
@@ -1725,8 +1730,15 @@ export function FlatView({
   onOpenAreaModal,
 }: FlatViewProps) {
   const { t } = useTranslation(['common']);
-  const agents = useAgentsArray();
   const selectedAgentIds = useSelectedAgentIds();
+  const selectedAgentId = useMemo(() => {
+    return selectedAgentIds.size > 0 ? selectedAgentIds.values().next().value ?? null : null;
+  }, [selectedAgentIds]);
+  // The all-agent map is only rendered by the empty-chat map. While a chat is
+  // open, subscribing to every agent object made unrelated status/context
+  // updates rebuild this entire 3,400-line component.
+  const agents = useAgentsArrayWhen(selectedAgentId === null);
+  const agentIds = useAgentIds();
 
   // Modal state for terminal integration (owned by parent, shown over everything)
   const [imageModal, setImageModal] = useState<{ url: string; name: string } | null>(null);
@@ -2061,11 +2073,6 @@ export function FlatView({
     }
   }, [onBuildingClick, onBuildingDoubleClick]);
 
-  // Get first selected agent for chat view
-  const selectedAgentId = useMemo(() => {
-    return selectedAgentIds.size > 0 ? Array.from(selectedAgentIds)[0] : null;
-  }, [selectedAgentIds]);
-
   // Stable context-menu handlers for ChatView — inline lambdas here would be
   // the only unstable props and would defeat its React.memo on every render.
   const handleHeaderContextMenu = useCallback((position: { x: number; y: number }) => {
@@ -2105,7 +2112,7 @@ export function FlatView({
   const lastBrowserHistoryAgentIdRef = useRef<string | null>(null);
   const isBrowserPopNavigationRef = useRef(false);
 
-  const agentIdSet = useMemo(() => new Set(agents.map((a) => a.id)), [agents]);
+  const agentIdSet = useMemo(() => new Set(agentIds), [agentIds]);
 
   // Resolve subordinate Agent objects per boss for the SubordinateProgressDots indicator on the FlatView map.
   const subordinatesByBoss = useMemo(() => {
@@ -2312,6 +2319,14 @@ export function FlatView({
 
   const [inspectorMounted, setInspectorMounted] = useState(showInspector);
   const [inspectorAnimateOpen, setInspectorAnimateOpen] = useState(showInspector);
+  // ChatView already subscribes to the active agent. The large FlatView parent
+  // only needs the object while one of its own detail/modal surfaces displays
+  // it; otherwise context/status ticks stay local to ChatView.
+  const selectedAgent = useAgent(
+    agentInfoOpen || responseModalContent !== null || (inspectorMounted && inspectorView === 'agent')
+      ? selectedAgentId
+      : null
+  );
 
   useEffect(() => {
     if (showInspector) {
@@ -2615,7 +2630,7 @@ export function FlatView({
   // both surfaces share one UX for per-agent mutations.
   const emptyAgentContextMenuActions = useMemo((): ContextMenuAction[] => {
     if (!emptyAgentContextMenu) return [];
-    const agent = agents.find(a => a.id === emptyAgentContextMenu.agentId);
+    const agent = store.getState().agents.get(emptyAgentContextMenu.agentId);
     if (!agent) return [];
     return [
       {
@@ -2654,7 +2669,7 @@ export function FlatView({
         },
       },
     ];
-  }, [emptyAgentContextMenu, agents, onAgentClick]);
+  }, [emptyAgentContextMenu, onAgentClick]);
 
   // Right-click menu actions for building chips on the empty-state map. Mirrors
   // AreaBuildingsPanel so the two surfaces share one UX for per-building
@@ -3068,11 +3083,7 @@ export function FlatView({
                               title={`${workingAgentCount} working agent${workingAgentCount === 1 ? '' : 's'}`}
                               aria-label={`${workingAgentCount} working agent${workingAgentCount === 1 ? '' : 's'}`}
                             >
-                              <span className="flat-map-area-card__working-bars" aria-hidden="true">
-                                <i />
-                                <i />
-                                <i />
-                              </span>
+                              <ActivityGlyph animated size={12} className="flat-map-area-card__working-glyph" />
                               <span className="flat-map-area-card__working-count">{workingAgentCount}</span>
                             </span>
                           )}
@@ -3129,10 +3140,14 @@ export function FlatView({
                                   alt={`${agent.name} provider`}
                                   className="flat-map-agent-chip__provider-icon"
                                 />
-                                <span
-                                  className="flat-map-agent-chip__dot"
-                                  style={{ backgroundColor: getAgentStatusColor(agent.status) }}
-                                />
+                                {agent.status === 'working' ? (
+                                  <ActivityGlyph animated size={11} className="flat-map-agent-chip__activity" />
+                                ) : (
+                                  <span
+                                    className="flat-map-agent-chip__dot"
+                                    style={{ backgroundColor: getAgentStatusColor(agent.status) }}
+                                  />
+                                )}
                                 {agent.latestTodos && agent.latestTodos.length > 0 && (
                                   <TaskProgressDots todos={agent.latestTodos} maxDots={6} />
                                 )}
@@ -3309,7 +3324,6 @@ export function FlatView({
                   </div>
                 );
               }
-              const selectedAgent = agents.find((a) => a.id === selectedAgentId);
               if (!selectedAgent) {
                 return (
                   <div className="flat-inspector__empty">
@@ -3349,7 +3363,7 @@ export function FlatView({
         />
       )}
       <AgentResponseModalWrapper
-        agent={selectedAgentId ? agents.find((a) => a.id === selectedAgentId) ?? null : null}
+        agent={selectedAgent ?? null}
         content={responseModalContent}
         onClose={() => setResponseModalContent(null)}
       />
@@ -3367,7 +3381,7 @@ export function FlatView({
         />
       )}
       <AgentInfoModal
-        agent={selectedAgentId ? agents.find((a) => a.id === selectedAgentId) ?? null : null}
+        agent={selectedAgent ?? null}
         isOpen={agentInfoOpen && !!selectedAgentId}
         onClose={handleCloseAgentInfo}
       />

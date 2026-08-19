@@ -18,6 +18,7 @@ import type { Agent, PermissionRequest } from '../../../shared/types';
 import { providerClosesStdinAfterPrompt } from '../../../shared/types';
 import type { AttachedFile } from './types';
 import { Icon } from '../Icon';
+import { ActivityGlyph } from '../shared/ActivityGlyph';
 import { getPendingMessagesForAgent, removePendingMessageForAgent } from '../../websocket/send';
 import { useServerMessageQueue } from '../../hooks/useServerMessageQueue';
 import { QueuedMessagesBar } from './QueuedMessagesBar';
@@ -56,6 +57,7 @@ const ElapsedTimer = memo(function ElapsedTimer({
 
   return (
     <div className="guake-stop-bar">
+      <ActivityGlyph animated size={18} className="guake-stop-activity" />
       <span className="guake-elapsed-timer">{formatElapsed(elapsed)}</span>
       <button
         className="guake-stop-btn"

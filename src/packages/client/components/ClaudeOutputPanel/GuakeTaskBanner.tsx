@@ -15,6 +15,7 @@
 
 import { memo } from 'react';
 import { Icon } from '../Icon';
+import { ActivityGlyph } from '../shared/ActivityGlyph';
 import type { Agent } from '../../../shared/types';
 
 interface CurrentTask {
@@ -59,9 +60,7 @@ export const GuakeTaskBanner = memo(function GuakeTaskBanner({
       onClick={onClick}
       title={onClick ? `${task.text}\n\n(click for the task board)` : task.text}
     >
-      <span className="guake-task-banner-spinner" aria-hidden="true">
-        <Icon name="refresh" size={12} />
-      </span>
+      <ActivityGlyph animated size={12} className="guake-task-banner-spinner" />
       <span className="guake-task-banner-label">Working on</span>
       <span className="guake-task-banner-text">{task.text}</span>
       {task.progress && task.progress.total > 1 && (

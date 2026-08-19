@@ -93,6 +93,7 @@ export interface PiLoadedSubscription {
 
 export type PiQuotaWindowKey =
   | 'session'
+  | 'five-hour'
   | 'daily'
   | 'weekly'
   | 'weekly-opus'
@@ -113,7 +114,7 @@ export interface PiUsageSnapshot {
   session: ClaudeUsageSession;
   /** Anthropic compatibility payload used by older servers. */
   rateLimits: ClaudeRateLimits | null;
-  /** Active-account windows for Anthropic, Codex, or xAI. */
+  /** Active-account windows for providers with live subscription usage APIs. */
   quotaWindows: PiQuotaWindow[];
   rateLimitsError: string | null;
   cliHint: string;

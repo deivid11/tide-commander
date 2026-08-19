@@ -1,15 +1,15 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { store, useAgents, usePinnedAgentIds, useCustomAgentClassesArray, useAreas, useViewMode, useAgentsWithUnseenOutput, useSettings } from '../../store';
+import { store, useAgents, usePinnedAgentIds, useCustomAgentClassesArray, useAreas, useViewMode, useAgentsWithUnseenOutput } from '../../store';
 import { AgentIcon } from '../AgentIcon';
 import { STORAGE_KEYS, getStorage, getStorageString, setStorageString, removeStorage } from '../../utils/storage';
 import { isAgentVisibleInWorkspace, useWorkspaceFilter } from '../WorkspaceSwitcher';
 import { prefetchAgentHistory } from './useHistoryLoader';
 import { useDockRoster, useWorkRecency } from './useDockRoster';
 import { useAgentDockRecentSize } from './agentDockPosition';
-import { useDockFlip } from './useDockFlip';
 import type { DockLane } from './dockRoster';
 import { providerCssClass, providerLabel } from '../../utils/providerDisplay';
 import { ProviderIcon } from '../ProviderIcon';
+import { ActivityGlyph } from '../shared/ActivityGlyph';
 import type { Agent } from '../../../shared/types';
 
 /**
@@ -35,9 +35,6 @@ function readMiniatureThreshold(): number {
 const PINNED_ACTIVE_WINDOW_MS = 10 * 60 * 1000;
 
 const NO_AGENTS: Agent[] = [];
-
-/** Current comet angle (deg) for unpinned working chips — see the ticker effect. */
-let cometAngle = 0;
 
 /**
  * The bar's single control cycles through these on each click: every pin flat →
@@ -128,7 +125,6 @@ interface PinnedChipProps {
   isDragging: boolean;
   dropState: 'before' | 'after' | null;
   customClasses: ReturnType<typeof useCustomAgentClassesArray>;
-  registerItem: (id: string) => (element: HTMLElement | null) => void;
   onSelect: (agent: Agent) => void;
   onTogglePin: (e: React.MouseEvent, agentId: string) => void;
   onDragStart: (e: React.DragEvent, agentId: string) => void;
@@ -147,7 +143,6 @@ const PinnedChip = memo(function PinnedChip({
   isDragging,
   dropState,
   customClasses,
-  registerItem,
   onSelect,
   onTogglePin,
   onDragStart,
@@ -160,7 +155,6 @@ const PinnedChip = memo(function PinnedChip({
   const provider = providerLabel(agent.provider, agent.piModel, agent.piModelProvider);
   return (
     <button
-      ref={registerItem(agent.id)}
       type="button"
       draggable={isPinned}
       className={`pinned-agent${isActive ? ' active' : ''}${working ? ' working' : ''}${isBoss ? ' is-boss' : ''}${areaColor ? ' has-area' : ''}${
@@ -197,6 +191,9 @@ const PinnedChip = memo(function PinnedChip({
         />
       </span>
       {hasUnread && <span className="pinned-agent-notif" aria-hidden="true" />}
+      {working && (
+        <ActivityGlyph animated size={12} className="pinned-agent-working-glyph" />
+      )}
       <span className="pinned-agent-name">{agent.name}</span>
       {isPinned && (
         <span
@@ -357,12 +354,6 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
 
   const row = useMemo(() => groups.flatMap((g) => g.entries), [groups]);
 
-  // Chips glide to their new slot when one leaves, changes section, or you drop
-  // a drag — rather than teleporting. Keyed on the row's identity so it never
-  // measures for nothing.
-  const rowSignature = useMemo(() => row.map((entry) => entry.agent.id).join(','), [row]);
-  const { registerItem } = useDockFlip(rowSignature, exitingIds);
-
   // Resolve each chip's area color (by spatial position, like the board).
   // `areas` is a dep so the tint re-resolves when areas move/recolor.
   const areaColorById = useMemo(() => {
@@ -407,51 +398,6 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
       target.style.removeProperty('--pinned-agents-bar-height');
     };
   }, []);
-
-  // Comet ticker for unpinned working chips. The comet is a conic gradient
-  // whose start angle is the CSS var below. Driving that var from a CSS
-  // animation (even `steps(50)`) made Blink recalc style + repaint EVERY frame
-  // (~45 ms/s measured with a single working chip); one JS tick per 100 ms
-  // moves the same 7.2° hop with ~1/6 of the work and stops when there is
-  // nothing to animate (or the tab is hidden).
-  const hasUnpinnedWorking = useMemo(
-    () => row.some((entry) => !entry.pinned && statusBucket(entry.agent) === 'working'),
-    [row],
-  );
-  // Low Power Mode freezes every CSS animation (styles/_low-power.scss); this
-  // JS-driven one must stop too or it keeps repainting the chips 10×/s.
-  const lowPowerMode = useSettings().lowPowerMode === true;
-  useEffect(() => {
-    const el = barRef.current;
-    if (!el || !hasUnpinnedWorking || lowPowerMode) return;
-    let timer: ReturnType<typeof setInterval> | null = null;
-    // Angle lives at module level so re-runs of this effect (bar re-render
-    // with a changed roster, StrictMode) continue the glide instead of
-    // snapping the comet back to 0°.
-    // Set the var on each working unpinned chip (not on the bar): an inherited
-    // custom property changed on the bar recalculated every descendant of the
-    // whole bar 10×/s; per-chip keeps each recalc to that chip's few nodes.
-    const apply = () => {
-      const chips = el.querySelectorAll<HTMLElement>('.pinned-agent--unpinned.working');
-      const value = `${cometAngle}deg`;
-      for (let i = 0; i < chips.length; i++) chips[i].style.setProperty('--pinned-dash-angle', value);
-    };
-    const tick = () => {
-      cometAngle = (cometAngle + 7.2) % 360;
-      apply();
-    };
-    const start = () => { if (timer === null) { apply(); timer = setInterval(tick, 100); } };
-    const stop = () => { if (timer !== null) { clearInterval(timer); timer = null; } };
-    const onVisibility = () => (document.hidden ? stop() : start());
-    document.addEventListener('visibilitychange', onVisibility);
-    onVisibility();
-    return () => {
-      stop();
-      document.removeEventListener('visibilitychange', onVisibility);
-      // Leave the last angle in place: a re-run continues from it and a chip
-      // that stops working simply keeps a static (invisible: not .working) ring.
-    };
-  }, [hasUnpinnedWorking, lowPowerMode]);
 
   // ── drag-to-reorder (pins only — an unpinned chip has no manual order) ──
   // Reordering edits the global pin order, so it works the same in grouped
@@ -516,7 +462,6 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
       isDragging={draggingId === agent.id}
       dropState={dropTarget && dropTarget.id === agent.id ? (dropTarget.after ? 'after' : 'before') : null}
       customClasses={customClasses}
-      registerItem={registerItem}
       onSelect={handleSelect}
       onTogglePin={handleTogglePin}
       onDragStart={handleDragStart}
@@ -524,7 +469,7 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
       onDrop={handleDrop}
       onDragEnd={handleDragEnd}
     />
-  ), [activeAgentId, areaColorById, unseenAgents, exitingIds, draggingId, dropTarget, customClasses, registerItem, handleSelect, handleTogglePin, handleDragStart, handleDragOver, handleDrop, handleDragEnd]);
+  ), [activeAgentId, areaColorById, unseenAgents, exitingIds, draggingId, dropTarget, customClasses, handleSelect, handleTogglePin, handleDragStart, handleDragOver, handleDrop, handleDragEnd]);
 
   // Interleave lane separators, mirroring the overview dock's divider: one where
   // the unpinned actives start, one where their recent lane starts (working

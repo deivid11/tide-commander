@@ -4,7 +4,7 @@
  * React hooks for accessing store state with optimized re-renders.
  */
 
-import { useCallback, useRef, useState, useEffect } from 'react';
+import { useCallback, useRef, useState, useEffect, useSyncExternalStore } from 'react';
 import type {
   Agent,
   DrawingArea,
@@ -166,6 +166,40 @@ export function useAgentsArray(): Agent[] {
     arrayRef.current = newArray;
   }
   return arrayRef.current;
+}
+
+const EMPTY_AGENTS_ARRAY: Agent[] = [];
+const EMPTY_AGENTS_MAP = new Map<string, Agent>();
+
+/**
+ * Subscribe to full agent objects only while a surface actually displays the
+ * roster. When disabled, agent status/context churn cannot re-render it.
+ * useSyncExternalStore is intentional here: changing `enabled` must switch the
+ * snapshot during render rather than one effect later (which flashed an empty
+ * Flat map and scheduled a redundant follow-up render).
+ */
+export function useAgentsArrayWhen(enabled: boolean): Agent[] {
+  const getSnapshot = useCallback(
+    () => enabled ? store.getState().agents : EMPTY_AGENTS_MAP,
+    [enabled]
+  );
+  const agents = useSyncExternalStore(
+    useCallback((listener) => store.subscribe(listener), []),
+    getSnapshot,
+    getSnapshot
+  );
+  const arrayRef = useRef<Agent[]>(EMPTY_AGENTS_ARRAY);
+  const next = enabled ? Array.from(agents.values()) : EMPTY_AGENTS_ARRAY;
+  if (!shallowArrayEqual(arrayRef.current, next)) arrayRef.current = next;
+  return arrayRef.current;
+}
+
+/** Agent IDs without subscribing to property updates on existing agents. */
+export function useAgentIds(): string[] {
+  return useSelector(
+    useCallback((state: StoreState) => Array.from(state.agents.keys()), []),
+    shallowArrayEqual
+  );
 }
 
 /**
@@ -348,6 +382,17 @@ export function useAgentCompacting(agentId: string | null): boolean {
       (state: StoreState) => agentId ? state.compactingAgents.has(agentId) : false,
       [agentId]
     ),
+  );
+}
+
+/**
+ * Get the complete compacting-agent set. Lists should subscribe once and pass
+ * membership down instead of installing one store listener per rendered row.
+ */
+export function useCompactingAgents(): Set<string> {
+  return useSelector(
+    useCallback((state: StoreState) => state.compactingAgents, []),
+    shallowSetEqual
   );
 }
 

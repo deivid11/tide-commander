@@ -16,7 +16,7 @@ import {
   useSubagents,
   useAreas,
   useFileChanges,
-  useAgentCompacting,
+  useCompactingAgents,
   store,
 } from '../../store';
 import { getToolIconName, formatTimestamp } from '../../utils/outputRendering';
@@ -26,7 +26,7 @@ import { makeAgentOverviewComparator } from './agentOverviewSort';
 import { AgentActivityDock } from './AgentActivityDock';
 import { useAgentDockPosition } from './agentDockPosition';
 import { prefetchAgentHistory } from './useHistoryLoader';
-import type { Agent, Subagent, DrawingArea } from '../../../shared/types';
+import type { Agent, Subagent, DrawingArea, CustomAgentClass } from '../../../shared/types';
 import type { ToolExecution, ClaudeOutput } from '../../store/types';
 import type { TwoFingerSelectorState } from '../../hooks/useTwoFingerSelector';
 import { ContextMenu } from '../ContextMenu';
@@ -43,6 +43,7 @@ import { ConfirmModal } from '../shared/ConfirmModal';
 import { TaskProgressDots } from '../shared/TaskProgressDots';
 import { SubordinateProgressDots } from '../shared/SubordinateProgressDots';
 import { AgentHoverTooltip } from '../shared/AgentHoverTooltip';
+import { ActivityGlyph } from '../shared/ActivityGlyph';
 import { providerAssetUrl, providerLabel } from '../../utils/providerDisplay';
 import { ProviderIcon } from '../ProviderIcon';
 
@@ -107,36 +108,55 @@ const STATUS_LABEL_KEYS: Record<string, string> = {
   stopped: 'overview.statusLabels.stopped',
 };
 
-/** Get the last non-streaming, non-tool output for an agent (the last "real" message) */
-function getLastMessage(agentId: string): ClaudeOutput | null {
-  const outputs = store.getState().agentOutputs.get(agentId);
-  if (!outputs || outputs.length === 0) return null;
-  for (let i = outputs.length - 1; i >= 0; i--) {
-    const o = outputs[i];
-    if (o.isStreaming) continue;
-    const t = o.text;
-    if (t.startsWith('Using tool:') || t.startsWith('Tool input:') || t.startsWith('Tool result:') || t.startsWith('Bash output:')) continue;
-    if (t.startsWith('Tokens:') || t.startsWith('Cost:') || t.startsWith('Context:')) continue;
-    if (t.trim().length === 0) continue;
-    return o;
-  }
-  return null;
+/** Cached card summary for an immutable per-agent output array. */
+interface AgentMessageSummary {
+  lastMessage: ClaudeOutput | null;
+  messageCount: number;
 }
 
-/** Count meaningful messages for an agent */
-function getMessageCount(agentId: string): number {
-  const outputs = store.getState().agentOutputs.get(agentId);
-  if (!outputs) return 0;
-  let count = 0;
-  for (const o of outputs) {
-    if (o.isStreaming) continue;
-    const t = o.text;
-    if (t.startsWith('Using tool:') || t.startsWith('Tool input:') || t.startsWith('Tool result:') || t.startsWith('Bash output:')) continue;
-    if (t.startsWith('Tokens:') || t.startsWith('Cost:') || t.startsWith('Context:')) continue;
-    if (t.trim().length === 0) continue;
-    count++;
+const EMPTY_MESSAGE_SUMMARY: AgentMessageSummary = { lastMessage: null, messageCount: 0 };
+const messageSummaryCache = new WeakMap<ClaudeOutput[], AgentMessageSummary>();
+
+function isMeaningfulMessage(output: ClaudeOutput): boolean {
+  if (output.isStreaming) return false;
+  const text = output.text;
+  if (
+    text.startsWith('Using tool:')
+    || text.startsWith('Tool input:')
+    || text.startsWith('Tool result:')
+    || text.startsWith('Bash output:')
+    || text.startsWith('Tokens:')
+    || text.startsWith('Cost:')
+    || text.startsWith('Context:')
+  ) {
+    return false;
   }
-  return count;
+  return text.trim().length > 0;
+}
+
+/**
+ * Compute the count and latest meaningful message in one pass. Output actions
+ * replace arrays immutably, so the array identity is a safe cache key. This is
+ * especially important when selecting a boss: dozens of subordinate cards can
+ * update together, but their unchanged histories should not be rescanned.
+ */
+function getMessageSummary(agentId: string): AgentMessageSummary {
+  const outputs = store.getState().agentOutputs.get(agentId);
+  if (!outputs || outputs.length === 0) return EMPTY_MESSAGE_SUMMARY;
+  const cached = messageSummaryCache.get(outputs);
+  if (cached) return cached;
+
+  let lastMessage: ClaudeOutput | null = null;
+  let messageCount = 0;
+  for (const output of outputs) {
+    if (!isMeaningfulMessage(output)) continue;
+    lastMessage = output;
+    messageCount++;
+  }
+
+  const summary = { lastMessage, messageCount };
+  messageSummaryCache.set(outputs, summary);
+  return summary;
 }
 
 /** True when agent has any explicit user instruction (assigned task or user prompt output) */
@@ -334,11 +354,7 @@ const AreaGroupSection = React.memo(function AreaGroupSection({
               title={`${workingAgentCount} working agent${workingAgentCount === 1 ? '' : 's'}`}
               aria-label={`${workingAgentCount} working agent${workingAgentCount === 1 ? '' : 's'}`}
             >
-              <span className="aop-area-working-bars" aria-hidden="true">
-                <i />
-                <i />
-                <i />
-              </span>
+              <ActivityGlyph animated size={12} className="aop-area-working-glyph" />
               <span>{workingAgentCount}</span>
             </span>
           )}
@@ -383,6 +399,59 @@ const AreaGroupSection = React.memo(function AreaGroupSection({
   );
 });
 
+interface AgentCardSelectionState {
+  activeAgentId: string;
+  subordinateAgentIds: Set<string> | null;
+  subordinateLabel: string;
+}
+
+const AgentCardSelectionContext = React.createContext<AgentCardSelectionState>({
+  activeAgentId: '',
+  subordinateAgentIds: null,
+  subordinateLabel: 'Reports to selected boss',
+});
+
+/**
+ * Selection-only state lives in a tiny context consumer inside each card.
+ * Selecting a boss can change the subordinate marker on dozens of rows; keeping
+ * that bit out of AgentCard's props prevents every card from rescanning history
+ * and rebuilding its full content just to toggle one class/badge.
+ */
+const AgentCardSelectionMarker = React.memo(function AgentCardSelectionMarker({ agentId }: { agentId: string }) {
+  const selection = React.useContext(AgentCardSelectionContext);
+  const isActive = selection.activeAgentId === agentId;
+  const isSubordinate = selection.subordinateAgentIds?.has(agentId) ?? false;
+  if (!isActive && !isSubordinate) return null;
+
+  return (
+    <>
+      {isActive && <span className="aop-agent-state-marker--active" aria-hidden="true" />}
+      {isSubordinate && (
+        <span
+          className="aop-subordinate-badge"
+          title={selection.subordinateLabel}
+          aria-label={selection.subordinateLabel}
+        >
+          <Icon name="link" size={10} color="#ffd700" weight="bold" />
+        </span>
+      )}
+    </>
+  );
+});
+
+/** Tiny SVG activity cue; rotating its 13px texture avoids card-sized paints. */
+const AgentCardWorkingIndicator = React.memo(function AgentCardWorkingIndicator({
+  label,
+}: {
+  label: string;
+}) {
+  return (
+    <span className="aop-agent-working-glyph" title={label} aria-label={label}>
+      <ActivityGlyph animated size={13} />
+    </span>
+  );
+});
+
 export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agentListRef: externalAgentListRef, twoFingerState, expandedAreas: externalExpandedAreas, onToggleArea: externalOnToggleArea, onSetExpandedAreas }: AgentOverviewPanelProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const allAgents = useAgentsArray();
@@ -399,6 +468,10 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   const subagents = useSubagents();
   const areas = useAreas();
   const fileChanges = useFileChanges();
+  // These collections are shared by every card. One parent subscription avoids
+  // two store listeners per row (a large fan-out during streamed output).
+  const customAgentClasses = useCustomAgentClassesArray();
+  const compactingAgents = useCompactingAgents();
   const dockPosition = useAgentDockPosition();
 
   // Resolve subordinate Agent objects per boss for the SubordinateProgressDots indicator.
@@ -977,8 +1050,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       <React.Fragment key={agent.id}>
         <AgentCard
           agent={agent}
-          isActive={agent.id === activeAgentId}
-          isSubordinateOfActiveBoss={subordinatesOfActiveBoss?.has(agent.id) ?? false}
           isExpanded={expandedAgents.has(agent.id)}
           isMobile={isMobileViewport}
           hasPendingRead={agentsWithUnseenOutput.has(agent.id)}
@@ -989,6 +1060,8 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
           subordinates={subordinatesByBoss.get(agent.id) || EMPTY_SUBORDINATES}
           areaInfo={agentAreaInfo.get(agent.id)}
           matchContext={searchMatchContexts.get(agent.id)}
+          customClasses={customAgentClasses}
+          isCompacting={compactingAgents.has(agent.id)}
           onSelect={handleCardSelect}
           onClearContext={handleCardClearContext}
           onContextMenu={handleCardContextMenu}
@@ -996,7 +1069,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       </React.Fragment>
     ));
   }, [
-    activeAgentId,
     expandedAgents,
     isMobileViewport,
     agentsWithUnseenOutput,
@@ -1005,9 +1077,10 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     toolsByAgent,
     subagentsByParent,
     subordinatesByBoss,
-    subordinatesOfActiveBoss,
     agentAreaInfo,
     searchMatchContexts,
+    customAgentClasses,
+    compactingAgents,
     handleCardSelect,
     handleCardClearContext,
     handleCardContextMenu,
@@ -1063,19 +1136,24 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     if (!activeAgentId) return;
     const areaKey = agentToAreaId.get(activeAgentId) ?? '__unassigned__';
     if (expandedAreas.has(areaKey)) return;
-    if (splitAreas && groupByArea) {
-      // Accordion mode: the selected agent's area replaces the open one
-      // instead of piling up next to it.
-      if (onSetExpandedAreas) onSetExpandedAreas([areaKey]);
-      else setInternalExpandedAreas(new Set([areaKey]));
-    } else if (externalOnToggleArea) {
-      externalOnToggleArea(areaKey);
-    } else {
-      setInternalExpandedAreas(prev => {
-        if (prev.has(areaKey)) return prev;
-        return new Set(prev).add(areaKey);
-      });
-    }
+    // Expanding a large area can mount dozens of rich AgentCards. It is useful
+    // follow-up UI, but not part of the critical click→chat response, so keep
+    // it in a transition that React may yield or supersede on rapid switching.
+    React.startTransition(() => {
+      if (splitAreas && groupByArea) {
+        // Accordion mode: the selected agent's area replaces the open one
+        // instead of piling up next to it.
+        if (onSetExpandedAreas) onSetExpandedAreas([areaKey]);
+        else setInternalExpandedAreas(new Set([areaKey]));
+      } else if (externalOnToggleArea) {
+        externalOnToggleArea(areaKey);
+      } else {
+        setInternalExpandedAreas(prev => {
+          if (prev.has(areaKey)) return prev;
+          return new Set(prev).add(areaKey);
+        });
+      }
+    });
     // Depend only on the agent id so a later user-driven collapse of the same
     // area is respected; we re-expand only when the selection itself changes.
   }, [activeAgentId]);
@@ -1189,7 +1267,9 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
 
     // Small delay so React can flush the DOM update before we measure.
     const raf = requestAnimationFrame(() => {
-      const activeCard = container.querySelector<HTMLElement>('.aop-agent-card.active');
+      const activeCard = container.querySelector<HTMLElement>(
+        '.aop-agent-card.active, .aop-agent-card:has(.aop-agent-state-marker--active)'
+      );
       if (!activeCard) return;
 
       const containerRect = container.getBoundingClientRect();
@@ -1210,7 +1290,14 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     return () => cancelAnimationFrame(raf);
   }, [activeAgentId]);
 
+  const cardSelectionState = useMemo<AgentCardSelectionState>(() => ({
+    activeAgentId,
+    subordinateAgentIds: subordinatesOfActiveBoss,
+    subordinateLabel: t('terminal:overview.subordinateOfSelectedBoss', { defaultValue: 'Reports to selected boss' }),
+  }), [activeAgentId, subordinatesOfActiveBoss, t]);
+
   return (
+    <AgentCardSelectionContext.Provider value={cardSelectionState}>
     <div className={`agent-overview-panel${isMobileViewport && mobileFiltersCollapsed ? ' mobile-filters-collapsed' : ''}`}>
       {/* Stats + Search + Close — minimal top row */}
       <div className="aop-stats-row">
@@ -1526,6 +1613,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         onClose={() => setRemoveAgentConfirm(null)}
       />
     </div>
+    </AgentCardSelectionContext.Provider>
   );
 }
 
@@ -1535,9 +1623,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
 
 interface AgentCardProps {
   agent: Agent;
-  isActive: boolean;
-  /** True when this agent reports to the currently selected boss agent. */
-  isSubordinateOfActiveBoss: boolean;
   isExpanded: boolean;
   isMobile: boolean;
   hasPendingRead: boolean;
@@ -1548,6 +1633,8 @@ interface AgentCardProps {
   subordinates: Agent[];
   areaInfo?: { color: string; name: string };
   matchContext?: SearchMatchContext;
+  customClasses: CustomAgentClass[];
+  isCompacting: boolean;
   onSelect: (agentId: string) => void;
   onClearContext: (agentId: string) => void;
   onContextMenu: (agentId: string, position: { x: number; y: number }) => void;
@@ -1565,8 +1652,6 @@ interface SubagentEntry {
 
 const AgentCard = React.memo(function AgentCard({
   agent,
-  isActive,
-  isSubordinateOfActiveBoss,
   isExpanded,
   isMobile,
   hasPendingRead,
@@ -1577,21 +1662,20 @@ const AgentCard = React.memo(function AgentCard({
   subordinates,
   areaInfo,
   matchContext,
+  customClasses,
+  isCompacting,
   onSelect,
   onClearContext,
   onContextMenu,
 }: AgentCardProps) {
   const { t } = useTranslation(['terminal', 'common']);
-  const customClasses = useCustomAgentClassesArray();
   const classConfig = getClassConfig(agent.class, customClasses);
   const isBossAgent = agent.isBoss || agent.class === 'boss';
-  const isCompacting = useAgentCompacting(agent.id);
   const hasDraft = useHasDraft(agent.id);
   const _statusIcon = STATUS_ICONS[agent.status] || '❓';
   const _statusLabel = STATUS_LABEL_KEYS[agent.status] ? t(`terminal:${STATUS_LABEL_KEYS[agent.status]}`) : agent.status;
   const recentTools = toolExecs.slice(0, isMobile ? 4 : 8);
-  const lastMsg = getLastMessage(agent.id);
-  const msgCount = getMessageCount(agent.id);
+  const { lastMessage: lastMsg, messageCount: msgCount } = getMessageSummary(agent.id);
   const trunc = isMobile ? 40 : 80;
 
   // Build unified subagent list: live subagents + Task tool execs not in live store
@@ -1746,7 +1830,7 @@ const AgentCard = React.memo(function AgentCard({
         </button>
       )}
       <div
-        className={`aop-agent-card ${isBossAgent ? 'boss' : ''} ${isActive ? 'active' : ''} ${agent.status} ${hasPendingRead ? 'unread' : ''}${isTwoFingerHovered ? ' two-finger-hover' : ''}${isCompacting ? ' compacting' : ''}${isSubordinateOfActiveBoss ? ' subordinate-of-active-boss' : ''}`}
+        className={`aop-agent-card ${isBossAgent ? 'boss' : ''} ${agent.status} ${hasPendingRead ? 'unread' : ''}${isTwoFingerHovered ? ' two-finger-hover' : ''}${isCompacting ? ' compacting' : ''}`}
         data-agent-id={agent.id}
         draggable
         onDragStart={(e) => {
@@ -1796,27 +1880,13 @@ const AgentCard = React.memo(function AgentCard({
           title={t('terminal:overview.clickToSwitch')}
         >
           {isBossAgent && <span className="aop-boss-crown" aria-hidden="true"><Icon name="crown" size={12} color="#ffd700" weight="fill" /></span>}
-          {isSubordinateOfActiveBoss && (
-            <span
-              className="aop-subordinate-badge"
-              title={t('terminal:overview.subordinateOfSelectedBoss', { defaultValue: 'Reports to selected boss' })}
-              aria-label={t('terminal:overview.subordinateOfSelectedBoss', { defaultValue: 'Reports to selected boss' })}
-            >
-              <Icon name="link" size={10} color="#ffd700" weight="bold" />
-            </span>
-          )}
+          <AgentCardSelectionMarker agentId={agent.id} />
           {agent.name}
         </span>
         {(agent.status === 'working' || isCompacting) && (
-          <span
-            className="aop-agent-working-bars"
-            title={isCompacting ? 'Compacting context' : 'Working'}
-            aria-label={isCompacting ? 'Compacting context' : 'Working'}
-          >
-            <i />
-            <i />
-            <i />
-          </span>
+          <AgentCardWorkingIndicator
+            label={isCompacting ? 'Compacting context' : 'Working'}
+          />
         )}
         {hasPendingRead && (
           <span className="aop-pending-read-indicator" title="Pending read">!</span>

@@ -7,6 +7,7 @@ import {
   estimateColumnWidths,
   filterRowIndices,
   formatBadge,
+  formatExtent,
   formatStat,
   gridToTsv,
   isNumericCell,
@@ -51,6 +52,11 @@ describe('spreadsheetGrid helpers', () => {
   it('dumps the grid as TSV with quoting for tabs/newlines', () => {
     expect(gridToTsv([['a', 'b'], ['c']], 2)).toBe('a\tb\nc\t');
     expect(gridToTsv([['x\ty', 'multi\nline', 'say "hi"']], 3)).toBe('"x\ty"\t"multi\nline"\t"say ""hi"""');
+  });
+
+  it('marks estimated extents', () => {
+    expect(formatExtent(1234, 8)).toBe(`${(1234).toLocaleString()} × 8`);
+    expect(formatExtent(1234, 8, true)).toBe(`≈ ${(1234).toLocaleString()} × 8`);
   });
 
   it('describes delimiters and format badges', () => {

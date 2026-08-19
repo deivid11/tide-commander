@@ -2520,20 +2520,8 @@
   }
 }
 
-@keyframes bash-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
-
-.bash-spinner {
-  display: inline-block;
-  width: 11px;
-  height: 11px;
-  border: 2px solid color-mix(in srgb, var(--accent-yellow) 25%, transparent);
-  border-top-color: var(--accent-yellow);
-  border-radius: 50%;
-  animation: bash-spin 0.7s linear infinite;
-  flex-shrink: 0;
+.bash-activity-glyph {
+  color: var(--accent-yellow);
 }
 
 .exec-task-output-container {

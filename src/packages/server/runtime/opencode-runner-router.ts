@@ -16,7 +16,10 @@ import type {
 } from './types.js';
 import { ClaudeRunner } from '../claude/runner.js';
 import { OpencodeBackend } from '../opencode/backend.js';
-import { OpencodeServerRunner } from '../opencode/server/opencode-server-runner.js';
+import {
+  OpencodeServerRunner,
+  type OpencodeModelCatalogReloadResult,
+} from '../opencode/server/opencode-server-runner.js';
 import { isOpencodeServerModeEnabled } from '../services/system-prompt-service.js';
 import { createLogger } from '../utils/logger.js';
 
@@ -55,6 +58,10 @@ export class OpencodeRunnerRouter implements RuntimeRunner {
   start(): void {
     this.run_.start?.();
     this.server.start?.();
+  }
+
+  requestModelCatalogReload(): OpencodeModelCatalogReloadResult {
+    return this.server.requestModelCatalogReload();
   }
 
   async run(request: RuntimeCommandRequest): Promise<void> {
