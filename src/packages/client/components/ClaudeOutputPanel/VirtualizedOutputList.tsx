@@ -749,11 +749,15 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   const scrollToBottom = useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    const count = allItemsCountRef.current;
-    if (count <= 0) return;
-    // Use both the virtualizer and direct scrollTop for robustness.
-    virtualizer.scrollToIndex(count - 1, { align: 'end' });
-    container.scrollTop = container.scrollHeight;
+    if (allItemsCountRef.current <= 0) return;
+    const bottomOffset = Math.max(0, container.scrollHeight - container.clientHeight);
+    // Target the DOM's actual bottom offset, not the last virtual row. The
+    // virtualizer's index reconciliation can revise a last-row target seconds
+    // later when that row remeasures, briefly pulling the viewport upward; the
+    // raw bottom writer then snaps it back and produces the observed flicker.
+    // An offset target is already exact, so reconciliation settles immediately.
+    virtualizer.scrollToOffset(bottomOffset, { align: 'start' });
+    container.scrollTop = bottomOffset;
   }, [scrollContainerRef, virtualizer]);
 
   // Jump to a user prompt from the overview rail. Scrolling lives HERE (this

@@ -14,7 +14,7 @@
  * explains why the raw agent signals are too noisy to render directly.
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAgentsArray, useAgentsWithUnseenOutput, useCustomAgentClassesArray, useViewMode, store } from '../../store';
 import { STORAGE_KEYS, getStorage, setStorage } from '../../utils/storage';
 import { isAgentVisibleInWorkspace, useWorkspaceFilter } from '../WorkspaceSwitcher';
@@ -47,7 +47,7 @@ export function AgentActivityDock({ activeAgentId, onSelectAgent }: AgentActivit
 
   const recentSize = useAgentDockRecentSize();
   // Scoped so the roster survives host remounts (see DockScopeState).
-  const { entries, exitingIds, workingIds } = useDockRoster(agents, { scope: 'overview-dock', recentSize });
+  const { entries: liveEntries, exitingIds: liveExitingIds, workingIds } = useDockRoster(agents, { scope: 'overview-dock', recentSize });
 
   const [expanded, setExpanded] = useState<boolean>(() => getStorage<boolean>(STORAGE_KEYS.AGENT_DOCK_COLLAPSED, false) !== true);
   const toggleExpanded = useCallback(() => {
@@ -67,11 +67,77 @@ export function AgentActivityDock({ activeAgentId, onSelectAgent }: AgentActivit
     if (viewMode !== 'flat') store.setTerminalOpen(true);
   }, [onSelectAgent, viewMode]);
 
+  // Keep a live status/recency update from moving a thumbnail after the user
+  // has already pressed it. The press-time id is also retained for synthetic
+  // mobile clicks, which can be dispatched after the roster DOM has changed.
+  const [rosterInteractionLocked, setRosterInteractionLocked] = useState(false);
+  const frozenEntriesRef = useRef(liveEntries);
+  const frozenExitingIdsRef = useRef(liveExitingIds);
+  if (!rosterInteractionLocked) {
+    frozenEntriesRef.current = liveEntries;
+    frozenExitingIdsRef.current = liveExitingIds;
+  }
+  const entries = rosterInteractionLocked ? frozenEntriesRef.current : liveEntries;
+  const exitingIds = rosterInteractionLocked ? frozenExitingIdsRef.current : liveExitingIds;
+  const pressedAgentRef = useRef<{ id: string; at: number } | null>(null);
+  const interactionReleaseTimerRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (interactionReleaseTimerRef.current !== null) {
+      window.clearTimeout(interactionReleaseTimerRef.current);
+    }
+  }, []);
+
+  const lockRosterForPointer = useCallback(() => {
+    frozenEntriesRef.current = liveEntries;
+    frozenExitingIdsRef.current = liveExitingIds;
+    setRosterInteractionLocked(true);
+  }, [liveEntries, liveExitingIds]);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!e.isPrimary || e.button !== 0) return;
+    const thumb = (e.target as Element).closest<HTMLElement>('.aop-working-thumb[data-agent-id]');
+    if (!thumb?.dataset.agentId) return;
+    frozenEntriesRef.current = liveEntries;
+    frozenExitingIdsRef.current = liveExitingIds;
+    setRosterInteractionLocked(true);
+    pressedAgentRef.current = { id: thumb.dataset.agentId, at: Date.now() };
+  }, [liveEntries, liveExitingIds]);
+
+  const releaseAfterPointer = useCallback(() => {
+    if (interactionReleaseTimerRef.current !== null) {
+      window.clearTimeout(interactionReleaseTimerRef.current);
+    }
+    interactionReleaseTimerRef.current = window.setTimeout(() => {
+      interactionReleaseTimerRef.current = null;
+      pressedAgentRef.current = null;
+      setRosterInteractionLocked(false);
+    }, 0);
+  }, []);
+
+  const releaseImmediately = useCallback(() => {
+    pressedAgentRef.current = null;
+    setRosterInteractionLocked(false);
+  }, []);
+
+  const handleThumbClick = useCallback((agentId: string) => {
+    const pressed = pressedAgentRef.current;
+    pressedAgentRef.current = null;
+    const targetAgentId = pressed && Date.now() - pressed.at <= 1500 ? pressed.id : agentId;
+    if (!store.getState().agents.has(targetAgentId)) return;
+    selectAgent(targetAgentId);
+  }, [selectAgent]);
+
   return (
     <div
       className={`aop-working-strip${workingIds.size === 0 ? ' no-working' : ''}${expanded ? '' : ' collapsed'}`}
       role="toolbar"
       aria-label="Recent and working agents"
+      onPointerEnter={(e) => { if (e.pointerType === 'mouse') lockRosterForPointer(); }}
+      onPointerDownCapture={handlePointerDown}
+      onPointerUpCapture={releaseAfterPointer}
+      onPointerCancel={releaseImmediately}
+      onPointerLeave={releaseImmediately}
     >
       <Tooltip
         content={expanded ? 'Hide agent activity dock' : 'Show agent activity dock'}
@@ -121,10 +187,11 @@ export function AgentActivityDock({ activeAgentId, onSelectAgent }: AgentActivit
             >
               <button
                 type="button"
+                data-agent-id={agent.id}
                 className={`aop-working-thumb${isWorking ? '' : ' recent'}${isActive ? ' active' : ''}${isExiting ? ' exiting' : ''}`}
                 style={areaColor ? ({ '--aop-thumb-area': areaColor } as React.CSSProperties) : undefined}
                 aria-label={`Open ${agent.name}, ${isWorking ? 'working' : 'recently active'}`}
-                onClick={() => selectAgent(agent.id)}
+                onClick={() => handleThumbClick(agent.id)}
                 onMouseEnter={() => prefetchAgentHistory(agent.id)}
               >
                 <AgentIcon agent={agent} size="100%" customClasses={customClasses} />

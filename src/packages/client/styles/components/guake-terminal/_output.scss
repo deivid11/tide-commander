@@ -342,17 +342,12 @@
   pointer-events: none;
 }
 
-// Warm history stays fully opaque. A cold page is concealed only while its
-// first row measurements settle, then gets one incoming-only reveal; unlike the
-// old crossfade, it never appears, disappears, and appears again.
-.guake-history-content {
-  opacity: 1;
-  transition: opacity 90ms ease-out;
-
-  &.is-preparing {
-    visibility: hidden;
-    opacity: 0;
-  }
+// Conceal a cold page only while its first measurements settle. Reveal it in
+// the same commit that removes the loading overlay: the former 90ms opacity
+// transition left a visible blank frame (overlay gone while content was still
+// at opacity 0), which looked like a load flicker.
+.guake-history-content.is-preparing {
+  visibility: hidden;
 }
 
 // Output line types

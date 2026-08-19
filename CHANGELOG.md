@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.199.3] - 2026-08-19
+
+### Fixed
+- **Clicking a dock chip always opens the agent you aimed at** - the miniature agent roster froze its rendered order for the duration of a press, so a live status or recency update can no longer slide a different agent under your pointer between press and click. The chip under the finger at press time also wins for the delayed synthetic clicks phones dispatch after the roster DOM has already changed.
+- **No more flicker when the terminal snaps to the bottom** - the scroll target is the DOM's actual bottom offset instead of the last virtual row, whose index the virtualizer could revise seconds later when the row remeasured, briefly pulling the viewport up before the bottom writer snapped it back.
+- **Opening a cold conversation no longer flashes blank** - the page is revealed in the same commit that removes its loading overlay, instead of fading in over 90 ms and exposing one empty frame after the overlay disappeared.
+
 ## [1.199.2] - 2026-08-19
 
 ### Changed

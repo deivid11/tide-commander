@@ -125,7 +125,7 @@ interface PinnedChipProps {
   isDragging: boolean;
   dropState: 'before' | 'after' | null;
   customClasses: ReturnType<typeof useCustomAgentClassesArray>;
-  onSelect: (agent: Agent) => void;
+  onSelect: (agentId: string) => void;
   onTogglePin: (e: React.MouseEvent, agentId: string) => void;
   onDragStart: (e: React.DragEvent, agentId: string) => void;
   onDragOver: (e: React.DragEvent, agentId: string) => void;
@@ -157,6 +157,7 @@ const PinnedChip = memo(function PinnedChip({
     <button
       type="button"
       draggable={isPinned}
+      data-agent-id={agent.id}
       className={`pinned-agent${isActive ? ' active' : ''}${working ? ' working' : ''}${isBoss ? ' is-boss' : ''}${areaColor ? ' has-area' : ''}${
         hasUnread ? ' has-unread' : ''
       }${isPinned ? '' : ' pinned-agent--unpinned'}${
@@ -168,7 +169,7 @@ const PinnedChip = memo(function PinnedChip({
       // name rides here rather than as image alt text.
       aria-label={`${agent.name}, ${provider}${hasUnread ? ', new output' : ''}${isPinned ? '' : ', not pinned'}`}
       style={areaColor ? ({ ['--area-color']: areaColor } as React.CSSProperties) : undefined}
-      onClick={() => onSelect(agent)}
+      onClick={() => onSelect(agent.id)}
       // Warm the history cache during hover so the switch on click paints
       // the conversation in its first frame (no-op when already cached).
       onMouseEnter={() => prefetchAgentHistory(agent.id)}
@@ -296,7 +297,7 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
   }, [includeActiveAgents, pinnedIds, agents, activeWorkspace]);
 
   const dockRecentSize = useAgentDockRecentSize();
-  const { entries: dockEntries, exitingIds } = useDockRoster(unpinnedCandidates, { recency: workRecency, scope: 'pinned-bar', recentSize: dockRecentSize });
+  const { entries: dockEntries, exitingIds: liveExitingIds } = useDockRoster(unpinnedCandidates, { recency: workRecency, scope: 'pinned-bar', recentSize: dockRecentSize });
 
   // Build the sections. Flat mode is a single header-less group. Grouped modes
   // bucket the PINS by live status/area; within every bucket the order is pin
@@ -304,7 +305,7 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
   // chips-move-under-the-cursor bug). The unpinned actives always form their own
   // trailing "Active" section, so grouping and the dock compose without
   // duplicating anyone.
-  const groups = useMemo<ChipGroup[]>(() => {
+  const liveGroups = useMemo<ChipGroup[]>(() => {
     const unpinnedEntries = dockEntries.map(({ agent, lane }): RowEntry => ({ agent, pinned: false, lane }));
     const pinnedEntries = pinned.map((agent): RowEntry => ({ agent, pinned: true }));
 
@@ -352,6 +353,62 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
     // renamed/recolored/moved without the pin set itself changing.
   }, [groupMode, pinned, dockEntries, areas]);
 
+  // Status/recency changes may alter the transient roster while the pointer is
+  // already aimed at a miniature chip. Freeze the exact rendered groups for
+  // that interaction so an icon cannot move and put another agent under the
+  // pointer between press and click.
+  const [rosterInteractionLocked, setRosterInteractionLocked] = useState(false);
+  const frozenGroupsRef = useRef<ChipGroup[]>(liveGroups);
+  const frozenExitingIdsRef = useRef<Set<string>>(liveExitingIds);
+  if (!rosterInteractionLocked) {
+    frozenGroupsRef.current = liveGroups;
+    frozenExitingIdsRef.current = liveExitingIds;
+  }
+  const groups = rosterInteractionLocked ? frozenGroupsRef.current : liveGroups;
+  const exitingIds = rosterInteractionLocked ? frozenExitingIdsRef.current : liveExitingIds;
+  const pressedAgentRef = useRef<{ id: string; at: number } | null>(null);
+  const interactionReleaseTimerRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (interactionReleaseTimerRef.current !== null) {
+      window.clearTimeout(interactionReleaseTimerRef.current);
+    }
+  }, []);
+
+  const lockRosterForPointer = useCallback(() => {
+    frozenGroupsRef.current = liveGroups;
+    frozenExitingIdsRef.current = liveExitingIds;
+    setRosterInteractionLocked(true);
+  }, [liveGroups, liveExitingIds]);
+
+  const releaseRosterAfterPointer = useCallback(() => {
+    if (interactionReleaseTimerRef.current !== null) {
+      window.clearTimeout(interactionReleaseTimerRef.current);
+    }
+    // Native click follows pointerup synchronously. Release on the next task so
+    // the click still resolves against the press-time roster.
+    interactionReleaseTimerRef.current = window.setTimeout(() => {
+      interactionReleaseTimerRef.current = null;
+      pressedAgentRef.current = null;
+      setRosterInteractionLocked(false);
+    }, 0);
+  }, []);
+
+  const handleRosterPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!e.isPrimary || e.button !== 0) return;
+    const chip = (e.target as Element).closest<HTMLElement>('.pinned-agent[data-agent-id]');
+    if (!chip?.dataset.agentId) return;
+    frozenGroupsRef.current = liveGroups;
+    frozenExitingIdsRef.current = liveExitingIds;
+    setRosterInteractionLocked(true);
+    pressedAgentRef.current = { id: chip.dataset.agentId, at: Date.now() };
+  }, [liveGroups, liveExitingIds]);
+
+  const handleRosterPointerLeave = useCallback(() => {
+    pressedAgentRef.current = null;
+    setRosterInteractionLocked(false);
+  }, []);
+
   const row = useMemo(() => groups.flatMap((g) => g.entries), [groups]);
 
   // Resolve each chip's area color (by spatial position, like the board).
@@ -362,9 +419,16 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
     return m;
   }, [areas, row]);
 
-  const handleSelect = useCallback((agent: Agent) => {
+  const handleSelect = useCallback((agentId: string) => {
+    const pressed = pressedAgentRef.current;
+    pressedAgentRef.current = null;
+    // Prefer the chip that was under the pointer at press time. This guards the
+    // mobile/synthetic-click case where a live roster update replaces the DOM
+    // beneath the finger before the delayed click is dispatched.
+    const targetAgentId = pressed && Date.now() - pressed.at <= 1500 ? pressed.id : agentId;
+    if (!store.getState().agents.has(targetAgentId)) return;
     store.setLastSelectionViaDirectClick(true);
-    store.selectAgent(agent.id);
+    store.selectAgent(targetAgentId);
     // FlatView drives its own inline chat column from the same selection; opening
     // the Guake terminal here would stack a SECOND chat overlay on top of it
     // (mirrors the `!isFlat` guard in store.openTerminalOnMobile).
@@ -498,7 +562,17 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
   const miniature = allPinned.length > miniatureThreshold || row.length > miniatureThreshold;
 
   return (
-    <div ref={barRef} className={`pinned-agents-bar${miniature ? ' miniature' : ''}`} role="toolbar" aria-label="Agents">
+    <div
+      ref={barRef}
+      className={`pinned-agents-bar${miniature ? ' miniature' : ''}`}
+      role="toolbar"
+      aria-label="Agents"
+      onPointerEnter={(e) => { if (e.pointerType === 'mouse') lockRosterForPointer(); }}
+      onPointerDownCapture={handleRosterPointerDown}
+      onPointerUpCapture={releaseRosterAfterPointer}
+      onPointerCancel={handleRosterPointerLeave}
+      onPointerLeave={handleRosterPointerLeave}
+    >
       <button
         type="button"
         className={`pinned-mode-toggle${activeOnly ? ' on' : ''}`}
