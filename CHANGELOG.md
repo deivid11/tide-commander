@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.199.6] - 2026-08-19
+
+### Fixed
+- **Opening an agent with cached history no longer jumps upward** - the virtualizer writes its estimated starting offset on the later render where it first sees the scroll container, which for a warm conversation happens after the short switch pin has already released, leaving the view a few hundred pixels above the bottom with no visible cause. That one-time attachment write is now repaired from the real DOM bottom before paint, and only then — prompt and search navigation still move away from the bottom on purpose.
+
 ## [1.199.5] - 2026-08-19
 
 ### Fixed

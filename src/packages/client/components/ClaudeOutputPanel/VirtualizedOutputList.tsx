@@ -784,6 +784,28 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     container.scrollTop = bottomOffset;
   }, [scrollContainerRef, virtualizer]);
 
+  // The parent scroll ref attaches after this descendant's first layout pass.
+  // On the later render where TanStack finally sees the element, _willUpdate()
+  // writes its cached ESTIMATED initialOffset. A warm history can release the
+  // short pin before that render; Felipe Pi exposed this as a 312.75px jump
+  // upward with an unchanged scrollHeight. This layout effect is registered
+  // after useVirtualizer's own effect, so repair that one-time attachment write
+  // before paint using the real DOM bottom. Do not run on ordinary renders —
+  // prompt/search navigation intentionally moves away from the bottom.
+  const virtualizerWasAttachedRef = useRef(false);
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current;
+    const isAttached = !!container && virtualizer.scrollElement === container;
+    if (!isAttached) {
+      virtualizerWasAttachedRef.current = false;
+      return;
+    }
+    if (virtualizerWasAttachedRef.current) return;
+    virtualizerWasAttachedRef.current = true;
+    if (!stickyBottomRef.current) return;
+    scrollToBottom();
+  });
+
   // Rows can finish measuring (or an image/code block can expand) after the
   // short switch pin has released. Observe both the virtual spacer AND its
   // complete history wrapper: the latter also contains non-virtual siblings
