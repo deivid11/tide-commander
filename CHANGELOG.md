@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.202.1] - 2026-08-20
+
+### Fixed
+- Maintenance release — no user-facing code changes since v1.202.0; pipeline verification and housekeeping.
+
 ## [1.202.0] - 2026-08-20
 
 ### Added
