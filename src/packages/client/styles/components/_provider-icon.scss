@@ -16,9 +16,11 @@
   &::after {
     content: '';
     position: absolute;
-    inset: -1.5px;
+    // Keep the outline on whole CSS pixels. Half-pixel edges made the ring
+    // rasterize unevenly at 1x scale, so it looked offset from the icon.
+    inset: -2px;
     z-index: 3;
-    border: 1.5px solid #a855f7;
+    border: 1px solid #a855f7;
     border-radius: 36%;
     box-shadow: 0 0 4px rgba(168, 85, 247, 0.5);
     pointer-events: none;

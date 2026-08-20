@@ -1552,8 +1552,14 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
           displayedAreaGroups.map((group, groupIndex) => {
             const areaKey = group.area?.id || '__unassigned__';
             const isEditingPrompt = editingPromptAreaId === areaKey && !!group.area;
+            // The same area may appear once in Recent and once in All, so the
+            // section is part of its identity. Its array index is NOT: recency
+            // reorders changed every downstream key, remounting whole card
+            // subtrees and greatly amplifying detached-DOM retention in React
+            // DevTools. Stable section+area keys let React move existing nodes.
+            const sectionKey = splitAreas && groupIndex < splitAreaDividerIndex ? 'recent' : 'all';
             return (
-              <React.Fragment key={`${splitAreas && groupIndex < splitAreaDividerIndex ? 'recent' : 'all'}-${areaKey}-${groupIndex}`}>
+              <React.Fragment key={`${sectionKey}-${areaKey}`}>
               {splitAreaDividerIndex > 0 && groupIndex === splitAreaDividerIndex && (
                 <div className="aop-split-areas-divider"><span>All areas</span></div>
               )}

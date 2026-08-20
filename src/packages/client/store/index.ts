@@ -1643,7 +1643,8 @@ declare global {
 // v9: added setAgentBackgroundTasks (live background-task rail).
 // v10: exec PTY replay — handleExecTaskStarted/Output route through TerminalRenderer.
 // v11: exec tasks snapshot — handleExecTasksSnapshot seeds running exec cards on (re)connect.
-const STORE_VERSION = 11;
+// v12: snapshot carries recently-completed exec tasks too (cards attach on late open).
+const STORE_VERSION = 12;
 
 // Singleton store instance - persisted on window for HMR
 function getOrCreateStore(): Store {

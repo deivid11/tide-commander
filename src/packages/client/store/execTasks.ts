@@ -35,11 +35,13 @@ export interface ExecTaskActions {
     toolUseId?: string
   ): void;
   handleExecTaskOutput(taskId: string, agentId: string, output: string, isError?: boolean): void;
-  /** Connection snapshot: seed/replace running tasks (with buffered output
-   * tail) and resolve local "running" cards absent from the snapshot. */
+  /** Connection snapshot: seed/replace running AND recently-completed tasks
+   * (with buffered output tail) and resolve local "running" cards absent from
+   * the snapshot's running set. */
   handleExecTasksSnapshot(tasks: Array<{
     taskId: string; agentId: string; agentName: string; command: string; cwd: string;
     pty?: boolean; startedAt: number; toolUseId?: string; outputTail: string;
+    status?: 'running' | 'completed' | 'failed'; exitCode?: number | null; completedAt?: number;
   }>): void;
   handleExecTaskCompleted(taskId: string, agentId: string, exitCode: number | null, success: boolean, completedAt?: number): void;
 
@@ -107,7 +109,9 @@ export function createExecTaskActions(
     handleExecTasksSnapshot(tasks): void {
       setState((state) => {
         if (!state.execTasks) state.execTasks = new Map();
-        const runningIds = new Set(tasks.map((t) => t.taskId));
+        // Only the snapshot's RUNNING set proves liveness — completed entries
+        // are history and must not keep a stale local card spinning.
+        const runningIds = new Set(tasks.filter((t) => (t.status ?? 'running') === 'running').map((t) => t.taskId));
 
         // Any local card still "running" whose task the server no longer has
         // ended while this client was disconnected — resolve it instead of
@@ -122,10 +126,13 @@ export function createExecTaskActions(
           }
         }
 
-        // Seed/replace each running task from the server's authoritative
-        // buffer (a reconnecting client may have missed chunks — replacing
-        // wholesale is simpler and correct; PTY tails rebuild fine).
+        // Seed/replace each task from the server's authoritative buffer (a
+        // reconnecting client may have missed chunks — replacing wholesale is
+        // simpler and correct; PTY tails rebuild fine). Completed entries seed
+        // resolved cards so rows of runs that finished before this client
+        // connected still attach their card.
         for (const t of tasks) {
+          const status = t.status ?? 'running';
           ptyRenderers.delete(t.taskId);
           const task: ExecTask = {
             taskId: t.taskId,
@@ -133,18 +140,23 @@ export function createExecTaskActions(
             agentName: t.agentName,
             command: t.command,
             cwd: t.cwd,
-            status: 'running',
+            status,
             output: [],
             startedAt: t.startedAt,
             pty: t.pty,
             toolUseId: t.toolUseId,
           };
+          if (status !== 'running') {
+            task.exitCode = t.exitCode ?? null;
+            task.completedAt = t.completedAt;
+          }
           if (t.pty) {
             const renderer = new TerminalRenderer();
-            ptyRenderers.set(t.taskId, renderer);
             renderer.write(t.outputTail);
             const rendered = renderer.getLines();
             task.output = rendered.length > MAX_OUTPUT_LINES ? rendered.slice(-MAX_OUTPUT_LINES) : rendered;
+            // Only running tasks keep their renderer (future chunks stream in).
+            if (status === 'running') ptyRenderers.set(t.taskId, renderer);
           } else if (t.outputTail) {
             const lines = t.outputTail.split('\n').filter((l) => l.length > 0);
             task.output = lines.length > MAX_OUTPUT_LINES ? lines.slice(-MAX_OUTPUT_LINES) : lines;

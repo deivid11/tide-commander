@@ -17,6 +17,8 @@ import { ArchiveViewer } from '../shared/ArchiveViewer';
 import { ARCHIVE_EXTENSIONS } from '../../../shared/archive-types';
 import { SpreadsheetViewer } from '../shared/SpreadsheetViewer';
 import { SPREADSHEET_BINARY_EXTENSIONS } from '../../../shared/spreadsheet-types';
+import { DocumentViewer } from '../shared/DocumentViewer';
+import { DOCUMENT_EXTENSIONS } from '../../../shared/document-types';
 import { GIT_STATUS_CONFIG } from '../FileExplorerPanel/constants';
 import { downloadFile, downloadFolder, setNativeFileDrag } from '../../utils/file-download';
 import { agentRecency, getRecentAgentTimes } from '../../utils/agentRecency';
@@ -144,7 +146,7 @@ interface ContentState {
   language: string;
 }
 
-type BinaryPreviewKind = 'image' | 'pdf' | 'stl' | 'fcstd' | 'glb' | 'gcode' | 'archive' | 'spreadsheet' | 'binary';
+type BinaryPreviewKind = 'image' | 'pdf' | 'stl' | 'fcstd' | 'glb' | 'gcode' | 'archive' | 'spreadsheet' | 'document' | 'binary';
 
 interface BinaryState {
   filePath: string;
@@ -193,6 +195,8 @@ function getBinaryPreviewKind(filename: string): BinaryPreviewKind | null {
   if (ARCHIVE_EXTENSIONS.includes(extension)) return 'archive';
   // Workbooks get the sheet grid (legacy .xls/.ods explain themselves inside it).
   if (SPREADSHEET_BINARY_EXTENSIONS.includes(extension)) return 'spreadsheet';
+  // Word-processing documents get the reading page.
+  if (DOCUMENT_EXTENSIONS.includes(extension)) return 'document';
   return GIT_BINARY_EXTENSIONS.has(extension) ? 'binary' : null;
 }
 
@@ -286,6 +290,13 @@ function GitBinaryPreview({ data, onFileSelect }: { data: BinaryState; onFileSel
     return (
       <div className="guake-git-binary-preview">
         <SpreadsheetViewer filePath={data.filePath} filename={data.fileName} />
+      </div>
+    );
+  }
+  if (data.previewKind === 'document' && !data.isDeleted) {
+    return (
+      <div className="guake-git-binary-preview">
+        <DocumentViewer filePath={data.filePath} filename={data.fileName} />
       </div>
     );
   }

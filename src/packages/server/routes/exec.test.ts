@@ -26,7 +26,7 @@ vi.mock('../services/index.js', () => ({
   },
 }));
 
-import execRouter, { applyTailFilter, setBroadcast, splitTrailingTailFilter, getRunningTasksSnapshot } from './exec.js';
+import execRouter, { applyTailFilter, setBroadcast, splitTrailingTailFilter, getRunningTasksSnapshot, _resetCompletedExecTasks } from './exec.js';
 
 describe('splitTrailingTailFilter', () => {
   it('parses the common short form', () => {
@@ -97,7 +97,8 @@ describe('getRunningTasksSnapshot (WS initial state)', () => {
 
   afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 
-  it('lists a running task with buffered output tail, cwd/pty and the paired toolUseId; empty when idle', async () => {
+  it('lists a running task with buffered output tail, cwd/pty and the paired toolUseId; keeps it as completed after the run', async () => {
+    _resetCompletedExecTasks();
     expect(getRunningTasksSnapshot()).toEqual([]);
 
     // Start a slow command; snapshot it mid-flight.
@@ -115,6 +116,7 @@ describe('getRunningTasksSnapshot (WS initial state)', () => {
       agentName: 'Probe',
       command: 'echo snapshot-probe; sleep 1.2',
       pty: false,
+      status: 'running',
     });
     expect(typeof snapshot[0].taskId).toBe('string');
     expect(typeof snapshot[0].cwd).toBe('string');
@@ -122,6 +124,20 @@ describe('getRunningTasksSnapshot (WS initial state)', () => {
     expect(snapshot[0].outputTail).toContain('snapshot-probe');
 
     await done;
+    // The finished run stays in the snapshot (bounded buffer) so a client
+    // that connects AFTER a short exec still attaches the card to its row.
+    const after = getRunningTasksSnapshot();
+    expect(after).toHaveLength(1);
+    expect(after[0]).toMatchObject({
+      agentId: 'agent-1',
+      command: 'echo snapshot-probe; sleep 1.2',
+      status: 'completed',
+      exitCode: 0,
+    });
+    expect(after[0].completedAt).toBeGreaterThanOrEqual(after[0].startedAt);
+    expect(after[0].outputTail).toContain('snapshot-probe');
+
+    _resetCompletedExecTasks();
     expect(getRunningTasksSnapshot()).toEqual([]);
   });
 });

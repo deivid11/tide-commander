@@ -13,6 +13,8 @@ import { revealInFileExplorer } from '../api/files';
 import { ArchiveViewer } from './shared/ArchiveViewer';
 import { ARCHIVE_EXTENSIONS } from '../../shared/archive-types';
 import { SpreadsheetViewer } from './shared/SpreadsheetViewer';
+import { DocumentViewer } from './shared/DocumentViewer';
+import { DOCUMENT_EXTENSIONS } from '../../shared/document-types';
 import { DELIMITED_EXTENSIONS, SPREADSHEET_BINARY_EXTENSIONS } from '../../shared/spreadsheet-types';
 import { store } from '../store';
 import { useModalClose } from '../hooks';
@@ -685,10 +687,12 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     const isArchiveFile = ARCHIVE_EXTENSIONS.includes(ext);
     // Workbooks (xlsx/xlsm/xls/ods) likewise: metadata here, grid via /api/files/spreadsheet.
     const isSpreadsheetFile = SPREADSHEET_BINARY_EXTENSIONS.includes(ext);
+    // Word-processing documents: metadata here, blocks via /api/files/document.
+    const isDocumentFile = DOCUMENT_EXTENSIONS.includes(ext);
     const isDelimitedFile = (DELIMITED_EXTENSIONS as readonly string[]).includes(ext);
 
     const infoEndpoint = `/api/files/info?path=${encodeURIComponent(filePath)}${baseDirParam}`;
-    const endpoint = (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGlbFile || isGcodeFile || isAudioFile || isVideoFile || isArchiveFile || isSpreadsheetFile)
+    const endpoint = (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGlbFile || isGcodeFile || isAudioFile || isVideoFile || isArchiveFile || isSpreadsheetFile || isDocumentFile)
       ? infoEndpoint
       : `/api/files/read?path=${encodeURIComponent(filePath)}${baseDirParam}`;
 
@@ -718,7 +722,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       };
     }
 
-    if (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGlbFile || isGcodeFile || isAudioFile || isVideoFile || isArchiveFile || isSpreadsheetFile) {
+    if (isPdfFile || isImageFile || isStlFile || isFcStdFile || isGlbFile || isGcodeFile || isAudioFile || isVideoFile || isArchiveFile || isSpreadsheetFile || isDocumentFile) {
       data.content = '';
     }
 
@@ -1076,18 +1080,6 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     }
   }, [fileData]);
 
-  const handleDownloadTextFile = useCallback(async () => {
-    if (!fileData) return;
-    const url = apiUrl(
-      `/api/files/binary?path=${encodeURIComponent(fileData.path || effectivePath)}${baseDirParam}&download=true`,
-    );
-    await downloadServerFile(
-      url,
-      fileData.filename || effectivePath.split('/').pop() || 'download',
-      'text/plain;charset=utf-8',
-    );
-  }, [fileData, effectivePath, baseDirParam]);
-
   const handleRevealInFileExplorer = useCallback(async () => {
     if (!fileData?.path || revealStatus === 'opening') return;
 
@@ -1123,6 +1115,9 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   useEffect(() => { setGridMode(false); }, [effectivePath]);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
+  /** The ONE download path of the modal: works with or without a preview, for
+   * text and binary alike (the streaming binary endpoint serves both), and
+   * reports progress/errors on the button itself. */
   const handleDownload = useCallback(async () => {
     setDownloadStatus('downloading');
     setDownloadError(null);
@@ -1131,7 +1126,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
         `/api/files/binary?path=${encodeURIComponent(fileData?.path || effectivePath)}${baseDirParam}&download=true`,
       );
       const filename = fileData?.filename || effectivePath.split('/').pop() || 'download';
-      const mimeType = fileData?.extension?.toLowerCase() === '.pdf' ? 'application/pdf' : undefined;
+      const ext = (fileData?.extension || effectivePath.slice(effectivePath.lastIndexOf('.'))).toLowerCase();
+      const mimeType = ext === '.pdf' ? 'application/pdf' : undefined;
       await downloadServerFile(url, filename, mimeType);
       setDownloadStatus('idle');
     } catch (err: any) {
@@ -1167,7 +1163,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const isSpreadsheet = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, SPREADSHEET_BINARY_EXTENSIONS as string[]));
   const isDelimited = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, DELIMITED_EXTENSIONS as readonly string[] as string[]));
   const showGrid = isSpreadsheet || (isDelimited && (gridMode || Boolean(fileData?.gridOnly)));
-  const language = isSvg ? 'SVG' : isImage ? 'Image' : isPdf ? 'PDF' : isStl ? 'STL · 3D' : isFcStd ? 'FreeCAD · 3D' : isGlb ? 'GLB · 3D' : isGcode ? 'G-code · Print' : isAudio ? 'Audio' : isVideo ? 'Video' : isArchive ? 'Archive' : isSpreadsheet ? 'Spreadsheet' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
+  const isDocument = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, DOCUMENT_EXTENSIONS as string[]));
+  const language = isSvg ? 'SVG' : isImage ? 'Image' : isPdf ? 'PDF' : isStl ? 'STL · 3D' : isFcStd ? 'FreeCAD · 3D' : isGlb ? 'GLB · 3D' : isGcode ? 'G-code · Print' : isAudio ? 'Audio' : isVideo ? 'Video' : isArchive ? 'Archive' : isSpreadsheet ? 'Spreadsheet' : isDocument ? 'Document' : (fileData ? getLanguageForExtension(fileData.extension) : 'text');
   const authToken = getAuthToken();
   // Use the resolved file path (a clicked directory entry has its own path that
   // differs from the modal's original effectivePath — which may be the folder).
@@ -1190,10 +1187,14 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     : null;
   // Every format rendered by a dedicated viewer instead of the text/code panes:
   // they have no line count, nothing to copy as text and their own download path.
-  const hasBinaryPreview = isImage || isPdf || isStl || isFcStd || isGlb || isGcode || isAudio || isVideo || isArchive || showGrid;
+  const hasBinaryPreview = isImage || isPdf || isStl || isFcStd || isGlb || isGcode || isAudio || isVideo || isArchive || showGrid || isDocument;
   // The text preview endpoint deliberately rejects files over 1 MB, but those
   // files can still be saved through the streaming binary endpoint.
-  const canDownloadWithoutPreview = !fileData && error?.startsWith('File too large');
+  // Download is offered for ANY targeted file: previewed or not, text or
+  // binary, even when the preview failed (too large, unsupported, parse
+  // error). Only a directory listing or a path that resolved to nothing has
+  // nothing to download.
+  const canDownload = directoryPath === null && !notFound && (!!fileData || !!error);
   const openInFileExplorerLabel = t('terminal:fileExplorer.openInFileExplorer');
   // Folder name for the header/path when browsing a directory (basename of the
   // current directory path, or '/' at the filesystem root).
@@ -1334,20 +1335,10 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                 {copyAllStatus === 'copied' ? t('common:status.copied') : copyAllStatus === 'error' ? t('common:status.error') : t('terminal:fileExplorer.copyAll')}
               </button>
             )}
-            {fileData && !hasBinaryPreview && (
+            {canDownload && (
               <button
                 type="button"
-                className="file-viewer-copy-html-btn"
-                onClick={handleDownloadTextFile}
-                title={t('terminal:fileExplorer.downloadFileTitle')}
-              >
-                {t('common:buttons.download')}
-              </button>
-            )}
-            {hasBinaryPreview && fileData ? (
-              <button
-                type="button"
-                className={`file-viewer-copy-html-btn ${downloadStatus}`}
+                className={`file-viewer-copy-html-btn file-viewer-download-btn ${downloadStatus}`}
                 onClick={handleDownload}
                 disabled={downloadStatus === 'downloading'}
                 title={downloadError
@@ -1357,21 +1348,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                       ? t('terminal:fileExplorer.downloadPdf')
                       : t('terminal:fileExplorer.downloadFileTitle'))}
               >
-                {downloadStatus === 'downloading'
-                  ? '…'
-                  : downloadStatus === 'error'
-                    ? t('common:status.error')
-                    : t('common:buttons.download')}
-              </button>
-            ) : null}
-            {canDownloadWithoutPreview && (
-              <button
-                type="button"
-                className={`file-viewer-copy-html-btn ${downloadStatus}`}
-                onClick={handleDownload}
-                disabled={downloadStatus === 'downloading'}
-                title={downloadError || t('terminal:fileExplorer.downloadFileTitle')}
-              >
+                <Icon name="download" size={12} />
                 {downloadStatus === 'downloading'
                   ? '…'
                   : downloadStatus === 'error'
@@ -1569,6 +1546,9 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
             ) : showGrid ? (
               // Workbook / delimited file as a grid (server parses one sheet per call)
               <SpreadsheetViewer filePath={binaryPath} baseDir={searchRoot} filename={fileData.filename} />
+            ) : isDocument ? (
+              // Word-processing document rendered as a reading page
+              <DocumentViewer filePath={binaryPath} baseDir={searchRoot} filename={fileData.filename} />
             ) : isStl && stlUrl ? (
               <React.Suspense fallback={<div className="file-viewer-loading">{t('terminal:fileViewerModal.loading3d')}</div>}>
                 <StlViewer

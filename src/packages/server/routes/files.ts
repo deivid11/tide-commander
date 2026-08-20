@@ -17,7 +17,8 @@ import { detectRunnerType, mightBeTestFile, mightBeVitestFile, mightBePhpTestFil
 import type { TestRunnerType } from '../../shared/types.js';
 import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS, parseExcludeDirNames } from '../../shared/file-search.js';
 import { detectArchiveFormat, listArchive } from '../services/archive-listing.js';
-import { readSpreadsheet, detectSpreadsheetKind, UnsupportedSpreadsheetError, SPREADSHEET_DEFAULT_MAX_ROWS, SPREADSHEET_DEFAULT_MAX_COLS, SPREADSHEET_HARD_MAX_ROWS, SPREADSHEET_HARD_MAX_COLS } from '../services/spreadsheet-parse.js';
+import { readSpreadsheet, detectSpreadsheetKind, UnsupportedSpreadsheetError, SPREADSHEET_DEFAULT_MAX_ROWS, SPREADSHEET_DEFAULT_MAX_COLS, SPREADSHEET_HARD_MAX_ROWS, SPREADSHEET_HARD_MAX_COLS, zipSourceFromFd } from '../services/spreadsheet-parse.js';
+import { readDocument, detectDocumentKind, UnsupportedDocumentError, DOCUMENT_DEFAULT_MAX_BLOCKS, DOCUMENT_HARD_MAX_BLOCKS } from '../services/document-parse.js';
 import {
   searchFilesGlobal,
   searchFileContentsGlobal,
@@ -1041,6 +1042,140 @@ router.get('/spreadsheet', async (req: Request, res: Response) => {
     }
     log.error(' Failed to parse spreadsheet:', err);
     res.status(422).json({ error: err.message });
+  }
+});
+
+/** Parsed documents, most-recently-used last (Map preserves order). */
+const documentCache = new Map<string, Record<string, unknown>>();
+const DOCUMENT_CACHE_ENTRIES = 12;
+
+// GET /api/files/document - Parse a word-processing document (docx/docm/odt/
+// doc/rtf — see document-parse.ts) into renderable blocks for the file
+// viewers. `blocks` caps the payload; the response says how many exist.
+router.get('/document', async (req: Request, res: Response) => {
+  try {
+    const resolution = findFileWithFallbacks(
+      req.query.path as string | undefined,
+      req.query.baseDir as string | undefined,
+    );
+    if (!resolution.ok) {
+      const body: Record<string, unknown> = { error: resolution.error };
+      if (resolution.requested) body.path = resolution.requested;
+      if (resolution.tried) body.triedRoots = resolution.tried;
+      res.status(resolution.status).json(body);
+      return;
+    }
+    const filePath = resolution.path;
+    const stats = fs.statSync(filePath);
+    if (stats.isDirectory()) {
+      res.status(400).json({ error: 'Path is a directory', path: filePath });
+      return;
+    }
+    const filename = path.basename(filePath);
+    if (!detectDocumentKind(filename)) {
+      res.status(415).json({ error: 'Not a supported document type', path: filePath });
+      return;
+    }
+    const rawBlocks = typeof req.query.blocks === 'string' ? parseInt(req.query.blocks, 10) : NaN;
+    const maxBlocks = Number.isFinite(rawBlocks) && rawBlocks > 0
+      ? Math.min(rawBlocks, DOCUMENT_HARD_MAX_BLOCKS)
+      : DOCUMENT_DEFAULT_MAX_BLOCKS;
+
+    const cacheKey = `${filePath}|${stats.mtimeMs}|${stats.size}|${maxBlocks}`;
+    const cached = documentCache.get(cacheKey);
+    if (cached) {
+      documentCache.delete(cacheKey);
+      documentCache.set(cacheKey, cached);
+      res.json(cached);
+      return;
+    }
+    const parsed = await readDocument(filePath, { maxBlocks });
+    const body = {
+      path: filePath,
+      filename,
+      extension: path.extname(filePath).toLowerCase(),
+      size: stats.size,
+      modified: stats.mtime,
+      format: parsed.format,
+      title: parsed.title,
+      author: parsed.author,
+      blocks: parsed.blocks,
+      footnotes: parsed.footnotes,
+      header: parsed.header,
+      footer: parsed.footer,
+      wordCount: parsed.wordCount,
+      blockCount: parsed.blockCount,
+      truncated: parsed.truncated,
+      plainTextOnly: parsed.plainTextOnly,
+      maxBlocks,
+    };
+    documentCache.set(cacheKey, body);
+    while (documentCache.size > DOCUMENT_CACHE_ENTRIES) {
+      const oldest = documentCache.keys().next().value;
+      if (oldest === undefined) break;
+      documentCache.delete(oldest);
+    }
+    res.json(body);
+  } catch (err: any) {
+    if (err instanceof UnsupportedDocumentError) {
+      res.status(415).json({ error: err.message, extension: err.extension, unsupported: true });
+      return;
+    }
+    log.error(' Failed to parse document:', err);
+    res.status(422).json({ error: err.message });
+  }
+});
+
+/** Image types that may be served out of a document container. */
+const DOCUMENT_MEDIA_TYPES: Record<string, string> = {
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
+  '.bmp': 'image/bmp', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.tif': 'image/tiff',
+  '.tiff': 'image/tiff', '.emf': 'image/emf', '.wmf': 'image/wmf', '.ico': 'image/x-icon',
+};
+
+// GET /api/files/document-media - Serve ONE embedded image out of a document
+// container (docx/odt zip entry), so the viewer can render pictures inline
+// without ever extracting the archive to disk.
+router.get('/document-media', async (req: Request, res: Response) => {
+  let fd: fs.promises.FileHandle | undefined;
+  try {
+    const entry = typeof req.query.entry === 'string' ? req.query.entry : '';
+    // Only media entries of the container — never an arbitrary zip member.
+    if (!/^(?:word\/media\/|media\/|Pictures\/)[^/]+$/i.test(entry)) {
+      res.status(400).json({ error: 'Invalid media entry' });
+      return;
+    }
+    const resolution = findFileWithFallbacks(
+      req.query.path as string | undefined,
+      req.query.baseDir as string | undefined,
+    );
+    if (!resolution.ok) {
+      res.status(resolution.status).json({ error: resolution.error });
+      return;
+    }
+    const filePath = resolution.path;
+    const stats = fs.statSync(filePath);
+    if (stats.isDirectory() || !detectDocumentKind(path.basename(filePath))) {
+      res.status(415).json({ error: 'Not a supported document type' });
+      return;
+    }
+    fd = await fs.promises.open(filePath, 'r');
+    const src = await zipSourceFromFd(fd, stats.size);
+    const data = await src.readMember(entry);
+    if (!data) {
+      res.status(404).json({ error: 'Media entry not found in document' });
+      return;
+    }
+    const ext = path.extname(entry).toLowerCase();
+    res.setHeader('Content-Type', DOCUMENT_MEDIA_TYPES[ext] ?? 'application/octet-stream');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.setHeader('Content-Length', String(data.length));
+    res.end(data);
+  } catch (err: any) {
+    log.error(' Failed to read document media:', err);
+    if (!res.headersSent) res.status(422).json({ error: err.message });
+  } finally {
+    await fd?.close();
   }
 });
 

@@ -40,6 +40,7 @@ import { getAgentStatusColor, getBuildingStatusColor } from '../../utils/colors'
 import { getDisplayContextInfo } from '../../utils/context';
 import { AgentOverviewPanel } from '../ClaudeOutputPanel/AgentOverviewPanel';
 import { AgentTerminalPane, type AgentTerminalPaneHandle } from '../ClaudeOutputPanel/AgentTerminalPane';
+import { useCtrlCStopAgent } from '../ClaudeOutputPanel/useCtrlCStopAgent';
 import AgentClassicTerminal from './AgentClassicTerminal';
 import { PlanLimitsTooltip } from './PlanLimitsTooltip';
 import { AgentDebugPanel } from '../ClaudeOutputPanel/AgentDebugPanel';
@@ -288,6 +289,9 @@ const ChatView = React.memo(function ChatView({
   const settings = useSettings();
   const paneRef = useRef<AgentTerminalPaneHandle>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Ctrl+C stops this chat's agent while its run is in flight.
+  useCtrlCStopAgent(true, agentId);
 
   // Swap the keyed conversation immediately. The former outgoing/incoming
   // opacity crossfade deliberately rendered a blank frame between panes, which

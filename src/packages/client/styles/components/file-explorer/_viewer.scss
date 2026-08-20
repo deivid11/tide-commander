@@ -1038,6 +1038,360 @@
   .archive-cell-compressed { display: none; }
 }
 
+// Download button: always present for a targeted file (even with no preview).
+.file-viewer-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+
+  svg { opacity: 0.85; }
+}
+
+// =============================================================================
+// Document viewer (docx / docm / odt / doc / rtf) — a reading page with an
+// optional outline sidebar, find-in-document and copy actions. Same host
+// contract as the other viewers: fills the wrapper, owns its scroller, adapts
+// to the CONTAINER width (phones, the guake side panel).
+// =============================================================================
+.document-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  container-type: inline-size;
+  color: var(--text-primary);
+}
+
+.document-head {
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.document-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 6px 12px;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-secondary);
+
+  b { color: var(--text-primary); font-weight: 600; }
+}
+
+.document-format-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 30%, transparent);
+}
+
+.document-summary-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+
+  svg { opacity: 0.75; }
+}
+
+.document-author { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+
+.document-summary-note {
+  font-size: 10px;
+  color: var(--accent-yellow);
+  border: 1px solid color-mix(in srgb, var(--accent-yellow) 40%, transparent);
+  border-radius: 4px;
+  padding: 0 5px;
+  line-height: 15px;
+}
+
+.document-summary-warn {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  color: var(--accent-yellow);
+}
+
+.document-summary-spacer { flex: 1 1 auto; }
+
+.document-outline-toggle,
+.document-copy-btn,
+.document-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover:not(:disabled) { color: var(--text-primary); border-color: var(--accent-blue); }
+  &:disabled { opacity: 0.5; cursor: default; }
+  &.is-active { color: var(--accent-blue); border-color: var(--accent-blue); }
+  &.is-copied { color: var(--accent-green); border-color: var(--accent-green); }
+  &.is-error { color: var(--accent-red); border-color: var(--accent-red); }
+}
+
+.document-more-btn {
+  color: var(--accent-yellow);
+  border-color: color-mix(in srgb, var(--accent-yellow) 45%, transparent);
+}
+
+.document-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  min-width: 0;
+
+  &:focus-within { border-color: var(--accent-blue); }
+
+  input {
+    width: 150px;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 11px;
+    line-height: 18px;
+  }
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    &:hover:not(:disabled) { color: var(--text-primary); background: color-mix(in srgb, var(--border-color) 60%, transparent); }
+    &:disabled { opacity: 0.35; cursor: default; }
+  }
+}
+
+.document-search-count {
+  font-size: 10px;
+  color: var(--accent-blue);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.document-layout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.document-outline {
+  flex: 0 0 220px;
+  min-width: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  padding: 10px 6px 20px;
+  border-right: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-secondary) 55%, transparent);
+}
+
+.document-outline-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 3px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 11.5px;
+  line-height: 1.4;
+  cursor: pointer;
+  border-radius: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &:hover { color: var(--text-primary); background: color-mix(in srgb, var(--accent-blue) 12%, transparent); }
+  &.lvl-1 { font-weight: 700; color: var(--text-primary); }
+  &.lvl-2 { padding-left: 18px; }
+  &.lvl-3 { padding-left: 30px; font-size: 11px; }
+  &.lvl-4 { padding-left: 42px; font-size: 11px; opacity: 0.9; }
+  &.lvl-5, &.lvl-6 { padding-left: 54px; font-size: 10.5px; opacity: 0.8; }
+}
+
+.document-body {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  background: var(--bg-primary);
+  transition: opacity $transition-fast;
+  &.is-loading { opacity: 0.55; }
+}
+
+// The page itself: a comfortable measure, document typography (NOT the mono
+// stack the rest of the file viewer uses).
+.document-page {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 28px 32px 64px;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.65;
+
+  .doc-paragraph { margin: 0 0 0.85em; white-space: pre-wrap; word-break: break-word; }
+  .doc-heading { margin: 1.4em 0 0.5em; line-height: 1.3; color: var(--text-primary); scroll-margin-top: 12px; }
+  .doc-h1 { font-size: 1.7em; font-weight: 700; }
+  .doc-h2 { font-size: 1.4em; font-weight: 700; }
+  .doc-h3 { font-size: 1.2em; font-weight: 600; }
+  .doc-h4 { font-size: 1.08em; font-weight: 600; }
+  .doc-h5, .doc-h6 { font-size: 1em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; opacity: 0.85; }
+
+  .doc-title-style { font-size: 1.9em; font-weight: 700; line-height: 1.25; margin-bottom: 0.2em; }
+  .doc-subtitle-style { font-size: 1.15em; opacity: 0.8; margin-top: -0.2em; }
+
+  .doc-run.is-bold { font-weight: 700; }
+  .doc-run.is-italic { font-style: italic; }
+  .doc-run.is-underline { text-decoration: underline; text-underline-offset: 2px; }
+  .doc-run.is-strike { text-decoration: line-through; }
+  .doc-run.is-mono {
+    font-family: $font-mono;
+    font-size: 0.92em;
+    padding: 0 3px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--border-color) 45%, transparent);
+  }
+
+  .doc-link { color: var(--accent-blue); text-decoration: underline; text-underline-offset: 2px; }
+  .doc-match { background: color-mix(in srgb, var(--accent-yellow) 55%, transparent); color: inherit; border-radius: 2px; }
+
+  .doc-list { margin: 0 0 0.85em; padding-left: 1.6em; }
+  .doc-list li { margin: 0.15em 0; }
+  @for $i from 1 through 8 {
+    .doc-list-level-#{$i} { padding-left: #{1.6 + $i * 1.2}em; }
+  }
+
+  .doc-indent-1 { padding-left: 1.5em; }
+  .doc-indent-2 { padding-left: 3em; }
+  .doc-indent-3 { padding-left: 4.5em; }
+  .doc-indent-4, .doc-indent-5, .doc-indent-6 { padding-left: 6em; }
+
+  .doc-image { max-width: 100%; height: auto; display: block; margin: 0.6em 0; border-radius: 4px; }
+
+  .doc-table-wrap { overflow-x: auto; margin: 0 0 1em; scrollbar-width: thin; }
+  .doc-table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.92em;
+
+    th, td {
+      border: 1px solid color-mix(in srgb, var(--border-color) 85%, transparent);
+      padding: 5px 8px;
+      vertical-align: top;
+      text-align: left;
+
+      .doc-paragraph { margin: 0; }
+      .doc-paragraph + .doc-paragraph { margin-top: 0.4em; }
+    }
+    th { background: color-mix(in srgb, var(--bg-secondary) 80%, transparent); font-weight: 700; }
+  }
+
+  .doc-page-break {
+    margin: 1.6em -12px;
+    border-top: 1px dashed color-mix(in srgb, var(--border-color) 90%, transparent);
+  }
+
+  .is-flash { animation: doc-flash 0.9s ease-out; }
+}
+
+@keyframes doc-flash {
+  from { background: color-mix(in srgb, var(--accent-blue) 28%, transparent); }
+  to { background: transparent; }
+}
+
+.document-title {
+  margin: 0 0 0.6em;
+  font-size: 1.9em;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.document-chrome {
+  font-size: 0.82em;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  padding: 6px 0;
+
+  &--header { border-bottom: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent); margin-bottom: 1.4em; }
+  &--footer { border-top: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent); margin-top: 2em; }
+}
+
+.document-footnotes {
+  margin-top: 2.4em;
+  padding-top: 1em;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.88em;
+
+  h2 { font-size: 1em; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); margin: 0 0 0.6em; }
+}
+
+.document-footnote {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 0.4em;
+}
+
+.document-footnote-id {
+  flex-shrink: 0;
+  color: var(--accent-blue);
+  font-weight: 700;
+}
+
+.document-footnote-body { min-width: 0; .doc-paragraph { margin: 0 0 0.3em; } }
+
+.document-viewer-error.is-unsupported {
+  color: var(--text-secondary);
+  svg { color: var(--accent-blue); }
+}
+
+// Narrow containers (phones, guake side panel): the outline becomes an overlay
+// strip and the page loses its wide margins. Container queries match an
+// ancestor container — the rules land on the viewer's CHILDREN.
+@container (max-width: 720px) {
+  .document-outline { flex-basis: 160px; }
+  .document-page { padding: 16px 14px 48px; font-size: 13.5px; }
+  .document-summary { padding: 6px 8px; gap: 4px 8px; }
+  .document-search input { width: 96px; }
+  .document-copy-btn span { display: none; }
+}
+
+@container (max-width: 460px) {
+  .document-outline { display: none; }
+  .document-author { display: none; }
+}
+
 // =============================================================================
 // Spreadsheet viewer (xlsx / xlsm / xls / ods / csv / tsv / html tables) —
 // VisiData-style grid: sticky column letters + row numbers, virtualized rows,

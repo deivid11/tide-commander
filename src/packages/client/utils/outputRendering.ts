@@ -1228,19 +1228,26 @@ export function findExecTaskForCurlRow<T extends { command: string; startedAt: n
     const byId = execTasks.filter((t) => t.toolUseId === rowToolUseId);
     if (byId.length > 0) return newest(byId);
   }
-  // Tasks identity-claimed by a DIFFERENT tool call belong to other rows —
-  // keep them out of the heuristics (a re-run of the same command must not
-  // put one task under two rows). Rows without an id can't reason about
-  // claims, so they keep the full set.
-  const candidates = rowToolUseId ? execTasks.filter((t) => !t.toolUseId) : [...execTasks];
-  if (candidates.length === 0) return undefined;
+  // Tasks identity-claimed by a DIFFERENT tool call likely belong to other
+  // rows — prefer unclaimed ones (a re-run of the same command must not put
+  // one task under two rows). Rows without an id can't reason about claims,
+  // so they keep the full set.
+  const unclaimed = rowToolUseId ? execTasks.filter((t) => !t.toolUseId) : [...execTasks];
   const inner = extractExecPayloadCommand(bashCommand);
   if (inner) {
-    const byCommand = candidates.filter((t) => t.command === inner);
+    const byCommand = unclaimed.filter((t) => t.command === inner);
     if (byCommand.length > 0) return rowTimestampMs ? closest(byCommand) : newest(byCommand);
+    // Exact inner-command equality is strong identity — when the id pairing
+    // missed (a row whose uuid differs from the tool_use id the server
+    // registered), a claimed task must still be matchable, or it becomes an
+    // orphan NO row can ever render. Closest-in-time keeps re-runs of the
+    // same command on their own rows.
+    const byCommandClaimed = execTasks.filter((t) => t.toolUseId && t.toolUseId !== rowToolUseId && t.command === inner);
+    if (byCommandClaimed.length > 0) return rowTimestampMs ? closest(byCommandClaimed) : newest(byCommandClaimed);
   }
-  if (!rowTimestampMs) return undefined;
-  const inWindow = candidates.filter(
+  // The time-window fallback is weak evidence — claimed tasks stay excluded.
+  if (!rowTimestampMs || unclaimed.length === 0) return undefined;
+  const inWindow = unclaimed.filter(
     (t) => t.startedAt >= rowTimestampMs - EXEC_MATCH_WINDOW_BEFORE_MS && t.startedAt <= rowTimestampMs + EXEC_MATCH_WINDOW_AFTER_MS,
   );
   return inWindow.length > 0 ? closest(inWindow) : undefined;

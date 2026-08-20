@@ -147,16 +147,69 @@ export function getRunningTasks(agentId: string): RunningTask[] {
  * ~500 lines; PTY renderers rebuild fine from a partial stream). */
 const SNAPSHOT_OUTPUT_TAIL_BYTES = 256 * 1024;
 
-/**
- * Snapshot of every running exec task, for the WS initial state. Without it,
- * a page that loads/reconnects MID-task never sees exec_task_started and the
- * live card cannot exist ("sometimes the streamed command doesn't render").
- */
-export function getRunningTasksSnapshot(): Array<{
+// Recently-COMPLETED tasks, kept for the connection snapshot. A short exec
+// (a 10s curl) is over before a page reload or an agent-switch finishes, so
+// a client that connects after the run would never see exec_task_started and
+// its terminal row could never attach the card — even though the row parses
+// fine. Bounded: completed entries keep a small tail only, and the buffer is
+// pruned by count and age.
+interface CompletedTaskRecord {
+  id: string; agentId: string; command: string; cwd: string; pty: boolean;
+  startedAt: number; toolUseId?: string; outputTail: string;
+  exitCode: number | null; completedAt: number;
+}
+const completedTasks: CompletedTaskRecord[] = [];
+// Bounded hard: the whole list rides in EVERY connection snapshot, and phones
+// reconnect often — 40 × 32 KB worst-case ≈ 1.3 MB, typical ≪ that.
+const COMPLETED_KEEP_MAX = 40;
+const COMPLETED_KEEP_MS = 60 * 60_000;
+const COMPLETED_OUTPUT_TAIL_BYTES = 32 * 1024;
+
+/** Test hook. */
+export function _resetCompletedExecTasks(): void {
+  completedTasks.length = 0;
+}
+
+function rememberCompletedTask(t: RunningTask, exitCode: number | null, completedAt: number): void {
+  const joined = t.output.join('');
+  completedTasks.push({
+    id: t.id,
+    agentId: t.agentId,
+    command: t.command,
+    cwd: t.cwd,
+    pty: t.pty,
+    startedAt: t.startedAt,
+    toolUseId: t.toolUseId,
+    outputTail: joined.length > COMPLETED_OUTPUT_TAIL_BYTES ? joined.slice(-COMPLETED_OUTPUT_TAIL_BYTES) : joined,
+    exitCode,
+    completedAt,
+  });
+  const cutoff = completedAt - COMPLETED_KEEP_MS;
+  while (completedTasks.length > COMPLETED_KEEP_MAX || (completedTasks.length > 0 && completedTasks[0].completedAt < cutoff)) {
+    completedTasks.shift();
+  }
+}
+
+export interface ExecTaskSnapshotEntry {
   taskId: string; agentId: string; agentName: string; command: string; cwd: string;
   pty?: boolean; startedAt: number; toolUseId?: string; outputTail: string;
-}> {
-  return Array.from(runningTasks.values()).map((t) => {
+  /** Absent = running (older servers never sent a status). */
+  status?: 'running' | 'completed' | 'failed';
+  exitCode?: number | null;
+  completedAt?: number;
+}
+
+/**
+ * Snapshot of every running exec task PLUS recently-completed ones, for the
+ * WS initial state. Without the running half, a page that loads/reconnects
+ * MID-task never sees exec_task_started and the live card cannot exist
+ * ("sometimes the streamed command doesn't render"); without the completed
+ * half, the card of any exec that FINISHED before the client connected can
+ * never render at all.
+ */
+export function getRunningTasksSnapshot(): ExecTaskSnapshotEntry[] {
+  const cutoff = Date.now() - COMPLETED_KEEP_MS;
+  const running = Array.from(runningTasks.values()).map((t) => {
     const joined = t.output.join('');
     return {
       taskId: t.id,
@@ -168,8 +221,28 @@ export function getRunningTasksSnapshot(): Array<{
       startedAt: t.startedAt,
       toolUseId: t.toolUseId,
       outputTail: joined.length > SNAPSHOT_OUTPUT_TAIL_BYTES ? joined.slice(-SNAPSHOT_OUTPUT_TAIL_BYTES) : joined,
+      status: 'running' as const,
     };
   });
+  const completed = completedTasks
+    .filter((t) => t.completedAt >= cutoff)
+    .map((t) => ({
+      taskId: t.id,
+      agentId: t.agentId,
+      agentName: agentService.getAgent(t.agentId)?.name ?? t.agentId,
+      command: t.command,
+      cwd: t.cwd,
+      pty: t.pty,
+      startedAt: t.startedAt,
+      toolUseId: t.toolUseId,
+      outputTail: t.outputTail,
+      // Same semantics as the exec_task_completed broadcast: a null exit code
+      // means the process didn't run to completion (killed/crashed).
+      status: t.exitCode !== null ? ('completed' as const) : ('failed' as const),
+      exitCode: t.exitCode,
+      completedAt: t.completedAt,
+    }));
+  return [...running, ...completed];
 }
 
 /**
@@ -397,7 +470,11 @@ router.post('/', async (req: Request, res: Response) => {
       });
     });
 
-    // Clean up task tracking
+    // Clean up task tracking — but remember the finished task so clients that
+    // connect after the run still get it in the snapshot (card on late open).
+    const completedAt = Date.now();
+    const finishedTask = runningTasks.get(taskId);
+    if (finishedTask) rememberCompletedTask(finishedTask, exitCode, completedAt);
     runningTasks.delete(taskId);
 
     // Broadcast task completed
@@ -410,7 +487,7 @@ router.post('/', async (req: Request, res: Response) => {
           agentId,
           exitCode,
           success: exitCode !== null,
-          completedAt: Date.now(),
+          completedAt,
         },
       } as ServerMessage);
     }

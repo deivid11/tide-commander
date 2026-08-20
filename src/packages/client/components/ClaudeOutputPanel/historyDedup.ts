@@ -13,10 +13,32 @@ import type { HistoryMessage } from './types';
 // deliberately tight so a legitimate repeated prompt cannot be mistaken for
 // an older identical turn. Assistant finalization may take much longer.
 const HISTORY_USER_LIVE_DEDUP_WINDOW_MS = 1_000;
+const HISTORY_BRIDGED_PROMPT_REVERSE_SKEW_MS = 1_000;
 const HISTORY_ASSISTANT_LIVE_DEDUP_WINDOW_MS = 120_000;
 
 function normalizeMessage(text: string): string {
   return text.trim().replace(/\r\n/g, '\n');
+}
+
+/**
+ * Transport-generated WhatsApp prompts carry their own event timestamp in the
+ * exact payload. The server can append that prompt to history a few
+ * milliseconds BEFORE broadcasting the live row. Ordinary composer prompts
+ * must remain directional so an older identical turn cannot erase a new send;
+ * only this self-identifying bridge envelope may tolerate the reverse skew.
+ */
+function isTimestampedWhatsAppPrompt(text: string): boolean {
+  if (!/^[ \t]*Nuevo mensaje de WhatsApp\s*\((?:inbound|outbound)\)\.?\s*$/im.test(text)) return false;
+  if (!/\n[ \t]*Mensaje\s*:[ \t]*\n?/i.test(text)) return false;
+  const date = text.match(/^[ \t]*Fecha[ \t]*:[ \t]*(\S.*)$/im)?.[1]?.trim();
+  return !!date && Number.isFinite(Date.parse(date));
+}
+
+function isUserHistoryTwinWithinWindow(content: string, historyTs: number, outputTs: number): boolean {
+  const delta = historyTs - outputTs;
+  if (delta >= 0) return delta <= HISTORY_USER_LIVE_DEDUP_WINDOW_MS;
+  return isTimestampedWhatsAppPrompt(content)
+    && delta >= -HISTORY_BRIDGED_PROMPT_REVERSE_SKEW_MS;
 }
 
 export function buildOutputHistoryKey(type: 'user' | 'assistant', content: string): string {
@@ -100,12 +122,11 @@ export function shouldKeepOutput(
   const historyTs = latestHistoryTsByKey.get(key);
 
   const exactMatch = output.isUserPrompt
-    // Optimistic prompt is created before the provider persists its history
-    // row. Direction matters: an older history row with the same text belongs
-    // to a previous, legitimately repeated turn.
+    // Optimistic composer prompts precede history. Timestamped WhatsApp bridge
+    // envelopes are the narrow exception: persistence can precede their live
+    // broadcast by a few milliseconds.
     ? historyTs !== undefined
-      && historyTs >= outputTs
-      && historyTs - outputTs <= HISTORY_USER_LIVE_DEDUP_WINDOW_MS
+      && isUserHistoryTwinWithinWindow(output.text, historyTs, outputTs)
     : historyTs !== undefined
       && Math.abs(outputTs - historyTs) <= HISTORY_ASSISTANT_LIVE_DEDUP_WINDOW_MS;
   if (exactMatch) return false;
@@ -185,20 +206,29 @@ export function dedupeOutputsAgainstHistory(
       const raw = normalizeMessage(output.text);
       const outputTs = output.timestamp || 0;
       let bestIndex = -1;
-      let bestDelta = Number.POSITIVE_INFINITY;
+      let bestDistance = Number.POSITIVE_INFINITY;
       for (let i = 0; i < historyUserMessages.length; i++) {
         if (matchedHistoryUsers.has(i)) continue;
         const candidate = historyUserMessages[i];
-        // The live optimistic row precedes its persisted history twin. Never
-        // consume an older identical history row: that is a previous turn.
-        const delta = candidate.ts - outputTs;
-        if (delta < 0 || delta > HISTORY_USER_LIVE_DEDUP_WINDOW_MS || delta >= bestDelta) continue;
         const exact = candidate.content === raw;
         const wrapped = candidate.content.includes(raw)
           && (output.pendingEcho || candidate.content.length > raw.length);
         if (!exact && !wrapped) continue;
+
+        const delta = candidate.ts - outputTs;
+        // Ordinary live prompts must precede history. A timestamped WhatsApp
+        // bridge envelope may be persisted shortly before its broadcast, but
+        // only an EXACT payload match gets that exception; wrappers remain
+        // directional. One history candidate is still consumed at most once.
+        const inWindow = delta >= 0
+          ? delta <= HISTORY_USER_LIVE_DEDUP_WINDOW_MS
+          : exact
+            && isTimestampedWhatsAppPrompt(raw)
+            && delta >= -HISTORY_BRIDGED_PROMPT_REVERSE_SKEW_MS;
+        const distance = Math.abs(delta);
+        if (!inWindow || distance >= bestDistance) continue;
         bestIndex = i;
-        bestDelta = delta;
+        bestDistance = distance;
       }
       if (bestIndex >= 0) {
         matchedHistoryUsers.add(bestIndex);

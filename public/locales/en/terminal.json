@@ -81,7 +81,9 @@
     "expandInput": "Expand input area",
     "collapseInput": "Collapse input area",
     "uploading": "Uploading...",
-    "uploadingFile": "file"
+    "uploadingFile": "file",
+    "currentPrompt": "Current prompt",
+    "viewFullPrompt": "View the full prompt"
   },
   "modals": {
     "context": "Context",
@@ -1561,5 +1563,29 @@
       "min": "Min",
       "max": "Max"
     }
+  },
+  "documentViewer": {
+    "loading": "Reading document…",
+    "error": "Could not read document",
+    "outline": "Outline",
+    "outlineTitle": "Show the document outline",
+    "words": "words",
+    "wordsTitle": "Words in the loaded part of the document",
+    "authorTitle": "Author",
+    "plainText": "text only",
+    "plainTextTitle": "This format only yields text — save it as .docx for full formatting.",
+    "truncated": "showing {{shown}} of {{total}} blocks",
+    "loadMore": "load up to {{count}}",
+    "searchPlaceholder": "Find in document…",
+    "noMatches": "none",
+    "prevMatch": "Previous match (Shift+Enter)",
+    "nextMatch": "Next match (Enter)",
+    "clearSearch": "Clear",
+    "copyText": "Text",
+    "copyTextTitle": "Copy the document as plain text",
+    "copyMarkdown": "Markdown",
+    "copyMarkdownTitle": "Copy the document as Markdown",
+    "footnotes": "Notes",
+    "label": "Document"
   }
 }

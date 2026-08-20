@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.200.0] - 2026-08-20
+
+### Added
+- **Document viewer** - `.docx`, `.docm`, `.odt`, `.fodt`, `.doc` and `.rtf` files open as formatted documents instead of binary junk: headings, styled runs, bullet and numbered lists, tables, hyperlinks, footnote references and embedded images, with an outline for navigation. Parsing is dependency-free — OOXML and ODF read from the zip with a tolerant tag scanner, legacy `.doc` through an OLE2 container and its piece table, `.rtf` through a control-word scanner — and the format is sniffed from content, so a `.doc` that is really an RTF still opens.
+- **Ctrl+C stops the current run** - with a terminal view open, Ctrl+C interrupts that agent's run the way a real terminal would. It stays out of the way when text is selected anywhere on the page, so copying still works.
+
+### Changed
+- **Exec cards attach after a reload even for short commands** - the connection snapshot now includes recently-completed tasks, not just running ones, so a 10-second command that finished while you were reloading or switching agents still finds its card. The list is bounded by count, age and a small output tail so reconnecting phones don't pay for it.
+
+### Fixed
+- **WhatsApp prompts no longer disappear from history** - a bridge prompt carries its own event timestamp and can be persisted a few milliseconds before its live row is broadcast, which the strictly directional dedup treated as an older duplicate. That exact-payload envelope is now the one tolerated exception; ordinary composer prompts stay directional, so a repeated identical send still can't be erased by an older turn.
+
 ## [1.199.6] - 2026-08-19
 
 ### Fixed

@@ -648,14 +648,22 @@ describe('findExecTaskForCurlRow', () => {
     expect(findExecTaskForCurlRow(unpaired, cmd, T + 119_500, 'toolu_row2')?.taskId).toBe('run2');
   });
 
-  it('never steals a task identity-claimed by another tool call', () => {
+  it('a claimed task is still matchable by EXACT command when the id pairing missed', () => {
     const cmd = `curl -s http://localhost:5174/api/exec -d '{"command":"npm run build"}'`;
-    // The only same-command task belongs to a DIFFERENT row (toolu_other):
-    // better no card than duplicating another row's card.
+    // The task was server-paired with toolu_other, but THIS row presents a
+    // different id (e.g. a history row whose uuid is the message uuid, not
+    // the tool_use id). Exact inner-command equality is strong identity —
+    // excluding the task here orphaned it forever (no row could render it).
     const tasks = [{ taskId: 'other', command: 'npm run build', startedAt: T + 100, toolUseId: 'toolu_other' }];
-    expect(findExecTaskForCurlRow(tasks, cmd, T, 'toolu_mine')).toBeUndefined();
+    expect(findExecTaskForCurlRow(tasks, cmd, T, 'toolu_mine')?.taskId).toBe('other');
     // A row WITHOUT an id keeps the full candidate set (cannot reason about claims).
     expect(findExecTaskForCurlRow(tasks, cmd, T)?.taskId).toBe('other');
+  });
+
+  it('the weak time-window fallback still never steals a claimed task', () => {
+    const cmd = `curl -s http://localhost:5174/api/exec -d @/tmp/x.json`; // body not parseable → window only
+    const tasks = [{ taskId: 'other', command: 'npm run build', startedAt: T + 100, toolUseId: 'toolu_other' }];
+    expect(findExecTaskForCurlRow(tasks, cmd, T, 'toolu_mine')).toBeUndefined();
   });
 
   it('falls back to a server-clock window (−2s … +10s) when the body is unparseable', () => {

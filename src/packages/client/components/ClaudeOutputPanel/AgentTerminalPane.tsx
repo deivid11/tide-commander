@@ -348,6 +348,18 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   const terminalInputRef = useRef<HTMLInputElement>(null);
   const terminalTextareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Red flash on the output area when this agent's run is killed via Ctrl+C
+  // (dispatched by useCtrlCStopAgent). Cleared on animation end.
+  const [stopFlash, setStopFlash] = useState(false);
+  useEffect(() => {
+    const onStopFlash = (e: Event) => {
+      const detail = (e as CustomEvent<{ agentId?: string }>).detail;
+      if (detail?.agentId === agentId) setStopFlash(true);
+    };
+    window.addEventListener('tide:agent-stop-flash', onStopFlash);
+    return () => window.removeEventListener('tide:agent-stop-flash', onStopFlash);
+  }, [agentId]);
+
   // ── Display outputs ──
   const displayOutputs = outputs;
 
@@ -1403,13 +1415,17 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
       {/* Output area */}
       <div
-        className={`guake-output${hasPinnedAgents ? ' has-pinned-agents' : ''}`}
+        className={`guake-output${hasPinnedAgents ? ' has-pinned-agents' : ''}${stopFlash ? ' stop-flash' : ''}`}
         ref={outputScrollRef}
         onScroll={handleScroll}
         onWheelCapture={markOutputScrollIntent}
         onTouchMoveCapture={markOutputScrollIntent}
         onPointerDownCapture={handleOutputPointerDown}
         onKeyDownCapture={handleOutputScrollKey}
+        onAnimationEnd={(e) => {
+          // Child animations bubble here too — only clear on our own flash.
+          if (e.animationName === 'guake-stop-flash') setStopFlash(false);
+        }}
       >
         {/* Loading indicator lives OUTSIDE the fade wrapper (which is opacity:0
             until the pin settles) and sticks to the viewport — inside the

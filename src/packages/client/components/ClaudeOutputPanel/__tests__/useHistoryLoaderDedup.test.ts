@@ -54,6 +54,20 @@ function makeHistoryUserMsg(content: string, ts: number, uuid: string): HistoryM
   };
 }
 
+function makeWhatsAppPrompt(body = 'veeerga'): string {
+  return `Nuevo mensaje de WhatsApp (outbound).
+
+De: Mark Ehrlich <110900451262710@lid>
+Sesión: 5532967210
+Grupo: false
+Fecha: 2026-08-20T15:14:26.000Z
+Media:
+
+Mensaje:
+${body}
+`;
+}
+
 describe('dedupeOutputsAgainstHistory — v3 regression', () => {
   it('preserves an optimistic prompt that arrived during the fetch (history empty)', () => {
     // Repro: reconnect fires, snapshot taken (empty), fetch in flight,
@@ -101,6 +115,40 @@ describe('dedupeOutputsAgainstHistory — v3 regression', () => {
     const { kept, changed } = dedupeOutputsAgainstHistory(liveAtThenTime, history);
     expect(kept).toHaveLength(0);
     expect(changed).toBe(true);
+  });
+
+  it('drops a timestamped WhatsApp live twin persisted just before its broadcast', () => {
+    // Exact Bolba repro: JSONL 15:14:26.352, live broadcast 15:14:26.357.
+    // Bridge events persist before broadcasting, unlike composer prompts.
+    const text = makeWhatsAppPrompt();
+    const liveAtThenTime = [makeOptimisticPrompt(text, 1_700_000_357)];
+    const history = [makeHistoryUserMsg(text, 1_700_000_352, 'whatsapp-jsonl-uuid')];
+
+    const { kept, changed } = dedupeOutputsAgainstHistory(liveAtThenTime, history);
+    expect(kept).toHaveLength(0);
+    expect(changed).toBe(true);
+  });
+
+  it('does not give ordinary repeated prompts the WhatsApp reverse-skew exception', () => {
+    const liveAtThenTime = [makeOptimisticPrompt('continue', 1_700_000_357)];
+    const history = [makeHistoryUserMsg('continue', 1_700_000_352, 'previous-turn-uuid')];
+
+    const { kept, changed } = dedupeOutputsAgainstHistory(liveAtThenTime, history);
+    expect(kept).toEqual(liveAtThenTime);
+    expect(changed).toBe(false);
+  });
+
+  it('consumes reverse-skew WhatsApp history twins one-to-one', () => {
+    const text = makeWhatsAppPrompt();
+    const liveAtThenTime = [
+      makeOptimisticPrompt(text, 1_700_000_357),
+      makeOptimisticPrompt(text, 1_700_000_367),
+    ];
+    const history = [makeHistoryUserMsg(text, 1_700_000_352, 'only-one-jsonl-uuid')];
+
+    const { kept } = dedupeOutputsAgainstHistory(liveAtThenTime, history);
+    expect(kept).toHaveLength(1);
+    expect(kept[0]).toBe(liveAtThenTime[1]);
   });
 
   it('matches identical prompts one-to-one instead of erasing a distinct repeat', () => {
@@ -260,6 +308,14 @@ describe('shouldKeepOutput — v1 invariant still holds', () => {
     const latestHistoryTsByKey = new Map<string, number>([['user:continue', 1_000_000_000]]);
     const nextTurn = makeOptimisticPrompt('continue', 1_000_000_100);
     expect(shouldKeepOutput(nextTurn, historyUuidSet, latestHistoryTsByKey)).toBe(true);
+  });
+
+  it('drops a timestamped WhatsApp twin when history precedes live by milliseconds', () => {
+    const text = makeWhatsAppPrompt();
+    const historyUuidSet = new Set<string>();
+    const latestHistoryTsByKey = new Map<string, number>([[`user:${text.trim()}`, 1_700_000_352]]);
+    const live = makeOptimisticPrompt(text, 1_700_000_357);
+    expect(shouldKeepOutput(live, historyUuidSet, latestHistoryTsByKey)).toBe(false);
   });
 
   it('keeps no-uuid optimistic prompt when no matching history key', () => {

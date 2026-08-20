@@ -49,7 +49,9 @@
     "stop": "Detener",
     "voiceInput": "Entrada de voz (Whisper)",
     "stopRecording": "Detener grabacion",
-    "transcribing": "Transcribiendo..."
+    "transcribing": "Transcribiendo...",
+    "currentPrompt": "Prompt actual",
+    "viewFullPrompt": "Ver el prompt completo"
   },
   "modals": {
     "context": "Contexto",

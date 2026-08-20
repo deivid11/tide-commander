@@ -982,9 +982,11 @@ export function handleServerMessage(message: ServerMessage): void {
         tasks: Array<{
           taskId: string; agentId: string; agentName: string; command: string; cwd: string;
           pty?: boolean; startedAt: number; toolUseId?: string; outputTail: string;
+          status?: 'running' | 'completed' | 'failed'; exitCode?: number | null; completedAt?: number;
         }>;
       };
-      console.log(`[WebSocket] Exec tasks snapshot: ${tasks.length} running`);
+      const running = tasks.filter((t) => (t.status ?? 'running') === 'running').length;
+      console.log(`[WebSocket] Exec tasks snapshot: ${running} running, ${tasks.length - running} completed`);
       store.handleExecTasksSnapshot(tasks);
       break;
     }

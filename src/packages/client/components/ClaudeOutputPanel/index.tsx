@@ -89,6 +89,7 @@ import { AgentDebugPanel } from './AgentDebugPanel';
 import { GuakeGitPanel } from './GuakeGitPanel';
 import { AgentOverviewPanel } from './AgentOverviewPanel';
 import { type AgentTerminalPaneHandle } from './AgentTerminalPane';
+import { useCtrlCStopAgent } from './useCtrlCStopAgent';
 import { SplitTerminalLayout } from './SplitTerminalLayout';
 import { AreaBuildingsPanel } from './AreaBuildingsPanel';
 import { WorkflowPanel } from '../WorkflowPanel';
@@ -1241,6 +1242,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
     document.addEventListener('keydown', handleHistoryNavigation);
     return () => document.removeEventListener('keydown', handleHistoryNavigation);
   }, [isOpen, canNavigateBack, canNavigateForward, handleNavigateBack, handleNavigateForward]);
+
+  // Ctrl+C while the terminal is open stops the selected agent's current run.
+  useCtrlCStopAgent(isOpen, selectedAgentId);
 
   // Escape key handler for modals and search (higher priority than message navigation)
   useEffect(() => {

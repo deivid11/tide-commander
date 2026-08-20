@@ -787,6 +787,10 @@ paths:
     get: { $ref: '#/components/x-operations/FileArchive' }
   /files/spreadsheet:
     get: { $ref: '#/components/x-operations/FileSpreadsheet' }
+  /files/document:
+    get: { $ref: '#/components/x-operations/FileDocument' }
+  /files/document-media:
+    get: { $ref: '#/components/x-operations/FileDocumentMedia' }
   /files/binary:
     get: { $ref: '#/components/x-operations/FileBinary' }
   /files/list:
@@ -1113,6 +1117,69 @@ components:
         '200': { $ref: '#/components/responses/JsonSuccess' }
         '415': { $ref: '#/components/responses/ErrorResponse' }
         '422': { $ref: '#/components/responses/ErrorResponse' }
+    FileDocument:
+      tags: [Files]
+      summary: Parse a word-processing document into renderable blocks
+      description: >-
+        Dependency-free readers for `.docx`/`.docm` (zip + WordprocessingML —
+        headings from styles, formatted runs, bullet/numbered lists, tables with
+        spans and shading, hyperlinks, inline images, footnotes, header/footer),
+        `.odt`/`.fodt` (content.xml), legacy `.doc` (OLE2 + FIB + piece table,
+        text only → `plainTextOnly: true`) and `.rtf`. The CONTENT is sniffed
+        before dispatch, so a `.docx` or RTF that someone named `.doc` still
+        opens (`format` reports what it really was). Returns `{format, title?,
+        author?, blocks[], footnotes?, header?, footer?, wordCount, blockCount,
+        truncated, plainTextOnly?, maxBlocks}`; each block is a paragraph
+        (`runs`, `heading`, `list`, `align`, `images`) or a table (`rows` of
+        cells holding nested blocks). 415 for unsupported extensions and files
+        whose bytes are not a document, 422 for corrupt containers.
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+        - in: query
+          name: baseDir
+          required: false
+          schema: { type: string }
+        - in: query
+          name: blocks
+          required: false
+          description: Block cap (default 2000, hard max 20000)
+          schema: { type: integer, default: 2000 }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '415': { $ref: '#/components/responses/ErrorResponse' }
+        '422': { $ref: '#/components/responses/ErrorResponse' }
+    FileDocumentMedia:
+      tags: [Files]
+      summary: Serve one embedded image out of a document container
+      description: >-
+        Streams a single `word/media/…`, `media/…` or `Pictures/…` zip entry of
+        a docx/odt so the viewer can render pictures inline; any other entry is
+        rejected with 400 (the container is never extracted to disk).
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+        - in: query
+          name: baseDir
+          required: false
+          schema: { type: string }
+        - in: query
+          name: entry
+          required: true
+          description: Zip entry of the image (must be under media/ or Pictures/)
+          schema: { type: string }
+      responses:
+        '200':
+          description: The image bytes
+          content:
+            image/*:
+              schema: { type: string, format: binary }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
     FileBinary:
       tags: [Files]
       summary: Read binary file

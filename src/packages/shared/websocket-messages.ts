@@ -1222,11 +1222,13 @@ export interface ExecTaskStartedMessage extends WSMessage {
   };
 }
 
-// Running exec tasks snapshot (Server -> Client, on connection). A page that
-// loads or reconnects MID-task would otherwise never see exec_task_started —
-// the live card could not exist. Carries a bounded output tail to seed the
-// card; the client also resolves any local "running" card absent from the
-// snapshot (its task ended while disconnected).
+// Exec tasks snapshot (Server -> Client, on connection). A page that loads or
+// reconnects MID-task would otherwise never see exec_task_started — the live
+// card could not exist. Also carries recently-COMPLETED tasks: a short exec
+// finishes before a reload/agent-switch lands, and without its task in the
+// store the terminal row can never attach the card. Carries a bounded output
+// tail to seed the card; the client also resolves any local "running" card
+// absent from the snapshot's RUNNING set (its task ended while disconnected).
 export interface ExecTasksSnapshotMessage extends WSMessage {
   type: 'exec_tasks_snapshot';
   payload: {
@@ -1241,6 +1243,10 @@ export interface ExecTasksSnapshotMessage extends WSMessage {
       toolUseId?: string;
       /** Buffered output so far (tail-capped server-side). */
       outputTail: string;
+      /** Absent = running (older servers only sent running tasks). */
+      status?: 'running' | 'completed' | 'failed';
+      exitCode?: number | null;
+      completedAt?: number;
     }>;
   };
 }
