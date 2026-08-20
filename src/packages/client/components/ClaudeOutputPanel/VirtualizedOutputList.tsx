@@ -878,6 +878,20 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   const [activeMarkerPos, setActiveMarkerPos] = useState(-1);
   const promptMarkersRef = useRef(promptMarkers);
   promptMarkersRef.current = promptMarkers;
+
+  // The input area's floating prompt bubble asks to jump to the newest prompt
+  // (cross-component via DOM event — same pattern as tide:agent-stop-flash).
+  useEffect(() => {
+    const onJumpToLastPrompt = (e: Event) => {
+      const detail = (e as CustomEvent<{ agentId?: string }>).detail;
+      if (detail?.agentId !== agentId) return;
+      const markers = promptMarkersRef.current;
+      const last = markers[markers.length - 1];
+      if (last) handlePromptMarkerJump(last);
+    };
+    window.addEventListener('tide:jump-to-last-prompt', onJumpToLastPrompt);
+    return () => window.removeEventListener('tide:jump-to-last-prompt', onJumpToLastPrompt);
+  }, [agentId, handlePromptMarkerJump]);
   const updateActiveMarker = useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container) return;

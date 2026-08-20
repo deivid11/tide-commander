@@ -186,6 +186,10 @@ function formatElapsed(ms: number): string {
 const MOBILE_SWIPE_CLOSE_THRESHOLD_PX = 72;
 const MOBILE_SWIPE_CLOSE_MAX_PULL_PX = 128;
 
+/** Hard character cap for the floating current-prompt bubble (CSS ellipsis
+ * bounds the width; this bounds the DOM text itself). */
+const PROMPT_BUBBLE_MAX_CHARS = 100;
+
 export interface TerminalInputAreaProps {
   selectedAgent: Agent;
   selectedAgentId: string;
@@ -323,6 +327,13 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   // re-rendering the entire TerminalInputArea every second.
   const lastPrompt = useLastPrompt(selectedAgentId);
   const isWorking = selectedAgent.status === 'working';
+
+  // Floating current-prompt bubble (bottom-center of the input container):
+  // truncated preview; click scrolls the conversation to that prompt.
+  const promptBubbleText = useMemo(() => {
+    const flat = (lastPrompt?.text ?? '').replace(/\s+/g, ' ').trim();
+    return flat.length > PROMPT_BUBBLE_MAX_CHARS ? `${flat.slice(0, PROMPT_BUBBLE_MAX_CHARS)}…` : flat;
+  }, [lastPrompt?.text]);
   // The local lastPrompt map is not hydrated in every client. Agent task time
   // is server-persisted and therefore the primary cross-device fallback;
   // lastWorkedAt covers legacy/silent work that has no assigned-task stamp.
@@ -1394,6 +1405,17 @@ export const TerminalInputArea = memo(function TerminalInputArea({
               <button onClick={handleSendCommand} disabled={!command.trim() && attachedFiles.length === 0 && fileMentions.length === 0} title={t('terminal:input.send')}>
                 <Icon name="send" size={14} />
               </button>
+              {promptBubbleText && (
+                <button
+                  type="button"
+                  className="guake-prompt-bubble"
+                  onClick={() => window.dispatchEvent(new CustomEvent('tide:jump-to-last-prompt', { detail: { agentId: selectedAgentId } }))}
+                  title={t('terminal:input.jumpToPrompt', 'Go to this prompt in the conversation')}
+                >
+                  <Icon name="chat" size={10} />
+                  <span className="guake-prompt-bubble-text">{promptBubbleText}</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

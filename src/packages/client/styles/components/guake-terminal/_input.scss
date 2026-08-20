@@ -418,7 +418,7 @@
 
 // Send button - right side of input
 .guake-send-btn,
-.guake-input button:not(.guake-attach-btn) {
+.guake-input button:not(.guake-attach-btn):not(.guake-prompt-bubble) {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1154,4 +1154,54 @@
   .guake-output.has-pinned-agents {
     padding-bottom: 12px !important;
   }
+}
+
+// Floating current-prompt bubble: bottom-center of the input container,
+// straddling its lower edge. Shows a truncated preview of the prompt the
+// agent is working on; click scrolls the conversation to that prompt.
+.guake-prompt-bubble {
+  position: absolute;
+  bottom: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(560px, 80%);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 14px;
+  font-family: inherit;
+  text-align: left;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-secondary) 92%, var(--accent-purple));
+  border: 1px solid color-mix(in srgb, var(--accent-purple) 35%, transparent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  z-index: 5;
+  transition: color $transition-fast, border-color $transition-fast, background $transition-fast;
+
+  svg {
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+
+  &:hover {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--bg-secondary) 82%, var(--accent-purple));
+    border-color: color-mix(in srgb, var(--accent-purple) 60%, transparent);
+  }
+
+  // Mobile: the pinned-agents/context bars sit directly above the input, so a
+  // floated chip collides with them (same reason the stop bar goes static).
+  @media (max-width: 768px) {
+    display: none;
+  }
+}
+
+.guake-prompt-bubble-text {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }

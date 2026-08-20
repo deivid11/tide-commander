@@ -82,8 +82,7 @@
     "collapseInput": "Collapse input area",
     "uploading": "Uploading...",
     "uploadingFile": "file",
-    "currentPrompt": "Current prompt",
-    "viewFullPrompt": "View the full prompt"
+    "jumpToPrompt": "Go to this prompt in the conversation"
   },
   "modals": {
     "context": "Context",

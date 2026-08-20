@@ -50,8 +50,7 @@
     "voiceInput": "Entrada de voz (Whisper)",
     "stopRecording": "Detener grabacion",
     "transcribing": "Transcribiendo...",
-    "currentPrompt": "Prompt actual",
-    "viewFullPrompt": "Ver el prompt completo"
+    "jumpToPrompt": "Ir a este prompt en la conversación"
   },
   "modals": {
     "context": "Contexto",

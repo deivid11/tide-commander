@@ -117,6 +117,29 @@ describe('dedupeOutputsAgainstHistory — v3 regression', () => {
     expect(changed).toBe(true);
   });
 
+  it('drops a confirmed exact prompt even when queued persistence is delayed', () => {
+    // Exact Ponyta repro: optimistic 16:17:53.444, JSONL 16:18:00.971.
+    // command_started already confirmed the live row (pendingEcho cleared), but
+    // the provider did not persist it until the previous turn finished.
+    const text = 'sabes, creo que está mejor darle clic';
+    const liveAtThenTime = [makeOptimisticPrompt(text, 1_700_000_000)];
+    const history = [makeHistoryUserMsg(text, 1_700_007_527, 'queued-jsonl-uuid')];
+
+    const { kept, changed } = dedupeOutputsAgainstHistory(liveAtThenTime, history);
+    expect(kept).toHaveLength(0);
+    expect(changed).toBe(true);
+  });
+
+  it('keeps an unconfirmed prompt when a much later exact row could be another send', () => {
+    const text = 'continue';
+    const pending = { ...makeOptimisticPrompt(text, 1_700_000_000), pendingEcho: true };
+    const history = [makeHistoryUserMsg(text, 1_700_007_527, 'later-jsonl-uuid')];
+
+    const { kept, changed } = dedupeOutputsAgainstHistory([pending], history);
+    expect(kept).toEqual([pending]);
+    expect(changed).toBe(false);
+  });
+
   it('drops a timestamped WhatsApp live twin persisted just before its broadcast', () => {
     // Exact Bolba repro: JSONL 15:14:26.352, live broadcast 15:14:26.357.
     // Bridge events persist before broadcasting, unlike composer prompts.
@@ -156,8 +179,10 @@ describe('dedupeOutputsAgainstHistory — v3 regression', () => {
       makeOptimisticPrompt('continue', 1_700_000_100),
       makeOptimisticPrompt('continue', 1_700_000_200),
     ];
+    // Persisted after BOTH optimistic sends. Without one-to-one consumption,
+    // this single row would erase both live occurrences.
     const history = [
-      makeHistoryUserMsg('continue', 1_700_000_150, 'first-jsonl-uuid'),
+      makeHistoryUserMsg('continue', 1_700_010_000, 'first-jsonl-uuid'),
     ];
 
     const { kept } = dedupeOutputsAgainstHistory(liveAtThenTime, history);
@@ -308,6 +333,14 @@ describe('shouldKeepOutput — v1 invariant still holds', () => {
     const latestHistoryTsByKey = new Map<string, number>([['user:continue', 1_000_000_000]]);
     const nextTurn = makeOptimisticPrompt('continue', 1_000_000_100);
     expect(shouldKeepOutput(nextTurn, historyUuidSet, latestHistoryTsByKey)).toBe(true);
+  });
+
+  it('drops a confirmed exact prompt whose queued history row arrives much later', () => {
+    const text = 'queued prompt';
+    const historyUuidSet = new Set<string>();
+    const latestHistoryTsByKey = new Map<string, number>([[`user:${text}`, 1_700_030_000]]);
+    const live = makeOptimisticPrompt(text, 1_700_000_000);
+    expect(shouldKeepOutput(live, historyUuidSet, latestHistoryTsByKey)).toBe(false);
   });
 
   it('drops a timestamped WhatsApp twin when history precedes live by milliseconds', () => {

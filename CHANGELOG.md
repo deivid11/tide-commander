@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.201.0] - 2026-08-20
+
+### Added
+- **Current-prompt bubble above the composer** - a floating, truncated preview of the prompt the agent is working on sits at the bottom of the input area; clicking it jumps the conversation to that prompt.
+
+### Fixed
+- **A prompt sent behind a busy turn no longer vanishes** - when a provider waits for the previous turn to finish, it can persist a prompt many seconds after the live row was already acknowledged. The reconciliation window was short enough to miss that, so the prompt could be dropped from history; an exact prompt already confirmed by the runtime is now matched directionally and one-to-one with no timeout, while unconfirmed and wrapped prompts keep the tight window. One persisted row can no longer erase two identical live sends.
+
 ## [1.200.0] - 2026-08-20
 
 ### Added

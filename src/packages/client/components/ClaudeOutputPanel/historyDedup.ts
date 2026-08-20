@@ -9,9 +9,10 @@ import type { ClaudeOutput } from '../../store/types';
 import type { HistoryMessage } from './types';
 
 // User echoes are stamped in the server clock domain (serverNow), and the
-// persisted prompt is normally written within milliseconds. Keep this window
-// deliberately tight so a legitimate repeated prompt cannot be mistaken for
-// an older identical turn. Assistant finalization may take much longer.
+// persisted prompt is normally written within milliseconds. Keep this short
+// window for UNCONFIRMED and wrapped prompts. An exact prompt already confirmed
+// by command_started may persist much later when it waited behind an active
+// turn; directional, one-to-one matching handles that case without a timeout.
 const HISTORY_USER_LIVE_DEDUP_WINDOW_MS = 1_000;
 const HISTORY_BRIDGED_PROMPT_REVERSE_SKEW_MS = 1_000;
 const HISTORY_ASSISTANT_LIVE_DEDUP_WINDOW_MS = 120_000;
@@ -34,10 +35,20 @@ function isTimestampedWhatsAppPrompt(text: string): boolean {
   return !!date && Number.isFinite(Date.parse(date));
 }
 
-function isUserHistoryTwinWithinWindow(content: string, historyTs: number, outputTs: number): boolean {
+function isExactUserHistoryTwin(
+  output: ClaudeOutput,
+  historyTs: number,
+  outputTs: number,
+): boolean {
   const delta = historyTs - outputTs;
-  if (delta >= 0) return delta <= HISTORY_USER_LIVE_DEDUP_WINDOW_MS;
-  return isTimestampedWhatsAppPrompt(content)
+  if (delta >= 0) {
+    // command_started clears pendingEcho. Once acknowledged, an exact future
+    // JSONL row is this live occurrence even if execution was queued for many
+    // seconds/minutes. The caller consumes history rows one-to-one, preserving
+    // legitimately repeated identical sends.
+    return !output.pendingEcho || delta <= HISTORY_USER_LIVE_DEDUP_WINDOW_MS;
+  }
+  return isTimestampedWhatsAppPrompt(output.text)
     && delta >= -HISTORY_BRIDGED_PROMPT_REVERSE_SKEW_MS;
 }
 
@@ -126,7 +137,7 @@ export function shouldKeepOutput(
     // envelopes are the narrow exception: persistence can precede their live
     // broadcast by a few milliseconds.
     ? historyTs !== undefined
-      && isUserHistoryTwinWithinWindow(output.text, historyTs, outputTs)
+      && isExactUserHistoryTwin(output, historyTs, outputTs)
     : historyTs !== undefined
       && Math.abs(outputTs - historyTs) <= HISTORY_ASSISTANT_LIVE_DEDUP_WINDOW_MS;
   if (exactMatch) return false;
@@ -220,11 +231,9 @@ export function dedupeOutputsAgainstHistory(
         // bridge envelope may be persisted shortly before its broadcast, but
         // only an EXACT payload match gets that exception; wrappers remain
         // directional. One history candidate is still consumed at most once.
-        const inWindow = delta >= 0
-          ? delta <= HISTORY_USER_LIVE_DEDUP_WINDOW_MS
-          : exact
-            && isTimestampedWhatsAppPrompt(raw)
-            && delta >= -HISTORY_BRIDGED_PROMPT_REVERSE_SKEW_MS;
+        const inWindow = exact
+          ? isExactUserHistoryTwin(output, candidate.ts, outputTs)
+          : delta >= 0 && delta <= HISTORY_USER_LIVE_DEDUP_WINDOW_MS;
         const distance = Math.abs(delta);
         if (!inWindow || distance >= bestDistance) continue;
         bestIndex = i;
