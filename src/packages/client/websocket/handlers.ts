@@ -24,6 +24,10 @@ function agentIsAudible(agentId?: string): boolean {
   return !store.getState().agents.get(agentId)?.soundsMuted;
 }
 
+function isActiveWorkStatus(status: Agent['status'] | undefined): boolean {
+  return status === 'working' || status === 'waiting' || status === 'waiting_permission';
+}
+
 /**
  * True while any question or permission request from an *unmuted* agent still
  * awaits the user. Muted agents never start or sustain the repeating cue.
@@ -169,10 +173,18 @@ export function handleServerMessage(message: ServerMessage): void {
         }, 'ws:agent_updated');
       }
 
-      // When agent transitions from working to idle, refresh conversation history
-      // to catch up on events missed during backend disconnects
-      if (statusChanged && previousAgent?.status === 'working' && updatedAgent.status === 'idle') {
+      // While an agent streams, the live output store is authoritative. Refresh
+      // persisted history once it LEAVES active work; doing so on each JSONL
+      // write can temporarily render the persisted snapshot beside its live
+      // streaming twin.
+      const leftActiveWork = statusChanged
+        && isActiveWorkStatus(previousAgent?.status)
+        && !isActiveWorkStatus(updatedAgent.status);
+      if (leftActiveWork) {
         store.triggerHistoryRefresh(updatedAgent.id);
+      }
+
+      if (statusChanged && previousAgent?.status === 'working' && updatedAgent.status === 'idle') {
         // An agent just finished its work — play the completion cue (unless
         // the user muted this agent).
         if (agentIsAudible(updatedAgent.id)) {
@@ -489,17 +501,24 @@ export function handleServerMessage(message: ServerMessage): void {
     }
 
     case 'session_updated': {
-      // An agent's session file was updated - refresh its history
       const { agentId } = message.payload as { agentId: string };
-      // Reload the tool history to get the latest updates from the detached process
+      // Reload the tool history to get the latest updates from the detached process.
       store.loadToolHistory();
-      // Trigger a conversation history refresh so the terminal catches up
-      // on any events that were missed (e.g. during a backend disconnect)
-      store.triggerHistoryRefresh(agentId);
-      // Also update the agent to trigger a UI refresh
+
       const agent = store.getState().agents.get(agentId);
-      if (agent) {
-        store.updateAgent({ ...agent });
+      // The first session write can beat agent_updated(working). Treat a recent
+      // live prompt as active intent too; otherwise an apparently-idle agent
+      // refetches the just-persisted prompt beside its optimistic echo.
+      const now = serverNow();
+      const hasRecentUserPrompt = store.getOutputs(agentId).some((output) => (
+        output.isUserPrompt
+        && Math.abs(now - (output.timestamp || 0)) <= 5_000
+      ));
+      if ((!agent || !isActiveWorkStatus(agent.status)) && !hasRecentUserPrompt) {
+        // Idle/error/detached sessions with no just-started turn have no live
+        // stream to represent the write, so refresh immediately. Active turns
+        // flush on their agent_updated transition out of work.
+        store.triggerHistoryRefresh(agentId);
       }
       break;
     }

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.199.5] - 2026-08-19
+
+### Fixed
+- **Sending the same prompt twice no longer loses one copy** - live prompts and persisted history are now reconciled one-to-one, with each history row consumed at most once and only inside a tight server-clock window, so a second identical send survives until its own persisted row arrives instead of being folded into the first. The duplicate check also runs only during that reconciliation, not again downstream where two valid identical prompts look the same.
+- **Revisiting a conversation stays at the bottom** - bottom-follow is re-armed when a history refresh completes rather than when it starts, in a layout effect, so rows arriving seconds later can't paint at the old offset and leave you above the bottom. Deliberate upward scrolling is still respected.
+- **Layout movement is no longer mistaken for scrolling** - only real wheel, touch or scrollbar input can release bottom-follow during an agent switch; virtualizer corrections, browser clamps and late row measurements no longer count, and the bottom latch is set synchronously so a resize in the same frame can't observe a stale scrolled-up state.
+
+### Changed
+- **Background session updates don't rerender the open pane** - the history revision counter is now per agent, so activity in other agents no longer forces the conversation you are reading to re-render.
+
 ## [1.199.4] - 2026-08-19
 
 ### Fixed

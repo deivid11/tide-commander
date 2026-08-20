@@ -103,6 +103,12 @@ interface VirtualizedOutputListProps {
    * listener diffs against its own baseline, so listener order doesn't matter.
    */
   anchorCorrectionsRef?: React.MutableRefObject<number>;
+  /**
+   * Deadline (performance.now milliseconds) set by real wheel/touch/scrollbar
+   * input. Scroll events alone cannot distinguish user movement from layout
+   * clamps and virtualizer writes during an agent switch.
+   */
+  userScrollIntentUntilRef?: React.MutableRefObject<number>;
 }
 
 // Estimated heights for different message types (used for initial sizing)
@@ -344,6 +350,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   onPinCancel,
   isLoadingHistory,
   anchorCorrectionsRef,
+  userScrollIntentUntilRef,
 }: VirtualizedOutputListProps) {
   // Merge history + live into ONE chronologically sorted array. This is the
   // single authoritative ordering for the rendered list — without it, history
@@ -444,11 +451,14 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   const pinToBottomRef = useRef(pinToBottom);
   pinToBottomRef.current = pinToBottom;
 
+  const virtualContentRef = useRef<HTMLDivElement | null>(null);
+
   // Ref callbacks run in the commit phase before paint. Put the scroll element
   // at the real DOM bottom as soon as the virtual spacer mounts; waiting for a
   // layout/effect-driven scroll exposed one frame with bottom-index rows laid
   // out below a scrollTop of 0, followed by the visible forced jump.
   const handleVirtualContentMount = useCallback((element: HTMLDivElement | null) => {
+    virtualContentRef.current = element;
     if (!element || !pinToBottomRef.current) return;
     // Descendant refs attach before the parent output ref, so defer to the
     // commit's microtask checkpoint. This is still before the browser's paint.
@@ -484,6 +494,8 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // over-counting biased the classifiers into swallowing genuine up-scrolls.
   const localCorrectionsRef = useRef(0);
   const correctionsRef = anchorCorrectionsRef ?? localCorrectionsRef;
+  const localUserScrollIntentUntilRef = useRef(0);
+  const scrollIntentUntilRef = userScrollIntentUntilRef ?? localUserScrollIntentUntilRef;
   // This component remounts per agent (key={agentId}) while the shared counter
   // lives on — baseline starts at the counter's current value, not 0.
   const correctionsBaselineRef = useRef(correctionsRef.current);
@@ -757,6 +769,11 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     const container = scrollContainerRef.current;
     if (!container) return;
     if (allItemsCountRef.current <= 0) return;
+    // Every caller is either the explicit pin path or has already passed the
+    // sticky-bottom write gate. Latch synchronously rather than waiting for the
+    // browser's asynchronous scroll event, so a resize/measurement in the same
+    // frame cannot observe the old scrolled-up state and skip re-anchoring.
+    stickyBottomRef.current = true;
     const bottomOffset = Math.max(0, container.scrollHeight - container.clientHeight);
     // Target the DOM's actual bottom offset, not the last virtual row. The
     // virtualizer's index reconciliation can revise a last-row target seconds
@@ -766,6 +783,47 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     virtualizer.scrollToOffset(bottomOffset, { align: 'start' });
     container.scrollTop = bottomOffset;
   }, [scrollContainerRef, virtualizer]);
+
+  // Rows can finish measuring (or an image/code block can expand) after the
+  // short switch pin has released. Observe both the virtual spacer AND its
+  // complete history wrapper: the latter also contains non-virtual siblings
+  // such as the compaction indicator, whose ~50px late mount was invisible to
+  // the spacer observer and left the scrollbar exactly that far from bottom.
+  // Keep the REAL DOM bottom anchored whenever the sticky latch says the user
+  // was following it. This is independent of shouldAutoScroll/state timing.
+  // A genuine upward user scroll unlatches stickyBottomRef synchronously, so
+  // readers are never dragged back down.
+  useEffect(() => {
+    const content = virtualContentRef.current;
+    if (!content) return;
+
+    let reanchorRaf = 0;
+    let releaseRaf = 0;
+    const observer = new ResizeObserver(() => {
+      if (!stickyBottomRef.current) return;
+      if (reanchorRaf) cancelAnimationFrame(reanchorRaf);
+      reanchorRaf = requestAnimationFrame(() => {
+        reanchorRaf = 0;
+        if (!content.isConnected || !stickyBottomRef.current) return;
+        isProgrammaticScrollRef.current = true;
+        scrollToBottom();
+        if (releaseRaf) cancelAnimationFrame(releaseRaf);
+        releaseRaf = requestAnimationFrame(() => {
+          releaseRaf = 0;
+          isProgrammaticScrollRef.current = false;
+        });
+      });
+    });
+
+    observer.observe(content);
+    const historyWrapper = content.closest<HTMLElement>('.guake-history-content');
+    if (historyWrapper && historyWrapper !== content) observer.observe(historyWrapper);
+    return () => {
+      observer.disconnect();
+      if (reanchorRaf) cancelAnimationFrame(reanchorRaf);
+      if (releaseRaf) cancelAnimationFrame(releaseRaf);
+    };
+  }, [scrollToBottom]);
 
   // Jump to a user prompt from the overview rail. Scrolling lives HERE (this
   // component is the single scroll writer); the parent only receives the index
@@ -954,12 +1012,16 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     const correctionDelta = correctionsRef.current - correctionsBaselineRef.current;
     correctionsBaselineRef.current = correctionsRef.current;
     const scrolledUp = scrollTop - prevScrollTop - correctionDelta < -1;
+    const hasUserScrollIntent = performance.now() <= scrollIntentUntilRef.current;
 
-    // Sticky-bottom write gate: latch at the very bottom, unlatch ONLY on a
-    // genuine user up-scroll — see stickyBottomRef.
+    // Sticky-bottom write gate: latch at the very bottom, unlatch ONLY when an
+    // upward position change is backed by real wheel/touch/scrollbar input.
+    // During a switch, late measurements can reduce scrollTop while scrollHeight
+    // grows; position alone misclassified that layout movement as the user and
+    // disabled every later bottom correction (the reproducible 40–50px gap).
     if (distanceFromBottom <= 8) {
       stickyBottomRef.current = true;
-    } else if (scrolledUp && distanceFromBottom > 4) {
+    } else if (scrolledUp && distanceFromBottom > 4 && hasUserScrollIntent) {
       stickyBottomRef.current = false;
     }
 
@@ -972,7 +1034,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     // instead: every programmatic pin write lands AT the bottom (shrink-clamps
     // included) and content growth never decreases scrollTop, so "moved up AND
     // meaningfully above the bottom" can only be the user.
-    if (pinToBottom && scrolledUp && distanceFromBottom > 4) {
+    if (pinToBottom && scrolledUp && distanceFromBottom > 4 && hasUserScrollIntent) {
       onPinCancel?.();
       onUserScroll?.();
     }
@@ -985,7 +1047,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     // enough to identify the user; the old >150px dead zone made escaping a
     // word-stream impossible (each ~100px wheel tick was yanked back to the
     // bottom by the next chunk before a second tick could land).
-    if (scrolledUp && distanceFromBottom > 4 && !isProgrammaticScrollRef.current && !agentSwitchGraceRef.current && onUserScroll) {
+    if (scrolledUp && distanceFromBottom > 4 && hasUserScrollIntent && !isProgrammaticScrollRef.current && !agentSwitchGraceRef.current && onUserScroll) {
       onUserScroll();
     }
 
@@ -996,7 +1058,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
 
     // Keep the prompt rail's "current prompt" dot in sync with the viewport.
     updateActiveMarker();
-  }, [hasMore, isLoadingMore, onScrollTopReached, onUserScroll, scrollContainerRef, pinToBottom, onPinCancel, updateActiveMarker]);
+  }, [hasMore, isLoadingMore, onScrollTopReached, onUserScroll, scrollContainerRef, scrollIntentUntilRef, pinToBottom, onPinCancel, updateActiveMarker]);
 
   // Attach scroll listener
   useEffect(() => {

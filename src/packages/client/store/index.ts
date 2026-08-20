@@ -278,6 +278,7 @@ class Store
       customAgentClasses: new Map(),
       reconnectCount: 0,
       historyRefreshTrigger: 0,
+      historyRefreshVersions: new Map(),
       execTasks: new Map(),
       testRuns: new Map(),
       latestTestRunId: null,
@@ -530,21 +531,22 @@ class Store
 
   /**
    * Called when an agent's session file updates or agent transitions to idle.
-   * Always evicts the history cache so the next visit fetches fresh data.
-   * Only increments historyRefreshTrigger (causing an immediate re-fetch)
-   * if the affected agent is currently selected in the terminal.
+   * The per-agent revision marks that cache entry stale even while another
+   * conversation is selected. On revisit, useHistoryLoader can then conceal
+   * the stale snapshot until one fresh page is ready instead of painting the
+   * cached version and replacing it a moment later (visible flicker).
    */
   triggerHistoryRefresh(agentId: string): void {
-    // NOTE: Do NOT evict the history cache here. The stale cache is shown
-    // instantly while the fresh fetch loads in the background, preventing
-    // a visible blank-then-repopulate flicker in the output panel.
-    // The fetch will update the cache when it completes.
+    const versions = new Map(this.state.historyRefreshVersions ?? []);
+    versions.set(agentId, (versions.get(agentId) ?? 0) + 1);
+    this.state.historyRefreshVersions = versions;
 
-    // Only trigger an immediate re-fetch if this agent is currently viewed
+    // Preserve the legacy global counter for any non-agent-specific consumer.
+    // Only the selected agent bumps it, avoiding unrelated global rerenders.
     if (this.state.selectedAgentIds.has(agentId)) {
       this.state.historyRefreshTrigger++;
-      this.notify();
     }
+    this.notify();
   }
 
   // ============================================================================

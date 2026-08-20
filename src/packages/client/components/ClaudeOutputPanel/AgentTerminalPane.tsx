@@ -86,12 +86,10 @@ import { VirtualizedOutputList } from './VirtualizedOutputList';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const LIVE_DUPLICATE_WINDOW_MS = 10_000;
 // The source emits stream-final and result fallback synchronously. Keeping this
 // identity fallback window tiny prevents two real, identical turns from ever
 // being mistaken for the observed uuid-bearing/uuid-less twin.
 const LIVE_RESULT_FALLBACK_DUPLICATE_WINDOW_MS = 250;
-const HISTORY_OUTPUT_DUPLICATE_WINDOW_MS = 30_000;
 const HISTORY_ASSISTANT_OUTPUT_DUPLICATE_WINDOW_MS = 120_000;
 /**
  * Live thinking rows vs persisted reasoning entries: uuids never match (live
@@ -313,7 +311,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
 
   // ── Per-agent store subscriptions ──
   const reconnectCount = useReconnectCount();
-  const historyRefreshTrigger = useHistoryRefreshTrigger();
+  const historyRefreshTrigger = useHistoryRefreshTrigger(agentId);
   const lastPrompts = useLastPrompts();
   const outputs = useAgentOutputs(agentId);
   const isCompacting = useAgentCompacting(agentId);
@@ -646,8 +644,6 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     const seenAssistantKeys = new Set<string>();
     const seenUserUuidKeys = new Set<string>();
     const seenToolUseKeys = new Set<string>();
-    let lastUserKey: string | null = null;
-    let lastUserTs = 0;
 
     for (const msg of displayHistory) {
       if (msg.type === 'assistant') {
@@ -681,17 +677,10 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       if (userUuidKey && seenUserUuidKeys.has(userUuidKey)) {
         continue;
       }
-      const ts = msg.timestamp ? new Date(msg.timestamp).getTime() : 0;
-      if (lastUserKey === key && Math.abs(ts - lastUserTs) <= LIVE_DUPLICATE_WINDOW_MS) {
-        continue;
-      }
-
       result.push(msg);
       if (userUuidKey) {
         seenUserUuidKeys.add(userUuidKey);
       }
-      lastUserKey = key;
-      lastUserTs = ts;
     }
 
     return result;
@@ -720,7 +709,6 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // them per live chunk (dedupedOutputs recomputes ~20x/s while streaming)
   // meant a Date parse + normalize pass over the whole history every time.
   const historyDedupIndexes = useMemo(() => {
-    const latestHistoryUserTsByKey = new Map<string, number>();
     // Covers any non-user history uuid (assistant, tool_use, tool_result) so
     // that bash/tool live outputs replaying a persisted turn get deduped too.
     const historyKnownUuidSet = new Set<string>();
@@ -731,12 +719,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     const latestHistoryToolTsByKey = new Map<string, number>();
     for (const msg of dedupedHistory) {
       const ts = msg.timestamp ? new Date(msg.timestamp).getTime() : 0;
-      if (msg.type === 'user') {
-        const key = normalizeUserMessage(msg.content);
-        const prev = latestHistoryUserTsByKey.get(key) ?? 0;
-        if (ts > prev) latestHistoryUserTsByKey.set(key, ts);
-        continue;
-      }
+      if (msg.type === 'user') continue;
       if (msg.uuid) {
         historyKnownUuidSet.add(msg.uuid);
       }
@@ -772,7 +755,6 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       if (ts > prev) latestHistoryAssistantTsByKey.set(key, ts);
     }
     return {
-      latestHistoryUserTsByKey,
       historyKnownUuidSet,
       latestHistoryAssistantTsByKey,
       latestHistoryThinkingTsByKey,
@@ -783,7 +765,6 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // Remove live outputs that duplicate history (or each other for tools)
   const dedupedOutputs = useMemo(() => {
     const {
-      latestHistoryUserTsByKey,
       historyKnownUuidSet,
       latestHistoryAssistantTsByKey,
       latestHistoryThinkingTsByKey,
@@ -791,8 +772,6 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     } = historyDedupIndexes;
 
     const result: typeof filteredOutputs = [];
-    let lastLiveUserKey: string | null = null;
-    let lastLiveUserTs = 0;
     // toolKey → last kept live timestamp (collapse early + call-* twins)
     const latestLiveToolTsByKey = new Map<string, number>();
     // Claude normally finalizes a streamed row with the same uuid. Its result
@@ -888,21 +867,10 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
         continue;
       }
 
-      const key = normalizeUserMessage(output.text);
-      const ts = output.timestamp || 0;
-      const latestHistoryTs = latestHistoryUserTsByKey.get(key);
-
-      if (latestHistoryTs && ts >= latestHistoryTs && ts - latestHistoryTs <= HISTORY_OUTPUT_DUPLICATE_WINDOW_MS) {
-        continue;
-      }
-
-      if (lastLiveUserKey === key && Math.abs(ts - lastLiveUserTs) <= LIVE_DUPLICATE_WINDOW_MS) {
-        continue;
-      }
-
+      // User history/live reconciliation happens atomically in
+      // useHistoryLoader before history is published. Do not content-dedupe
+      // again here: without shared ids, a second identical prompt is valid.
       result.push(output);
-      lastLiveUserKey = key;
-      lastLiveUserTs = ts;
     }
 
     return result;
@@ -1033,6 +1001,23 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // diffs against its own baseline.
   const anchorCorrectionsRef = useRef(0);
   const anchorCorrectionsBaselineRef = useRef(0);
+  // Raw scroll events also fire for virtualizer corrections, browser clamps,
+  // and late row measurements. Track an explicit input deadline so only real
+  // wheel/touch/scrollbar movement can disable bottom-follow during a switch.
+  const userScrollIntentUntilRef = useRef(0);
+  const markOutputScrollIntent = useCallback(() => {
+    userScrollIntentUntilRef.current = performance.now() + 750;
+  }, []);
+  const handleOutputPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    // A scrollbar press targets the scroll container itself. Child clicks do
+    // not represent scrolling and must not make layout movement look manual.
+    if (e.target === e.currentTarget) markOutputScrollIntent();
+  }, [markOutputScrollIntent]);
+  const handleOutputScrollKey = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(e.key)) {
+      markOutputScrollIntent();
+    }
+  }, [markOutputScrollIntent]);
 
   const handleUserScrollUp = useCallback(() => {
     // No grace-window gate here: VirtualizedOutputList only calls this for
@@ -1146,8 +1131,9 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     const correctionDelta = anchorCorrectionsRef.current - anchorCorrectionsBaselineRef.current;
     anchorCorrectionsBaselineRef.current = anchorCorrectionsRef.current;
     const scrolledUp = scrollTop - prevScrollTop - correctionDelta < -1;
+    const hasUserScrollIntent = performance.now() <= userScrollIntentUntilRef.current;
 
-    if (scrolledUp && distanceFromBottom > 4) {
+    if (scrolledUp && distanceFromBottom > 4 && hasUserScrollIntent) {
       // ANY genuine upward move disables auto-scroll — even inside the 150px
       // "at bottom" zone. Programmatic settle scrolls land AT the bottom
       // (shrink-clamps included) and content growth never decreases scrollTop,
@@ -1242,20 +1228,18 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     return () => { cancelled = true; };
   }, [agentId, reconnectCount, historyLoader.historyLoadVersion]);
 
-  useEffect(() => {
-    if (historyLoader.fetchingHistory) {
-      // fetchingHistory goes true on EVERY background history refresh — the
-      // store bumps historyRefreshTrigger on each session-file update while
-      // the viewed agent streams. Re-arming the pin unconditionally made each
-      // refresh snap toward the bottom mid-scroll (the user's next scroll
-      // event cancels it, then the next refresh re-pins — a stutter loop for
-      // as long as the agent keeps streaming). Only re-pin while the user is
-      // following the bottom; sending a command resets the ref, so their own
-      // next message still pins as before.
-      if (isUserScrolledUpRef.current) return;
-      setPinToBottom(true);
-    }
-  }, [historyLoader.fetchingHistory]);
+  // A network refresh can take seconds. Pinning when it STARTS may settle and
+  // release long before the fresh rows are committed, leaving a revisited
+  // conversation above the bottom when those rows finally arrive. Re-arm on
+  // completion instead, in a layout effect so the fresh commit cannot paint at
+  // the old offset. Respect readers who deliberately scrolled upward.
+  const completedHistoryVersionRef = useRef(historyLoader.historyLoadVersion);
+  useLayoutEffect(() => {
+    if (historyLoader.historyLoadVersion === completedHistoryVersionRef.current) return;
+    completedHistoryVersionRef.current = historyLoader.historyLoadVersion;
+    if (isUserScrolledUpRef.current) return;
+    armBottomPin();
+  }, [historyLoader.historyLoadVersion, armBottomPin]);
 
   useEffect(() => {
     if (!pinToBottom) return;
@@ -1418,7 +1402,15 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
       )}
 
       {/* Output area */}
-      <div className={`guake-output${hasPinnedAgents ? ' has-pinned-agents' : ''}`} ref={outputScrollRef} onScroll={handleScroll}>
+      <div
+        className={`guake-output${hasPinnedAgents ? ' has-pinned-agents' : ''}`}
+        ref={outputScrollRef}
+        onScroll={handleScroll}
+        onWheelCapture={markOutputScrollIntent}
+        onTouchMoveCapture={markOutputScrollIntent}
+        onPointerDownCapture={handleOutputPointerDown}
+        onKeyDownCapture={handleOutputScrollKey}
+      >
         {/* Loading indicator lives OUTSIDE the fade wrapper (which is opacity:0
             until the pin settles) and sticks to the viewport — inside the
             wrapper it was invisible, so a slow history fetch showed a plain
@@ -1476,6 +1468,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
               onPinCancel={handlePinCancel}
               isLoadingHistory={waitingForFirstContent}
               anchorCorrectionsRef={anchorCorrectionsRef}
+              userScrollIntentUntilRef={userScrollIntentUntilRef}
             />
           )}
           {/* Context compaction indicator */}

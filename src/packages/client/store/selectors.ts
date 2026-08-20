@@ -959,13 +959,18 @@ export function useConnectionFailing(): boolean {
 }
 
 /**
- * Get the history refresh trigger counter.
- * Increments when an agent's session file updates or agent transitions to idle,
- * signaling useHistoryLoader to re-fetch conversation history.
+ * Get an agent-scoped history revision. Background session updates advance
+ * only their own value, so the open pane does not rerender for other agents.
+ * The no-argument form retains the legacy global counter.
  */
-export function useHistoryRefreshTrigger(): number {
+export function useHistoryRefreshTrigger(agentId?: string | null): number {
   return useSelector(
-    useCallback((state: StoreState) => state.historyRefreshTrigger, [])
+    useCallback(
+      (state: StoreState) => agentId
+        ? (state.historyRefreshVersions?.get(agentId) ?? 0)
+        : state.historyRefreshTrigger,
+      [agentId],
+    ),
   );
 }
 

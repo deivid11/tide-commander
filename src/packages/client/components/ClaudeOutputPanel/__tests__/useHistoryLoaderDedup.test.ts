@@ -103,6 +103,20 @@ describe('dedupeOutputsAgainstHistory — v3 regression', () => {
     expect(changed).toBe(true);
   });
 
+  it('matches identical prompts one-to-one instead of erasing a distinct repeat', () => {
+    const liveAtThenTime = [
+      makeOptimisticPrompt('continue', 1_700_000_100),
+      makeOptimisticPrompt('continue', 1_700_000_200),
+    ];
+    const history = [
+      makeHistoryUserMsg('continue', 1_700_000_150, 'first-jsonl-uuid'),
+    ];
+
+    const { kept } = dedupeOutputsAgainstHistory(liveAtThenTime, history);
+    expect(kept).toHaveLength(1);
+    expect(kept[0]).toBe(liveAtThenTime[1]);
+  });
+
   it('keeps uuid-bearing live outputs that the server JSONL has not caught up to', () => {
     // Streaming WS broadcast with a uuid — history has not yet persisted it.
     // Must NOT prune by timestamp; only by uuid match.
@@ -236,9 +250,16 @@ describe('shouldKeepOutput — v1 invariant still holds', () => {
 
   it('drops no-uuid optimistic prompt that matches history within window', () => {
     const historyUuidSet = new Set<string>();
-    const latestHistoryTsByKey = new Map<string, number>([['user:hi', 1_000_000_000]]);
-    const live = makeOptimisticPrompt('hi', 1_000_000_500); // <2 min away
+    const latestHistoryTsByKey = new Map<string, number>([['user:hi', 1_000_000_500]]);
+    const live = makeOptimisticPrompt('hi', 1_000_000_000); // optimistic row precedes persisted echo
     expect(shouldKeepOutput(live, historyUuidSet, latestHistoryTsByKey)).toBe(false);
+  });
+
+  it('keeps a later legitimately repeated identical prompt instead of matching older history', () => {
+    const historyUuidSet = new Set<string>();
+    const latestHistoryTsByKey = new Map<string, number>([['user:continue', 1_000_000_000]]);
+    const nextTurn = makeOptimisticPrompt('continue', 1_000_000_100);
+    expect(shouldKeepOutput(nextTurn, historyUuidSet, latestHistoryTsByKey)).toBe(true);
   });
 
   it('keeps no-uuid optimistic prompt when no matching history key', () => {

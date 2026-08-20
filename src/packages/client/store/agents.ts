@@ -407,6 +407,10 @@ export function createAgentActions(
         state.agentTaskProgress.delete(agentId);
         // Clean up subagents
         state.subagents.delete(agentId);
+        if (state.historyRefreshVersions?.has(agentId)) {
+          state.historyRefreshVersions = new Map(state.historyRefreshVersions);
+          state.historyRefreshVersions.delete(agentId);
+        }
       });
       // Evict from history cache
       evictHistoryCache(agentId);

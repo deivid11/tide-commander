@@ -356,9 +356,11 @@ export interface StoreState {
   // Reconnection counter - increments on each WebSocket reconnect
   // Components can watch this to refresh their data
   reconnectCount: number;
-  // History refresh trigger - increments when an agent's session file updates
-  // or agent transitions to idle, so useHistoryLoader re-fetches conversation history
+  // Legacy global trigger plus per-agent revisions. The per-agent map lets a
+  // background session update mark only that agent's cached history stale
+  // without rerendering the currently open conversation.
   historyRefreshTrigger: number;
+  historyRefreshVersions: Map<string, number>;
   // Exec tasks (streaming command execution via /api/exec)
   execTasks?: Map<string, ExecTask>;
   // Test runs (streaming Run Tests execution via /api/tests/run)

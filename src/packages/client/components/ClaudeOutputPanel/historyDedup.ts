@@ -8,7 +8,12 @@
 import type { ClaudeOutput } from '../../store/types';
 import type { HistoryMessage } from './types';
 
-const HISTORY_LIVE_DEDUP_WINDOW_MS = 120_000;
+// User echoes are stamped in the server clock domain (serverNow), and the
+// persisted prompt is normally written within milliseconds. Keep this window
+// deliberately tight so a legitimate repeated prompt cannot be mistaken for
+// an older identical turn. Assistant finalization may take much longer.
+const HISTORY_USER_LIVE_DEDUP_WINDOW_MS = 1_000;
+const HISTORY_ASSISTANT_LIVE_DEDUP_WINDOW_MS = 120_000;
 
 function normalizeMessage(text: string): string {
   return text.trim().replace(/\r\n/g, '\n');
@@ -94,9 +99,16 @@ export function shouldKeepOutput(
   const outputTs = output.timestamp || 0;
   const historyTs = latestHistoryTsByKey.get(key);
 
-  if (historyTs !== undefined && Math.abs(outputTs - historyTs) <= HISTORY_LIVE_DEDUP_WINDOW_MS) {
-    return false;
-  }
+  const exactMatch = output.isUserPrompt
+    // Optimistic prompt is created before the provider persists its history
+    // row. Direction matters: an older history row with the same text belongs
+    // to a previous, legitimately repeated turn.
+    ? historyTs !== undefined
+      && historyTs >= outputTs
+      && historyTs - outputTs <= HISTORY_USER_LIVE_DEDUP_WINDOW_MS
+    : historyTs !== undefined
+      && Math.abs(outputTs - historyTs) <= HISTORY_ASSISTANT_LIVE_DEDUP_WINDOW_MS;
+  if (exactMatch) return false;
 
   // A live user prompt can have a history twin whose persisted text WRAPS the
   // raw prompt this client rendered — the OpenCode/Codex first-turn instruction
@@ -116,7 +128,7 @@ export function shouldKeepOutput(
     const raw = normalizeMessage(output.text);
     if (raw.length > 0) {
       for (const m of historyUserMessages) {
-        if (Math.abs(outputTs - m.ts) > HISTORY_LIVE_DEDUP_WINDOW_MS) continue;
+        if (m.ts < outputTs || m.ts - outputTs > HISTORY_USER_LIVE_DEDUP_WINDOW_MS) continue;
         if (!m.content.includes(raw)) continue;
         if (output.pendingEcho || m.content.length > raw.length) return false;
       }
@@ -161,11 +173,49 @@ export function dedupeOutputsAgainstHistory(
       historyUserMessages.push({ content: normalizeMessage(m.content), ts: msgTs });
     }
   }
-  const kept = currentOutputs.filter((output) => shouldKeepOutput(
-    output,
-    historyUuidSet,
-    latestHistoryTsByKey,
-    historyUserMessages,
-  ));
+
+  // Reconcile user prompts one-to-one. A simple "latest timestamp by text"
+  // lookup lets one persisted prompt erase TWO legitimately identical live
+  // sends. Consuming each history candidate at most once preserves the second
+  // occurrence until its own persisted row arrives.
+  const matchedHistoryUsers = new Set<number>();
+  const kept: ClaudeOutput[] = [];
+  for (const output of currentOutputs) {
+    if (output.isUserPrompt && !output.uuid) {
+      const raw = normalizeMessage(output.text);
+      const outputTs = output.timestamp || 0;
+      let bestIndex = -1;
+      let bestDelta = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < historyUserMessages.length; i++) {
+        if (matchedHistoryUsers.has(i)) continue;
+        const candidate = historyUserMessages[i];
+        // The live optimistic row precedes its persisted history twin. Never
+        // consume an older identical history row: that is a previous turn.
+        const delta = candidate.ts - outputTs;
+        if (delta < 0 || delta > HISTORY_USER_LIVE_DEDUP_WINDOW_MS || delta >= bestDelta) continue;
+        const exact = candidate.content === raw;
+        const wrapped = candidate.content.includes(raw)
+          && (output.pendingEcho || candidate.content.length > raw.length);
+        if (!exact && !wrapped) continue;
+        bestIndex = i;
+        bestDelta = delta;
+      }
+      if (bestIndex >= 0) {
+        matchedHistoryUsers.add(bestIndex);
+        continue;
+      }
+      kept.push(output);
+      continue;
+    }
+
+    if (shouldKeepOutput(
+      output,
+      historyUuidSet,
+      latestHistoryTsByKey,
+      historyUserMessages,
+    )) {
+      kept.push(output);
+    }
+  }
   return { kept, changed: kept.length !== currentOutputs.length };
 }

@@ -12,17 +12,44 @@ import { MESSAGES_PER_PAGE, SCROLL_THRESHOLD } from './types';
 import { dedupeOutputsAgainstHistory, mergeOlderHistoryPage } from './historyDedup';
 
 // Maximum number of agents to keep cached history for (LRU eviction).
-// A cached agent switches instantly (pin + reveal run on the cached page while
-// the refetch happens in the background); an uncached one waits for the fetch.
+// A revision-matched cached agent switches instantly without a redundant
+// refetch. A stale/uncached agent waits behind the loading veil for one fresh
+// page, so the user never sees stale history replaced after paint.
 const HISTORY_CACHE_MAX_AGENTS = 24;
 const HISTORY_FETCH_TIMEOUT_MS = 12_000;
 
 // Per-agent history cache for instant display on revisit (LRU: most recent access last)
-const historyCache = new Map<string, {
+interface HistoryCacheEntry {
   messages: HistoryMessage[];
   hasMore: boolean;
   totalCount: number;
-}>();
+  /** Agent-scoped session revision when this snapshot was fetched. */
+  refreshVersion: number;
+  /** Websocket reconnect generation when this snapshot was fetched. */
+  reconnectCount: number;
+}
+
+const historyCache = new Map<string, HistoryCacheEntry>();
+
+function currentHistoryVersion(agentId: string): { refreshVersion: number; reconnectCount: number } {
+  const state = store.getState();
+  return {
+    refreshVersion: state.historyRefreshVersions?.get(agentId) ?? 0,
+    reconnectCount: state.reconnectCount,
+  };
+}
+
+function isCacheEntryFresh(agentId: string, entry: HistoryCacheEntry | undefined): boolean {
+  if (!entry) return false;
+  const current = currentHistoryVersion(agentId);
+  return entry.refreshVersion === current.refreshVersion
+    && entry.reconnectCount === current.reconnectCount;
+}
+
+function getFreshHistoryCache(agentId: string): HistoryCacheEntry | undefined {
+  const entry = historyCache.get(agentId);
+  return isCacheEntryFresh(agentId, entry) ? entry : undefined;
+}
 
 /** Touch an entry to mark it as most recently used (move to end of Map iteration order). */
 function historyCacheTouch(agentId: string): void {
@@ -52,6 +79,21 @@ export function evictHistoryCache(agentId: string): void {
   historyCache.delete(agentId);
 }
 
+/**
+ * Make persisted history and the live store mutually exclusive before history
+ * is exposed to React. This must also run on cache hits: a prompt can arrive
+ * after a cache entry was populated, and otherwise the cached prompt plus its
+ * optimistic/live echo render together on the next visit.
+ */
+function reconcileLiveOutputsAgainstHistory(agentId: string, messages: HistoryMessage[]): void {
+  const dedupResult = dedupeOutputsAgainstHistory(store.getOutputs(agentId), messages);
+  if (!dedupResult.changed) return;
+  store.clearOutputs(agentId);
+  for (const output of dedupResult.kept) {
+    store.addOutput(agentId, output);
+  }
+}
+
 // Hovering across the miniature dock can touch many chips in a second. Keep
 // speculative history traffic below the browser's per-origin connection limit
 // so real selection requests always have a free socket.
@@ -64,11 +106,12 @@ function drainHistoryPrefetchQueue(): void {
   while (activeHistoryPrefetches < MAX_CONCURRENT_HISTORY_PREFETCHES && prefetchQueue.length > 0) {
     const agentId = prefetchQueue.shift();
     if (!agentId) return;
-    if (historyCache.has(agentId)) {
+    if (getFreshHistoryCache(agentId)) {
       prefetchInFlight.delete(agentId);
       continue;
     }
 
+    const requestedVersion = currentHistoryVersion(agentId);
     activeHistoryPrefetches += 1;
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), HISTORY_FETCH_TIMEOUT_MS);
@@ -79,11 +122,15 @@ function drainHistoryPrefetchQueue(): void {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!data || !Array.isArray(data.messages) || data.messages.length === 0) return;
-        if (historyCache.has(agentId)) return;
+        const currentVersion = currentHistoryVersion(agentId);
+        if (currentVersion.refreshVersion !== requestedVersion.refreshVersion
+          || currentVersion.reconnectCount !== requestedVersion.reconnectCount) return;
+        if (getFreshHistoryCache(agentId)) return;
         historyCache.set(agentId, {
           messages: data.messages,
           hasMore: data.hasMore || false,
           totalCount: data.totalCount || 0,
+          ...requestedVersion,
         });
         historyCacheEvict();
         const subagents = Array.isArray(data.subagents) ? data.subagents : [];
@@ -101,7 +148,7 @@ function drainHistoryPrefetchQueue(): void {
 
 /** Warm history before selection without competing with foreground loads. */
 export function prefetchAgentHistory(agentId: string): void {
-  if (!agentId || historyCache.has(agentId) || prefetchInFlight.has(agentId)) return;
+  if (!agentId || getFreshHistoryCache(agentId) || prefetchInFlight.has(agentId)) return;
   prefetchInFlight.add(agentId);
   prefetchQueue.push(agentId);
   drainHistoryPrefetchQueue();
@@ -162,11 +209,15 @@ export function useHistoryLoader({
   lastPrompts,
   outputScrollRef,
 }: UseHistoryLoaderProps): UseHistoryLoaderReturn {
-  // Hydrate synchronously from the cache: a keyed pane remounts on every agent
-  // switch, and seeding state in the initializers means the FIRST paint of the
-  // new pane already shows the conversation — no empty commit, no wait for the
-  // load effect. The effect below still runs and refreshes from the network.
-  const mountCached = selectedAgentId && hasSessionId ? historyCache.get(selectedAgentId) : undefined;
+  // Hydrate synchronously only from a cache snapshot that still matches this
+  // agent's session revision. If messages arrived while another agent was open,
+  // the entry is stale: painting it for one frame and then replacing it with the
+  // fresh page is the cached-session flicker. Stale entries stay available only
+  // as a network-error fallback and remain concealed during the foreground load.
+  const mountCacheEntry = selectedAgentId && hasSessionId ? historyCache.get(selectedAgentId) : undefined;
+  const mountCached = selectedAgentId && isCacheEntryFresh(selectedAgentId, mountCacheEntry)
+    ? mountCacheEntry
+    : undefined;
   const [history, setHistory] = useState<HistoryMessage[]>(() => mountCached?.messages ?? []);
   const [loadingHistory, setLoadingHistory] = useState(false);
   // A cold keyed pane is guaranteed to start a fetch in the mount effect.
@@ -201,6 +252,9 @@ export function useHistoryLoader({
   // Track previous agent ID and sessionId to detect switches vs session establishment
   const prevAgentIdRef = useRef<string | null>(null);
   const prevHasSessionIdRef = useRef<boolean>(false);
+  // reconnectCount is cumulative. Comparing it to zero made every later agent
+  // mount look like an active reconnect and bypassed normal cache semantics.
+  const prevReconnectCountRef = useRef(reconnectCount);
   // Track if we've already loaded history for the current agent/session combo
   const loadedForRef = useRef<string | null>(null);
   // Deferred loading state timer - only show loading after a delay to avoid flash
@@ -243,9 +297,12 @@ export function useHistoryLoader({
       return;
     }
 
-    // Detect if this is an agent switch or reconnect vs session establishment
+    const isFirstLoadForPane = loadedForRef.current === null;
+    // Detect if this is an agent switch or a reconnect that happened WHILE
+    // this pane was mounted. A cumulative reconnectCount > 0 does not mean a
+    // newly keyed pane is currently reconnecting.
     const isAgentSwitch = prevAgentIdRef.current !== null && prevAgentIdRef.current !== selectedAgentId;
-    const isReconnect = reconnectCount > 0;
+    const isReconnect = prevReconnectCountRef.current !== reconnectCount;
     const shouldClearOutputs = isAgentSwitch || isReconnect;
 
     // Detect if session was just established for the current agent
@@ -254,11 +311,16 @@ export function useHistoryLoader({
     // Update refs AFTER checking
     prevAgentIdRef.current = selectedAgentId;
     prevHasSessionIdRef.current = hasSessionId;
+    prevReconnectCountRef.current = reconnectCount;
     loadedForRef.current = loadKey;
 
     // Preserve outputs on reconnect
     let preservedOutputsSnapshot: ClaudeOutput[] | undefined;
-    let showedCachedHistory = false;
+    const existingCacheEntry = historyCache.get(selectedAgentId);
+    const staleCacheFallback = existingCacheEntry && !isCacheEntryFresh(selectedAgentId, existingCacheEntry)
+      ? existingCacheEntry
+      : undefined;
+    const preservedRenderedHistory = !isFirstLoadForPane && historyLengthRef.current > 0;
     if (isReconnect) {
       const currentOutputs = store.getOutputs(selectedAgentId);
       if (currentOutputs.length > 0) {
@@ -277,29 +339,30 @@ export function useHistoryLoader({
       historyCache.delete(selectedAgentId);
     }
 
-    // Mark fetch as in-flight immediately (used for logic like scroll-to-bottom)
-    fetchSeqRef.current += 1;
-    const fetchSeq = fetchSeqRef.current;
-    setFetchingHistory(true);
-
-    // On reconnect, keep current history on screen to avoid flicker.
-    // Fresh data will replace it once the fetch completes.
-    if (!isReconnect) {
-      // If we have cached history for this agent, show it immediately
-      // instead of blanking the screen while waiting for the network fetch.
-      const cached = historyCache.get(selectedAgentId);
+    // On reconnect or an in-place session refresh, keep the currently rendered
+    // conversation on screen. On a keyed mount/revisit, however, only a FRESH
+    // cache may paint immediately; a stale cache stays behind the loading veil
+    // until the network page is ready, preventing stale → fresh double-paint.
+    if (!isReconnect && isFirstLoadForPane) {
+      const cached = getFreshHistoryCache(selectedAgentId);
       if (cached) {
-        showedCachedHistory = true;
         historyCacheTouch(selectedAgentId);
+        // Reconcile BEFORE publishing cached history so React never gets one
+        // frame containing both a cached prompt and its newer live echo.
+        reconcileLiveOutputsAgainstHistory(selectedAgentId, cached.messages);
         setHistory(cached.messages);
         historyLengthRef.current = cached.messages.length;
         paginationOffsetRef.current = cached.messages.length;
         setHasMore(cached.hasMore);
         hasMoreRef.current = cached.hasMore;
         setTotalCount(cached.totalCount);
+        // A revision-matched cache is authoritative while the websocket is
+        // connected. Do not replace it with a structurally new copy of the
+        // same page — that unnecessary reconciliation was another source of
+        // cached-session flashes and row remeasurement.
+        setFetchingHistory(false);
+        return;
       } else {
-        // Clear existing history immediately on any new load to avoid briefly showing
-        // the previous agent's conversation (which can also cause scroll glitches).
         setHistory([]);
         historyLengthRef.current = 0;
         paginationOffsetRef.current = 0;
@@ -308,6 +371,11 @@ export function useHistoryLoader({
         setTotalCount(0);
       }
     }
+
+    // Mark fetch as in-flight immediately (used for logic like scroll-to-bottom)
+    fetchSeqRef.current += 1;
+    const fetchSeq = fetchSeqRef.current;
+    setFetchingHistory(true);
 
     // Only show loading after a delay to avoid flash for quick loads
     // On reconnect, skip the loading indicator entirely to avoid UI disruption
@@ -344,6 +412,9 @@ export function useHistoryLoader({
 
         const messages: HistoryMessage[] = Array.isArray(data.messages) ? data.messages : [];
         const subagents = Array.isArray(data.subagents) ? data.subagents : [];
+        // Reconcile synchronously before publishing history. Publishing first
+        // allowed a transient persisted + optimistic duplicate frame.
+        reconcileLiveOutputsAgainstHistory(selectedAgentId, messages);
         setHistory(messages);
         historyLengthRef.current = messages.length;
         // Next older page starts just before the messages we just loaded.
@@ -362,29 +433,10 @@ export function useHistoryLoader({
           messages,
           hasMore: hasMoreValue,
           totalCount: data.totalCount || 0,
+          refreshVersion: historyRefreshTrigger,
+          reconnectCount,
         });
         historyCacheEvict();
-
-        // Handle output deduplication — always dedupe against the LIVE store
-        // (current outputs), never against the pre-fetch snapshot. The snapshot
-        // is captured at effect-fire time, before authFetch; any output that
-        // arrives via WS during the in-flight window (the optimistic prompt
-        // from `command_started`, an assistant chunk, a tool event) is in the
-        // live store at .then() time but NOT in the snapshot, and filtering
-        // the snapshot would silently delete it on clearOutputs+re-add. The
-        // snapshot is only used in the catch() block below for error recovery.
-        if (messages.length > 0 || (preservedOutputsSnapshot && preservedOutputsSnapshot.length > 0)) {
-          const dedupResult = dedupeOutputsAgainstHistory(
-            store.getOutputs(selectedAgentId),
-            messages,
-          );
-          if (dedupResult.changed) {
-            store.clearOutputs(selectedAgentId);
-            for (const output of dedupResult.kept) {
-              store.addOutput(selectedAgentId, output);
-            }
-          }
-        }
 
         // Set last prompt if not already set
         if (!lastPrompts.get(selectedAgentId)) {
@@ -403,9 +455,18 @@ export function useHistoryLoader({
         if (wasAborted && !fetchTimedOut) return;
         if (fetchTimedOut) console.warn('History request timed out:', selectedAgentId);
         else console.error('Failed to load history:', err);
-        // A failed background refresh must not erase the cached conversation
-        // that was already painted successfully.
-        if (!showedCachedHistory) {
+        // A failed background refresh must not erase a conversation that was
+        // already painted successfully. For a stale-cache revisit, reveal that
+        // snapshot only now as the error fallback — never before the failed
+        // request, so the success path cannot double-paint stale then fresh.
+        if (staleCacheFallback && isFirstLoadForPane) {
+          setHistory(staleCacheFallback.messages);
+          historyLengthRef.current = staleCacheFallback.messages.length;
+          paginationOffsetRef.current = staleCacheFallback.messages.length;
+          setHasMore(staleCacheFallback.hasMore);
+          hasMoreRef.current = staleCacheFallback.hasMore;
+          setTotalCount(staleCacheFallback.totalCount);
+        } else if (!preservedRenderedHistory) {
           setHistory([]);
           historyLengthRef.current = 0;
           paginationOffsetRef.current = 0;
@@ -615,6 +676,8 @@ export function useHistoryLoader({
         messages: data.messages || [],
         hasMore: false,
         totalCount: data.totalCount || data.messages?.length || 0,
+        refreshVersion: historyRefreshTrigger,
+        reconnectCount,
       });
     } catch (err) {
       console.error('Failed to load all history:', err);
@@ -625,7 +688,7 @@ export function useHistoryLoader({
         setLoadingMore(false);
       }
     }
-  }, [selectedAgentId]);
+  }, [selectedAgentId, historyRefreshTrigger, reconnectCount]);
 
   return {
     history,
@@ -641,6 +704,6 @@ export function useHistoryLoader({
     allLoaded: !hasMore,
     handleScroll,
     clearHistory,
-    hasCachedHistory: useCallback((agentId: string) => historyCache.has(agentId), []),
+    hasCachedHistory: useCallback((agentId: string) => !!getFreshHistoryCache(agentId), []),
   };
 }
