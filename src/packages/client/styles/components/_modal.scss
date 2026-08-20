@@ -107,6 +107,46 @@
   }
 }
 
+.spawn-restore-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent-color) 45%, var(--border-color));
+  border-radius: $radius-lg;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent-color) 10%, var(--bg-tertiary));
+
+  > svg {
+    flex: 0 0 auto;
+    color: var(--accent-color);
+  }
+
+  > div {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  strong {
+    font-size: 12px;
+  }
+
+  span {
+    color: var(--text-secondary);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .spawn-restore-banner-hint {
+    margin-left: auto;
+    flex: 0 0 auto;
+  }
+}
+
 // Card-style section used to group related fields
 .spawn-section {
   background: color-mix(in srgb, var(--bg-tertiary) 45%, transparent);
@@ -947,6 +987,75 @@
 .session-item-meta {
   font-size: 10px;
   color: var(--text-muted);
+}
+
+// Selected model/session capacity + active account quota. Kept on one line so
+// changing providers gives immediate feedback without making the form taller.
+.model-usage-preview {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 9px;
+  max-width: 100%;
+  margin-top: 8px;
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 65%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-tertiary) 72%, transparent);
+
+  &__gauge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+
+    & + & {
+      padding-left: 9px;
+      border-left: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+    }
+  }
+
+  &__label,
+  &__value {
+    flex: none;
+    font-family: $font-mono;
+    font-size: 9px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  &__label {
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+
+    strong {
+      color: var(--text-secondary);
+      text-transform: none;
+    }
+  }
+
+  &__value {
+    min-width: 38px;
+    font-weight: 700;
+    text-align: right;
+  }
+
+  &__bar {
+    position: relative;
+    width: 58px;
+    height: 5px;
+    overflow: hidden;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+
+    > span {
+      position: absolute;
+      inset: 0 auto 0 0;
+      border-radius: inherit;
+      transition: width 0.2s ease, background-color 0.2s ease;
+    }
+  }
 }
 
 // Model selector

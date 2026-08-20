@@ -61,6 +61,16 @@ export interface CodexProfilesUsageResult {
   usage: CodexProfileUsage[];
 }
 
+export interface GrokAccountUsageResult {
+  rateLimits: {
+    weekly: CodexProfileRateLimitWindow | null;
+    monthly: CodexProfileRateLimitWindow | null;
+    onDemand: CodexProfileRateLimitWindow | null;
+  } | null;
+  error: string | null;
+  fetchedAt: number;
+}
+
 function basePath(provider: CredentialProviderId): string {
   return `/api/system/${provider}-credentials`;
 }
@@ -90,6 +100,15 @@ export async function fetchCodexCredentialsUsage(): Promise<CodexProfilesUsageRe
     throw new Error(await readError(response, `Failed to fetch codex credentials usage: ${response.status}`));
   }
   return (await response.json()) as CodexProfilesUsageResult;
+}
+
+/** Weekly/monthly gauges for the active Grok account. */
+export async function fetchGrokCredentialsUsage(): Promise<GrokAccountUsageResult> {
+  const response = await authFetch(apiUrl(`${basePath('grok')}/usage`));
+  if (!response.ok) {
+    throw new Error(await readError(response, `Failed to fetch grok credentials usage: ${response.status}`));
+  }
+  return (await response.json()) as GrokAccountUsageResult;
 }
 
 export async function switchProviderCredentials(

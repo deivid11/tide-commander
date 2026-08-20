@@ -1806,18 +1806,33 @@
   animation: compacting-fade-in 0.3s ease-out;
 
   .compacting-bar {
+    position: relative;
     flex: 1 1 auto;
     height: 3px;
     background: rgba(255, 255, 255, 0.08);
     border-radius: 2px;
     overflow: hidden;
 
+    // Pre-rendered at 16 fps so the browser's image decoder owns the motion
+    // instead of recalculating width and repainting this flex row every frame.
     .compacting-bar-fill {
-      height: 100%;
+      display: block;
       width: 100%;
+      height: 100%;
+      object-fit: fill;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    // Static fallback for Low Power Mode (animated images ignore CSS's
+    // animation-duration overrides).
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      display: none;
+      border-radius: inherit;
       background: linear-gradient(90deg, transparent, #6366f1, #818cf8, #6366f1, transparent);
-      border-radius: 2px;
-      animation: compacting-sweep 1.5s ease-in-out infinite;
     }
   }
 
@@ -1829,9 +1844,9 @@
   }
 }
 
-@keyframes compacting-sweep {
-  0% { width: 0%; }
-  100% { width: 100%; }
+html.low-power .compacting-indicator .compacting-bar {
+  .compacting-bar-fill { display: none; }
+  &::after { display: block; }
 }
 
 @keyframes compacting-fade-in {

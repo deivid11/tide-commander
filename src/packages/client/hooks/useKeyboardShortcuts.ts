@@ -9,7 +9,7 @@ type AgentWithShortcut = { id: string; shortcut?: string; name: string };
 
 interface UseKeyboardShortcutsOptions {
   sceneRef: React.RefObject<SceneManager | null>;
-  spawnModal: UseModalState;
+  spawnModal: { isOpen: boolean; open: () => void; close: () => void };
   commanderModal: UseModalState;
   explorerModal: UseModalStateWithId;
   spotlightModal: UseModalState;

@@ -5,7 +5,8 @@
  * Claude: local tracking + ~/.claude/stats-cache.json + Anthropic OAuth
  * session/weekly rate-limit gauges (CLI `/usage`).
  * Grok: local tracking + CLI chat-proxy billing/credit gauges (CLI `/usage`).
- * Pi: subscriptions loaded by Pi plus limits for the active model provider.
+ * Pi/OpenCode: limits resolved from the active model's underlying provider;
+ * OpenCode's dynamic free pool is identified explicitly as free/unmetered.
  * When a live fetch fails, `rateLimits` is null and `cliHint` is shown.
  */
 
@@ -105,6 +106,18 @@ export interface PiQuotaWindow extends ClaudeRateLimitWindow {
   key: PiQuotaWindowKey;
 }
 
+export interface OpencodeUsageSnapshot {
+  provider: 'opencode';
+  fetchedAt: number;
+  modelProvider: string | null;
+  plan: 'free' | 'go' | 'unavailable';
+  session: ClaudeUsageSession;
+  rateLimits: null;
+  quotaWindows: PiQuotaWindow[];
+  rateLimitsError: string | null;
+  cliHint: string;
+}
+
 export interface PiUsageSnapshot {
   provider: 'pi';
   fetchedAt: number;
@@ -120,7 +133,7 @@ export interface PiUsageSnapshot {
   cliHint: string;
 }
 
-export type ProviderUsageSnapshot = ClaudeUsageSnapshot | CodexUsageSnapshot | GrokUsageSnapshot | PiUsageSnapshot;
+export type ProviderUsageSnapshot = ClaudeUsageSnapshot | CodexUsageSnapshot | GrokUsageSnapshot | OpencodeUsageSnapshot | PiUsageSnapshot;
 
 export interface ClaudeTokenTotals {
   input: number;

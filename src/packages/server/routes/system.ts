@@ -39,6 +39,7 @@ import {
   type CredentialProviderId,
 } from '../services/provider-credentials-service.js';
 import { getCodexCredentialProfilesUsage } from '../services/codex-usage-service.js';
+import { getGrokAccountRateLimits } from '../services/grok-usage-service.js';
 import {
   deletePiCredentialProfile,
   getPiCredentialProfilesUsage,
@@ -612,6 +613,18 @@ router.get('/claude-credentials/usage', async (_req: Request, res: Response) => 
   } catch (err) {
     const message = (err as Error).message;
     log.error(`Failed to fetch Claude credentials usage: ${message}`);
+    res.status(500).json({ error: message });
+  }
+});
+
+/** Active Grok account weekly/monthly quota for pre-spawn model previews. */
+router.get('/grok-credentials/usage', async (_req: Request, res: Response) => {
+  try {
+    const result = await getGrokAccountRateLimits();
+    res.json({ ...result, fetchedAt: Date.now() });
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`Failed to fetch Grok credentials usage: ${message}`);
     res.status(500).json({ error: message });
   }
 });

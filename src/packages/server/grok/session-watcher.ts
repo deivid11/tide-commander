@@ -24,6 +24,15 @@ const TAIL_INTERVAL_MS = 200;
 /** Accept sessions created up to this long before process start (slow disk / clock skew). */
 const DISCOVER_GRACE_MS = 5_000;
 /**
+ * `activeProcess.startTime` is recorded just after spawn, so a real session can
+ * predate it by a few milliseconds. Creation gets a generous skew allowance,
+ * but the session must also have been WRITTEN around this launch. Without this
+ * second check, a static session created 4.8s earlier can win discovery after
+ * `/clear`, momentarily restoring its old transcript until Grok reports the
+ * real session id at end-of-turn.
+ */
+const DISCOVER_ACTIVITY_GRACE_MS = 1_000;
+/**
  * How long after `turn_ended` to wait for the CLI's own stdout terminator before
  * synthesizing step_complete. Long enough that the normal exit path always wins,
  * far below the idle watchdog's 180s "stuck mid-turn" kill. Read per use so the
@@ -601,6 +610,21 @@ export function startGrokSessionWatcher(opts: GrokSessionWatcherOptions): GrokSe
           // agent's old-but-hot session (mtime updates on every write).
           const created = st.birthtimeMs > 0 ? st.birthtimeMs : st.mtimeMs;
           if (created < startedAt - DISCOVER_GRACE_MS) continue;
+
+          // Creation time alone is insufficient: an unrelated static session
+          // near the edge of the 5s skew window can be mistaken for this launch.
+          // Require a directory/file write around process start as evidence the
+          // candidate is actually being initialized by a live Grok process.
+          let latestActivity = st.mtimeMs;
+          for (const fileName of ['chat_history.jsonl', 'events.jsonl', 'prompt_context.json', 'signals.json']) {
+            try {
+              latestActivity = Math.max(latestActivity, fs.statSync(path.join(dir, fileName)).mtimeMs);
+            } catch {
+              // File may not exist yet while the new session initializes.
+            }
+          }
+          if (latestActivity < startedAt - DISCOVER_ACTIVITY_GRACE_MS) continue;
+
           if (!newest || created > newest.created) {
             newest = { id: entry.name, created };
           }

@@ -319,7 +319,8 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // show the inherited (source) conversation — the server's history endpoint
   // falls back to forkSourceSessionId until the fork's first run establishes
   // its own session. So treat a pending fork as having loadable history too.
-  const hasSessionId = !!(agent?.sessionId || agent?.forkSourceSessionId);
+  const sessionId = agent?.sessionId || agent?.forkSourceSessionId || null;
+  const hasSessionId = !!sessionId;
 
   // Exec tasks, test runs & subagents
   const execTasks = useExecTasks(agentId);
@@ -366,7 +367,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // ── History loader ──
   const historyLoader = useHistoryLoader({
     selectedAgentId: agentId,
-    hasSessionId,
+    sessionId,
     reconnectCount,
     historyRefreshTrigger,
     lastPrompts,
@@ -1491,7 +1492,12 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
           {!isAgentSwitching && isCompacting && (
             <div className="compacting-indicator">
               <div className="compacting-bar">
-                <div className="compacting-bar-fill" />
+                <img
+                  className="compacting-bar-fill"
+                  src="/assets/compacting-bar.webp?v=2"
+                  alt=""
+                  draggable={false}
+                />
               </div>
               <span className="compacting-label">Compacting context...</span>
             </div>

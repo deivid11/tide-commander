@@ -42,7 +42,9 @@ import { AgentOverviewPanel } from '../ClaudeOutputPanel/AgentOverviewPanel';
 import { AgentTerminalPane, type AgentTerminalPaneHandle } from '../ClaudeOutputPanel/AgentTerminalPane';
 import { useCtrlCStopAgent } from '../ClaudeOutputPanel/useCtrlCStopAgent';
 import AgentClassicTerminal from './AgentClassicTerminal';
-import { PlanLimitsTooltip } from './PlanLimitsTooltip';
+import { PlanLimitsTooltip, getWeeklyUsageWindow, useProviderUsageSnapshot } from './PlanLimitsTooltip';
+import { getUsedPercentColor } from '../../utils/claude-usage-format';
+import { formatTokenCapacity } from '../../utils/formatting';
 import { AgentDebugPanel } from '../ClaudeOutputPanel/AgentDebugPanel';
 import { AreaBuildingsPanel } from '../ClaudeOutputPanel/AreaBuildingsPanel';
 import { GuakeGitPanel } from '../ClaudeOutputPanel/GuakeGitPanel';
@@ -76,6 +78,7 @@ import {
   writeBottomPm2LogRetention,
 } from '../../utils/logRetention';
 import { ViewModeToggle } from '../ViewModeToggle/ViewModeToggle';
+import { CopyAgentIdentityButton } from '../shared/CopyAgentIdentityButton';
 import { useTwoClickConfirm, useAndroidBackButton } from '../../hooks';
 import {
   getStorageBoolean,
@@ -289,6 +292,25 @@ const ChatView = React.memo(function ChatView({
   const settings = useSettings();
   const paneRef = useRef<AgentTerminalPaneHandle>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const provider = agent?.provider ?? 'claude';
+  const usageProviderSupported = provider === 'claude'
+    || provider === 'codex'
+    || provider === 'opencode'
+    || provider === 'grok'
+    || provider === 'pi';
+  // Pi can change its underlying provider/model without changing agent ID.
+  // Include that selection in the cache identity to avoid showing stale limits.
+  const usageScope = provider === 'pi'
+    ? `${provider}:${agent?.piModelProvider ?? ''}:${agent?.piModel ?? ''}`
+    : provider === 'opencode'
+      ? `${provider}:${agent?.opencodeModel ?? ''}`
+      : provider;
+  const providerUsage = useProviderUsageSnapshot(
+    agentId,
+    !!agent && usageProviderSupported,
+    60_000,
+    usageScope,
+  );
 
   // Ctrl+C stops this chat's agent while its run is in flight.
   useCtrlCStopAgent(true, agentId);
@@ -795,7 +817,6 @@ const ChatView = React.memo(function ChatView({
     usedPercent: contextUsedPercent,
   } = getDisplayContextInfo(agent);
   const contextUsedPercentDisplay = Math.round(contextUsedPercent * 10) / 10;
-  const contextFreePercentDisplay = Math.round((100 - contextUsedPercent) * 10) / 10;
   const contextColor =
     contextUsedPercent >= 80
       ? '#ff4a4a'
@@ -806,6 +827,23 @@ const ChatView = React.memo(function ChatView({
           : '#4aff9e';
   const contextUsedK = (contextTotalTokens / 1000).toFixed(1);
   const contextLimitK = (contextWindow / 1000).toFixed(1);
+  const contextWindowLabel = formatTokenCapacity(contextWindow);
+  const weeklyWindow = getWeeklyUsageWindow(providerUsage.snapshot);
+  const weeklyUsedPercent = weeklyWindow
+    ? Math.max(0, Math.min(100, weeklyWindow.utilization))
+    : null;
+  const isOpenCodeFree = providerUsage.snapshot?.provider === 'opencode'
+    && providerUsage.snapshot.plan === 'free';
+  const weeklyColor = isOpenCodeFree
+    ? '#4aff9e'
+    : weeklyUsedPercent === null
+      ? 'var(--text-muted)'
+      : getUsedPercentColor(weeklyUsedPercent);
+  const weeklyValue = isOpenCodeFree
+    ? 'Free'
+    : weeklyUsedPercent === null
+      ? (providerUsage.loading ? '…' : '—')
+      : `${Math.round(weeklyUsedPercent)}%`;
 
   const cwd = agent.cwd;
   const cwdShort = cwd ? formatCwdShort(cwd) : null;
@@ -823,8 +861,7 @@ const ChatView = React.memo(function ChatView({
       style={{ '--guake-side-panel-width': `min(${sidePanelWidth}px, 70%)` } as React.CSSProperties}
     >
       <div className="flat-terminal-wrapper__header">
-        <button
-          type="button"
+        <div
           className={`flat-terminal-wrapper__header-main ${agentInfoOpen ? 'flat-terminal-wrapper__header-main--active' : ''}`}
           onClick={onToggleAgentInfo}
           onContextMenu={(e) => {
@@ -833,7 +870,6 @@ const ChatView = React.memo(function ChatView({
             onHeaderContextMenu({ x: e.clientX, y: e.clientY });
           }}
           title={agentInfoOpen ? 'Hide agent info' : 'Show agent info'}
-          aria-pressed={agentInfoOpen}
         >
           <span className={`flat-terminal-wrapper__header-avatar${agent.status === 'working' ? ' is-working' : ''}`}>
             <AgentIcon agent={agent} size={28} />
@@ -842,7 +878,10 @@ const ChatView = React.memo(function ChatView({
             )}
           </span>
           <span className="flat-terminal-wrapper__header-info">
-            <span className="flat-terminal-wrapper__header-name">{agent.name}</span>
+            <span className="flat-terminal-wrapper__header-identity">
+              <span className="flat-terminal-wrapper__header-name">{agent.name}</span>
+              <CopyAgentIdentityButton name={agent.name} id={agent.id} />
+            </span>
             <span
               className="flat-terminal-wrapper__header-status"
               style={{ color: getAgentStatusColor(agent.status) }}
@@ -880,7 +919,7 @@ const ChatView = React.memo(function ChatView({
               );
             })()}
           </span>
-        </button>
+        </div>
         <div className="flat-terminal-wrapper__header-meta">
           {/* One button showing the active mode; the rest live in a dropdown.
               The segmented control grew a button per mode and crowded the
@@ -1435,10 +1474,8 @@ const ChatView = React.memo(function ChatView({
         })}
         <PlanLimitsTooltip
           agentId={agentId}
-          disabled={
-            (agent?.provider ?? 'claude') !== 'claude' &&
-            (agent?.provider ?? 'claude') !== 'grok'
-          }
+          usageScope={usageScope}
+          disabled={!usageProviderSupported}
           contextSummary={
             contextHasData
               ? `Context: ${contextUsedK}k / ${contextLimitK}k tokens (${contextUsedPercentDisplay}% used)`
@@ -1456,30 +1493,51 @@ const ChatView = React.memo(function ChatView({
                 store.setContextModalAgentId(agentId);
               }
             }}
-            // Native title only for providers without plan-limits tooltip
-            // (Claude/Grok get the richer PlanLimitsTooltip instead).
-            title={
-              (agent?.provider ?? 'claude') !== 'claude' &&
-              (agent?.provider ?? 'claude') !== 'grok'
-                ? (contextHasData
-                    ? `Context usage: ${contextUsedK}k / ${contextLimitK}k tokens (${contextUsedPercentDisplay}% used). Click to view stats.`
-                    : 'Click to fetch context stats')
-                : undefined
-            }
+            // Native title only for harnesses without a quota endpoint.
+            title={!usageProviderSupported
+              ? (contextHasData
+                  ? `Context usage: ${contextUsedK}k / ${contextLimitK}k tokens (${contextUsedPercentDisplay}% used). Click to view stats.`
+                  : 'Click to fetch context stats')
+              : undefined}
           >
-            <span className="flat-terminal-wrapper__context-bar">
+            <span className="flat-terminal-wrapper__usage-bars">
               <span
-                className="flat-terminal-wrapper__context-bar-fill"
-                style={{ width: `${contextUsedPercent}%`, backgroundColor: contextColor }}
-              />
+                className="flat-terminal-wrapper__usage-gauge"
+                title={`Session context: ${contextUsedK}k / ${contextLimitK}k tokens (${contextUsedPercentDisplay}% used)`}
+              >
+                <span className="flat-terminal-wrapper__usage-label">
+                  Ctx <span className="flat-terminal-wrapper__usage-window">{contextWindowLabel}</span>
+                </span>
+                <span className="flat-terminal-wrapper__context-bar">
+                  <span
+                    className="flat-terminal-wrapper__context-bar-fill"
+                    style={{ width: `${contextUsedPercent}%`, backgroundColor: contextColor }}
+                  />
+                </span>
+                <span className="flat-terminal-wrapper__usage-value" style={{ color: contextColor }}>
+                  {Math.round(contextUsedPercent)}%
+                </span>
+              </span>
+              <span
+                className="flat-terminal-wrapper__usage-gauge"
+                title={weeklyWindow
+                  ? `Weekly usage: ${Math.round(weeklyUsedPercent!)}% used`
+                  : isOpenCodeFree
+                    ? 'OpenCode free-model capacity is dynamic; no weekly quota is published'
+                    : providerUsage.error || 'Weekly usage is unavailable for this provider/account'}
+              >
+                <span className="flat-terminal-wrapper__usage-label">Week</span>
+                <span className="flat-terminal-wrapper__context-bar">
+                  <span
+                    className="flat-terminal-wrapper__context-bar-fill"
+                    style={{ width: `${weeklyUsedPercent ?? 0}%`, backgroundColor: weeklyColor }}
+                  />
+                </span>
+                <span className="flat-terminal-wrapper__usage-value" style={{ color: weeklyColor }}>
+                  {weeklyValue}
+                </span>
+              </span>
             </span>
-            <span
-              className="flat-terminal-wrapper__context-tokens"
-              style={{ color: contextColor }}
-            >
-              {contextUsedK}k/{contextLimitK}k
-            </span>
-            <span className="flat-terminal-wrapper__context-free">({contextFreePercentDisplay}% free)</span>
             {!contextHasData && (
               <span className="flat-terminal-wrapper__context-warning" title="No context stats yet">
                 <Icon name="warn" size={12} />

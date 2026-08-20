@@ -475,6 +475,41 @@ describe('startGrokSessionWatcher', () => {
     watcher.stop();
   });
 
+  it('discovery ignores a static session near the creation grace boundary', async () => {
+    // This reproduces the /clear race: the stale directory was born just under
+    // five seconds before the new Grok process, so creation-time filtering alone
+    // accepted it and published its old session id to the client.
+    const startedAt = Date.now() + 4_000;
+    const sessionIds: string[] = [];
+    const watcher = startGrokSessionWatcher({
+      agentId: 'agent-after-clear',
+      workingDir: projectDir,
+      startedAt,
+      onEvent: () => {},
+      onSessionId: (id) => sessionIds.push(id),
+    });
+
+    await new Promise((r) => setTimeout(r, 350));
+    expect(sessionIds).toEqual([]);
+
+    // A candidate initialized by this launch has fresh file activity and is
+    // accepted even when birthtime needs the process-start skew allowance.
+    const ownId = '019f4d49-test-session-after-clear';
+    const ownDir = path.join(os.homedir(), '.grok', 'sessions', encodeGrokProjectKey(projectDir), ownId);
+    fs.mkdirSync(ownDir, { recursive: true });
+    const ownEvents = path.join(ownDir, 'events.jsonl');
+    fs.writeFileSync(ownEvents, '', 'utf8');
+    fs.writeFileSync(path.join(ownDir, 'chat_history.jsonl'), '', 'utf8');
+    const launchTime = new Date(startedAt);
+    fs.utimesSync(ownDir, launchTime, launchTime);
+    fs.utimesSync(ownEvents, launchTime, launchTime);
+
+    await new Promise((r) => setTimeout(r, 500));
+    expect(sessionIds).toEqual([ownId]);
+
+    watcher.stop();
+  });
+
   it('discovery skips a session already owned by another agent', async () => {
     const owner = startGrokSessionWatcher({
       agentId: 'agent-owner',

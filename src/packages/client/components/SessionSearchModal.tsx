@@ -12,12 +12,13 @@ import React, { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo
 import { ModalPortal } from './shared/ModalPortal';
 import { Icon } from './Icon';
 import { AgentIcon } from './AgentIcon';
-import type { Agent } from '../../shared/types';
+import type { Agent, AgentProvider } from '../../shared/types';
 import { store, useAgents, useSelectedAgentIds } from '../store';
 import {
   fetchGlobalSessions,
   searchGlobalSessions,
   previewGlobalSession,
+  fetchSessionRestoreMetadata,
   type GlobalSessionRow,
   type GlobalSessionMatch,
   type SessionPreviewMessage,
@@ -50,6 +51,8 @@ interface ResultRow {
   projectDir: string;
   lastModified: string;
   firstPrompt: string;
+  provider?: string;
+  agentId?: string;
   // search-only fields
   totalMatches?: number;
   snippet?: string;
@@ -258,6 +261,8 @@ export const SessionSearchModal = memo(function SessionSearchModal({
             projectDir: m.projectDir,
             lastModified: m.lastModified,
             firstPrompt: m.firstPrompt,
+            provider: m.provider,
+            agentId: m.agentId,
             totalMatches: m.totalMatches,
             snippet: m.snippet,
           }))
@@ -283,6 +288,8 @@ export const SessionSearchModal = memo(function SessionSearchModal({
             projectDir: r.projectDir,
             lastModified: r.lastModified,
             firstPrompt: r.firstPrompt,
+            provider: r.provider,
+            agentId: r.agentId,
           }))
         );
       }
@@ -372,44 +379,66 @@ export const SessionSearchModal = memo(function SessionSearchModal({
     setCurrentMatchIdx((i) => (i + 1) % totalMatches);
   }, [totalMatches]);
 
-  // "Restore to new agent": the server spawns a fresh agent (config+skills
-  // copied from the most similar agent in that project) already holding this
-  // session. We then watch agentsMap for the newcomer — an agent holding the
-  // session that did NOT hold it when we clicked — to jump to it and close.
-  const [pendingNewAgent, setPendingNewAgent] = useState<{ sessionId: string; priorIds: Set<string> } | null>(null);
+  // "Restore to new agent" first opens the regular deployment modal. Its
+  // class, name, permissions, model, effort, skills and instructions remain
+  // editable; only the native runtime/session pair is locked. Metadata from
+  // the latest session turn wins, then the known owner provides a fallback.
+  const [preparingNewAgent, setPreparingNewAgent] = useState(false);
 
-  const handleRestoreToNewAgent = useCallback(() => {
-    if (!selectedRow || !selectedRow.projectPath) return;
-    const priorIds = new Set<string>();
-    for (const a of agentsMap.values()) {
-      if (a.sessionId === selectedRow.sessionId) priorIds.add(a.id);
-    }
+  const handleRestoreToNewAgent = useCallback(async () => {
+    if (!selectedRow || !selectedRow.projectPath || preparingNewAgent) return;
     setRestoreSuccess(null);
     setError(null);
-    setPendingNewAgent({ sessionId: selectedRow.sessionId, priorIds });
-    store.restoreSessionToNewAgent(selectedRow.sessionId, selectedRow.projectPath);
-  }, [selectedRow, agentsMap]);
+    setPreparingNewAgent(true);
 
-  useEffect(() => {
-    if (!pendingNewAgent) return;
-    const created = Array.from(agentsMap.values()).find(
-      (a) => a.sessionId === pendingNewAgent.sessionId && !pendingNewAgent.priorIds.has(a.id)
-    );
-    if (created) {
-      setPendingNewAgent(null);
-      store.selectAgent(created.id);
-      if (store.getState().viewMode !== 'flat') {
-        store.requestTerminalExpand();
-      }
-      onClose();
+    const owner = sessionToAgent.get(selectedRow.sessionId)
+      ?? (selectedRow.agentId ? agentsMap.get(selectedRow.agentId) : undefined);
+    const ownerProvider = owner?.provider ?? 'claude';
+    const fallbackProvider = selectedRow.provider ?? ownerProvider;
+    const validProviders: AgentProvider[] = ['claude', 'codex', 'opencode', 'grok', 'pi'];
+    if (!validProviders.includes(fallbackProvider as AgentProvider)) {
+      setError(`Unsupported session runtime: ${fallbackProvider}`);
+      setPreparingNewAgent(false);
       return;
     }
-    const timer = setTimeout(() => {
-      setPendingNewAgent(null);
-      setError('Agent creation timed out — check the server logs');
-    }, 12_000);
-    return () => clearTimeout(timer);
-  }, [pendingNewAgent, agentsMap, onClose]);
+
+    let provider = fallbackProvider as AgentProvider;
+    let model: string | undefined;
+    let effort: string | undefined = owner?.effort;
+    if (owner) {
+      if (provider === 'claude') model = owner.model;
+      else if (provider === 'codex') model = owner.codexModel;
+      else if (provider === 'opencode') model = owner.opencodeModel;
+      else if (provider === 'grok') model = owner.grokModel;
+      else if (provider === 'pi') model = owner.piModel;
+    }
+
+    try {
+      const metadata = await fetchSessionRestoreMetadata(selectedRow.projectPath, selectedRow.sessionId);
+      if (validProviders.includes(metadata.provider as AgentProvider)) {
+        provider = metadata.provider as AgentProvider;
+      }
+      model = metadata.model ?? model;
+      effort = metadata.effort ?? effort;
+    } catch {
+      // Older servers may not expose metadata yet. Provider/owner defaults
+      // still open a valid restore modal rather than reverting to one-click.
+    }
+
+    window.dispatchEvent(new CustomEvent('tide:open-spawn-modal', {
+      detail: {
+        restoreSession: {
+          sessionId: selectedRow.sessionId,
+          cwd: selectedRow.projectPath,
+          provider,
+          model,
+          effort,
+        },
+      },
+    }));
+    setPreparingNewAgent(false);
+    onClose();
+  }, [selectedRow, preparingNewAgent, sessionToAgent, agentsMap, onClose]);
 
   const handleRestore = useCallback(() => {
     if (!selectedRow || !targetAgent) return;
@@ -644,11 +673,11 @@ export const SessionSearchModal = memo(function SessionSearchModal({
               <button className="btn btn-secondary" onClick={onClose}>Close</button>
               <button
                 className="btn btn-secondary"
-                onClick={handleRestoreToNewAgent}
-                disabled={!selectedRow || !selectedRow.projectPath || pendingNewAgent !== null}
-                title="Create a new agent (same class, skills and settings as the closest agent in that project) and restore this conversation onto it"
+                onClick={() => { void handleRestoreToNewAgent(); }}
+                disabled={!selectedRow || !selectedRow.projectPath || preparingNewAgent}
+                title="Choose the new agent's class, model, permissions, skills and other characteristics before restoring"
               >
-                {pendingNewAgent ? 'Creating agent…' : 'Restore to new agent'}
+                {preparingNewAgent ? 'Preparing…' : 'Restore to new agent'}
               </button>
               <button
                 className="btn btn-primary"

@@ -130,6 +130,35 @@ describe('parseCreditsConfig / parseSpendConfig', () => {
     expect(parsed.monthly).toBeNull();
   });
 
+  it('matches Grok 1.0.3: omitted percent in a valid unified period means zero used', () => {
+    const parsed = parseCreditsConfig({
+      currentPeriod: {
+        type: 'USAGE_PERIOD_TYPE_WEEKLY',
+        start: '2026-08-18T20:54:02.212254+00:00',
+        end: '2026-08-25T20:54:02.212254+00:00',
+      },
+      isUnifiedBillingUser: true,
+      onDemandCap: { val: 0 },
+      onDemandUsed: { val: 0 },
+    });
+    expect(parsed.weekly).toMatchObject({
+      utilization: 0,
+      resetsAt: '2026-08-25T20:54:02.212Z',
+    });
+    expect(parsed.monthly).toBeNull();
+  });
+
+  it('does not invent zero usage when the payload has no unified billing marker', () => {
+    const parsed = parseCreditsConfig({
+      currentPeriod: {
+        type: 'USAGE_PERIOD_TYPE_WEEKLY',
+        start: '2026-08-18T20:54:02.212254+00:00',
+        end: '2026-08-25T20:54:02.212254+00:00',
+      },
+    });
+    expect(parsed.weekly).toBeNull();
+  });
+
   it('maps spend config to a monthly gauge with absolute credits', () => {
     const monthly = parseSpendConfig({
       monthlyLimit: { val: 15_000 },

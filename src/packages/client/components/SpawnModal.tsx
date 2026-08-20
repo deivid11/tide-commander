@@ -11,6 +11,7 @@ import { HelpTooltip } from './shared/Tooltip';
 import { FolderInput } from './shared/FolderInput';
 import { OpencodeModelSelect } from './OpencodeModelSelect';
 import { PiModelSelect } from './PiModelSelect';
+import { ModelUsagePreview } from './ModelUsagePreview';
 import { useModalClose } from '../hooks';
 import { AgentIcon } from './AgentIcon';
 import { Icon } from './Icon';
@@ -23,6 +24,16 @@ interface ClaudeSession {
   firstMessage?: string;
 }
 
+export interface SpawnModalInitialSession {
+  sessionId: string;
+  cwd: string;
+  provider: AgentProvider;
+  /** Best-effort model recovered from the conversation's latest turn. */
+  model?: string;
+  /** Best-effort reasoning level recovered from the conversation's latest turn. */
+  effort?: string;
+}
+
 interface SpawnModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -32,6 +43,8 @@ interface SpawnModalProps {
   spawnPosition?: { x: number; z: number } | null;
   /** Optional area context - if provided, assign the created agent to this area */
   spawnAreaId?: string | null;
+  /** Locks the native session/runtime while leaving agent characteristics editable. */
+  initialSession?: SpawnModalInitialSession;
 }
 
 declare global {
@@ -53,7 +66,15 @@ function getRandomAgentName(usedNames: Set<string>, namesList: string[]): string
   return availableNames[Math.floor(Math.random() * availableNames.length)];
 }
 
-export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPosition, spawnAreaId }: SpawnModalProps) {
+export function SpawnModal({
+  isOpen,
+  onClose,
+  onSpawnStart,
+  onSpawnEnd,
+  spawnPosition,
+  spawnAreaId,
+  initialSession,
+}: SpawnModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const skills = useSkillsArray();
   const customClasses = useCustomAgentClassesArray();
@@ -124,9 +145,43 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
       } else {
         setSelectedClass('scout');
       }
+
+      if (initialSession) {
+        setCwd(initialSession.cwd);
+        setSelectedSessionId(initialSession.sessionId);
+        setSelectedProvider(initialSession.provider);
+
+        if (initialSession.model) {
+          if (initialSession.provider === 'claude' && initialSession.model in CLAUDE_MODELS) {
+            setSelectedModel(initialSession.model as ClaudeModel);
+          } else if (initialSession.provider === 'codex' && initialSession.model in CODEX_MODELS) {
+            setSelectedCodexModel(initialSession.model as CodexModel);
+          } else if (initialSession.provider === 'opencode') {
+            setOpencodeModel(initialSession.model);
+          } else if (initialSession.provider === 'grok') {
+            setGrokModel(initialSession.model);
+          } else if (initialSession.provider === 'pi') {
+            setPiModel(initialSession.model);
+          }
+        }
+
+        if (initialSession.effort) {
+          const tideEffort = initialSession.effort === 'xhigh' ? 'xHigh' : initialSession.effort;
+          if (initialSession.provider === 'codex') {
+            if (initialSession.effort in CODEX_REASONING_EFFORTS) {
+              setCodexConfig((prev) => ({
+                ...prev,
+                reasoningEffort: initialSession.effort as CodexReasoningEffort,
+              }));
+            }
+          } else if (tideEffort in CLAUDE_EFFORTS) {
+            setSelectedEffort(tideEffort as ClaudeEffort);
+          }
+        }
+      }
     }
     wasOpenRef.current = isOpen;
-  }, [isOpen, availableSkills, customClasses]);
+  }, [isOpen, availableSkills, customClasses, initialSession]);
 
   // Filter skills by search query
   const filteredSkills = useMemo(() => {
@@ -267,24 +322,24 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
 
   // Fetch sessions when modal opens
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !initialSession) {
       fetchSessions(cwd || undefined);
-    } else {
+    } else if (!isOpen) {
       setSessions([]);
       setSelectedSessionId(null);
       setSessionSearch('');
     }
-  }, [isOpen, fetchSessions]);
+  }, [isOpen, fetchSessions, initialSession]);
 
   // Refetch sessions when cwd changes (debounced)
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || initialSession) return;
     const timer = setTimeout(() => {
       fetchSessions(cwd || undefined);
       setSelectedSessionId(null);
     }, 300);
     return () => clearTimeout(timer);
-  }, [cwd, isOpen, fetchSessions]);
+  }, [cwd, isOpen, fetchSessions, initialSession]);
 
   // Infer cwd from area directories or area members when spawning into an area
   useEffect(() => {
@@ -374,9 +429,9 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
     setHasError(false);
 
     // If a session is selected, use its project path as cwd
-    const effectiveCwd = selectedSessionId
+    const effectiveCwd = initialSession?.cwd || (selectedSessionId
       ? sessions.find(s => s.sessionId === selectedSessionId)?.projectPath || cwd
-      : cwd;
+      : cwd);
 
     console.log('[SpawnModal] Effective CWD:', effectiveCwd);
     console.log('[SpawnModal] Agent name:', name);
@@ -549,9 +604,24 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
       onKeyDown={handleKeyDown}
     >
       <div className="modal spawn-modal">
-        <div className="modal-header">{t('terminal:spawn.deployTitle')}</div>
+        <div className="modal-header">
+          {initialSession ? 'Restore conversation to new agent' : t('terminal:spawn.deployTitle')}
+        </div>
 
         <div className="modal-body spawn-modal-body">
+          {initialSession && (
+            <div className="spawn-restore-banner">
+              <Icon name="history" size={16} />
+              <div>
+                <strong>Conversation ready to restore</strong>
+                <span>
+                  {initialSession.provider}{initialSession.model ? ` · ${initialSession.model}` : ''}
+                  {' · '}{initialSession.sessionId.slice(0, 8)}…
+                </span>
+              </div>
+              <span className="spawn-restore-banner-hint">Choose the new agent's characteristics below</span>
+            </div>
+          )}
           {/* Identity: Preview + Class + Name/CWD */}
           <div className="spawn-section">
             <div className="spawn-section-header">
@@ -670,7 +740,8 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                   <button
                     className={`spawn-select-btn ${selectedProvider === 'claude' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('claude')}
-                    title={t('terminal:spawn.useClaudeCli')}
+                    disabled={!!initialSession}
+                    title={initialSession ? 'Runtime is fixed by the restored conversation' : t('terminal:spawn.useClaudeCli')}
                   >
                     <img src={`${import.meta.env.BASE_URL}assets/claude.ico`} alt="Claude" className="spawn-provider-icon" />
                     <span>Claude</span>
@@ -678,7 +749,8 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                   <button
                     className={`spawn-select-btn ${selectedProvider === 'codex' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('codex')}
-                    title={t('terminal:spawn.useCodexCli')}
+                    disabled={!!initialSession}
+                    title={initialSession ? 'Runtime is fixed by the restored conversation' : t('terminal:spawn.useCodexCli')}
                   >
                     <img src={`${import.meta.env.BASE_URL}assets/codex.ico`} alt="Codex" className="spawn-provider-icon" />
                     <span>Codex</span>
@@ -686,7 +758,8 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                   <button
                     className={`spawn-select-btn spawn-select-btn--opencode ${selectedProvider === 'opencode' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('opencode')}
-                    title="Use OpenCode CLI (multi-provider)"
+                    disabled={!!initialSession}
+                    title={initialSession ? 'Runtime is fixed by the restored conversation' : 'Use OpenCode CLI (multi-provider)'}
                   >
                     <img src={`${import.meta.env.BASE_URL}assets/opencode.svg`} alt="OpenCode" className="spawn-provider-icon" />
                     <span>OpenCode</span>
@@ -694,7 +767,8 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                   <button
                     className={`spawn-select-btn spawn-select-btn--grok ${selectedProvider === 'grok' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('grok')}
-                    title="Use Grok CLI (headless)"
+                    disabled={!!initialSession}
+                    title={initialSession ? 'Runtime is fixed by the restored conversation' : 'Use Grok CLI (headless)'}
                   >
                     <img src={`${import.meta.env.BASE_URL}assets/grok.png`} alt="Grok" className="spawn-provider-icon" />
                     <span>Grok</span>
@@ -702,7 +776,8 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                   <button
                     className={`spawn-select-btn spawn-select-btn--pi ${selectedProvider === 'pi' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('pi')}
-                    title="Use Pi coding agent CLI (multi-provider)"
+                    disabled={!!initialSession}
+                    title={initialSession ? 'Runtime is fixed by the restored conversation' : 'Use Pi coding agent CLI (multi-provider)'}
                   >
                     <img src={`${import.meta.env.BASE_URL}assets/pi.svg`} alt="Pi" className="spawn-provider-icon" />
                     <span>Pi</span>
@@ -749,7 +824,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                 {selectedProvider === 'claude' ? (
                   <div className="spawn-select-row spawn-select-row--wrap">
                     {(Object.keys(CLAUDE_MODELS) as ClaudeModel[])
-                      .filter((model) => !CLAUDE_MODELS[model].deprecated)
+                      .filter((model) => !CLAUDE_MODELS[model].deprecated || selectedModel === model)
                       .map((model) => (
                       <button
                         key={model}
@@ -805,6 +880,14 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.chooseCodexModel')}</div>
                 )}
+                <ModelUsagePreview
+                  provider={selectedProvider}
+                  claudeModel={selectedModel}
+                  codexModel={selectedCodexModel}
+                  opencodeModel={opencodeModel}
+                  grokModel={grokModel}
+                  piModel={piModel}
+                />
               </div>
             </div>
 
@@ -1036,7 +1119,11 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
 
           {/* Advanced: instructions + sessions */}
           <details className="spawn-advanced">
-            <summary>{t('terminal:spawn.customInstructions')} &amp; {t('terminal:spawn.linkSession')}</summary>
+            <summary>
+              {initialSession
+                ? t('terminal:spawn.customInstructions')
+                : `${t('terminal:spawn.customInstructions')} & ${t('terminal:spawn.linkSession')}`}
+            </summary>
             <div className="spawn-advanced-body">
               <div className="spawn-custom-instructions-section">
                 <label className="spawn-label">
@@ -1057,7 +1144,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                 />
               </div>
 
-              <div className="spawn-sessions-section">
+              {!initialSession && <div className="spawn-sessions-section">
                 <label className="spawn-label">
                   {t('terminal:spawn.linkSession')} <span className="spawn-label-hint">({t('common:labels.optional')})</span>
                   <HelpTooltip
@@ -1117,7 +1204,7 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
                     })
                   )}
                 </div>
-              </div>
+              </div>}
             </div>
           </details>
         </div>
@@ -1127,7 +1214,9 @@ export function SpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spawnPos
             {t('common:buttons.cancel')}
           </button>
           <button className="btn btn-primary" onClick={handleSpawn} disabled={isSpawning}>
-            {isSpawning ? t('common:buttons.deploying') : t('common:buttons2.deploy')}
+            {isSpawning
+              ? (initialSession ? 'Restoring…' : t('common:buttons.deploying'))
+              : (initialSession ? 'Restore conversation' : t('common:buttons2.deploy'))}
           </button>
         </div>
       </div>

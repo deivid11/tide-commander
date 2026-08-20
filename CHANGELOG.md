@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.202.0] - 2026-08-20
+
+### Added
+- **Copy agent identity** - every agent header now has a one-click copy of its display name plus id.
+- **Session-aware spawn** - restoring a past session (from history or search) pre-fills the new-agent modal with the original provider, model and reasoning level.
+- **OpenCode Go usage gauges** - OpenCode agents on the Go plan show the same weekly/monthly quota windows as Pi, with the free pool correctly reported as dynamic.
+- **Model preview in the spawn/edit dialogs** - the model picker shows live context-window and weekly-quota hints for the selected provider.
+
+### Changed
+- **Flat view plan tooltip unified across providers** - the context-chip tooltip now uses a shared cache for Claude, Codex, Grok, Pi and OpenCode and no longer hammers the rate-limit endpoint.
+- **Pi model selection and session search polished** - better grouping and keyboard handling in the spawn flow.
+
+### Fixed
+- **Grok usage and session watching reliability** - tighter session detection and usage error handling when no active credential exists.
+- **History loader no longer loses prompts when restoring sessions** - session metadata is read from the tail only, keeping restores fast even on large transcripts.
+
 ## [1.201.0] - 2026-08-20
 
 ### Added

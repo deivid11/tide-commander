@@ -26,15 +26,17 @@
     pointer-events: none;
   }
 
-  &__image {
-    // Take the image out of inline/baseline layout and pin its visual box to
-    // the exact center of the purple harness outline.
+  > .provider-icon-pi-source__image {
+    // Keep this selector stronger than `.markdown-content img`, which adds a
+    // vertical margin to message images and used to push this logo below its
+    // purple harness outline.
     position: absolute;
     inset: 0;
     display: block;
     width: 100%;
+    max-width: none;
     height: 100%;
-    margin: auto;
+    margin: 0;
     object-fit: contain;
     object-position: 50% 50%;
     border-radius: inherit;

@@ -47,6 +47,7 @@ export const STORAGE_KEYS = {
   // Spawn/CWD
   LAST_CWD: 'tide-last-cwd',
   DEFAULT_AGENT_CLASS: 'tide-default-agent-class',
+  RECENT_PI_MODELS: 'tide-recent-pi-models',
 
   // UI State
   MOBILE_VIEW: 'tide-mobile-view',

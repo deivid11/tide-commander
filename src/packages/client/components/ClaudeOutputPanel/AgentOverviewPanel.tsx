@@ -46,6 +46,7 @@ import { AgentHoverTooltip } from '../shared/AgentHoverTooltip';
 import { ActivityGlyph } from '../shared/ActivityGlyph';
 import { providerAssetUrl, providerLabel } from '../../utils/providerDisplay';
 import { ProviderIcon } from '../ProviderIcon';
+import { CopyAgentIdentityButton } from '../shared/CopyAgentIdentityButton';
 
 /** Persisted config shape for the overview panel */
 interface AopConfig {
@@ -55,7 +56,6 @@ interface AopConfig {
   sameAreaOnly: boolean; // only show agents in the same area as the active agent
   visibleAreaIds: string[] | null; // null = all areas visible; string[] = only these area IDs
   visibleProviders: string[] | null; // null = all runtimes visible; string[] = only these providers
-  splitAreas: boolean;
 }
 
 interface AgentOverviewPanelProps {
@@ -520,7 +520,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     sameAreaOnly: false,
     visibleAreaIds: null,
     visibleProviders: null,
-    splitAreas: false,
   }), []);
 
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(() => new Set());
@@ -539,7 +538,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
   const [areaSearchQuery, setAreaSearchQuery] = useState('');
   const [groupByArea, setGroupByArea] = useState(savedConfig.groupByArea);
   const [sameAreaOnly, setSameAreaOnly] = useState(savedConfig.sameAreaOnly);
-  const [splitAreas, setSplitAreas] = useState(savedConfig.splitAreas === true);
   const [visibleAreaIds, setVisibleAreaIds] = useState<Set<string> | null>(
     savedConfig.visibleAreaIds ? new Set(savedConfig.visibleAreaIds) : null
   );
@@ -682,9 +680,8 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
       sameAreaOnly,
       visibleAreaIds: visibleAreaIds ? Array.from(visibleAreaIds) : null,
       visibleProviders: visibleProviders ? Array.from(visibleProviders) : null,
-      splitAreas,
     } as AopConfig);
-  }, [groupByArea, sortMode, filterMode, sameAreaOnly, visibleAreaIds, visibleProviders, splitAreas]);
+  }, [groupByArea, sortMode, filterMode, sameAreaOnly, visibleAreaIds, visibleProviders]);
 
   // List of non-archived areas for the filter dropdown
   const availableAreas = useMemo(() => {
@@ -695,18 +692,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     result.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
     return result;
   }, [areas]);
-  const recentAreas = useMemo(() => {
-    const lastUsedByArea = new Map<string, number>();
-    for (const agent of agents) {
-      const area = store.getAreaForAgent(agent.id);
-      if (!area || area.archived) continue;
-      lastUsedByArea.set(area.id, Math.max(lastUsedByArea.get(area.id) ?? 0, agent.lastActivity));
-    }
-    return availableAreas
-      .filter((area) => lastUsedByArea.has(area.id))
-      .sort((a, b) => (lastUsedByArea.get(b.id) ?? 0) - (lastUsedByArea.get(a.id) ?? 0))
-      .slice(0, 5);
-  }, [agents, availableAreas]);
 
   // Area filter helpers
   const isAllAreasVisible = visibleAreaIds === null;
@@ -1033,17 +1018,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
 
     return groups;
   }, [areas, filteredAgents, sortAgents, groupByArea, visibleAreaIds, agentToAreaId]);
-  const displayedAreaGroups = useMemo(() => {
-    if (!splitAreas || !groupByArea) return areaGroups;
-    const byId = new Map(areaGroups.map((group) => [group.area?.id || '__unassigned__', group]));
-    const recent = recentAreas.map((area) => byId.get(area.id)).filter((group): group is AreaGroup => !!group);
-    // Deliberately repeat recent areas: the first section is a quick-access
-    // shortlist, while the section after the divider is always the full list.
-    return [...recent, ...areaGroups];
-  }, [areaGroups, groupByArea, recentAreas, splitAreas]);
-  const splitAreaDividerIndex = splitAreas && groupByArea
-    ? recentAreas.filter((area) => areaGroups.some((group) => group.area?.id === area.id)).length
-    : -1;
 
   const renderAgentCards = useCallback((groupAgents: Agent[]) => {
     return groupAgents.map((agent) => (
@@ -1108,25 +1082,22 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
 
   const unassignedLabel = t('terminal:overview.unassigned');
   const toggleArea = useCallback((areaKey: string) => {
-    if (splitAreas && groupByArea) {
-      // Accordion: opening an area closes every other one; closing the open
-      // area leaves everything collapsed.
-      const nextKeys = expandedAreas.has(areaKey) ? [] : [areaKey];
-      if (onSetExpandedAreas) onSetExpandedAreas(nextKeys);
-      else setInternalExpandedAreas(new Set(nextKeys));
+    const nextKeys = expandedAreas.has(areaKey) ? [] : [areaKey];
+    if (onSetExpandedAreas) {
+      onSetExpandedAreas(nextKeys);
       return;
     }
     if (externalOnToggleArea) {
+      // Compatibility fallback for externally controlled callers that only
+      // provide a toggle callback: close the others before opening this one.
+      for (const expandedArea of expandedAreas) {
+        if (expandedArea !== areaKey) externalOnToggleArea(expandedArea);
+      }
       externalOnToggleArea(areaKey);
       return;
     }
-    setInternalExpandedAreas(prev => {
-      const next = new Set(prev);
-      if (next.has(areaKey)) next.delete(areaKey);
-      else next.add(areaKey);
-      return next;
-    });
-  }, [splitAreas, groupByArea, expandedAreas, onSetExpandedAreas, externalOnToggleArea]);
+    setInternalExpandedAreas(new Set(nextKeys));
+  }, [expandedAreas, externalOnToggleArea, onSetExpandedAreas]);
 
   // When the selected agent changes, make sure its area is expanded so the
   // card is actually visible. Without this, selecting an agent from another
@@ -1140,18 +1111,15 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
     // follow-up UI, but not part of the critical click→chat response, so keep
     // it in a transition that React may yield or supersede on rapid switching.
     React.startTransition(() => {
-      if (splitAreas && groupByArea) {
-        // Accordion mode: the selected agent's area replaces the open one
-        // instead of piling up next to it.
-        if (onSetExpandedAreas) onSetExpandedAreas([areaKey]);
-        else setInternalExpandedAreas(new Set([areaKey]));
+      if (onSetExpandedAreas) {
+        onSetExpandedAreas([areaKey]);
       } else if (externalOnToggleArea) {
+        for (const expandedArea of expandedAreas) {
+          if (expandedArea !== areaKey) externalOnToggleArea(expandedArea);
+        }
         externalOnToggleArea(areaKey);
       } else {
-        setInternalExpandedAreas(prev => {
-          if (prev.has(areaKey)) return prev;
-          return new Set(prev).add(areaKey);
-        });
+        setInternalExpandedAreas(new Set([areaKey]));
       }
     });
     // Depend only on the agent id so a later user-driven collapse of the same
@@ -1400,27 +1368,6 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         <button onClick={() => setGroupByArea(v => !v)} className={`action-btn action-btn--toggle${groupByArea ? ' active' : ''}`} title={t('terminal:overview.areas')}>
           {t('terminal:overview.areas')}
         </button>
-        <button
-          type="button"
-          className={`action-btn action-btn--toggle${splitAreas ? ' active' : ''}`}
-          onClick={() => {
-            const enabling = !splitAreas;
-            setSplitAreas(enabling);
-            // Entering accordion mode with several areas already expanded
-            // would violate the one-open-area invariant; keep only the
-            // active agent's area (when expanded) and collapse the rest.
-            if (enabling && groupByArea && expandedAreas.size > 1) {
-              const activeAreaKey = agentToAreaId.get(activeAgentId) ?? '__unassigned__';
-              const keep = expandedAreas.has(activeAreaKey) ? [activeAreaKey] : [];
-              if (onSetExpandedAreas) onSetExpandedAreas(keep);
-              else setInternalExpandedAreas(new Set(keep));
-            }
-          }}
-          title="Show areas in the bottom dock"
-          aria-pressed={splitAreas}
-        >
-          Split areas
-        </button>
         {groupByArea && availableAreas.length > 0 && (
           <div className="aop-area-filter" ref={areaFilterRef}>
             <button
@@ -1549,20 +1496,11 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
             {agents.length === 0 ? t('terminal:overview.noAgentsDeployed') : t('terminal:overview.noAgentsMatch')}
           </div>
         ) : (
-          displayedAreaGroups.map((group, groupIndex) => {
+          areaGroups.map((group) => {
             const areaKey = group.area?.id || '__unassigned__';
             const isEditingPrompt = editingPromptAreaId === areaKey && !!group.area;
-            // The same area may appear once in Recent and once in All, so the
-            // section is part of its identity. Its array index is NOT: recency
-            // reorders changed every downstream key, remounting whole card
-            // subtrees and greatly amplifying detached-DOM retention in React
-            // DevTools. Stable section+area keys let React move existing nodes.
-            const sectionKey = splitAreas && groupIndex < splitAreaDividerIndex ? 'recent' : 'all';
             return (
-              <React.Fragment key={`${sectionKey}-${areaKey}`}>
-              {splitAreaDividerIndex > 0 && groupIndex === splitAreaDividerIndex && (
-                <div className="aop-split-areas-divider"><span>All areas</span></div>
-              )}
+              <React.Fragment key={areaKey}>
               <AreaGroupSection
                 group={group}
                 groupByArea={groupByArea}
@@ -1889,6 +1827,7 @@ const AgentCard = React.memo(function AgentCard({
           <AgentCardSelectionMarker agentId={agent.id} />
           {agent.name}
         </span>
+        <CopyAgentIdentityButton name={agent.name} id={agent.id} />
         {(agent.status === 'working' || isCompacting) && (
           <AgentCardWorkingIndicator
             label={isCompacting ? 'Compacting context' : 'Working'}

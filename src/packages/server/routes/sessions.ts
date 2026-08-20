@@ -8,7 +8,13 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { listAllSessions, searchAllSessions, loadSession, loadSessionAroundMatch } from '../claude/session-loader.js';
+import {
+  getSessionRestoreMetadata,
+  listAllSessions,
+  searchAllSessions,
+  loadSession,
+  loadSessionAroundMatch,
+} from '../claude/session-loader.js';
 import { findAgentIdBySessionId } from '../services/agent-service.js';
 import { createLogger } from '../utils/logger.js';
 
@@ -31,6 +37,8 @@ router.get('/global', async (req: Request, res: Response) => {
         messageCount: s.messageCount,
         firstPrompt: s.firstPrompt,
         sizeBytes: s.sizeBytes,
+        provider: s.provider,
+        agentId: findAgentIdBySessionId(s.sessionId) ?? undefined,
       })),
     });
   } catch (err: any) {
@@ -70,6 +78,28 @@ router.get('/search', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     log.error(' Failed to search global sessions:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/sessions/restore-metadata?cwd=...&sessionId=...
+// Lightweight, on-demand settings lookup used before opening the new-agent modal.
+router.get('/restore-metadata', (req: Request, res: Response) => {
+  try {
+    const cwd = (req.query.cwd as string) || '';
+    const sessionId = (req.query.sessionId as string) || '';
+    if (!cwd || !sessionId) {
+      res.status(400).json({ error: 'Both "cwd" and "sessionId" query parameters are required' });
+      return;
+    }
+    const metadata = getSessionRestoreMetadata(cwd, sessionId);
+    if (!metadata) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+    res.json(metadata);
+  } catch (err: any) {
+    log.error(' Failed to load session restore metadata:', err);
     res.status(500).json({ error: err.message });
   }
 });

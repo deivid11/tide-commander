@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { filterCostText } from './formatting';
+import { filterCostText, formatTokenCapacity } from './formatting';
+
+describe('formatTokenCapacity', () => {
+  it('formats context windows without unnecessary decimals', () => {
+    expect(formatTokenCapacity(200_000)).toBe('200k');
+    expect(formatTokenCapacity(272_000)).toBe('272k');
+    expect(formatTokenCapacity(1_000_000)).toBe('1M');
+    expect(formatTokenCapacity(1_500_000)).toBe('1.5M');
+  });
+});
 
 describe('filterCostText', () => {
   it('returns the input untouched when hideCost is off or nothing looks like a price', () => {

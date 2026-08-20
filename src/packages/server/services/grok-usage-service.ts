@@ -271,6 +271,15 @@ export function parseCreditsConfig(config: Record<string, unknown>): {
     }
   }
 
+  // Grok 1.0.3 omits both creditUsagePercent and productUsage when a unified-
+  // billing period has consumed zero quota. Its own /usage screen renders that
+  // exact payload as 0%, so mirror the CLI instead of reporting unavailable.
+  if (!weekly && !monthly && percent == null && periodEnd && config.isUnifiedBillingUser === true) {
+    const window: GrokRateLimitWindow = { utilization: 0, resetsAt: periodEnd };
+    if (kind === 'monthly') monthly = window;
+    else weekly = window;
+  }
+
   const onDemandCap = unwrapVal(config.onDemandCap);
   const onDemandUsed = unwrapVal(config.onDemandUsed) ?? 0;
   if (onDemandCap != null && onDemandCap > 0) {
@@ -304,7 +313,7 @@ export function parseSpendConfig(config: Record<string, unknown>): GrokRateLimit
 
 /**
  * Raw network calls to the CLI chat-proxy billing endpoints. Prefer
- * `getGrokRateLimits()` which caches + single-flights.
+ * `getGrokAccountRateLimits()` which caches + single-flights.
  */
 async function fetchGrokBillingFromApi(accessToken?: string): Promise<BillingFetchResult> {
   const creds = accessToken ? { token: accessToken } : readGrokAccessToken();
@@ -407,7 +416,7 @@ let lastGoodRateLimits: GrokRateLimits | null = null;
 let rateLimitInFlight: Promise<{ rateLimits: GrokRateLimits | null; error: string | null }> | null =
   null;
 
-async function getGrokRateLimits(): Promise<{
+export async function getGrokAccountRateLimits(): Promise<{
   rateLimits: GrokRateLimits | null;
   error: string | null;
 }> {
@@ -453,7 +462,7 @@ export function resetGrokRateLimitCache(): void {
 }
 
 export async function buildGrokUsageSnapshot(agent: Agent): Promise<GrokUsageSnapshot> {
-  const { rateLimits, error: rateLimitsError } = await getGrokRateLimits();
+  const { rateLimits, error: rateLimitsError } = await getGrokAccountRateLimits();
 
   return {
     provider: 'grok',

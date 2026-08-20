@@ -31,6 +31,16 @@ export function formatTokens(tokens: number): string {
   return tokens.toString();
 }
 
+/** Compact model/context capacity labels: 200k, 272k, 1M, 1.5M. */
+export function formatTokenCapacity(tokens: number): string {
+  if (tokens >= 1_000_000) {
+    const millions = tokens / 1_000_000;
+    return `${Number.isInteger(millions) ? millions : millions.toFixed(1)}M`;
+  }
+  if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}k`;
+  return String(tokens);
+}
+
 // Format relative time ago
 export function formatTimeAgo(timestamp: number): string {
   const i18n = _getI18n();

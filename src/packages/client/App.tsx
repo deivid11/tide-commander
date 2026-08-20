@@ -64,6 +64,7 @@ import { dockBuilding } from './utils/buildingViewMode';
 import { getStorageString, STORAGE_KEYS } from './utils/storage';
 import { preloadTones } from './utils/notificationSounds';
 import type { SessionFinderOpenData } from './components/SessionSearchModal';
+import type { SpawnModalInitialSession } from './components/SpawnModal';
 import {
   useModalState,
   useModalStateWithId,
@@ -109,7 +110,7 @@ function AppContent() {
   const selectionBoxRef = useRef<HTMLDivElement>(null);
 
   // Modal states using centralized hooks
-  const spawnModal = useModalState();
+  const spawnModal = useModalState<SpawnModalInitialSession>();
   const bossSpawnModal = useModalState();
   const subordinateModal = useModalState<string>();
   const toolboxModal = useModalState();
@@ -678,14 +679,24 @@ function AppContent() {
       setSpawnPosition(null);
       setSpawnAreaId(null);
     }
-  }, [spawnModal.isOpen, bossSpawnModal.isOpen]);
+    // useModalState intentionally retains data across close animations. Clear
+    // restore data once closed so the next ordinary Deploy action starts fresh.
+    if (!spawnModal.isOpen && spawnModal.data) {
+      spawnModal.setData(undefined);
+    }
+  }, [spawnModal.isOpen, spawnModal.data, spawnModal.setData, bossSpawnModal.isOpen]);
 
   useEffect(() => {
     const handleOpenSpawnModal = (event: Event) => {
-      const detail = (event as CustomEvent<{ areaId?: string; position?: { x: number; z: number } }>).detail;
+      const detail = (event as CustomEvent<{
+        areaId?: string;
+        position?: { x: number; z: number };
+        restoreSession?: SpawnModalInitialSession;
+      }>).detail;
       setSpawnAreaId(detail?.areaId || null);
       setSpawnPosition(detail?.position || null);
-      spawnModal.open();
+      spawnModal.setData(detail?.restoreSession);
+      spawnModal.open(detail?.restoreSession);
     };
 
     const handleBuildingAction = (event: Event) => {

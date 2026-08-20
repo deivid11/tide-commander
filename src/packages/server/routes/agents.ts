@@ -35,6 +35,7 @@ import { getBackgroundTasksForAgent } from '../services/background-tasks.js';
 import { buildGrokUsageSnapshot } from '../services/grok-usage-service.js';
 import { buildCodexUsageSnapshot } from '../services/codex-usage-service.js';
 import { buildPiSubscriptionUsageSnapshot } from '../services/pi-subscription-usage-service.js';
+import { buildOpencodeUsageSnapshot } from '../services/opencode-usage-service.js';
 import { getBackupStatus, setBackupEnabled } from '../services/backup-service.js';
 import type { Agent, AgentProvider, ClaudeEffort, CodexConfig, ServerMessage, SessionTransferMode, SessionTransferSummary } from '../../shared/types.js';
 import { CLAUDE_MODELS, GROK_MODELS, providerDisplayName } from '../../shared/types.js';
@@ -1578,7 +1579,7 @@ router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
 //
 // Claude: local agent stats + Anthropic OAuth rate-limit gauges (CLI `/usage`).
 // Grok: local agent stats + CLI chat-proxy billing/credit gauges (CLI `/usage`).
-// Pi: loaded subscription metadata + limits for the selected model provider.
+// Pi/OpenCode: limits resolved from the selected model's underlying provider.
 router.get('/:id/usage', async (req: Request<{ id: string }>, res: Response) => {
   const agent = agentService.getAgent(req.params.id);
   if (!agent) {
@@ -1586,9 +1587,9 @@ router.get('/:id/usage', async (req: Request<{ id: string }>, res: Response) => 
     return;
   }
   const provider = agent.provider ?? 'claude';
-  if (provider !== 'claude' && provider !== 'grok' && provider !== 'codex' && provider !== 'pi') {
+  if (provider !== 'claude' && provider !== 'grok' && provider !== 'codex' && provider !== 'pi' && provider !== 'opencode') {
     res.status(400).json({
-      error: 'Usage data is only available for Claude, Codex, Grok, and Pi agents',
+      error: 'Usage data is unavailable for this agent provider',
       provider,
     });
     return;
@@ -1597,6 +1598,8 @@ router.get('/:id/usage', async (req: Request<{ id: string }>, res: Response) => 
     const snapshot =
       provider === 'pi'
         ? await buildPiSubscriptionUsageSnapshot(agent)
+        : provider === 'opencode'
+          ? await buildOpencodeUsageSnapshot(agent)
         : provider === 'codex'
           ? await buildCodexUsageSnapshot(agent)
           : provider === 'grok'

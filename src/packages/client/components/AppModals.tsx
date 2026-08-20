@@ -9,6 +9,7 @@ import { GlobalHttpRequestsBuildingModal } from './HttpRequestsBuildingModal';
 import { profileRender } from '../utils/profiling';
 import type { UseModalState, UseModalStateWithId, UseContextMenu } from '../hooks';
 import type { SessionFinderOpenData } from './SessionSearchModal';
+import type { SpawnModalInitialSession } from './SpawnModal';
 
 // Lazy-load heavy modal components (only loaded when first opened)
 const SpawnModal = React.lazy(() => import('./SpawnModal').then(m => ({ default: m.SpawnModal })));
@@ -32,7 +33,7 @@ const TriggerManagerPanel = React.lazy(() => import('./TriggerManagerPanel').the
 
 interface AppModalsProps {
   // Modal states
-  spawnModal: UseModalState;
+  spawnModal: UseModalState<SpawnModalInitialSession>;
   bossSpawnModal: UseModalState;
   subordinateModal: UseModalState<string>;
   toolboxModal: UseModalState;
@@ -184,6 +185,7 @@ export function AppModals({
         onSpawnEnd={() => {}}
         spawnPosition={spawnPosition}
         spawnAreaId={spawnAreaId}
+        initialSession={spawnModal.data}
       />
 
       <BossSpawnModal

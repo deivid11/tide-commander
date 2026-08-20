@@ -94,27 +94,6 @@
   );
 }
 
-.aop-split-areas-divider {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 8px 2px 6px;
-  color: var(--text-muted);
-  font-family: $font-mono;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-
-  &::before,
-  &::after {
-    content: '';
-    height: 1px;
-    flex: 1;
-    background: color-mix(in srgb, var(--border-color) 66%, transparent);
-  }
-}
-
 .aop-working-thumb {
   --aop-thumb-area: var(--accent-green);
   position: relative;
@@ -1198,6 +1177,10 @@
       object-fit: contain;
     }
 
+    .copy-agent-identity-btn {
+      margin-left: -2px;
+    }
+
     .aop-agent-name {
       color: var(--text-primary);
       font-weight: 600;
@@ -1206,6 +1189,8 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      min-width: 0;
+      flex: 0 1 auto;
       padding: 0 4px;
       border-radius: 3px;
       border: 1px solid transparent;

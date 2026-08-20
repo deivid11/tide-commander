@@ -17,6 +17,8 @@ export interface GlobalSessionRow {
   sizeBytes: number;
   /** Which CLI owns the session ('claude' | 'grok' | …). Absent on older servers. */
   provider?: string;
+  /** Current or archived agent known to have owned this conversation. */
+  agentId?: string;
 }
 
 /** Who produced a conversation extract — drives the per-line color. */
@@ -44,6 +46,12 @@ export interface GlobalSessionMatch {
   /** Agent that owns the conversation — resolved through CURRENT sessions and
    * archived session history, so it survives the agent rotating sessions. */
   agentId?: string;
+}
+
+export interface SessionRestoreMetadata {
+  provider: string;
+  model?: string;
+  effort?: string;
 }
 
 export interface SessionPreviewMessage {
@@ -80,6 +88,16 @@ export async function searchGlobalSessions(
   if (!res.ok) throw new Error(`Search failed: ${res.status}`);
   const data = await res.json();
   return data.matches || [];
+}
+
+export async function fetchSessionRestoreMetadata(
+  cwd: string,
+  sessionId: string,
+): Promise<SessionRestoreMetadata> {
+  const params = new URLSearchParams({ cwd, sessionId });
+  const res = await authFetch(apiUrl(`/api/sessions/restore-metadata?${params.toString()}`));
+  if (!res.ok) throw new Error(`Failed to inspect session settings: ${res.status}`);
+  return res.json();
 }
 
 export async function previewGlobalSession(

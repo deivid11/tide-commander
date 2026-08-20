@@ -23,6 +23,8 @@ interface HistoryCacheEntry {
   messages: HistoryMessage[];
   hasMore: boolean;
   totalCount: number;
+  /** Exact session represented by this snapshot. */
+  sessionId: string | null;
   /** Agent-scoped session revision when this snapshot was fetched. */
   refreshVersion: number;
   /** Websocket reconnect generation when this snapshot was fetched. */
@@ -31,9 +33,15 @@ interface HistoryCacheEntry {
 
 const historyCache = new Map<string, HistoryCacheEntry>();
 
-function currentHistoryVersion(agentId: string): { refreshVersion: number; reconnectCount: number } {
+function currentHistoryVersion(agentId: string): {
+  sessionId: string | null;
+  refreshVersion: number;
+  reconnectCount: number;
+} {
   const state = store.getState();
+  const agent = state.agents.get(agentId);
   return {
+    sessionId: agent?.sessionId || agent?.forkSourceSessionId || null,
     refreshVersion: state.historyRefreshVersions?.get(agentId) ?? 0,
     reconnectCount: state.reconnectCount,
   };
@@ -42,7 +50,8 @@ function currentHistoryVersion(agentId: string): { refreshVersion: number; recon
 function isCacheEntryFresh(agentId: string, entry: HistoryCacheEntry | undefined): boolean {
   if (!entry) return false;
   const current = currentHistoryVersion(agentId);
-  return entry.refreshVersion === current.refreshVersion
+  return entry.sessionId === current.sessionId
+    && entry.refreshVersion === current.refreshVersion
     && entry.reconnectCount === current.reconnectCount;
 }
 
@@ -123,7 +132,8 @@ function drainHistoryPrefetchQueue(): void {
       .then((data) => {
         if (!data || !Array.isArray(data.messages) || data.messages.length === 0) return;
         const currentVersion = currentHistoryVersion(agentId);
-        if (currentVersion.refreshVersion !== requestedVersion.refreshVersion
+        if (currentVersion.sessionId !== requestedVersion.sessionId
+          || currentVersion.refreshVersion !== requestedVersion.refreshVersion
           || currentVersion.reconnectCount !== requestedVersion.reconnectCount) return;
         if (getFreshHistoryCache(agentId)) return;
         historyCache.set(agentId, {
@@ -157,7 +167,8 @@ export function prefetchAgentHistory(agentId: string): void {
 
 export interface UseHistoryLoaderProps {
   selectedAgentId: string | null;
-  hasSessionId: boolean;
+  /** Exact current/fork-source session; identity changes force a fresh load. */
+  sessionId: string | null;
   reconnectCount: number;
   /** Increments when an agent's session file updates or agent transitions to idle */
   historyRefreshTrigger: number;
@@ -203,12 +214,13 @@ export interface UseHistoryLoaderReturn {
 
 export function useHistoryLoader({
   selectedAgentId,
-  hasSessionId,
+  sessionId,
   reconnectCount,
   historyRefreshTrigger,
   lastPrompts,
   outputScrollRef,
 }: UseHistoryLoaderProps): UseHistoryLoaderReturn {
+  const hasSessionId = !!sessionId;
   // Hydrate synchronously only from a cache snapshot that still matches this
   // agent's session revision. If messages arrived while another agent was open,
   // the entry is stale: painting it for one frame and then replacing it with the
@@ -251,7 +263,7 @@ export function useHistoryLoader({
 
   // Track previous agent ID and sessionId to detect switches vs session establishment
   const prevAgentIdRef = useRef<string | null>(null);
-  const prevHasSessionIdRef = useRef<boolean>(false);
+  const prevSessionIdRef = useRef<string | null>(null);
   // reconnectCount is cumulative. Comparing it to zero made every later agent
   // mount look like an active reconnect and bypassed normal cache semantics.
   const prevReconnectCountRef = useRef(reconnectCount);
@@ -284,13 +296,13 @@ export function useHistoryLoader({
       fetchSeqRef.current += 1;
       // Treat clearing as a completed "load" for downstream effects
       setHistoryLoadVersion((v) => v + 1);
-      prevHasSessionIdRef.current = false;
+      prevSessionIdRef.current = null;
       loadedForRef.current = null;
       return;
     }
 
     // Create a unique key for this agent+reconnect+refresh combo
-    const loadKey = `${selectedAgentId}:${reconnectCount}:${historyRefreshTrigger}`;
+    const loadKey = `${selectedAgentId}:${sessionId}:${reconnectCount}:${historyRefreshTrigger}`;
 
     // Skip if we've already loaded for this exact combo
     if (loadedForRef.current === loadKey) {
@@ -303,14 +315,16 @@ export function useHistoryLoader({
     // newly keyed pane is currently reconnecting.
     const isAgentSwitch = prevAgentIdRef.current !== null && prevAgentIdRef.current !== selectedAgentId;
     const isReconnect = prevReconnectCountRef.current !== reconnectCount;
+    const previousSessionId = prevSessionIdRef.current;
+    const sessionChanged = previousSessionId !== null && previousSessionId !== sessionId;
     const shouldClearOutputs = isAgentSwitch || isReconnect;
 
     // Detect if session was just established for the current agent
-    const isSessionEstablishment = !isAgentSwitch && !prevHasSessionIdRef.current && hasSessionId;
+    const isSessionEstablishment = !isAgentSwitch && previousSessionId === null;
 
     // Update refs AFTER checking
     prevAgentIdRef.current = selectedAgentId;
-    prevHasSessionIdRef.current = hasSessionId;
+    prevSessionIdRef.current = sessionId;
     prevReconnectCountRef.current = reconnectCount;
     loadedForRef.current = loadKey;
 
@@ -334,9 +348,20 @@ export function useHistoryLoader({
       loadingTimerRef.current = null;
     }
 
-    // Invalidate cache on reconnect so we fetch fresh data
-    if (isReconnect) {
+    // Invalidate cache on reconnect or exact session replacement. Grok can
+    // briefly discover a provisional directory before stdout reports the true
+    // new session; keeping agent-id-only history here resurrects old messages.
+    if (isReconnect || sessionChanged) {
       historyCache.delete(selectedAgentId);
+    }
+
+    if (sessionChanged) {
+      setHistory([]);
+      historyLengthRef.current = 0;
+      paginationOffsetRef.current = 0;
+      setHasMore(false);
+      hasMoreRef.current = false;
+      setTotalCount(0);
     }
 
     // On reconnect or an in-place session refresh, keep the currently rendered
@@ -408,7 +433,11 @@ export function useHistoryLoader({
       })
       .then((data) => {
         // Ignore stale completions if a newer fetch has started (rapid agent switching)
+        // or the server corrected the exact session before React's dependency
+        // effect had a chance to abort this request.
         if (fetchSeq !== fetchSeqRef.current) return;
+        if (currentHistoryVersion(selectedAgentId).sessionId !== sessionId) return;
+        if (typeof data.sessionId === 'string' && data.sessionId !== sessionId) return;
 
         const messages: HistoryMessage[] = Array.isArray(data.messages) ? data.messages : [];
         const subagents = Array.isArray(data.subagents) ? data.subagents : [];
@@ -433,6 +462,7 @@ export function useHistoryLoader({
           messages,
           hasMore: hasMoreValue,
           totalCount: data.totalCount || 0,
+          sessionId,
           refreshVersion: historyRefreshTrigger,
           reconnectCount,
         });
@@ -512,7 +542,7 @@ export function useHistoryLoader({
       }
     };
   // Note: lastPrompts intentionally excluded from deps - we only use it to set initial prompt, not to trigger reloads
-  }, [selectedAgentId, hasSessionId, reconnectCount, historyRefreshTrigger]);
+  }, [selectedAgentId, sessionId, reconnectCount, historyRefreshTrigger]);
 
   // Load more history when scrolling to top
   const loadMoreHistory = useCallback(async () => {
@@ -676,6 +706,7 @@ export function useHistoryLoader({
         messages: data.messages || [],
         hasMore: false,
         totalCount: data.totalCount || data.messages?.length || 0,
+        sessionId,
         refreshVersion: historyRefreshTrigger,
         reconnectCount,
       });
@@ -688,7 +719,7 @@ export function useHistoryLoader({
         setLoadingMore(false);
       }
     }
-  }, [selectedAgentId, historyRefreshTrigger, reconnectCount]);
+  }, [selectedAgentId, sessionId, historyRefreshTrigger, reconnectCount]);
 
   return {
     history,

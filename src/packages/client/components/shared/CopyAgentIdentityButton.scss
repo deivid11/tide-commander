@@ -1,0 +1,37 @@
+.copy-agent-identity-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0.55;
+  line-height: 0;
+  transition: color 0.12s ease, background 0.12s ease, opacity 0.12s ease, border-color 0.12s ease;
+
+  &:hover,
+  &:focus-visible {
+    opacity: 1;
+    color: var(--accent-cyan, var(--accent-blue, #5b9dff));
+    background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    border-color: color-mix(in srgb, var(--border-color) 55%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 1px solid color-mix(in srgb, var(--accent-cyan, #5b9dff) 70%, transparent);
+    outline-offset: 1px;
+  }
+
+  &.is-copied {
+    opacity: 1;
+    color: var(--accent-green, #7fd3a7);
+  }
+}

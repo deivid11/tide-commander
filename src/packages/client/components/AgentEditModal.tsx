@@ -11,6 +11,7 @@ import { ModelPreview } from './ModelPreview';
 import { FolderInput } from './shared/FolderInput';
 import { OpencodeModelSelect } from './OpencodeModelSelect';
 import { PiModelSelect } from './PiModelSelect';
+import { ModelUsagePreview } from './ModelUsagePreview';
 import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort, SessionTransferMode } from '../../shared/types';
 import { CODEX_REASONING_EFFORTS } from '../../shared/types';
 import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, GROK_MODELS, DEFAULT_GROK_MODEL, grokSupportsEffort, providerDisplayName, supportsSessionImport } from '../../shared/types';
@@ -824,6 +825,15 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.codex.configuration')}</div>
                 )}
+                <ModelUsagePreview
+                  provider={selectedProvider}
+                  claudeModel={selectedModel}
+                  codexModel={selectedCodexModel}
+                  opencodeModel={opencodeModel}
+                  grokModel={grokModel}
+                  piModel={piModel}
+                  agent={agent}
+                />
               </div>
             </div>
 
