@@ -57,6 +57,28 @@ Browser entries must be self-contained bundled ESM files. They are fetched throu
 
 Plugin IDs must be lowercase and may contain numbers, dashes, dots, and underscores. Entry paths must remain inside the plugin directory; path traversal and escaping symlinks are rejected.
 
+### Integration-backed configuration
+
+A plugin that depends on an existing Tide Commander integration can expose setup instructions and secure configuration directly in **Settings → Plugins**:
+
+```json
+{
+  "contributes": {
+    "settings": [{
+      "id": "gmail-connection",
+      "type": "integration",
+      "integrationId": "gmail",
+      "title": "Gmail connection",
+      "description": "Configure the account used by this plugin.",
+      "instructions": ["Enable Gmail API", "Create OAuth Web credentials", "Authorize the account"],
+      "secrets": ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN"]
+    }]
+  }
+}
+```
+
+The Plugins panel displays the instructions and secret names, never their values. **Configure** opens the integration's native configuration flow above the Plugins panel, including password fields, OAuth authorization, service-account setup, connection status, and secure secret persistence.
+
 ## Server entry
 
 A server module exports `activate(api)`. It can return command/action maps and a cleanup function.
@@ -192,6 +214,10 @@ All registrations return disposers and are removed when the plugin is disabled.
 
 Installed plugin state is persisted under Tide Commander's data directory. Disabling a plugin runs its cleanup and hides its UI contributions without deleting its source folder.
 
+## Tide Commander runtime utilities
+
+The built-in `tide-commander` plugin contributes `/usages`. It loads daily or short-term and weekly quota windows for every registered account across Claude, Codex, Grok, OpenCode, and Pi without invoking an agent or LLM. Each live window shows both its reset date and a compact days/hours countdown. Expired/revoked accounts stay hidden at the bottom behind **Mostrar expiradas**. Providers that do not publish one of these windows remain visible with an explicit unavailable or dynamic-capacity state.
+
 ## Bolba Tasks
 
 `bolba-tasks` is the built-in reference plugin. It contributes:
@@ -206,3 +232,32 @@ Installed plugin state is persisted under Tide Commander's data directory. Disab
 - the legacy rich renderer for Bolba API curls already present in agent history
 
 The server endpoint defaults to `http://127.0.0.1:7492`. Override it with `BOLBA_TASKS_URL` and `BOLBA_TASKS_TOKEN`.
+
+## Gmail Pending
+
+`gmail-pending` is a built-in plugin backed by the existing Gmail integration. It contributes:
+
+- `/gmail [all|unread] [limit]`, with `/gmail-pending`, `/correos`, `/gmail-all`, and `/todos-correos` aliases
+- an in-card **No leídos / Todos** switch: unread mode uses `in:inbox is:unread`, while all mode uses `in:inbox` and includes both read and unread messages
+- Inbox messages with sender, subject, recipients, labels, attachments, date, read state, and collapsible plain-text content
+- a direct **Ver en Gmail** link for every message
+- a per-message **Marcar como leído** action that removes Gmail's `UNREAD` label and refreshes the card
+- a refresh action and configurable result limit from 1 to 50 (default 10); for example, `/gmail all 25`
+
+Connect Gmail from **Settings → Plugins → Gmail Inbox → Configure**. The plugin uses the same OAuth or service-account credentials as Tide Commander's Gmail integration and does not add another authentication flow.
+
+## Jira Tickets
+
+`jira-tickets` is a built-in plugin backed by the existing Jira Cloud integration. It contributes:
+
+- `/jira` to show all unresolved tickets visible to the configured Jira account, regardless of assignee
+- `/jira PROJ-123` to open one exact ticket, including its plain-text description
+- `/jira buscar texto` (or simply `/jira texto`) to search recently updated tickets by text
+- `/jira pending 30` to change the pending-ticket result limit (1-50)
+- an in-card search field that accepts either an issue key or free text
+- compact ticket rows with status, priority, assignee, project, issue type, labels, timestamps, and direct **Abrir en Jira** links
+- click-to-expand full details loaded on demand: description, reporter, components, fix versions, due date, comments, and attachments
+- clicking an attachment securely caches it server-side and opens it in Tide Commander's native File Viewer; each attachment also keeps a dedicated download button
+- setup instructions and secure Jira Cloud credentials under **Settings → Plugins → Jira Tickets → Configure**
+
+The pending query is `statusCategory in ("To Do", "In Progress")`, so it includes every visible unresolved ticket regardless of assignee while remaining bounded for Jira Cloud's enhanced search API. Free-text searches are bounded to tickets updated during the last year. Exact issue-key lookups are fetched directly.

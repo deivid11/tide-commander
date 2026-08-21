@@ -417,8 +417,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           type="button"
           className="plugin-guake-widget__dismiss"
           onClick={() => store.dismissPluginOutput(agentId, pluginOutput.instanceId)}
-          aria-label={`Dismiss ${pluginOutput.title || pluginOutput.pluginId} widget`}
-          title="Dismiss widget"
+          aria-label={`Quitar widget ${pluginOutput.title || pluginOutput.pluginId}`}
+          title="Quitar widget"
         >
           <Icon name="close" size={11} />
         </button>
@@ -427,8 +427,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           type="button"
           className="plugin-guake-widget__dismiss plugin-guake-widget__dismiss--bottom"
           onClick={() => store.dismissPluginOutput(agentId, pluginOutput.instanceId)}
-          aria-label={`Dismiss ${pluginOutput.title || pluginOutput.pluginId} widget`}
-          title="Dismiss widget"
+          aria-label={`Quitar widget ${pluginOutput.title || pluginOutput.pluginId}`}
+          title="Quitar widget"
         >
           <Icon name="close" size={11} />
         </button>

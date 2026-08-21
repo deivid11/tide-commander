@@ -1026,12 +1026,14 @@
       "folders": "Folders",
       "files": "Files",
       "contents": "Contents",
+      "settings": "Settings",
       "commands": "Commands"
     },
     "categories": {
       "commands": "Commands",
       "agents": "Agents",
       "infrastructure": "Infrastructure",
+      "settings": "Settings",
       "areas": "Areas",
       "folders": "Folders & Repos",
       "files": "Files",

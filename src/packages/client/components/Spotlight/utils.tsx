@@ -127,6 +127,8 @@ export function getTypeLabel(type: string): string {
       return 'Agent';
     case 'command':
       return 'Command';
+    case 'setting':
+      return 'Setting';
     case 'area':
       return 'Area';
     case 'modified-file':

@@ -1264,6 +1264,11 @@ function loadedSubscriptions(modelProvider: string | null): PiLoadedSubscription
     .sort((a, b) => Number(b.active) - Number(a.active) || a.label.localeCompare(b.label));
 }
 
+/** List subscription-capable upstream providers currently loaded into Pi. */
+export function listLoadedPiSubscriptions(): PiLoadedSubscription[] {
+  return loadedSubscriptions(null);
+}
+
 export async function buildPiSubscriptionUsageSnapshot(agent: Agent): Promise<PiSubscriptionUsageSnapshot> {
   const modelProvider = resolvePiModelProvider(agent);
   const activeCredential = modelProvider

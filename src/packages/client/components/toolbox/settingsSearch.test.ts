@@ -1,17 +1,17 @@
 /**
  * Guard for the Settings search box.
  *
- * Sections are filtered by a hand-written keyword list, so every row added to
- * ConfigSection has to be represented there or it silently becomes unreachable
- * by search (that is how "sound" stopped finding the notification-sound rows).
- * This test reads the rendered labels straight out of the source and fails when
- * one of them has no keyword to match on.
+ * Sections are filtered by a shared hand-written keyword index, so every row
+ * added to ConfigSection has to be represented there or it silently becomes
+ * unreachable from both the panel and Spotlight. This test reads rendered
+ * labels from the source and checks them against that shared index.
  */
 
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SETTINGS_SEARCH_SECTIONS, searchSettingsSections } from './settingsSearch';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG_SECTION = path.join(HERE, 'ConfigSection.tsx');
@@ -26,22 +26,6 @@ function translate(key: string): string | undefined {
     enConfig
   );
   return typeof value === 'string' ? value : undefined;
-}
-
-interface Section {
-  id: string;
-  title: string;
-  keywords: string[];
-}
-
-function parseSections(): Section[] {
-  const start = source.indexOf('const SETTINGS_SECTIONS');
-  const block = source.slice(start, source.indexOf('\n];', start));
-  return [...block.matchAll(/\{ id: '([^']+)', title: '([^']+)', keywords: \[([^\]]*)\] \}/g)].map((m) => ({
-    id: m[1],
-    title: m[2],
-    keywords: [...m[3].matchAll(/'([^']*)'/g)].map((k) => k[1]),
-  }));
 }
 
 /** Rendered labels, attributed to the section block they appear in. */
@@ -80,12 +64,15 @@ const STOP_WORDS = new Set([
 ]);
 
 describe('settings search', () => {
-  const sections = parseSections();
+  const sections = SETTINGS_SEARCH_SECTIONS;
   const labels = parseLabels();
 
-  it('parses the sections and their rows', () => {
-    expect(sections.length).toBeGreaterThan(10);
-    expect([...labels.values()].reduce((n, s) => n + s.size, 0)).toBeGreaterThan(30);
+  it('indexes every rendered section', () => {
+    const renderedIds = new Set(
+      [...source.matchAll(/shouldShowSection\('([a-zA-Z]+)'\)/g)].map((match) => match[1])
+    );
+    expect([...renderedIds].sort()).toEqual(sections.map((section) => section.id).sort());
+    expect([...labels.values()].reduce((count, values) => count + values.size, 0)).toBeGreaterThan(30);
   });
 
   it('can reach every rendered row through its section keywords', () => {
@@ -107,16 +94,18 @@ describe('settings search', () => {
   });
 
   it('surfaces the notification-sound rows for the obvious queries', () => {
-    const matches = (query: string) =>
-      sections.filter((s) =>
-        s.title.toLowerCase().includes(query) ||
-        s.keywords.some((k) => k.toLowerCase().includes(query))
-      ).map((s) => s.id);
+    const matches = (query: string) => searchSettingsSections(query).map((section) => section.id);
 
     for (const query of ['sound', 'notification', 'volume', 'tone', 'mute', 'audio']) {
       expect(matches(query), `query "${query}" finds no section`).not.toEqual([]);
     }
     expect(matches('sound')).toContain('general');
     expect(matches('tone')).toContain('general');
+  });
+
+  it('provides the same section matches for Settings and Spotlight', () => {
+    expect(searchSettingsSections('notification sound').map((section) => section.id)).toContain('general');
+    expect(searchSettingsSections('gmail').map((section) => section.id)).toContain('integrations');
+    expect(searchSettingsSections('wireframe').map((section) => section.id)).toContain('modelStyle');
   });
 });

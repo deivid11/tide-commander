@@ -380,9 +380,11 @@ interface IntegrationsModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialTab?: string;
+  /** Allows callers such as the Plugins panel to stack this modal above their own overlay. */
+  zIndex?: number;
 }
 
-export function IntegrationsPanel({ isOpen, onClose, initialTab }: IntegrationsModalProps) {
+export function IntegrationsPanel({ isOpen, onClose, initialTab, zIndex }: IntegrationsModalProps) {
   const [integrations, setIntegrations] = useState<IntegrationInfo[]>([]);
   const [activeTab, setActiveTab] = useState<string | null>(initialTab || null);
   const [loading, setLoading] = useState(true);
@@ -436,7 +438,7 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab }: IntegrationsM
   const active = integrations.find((i) => i.id === activeTab);
 
   return (
-    <div style={S.overlay} onClick={onClose}>
+    <div style={{ ...S.overlay, ...(zIndex === undefined ? {} : { zIndex }) }} onClick={onClose}>
       <div style={S.modal} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div style={S.header}>

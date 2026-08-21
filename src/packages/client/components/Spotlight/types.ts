@@ -10,7 +10,7 @@ import type { IconName } from '../Icon';
 import type { SpotlightFileDetail } from './SpotlightFileDetailModal';
 
 // Search result types
-export type SearchResultType = 'agent' | 'command' | 'area' | 'modified-file' | 'building' | 'folder' | 'file' | 'file-content' | 'session';
+export type SearchResultType = 'agent' | 'command' | 'setting' | 'area' | 'modified-file' | 'building' | 'folder' | 'file' | 'file-content' | 'session';
 
 /** Prefill for the Session Finder when a session hit has no live agent. */
 export interface SessionFinderPrefill {
@@ -19,10 +19,10 @@ export interface SessionFinderPrefill {
 }
 
 // Result-grouping tabs shown at the top of the palette. Order defines the
-// forward Tab-cycle order (All -> Agents -> Buildings -> Areas -> Folders -> Files -> Commands -> All).
-export type SpotlightTab = 'all' | 'agents' | 'buildings' | 'areas' | 'folders' | 'files' | 'contents' | 'commands';
+// forward Tab-cycle order (All -> Agents -> Buildings -> Areas -> Folders -> Files -> Contents -> Settings -> Commands -> All).
+export type SpotlightTab = 'all' | 'agents' | 'buildings' | 'areas' | 'folders' | 'files' | 'contents' | 'settings' | 'commands';
 
-export const SPOTLIGHT_TABS: readonly SpotlightTab[] = ['all', 'agents', 'buildings', 'areas', 'folders', 'files', 'contents', 'commands'];
+export const SPOTLIGHT_TABS: readonly SpotlightTab[] = ['all', 'agents', 'buildings', 'areas', 'folders', 'files', 'contents', 'settings', 'commands'];
 
 // One area section rendered in the "Areas" tab: the area plus the agents that
 // belong to it, ordered exactly the way the Agent Overview panel orders them.
@@ -74,7 +74,7 @@ export interface SpotlightProps {
   onClose: () => void;
   onOpenSpawnModal: () => void;
   onOpenCommanderView: () => void;
-  onOpenToolbox: () => void;
+  onOpenToolbox: (searchQuery?: string) => void;
   onOpenFileExplorer: (areaId: string) => void;
   onOpenPM2LogsModal: (buildingId: string) => void;
   onOpenBossLogsModal: (buildingId: string) => void;
@@ -90,7 +90,7 @@ export interface UseSpotlightSearchOptions {
   onClose: () => void;
   onOpenSpawnModal: () => void;
   onOpenCommanderView: () => void;
-  onOpenToolbox: () => void;
+  onOpenToolbox: (searchQuery?: string) => void;
   onOpenFileExplorer: (areaId: string) => void;
   onOpenPM2LogsModal: (buildingId: string) => void;
   onOpenBossLogsModal: (buildingId: string) => void;

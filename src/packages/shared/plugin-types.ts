@@ -40,12 +40,26 @@ export interface PluginOutputRendererContribution {
   id: string;
 }
 
+export interface PluginIntegrationSettingsContribution {
+  id: string;
+  type: 'integration';
+  /** Existing Tide Commander integration whose secure configuration UI is reused. */
+  integrationId: string;
+  title: string;
+  description?: string;
+  instructions?: string[];
+  /** Secret names shown as requirements only; values are never exposed in the catalog. */
+  secrets?: string[];
+}
+
+export type PluginSettingsContribution = PluginIntegrationSettingsContribution;
+
 export interface PluginManifestContributions {
   slashCommands?: PluginSlashCommandContribution[];
   views?: PluginViewContribution[];
   modals?: PluginModalContribution[];
   outputRenderers?: Array<string | PluginOutputRendererContribution>;
-  settings?: unknown[];
+  settings?: PluginSettingsContribution[];
 }
 
 export interface TidePluginManifest {
@@ -103,8 +117,43 @@ export interface PluginTaskListData {
   };
 }
 
+/** One provider quota window, expressed as percentage consumed. */
+export interface PluginProviderUsageWindow {
+  key: 'session' | 'five-hour' | 'daily' | 'weekly';
+  label: string;
+  utilization: number;
+  resetsAt?: string;
+}
+
+export interface PluginProviderUsageAccount {
+  id: string;
+  label: string;
+  active?: boolean;
+  /** Credential is expired/revoked and should be hidden behind the expired-accounts toggle. */
+  expired?: boolean;
+  daily: PluginProviderUsageWindow | null;
+  weekly: PluginProviderUsageWindow | null;
+  status?: 'available' | 'free' | 'unavailable';
+  error?: string;
+  note?: string;
+}
+
+export interface PluginProviderUsageEntry {
+  id: 'claude' | 'codex' | 'grok' | 'opencode' | 'pi';
+  label: string;
+  accounts: PluginProviderUsageAccount[];
+}
+
+export interface PluginProviderUsagesData {
+  kind: 'provider-usages';
+  title: string;
+  fetchedAt: number;
+  providers: PluginProviderUsageEntry[];
+}
+
 export type PluginOutputData =
   | PluginTaskListData
+  | PluginProviderUsagesData
   | Record<string, unknown>
   | unknown[]
   | string

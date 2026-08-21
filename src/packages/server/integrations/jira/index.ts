@@ -34,6 +34,17 @@ function getConfigValue(key: keyof JiraConfig): string | undefined {
   return ctx.secrets.get(key) || undefined;
 }
 
+export function requireJiraClient(): JiraClient {
+  if (!client || !configured) {
+    throw new Error('Jira is not connected; configure it in Settings → Plugins → Jira Tickets');
+  }
+  return client;
+}
+
+export function getJiraBaseUrl(): string | undefined {
+  return getConfigValue('jira_base_url');
+}
+
 function reconfigure(): void {
   if (!ctx || !client) return;
 

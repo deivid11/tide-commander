@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Icon } from './Icon';
 import { apiUrl, authFetch } from '../utils/storage';
 import { refreshPluginCatalog } from '../plugins/registry';
-import type { ClientPluginInfo } from '../plugins/types';
+import type { ClientPluginInfo, PluginIntegrationSettingsContribution } from '../plugins/types';
+import { IntegrationsPanel } from './IntegrationsPanel';
 import { KeyCaptureInput } from './KeyCaptureInput';
 import { parseShortcutString, type ShortcutConfig } from '../store/shortcuts';
 import {
@@ -17,6 +18,7 @@ export function PluginsPanel({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string } | null>(null);
+  const [openIntegrationId, setOpenIntegrationId] = useState<string | null>(null);
   const commandShortcuts = usePluginCommandShortcuts();
 
   const load = useCallback(async () => {
@@ -32,6 +34,7 @@ export function PluginsPanel({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
   useEffect(() => {
     if (isOpen) void load();
+    else setOpenIntegrationId(null);
   }, [isOpen, load]);
 
   useEffect(() => {
@@ -85,6 +88,7 @@ export function PluginsPanel({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
   if (!isOpen) return null;
   return (
+    <>
     <div className="modal-overlay visible plugins-panel-overlay" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
@@ -146,6 +150,37 @@ export function PluginsPanel({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                   {plugin.builtin || plugin.source === 'builtin' ? <em>built-in</em> : null}
                 </div>
                 <p>{plugin.description || plugin.id}</p>
+                {(plugin.contributes?.settings || plugin.manifest?.contributes?.settings || []).map((setting) => {
+                  const integrationSetting = setting as PluginIntegrationSettingsContribution;
+                  if (integrationSetting.type !== 'integration') return null;
+                  return (
+                    <section className="plugin-list-item__settings" key={integrationSetting.id}>
+                      <div className="plugin-list-item__settings-heading">
+                        <span><Icon name="gear" size={12} /> Configuración</span>
+                        <button type="button" onClick={() => setOpenIntegrationId(integrationSetting.integrationId)}>
+                          <Icon name="key" size={11} /> Configurar
+                        </button>
+                      </div>
+                      <strong>{integrationSetting.title}</strong>
+                      {integrationSetting.description && <p>{integrationSetting.description}</p>}
+                      {integrationSetting.instructions?.length ? (
+                        <ol>
+                          {integrationSetting.instructions.map((instruction, index) => (
+                            <li key={`${integrationSetting.id}-${index}`}>{instruction}</li>
+                          ))}
+                        </ol>
+                      ) : null}
+                      {integrationSetting.secrets?.length ? (
+                        <div className="plugin-list-item__secrets">
+                          <span><Icon name="lock" size={10} /> Secretos administrados de forma segura</span>
+                          <div>
+                            {integrationSetting.secrets.map((secret) => <code key={secret}>{secret}</code>)}
+                          </div>
+                        </div>
+                      ) : null}
+                    </section>
+                  );
+                })}
                 {(plugin.contributes?.slashCommands || plugin.manifest?.contributes?.slashCommands || []).length > 0 && (
                   <div className="plugin-list-item__commands">
                     <div className="plugin-list-item__commands-title">
@@ -195,5 +230,17 @@ export function PluginsPanel({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         </div>
       </section>
     </div>
+    {openIntegrationId && (
+      <IntegrationsPanel
+        isOpen
+        initialTab={openIntegrationId}
+        zIndex={10030}
+        onClose={() => {
+          setOpenIntegrationId(null);
+          void load();
+        }}
+      />
+    )}
+    </>
   );
 }

@@ -136,6 +136,13 @@ export function AppModals({
 }: AppModalsProps) {
   const agents = useAgents();
   const buildings = useBuildings();
+  const [toolboxSearchQuery, setToolboxSearchQuery] = React.useState<string>();
+
+  // A Spotlight Settings result supplies a one-shot panel query. Clear it after
+  // any close path so opening Settings normally never restores a stale filter.
+  React.useEffect(() => {
+    if (!toolboxModal.isOpen) setToolboxSearchQuery(undefined);
+  }, [toolboxModal.isOpen]);
 
   // Clear the Session Finder prefill whenever it closes — by ANY path
   // (Escape, hotkey toggle, backdrop) — so a plain Ctrl+Shift+F reopen
@@ -164,6 +171,7 @@ export function AppModals({
         onToolChange={onToolChange}
         isOpen={toolboxModal.isOpen}
         onClose={toolboxModal.close}
+        initialSearchQuery={toolboxSearchQuery}
         onOpenBuildingModal={(buildingId) => buildingModal.open(buildingId || null)}
         onOpenAreaExplorer={onOpenAreaExplorer}
         onOpenIntegrationsModal={(id) => integrationsModal.open(id)}
@@ -352,7 +360,10 @@ export function AppModals({
         onClose={spotlightModal.close}
         onOpenSpawnModal={() => spawnModal.open()}
         onOpenCommanderView={() => commanderModal.open()}
-        onOpenToolbox={() => toolboxModal.open()}
+        onOpenToolbox={(searchQuery) => {
+          setToolboxSearchQuery(searchQuery);
+          toolboxModal.open();
+        }}
         onOpenFileExplorer={(areaId) => explorerModal.open(areaId)}
         onOpenPM2LogsModal={onOpenPM2LogsModal}
         onOpenBossLogsModal={onOpenBossLogsModal}

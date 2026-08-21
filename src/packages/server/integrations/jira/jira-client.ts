@@ -517,17 +517,31 @@ export class JiraClient {
     };
   }
 
-  /** Extract plain text from ADF. */
+  /** Extract readable plain text from nested Atlassian Document Format. */
   private fromADF(adf: unknown): string {
     if (typeof adf === 'string') return adf;
-    if (!adf || typeof adf !== 'object') return '';
-
-    const doc = adf as { content?: Array<{ content?: Array<{ text?: string }> }> };
-    if (!doc.content) return '';
-
-    return doc.content
-      .flatMap((block) => block.content?.map((inline) => inline.text ?? '') ?? [])
-      .join('');
+    const fragments: string[] = [];
+    const walk = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      const value = node as {
+        type?: string;
+        text?: string;
+        attrs?: { text?: string; url?: string };
+        content?: unknown[];
+      };
+      if (typeof value.text === 'string') fragments.push(value.text);
+      else if (value.type === 'mention' && value.attrs?.text) fragments.push(value.attrs.text);
+      else if (value.type === 'inlineCard' && value.attrs?.url) fragments.push(value.attrs.url);
+      if (value.type === 'hardBreak') fragments.push('\n');
+      if (Array.isArray(value.content)) {
+        for (const child of value.content) walk(child);
+        if (['paragraph', 'heading', 'listItem', 'blockquote', 'codeBlock'].includes(value.type ?? '')) {
+          fragments.push('\n');
+        }
+      }
+    };
+    walk(adf);
+    return fragments.join('').replace(/\n{3,}/g, '\n\n').trim();
   }
 
   /** Make an authenticated request to the Jira API. */

@@ -1,0 +1,386 @@
+@use '../../styles/variables' as *;
+
+.gmail-pending-card {
+  --gmail-text-strong: var(--text-primary);
+  --gmail-text-normal: color-mix(in srgb, var(--text-primary) 72%, var(--text-secondary));
+  --gmail-text-soft: color-mix(in srgb, var(--text-primary) 48%, var(--text-muted));
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  color: var(--gmail-text-strong);
+  border: 1px solid color-mix(in srgb, var(--tool-use-border, var(--border-color)) 82%, var(--text-muted));
+  border-left: 3px solid #f05247;
+  border-radius: $radius-md;
+  background: var(--tool-use-bg, var(--bg-secondary));
+  font-family: $font-mono;
+}
+
+.gmail-pending-card--invalid {
+  padding: 12px;
+  color: #f87171;
+}
+
+.gmail-pending-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 5px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 78%, var(--text-muted));
+  background: linear-gradient(100deg, color-mix(in srgb, #ea4335 13%, var(--bg-tertiary)), var(--bg-tertiary) 48%);
+}
+
+.gmail-pending-card__brand {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  flex: 0 0 auto;
+  color: #ea4335;
+  border-radius: 6px;
+  background: color-mix(in srgb, #ea4335 10%, transparent);
+}
+
+.gmail-pending-card__heading {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+
+  strong {
+    overflow: hidden;
+    color: var(--gmail-text-strong);
+    font-size: 11.5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  span {
+    overflow: hidden;
+    color: var(--gmail-text-normal);
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.gmail-pending-card__filters {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 65%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-primary) 48%, transparent);
+
+  button {
+    min-height: 20px;
+    padding: 2px 7px;
+    color: var(--gmail-text-normal);
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    font: inherit;
+    font-size: 8px;
+    cursor: pointer;
+  }
+
+  button:hover:not(:disabled) { color: var(--gmail-text-strong); }
+  button.is-active {
+    color: #ff8178;
+    background: color-mix(in srgb, #ea4335 20%, var(--bg-tertiary));
+  }
+  button:disabled { cursor: default; }
+}
+
+.gmail-pending-card__count {
+  display: grid;
+  place-items: center;
+  min-width: 19px;
+  height: 18px;
+  padding: 0 5px;
+  color: #ff8178;
+  border: 1px solid color-mix(in srgb, #ea4335 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, #ea4335 8%, transparent);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.gmail-pending-card__refresh {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  padding: 0;
+  color: var(--gmail-text-normal);
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+
+  &:hover { color: var(--text-primary); background: color-mix(in srgb, #ea4335 9%, transparent); }
+  &:disabled { cursor: wait; opacity: 0.5; }
+}
+
+.gmail-pending-card__error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  color: #f87171;
+  border-bottom: 1px solid color-mix(in srgb, #f87171 20%, transparent);
+  background: color-mix(in srgb, #f87171 8%, transparent);
+  font-size: 9.5px;
+}
+
+.gmail-pending-card__messages {
+  display: flex;
+  max-height: min(620px, 65vh);
+  overflow: auto;
+  flex-direction: column;
+  scrollbar-width: thin;
+}
+
+.gmail-pending-message + .gmail-pending-message {
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 82%, var(--text-muted));
+}
+
+.gmail-pending-message:nth-child(even) {
+  background: color-mix(in srgb, var(--bg-tertiary) 32%, transparent);
+}
+
+.gmail-pending-message.is-expanded {
+  background: color-mix(in srgb, var(--bg-tertiary) 72%, var(--bg-secondary));
+}
+
+.gmail-pending-message__summary {
+  display: grid;
+  align-items: center;
+  width: 100%;
+  min-height: 40px;
+  grid-template-columns: 7px minmax(100px, 0.7fr) minmax(150px, 1.3fr) auto auto auto;
+  gap: 7px;
+  padding: 5px 9px;
+  color: inherit;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover { background: color-mix(in srgb, #ea4335 11%, var(--bg-tertiary)); }
+
+  time {
+    color: var(--gmail-text-soft);
+    font-size: 9px;
+    white-space: nowrap;
+  }
+
+  > svg { color: var(--gmail-text-soft); }
+}
+
+.gmail-pending-message__unread {
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--gmail-text-soft);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.gmail-pending-message.is-unread .gmail-pending-message__unread {
+  border-color: #ea4335;
+  background: #ea4335;
+  box-shadow: 0 0 7px color-mix(in srgb, #ea4335 48%, transparent);
+}
+
+.gmail-pending-message.is-read .gmail-pending-message__sender,
+.gmail-pending-message.is-read .gmail-pending-message__subject {
+  color: var(--gmail-text-normal);
+  font-weight: 550;
+}
+
+.gmail-pending-message__sender,
+.gmail-pending-message__subject {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gmail-pending-message__sender {
+  color: var(--gmail-text-strong);
+  font-size: 10.5px;
+  font-weight: 780;
+}
+
+.gmail-pending-message__subject {
+  color: var(--gmail-text-normal);
+  font-size: 10.5px;
+}
+
+.gmail-pending-message__details {
+  padding: 4px 12px 11px 23px;
+}
+
+.gmail-pending-message__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  color: var(--gmail-text-normal);
+  border: 1px solid color-mix(in srgb, var(--border-color) 78%, var(--text-muted));
+  border-radius: 6px 6px 0 0;
+  background: color-mix(in srgb, var(--bg-primary) 58%, var(--bg-secondary));
+  font-size: 9.5px;
+  line-height: 1.5;
+
+  strong { color: var(--gmail-text-strong); }
+}
+
+.gmail-pending-message__labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-top: 3px;
+
+  em {
+    padding: 1px 5px;
+    color: var(--accent-blue, #5b9dff);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent-blue, #5b9dff) 10%, transparent);
+    font-size: 7.5px;
+    font-style: normal;
+  }
+}
+
+.gmail-pending-message__body {
+  max-height: 330px;
+  overflow: auto;
+  padding: 13px 11px;
+  color: var(--gmail-text-strong);
+  border-right: 1px solid color-mix(in srgb, var(--border-color) 78%, var(--text-muted));
+  border-left: 1px solid color-mix(in srgb, var(--border-color) 78%, var(--text-muted));
+  background: color-mix(in srgb, var(--bg-primary) 76%, var(--bg-secondary));
+  font-family: $font-family;
+  font-size: 11px;
+  line-height: 1.62;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+
+  a { color: color-mix(in srgb, var(--accent-blue, #5b9dff) 78%, white); }
+  > em { color: var(--gmail-text-normal); }
+}
+
+.gmail-pending-message__attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 78%, var(--text-muted));
+  background: color-mix(in srgb, var(--bg-primary) 36%, transparent);
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 220px;
+    overflow: hidden;
+    padding: 3px 6px;
+    color: var(--gmail-text-normal);
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--bg-tertiary) 62%, transparent);
+    font-size: 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.gmail-pending-message__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  padding-top: 8px;
+
+  a,
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 26px;
+    padding: 4px 9px;
+    border-radius: 6px;
+    font: inherit;
+    font-size: 8.5px;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  a {
+    color: var(--accent-blue, #5b9dff);
+    border: 1px solid color-mix(in srgb, var(--accent-blue, #5b9dff) 30%, transparent);
+    background: color-mix(in srgb, var(--accent-blue, #5b9dff) 6%, transparent);
+  }
+
+  button {
+    color: #76d584;
+    border: 1px solid color-mix(in srgb, #76d584 32%, transparent);
+    background: color-mix(in srgb, #76d584 6%, transparent);
+    cursor: pointer;
+  }
+
+  a:hover { background: color-mix(in srgb, var(--accent-blue, #5b9dff) 12%, transparent); }
+  button:hover:not(:disabled) { background: color-mix(in srgb, #76d584 12%, transparent); }
+  button:disabled { cursor: wait; opacity: 0.55; }
+}
+
+.gmail-pending-message__spinner {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: plugin-spin 0.7s linear infinite;
+}
+
+.gmail-pending-card__empty {
+  display: flex;
+  align-items: center;
+  min-height: 100px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 20px;
+  color: #76d584;
+
+  strong { font-size: 11px; }
+  span { color: var(--gmail-text-normal); font-size: 9.5px; }
+}
+
+.gmail-pending-card__limit {
+  padding: 7px 9px;
+  color: var(--gmail-text-soft);
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 78%, var(--text-muted));
+  font-size: 9px;
+  text-align: center;
+
+  code { color: var(--accent-cyan, #42d6e8); }
+}
+
+@media (max-width: 700px) {
+  .gmail-pending-card__heading span { display: none; }
+  .gmail-pending-card__filters button { padding-inline: 5px; }
+
+  .gmail-pending-message__summary {
+    grid-template-columns: 7px minmax(90px, 0.9fr) minmax(100px, 1.1fr) auto;
+
+    time,
+    > svg:first-of-type { display: none; }
+  }
+
+  .gmail-pending-message__details { padding-left: 9px; padding-right: 9px; }
+  .gmail-pending-message__actions { align-items: stretch; flex-direction: column; }
+  .gmail-pending-message__actions a,
+  .gmail-pending-message__actions button { justify-content: center; }
+}

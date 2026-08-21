@@ -797,6 +797,18 @@ export async function getThread(threadId: string): Promise<EmailThread> {
   };
 }
 
+export async function markMessageAsRead(messageId: string): Promise<void> {
+  if (!gmail) throw new Error('Gmail not authenticated');
+  const cleanMessageId = messageId.trim();
+  if (!cleanMessageId) throw new Error('Gmail message id is required');
+
+  await gmail.users.messages.modify({
+    userId: 'me',
+    id: cleanMessageId,
+    requestBody: { removeLabelIds: ['UNREAD'] },
+  });
+}
+
 export async function getRecentMessages(params: {
   query?: string;
   maxResults?: number;

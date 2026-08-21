@@ -29,6 +29,7 @@ import {
 } from '../../api/files';
 import { searchGlobalSessions, type GlobalSessionMatch } from '../../api/sessions';
 import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS } from '../../../shared/file-search';
+import { SETTINGS_SEARCH_SECTIONS, searchSettingsSections } from '../toolbox/settingsSearch';
 
 // Fixed category display order for the All tab. Commands remain available in
 // their dedicated tab, but do not interrupt navigation/search results.
@@ -36,6 +37,7 @@ const ALL_CATEGORY_ORDER: readonly SearchResult['type'][] = [
   'agent',
   'session',
   'building',
+  'setting',
   'file',
   'file-content',
   'folder',
@@ -54,6 +56,7 @@ const FILE_ALL_TAB_LIMIT = 10;
 const CONTENT_MIN_QUERY = 3;
 const CONTENT_RESULT_LIMIT = 30;
 const CONTENT_ALL_TAB_LIMIT = 8;
+const SETTINGS_ALL_TAB_LIMIT = 8;
 
 // Minimum query length before full-text searching every session's JSONL. At 2
 // chars nearly every conversation matches — pure noise below the fold.
@@ -408,6 +411,29 @@ export function useSpotlightSearch({
       },
     ];
   }, [isOpen, shortcuts]);
+
+  // Reuse the exact Settings panel index so Spotlight and the sidebar never
+  // disagree about which sections a query should reveal.
+  const settingResults: SearchResult[] = useMemo(() => {
+    if (!isOpen) return [];
+    const trimmedQuery = query.trim();
+    const sections = trimmedQuery ? searchSettingsSections(trimmedQuery) : SETTINGS_SEARCH_SECTIONS;
+
+    return sections.map((section) => ({
+      id: `setting-${section.id}`,
+      type: 'setting' as const,
+      title: section.title,
+      subtitle: trimmedQuery ? `Settings section • ${trimmedQuery}` : 'Settings section',
+      icon: <Icon name="gear" size={16} />,
+      _searchText: `${section.title} ${section.keywords.join(' ')}`,
+      action: () => {
+        onCloseRef.current();
+        // Forward the original query so the panel opens already filtered and
+        // highlighted. With an empty query, use the selected section title.
+        onOpenToolboxRef.current(trimmedQuery || section.title);
+      },
+    }));
+  }, [isOpen, query]);
 
   // agentId -> the area it currently sits in (position-based membership, the same
   // rule the Agent Overview panel uses). One pass over the subscribed areas map
@@ -942,6 +968,7 @@ export function useSpotlightSearch({
     // Folders are already query-filtered + ranked server-side (no Fuse needed).
     const matchedFolders = folderResults.slice(0, 8);
     const matchedFiles = fileResults.slice(0, FILE_ALL_TAB_LIMIT);
+    const matchedSettings = settingResults.slice(0, SETTINGS_ALL_TAB_LIMIT);
     const matchedBuildings = searchAllTokens(buildingFuse, query)
       .filter((r) => {
         const score = r.score ?? 1;
@@ -966,6 +993,7 @@ export function useSpotlightSearch({
       folder: 4,
       file: 4,
       'file-content': 4,
+      setting: 4,
       command: 3,
       area: 2,
       'modified-file': 1,
@@ -1093,6 +1121,7 @@ export function useSpotlightSearch({
 
     for (const r of matchedBuildings) pushScored(r.item, r.score);
     for (const r of matchedAreas) pushScored(r.item, r.score);
+    for (const item of matchedSettings) pushScored(item, undefined);
     for (const item of matchedFolders) pushScored(item, undefined);
     for (const item of matchedFiles) pushScored(item, undefined);
     for (const item of contentResults.slice(0, CONTENT_ALL_TAB_LIMIT)) pushScored(item, undefined);
@@ -1174,7 +1203,7 @@ export function useSpotlightSearch({
     }
 
     return finalResults;
-  }, [query, agentFuse, areaFuse, buildingFuse, agentResults, agentResultById, areaResults, buildingResults, folderResults, fileResults, contentResults, sessionResults, recentAgentTimes, showAllAgents, showAllSessions]);
+  }, [query, agentFuse, areaFuse, buildingFuse, agentResults, agentResultById, areaResults, buildingResults, settingResults, folderResults, fileResults, contentResults, sessionResults, recentAgentTimes, showAllAgents, showAllSessions]);
 
   // Filter the flat result list to the active tab. 'all' shows everything;
   // 'buildings'/'commands' filter by type; 'areas' is the flattened agent list
@@ -1195,13 +1224,15 @@ export function useSpotlightSearch({
         return fileResults;
       case 'contents':
         return contentResults;
+      case 'settings':
+        return settingResults;
       case 'areas':
         return areaSections.flatMap((s) => s.agents);
       case 'all':
       default:
         return allResults;
     }
-  }, [activeTab, allResults, areaSections, fileResults, contentResults, query, commandFuse, commands]);
+  }, [activeTab, allResults, areaSections, fileResults, contentResults, settingResults, query, commandFuse, commands]);
 
   const loadingTypes = useMemo(() => {
     const loading: SearchResult['type'][] = [];
@@ -1212,7 +1243,7 @@ export function useSpotlightSearch({
     if (activeTab === 'all') return loading;
     const typeForTab: Partial<Record<SpotlightTab, SearchResult['type']>> = {
       buildings: 'building', folders: 'folder', files: 'file', contents: 'file-content',
-      agents: 'agent', commands: 'command',
+      agents: 'agent', settings: 'setting', commands: 'command',
     };
     const type = typeForTab[activeTab];
     return type && loading.includes(type) ? [type] : [];

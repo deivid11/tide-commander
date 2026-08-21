@@ -10,7 +10,7 @@ import { BuildingEditor } from './BuildingEditor';
 import { AreaEditor } from './AreaEditor';
 import { ConfigSection } from './ConfigSection';
 
-export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose, onOpenBuildingModal, onOpenAreaExplorer, onOpenIntegrationsModal, onOpenPluginsModal, onOpenMonitoringModal, onOpenStatisticsModal, onOpenWorkflowEditor, onOpenTriggerManager }: ToolboxProps) {
+export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose, initialSearchQuery, onOpenBuildingModal, onOpenAreaExplorer, onOpenIntegrationsModal, onOpenPluginsModal, onOpenMonitoringModal, onOpenStatisticsModal, onOpenWorkflowEditor, onOpenTriggerManager }: ToolboxProps) {
   const { t } = useTranslation(['config', 'common']);
   const areas = useAreas();
   const buildings = useBuildings();
@@ -34,6 +34,12 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
+
+  // A Settings result in Spotlight opens this panel with the same query, so the
+  // matching section is already filtered, expanded, and highlighted.
+  useEffect(() => {
+    if (isOpen) setSearchQuery(initialSearchQuery ?? '');
+  }, [isOpen, initialSearchQuery]);
 
   // Autofocus search input when sidebar opens (skip on mobile width so the
   // on-screen keyboard doesn't pop up immediately)

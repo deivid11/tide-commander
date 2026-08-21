@@ -177,16 +177,48 @@ function validateContributions(value: unknown): PluginManifestContributions | un
     });
   }
 
+  let settings: PluginManifestContributions['settings'];
+  if (value.settings !== undefined) {
+    if (!Array.isArray(value.settings)) {
+      throw new PluginRuntimeError('contributes.settings must be an array');
+    }
+    settings = value.settings.map((setting, index) => {
+      if (!isRecord(setting)) throw new PluginRuntimeError(`contributes.settings[${index}] must be an object`);
+      if (setting.type !== 'integration') {
+        throw new PluginRuntimeError(`contributes.settings[${index}].type must be "integration"`);
+      }
+      const stringList = (field: 'instructions' | 'secrets', maxItems: number): string[] | undefined => {
+        const source = setting[field];
+        if (source === undefined) return undefined;
+        if (!Array.isArray(source) || source.length > maxItems) {
+          throw new PluginRuntimeError(`contributes.settings[${index}].${field} must be an array with at most ${maxItems} items`);
+        }
+        return source.map((item, itemIndex) => assertShortString(
+          item,
+          `contributes.settings[${index}].${field}[${itemIndex}]`,
+          500,
+        ));
+      };
+      return {
+        id: assertShortString(setting.id, `contributes.settings[${index}].id`, 100),
+        type: 'integration' as const,
+        integrationId: assertShortString(setting.integrationId, `contributes.settings[${index}].integrationId`, 100),
+        title: assertShortString(setting.title, `contributes.settings[${index}].title`, 200),
+        description: setting.description === undefined
+          ? undefined
+          : assertShortString(setting.description, `contributes.settings[${index}].description`, 1_000),
+        instructions: stringList('instructions', 20),
+        secrets: stringList('secrets', 20),
+      };
+    });
+  }
+
   return {
     slashCommands,
     views: validateIdTitle(value.views, 'views') as PluginManifestContributions['views'],
     modals: validateIdTitle(value.modals, 'modals') as PluginManifestContributions['modals'],
     outputRenderers,
-    settings: value.settings === undefined
-      ? undefined
-      : Array.isArray(value.settings)
-        ? value.settings
-        : (() => { throw new PluginRuntimeError('contributes.settings must be an array'); })(),
+    settings,
   };
 }
 

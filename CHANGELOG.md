@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.204.0] - 2026-08-21
+
+### Added
+- **Gmail, Jira and Tide Usages plugins** — builtin plugins for pending Gmail messages (`GmailPendingCard`), Jira tickets (`JiraTicketsCard`) and Tide subscription usages (`TideUsagesCard` with tests), each with server builtin handlers and client cards/styles (`_gmail.scss`, `_jira.scss`).
+- **Integration-backed plugin settings** — plugins can declare `contributes.settings` of type `integration` (`docs/plugins.md` extended). The Plugins panel shows instructions and secret names and **Configure** opens the native integration flow (OAuth, secrets, connection status) above the panel.
+- **Toolbox settings search** — `settingsSearch.ts` with tests for filtering toolbox configuration; `ConfigSection`/`Toolbox` updated.
+
+### Changed
+- **Spotlight and output polish** — `Spotlight` (`types`, `useSpotlightSearch`, `utils`, `SpotlightResults`, `SpotlightCommandResultModal`), `OutputLine` and `PluginsPanel` refined for new plugin cards.
+- **Styles and locales** — `_plugins.scss`, `_spotlight.scss`, `main.scss` expanded; terminal locales `en`/`es` updated.
+- **Server integrations** — `gmail-client`, `jira` (`index`, `jira-client`), `codex-usage-service` (+tests) and `pi-subscription-usage-service` extended to support plugins.
+- **Plugin manager and types** — `plugins/manager`, `plugins/index`/`types` and `shared/plugin-types` updated for new builtin plugins.
+
 ## [1.203.0] - 2026-08-20
 
 ### Added

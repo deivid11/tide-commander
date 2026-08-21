@@ -44,7 +44,7 @@ export function SpotlightCommandResultModal({
               <h2>{output.title || command}</h2>
             </div>
           </div>
-          <button type="button" className="spotlight-command-result-close" onClick={onClose} aria-label="Close command result">
+          <button type="button" className="spotlight-command-result-close" onClick={onClose} aria-label="Quitar widget" title="Quitar widget">
             <Icon name="close" size={15} />
           </button>
         </header>

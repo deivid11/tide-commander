@@ -898,12 +898,14 @@
       "areas": "Áreas",
       "folders": "Carpetas",
       "files": "Archivos",
+      "settings": "Configuración",
       "commands": "Comandos"
     },
     "categories": {
       "commands": "Comandos",
       "agents": "Agentes",
       "infrastructure": "Infraestructura",
+      "settings": "Configuración",
       "areas": "Areas",
       "folders": "Carpetas y Repos",
       "files": "Archivos",

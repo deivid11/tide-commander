@@ -64,6 +64,8 @@ export interface ToolboxProps {
   config: SceneConfig;
   isOpen: boolean;
   onClose: () => void;
+  /** One-shot query supplied by Spotlight when opening a Settings result. */
+  initialSearchQuery?: string;
   onOpenBuildingModal?: (buildingId?: string) => void;
   onOpenAreaExplorer?: (areaId: string) => void;
   onOpenIntegrationsModal?: (integrationId?: string) => void;

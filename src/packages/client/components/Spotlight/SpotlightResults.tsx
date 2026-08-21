@@ -54,6 +54,7 @@ export const SpotlightResults = forwardRef<HTMLDivElement, SpotlightResultsProps
     command: t('terminal:spotlight.categories.commands'),
     agent: t('terminal:spotlight.categories.agents'),
     building: t('terminal:spotlight.categories.infrastructure'),
+    setting: t('terminal:spotlight.categories.settings'),
     area: t('terminal:spotlight.categories.areas'),
     folder: t('terminal:spotlight.categories.folders'),
     file: t('terminal:spotlight.categories.files'),
@@ -88,7 +89,7 @@ export const SpotlightResults = forwardRef<HTMLDivElement, SpotlightResultsProps
     for (const category of loadingTypes) {
       if (!groups.some(([existing]) => existing === category)) groups.push([category, []]);
     }
-    const order: SearchResultType[] = ['agent', 'session', 'building', 'file', 'file-content', 'folder', 'area', 'command'];
+    const order: SearchResultType[] = ['agent', 'session', 'building', 'setting', 'file', 'file-content', 'folder', 'area', 'command'];
     groups.sort(([a], [b]) => order.indexOf(a as SearchResultType) - order.indexOf(b as SearchResultType));
     return groups;
   }, [results, loadingTypes]);

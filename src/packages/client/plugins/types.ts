@@ -23,6 +23,18 @@ export interface ClientPluginInfo {
   error?: string;
 }
 
+export interface PluginIntegrationSettingsContribution {
+  id: string;
+  type: 'integration';
+  integrationId: string;
+  title: string;
+  description?: string;
+  instructions?: string[];
+  secrets?: string[];
+}
+
+export type PluginSettingsContribution = PluginIntegrationSettingsContribution;
+
 export interface PluginManifestContributions {
   slashCommands?: PluginSlashCommandContribution[];
   views?: Array<{
@@ -33,7 +45,7 @@ export interface PluginManifestContributions {
   }>;
   modals?: Array<{ id: string; title: string }>;
   outputRenderers?: Array<string | { id: string }>;
-  settings?: unknown[];
+  settings?: PluginSettingsContribution[];
 }
 
 export interface PluginSlashCommandContribution {
@@ -74,7 +86,39 @@ export interface PluginTaskListData {
   };
 }
 
-export type PluginOutputData = PluginTaskListData | Record<string, unknown> | unknown[] | string | number | boolean | null;
+export interface PluginProviderUsageWindow {
+  key: 'session' | 'five-hour' | 'daily' | 'weekly';
+  label: string;
+  utilization: number;
+  resetsAt?: string;
+}
+
+export interface PluginProviderUsageAccount {
+  id: string;
+  label: string;
+  active?: boolean;
+  expired?: boolean;
+  daily: PluginProviderUsageWindow | null;
+  weekly: PluginProviderUsageWindow | null;
+  status?: 'available' | 'free' | 'unavailable';
+  error?: string;
+  note?: string;
+}
+
+export interface PluginProviderUsageEntry {
+  id: 'claude' | 'codex' | 'grok' | 'opencode' | 'pi';
+  label: string;
+  accounts: PluginProviderUsageAccount[];
+}
+
+export interface PluginProviderUsagesData {
+  kind: 'provider-usages';
+  title: string;
+  fetchedAt: number;
+  providers: PluginProviderUsageEntry[];
+}
+
+export type PluginOutputData = PluginTaskListData | PluginProviderUsagesData | Record<string, unknown> | unknown[] | string | number | boolean | null;
 
 export interface PluginOutputEnvelope {
   pluginId: string;

@@ -25,6 +25,51 @@ export interface CodexUsageSnapshot {
 
 interface RawWindow { usedPercent?: unknown; resetsAt?: unknown; windowDurationMins?: unknown }
 
+interface NativeRateLimitsResult {
+  rateLimits?: { primary?: RawWindow | null; secondary?: RawWindow | null } | null;
+  rateLimitsByLimitId?: Record<string, { primary?: RawWindow | null; secondary?: RawWindow | null }> | null;
+}
+
+function windowDuration(value: RawWindow | null | undefined): number | null {
+  return typeof value?.windowDurationMins === 'number' && Number.isFinite(value.windowDurationMins)
+    ? value.windowDurationMins
+    : null;
+}
+
+function highestUtilization(windows: RawWindow[]): RawWindow | null {
+  return windows.sort((left, right) => Number(right.usedPercent) - Number(left.usedPercent))[0] ?? null;
+}
+
+/**
+ * Codex can publish its short-term gauge only inside rateLimitsByLimitId while
+ * the top-level rateLimits object carries the account-wide weekly gauge.
+ * Merge both sources so /usages does not incorrectly report "No publicado".
+ */
+export function selectCodexRateLimitWindows(result: NativeRateLimitsResult | null | undefined): {
+  primary: RawWindow | null;
+  secondary: RawWindow | null;
+} {
+  const topLevel = [result?.rateLimits?.primary, result?.rateLimits?.secondary]
+    .filter((window): window is RawWindow => Boolean(window));
+  const scoped = Object.values(result?.rateLimitsByLimitId ?? {})
+    .flatMap((limits) => [limits.primary, limits.secondary])
+    .filter((window): window is RawWindow => Boolean(window));
+  const all = [...topLevel, ...scoped].filter((window) => typeof window.usedPercent === 'number');
+  const daily = highestUtilization(all.filter((window) => {
+    const duration = windowDuration(window);
+    return duration !== null && duration <= 2 * 24 * 60;
+  }));
+  const topLevelWeekly = topLevel.filter((window) => {
+    const duration = windowDuration(window);
+    return duration === null || duration > 2 * 24 * 60;
+  });
+  const weekly = highestUtilization(topLevelWeekly) ?? highestUtilization(all.filter((window) => {
+    const duration = windowDuration(window);
+    return duration === null || duration > 2 * 24 * 60;
+  }));
+  return { primary: daily, secondary: weekly };
+}
+
 export function classifyCodexRateLimits(raw: { primary?: RawWindow | null; secondary?: RawWindow | null } | null | undefined) {
   const result: { daily: CodexRateLimitWindow | null; weekly: CodexRateLimitWindow | null } = { daily: null, weekly: null };
   for (const value of [raw?.primary, raw?.secondary]) {
@@ -74,7 +119,7 @@ function readNativeRateLimits(codexHome?: string): Promise<{ primary?: RawWindow
             child.stdin?.write(`${JSON.stringify({ id: 2, method: 'account/rateLimits/read', params: {} })}\n`);
           } else if (message.id === 2) {
             if (message.error) finish(new Error(message.error.message || 'Codex rejected the usage request'));
-            else finish(undefined, message.result?.rateLimits ?? {});
+            else finish(undefined, selectCodexRateLimitWindows(message.result));
           }
         } catch { /* wait for the next complete JSON line */ }
       }

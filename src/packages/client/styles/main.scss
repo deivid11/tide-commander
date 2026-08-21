@@ -20,6 +20,8 @@
 @use 'components/toolbox/index' as toolbox;
 @use 'components/guake-terminal/index' as guake-terminal;
 @use '../plugins/bolba-tasks/bolba' as bolba-plugin;
+@use '../plugins/gmail/gmail' as gmail-plugin;
+@use '../plugins/jira/jira' as jira-plugin;
 @use 'components/markdown';
 @use 'components/commander-view/index' as commander-view;
 @use 'components/file-viewer';

@@ -6,6 +6,7 @@ import {
   classifyCodexRateLimits,
   getCodexCredentialProfilesUsage,
   resetCodexProfileUsageCacheForTests,
+  selectCodexRateLimitWindows,
   setCodexNativeRateLimitsReaderForTests,
 } from './codex-usage-service.js';
 import { setProviderCredentialsDirForTests } from './provider-credentials-service.js';
@@ -19,6 +20,24 @@ describe('classifyCodexRateLimits', () => {
     expect(limits.daily?.utilization).toBe(12);
     expect(limits.weekly?.utilization).toBe(34);
     expect(limits.daily?.resetsAt).toBe(new Date(1_800_000_000_000).toISOString());
+  });
+
+  it('merges a scoped short-term limit with the top-level weekly limit', () => {
+    const selected = selectCodexRateLimitWindows({
+      rateLimits: {
+        primary: { usedPercent: 79, windowDurationMins: 10080, resetsAt: 1_800_086_400 },
+        secondary: null,
+      },
+      rateLimitsByLimitId: {
+        codex_spark: {
+          primary: { usedPercent: 12, windowDurationMins: 300, resetsAt: 1_800_000_000 },
+          secondary: { usedPercent: 4, windowDurationMins: 10080, resetsAt: 1_800_086_400 },
+        },
+      },
+    });
+
+    expect(selected.primary).toMatchObject({ usedPercent: 12, windowDurationMins: 300 });
+    expect(selected.secondary).toMatchObject({ usedPercent: 79, windowDurationMins: 10080 });
   });
 });
 
