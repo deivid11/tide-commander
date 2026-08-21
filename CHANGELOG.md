@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.204.1] - 2026-08-21
+
+### Fixed
+- **Phantom area assignment** — an archived zone no longer "captures" agents that sit over its old coordinates. `getAreaForAgent` now skips archived areas and resolves overlaps by topmost zIndex, matching the drag-to-assign containment checks. Fixes agents showing a hidden, archived area in their details.
+
 ## [1.204.0] - 2026-08-21
 
 ### Added

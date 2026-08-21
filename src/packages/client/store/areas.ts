@@ -224,7 +224,14 @@ export function createAreaActions(
       const agent = state.agents.get(agentId);
       if (!agent) return null;
 
-      for (const area of state.areas.values()) {
+      // Skip archived areas (an archived zone must not "capture" agents that
+      // move over its old coordinates) and resolve overlaps by topmost zIndex,
+      // matching getAreaAtPosition / getAreaAtWorldPos.
+      const candidates = Array.from(state.areas.values())
+        .filter((area) => !area.archived)
+        .sort((a, b) => (b.zIndex ?? 0) - (a.zIndex ?? 0));
+
+      for (const area of candidates) {
         if (this.isPositionInArea({ x: agent.position.x, z: agent.position.z }, area)) {
           return area;
         }
