@@ -200,6 +200,13 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void startBackgroundService() {
+        // Respect the user's opt-out. Default true so nothing changes for
+        // anyone who hasn't touched the toggle in Settings → About.
+        android.content.SharedPreferences prefs = getSharedPreferences(
+            ServerConfigPlugin.PREFS_NAME, MODE_PRIVATE);
+        if (!prefs.getBoolean(ServerConfigPlugin.KEY_BACKGROUND_SERVICE_ENABLED, true)) {
+            return;
+        }
         Intent serviceIntent = new Intent(this, WebSocketForegroundService.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent);

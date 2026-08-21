@@ -16,6 +16,8 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 // Register custom Capacitor plugin for syncing config to native foreground service
 const ServerConfig = registerPlugin<{
   syncConfig(options: { url: string; token: string; urls?: string[] }): Promise<void>;
+  getBackgroundServiceEnabled(): Promise<{ enabled: boolean }>;
+  setBackgroundServiceEnabled(options: { enabled: boolean }): Promise<void>;
 }>('ServerConfig');
 
 // Start at 100 to avoid collision with foreground service notification (ID 1)
@@ -241,4 +243,26 @@ export function syncConnectionToNative(serverUrl: string, authToken: string, can
   }).catch((err: any) => {
     console.warn('[Notifications] Failed to sync config to native service:', err);
   });
+}
+
+/**
+ * Read the current opt-in state of the Android foreground service that keeps
+ * a WebSocket alive while the app is backgrounded (and shows the permanent
+ * "Connected to server" notification). Returns null on non-Android platforms
+ * OR on an APK too old to expose the plugin method — callers should hide the
+ * toggle in both cases.
+ */
+export async function getBackgroundServiceEnabled(): Promise<boolean | null> {
+  if (!isNativeApp()) return null;
+  try {
+    const result = await ServerConfig.getBackgroundServiceEnabled();
+    return result.enabled;
+  } catch {
+    return null;
+  }
+}
+
+export async function setBackgroundServiceEnabled(enabled: boolean): Promise<void> {
+  if (!isNativeApp()) return;
+  await ServerConfig.setBackgroundServiceEnabled({ enabled });
 }

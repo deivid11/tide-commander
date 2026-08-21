@@ -13,6 +13,10 @@ import {
   setAutoUpdateEnabled,
   type AutoUpdateStatus,
 } from '../../api/system-update';
+import {
+  getBackgroundServiceEnabled,
+  setBackgroundServiceEnabled,
+} from '../../utils/notifications';
 
 // Theme selector component
 export function ThemeSelector() {
@@ -409,6 +413,69 @@ function WebBundlePanel() {
   );
 }
 
+/**
+ * Android-only opt-out for the persistent foreground service that keeps a
+ * WebSocket alive while the app is closed. Turning it off removes the
+ * permanent "Connected to server" notification but drops push delivery — the
+ * user only sees agent alerts while the app is open. Default on so anyone who
+ * never opens this toggle keeps working the way they always did.
+ */
+function BackgroundServiceToggle() {
+  const { t } = useTranslation(['config']);
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getBackgroundServiceEnabled()
+      .then(setEnabled)
+      .catch(() => setEnabled(null));
+  }, []);
+
+  const handleToggle = useCallback(async (next: boolean) => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await setBackgroundServiceEnabled(next);
+      setEnabled(next);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }, [busy]);
+
+  // Null covers both non-Android and old APKs whose native plugin doesn't
+  // expose these methods — either way, don't render a broken toggle.
+  if (enabled === null) return null;
+
+  return (
+    <div className="about-autoupdate">
+      <div className="about-autoupdate-title">{t('config:about.backgroundServiceTitle')}</div>
+      <div className="about-autoupdate-row">
+        <span className="about-autoupdate-devnote">{t('config:about.backgroundServiceDesc')}</span>
+        <label className="config-toggle">
+          <input
+            type="checkbox"
+            className="config-toggle-input"
+            checked={enabled}
+            disabled={busy}
+            onChange={(e) => void handleToggle(e.target.checked)}
+          />
+          <span className="config-toggle-track">
+            <span className="config-toggle-thumb" />
+          </span>
+        </label>
+      </div>
+      {!enabled && (
+        <div className="about-autoupdate-devnote">{t('config:about.backgroundServiceDisabledNote')}</div>
+      )}
+      {error && <div className="about-update-error">{error}</div>}
+    </div>
+  );
+}
+
 export function AboutSection() {
   const { t } = useTranslation(['config']);
   const {
@@ -482,6 +549,9 @@ export function AboutSection() {
 
       {/* OTA UI sync from the connected server (Android only) */}
       <WebBundlePanel />
+
+      {/* Opt-out for the persistent foreground service (Android only) */}
+      <BackgroundServiceToggle />
 
       {/* Full changelog (all versions) in a modal */}
       <div className="about-changelog-row">

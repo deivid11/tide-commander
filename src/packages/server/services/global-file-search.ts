@@ -296,6 +296,153 @@ async function walkForFiles(
   }
 }
 
+async function walkForContent(
+  dirPath: string,
+  root: ResolvedRoot,
+  queryLower: string,
+  exclude: Set<string>,
+  hits: Map<string, GlobalFileContentHit>,
+  maxResults: number,
+  depth: number
+): Promise<void> {
+  if (hits.size >= maxResults || depth > MAX_SEARCH_DEPTH) return;
+  let entries: fs.Dirent[];
+  try {
+    entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  const subdirs: string[] = [];
+  for (const entry of entries) {
+    if (hits.size >= maxResults) return;
+    if (entry.isDirectory()) {
+      if (exclude.has(entry.name)) continue;
+      subdirs.push(path.join(dirPath, entry.name));
+      continue;
+    }
+    if (!entry.isFile() && !entry.isSymbolicLink()) continue;
+
+    const filePath = path.join(dirPath, entry.name);
+    let stat: fs.Stats;
+    try { stat = await fs.promises.stat(filePath); } catch { continue; }
+    if (!stat.isFile() || stat.size > MAX_CONTENT_FILE_SIZE) continue;
+
+    let contents: string;
+    try { contents = await fs.promises.readFile(filePath, 'utf-8'); } catch { continue; }
+
+    const lines = contents.split(/\r?\n/);
+    const matches: Array<{ line: number; content: string }> = [];
+    for (let i = 0; i < lines.length && matches.length < MAX_CONTENT_MATCHES_PER_FILE; i++) {
+      if (lines[i].toLowerCase().includes(queryLower)) {
+        matches.push({ line: i + 1, content: lines[i].slice(0, 240) });
+      }
+    }
+    if (matches.length === 0) continue;
+
+    const resolvedPath = path.resolve(filePath);
+    if (hits.has(resolvedPath)) continue;
+    hits.set(resolvedPath, { ...toHit(resolvedPath, root), matches });
+    if (hits.size >= maxResults) return;
+  }
+
+  for (const sub of subdirs) {
+    if (hits.size >= maxResults) return;
+    await walkForContent(sub, root, queryLower, exclude, hits, maxResults, depth + 1);
+  }
+}
+
+/**
+ * Try ripgrep for content search. Returns { ok: false } when rg is missing
+ * or errored with no partial results — the caller falls back to a filesystem
+ * walk. Mirrors the ok/fallback shape of searchFilenamesRipgrep().
+ */
+function searchContentsRipgrep(
+  roots: ResolvedRoot[],
+  query: string,
+  exclude: Set<string>,
+  limit: number
+): Promise<{ ok: boolean; hits: GlobalFileContentHit[] }> {
+  return new Promise((resolve) => {
+    const args = [
+      '--json',
+      '--ignore-case',
+      '--fixed-strings',
+      '--hidden',
+      '--no-ignore',
+      '--no-messages',
+      '--max-count', String(MAX_CONTENT_MATCHES_PER_FILE),
+      '--max-filesize', String(MAX_CONTENT_FILE_SIZE),
+      '--max-depth', String(MAX_SEARCH_DEPTH + 1),
+      ...[...exclude].flatMap((d) => ['--glob', `!${d}/**`, '--glob', `!**/${d}/**`]),
+      '--',
+      query,
+      ...roots.map((root) => root.resolved),
+    ];
+
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn('rg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch {
+      resolve({ ok: false, hits: [] });
+      return;
+    }
+
+    const hits = new Map<string, GlobalFileContentHit>();
+    let buffer = '';
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ ok, hits: [...hits.values()].slice(0, limit) });
+    };
+    const timer = setTimeout(() => {
+      try { child.kill(); } catch { /* already exited */ }
+      finish(hits.size > 0);
+    }, RG_TIMEOUT_MS);
+
+    // ENOENT (rg not installed) surfaces here — treat as unavailable so the
+    // caller can fall back to walking the filesystem.
+    child.on('error', () => finish(false));
+    child.stdout?.setEncoding('utf-8');
+    child.stdout?.on('data', (chunk: string) => {
+      buffer += chunk;
+      let newline: number;
+      while ((newline = buffer.indexOf('\n')) !== -1) {
+        const raw = buffer.slice(0, newline);
+        buffer = buffer.slice(newline + 1);
+        if (!raw) continue;
+        let event: any;
+        try { event = JSON.parse(raw); } catch { continue; }
+        if (event.type !== 'match') continue;
+        const rawPath = event.data?.path?.text;
+        if (typeof rawPath !== 'string') continue;
+        const resolvedPath = path.resolve(rawPath);
+        const root = matchRoot(resolvedPath, roots);
+        if (!root) continue;
+
+        let hit = hits.get(resolvedPath);
+        if (!hit) {
+          if (hits.size >= limit) {
+            try { child.kill(); } catch { /* already exited */ }
+            break;
+          }
+          hit = { ...toHit(resolvedPath, root), matches: [] };
+          hits.set(resolvedPath, hit);
+        }
+        if (hit.matches.length >= MAX_CONTENT_MATCHES_PER_FILE) continue;
+        const content = String(event.data?.lines?.text ?? '').replace(/\r?\n$/, '').slice(0, 240);
+        hit.matches.push({ line: Number(event.data?.line_number) || 0, content });
+      }
+    });
+    // rg: 0 = matches, 1 = no matches, 2 = error.
+    child.on('close', (code) => {
+      finish(!(code === 2 && hits.size === 0));
+    });
+  });
+}
+
 export async function searchFilesGlobal(opts: SearchFilesGlobalOptions): Promise<GlobalFileHit[]> {
   const query = (opts.query || '').trim();
   if (query.length < FILE_SEARCH_MIN_QUERY) return [];
@@ -349,77 +496,15 @@ export async function searchFileContentsGlobal(
   const roots = gatherRoots(opts.areas ?? loadAreas());
   if (roots.length === 0) return [];
 
-  return new Promise((resolve) => {
-    const args = [
-      '--json',
-      '--ignore-case',
-      '--fixed-strings',
-      '--hidden',
-      '--no-ignore',
-      '--no-messages',
-      '--max-count', String(MAX_CONTENT_MATCHES_PER_FILE),
-      '--max-filesize', String(MAX_CONTENT_FILE_SIZE),
-      '--max-depth', String(MAX_SEARCH_DEPTH + 1),
-      ...[...exclude].flatMap((d) => ['--glob', `!${d}/**`, '--glob', `!**/${d}/**`]),
-      '--',
-      query,
-      ...roots.map((root) => root.resolved),
-    ];
+  const rg = await searchContentsRipgrep(roots, query, exclude, limit);
+  if (rg.ok) return rg.hits;
 
-    let child: ReturnType<typeof spawn>;
-    try {
-      child = spawn('rg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
-    } catch {
-      resolve([]);
-      return;
-    }
-
-    const hits = new Map<string, GlobalFileContentHit>();
-    let buffer = '';
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve([...hits.values()].slice(0, limit));
-    };
-    const timer = setTimeout(() => {
-      try { child.kill(); } catch { /* already exited */ }
-      finish();
-    }, RG_TIMEOUT_MS);
-
-    child.on('error', finish);
-    child.stdout?.setEncoding('utf-8');
-    child.stdout?.on('data', (chunk: string) => {
-      buffer += chunk;
-      let newline: number;
-      while ((newline = buffer.indexOf('\n')) !== -1) {
-        const raw = buffer.slice(0, newline);
-        buffer = buffer.slice(newline + 1);
-        if (!raw) continue;
-        let event: any;
-        try { event = JSON.parse(raw); } catch { continue; }
-        if (event.type !== 'match') continue;
-        const rawPath = event.data?.path?.text;
-        if (typeof rawPath !== 'string') continue;
-        const resolvedPath = path.resolve(rawPath);
-        const root = matchRoot(resolvedPath, roots);
-        if (!root) continue;
-
-        let hit = hits.get(resolvedPath);
-        if (!hit) {
-          if (hits.size >= limit) {
-            try { child.kill(); } catch { /* already exited */ }
-            break;
-          }
-          hit = { ...toHit(resolvedPath, root), matches: [] };
-          hits.set(resolvedPath, hit);
-        }
-        if (hit.matches.length >= MAX_CONTENT_MATCHES_PER_FILE) continue;
-        const content = String(event.data?.lines?.text ?? '').replace(/\r?\n$/, '').slice(0, 240);
-        hit.matches.push({ line: Number(event.data?.line_number) || 0, content });
-      }
-    });
-    child.on('close', finish);
-  });
+  // rg unavailable — walk the filesystem so hosts without ripgrep still work.
+  const queryLower = query.toLowerCase();
+  const walked = new Map<string, GlobalFileContentHit>();
+  for (const root of roots) {
+    if (walked.size >= limit) break;
+    await walkForContent(root.resolved, root, queryLower, exclude, walked, limit, 0);
+  }
+  return [...walked.values()].slice(0, limit);
 }

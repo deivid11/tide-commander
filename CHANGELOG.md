@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.205.0] - 2026-08-21
+
+### Added
+- **Background-notification opt-out (Android)** — Settings → About now has a "Background notifications" toggle. Turning it off stops the persistent foreground service and removes the permanent "Connected to server" system notification; the trade-off is that agent alerts only surface while the app is open. Default on so existing installs behave exactly as before.
+
+### Fixed
+- **Global content search works without ripgrep** — `searchFileContentsGlobal` now falls back to an async filesystem walk (with the same excludes + size caps) when `rg` is missing on the host, matching the fallback the filename search has always had. Previously Spotlight content queries silently returned no results on machines without ripgrep.
+
 ## [1.204.1] - 2026-08-21
 
 ### Fixed
