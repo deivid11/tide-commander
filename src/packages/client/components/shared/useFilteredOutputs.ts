@@ -283,7 +283,7 @@ export function useFilteredOutputs({
 
     if (viewMode === 'chat') {
       return outputs.filter((output) => {
-        if (output.isUserPrompt) return true;
+        if (output.isUserPrompt || output.pluginOutput) return true;
         return output.text ? isChatViewOutput(output.text) : false;
       });
     }

@@ -11,6 +11,7 @@ import { cb } from './callbacks';
 import { sendMessage } from './send';
 import { playCompletionSound, startQuestionAlert, stopQuestionAlert } from '../utils/notificationSounds';
 import { consumeLocalAgentCreationIntent } from './agentCreationIntent';
+import type { PluginOutputEnvelope } from '../plugins/types';
 
 /** 0..10 volume level for notification sounds, or 0 when the feature is off. */
 function soundLevel(): number {
@@ -417,6 +418,40 @@ export function handleServerMessage(message: ServerMessage): void {
         reasoningEncrypted: output.reasoningEncrypted,
         reasoningSummaryOnly: output.reasoningSummaryOnly,
       });
+      break;
+    }
+
+    case 'plugin_output': {
+      const { agentId, output } = message.payload as {
+        agentId: string;
+        output: PluginOutputEnvelope;
+      };
+      const timestamp = output.createdAt || serverNow();
+      noteServerTimestamp(timestamp);
+      store.addOutput(agentId, {
+        text: '',
+        isStreaming: false,
+        timestamp,
+        uuid: `plugin:${output.pluginId}:${output.instanceId}`,
+        pluginOutput: output,
+      });
+      window.dispatchEvent(new CustomEvent('tide:plugin-data-updated', {
+        detail: { pluginId: output.pluginId, rendererId: output.rendererId, data: output.data },
+      }));
+      break;
+    }
+
+    case 'plugin_output_patch': {
+      const { agentId, pluginId, instanceId, data } = message.payload as {
+        agentId: string;
+        pluginId: string;
+        instanceId: string;
+        data: unknown;
+      };
+      store.updatePluginOutput(agentId, pluginId, instanceId, data);
+      window.dispatchEvent(new CustomEvent('tide:plugin-data-updated', {
+        detail: { pluginId, instanceId, data },
+      }));
       break;
     }
 

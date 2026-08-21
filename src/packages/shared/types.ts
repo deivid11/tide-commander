@@ -13,6 +13,7 @@ export * from './database-types.js';
 export * from './common-types.js';
 export * from './test-runner-types.js';
 export * from './http-requests-types.js';
+export * from './plugin-types.js';
 export * from './websocket-messages.js';
 export * from './trigger-types.js';
 export * from './integration-types.js';

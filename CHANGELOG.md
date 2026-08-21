@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.203.0] - 2026-08-20
+
+### Added
+- **Trusted local plugins** — extensible plugin system for slash commands, Guake output cards, sidebar views and modals. Plugins declare `manifest.json` (`slashCommands`, `views`, `modals`, `outputRenderers`) and ship `server.js`/`client.js` + `styles.css` bundles; see `docs/plugins.md`. Includes plugin registry, mount surfaces (`PluginOutputHost`, `PluginModalHost`, `PluginMountSurface`), and server `plugins/manager` with builtin example (`bolba-tasks`).
+- **Plugin spotlight integration** — `Spotlight` now resolves plugin slash commands with dedicated result modal and cards (`SpotlightPluginCommandResults`, `SpotlightCommandResultModal`, `SpotlightCommandResultCard`), plus client plugin hosts and hooks.
+- **Markdown PDF export** — `utils/markdown-pdf.ts` for exporting markdown documents.
+- **Plugins API** — server routes `src/packages/server/routes/plugins.ts` with tests and shared `plugin-types`.
+
+### Changed
+- **Bolba Tasks refactored into plugin** — moved `bolbaTasksOutput.ts` → `plugins/bolba-tasks/` (`BolbaCurlCard`, `BolbaTasksView`, `bolbaCurl`, `bolbaTasksOutput`), slimmed `CurlCard`, updated `HistoryLine`/`OutputLine` filtering and `useFilteredOutputs`.
+- **Spotlight and toolbox polish** — `Spotlight`, `SpotlightInput`/`Footer`, `SlashCommandDropdown`, `slashCommands`, toolbox `ConfigSection`/`types` updated for plugin commands; `App.tsx`/`AppModals.tsx` wired to plugins.
+- **Curl parser simplified** — `curlParser.ts` reduced, removed terminal curl-card styles.
+- **Stores and messaging** — `store/outputs`, `store/types`, `websocket/handlers`, `shared/types` and `websocket-messages` extended for plugin payloads; `plugins` manager and command/agent handlers updated.
+
 ## [1.202.1] - 2026-08-20
 
 ### Fixed

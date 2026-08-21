@@ -30,6 +30,7 @@ import {
   shutdownClaudeCredentialKeepAlive,
 } from './services/claude-credentials-service.js';
 import type { IntegrationContext } from '../shared/integration-types.js';
+import { initPlugins, shutdownPlugins } from './plugins/index.js';
 
 // Configuration
 const PORT = process.env.PORT || 6200;
@@ -245,6 +246,10 @@ async function main(): Promise<void> {
     websocket.attachServer(listener, wss);
   }
 
+  // Trusted-local software plugins need the WebSocket broadcaster for
+  // structured plugin_output/plugin_output_patch messages.
+  await initPlugins(websocket.broadcast);
+
   // Set up terminal WebSocket proxy for ttyd buildings
   // (HTTP proxy is set up in app.ts before API routes)
   for (const { server: listener } of listeners) {
@@ -307,6 +312,7 @@ async function main(): Promise<void> {
       triggerService.shutdown();
       autoCollapseService.shutdown();
       workflowService.shutdown();
+      await shutdownPlugins();
       await shutdownIntegrations();
       bossService.shutdown();
       eventRetentionService.shutdown();

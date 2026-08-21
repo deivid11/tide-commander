@@ -22,6 +22,9 @@ import type {
 import type {
   HttpRunResult,
 } from './http-requests-types.js';
+import type {
+  PluginOutputMessagePayload, PluginOutputPatchMessagePayload,
+} from './plugin-types.js';
 
 // ============================================================================
 // WebSocket Base
@@ -184,6 +187,18 @@ export interface OutputMessage extends WSMessage {
     reasoningEncrypted?: boolean; // Detailed reasoning is an encrypted payload
     reasoningSummaryOnly?: boolean; // Visible thinking is only a provider summary
   };
+}
+
+/** Structured output emitted by a trusted-local plugin. */
+export interface PluginOutputMessage extends WSMessage {
+  type: 'plugin_output';
+  payload: PluginOutputMessagePayload;
+}
+
+/** Replace the data in an existing plugin output instance after an action. */
+export interface PluginOutputPatchMessage extends WSMessage {
+  type: 'plugin_output_patch';
+  payload: PluginOutputPatchMessagePayload;
 }
 
 // Context stats response (detailed breakdown from /context command)
@@ -1813,6 +1828,8 @@ export type ServerMessage =
   | PongMessage
   | GitStatusUpdateMessage
   | OutputMessage
+  | PluginOutputMessage
+  | PluginOutputPatchMessage
   | ErrorMessage
   | DirectoryNotFoundMessage
   | CommandStartedMessage

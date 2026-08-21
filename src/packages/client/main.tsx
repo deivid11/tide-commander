@@ -5,10 +5,12 @@ import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { initializeTheme } from './utils/themes';
 import { installTooltipLeakFix } from './utils/tooltipLeakFix';
+import { initializePlugins } from './plugins';
 import './styles/main.scss';
 
-// Initialize theme from localStorage before React renders
+// Initialize theme and bundled/runtime plugin contributions before React renders.
 initializeTheme();
+initializePlugins();
 
 // Keep Chromium from stranding a native tooltip above every other app when the
 // window loses focus while one is showing (most visible in the installed app).

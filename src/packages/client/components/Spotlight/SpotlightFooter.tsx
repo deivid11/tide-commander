@@ -6,7 +6,7 @@
 import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-export const SpotlightFooter = memo(function SpotlightFooter() {
+export const SpotlightFooter = memo(function SpotlightFooter({ commandMode = false }: { commandMode?: boolean }) {
   const { t } = useTranslation(['terminal']);
 
   return (
@@ -16,10 +16,10 @@ export const SpotlightFooter = memo(function SpotlightFooter() {
           <kbd>↑</kbd><kbd>↓</kbd> <kbd>Alt+N</kbd><kbd>Alt+P</kbd> {t('terminal:spotlight.navigate')}
         </span>
         <span className="spotlight-footer-hint">
-          <kbd>Enter</kbd> {t('terminal:spotlight.select')}
+          <kbd>Enter</kbd> {commandMode ? 'run command' : t('terminal:spotlight.select')}
         </span>
         <span className="spotlight-footer-hint">
-          <kbd>Tab</kbd> {t('terminal:spotlight.switchTabs')}
+          <kbd>Tab</kbd> {commandMode ? 'complete command' : t('terminal:spotlight.switchTabs')}
         </span>
       </div>
       <div className="spotlight-footer-right">

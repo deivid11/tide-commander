@@ -95,6 +95,68 @@ describe('Output Store Actions', () => {
     });
   });
 
+  describe('updatePluginOutput', () => {
+    it('patches the matching plugin card without appending a duplicate row', () => {
+      const { state, actions } = createMockStore();
+      actions.addOutput('agent-1', makeOutput({
+        text: '',
+        uuid: 'plugin:tasks:one',
+        pluginOutput: {
+          pluginId: 'tasks',
+          rendererId: 'task-list',
+          instanceId: 'one',
+          data: { kind: 'task-list', items: [{ id: 1, title: 'First', status: 'open' }] },
+        },
+      }));
+
+      const nextData = { kind: 'task-list' as const, items: [{ id: 1, title: 'First', status: 'done' }] };
+      actions.updatePluginOutput('agent-1', 'tasks', 'one', nextData);
+
+      const outputs = state.agentOutputs.get('agent-1')!;
+      expect(outputs).toHaveLength(1);
+      expect(outputs[0].pluginOutput?.data).toEqual(nextData);
+    });
+
+    it('does not patch another plugin or instance', () => {
+      const { state, actions } = createMockStore();
+      actions.addOutput('agent-1', makeOutput({
+        text: '',
+        pluginOutput: {
+          pluginId: 'tasks',
+          rendererId: 'task-list',
+          instanceId: 'one',
+          data: { kind: 'task-list', items: [] },
+        },
+      }));
+      actions.updatePluginOutput('agent-1', 'other', 'one', { kind: 'task-list', items: [{ id: 2, title: 'Wrong' }] });
+      expect(state.agentOutputs.get('agent-1')![0].pluginOutput?.data).toEqual({ kind: 'task-list', items: [] });
+    });
+  });
+
+  describe('dismissPluginOutput', () => {
+    it('removes only the selected plugin widget', () => {
+      const { state, actions } = createMockStore();
+      for (const instanceId of ['one', 'two']) {
+        actions.addOutput('agent-1', makeOutput({
+          text: '',
+          uuid: `plugin:tasks:${instanceId}`,
+          pluginOutput: {
+            pluginId: 'tasks',
+            rendererId: 'task-list',
+            instanceId,
+            data: { kind: 'task-list', items: [] },
+          },
+        }));
+      }
+
+      actions.dismissPluginOutput('agent-1', 'one');
+
+      const outputs = state.agentOutputs.get('agent-1')!;
+      expect(outputs).toHaveLength(1);
+      expect(outputs[0].pluginOutput?.instanceId).toBe('two');
+    });
+  });
+
   describe('addOutput', () => {
     it('adds output to agent', () => {
       const { state, actions } = createMockStore();

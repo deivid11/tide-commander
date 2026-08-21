@@ -36,6 +36,7 @@ import skillsRouter, { setBroadcast as setSkillsBroadcast } from './skills.js';
 import systemRouter from './system.js';
 import browserRouter from './browser.js';
 import cadRouter from './cad.js';
+import pluginsRouter from './plugins.js';
 import { getPlugins } from '../integrations/integration-registry.js';
 
 const router = Router();
@@ -75,6 +76,7 @@ router.use('/skills', skillsRouter);
 router.use('/system', systemRouter);
 router.use('/browser', browserRouter);
 router.use('/cad', cadRouter);
+router.use('/plugins', pluginsRouter);
 // Integration plugin routes (e.g. /api/slack/*, /api/documents/*, /api/jira/*)
 // Uses lazy lookup so plugins can be registered after route setup
 router.use((req: Request, res: Response, next: NextFunction) => {

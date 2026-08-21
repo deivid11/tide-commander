@@ -10,7 +10,7 @@ import { BuildingEditor } from './BuildingEditor';
 import { AreaEditor } from './AreaEditor';
 import { ConfigSection } from './ConfigSection';
 
-export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose, onOpenBuildingModal, onOpenAreaExplorer, onOpenIntegrationsModal, onOpenMonitoringModal, onOpenStatisticsModal, onOpenWorkflowEditor, onOpenTriggerManager }: ToolboxProps) {
+export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose, onOpenBuildingModal, onOpenAreaExplorer, onOpenIntegrationsModal, onOpenPluginsModal, onOpenMonitoringModal, onOpenStatisticsModal, onOpenWorkflowEditor, onOpenTriggerManager }: ToolboxProps) {
   const { t } = useTranslation(['config', 'common']);
   const areas = useAreas();
   const buildings = useBuildings();
@@ -231,7 +231,7 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
           })()}
 
           {/* Config Section */}
-          <ConfigSection config={config} onChange={onConfigChange} searchQuery={searchQuery} onOpenIntegrationsModal={onOpenIntegrationsModal} onOpenMonitoringModal={onOpenMonitoringModal} onOpenStatisticsModal={onOpenStatisticsModal} onOpenWorkflowEditor={onOpenWorkflowEditor} onOpenTriggerManager={onOpenTriggerManager} />
+          <ConfigSection config={config} onChange={onConfigChange} searchQuery={searchQuery} onOpenIntegrationsModal={onOpenIntegrationsModal} onOpenPluginsModal={onOpenPluginsModal} onOpenMonitoringModal={onOpenMonitoringModal} onOpenStatisticsModal={onOpenStatisticsModal} onOpenWorkflowEditor={onOpenWorkflowEditor} onOpenTriggerManager={onOpenTriggerManager} />
         </div>
       </aside>
     </>

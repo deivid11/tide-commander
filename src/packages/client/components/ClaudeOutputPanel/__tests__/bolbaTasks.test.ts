@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { shellTokenize, parseCurlCommand, detectBolbaTasksCall, detectTcApiCall } from '../curlParser';
-import { classifyBolbaTasksOutput, parseBolbaTextTable } from '../bolbaTasksOutput';
+import { shellTokenize, parseCurlCommand, detectTcApiCall } from '../curlParser';
+import { detectBolbaTasksCall } from '../../../plugins/bolba-tasks/bolbaCurl';
+import { classifyBolbaTasksOutput, parseBolbaTextTable } from '../../../plugins/bolba-tasks/bolbaTasksOutput';
 
 // The literal multi-line mutation pattern Bolba uses (backslash continuation +
 // `-d @-` heredoc, markdown/emoji payload).

@@ -39,10 +39,13 @@ export function SlashCommandDropdown({ items, selectedIndex, onSelect }: SlashCo
             }}
           >
             <span className="file-mention-dropdown__icon">
-              <Icon name="terminal" size={12} />
+              <Icon name={item.source === 'plugin' ? 'plug' : 'terminal'} size={12} />
             </span>
             <span className="file-mention-dropdown__name">{item.name}</span>
             <span className="file-mention-dropdown__path">{item.summary}</span>
+            {item.source === 'plugin' && (
+              <span className="slash-command-dropdown__source">{item.pluginName || 'Plugin'}</span>
+            )}
           </li>
         ))}
       </ul>

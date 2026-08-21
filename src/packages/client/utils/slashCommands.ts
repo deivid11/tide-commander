@@ -12,6 +12,8 @@
  * worse than suggesting nothing.
  */
 
+import { getPluginSlashCommands } from '../plugins/registry';
+
 export type SlashCommandProvider = 'claude' | 'codex' | 'opencode' | 'grok' | 'pi';
 
 export interface SlashCommand {
@@ -19,8 +21,11 @@ export interface SlashCommand {
   name: string;
   /** One-line description shown next to the name in the dropdown. */
   summary: string;
-  /** Providers whose CLI supports it. */
-  providers: SlashCommandProvider[];
+  /** Providers whose CLI supports it. Plugin commands omit this filter. */
+  providers?: SlashCommandProvider[];
+  source?: 'provider' | 'commander' | 'plugin';
+  pluginId?: string;
+  pluginName?: string;
 }
 
 const ALL_CLI_PROVIDERS: SlashCommandProvider[] = ['claude', 'codex', 'opencode'];
@@ -54,7 +59,29 @@ export const SLASH_COMMANDS: SlashCommand[] = [
  */
 export function getSlashCommandsForProvider(provider: string | undefined): SlashCommand[] {
   const key = (provider || 'claude') as SlashCommandProvider;
-  return SLASH_COMMANDS.filter((cmd) => cmd.providers.includes(key));
+  const builtins = SLASH_COMMANDS
+    .filter((cmd) => cmd.providers?.includes(key))
+    .map((cmd) => ({ ...cmd, source: cmd.name === '/clear' || cmd.name === '/context' || cmd.name === '/cost' ? 'commander' as const : 'provider' as const }));
+  const contributed: SlashCommand[] = [];
+  for (const command of getPluginSlashCommands()) {
+    contributed.push({
+      name: command.name,
+      summary: command.summary,
+      source: 'plugin',
+      pluginId: command.pluginId,
+      pluginName: command.pluginName,
+    });
+    for (const alias of command.aliases ?? []) {
+      contributed.push({
+        name: alias,
+        summary: `${command.summary} (alias for ${command.name})`,
+        source: 'plugin',
+        pluginId: command.pluginId,
+        pluginName: command.pluginName,
+      });
+    }
+  }
+  return [...builtins, ...contributed];
 }
 
 /**
@@ -63,8 +90,20 @@ export function getSlashCommandsForProvider(provider: string | undefined): Slash
  * same way regardless of what the agent is running right now.
  */
 export function getSlashCommandInfo(text: string): SlashCommand | null {
-  const name = text.trim().toLowerCase();
-  return SLASH_COMMANDS.find((cmd) => cmd.name === name) ?? null;
+  const name = text.trim().split(/\s+/, 1)[0].toLowerCase();
+  const builtin = SLASH_COMMANDS.find((cmd) => cmd.name === name);
+  if (builtin) return builtin;
+  const plugin = getPluginSlashCommands().find((cmd) => (
+    cmd.name === name || cmd.aliases?.includes(name)
+  ));
+  if (!plugin) return null;
+  return {
+    name,
+    summary: plugin.summary,
+    source: 'plugin',
+    pluginId: plugin.pluginId,
+    pluginName: plugin.pluginName,
+  };
 }
 
 /**

@@ -35,6 +35,7 @@ import type {
 } from '../../shared/types';
 import type { ShortcutConfig } from './shortcuts';
 import type { MouseControlsState } from './mouseControls';
+import type { PluginOutputEnvelope } from '../plugins/types';
 
 // Activity type
 export interface Activity {
@@ -71,6 +72,7 @@ export interface AgentOutput {
   reasoningEncrypted?: boolean; // Full reasoning exists only as encrypted data
   reasoningSummaryOnly?: boolean; // Visible text is a summary, not full reasoning
   isError?: boolean; // True when this entry represents an error event (rendered in red/danger styling)
+  pluginOutput?: PluginOutputEnvelope; // Structured interactive card emitted by a Commander plugin
 }
 
 // Backward-compatible alias for existing references

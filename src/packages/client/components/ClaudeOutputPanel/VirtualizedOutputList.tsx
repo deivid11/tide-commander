@@ -1232,6 +1232,13 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // the panel — keeping the clicked match visible on screen.
   useEffect(() => {
     if (searchActiveIndex !== null && searchActiveIndex !== undefined && searchActiveIndex >= 0 && searchActiveIndex < allItems.length) {
+      // Search navigation is an explicit request to READ away from the latest
+      // message. Release every bottom-follow gate before moving; otherwise the
+      // virtualizer lands on the match for one frame, then a row measurement or
+      // resize observer sees the old sticky latch and snaps straight back down.
+      stickyBottomRef.current = false;
+      onPinCancel?.();
+      onUserScroll?.();
       isProgrammaticScrollRef.current = true;
       virtualizer.scrollToIndex(searchActiveIndex, { align: 'center' });
 
@@ -1260,7 +1267,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
         clearTimeout(timer);
       };
     }
-  }, [searchActiveIndex, virtualizer, allItems.length, searchPanelHeight, scrollContainerRef]);
+  }, [searchActiveIndex, virtualizer, allItems.length, searchPanelHeight, scrollContainerRef, onPinCancel, onUserScroll]);
 
   // Cover the paths that never fire a scroll event: initial mount of a
   // conversation shorter than the viewport, and content growing/measuring

@@ -89,6 +89,7 @@ interface ConfigSectionProps {
   onChange: (config: SceneConfig) => void;
   searchQuery?: string;
   onOpenIntegrationsModal?: (integrationId?: string) => void;
+  onOpenPluginsModal?: () => void;
   onOpenMonitoringModal?: () => void;
   onOpenStatisticsModal?: () => void;
   onOpenWorkflowEditor?: () => void;
@@ -242,6 +243,7 @@ function HighlightText({ text, query }: { text: string; query: string }) {
 
 // Define searchable settings configuration (English keywords for search matching)
 const SETTINGS_SECTIONS = [
+  { id: 'plugins', title: 'Plugins', keywords: ['plugin', 'plugins', 'extensions', 'install', 'enable', 'disable', 'trusted', 'local', 'slash commands', 'sidebar', 'modal', 'renderer'] },
   { id: 'general', title: 'General', keywords: ['history', 'hide costs', 'grid', 'fps', 'power saving', 'low power', 'battery', 'bajo consumo', 'performance', 'limit', 'editor', 'external editor', 'language', 'idioma', '语言', 'vibration', 'haptic', 'intensity', 'tab title', 'tmux', 'process persistence', 'interactive', 'tui', 'terminal', 'experimental', 'claude', 'stream', 'streaming', 'word by word', 'live text', 'grok', 'codex', 'app-server', 'app server', 'opencode', 'serve', 'pi', 'rpc', 'steer', 'steering', 'mid-turn', 'mid turn', 'hover', 'preview', 'tooltip', 'ctrl', 'popup', 'vista previa', 'sound', 'sounds', 'sonido', 'sonidos', 'notification', 'notifications', 'notificacion', 'notificaciones', 'volume', 'volumen', 'tone', 'tones', 'tono', 'chime', 'alert', 'cue', 'audio', 'mute', 'silence', 'dock', 'activity', 'recent', 'notification sound', 'silenciar', 'custom sound', 'upload sound', 'alerta', 'file search', 'excluded folders', 'node_modules', 'vendor', 'git', 'spotlight', 'ignore'] },
   { id: 'agentNames', title: 'Agent Names', keywords: ['agent', 'names', 'custom', 'characters', 'rename'] },
   { id: 'defaultClass', title: 'Default Spawn Class', keywords: ['default', 'class', 'spawn', 'agent', 'scout', 'builder', 'random'] },
@@ -257,7 +259,7 @@ const SETTINGS_SECTIONS = [
   { id: 'codexAccounts', title: 'Codex Accounts', keywords: ['codex', 'openai', 'chatgpt', 'accounts', 'credentials', 'oauth', 'session', 'profile', 'switch account', 'subscription'] },
   { id: 'systemPrompt', title: 'System Prompt', keywords: ['system', 'prompt', 'global', 'instructions', 'ai', 'agent', 'rules', 'guidelines'] },
   { id: 'data', title: 'Data', keywords: ['export', 'import', 'backup', 'restore', 'save', 'load', 'json'] },
-  { id: 'integrations', title: 'Integrations', keywords: ['integrations', 'integraciones', 'plugins', 'gmail', 'slack', 'jira', 'calendar', 'docx', 'email', 'whatsapp', 'notifications', 'notification', 'baileys', 'history', 'historial', 'chat', 'messages', 'inbox', 'config', 'setup'] },
+  { id: 'integrations', title: 'Integrations', keywords: ['integrations', 'integraciones', 'gmail', 'slack', 'jira', 'calendar', 'docx', 'email', 'whatsapp', 'notifications', 'notification', 'baileys', 'history', 'historial', 'chat', 'messages', 'inbox', 'config', 'setup'] },
   { id: 'workflows', title: 'Workflows', keywords: ['workflow', 'automation', 'state machine', 'editor', 'actions', 'transitions', 'pipeline'] },
   { id: 'triggers', title: 'Triggers', keywords: ['trigger', 'event', 'webhook', 'cron', 'slack', 'email', 'jira', 'matching', 'fire'] },
   { id: 'monitoring', title: 'Monitoring', keywords: ['monitoring', 'logs', 'triggers', 'events', 'history', 'workflow', 'traces', 'audit', 'timeline'] },
@@ -280,7 +282,7 @@ const LANGUAGE_OPTIONS: { value: string; label: string; icon: string }[] = [
   { value: 'it', label: 'Italiano', icon: '🇮🇹' },
 ];
 
-export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegrationsModal, onOpenMonitoringModal, onOpenStatisticsModal, onOpenWorkflowEditor, onOpenTriggerManager }: ConfigSectionProps) {
+export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegrationsModal, onOpenPluginsModal, onOpenMonitoringModal, onOpenStatisticsModal, onOpenWorkflowEditor, onOpenTriggerManager }: ConfigSectionProps) {
   const { t } = useTranslation(['config', 'common']);
   const settings = useSettings();
   const customClasses = useCustomAgentClassesArray();
@@ -449,7 +451,6 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
     return matchingSections.includes(sectionId);
   };
 
-  const anyIntegrationsMatch = shouldShowSection('integrations');
 
   const customAgentNames = settings.customAgentNames || [];
   const effectiveNames = customAgentNames.length > 0 ? customAgentNames : BUILTIN_AGENT_NAMES;
@@ -577,6 +578,17 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         <div className="config-no-results">
           {t('config:noResults', { query: searchQuery })}
         </div>
+      )}
+
+      {shouldShowSection('plugins') && (
+      <CollapsibleSection title="Plugins" storageKey="plugins" defaultOpen={true} forceOpen={isSearching && shouldShowSection('plugins')}>
+        <div className="config-row config-row--plugins">
+          <span className="config-label"><HighlightText text="Install, enable, and disable trusted local UI plugins" query={searchQuery} /></span>
+          <button className="config-button" onClick={() => onOpenPluginsModal?.()}>
+            Manage Plugins
+          </button>
+        </div>
+      </CollapsibleSection>
       )}
 
       {shouldShowSection('general') && (
@@ -1191,8 +1203,8 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       </CollapsibleSection>
       )}
 
-      {anyIntegrationsMatch && (
-      <CollapsibleSection title={t('config:sections.integrations')} storageKey="integrations" defaultOpen={false} forceOpen={isSearching && anyIntegrationsMatch}>
+      {shouldShowSection('integrations') && (
+      <CollapsibleSection title={t('config:sections.integrations')} storageKey="integrations" defaultOpen={false} forceOpen={isSearching && shouldShowSection('integrations')}>
         <IntegrationStatusPanel
           onOpenModal={(id) => {
             if (id === 'whatsapp') {

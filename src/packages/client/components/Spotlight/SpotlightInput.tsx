@@ -11,16 +11,18 @@ interface SpotlightInputProps {
   onQueryChange: (value: string) => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
   onResetSelection: () => void;
+  commandMode?: boolean;
+  executingCommand?: boolean;
 }
 
 export const SpotlightInput = forwardRef<HTMLInputElement, SpotlightInputProps>(function SpotlightInput(
-  { query, onQueryChange, onKeyDown, onResetSelection },
+  { query, onQueryChange, onKeyDown, onResetSelection, commandMode = false, executingCommand = false },
   ref
 ) {
   const { t } = useTranslation(['common']);
   return (
-    <div className="spotlight-input-wrapper">
-      <span className="spotlight-search-icon">⌘</span>
+    <div className={`spotlight-input-wrapper${commandMode ? ' is-command-mode' : ''}`}>
+      <span className="spotlight-search-icon">{commandMode ? '›_' : '⌘'}</span>
       <input
         ref={ref}
         type="text"
@@ -34,6 +36,8 @@ export const SpotlightInput = forwardRef<HTMLInputElement, SpotlightInputProps>(
         onKeyDown={onKeyDown}
         autoFocus
         spellCheck={false}
+        disabled={executingCommand}
+        aria-label={commandMode ? 'Plugin command' : undefined}
       />
       <div className="spotlight-input-hints">
         <span className="spotlight-shortcut-hint">↑↓</span>

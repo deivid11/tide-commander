@@ -1,0 +1,349 @@
+@use '../../styles/variables' as *;
+
+// =============================================================================
+// Specialized variant: Bolba tasks board (bolba-tasks service, 127.0.0.1:7492)
+// Branded header — plant · "Bolba" · method · verb · #id — plus a rich inline
+// result: task rows with proj/status/due pills, close warnings, 409 duplicate
+// candidates, board table parsing.
+// =============================================================================
+.curl-card.curl-card--bolba {
+  $bolba-accent: #86d97c;
+
+  border-left: 3px solid color-mix(in srgb, $bolba-accent 60%, transparent);
+
+  .bolba-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 8px;
+    min-height: 24px;
+    min-width: 0;
+  }
+
+  .bolba-brand-icon {
+    flex-shrink: 0;
+    color: $bolba-accent;
+    line-height: 1;
+  }
+
+  .bolba-brand {
+    flex-shrink: 0;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: color-mix(in srgb, $bolba-accent 85%, var(--tool-use-text));
+  }
+
+  .bolba-verb {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--tool-use-text);
+    padding: 1px 6px;
+    border-radius: $radius-sm;
+    background: color-mix(in srgb, $bolba-accent 16%, transparent);
+  }
+
+  .bolba-task-id {
+    flex-shrink: 0;
+    font-family: $font-mono;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: $bolba-accent;
+  }
+
+  .bolba-detail {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10.5px;
+    opacity: 0.8;
+  }
+
+  .tc-api-spacer {
+    flex: 1 1 auto;
+    min-width: 4px;
+  }
+
+  .bolba-actor {
+    flex-shrink: 0;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    padding: 0 5px;
+    line-height: 15px;
+    border-radius: $radius-sm;
+    color: #e5b567;
+    border: 1px solid color-mix(in srgb, #e5b567 45%, transparent);
+  }
+
+  .bolba-warn-count {
+    flex-shrink: 0;
+    font-size: 9.5px;
+    font-weight: 700;
+    color: #e5b567;
+  }
+
+  .bolba-count {
+    flex-shrink: 0;
+    font-size: 9.5px;
+    font-weight: 700;
+    color: $bolba-accent;
+    border: 1px solid color-mix(in srgb, $bolba-accent 45%, transparent);
+    border-radius: $radius-sm;
+    padding: 0 5px;
+    line-height: 15px;
+  }
+
+  .bolba-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 2px 8px 6px;
+  }
+
+  .bolba-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    min-height: 18px;
+  }
+
+  .bolba-row-id {
+    flex-shrink: 0;
+    font-family: $font-mono;
+    font-size: 10px;
+    opacity: 0.6;
+    min-width: 34px;
+  }
+
+  .bolba-proj {
+    flex-shrink: 0;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    padding: 0 5px;
+    line-height: 14px;
+    border-radius: $radius-sm;
+    color: color-mix(in srgb, var(--tool-use-text) 80%, transparent);
+    background: color-mix(in srgb, var(--tool-use-border) 45%, transparent);
+  }
+
+  .bolba-status {
+    flex-shrink: 0;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    padding: 0 4px;
+    line-height: 14px;
+    border-radius: $radius-sm;
+    color: color-mix(in srgb, var(--tool-use-text) 70%, transparent);
+    background: color-mix(in srgb, var(--tool-use-border) 40%, transparent);
+
+    &.bolba-status--open {
+      color: #6bcb77;
+      background: color-mix(in srgb, #6bcb77 14%, transparent);
+    }
+
+    &.bolba-status--waiting {
+      color: #e5b567;
+      background: color-mix(in srgb, #e5b567 14%, transparent);
+    }
+
+    &.bolba-status--done {
+      color: #7fd3a7;
+      background: color-mix(in srgb, #7fd3a7 10%, transparent);
+    }
+
+    &.bolba-status--delegated {
+      color: #b48ee0;
+      background: color-mix(in srgb, #b48ee0 14%, transparent);
+    }
+
+    &.bolba-status--discarded {
+      color: color-mix(in srgb, var(--tool-use-text) 50%, transparent);
+    }
+  }
+
+  .bolba-due {
+    flex-shrink: 0;
+    font-family: $font-mono;
+    font-size: 9.5px;
+    opacity: 0.7;
+
+    &.bolba-due--today {
+      color: #e5b567;
+      opacity: 1;
+    }
+
+    &.bolba-due--overdue {
+      color: #f87171;
+      opacity: 1;
+    }
+  }
+
+  .bolba-row-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    color: var(--tool-use-text);
+  }
+
+  .bolba-similarity {
+    flex-shrink: 0;
+    font-family: $font-mono;
+    font-size: 9.5px;
+    font-weight: 700;
+    color: #e5b567;
+  }
+
+  .bolba-meta-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    min-width: 0;
+    padding-left: 40px;
+  }
+
+  .bolba-meta {
+    font-size: 9.5px;
+    opacity: 0.7;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    &.bolba-meta--event {
+      flex: 0 1 auto;
+      min-width: 0;
+      font-style: italic;
+    }
+
+    &.bolba-due--overdue {
+      color: #f87171;
+      opacity: 1;
+    }
+  }
+
+  .bolba-note {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 9.5px;
+    opacity: 0.7;
+    min-width: 0;
+
+    span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .bolba-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    font-size: 10px;
+    color: #e5b567;
+    min-width: 0;
+
+    svg {
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    &.bolba-warning--dup {
+      font-weight: 600;
+    }
+  }
+
+  .bolba-error {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10.5px;
+    color: #f87171;
+    min-width: 0;
+
+    span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: normal;
+      word-break: break-word;
+    }
+  }
+
+  .tc-api-result-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px 6px;
+    color: #7fd3a7;
+
+    code {
+      font-family: $font-mono;
+      font-size: 11px;
+      color: var(--tool-use-text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+  }
+
+  .tc-api-text-pre {
+    margin: 0;
+    padding: 2px 8px 4px;
+    font-family: $font-mono;
+    font-size: 10.5px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: color-mix(in srgb, var(--tool-use-text) 90%, transparent);
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .tc-api-more-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 8px 6px;
+    padding: 1px 7px;
+    font-size: 9.5px;
+    font-weight: 700;
+    font-family: inherit;
+    color: $bolba-accent;
+    background: transparent;
+    border: 1px solid color-mix(in srgb, $bolba-accent 35%, transparent);
+    border-radius: $radius-sm;
+    cursor: pointer;
+
+    &:hover {
+      background: color-mix(in srgb, $bolba-accent 12%, transparent);
+    }
+  }
+
+  .tc-api-truncation-note {
+    padding: 0 8px 6px;
+    font-size: 9.5px;
+    opacity: 0.6;
+  }
+
+  .curl-body-row {
+    padding: 0 8px 8px;
+  }
+}

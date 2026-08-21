@@ -25,6 +25,7 @@ import { QueuedMessagesBar } from './QueuedMessagesBar';
 import { apiUrl, authFetch } from '../../utils/storage';
 import { getDisplayContextInfo } from '../../utils/context';
 import { resolveElapsedTimerStartedAt } from './elapsedTimer';
+import { usePluginRegistryRevision } from '../../plugins/hooks';
 
 /**
  * Isolated elapsed timer component — owns its own 1-second setInterval so the
@@ -267,6 +268,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   onSwipeClose,
 }: TerminalInputAreaProps) {
   const { t } = useTranslation(['terminal', 'common']);
+  const pluginRegistryRevision = usePluginRegistryRevision();
 
   // Use external refs if provided, otherwise create internal ones
   const internalInputRef = useRef<HTMLInputElement>(null);
@@ -687,7 +689,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   const slashMatches: SlashCommand[] = useMemo(() => {
     if (slashDismissed) return [];
     return matchSlashCommands(command, selectedAgent?.provider) ?? [];
-  }, [command, selectedAgent?.provider, slashDismissed]);
+  }, [command, selectedAgent?.provider, slashDismissed, pluginRegistryRevision]);
   const slashActive = slashMatches.length > 0;
 
   // Keep the highlight in range as the list narrows while typing.

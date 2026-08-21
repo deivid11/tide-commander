@@ -34,6 +34,7 @@ import { HttpRunInline, HttpRunLookup, matchHttpRunHandle } from './HttpRunInlin
 import { renderContentWithImages, renderUserPromptContent, isThumbnailableImagePath, getLocalFileImageUrl, getImagePreviewUrl } from './contentRendering';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
+import { exportMarkdownElementToPdf } from '../../utils/markdown-pdf';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { useTTS } from '../../hooks/useTTS';
 import { Icon, type IconName } from '../Icon';
@@ -48,6 +49,7 @@ import { ProviderIcon } from '../ProviderIcon';
 import { ThinkingBlock } from './ThinkingBlock';
 import { GrepResultsModal } from './GrepResultsModal';
 import { ActivityGlyph } from '../shared/ActivityGlyph';
+import { PluginOutputHost } from '../../plugins/PluginOutputHost';
 
 /** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
 function getExtFromPath(filePath: string): string {
@@ -366,6 +368,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   const { toggle: toggleTTS, speaking } = useTTS();
   const markdownContentRef = useRef<HTMLDivElement>(null);
   const [copyRichStatus, setCopyRichStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [pdfStatus, setPdfStatus] = useState<'idle' | 'working' | 'error'>('idle');
   const handleCopyRichText = useCallback(async () => {
     if (!markdownContentRef.current) return;
     try {
@@ -379,12 +382,59 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       setTimeout(() => setCopyRichStatus('idle'), 2000);
     }
   }, []);
+  const handleExportPdf = useCallback(async () => {
+    if (!markdownContentRef.current || pdfStatus === 'working') return;
+    setPdfStatus('working');
+    try {
+      const name = currentAgent?.name || 'Agent';
+      const stamp = new Date(timestamp || Date.now()).toISOString().slice(0, 19);
+      await exportMarkdownElementToPdf(
+        markdownContentRef.current,
+        `${name} response`,
+        `${name}-response-${stamp}`,
+      );
+      setPdfStatus('idle');
+    } catch (err) {
+      console.error('Message PDF export failed:', err);
+      setPdfStatus('error');
+      setTimeout(() => setPdfStatus('idle'), 2500);
+    }
+  }, [currentAgent?.name, pdfStatus, timestamp]);
 
   // Format timestamp for display
   const timeStr = formatTimestamp(timestamp || Date.now());
 
   // Debug hash for identifying duplicates
   const debugHash = getDebugHash(output);
+
+  // Structured UI emitted by a Commander plugin. This never reaches the LLM;
+  // the plugin command handler sends a typed card directly into Guake.
+  if (output.pluginOutput && agentId) {
+    const pluginOutput = output.pluginOutput;
+    return (
+      <div className="plugin-guake-widget">
+        <button
+          type="button"
+          className="plugin-guake-widget__dismiss"
+          onClick={() => store.dismissPluginOutput(agentId, pluginOutput.instanceId)}
+          aria-label={`Dismiss ${pluginOutput.title || pluginOutput.pluginId} widget`}
+          title="Dismiss widget"
+        >
+          <Icon name="close" size={11} />
+        </button>
+        <PluginOutputHost output={pluginOutput} agentId={agentId} />
+        <button
+          type="button"
+          className="plugin-guake-widget__dismiss plugin-guake-widget__dismiss--bottom"
+          onClick={() => store.dismissPluginOutput(agentId, pluginOutput.instanceId)}
+          aria-label={`Dismiss ${pluginOutput.title || pluginOutput.pluginId} widget`}
+          title="Dismiss widget"
+        >
+          <Icon name="close" size={11} />
+        </button>
+      </div>
+    );
+  }
 
   // Handle skill update notifications with special rendering
   if (skillUpdate) {
@@ -442,8 +492,9 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         <div className="output-line output-slash-command">
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           <span className="output-slash-chip">
-            <span className="output-slash-chip__icon"><Icon name="terminal" size={12} /></span>
+            <span className="output-slash-chip__icon"><Icon name={slashCommand.source === 'plugin' ? 'plug' : 'terminal'} size={12} /></span>
             <span className="output-slash-chip__name">{slashCommand.name}</span>
+            {slashCommand.source === 'plugin' && <span className="output-slash-chip__source">{slashCommand.pluginName || 'Plugin'}</span>}
           </span>
           <span className="output-slash-summary">{slashCommand.summary}</span>
         </div>
@@ -1927,6 +1978,16 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 <Icon name="file-text" size={14} />
               </button>
             )}
+            {onViewMarkdown && (
+              <button
+                className={`history-view-md-btn history-export-pdf-btn ${pdfStatus}`}
+                onClick={(e) => { e.stopPropagation(); void handleExportPdf(); }}
+                disabled={pdfStatus === 'working'}
+                title="Export as PDF"
+              >
+                <Icon name={pdfStatus === 'error' ? 'cross' : 'download'} size={14} />
+              </button>
+            )}
             <button
               className="history-view-md-btn"
               onClick={(e) => { e.stopPropagation(); handleCopyRichText(); }}
@@ -2054,6 +2115,16 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               title="View as Markdown"
             >
               <Icon name="file-text" size={14} />
+            </button>
+          )}
+          {onViewMarkdown && (
+            <button
+              className={`history-view-md-btn history-export-pdf-btn ${pdfStatus}`}
+              onClick={(e) => { e.stopPropagation(); void handleExportPdf(); }}
+              disabled={pdfStatus === 'working'}
+              title="Export as PDF"
+            >
+              <Icon name={pdfStatus === 'error' ? 'cross' : 'download'} size={14} />
             </button>
           )}
           <button

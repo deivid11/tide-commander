@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { PiBackend } from './backend.js';
+import { markInstructionsDirty } from '../services/instruction-refresh.js';
+import { buildPiPrompt, PiBackend } from './backend.js';
 
 describe('PiBackend.buildArgs', () => {
   it('builds a fresh headless run with the prompt as the final argv', () => {
@@ -75,6 +76,27 @@ describe('PiBackend.buildArgs', () => {
       prompt: 'think harder',
     });
     expect(maxArgs[maxArgs.indexOf('--thinking') + 1]).toBe('xhigh');
+  });
+
+  it('re-injects updated skills once when a resumed session is marked dirty', () => {
+    const config = {
+      agentId: 'pi-skill-refresh-test',
+      workingDir: '/tmp/project',
+      sessionId: 'existing-session',
+      prompt: 'use the newly assigned capability',
+      customAgent: {
+        name: 'portable',
+        definition: {
+          description: 'test',
+          prompt: '## Skill: Google Drive\nUpload files with the Drive integration.',
+        },
+      },
+    };
+
+    expect(buildPiPrompt(config)).not.toContain('## Skill: Google Drive');
+    markInstructionsDirty(config.agentId);
+    expect(buildPiPrompt(config)).toContain('## Skill: Google Drive');
+    expect(buildPiPrompt(config)).not.toContain('## Skill: Google Drive');
   });
 
   it('extracts the session id only from the session header event', () => {

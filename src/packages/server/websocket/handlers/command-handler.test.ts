@@ -67,6 +67,7 @@ vi.mock('../../auth/index.js', () => ({
 
 // Import mocked services to set return values
 import { agentService, runtimeService, skillService, customClassService } from '../../services/index.js';
+import { pluginManager } from '../../plugins/index.js';
 
 describe('Command Handler', () => {
   beforeEach(() => {
@@ -199,6 +200,40 @@ describe('Command Handler', () => {
         type: 'command_started',
         payload: expect.objectContaining({ agentId: 'agent-1', command: cmd }),
       }));
+    });
+
+    it('intercepts an enabled plugin slash command and broadcasts structured output', async () => {
+      mockCtx.broadcast.mockClear();
+      vi.mocked(agentService.getAgent).mockReturnValue({
+        id: 'agent-1', name: 'Agent1', class: 'default', status: 'idle', provider: 'claude',
+      } as any);
+      const matched = {
+        pluginId: 'test-plugin',
+        invokedAs: '/tasks',
+        command: { name: '/show-tasks', aliases: ['/tasks'], summary: 'Tasks' },
+      };
+      vi.spyOn(pluginManager, 'matchSlashCommand').mockReturnValueOnce(matched);
+      vi.spyOn(pluginManager, 'executeSlashCommand').mockResolvedValueOnce({
+        pluginId: 'test-plugin',
+        rendererId: 'task-list',
+        instanceId: 'output-1',
+        data: { kind: 'task-list', items: [] },
+      });
+
+      await handleSendCommand(mockCtx, { agentId: 'agent-1', command: '/tasks' }, mockBuildBossMessage);
+
+      expect(mockCtx.broadcast).toHaveBeenNthCalledWith(1, {
+        type: 'command_started',
+        payload: { agentId: 'agent-1', command: '/tasks' },
+      });
+      expect(mockCtx.broadcast).toHaveBeenNthCalledWith(2, {
+        type: 'plugin_output',
+        payload: {
+          agentId: 'agent-1',
+          output: expect.objectContaining({ pluginId: 'test-plugin', instanceId: 'output-1' }),
+        },
+      });
+      expect(runtimeService.sendCommand).not.toHaveBeenCalled();
     });
 
     it('does not double-echo a command that reaches the runner', async () => {

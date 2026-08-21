@@ -88,6 +88,10 @@ import { loadConfig, saveConfig } from './app/sceneConfig';
 import { buildContextMenuActions, applyOrganizeResult } from './app/contextMenuActions';
 import { organizeAllAreas } from './api/area-layout';
 import TerminalEmbed from './components/TerminalEmbed';
+import { usePluginSidebarViews } from './plugins/hooks';
+import { PluginMountSurface } from './plugins/PluginMountSurface';
+import { PluginModalHost } from './plugins/PluginModalHost';
+import { PluginCommandShortcutHost } from './plugins/PluginCommandShortcutHost';
 
 // Import scene lifecycle to ensure it initializes
 import './app/sceneLifecycle';
@@ -121,6 +125,7 @@ function AppContent() {
   const sessionFinderModal = useModalState<SessionFinderOpenData>();
   const controlsModal = useModalState();
   const skillsModal = useModalState();
+  const pluginsModal = useModalState();
   const integrationsModal = useModalState<string | undefined>();
   const monitoringModal = useModalState();
   const statisticsModal = useModalState();
@@ -181,10 +186,17 @@ function AppContent() {
     const saved = localStorage.getItem('tide-commander-sidebar-collapsed');
     return saved === 'true';
   });
-  const [sidebarView, setSidebarView] = useState<'agents' | 'tracking'>(() => {
-    const saved = localStorage.getItem('tide-commander-sidebar-view');
-    return saved === 'tracking' ? 'tracking' : 'agents';
+  const [sidebarView, setSidebarView] = useState<string>(() => {
+    return localStorage.getItem('tide-commander-sidebar-view') || 'agents';
   });
+  const pluginSidebarViews = usePluginSidebarViews();
+  const activePluginSidebarView = pluginSidebarViews.find((view) => `plugin:${view.pluginId}:${view.id}` === sidebarView);
+  useEffect(() => {
+    if (sidebarView.startsWith('plugin:') && !activePluginSidebarView) {
+      setSidebarView('agents');
+      localStorage.setItem('tide-commander-sidebar-view', 'agents');
+    }
+  }, [activePluginSidebarView, sidebarView]);
   // Track if sidebar was revealed by hover (should auto-hide on mouse leave)
   const [sidebarRevealedByHover, setSidebarRevealedByHover] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -449,6 +461,7 @@ function AppContent() {
   useModalStackRegistration('session-finder-modal', sessionFinderModal.isOpen, sessionFinderModal.close);
   useModalStackRegistration('controls-modal', controlsModal.isOpen, controlsModal.close);
   useModalStackRegistration('skills-modal', skillsModal.isOpen, skillsModal.close);
+  useModalStackRegistration('plugins-modal', pluginsModal.isOpen, pluginsModal.close);
   useModalStackRegistration('integrations-modal', integrationsModal.isOpen, integrationsModal.close);
   useModalStackRegistration('monitoring-modal', monitoringModal.isOpen, monitoringModal.close);
   useModalStackRegistration('statistics-modal', statisticsModal.isOpen, statisticsModal.close);
@@ -1304,12 +1317,40 @@ function AppContent() {
               <span className="sidebar-view-toggle-icon"><Icon name="list" size={14} /></span>
               {t('common:sidebar.trackingBoard', { defaultValue: 'Tracking Board' })}
             </button>
+            {pluginSidebarViews.map((view) => {
+              const key = `plugin:${view.pluginId}:${view.id}`;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={sidebarView === key}
+                  className={`sidebar-view-toggle-btn sidebar-view-toggle-btn--plugin${sidebarView === key ? ' active' : ''}`}
+                  onClick={() => {
+                    setSidebarView(key);
+                    localStorage.setItem('tide-commander-sidebar-view', key);
+                  }}
+                  title={view.title}
+                >
+                  <span className="sidebar-view-toggle-icon">
+                    <Icon name={(view.icon || 'plug') as React.ComponentProps<typeof Icon>['name']} size={14} />
+                  </span>
+                  {view.title}
+                </button>
+              );
+            })}
           </div>
           {sidebarView === 'tracking' ? (
             <div className="sidebar-section sidebar-tracking-section">
               <div className="sidebar-tracking-body">
                 <SelectionAwareTrackingBoard onSelectAgent={handleTrackingBoardSelectAgent} />
               </div>
+            </div>
+          ) : activePluginSidebarView ? (
+            <div className="sidebar-section sidebar-plugin-section" data-plugin-id={activePluginSidebarView.pluginId}>
+              {activePluginSidebarView.component
+                ? React.createElement(activePluginSidebarView.component, { pluginId: activePluginSidebarView.pluginId })
+                : <PluginMountSurface view={activePluginSidebarView} />}
             </div>
           ) : (
             <div className="sidebar-section unit-section">
@@ -1618,6 +1659,7 @@ function AppContent() {
         sessionFinderModal={sessionFinderModal}
         controlsModal={controlsModal}
         skillsModal={skillsModal}
+        pluginsModal={pluginsModal}
         integrationsModal={integrationsModal}
         monitoringModal={monitoringModal}
         statisticsModal={statisticsModal}
@@ -1652,6 +1694,8 @@ function AppContent() {
           sceneRef.current?.syncAgents(Array.from(store.getState().agents.values()));
         }}
       />
+      <PluginCommandShortcutHost />
+      <PluginModalHost />
     </div>
   );
 }

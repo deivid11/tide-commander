@@ -1,0 +1,280 @@
+@use '../variables' as *;
+
+// Plugin slash-command mode
+.spotlight-input-wrapper.is-command-mode {
+  border-bottom-color: color-mix(in srgb, var(--accent-green) 45%, var(--border-color));
+  background: linear-gradient(120deg, color-mix(in srgb, var(--accent-green) 10%, var(--bg-secondary)), var(--bg-secondary));
+
+  .spotlight-search-icon {
+    color: var(--accent-green);
+    opacity: 1;
+    width: 24px;
+    font-family: $font-mono;
+    font-weight: 700;
+  }
+}
+
+.spotlight-command-results {
+  min-height: 230px;
+  padding: 10px;
+}
+
+.spotlight-command-mode-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 9px;
+  padding: 9px 11px;
+  color: var(--text-secondary);
+  border: 1px solid color-mix(in srgb, var(--accent-green) 24%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent-green) 7%, transparent);
+
+  .spotlight-command-mode-icon {
+    display: grid;
+    place-items: center;
+    width: 27px;
+    height: 27px;
+    color: var(--accent-green);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--accent-green) 13%, transparent);
+  }
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  strong {
+    color: var(--accent-green);
+    font-size: 11px;
+  }
+
+  span:last-child {
+    color: var(--text-muted);
+    font-size: 9px;
+  }
+}
+
+.spotlight-command-item {
+  width: 100%;
+  min-height: 55px;
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  text-align: left;
+  font-family: inherit;
+
+  &.selected {
+    border-color: color-mix(in srgb, var(--accent-green) 32%, transparent);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--accent-green) 12%, transparent), color-mix(in srgb, var(--accent-blue) 8%, transparent));
+  }
+
+  &:disabled {
+    cursor: wait;
+  }
+}
+
+.spotlight-command-item-icon {
+  color: var(--accent-green);
+}
+
+.spotlight-command-name {
+  color: var(--accent-cyan);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.spotlight-command-alias,
+.spotlight-command-plugin-badge {
+  padding: 2px 6px;
+  color: var(--text-muted);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 20%, transparent);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.16);
+  font-family: $font-mono;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.spotlight-command-plugin-badge {
+  margin-left: auto;
+  color: var(--accent-purple);
+  border-color: color-mix(in srgb, var(--accent-purple) 28%, transparent);
+}
+
+.spotlight-command-enter {
+  margin-left: 7px;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.spotlight-command-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-bottom: 8px;
+  padding: 9px 11px;
+  color: var(--accent-red);
+  border: 1px solid color-mix(in srgb, var(--accent-red) 30%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent-red) 8%, transparent);
+  font-size: 10px;
+}
+
+.spotlight-command-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+
+  strong { color: var(--text-secondary); }
+  code { color: var(--accent-cyan); }
+}
+
+// Structured result modal shown after a Spotlight plugin command finishes.
+.spotlight-command-result-overlay {
+  align-items: center;
+  z-index: 10025;
+  padding: 20px;
+}
+
+.spotlight-command-result-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(900px, 94vw);
+  max-height: min(780px, 90vh);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent-green) 28%, var(--border-color));
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.72), 0 0 40px color-mix(in srgb, var(--accent-green) 6%, transparent);
+  animation: spotlight-slide-in 0.2s ease-out;
+}
+
+.spotlight-command-result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px 13px;
+  border-bottom: 1px solid var(--border-color);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--accent-green) 10%, var(--bg-secondary)), var(--bg-secondary) 60%);
+}
+
+.spotlight-command-result-heading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+
+  > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  h2 {
+    margin: 0;
+    color: var(--text-primary);
+    font-family: $font-family;
+    font-size: 15px;
+  }
+}
+
+.spotlight-command-result-icon {
+  display: grid;
+  place-items: center;
+  width: 37px;
+  height: 37px;
+  color: var(--accent-green);
+  border: 1px solid color-mix(in srgb, var(--accent-green) 28%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+}
+
+.spotlight-command-result-eyebrow {
+  color: var(--accent-green);
+  font-family: $font-mono;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.spotlight-command-result-close {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-primary);
+    border-color: var(--border-color);
+    background: rgba(255, 255, 255, 0.05);
+  }
+}
+
+.spotlight-command-result-command {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  color: var(--accent-green);
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.18);
+
+  code {
+    color: var(--accent-cyan);
+    font-size: 11px;
+  }
+}
+
+.spotlight-command-result-plugin {
+  margin-left: auto;
+  padding: 2px 7px;
+  color: var(--accent-purple);
+  border: 1px solid color-mix(in srgb, var(--accent-purple) 25%, transparent);
+  border-radius: 999px;
+  font-family: $font-mono;
+  font-size: 8px;
+}
+
+.spotlight-command-result-body {
+  min-height: 150px;
+  overflow: auto;
+  padding: 14px;
+
+  .plugin-task-card--modal {
+    border-color: color-mix(in srgb, var(--accent-green) 24%, var(--border-color));
+    background: color-mix(in srgb, var(--bg-primary) 75%, transparent);
+  }
+}
+
+.spotlight-command-result-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 18px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.12);
+  font-family: $font-mono;
+  font-size: 8px;
+
+  span { display: flex; align-items: center; gap: 5px; }
+  span:first-child { color: var(--accent-green); }
+}
+
+@media (max-width: 768px) {
+  .spotlight-command-results { padding: 7px; }
+  .spotlight-command-plugin-badge { display: none; }
+  .spotlight-command-result-overlay { padding: 8px; }
+  .spotlight-command-result-modal { width: 100%; max-height: calc(100vh - var(--mobile-bottom-stack-height, 72px) - 16px); }
+  .spotlight-command-result-footer { flex-direction: column; gap: 3px; }
+}

@@ -16,12 +16,24 @@ Use these endpoints to send and receive emails, and check for approvals via Gmai
 
 ## Send an Email
 
+### Subject encoding limitation
+
+**Always use ASCII-only text in \`subject\`.** The send endpoint currently writes the subject directly into the MIME header without RFC 2047 encoding. Non-ASCII characters can therefore arrive as mojibake (for example, \`Límites – API\` may become \`LÃƒÂ­mites Ã¢Â€Â“ API\`).
+
+Before sending or replying, convert the subject to printable ASCII:
+- Replace en/em dashes (\`–\`, \`—\`) with a normal hyphen (\`-\`).
+- Remove accents and other diacritics (\`Límites\` → \`Limites\`).
+- Avoid emoji, smart quotes, and all other non-ASCII symbols.
+- UTF-8 characters remain safe in \`body\` and \`bodyText\`; this restriction applies specifically to \`subject\`.
+
+Example: use \`Manual de usuario MDO - Limites de API\`, not \`Manual de usuario MDO – Límites de API\`.
+
 \`\`\`bash
 curl -s -X POST http://localhost:5174/api/email/send \\
   -H "Content-Type: application/json" \\
   -d '{
     "to": ["recipient@example.com"],
-    "subject": "Your Subject",
+    "subject": "Your ASCII-only subject",
     "body": "<p>HTML body here</p>",
     "bodyText": "Plain text version (optional)",
     "cc": ["cc@example.com"],

@@ -10,7 +10,7 @@
  * - Recent activity
  */
 
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import type { SpotlightProps } from './types';
 import { useSpotlightSearch } from './useSpotlightSearch';
 import { SpotlightInput } from './SpotlightInput';
@@ -18,6 +18,16 @@ import { SpotlightTabs } from './SpotlightTabs';
 import { SpotlightResults } from './SpotlightResults';
 import { SpotlightFooter } from './SpotlightFooter';
 import { SpotlightFileDetailModal, type SpotlightFileDetail } from './SpotlightFileDetailModal';
+import { SpotlightPluginCommandResults } from './SpotlightPluginCommandResults';
+import { SpotlightCommandResultModal } from './SpotlightCommandResultModal';
+import {
+  matchSpotlightPluginCommands,
+  runPluginCommand,
+  type SpotlightPluginCommand,
+} from './pluginCommands';
+import { getPluginSlashCommands } from '../../plugins/registry';
+import { usePluginRegistryRevision } from '../../plugins/hooks';
+import type { PluginOutputEnvelope } from '../../plugins/types';
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -38,7 +48,14 @@ export function Spotlight({
   const overlayRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const resultsLengthRef = useRef(0);
+  const commandModeRef = useRef(false);
+  const completeCommandRef = useRef<() => void>(() => undefined);
   const [fileDetail, setFileDetail] = useState<SpotlightFileDetail | null>(null);
+  const [commandSelectedIndex, setCommandSelectedIndex] = useState(0);
+  const [executingCommand, setExecutingCommand] = useState(false);
+  const [commandError, setCommandError] = useState<string | null>(null);
+  const [commandResult, setCommandResult] = useState<{ command: string; output: PluginOutputEnvelope } | null>(null);
+  const pluginRegistryRevision = usePluginRegistryRevision();
 
   const {
     query,
@@ -68,7 +85,37 @@ export function Spotlight({
     onOpenFileDetail: setFileDetail,
   });
 
-  resultsLengthRef.current = results.length;
+  const commandMode = query.startsWith('/');
+  const commandMatches = useMemo(
+    () => matchSpotlightPluginCommands(query, getPluginSlashCommands()),
+    // The revision is the external registry's change signal.
+    [query, pluginRegistryRevision],
+  );
+
+  const completeSelectedCommand = useCallback(() => {
+    const selected = commandMatches[commandSelectedIndex];
+    if (!selected) return;
+    const suffix = query.trim().replace(/^\S+/, '');
+    setQuery(`${selected.name}${suffix}`);
+    setCommandSelectedIndex(0);
+  }, [commandMatches, commandSelectedIndex, query, setQuery]);
+
+  const executePluginCommand = useCallback(async (selected: SpotlightPluginCommand) => {
+    setExecutingCommand(true);
+    setCommandError(null);
+    try {
+      setCommandResult(await runPluginCommand(selected, query));
+      onClose();
+    } catch (error) {
+      setCommandError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setExecutingCommand(false);
+    }
+  }, [onClose, query]);
+
+  resultsLengthRef.current = commandMode ? commandMatches.length : results.length;
+  commandModeRef.current = commandMode;
+  completeCommandRef.current = completeSelectedCommand;
 
   // Keep the latest cycleTab in a ref so the window-level keydown handler can
   // cycle tabs without re-subscribing on every render.
@@ -78,6 +125,8 @@ export function Spotlight({
   // Focus input when opening
   useEffect(() => {
     if (isOpen) {
+      setCommandResult(null);
+      setCommandError(null);
       // Focus input after a small delay to ensure modal is rendered, and select
       // the restored last query so the user can immediately type over it.
       setTimeout(() => {
@@ -139,7 +188,8 @@ export function Spotlight({
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        cycleTabRef.current(e.shiftKey ? -1 : 1);
+        if (commandModeRef.current) completeCommandRef.current();
+        else cycleTabRef.current(e.shiftKey ? -1 : 1);
         return;
       }
 
@@ -151,11 +201,12 @@ export function Spotlight({
         e.stopImmediatePropagation();
         const keyLower = e.key.toLowerCase();
         const len = resultsLengthRef.current;
-        if (keyLower === 'p') {
-          setSelectedIndex((i) => (i > 0 ? i - 1 : len - 1));
-        } else {
-          setSelectedIndex((i) => (i < len - 1 ? i + 1 : 0));
-        }
+        if (len === 0) return;
+        const update = (current: number) => keyLower === 'p'
+          ? (current > 0 ? current - 1 : len - 1)
+          : (current < len - 1 ? current + 1 : 0);
+        if (commandModeRef.current) setCommandSelectedIndex(update);
+        else setSelectedIndex(update);
         return;
       }
     };
@@ -178,12 +229,55 @@ export function Spotlight({
     [onClose]
   );
 
-  // Reset selection when query changes
+  // Reset selection when query changes.
   const handleResetSelection = useCallback(() => {
     setSelectedIndex(0);
+    setCommandSelectedIndex(0);
+    setCommandError(null);
   }, [setSelectedIndex]);
 
+  useEffect(() => {
+    if (commandSelectedIndex >= commandMatches.length) {
+      setCommandSelectedIndex(Math.max(0, commandMatches.length - 1));
+    }
+  }, [commandMatches.length, commandSelectedIndex]);
+
+  const handleInputKeyDown = useCallback((event: React.KeyboardEvent) => {
+    if (!commandMode) {
+      handleKeyDown(event);
+      return;
+    }
+    const count = commandMatches.length;
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (count === 0) return;
+      setCommandSelectedIndex((index) => event.key === 'ArrowUp'
+        ? (index > 0 ? index - 1 : count - 1)
+        : (index < count - 1 ? index + 1 : 0));
+      return;
+    }
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      completeSelectedCommand();
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const selected = commandMatches[commandSelectedIndex];
+      if (selected && !executingCommand) void executePluginCommand(selected);
+    }
+  }, [commandMatches, commandMode, commandSelectedIndex, completeSelectedCommand, executePluginCommand, executingCommand, handleKeyDown]);
+
   if (!isOpen) {
+    if (commandResult) {
+      return (
+        <SpotlightCommandResultModal
+          command={commandResult.command}
+          output={commandResult.output}
+          onClose={() => setCommandResult(null)}
+        />
+      );
+    }
     return fileDetail
       ? <SpotlightFileDetailModal detail={fileDetail} onClose={() => setFileDetail(null)} />
       : null;
@@ -196,25 +290,39 @@ export function Spotlight({
           ref={inputRef}
           query={query}
           onQueryChange={setQuery}
-          onKeyDown={handleKeyDown}
+          onKeyDown={handleInputKeyDown}
           onResetSelection={handleResetSelection}
+          commandMode={commandMode}
+          executingCommand={executingCommand}
         />
 
-        <SpotlightTabs activeTab={activeTab} onSelect={setActiveTab} />
+        {!commandMode && <SpotlightTabs activeTab={activeTab} onSelect={setActiveTab} />}
 
-        <SpotlightResults
-          ref={resultsRef}
-          results={results}
-          loadingTypes={loadingTypes}
-          selectedIndex={selectedIndex}
-          query={query}
-          activeTab={activeTab}
-          areaSections={areaSections}
-          highlightMatch={highlightMatch}
-          onSelectIndex={setSelectedIndex}
-        />
+        {commandMode ? (
+          <SpotlightPluginCommandResults
+            ref={resultsRef}
+            commands={commandMatches}
+            selectedIndex={commandSelectedIndex}
+            executing={executingCommand}
+            error={commandError}
+            onSelectIndex={setCommandSelectedIndex}
+            onExecute={(command) => void executePluginCommand(command)}
+          />
+        ) : (
+          <SpotlightResults
+            ref={resultsRef}
+            results={results}
+            loadingTypes={loadingTypes}
+            selectedIndex={selectedIndex}
+            query={query}
+            activeTab={activeTab}
+            areaSections={areaSections}
+            highlightMatch={highlightMatch}
+            onSelectIndex={setSelectedIndex}
+          />
+        )}
 
-        <SpotlightFooter />
+        <SpotlightFooter commandMode={commandMode} />
       </div>
     </div>
   );

@@ -50,6 +50,7 @@ function isSameOutputEvent(a: AgentOutput, b: AgentOutput): boolean {
     && a.reasoningEncrypted === b.reasoningEncrypted
     && a.reasoningSummaryOnly === b.reasoningSummaryOnly
     && a.isError === b.isError
+    && a.pluginOutput === b.pluginOutput
     // Grok re-emits the same "Using tool: X" uuid with empty then full toolInput.
     // Without this, the upgrade is treated as an exact resend and the merge
     // path below never runs — chips stay empty and the UI hides them forever.
@@ -116,6 +117,10 @@ export interface OutputActions {
     toolOutput: string,
     toolInput?: Record<string, unknown>,
   ): void;
+  /** Patch an existing interactive plugin card in place. */
+  updatePluginOutput(agentId: string, pluginId: string, instanceId: string, data: unknown): void;
+  /** Dismiss one plugin widget from the local Guake feed. */
+  dismissPluginOutput(agentId: string, instanceId: string): void;
   clearOutputs(agentId: string): void;
   /** Force any open isStreaming rows for this agent to settle (e.g. agent went idle). */
   settleOpenStreams(agentId: string): void;
@@ -363,6 +368,47 @@ export function createOutputActions(
         changed = true;
       });
       if (changed) scheduleNotify();
+    },
+
+    updatePluginOutput(agentId: string, pluginId: string, instanceId: string, data: unknown): void {
+      let changed = false;
+      setState((state) => {
+        const current = state.agentOutputs.get(agentId);
+        if (!current) return;
+        const index = current.findIndex((entry) => (
+          entry.pluginOutput?.pluginId === pluginId
+          && entry.pluginOutput.instanceId === instanceId
+        ));
+        if (index < 0) return;
+        const next = [...current];
+        next[index] = {
+          ...next[index],
+          pluginOutput: {
+            ...next[index].pluginOutput!,
+            data: data as NonNullable<AgentOutput['pluginOutput']>['data'],
+          },
+        };
+        const outputs = new Map(state.agentOutputs);
+        outputs.set(agentId, next);
+        state.agentOutputs = outputs;
+        changed = true;
+      });
+      if (changed) notify();
+    },
+
+    dismissPluginOutput(agentId: string, instanceId: string): void {
+      let changed = false;
+      setState((state) => {
+        const current = state.agentOutputs.get(agentId);
+        if (!current) return;
+        const next = current.filter((entry) => entry.pluginOutput?.instanceId !== instanceId);
+        if (next.length === current.length) return;
+        const outputs = new Map(state.agentOutputs);
+        outputs.set(agentId, next);
+        state.agentOutputs = outputs;
+        changed = true;
+      });
+      if (changed) notify();
     },
 
     clearOutputs(agentId: string): void {

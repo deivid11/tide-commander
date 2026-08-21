@@ -23,6 +23,7 @@ const Spotlight = React.lazy(() => import('./Spotlight').then(m => ({ default: m
 const SessionSearchModal = React.lazy(() => import('./SessionSearchModal').then(m => ({ default: m.SessionSearchModal })));
 const ControlsModal = React.lazy(() => import('./ControlsModal').then(m => ({ default: m.ControlsModal })));
 const SkillsPanel = React.lazy(() => import('./SkillsPanel').then(m => ({ default: m.SkillsPanel })));
+const PluginsPanel = React.lazy(() => import('./PluginsPanel').then(m => ({ default: m.PluginsPanel })));
 const AgentEditModal = React.lazy(() => import('./AgentEditModal').then(m => ({ default: m.AgentEditModal })));
 const RestoreArchivedAreaModal = React.lazy(() => import('./RestoreArchivedAreaModal').then(m => ({ default: m.RestoreArchivedAreaModal })));
 const IntegrationsPanel = React.lazy(() => import('./IntegrationsPanel').then(m => ({ default: m.IntegrationsPanel })));
@@ -43,6 +44,7 @@ interface AppModalsProps {
   sessionFinderModal: UseModalState<SessionFinderOpenData>;
   controlsModal: UseModalState;
   skillsModal: UseModalState;
+  pluginsModal: UseModalState;
   integrationsModal: UseModalState<string | undefined>;
   monitoringModal: UseModalState;
   statisticsModal: UseModalState;
@@ -100,6 +102,7 @@ export function AppModals({
   sessionFinderModal,
   controlsModal,
   skillsModal,
+  pluginsModal,
   integrationsModal,
   monitoringModal,
   statisticsModal,
@@ -164,6 +167,7 @@ export function AppModals({
         onOpenBuildingModal={(buildingId) => buildingModal.open(buildingId || null)}
         onOpenAreaExplorer={onOpenAreaExplorer}
         onOpenIntegrationsModal={(id) => integrationsModal.open(id)}
+        onOpenPluginsModal={() => pluginsModal.open()}
         onOpenMonitoringModal={() => monitoringModal.open()}
         onOpenStatisticsModal={() => statisticsModal.open()}
         onOpenWorkflowEditor={() => workflowEditorModal.open()}
@@ -377,6 +381,12 @@ export function AppModals({
       <SkillsPanel
         isOpen={skillsModal.isOpen}
         onClose={skillsModal.close}
+      />
+
+      {/* Trusted local Plugins */}
+      <PluginsPanel
+        isOpen={pluginsModal.isOpen}
+        onClose={pluginsModal.close}
       />
 
       {/* Integrations Modal */}

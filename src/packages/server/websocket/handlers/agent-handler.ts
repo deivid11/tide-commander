@@ -1531,6 +1531,14 @@ export async function handleUpdateAgentProperties(
       skillService.assignSkillToAgent(skillId, agentId);
     }
 
+    // Resumed stdin/RPC sessions normally omit the instruction block because it
+    // is already present in history. A reassignment changes that block, so force
+    // one fresh injection on the next turn. Without this, Pi restarts and resumes
+    // successfully but still sees the old skill list from session history.
+    if (skillsChanged && nextProvider !== 'claude') {
+      markInstructionsDirty(agentId);
+    }
+
     // If skills changed and we didn't already hot restart for model/chrome/cwd change, do it now
     // Skills are injected into the system prompt, so we need to restart to apply them
     if (skillsChanged && !modelChanged && !codexModelChanged && !opencodeModelChanged && !grokModelChanged && !piModelChanged && !providerChanged && !codexConfigChanged && !classChanged && !useChromeChanged && !cwdChanged && sessionId) {

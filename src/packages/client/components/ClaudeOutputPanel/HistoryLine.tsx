@@ -44,6 +44,7 @@ import { FileTypeIcon } from './FileTypeIcon';
 import { AgentIcon } from '../AgentIcon';
 import { BashInlineToggle, BashInlineOutput } from './BashInlineOutput';
 import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
+import { exportMarkdownElementToPdf } from '../../utils/markdown-pdf';
 import type { EnrichedHistoryMessage, EditData } from './types';
 import type { ExecTask, Subagent } from '../../../shared/types';
 import { SubagentInline } from './SubagentInline';
@@ -137,6 +138,7 @@ export const HistoryLine = memo(function HistoryLine({
   const agentCwd = agentId ? store.getState().agents.get(agentId)?.cwd : undefined;
   const markdownContentRef = useRef<HTMLSpanElement>(null);
   const [copyRichStatus, setCopyRichStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [pdfStatus, setPdfStatus] = useState<'idle' | 'working' | 'error'>('idle');
   const handleCopyRichText = useCallback(async () => {
     if (!markdownContentRef.current) return;
     try {
@@ -150,6 +152,24 @@ export const HistoryLine = memo(function HistoryLine({
       setTimeout(() => setCopyRichStatus('idle'), 2000);
     }
   }, []);
+  const handleExportPdf = useCallback(async () => {
+    if (!markdownContentRef.current || pdfStatus === 'working') return;
+    setPdfStatus('working');
+    try {
+      const name = (agentId ? store.getState().agents.get(agentId)?.name : undefined) || 'Agent';
+      const stamp = new Date(timestamp || Date.now()).toISOString().slice(0, 19);
+      await exportMarkdownElementToPdf(
+        markdownContentRef.current,
+        `${name} response`,
+        `${name}-response-${stamp}`,
+      );
+      setPdfStatus('idle');
+    } catch (err) {
+      console.error('History PDF export failed:', err);
+      setPdfStatus('error');
+      setTimeout(() => setPdfStatus('idle'), 2500);
+    }
+  }, [agentId, pdfStatus, timestamp]);
 
   // Tool attribution badge: only subagent names (from Task/Agent tool_use)
   // add information — the parent agent's own name is redundant inside its own
@@ -1978,6 +1998,16 @@ export const HistoryLine = memo(function HistoryLine({
               <Icon name="file-text" size={14} />
             </button>
           )}
+          {onViewMarkdown && (
+            <button
+              className={`history-view-md-btn history-export-pdf-btn ${pdfStatus}`}
+              onClick={(e) => { e.stopPropagation(); void handleExportPdf(); }}
+              disabled={pdfStatus === 'working'}
+              title="Export as PDF"
+            >
+              <Icon name={pdfStatus === 'error' ? 'cross' : 'download'} size={14} />
+            </button>
+          )}
           <button
             className="history-view-md-btn"
             onClick={(e) => { e.stopPropagation(); handleCopyRichText(); }}
@@ -2018,6 +2048,16 @@ export const HistoryLine = memo(function HistoryLine({
               title={t('terminal:history.viewAsMarkdown')}
             >
               <Icon name="file-text" size={14} />
+            </button>
+          )}
+          {onViewMarkdown && (
+            <button
+              className={`history-view-md-btn history-export-pdf-btn ${pdfStatus}`}
+              onClick={(e) => { e.stopPropagation(); void handleExportPdf(); }}
+              disabled={pdfStatus === 'working'}
+              title="Export as PDF"
+            >
+              <Icon name={pdfStatus === 'error' ? 'cross' : 'download'} size={14} />
             </button>
           )}
           <button

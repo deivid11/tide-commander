@@ -9,6 +9,7 @@ import { agentService, runtimeService, skillService, customClassService } from '
 import { createLogger, getCommanderBaseUrl } from '../../utils/index.js';
 import { getAuthToken } from '../../auth/index.js';
 import { handleRequestContextStats } from './agent-handler.js';
+import { pluginManager } from '../../plugins/index.js';
 import type { HandlerContext } from './types.js';
 import type { ServerMessage } from '../../../shared/types.js';
 
@@ -322,6 +323,7 @@ export async function handleSendCommand(
   }
 
   const trimmedCmd = command.trim();
+  const pluginCommand = pluginManager.matchSlashCommand(trimmedCmd);
 
   // Commands handled entirely here never reach the runner, so they'd never get
   // the usual `command_started` broadcast and the user's own command would
@@ -329,7 +331,8 @@ export async function handleSendCommand(
   // appears in history through the same path as an ordinary message.
   const isInterceptedCommand = trimmedCmd === '/context'
     || trimmedCmd === '/cost'
-    || trimmedCmd === '/clear';
+    || trimmedCmd === '/clear'
+    || pluginCommand !== null;
   if (isInterceptedCommand) {
     ctx.broadcast({
       type: 'command_started',
@@ -363,6 +366,24 @@ export async function handleSendCommand(
       contextStats: undefined, // Clear context stats since session is reset
     });
     ctx.sendActivity(agentId, 'Session cleared - new session on next command');
+    return;
+  }
+
+  // Enabled plugin slash commands are server-owned and never reach the LLM
+  // runner. Their structured output is tied to this agent's chat transcript.
+  if (pluginCommand) {
+    log.log(`Agent ${agent.name}: Intercepting plugin command ${pluginCommand.invokedAs} (${pluginCommand.pluginId})`);
+    try {
+      const output = await pluginManager.executeSlashCommand(agentId, trimmedCmd);
+      ctx.broadcast({
+        type: 'plugin_output',
+        payload: { agentId, output },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error(`Plugin command ${pluginCommand.invokedAs} failed:`, err);
+      ctx.sendActivity(agentId, `Plugin command failed: ${message}`);
+    }
     return;
   }
 

@@ -49,6 +49,7 @@ vi.mock('../../claude/session-loader.js', () => ({
 
 import { agentService, runtimeService, skillService } from '../../services/index.js';
 import { detectSessionProvider } from '../../claude/session-loader.js';
+import { consumeInstructionsDirty } from '../../services/instruction-refresh.js';
 import { handleClearContext, handleRestoreSession, handleUpdateAgentProperties } from './agent-handler.js';
 
 describe('Agent Handler', () => {
@@ -268,6 +269,39 @@ describe('Agent Handler', () => {
         piModelProvider: undefined,
       }),
     );
+  });
+
+  it('marks resumed Pi instructions dirty when direct skills are reassigned', async () => {
+    const agentId = 'agent-pi-skill-refresh';
+    // Ensure no flag leaked from another test before asserting the transition.
+    expect(consumeInstructionsDirty(agentId)).toBe(false);
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: agentId,
+      name: 'Portable',
+      provider: 'pi',
+      sessionId: 'pi-session',
+      class: 'scout',
+      permissionMode: 'bypass',
+      cwd: '/tmp/project',
+      useChrome: false,
+    } as any);
+    vi.mocked(skillService.getSkillsForAgent).mockReturnValue([{
+      id: 'old-skill',
+      assignedAgentIds: [agentId],
+    }] as any);
+    const ctx = { sendActivity: vi.fn(), sendError: vi.fn(), broadcast: vi.fn() } as any;
+
+    await handleUpdateAgentProperties(ctx, {
+      agentId,
+      updates: { skillIds: ['new-skill'] },
+    });
+
+    expect(skillService.unassignSkillFromAgent).toHaveBeenCalledWith('old-skill', agentId);
+    expect(skillService.assignSkillToAgent).toHaveBeenCalledWith('new-skill', agentId);
+    expect(runtimeService.stopAgent).toHaveBeenCalledWith(agentId);
+    expect(consumeInstructionsDirty(agentId)).toBe(true);
+    // The refresh is one-shot; later turns should not duplicate the skill block.
+    expect(consumeInstructionsDirty(agentId)).toBe(false);
   });
 
   it('clear_context preserves skill assignments (regression: skills must survive context clearing)', async () => {
