@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.209.1] - 2026-08-24
+
+### Fixed
+- Maintenance release — no user-facing code changes since v1.209.0; pipeline verification and housekeeping.
+
 ## [1.209.0] - 2026-08-24
 
 ### Added
