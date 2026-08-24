@@ -92,6 +92,7 @@ import { usePluginSidebarViews } from './plugins/hooks';
 import { PluginMountSurface } from './plugins/PluginMountSurface';
 import { PluginModalHost } from './plugins/PluginModalHost';
 import { PluginCommandShortcutHost } from './plugins/PluginCommandShortcutHost';
+import { ShellCommandExecutionHost } from './plugins/shell-commands';
 
 // Import scene lifecycle to ensure it initializes
 import './app/sceneLifecycle';
@@ -1695,6 +1696,7 @@ function AppContent() {
         }}
       />
       <PluginCommandShortcutHost />
+      <ShellCommandExecutionHost />
       <PluginModalHost />
     </div>
   );

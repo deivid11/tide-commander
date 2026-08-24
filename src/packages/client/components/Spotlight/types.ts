@@ -52,7 +52,8 @@ export interface SearchResult {
   _modifiedFiles?: string[];
   _userQueries?: string[];
   _agentId?: string; // Raw agent id (agent + session results) — recency/MRU ranking; on sessions, the live agent holding the conversation (promotes the hit to an agent row)
-  _sessionMatches?: number; // Full-text hit count of the matched conversation (session + promoted agent rows) — relevance weight in the agent ordering
+  _sessionMatches?: number; // Full-text hit count of the matched conversation (session + promoted agent rows)
+  _sessionNearbyMatches?: number; // Multi-word hits with every query token nearby — topical relevance weight
   _provider?: string; // Harness kind ('claude' | 'codex' | 'grok' | 'opencode' | 'pi') — rendered as a logo badge on agent and session rows
   _piModel?: string; // Pi's provider/model selection, used for the model-provider badge
   _piModelProvider?: string; // Pi runtime provider when the model came from Pi's configured default

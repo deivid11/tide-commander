@@ -22,6 +22,7 @@ import {
   rankSessionMatches,
   foldAccents,
   accentFoldPattern,
+  nearbyTokensPattern,
   type SearchFileCacheEntry,
 } from './session-loader.js';
 
@@ -297,6 +298,16 @@ describe('pickExtractsFromLines (multi-extract, user prompts first, role-tagged)
     expect(pickExtractsFromLines([], 'convert')).toEqual([]);
   });
 
+  it('multi-word previews prefer and center an extract containing all words nearby', () => {
+    const pluginOnly = claudeUser('the plugin needs more contrast');
+    const combined = claudeUser(`${'unrelated setup '.repeat(40)}please build a plugin de Gmail for my inbox`);
+
+    const out = pickExtractsFromLines([pluginOnly, combined], 'plugin', ['gmail', 'plugin']);
+
+    expect(out[0].text).toContain('plugin de Gmail');
+    expect(out[0].text.startsWith('…')).toBe(true);
+  });
+
   it('pickSnippetFromLines is the text of the first extract', () => {
     const lines = [claudeTool('grep convert'), claudeUser('please convert this')];
     expect(pickSnippetFromLines(lines, 'convert')).toBe(pickExtractsFromLines(lines, 'convert')[0].text);
@@ -558,13 +569,23 @@ describe('planTokenFileSearch (multi-word AND queries)', () => {
   });
 
   it('reuses an exact-query result on an unchanged file', () => {
-    const cached = entry({ query: 'jira krunner', totalMatches: 3, snippet: 'the jira board' });
+    const cached = entry({ query: 'jira krunner', totalMatches: 3, nearbyMatches: 2, snippet: 'the jira board' });
 
-    expect(planTokenFileSearch([cached], 'jira krunner', 1000, 500)).toEqual({ totalMatches: 3, snippet: 'the jira board', extracts: [{ text: 'the jira board', kind: 'raw' }] });
+    expect(planTokenFileSearch([cached], 'jira krunner', 1000, 500)).toEqual({
+      totalMatches: 3,
+      nearbyMatches: 2,
+      snippet: 'the jira board',
+      extracts: [{ text: 'the jira board', kind: 'raw' }],
+    });
   });
 
   it('zero-prunes from a contained query with no matches ("jira" absent → "jira krunner" cannot AND-match)', () => {
-    expect(planTokenFileSearch([entry({ query: 'jira', totalMatches: 0 })], 'jira krunner', 1000, 500)).toEqual({ totalMatches: 0, snippet: '', extracts: [] });
+    expect(planTokenFileSearch([entry({ query: 'jira', totalMatches: 0 })], 'jira krunner', 1000, 500)).toEqual({
+      totalMatches: 0,
+      nearbyMatches: 0,
+      snippet: '',
+      extracts: [],
+    });
   });
 
   it('does NOT reuse positive phrase refinements — different words match different lines', () => {
@@ -591,6 +612,26 @@ describe('planTokenFileSearch (multi-word AND queries)', () => {
   it('returns null without cached entries', () => {
     expect(planTokenFileSearch(undefined, 'jira krunner', 1000, 500)).toBeNull();
     expect(planTokenFileSearch([], 'jira krunner', 1000, 500)).toBeNull();
+  });
+});
+
+describe('nearbyTokensPattern', () => {
+  it('matches all words close together in any order', () => {
+    const source = nearbyTokensPattern(['gmail', 'plugin']);
+    expect(source).not.toBeNull();
+    const re = new RegExp(source!, 'i');
+
+    expect(re.test('build a Gmail plugin for the command palette')).toBe(true);
+    expect(re.test('this plugin is specifically for Gmail inboxes')).toBe(true);
+    expect(re.test(`gmail ${'x'.repeat(81)} plugin`)).toBe(false);
+  });
+
+  it('requires every word and stays accent-insensitive', () => {
+    const source = nearbyTokensPattern(['conciliacion', 'pase', 'automatica']);
+    const re = new RegExp(source!, 'i');
+
+    expect(re.test('PASE necesita conciliación automática')).toBe(true);
+    expect(re.test('PASE necesita conciliación manual')).toBe(false);
   });
 });
 
@@ -645,9 +686,10 @@ describe('accent-insensitive matching', () => {
 describe('session search ranking (relevance × recency)', () => {
   const DAY = 86_400_000;
   const now = 1_700_000_000_000;
-  const match = (sessionId: string, totalMatches: number, ageDays: number) => ({
+  const match = (sessionId: string, totalMatches: number, ageDays: number, nearbyMatches?: number) => ({
     sessionId,
     totalMatches,
+    nearbyMatches,
     lastModified: new Date(now - ageDays * DAY),
   });
   // Freeze "now" so rankSessionMatches scores against the fixtures' epoch.
@@ -666,6 +708,14 @@ describe('session search ranking (relevance × recency)', () => {
       match('one-hit-today-b', 2, 0),
       match('topical-2d-ago', 10, 2),
     ])).toEqual(['topical-2d-ago', 'one-hit-today-b', 'one-hit-today-a']);
+  });
+
+  it('puts a concentrated multi-word topic above huge unrelated token counts', () => {
+    expect(rank([
+      match('boilerplate-noise', 3941, 4, 16),
+      match('incidental-dispersed', 475, 0, 0),
+      match('gmail-plugin-topic', 136, 1, 102),
+    ])).toEqual(['gmail-plugin-topic', 'boilerplate-noise', 'incidental-dispersed']);
   });
 
   it('prefers the newer session at equal match counts (recency decay)', () => {

@@ -215,9 +215,14 @@ export function createExecTaskActions(
       setState((state) => {
         const task = state.execTasks?.get(taskId);
         if (task) {
-          task.status = success ? 'completed' : 'failed';
-          task.exitCode = exitCode;
-          task.completedAt = completedAt ?? serverNow();
+          // Replace instead of mutating so useExecTasks' shallow array selector
+          // rerenders standalone streamed widgets on completion.
+          state.execTasks!.set(taskId, {
+            ...task,
+            status: success ? 'completed' : 'failed',
+            exitCode,
+            completedAt: completedAt ?? serverNow(),
+          });
         }
       });
       notify();

@@ -1,5 +1,10 @@
 import type { PluginOutputEnvelope, RegisteredPluginSlashCommand } from '../../plugins/types';
 import { apiUrl, authFetch } from '../../utils/storage';
+import {
+  executeShellSlashCommand,
+  SHELL_COMMAND_PLUGIN_ID,
+  type ShellCommandExecutionResult,
+} from '../../plugins/shell-commands/execution';
 
 export interface SpotlightPluginCommand {
   name: string;
@@ -49,12 +54,20 @@ export function commandArguments(query: string): string[] {
   return query.trim().split(/\s+/).slice(1);
 }
 
+export type PluginCommandRunResult =
+  | { kind: 'output'; command: string; output: PluginOutputEnvelope }
+  | ShellCommandExecutionResult;
+
 export async function runPluginCommand(
   selected: SpotlightPluginCommand,
   query = selected.name,
-): Promise<{ command: string; output: PluginOutputEnvelope }> {
+  options: { agentId?: string } = {},
+): Promise<PluginCommandRunResult> {
   const args = commandArguments(query);
   const invocation = [selected.name, ...args].join(' ');
+  if (selected.pluginId === SHELL_COMMAND_PLUGIN_ID) {
+    return executeShellSlashCommand(selected.handler, query, options.agentId);
+  }
   const response = await authFetch(apiUrl(
     `/api/plugins/${encodeURIComponent(selected.pluginId)}/commands/${encodeURIComponent(selected.name.replace(/^\//, ''))}`
   ), {
@@ -67,6 +80,7 @@ export async function runPluginCommand(
       rawCommand: invocation,
       argsText: args.join(' '),
       args,
+      ...(options.agentId ? { agentId: options.agentId } : {}),
       source: 'client-command',
     }),
   });
@@ -77,7 +91,7 @@ export async function runPluginCommand(
       : `Plugin command failed (${response.status})`;
     throw new Error(message);
   }
-  return { command: invocation, output: readPluginCommandOutput(body) };
+  return { kind: 'output', command: invocation, output: readPluginCommandOutput(body) };
 }
 
 export function readPluginCommandOutput(body: unknown): PluginOutputEnvelope {

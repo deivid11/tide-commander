@@ -26,6 +26,11 @@ import { apiUrl, authFetch } from '../../utils/storage';
 import { getDisplayContextInfo } from '../../utils/context';
 import { resolveElapsedTimerStartedAt } from './elapsedTimer';
 import { usePluginRegistryRevision } from '../../plugins/hooks';
+import {
+  executeShellSlashCommand,
+  findShellSlashCommand,
+  reportShellCommandExecutionError,
+} from '../../plugins/shell-commands/execution';
 
 /**
  * Isolated elapsed timer component — owns its own 1-second setInterval so the
@@ -766,6 +771,30 @@ export const TerminalInputArea = memo(function TerminalInputArea({
       setForceTextarea(false);
       setPastedTexts(new Map());
       setAttachedFiles([]);
+      resetPastedCount();
+      return;
+    }
+
+    // Commander-managed shell slash commands execute locally through the
+    // streamed /api/exec path. They must never be forwarded to an LLM.
+    const shellSlashCommand = findShellSlashCommand(command);
+    if (shellSlashCommand) {
+      void executeShellSlashCommand(
+        shellSlashCommand.handler || shellSlashCommand.name.replace(/^\//, ''),
+        command.trim(),
+        selectedAgentId,
+      ).catch((error) => {
+        if (!(error instanceof Error) || error.message !== 'Shell command execution cancelled') {
+          reportShellCommandExecutionError(error);
+        }
+      });
+      onSendCommand?.();
+      setCommand('');
+      setForceTextarea(false);
+      setPastedTexts(new Map());
+      setAttachedFiles([]);
+      setFileMentions([]);
+      closeMention();
       resetPastedCount();
       return;
     }

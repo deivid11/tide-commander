@@ -14,6 +14,12 @@ import { findBashToolUseForExec } from '../services/bash-toolcall-registry.js';
 import { killProcessTree } from '../services/process-tree-kill.js';
 import type { ServerMessage } from '../../shared/types.js';
 import { TerminalRenderer } from '../../shared/terminal-render.js';
+import { pluginManager } from '../plugins/index.js';
+import {
+  pluginShellCommandService,
+  PluginShellCommandError,
+  shellQuote,
+} from '../services/plugin-shell-command-service.js';
 
 const log = createLogger('Exec');
 
@@ -293,23 +299,29 @@ export function killTask(taskId: string): boolean {
  * response instead — same output for the agent, live visibility for the user.
  */
 router.post('/', async (req: Request, res: Response) => {
+  let cleanupExecutionScript: (() => Promise<void>) | undefined;
+  let executionSudoPassword: Buffer | undefined;
+  let executionSudoChannel: { close: () => Promise<void> } | undefined;
+  let executionEnvOverrides: Record<string, string> = {};
   try {
-    const { agentId, command, cwd, tail, pty } = req.body;
+    const {
+      agentId,
+      cwd,
+      tail,
+      pty,
+      shellCommandId,
+      shellArgs,
+      sudoAuthorization,
+    } = req.body;
+    const directCommand = typeof req.body.command === 'string' ? req.body.command : '';
+    const isShellSlashCommand = typeof shellCommandId === 'string' && shellCommandId.length > 0;
 
-    // Validate required fields
-    if (!agentId || !command) {
-      log.error(`[Exec] Missing required fields. Body: ${JSON.stringify(req.body)}`);
-      res.status(400).json({
-        error: 'Missing required fields: agentId, command',
-        received: req.body
-      });
+    // Validate required fields. Managed slash commands resolve their saved
+    // script server-side and never send script contents or sudo passwords here.
+    if (!agentId || (!directCommand && !isShellSlashCommand)) {
+      log.error('[Exec] Missing required fields');
+      res.status(400).json({ error: 'Missing required fields: agentId and command or shellCommandId' });
       return;
-    }
-
-    log.log(`[Exec] Received exec request for agent ${agentId}`);
-    log.log(`[Exec] Command: ${command.slice(0, 100)}${command.length > 100 ? '...' : ''}`);
-    if (cwd) {
-      log.log(`[Exec] CWD: ${cwd}`);
     }
 
     // Get agent info
@@ -319,15 +331,63 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
-    // Use provided cwd or agent's cwd
-    const workingDir = cwd || agent.cwd;
+    let command = directCommand;
+    let requestedCwd = typeof cwd === 'string' ? cwd : undefined;
+    let requestedPty = pty;
+    let shellCommandDefinition: Awaited<ReturnType<typeof pluginShellCommandService.get>> | undefined;
+    let processedCommand: string;
 
-    // Replace secret placeholders in command (e.g., {{API_KEY}} -> actual value)
-    const processedCommand = secretsService.replaceSecrets(command);
+    if (isShellSlashCommand) {
+      if (pluginManager.get('shell-commands')?.enabled !== true) {
+        throw new PluginShellCommandError('Command Scripts plugin is disabled', 409, 'PLUGIN_DISABLED');
+      }
+      const args = Array.isArray(shellArgs) && shellArgs.every((argument) => typeof argument === 'string')
+        ? shellArgs as string[]
+        : [];
+      const prepared = await pluginShellCommandService.prepareExecution(
+        shellCommandId,
+        agentId,
+        args,
+        typeof sudoAuthorization === 'string' ? sudoAuthorization : undefined,
+      );
+      shellCommandDefinition = prepared.definition;
+      executionSudoPassword = prepared.sudoPassword;
+      command = prepared.invocation;
+      requestedCwd = prepared.definition.cwd;
+      requestedPty = prepared.definition.pty;
+      const script = secretsService.replaceSecrets(prepared.definition.script);
+      const materialized = await pluginShellCommandService.materializeScript(
+        script,
+        prepared.definition.runAsSudo,
+      );
+      cleanupExecutionScript = materialized.cleanup;
+      executionEnvOverrides = materialized.sudoEnv ?? {};
+      if (executionSudoPassword && materialized.sudoSocketPath) {
+        executionSudoChannel = await pluginShellCommandService.openSudoCredentialChannel(
+          materialized.sudoSocketPath,
+          executionSudoPassword,
+        );
+        // The channel now owns and zeroes this buffer on use/cleanup.
+        executionSudoPassword = undefined;
+      }
+      processedCommand = `/bin/bash ${shellQuote(materialized.filePath)}${prepared.args.length > 0
+        ? ` ${prepared.args.map(shellQuote).join(' ')}`
+        : ''}`;
+    } else {
+      // Replace secret placeholders in command (e.g., {{API_KEY}} -> actual value)
+      processedCommand = secretsService.replaceSecrets(command);
+    }
+
+    log.log(`[Exec] Received exec request for agent ${agentId}`);
+    log.log(`[Exec] Command: ${command.slice(0, 100)}${command.length > 100 ? '...' : ''}`);
+    if (requestedCwd) log.log(`[Exec] CWD: ${requestedCwd}`);
+
+    // Use configured cwd, request cwd, or the selected agent's cwd.
+    const workingDir = requestedCwd || agent.cwd;
 
     // Tail-resistance: strip a trailing `| tail …` so the live stream carries
     // the real output; remember the spec to apply to the response instead.
-    const stripped = splitTrailingTailFilter(processedCommand);
+    const stripped = isShellSlashCommand ? null : splitTrailingTailFilter(processedCommand);
     const executedCommand = stripped ? stripped.command : processedCommand;
     // An explicit `tail` body param wins over a parsed pipe filter.
     const explicitTailLines = Number.isFinite(Number(tail)) && Number(tail) > 0
@@ -341,7 +401,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // PTY by default (opt out with "pty": false) whenever `script` exists.
-    const usePty = pty !== false && isPtySupported();
+    const usePty = requestedPty !== false && isPtySupported();
 
     // Generate task ID
     const taskId = generateId();
@@ -376,20 +436,45 @@ router.post('/', async (req: Request, res: Response) => {
       } as ServerMessage);
     }
 
+    // Managed slash commands also get a structured Guake widget. The widget
+    // subscribes to this task's normal exec stream and remains locally dismissible.
+    if (broadcastFn && shellCommandDefinition) {
+      broadcastFn({
+        type: 'plugin_output',
+        payload: {
+          agentId,
+          output: {
+            pluginId: 'shell-commands',
+            rendererId: 'shell-command-exec',
+            instanceId: taskId,
+            data: {
+              kind: 'shell-command-exec',
+              taskId,
+              commandId: shellCommandDefinition.id,
+              invocation: command,
+            },
+            title: shellCommandDefinition.summary,
+            command,
+            createdAt: Date.now(),
+          },
+        },
+      } as ServerMessage);
+    }
+
     // Spawn the process with secrets replaced (and any trailing tail stripped).
     // PTY mode wraps with script(1) so the child sees a real terminal; args are
     // passed directly to spawn — no extra shell-escaping layer.
     // detached: own process group, so killTask can TERM/KILL the whole tree.
-    const childProcess = usePty
+    const childProcess: ChildProcess = usePty
       ? spawn('script', ['-qefc', executedCommand, '/dev/null'], {
           cwd: workingDir,
-          env: { ...process.env, ...PTY_ENV_OVERRIDES },
+          env: { ...process.env, ...PTY_ENV_OVERRIDES, ...executionEnvOverrides },
           shell: false,
           detached: true,
         })
       : spawn('bash', ['-c', executedCommand], {
           cwd: workingDir,
-          env: { ...process.env },
+          env: { ...process.env, ...executionEnvOverrides },
           shell: false,
           detached: true,
         });
@@ -473,6 +558,10 @@ router.post('/', async (req: Request, res: Response) => {
     // Clean up task tracking — but remember the finished task so clients that
     // connect after the run still get it in the snapshot (card on late open).
     const completedAt = Date.now();
+    await executionSudoChannel?.close();
+    executionSudoChannel = undefined;
+    await cleanupExecutionScript?.();
+    cleanupExecutionScript = undefined;
     const finishedTask = runningTasks.get(taskId);
     if (finishedTask) rememberCompletedTask(finishedTask, exitCode, completedAt);
     runningTasks.delete(taskId);
@@ -515,6 +604,13 @@ router.post('/', async (req: Request, res: Response) => {
         : {}),
     });
   } catch (err: any) {
+    executionSudoPassword?.fill(0);
+    await executionSudoChannel?.close().catch(() => undefined);
+    await cleanupExecutionScript?.().catch(() => undefined);
+    if (err instanceof PluginShellCommandError) {
+      res.status(err.statusCode).json({ error: err.message, code: err.code });
+      return;
+    }
     log.error('Failed to execute command:', err);
     log.error('Error details:', {
       message: err.message,

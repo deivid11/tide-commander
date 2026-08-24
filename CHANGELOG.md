@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.206.0] - 2026-08-21
+
+### Added
+- **Shell Commands plugin** — builtin `shell-commands` plugin for executing shell commands from the palette (`ShellCommandExecCard`, `ShellCommandExecutionHost`, `ShellCommandsSettings`, `execution.ts`). Includes client `plugins/shell-commands`, store `execTasks` (+tests) and server `plugin-shell-command-service` (+tests) with `shell-commands` builtin.
+- **Shell execution API** — extended `routes/exec` and `routes/plugins` with authenticated plugin shell execution; session search improved via `session-loader` + `session-loader-search.test` and `api/sessions`.
+
+### Changed
+- **Spotlight and terminal polish** — `Spotlight` (`pluginCommands`, `types`, `useSpotlightSearch`), `TerminalInputArea`, `PluginsPanel`, `PluginCommandShortcutHost` and plugin types/harness updated for shell command execution.
+- **Plugins manager and Gmail** — `plugins/manager` (+tests), `plugins/index`, `gmail-pending` and `_plugins.scss` refined.
+- **Docs** — `docs/plugins.md` updated with shell command examples.
+
 ## [1.205.0] - 2026-08-21
 
 ### Added

@@ -66,6 +66,7 @@ router.get('/search', async (req: Request, res: Response) => {
         projectDir: m.projectDir,
         lastModified: m.lastModified.toISOString(),
         totalMatches: m.totalMatches,
+        nearbyMatches: m.nearbyMatches,
         snippet: m.snippet,
         extracts: m.extracts,
         firstPrompt: m.firstPrompt,

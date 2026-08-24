@@ -35,6 +35,8 @@ export interface GlobalSessionMatch {
   projectDir: string;
   lastModified: string;
   totalMatches: number;
+  /** Multi-word matches where every query token occurs within a small window. */
+  nearbyMatches?: number;
   snippet: string;
   /** Up to 4 distinct extracts, best-first (user prompts containing the query,
    * then agent text/reasoning, then tool output), each tagged with who said

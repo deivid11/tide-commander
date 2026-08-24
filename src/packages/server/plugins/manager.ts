@@ -325,6 +325,7 @@ export class PluginManager {
   private readonly builtins: BuiltinPluginDefinition[];
   private readonly entries = new Map<string, PluginEntry>();
   private readonly persistedInstalled = new Map<string, PersistedPluginRecord>();
+  private readonly externalCommandOwners = new Map<string, string>();
   private broadcast?: (message: ServerMessage) => void;
   private initialized = false;
   private mutationQueue: Promise<void> = Promise.resolve();
@@ -338,6 +339,14 @@ export class PluginManager {
 
   setBroadcast(broadcast: (message: ServerMessage) => void): void {
     this.broadcast = broadcast;
+  }
+
+  /** Reserve dynamic command names that are managed outside static manifests. */
+  setExternalSlashCommands(owner: string, names: string[]): void {
+    for (const [name, currentOwner] of this.externalCommandOwners) {
+      if (currentOwner === owner) this.externalCommandOwners.delete(name);
+    }
+    for (const name of names) this.externalCommandOwners.set(normalizeCommandName(name), owner);
   }
 
   async initialize(): Promise<void> {
@@ -650,7 +659,7 @@ export class PluginManager {
   }
 
   private assertNoCommandCollisions(candidate: PluginEntry): void {
-    const claimed = new Map<string, string>();
+    const claimed = new Map<string, string>(this.externalCommandOwners);
     for (const entry of this.entries.values()) {
       if (entry === candidate || !entry.enabled || !entry.active) continue;
       for (const command of entry.manifest.contributes?.slashCommands ?? []) {

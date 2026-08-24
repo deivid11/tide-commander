@@ -28,6 +28,8 @@ import {
 import { getPluginSlashCommands } from '../../plugins/registry';
 import { usePluginRegistryRevision } from '../../plugins/hooks';
 import type { PluginOutputEnvelope } from '../../plugins/types';
+import { store } from '../../store';
+import { SHELL_COMMAND_PLUGIN_ID } from '../../plugins/shell-commands/execution';
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -104,7 +106,11 @@ export function Spotlight({
     setExecutingCommand(true);
     setCommandError(null);
     try {
-      setCommandResult(await runPluginCommand(selected, query));
+      const agentId = selected.pluginId === SHELL_COMMAND_PLUGIN_ID
+        ? store.getState().selectedAgentIds.values().next().value
+        : undefined;
+      const result = await runPluginCommand(selected, query, { agentId });
+      if (result.kind === 'output') setCommandResult(result);
       onClose();
     } catch (error) {
       setCommandError(error instanceof Error ? error.message : String(error));

@@ -1,0 +1,13 @@
+import { describe, expect, it } from 'vitest';
+import { BUILTIN_SKILLS } from './index.js';
+import { executeSlashCommands } from './execute-slash-commands.js';
+
+describe('Execute Slash Commands built-in skill', () => {
+  it('is registered and documents plugin and streamed shell execution', () => {
+    expect(BUILTIN_SKILLS).toContain(executeSlashCommands);
+    expect(executeSlashCommands.content).toContain('GET /api/plugins/slash-commands');
+    expect(executeSlashCommands.content).toContain('shellCommandId');
+    expect(executeSlashCommands.content).toContain('requiresSudo');
+    expect(executeSlashCommands.content).toContain('do not ask for, accept, read, or transmit');
+  });
+});

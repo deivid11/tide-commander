@@ -157,6 +157,26 @@ describe('PluginManager lifecycle and dispatch', () => {
     await manager.shutdown();
   });
 
+  it('reserves dynamically managed slash commands against installed plugins', async () => {
+    const manager = new PluginManager({ dataDir: path.join(testRoot, 'state') });
+    manager.setExternalSlashCommands('shell-commands', ['/deploy']);
+    await manager.initialize();
+
+    const sourcePath = path.join(testRoot, 'dynamic-collision');
+    fs.mkdirSync(sourcePath);
+    fs.writeFileSync(path.join(sourcePath, 'tide-plugin.json'), JSON.stringify({
+      id: 'deploy-plugin',
+      name: 'Deploy Plugin',
+      version: '1.0.0',
+      main: './server.mjs',
+      contributes: { slashCommands: [{ name: '/deploy', summary: 'Deploy' }] },
+    }));
+    fs.writeFileSync(path.join(sourcePath, 'server.mjs'), 'export function activate() {}\n');
+
+    await expect(manager.install(sourcePath)).rejects.toMatchObject({ code: 'PLUGIN_ACTIVATION_FAILED' });
+    await manager.shutdown();
+  });
+
   it('rejects duplicate slash commands across enabled plugins', async () => {
     const manager = new PluginManager({
       dataDir: path.join(testRoot, 'state'),

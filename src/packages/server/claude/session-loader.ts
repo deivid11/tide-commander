@@ -1048,7 +1048,11 @@ export interface GlobalSessionSearchMatch {
   projectPath: string;
   projectDir: string;
   lastModified: Date;
-  totalMatches: number;          // total matching lines in this session
+  totalMatches: number;          // total matching lines in this session (multi-word: bottleneck token count)
+  /** Multi-word searches only: lines/parts where every query token occurs
+   * within a small window. Distinguishes a conversation about the combined
+   * request from a large session that mentions each word in unrelated places. */
+  nearbyMatches?: number;
   snippet: string;               // best extract text (= extracts[0].text or '') — kept for single-snippet consumers
   /** Up to SNIPPETS_PER_SESSION distinct extracts, best-first: user prompts
    * containing the query, then agent text/reasoning, then tool output — a
@@ -1454,6 +1458,8 @@ export interface SearchFileCacheEntry {
   /** Lowercased query this result was computed for. */
   query: string;
   totalMatches: number;
+  /** Multi-word proximity count used by ranking. Undefined for single words. */
+  nearbyMatches?: number;
   snippet: string;
   /** Ranked extracts (see GlobalSessionSearchMatch.extracts); absent on
    * entries written before extracts existed — derive from `snippet`. */
@@ -1573,14 +1579,19 @@ export function planTokenFileSearch(
   queryLower: string,
   mtimeMs: number,
   sizeBytes: number,
-): { totalMatches: number; snippet: string; extracts: SessionExtract[] } | null {
+): { totalMatches: number; nearbyMatches: number; snippet: string; extracts: SessionExtract[] } | null {
   for (const entry of entries ?? []) {
     if (entry.mtimeMs !== mtimeMs || entry.sizeBytes !== sizeBytes) continue;
-    if (entry.query === queryLower) {
-      return { totalMatches: entry.totalMatches, snippet: entry.snippet, extracts: entryExtracts(entry) };
+    if (entry.query === queryLower && entry.nearbyMatches !== undefined) {
+      return {
+        totalMatches: entry.totalMatches,
+        nearbyMatches: entry.nearbyMatches,
+        snippet: entry.snippet,
+        extracts: entryExtracts(entry),
+      };
     }
     if (entry.totalMatches === 0 && queryLower.includes(entry.query)) {
-      return { totalMatches: 0, snippet: '', extracts: [] };
+      return { totalMatches: 0, nearbyMatches: 0, snippet: '', extracts: [] };
     }
   }
   return null;
@@ -1635,6 +1646,40 @@ export function accentFoldPattern(literal: string): string {
   return out;
 }
 
+/** Maximum distance between adjacent query words for a multi-word hit to be
+ * considered one topical mention rather than unrelated words in a huge log. */
+const SEARCH_NEARBY_TOKEN_GAP = 80;
+const SEARCH_NEARBY_PERMUTATION_LIMIT = 4;
+
+function tokenPermutations(tokens: readonly string[]): string[][] {
+  if (tokens.length <= 1) return [tokens.slice()];
+  const out: string[][] = [];
+  tokens.forEach((token, index) => {
+    const rest = [...tokens.slice(0, index), ...tokens.slice(index + 1)];
+    for (const suffix of tokenPermutations(rest)) out.push([token, ...suffix]);
+  });
+  return out;
+}
+
+/**
+ * Accent-blind regex for lines where every token occurs nearby, in any order.
+ * Typical Spotlight queries have 2–4 words, for which all orders are covered.
+ * Longer queries use entered + reverse order to keep the regex bounded while
+ * still requiring every word (this metric improves ranking; retrieval remains
+ * the full order-independent AND-of-words search).
+ */
+export function nearbyTokensPattern(tokens: readonly string[]): string | null {
+  const unique = [...new Set(tokens.map((t) => foldAccents(t.trim().toLowerCase())).filter(Boolean))];
+  if (unique.length === 0) return null;
+  const orders = unique.length <= SEARCH_NEARBY_PERMUTATION_LIMIT
+    ? tokenPermutations(unique)
+    : [unique, [...unique].reverse()];
+  const alternatives = orders.map((order) =>
+    order.map(accentFoldPattern).join(`.{0,${SEARCH_NEARBY_TOKEN_GAP}}`)
+  );
+  return `(?:${alternatives.join('|')})`;
+}
+
 /** Snippet quality ranks — higher wins. The Session Finder shows the snippet
  * to a human: real conversation text beats tool chatter beats raw JSON. */
 const SNIPPET_RANK_RAW = 1;
@@ -1647,8 +1692,9 @@ const SNIPPET_RANK_USER = 4;
  * the needle — dominates the readable tiers (10 > 4), so "shows the match"
  * beats "is conversation text" while readability still breaks ties. */
 const SNIPPET_CONTAINS_BONUS = 10;
-/** Highest possible candidate score — a user prompt containing the needle. */
-const SNIPPET_RANK_CEILING = SNIPPET_RANK_USER + SNIPPET_CONTAINS_BONUS;
+/** A readable extract containing every multi-word query token nearby is the
+ * best possible preview and outranks a prompt containing only one word. */
+const SNIPPET_NEARBY_BONUS = 20;
 
 /** Readable rank → who said it (1:1 — the rank IS the role tier). */
 function extractKindForRank(rank: number): SessionExtractKind {
@@ -1661,7 +1707,12 @@ function extractKindForRank(rank: number): SessionExtractKind {
 /** Snippet candidate score for a matched line's readable text: the readable
  * rank plus the contains-needle bonus. `needleLower` is already accent-folded
  * and lowercased (the search entry points fold once). */
-function snippetCandidateRank(readable: { text: string; rank: number }, needleLower: string): number {
+function snippetCandidateRank(
+  readable: { text: string; rank: number },
+  needleLower: string,
+  nearbyMatcher?: RegExp,
+): number {
+  if (nearbyMatcher?.test(readable.text)) return readable.rank + SNIPPET_NEARBY_BONUS;
   const contains = needleLower.length > 0 && foldAccents(readable.text.toLowerCase()).includes(needleLower);
   return readable.rank + (contains ? SNIPPET_CONTAINS_BONUS : 0);
 }
@@ -1830,12 +1881,16 @@ function extractReadableLineText(line: string): { text: string; rank: number } {
 
 /** Collapse to one line and window around the first query occurrence, so the
  * user sees the matched context instead of the start of a long message. */
-function windowSnippet(text: string, queryLower: string): string {
+function windowSnippet(text: string, queryLower: string, nearbyMatcher?: RegExp): string {
   const collapsed = text.replace(/\s+/g, ' ').trim();
   if (collapsed.length <= SEARCH_SNIPPET_MAX_LEN) return collapsed;
-  // Fold the haystack so an accented hit windows correctly for a folded
-  // needle (foldAccents is length-preserving — indexes stay aligned).
-  const at = queryLower ? foldAccents(collapsed.toLowerCase()).indexOf(queryLower) : -1;
+  // For multi-word searches, center on the first place where all words occur
+  // nearby. Otherwise center on the single display needle. Accent folding is
+  // length-preserving, so indexes stay aligned with the original string.
+  const nearbyAt = nearbyMatcher?.exec(collapsed)?.index ?? -1;
+  const at = nearbyAt >= 0
+    ? nearbyAt
+    : queryLower ? foldAccents(collapsed.toLowerCase()).indexOf(queryLower) : -1;
   if (at <= 80) return truncate(collapsed, SEARCH_SNIPPET_MAX_LEN);
   const start = at - 80;
   const end = Math.min(collapsed.length, start + SEARCH_SNIPPET_MAX_LEN - 2);
@@ -1857,12 +1912,17 @@ interface SnippetCandidate { text: string; rank: number; kind: SessionExtractKin
 class SnippetCollector {
   private readonly candidates: SnippetCandidate[] = [];
   private readonly seen = new Set<string>();
+  private readonly nearbyMatcher?: RegExp;
   private order = 0;
-  constructor(private readonly needleLower: string) {}
+
+  constructor(private readonly needleLower: string, nearbyTokens?: readonly string[]) {
+    const pattern = nearbyTokens ? nearbyTokensPattern(nearbyTokens) : null;
+    if (pattern) this.nearbyMatcher = new RegExp(pattern, 'i');
+  }
 
   offer(readable: { text: string; rank: number }): void {
-    const rank = snippetCandidateRank(readable, this.needleLower);
-    const text = windowSnippet(readable.text, this.needleLower);
+    const rank = snippetCandidateRank(readable, this.needleLower, this.nearbyMatcher);
+    const text = windowSnippet(readable.text, this.needleLower, this.nearbyMatcher);
     if (!text) return;
     // Dedupe on a normalized key: the same passage reaches us through
     // different rows/escaping levels (a tool result and the tool call that
@@ -1885,8 +1945,10 @@ class SnippetCollector {
 
   /** True once SNIPPETS_PER_SESSION ceiling-rank extracts are held. */
   get saturated(): boolean {
+    const ceiling = SNIPPET_RANK_USER
+      + (this.nearbyMatcher ? SNIPPET_NEARBY_BONUS : SNIPPET_CONTAINS_BONUS);
     let n = 0;
-    for (const c of this.candidates) if (c.rank >= SNIPPET_RANK_CEILING && ++n >= SNIPPETS_PER_SESSION) return true;
+    for (const c of this.candidates) if (c.rank >= ceiling && ++n >= SNIPPETS_PER_SESSION) return true;
     return false;
   }
 
@@ -1908,8 +1970,12 @@ class SnippetCollector {
  * preview. Returns ≤ SNIPPETS_PER_SESSION distinct extracts, best-first,
  * each tagged with who said it.
  */
-export function pickExtractsFromLines(lines: readonly string[], needleLower: string): SessionExtract[] {
-  const collector = new SnippetCollector(needleLower);
+export function pickExtractsFromLines(
+  lines: readonly string[],
+  needleLower: string,
+  nearbyTokens?: readonly string[],
+): SessionExtract[] {
+  const collector = new SnippetCollector(needleLower, nearbyTokens);
   for (const line of lines) collector.offerLine(line);
   return collector.finish();
 }
@@ -2030,6 +2096,28 @@ export async function scanSessionFileForQuery(
     firstLines,
     reachedEof,
   };
+}
+
+/** JS-fallback proximity count for a multi-word query. The rg engine computes
+ * the same metric with `rg -c`; this keeps ranking behavior consistent on
+ * systems without ripgrep. */
+async function countSessionFileNearbyMatches(filePath: string, tokens: readonly string[]): Promise<number> {
+  const pattern = nearbyTokensPattern(tokens);
+  if (!pattern) return 0;
+  const matcher = new RegExp(pattern, 'i');
+  const stream = fs.createReadStream(filePath, { encoding: 'utf-8' });
+  const lines = readline.createInterface({ input: stream, crlfDelay: Infinity });
+  let count = 0;
+  try {
+    for await (const line of lines) {
+      if (matcher.test(line)) count++;
+      if (count >= SEARCH_MATCHES_PER_FILE_CAP) break;
+    }
+  } finally {
+    lines.close();
+    stream.destroy();
+  }
+  return count;
 }
 
 // ── ripgrep engine ───────────────────────────────────────────────────────────
@@ -2166,10 +2254,19 @@ async function searchViaRipgrep(
   limit: number,
   generation: number,
 ): Promise<GlobalSessionSearchMatch[] | null> {
-  interface Hit { session: GlobalSessionInfo; filePath: string; totalMatches: number; snippet: string; extracts: SessionExtract[] }
+  interface Hit {
+    session: GlobalSessionInfo;
+    filePath: string;
+    totalMatches: number;
+    nearbyMatches?: number;
+    snippet: string;
+    extracts: SessionExtract[];
+  }
   const multiToken = tokens.length > 1;
+  const nearbyPattern = multiToken ? nearbyTokensPattern(tokens) : null;
   // Snippets for multi-word queries window around the LONGEST word (the most
-  // selective one) — a single line rarely contains the whole phrase.
+  // selective one) — proximity samples below make the preview show the words
+  // together whenever the session contains a genuine combined mention.
   const snippetNeedle = multiToken ? tokens.reduce((a, b) => (b.length > a.length ? b : a)) : query;
   const snippetNeedleLower = foldAccents(snippetNeedle.toLowerCase());
   const reused: Hit[] = [];
@@ -2181,7 +2278,14 @@ async function searchViaRipgrep(
     if (multiToken) {
       const plan = planTokenFileSearch(searchFileCache.get(filePath), queryLower, mtimeMs, session.sizeBytes);
       if (plan) {
-        if (plan.totalMatches > 0) reused.push({ session, filePath, totalMatches: plan.totalMatches, snippet: plan.snippet, extracts: plan.extracts });
+        if (plan.totalMatches > 0) reused.push({
+          session,
+          filePath,
+          totalMatches: plan.totalMatches,
+          nearbyMatches: plan.nearbyMatches,
+          snippet: plan.snippet,
+          extracts: plan.extracts,
+        });
       } else {
         toScan.push({ session, filePath, mtimeMs });
       }
@@ -2196,6 +2300,7 @@ async function searchViaRipgrep(
   }
 
   let counts = new Map<string, number>();
+  let nearbyCounts = new Map<string, number>();
   if (toScan.length > 0 && !multiToken) {
     // accentFoldPattern (not --fixed-strings): accent-blind matching — see
     // the fold helpers above.
@@ -2229,20 +2334,39 @@ async function searchViaRipgrep(
       }
       if (min > 0 && Number.isFinite(min)) counts.set(f.filePath, min);
     }
+
+    // Ranking quality: count only lines where ALL words occur close together,
+    // in any order. Raw per-word counts are badly inflated by large sessions
+    // whose boilerplate/tool logs mention the words in unrelated places.
+    if (nearbyPattern) {
+      const nearbyOutput = await runRg([
+        '-i', '-a', '--no-config', '--no-messages', '-c', '--',
+        nearbyPattern, ...toScan.map((f) => f.filePath),
+      ]);
+      if (nearbyOutput !== null) nearbyCounts = parseRgCounts(nearbyOutput);
+      if (generation !== searchAllSessionsGeneration) return []; // superseded
+    }
   }
 
   const all: Hit[] = [
     ...reused,
     ...toScan
       .filter((f) => (counts.get(f.filePath) ?? 0) > 0)
-      .map((f) => ({ session: f.session, filePath: f.filePath, totalMatches: counts.get(f.filePath) as number, snippet: '', extracts: [] as SessionExtract[] })),
+      .map((f) => ({
+        session: f.session,
+        filePath: f.filePath,
+        totalMatches: counts.get(f.filePath) as number,
+        nearbyMatches: multiToken ? (nearbyCounts.get(f.filePath) ?? 0) : undefined,
+        snippet: '',
+        extracts: [] as SessionExtract[],
+      })),
   ];
   // Relevance ranking BEFORE the cut — `all` holds every matching session, so
   // the top-`limit` here is exact (snippets are then fetched only for those).
   const rgNow = Date.now();
   all.sort((a, b) =>
-    sessionSearchScore(b.totalMatches, b.session.lastModified, rgNow)
-      - sessionSearchScore(a.totalMatches, a.session.lastModified, rgNow)
+    sessionSearchScore(b.totalMatches, b.session.lastModified, rgNow, b.nearbyMatches)
+      - sessionSearchScore(a.totalMatches, a.session.lastModified, rgNow, a.nearbyMatches)
     || b.session.lastModified.getTime() - a.session.lastModified.getTime()
   );
   const top = all.slice(0, limit);
@@ -2261,6 +2385,8 @@ async function searchViaRipgrep(
   const needLines = top.filter((h) => h.extracts.length === 0).map((h) => h.filePath);
   let samples = new Map<string, string[]>();
   let userSamples = new Map<string, string[]>();
+  let nearbyUserSamples = new Map<string, string[]>();
+  let nearbySamples = new Map<string, string[]>();
   if (needLines.length > 0) {
     const needlePattern = accentFoldPattern(snippetNeedle);
     const [userOutput, anyOutput] = await Promise.all([
@@ -2277,17 +2403,49 @@ async function searchViaRipgrep(
     ]);
     if (userOutput !== null) userSamples = parseRgSampleLines(userOutput);
     if (anyOutput !== null) samples = parseRgSampleLines(anyOutput);
+
+    // For concentrated multi-word hits, prepend lines that contain ALL query
+    // words nearby. The preview then explains why the row ranked highly instead
+    // of showing a line that contains only the most common individual word.
+    const nearbyNeedLines = nearbyPattern
+      ? top.filter((h) => h.extracts.length === 0 && (h.nearbyMatches ?? 0) > 0).map((h) => h.filePath)
+      : [];
+    if (nearbyPattern && nearbyNeedLines.length > 0) {
+      const [nearbyUserOutput, nearbyOutput] = await Promise.all([
+        // Initial prompts include the injected task instructions and often
+        // exceed 4096 columns; allow realistic long user rows so the actual
+        // combined request is not replaced by a later one-word follow-up.
+        runRg([
+          '-i', '-a', '--no-config', '--no-messages', '--with-filename',
+          '--max-columns', String(RG_SAMPLE_LONG_LINE_MAX), '-m', String(RG_USER_SAMPLE_LINES_PER_FILE), '--',
+          userPromptWithNeedlePattern(nearbyPattern), ...nearbyNeedLines,
+        ]),
+        runRg([
+          '-i', '-a', '--no-config', '--no-messages', '--with-filename',
+          '--max-columns', '4096', '-m', String(RG_SAMPLE_LINES_PER_FILE), '--',
+          nearbyPattern, ...nearbyNeedLines,
+        ]),
+      ]);
+      if (nearbyUserOutput !== null) nearbyUserSamples = parseRgSampleLines(nearbyUserOutput);
+      if (nearbyOutput !== null) nearbySamples = parseRgSampleLines(nearbyOutput);
+    }
   }
 
   const setExtracts = (hit: Hit, lines: readonly string[]) => {
-    hit.extracts = pickExtractsFromLines(lines, snippetNeedleLower);
+    hit.extracts = pickExtractsFromLines(lines, snippetNeedleLower, multiToken ? tokens : undefined);
     hit.snippet = hit.extracts[0]?.text ?? '';
   };
   for (const hit of top) {
     if (hit.extracts.length > 0) continue;
-    // User-prompt lines first so they take the top slots at equal rank; the
-    // collector dedupes a line present in both outputs by its extract text.
-    setExtracts(hit, [...(userSamples.get(hit.filePath) ?? []), ...(samples.get(hit.filePath) ?? [])]);
+    // Nearby lines lead so the preview shows the combined concept; user-prompt
+    // and generic token samples fill the remaining slots. The collector still
+    // ranks user voice above assistant/tool rows and dedupes overlap.
+    setExtracts(hit, [
+      ...(nearbyUserSamples.get(hit.filePath) ?? []),
+      ...(nearbySamples.get(hit.filePath) ?? []),
+      ...(userSamples.get(hit.filePath) ?? []),
+      ...(samples.get(hit.filePath) ?? []),
+    ]);
   }
 
   // Long-line fallback: a hit whose first N matching lines were ALL over the
@@ -2347,6 +2505,7 @@ async function searchViaRipgrep(
       sizeBytes: f.session.sizeBytes,
       query: queryLower,
       totalMatches,
+      nearbyMatches: multiToken ? (nearbyCounts.get(f.filePath) ?? 0) : undefined,
       snippet: topByPath.get(f.filePath)?.snippet ?? '',
       extracts: topByPath.get(f.filePath)?.extracts ?? [],
       matchingLines,
@@ -2359,6 +2518,7 @@ async function searchViaRipgrep(
     projectDir: h.session.projectDir,
     lastModified: h.session.lastModified,
     totalMatches: h.totalMatches,
+    nearbyMatches: h.nearbyMatches,
     snippet: h.snippet,
     extracts: h.extracts,
     firstPrompt: h.session.firstPrompt,
@@ -2369,9 +2529,10 @@ async function searchViaRipgrep(
 /**
  * Search opencode conversations. Opencode stores sessions in a SQLite DB
  * (`part` rows carry the message text as JSON, indexed by session_id) — not
- * per-session files — so they can't ride the rg/JS file engines. One LIKE
- * pass per word gives the same AND-of-words semantics; counts intersect via
- * the bottleneck word (min), mirroring the file engines.
+ * per-session files — so they can't ride the rg/JS file engines. One indexed
+ * substring pass per word gives the same AND-of-words semantics; counts
+ * intersect via the bottleneck word (min), then same-part proximity improves
+ * topical ranking just like the file engines.
  */
 function searchOpencodeSessions(tokens: string[], limit: number, cwdFilter?: string): GlobalSessionSearchMatch[] {
   const db = getOpencodeDb();
@@ -2402,6 +2563,24 @@ function searchOpencodeSessions(tokens: string[], limit: number, cwdFilter?: str
       if (combined.size === 0) return [];
     }
     if (!combined) return [];
+
+    // Count parts where all words are genuinely nearby. OpenCode has one JSON
+    // value per message part rather than JSONL files, so prefilter in SQLite
+    // (all tokens in the part) and apply the same bounded-distance regex in JS.
+    const nearbyBySession = new Map<string, number>();
+    const nearbyPattern = tokens.length > 1 ? nearbyTokensPattern(tokens) : null;
+    if (nearbyPattern) {
+      const where = tokens.map(() => 'instr(tc_fold(data), ?) > 0').join(' AND ');
+      const rows = db
+        .prepare(`SELECT session_id AS sid, data FROM part WHERE length(data) < 65536 AND ${where}`)
+        .all(...tokens) as Array<{ sid: string; data: string }>;
+      const matcher = new RegExp(nearbyPattern, 'i');
+      for (const row of rows) {
+        if (!combined.has(row.sid) || !matcher.test(row.data)) continue;
+        const current = nearbyBySession.get(row.sid) ?? 0;
+        if (current < SEARCH_MATCHES_PER_FILE_CAP) nearbyBySession.set(row.sid, current + 1);
+      }
+    }
 
     // Snippets window around the longest (most selective) word. Prefer TEXT
     // parts (real conversation) — the word often also hits tool-output parts
@@ -2455,6 +2634,7 @@ function searchOpencodeSessions(tokens: string[], limit: number, cwdFilter?: str
         projectDir: 'opencode',
         lastModified: new Date(session.time_updated),
         totalMatches,
+        nearbyMatches: tokens.length > 1 ? (nearbyBySession.get(sid) ?? 0) : undefined,
         snippet: extracts[0]?.text ?? '',
         extracts,
         firstPrompt: session.title ?? '',
@@ -2474,23 +2654,42 @@ function searchOpencodeSessions(tokens: string[], limit: number, cwdFilter?: str
  * topical sessions under fresher ones with a single incidental mention (a
  * 10-hit conversation from two days ago lost to five 1-hit sessions from
  * today and fell past Spotlight's display cap, so "conciliación pase" never
- * surfaced the agent that owned the topic). Weight how much a session talks
- * about the query (log-scaled match count, so 300 hits don't drown everything)
- * by how recently it was touched (exponential decay), with a decay floor so a
- * heavily-matching old session stays findable.
+ * surfaced the agent that owned the topic).
+ *
+ * Multi-word searches need one more signal: raw per-token counts explode in
+ * long sessions full of repeated prompts, source listings, and hook output.
+ * A session where all words occur near each other is a combined-concept hit;
+ * one where they only occur in distant lines is merely an AND-retrieval hit.
+ * The former gets a dominant tier, then count × recency ranks within that tier.
+ * Single-word scoring remains unchanged.
  */
 const SEARCH_RECENCY_HALF_LIFE_DAYS = 7;
-export function sessionSearchScore(totalMatches: number, lastModified: Date, now: number): number {
+export function sessionSearchScore(
+  totalMatches: number,
+  lastModified: Date,
+  now: number,
+  nearbyMatches?: number,
+): number {
   const ageDays = Math.max(0, (now - lastModified.getTime()) / 86_400_000);
   const decay = Math.exp((-Math.LN2 * ageDays) / SEARCH_RECENCY_HALF_LIFE_DAYS);
-  return Math.log2(1 + Math.max(1, totalMatches)) * (0.5 + decay);
+  const recencyWeight = 0.5 + decay;
+  const rawScore = Math.log2(1 + Math.max(1, totalMatches)) * recencyWeight;
+  if (nearbyMatches === undefined) return rawScore;
+  // Multi-word words found only in unrelated parts remain discoverable, but
+  // cannot bury a genuine combined mention merely because the file is huge.
+  if (nearbyMatches <= 0) return rawScore * 0.2;
+  const nearbyScore = Math.log2(1 + nearbyMatches) * recencyWeight;
+  return 20 + nearbyScore + rawScore * 0.1;
 }
 
 /** Sort matches by sessionSearchScore (best first), newest-first on ties. In place. */
-export function rankSessionMatches<T extends { totalMatches: number; lastModified: Date }>(matches: T[]): T[] {
+export function rankSessionMatches<
+  T extends { totalMatches: number; nearbyMatches?: number; lastModified: Date }
+>(matches: T[]): T[] {
   const now = Date.now();
   return matches.sort((a, b) =>
-    sessionSearchScore(b.totalMatches, b.lastModified, now) - sessionSearchScore(a.totalMatches, a.lastModified, now)
+    sessionSearchScore(b.totalMatches, b.lastModified, now, b.nearbyMatches)
+      - sessionSearchScore(a.totalMatches, a.lastModified, now, a.nearbyMatches)
     || b.lastModified.getTime() - a.lastModified.getTime()
   );
 }
@@ -2517,8 +2716,8 @@ function mergeSessionMatches(
  * available (single process, all cores), chunked JS scanning as the fallback,
  * and early termination — sessions are scheduled newest-first and collection
  * stops at 3× the requested limit; the final relevance ranking
- * (sessionSearchScore: match count × recency decay) then picks the top
- * `limit` from that window, so a topical multi-hit session beats fresher
+ * (sessionSearchScore: nearby all-word evidence + count × recency) then picks
+ * the top `limit` from that window, so a topical multi-hit session beats fresher
  * one-hit ones without the scan having to visit the whole corpus.
  */
 export async function searchAllSessions(
@@ -2595,6 +2794,7 @@ export async function searchAllSessions(
           if (!tokenResult) {
             let minMatches = Infinity;
             let extracts: SessionExtract[] = [];
+            let proximitySourceLines: string[] | undefined;
             let unreadable = false;
             for (const token of [...tokens].sort((a, b) => b.length - a.length)) {
               let scan: Awaited<ReturnType<typeof scanSessionFileForQuery>>;
@@ -2610,15 +2810,38 @@ export async function searchAllSessions(
                 break;
               }
               minMatches = Math.min(minMatches, scan.totalMatches);
-              if (extracts.length === 0) extracts = scan.extracts;
+              if (extracts.length === 0) {
+                extracts = scan.extracts;
+                // This is the complete set of lines containing the longest
+                // token when it fits the retention bound. Every proximity hit
+                // must be in this set, so avoid another file pass when possible.
+                proximitySourceLines = scan.matchingLines;
+              }
             }
             if (unreadable) continue; // skip file, cache nothing
-            tokenResult = { totalMatches: Number.isFinite(minMatches) ? minMatches : 0, snippet: extracts[0]?.text ?? '', extracts };
+            const totalMatches = Number.isFinite(minMatches) ? minMatches : 0;
+            let nearbyMatches = 0;
+            if (totalMatches > 0) {
+              const pattern = nearbyTokensPattern(tokens);
+              if (pattern && proximitySourceLines) {
+                const matcher = new RegExp(pattern, 'i');
+                nearbyMatches = proximitySourceLines.filter((line) => matcher.test(line)).length;
+              } else {
+                try {
+                  nearbyMatches = await countSessionFileNearbyMatches(filePath, tokens);
+                } catch {
+                  unreadable = true;
+                }
+              }
+            }
+            if (unreadable) continue;
+            tokenResult = { totalMatches, nearbyMatches, snippet: extracts[0]?.text ?? '', extracts };
             storeSearchEntry(filePath, {
               mtimeMs,
               sizeBytes: session.sizeBytes,
               query: queryLower,
               totalMatches: tokenResult.totalMatches,
+              nearbyMatches: tokenResult.nearbyMatches,
               snippet: tokenResult.snippet,
               extracts: tokenResult.extracts,
             });
@@ -2630,6 +2853,7 @@ export async function searchAllSessions(
               projectDir: session.projectDir,
               lastModified: session.lastModified,
               totalMatches: tokenResult.totalMatches,
+              nearbyMatches: tokenResult.nearbyMatches,
               snippet: tokenResult.snippet,
               extracts: tokenResult.extracts,
               firstPrompt: session.firstPrompt,

@@ -118,7 +118,45 @@ export interface PluginProviderUsagesData {
   providers: PluginProviderUsageEntry[];
 }
 
-export type PluginOutputData = PluginTaskListData | PluginProviderUsagesData | Record<string, unknown> | unknown[] | string | number | boolean | null;
+export interface PluginShellCommandDefinition {
+  id: string;
+  name: string;
+  summary: string;
+  script: string;
+  cwd?: string;
+  runAsSudo: boolean;
+  pty: boolean;
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PluginShellCommandInput {
+  name: string;
+  summary: string;
+  script: string;
+  cwd?: string;
+  runAsSudo?: boolean;
+  pty?: boolean;
+  enabled?: boolean;
+}
+
+export interface PluginShellCommandPrepareResult {
+  commandId: string;
+  invocation: string;
+  args: string[];
+  requiresSudo: boolean;
+  challengeId?: string;
+}
+
+export interface PluginShellCommandExecData {
+  kind: 'shell-command-exec';
+  taskId: string;
+  commandId: string;
+  invocation: string;
+}
+
+export type PluginOutputData = PluginShellCommandExecData | PluginTaskListData | PluginProviderUsagesData | Record<string, unknown> | unknown[] | string | number | boolean | null;
 
 export interface PluginOutputEnvelope {
   pluginId: string;

@@ -10,6 +10,8 @@ import {
   usePluginCommandShortcuts,
 } from './commandShortcuts';
 import type { PluginOutputEnvelope, RegisteredPluginSlashCommand } from './types';
+import { store } from '../store';
+import { SHELL_COMMAND_PLUGIN_ID } from './shell-commands/execution';
 
 function toExecutableCommand(command: RegisteredPluginSlashCommand): SpotlightPluginCommand {
   return {
@@ -47,9 +49,15 @@ export function PluginCommandShortcutHost() {
       event.stopImmediatePropagation();
       runningRef.current = true;
       setError(null);
-      void runPluginCommand(toExecutableCommand(command))
-        .then(setResult)
-        .catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))
+      const agentId = command.pluginId === SHELL_COMMAND_PLUGIN_ID
+        ? store.getState().selectedAgentIds.values().next().value
+        : undefined;
+      void runPluginCommand(toExecutableCommand(command), command.name, { agentId })
+        .then((next) => { if (next.kind === 'output') setResult(next); })
+        .catch((cause) => {
+          const message = cause instanceof Error ? cause.message : String(cause);
+          if (message !== 'Shell command execution cancelled') setError(message);
+        })
         .finally(() => { runningRef.current = false; });
     };
 

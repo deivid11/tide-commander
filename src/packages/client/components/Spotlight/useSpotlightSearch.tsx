@@ -801,7 +801,7 @@ export function useSpotlightSearch({
   }, [isOpen, contentData, query]);
 
   // Build session results from the debounced full-text search (rg-engined
-  // server side, relevance-ranked: match count × recency decay). Clicking
+  // server side, relevance-ranked: nearby all-word hits × recency). Clicking
   // jumps straight to the
   // agent that currently HOLDS the conversation, or opens the Session Finder
   // prefilled to restore it. The agent is resolved again at CLICK time —
@@ -841,6 +841,7 @@ export function useSpotlightSearch({
         // archive row.
         _agentId: ownerAgent?.id,
         _sessionMatches: row.totalMatches,
+        _sessionNearbyMatches: row.nearbyMatches,
         // The conversation's harness — shown as a logo badge on the row.
         _provider: row.provider || 'claude',
         icon: ownerAgent
@@ -1091,6 +1092,7 @@ export function useSpotlightSearch({
         );
         item.action = sessionHit.action;
         item._sessionMatches = sessionHit._sessionMatches;
+        item._sessionNearbyMatches = sessionHit._sessionNearbyMatches;
         // The conversation verifiably contains every query word (the server
         // counted real occurrences) — reflect that in the tiered text so the
         // content match ranks as a substring hit (tier ≥ 2), above
@@ -1114,6 +1116,7 @@ export function useSpotlightSearch({
         matchedExtracts: sessionHit.matchedExtracts,
         action: sessionHit.action,
         _sessionMatches: sessionHit._sessionMatches,
+        _sessionNearbyMatches: sessionHit._sessionNearbyMatches,
         // See the enrichment above: verified content match → substring tier.
         _searchText: `${base._searchText || ''} ${sessionHit.matchedQuery || ''} ${lowerQuery}`,
       }, undefined);
@@ -1129,19 +1132,27 @@ export function useSpotlightSearch({
     // Sort WITHIN each category. For AGENTS: relevance TIER stays the primary
     // key (an exact/prefix name match still ranks above everything weaker);
     // WITHIN a tier, blend HOW MUCH the agent matches with HOW RECENTLY it was
-    // used — verified conversation hits (log-scaled, so 300 hits don't drown
-    // the list) plus an activity-recency decay (24h half-life; the later of
-    // last activity and last Spotlight pick). Agents without content hits keep
-    // pure most-recent-first order (the decay is monotonic in recency), while
-    // a topical conversation lifts a two-day-idle agent above a just-touched
-    // one with a single incidental mention. Fuse score is the final tiebreak.
+    // used — verified conversation hits plus an activity-recency decay (24h
+    // half-life; the later of last activity and last Spotlight pick). For a
+    // multi-word query, nearby all-token mentions dominate huge raw counts from
+    // unrelated boilerplate/tool lines, matching the server's session ranking.
+    // Agents without content hits keep pure most-recent-first order (the decay
+    // is monotonic in recency). Fuse score is the final tiebreak.
     // Non-agent categories keep the plain combined-score ordering.
     const AGENT_RECENCY_HALF_LIFE_MS = 24 * 3600_000;
     const nowMs = Date.now();
     const agentBlend = (s: Scored): number => {
       const rec = agentRecency(s.item._agentId, s.item._lastActivity, recentAgentTimes);
       const decay = Math.exp((-Math.LN2 * Math.max(0, nowMs - rec)) / AGENT_RECENCY_HALF_LIFE_MS);
-      return Math.log2(1 + (s.item._sessionMatches ?? 0)) + 4 * decay;
+      const rawMatches = s.item._sessionMatches ?? 0;
+      const rawEvidence = Math.log2(1 + rawMatches);
+      const nearbyMatches = s.item._sessionNearbyMatches;
+      const conversationEvidence = nearbyMatches === undefined
+        ? rawEvidence
+        : nearbyMatches > 0
+          ? 8 + Math.log2(1 + nearbyMatches) + rawEvidence * 0.1
+          : rawEvidence * 0.2;
+      return conversationEvidence + 4 * decay;
     };
     for (const [type, arr] of scoredByCategory) {
       if (type === 'agent') {

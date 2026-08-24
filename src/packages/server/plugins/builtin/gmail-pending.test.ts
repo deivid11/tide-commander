@@ -97,6 +97,24 @@ describe('builtin Gmail Pending plugin', () => {
     await manager.shutdown();
   });
 
+  it('removes template indentation and excessive blank lines from displayed bodies', async () => {
+    vi.mocked(gmailClient.getRecentMessages).mockResolvedValue([{
+      ...unreadMessage,
+      body: '\r\n      Hola,     equipo.\r\n   \r\n\r\n\r\n        Este correo tiene    espacios de plantilla.\u00a0  \r\n\r\n',
+    }]);
+    const manager = makeManager();
+    await manager.initialize();
+
+    const output = await manager.executeSlashCommand('agent-1', '/gmail');
+
+    expect(output.data).toMatchObject({
+      items: [{
+        body: 'Hola, equipo.\n\nEste correo tiene espacios de plantilla.',
+      }],
+    });
+    await manager.shutdown();
+  });
+
   it('shows read and unread Inbox messages with /gmail all', async () => {
     const readMessage = {
       ...unreadMessage,

@@ -200,11 +200,33 @@ export function activate(api) {
 
 All registrations return disposers and are removed when the plugin is disabled.
 
+## User-managed Bash slash commands
+
+Open **Settings → Plugins → Manage Plugins → Slash command scripts** to register a command without creating a plugin package. Each definition includes:
+
+- a slash name and description
+- a Bash command or multiline script
+- an optional absolute working directory; otherwise it uses the selected agent workspace
+- PTY streaming, enabled by default
+- an optional **Allow sudo** policy
+
+Slash arguments are parsed without evaluation and passed positionally as `$1`, `$2`, and so on. For example, `/deploy "release candidate"` passes one literal argument. The saved script is executed through `POST /api/exec`, streams into a native Guake exec widget, supports Stop and exit status, bypasses the LLM, and never interpolates arguments into script source.
+
+Scripts with **Allow sudo** always open Tide Commander's password modal before launch. The script itself still runs as the normal Commander user; only lines that invoke `sudo` are elevated. Tide validates the password through `sudo` stdin, then supplies nested `sudo` calls through a private per-run Unix socket and an ephemeral askpass helper. The password is never persisted, logged, placed in argv/environment variables, written to generated scripts, or sent through WebSockets/PTY output. HTTPS is strongly recommended for remote access. On remote HTTP connections, Tide shows a prominent warning but allows the user to continue (for example, over a trusted VPN); localhost remains supported over HTTP without the warning.
+
+The built-in **Execute Slash Commands** skill teaches agents to discover enabled commands with `GET /api/plugins/slash-commands`. Agents can invoke ordinary plugin commands through their published endpoint and non-sudo command scripts through `POST /api/exec` with `shellCommandId` and `shellArgs`. Agents are explicitly prohibited from requesting or handling sudo passwords; root commands remain user-interactive.
+
 ## Management API
 
 | Method | Endpoint | Purpose |
 |---|---|---|
 | `GET` | `/api/plugins` | List built-in and installed plugins |
+| `GET` | `/api/plugins/slash-commands` | Safe agent-facing catalog of enabled slash commands |
+| `GET` | `/api/plugins/shell-commands` | List managed command-script definitions for Settings |
+| `POST` | `/api/plugins/shell-commands` | Create a managed command script |
+| `PUT/DELETE` | `/api/plugins/shell-commands/:id` | Update or remove a managed command script |
+| `POST` | `/api/plugins/shell-commands/:id/prepare` | Parse arguments and create an optional sudo challenge |
+| `POST` | `/api/plugins/shell-commands/sudo/authorize` | Validate a short-lived interactive sudo challenge |
 | `POST` | `/api/plugins/install` | Install from `{ "sourcePath": "/local/folder" }` |
 | `POST` | `/api/plugins/:id/enable` | Activate a plugin |
 | `POST` | `/api/plugins/:id/disable` | Deactivate and clean up a plugin |

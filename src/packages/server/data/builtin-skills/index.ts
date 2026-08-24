@@ -14,6 +14,7 @@ import { sendMessageToAgent } from './send-message-to-agent.js';
 import { gitCaptain } from './git-captain.js';
 import { serverLogs } from './server-logs.js';
 import { streamingExec } from './streaming-exec.js';
+import { executeSlashCommands } from './execute-slash-commands.js';
 import { bitbucketPR } from './bitbucket-pr.js';
 import { bitbucketPRReview } from './bitbucket-pr-review.js';
 import { bitbucketReviewer } from './bitbucket-reviewer.js';
@@ -49,6 +50,7 @@ export const BUILTIN_SKILLS: BuiltinSkillDefinition[] = [
   gitCaptain,
   serverLogs,
   streamingExec,
+  executeSlashCommands,
   bitbucketPR,
   bitbucketPRReview,
   bitbucketReviewer,

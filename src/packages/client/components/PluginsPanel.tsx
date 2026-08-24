@@ -6,6 +6,7 @@ import type { ClientPluginInfo, PluginIntegrationSettingsContribution } from '..
 import { IntegrationsPanel } from './IntegrationsPanel';
 import { KeyCaptureInput } from './KeyCaptureInput';
 import { parseShortcutString, type ShortcutConfig } from '../store/shortcuts';
+import { ShellCommandsSettings } from '../plugins/shell-commands/ShellCommandsSettings';
 import {
   pluginCommandShortcutKey,
   setPluginCommandShortcut,
@@ -136,6 +137,7 @@ export function PluginsPanel({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         {message && <div className={`plugins-panel__message is-${message.kind}`}>{message.text}</div>}
 
         <div className="plugins-panel__list">
+          <ShellCommandsSettings />
           {loading && plugins.length === 0 ? (
             <div className="plugins-panel__empty">Loading plugins…</div>
           ) : plugins.length === 0 ? (
