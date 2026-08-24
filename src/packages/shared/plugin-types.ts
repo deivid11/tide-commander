@@ -22,6 +22,8 @@ export interface PluginSlashCommandContribution {
   handler?: string;
   /** Client renderer id. Defaults to the first contributed renderer or "default". */
   renderer?: string;
+  /** Command needs the currently selected agent id (for example, agent-local utilities). */
+  requiresAgent?: boolean;
 }
 
 export interface PluginViewContribution {
@@ -196,6 +198,28 @@ export interface PluginShellCommandSudoRequestData {
   grep?: string;
 }
 
+export interface PluginAgentNameProposal {
+  name: string;
+  reason: string;
+}
+
+export interface PluginAgentNameProposalsData {
+  kind: 'agent-name-proposals';
+  agentId: string;
+  requestId: string;
+  previousName: string;
+  contextSummary: string;
+  proposals: PluginAgentNameProposal[];
+  action: string;
+  status: 'generating' | 'ready' | 'renamed' | 'error';
+  requestedAt: number;
+  /** Legacy outputs may include this; rename requests no longer expire by time. */
+  expiresAt?: number;
+  selectedName?: string;
+  renamedAt?: number;
+  error?: string;
+}
+
 export interface PluginShellCommandExecData {
   kind: 'shell-command-exec';
   taskId: string;
@@ -206,6 +230,7 @@ export interface PluginShellCommandExecData {
 export type PluginOutputData =
   | PluginShellCommandExecData
   | PluginShellCommandSudoRequestData
+  | PluginAgentNameProposalsData
   | PluginTaskListData
   | PluginProviderUsagesData
   | Record<string, unknown>

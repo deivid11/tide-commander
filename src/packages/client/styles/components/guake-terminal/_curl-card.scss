@@ -1203,4 +1203,16 @@
   .curl-body-row {
     padding: 0 8px 8px;
   }
+
+  &.curl-card--tc-plugin {
+    overflow: visible;
+
+    .tc-api-plugin-output {
+      padding: 3px 7px 7px;
+    }
+
+    .rename-agent-card {
+      max-width: none;
+    }
+  }
 }

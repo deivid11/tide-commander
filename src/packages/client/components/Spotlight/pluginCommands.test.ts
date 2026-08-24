@@ -26,6 +26,17 @@ describe('Spotlight plugin commands', () => {
     }]);
   });
 
+  it('preserves commands that require the selected agent', () => {
+    const matched = matchSpotlightPluginCommands('/rename', [{
+      pluginId: 'rename-agent',
+      pluginName: 'Rename Agent',
+      name: '/rename-agent',
+      summary: 'Generate names',
+      requiresAgent: true,
+    }]);
+    expect(matched).toMatchObject([{ name: '/rename-agent', requiresAgent: true }]);
+  });
+
   it('keeps an exact command match while arguments are present', () => {
     expect(matchSpotlightPluginCommands('/tasks project-a', commands)).toHaveLength(1);
     expect(commandArguments('/tasks project-a open')).toEqual(['project-a', 'open']);

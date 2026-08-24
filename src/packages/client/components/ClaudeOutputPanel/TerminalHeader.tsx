@@ -61,6 +61,7 @@ import { ModalPortal } from '../shared/ModalPortal';
 import { buildAgentContextMenuActions } from './agentContextMenuActions';
 import { ProviderIcon } from '../ProviderIcon';
 import { ActivityGlyph } from '../shared/ActivityGlyph';
+import { renameAgentRequestPreview } from '../../plugins/rename-agent/renameAgentRequest';
 
 /**
  * Model chip in the terminal header. Turns into a warning that names the swap
@@ -250,11 +251,13 @@ export const TerminalHeader = memo(function TerminalHeader({
   );
 
   // Get status info
-  const lastInput =
+  const rawLastInput =
     selectedAgent.currentTask ||
     selectedAgent.lastAssignedTask ||
     lastPrompt?.text;
-  const mobileHeaderContext = selectedAgent.taskLabel || lastInput;
+  const lastInput = renameAgentRequestPreview(rawLastInput) || rawLastInput;
+  const displayTaskLabel = renameAgentRequestPreview(selectedAgent.taskLabel) || selectedAgent.taskLabel;
+  const mobileHeaderContext = displayTaskLabel || lastInput;
 
   // Check if selected agent is a boss with subordinates
   const isBoss = selectedAgent.class === 'boss' || selectedAgent.isBoss;
@@ -380,8 +383,8 @@ export const TerminalHeader = memo(function TerminalHeader({
               <span className="guake-title-block">
                 <span className="guake-title-main-row">
                   <span className="guake-title">{selectedAgent.name}</span>
-                  {(selectedAgent.taskLabel || lastInput) && (
-                    <span className="guake-title-task-chip">{selectedAgent.taskLabel || lastInput}</span>
+                  {(displayTaskLabel || lastInput) && (
+                    <span className="guake-title-task-chip">{displayTaskLabel || lastInput}</span>
                   )}
                 </span>
                 {mobileHeaderContext && (
@@ -408,8 +411,8 @@ export const TerminalHeader = memo(function TerminalHeader({
               <span className="guake-title-block">
                 <span className="guake-title-main-row">
                   <span className="guake-title">{selectedAgent.name}</span>
-                  {(selectedAgent.taskLabel || lastInput) && (
-                    <span className="guake-title-task-chip">{selectedAgent.taskLabel || lastInput}</span>
+                  {(displayTaskLabel || lastInput) && (
+                    <span className="guake-title-task-chip">{displayTaskLabel || lastInput}</span>
                   )}
                 </span>
                 {mobileHeaderContext && (

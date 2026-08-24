@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyTcApiOutput } from '../tcApiOutput';
+import { classifyTcApiOutput, readTcPluginOutput } from '../tcApiOutput';
 import { parseCurlCommand, detectTcApiCall } from '../curlParser';
 
 describe('detectTcApiCall', () => {
@@ -31,6 +31,26 @@ describe('detectTcApiCall', () => {
   it('ignores non-local hosts and non-/api paths', () => {
     expect(detect(`curl -s https://example.com/api/agents`)).toBeNull();
     expect(detect(`curl -s http://localhost:5174/healthz`)).toBeNull();
+  });
+});
+
+describe('readTcPluginOutput', () => {
+  it('extracts an interactive plugin envelope with an agent runtime suffix', () => {
+    const envelope = {
+      output: {
+        pluginId: 'rename-agent',
+        rendererId: 'agent-name-proposals',
+        instanceId: 'request-1',
+        data: { kind: 'agent-name-proposals', agentId: 'agent-1', status: 'ready' },
+        title: 'Rename Agent',
+      },
+    };
+    expect(readTcPluginOutput(`${JSON.stringify(envelope)}POST EXIT:0`)).toEqual(envelope.output);
+  });
+
+  it('rejects ordinary and malformed API payloads', () => {
+    expect(readTcPluginOutput('{"success":true}')).toBeNull();
+    expect(readTcPluginOutput('{"output":{"pluginId":"x"}}')).toBeNull();
   });
 });
 

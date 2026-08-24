@@ -134,12 +134,16 @@ function validateCommandContribution(value: unknown, index: number): PluginSlash
   const renderer = value.renderer === undefined
     ? undefined
     : assertShortString(value.renderer, `slashCommands[${index}].renderer`, 100);
+  if (value.requiresAgent !== undefined && typeof value.requiresAgent !== 'boolean') {
+    throw new PluginRuntimeError(`slashCommands[${index}].requiresAgent must be a boolean`);
+  }
   return {
     name: normalizeCommandName(name),
     aliases,
     summary: assertShortString(value.summary, `contributes.slashCommands[${index}].summary`, 500),
     handler,
     renderer,
+    ...(value.requiresAgent === true ? { requiresAgent: true } : {}),
   };
 }
 

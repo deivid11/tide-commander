@@ -1,3 +1,5 @@
+import type { PluginOutputData } from '../../plugins/types';
+
 /**
  * Classify the OUTPUT of an internal Tide Commander API curl into a renderable
  * shape for the TC API card. Works on raw endpoint payloads AND on jq
@@ -6,6 +8,16 @@
  * structures and to plain text for non-JSON output (e.g. `jq 'length'` →
  * "166", or `jq -r` tab-separated lines).
  */
+
+export interface TcPluginOutput {
+  pluginId: string;
+  rendererId: string;
+  instanceId: string;
+  data: PluginOutputData;
+  title?: string;
+  command?: string;
+  createdAt?: number;
+}
 
 export interface TcAgentRow {
   id?: string;
@@ -53,6 +65,51 @@ const MAX_PARSE_CHARS = 2_000_000;
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+/**
+ * Read a plugin output envelope returned by a Commander API curl. Some agent
+ * runtimes append a marker such as `POST EXIT:0`, so the first JSON object is
+ * parsed separately instead of requiring the complete tool output to be JSON.
+ */
+export function readTcPluginOutput(output: string | null | undefined): TcPluginOutput | null {
+  if (typeof output !== 'string') return null;
+  const trimmed = output.trim();
+  if (!trimmed.startsWith('{')) return null;
+  const lastBrace = trimmed.lastIndexOf('}');
+  if (lastBrace < 1) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed.slice(0, lastBrace + 1));
+  } catch {
+    return null;
+  }
+  if (!isRecord(parsed) || !isRecord(parsed.output)) return null;
+  const candidate = parsed.output;
+  if (
+    typeof candidate.pluginId !== 'string'
+    || typeof candidate.rendererId !== 'string'
+    || typeof candidate.instanceId !== 'string'
+    || !('data' in candidate)
+  ) return null;
+  const data = candidate.data;
+  if (
+    data !== null
+    && typeof data !== 'string'
+    && typeof data !== 'number'
+    && typeof data !== 'boolean'
+    && !Array.isArray(data)
+    && !isRecord(data)
+  ) return null;
+  return {
+    pluginId: candidate.pluginId,
+    rendererId: candidate.rendererId,
+    instanceId: candidate.instanceId,
+    data,
+    ...(typeof candidate.title === 'string' ? { title: candidate.title } : {}),
+    ...(typeof candidate.command === 'string' ? { command: candidate.command } : {}),
+    ...(typeof candidate.createdAt === 'number' ? { createdAt: candidate.createdAt } : {}),
+  };
 }
 
 function asStr(v: unknown): string | undefined {

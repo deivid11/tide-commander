@@ -9,6 +9,7 @@ import { getIdleTimerColor } from '../../utils/colors';
 import { getContextBarColor } from './agentUtils';
 import type { ContextInfo } from './types';
 import { Icon } from '../Icon';
+import { renameAgentRequestPreview } from '../../plugins/rename-agent/renameAgentRequest';
 
 // ============================================================================
 // Stats Grid Component
@@ -158,11 +159,12 @@ interface LastPromptProps {
 
 export const LastPrompt = memo(function LastPrompt({ text, maxLength = 150 }: LastPromptProps) {
   const { t } = useTranslation(['common']);
+  const displayText = renameAgentRequestPreview(text) || text;
   return (
     <div className="unit-last-prompt">
       <div className="unit-stat-label">{t('unitPanel.lastPrompt')}</div>
       <div className="unit-last-prompt-text">
-        {text.length > maxLength ? text.slice(0, maxLength) + '...' : text}
+        {displayText.length > maxLength ? displayText.slice(0, maxLength) + '...' : displayText}
       </div>
     </div>
   );

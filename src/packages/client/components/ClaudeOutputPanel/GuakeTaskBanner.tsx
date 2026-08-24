@@ -17,6 +17,7 @@ import { memo } from 'react';
 import { Icon } from '../Icon';
 import { ActivityGlyph } from '../shared/ActivityGlyph';
 import type { Agent } from '../../../shared/types';
+import { renameAgentRequestPreview } from '../../plugins/rename-agent/renameAgentRequest';
 
 interface CurrentTask {
   text: string;
@@ -39,7 +40,8 @@ function pickCurrentTask(agent: Agent): CurrentTask | null {
     }
   }
   const fallback = agent.trackingStatusDetail || agent.taskLabel || agent.currentTask;
-  return fallback ? { text: fallback } : null;
+  if (!fallback) return null;
+  return { text: renameAgentRequestPreview(fallback) || fallback };
 }
 
 export const GuakeTaskBanner = memo(function GuakeTaskBanner({

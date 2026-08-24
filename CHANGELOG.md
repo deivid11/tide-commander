@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.208.0] - 2026-08-24
+
+### Added
+- **Rename Agent plugin** — builtin `rename-agent` with `RenameAgentCard`, `RenameAgentRequestCard` and proposal handling (`renameAgentRequest.ts` + tests), client `plugins/rename-agent` and server `builtin/rename-agent` (+`rename-agent.test.ts`).
+- **Rich output panel polish** — `tcApiOutput` (new parser + tests `tcApiOutput.test.ts`, `promptMarkers` + tests) for structured API output and prompt markers in Guake terminal.
+
+### Changed
+- **Terminal and spotlight refined** — `AgentTerminalPane`, `CurlCard`, `HistoryLine`, `OutputLine`, `TerminalHeader`, `TerminalInputArea`, `useTerminalInput`, `Spotlight` (`SpotlightCommandResultModal`, `pluginCommands` + tests) and `UnitPanel/AgentStatsRow` updated for rename flow and output rendering.
+- **Plugin system and styles** — `plugins/index`/`types`/`manager`, `shared/plugin-types`, `_plugins.scss`, `_attachments.scss`, `_curl-card.scss`, `_input.scss` and mobile responsive tweaks; `file-download` and `docs/plugins.md` expanded.
+
 ## [1.207.0] - 2026-08-24
 
 ### Added

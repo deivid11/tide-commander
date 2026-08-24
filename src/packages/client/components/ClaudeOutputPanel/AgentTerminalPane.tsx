@@ -275,7 +275,11 @@ export interface AgentTerminalPaneHandle {
   search: UseSearchHistoryReturn;
   /** Terminal input — used by parent for file drag-drop */
   terminalInput: {
-    uploadFile: (file: File | Blob, filename?: string) => Promise<AttachedFile | null>;
+    uploadFile: (
+      file: File | Blob,
+      filename?: string,
+      onProgress?: (percentage: number) => void,
+    ) => Promise<AttachedFile | null>;
     setAttachedFiles: (value: AttachedFile[] | ((prev: AttachedFile[]) => AttachedFile[])) => void;
     useTextarea: boolean;
   };
@@ -1532,6 +1536,8 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
         setForceTextarea={terminalInput.setForceTextarea}
         useTextarea={terminalInput.useTextarea}
         attachedFiles={terminalInput.attachedFiles}
+        uploadingFiles={terminalInput.uploadingFiles}
+        cancelUpload={terminalInput.cancelUpload}
         setAttachedFiles={terminalInput.setAttachedFiles}
         removeAttachedFile={terminalInput.removeAttachedFile}
         uploadFile={terminalInput.uploadFile}

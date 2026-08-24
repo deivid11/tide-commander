@@ -54,6 +54,7 @@ export interface PluginSlashCommandContribution {
   summary: string;
   handler?: string;
   renderer?: string;
+  requiresAgent?: boolean;
 }
 
 export interface RegisteredPluginSlashCommand extends PluginSlashCommandContribution {
@@ -161,6 +162,28 @@ export interface PluginShellCommandSudoRequestData {
   grep?: string;
 }
 
+export interface PluginAgentNameProposal {
+  name: string;
+  reason: string;
+}
+
+export interface PluginAgentNameProposalsData {
+  kind: 'agent-name-proposals';
+  agentId: string;
+  requestId: string;
+  previousName: string;
+  contextSummary: string;
+  proposals: PluginAgentNameProposal[];
+  action: string;
+  status: 'generating' | 'ready' | 'renamed' | 'error';
+  requestedAt: number;
+  /** Legacy outputs may include this; rename requests no longer expire by time. */
+  expiresAt?: number;
+  selectedName?: string;
+  renamedAt?: number;
+  error?: string;
+}
+
 export interface PluginShellCommandExecData {
   kind: 'shell-command-exec';
   taskId: string;
@@ -168,7 +191,7 @@ export interface PluginShellCommandExecData {
   invocation: string;
 }
 
-export type PluginOutputData = PluginShellCommandExecData | PluginShellCommandSudoRequestData | PluginTaskListData | PluginProviderUsagesData | Record<string, unknown> | unknown[] | string | number | boolean | null;
+export type PluginOutputData = PluginShellCommandExecData | PluginShellCommandSudoRequestData | PluginAgentNameProposalsData | PluginTaskListData | PluginProviderUsagesData | Record<string, unknown> | unknown[] | string | number | boolean | null;
 
 export interface PluginOutputEnvelope {
   pluginId: string;

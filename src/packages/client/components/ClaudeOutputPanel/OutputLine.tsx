@@ -50,6 +50,8 @@ import { ThinkingBlock } from './ThinkingBlock';
 import { GrepResultsModal } from './GrepResultsModal';
 import { ActivityGlyph } from '../shared/ActivityGlyph';
 import { PluginOutputHost } from '../../plugins/PluginOutputHost';
+import { RenameAgentRequestCard } from '../../plugins/rename-agent/RenameAgentRequestCard';
+import { parseRenameAgentRequest } from '../../plugins/rename-agent/renameAgentRequest';
 
 /** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
 function getExtFromPath(filePath: string): string {
@@ -497,6 +499,16 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             {slashCommand.source === 'plugin' && <span className="output-slash-chip__source">{slashCommand.pluginName || 'Plugin'}</span>}
           </span>
           <span className="output-slash-summary">{slashCommand.summary}</span>
+        </div>
+      );
+    }
+
+    const renameAgentRequest = parseRenameAgentRequest(trimmedText);
+    if (renameAgentRequest) {
+      return (
+        <div className="output-line output-user output-rename-agent-request">
+          <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
+          <RenameAgentRequestCard request={renameAgentRequest} />
         </div>
       );
     }

@@ -42,6 +42,10 @@ describe('extractPromptPreview', () => {
     );
   });
 
+  it('skips internal rename-agent orchestration prompts', () => {
+    expect(extractPromptPreview('[RENAME_AGENT_PROPOSALS_REQUEST]\nAnaliza tu conversación…')).toBeNull();
+  });
+
   it('skips history command runs and interruptions', () => {
     expect(extractPromptPreview('<command-name>/clear</command-name>')).toBeNull();
     expect(extractPromptPreview('[Request interrupted by user]')).toBeNull();

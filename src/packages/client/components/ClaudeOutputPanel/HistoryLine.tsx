@@ -51,6 +51,8 @@ import { SubagentInline } from './SubagentInline';
 import { providerLabel } from '../../utils/providerDisplay';
 import { ThinkingBlock } from './ThinkingBlock';
 import { GrepResultsModal } from './GrepResultsModal';
+import { RenameAgentRequestCard } from '../../plugins/rename-agent/RenameAgentRequestCard';
+import { parseRenameAgentRequest } from '../../plugins/rename-agent/renameAgentRequest';
 
 /** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
 function getExtFromPath(filePath: string): string {
@@ -1795,6 +1797,15 @@ export const HistoryLine = memo(function HistoryLine({
   if (isUser && parsedBoss) {
     const parsedInjected = parseInjectedInstructions(parsedBoss.userMessage);
     const displayMessage = parsedInjected.userMessage;
+    const renameAgentRequest = parseRenameAgentRequest(displayMessage);
+    if (renameAgentRequest) {
+      return (
+        <div className={`${className} history-rename-agent-request`}>
+          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
+          <div className="history-content"><RenameAgentRequestCard request={renameAgentRequest} /></div>
+        </div>
+      );
+    }
 
     // Check for [DELEGATED TASK ...] message (subordinate receiving a task)
     const delegatedTaskParsed = parseDelegatedTaskMessage(displayMessage.trim());

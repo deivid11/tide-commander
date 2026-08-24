@@ -234,6 +234,7 @@
 
   &::placeholder {
     color: color-mix(in srgb, var(--text-muted) 60%, transparent);
+    font-size: 8px;
   }
 
   &:disabled {

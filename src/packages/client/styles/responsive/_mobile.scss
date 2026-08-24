@@ -389,6 +389,17 @@
       // No transform — Android WebViews break fixed positioning with containing blocks.
     }
 
+    // On mobile the pinned/recent agents bar hangs BELOW the text input.
+    // DOM order stays bar-first (desktop keeps bar-above-input); flex `order`
+    // does the swap, so the attachment/permission/queue rows the input area
+    // renders (order 0) stay above the input untouched.
+    .guake-composer-stack .pinned-agents-bar {
+      order: 10;
+      // The pill's mobile margin (_input.scss: 0 8px 4px) put the gap on the
+      // side facing the input; flipped below it, the gap belongs on top.
+      margin: 4px 8px;
+    }
+
     // Input lives inside the fixed stack; drop its own fixed positioning.
     .guake-input-wrapper {
       position: relative !important;

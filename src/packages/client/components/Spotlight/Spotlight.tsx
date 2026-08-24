@@ -106,7 +106,7 @@ export function Spotlight({
     setExecutingCommand(true);
     setCommandError(null);
     try {
-      const agentId = selected.pluginId === SHELL_COMMAND_PLUGIN_ID
+      const agentId = selected.pluginId === SHELL_COMMAND_PLUGIN_ID || selected.requiresAgent
         ? store.getState().selectedAgentIds.values().next().value
         : undefined;
       const result = await runPluginCommand(selected, query, { agentId });

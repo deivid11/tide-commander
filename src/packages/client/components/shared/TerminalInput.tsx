@@ -31,7 +31,11 @@ interface TerminalInputProps {
   attachedFiles: AttachedFile[];
   onAddFile: (file: AttachedFile) => void;
   onRemoveFile: (id: number) => void;
-  uploadFile: (file: File | Blob, filename?: string) => Promise<AttachedFile | null>;
+  uploadFile: (
+    file: File | Blob,
+    filename?: string,
+    onProgress?: (percentage: number) => void,
+  ) => Promise<AttachedFile | null>;
 
   // Pasted text handling
   onAddPastedText: (text: string) => number;

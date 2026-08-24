@@ -31,6 +31,7 @@ import {
   findShellSlashCommand,
   reportShellCommandExecutionError,
 } from '../../plugins/shell-commands/execution';
+import { renameAgentRequestPreview } from '../../plugins/rename-agent/renameAgentRequest';
 
 /**
  * Isolated elapsed timer component — owns its own 1-second setInterval so the
@@ -208,9 +209,15 @@ export interface TerminalInputAreaProps {
   setForceTextarea: (force: boolean) => void;
   useTextarea: boolean;
   attachedFiles: AttachedFile[];
+  uploadingFiles: Array<{ id: string; name: string; progress: number }>;
+  cancelUpload: (id: string) => void;
   setAttachedFiles: React.Dispatch<React.SetStateAction<AttachedFile[]>>;
   removeAttachedFile: (id: number) => void;
-  uploadFile: (file: File | Blob, filename?: string) => Promise<AttachedFile | null>;
+  uploadFile: (
+    file: File | Blob,
+    filename?: string,
+    onProgress?: (percentage: number) => void,
+  ) => Promise<AttachedFile | null>;
   pastedTexts: Map<number, string>;
   expandPastedTexts: (text: string) => string;
   incrementPastedCount: () => number;
@@ -250,6 +257,8 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   setForceTextarea,
   useTextarea,
   attachedFiles,
+  uploadingFiles,
+  cancelUpload,
   setAttachedFiles,
   removeAttachedFile,
   uploadFile,
@@ -293,7 +302,6 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   const [swipeCloseOffset, setSwipeCloseOffset] = useState(0);
   const [swipeClosePhase, setSwipeClosePhase] = useState<'idle' | 'dragging' | 'returning'>('idle');
   const [isInputExpanded, setIsInputExpanded] = useState(false);
-  const [uploadingFiles, setUploadingFiles] = useState<Array<{ id: string; name: string }>>([]);
   const [pendingMessages, setPendingMessages] = useState<Array<{ command: string; queuedAt: number }>>([]);
 
   // @ file mention state
@@ -338,6 +346,8 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   // Floating current-prompt bubble (bottom-center of the input container):
   // truncated preview; click scrolls the conversation to that prompt.
   const promptBubbleText = useMemo(() => {
+    const renamePreview = renameAgentRequestPreview(lastPrompt?.text);
+    if (renamePreview) return renamePreview;
     const flat = (lastPrompt?.text ?? '').replace(/\s+/g, ' ').trim();
     return flat.length > PROMPT_BUBBLE_MAX_CHARS ? `${flat.slice(0, PROMPT_BUBBLE_MAX_CHARS)}…` : flat;
   }, [lastPrompt?.text]);
@@ -620,17 +630,9 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     });
   };
 
-  // Wrap uploadFile with a loading indicator entry
-  const uploadFileWithProgress = async (file: File | Blob, filename?: string): Promise<AttachedFile | null> => {
-    const tempId = `${Date.now()}-${Math.random()}`;
-    const displayName = filename || (file instanceof File ? file.name : t('terminal:input.uploadingFile'));
-    setUploadingFiles((prev) => [...prev, { id: tempId, name: displayName }]);
-    try {
-      return await uploadFile(file, filename);
-    } finally {
-      setUploadingFiles((prev) => prev.filter((f) => f.id !== tempId));
-    }
-  };
+  // Upload state and byte progress live in useTerminalInput so paste, picker,
+  // composer-drop, and drops anywhere on Guake all share the same indicator.
+  const uploadFileWithProgress = (file: File | Blob, filename?: string) => uploadFile(file, filename);
 
   // Update pasted text content and refresh the line count in the command placeholder
   const updatePastedText = (id: number, newText: string) => {
@@ -1191,15 +1193,36 @@ export const TerminalInputArea = memo(function TerminalInputArea({
       {/* Attached files display */}
       {(attachedFiles.length > 0 || uploadingFiles.length > 0) && (
         <div className="guake-attachments">
-          {uploadingFiles.map(({ id, name }) => (
+          {uploadingFiles.map(({ id, name, progress }) => (
             <div key={id} className="guake-attachment guake-attachment-uploading">
               <span className="guake-attachment-spinner" />
               <div className="guake-attachment-info">
                 <div className="guake-attachment-name-row">
                   <span className="guake-attachment-name">{name}</span>
                 </div>
-                <span className="guake-attachment-size">{t('terminal:input.uploading')}</span>
+                <span className="guake-attachment-size">
+                  {t('terminal:input.uploading')} · {progress}%
+                </span>
+                <span
+                  className="guake-attachment-progress"
+                  role="progressbar"
+                  aria-label={`${name}: ${progress}%`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={progress}
+                >
+                  <span style={{ width: `${progress}%` }} />
+                </span>
               </div>
+              <button
+                type="button"
+                className="guake-attachment-remove guake-attachment-cancel"
+                onClick={() => cancelUpload(id)}
+                title={t('common:buttons.cancel')}
+                aria-label={`${t('common:buttons.cancel')}: ${name}`}
+              >
+                <Icon name="close" size={11} />
+              </button>
             </div>
           ))}
           {attachedFiles.map((file) => {

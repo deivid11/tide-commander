@@ -7,7 +7,14 @@
  */
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { STORAGE_KEYS, getStorageString, setStorageString, removeStorage, apiUrl, authFetch } from '../../utils/storage';
+import {
+  STORAGE_KEYS,
+  getStorageString,
+  setStorageString,
+  removeStorage,
+  apiUrl,
+  getAuthToken,
+} from '../../utils/storage';
 import { setAgentDraft } from '../../utils/agentDrafts';
 import type { AttachedFile } from './types';
 
@@ -37,11 +44,17 @@ interface TerminalInputState {
 
   // Attached files
   attachedFiles: AttachedFile[];
+  uploadingFiles: Array<{ id: string; name: string; progress: number }>;
+  cancelUpload: (id: string) => void;
   setAttachedFiles: (value: AttachedFile[] | ((prev: AttachedFile[]) => AttachedFile[])) => void;
   removeAttachedFile: (id: number) => void;
 
   // Helpers
-  uploadFile: (file: File | Blob, filename?: string) => Promise<AttachedFile | null>;
+  uploadFile: (
+    file: File | Blob,
+    filename?: string,
+    onProgress?: (percentage: number) => void,
+  ) => Promise<AttachedFile | null>;
   expandPastedTexts: (text: string) => string;
   getTextareaRows: () => number;
 }
@@ -52,8 +65,14 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
   const [agentForceTextarea, setAgentForceTextarea] = useState<Map<string, boolean>>(new Map());
   const [agentPastedTexts, setAgentPastedTexts] = useState<Map<string, Map<number, string>>>(new Map());
   const [agentAttachedFiles, setAgentAttachedFiles] = useState<Map<string, AttachedFile[]>>(new Map());
+  const [uploadingFiles, setUploadingFiles] = useState<Array<{
+    id: string;
+    name: string;
+    progress: number;
+  }>>([]);
   const agentPastedCountRef = useRef<Map<string, number>>(new Map());
   const fileCountRef = useRef(0);
+  const uploadRequestsRef = useRef<Map<string, XMLHttpRequest>>(new Map());
 
   // Load persisted data from localStorage when agent changes
   useEffect(() => {
@@ -179,31 +198,74 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
   );
 
   // Upload file to server
-  const uploadFile = useCallback(async (file: File | Blob, filename?: string): Promise<AttachedFile | null> => {
+  const uploadFile = useCallback(async (
+    file: File | Blob,
+    filename?: string,
+    onProgress?: (percentage: number) => void,
+  ): Promise<AttachedFile | null> => {
+    const finalFilename = filename || (file instanceof File ? file.name : '');
+    const encodedFilename = encodeURIComponent(finalFilename);
+    const uploadId = `${Date.now()}-${Math.random()}`;
+    const displayName = finalFilename || 'file';
+    setUploadingFiles((current) => [...current, {
+      id: uploadId,
+      name: displayName,
+      progress: 0,
+    }]);
+
+    const reportProgress = (percentage: number) => {
+      setUploadingFiles((current) => current.map((entry) => entry.id === uploadId
+        ? { ...entry, progress: percentage }
+        : entry));
+      onProgress?.(percentage);
+    };
+
     try {
-      const finalFilename = filename || (file instanceof File ? file.name : '');
 
-      // Encode filename for HTTP header (RFC 5987 encodes non-ASCII characters)
-      // This handles filenames with special characters like "–", "é", etc.
-      const encodedFilename = encodeURIComponent(finalFilename);
+      // fetch does not expose upload progress. XHR is deliberately used for this
+      // request so Guake can report actual bytes sent for large attachments.
+      const data = await new Promise<{
+        filename: string;
+        absolutePath: string;
+        isImage: boolean;
+        size: number;
+      }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        uploadRequestsRef.current.set(uploadId, xhr);
+        xhr.open('POST', apiUrl('/api/files/upload'));
+        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+        xhr.setRequestHeader('X-Filename', encodedFilename);
+        const token = getAuthToken();
+        if (token) xhr.setRequestHeader('X-Auth-Token', token);
 
-      const response = await authFetch(apiUrl('/api/files/upload'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': file.type || 'application/octet-stream',
-          'X-Filename': encodedFilename,
-        },
-        body: file,
+        xhr.upload.onprogress = (event) => {
+          if (!event.lengthComputable || event.total <= 0) return;
+          reportProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+        };
+        xhr.onerror = () => reject(new Error('Network error while uploading file'));
+        xhr.onabort = () => reject(new DOMException('File upload was cancelled', 'AbortError'));
+        xhr.onload = () => {
+          if (xhr.status < 200 || xhr.status >= 300) {
+            reject(new Error(xhr.responseText || `Upload failed (${xhr.status})`));
+            return;
+          }
+          try {
+            resolve(JSON.parse(xhr.responseText) as {
+              filename: string;
+              absolutePath: string;
+              isImage: boolean;
+              size: number;
+            });
+          } catch {
+            reject(new Error('Upload returned an invalid response'));
+          }
+        };
+        reportProgress(0);
+        xhr.send(file);
       });
 
-      if (!response.ok) {
-        console.error('Upload failed:', await response.text());
-        return null;
-      }
-
-      const data = await response.json();
+      reportProgress(100);
       fileCountRef.current += 1;
-
       return {
         id: fileCountRef.current,
         name: data.filename,
@@ -212,9 +274,18 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
         size: data.size,
       };
     } catch (err) {
-      console.error('Upload error:', err);
+      if (!(err instanceof DOMException && err.name === 'AbortError')) {
+        console.error('Upload error:', err);
+      }
       return null;
+    } finally {
+      uploadRequestsRef.current.delete(uploadId);
+      setUploadingFiles((current) => current.filter((entry) => entry.id !== uploadId));
     }
+  }, []);
+
+  const cancelUpload = useCallback((id: string) => {
+    uploadRequestsRef.current.get(id)?.abort();
   }, []);
 
   // Expand pasted text placeholders before sending
@@ -249,6 +320,8 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
     incrementPastedCount,
     resetPastedCount,
     attachedFiles,
+    uploadingFiles,
+    cancelUpload,
     setAttachedFiles,
     removeAttachedFile,
     uploadFile,
@@ -257,7 +330,7 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
   }), [
     command, setCommand, forceTextarea, setForceTextarea, useTextarea,
     pastedTexts, setPastedTexts, incrementPastedCount, resetPastedCount,
-    attachedFiles, setAttachedFiles, removeAttachedFile, uploadFile,
+    attachedFiles, uploadingFiles, cancelUpload, setAttachedFiles, removeAttachedFile, uploadFile,
     expandPastedTexts, getTextareaRows,
   ]);
 }

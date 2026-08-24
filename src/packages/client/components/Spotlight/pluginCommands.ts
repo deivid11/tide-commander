@@ -13,6 +13,7 @@ export interface SpotlightPluginCommand {
   pluginName: string;
   summary: string;
   handler: string;
+  requiresAgent?: boolean;
 }
 
 /** Match enabled plugin commands when Spotlight is explicitly in `/` mode. */
@@ -39,6 +40,7 @@ export function matchSpotlightPluginCommands(
         pluginName: command.pluginName || command.pluginId,
         summary: command.summary,
         handler: command.handler || command.name.replace(/^\//, ''),
+        ...(command.requiresAgent ? { requiresAgent: true } : {}),
       });
     }
   }

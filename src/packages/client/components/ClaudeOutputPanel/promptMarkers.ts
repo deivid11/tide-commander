@@ -13,6 +13,7 @@
 import { BOSS_CONTEXT_START, BOSS_CONTEXT_END } from '../../../shared/agent-types';
 import { getSlashCommandInfo } from '../../utils/slashCommands';
 import type { TaggedItem } from './virtualizedOutputKey';
+import { parseRenameAgentRequest } from '../../plugins/rename-agent/renameAgentRequest';
 
 export interface PromptMarker {
   /** Index into the merged allItems array — the virtualizer scroll target. */
@@ -48,6 +49,10 @@ const SLASH_COMMAND_RE = /^\/[a-zA-Z][\w:-]*(\s|$)/;
 export function extractPromptPreview(raw: string): string | null {
   let text = (raw || '').replace(/\r\n/g, '\n').trim();
   if (!text) return null;
+
+  // Internal plugin orchestration is rendered as a dedicated status card and
+  // must not appear as if the user typed a giant prompt.
+  if (parseRenameAgentRequest(text)) return null;
 
   // Slash commands are actions on the session, not something said to the agent.
   if (getSlashCommandInfo(text) || SLASH_COMMAND_RE.test(text)) return null;

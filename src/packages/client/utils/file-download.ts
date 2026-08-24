@@ -85,12 +85,20 @@ export function absolutizeAssetUrl(src: string): string {
 }
 
 /** Trigger a browser download without navigating away from the app. */
-export function triggerBrowserDownload(url: string, suggestedName?: string): void {
+export function triggerBrowserDownload(
+  url: string,
+  suggestedName?: string,
+  preserveCurrentPage = false,
+): void {
   const link = document.createElement('a');
   link.href = url;
   // Only a hint: a cross-origin response's Content-Disposition wins, which is
   // what actually names these files.
   if (suggestedName) link.download = suggestedName;
+  // Streaming ZIP responses are not consistently recognized as downloads by
+  // WebViews. Never let that response replace Tide Commander: a failed or
+  // unsupported download may open separately, but cannot blank the app.
+  if (preserveCurrentPage) link.target = '_blank';
   link.rel = 'noopener';
   document.body.appendChild(link);
   link.click();
@@ -98,7 +106,20 @@ export function triggerBrowserDownload(url: string, suggestedName?: string): voi
 }
 
 export function downloadFolder(dirPath: string, folderName?: string): void {
-  triggerBrowserDownload(folderZipUrl(dirPath), `${folderName || 'folder'}.zip`);
+  const url = folderZipUrl(dirPath);
+  const filename = `${folderName || 'folder'}.zip`;
+
+  // Android WebView does not reliably honor Content-Disposition for streamed
+  // ZIPs and can navigate the whole Commander view to the binary response.
+  // Route it through the native Downloads provider instead.
+  if (Capacitor.getPlatform() === 'android') {
+    void downloadServerFile(url, filename, 'application/zip').catch((error: unknown) => {
+      console.error('Folder download failed:', error);
+    });
+    return;
+  }
+
+  triggerBrowserDownload(url, filename, true);
 }
 
 export function downloadFile(filePath: string, fileName?: string): void {

@@ -240,6 +240,10 @@ Installed plugin state is persisted under Tide Commander's data directory. Disab
 
 The built-in `tide-commander` plugin contributes `/usages`. It loads daily or short-term and weekly quota windows for every registered account across Claude, Codex, Grok, OpenCode, and Pi without invoking an agent or LLM. Each live window shows both its reset date and a compact days/hours countdown. Expired/revoked accounts stay hidden at the bottom behind **Mostrar expiradas**. Providers that do not publish one of these windows remain visible with an explicit unavailable or dynamic-capacity state.
 
+## Rename Agent
+
+The built-in `rename-agent` plugin contributes `/rename-agent`. It invokes the selected agent itself so its configured model can analyze the full conversation, current tasks, and recent activity. Commander recognizes the internal orchestration prompt and replaces it across live output, persisted history, task banners, headers, prompt previews, and the inspector with a compact AI identity-studio status card; the raw instruction is not presented as a user-authored message. The command immediately renders a generating card; the agent posts exactly three short names and reasons back to the card through a request-bound plugin action, then the user chooses one. Every proposal must preserve the agent's recognizable identity by retaining all terms from its current name (descriptors may be inserted, such as `Mark Releases Transfer Connect`) or by explicitly retaining its class name (such as `Charizard Liberaciones`). Selecting a proposal renames the agent globally and updates the card in place. Ready proposal cards have no time-based expiration: they remain selectable after any amount of time and even after a server restart because the validated selection data is self-contained in the card. Arbitrary names are rejected—the user must choose one of the three AI-generated proposals.
+
 ## Bolba Tasks
 
 `bolba-tasks` is the built-in reference plugin. It contributes:

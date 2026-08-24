@@ -1,11 +1,13 @@
 import React, { memo, useCallback, useId, useMemo, useState } from 'react';
 import { detectAgentFetch, detectAgentMessage, detectBrowserAction, detectTcApiCall, type BrowserAction, type ParsedCurl, type TcApiCall } from './curlParser';
-import { classifyTcApiOutput, type TcAgentRow, type TcApiListing } from './tcApiOutput';
+import { classifyTcApiOutput, readTcPluginOutput, type TcAgentRow, type TcApiListing } from './tcApiOutput';
 import { useAgent } from '../../store/selectors';
 import { store, useViewMode } from '../../store';
 import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
 import { findPluginCurlRenderer } from '../../plugins/registry';
+import { PluginOutputHost } from '../../plugins/PluginOutputHost';
+import type { PluginOutputEnvelope } from '../../plugins/types';
 
 const AGENT_MESSAGE_COLLAPSE_LINE_THRESHOLD = 5;
 const AGENT_MESSAGE_COLLAPSE_CHAR_THRESHOLD = 280;
@@ -332,6 +334,39 @@ function tcApiCountLabel(listing: TcApiListing): string | undefined {
   }
 }
 
+function TcPluginOutputCard({
+  call,
+  output,
+  rawCommand,
+}: {
+  call: TcApiCall;
+  output: PluginOutputEnvelope;
+  rawCommand?: string;
+}) {
+  const data = output.data && typeof output.data === 'object' && !Array.isArray(output.data)
+    ? output.data as { agentId?: unknown }
+    : null;
+  const agentId = typeof data?.agentId === 'string' ? data.agentId : undefined;
+  return (
+    <div
+      className="curl-card curl-card--tc curl-card--tc-plugin"
+      title={rawCommand}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div className="tc-api-head">
+        <span className="tc-api-brand-icon"><Icon name="waves" size={13} /></span>
+        <span className="tc-api-brand">Tide Commander</span>
+        <span className={`curl-method method-${call.method.toLowerCase()}`}>{call.method}</span>
+        <span className="tc-api-label"><Icon name="plug" size={12} /> Plugin result</span>
+        <code className="tc-api-path" title={call.path}>{truncateMiddle(call.path, 44)}</code>
+      </div>
+      <div className="tc-api-plugin-output">
+        <PluginOutputHost output={output} agentId={agentId} />
+      </div>
+    </div>
+  );
+}
+
 function TcApiCard({ call, output, rawCommand }: { call: TcApiCall; output?: string; rawCommand?: string }) {
   const [showAll, setShowAll] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
@@ -522,6 +557,10 @@ export const CurlCard = memo(function CurlCard({ parsed, rawCommand, output }: C
   }
   const tcApi = detectTcApiCall(parsed);
   if (tcApi) {
+    const pluginOutput = readTcPluginOutput(output);
+    if (pluginOutput) {
+      return <TcPluginOutputCard call={tcApi} output={pluginOutput} rawCommand={rawCommand} />;
+    }
     return <TcApiCard call={tcApi} output={output} rawCommand={rawCommand} />;
   }
   return <GenericCurlCard parsed={parsed} rawCommand={rawCommand} />;
