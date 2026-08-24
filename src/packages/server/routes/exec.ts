@@ -16,6 +16,7 @@ import type { ServerMessage } from '../../shared/types.js';
 import { TerminalRenderer } from '../../shared/terminal-render.js';
 import { pluginManager } from '../plugins/index.js';
 import {
+  EXECUTE_SUDO_COMMAND_ID,
   pluginShellCommandService,
   PluginShellCommandError,
   shellQuote,
@@ -371,7 +372,8 @@ router.post('/', async (req: Request, res: Response) => {
     let processedCommand: string;
 
     if (isShellSlashCommand) {
-      if (pluginManager.get('shell-commands')?.enabled !== true) {
+      const isBuiltinSudoCommand = shellCommandId === EXECUTE_SUDO_COMMAND_ID;
+      if (!isBuiltinSudoCommand && pluginManager.get('shell-commands')?.enabled !== true) {
         throw new PluginShellCommandError('Command Scripts plugin is disabled', 409, 'PLUGIN_DISABLED');
       }
       const args = Array.isArray(shellArgs) && shellArgs.every((argument) => typeof argument === 'string')

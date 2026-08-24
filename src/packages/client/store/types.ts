@@ -410,7 +410,7 @@ export interface StoreState {
   splitOrientation: 'horizontal' | 'vertical';
   // Agents with unseen output (completed work but user hasn't viewed)
   agentsWithUnseenOutput: Set<string>;
-  // Pinned agent ids (quick-select thumbnail bar above the terminal input)
+  // Pinned agent ids (quick-select thumbnail bar below the terminal input)
   pinnedAgentIds: string[];
   // Request to expand an agent in the commander view (set from notification clicks)
   commanderExpandRequest: string | null;

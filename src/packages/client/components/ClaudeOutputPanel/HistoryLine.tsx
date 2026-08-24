@@ -53,6 +53,8 @@ import { ThinkingBlock } from './ThinkingBlock';
 import { GrepResultsModal } from './GrepResultsModal';
 import { RenameAgentRequestCard } from '../../plugins/rename-agent/RenameAgentRequestCard';
 import { parseRenameAgentRequest } from '../../plugins/rename-agent/renameAgentRequest';
+import { ShellCommandResultCard } from '../../plugins/shell-commands/ShellCommandResultCard';
+import { parseShellCommandResult } from '../../plugins/shell-commands/shellCommandResult';
 
 /** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
 function getExtFromPath(filePath: string): string {
@@ -1797,6 +1799,15 @@ export const HistoryLine = memo(function HistoryLine({
   if (isUser && parsedBoss) {
     const parsedInjected = parseInjectedInstructions(parsedBoss.userMessage);
     const displayMessage = parsedInjected.userMessage;
+    const shellCommandResult = parseShellCommandResult(displayMessage);
+    if (shellCommandResult) {
+      return (
+        <div className={`${className} history-shell-command-result`}>
+          {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
+          <div className="history-content"><ShellCommandResultCard result={shellCommandResult} /></div>
+        </div>
+      );
+    }
     const renameAgentRequest = parseRenameAgentRequest(displayMessage);
     if (renameAgentRequest) {
       return (

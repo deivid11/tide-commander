@@ -37,7 +37,21 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
-        <!-- Foreground service for keeping WebSocket alive in background -->
+        <!-- FCM defaults: without these, a push whose payload omits the
+             channel lands on a low-importance "Miscellaneous" channel with no
+             heads-up and no sound. Must match MainActivity.AGENT_NOTIFICATION_CHANNEL_ID. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="agent_alerts" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/ic_launcher" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/tide_notification_accent" />
+
+        <!-- Foreground service for keeping WebSocket alive in background
+             (fallback only: it stays stopped while FCM push is active) -->
         <service
             android:name=".WebSocketForegroundService"
             android:foregroundServiceType="dataSync"

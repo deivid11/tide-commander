@@ -1516,15 +1516,9 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
           We keep the lookup wired (pendingAgentPrompts) so it stays referenced
           if we ever need a fallback panel. */}
 
-      {/* Composer stack: pinned bar + input share one fixed bottom unit on mobile
-          so the pin pill never floats over chat messages. */}
+      {/* Composer stack: input + agent bar share one fixed bottom unit on mobile
+          so the agent pills never float over chat messages. */}
       <div className="guake-composer-stack">
-      {/* Agent quick-select strip, directly above the composer. When the activity
-          dock is parked here (Settings → General → Agent activity dock) the
-          working / recently-active agents join this same row instead of stacking
-          a second strip of the same avatars on top of the composer. */}
-      <PinnedAgentsBar activeAgentId={agentId} includeActiveAgents={dockPosition === 'composer'} />
-
       {/* Terminal input */}
       <TerminalInputArea
         selectedAgent={agent}
@@ -1560,6 +1554,12 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
         onSwipeCloseOffsetChange={onSwipeCloseOffsetChange}
         onSwipeClose={onSwipeClose}
       />
+
+      {/* Agent quick-select strip, directly below the composer. When the activity
+          dock is parked here (Settings → General → Agent activity dock) the
+          working / recently-active agents join this same row instead of stacking
+          a second strip of the same avatars beside the composer. */}
+      <PinnedAgentsBar activeAgentId={agentId} includeActiveAgents={dockPosition === 'composer'} />
       </div>
     </>
   );

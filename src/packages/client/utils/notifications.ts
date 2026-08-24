@@ -13,11 +13,16 @@ import { store } from '../store';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 
-// Register custom Capacitor plugin for syncing config to native foreground service
-const ServerConfig = registerPlugin<{
+// Register custom Capacitor plugin for syncing config to native foreground service.
+// Exported so push-notifications.ts reuses this proxy instead of registering
+// the same plugin name a second time.
+export const ServerConfig = registerPlugin<{
   syncConfig(options: { url: string; token: string; urls?: string[] }): Promise<void>;
   getBackgroundServiceEnabled(): Promise<{ enabled: boolean }>;
   setBackgroundServiceEnabled(options: { enabled: boolean }): Promise<void>;
+  /** Stops the foreground service while FCM push covers background delivery. */
+  setPushActive(options: { active: boolean }): Promise<void>;
+  getPushActive(): Promise<{ active: boolean }>;
 }>('ServerConfig');
 
 // Start at 100 to avoid collision with foreground service notification (ID 1)

@@ -356,9 +356,9 @@
   align-items: center;
   justify-content: flex-start;
   flex-wrap: nowrap;
-  gap: 12px;
-  padding: 6px 18px;
-  height: 34px;
+  gap: 8px;
+  padding: 4px 14px;
+  height: 30px;
   overflow: hidden;
   background: color-mix(in srgb, var(--bg-primary) 95%, transparent);
   border-top: 1px solid var(--bg-tertiary);
@@ -379,7 +379,7 @@
   white-space: nowrap;
   color: var(--text-primary);
   background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 4px;
   border: 1px solid var(--border-color);
   flex-shrink: 0;
@@ -395,7 +395,7 @@
   white-space: nowrap;
   color: var(--text-secondary);
   background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
-  padding: 3px 8px;
+  padding: 2px 7px;
   border-radius: 4px;
   border: 1px solid var(--border-color);
   min-width: 0;
@@ -486,8 +486,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 22px;
+  width: 24px;
+  height: 20px;
   font-size: 13px;
   line-height: 1;
   border: 1px solid color-mix(in srgb, var(--bg-tertiary) 60%, transparent);

@@ -4,6 +4,7 @@ import { logger } from '../../utils/index.js';
 import type { HandlerContext } from './types.js';
 import { publishNotification } from '../../integrations/whatsapp/whatsapp-notification-publisher.js';
 import type { WhatsAppNotificationEventType } from '../../services/whatsapp-notification-config-service.js';
+import { sendAgentPush } from '../../services/push-service.js';
 
 const log = logger.ws;
 
@@ -44,6 +45,10 @@ export function handleSendNotification(
     `${agent.name}: ${title}`,
     message,
   ).catch((err) => log.warn(`WhatsApp publish skipped: ${err}`));
+
+  // Same native-push fan-out as the REST endpoint (routes/notifications.ts):
+  // both entry points must reach phones with the app closed.
+  void sendAgentPush(notification).catch((err) => log.warn(`Push delivery skipped: ${err}`));
 }
 
 function classifyNotificationEventType(title: string): WhatsAppNotificationEventType {

@@ -4,6 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { createConnection } from 'node:net';
 import {
+  EXECUTE_SUDO_COMMAND_ID,
   parsePluginShellCommandArgs,
   PluginShellCommandError,
   PluginShellCommandService,
@@ -100,6 +101,35 @@ describe('PluginShellCommandService', () => {
     );
     expect(execution.requestedByAgent).toBe(true);
     execution.sudoPassword?.fill(0);
+  });
+
+  it('provides the non-persisted execute-sudo-command definition with literal argv', async () => {
+    const { service: commands } = service();
+    const definition = await commands.get(EXECUTE_SUDO_COMMAND_ID);
+    expect(definition).toMatchObject({
+      id: EXECUTE_SUDO_COMMAND_ID,
+      name: '/execute-sudo-command',
+      runAsSudo: true,
+      enabled: true,
+    });
+    expect(definition.script).toContain('sudo "$@"');
+    expect(await commands.list()).toEqual([]);
+    await expect(commands.prepareArgs(
+      EXECUTE_SUDO_COMMAND_ID,
+      'agent-1',
+      ['touch', '/opt/test;echo unsafe'],
+    )).resolves.toMatchObject({
+      args: ['touch', '/opt/test;echo unsafe'],
+      requiresSudo: true,
+      challengeId: expect.any(String),
+    });
+    expect(await commands.listPendingSudoRequests()).toMatchObject([{
+      commandId: EXECUTE_SUDO_COMMAND_ID,
+      agentId: 'agent-1',
+      invocation: "/execute-sudo-command 'touch' '/opt/test;echo unsafe'",
+      args: ['touch', '/opt/test;echo unsafe'],
+      challengeId: expect.any(String),
+    }]);
   });
 
   it('requires a matching one-time sudo authorization', async () => {

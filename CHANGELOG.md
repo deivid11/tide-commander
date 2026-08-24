@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.209.0] - 2026-08-24
+
+### Added
+- **Dedicated sudo execution plugin** — extracted `execute-sudo-command` into standalone plugin `execute-sudo-command` (`ExecuteSudoCommandStatusCard`, builtin `execute-sudo-command.ts` + tests) with own card and isolated execution path.
+- **Push notifications service** — `push-service` (+tests) + `routes/push` and client `push-notifications` utility for native push handling.
+- **Shell command result card** — `ShellCommandResultCard` + `shellCommandResult` parser/tests for structured shell output.
+
+### Changed
+- **Android foreground service hardened** — `AndroidManifest.xml`, `MainActivity`, `ServerConfigPlugin`, `WebSocketForegroundService`, `capacitor.build.gradle` / `variables.gradle` updated; `docs/android.md` expanded.
+- **Guake terminal and spotlight polish** — `AgentTerminalPane`, `TerminalInputArea`, `HistoryLine`, `OutputLine`, `PinnedAgentsBar`, `promptMarkers`, `useSpotlightSearch`, `useTerminalInput`, `storage` and plugin types/harness refined; `AboutSection` with toolbox styles updated.
+- **Server and locales** — `session-loader` (+search tests), `execute-slash-commands`, `plugin-shell-command-service` (+tests), `routes/exec`/`plugins`/`notifications` and `common-types` updated; locales `config.json` refreshed.
+
 ## [1.208.1] - 2026-08-24
 
 ### Fixed

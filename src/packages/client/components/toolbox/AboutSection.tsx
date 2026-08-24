@@ -17,6 +17,12 @@ import {
   getBackgroundServiceEnabled,
   setBackgroundServiceEnabled,
 } from '../../utils/notifications';
+import {
+  fetchPushStatus,
+  sendTestPush,
+  type PushStatusResponse,
+} from '../../utils/push-notifications';
+import { apiUrl, authFetch } from '../../utils/storage';
 
 // Theme selector component
 export function ThemeSelector() {
@@ -476,6 +482,133 @@ function BackgroundServiceToggle() {
   );
 }
 
+/**
+ * Firebase push status + setup.
+ *
+ * Push replaces the always-on WebSocket for background alerts: once a device
+ * token is registered the foreground service stays down, which is where the
+ * battery savings come from. Shown on every platform because the server-side
+ * credential lives here, not on the phone.
+ */
+function PushNotificationsPanel() {
+  const { t } = useTranslation(['config']);
+  const [status, setStatus] = useState<PushStatusResponse | null>(null);
+  const [jsonInput, setJsonInput] = useState('');
+  const [showInput, setShowInput] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const refresh = useCallback(() => {
+    void fetchPushStatus().then(setStatus);
+  }, []);
+
+  useEffect(refresh, [refresh]);
+
+  const handleSaveCredentials = useCallback(async () => {
+    if (busy || !jsonInput.trim()) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await authFetch(apiUrl('/api/push/service-account'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ json: jsonInput }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Invalid service account');
+      setJsonInput('');
+      setShowInput(false);
+      setNotice(t('config:about.pushSaved', { project: body.projectId }));
+      refresh();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, jsonInput, refresh, t]);
+
+  const handleTest = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    const result = await sendTestPush();
+    setBusy(false);
+    if (!result) {
+      setError(t('config:about.pushTestFailed'));
+      return;
+    }
+    setNotice(t('config:about.pushTestSent', { count: result.sent }));
+    refresh();
+  }, [refresh, t]);
+
+  if (!status) return null;
+
+  const deviceCount = status.devices?.length ?? 0;
+
+  return (
+    <div className="about-autoupdate">
+      <div className="about-autoupdate-title">{t('config:about.pushTitle')}</div>
+      <div className="about-autoupdate-row">
+        <span className="about-autoupdate-devnote">
+          {status.configured
+            ? t('config:about.pushConfigured', { project: status.projectId, count: deviceCount })
+            : t('config:about.pushNotConfigured')}
+        </span>
+      </div>
+
+      {showInput ? (
+        <>
+          <textarea
+            className="about-push-credentials"
+            value={jsonInput}
+            onChange={(e) => setJsonInput(e.target.value)}
+            placeholder={t('config:about.pushCredentialsPlaceholder')}
+            rows={4}
+            spellCheck={false}
+          />
+          <div className="about-update-actions">
+            <button
+              className="about-update-btn download"
+              onClick={() => void handleSaveCredentials()}
+              disabled={busy || !jsonInput.trim()}
+            >
+              {t('config:about.pushSaveCredentials')}
+            </button>
+            <button className="about-update-btn changelog" onClick={() => setShowInput(false)}>
+              {t('config:about.pushCancel')}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="about-update-actions">
+          <button className="about-update-btn changelog" onClick={() => setShowInput(true)}>
+            {status.configured
+              ? t('config:about.pushReplaceCredentials')
+              : t('config:about.pushAddCredentials')}
+          </button>
+          {status.configured && deviceCount > 0 && (
+            <button
+              className="about-update-btn download"
+              onClick={() => void handleTest()}
+              disabled={busy}
+            >
+              {t('config:about.pushTest')}
+            </button>
+          )}
+        </div>
+      )}
+
+      {notice && <div className="about-autoupdate-devnote">{notice}</div>}
+      {error && <div className="about-update-error">{error}</div>}
+      {status.configured && status.lastError && !error && (
+        <div className="about-update-error">{status.lastError}</div>
+      )}
+    </div>
+  );
+}
+
 export function AboutSection() {
   const { t } = useTranslation(['config']);
   const {
@@ -549,6 +682,9 @@ export function AboutSection() {
 
       {/* OTA UI sync from the connected server (Android only) */}
       <WebBundlePanel />
+
+      {/* Firebase push: the low-battery replacement for the WebSocket service */}
+      <PushNotificationsPanel />
 
       {/* Opt-out for the persistent foreground service (Android only) */}
       <BackgroundServiceToggle />

@@ -56,3 +56,8 @@ release/
 # Python bytecode (freecad-runner.py is executed by FreeCADCmd)
 __pycache__/
 *.pyc
+
+# Firebase (push notifications) — project-specific ids and a key that can
+# push to every device of the project. Never commit these.
+android/app/google-services.json
+fcm-service-account.json

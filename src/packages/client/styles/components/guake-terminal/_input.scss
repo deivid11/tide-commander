@@ -134,7 +134,7 @@
   display: flex;
   align-items: stretch;
   gap: 0;
-  padding: 8px 12px;
+  padding: 6px 10px;
   background: color-mix(in srgb, var(--bg-primary) 95%, transparent);
   border-top: 1px solid color-mix(in srgb, var(--accent-purple) 25%, transparent);
 }
@@ -148,7 +148,7 @@
   border: 2px solid color-mix(in srgb, var(--text-muted) 25%, transparent);
   border-radius: 8px;
   transition: all $transition-fast;
-  min-height: 42px;
+  min-height: 38px;
   position: relative;
   // Disable middle-click paste
   user-select: none;
@@ -219,7 +219,7 @@
   flex: 1;
   background: transparent;
   border: none;
-  padding: 10px 12px;
+  padding: 8px 10px;
   color: var(--text-primary);
   font-family: $font-mono;
   font-size: 13px;
@@ -294,8 +294,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  min-height: 40px;
+  width: 32px;
+  min-height: 36px;
   background: transparent;
   border: none;
   color: color-mix(in srgb, var(--text-muted) 70%, transparent);
@@ -329,8 +329,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  min-height: 40px;
+  width: 34px;
+  min-height: 36px;
   background: transparent;
   border: none;
   color: color-mix(in srgb, var(--text-muted) 70%, transparent);
@@ -355,8 +355,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  min-height: 40px;
+  width: 32px;
+  min-height: 36px;
   background: transparent;
   border: none;
   color: color-mix(in srgb, var(--text-muted) 70%, transparent);
@@ -423,8 +423,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  min-height: 40px;
+  width: 36px;
+  min-height: 36px;
   background: transparent;
   border: none;
   color: var(--accent-cyan);
@@ -477,10 +477,8 @@
   align-items: center;
   gap: 6px;
 
-  // On mobile the pinned-agents bar + context bar sit directly above the input,
-  // so floating the stop bar up collides with them (it landed on the pinned
-  // chips). Drop it into normal flow as its own centered row instead — it
-  // renders between the context bar and the input, so nothing overlaps.
+  // On mobile the context bar sits directly above the input. Drop the stop bar
+  // into normal flow beside it so neither status element overlaps the composer.
   @media (max-width: 768px) {
     position: static;
     transform: none;
@@ -522,8 +520,8 @@
   border: 1px solid color-mix(in srgb, var(--accent-green) 50%, transparent);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 
-  // Same as the stop bar: in normal flow on mobile so it never floats onto the
-  // pinned-agents / context bars above the input.
+  // Same as the stop bar: keep completion feedback in normal flow on mobile so
+  // it never floats onto the context bar above the input.
   @media (max-width: 768px) {
     position: static;
     transform: none;
@@ -593,17 +591,16 @@
 }
 
 // =============================================================================
-// Mobile Context Bar - compact context stats above input
+// Mobile limits bar - session context + weekly quota above input
 // =============================================================================
 
 .mobile-context-bar {
   // Hidden by default on desktop (show-on-mobile utility class handles display)
   display: none !important;
   position: relative;
-  height: 18px;
+  height: 20px;
   background: color-mix(in srgb, var(--bg-primary) 95%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
-  cursor: pointer;
   overflow: hidden;
   flex-shrink: 0;
 
@@ -616,29 +613,85 @@
   }
 }
 
+.mobile-limit-gauge {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 50%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+  overflow: hidden;
+
+  & + & {
+    border-left: 1px solid color-mix(in srgb, var(--text-muted) 26%, transparent);
+  }
+
+  &:active {
+    background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
+  }
+}
+
 .mobile-context-bar-fill {
   position: absolute;
   top: 0;
   left: 0;
   height: 100%;
   opacity: 0.12;
+  pointer-events: none;
   transition: width 0.3s ease, background-color 0.3s ease;
 }
 
 .mobile-context-bar-text {
   position: relative;
   z-index: 1;
+  min-width: 0;
   font-size: 9px;
+  line-height: 1;
   font-family: $font-mono;
   font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 3px;
+  white-space: nowrap;
 }
 
-.mobile-context-bar-pct {
+.mobile-context-bar-label {
   color: var(--text-muted);
-  font-weight: 400;
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mobile-context-bar-window {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.mobile-context-bar-value {
+  font-weight: 700;
+}
+
+@media (max-width: 420px) {
+  .guake-input-wrapper.has-stop-btn .mobile-context-bar-window {
+    display: none;
+  }
+
+  .mobile-limit-gauge {
+    padding-inline: 2px;
+  }
+
+  .mobile-context-bar-text {
+    gap: 2px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -674,7 +727,7 @@
 }
 
 // =============================================================================
-// Composer stack — pinned bar + input (one unit on mobile)
+// Composer stack — input + pinned bar (one unit on mobile)
 // =============================================================================
 .guake-composer-stack {
   display: flex;
@@ -684,7 +737,7 @@
 }
 
 // =============================================================================
-// Pinned agents quick-select bar (above the terminal input)
+// Pinned agents quick-select bar (below the terminal input)
 // =============================================================================
 .pinned-agents-bar {
   display: flex;
@@ -693,11 +746,10 @@
   // hidden` would clip the icons at the top.
   flex: none;
   align-items: center;
-  gap: 8px;
-  // Tight vertical padding — the top still needs ~7px so the floating × badge
-  // (top: -6px) and unread dot are not clipped by the overflow-y: hidden
-  // scroll container; the bottom has no floating badges and can sit closer.
-  padding: 7px 10px 5px;
+  gap: 6px;
+  // Keep just enough top room for the floating × badge while avoiding a tall
+  // second toolbar under the composer.
+  padding: 6px 10px 4px;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
@@ -952,8 +1004,8 @@
 // dashed underline is the only "I'm clickable" hint until hover.
 .pinned-mode-toggle {
   flex: none;
-  align-self: flex-end;
-  margin: 0 2px 1px 0;
+  align-self: center;
+  margin: 0 2px 0 0;
   padding: 0 2px 1px;
   border: none;
   border-bottom: 1px dashed color-mix(in srgb, var(--text-muted) 50%, transparent);
@@ -981,16 +1033,15 @@
   }
 }
 
-// Each grouped section = its header stacked ABOVE the chips that belong to it, so
-// the label costs vertical (not horizontal) space and the bar stays narrow. A
-// thin left rule separates sections (space is tight, so a divider — not a full
-// box — matches the bar's flat visual language).
+// Keep each group label inline with its chips. The terminal is naturally wide,
+// and spending a few horizontal pixels saves an entire row of vertical space.
+// A thin left rule separates sections without adding another visual box.
 .pinned-group {
   display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 6px;
   flex: none;
   padding-left: 8px;
   border-left: 1px solid color-mix(in srgb, var(--text-muted) 28%, transparent);
@@ -1007,16 +1058,16 @@
 .pinned-group-chips {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .pinned-group-label {
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding-left: 2px;
-  font-size: 10px;
+  gap: 3px;
+  padding-left: 0;
+  font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
@@ -1040,9 +1091,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 4px;
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
   border-radius: 7px;
   background: color-mix(in srgb, var(--text-muted) 28%, transparent);
   color: var(--text-primary);
@@ -1058,22 +1109,22 @@
   .pinned-agent {
     max-width: none;
     gap: 0;
-    padding: 4px;
+    padding: 3px;
   }
   .pinned-agent-name {
     display: none;
   }
   .pinned-agent-av {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
   }
   // In icon-only mode this badge is the only visible runtime/model-provider
-  // cue, so keep it large enough to recognize at a glance.
+  // cue, so keep it recognizable without growing the entire row.
   .pinned-agent-av .pinned-agent-provider {
-    right: -4px;
-    bottom: -4px;
-    width: 13px;
-    height: 13px;
+    right: -3px;
+    bottom: -3px;
+    width: 11px;
+    height: 11px;
   }
 }
 
@@ -1081,8 +1132,8 @@
 // tapping a chip — removal is only via the input-area pin button. This keeps a tap
 // reserved for switching agents (no accidental unpin) and saves horizontal space.
 @media (max-width: 768px) {
-  // Pin strip sits in the composer stack above the input — no negative margin
-  // (that was overlapping the last chat messages). Compact pill, content-width.
+  // Pin strip sits in the composer stack below the input — no negative margin
+  // (that previously overlapped chat messages). Compact pill, content-width.
   .pinned-agents-bar {
     align-self: flex-start;
     max-width: calc(100% - 16px);
@@ -1157,12 +1208,13 @@
   }
 }
 
-// Floating current-prompt bubble: bottom-center of the input container,
-// straddling its lower edge. Shows a truncated preview of the prompt the
+// Floating current-prompt bubble: top-center of the input container,
+// straddling its upper edge. Shows a truncated preview of the prompt the
 // agent is working on; click scrolls the conversation to that prompt.
 .guake-prompt-bubble {
   position: absolute;
-  bottom: -13px;
+  top: -13px;
+  bottom: auto;
   left: 50%;
   transform: translateX(-50%);
   max-width: min(560px, 80%);
@@ -1194,10 +1246,39 @@
     border-color: color-mix(in srgb, var(--accent-purple) 60%, transparent);
   }
 
-  // Mobile: the pinned-agents/context bars sit directly above the input, so a
-  // floated chip collides with them (same reason the stop bar goes static).
+  // Mobile has its own compact context/status row above the input.
   @media (max-width: 768px) {
     display: none;
+  }
+}
+
+// During active/completed feedback, reserve the right side of the input's top
+// edge for its timer/badge so the last-prompt preview never overlaps it.
+.guake-input-wrapper.has-prompt-bubble.has-stop-btn {
+  .guake-stop-bar {
+    left: auto;
+    right: 12px;
+    transform: none;
+  }
+
+  .guake-prompt-bubble {
+    left: 12px;
+    transform: none;
+    max-width: min(560px, calc(100% - 190px));
+  }
+}
+
+.guake-input-wrapper.has-prompt-bubble.is-completed {
+  .guake-completion-time {
+    left: auto;
+    right: 12px;
+    transform: none;
+  }
+
+  .guake-prompt-bubble {
+    left: 12px;
+    transform: none;
+    max-width: min(560px, calc(100% - 100px));
   }
 }
 

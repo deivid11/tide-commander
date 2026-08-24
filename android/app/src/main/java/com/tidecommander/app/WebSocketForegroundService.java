@@ -15,7 +15,6 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
-import android.service.notification.StatusBarNotification;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -58,7 +57,6 @@ public class WebSocketForegroundService extends Service {
     private static int agentNotificationId = 1000;
 
     public static final String ACTION_RECONNECT = "RECONNECT";
-    private static final long NOTIFICATION_CHECK_INTERVAL_MS = 60_000;
 
     // Track whether the app is in foreground (set by MainActivity)
     public static volatile boolean isAppInForeground = false;
@@ -69,7 +67,6 @@ public class WebSocketForegroundService extends Service {
     // phone heat up while idle in the background. The battery-optimization
     // exemption (REQUEST_IGNORE_BATTERY_OPTIMIZATIONS) covers Doze delivery.
     private Handler handler;
-    private Runnable notificationChecker;
     private boolean isRunning = false;
 
     // Native WebSocket
@@ -81,7 +78,10 @@ public class WebSocketForegroundService extends Service {
     // backends on its own — while the app is backgrounded its JS socket is
     // parked and cannot re-probe for us (e.g. after leaving the home Wi-Fi).
     private int candidateIndex = 0;
-    private static final int MAX_RECONNECT_DELAY_MS = 30000;
+    // Retry ceiling. Off the server's network (out of the house, no VPN) the
+    // socket can never connect, and a 30s ceiling meant ~2,880 pointless
+    // DNS+TCP attempts a day — the single worst battery case for this service.
+    private static final int MAX_RECONNECT_DELAY_MS = 300000;
     // Dedupe agent notifications by server notification id
     private static final long NOTIFICATION_DEDUPE_TTL_MS = 2 * 60 * 1000; // 2 minutes
     private static final int NOTIFICATION_DEDUPE_CACHE_MAX_SIZE = 500;
@@ -95,22 +95,18 @@ public class WebSocketForegroundService extends Service {
 
         okHttpClient = new OkHttpClient.Builder()
             .readTimeout(0, TimeUnit.MILLISECONDS) // No read timeout for WebSocket
-            .pingInterval(30, TimeUnit.SECONDS)    // Keep-alive pings
+            // Keep-alive cadence. Each ping wakes the radio out of idle, so 30s
+            // (2,880 wakeups/day) was pure battery burn: the server never pings
+            // us, it only answers, so this interval alone sets the idle cost.
+            // 5 min stays well inside carrier/NAT connection timeouts and
+            // matches what FCM itself uses on cellular.
+            .pingInterval(5, TimeUnit.MINUTES)
             .build();
 
-        // Periodically check if foreground notification was dismissed and repost it.
-        // A long period matters: this runnable is a recurring CPU wakeup for the
-        // life of the service, and the previous 2s cadence kept the SoC from
-        // idling (phone heated up in the user's pocket).
-        notificationChecker = new Runnable() {
-            @Override
-            public void run() {
-                if (isRunning) {
-                    ensureNotificationVisible();
-                    handler.postDelayed(this, NOTIFICATION_CHECK_INTERVAL_MS);
-                }
-            }
-        };
+        // NOTE: nothing reposts the foreground notification any more. It used to
+        // be re-added whenever the user swiped it away, which is hostile — and a
+        // recurring CPU wakeup on top. Android keeps it up on its own for as long
+        // as the service is in the foreground, and that's enough.
     }
 
     @Override
@@ -122,12 +118,6 @@ public class WebSocketForegroundService extends Service {
         } else {
             startForeground(FOREGROUND_NOTIFICATION_ID, notification);
         }
-
-        // Remove any already-scheduled checker first: onStartCommand runs again
-        // for every RECONNECT action, and stacking posts would multiply the
-        // periodic wakeups (each posted runnable reschedules itself forever).
-        handler.removeCallbacks(notificationChecker);
-        handler.post(notificationChecker);
 
         // Handle reconnect action from ServerConfigPlugin
         if (intent != null && ACTION_RECONNECT.equals(intent.getAction())) {
@@ -460,23 +450,6 @@ public class WebSocketForegroundService extends Service {
 
     // ─── Foreground Notification Management ──────────────────────────
 
-    private void ensureNotificationVisible() {
-        NotificationManager manager = getSystemService(NotificationManager.class);
-        if (manager != null) {
-            StatusBarNotification[] activeNotifications = manager.getActiveNotifications();
-            boolean found = false;
-            for (StatusBarNotification sbn : activeNotifications) {
-                if (sbn.getId() == FOREGROUND_NOTIFICATION_ID) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found && isRunning) {
-                manager.notify(FOREGROUND_NOTIFICATION_ID, createForegroundNotification());
-            }
-        }
-    }
-
     private void updateForegroundNotification(String status) {
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null && isRunning) {
@@ -507,7 +480,10 @@ public class WebSocketForegroundService extends Service {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            // DEFERRED lets Android hold the notification back ~10s. Push
+            // normally stands this service down long before that, so the
+            // "Connected to server" row never reaches the shade at all.
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_DEFERRED)
             .build();
 
         notification.flags |= Notification.FLAG_NO_CLEAR | Notification.FLAG_ONGOING_EVENT;
@@ -516,10 +492,15 @@ public class WebSocketForegroundService extends Service {
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // MIN is the quietest a foreground service can be: no icon in the
+            // status bar, collapsed at the bottom of the shade. Android does not
+            // allow a foreground service with no notification at all — the only
+            // way to be rid of it entirely is to not run the service, which is
+            // exactly what happens once FCM push is active.
             NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
                 "Background Service",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_MIN
             );
             channel.setDescription("Keeps WebSocket connection alive");
             channel.setShowBadge(false);

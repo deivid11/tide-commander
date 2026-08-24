@@ -207,6 +207,12 @@ public class MainActivity extends BridgeActivity {
         if (!prefs.getBoolean(ServerConfigPlugin.KEY_BACKGROUND_SERVICE_ENABLED, true)) {
             return;
         }
+        // FCM push covers background delivery without a socket of our own —
+        // starting the service here would undo the battery win on every cold
+        // start. The JS side re-evaluates this flag after each registration.
+        if (prefs.getBoolean(ServerConfigPlugin.KEY_PUSH_ACTIVE, false)) {
+            return;
+        }
         Intent serviceIntent = new Intent(this, WebSocketForegroundService.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent);

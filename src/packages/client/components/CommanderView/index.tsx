@@ -20,7 +20,7 @@ import type { Agent } from '../../../shared/types';
 import { FileExplorerPanel } from '../FileExplorerPanel';
 import { matchesShortcut } from '../../store/shortcuts';
 import { STORAGE_KEYS, getStorageString, setStorageString } from '../../utils/storage';
-import { useModalStackRegistration } from '../../hooks/useModalStack';
+import { hasModalsAbove, useModalStackRegistration } from '../../hooks/useModalStack';
 import { useAgentHistory } from './useAgentHistory';
 import { AgentPanel } from './AgentPanel';
 import { SpawnForm } from './SpawnForm';
@@ -346,9 +346,12 @@ export function CommanderView({ isOpen, onClose }: CommanderViewProps) {
       // Escape: collapse or close
       const closeShortcut = shortcuts.find(s => s.id === 'commander-close');
       if (matchesShortcut(e, closeShortcut)) {
-        // If a modal (file viewer, context modal) is open on top, let its handler close it instead
+        // If any modal is above Commander/the expanded agent, leave Escape
+        // untouched so the global modal stack closes that surface first. This
+        // includes Terminal Output, image previews, file viewer, etc.
         const { fileViewerPath, contextModalAgentId } = store.getState();
-        if (fileViewerPath || contextModalAgentId) return;
+        const commanderStackId = expanded ? 'commander-expanded' : 'commander-modal';
+        if (fileViewerPath || contextModalAgentId || hasModalsAbove(commanderStackId)) return;
 
         e.preventDefault();
         e.stopImmediatePropagation();

@@ -328,7 +328,19 @@
     "unattendedTitle": "Actualizaciones automáticas",
     "unattendedDesc": "Instalar actualizaciones automáticamente cuando ningún agente esté trabajando (revisa cada 30 min)",
     "unattendedPendingRestart": "v{{version}} instalada — se reiniciará en cuanto todos los agentes estén libres",
-    "unattendedUnsupported": "Solo disponible en instalaciones globales de npm (corre en el servidor, no en modo dev)"
+    "unattendedUnsupported": "Solo disponible en instalaciones globales de npm (corre en el servidor, no en modo dev)",
+    "pushTitle": "Notificaciones push (Firebase)",
+    "pushConfigured": "Activo — proyecto {{project}}, {{count}} dispositivo(s) registrado(s). El teléfono recibe alertas con la app cerrada y sin socket en segundo plano.",
+    "pushNotConfigured": "Sin configurar. Pega el JSON de una cuenta de servicio de Firebase para recibir alertas sin el servicio en segundo plano que gasta batería.",
+    "pushAddCredentials": "Agregar credenciales",
+    "pushReplaceCredentials": "Reemplazar credenciales",
+    "pushCredentialsPlaceholder": "Pega el JSON de la cuenta de servicio (consola de Firebase → Configuración del proyecto → Cuentas de servicio → Generar nueva clave privada)",
+    "pushSaveCredentials": "Guardar",
+    "pushCancel": "Cancelar",
+    "pushSaved": "Guardado — proyecto {{project}}",
+    "pushTest": "Enviar prueba",
+    "pushTestSent": "Prueba enviada a {{count}} dispositivo(s)",
+    "pushTestFailed": "Falló la prueba — revisa el log del servidor"
   },
   "shortcuts": {
     "pressKeys": "Presione teclas...",

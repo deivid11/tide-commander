@@ -251,7 +251,13 @@ router.post('/:id/commands/:command', async (req: Request, res: Response) => {
       String(req.params.command),
       body,
     );
-    if (typeof body.agentId === 'string') pluginManager.publishOutput(body.agentId, output);
+    const privatelyPublished = output.data
+      && typeof output.data === 'object'
+      && !Array.isArray(output.data)
+      && (output.data as { kind?: unknown }).kind === 'sudo-command-requested';
+    if (typeof body.agentId === 'string' && !privatelyPublished) {
+      pluginManager.publishOutput(body.agentId, output);
+    }
     res.json({ output });
   } catch (error) {
     sendPluginError(res, error);

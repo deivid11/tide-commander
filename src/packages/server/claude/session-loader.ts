@@ -1071,6 +1071,8 @@ export type SessionExtractKind = 'user' | 'assistant' | 'tool' | 'raw';
 export interface SessionExtract {
   text: string;
   kind: SessionExtractKind;
+  /** Timestamp of the actual matched message, when the harness records one. */
+  timestamp?: string;
 }
 
 const FIRST_PROMPT_MAX_LEN = 240;
@@ -1779,6 +1781,53 @@ function firstToolText(content: unknown): string {
   return '';
 }
 
+function normalizeMessageTimestamp(value: unknown): string | undefined {
+  let millis: number;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    millis = value < 10_000_000_000 ? value * 1000 : value;
+  } else if (typeof value === 'string' && value.trim()) {
+    millis = Date.parse(value);
+    if (!Number.isFinite(millis) && /^\d+(?:\.\d+)?$/.test(value.trim())) {
+      const numeric = Number(value);
+      millis = numeric < 10_000_000_000 ? numeric * 1000 : numeric;
+    }
+  } else {
+    return undefined;
+  }
+  // Reject process-relative counters and malformed/far-future values.
+  if (!Number.isFinite(millis) || millis < Date.UTC(2000, 0, 1) || millis > Date.now() + 86_400_000) {
+    return undefined;
+  }
+  return new Date(millis).toISOString();
+}
+
+/** Timestamp attached to the matched message row across supported harnesses. */
+function extractLineTimestamp(line: string): string | undefined {
+  try {
+    const row = JSON.parse(line) as Record<string, unknown>;
+    const message = isObject(row.message) ? row.message : undefined;
+    const payload = isObject(row.payload) ? row.payload : undefined;
+    const candidates = [
+      row.timestamp,
+      row.created_at,
+      row.createdAt,
+      row.time,
+      row.time_created,
+      message?.timestamp,
+      message?.created_at,
+      message?.createdAt,
+      payload?.timestamp,
+      payload?.created_at,
+      payload?.createdAt,
+    ];
+    for (const candidate of candidates) {
+      const timestamp = normalizeMessageTimestamp(candidate);
+      if (timestamp) return timestamp;
+    }
+  } catch { /* raw line without message metadata */ }
+  return undefined;
+}
+
 /** Best human-readable text for a matched JSONL line, with its quality rank. */
 function extractReadableLineText(line: string): { text: string; rank: number } {
   try {
@@ -1898,7 +1947,13 @@ function windowSnippet(text: string, queryLower: string, nearbyMatcher?: RegExp)
 }
 
 /** Ranked extract candidate — kept while collecting, reduced at the end. */
-interface SnippetCandidate { text: string; rank: number; kind: SessionExtractKind; order: number }
+interface SnippetCandidate {
+  text: string;
+  rank: number;
+  kind: SessionExtractKind;
+  order: number;
+  timestamp?: string;
+}
 
 /**
  * Collector for a session's display extracts. Every matched line offers its
@@ -1920,7 +1975,7 @@ class SnippetCollector {
     if (pattern) this.nearbyMatcher = new RegExp(pattern, 'i');
   }
 
-  offer(readable: { text: string; rank: number }): void {
+  offer(readable: { text: string; rank: number }, timestamp?: string): void {
     const rank = snippetCandidateRank(readable, this.needleLower, this.nearbyMatcher);
     const text = windowSnippet(readable.text, this.needleLower, this.nearbyMatcher);
     if (!text) return;
@@ -1936,11 +1991,17 @@ class SnippetCollector {
     const key = at >= 0 ? norm.slice(Math.max(0, at - 48), at + this.needleLower.length + 48) : norm;
     if (this.seen.has(key)) return;
     this.seen.add(key);
-    this.candidates.push({ text, rank, kind: extractKindForRank(readable.rank), order: this.order++ });
+    this.candidates.push({
+      text,
+      rank,
+      kind: extractKindForRank(readable.rank),
+      order: this.order++,
+      timestamp,
+    });
   }
 
   offerLine(line: string): void {
-    this.offer(extractReadableLineText(line));
+    this.offer(extractReadableLineText(line), extractLineTimestamp(line));
   }
 
   /** True once SNIPPETS_PER_SESSION ceiling-rank extracts are held. */
@@ -1956,7 +2017,7 @@ class SnippetCollector {
     return [...this.candidates]
       .sort((a, b) => b.rank - a.rank || a.order - b.order)
       .slice(0, SNIPPETS_PER_SESSION)
-      .map((c) => ({ text: c.text, kind: c.kind }));
+      .map((c) => ({ text: c.text, kind: c.kind, ...(c.timestamp ? { timestamp: c.timestamp } : {}) }));
   }
 }
 
@@ -2591,7 +2652,7 @@ function searchOpencodeSessions(tokens: string[], limit: number, cwdFilter?: str
     // (opencode keeps the role on the message row, not the part). Ordered
     // user-first so prompts take the top slots, like the JSONL engines.
     const textPartStmt = db.prepare(
-      'SELECT p.data AS data, m.data AS mdata FROM part p LEFT JOIN message m ON m.id = p.message_id '
+      'SELECT p.data AS data, m.data AS mdata, p.time_created AS timeCreated FROM part p LEFT JOIN message m ON m.id = p.message_id '
       + 'WHERE p.session_id = ? AND length(p.data) < 65536 AND instr(tc_fold(p.data), ?) > 0 AND p.data LIKE \'%"type":"text"%\' '
       + 'ORDER BY CASE WHEN m.data LIKE \'%"role":"user"%\' THEN 0 ELSE 1 END, p.time_created LIMIT 8'
     );
@@ -2607,7 +2668,11 @@ function searchOpencodeSessions(tokens: string[], limit: number, cwdFilter?: str
       // first (see the ORDER BY), each tagged with its message's role;
       // raw-part fallback when no text part holds the word.
       const extracts: SessionExtract[] = [];
-      for (const row of textPartStmt.all(sid, needleParam) as Array<{ data: string; mdata: string | null }>) {
+      for (const row of textPartStmt.all(sid, needleParam) as Array<{
+        data: string;
+        mdata: string | null;
+        timeCreated: number | string | null;
+      }>) {
         if (extracts.length >= SNIPPETS_PER_SESSION) break;
         try {
           const data = JSON.parse(row.data) as { text?: unknown };
@@ -2619,7 +2684,8 @@ function searchOpencodeSessions(tokens: string[], limit: number, cwdFilter?: str
                 const role = row.mdata ? (JSON.parse(row.mdata) as { role?: unknown }).role : undefined;
                 if (role === 'user') kind = 'user';
               } catch { /* role unknown — keep assistant */ }
-              extracts.push({ text, kind });
+              const timestamp = normalizeMessageTimestamp(row.timeCreated);
+              extracts.push({ text, kind, ...(timestamp ? { timestamp } : {}) });
             }
           }
         } catch { /* unparseable part — try the next */ }

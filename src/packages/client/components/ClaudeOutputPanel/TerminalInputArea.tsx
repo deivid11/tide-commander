@@ -24,7 +24,10 @@ import { useServerMessageQueue } from '../../hooks/useServerMessageQueue';
 import { QueuedMessagesBar } from './QueuedMessagesBar';
 import { apiUrl, authFetch } from '../../utils/storage';
 import { getDisplayContextInfo } from '../../utils/context';
+import { getUsedPercentColor } from '../../utils/claude-usage-format';
+import { formatTokenCapacity } from '../../utils/formatting';
 import { resolveElapsedTimerStartedAt } from './elapsedTimer';
+import { getWeeklyUsageWindow, useProviderUsageSnapshot } from '../FlatView/PlanLimitsTooltip';
 import { usePluginRegistryRevision } from '../../plugins/hooks';
 import {
   executeShellSlashCommand,
@@ -32,6 +35,7 @@ import {
   reportShellCommandExecutionError,
 } from '../../plugins/shell-commands/execution';
 import { renameAgentRequestPreview } from '../../plugins/rename-agent/renameAgentRequest';
+import { shellCommandResultPreview } from '../../plugins/shell-commands/shellCommandResult';
 
 /**
  * Isolated elapsed timer component — owns its own 1-second setInterval so the
@@ -338,16 +342,66 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   // Get settings to check if TTS feature is enabled
   const settings = useSettings();
 
+  // Only poll provider quotas while this mobile-only surface can be visible.
+  // The hook shares its short-lived cache with FlatView and the limits tooltip,
+  // so switching views never creates duplicate upstream requests.
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
+  );
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 768px)');
+    const sync = () => setIsMobileViewport(media.matches);
+    sync();
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
+  }, []);
+
+  const usageProviderSupported = selectedAgent.provider === 'claude'
+    || selectedAgent.provider === 'codex'
+    || selectedAgent.provider === 'opencode'
+    || selectedAgent.provider === 'grok'
+    || selectedAgent.provider === 'pi';
+  const usageScope = selectedAgent.provider === 'pi'
+    ? `${selectedAgent.provider}:${selectedAgent.piModelProvider ?? ''}:${selectedAgent.piModel ?? ''}`
+    : selectedAgent.provider === 'opencode'
+      ? `${selectedAgent.provider}:${selectedAgent.opencodeModel ?? ''}`
+      : selectedAgent.provider;
+  const providerUsage = useProviderUsageSnapshot(
+    selectedAgentId,
+    _isOpen && isMobileViewport && usageProviderSupported,
+    60_000,
+    usageScope,
+  );
+  const mobileContext = getDisplayContextInfo(selectedAgent);
+  const mobileContextColor = getUsedPercentColor(mobileContext.usedPercent);
+  const weeklyWindow = getWeeklyUsageWindow(providerUsage.snapshot);
+  const weeklyUsedPercent = weeklyWindow
+    ? Math.max(0, Math.min(100, weeklyWindow.utilization))
+    : null;
+  const isOpenCodeFree = providerUsage.snapshot?.provider === 'opencode'
+    && providerUsage.snapshot.plan === 'free';
+  const weeklyColor = isOpenCodeFree
+    ? '#4aff9e'
+    : weeklyUsedPercent === null
+      ? 'var(--text-muted)'
+      : getUsedPercentColor(weeklyUsedPercent);
+  const weeklyValue = isOpenCodeFree
+    ? 'Free'
+    : weeklyUsedPercent === null
+      ? (providerUsage.loading ? '…' : '—')
+      : `${Math.round(weeklyUsedPercent)}%`;
+
   // Live elapsed timer — delegated to ElapsedTimer component to avoid
   // re-rendering the entire TerminalInputArea every second.
   const lastPrompt = useLastPrompt(selectedAgentId);
   const isWorking = selectedAgent.status === 'working';
 
-  // Floating current-prompt bubble (bottom-center of the input container):
+  // Floating current-prompt bubble (top-center of the input container):
   // truncated preview; click scrolls the conversation to that prompt.
   const promptBubbleText = useMemo(() => {
-    const renamePreview = renameAgentRequestPreview(lastPrompt?.text);
-    if (renamePreview) return renamePreview;
+    const internalPreview = shellCommandResultPreview(lastPrompt?.text)
+      || renameAgentRequestPreview(lastPrompt?.text);
+    if (internalPreview) return internalPreview;
     const flat = (lastPrompt?.text ?? '').replace(/\s+/g, ' ').trim();
     return flat.length > PROMPT_BUBBLE_MAX_CHARS ? `${flat.slice(0, PROMPT_BUBBLE_MAX_CHARS)}…` : flat;
   }, [lastPrompt?.text]);
@@ -1320,7 +1374,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
         onDelete={handleDeleteQueued}
       />
 
-      <div className={`guake-input-wrapper ${selectedAgent.status === 'working' ? 'has-stop-btn is-working' : ''} ${showCompletion ? 'is-completed' : ''}`}>
+      <div className={`guake-input-wrapper ${selectedAgent.status === 'working' ? 'has-stop-btn is-working' : ''} ${showCompletion ? 'is-completed' : ''} ${promptBubbleText ? 'has-prompt-bubble' : ''}`}>
         <div
           className={`guake-input-swipe-shell ${swipeClosePhase !== 'idle' ? 'swipe-close-active' : ''} ${swipeCloseOffset >= MOBILE_SWIPE_CLOSE_THRESHOLD_PX ? 'swipe-close-ready' : ''}`}
           onTouchStart={handleSwipeCloseTouchStart}
@@ -1328,27 +1382,48 @@ export const TerminalInputArea = memo(function TerminalInputArea({
           onTouchEnd={handleSwipeCloseTouchEnd}
           onTouchCancel={handleSwipeCloseTouchCancel}
         >
-          {/* Mobile context bar - compact context stats above input */}
-          {(() => {
-            // Same resolver as the desktop footer — one source of truth.
-            const { totalTokens, contextWindow, usedPercent } = getDisplayContextInfo(selectedAgent);
-            const freePercent = Math.round((100 - usedPercent) * 10) / 10;
-            const percentColor = usedPercent >= 80 ? '#ff4a4a' : usedPercent >= 60 ? '#ff9e4a' : usedPercent >= 40 ? '#ffd700' : '#4aff9e';
-            const usedK = (totalTokens / 1000).toFixed(1);
-            const limitK = (contextWindow / 1000).toFixed(1);
-            return (
-              <div
-                className="mobile-context-bar show-on-mobile"
-                onClick={() => store.setContextModalAgentId(selectedAgentId)}
-              >
-                <span className="mobile-context-bar-fill" style={{ width: `${Math.min(100, usedPercent)}%`, backgroundColor: percentColor }} />
-                <span className="mobile-context-bar-text">
-                  <span style={{ color: percentColor }}>{usedK}k/{limitK}k</span>
-                  <span className="mobile-context-bar-pct">({freePercent}% free)</span>
+          {/* Mobile limits bar: session context + weekly provider quota. */}
+          <div className="mobile-context-bar show-on-mobile">
+            <button
+              type="button"
+              className="mobile-limit-gauge"
+              onClick={() => store.setContextModalAgentId(selectedAgentId)}
+              title={`Session context: ${Math.round(mobileContext.usedPercent)}% used`}
+              aria-label={`Session context ${Math.round(mobileContext.usedPercent)} percent used`}
+            >
+              <span
+                className="mobile-context-bar-fill"
+                style={{ width: `${Math.min(100, mobileContext.usedPercent)}%`, backgroundColor: mobileContextColor }}
+              />
+              <span className="mobile-context-bar-text">
+                <span className="mobile-context-bar-label">Ctx</span>
+                <span className="mobile-context-bar-window">{formatTokenCapacity(mobileContext.contextWindow)}</span>
+                <span className="mobile-context-bar-value" style={{ color: mobileContextColor }}>
+                  {Math.round(mobileContext.usedPercent)}%
                 </span>
-              </div>
-            );
-          })()}
+              </span>
+            </button>
+            <button
+              type="button"
+              className="mobile-limit-gauge"
+              onClick={() => store.setContextModalAgentId(selectedAgentId)}
+              title={weeklyWindow
+                ? `Weekly usage: ${Math.round(weeklyUsedPercent!)}% used`
+                : providerUsage.error || 'Weekly usage unavailable'}
+              aria-label={`Weekly usage ${weeklyValue}`}
+            >
+              <span
+                className="mobile-context-bar-fill"
+                style={{ width: `${weeklyUsedPercent ?? 0}%`, backgroundColor: weeklyColor }}
+              />
+              <span className="mobile-context-bar-text">
+                <span className="mobile-context-bar-label">Week</span>
+                <span className="mobile-context-bar-value" style={{ color: weeklyColor }}>
+                  {weeklyValue}
+                </span>
+              </span>
+            </button>
+          </div>
           {/* Floating stop button + elapsed timer - isolated component to avoid re-rendering input area */}
           <ElapsedTimer
             agentId={selectedAgentId}

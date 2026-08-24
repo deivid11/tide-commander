@@ -49,6 +49,7 @@ vi.mock('../services/plugin-shell-command-service.js', () => {
     }
   }
   return {
+    EXECUTE_SUDO_COMMAND_ID: 'builtin-execute-sudo-command',
     pluginShellCommandService: shellCommandServiceMock,
     PluginShellCommandError,
     shellQuote: (value: string) => `'${value.replace(/'/g, `'\\''`)}'`,
@@ -283,6 +284,39 @@ describe('POST /api/exec — tail-resistant execution', () => {
         }),
       }),
     }));
+  });
+
+  it('accepts the built-in arbitrary sudo command even when managed scripts are disabled', async () => {
+    pluginManagerMock.get.mockReturnValue({ id: 'shell-commands', enabled: false });
+    shellCommandServiceMock.get.mockResolvedValue({
+      id: 'builtin-execute-sudo-command',
+      name: '/execute-sudo-command',
+      summary: 'Execute sudo command',
+      script: 'sudo "$@"',
+      runAsSudo: true,
+      pty: true,
+      enabled: true,
+    });
+    shellCommandServiceMock.prepareArgs.mockResolvedValue({
+      commandId: 'builtin-execute-sudo-command',
+      invocation: "/execute-sudo-command 'touch' '/opt/test'",
+      args: ['touch', '/opt/test'],
+      requiresSudo: true,
+      challengeId: 'challenge-builtin',
+      expiresAt: Date.now() + 600_000,
+    });
+
+    const response = await fetch(`${baseUrl}/api/exec`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        agentId: 'agent-1',
+        shellCommandId: 'builtin-execute-sudo-command',
+        shellArgs: ['touch', '/opt/test'],
+      }),
+    });
+    expect(response.status).toBe(202);
+    expect(await response.json()).toMatchObject({ awaitingUserAuthorization: true });
   });
 
   it('invokes the requesting agent with the result after user-authorized execution', async () => {

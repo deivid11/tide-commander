@@ -373,7 +373,7 @@
       --pinned-bar-clearance: calc(var(--pinned-agents-bar-height, 40px) + 8px);
     }
 
-    // Composer stack (pinned + input) — FIXED as one unit above the bottom nav.
+    // Composer stack (input + pinned) — FIXED as one unit above the bottom nav.
     // Avoids the pin pill floating over chat (old negative-margin approach).
     .guake-composer-stack {
       position: fixed !important;
@@ -389,14 +389,10 @@
       // No transform — Android WebViews break fixed positioning with containing blocks.
     }
 
-    // On mobile the pinned/recent agents bar hangs BELOW the text input.
-    // DOM order stays bar-first (desktop keeps bar-above-input); flex `order`
-    // does the swap, so the attachment/permission/queue rows the input area
-    // renders (order 0) stay above the input untouched.
+    // The pinned/recent agents bar follows the text input in DOM order. Keep a
+    // small gap on both sides while preserving any attachment/permission/queue
+    // rows that the input area renders above the composer.
     .guake-composer-stack .pinned-agents-bar {
-      order: 10;
-      // The pill's mobile margin (_input.scss: 0 8px 4px) put the gap on the
-      // side facing the input; flipped below it, the gap belongs on top.
       margin: 4px 8px;
     }
 

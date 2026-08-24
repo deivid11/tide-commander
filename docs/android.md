@@ -82,11 +82,60 @@ make apk-release
 CAP_SERVER_URL=http://192.168.1.100:5173 make apk
 ```
 
+## Push notifications (battery)
+
+There are two delivery paths for agent alerts while the app is closed. FCM is
+the one you want.
+
+| | Firebase Cloud Messaging | WebSocket foreground service (fallback) |
+|---|---|---|
+| Idle battery cost | ~0 — rides the socket Android already keeps for every app | keep-alive ping every 5 min + permanent "Connected to server" notification |
+| Works outside your LAN | Yes | No (needs to reach the server directly) |
+| Setup | Firebase project + service account | none |
+
+The app picks automatically: on boot it calls `GET /api/push/status`, and it
+only registers a device token if the server has Firebase credentials. Once the
+server accepts the token, the foreground service is stopped and stays down
+(`ServerConfigPlugin.setPushActive`). If push is unavailable or the OS denies
+the notification permission, the old WebSocket path takes over untouched.
+
+### Setup
+
+1. Create a project at [console.firebase.google.com](https://console.firebase.google.com).
+2. Add an **Android** app with package name `com.tidecommander.app`, download
+   `google-services.json` and drop it in `android/app/`. The Gradle build picks
+   it up automatically (it is git-ignored — it contains your project's ids).
+3. Project settings → **Service accounts** → *Generate new private key*. Install
+   the downloaded JSON on the server, either by pasting it in
+   **Settings → About → Push notifications**, or by saving it to
+   `~/.local/share/tide-commander/fcm-service-account.json` (override the path
+   with `TIDE_FCM_SERVICE_ACCOUNT`). It is written `0600` — anyone holding it
+   can push to every device of the project.
+4. Rebuild and install the APK (`make apk`). Open the app once so it registers
+   its token, then hit **Send test** in Settings → About.
+
+The server never needs an inbound connection from Google — it only makes
+outbound HTTPS calls to `oauth2.googleapis.com` and `fcm.googleapis.com`.
+
+### API
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/push/status` | Whether FCM is configured + registered devices (tokens are never returned in full) |
+| `POST /api/push/register` | Register/refresh a device token |
+| `POST /api/push/unregister` | Drop a token |
+| `POST /api/push/service-account` | Install the Firebase service-account JSON |
+| `DELETE /api/push/service-account` | Remove credentials (falls back to the WebSocket service) |
+| `POST /api/push/test` | Send a test push to every registered device |
+
+Dead tokens are pruned automatically when FCM reports `UNREGISTERED`, and after
+10 consecutive failures for any other reason.
+
 ## Features
 
 The Android app supports:
 - Agent management (spawn, select, send commands)
 - Real-time conversation streaming
 - Touch controls for the battlefield
-- Push notifications from agents (via Local Notifications)
+- Push notifications from agents (Firebase Cloud Messaging, with a WebSocket fallback — see below)
 - Haptic feedback

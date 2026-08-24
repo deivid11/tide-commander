@@ -42,8 +42,15 @@ describe('extractPromptPreview', () => {
     );
   });
 
-  it('skips internal rename-agent orchestration prompts', () => {
+  it('skips internal plugin orchestration and result callbacks', () => {
     expect(extractPromptPreview('[RENAME_AGENT_PROPOSALS_REQUEST]\nAnaliza tu conversación…')).toBeNull();
+    expect(extractPromptPreview(`[COMMANDER_SLASH_COMMAND_RESULT]
+Command: /deploy
+Exit code: 0
+Duration: 10 ms
+Output:
+ok
+[/COMMANDER_SLASH_COMMAND_RESULT]`)).toBeNull();
   });
 
   it('skips history command runs and interruptions', () => {

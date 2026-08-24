@@ -27,6 +27,8 @@ export type SessionExtractKind = 'user' | 'assistant' | 'tool' | 'raw';
 export interface SessionExtract {
   text: string;
   kind: SessionExtractKind;
+  /** Timestamp of the matched message, not merely the session's latest activity. */
+  timestamp?: string;
 }
 
 export interface GlobalSessionMatch {

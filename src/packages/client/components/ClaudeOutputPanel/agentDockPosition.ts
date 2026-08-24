@@ -6,7 +6,7 @@
  *
  * - `overview` — its own strip at the bottom of the agent overview panel.
  * - `composer` — no separate strip at all: the working / recently-active agents
- *   are appended to the pinned-agents row above the composer, which already
+ *   are appended to the pinned-agents row below the composer, which already
  *   shows the same avatars with the same status marks. See PinnedAgentsBar's
  *   `includeActiveAgents` (default).
  * - `hidden` — nowhere.

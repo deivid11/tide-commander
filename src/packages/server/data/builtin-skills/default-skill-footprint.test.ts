@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_AGENT_SKILL_SLUGS } from '../../../shared/types.js';
 import { agentMemory } from './agent-memory.js';
 import { agentTracking } from './agent-tracking.js';
+import { executeSlashCommands } from './execute-slash-commands.js';
 import { fullNotifications } from './full-notifications.js';
 import { reportTaskToBoss } from './report-task-to-boss.js';
 import { sendMessageToAgent } from './send-message-to-agent.js';
@@ -11,6 +12,7 @@ import { taskLabel } from './task-label.js';
 const defaultSkills = [
   fullNotifications,
   streamingExec,
+  executeSlashCommands,
   taskLabel,
   reportTaskToBoss,
   agentTracking,
@@ -23,18 +25,20 @@ describe('default skill prompt footprint', () => {
     expect(defaultSkills.map(skill => skill.slug)).toEqual(DEFAULT_AGENT_SKILL_SLUGS);
   });
 
-  it('keeps the seven pre-selected skills below the compact prompt budget', () => {
+  it('keeps the eight pre-selected skills below the compact prompt budget', () => {
     const rendered = defaultSkills
       .map(skill => `## Skill: ${skill.name}\n_${skill.description}_\n${skill.content}`)
       .join('\n---\n');
 
-    expect(rendered.length).toBeLessThan(7_000);
+    expect(rendered.length).toBeLessThan(10_500);
   });
 
   it('retains every mandatory API contract after compaction', () => {
     expect(fullNotifications.content).toContain('POST /api/notify');
     expect(sendMessageToAgent.content).toContain('POST /api/agents/AGENT_ID/message');
     expect(streamingExec.content).toContain('POST /api/exec');
+    expect(executeSlashCommands.content).toContain('GET /api/plugins/slash-commands');
+    expect(executeSlashCommands.content).toContain('/execute-sudo-command');
     expect(taskLabel.content).toContain('PATCH /api/agents/YOUR_AGENT_ID');
     expect(agentTracking.content).toContain('LAST tool call');
     expect(agentMemory.content).toContain('PATCH /api/agents/YOUR_AGENT_ID/memory');

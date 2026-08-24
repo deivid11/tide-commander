@@ -59,6 +59,16 @@ interface SudoChallenge {
   password?: Buffer;
 }
 
+export interface PendingSudoRequestSnapshot {
+  challengeId: string;
+  commandId: string;
+  agentId: string;
+  invocation: string;
+  args: string[];
+  expiresAt: number;
+  title: string;
+}
+
 export interface PreparedShellCommandExecution {
   definition: PluginShellCommandDefinition;
   invocation: string;
@@ -331,6 +341,30 @@ export class PluginShellCommandService {
       requestedByAgent,
     });
     return { commandId: id, invocation, args: [...args], requiresSudo: true, challengeId, expiresAt };
+  }
+
+  async listPendingSudoRequests(): Promise<PendingSudoRequestSnapshot[]> {
+    await this.ensureLoaded();
+    this.pruneChallenges();
+    const requests: PendingSudoRequestSnapshot[] = [];
+    for (const challenge of this.challenges.values()) {
+      if (challenge.authorized) continue;
+      try {
+        const definition = await this.get(challenge.commandId);
+        requests.push({
+          challengeId: challenge.id,
+          commandId: challenge.commandId,
+          agentId: challenge.agentId,
+          invocation: [definition.name, ...challenge.args.map((argument) => shellQuote(argument))].join(' '),
+          args: [...challenge.args],
+          expiresAt: challenge.expiresAt,
+          title: definition.summary,
+        });
+      } catch {
+        // A deleted managed command invalidates only its own stale challenge.
+      }
+    }
+    return requests;
   }
 
   async authorizeSudo(challengeId: string, password: string): Promise<void> {

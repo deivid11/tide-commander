@@ -94,7 +94,7 @@ interface ChipGroup {
 }
 
 /**
- * Quick-select strip above the terminal input: one row, each agent exactly once.
+ * Quick-select strip below the terminal input: one row, each agent exactly once.
  *
  * Your pins come first, in the order you dragged them, followed (when
  * `includeActiveAgents` is on) by the agents that are working or recently active

@@ -589,8 +589,20 @@
     "unattendedPendingRestart": "v{{version}} installed — will restart as soon as all agents are idle",
     "unattendedUnsupported": "Only available for npm global installs (runs on the server, not in dev mode)",
     "backgroundServiceTitle": "Background notifications",
-    "backgroundServiceDesc": "Keep a WebSocket alive while the app is closed so agent alerts still push through. Turning this off removes the permanent \"Connected to server\" notification.",
-    "backgroundServiceDisabledNote": "Off — you'll only see agent alerts while the app is open."
+    "backgroundServiceDesc": "Fallback for when push isn't configured: keeps a WebSocket alive while the app is closed. Costs battery — with Firebase push active it stays off automatically.",
+    "backgroundServiceDisabledNote": "Off — you'll only see agent alerts while the app is open.",
+    "pushTitle": "Push notifications (Firebase)",
+    "pushConfigured": "Active — project {{project}}, {{count}} device(s) registered. Phones receive alerts with the app closed and no background socket.",
+    "pushNotConfigured": "Not configured. Paste a Firebase service-account JSON to deliver agent alerts without the battery-hungry background service.",
+    "pushAddCredentials": "Add credentials",
+    "pushReplaceCredentials": "Replace credentials",
+    "pushCredentialsPlaceholder": "Paste the service-account JSON (Firebase console → Project settings → Service accounts → Generate new private key)",
+    "pushSaveCredentials": "Save",
+    "pushCancel": "Cancel",
+    "pushSaved": "Saved — project {{project}}",
+    "pushTest": "Send test",
+    "pushTestSent": "Test sent to {{count}} device(s)",
+    "pushTestFailed": "Test push failed — check the server log"
   },
   "updateBanner": {
     "newVersion": "New version v{{version}} available",

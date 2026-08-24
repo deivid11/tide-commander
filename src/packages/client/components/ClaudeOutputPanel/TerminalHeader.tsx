@@ -62,6 +62,7 @@ import { buildAgentContextMenuActions } from './agentContextMenuActions';
 import { ProviderIcon } from '../ProviderIcon';
 import { ActivityGlyph } from '../shared/ActivityGlyph';
 import { renameAgentRequestPreview } from '../../plugins/rename-agent/renameAgentRequest';
+import { shellCommandResultPreview } from '../../plugins/shell-commands/shellCommandResult';
 
 /**
  * Model chip in the terminal header. Turns into a warning that names the swap
@@ -255,8 +256,12 @@ export const TerminalHeader = memo(function TerminalHeader({
     selectedAgent.currentTask ||
     selectedAgent.lastAssignedTask ||
     lastPrompt?.text;
-  const lastInput = renameAgentRequestPreview(rawLastInput) || rawLastInput;
-  const displayTaskLabel = renameAgentRequestPreview(selectedAgent.taskLabel) || selectedAgent.taskLabel;
+  const lastInput = shellCommandResultPreview(rawLastInput)
+    || renameAgentRequestPreview(rawLastInput)
+    || rawLastInput;
+  const displayTaskLabel = shellCommandResultPreview(selectedAgent.taskLabel)
+    || renameAgentRequestPreview(selectedAgent.taskLabel)
+    || selectedAgent.taskLabel;
   const mobileHeaderContext = displayTaskLabel || lastInput;
 
   // Check if selected agent is a boss with subordinates

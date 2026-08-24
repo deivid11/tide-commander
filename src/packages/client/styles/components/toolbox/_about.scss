@@ -404,6 +404,30 @@
   color: var(--text-secondary);
 }
 
+// Firebase service-account paste box (push notifications setup)
+.about-push-credentials {
+  width: 100%;
+  margin: 6px 0;
+  padding: 8px;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-primary);
+  background: var(--bg-input, rgba(0, 0, 0, 0.25));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  border-radius: 4px;
+  resize: vertical;
+
+  &:focus {
+    outline: none;
+    border-color: var(--accent-color, #00d4aa);
+  }
+
+  &::placeholder {
+    color: var(--text-secondary);
+  }
+}
+
 .about-autoupdate-manualcmd {
   margin: 0;
   padding: 6px 8px;

@@ -112,7 +112,7 @@ export const STORAGE_KEYS = {
   // Agent notifications
   UNSEEN_AGENTS: 'tide-unseen-agents',
 
-  // Pinned agents (quick-select thumbnail bar above the terminal input)
+  // Pinned agents (quick-select thumbnail bar below the terminal input)
   PINNED_AGENTS: 'tide-pinned-agents',
   // View mode cycled by the bar's single button:
   // 'none' | 'status' | 'area' | 'active'

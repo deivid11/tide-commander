@@ -24,6 +24,7 @@ import { loadAreas, loadBuildings } from '../data/index.js';
 import { logger } from '../utils/index.js';
 import { setNotificationBroadcast, setExecBroadcast, setTestsBroadcast, setHttpRequestsBroadcast, setFocusAgentBroadcast, setAgentsBroadcast, setTriggerBroadcast, setBuildingsBroadcast, setSkillsBroadcast } from '../routes/index.js';
 import { getRunningTasksSnapshot } from '../routes/exec.js';
+import { pluginShellCommandService } from '../services/plugin-shell-command-service.js';
 import { validateWebSocketAuth, isAuthEnabled } from '../auth/index.js';
 import { incrementWsSent, incrementWsReceived, setWsClientsCount } from '../routes/perf.js';
 import type { HandlerContext, MessageHandler } from './handlers/types.js';
@@ -486,6 +487,37 @@ export function init(server: HttpServer | HttpsServer): WebSocketServer {
       if (execSnapshot.length > 0) {
         ws.send(JSON.stringify({ type: 'exec_tasks_snapshot', payload: { tasks: execSnapshot } }));
       }
+
+      // Sudo authorization cards are actionable state, not transient chat.
+      // Replay still-pending requests after reload/reconnect so a brief mobile
+      // disconnect can never make the password component disappear.
+      void pluginShellCommandService.listPendingSudoRequests().then((requests) => {
+        if (ws.readyState !== WebSocket.OPEN) return;
+        for (const pending of requests) {
+          ws.send(JSON.stringify({
+            type: 'plugin_output',
+            payload: {
+              agentId: pending.agentId,
+              output: {
+                pluginId: 'shell-commands',
+                rendererId: 'shell-command-sudo-request',
+                instanceId: `sudo-${pending.challengeId}`,
+                data: {
+                  kind: 'shell-command-sudo-request',
+                  commandId: pending.commandId,
+                  invocation: pending.invocation,
+                  args: pending.args,
+                  challengeId: pending.challengeId,
+                  expiresAt: pending.expiresAt,
+                },
+                title: pending.title,
+                command: pending.invocation,
+                createdAt: Date.now(),
+              },
+            },
+          }));
+        }
+      }).catch((error) => log.error('Failed to replay pending sudo requests:', error));
 
       // Agents with live background tasks (backgrounded Bash / async subagents)
       // — sent per agent so a reload doesn't lose the running-task indicators.

@@ -13,4 +13,6 @@ ext {
     androidxJunitVersion = '1.2.1'
     androidxEspressoCoreVersion = '3.6.1'
     cordovaAndroidVersion = '10.1.1'
+    // FCM SDK used by @capacitor/push-notifications (background agent alerts)
+    firebaseMessagingVersion = '25.0.1'
 }

@@ -23,6 +23,7 @@ import {
   openAgentTerminalFromNotification,
   isNativeApp,
 } from '../utils/notifications';
+import { initPushNotifications } from '../utils/push-notifications';
 import { apiUrl, authFetch } from '../utils/storage';
 import type { ToastType } from '../components/Toast';
 import type { WhatsAppMessagePayload } from '../websocket/callbacks';
@@ -78,6 +79,14 @@ export function useWebSocketConnection({
       cleanupNotificationListeners = cleanup;
     });
 
+    // Native push (Android): when the server has Firebase credentials this
+    // takes over background delivery and the battery-hungry WebSocket
+    // foreground service is stood down. No-op everywhere else.
+    let cleanupPushListeners: (() => void) | undefined;
+    void initPushNotifications().then((cleanup) => {
+      cleanupPushListeners = cleanup;
+    });
+
     // Handle app resume from background (Android)
     const handleAppResume = () => {
       console.log('[Tide] App resumed from background, reconnecting...');
@@ -95,6 +104,7 @@ export function useWebSocketConnection({
     return () => {
       window.removeEventListener('tideAppResume', handleAppResume);
       cleanupNotificationListeners?.();
+      cleanupPushListeners?.();
     };
   }, [showToast, showAgentNotification, showWhatsAppMessage]);
 

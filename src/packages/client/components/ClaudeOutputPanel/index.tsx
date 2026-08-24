@@ -439,10 +439,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   const [agentInfoOpen, setAgentInfoOpen] = useState(false);
 
   // Register terminal-local modals so global Escape can close the top-most one first.
-  // Without these, closeTopModal() in useKeyboardShortcuts would skip past the modal
-  // and close the terminal itself (since 'terminal' is also on the stack).
+  // BashModal registers itself because it is shared by Guake, Commander and Flat View.
   useModalStackRegistration('guake-image-modal', imageModal !== null, () => setImageModal(null));
-  useModalStackRegistration('guake-bash-modal', bashModal !== null, () => setBashModal(null));
   useModalStackRegistration('guake-response-modal', responseModalContent !== null, () => setResponseModalContent(null));
   useModalStackRegistration('guake-context-confirm', contextConfirm !== null, () => setContextConfirm(null));
   useModalStackRegistration('guake-agent-info', agentInfoOpen, () => setAgentInfoOpen(false));

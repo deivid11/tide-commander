@@ -13,6 +13,7 @@ import { createLogger, generateId } from '../utils/index.js';
 import type { AgentNotification, ServerMessage } from '../../shared/types.js';
 import { publishNotification } from '../integrations/whatsapp/whatsapp-notification-publisher.js';
 import type { WhatsAppNotificationEventType } from '../services/whatsapp-notification-config-service.js';
+import { sendAgentPush } from '../services/push-service.js';
 
 const log = createLogger('Notifications');
 
@@ -94,6 +95,11 @@ router.post('/', (req: Request, res: Response) => {
       `${agent.name}: ${title}`,
       message,
     ).catch((err) => log.warn(`WhatsApp publish skipped: ${err}`));
+
+    // Native push: reaches phones whose app is closed (and whose battery-hungry
+    // WebSocket foreground service is therefore off). No-op until a Firebase
+    // service account is installed — see services/push-service.ts.
+    void sendAgentPush(notification).catch((err) => log.warn(`Push delivery skipped: ${err}`));
 
     res.status(200).json({
       success: true,

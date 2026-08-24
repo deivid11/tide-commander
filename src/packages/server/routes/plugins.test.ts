@@ -204,6 +204,27 @@ describe('plugin routes', () => {
     expect(pluginManagerMock.publishOutput).toHaveBeenCalledWith('agent-1', output);
   });
 
+  it('does not republish private sudo acknowledgements that the plugin already delivered', async () => {
+    const acknowledgement = {
+      pluginId: 'execute-sudo-command',
+      rendererId: 'sudo-command-requested',
+      instanceId: 'requested-1',
+      data: {
+        kind: 'sudo-command-requested',
+        invocation: "/execute-sudo-command 'touch' '/opt/test'",
+        status: 'awaiting-user-authorization',
+      },
+    };
+    pluginManagerMock.executeCommand.mockResolvedValue(acknowledgement);
+    const response = await postJson('/api/plugins/execute-sudo-command/commands/execute-sudo-command', {
+      agentId: 'agent-1',
+      args: ['touch', '/opt/test'],
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ output: acknowledgement });
+    expect(pluginManagerMock.publishOutput).not.toHaveBeenCalled();
+  });
+
   it('returns action output and publishes plugin_output_patch data', async () => {
     const patched = { ...output, data: { kind: 'task-list', items: [{ id: 7, title: 'Still pending' }] } };
     pluginManagerMock.executeAction.mockResolvedValue(patched);

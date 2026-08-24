@@ -765,7 +765,11 @@ export class PluginManager {
       registerAction: (name, handler) => register(entry.actionHandlers, name, handler),
       emitOutput: (agentId, output) => this.publishOutput(agentId, {
         ...output,
-        pluginId: entry.manifest.id,
+        // Built-ins may deliberately reuse another built-in renderer for
+        // backward-compatible cards (execute-sudo-command reuses the existing
+        // private shell-commands authorization component). Installed plugins
+        // remain confined to their own id.
+        pluginId: entry.builtin ? output.pluginId : entry.manifest.id,
         createdAt: output.createdAt ?? Date.now(),
       }),
       emitPatch: (agentId, instanceId, data) => this.publishPatch(agentId, entry.manifest.id, instanceId, data),

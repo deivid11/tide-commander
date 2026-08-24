@@ -64,6 +64,7 @@ export type ToolName =
 export const DEFAULT_AGENT_SKILL_SLUGS = [
   'full-notifications',
   'streaming-exec',
+  'execute-slash-commands',
   'task-label',
   'report-task-to-boss',
   'agent-tracking',

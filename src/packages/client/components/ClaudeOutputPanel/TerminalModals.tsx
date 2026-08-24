@@ -25,7 +25,7 @@ import { terminalOutputToHtmlLines } from '../../utils/terminalOutputHtml';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import type { Agent } from '../../../shared/types';
 import { DEFAULT_GROK_MODEL } from '../../../shared/types';
-import { useModalClose } from '../../hooks';
+import { useModalClose, useModalStackRegistration } from '../../hooks';
 import { ModalPortal } from '../shared/ModalPortal';
 import { fetchAgentInjectedPrompt } from '../../api/agent-prompt';
 import { Icon } from '../Icon';
@@ -290,7 +290,13 @@ export interface BashModalProps {
 
 export function BashModal({ state, onClose }: BashModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
+  const modalInstanceId = React.useId();
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
+
+  // BashModal is reused by Guake, Commander and Flat View. Register here,
+  // rather than relying on each parent to remember it, so Escape always closes
+  // "Terminal Output" before collapsing/deselecting the underlying agent.
+  useModalStackRegistration(`terminal-output-modal-${modalInstanceId}`, true, onClose);
 
   const { jsonResult, displayOutput } = React.useMemo(() => {
     if (state.isLive) {

@@ -67,6 +67,25 @@ describe('scanSessionFileForQuery', () => {
     expect(result.reachedEof).toBe(true);
   });
 
+  it('attaches the matched message timestamp to its conversation extract', async () => {
+    const timestamp = '2026-08-20T15:30:00.000Z';
+    const file = writeTmpJsonl([
+      JSON.stringify({
+        type: 'user',
+        timestamp,
+        message: { content: 'the spotlight ranking needle' },
+      }),
+    ]);
+
+    const result = await scanSessionFileForQuery(file, 'ranking needle');
+
+    expect(result.extracts[0]).toEqual({
+      text: 'the spotlight ranking needle',
+      kind: 'user',
+      timestamp,
+    });
+  });
+
   it('returns zero matches without a snippet when the query is absent', async () => {
     const file = writeTmpJsonl([userLine('hello world')]);
 

@@ -19,6 +19,14 @@ For an entry with \`kind: "plugin"\`, POST its published \`endpoint\`. Include t
 {"agentId":"YOUR_AGENT_ID","rawCommand":"/tasks project-a","argsText":"project-a","args":["project-a"]}
 \`\`\`
 
+The built-in plugin command \`/execute-sudo-command\` accepts an executable and literal argv values:
+
+\`\`\`json
+{"agentId":"YOUR_AGENT_ID","args":["touch","/opt/test"]}
+\`\`\`
+
+POST it to the plugin endpoint published by the catalog. Do not prepend \`sudo\`; Commander adds elevation only after private user authorization. The HTTP response is a safe acknowledgement and never includes a password or authorization id. Tell the user Commander is waiting for authorization. After authorization, output streams normally and Commander sends a \`COMMANDER_SLASH_COMMAND_RESULT\` callback. Shell operators are not interpreted; if a pipeline is truly required, request explicit argv such as \`["sh","-c","command | other"]\` so the exact shell invocation is visible before authorization.
+
 For an entry with \`kind: "shell"\`, execute it through the streamed exec API. Arguments are a JSON array and become Bash \`$1\`, \`$2\`, etc. Never concatenate or reinterpret them yourself:
 
 \`\`\`json

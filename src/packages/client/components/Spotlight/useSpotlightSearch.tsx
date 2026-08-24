@@ -809,8 +809,8 @@ export function useSpotlightSearch({
   const sessionResults: SearchResult[] = useMemo(() => {
     if (!isOpen) return [];
 
-    const timeAgo = (iso: string): string => {
-      const diff = Date.now() - new Date(iso).getTime();
+    const timeAgo = (value: string | number): string => {
+      const diff = Date.now() - new Date(value).getTime();
       if (!Number.isFinite(diff) || diff < 0) return '';
       if (diff < 3600_000) return `${Math.max(1, Math.floor(diff / 60_000))}m`;
       if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h`;
@@ -826,7 +826,12 @@ export function useSpotlightSearch({
       const title = (row.firstPrompt || row.snippet || row.sessionId).slice(0, 90);
       const parts = [row.projectPath || row.projectDir];
       if (ownerAgent) parts.push(`→ ${ownerAgent.name}${attachedNow ? '' : ' (past session)'}`);
-      const when = timeAgo(row.lastModified);
+      const extractTimestamp = row.extracts
+        ?.map((extract) => extract.timestamp ? Date.parse(extract.timestamp) : Number.NaN)
+        .find(Number.isFinite);
+      const sessionTimestamp = Date.parse(row.lastModified);
+      const matchedMessageAt = extractTimestamp ?? (Number.isFinite(sessionTimestamp) ? sessionTimestamp : undefined);
+      const when = matchedMessageAt === undefined ? '' : timeAgo(matchedMessageAt);
       if (when) parts.push(when);
       parts.push(`${row.totalMatches}×`);
       return {
@@ -842,6 +847,7 @@ export function useSpotlightSearch({
         _agentId: ownerAgent?.id,
         _sessionMatches: row.totalMatches,
         _sessionNearbyMatches: row.nearbyMatches,
+        _matchedMessageAt: matchedMessageAt,
         // The conversation's harness — shown as a logo badge on the row.
         _provider: row.provider || 'claude',
         icon: ownerAgent
@@ -1093,6 +1099,7 @@ export function useSpotlightSearch({
         item.action = sessionHit.action;
         item._sessionMatches = sessionHit._sessionMatches;
         item._sessionNearbyMatches = sessionHit._sessionNearbyMatches;
+        item._matchedMessageAt = sessionHit._matchedMessageAt;
         // The conversation verifiably contains every query word (the server
         // counted real occurrences) — reflect that in the tiered text so the
         // content match ranks as a substring hit (tier ≥ 2), above
@@ -1117,6 +1124,7 @@ export function useSpotlightSearch({
         action: sessionHit.action,
         _sessionMatches: sessionHit._sessionMatches,
         _sessionNearbyMatches: sessionHit._sessionNearbyMatches,
+        _matchedMessageAt: sessionHit._matchedMessageAt,
         // See the enrichment above: verified content match → substring tier.
         _searchText: `${base._searchText || ''} ${sessionHit.matchedQuery || ''} ${lowerQuery}`,
       }, undefined);
@@ -1129,16 +1137,13 @@ export function useSpotlightSearch({
     for (const item of matchedFiles) pushScored(item, undefined);
     for (const item of contentResults.slice(0, CONTENT_ALL_TAB_LIMIT)) pushScored(item, undefined);
 
-    // Sort WITHIN each category. For AGENTS: relevance TIER stays the primary
-    // key (an exact/prefix name match still ranks above everything weaker);
-    // WITHIN a tier, blend HOW MUCH the agent matches with HOW RECENTLY it was
-    // used — verified conversation hits plus an activity-recency decay (24h
-    // half-life; the later of last activity and last Spotlight pick). For a
-    // multi-word query, nearby all-token mentions dominate huge raw counts from
-    // unrelated boilerplate/tool lines, matching the server's session ranking.
-    // Agents without content hits keep pure most-recent-first order (the decay
-    // is monotonic in recency). Fuse score is the final tiebreak.
-    // Non-agent categories keep the plain combined-score ordering.
+    // Sort WITHIN each category. For AGENTS: relevance TIER stays primary.
+    // For conversation hits in the same tier, the timestamp of the ACTUAL
+    // matched message is next — never the agent's generic heartbeat/activity.
+    // This prevents permanently busy agents (for example Bolba) from floating
+    // above a newer, more relevant conversation merely because they keep
+    // emitting activity. Match evidence breaks message-date ties; generic
+    // agent recency is only used when no conversation timestamp exists.
     const AGENT_RECENCY_HALF_LIFE_MS = 24 * 3600_000;
     const nowMs = Date.now();
     const agentBlend = (s: Scored): number => {
@@ -1152,7 +1157,7 @@ export function useSpotlightSearch({
         : nearbyMatches > 0
           ? 8 + Math.log2(1 + nearbyMatches) + rawEvidence * 0.1
           : rawEvidence * 0.2;
-      return conversationEvidence + 4 * decay;
+      return conversationEvidence + (s.item._matchedMessageAt === undefined ? 2 * decay : 0);
     };
     for (const [type, arr] of scoredByCategory) {
       if (type === 'agent') {
@@ -1160,6 +1165,13 @@ export function useSpotlightSearch({
           const tierA = matchTier(a.item);
           const tierB = matchTier(b.item);
           if (tierB !== tierA) return tierB - tierA;
+          const messageAtA = a.item._matchedMessageAt;
+          const messageAtB = b.item._matchedMessageAt;
+          if (messageAtA !== undefined || messageAtB !== undefined) {
+            if (messageAtA === undefined) return 1;
+            if (messageAtB === undefined) return -1;
+            if (messageAtB !== messageAtA) return messageAtB - messageAtA;
+          }
           const blendA = agentBlend(a);
           const blendB = agentBlend(b);
           if (blendB !== blendA) return blendB - blendA;

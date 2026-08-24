@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tide teal, used as the accent tint for FCM notifications. Matches the
+         iconColor in capacitor.config.ts and the channel light color. -->
+    <color name="tide_notification_accent">#00D4AA</color>
+</resources>
