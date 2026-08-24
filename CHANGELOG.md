@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.208.1] - 2026-08-24
+
+### Fixed
+- **Guake attachments survive reloads and agent switches** — `useTerminalInput` now persists `ATTACHED_FILES_PREFIX` (`guake-attached-files-`) to `storage`, restores up to 100 chips from `localStorage` with `parsePersistedAttachments` validation and keeps `loadedAgentIdsRef` per agent; `storage.ts` and `useTerminalInput` hardened.
+- **Shell sudo builtin hardened** — `plugin-shell-command-service` adds `builtin-execute-sudo-command` (`/execute-sudo-command`) with strict `sudo "$@"` wrapper and `prepareArgs` agent-flag fix.
+
 ## [1.208.0] - 2026-08-24
 
 ### Added

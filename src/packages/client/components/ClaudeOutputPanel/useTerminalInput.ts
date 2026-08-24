@@ -22,6 +22,28 @@ import type { AttachedFile } from './types';
 const EMPTY_MAP = new Map<number, string>();
 const EMPTY_FILES: AttachedFile[] = [];
 
+function parsePersistedAttachments(serialized: string): AttachedFile[] {
+  try {
+    const value: unknown = JSON.parse(serialized);
+    if (!Array.isArray(value)) return [];
+    const files = value.filter((entry): entry is AttachedFile => (
+      entry !== null
+      && typeof entry === 'object'
+      && Number.isInteger((entry as AttachedFile).id)
+      && typeof (entry as AttachedFile).name === 'string'
+      && typeof (entry as AttachedFile).path === 'string'
+      && typeof (entry as AttachedFile).isImage === 'boolean'
+      && typeof (entry as AttachedFile).size === 'number'
+      && Number.isFinite((entry as AttachedFile).size)
+    ));
+    // A composer should never need an unbounded number of restored chips, and
+    // this also limits damage from manually corrupted localStorage data.
+    return files.slice(0, 100);
+  } catch {
+    return [];
+  }
+}
+
 interface UseTerminalInputOptions {
   selectedAgentId: string | null;
 }
@@ -73,13 +95,17 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
   const agentPastedCountRef = useRef<Map<string, number>>(new Map());
   const fileCountRef = useRef(0);
   const uploadRequestsRef = useRef<Map<string, XMLHttpRequest>>(new Map());
+  const loadedAgentIdsRef = useRef<Set<string>>(new Set());
 
   // Load persisted data from localStorage when agent changes
   useEffect(() => {
     if (!selectedAgentId) return;
 
-    // Check if we already have data loaded for this agent (avoid overwriting in-memory state)
-    if (agentCommands.has(selectedAgentId)) return;
+    // Avoid overwriting in-memory edits when an agent is revisited. This is
+    // independent from command content because an agent may have attachments
+    // while its text input is intentionally empty.
+    if (loadedAgentIdsRef.current.has(selectedAgentId)) return;
+    loadedAgentIdsRef.current.add(selectedAgentId);
 
     // Load input text from storage
     const savedInput = getStorageString(`${STORAGE_KEYS.INPUT_TEXT_PREFIX}${selectedAgentId}`);
@@ -102,7 +128,20 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
         // Invalid JSON, ignore
       }
     }
-  }, [selectedAgentId, agentCommands]);
+
+    const savedAttachments = getStorageString(
+      `${STORAGE_KEYS.ATTACHED_FILES_PREFIX}${selectedAgentId}`,
+    );
+    if (savedAttachments) {
+      const restored = parsePersistedAttachments(savedAttachments);
+      if (restored.length > 0) {
+        setAgentAttachedFiles((prev) => new Map(prev).set(selectedAgentId, restored));
+        fileCountRef.current = Math.max(fileCountRef.current, ...restored.map((file) => file.id));
+      } else {
+        removeStorage(`${STORAGE_KEYS.ATTACHED_FILES_PREFIX}${selectedAgentId}`);
+      }
+    }
+  }, [selectedAgentId]);
 
   // Get current agent's values (use stable empty references to avoid defeating memo)
   const command = selectedAgentId ? agentCommands.get(selectedAgentId) || '' : '';
@@ -169,6 +208,14 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
         const currentValue = prev.get(selectedAgentId) || [];
         const newValue = typeof value === 'function' ? value(currentValue) : value;
         newMap.set(selectedAgentId, newValue);
+        if (newValue.length > 0) {
+          setStorageString(
+            `${STORAGE_KEYS.ATTACHED_FILES_PREFIX}${selectedAgentId}`,
+            JSON.stringify(newValue),
+          );
+        } else {
+          removeStorage(`${STORAGE_KEYS.ATTACHED_FILES_PREFIX}${selectedAgentId}`);
+        }
         return newMap;
       });
     },

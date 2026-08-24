@@ -16,6 +16,32 @@ const MAX_SCRIPT_BYTES = 128 * 1024;
 const CHALLENGE_TTL_MS = 10 * 60_000;
 const AUTHORIZATION_TTL_MS = 30_000;
 
+export const EXECUTE_SUDO_COMMAND_ID = 'builtin-execute-sudo-command';
+const EXECUTE_SUDO_COMMAND_SCRIPT = `set -euo pipefail
+if [ "$#" -eq 0 ]; then
+  echo "execute-sudo-command requires an executable" >&2
+  exit 64
+fi
+if [ "$1" = "sudo" ]; then
+  shift
+fi
+if [ "$#" -eq 0 ]; then
+  echo "execute-sudo-command requires an executable after sudo" >&2
+  exit 64
+fi
+sudo "$@"`;
+const EXECUTE_SUDO_COMMAND_DEFINITION: PluginShellCommandDefinition = {
+  id: EXECUTE_SUDO_COMMAND_ID,
+  name: '/execute-sudo-command',
+  summary: 'Execute an explicitly authorized command with sudo',
+  script: EXECUTE_SUDO_COMMAND_SCRIPT,
+  runAsSudo: true,
+  pty: true,
+  enabled: true,
+  createdAt: 0,
+  updatedAt: 0,
+};
+
 interface PersistedShellCommands {
   version: 1;
   commands: PluginShellCommandDefinition[];
@@ -205,6 +231,7 @@ export class PluginShellCommandService {
   }
 
   async get(id: string): Promise<PluginShellCommandDefinition> {
+    if (id === EXECUTE_SUDO_COMMAND_ID) return { ...EXECUTE_SUDO_COMMAND_DEFINITION };
     await this.ensureLoaded();
     const command = this.commands.get(id);
     if (!command) throw new PluginShellCommandError('Shell slash command not found', 404, 'SHELL_COMMAND_NOT_FOUND');
@@ -267,8 +294,13 @@ export class PluginShellCommandService {
     return this.createPreparation(id, agentId, parsePluginShellCommandArgs(argsText), false);
   }
 
-  async prepareArgs(id: string, agentId: string, args: string[]): Promise<PluginShellCommandPrepareResult> {
-    return this.createPreparation(id, agentId, args, true);
+  async prepareArgs(
+    id: string,
+    agentId: string,
+    args: string[],
+    requestedByAgent = true,
+  ): Promise<PluginShellCommandPrepareResult> {
+    return this.createPreparation(id, agentId, args, requestedByAgent);
   }
 
   private async createPreparation(

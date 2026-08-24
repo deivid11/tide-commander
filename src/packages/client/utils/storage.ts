@@ -35,6 +35,7 @@ export const STORAGE_KEYS = {
   TERMINAL_FULLSCREEN: 'guake-terminal-fullscreen',
   INPUT_TEXT_PREFIX: 'guake-input-',
   PASTED_TEXTS_PREFIX: 'guake-pasted-',
+  ATTACHED_FILES_PREFIX: 'guake-attached-files-',
 
   // Commander
   COMMANDER_TAB: 'commander-active-tab',
